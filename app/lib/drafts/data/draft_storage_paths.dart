@@ -13,7 +13,8 @@ final class DraftPathException implements Exception {
 /// Owns all path construction for one account's private draft namespace.
 final class DraftStoragePaths {
   DraftStoragePaths({required String documentsRoot, required AccountKey owner})
-    : accountRoot = p.join(
+    : documentsRoot = p.normalize(documentsRoot),
+      accountRoot = p.join(
         p.normalize(documentsRoot),
         'CraftSky',
         'drafts',
@@ -21,7 +22,22 @@ final class DraftStoragePaths {
         base64Url.encode(utf8.encode(owner.did.value)).replaceAll('=', ''),
       );
 
+  final String documentsRoot;
   final String accountRoot;
+
+  Iterable<String> protectedComponentsTo(String target) sync* {
+    final normalized = p.normalize(target);
+    if (normalized != accountRoot && !p.isWithin(accountRoot, normalized)) {
+      throw const DraftPathException();
+    }
+    var current = documentsRoot;
+    for (final component in p.split(
+      p.relative(normalized, from: documentsRoot),
+    )) {
+      current = p.join(current, component);
+      yield current;
+    }
+  }
 
   String draftDirectory(String draftId) {
     _requireUuid(draftId);

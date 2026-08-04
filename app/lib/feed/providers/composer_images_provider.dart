@@ -124,6 +124,72 @@ class ComposerImages extends _$ComposerImages {
     _startPipeline(jobs);
   }
 
+  Future<void> replaceUnavailable(String imageId) async {
+    final index = state.images.indexWhere((image) => image.id == imageId);
+    if (index < 0 || state.images[index].phase is! ImageUnavailable) return;
+
+    final XFile? file;
+    try {
+      file = await _picker.pickImage(source: ImageSource.gallery);
+    } on Object {
+      _setNotice(ImagePickerFailedNotice(id: _nextNoticeId()));
+      return;
+    }
+    if (file == null || !ref.mounted) return;
+
+    final selected = _SelectedComposerImage(
+      id: imageId,
+      file: file,
+      fileName: file.name,
+      mimeType: file.mimeType ?? _media.mimeTypeForFileName(file.name),
+    );
+    final selection = LocalImageSelection(
+      name: selected.fileName,
+      mimeType: selected.mimeType,
+    );
+    final validation = _media.validateSelection(
+      existing: [
+        for (final image in state.images)
+          if (image.id != imageId)
+            LocalImageSelection(
+              name: image.fileName,
+              mimeType: image.mimeType,
+            ),
+      ],
+      incoming: [selection],
+    );
+    if (validation.accepted.isEmpty) {
+      _handleRejectedSelections(
+        pairs: [_SelectionPair(selected, selection)],
+        rejected: validation.rejected,
+      );
+      return;
+    }
+
+    final operation = _ImageOperation();
+    _operations.remove(imageId)?.cancel();
+    _operations[imageId] = operation;
+    _updateImage(
+      imageId,
+      (image) => image.copyWith(
+        fileName: selected.fileName,
+        mimeType: selected.mimeType,
+        previewBytes: null,
+        previewAspectRatio: null,
+        phase: const ImageQueued(),
+      ),
+    );
+    _startPipeline([
+      _ComposerImagePipelineItem(
+        id: imageId,
+        file: selected.file,
+        fileName: selected.fileName,
+        mimeType: selected.mimeType,
+        operation: operation,
+      ),
+    ]);
+  }
+
   void seedScheduledImages(List<ComposerImageDraft> images) {
     if (state.images.isNotEmpty) return;
     state = state.copyWith(images: List.unmodifiable(images));

@@ -20,9 +20,7 @@ final class DraftRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final unavailable =
-        draft.availability == LocalPostDraftAvailability.unavailable &&
-        draft.revision == 0;
+    final unavailable = !draft.canEdit;
     final preview = unavailable ? l10n.draftsUnavailable : _preview(l10n);
     final firstMedia = draft.media.firstOrNull;
     final local = draft.updatedAt.toLocal();

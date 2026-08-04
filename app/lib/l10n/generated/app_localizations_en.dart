@@ -2165,4 +2165,7 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get draftCleanupError =>
       'Your post was submitted, but the local draft could not be removed. You can delete it from Drafts.';
+
+  @override
+  String get draftsReplaceImageAction => 'Replace image';
 }

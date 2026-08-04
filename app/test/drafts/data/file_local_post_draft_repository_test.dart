@@ -3,10 +3,13 @@ import 'dart:typed_data';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/drafts/data/draft_file_store.dart';
+import 'package:craftsky_app/drafts/data/draft_storage_paths.dart';
 import 'package:craftsky_app/drafts/data/file_local_post_draft_repository.dart';
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
+import 'package:craftsky_app/drafts/models/draft_manifest_codec.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as p;
 
 void main() {
   test(
@@ -158,6 +161,244 @@ void main() {
       await repository.delete(draftId);
       await repository.delete(draftId);
       expect(await repository.list(), isEmpty);
+    },
+  );
+
+  test(
+    'rejects a draft directory symlink that escapes the account root',
+    () async {
+      final root = await Directory.systemTemp.createTemp('local-drafts-link-');
+      addTearDown(() => root.delete(recursive: true));
+      final owner = AccountKey('did:plc:alice');
+      const draftId = '00000000-0000-4000-8000-000000000001';
+      final paths = DraftStoragePaths(documentsRoot: root.path, owner: owner);
+      final outside = await Directory(
+        '${root.path}${Platform.pathSeparator}outside',
+      ).create();
+      final escapedDraft = LocalPostDraft(
+        id: draftId,
+        owner: owner,
+        kind: LocalPostDraftKind.standard,
+        createdAt: DateTime.utc(2026, 8, 3),
+        updatedAt: DateTime.utc(2026, 8, 3),
+        content: const StandardDraftContent(text: 'escaped', languages: ['en']),
+        schedule: const DraftScheduleIntent.now(),
+        media: const [],
+      );
+      await File(
+        '${outside.path}${Platform.pathSeparator}manifest.json',
+      ).writeAsString(DraftManifestCodec.encode(escapedDraft));
+      await Directory(paths.accountRoot).create(recursive: true);
+      await Link(paths.draftDirectory(draftId)).create(outside.path);
+      final repository = FileLocalPostDraftRepository(
+        documentsRoot: root.path,
+        owner: owner,
+      );
+
+      await expectLater(
+        repository.get(draftId),
+        throwsA(
+          isA<DraftRepositoryException>().having(
+            (error) => error.reason,
+            'reason',
+            DraftRepositoryFailureReason.unavailable,
+          ),
+        ),
+      );
+    },
+  );
+
+  test(
+    'rejects a linked storage ancestor before reading an outside manifest',
+    () async {
+      final root = await Directory.systemTemp.createTemp(
+        'local-drafts-ancestor-link-',
+      );
+      addTearDown(() => root.delete(recursive: true));
+      final owner = AccountKey('did:plc:alice');
+      const draftId = '00000000-0000-4000-8000-000000000001';
+      final paths = DraftStoragePaths(documentsRoot: root.path, owner: owner);
+      final storageRoot = p.dirname(paths.accountRoot);
+      final outside = await Directory(
+        p.join(root.path, 'outside-v1'),
+      ).create();
+      final escapedDirectory = await Directory(
+        p.join(outside.path, p.basename(paths.accountRoot), draftId),
+      ).create(recursive: true);
+      final escapedDraft = LocalPostDraft(
+        id: draftId,
+        owner: owner,
+        kind: LocalPostDraftKind.standard,
+        createdAt: DateTime.utc(2026, 8, 3),
+        updatedAt: DateTime.utc(2026, 8, 3),
+        content: const StandardDraftContent(
+          text: 'outside private canary',
+          languages: ['en'],
+        ),
+        schedule: const DraftScheduleIntent.now(),
+        media: const [],
+      );
+      await File(
+        p.join(escapedDirectory.path, 'manifest.json'),
+      ).writeAsString(DraftManifestCodec.encode(escapedDraft));
+      await Directory(p.dirname(storageRoot)).create(recursive: true);
+      await Link(storageRoot).create(outside.path);
+      final repository = FileLocalPostDraftRepository(
+        documentsRoot: root.path,
+        owner: owner,
+      );
+
+      await expectLater(
+        repository.get(draftId),
+        throwsA(
+          isA<DraftRepositoryException>().having(
+            (error) => error.reason,
+            'reason',
+            DraftRepositoryFailureReason.unavailable,
+          ),
+        ),
+      );
+    },
+  );
+
+  test(
+    'reconciliation never follows a linked media directory',
+    () async {
+      final root = await Directory.systemTemp.createTemp(
+        'local-drafts-media-link-',
+      );
+      addTearDown(() => root.delete(recursive: true));
+      final owner = AccountKey('did:plc:alice');
+      const draftId = '00000000-0000-4000-8000-000000000001';
+      final repository = FileLocalPostDraftRepository(
+        documentsRoot: root.path,
+        owner: owner,
+      );
+      await repository.save(
+        DraftWriteRequest(
+          id: draftId,
+          owner: owner,
+          kind: LocalPostDraftKind.standard,
+          content: const StandardDraftContent(
+            text: 'work',
+            languages: ['en'],
+          ),
+          schedule: const DraftScheduleIntent.now(),
+          orderedMedia: const [],
+        ),
+      );
+      final paths = DraftStoragePaths(documentsRoot: root.path, owner: owner);
+      final mediaDirectory = Directory(paths.mediaDirectory(draftId));
+      await mediaDirectory.delete();
+      final outside = await Directory(
+        p.join(root.path, 'outside-media'),
+      ).create();
+      final canary = File(p.join(outside.path, 'outside-private-canary.bin'));
+      await canary.writeAsBytes([1, 2, 3]);
+      await Link(mediaDirectory.path).create(outside.path);
+
+      final drafts = await repository.list();
+
+      expect(drafts, hasLength(1));
+      expect(drafts.single.id, draftId);
+      // Test assertions intentionally inspect the real filesystem boundary.
+      // ignore: avoid_slow_async_io
+      expect(await canary.exists(), isTrue);
+      expect(await canary.readAsBytes(), [1, 2, 3]);
+    },
+  );
+
+  test('read and reconciliation never follow a linked media file', () async {
+    final root = await Directory.systemTemp.createTemp(
+      'local-drafts-media-file-link-',
+    );
+    addTearDown(() => root.delete(recursive: true));
+    final owner = AccountKey('did:plc:alice');
+    const draftId = '00000000-0000-4000-8000-000000000001';
+    final repository = FileLocalPostDraftRepository(
+      documentsRoot: root.path,
+      owner: owner,
+    );
+    final saved = await repository.save(
+      DraftWriteRequest(
+        id: draftId,
+        owner: owner,
+        kind: LocalPostDraftKind.standard,
+        content: const StandardDraftContent(text: 'work', languages: ['en']),
+        schedule: const DraftScheduleIntent.now(),
+        orderedMedia: [
+          PreparedDraftMedia(
+            mediaId: '00000000-0000-4000-8000-000000000002',
+            displayFileName: 'image.jpg',
+            mimeType: 'image/jpeg',
+            bytes: Uint8List.fromList([1, 2, 3]),
+            width: 1,
+            height: 1,
+            altText: '',
+          ),
+        ],
+      ),
+    );
+    final paths = DraftStoragePaths(documentsRoot: root.path, owner: owner);
+    final mediaPath = paths.mediaFilePath(
+      draftId,
+      saved.media.single.storageFileName,
+    );
+    await File(mediaPath).delete();
+    final canary = File(p.join(root.path, 'outside-media-canary.bin'));
+    await canary.writeAsBytes([9, 8, 7]);
+    await Link(mediaPath).create(canary.path);
+
+    await expectLater(
+      repository.readMedia(draftId, saved.media.single.mediaId),
+      throwsA(isA<DraftRepositoryException>()),
+    );
+    final listed = await repository.list();
+
+    expect(listed.single.availability, LocalPostDraftAvailability.unavailable);
+    expect(await canary.readAsBytes(), [9, 8, 7]);
+    // Test assertions intentionally inspect the real filesystem boundary.
+    // ignore: avoid_slow_async_io
+    expect(await Link(mediaPath).exists(), isTrue);
+  });
+
+  test(
+    'delete refuses a linked draft directory and preserves its target',
+    () async {
+      final root = await Directory.systemTemp.createTemp(
+        'local-drafts-delete-link-',
+      );
+      addTearDown(() => root.delete(recursive: true));
+      final owner = AccountKey('did:plc:alice');
+      const draftId = '00000000-0000-4000-8000-000000000001';
+      final paths = DraftStoragePaths(documentsRoot: root.path, owner: owner);
+      await Directory(paths.accountRoot).create(recursive: true);
+      final outside = await Directory(
+        p.join(root.path, 'outside-delete-target'),
+      ).create();
+      final canary = File(p.join(outside.path, 'outside-private-canary.bin'));
+      await canary.writeAsBytes([4, 5, 6]);
+      await Link(paths.draftDirectory(draftId)).create(outside.path);
+      final repository = FileLocalPostDraftRepository(
+        documentsRoot: root.path,
+        owner: owner,
+      );
+
+      await expectLater(
+        repository.delete(draftId),
+        throwsA(
+          isA<DraftRepositoryException>().having(
+            (error) => error.reason,
+            'reason',
+            DraftRepositoryFailureReason.storageUnavailable,
+          ),
+        ),
+      );
+
+      // Test assertions intentionally inspect the real filesystem boundary.
+      // ignore: avoid_slow_async_io
+      expect(await canary.exists(), isTrue);
+      expect(await canary.readAsBytes(), [4, 5, 6]);
     },
   );
 }

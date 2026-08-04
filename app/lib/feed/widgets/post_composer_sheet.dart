@@ -6,6 +6,7 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
 import 'package:craftsky_app/drafts/composer/draft_schedule_restoration.dart';
+import 'package:craftsky_app/drafts/composer/draft_submission_origin.dart';
 import 'package:craftsky_app/drafts/composer/standard_draft_snapshot_adapter.dart';
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
@@ -138,6 +139,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
   var _isSubmitting = false;
   var _isSavingDraft = false;
   var _submissionSucceeded = false;
+  late final DraftSubmissionOrigin _origin;
   List<String>? _initialLanguages;
   ScheduleChoice _initialScheduleChoice = ScheduleChoice.now;
   DateTime? _initialScheduledAtLocal;
@@ -147,15 +149,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     super.initState();
     _unsavedGuard = ref.read(unsavedWorkGuardProvider);
     _composerId = widget.composerId ?? const Uuid().v4();
-    _mediaUploader = ComposerMediaUploader(
-      upload: ({required bytes, required mimeType, required cancelToken}) => ref
-          .read(postApiClientProvider)
-          .uploadImage(
-            bytes: bytes,
-            mimeType: mimeType,
-            cancelToken: cancelToken,
-          ),
-    );
+    _origin = DraftSubmissionOrigin(widget.draftSeed?.draft);
+    _mediaUploader = ComposerMediaUploader();
     _submissionCoordinator = ComposerSubmissionCoordinator(
       screenAwake: const WakelockSubmissionScreenAwake(),
     );
@@ -266,6 +261,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
       });
     }
     final account = activeLease?.session.account;
+    if (account != null) {
+      ref.listen(draftSaveControllerProvider(account), (_, _) {});
+    }
     final scheduledCount = account == null
         ? 0
         : ref.watch(scheduledPostsProvider(account)).value?.items.length ?? 0;
@@ -351,16 +349,19 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                 style: theme.textTheme.titleLarge,
               ),
               actions: [
-                TextButton(
-                  onPressed: canSaveDraft
-                      ? () => _saveDraft(imagesState)
-                      : null,
-                  child: Text(
-                    widget.draftSeed == null
-                        ? l10n.draftSaveAction
-                        : l10n.draftSaveChangesAction,
+                if (widget.replyTarget == null &&
+                    widget.quoteTarget == null &&
+                    widget.scheduledPost == null)
+                  TextButton(
+                    onPressed: canSaveDraft
+                        ? () => _saveDraft(imagesState)
+                        : null,
+                    child: Text(
+                      widget.draftSeed == null
+                          ? l10n.draftSaveAction
+                          : l10n.draftSaveChangesAction,
+                    ),
                   ),
-                ),
                 Padding(
                   padding: EdgeInsets.only(right: spacing.sp4),
                   child: _PostAction(
@@ -499,6 +500,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                               .setAltText(imageId, value),
                           onRemove: (imageId) =>
                               ref.read(imagesProvider.notifier).remove(imageId),
+                          onReplaceUnavailable: (imageId) => ref
+                              .read(imagesProvider.notifier)
+                              .replaceUnavailable(imageId),
                           onReorder: (fromIndex, toIndex) => ref
                               .read(imagesProvider.notifier)
                               .reorder(fromIndex: fromIndex, toIndex: toIndex),
@@ -569,7 +573,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     AccountKey owner,
     ComposerImagesState imagesState,
   ) {
-    final existing = widget.draftSeed?.draft;
+    final existing = _origin.draft;
     final schedule = _scheduleChoice == ScheduleChoice.later
         ? DraftScheduleIntent.later(
             scheduledAtUtc: _scheduledAtLocal?.toUtc(),
@@ -669,8 +673,17 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     }
 
     final facets = await _facetsForSubmission(trimmedText);
+    if (!mounted) return;
+    final submissionOwner = ref
+        .read(sessionRegistryProvider)
+        .value
+        ?.activeLease;
+    final needsUpload = imagesState.images.any(
+      (image) => image.phase is ImageReady,
+    );
+    final uploadClient = needsUpload ? ref.read(postApiClientProvider) : null;
 
-    await _runSubmission(() async {
+    await _runSubmission(submissionOwner, () async {
       if (widget.scheduledPost != null &&
           _scheduleChoice == ScheduleChoice.now) {
         await _publishExistingNow(
@@ -694,9 +707,18 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
           ? await _mediaUploader.materializeImmediate(
               composerId: _composerId,
               images: imagesState.images,
+              ownershipIsCurrent: () =>
+                  _submissionOwnershipIsCurrent(submissionOwner),
+              upload:
+                  ({required bytes, required mimeType, required cancelToken}) =>
+                      uploadClient!.uploadImage(
+                        bytes: bytes,
+                        mimeType: mimeType,
+                        cancelToken: cancelToken,
+                      ),
             )
           : null;
-      await ref
+      final created = await ref
           .read(createPostProvider.notifier)
           .create(
             text: trimmedText,
@@ -705,12 +727,16 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
             quote: _quoteFor(widget.quoteTarget),
             images: images,
             facets: facets.isEmpty ? null : facets,
+            ownership: submissionOwner,
           );
-      _submissionSucceeded = ref.read(createPostProvider).value != null;
+      _submissionSucceeded = created != null;
     });
   }
 
-  Future<void> _runSubmission(Future<void> Function() operation) async {
+  Future<void> _runSubmission(
+    ActiveAccountLease? submissionOwner,
+    Future<void> Function() operation,
+  ) async {
     if (_submissionCoordinator.isRunning) return;
     _submissionSucceeded = false;
     await _submissionCoordinator.run(
@@ -718,6 +744,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
         await WidgetsBinding.instance.endOfFrame;
         if (!mounted) throw StateError('composer disposed');
       },
+      ownershipIsCurrent: () => _submissionOwnershipIsCurrent(submissionOwner),
       saveOriginSnapshot: _saveOriginSnapshot,
       operation: operation,
       didSucceed: () => _submissionSucceeded,
@@ -733,8 +760,12 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     );
   }
 
+  bool _submissionOwnershipIsCurrent(ActiveAccountLease? owner) =>
+      owner == null ||
+      (ref.read(sessionRegistryProvider).value?.isCurrent(owner) ?? false);
+
   Future<void> _saveOriginSnapshot() async {
-    final origin = widget.draftSeed?.draft;
+    final origin = _origin.draft;
     if (origin == null) return;
     final active = ref.read(sessionRegistryProvider).value?.activeLease;
     if (active == null ||
@@ -751,10 +782,11 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
           ),
         );
     if (saved == null) throw StateError('local-draft account changed');
+    _origin.acceptSnapshot(saved);
   }
 
   Future<void> _deleteOriginDraftAfterSuccess() async {
-    final origin = widget.draftSeed?.draft;
+    final origin = _origin.draft;
     if (origin == null) return;
     try {
       final repository = await ref.read(

@@ -13,6 +13,7 @@ void main() {
 
       await coordinator.run(
         presentOverlay: () async => events.add('present'),
+        ownershipIsCurrent: () => true,
         saveOriginSnapshot: () async => events.add('snapshot'),
         operation: () async => events.add('operation'),
         didSucceed: () => true,
@@ -45,6 +46,7 @@ void main() {
 
       await coordinator.run(
         presentOverlay: () async => events.add('present'),
+        ownershipIsCurrent: () => true,
         saveOriginSnapshot: () async => events.add('snapshot'),
         operation: () async => throw StateError('safe fake failure'),
         didSucceed: () => false,
@@ -64,6 +66,34 @@ void main() {
         'running:false',
       ]);
       expect(coordinator.isRunning, isFalse);
+    },
+  );
+
+  test(
+    'stops before submission work when captured ownership is stale',
+    () async {
+      final events = <String>[];
+      var ownershipIsCurrent = true;
+      final coordinator = ComposerSubmissionCoordinator(
+        screenAwake: _RecordingScreenAwake(events),
+      );
+
+      await coordinator.run(
+        presentOverlay: () async {
+          events.add('present');
+          ownershipIsCurrent = false;
+        },
+        ownershipIsCurrent: () => ownershipIsCurrent,
+        saveOriginSnapshot: () async => events.add('snapshot'),
+        operation: () async => events.add('operation'),
+        didSucceed: () => false,
+        deleteOriginAfterSuccess: () async => events.add('delete'),
+        onRunningChanged: ({required running}) =>
+            events.add('running:$running'),
+        onFailure: (_) => events.add('failure'),
+      );
+
+      expect(events, ['running:true', 'present', 'failure', 'running:false']);
     },
   );
 }

@@ -155,6 +155,9 @@ final class _FailingReplaceFileStore implements DraftFileStore {
   Future<Uint8List> readBytes(String path) => _delegate.readBytes(path);
 
   @override
+  Future<bool> isSymbolicLink(String path) => _delegate.isSymbolicLink(path);
+
+  @override
   Future<void> writeBytesFlushed(String path, Uint8List bytes) =>
       _delegate.writeBytesFlushed(path, bytes);
 }

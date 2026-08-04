@@ -6,6 +6,7 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
 import 'package:craftsky_app/drafts/composer/draft_schedule_restoration.dart';
+import 'package:craftsky_app/drafts/composer/draft_submission_origin.dart';
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/drafts/providers/draft_save_controller.dart';
@@ -201,6 +202,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   bool _isSubmitting = false;
   bool _isSavingDraft = false;
   bool _submissionSucceeded = false;
+  late final DraftSubmissionOrigin _origin;
   String _initialBodyText = '';
   List<String>? _initialLanguages;
   ScheduleChoice _initialScheduleChoice = ScheduleChoice.now;
@@ -209,6 +211,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   @override
   void initState() {
     super.initState();
+    _origin = DraftSubmissionOrigin(widget.draftSeed?.draft);
     _scheduledOwner = widget.scheduledOwner;
     final draftContent = widget.draftSeed?.draft.content;
     final project = widget.scheduledPost?.payload['project'];
@@ -246,15 +249,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
             as String?;
     _unsavedGuard = ref.read(unsavedWorkGuardProvider);
     _composerId = widget.composerId ?? const Uuid().v4();
-    _mediaUploader = ComposerMediaUploader(
-      upload: ({required bytes, required mimeType, required cancelToken}) => ref
-          .read(postApiClientProvider)
-          .uploadImage(
-            bytes: bytes,
-            mimeType: mimeType,
-            cancelToken: cancelToken,
-          ),
-    );
+    _mediaUploader = ComposerMediaUploader();
     _submissionCoordinator = ComposerSubmissionCoordinator(
       screenAwake: const WakelockSubmissionScreenAwake(),
     );
@@ -356,6 +351,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       });
     }
     final account = activeLease?.session.account;
+    if (account != null) {
+      ref.listen(draftSaveControllerProvider(account), (_, _) {});
+    }
     final scheduledCount = account == null
         ? 0
         : ref.watch(scheduledPostsProvider(account)).value?.items.length ?? 0;
@@ -496,16 +494,17 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                   style: theme.textTheme.titleLarge,
                 ),
                 actions: [
-                  TextButton(
-                    onPressed: canSaveDraft
-                        ? () => _saveProjectDraft(imagesState)
-                        : null,
-                    child: Text(
-                      widget.draftSeed == null
-                          ? l10n.draftSaveAction
-                          : l10n.draftSaveChangesAction,
+                  if (widget.scheduledPost == null)
+                    TextButton(
+                      onPressed: canSaveDraft
+                          ? () => _saveProjectDraft(imagesState)
+                          : null,
+                      child: Text(
+                        widget.draftSeed == null
+                            ? l10n.draftSaveAction
+                            : l10n.draftSaveChangesAction,
+                      ),
                     ),
-                  ),
                   Padding(
                     padding: EdgeInsets.only(right: spacing.sp4),
                     child: TextButton(
@@ -592,6 +591,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                                 onRemoveImage: (imageId) => ref
                                     .read(imagesProvider.notifier)
                                     .remove(imageId),
+                                onReplaceUnavailable: (imageId) => ref
+                                    .read(imagesProvider.notifier)
+                                    .replaceUnavailable(imageId),
                                 onReorderImages: (fromIndex, toIndex) => ref
                                     .read(imagesProvider.notifier)
                                     .reorder(
@@ -778,7 +780,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     AccountKey owner,
     ComposerImagesState imagesState,
   ) {
-    final existing = widget.draftSeed?.draft;
+    final existing = _origin.draft;
     final schedule = _scheduleChoice == ScheduleChoice.later
         ? DraftScheduleIntent.later(
             scheduledAtUtc: _scheduledAtLocal?.toUtc(),
@@ -901,6 +903,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     required Future<void> Function()? onAddImages,
     required void Function(String imageId, String value) onAltTextChanged,
     required ValueChanged<String> onRemoveImage,
+    required Future<void> Function(String imageId) onReplaceUnavailable,
     required void Function(int fromIndex, int toIndex) onReorderImages,
   }) {
     final showPatternDetails = _hasMeaningfulPatternName(_patternNameText);
@@ -930,6 +933,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
             onAddImages: onAddImages,
             onAltTextChanged: onAltTextChanged,
             onRemove: onRemoveImage,
+            onReplaceUnavailable: onReplaceUnavailable,
             onReorder: onReorderImages,
           ),
         SizedBox(height: spacing.sp6),
@@ -1622,8 +1626,17 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       existingProject: _existingScheduledProject(),
       materializeImagesFromState: false,
     );
+    if (!mounted) return;
+    final submissionOwner = ref
+        .read(sessionRegistryProvider)
+        .value
+        ?.activeLease;
+    final needsUpload = imagesState.images.any(
+      (image) => image.phase is ImageReady,
+    );
+    final uploadClient = needsUpload ? ref.read(postApiClientProvider) : null;
 
-    await _runSubmission(() async {
+    await _runSubmission(submissionOwner, () async {
       if (widget.scheduledPost != null &&
           _scheduleChoice == ScheduleChoice.now) {
         await _publishExistingProjectNow(args);
@@ -1638,8 +1651,16 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       final images = await _mediaUploader.materializeImmediate(
         composerId: _composerId,
         images: imagesState.images,
+        ownershipIsCurrent: () =>
+            _submissionOwnershipIsCurrent(submissionOwner),
+        upload: ({required bytes, required mimeType, required cancelToken}) =>
+            uploadClient!.uploadImage(
+              bytes: bytes,
+              mimeType: mimeType,
+              cancelToken: cancelToken,
+            ),
       );
-      await ref
+      final created = await ref
           .read(createPostProvider.notifier)
           .create(
             text: args.text,
@@ -1648,12 +1669,16 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
             project: args.project,
             images: images,
             facets: args.facets,
+            ownership: submissionOwner,
           );
-      _submissionSucceeded = ref.read(createPostProvider).value != null;
+      _submissionSucceeded = created != null;
     });
   }
 
-  Future<void> _runSubmission(Future<void> Function() operation) async {
+  Future<void> _runSubmission(
+    ActiveAccountLease? submissionOwner,
+    Future<void> Function() operation,
+  ) async {
     if (_submissionCoordinator.isRunning) return;
     _submissionSucceeded = false;
     await _submissionCoordinator.run(
@@ -1661,6 +1686,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
         await WidgetsBinding.instance.endOfFrame;
         if (!mounted) throw StateError('composer disposed');
       },
+      ownershipIsCurrent: () => _submissionOwnershipIsCurrent(submissionOwner),
       saveOriginSnapshot: _saveOriginSnapshot,
       operation: operation,
       didSucceed: () => _submissionSucceeded,
@@ -1676,8 +1702,12 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     );
   }
 
+  bool _submissionOwnershipIsCurrent(ActiveAccountLease? owner) =>
+      owner == null ||
+      (ref.read(sessionRegistryProvider).value?.isCurrent(owner) ?? false);
+
   Future<void> _saveOriginSnapshot() async {
-    final origin = widget.draftSeed?.draft;
+    final origin = _origin.draft;
     if (origin == null) return;
     final active = ref.read(sessionRegistryProvider).value?.activeLease;
     if (active == null ||
@@ -1695,10 +1725,11 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
           ),
         );
     if (saved == null) throw StateError('local-draft account changed');
+    _origin.acceptSnapshot(saved);
   }
 
   Future<void> _deleteOriginDraftAfterSuccess() async {
-    final origin = widget.draftSeed?.draft;
+    final origin = _origin.draft;
     if (origin == null) return;
     try {
       final repository = await ref.read(

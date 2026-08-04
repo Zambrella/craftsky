@@ -82,7 +82,13 @@ final class ScheduledPostApiClient {
       '/v1/scheduled-post-media/$id',
       data: bytes,
       cancelToken: cancelToken,
-      options: Options(contentType: mimeType),
+      // Scheduled media staging has its own one-minute transfer budget and
+      // cancels through [cancelToken]. The shared response timeout is shorter
+      // and must not win that race for large media.
+      options: Options(
+        contentType: mimeType,
+        receiveTimeout: Duration.zero,
+      ),
     );
   });
 

@@ -22,7 +22,13 @@ class BlobApiClient {
       cancelToken: cancelToken,
       onSendProgress: onSendProgress,
       onReceiveProgress: onReceiveProgress,
-      options: Options(contentType: mimeType),
+      // The composer owns the complete per-image transfer budget and cancels
+      // through [cancelToken]. Do not let the shared 15-second response
+      // timeout end a valid large upload before that budget expires.
+      options: Options(
+        contentType: mimeType,
+        receiveTimeout: Duration.zero,
+      ),
     );
     return UploadedImageBlob.fromMap(res.data!);
   });

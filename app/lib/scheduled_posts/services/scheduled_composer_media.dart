@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:craftsky_app/feed/composer/prepared_media_validation.dart';
 import 'package:craftsky_app/feed/media/composer_image_media_service.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
@@ -90,6 +91,14 @@ Future<List<Map<String, dynamic>>> materializeScheduledComposerMedia(
               mimeType: draft.mimeType,
             )
             .future;
+        verifyPreparedMediaBytes(
+          bytes: prepared.bytes,
+          mimeType: prepared.mimeType,
+          width: prepared.width,
+          height: prepared.height,
+          altText: draft.altText,
+          mediaService: mediaService,
+        );
         await _stageWithBudget(
           stageMedia,
           id: draft.id,
@@ -109,7 +118,17 @@ Future<List<Map<String, dynamic>>> materializeScheduledComposerMedia(
         :final mimeType,
         :final width,
         :final height,
+        :final sha256,
       ):
+        verifyPreparedMediaBytes(
+          bytes: bytes,
+          mimeType: mimeType,
+          width: width,
+          height: height,
+          altText: draft.altText,
+          mediaService: mediaService,
+          expectedSha256: sha256,
+        );
         await _stageWithBudget(
           stageMedia,
           id: draft.id,

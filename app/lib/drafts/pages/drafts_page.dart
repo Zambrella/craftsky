@@ -87,7 +87,7 @@ final class DraftsPage extends ConsumerWidget {
     AsyncValue<LocalPostDraftRepository> repository,
     LocalPostDraft draft,
   ) async {
-    if (draft.availability == LocalPostDraftAvailability.unavailable) return;
+    if (!draft.canEdit) return;
     if (!repository.hasValue || !_isActiveLeaseCurrent(ref, activeLease)) {
       return;
     }

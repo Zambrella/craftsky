@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:craftsky_app/feed/composer/prepared_media_validation.dart';
+import 'package:craftsky_app/feed/media/composer_image_media_service.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
@@ -14,22 +16,25 @@ typedef PreparedImageUpload =
 
 final class ComposerMediaUploader {
   ComposerMediaUploader({
-    required this._upload,
     this.transferBudget = const Duration(minutes: 1),
+    this.mediaService = const ComposerImageMediaService(),
   });
 
-  final PreparedImageUpload _upload;
   final Duration transferBudget;
+  final ComposerImageMediaService mediaService;
   final Map<_UploadKey, UploadedImageBlob> _successfulUploads = {};
 
   Future<List<CreatePostImage>?> materializeImmediate({
     required String composerId,
     required List<ComposerImageDraft> images,
+    required bool Function() ownershipIsCurrent,
+    required PreparedImageUpload upload,
   }) async {
     if (images.isEmpty) return null;
     final currentKeys = <_UploadKey>{};
     final materialized = <CreatePostImage>[];
     for (final image in images) {
+      _requireCurrentOwnership(ownershipIsCurrent);
       final phase = image.phase;
       if (phase case ImageUploaded(:final uploaded)) {
         materialized.add(
@@ -48,17 +53,26 @@ final class ComposerMediaUploader {
       if (phase is! ImageReady) {
         throw StateError('composer image is not ready');
       }
+      final verifiedDigest = verifyPreparedMediaBytes(
+        bytes: phase.bytes,
+        mimeType: phase.mimeType,
+        width: phase.width,
+        height: phase.height,
+        altText: image.altText,
+        mediaService: mediaService,
+        expectedSha256: phase.sha256,
+      );
       final key = (
         composerId: composerId,
         mediaId: image.id,
-        digest: phase.sha256,
+        digest: verifiedDigest,
       );
       currentKeys.add(key);
       var uploaded = _successfulUploads[key];
       if (uploaded == null) {
         final cancelToken = CancelToken();
         uploaded =
-            await _upload(
+            await upload(
               bytes: phase.bytes,
               mimeType: phase.mimeType,
               cancelToken: cancelToken,
@@ -72,6 +86,7 @@ final class ComposerMediaUploader {
                 );
               },
             );
+        _requireCurrentOwnership(ownershipIsCurrent);
         _successfulUploads[key] = uploaded;
       }
       materialized.add(
@@ -101,3 +116,7 @@ final class ComposerMediaUploader {
 }
 
 typedef _UploadKey = ({String composerId, String mediaId, String digest});
+
+void _requireCurrentOwnership(bool Function() ownershipIsCurrent) {
+  if (!ownershipIsCurrent()) throw StateError('submission ownership changed');
+}

@@ -84,6 +84,74 @@ void main() {
     expect(state.canSubmitImages(), isFalse);
     expect(state.canSaveDraftMedia(), isFalse);
   });
+
+  test(
+    'replaces unavailable draft media in place and preserves alt text',
+    () async {
+      const missing = DraftMediaDescriptor(
+        mediaId: '00000000-0000-4000-8000-000000000003',
+        storageRevision: '00000000-0000-4000-8000-000000000013',
+        storageFileName: 'missing.png',
+        displayFileName: 'missing.png',
+        mimeType: 'image/png',
+        byteLength: 3,
+        sha256:
+            '039058c6f2c0cb492c533b0a4d14ef77'
+            'cc0f78abccced5287d84a1a2011cfb81',
+        width: 1,
+        height: 1,
+        altText: 'Preserved description',
+        order: 0,
+        availability: DraftMediaAvailability.unavailable,
+      );
+      final draft = LocalPostDraft(
+        id: '00000000-0000-4000-8000-000000000001',
+        owner: AccountKey('did:plc:alice'),
+        kind: LocalPostDraftKind.standard,
+        createdAt: DateTime.utc(2026),
+        updatedAt: DateTime.utc(2026),
+        content: const StandardDraftContent(text: '', languages: ['en']),
+        schedule: const DraftScheduleIntent.now(),
+        media: const [missing],
+      );
+      final picker = _FakeImagePicker(
+        () async => const [],
+        pickSingle: () async => XFile.fromData(
+          _pngBytes(width: 2, height: 1),
+          name: 'replacement.png',
+          mimeType: 'image/png',
+        ),
+      );
+      final container = _containerWithPicker(picker);
+      addTearDown(container.dispose);
+      final sub = _listenComposer(container);
+      addTearDown(sub.close);
+      final notifier =
+          container.read(composerImagesProvider('composer').notifier)
+            ..seedLocalDraft(
+              LocalPostDraftSeed(
+                draft: draft,
+                media: const [
+                  HydratedDraftMedia(descriptor: missing, bytes: null),
+                ],
+              ),
+            );
+
+      await notifier.replaceUnavailable(missing.mediaId);
+      final state = await _waitForState(
+        container,
+        (state) => state.images.single.phase is ImageReady,
+      );
+
+      expect(state.images, hasLength(1));
+      expect(state.images.single.id, missing.mediaId);
+      expect(state.images.single.altText, 'Preserved description');
+      final ready = state.images.single.phase as ImageReady;
+      expect(ready.width, 2);
+      expect(ready.height, 1);
+      expect(ready.storedOrigin, isNull);
+    },
+  );
   group('ComposerImages', () {
     test('surfaces picker failures without changing the draft', () async {
       final container = _containerWithPicker(
@@ -386,9 +454,10 @@ Future<ComposerImagesState> _waitForState(
 }
 
 class _FakeImagePicker extends ImagePicker {
-  _FakeImagePicker(this._pick);
+  _FakeImagePicker(this._pick, {this.pickSingle});
 
   final Future<List<XFile>> Function() _pick;
+  final Future<XFile?> Function()? pickSingle;
   int pickCount = 0;
 
   @override
@@ -402,11 +471,22 @@ class _FakeImagePicker extends ImagePicker {
     pickCount += 1;
     return _pick();
   }
+
+  @override
+  Future<XFile?> pickImage({
+    required ImageSource source,
+    double? maxWidth,
+    double? maxHeight,
+    int? imageQuality,
+    CameraDevice preferredCameraDevice = CameraDevice.rear,
+    bool requestFullMetadata = true,
+  }) => pickSingle?.call() ?? Future<XFile?>.value();
 }
 
 class _FakePostApiClient extends PostApiClient {
   _FakePostApiClient()
-    : _uploadHandler = null, super(Dio(BaseOptions(baseUrl: 'https://example.com')));
+    : _uploadHandler = null,
+      super(Dio(BaseOptions(baseUrl: 'https://example.com')));
 
   final Future<UploadedImageBlob> Function({
     required List<int> bytes,

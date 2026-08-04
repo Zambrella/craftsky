@@ -1879,5 +1879,8 @@
   "@draftDiscardChangesAction": { "description": "Action closing without overwriting an existing draft." },
 
   "draftCleanupError": "Your post was submitted, but the local draft could not be removed. You can delete it from Drafts.",
-  "@draftCleanupError": { "description": "Safe warning after remote success and local draft cleanup failure." }
+  "@draftCleanupError": { "description": "Safe warning after remote success and local draft cleanup failure." },
+
+  "draftsReplaceImageAction": "Replace image",
+  "@draftsReplaceImageAction": { "description": "Action replacing unavailable media in an editable local draft." }
 }

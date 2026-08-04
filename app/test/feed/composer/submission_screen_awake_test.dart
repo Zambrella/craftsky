@@ -32,6 +32,47 @@ void main() {
     await run;
     expect(awake.events, ['enable', 'disable']);
   });
+
+  test(
+    'disable failure preserves the terminal result and allows retry',
+    () async {
+      final awake = _FailFirstDisableScreenAwake();
+      final lifecycle = ComposerSubmissionLifecycle(awake);
+
+      expect(await lifecycle.run(() async => 'published'), 'published');
+      expect(lifecycle.isRunning, isFalse);
+
+      expect(await lifecycle.run(() async => 'retried'), 'retried');
+      expect(lifecycle.isRunning, isFalse);
+      expect(awake.events, ['enable', 'disable', 'enable', 'disable']);
+    },
+  );
+
+  test(
+    'disable failure preserves the operation error and disposal retries',
+    () async {
+      final awake = _FailFirstDisableScreenAwake();
+      final lifecycle = ComposerSubmissionLifecycle(awake);
+
+      await expectLater(
+        lifecycle.run<void>(
+          () async => throw StateError('safe fake operation failure'),
+        ),
+        throwsA(
+          isA<StateError>().having(
+            (error) => error.message,
+            'message',
+            'safe fake operation failure',
+          ),
+        ),
+      );
+      expect(lifecycle.isRunning, isFalse);
+      expect(awake.events, ['enable', 'disable']);
+
+      await lifecycle.dispose();
+      expect(awake.events, ['enable', 'disable', 'disable']);
+    },
+  );
 }
 
 final class _RecordingScreenAwake implements SubmissionScreenAwake {
@@ -42,4 +83,19 @@ final class _RecordingScreenAwake implements SubmissionScreenAwake {
 
   @override
   Future<void> disable() async => events.add('disable');
+}
+
+final class _FailFirstDisableScreenAwake implements SubmissionScreenAwake {
+  final events = <String>[];
+  var _disableCalls = 0;
+
+  @override
+  Future<void> enable() async => events.add('enable');
+
+  @override
+  Future<void> disable() async {
+    events.add('disable');
+    _disableCalls += 1;
+    if (_disableCalls == 1) throw StateError('safe fake disable failure');
+  }
 }

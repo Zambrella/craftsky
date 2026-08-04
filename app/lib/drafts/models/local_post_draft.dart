@@ -97,6 +97,10 @@ final class LocalPostDraft {
   final LocalPostDraftAvailability availability;
   final int revision;
 
+  /// Whether the manifest parsed successfully enough to reopen the composer.
+  /// Individual unavailable media can still be replaced after opening.
+  bool get canEdit => revision > 0;
+
   LocalPostDraft withStorageState({
     required LocalPostDraftAvailability availability,
     required List<DraftMediaDescriptor> media,

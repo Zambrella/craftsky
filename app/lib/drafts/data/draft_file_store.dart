@@ -19,6 +19,8 @@ abstract interface class DraftFileStore {
 
   Future<bool> directoryExists(String path);
 
+  Future<bool> isSymbolicLink(String path);
+
   Future<Uint8List> readBytes(String path);
 
   Future<void> writeBytesFlushed(String path, Uint8List bytes);
@@ -58,6 +60,16 @@ final class IoDraftFileStore implements DraftFileStore {
     // Async filesystem access is intentional to keep draft I/O off the UI path.
     // ignore: avoid_slow_async_io
     () => Directory(path).exists(),
+  );
+
+  @override
+  Future<bool> isSymbolicLink(String path) => _guard(
+    () async {
+      // Async filesystem access is intentional to keep draft I/O off the UI path.
+      // ignore: avoid_slow_async_io
+      final type = await FileSystemEntity.type(path, followLinks: false);
+      return type == FileSystemEntityType.link;
+    },
   );
 
   @override

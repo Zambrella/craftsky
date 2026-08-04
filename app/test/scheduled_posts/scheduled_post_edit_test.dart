@@ -25,6 +25,7 @@ import 'package:craftsky_app/shared/rich_text/facet_generator.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -48,7 +49,7 @@ void main() {
           mimeType: 'image/jpeg',
           width: 2,
           height: 3,
-          sha256: 'digest',
+          sha256: sha256.convert([1, 2, 3]).toString(),
         ),
       );
 
@@ -72,6 +73,42 @@ void main() {
       expect(capturedToken?.isCancelled, isTrue);
     },
   );
+
+  test('rejects ready bytes mutated after local preparation', () async {
+    var stageCalls = 0;
+    final bytes = _pngBytes(width: 2, height: 1);
+    final image = ComposerImageDraft(
+      id: 'new-ready',
+      fileName: 'detail.png',
+      mimeType: 'image/png',
+      altText: '',
+      phase: ImageReady(
+        bytes: bytes,
+        mimeType: 'image/png',
+        width: 2,
+        height: 1,
+        sha256: sha256.convert(bytes).toString(),
+      ),
+    );
+    bytes[0] ^= 0xff;
+
+    await expectLater(
+      materializeScheduledComposerMedia(
+        [image],
+        stageMedia:
+            ({
+              required id,
+              required bytes,
+              required mimeType,
+              cancelToken,
+            }) async {
+              stageCalls += 1;
+            },
+      ),
+      throwsStateError,
+    );
+    expect(stageCalls, 0);
+  });
 
   test(
     'AT-007 preserves the final edited media set and stages only new media',
@@ -575,6 +612,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('Save draft'), findsNothing);
     expect(find.byKey(const Key('composer-alt-old-1')), findsOneWidget);
     expect(
       find.byKey(const Key('project-composer-pattern-designer-editor')),

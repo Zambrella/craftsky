@@ -3914,6 +3914,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Your post was submitted, but the local draft could not be removed. You can delete it from Drafts.'**
   String get draftCleanupError;
+
+  /// Action replacing unavailable media in an editable local draft.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace image'**
+  String get draftsReplaceImageAction;
 }
 
 class _AppLocalizationsDelegate

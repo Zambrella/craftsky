@@ -37,4 +37,16 @@ void main() {
     expect(failure, isA<DraftFileStoreException>());
     expect(failure.toString(), isNot(contains(canaryPath)));
   });
+
+  test('detects symbolic links without following them', () async {
+    final root = await Directory.systemTemp.createTemp('draft-file-link-');
+    addTearDown(() => root.delete(recursive: true));
+    final target = await Directory(p.join(root.path, 'target')).create();
+    final link = Link(p.join(root.path, 'link'));
+    await link.create(target.path);
+    final store = IoDraftFileStore();
+
+    expect(await store.isSymbolicLink(link.path), isTrue);
+    expect(await store.isSymbolicLink(target.path), isFalse);
+  });
 }

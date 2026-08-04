@@ -45,8 +45,11 @@ final class ComposerSubmissionLifecycle {
       }
       return await operation();
     } finally {
-      await _release();
-      _running = false;
+      try {
+        await _release();
+      } finally {
+        _running = false;
+      }
     }
   }
 
@@ -57,7 +60,11 @@ final class ComposerSubmissionLifecycle {
 
   Future<void> _release() async {
     if (!_enabled) return;
-    _enabled = false;
-    await _screenAwake.disable();
+    try {
+      await _screenAwake.disable();
+      _enabled = false;
+    } on Object {
+      // Best effort: retain ownership so a later run/dispose can retry release.
+    }
   }
 }

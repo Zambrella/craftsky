@@ -41,6 +41,14 @@ final class FileLocalPostDraftRepository implements LocalPostDraftRepository {
   Future<LocalPostDraft> _saveLocked(DraftWriteRequest request) async {
     _validateRequest(request);
     final manifestPath = _paths.manifestPath(request.id);
+    final draftDirectory = _paths.draftDirectory(request.id);
+    final mediaDirectory = _paths.mediaDirectory(request.id);
+    await _rejectSymbolicLinks([
+      _paths.accountRoot,
+      draftDirectory,
+      mediaDirectory,
+      manifestPath,
+    ]);
     final current = await _readExisting(manifestPath);
     if (current == null && request.expectedRevision != null ||
         current != null && request.expectedRevision != current.revision) {
@@ -55,20 +63,21 @@ final class FileLocalPostDraftRepository implements LocalPostDraftRepository {
       orderedMedia: request.orderedMedia,
       nextStorageRevision: _nextId,
     );
-    final draftDirectory = _paths.draftDirectory(request.id);
-    final mediaDirectory = _paths.mediaDirectory(request.id);
     final pendingPath = _paths.pendingManifestPath(request.id, operationId);
+    await _rejectSymbolicLinks([pendingPath]);
     final newlyWritten = <String>[];
     var manifestSwitched = false;
 
     try {
       await _files.ensureDirectory(draftDirectory);
       await _files.ensureDirectory(mediaDirectory);
+      await _rejectSymbolicLinks([draftDirectory, mediaDirectory]);
       for (final write in plan.mediaWrites) {
         final target = _paths.mediaFilePath(
           request.id,
           write.descriptor.storageFileName,
         );
+        await _rejectSymbolicLinks([target]);
         await _files.writeBytesFlushed(target, write.bytes);
         newlyWritten.add(target);
         final verified = await _files.readBytes(target);
@@ -97,6 +106,7 @@ final class FileLocalPostDraftRepository implements LocalPostDraftRepository {
         pendingPath,
         Uint8List.fromList(utf8.encode(DraftManifestCodec.encode(next))),
       );
+      await _rejectSymbolicLinks([pendingPath, manifestPath]);
       await _files.atomicReplace(
         sourcePath: pendingPath,
         targetPath: manifestPath,
@@ -106,7 +116,7 @@ final class FileLocalPostDraftRepository implements LocalPostDraftRepository {
       for (final fileName in plan.cleanupFileNames) {
         try {
           await _files.deleteFile(
-            _paths.mediaFilePath(request.id, fileName),
+            await _verifiedMediaPath(request.id, fileName),
           );
         } on Object {
           // The committed manifest is authoritative; reconciliation retries.
@@ -123,12 +133,14 @@ final class FileLocalPostDraftRepository implements LocalPostDraftRepository {
       if (!manifestSwitched) {
         for (final path in newlyWritten) {
           try {
+            await _rejectSymbolicLinks([path]);
             await _files.deleteFile(path);
           } on Object {
             // Startup reconciliation removes unreferenced immutable files.
           }
         }
         try {
+          await _rejectSymbolicLinks([pendingPath]);
           await _files.deleteFile(pendingPath);
         } on Object {
           // Startup reconciliation removes incomplete pending manifests.
@@ -140,7 +152,13 @@ final class FileLocalPostDraftRepository implements LocalPostDraftRepository {
   @override
   Future<LocalPostDraft> get(String draftId) async {
     try {
-      final draft = await _readManifest(_paths.manifestPath(draftId));
+      final manifestPath = _paths.manifestPath(draftId);
+      await _rejectSymbolicLinks([
+        _paths.accountRoot,
+        _paths.draftDirectory(draftId),
+        manifestPath,
+      ]);
+      final draft = await _readManifest(manifestPath);
       if (draft.owner != _owner) {
         throw const DraftRepositoryException(
           DraftRepositoryFailureReason.unavailable,
@@ -159,6 +177,7 @@ final class FileLocalPostDraftRepository implements LocalPostDraftRepository {
   @override
   Future<List<LocalPostDraft>> list() async {
     try {
+      await _rejectSymbolicLinks([_paths.accountRoot]);
       if (!await _files.directoryExists(_paths.accountRoot)) return const [];
       final directories = await _files.listChildDirectories(_paths.accountRoot);
       final drafts = <LocalPostDraft>[];
@@ -198,7 +217,7 @@ final class FileLocalPostDraftRepository implements LocalPostDraftRepository {
         (candidate) => candidate.mediaId == mediaId,
       );
       final bytes = await _files.readBytes(
-        _paths.mediaFilePath(draftId, descriptor.storageFileName),
+        await _verifiedMediaPath(draftId, descriptor.storageFileName),
       );
       if (bytes.length != descriptor.byteLength ||
           sha256.convert(bytes).toString() != descriptor.sha256) {
@@ -220,6 +239,7 @@ final class FileLocalPostDraftRepository implements LocalPostDraftRepository {
   Future<void> delete(String draftId) => _synchronized(draftId, () async {
     try {
       final directory = _paths.draftDirectory(draftId);
+      await _rejectSymbolicLinks([_paths.accountRoot, directory]);
       if (!await _files.directoryExists(directory)) return;
       await _files.deleteDirectory(directory);
     } on Object {
@@ -246,7 +266,7 @@ final class FileLocalPostDraftRepository implements LocalPostDraftRepository {
       var available = false;
       try {
         final bytes = await _files.readBytes(
-          _paths.mediaFilePath(draft.id, descriptor.storageFileName),
+          await _verifiedMediaPath(draft.id, descriptor.storageFileName),
         );
         available =
             bytes.length == descriptor.byteLength &&
@@ -274,11 +294,22 @@ final class FileLocalPostDraftRepository implements LocalPostDraftRepository {
   Future<void> _reconcileDraftArtifacts(LocalPostDraft draft) async {
     await _deletePendingManifests(draft.id);
     final mediaDirectory = _paths.mediaDirectory(draft.id);
+    try {
+      await _rejectSymbolicLinks([mediaDirectory]);
+    } on DraftRepositoryException {
+      return;
+    }
     if (!await _files.directoryExists(mediaDirectory)) return;
     final referenced = {
       for (final descriptor in draft.media) descriptor.storageFileName,
     };
     for (final filePath in await _files.listChildFiles(mediaDirectory)) {
+      if (!_isDirectChild(mediaDirectory, filePath)) continue;
+      try {
+        await _rejectSymbolicLinks([filePath]);
+      } on DraftRepositoryException {
+        continue;
+      }
       final fileName = p.basename(filePath);
       if (!referenced.contains(fileName)) {
         try {
@@ -291,9 +322,19 @@ final class FileLocalPostDraftRepository implements LocalPostDraftRepository {
   }
 
   Future<void> _deletePendingManifests(String draftId) async {
-    for (final filePath in await _files.listChildFiles(
-      _paths.draftDirectory(draftId),
-    )) {
+    final draftDirectory = _paths.draftDirectory(draftId);
+    try {
+      await _rejectSymbolicLinks([draftDirectory]);
+    } on DraftRepositoryException {
+      return;
+    }
+    for (final filePath in await _files.listChildFiles(draftDirectory)) {
+      if (!_isDirectChild(draftDirectory, filePath)) continue;
+      try {
+        await _rejectSymbolicLinks([filePath]);
+      } on DraftRepositoryException {
+        continue;
+      }
       final name = p.basename(filePath);
       if (name.startsWith('.pending-') && name.endsWith('-manifest.json')) {
         try {
@@ -319,6 +360,34 @@ final class FileLocalPostDraftRepository implements LocalPostDraftRepository {
       );
     }
   }
+
+  Future<String> _verifiedMediaPath(String draftId, String fileName) async {
+    final mediaDirectory = _paths.mediaDirectory(draftId);
+    final filePath = _paths.mediaFilePath(draftId, fileName);
+    await _rejectSymbolicLinks([
+      _paths.accountRoot,
+      _paths.draftDirectory(draftId),
+      mediaDirectory,
+      filePath,
+    ]);
+    return filePath;
+  }
+
+  Future<void> _rejectSymbolicLinks(Iterable<String> paths) async {
+    final checked = <String>{};
+    for (final target in paths) {
+      for (final path in _paths.protectedComponentsTo(target)) {
+        if (checked.add(path) && await _files.isSymbolicLink(path)) {
+          throw const DraftRepositoryException(
+            DraftRepositoryFailureReason.unavailable,
+          );
+        }
+      }
+    }
+  }
+
+  bool _isDirectChild(String directory, String candidate) =>
+      p.dirname(p.normalize(candidate)) == p.normalize(directory);
 
   Future<T> _synchronized<T>(String key, Future<T> Function() operation) async {
     final previous = _draftTails[key] ?? Future<void>.value();
