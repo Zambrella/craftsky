@@ -1788,5 +1788,99 @@
   "@scheduledProjectSaveError": { "description": "Safe failure feedback when a project post cannot be scheduled." },
 
   "scheduledProjectNowError": "Could not post now. Your project is still here.",
-  "@scheduledProjectNowError": { "description": "Safe failure feedback when publishing an edited scheduled project now fails." }
+  "@scheduledProjectNowError": { "description": "Safe failure feedback when publishing an edited scheduled project now fails." },
+
+  "draftsTitle": "Drafts",
+  "@draftsTitle": { "description": "Title for local draft settings and management." },
+
+  "draftsEmpty": "No drafts",
+  "@draftsEmpty": { "description": "Empty state on the local draft management page." },
+
+  "draftsDeleteTitle": "Delete draft?",
+  "@draftsDeleteTitle": { "description": "Title for local draft deletion confirmation." },
+
+  "draftsDeleteMessage": "This removes the draft and its saved images from this device.",
+  "@draftsDeleteMessage": { "description": "Explanation shown before deleting a local draft." },
+
+  "draftsDeleteAction": "Delete",
+  "@draftsDeleteAction": { "description": "Confirmation action for deleting a local draft." },
+
+  "draftsKindProject": "Project",
+  "@draftsKindProject": { "description": "Project-post type label in local draft management." },
+
+  "draftsKindStandard": "Standard",
+  "@draftsKindStandard": { "description": "Standard-post type label in local draft management." },
+
+  "draftsRowDateTime": "{kind} · {date}, {time}",
+  "@draftsRowDateTime": {
+    "description": "Kind and last-saved local date/time shown for a draft.",
+    "placeholders": {
+      "kind": { "type": "String", "example": "Standard" },
+      "date": { "type": "String", "example": "3 Aug 2026" },
+      "time": { "type": "String", "example": "11:00" }
+    }
+  },
+
+  "draftsUnavailable": "Draft unavailable",
+  "@draftsUnavailable": { "description": "Safe row label for a damaged or unsupported local draft." },
+
+  "draftsUntitled": "Untitled draft",
+  "@draftsUntitled": { "description": "Preview label when a valid draft has no text or title." },
+
+  "draftsImageUnavailable": "Image unavailable",
+  "@draftsImageUnavailable": { "description": "Placeholder label for missing or damaged draft media." },
+
+  "draftsLoadError": "Could not load drafts",
+  "@draftsLoadError": { "description": "Safe error shown when local drafts cannot load." },
+
+  "draftsRetryAction": "Try again",
+  "@draftsRetryAction": { "description": "Action retrying a local draft list load." },
+
+  "draftsEditTooltip": "Edit draft",
+  "@draftsEditTooltip": { "description": "Tooltip for editing a local draft." },
+
+  "draftsDeleteTooltip": "Delete draft",
+  "@draftsDeleteTooltip": { "description": "Tooltip for deleting a local draft." },
+
+  "draftsThumbnailSemantics": "Draft image",
+  "@draftsThumbnailSemantics": { "description": "Accessibility label for a local draft thumbnail." },
+
+  "submissionPublishingPost": "Publishing your post…",
+  "@submissionPublishingPost": { "description": "Blocking immediate-submission status." },
+
+  "submissionSchedulingPost": "Scheduling your post…",
+  "@submissionSchedulingPost": { "description": "Blocking scheduled-submission status." },
+
+  "draftSaveAction": "Save draft",
+  "@draftSaveAction": { "description": "Action saving a new local post draft." },
+
+  "draftSaveChangesAction": "Save changes",
+  "@draftSaveChangesAction": { "description": "Action overwriting an existing local post draft." },
+
+  "draftSavedMessage": "Draft saved",
+  "@draftSavedMessage": { "description": "Success feedback after saving a local draft." },
+
+  "draftSaveError": "Could not save draft",
+  "@draftSaveError": { "description": "Safe retryable local draft save error." },
+
+  "draftCloseTitle": "Save your draft?",
+  "@draftCloseTitle": { "description": "Title shown when closing a dirty draft-eligible composer." },
+
+  "draftCloseMessage": "You can save this work on this device before closing.",
+  "@draftCloseMessage": { "description": "Explanation shown when closing a draft-eligible composer." },
+
+  "draftKeepEditingAction": "Keep editing",
+  "@draftKeepEditingAction": { "description": "Action returning to the composer." },
+
+  "draftDiscardAction": "Discard",
+  "@draftDiscardAction": { "description": "Action discarding a never-saved composer." },
+
+  "draftDiscardChangesAction": "Discard changes",
+  "@draftDiscardChangesAction": { "description": "Action closing without overwriting an existing draft." },
+
+  "draftCleanupError": "Your post was submitted, but the local draft could not be removed. You can delete it from Drafts.",
+  "@draftCleanupError": { "description": "Safe warning after remote success and local draft cleanup failure." },
+
+  "draftsReplaceImageAction": "Replace image",
+  "@draftsReplaceImageAction": { "description": "Action replacing unavailable media in an editable local draft." }
 }

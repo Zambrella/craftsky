@@ -1,13 +1,29 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
+import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
+import 'package:craftsky_app/drafts/composer/draft_schedule_restoration.dart';
+import 'package:craftsky_app/drafts/composer/draft_submission_origin.dart';
+import 'package:craftsky_app/drafts/composer/standard_draft_snapshot_adapter.dart';
+import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
+import 'package:craftsky_app/drafts/models/local_post_draft.dart';
+import 'package:craftsky_app/drafts/providers/draft_save_controller.dart';
+import 'package:craftsky_app/drafts/providers/local_post_draft_repository_provider.dart';
+import 'package:craftsky_app/drafts/providers/local_post_drafts_provider.dart';
+import 'package:craftsky_app/drafts/widgets/draft_close_dialog.dart';
+import 'package:craftsky_app/feed/composer/composer_media_uploader.dart';
+import 'package:craftsky_app/feed/composer/composer_submission_coordinator.dart';
+import 'package:craftsky_app/feed/composer/submission_screen_awake.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/providers/create_post_provider.dart';
+import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
+import 'package:craftsky_app/feed/widgets/submission_blocking_overlay.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
@@ -26,9 +42,11 @@ import 'package:craftsky_app/scheduled_posts/widgets/scheduled_staging_progress.
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -39,6 +57,8 @@ Future<Post?> showPostComposerSheet(
   Post? quoteTarget,
   ScheduledPostDetail? scheduledPost,
   ActiveAccountLease? scheduledOwner,
+  LocalPostDraftSeed? draftSeed,
+  ActiveAccountLease? draftOwner,
 }) {
   return Navigator.of(context, rootNavigator: true).push<Post?>(
     MaterialPageRoute<Post?>(
@@ -48,6 +68,8 @@ Future<Post?> showPostComposerSheet(
         quoteTarget: quoteTarget,
         scheduledPost: scheduledPost,
         scheduledOwner: scheduledOwner,
+        draftSeed: draftSeed,
+        draftOwner: draftOwner,
       ),
     ),
   );
@@ -61,6 +83,8 @@ class PostComposerSheet extends ConsumerStatefulWidget {
     this.composerId,
     this.scheduledPost,
     this.scheduledOwner,
+    this.draftSeed,
+    this.draftOwner,
   }) : assert(
          replyTarget == null || quoteTarget == null,
          'replyTarget and quoteTarget are mutually exclusive',
@@ -68,6 +92,13 @@ class PostComposerSheet extends ConsumerStatefulWidget {
        assert(
          scheduledPost == null || (replyTarget == null && quoteTarget == null),
          'Scheduled edits are top-level posts',
+       ),
+       assert(
+         draftSeed == null ||
+             (replyTarget == null &&
+                 quoteTarget == null &&
+                 scheduledPost == null),
+         'Local drafts are top-level posts',
        );
 
   static const maxCharacters = 2000;
@@ -77,6 +108,8 @@ class PostComposerSheet extends ConsumerStatefulWidget {
   final String? composerId;
   final ScheduledPostDetail? scheduledPost;
   final ActiveAccountLease? scheduledOwner;
+  final LocalPostDraftSeed? draftSeed;
+  final ActiveAccountLease? draftOwner;
 
   @override
   ConsumerState<PostComposerSheet> createState() => _PostComposerSheetState();
@@ -102,13 +135,57 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
   var _isLoadingScheduledMedia = false;
   var _scheduledMediaLoadFailed = false;
   ActiveAccountLease? _scheduledOwner;
+  late final ComposerMediaUploader _mediaUploader;
+  late final ComposerSubmissionCoordinator _submissionCoordinator;
+  var _isSubmitting = false;
+  var _isSavingDraft = false;
+  var _submissionSucceeded = false;
+  late final DraftSubmissionOrigin _origin;
+  List<String>? _initialLanguages;
+  ScheduleChoice _initialScheduleChoice = ScheduleChoice.now;
+  DateTime? _initialScheduledAtLocal;
 
   @override
   void initState() {
     super.initState();
     _unsavedGuard = ref.read(unsavedWorkGuardProvider);
     _composerId = widget.composerId ?? const Uuid().v4();
+    _origin = DraftSubmissionOrigin(widget.draftSeed?.draft);
+    _mediaUploader = ComposerMediaUploader();
+    _submissionCoordinator = ComposerSubmissionCoordinator(
+      screenAwake: const WakelockSubmissionScreenAwake(),
+    );
     _scheduledOwner = widget.scheduledOwner;
+    if (widget.draftSeed case final seed?) {
+      final content = seed.draft.content;
+      if (content is StandardDraftContent) {
+        _text = content.text;
+        _initialText = content.text;
+        _controller.text = content.text;
+        if (content.languages.isNotEmpty) {
+          _languages = PostLanguageSelection.fromValues(content.languages);
+          _initialLanguages = List.of(content.languages);
+        }
+      }
+      final restored = restoreDraftSchedule(
+        seed.draft.schedule,
+        now: DateTime.now(),
+      );
+      _scheduleChoice = restored.choice;
+      _scheduledAtLocal = restored.scheduledAtLocal;
+      _missedScheduledAtLocal = restored.needsExplanation
+          ? seed.draft.schedule.scheduledAtUtc?.toLocal()
+          : null;
+      _initialScheduleChoice = _scheduleChoice;
+      _initialScheduledAtLocal = _scheduledAtLocal;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          ref
+              .read(composerImagesProvider(_composerId).notifier)
+              .seedLocalDraft(seed);
+        }
+      });
+    }
     if (widget.scheduledPost case final scheduled?) {
       _text = scheduled.payload['text'] as String? ?? '';
       _initialText = _text;
@@ -147,8 +224,10 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
   @override
   void dispose() {
     _unsavedGuard.unregister(_unsavedRegistration);
+    unawaited(_submissionCoordinator.dispose());
     _controller.dispose();
     _focusNode.dispose();
+    _mediaUploader.disposeComposer(_composerId);
     super.dispose();
   }
 
@@ -163,6 +242,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     _languages ??= PostLanguageSelection.fromPrimary(
       preferences.primaryLanguage,
     );
+    _initialLanguages ??= List.of(_languages!.values);
     final imagesProvider = composerImagesProvider(_composerId);
     final imagesState = ref.watch(imagesProvider);
     final isReply = widget.replyTarget != null;
@@ -182,6 +262,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
       });
     }
     final account = activeLease?.session.account;
+    if (account != null) {
+      ref.listen(draftSaveControllerProvider(account), (_, _) {});
+    }
     final scheduledCount = account == null
         ? 0
         : ref.watch(scheduledPostsProvider(account)).value?.items.length ?? 0;
@@ -194,6 +277,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     final tooLong = _text.length > PostComposerSheet.maxCharacters;
     final canSubmit =
         !createState.isLoading &&
+        !_isSubmitting &&
         !_isScheduling &&
         !_isLoadingScheduledMedia &&
         !_scheduledMediaLoadFailed &&
@@ -208,6 +292,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
         ? l10n.postComposeReplySubmit
         : l10n.postComposeSubmit;
     final hasDraft = _hasDraft(imagesState);
+    final canSaveDraft = _canSaveDraft(imagesState, hasDraft: hasDraft);
     _ensureUnsavedWorkRegistration();
 
     ref
@@ -241,179 +326,294 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
       });
 
     return PopScope<Post?>(
-      canPop: !hasDraft || createState.isLoading,
+      canPop: !_isSubmitting && (!hasDraft || createState.isLoading),
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
-        final discard = await _confirmDiscard();
-        if (!discard) return;
+        if (_isSubmitting) return;
+        final shouldClose = await _confirmClose(imagesState);
+        if (!shouldClose) return;
         if (!context.mounted) return;
         Navigator.of(context).pop();
       },
-      child: Scaffold(
-        backgroundColor: swatches.paper,
-        appBar: AppBar(
-          title: Text(
-            isReply
-                ? l10n.postComposeReplyTitle
-                : isQuote
-                ? l10n.postQuoteAction
-                : l10n.postComposeTitle,
-            style: theme.textTheme.titleLarge,
-          ),
-          actions: [
-            Padding(
-              padding: EdgeInsets.only(right: spacing.sp4),
-              child: _PostAction(
-                isSaving: createState.isLoading || _isScheduling,
-                label: submitLabel,
-                onPressed: canSubmit
-                    ? () => _submitPost(trimmedText: trimmedText)
-                    : null,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Scaffold(
+            backgroundColor: swatches.paper,
+            appBar: AppBar(
+              title: Text(
+                isReply
+                    ? l10n.postComposeReplyTitle
+                    : isQuote
+                    ? l10n.postQuoteAction
+                    : l10n.postComposeTitle,
+                style: theme.textTheme.titleLarge,
               ),
-            ),
-          ],
-        ),
-        body: SafeArea(
-          top: false,
-          bottom: false,
-          child: SingleChildScrollView(
-            clipBehavior: Clip.none,
-            padding: EdgeInsets.fromLTRB(
-              spacing.sp4,
-              spacing.sp5,
-              spacing.sp4,
-              spacing.sp7,
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (widget.replyTarget case final replyTarget?) ...[
-                  _ComposerTargetPreview(post: replyTarget),
-                  SizedBox(height: spacing.sp4),
-                ],
-                if (widget.quoteTarget case final quoteTarget?) ...[
-                  _ComposerTargetPreview(post: quoteTarget),
-                  SizedBox(height: spacing.sp4),
-                ],
-                FacetAutocompleteEditor(
-                  label: isReply
-                      ? l10n.postComposeReplyHint
-                      : l10n.postComposeHint,
-                  hintText: isReply ? null : l10n.postComposeBodyHint,
-                  controller: _controller,
-                  focusNode: _focusNode,
-                  minLines: isReply ? 5 : 3,
-                  maxLines: 12,
-                  textInputAction: TextInputAction.newline,
-                  keyboardType: TextInputType.multiline,
-                  enabled: !createState.isLoading,
-                  errorText: tooLong ? l10n.postComposeTooLong : null,
-                  helperText:
-                      '${_text.length}/${PostComposerSheet.maxCharacters}',
-                  helperAlignment: AlignmentDirectional.centerEnd,
-                  onChanged: (value) => setState(() => _text = value),
-                ),
-                SizedBox(height: spacing.sp4),
-                PostLanguageSelector(
-                  selection: _languages!,
-                  enabled: !createState.isLoading,
-                  onChanged: (value) => setState(() => _languages = value),
-                ),
-                if (isSchedulable) ...[
-                  SizedBox(height: spacing.sp4),
-                  Builder(
-                    builder: (menuContext) => ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.schedule_outlined),
-                      title: Text(l10n.scheduledPostWhenTitle),
-                      subtitle: Text(_whenLabel(context)),
-                      trailing: const Icon(Icons.chevron_right),
-                      enabled: !_isScheduling,
-                      onTap: () => _chooseWhen(
-                        menuContext,
-                        scheduleEnabled: capacity.scheduleEnabled,
-                      ),
+              actions: [
+                if (widget.replyTarget == null &&
+                    widget.quoteTarget == null &&
+                    widget.scheduledPost == null)
+                  TextButton(
+                    onPressed: canSaveDraft
+                        ? () => _saveDraft(imagesState)
+                        : null,
+                    child: Text(
+                      widget.draftSeed == null
+                          ? l10n.draftSaveAction
+                          : l10n.draftSaveChangesAction,
                     ),
                   ),
-                  if (capacity.showCapacityWarning)
-                    const ScheduledPostCapacityWarning(),
-                  if (capacity.showManageLink)
-                    Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: TextButton(
-                        onPressed: () =>
-                            const ScheduledPostsRoute().push<void>(context),
-                        child: Text(l10n.scheduledPostManageAction),
-                      ),
+              ],
+            ),
+            body: Stack(
+              fit: StackFit.expand,
+              children: [
+                SafeArea(
+                  top: false,
+                  bottom: false,
+                  child: SingleChildScrollView(
+                    clipBehavior: Clip.none,
+                    padding: EdgeInsets.fromLTRB(
+                      spacing.sp4,
+                      spacing.sp5,
+                      spacing.sp4,
+                      0,
                     ),
-                  if (_missedScheduledAtLocal case final missed?)
-                    Text(
-                      l10n.scheduledPostMissedTime(
-                        _localTimeLabel(context, missed),
-                      ),
-                    ),
-                  if (widget.scheduledPost != null)
-                    Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: TextButton.icon(
-                        onPressed: _isScheduling
-                            ? null
-                            : _deleteExistingSchedule,
-                        icon: const Icon(Icons.delete_outline),
-                        label: Text(l10n.scheduledPostsDeleteTooltip),
-                      ),
-                    ),
-                  if (_isScheduling &&
-                      (_stagedImageTotal > 0 || _isSavingSchedule)) ...[
-                    SizedBox(height: spacing.sp3),
-                    ScheduledStagingProgress(
-                      completed: _stagedImageCount,
-                      total: _stagedImageTotal,
-                      creating: _isSavingSchedule,
-                    ),
-                  ],
-                ],
-                if (!isReply) ...[
-                  SizedBox(height: spacing.sp6),
-                  if (_isLoadingScheduledMedia)
-                    const Center(child: CircularProgressIndicator())
-                  else if (_scheduledMediaLoadFailed)
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(l10n.scheduledPostsLoadError),
-                        TextButton(
-                          onPressed: _hydrateScheduledMedia,
-                          child: Text(l10n.scheduledPostsRetryAction),
+                        if (widget.replyTarget case final replyTarget?) ...[
+                          _ComposerTargetPreview(post: replyTarget),
+                          SizedBox(height: spacing.sp4),
+                        ],
+                        if (widget.quoteTarget case final quoteTarget?) ...[
+                          _ComposerTargetPreview(post: quoteTarget),
+                          SizedBox(height: spacing.sp4),
+                        ],
+                        FacetAutocompleteEditor(
+                          label: isReply
+                              ? l10n.postComposeReplyHint
+                              : l10n.postComposeHint,
+                          hintText: isReply ? null : l10n.postComposeBodyHint,
+                          controller: _controller,
+                          focusNode: _focusNode,
+                          minLines: isReply ? 5 : 3,
+                          maxLines: 12,
+                          textInputAction: TextInputAction.newline,
+                          keyboardType: TextInputType.multiline,
+                          enabled: !createState.isLoading,
+                          errorText: tooLong ? l10n.postComposeTooLong : null,
+                          helperText:
+                              '${_text.length}/${PostComposerSheet.maxCharacters}',
+                          helperAlignment: AlignmentDirectional.centerEnd,
+                          onChanged: (value) => setState(() => _text = value),
+                        ),
+                        SizedBox(height: spacing.sp4),
+                        PostLanguageSelector(
+                          selection: _languages!,
+                          enabled: !createState.isLoading,
+                          onChanged: (value) =>
+                              setState(() => _languages = value),
+                        ),
+                        if (isSchedulable) ...[
+                          SizedBox(height: spacing.sp4),
+                          Builder(
+                            builder: (menuContext) => ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(Icons.schedule_outlined),
+                              title: Text(l10n.scheduledPostWhenTitle),
+                              subtitle: Text(_whenLabel(context)),
+                              trailing: const Icon(Icons.chevron_right),
+                              enabled: !_isScheduling,
+                              onTap: () => _chooseWhen(
+                                menuContext,
+                                scheduleEnabled: capacity.scheduleEnabled,
+                              ),
+                            ),
+                          ),
+                          if (capacity.showCapacityWarning)
+                            const ScheduledPostCapacityWarning(),
+                          if (capacity.showManageLink)
+                            Align(
+                              alignment: AlignmentDirectional.centerStart,
+                              child: TextButton(
+                                onPressed: () => const ScheduledPostsRoute()
+                                    .push<void>(context),
+                                child: Text(l10n.scheduledPostManageAction),
+                              ),
+                            ),
+                          if (_missedScheduledAtLocal case final missed?)
+                            Text(
+                              l10n.scheduledPostMissedTime(
+                                _localTimeLabel(context, missed),
+                              ),
+                            ),
+                          if (widget.scheduledPost != null)
+                            Align(
+                              alignment: AlignmentDirectional.centerStart,
+                              child: TextButton.icon(
+                                onPressed: _isScheduling
+                                    ? null
+                                    : _deleteExistingSchedule,
+                                icon: const Icon(Icons.delete_outline),
+                                label: Text(l10n.scheduledPostsDeleteTooltip),
+                              ),
+                            ),
+                          if (_isScheduling &&
+                              (_stagedImageTotal > 0 || _isSavingSchedule)) ...[
+                            SizedBox(height: spacing.sp3),
+                            ScheduledStagingProgress(
+                              completed: _stagedImageCount,
+                              total: _stagedImageTotal,
+                              creating: _isSavingSchedule,
+                            ),
+                          ],
+                        ],
+                        if (!isReply) ...[
+                          SizedBox(height: spacing.sp6),
+                          if (_isLoadingScheduledMedia)
+                            const Center(child: CircularProgressIndicator())
+                          else if (_scheduledMediaLoadFailed)
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(l10n.scheduledPostsLoadError),
+                                TextButton(
+                                  onPressed: _hydrateScheduledMedia,
+                                  child: Text(l10n.scheduledPostsRetryAction),
+                                ),
+                              ],
+                            )
+                          else
+                            ComposerImageAttachmentSection(
+                              imagesState: imagesState,
+                              enabled: !createState.isLoading,
+                              onAddImages: () =>
+                                  ref.read(imagesProvider.notifier).addImages(),
+                              onAltTextChanged: (imageId, value) => ref
+                                  .read(imagesProvider.notifier)
+                                  .setAltText(imageId, value),
+                              onRemove: (imageId) => ref
+                                  .read(imagesProvider.notifier)
+                                  .remove(imageId),
+                              onReplaceUnavailable: (imageId) => ref
+                                  .read(imagesProvider.notifier)
+                                  .replaceUnavailable(imageId),
+                              onReorder: (fromIndex, toIndex) => ref
+                                  .read(imagesProvider.notifier)
+                                  .reorder(
+                                    fromIndex: fromIndex,
+                                    toIndex: toIndex,
+                                  ),
+                            ),
+                        ],
+                        SizedBox(
+                          key: const Key('post-composer-bottom-safe-space'),
+                          height:
+                              spacing.sp9 +
+                              MediaQuery.paddingOf(context).bottom,
                         ),
                       ],
-                    )
-                  else
-                    ComposerImageAttachmentSection(
-                      imagesState: imagesState,
-                      enabled: !createState.isLoading,
-                      onAddImages: () =>
-                          ref.read(imagesProvider.notifier).addImages(),
-                      onAltTextChanged: (imageId, value) => ref
-                          .read(imagesProvider.notifier)
-                          .setAltText(imageId, value),
-                      onRemove: (imageId) =>
-                          ref.read(imagesProvider.notifier).remove(imageId),
-                      onReorder: (fromIndex, toIndex) => ref
-                          .read(imagesProvider.notifier)
-                          .reorder(fromIndex: fromIndex, toIndex: toIndex),
                     ),
-                ],
+                  ),
+                ),
+                PositionedDirectional(
+                  start: spacing.sp4,
+                  end: spacing.sp4,
+                  bottom: 0,
+                  child: SafeArea(
+                    top: false,
+                    minimum: EdgeInsets.only(bottom: spacing.sp4),
+                    child: _PostAction(
+                      actionKey: const Key('post-composer-primary-action'),
+                      isSaving: createState.isLoading || _isScheduling,
+                      label: submitLabel,
+                      onPressed: canSubmit
+                          ? () => _submitPost(trimmedText: trimmedText)
+                          : null,
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
-        ),
+          if (_isSubmitting)
+            SubmissionBlockingOverlay(
+              scheduling: _scheduleChoice == ScheduleChoice.later,
+            ),
+        ],
       ),
     );
   }
 
   bool _hasDraft(ComposerImagesState imagesState) {
-    return _text != _initialText || imagesState.images.isNotEmpty;
+    final seed = widget.draftSeed;
+    final baselineMedia = seed?.draft.media ?? const [];
+    final mediaChanged =
+        imagesState.images.length != baselineMedia.length ||
+        [
+              for (final image in imagesState.images)
+                '${image.id}:${image.altText}:${switch (image.phase) {
+                  ImageReady(:final sha256) => sha256,
+                  _ => 'unavailable',
+                }}',
+            ].join('|') !=
+            [
+              for (final media in baselineMedia)
+                '${media.mediaId}:${media.altText}:${media.sha256}',
+            ].join('|');
+    return _text != _initialText ||
+        !listEquals(_languages?.values, _initialLanguages) ||
+        _scheduleChoice != _initialScheduleChoice ||
+        _scheduledAtLocal != _initialScheduledAtLocal ||
+        mediaChanged;
+  }
+
+  Future<void> _saveDraft(ComposerImagesState imagesState) async {
+    final active = ref.read(sessionRegistryProvider).value?.activeLease;
+    if (active == null ||
+        (widget.draftOwner != null && active != widget.draftOwner)) {
+      return;
+    }
+    setState(() => _isSavingDraft = true);
+    try {
+      final request = _draftWriteRequest(active.session.account, imagesState);
+      final saved = await ref
+          .read(draftSaveControllerProvider(active.session.account).notifier)
+          .save(request);
+      if (!mounted || saved == null) return;
+      Navigator.of(context).pop();
+      context.showInfo(AppLocalizations.of(context).draftSavedMessage);
+    } on Object {
+      if (mounted) {
+        context.showError(AppLocalizations.of(context).draftSaveError);
+      }
+    } finally {
+      if (mounted) setState(() => _isSavingDraft = false);
+    }
+  }
+
+  DraftWriteRequest _draftWriteRequest(
+    AccountKey owner,
+    ComposerImagesState imagesState,
+  ) {
+    final existing = _origin.draft;
+    final schedule = _scheduleChoice == ScheduleChoice.later
+        ? DraftScheduleIntent.later(
+            scheduledAtUtc: _scheduledAtLocal?.toUtc(),
+            savedOffsetMinutes: _scheduledAtLocal?.timeZoneOffset.inMinutes,
+          )
+        : const DraftScheduleIntent.now();
+    return const StandardDraftSnapshotAdapter().toWriteRequest(
+      id: existing?.id ?? _composerId,
+      owner: owner,
+      text: _text,
+      languages: _languages!.values,
+      schedule: schedule,
+      images: imagesState.images,
+      existingRevision: existing?.revision,
+      existingCreatedAt: existing?.createdAt,
+    );
   }
 
   Future<bool> _confirmDiscard() {
@@ -427,6 +627,40 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     );
   }
 
+  bool _canSaveDraft(
+    ComposerImagesState imagesState, {
+    bool? hasDraft,
+  }) =>
+      widget.replyTarget == null &&
+      widget.quoteTarget == null &&
+      widget.scheduledPost == null &&
+      (hasDraft ?? _hasDraft(imagesState)) &&
+      imagesState.canSaveDraftMedia() &&
+      !_isSavingDraft &&
+      !_isSubmitting;
+
+  Future<bool> _confirmClose(ComposerImagesState imagesState) async {
+    final eligible =
+        widget.replyTarget == null &&
+        widget.quoteTarget == null &&
+        widget.scheduledPost == null;
+    if (!eligible) return _confirmDiscard();
+    final choice = await showDraftCloseDialog(
+      context,
+      existingDraft: widget.draftSeed != null,
+      canSave: _canSaveDraft(imagesState),
+    );
+    switch (choice) {
+      case DraftCloseChoice.save:
+        await _saveDraft(imagesState);
+        return false;
+      case DraftCloseChoice.discard:
+        return true;
+      case DraftCloseChoice.keepEditing:
+        return false;
+    }
+  }
+
   void _ensureUnsavedWorkRegistration() {
     final owner = ref.read(sessionRegistryProvider).value?.activeLease?.session;
     if (owner == null || owner == _unsavedOwner) return;
@@ -438,8 +672,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
           mounted && _hasDraft(ref.read(composerImagesProvider(_composerId))),
       confirmAndClose: () async {
         if (!mounted) return true;
-        final discard = await _confirmDiscard();
-        if (!discard || !mounted) return false;
+        final imagesState = ref.read(composerImagesProvider(_composerId));
+        final shouldClose = await _confirmClose(imagesState);
+        if (!shouldClose || !mounted) return false;
         Navigator.of(context).pop();
         await Future<void>.delayed(Duration.zero);
         return true;
@@ -462,37 +697,136 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     }
 
     final facets = await _facetsForSubmission(trimmedText);
+    if (!mounted) return;
+    final submissionOwner = ref
+        .read(sessionRegistryProvider)
+        .value
+        ?.activeLease;
+    final needsUpload = imagesState.images.any(
+      (image) => image.phase is ImageReady,
+    );
+    final uploadClient = needsUpload ? ref.read(postApiClientProvider) : null;
 
-    if (widget.scheduledPost != null && _scheduleChoice == ScheduleChoice.now) {
-      await _publishExistingNow(
-        trimmedText: trimmedText,
-        facets: facets,
-        imagesState: imagesState,
-      );
-      return;
-    }
-
-    if (_scheduleChoice == ScheduleChoice.later) {
-      await _schedulePost(
-        trimmedText: trimmedText,
-        facets: facets,
-        imagesState: imagesState,
-      );
-      return;
-    }
-
-    await ref
-        .read(createPostProvider.notifier)
-        .create(
-          text: trimmedText,
-          langs: _languages!.values,
-          reply: _replyFor(widget.replyTarget),
-          quote: _quoteFor(widget.quoteTarget),
-          images: widget.replyTarget == null
-              ? imagesState.toCreatePostImages()
-              : null,
-          facets: facets.isEmpty ? null : facets,
+    await _runSubmission(submissionOwner, () async {
+      if (widget.scheduledPost != null &&
+          _scheduleChoice == ScheduleChoice.now) {
+        await _publishExistingNow(
+          trimmedText: trimmedText,
+          facets: facets,
+          imagesState: imagesState,
         );
+        return;
+      }
+
+      if (_scheduleChoice == ScheduleChoice.later) {
+        await _schedulePost(
+          trimmedText: trimmedText,
+          facets: facets,
+          imagesState: imagesState,
+        );
+        return;
+      }
+
+      final images = widget.replyTarget == null
+          ? await _mediaUploader.materializeImmediate(
+              composerId: _composerId,
+              images: imagesState.images,
+              ownershipIsCurrent: () =>
+                  _submissionOwnershipIsCurrent(submissionOwner),
+              upload:
+                  ({required bytes, required mimeType, required cancelToken}) =>
+                      uploadClient!.uploadImage(
+                        bytes: bytes,
+                        mimeType: mimeType,
+                        cancelToken: cancelToken,
+                      ),
+            )
+          : null;
+      final created = await ref
+          .read(createPostProvider.notifier)
+          .create(
+            text: trimmedText,
+            langs: _languages!.values,
+            reply: _replyFor(widget.replyTarget),
+            quote: _quoteFor(widget.quoteTarget),
+            images: images,
+            facets: facets.isEmpty ? null : facets,
+            ownership: submissionOwner,
+          );
+      _submissionSucceeded = created != null;
+    });
+  }
+
+  Future<void> _runSubmission(
+    ActiveAccountLease? submissionOwner,
+    Future<void> Function() operation,
+  ) async {
+    if (_submissionCoordinator.isRunning) return;
+    _submissionSucceeded = false;
+    await _submissionCoordinator.run(
+      presentOverlay: () async {
+        await WidgetsBinding.instance.endOfFrame;
+        if (!mounted) throw StateError('composer disposed');
+      },
+      ownershipIsCurrent: () => _submissionOwnershipIsCurrent(submissionOwner),
+      saveOriginSnapshot: _saveOriginSnapshot,
+      operation: operation,
+      didSucceed: () => _submissionSucceeded,
+      deleteOriginAfterSuccess: _deleteOriginDraftAfterSuccess,
+      onRunningChanged: ({required running}) {
+        if (mounted) setState(() => _isSubmitting = running);
+      },
+      onFailure: (_) {
+        if (mounted) {
+          context.showError(AppLocalizations.of(context).postCreateError);
+        }
+      },
+    );
+  }
+
+  bool _submissionOwnershipIsCurrent(ActiveAccountLease? owner) =>
+      owner == null ||
+      (ref.read(sessionRegistryProvider).value?.isCurrent(owner) ?? false);
+
+  Future<void> _saveOriginSnapshot() async {
+    final origin = _origin.draft;
+    if (origin == null) return;
+    final active = ref.read(sessionRegistryProvider).value?.activeLease;
+    if (active == null ||
+        active != widget.draftOwner ||
+        active.session.account != origin.owner) {
+      throw StateError('local-draft account changed');
+    }
+    final saved = await ref
+        .read(draftSaveControllerProvider(origin.owner).notifier)
+        .save(
+          _draftWriteRequest(
+            origin.owner,
+            ref.read(composerImagesProvider(_composerId)),
+          ),
+        );
+    if (saved == null) throw StateError('local-draft account changed');
+    _origin.acceptSnapshot(saved);
+  }
+
+  Future<void> _deleteOriginDraftAfterSuccess() async {
+    final origin = _origin.draft;
+    if (origin == null) return;
+    try {
+      final repository = await ref.read(
+        accountLocalPostDraftRepositoryProvider(origin.owner).future,
+      );
+      await repository.delete(origin.id);
+      if (mounted) {
+        await ref
+            .read(localPostDraftsProvider(origin.owner).notifier)
+            .refresh();
+      }
+    } on Object {
+      if (mounted) {
+        context.showError(AppLocalizations.of(context).draftCleanupError);
+      }
+    }
   }
 
   Future<List<Map<String, dynamic>>> _facetsForSubmission(String text) async {
@@ -640,6 +974,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
       if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
       await ref.read(scheduledPostsProvider(account).notifier).refresh();
       if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      _submissionSucceeded = true;
       Navigator.of(context).pop();
       context.showInfo(AppLocalizations.of(context).scheduledPostSaved);
     } on Object {
@@ -706,6 +1041,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
       if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
       await ref.read(scheduledPostsProvider(account).notifier).refresh();
       if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      _submissionSucceeded = true;
       Navigator.of(context).pop();
     } on Object {
       if (mounted && _scheduledOperationIsCurrent(owner)) {
@@ -856,22 +1192,22 @@ class _ComposerTargetPreview extends StatelessWidget {
 
 class _PostAction extends StatelessWidget {
   const _PostAction({
+    required this.actionKey,
     required this.isSaving,
     required this.label,
     required this.onPressed,
   });
 
+  final Key actionKey;
   final bool isSaving;
   final String label;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return TextButton(
+    return ChunkyButton(
+      key: actionKey,
       onPressed: onPressed,
-      style: TextButton.styleFrom(
-        textStyle: const TextStyle(fontWeight: FontWeight.w800),
-      ),
       child: isSaving ? const StitchProgressIndicator(size: 18) : Text(label),
     );
   }

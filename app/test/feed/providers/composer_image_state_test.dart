@@ -6,12 +6,12 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('Composer image state string output', () {
-    test('summarizes draft preview bytes', () {
+    test('redacts all unpublished image details', () {
       final draft = ComposerImageDraft(
         id: 'image-1',
         fileName: 'project.jpg',
         mimeType: 'image/jpeg',
-        altText: '',
+        altText: 'private-alt-canary',
         phase: const ImageUploading(
           TransferBytes(sent: 1, sendTotal: 4, received: 0, receiveTotal: 0),
         ),
@@ -20,7 +20,9 @@ void main() {
 
       final text = draft.toString();
 
-      expect(text, contains('previewBytes: 4 bytes'));
+      expect(text, 'ComposerImageDraft(<redacted>)');
+      expect(text, isNot(contains('project.jpg')));
+      expect(text, isNot(contains('private-alt-canary')));
       expect(text, isNot(contains('255, 216, 255, 224')));
     });
 
@@ -41,7 +43,8 @@ void main() {
 
       final text = state.toString();
 
-      expect(text, contains('previewBytes: 4 bytes'));
+      expect(text, contains('ComposerImageDraft(<redacted>)'));
+      expect(text, isNot(contains('project.jpg')));
       expect(text, contains('UnsupportedImagesNotice'));
       expect(text, isNot(contains('255, 216, 255, 224')));
     });
@@ -78,6 +81,42 @@ void main() {
           ),
         ),
       ]);
+    });
+  });
+
+  group('Composer image draft readiness', () {
+    test('requires every retained image to be locally ready', () {
+      ComposerImageDraft image(ComposerImagePhase phase) => ComposerImageDraft(
+        id: 'image-1',
+        fileName: 'project.jpg',
+        mimeType: 'image/jpeg',
+        altText: '',
+        phase: phase,
+      );
+
+      final ready = ComposerImagesState(
+        images: [
+          image(
+            ImageReady(
+              bytes: Uint8List.fromList([1, 2, 3]),
+              mimeType: 'image/jpeg',
+              width: 3,
+              height: 2,
+              sha256: 'digest',
+            ),
+          ),
+        ],
+      );
+      final preparing = ComposerImagesState(
+        images: [image(const ImagePreparing())],
+      );
+      final failed = ComposerImagesState(
+        images: [image(const ImageFailed(ImagePreparationFailed()))],
+      );
+
+      expect(ready.canSaveDraftMedia(), isTrue);
+      expect(preparing.canSaveDraftMedia(), isFalse);
+      expect(failed.canSaveDraftMedia(), isFalse);
     });
   });
 }

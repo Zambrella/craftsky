@@ -3,6 +3,10 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/active_account_initialization.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
+import 'package:craftsky_app/drafts/models/local_post_draft.dart';
+import 'package:craftsky_app/drafts/pages/drafts_page.dart';
+import 'package:craftsky_app/drafts/providers/local_post_draft_repository_provider.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -139,8 +143,21 @@ ProviderContainer _container() => ProviderContainer.test(
     languagePreferencesRepositoryProvider.overrideWith(
       (ref, account) async => const _LanguageRepository(),
     ),
+    accountLocalPostDraftRepositoryProvider.overrideWith(
+      (ref, account) async => const _EmptyDraftRepository(),
+    ),
   ],
 );
+
+final class _EmptyDraftRepository implements LocalPostDraftRepository {
+  const _EmptyDraftRepository();
+
+  @override
+  Future<List<LocalPostDraft>> list() async => const [];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
 
 final class _LanguageRepository implements LanguagePreferencesRepository {
   const _LanguageRepository();
@@ -170,6 +187,11 @@ const _emptyAccountPage = ProfileAccountPage(
 );
 
 final _routeCases = <_SettingsRouteCase>[
+  _SettingsRouteCase(
+    label: 'Drafts',
+    location: '/profile/settings/drafts',
+    matchesPage: (widget) => widget is DraftsPage,
+  ),
   _SettingsRouteCase(
     label: 'Languages',
     location: '/profile/settings/languages',

@@ -51,9 +51,13 @@ void main() {
     );
 
     await _selectCraft(tester, 'Embroidery');
-    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.tap(
+      find.byKey(const Key('project-composer-primary-action')),
+    );
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.tap(
+      find.byKey(const Key('project-composer-primary-action')),
+    );
     await tester.pumpAndSettle();
 
     await tester.ensureVisible(_bodyTextField());
@@ -64,13 +68,16 @@ void main() {
     await tester.tap(find.byType(CloseButton));
     await tester.pumpAndSettle();
 
-    expect(find.text('Discard draft?'), findsOneWidget);
-    expect(find.text("Your draft won't be saved."), findsOneWidget);
+    expect(find.text('Save your draft?'), findsOneWidget);
+    expect(
+      find.text('You can save this work on this device before closing.'),
+      findsOneWidget,
+    );
 
     await tester.tap(find.text('Keep editing'));
     await tester.pumpAndSettle();
 
-    expect(find.text('Discard draft?'), findsNothing);
+    expect(find.text('Save your draft?'), findsNothing);
     expect(find.text('Project post'), findsOneWidget);
 
     await tester.tap(find.byType(CloseButton));
@@ -119,7 +126,7 @@ void main() {
     await tester.tap(find.byType(CloseButton));
     await tester.pumpAndSettle();
 
-    expect(find.text('Discard draft?'), findsOneWidget);
+    expect(find.text('Save your draft?'), findsOneWidget);
   });
 
   testWidgets('AT-009 confirms before discarding project metadata edits', (
@@ -138,7 +145,7 @@ void main() {
     await tester.tap(find.byType(CloseButton));
     await tester.pumpAndSettle();
 
-    expect(find.text('Discard draft?'), findsOneWidget);
+    expect(find.text('Save your draft?'), findsOneWidget);
   });
 
   testWidgets('AT-009 confirms before discarding title edits', (tester) async {
@@ -154,7 +161,7 @@ void main() {
     await tester.tap(find.byType(CloseButton));
     await tester.pumpAndSettle();
 
-    expect(find.text('Discard draft?'), findsOneWidget);
+    expect(find.text('Save your draft?'), findsOneWidget);
   });
 
   testWidgets('AT-009 confirms before discarding status edits', (tester) async {
@@ -165,7 +172,7 @@ void main() {
     await tester.tap(find.byType(CloseButton));
     await tester.pumpAndSettle();
 
-    expect(find.text('Discard draft?'), findsOneWidget);
+    expect(find.text('Save your draft?'), findsOneWidget);
   });
 
   testWidgets('AT-009 confirms before discarding material edits', (
@@ -188,7 +195,9 @@ void main() {
     );
 
     await _selectCraft(tester, 'Embroidery');
-    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.tap(
+      find.byKey(const Key('project-composer-primary-action')),
+    );
     await tester.pumpAndSettle();
     await tester.enterText(_materialsTextField(), 'Wool roving');
     await tester.pump();
@@ -200,7 +209,7 @@ void main() {
     await tester.tap(find.byType(CloseButton));
     await tester.pumpAndSettle();
 
-    expect(find.text('Discard draft?'), findsOneWidget);
+    expect(find.text('Save your draft?'), findsOneWidget);
   });
 }
 

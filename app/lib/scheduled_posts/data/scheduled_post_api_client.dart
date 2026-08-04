@@ -76,11 +76,19 @@ final class ScheduledPostApiClient {
     required String id,
     required List<int> bytes,
     required String mimeType,
+    CancelToken? cancelToken,
   }) => unwrapApi(() async {
     await _dio.put<Map<String, dynamic>>(
       '/v1/scheduled-post-media/$id',
       data: bytes,
-      options: Options(contentType: mimeType),
+      cancelToken: cancelToken,
+      // Scheduled media staging has its own one-minute transfer budget and
+      // cancels through [cancelToken]. The shared response timeout is shorter
+      // and must not win that race for large media.
+      options: Options(
+        contentType: mimeType,
+        receiveTimeout: Duration.zero,
+      ),
     );
   });
 

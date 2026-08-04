@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:craftsky_app/scheduled_posts/data/scheduled_post_api_client.dart';
 import 'package:craftsky_app/scheduled_posts/data/scheduled_post_repository.dart';
 import 'package:craftsky_app/scheduled_posts/models/scheduled_post.dart';
+import 'package:dio/dio.dart';
 
 final class ApiScheduledPostRepository implements ScheduledPostRepository {
   const ApiScheduledPostRepository(this._api);
@@ -47,7 +48,13 @@ final class ApiScheduledPostRepository implements ScheduledPostRepository {
     required String id,
     required List<int> bytes,
     required String mimeType,
-  }) => _api.stageMedia(id: id, bytes: bytes, mimeType: mimeType);
+    CancelToken? cancelToken,
+  }) => _api.stageMedia(
+    id: id,
+    bytes: bytes,
+    mimeType: mimeType,
+    cancelToken: cancelToken,
+  );
 
   @override
   Future<Uint8List> mediaBytes(String id) => _api.mediaBytes(id);

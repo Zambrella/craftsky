@@ -24,7 +24,10 @@ import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/rich_text/facet_generator.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:crypto/crypto.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -33,6 +36,81 @@ import 'package:image/image.dart' as img;
 import '../fakes/recording_messenger.dart';
 
 void main() {
+  test(
+    'new scheduled media gets a one-minute-style independent budget',
+    () async {
+      CancelToken? capturedToken;
+      final image = ComposerImageDraft(
+        id: 'new-ready',
+        fileName: 'detail.jpg',
+        mimeType: 'image/jpeg',
+        altText: '',
+        phase: ImageReady(
+          bytes: Uint8List.fromList([1, 2, 3]),
+          mimeType: 'image/jpeg',
+          width: 2,
+          height: 3,
+          sha256: sha256.convert([1, 2, 3]).toString(),
+        ),
+      );
+
+      await expectLater(
+        materializeScheduledComposerMedia(
+          [image],
+          transferBudget: const Duration(milliseconds: 5),
+          stageMedia:
+              ({
+                required id,
+                required bytes,
+                required mimeType,
+                cancelToken,
+              }) {
+                capturedToken = cancelToken;
+                return Completer<void>().future;
+              },
+        ),
+        throwsA(isA<TimeoutException>()),
+      );
+      expect(capturedToken?.isCancelled, isTrue);
+    },
+  );
+
+  test('rejects ready bytes mutated after local preparation', () async {
+    var stageCalls = 0;
+    final bytes = _pngBytes(width: 2, height: 1);
+    final image = ComposerImageDraft(
+      id: 'new-ready',
+      fileName: 'detail.png',
+      mimeType: 'image/png',
+      altText: '',
+      phase: ImageReady(
+        bytes: bytes,
+        mimeType: 'image/png',
+        width: 2,
+        height: 1,
+        sha256: sha256.convert(bytes).toString(),
+      ),
+    );
+    bytes[0] ^= 0xff;
+
+    await expectLater(
+      materializeScheduledComposerMedia(
+        [image],
+        stageMedia:
+            ({
+              required id,
+              required bytes,
+              required mimeType,
+              cancelToken,
+            }) async {
+              stageCalls += 1;
+            },
+      ),
+      throwsStateError,
+    );
+    expect(stageCalls, 0);
+  });
+
   test(
     'AT-007 preserves the final edited media set and stages only new media',
     () async {
@@ -68,9 +146,15 @@ void main() {
 
       final media = await materializeScheduledComposerMedia(
         edited,
-        stageMedia: ({required id, required bytes, required mimeType}) async {
-          staged[id] = Uint8List.fromList(bytes);
-        },
+        stageMedia:
+            ({
+              required id,
+              required bytes,
+              required mimeType,
+              cancelToken,
+            }) async {
+              staged[id] = Uint8List.fromList(bytes);
+            },
       );
 
       expect(media, [
@@ -131,7 +215,7 @@ void main() {
     expect(find.textContaining("can't schedule another post"), findsNothing);
     expect(
       tester
-          .widget<TextButton>(find.widgetWithText(TextButton, 'Schedule'))
+          .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Schedule'))
           .onPressed,
       isNotNull,
     );
@@ -149,7 +233,7 @@ void main() {
     );
     await tester.tap(find.byKey(const Key('composer-move-down-old-1')));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'Schedule'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Schedule'));
     await tester.pumpAndSettle();
 
     expect(repository.updatedPayload?['media'], [
@@ -212,7 +296,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Now').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'Post'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
     await tester.pumpAndSettle();
 
     expect(repository.publishedPayload?['media'], [
@@ -351,7 +435,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(TextButton, 'Schedule'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Schedule'));
       await tester.pump();
       await repository.updateStarted.future;
       final container = ProviderScope.containerOf(
@@ -415,7 +499,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'Schedule'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Schedule'));
     await tester.pumpAndSettle();
 
     expect(
@@ -475,7 +559,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Now').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'Post'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
     await tester.pumpAndSettle();
 
     expect(
@@ -529,6 +613,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.text('Save draft'), findsNothing);
     expect(find.byKey(const Key('composer-alt-old-1')), findsOneWidget);
     expect(
       find.byKey(const Key('project-composer-pattern-designer-editor')),
@@ -536,7 +621,9 @@ void main() {
     );
     expect(find.text('A. Maker'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.tap(
+      find.byKey(const Key('project-composer-primary-action')),
+    );
     await tester.pumpAndSettle();
     expect(
       find.byKey(
@@ -549,17 +636,19 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.tap(
+      find.byKey(const Key('project-composer-primary-action')),
+    );
     await tester.pumpAndSettle();
     expect(find.textContaining('of 3 scheduled'), findsNothing);
     expect(find.textContaining("can't schedule another post"), findsNothing);
     expect(
       tester
-          .widget<TextButton>(find.widgetWithText(TextButton, 'Schedule'))
+          .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Schedule'))
           .onPressed,
       isNotNull,
     );
-    await tester.tap(find.widgetWithText(TextButton, 'Schedule'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Schedule'));
     await tester.pumpAndSettle();
 
     expect(
@@ -626,15 +715,19 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('A. Maker'), findsOneWidget);
-      await tester.tap(find.widgetWithText(TextButton, 'Next'));
+      await tester.tap(
+        find.byKey(const Key('project-composer-primary-action')),
+      );
       await tester.pumpAndSettle();
       expect(
         find.byKey(Key('${fixture.key}ProjectType-select-button')),
         findsOneWidget,
       );
-      await tester.tap(find.widgetWithText(TextButton, 'Next'));
+      await tester.tap(
+        find.byKey(const Key('project-composer-primary-action')),
+      );
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(TextButton, 'Schedule'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Schedule'));
       await tester.pumpAndSettle();
 
       expect(repository.updatedPayload?['project'], detail.payload['project']);
@@ -891,6 +984,7 @@ final class _ScheduledRepository implements ScheduledPostRepository {
     required String id,
     required List<int> bytes,
     required String mimeType,
+    CancelToken? cancelToken,
   }) async {
     stagedIDs.add(id);
   }

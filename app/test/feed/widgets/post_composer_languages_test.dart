@@ -94,6 +94,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('When'), findsNothing);
+    expect(find.text('Save draft'), findsNothing);
 
     await tester.pumpWidget(
       _testApp(
@@ -104,6 +105,7 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('When'), findsNothing);
+    expect(find.text('Save draft'), findsNothing);
   });
 
   testWidgets('AT-007 Needs attention edit shows recovery and delete actions', (
@@ -143,6 +145,7 @@ void main() {
     expect(find.text('Now'), findsOneWidget);
     expect(find.textContaining('Missed schedule:'), findsOneWidget);
     expect(find.text('Delete scheduled post'), findsOneWidget);
+    expect(find.text('Save draft'), findsNothing);
   });
 
   testWidgets(

@@ -64,6 +64,11 @@ class _SettingsPageBody extends ConsumerWidget {
           onTap: () => const ScheduledPostsRoute().go(context),
         ),
         ListTile(
+          leading: const Icon(Icons.edit_note_outlined),
+          title: Text(l10n.draftsTitle),
+          onTap: () => const DraftsRoute().go(context),
+        ),
+        ListTile(
           leading: const Icon(Icons.group_outlined),
           title: const Text('Followers'),
           onTap: () => const FollowersRoute().go(context),

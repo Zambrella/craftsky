@@ -252,21 +252,30 @@ void main() {
       '@Alice\nALICE\nbad name',
     );
     expect(find.text('Preview normalized handles'), findsNothing);
-    final notificationSettings = find.text('Notification settings');
+    await tester.drag(find.byType(ListView), const Offset(0, -300));
+    await tester.pumpAndSettle();
+    final notificationSettings = find.byWidgetPredicate(
+      (widget) =>
+          widget is RichText &&
+          widget.text.toPlainText().contains('Notification settings'),
+      description: 'Instagram notification settings link',
+    );
     expect(notificationSettings, findsOneWidget);
     expect(
       find.widgetWithText(TextButton, 'Notification settings'),
       findsNothing,
     );
-    final notificationSettingsLink = find.ancestor(
-      of: notificationSettings,
-      matching: find.byType(InkWell),
-    );
-    expect(notificationSettingsLink, findsOneWidget);
-    expect(
-      tester.widget<InkWell>(notificationSettingsLink).onTap,
-      isNotNull,
-    );
+    final notificationNotice = tester.widget<RichText>(notificationSettings);
+    var hasNotificationSettingsLink = false;
+    notificationNotice.text.visitChildren((span) {
+      if (span is TextSpan &&
+          span.text == 'Notification settings' &&
+          span.recognizer != null) {
+        hasNotificationSettingsLink = true;
+      }
+      return true;
+    });
+    expect(hasNotificationSettingsLink, isTrue);
     final importButton = find.text('Import handles');
     await tester.drag(find.byType(ListView), const Offset(0, -300));
     await tester.pumpAndSettle();

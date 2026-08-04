@@ -21,7 +21,8 @@ class ComposerImagesState with ComposerImagesStateMappable {
   /// valid.
   bool canSubmitImages({MediaConfig config = mediaConfig}) {
     for (final image in images) {
-      if (image.phase is! ImageUploaded &&
+      if (image.phase is! ImageReady &&
+          image.phase is! ImageUploaded &&
           image.phase is! ScheduledImageReady) {
         return false;
       }
@@ -32,6 +33,17 @@ class ComposerImagesState with ComposerImagesStateMappable {
       }
     }
 
+    return true;
+  }
+
+  /// Whether every retained image has complete app-owned publishable bytes.
+  bool canSaveDraftMedia({MediaConfig config = mediaConfig}) {
+    for (final image in images) {
+      if (image.phase is! ImageReady) return false;
+      if (image.altText.trim().length > config.maxAltTextCharacters) {
+        return false;
+      }
+    }
     return true;
   }
 
@@ -99,22 +111,7 @@ class ComposerImageDraft with ComposerImageDraftMappable {
   final ComposerImagePhase phase;
 
   @override
-  String toString() {
-    return 'ComposerImageDraft('
-        'id: $id, '
-        'fileName: $fileName, '
-        'mimeType: $mimeType, '
-        'altText: $altText, '
-        'phase: $phase, '
-        'previewBytes: ${_byteSummary(previewBytes)}, '
-        'previewAspectRatio: $previewAspectRatio'
-        ')';
-  }
-}
-
-String _byteSummary(Uint8List? bytes) {
-  if (bytes == null) return 'null';
-  return '${bytes.length} bytes';
+  String toString() => 'ComposerImageDraft(<redacted>)';
 }
 
 /// Sealed lifecycle phase for a selected composer image.
@@ -140,6 +137,60 @@ final class ImageReading extends ComposerImagePhase with ImageReadingMappable {
 final class ImagePreparing extends ComposerImagePhase
     with ImagePreparingMappable {
   const ImagePreparing();
+}
+
+/// Image preparation succeeded and publishable bytes are ready locally.
+@MappableClass()
+final class ImageReady extends ComposerImagePhase with ImageReadyMappable {
+  const ImageReady({
+    required this.bytes,
+    required this.mimeType,
+    required this.width,
+    required this.height,
+    required this.sha256,
+    this.storedOrigin,
+  });
+
+  final Uint8List bytes;
+  final String mimeType;
+  final int width;
+  final int height;
+  final String sha256;
+  final StoredDraftMediaOrigin? storedOrigin;
+
+  @override
+  String toString() {
+    return 'ImageReady(bytes: ${bytes.length} bytes, mimeType: $mimeType, '
+        'width: $width, height: $height, sha256: [redacted])';
+  }
+}
+
+@MappableClass()
+final class StoredDraftMediaOrigin with StoredDraftMediaOriginMappable {
+  const StoredDraftMediaOrigin({
+    required this.mediaId,
+    required this.storageRevision,
+    required this.sha256,
+    required this.byteLength,
+  });
+
+  final String mediaId;
+  final String storageRevision;
+  final String sha256;
+  final int byteLength;
+
+  @override
+  String toString() => 'StoredDraftMediaOrigin(<redacted>)';
+}
+
+/// Persisted metadata remains editable, but its app-owned bytes are missing.
+@MappableClass()
+final class ImageUnavailable extends ComposerImagePhase
+    with ImageUnavailableMappable {
+  const ImageUnavailable({required this.width, required this.height});
+
+  final int width;
+  final int height;
 }
 
 /// Prepared bytes are being uploaded to the AppView.
@@ -234,6 +285,9 @@ final class ImagePreparationFailed extends ComposerImageFailure
 
   @override
   String get message => 'Could not prepare image';
+
+  @override
+  bool get canRetry => true;
 }
 
 /// Prepared bytes exceeded the AppView image upload limit.

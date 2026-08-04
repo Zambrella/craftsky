@@ -38,6 +38,7 @@ Future<ProjectComposerSubmitArguments> buildProjectComposerSubmitArguments({
   String? existingText,
   List<Map<String, dynamic>>? existingFacets,
   Project? existingProject,
+  bool materializeImagesFromState = true,
 }) async {
   final trimmedText = text.trim();
   final facets = existingText?.trim() == trimmedText
@@ -53,7 +54,9 @@ Future<ProjectComposerSubmitArguments> buildProjectComposerSubmitArguments({
     langs: List.unmodifiable(langs),
     project: projectWithPatternFacets,
     reply: null,
-    images: imagesState.toCreatePostImages(),
+    images: materializeImagesFromState
+        ? imagesState.toCreatePostImages()
+        : null,
     facets: facets.isEmpty ? null : facets,
   );
 }

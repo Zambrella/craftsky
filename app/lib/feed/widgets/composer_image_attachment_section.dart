@@ -16,6 +16,7 @@ class ComposerImageAttachmentSection extends StatelessWidget {
     required this.onAddImages,
     required this.onAltTextChanged,
     required this.onRemove,
+    required this.onReplaceUnavailable,
     required this.onReorder,
     super.key,
     this.validationErrorText,
@@ -30,6 +31,7 @@ class ComposerImageAttachmentSection extends StatelessWidget {
   final Future<void> Function()? onAddImages;
   final void Function(String imageId, String value) onAltTextChanged;
   final void Function(String imageId) onRemove;
+  final Future<void> Function(String imageId) onReplaceUnavailable;
   final void Function(int fromIndex, int toIndex) onReorder;
   final String? validationErrorText;
   final bool required;
@@ -87,6 +89,7 @@ class ComposerImageAttachmentSection extends StatelessWidget {
                     canMoveDown: index < imagesState.images.length - 1,
                     onAltChanged: (value) => onAltTextChanged(image.id, value),
                     onRemove: () => onRemove(image.id),
+                    onReplaceUnavailable: () => onReplaceUnavailable(image.id),
                     onMoveUp: () => onReorder(index, index - 1),
                     onMoveDown: () => onReorder(index, index + 1),
                   ),
@@ -112,6 +115,7 @@ class ComposerImageAttachmentSection extends StatelessWidget {
                     canMoveDown: false,
                     onAltChanged: (_) {},
                     onRemove: () {},
+                    onReplaceUnavailable: () async {},
                     onMoveUp: () {},
                     onMoveDown: () {},
                   ),
@@ -234,6 +238,7 @@ class _DraftImageTile extends StatelessWidget {
     required this.canMoveDown,
     required this.onAltChanged,
     required this.onRemove,
+    required this.onReplaceUnavailable,
     required this.onMoveUp,
     required this.onMoveDown,
   });
@@ -249,6 +254,7 @@ class _DraftImageTile extends StatelessWidget {
   final bool canMoveDown;
   final ValueChanged<String> onAltChanged;
   final VoidCallback onRemove;
+  final Future<void> Function() onReplaceUnavailable;
   final VoidCallback onMoveUp;
   final VoidCallback onMoveDown;
 
@@ -322,6 +328,22 @@ class _DraftImageTile extends StatelessWidget {
               ),
               SizedBox(height: spacing.sp3),
               _DraftImagePreview(image: image),
+              if (image.phase is ImageUnavailable) ...[
+                SizedBox(height: spacing.sp3),
+                _ImageStatus(image: image),
+                SizedBox(height: spacing.sp1),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    key: Key('composer-replace-${image.id}'),
+                    onPressed: enabled
+                        ? () => unawaited(onReplaceUnavailable())
+                        : null,
+                    icon: const Icon(Icons.image_search_rounded),
+                    label: Text(l10n.draftsReplaceImageAction),
+                  ),
+                ),
+              ],
               if (image.phase is ImageFailed) ...[
                 SizedBox(height: spacing.sp3),
                 _ImageStatus(image: image),
@@ -397,8 +419,11 @@ class _DraftImagePreview extends StatelessWidget {
                   fit: BoxFit.cover,
                   width: double.infinity,
                 ),
-                null => const DecoratedBox(
-                  decoration: BoxDecoration(color: Color(0xFFEAEAEA)),
+                null => DecoratedBox(
+                  decoration: const BoxDecoration(color: Color(0xFFEAEAEA)),
+                  child: image.phase is ImageUnavailable
+                      ? const Center(child: Icon(Icons.broken_image_outlined))
+                      : null,
                 ),
               },
               if (_previewLoadingOverlay(context, image) case final overlay?)
@@ -724,8 +749,10 @@ String _statusLabel(BuildContext context, ComposerImageDraft image) {
     ImageQueued() || ImageReading() => l10n.postComposeReadingImage,
     ImagePreparing() => l10n.postComposePreparingImage,
     ImageUploading() => l10n.postComposeUploadingImage,
+    ImageReady() => l10n.postComposeUploadedImage,
     ImageUploaded() => l10n.postComposeUploadedImage,
     ScheduledImageReady() => l10n.postComposeUploadedImage,
+    ImageUnavailable() => l10n.draftsImageUnavailable,
     ImageFailed() => l10n.postComposeImageFailed,
   };
 }
@@ -743,7 +770,11 @@ _PreviewLoadingOverlay? _previewLoadingOverlay(
       label: l10n.postComposePreparingImage,
     ),
     ImageUploading(:final progress) => _uploadLoadingOverlay(l10n, progress),
-    ImageUploaded() || ScheduledImageReady() || ImageFailed() => null,
+    ImageReady() ||
+    ImageUploaded() ||
+    ScheduledImageReady() ||
+    ImageUnavailable() ||
+    ImageFailed() => null,
   };
 }
 

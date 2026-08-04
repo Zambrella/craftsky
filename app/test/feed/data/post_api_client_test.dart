@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:craftsky_app/bootstrap.dart';
@@ -93,6 +95,47 @@ void main() {
         expect(uploaded.blob.ref.link, 'bafkimage1');
         expect(uploaded.blob.mimeType, 'image/jpeg');
         expect(uploaded.blob.size, 253496);
+      },
+    );
+
+    test(
+      'does not inherit the shared receive timeout for media transfer',
+      () async {
+        final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+        addTearDown(() => server.close(force: true));
+        server.listen((request) async {
+          await request.drain<void>();
+          await Future<void>.delayed(const Duration(milliseconds: 80));
+          request.response
+            ..headers.contentType = ContentType.json
+            ..write(
+              jsonEncode({
+                'blob': {
+                  r'$type': 'blob',
+                  'ref': {r'$link': 'bafk-delayed'},
+                  'mimeType': 'image/jpeg',
+                  'size': 4,
+                },
+                'cid': 'bafk-delayed',
+                'mime': 'image/jpeg',
+                'size': 4,
+              }),
+            );
+          await request.response.close();
+        });
+        final dio = Dio(
+          BaseOptions(
+            baseUrl: 'http://${server.address.address}:${server.port}',
+            receiveTimeout: const Duration(milliseconds: 20),
+          ),
+        );
+        addTearDown(() => dio.close(force: true));
+
+        final uploaded = await PostApiClient(
+          dio,
+        ).uploadImage(bytes: const [1, 2, 3, 4], mimeType: 'image/jpeg');
+
+        expect(uploaded.cid, 'bafk-delayed');
       },
     );
   });

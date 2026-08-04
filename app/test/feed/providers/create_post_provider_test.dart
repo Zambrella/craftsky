@@ -1,3 +1,8 @@
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
+    show sessionRegistryProvider;
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
@@ -117,6 +122,61 @@ void main() {
       expect(transitions.first, isA<AsyncLoading<Post?>>());
       expect(transitions.last.value?.rkey, 'new');
     });
+
+    test(
+      'rejects submission work captured by a no-longer-active account',
+      () async {
+        var createCalls = 0;
+        final fake = FakePostRepository(
+          onCreate: ({required text, reply, images}) async {
+            createCalls += 1;
+            return _post(rkey: 'new');
+          },
+        );
+        final registry = SessionRegistry.empty()
+            .upsertAndActivate(
+              token: 'bob-token',
+              did: 'did:plc:bob',
+              handle: 'bob.test',
+            )
+            .upsertAndActivate(
+              token: 'alice-token',
+              did: 'did:plc:alice',
+              handle: 'alice.test',
+            );
+        final container = ProviderContainer.test(
+          overrides: [
+            secureSessionRegistryStorageProvider.overrideWithValue(
+              _RegistryStorage(registry),
+            ),
+            postRepositoryProvider.overrideWithValue(fake),
+          ],
+        );
+        await container.read(sessionRegistryProvider.future);
+        final aliceOwnership = container
+            .read(sessionRegistryProvider)
+            .requireValue
+            .activeLease!;
+        final bobLease = container
+            .read(sessionRegistryProvider)
+            .requireValue
+            .leaseFor(AccountKey('did:plc:bob'))!;
+        await container
+            .read(sessionRegistryProvider.notifier)
+            .activate(bobLease);
+
+        await container
+            .read(createPostProvider.notifier)
+            .create(
+              text: 'must remain Alice-owned',
+              langs: _langs,
+              ownership: aliceOwnership,
+            );
+
+        expect(createCalls, 0);
+        expect(container.read(createPostProvider).value, isNull);
+      },
+    );
 
     test('UT-016 forwards the selected languages unchanged', () async {
       final fake = FakePostRepository(
@@ -698,4 +758,18 @@ void main() {
       },
     );
   });
+}
+
+final class _RegistryStorage implements SessionRegistryStorage {
+  _RegistryStorage(this.registry);
+
+  SessionRegistry registry;
+
+  @override
+  Future<SessionRegistry> read() async => registry;
+
+  @override
+  Future<void> write(SessionRegistry registry) async {
+    this.registry = registry;
+  }
 }

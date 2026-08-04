@@ -13,6 +13,7 @@ dependencies:
   archive: ^4.0.9
   at_primitives: ^1.0.0
   cached_network_image: ^3.4.1
+  crypto: ^3.0.7
   cupertino_icons: ^1.0.8
   dart_mappable: ^4.6.1
   device_info_plus: ^13.1.0
@@ -40,6 +41,8 @@ dependencies:
   mime: ^2.0.0
   multiformats: ^1.0.2
   package_info_plus: ^10.1.0
+  path: ^1.9.1
+  path_provider: ^2.1.6
   pinch_zoom: ^2.0.1
   pub_semver: ^2.2.0
   riverpod_annotation: ^4.0.2
@@ -50,6 +53,7 @@ dependencies:
   timeago: ^3.7.1
   url_launcher: ^6.3.1
   uuid: ^4.5.1
+  wakelock_plus: ^1.7.0
 
 dev_dependencies:
   build_runner: ^2.10.4

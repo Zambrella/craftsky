@@ -7,6 +7,7 @@ import 'package:craftsky_app/auth/pages/sign_in_page.dart';
 import 'package:craftsky_app/auth/pages/welcome_page.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/design_playground/pages/design_playground_page.dart';
+import 'package:craftsky_app/drafts/pages/drafts_page.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/pages/post_thread_page.dart';
@@ -205,6 +206,10 @@ GoRouter goRouter(Ref ref) {
                   path: RouteLocations.scheduledPostsChild,
                   name: 'scheduled-posts',
                 ),
+                TypedGoRoute<DraftsRoute>(
+                  path: RouteLocations.draftsChild,
+                  name: 'drafts',
+                ),
                 TypedGoRoute<SavedPostsRoute>(
                   path: RouteLocations.savedPostsChild,
                   name: 'saved-posts',
@@ -381,6 +386,16 @@ class ScheduledPostsRoute extends GoRouteData with $ScheduledPostsRoute {
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const ScheduledPostsPage();
+}
+
+class DraftsRoute extends GoRouteData with $DraftsRoute {
+  const DraftsRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.rootNavigatorKey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) => const DraftsPage();
 }
 
 class InstagramMigrationRoute extends GoRouteData

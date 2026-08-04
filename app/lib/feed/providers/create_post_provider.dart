@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
@@ -33,7 +34,7 @@ class CreatePost extends _$CreatePost {
   @override
   FutureOr<Post?> build() => null;
 
-  Future<void> create({
+  Future<Post?> create({
     required String text,
     required List<String> langs,
     PostReply? reply,
@@ -41,8 +42,10 @@ class CreatePost extends _$CreatePost {
     Project? project,
     List<CreatePostImage>? images,
     List<Map<String, dynamic>>? facets,
+    ActiveAccountLease? ownership,
   }) async {
-    final ownership = captureActiveAccountOperation(ref);
+    final operationOwnership = ownership ?? captureActiveAccountOperation(ref);
+    if (!isActiveAccountOperationCurrent(ref, operationOwnership)) return null;
     state = const AsyncLoading();
     final result = await AsyncValue.guard(() async {
       final repo = ref.read(postRepositoryProvider);
@@ -80,7 +83,9 @@ class CreatePost extends _$CreatePost {
       if (post.langs.isEmpty) {
         post = post.copyWith(langs: langs);
       }
-      if (!isActiveAccountOperationCurrent(ref, ownership)) return null;
+      if (!isActiveAccountOperationCurrent(ref, operationOwnership)) {
+        return null;
+      }
 
       if (reply == null) {
         prependLiveTimelineCache(ref, post);
@@ -99,8 +104,9 @@ class CreatePost extends _$CreatePost {
 
       return post;
     });
-    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+    if (!isActiveAccountOperationCurrent(ref, operationOwnership)) return null;
     state = result;
+    return result.value;
   }
 
   /// Resets the notifier to its idle state. Call after consuming a

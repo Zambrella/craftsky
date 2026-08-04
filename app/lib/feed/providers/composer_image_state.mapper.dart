@@ -408,6 +408,8 @@ class ComposerImagePhaseMapper extends ClassMapperBase<ComposerImagePhase> {
       ImageQueuedMapper.ensureInitialized();
       ImageReadingMapper.ensureInitialized();
       ImagePreparingMapper.ensureInitialized();
+      ImageReadyMapper.ensureInitialized();
+      ImageUnavailableMapper.ensureInitialized();
       ImageUploadingMapper.ensureInitialized();
       ImageUploadedMapper.ensureInitialized();
       ScheduledImageReadyMapper.ensureInitialized();
@@ -877,6 +879,508 @@ class _ImagePreparingCopyWithImpl<$R, $Out>
   ImagePreparingCopyWith<$R2, ImagePreparing, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   ) => _ImagePreparingCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
+class ImageReadyMapper extends SubClassMapperBase<ImageReady> {
+  ImageReadyMapper._();
+
+  static ImageReadyMapper? _instance;
+  static ImageReadyMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = ImageReadyMapper._());
+      ComposerImagePhaseMapper.ensureInitialized().addSubMapper(_instance!);
+      StoredDraftMediaOriginMapper.ensureInitialized();
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'ImageReady';
+
+  static Uint8List _$bytes(ImageReady v) => v.bytes;
+  static const Field<ImageReady, Uint8List> _f$bytes = Field('bytes', _$bytes);
+  static String _$mimeType(ImageReady v) => v.mimeType;
+  static const Field<ImageReady, String> _f$mimeType = Field(
+    'mimeType',
+    _$mimeType,
+  );
+  static int _$width(ImageReady v) => v.width;
+  static const Field<ImageReady, int> _f$width = Field('width', _$width);
+  static int _$height(ImageReady v) => v.height;
+  static const Field<ImageReady, int> _f$height = Field('height', _$height);
+  static String _$sha256(ImageReady v) => v.sha256;
+  static const Field<ImageReady, String> _f$sha256 = Field('sha256', _$sha256);
+  static StoredDraftMediaOrigin? _$storedOrigin(ImageReady v) => v.storedOrigin;
+  static const Field<ImageReady, StoredDraftMediaOrigin> _f$storedOrigin =
+      Field('storedOrigin', _$storedOrigin, opt: true);
+
+  @override
+  final MappableFields<ImageReady> fields = const {
+    #bytes: _f$bytes,
+    #mimeType: _f$mimeType,
+    #width: _f$width,
+    #height: _f$height,
+    #sha256: _f$sha256,
+    #storedOrigin: _f$storedOrigin,
+  };
+
+  @override
+  final String discriminatorKey = 'type';
+  @override
+  final dynamic discriminatorValue = 'ImageReady';
+  @override
+  late final ClassMapperBase superMapper =
+      ComposerImagePhaseMapper.ensureInitialized();
+
+  static ImageReady _instantiate(DecodingData data) {
+    return ImageReady(
+      bytes: data.dec(_f$bytes),
+      mimeType: data.dec(_f$mimeType),
+      width: data.dec(_f$width),
+      height: data.dec(_f$height),
+      sha256: data.dec(_f$sha256),
+      storedOrigin: data.dec(_f$storedOrigin),
+    );
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static ImageReady fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<ImageReady>(map);
+  }
+
+  static ImageReady fromJson(String json) {
+    return ensureInitialized().decodeJson<ImageReady>(json);
+  }
+}
+
+mixin ImageReadyMappable {
+  String toJson() {
+    return ImageReadyMapper.ensureInitialized().encodeJson<ImageReady>(
+      this as ImageReady,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return ImageReadyMapper.ensureInitialized().encodeMap<ImageReady>(
+      this as ImageReady,
+    );
+  }
+
+  ImageReadyCopyWith<ImageReady, ImageReady, ImageReady> get copyWith =>
+      _ImageReadyCopyWithImpl<ImageReady, ImageReady>(
+        this as ImageReady,
+        $identity,
+        $identity,
+      );
+  @override
+  String toString() {
+    return ImageReadyMapper.ensureInitialized().stringifyValue(
+      this as ImageReady,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return ImageReadyMapper.ensureInitialized().equalsValue(
+      this as ImageReady,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return ImageReadyMapper.ensureInitialized().hashValue(this as ImageReady);
+  }
+}
+
+extension ImageReadyValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, ImageReady, $Out> {
+  ImageReadyCopyWith<$R, ImageReady, $Out> get $asImageReady =>
+      $base.as((v, t, t2) => _ImageReadyCopyWithImpl<$R, $Out>(v, t, t2));
+}
+
+abstract class ImageReadyCopyWith<$R, $In extends ImageReady, $Out>
+    implements ComposerImagePhaseCopyWith<$R, $In, $Out> {
+  StoredDraftMediaOriginCopyWith<
+    $R,
+    StoredDraftMediaOrigin,
+    StoredDraftMediaOrigin
+  >?
+  get storedOrigin;
+  @override
+  $R call({
+    Uint8List? bytes,
+    String? mimeType,
+    int? width,
+    int? height,
+    String? sha256,
+    StoredDraftMediaOrigin? storedOrigin,
+  });
+  ImageReadyCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
+}
+
+class _ImageReadyCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, ImageReady, $Out>
+    implements ImageReadyCopyWith<$R, ImageReady, $Out> {
+  _ImageReadyCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<ImageReady> $mapper =
+      ImageReadyMapper.ensureInitialized();
+  @override
+  StoredDraftMediaOriginCopyWith<
+    $R,
+    StoredDraftMediaOrigin,
+    StoredDraftMediaOrigin
+  >?
+  get storedOrigin =>
+      $value.storedOrigin?.copyWith.$chain((v) => call(storedOrigin: v));
+  @override
+  $R call({
+    Uint8List? bytes,
+    String? mimeType,
+    int? width,
+    int? height,
+    String? sha256,
+    Object? storedOrigin = $none,
+  }) => $apply(
+    FieldCopyWithData({
+      if (bytes != null) #bytes: bytes,
+      if (mimeType != null) #mimeType: mimeType,
+      if (width != null) #width: width,
+      if (height != null) #height: height,
+      if (sha256 != null) #sha256: sha256,
+      if (storedOrigin != $none) #storedOrigin: storedOrigin,
+    }),
+  );
+  @override
+  ImageReady $make(CopyWithData data) => ImageReady(
+    bytes: data.get(#bytes, or: $value.bytes),
+    mimeType: data.get(#mimeType, or: $value.mimeType),
+    width: data.get(#width, or: $value.width),
+    height: data.get(#height, or: $value.height),
+    sha256: data.get(#sha256, or: $value.sha256),
+    storedOrigin: data.get(#storedOrigin, or: $value.storedOrigin),
+  );
+
+  @override
+  ImageReadyCopyWith<$R2, ImageReady, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  ) => _ImageReadyCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
+class StoredDraftMediaOriginMapper
+    extends ClassMapperBase<StoredDraftMediaOrigin> {
+  StoredDraftMediaOriginMapper._();
+
+  static StoredDraftMediaOriginMapper? _instance;
+  static StoredDraftMediaOriginMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = StoredDraftMediaOriginMapper._());
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'StoredDraftMediaOrigin';
+
+  static String _$mediaId(StoredDraftMediaOrigin v) => v.mediaId;
+  static const Field<StoredDraftMediaOrigin, String> _f$mediaId = Field(
+    'mediaId',
+    _$mediaId,
+  );
+  static String _$storageRevision(StoredDraftMediaOrigin v) =>
+      v.storageRevision;
+  static const Field<StoredDraftMediaOrigin, String> _f$storageRevision = Field(
+    'storageRevision',
+    _$storageRevision,
+  );
+  static String _$sha256(StoredDraftMediaOrigin v) => v.sha256;
+  static const Field<StoredDraftMediaOrigin, String> _f$sha256 = Field(
+    'sha256',
+    _$sha256,
+  );
+  static int _$byteLength(StoredDraftMediaOrigin v) => v.byteLength;
+  static const Field<StoredDraftMediaOrigin, int> _f$byteLength = Field(
+    'byteLength',
+    _$byteLength,
+  );
+
+  @override
+  final MappableFields<StoredDraftMediaOrigin> fields = const {
+    #mediaId: _f$mediaId,
+    #storageRevision: _f$storageRevision,
+    #sha256: _f$sha256,
+    #byteLength: _f$byteLength,
+  };
+
+  static StoredDraftMediaOrigin _instantiate(DecodingData data) {
+    return StoredDraftMediaOrigin(
+      mediaId: data.dec(_f$mediaId),
+      storageRevision: data.dec(_f$storageRevision),
+      sha256: data.dec(_f$sha256),
+      byteLength: data.dec(_f$byteLength),
+    );
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static StoredDraftMediaOrigin fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<StoredDraftMediaOrigin>(map);
+  }
+
+  static StoredDraftMediaOrigin fromJson(String json) {
+    return ensureInitialized().decodeJson<StoredDraftMediaOrigin>(json);
+  }
+}
+
+mixin StoredDraftMediaOriginMappable {
+  String toJson() {
+    return StoredDraftMediaOriginMapper.ensureInitialized()
+        .encodeJson<StoredDraftMediaOrigin>(this as StoredDraftMediaOrigin);
+  }
+
+  Map<String, dynamic> toMap() {
+    return StoredDraftMediaOriginMapper.ensureInitialized()
+        .encodeMap<StoredDraftMediaOrigin>(this as StoredDraftMediaOrigin);
+  }
+
+  StoredDraftMediaOriginCopyWith<
+    StoredDraftMediaOrigin,
+    StoredDraftMediaOrigin,
+    StoredDraftMediaOrigin
+  >
+  get copyWith =>
+      _StoredDraftMediaOriginCopyWithImpl<
+        StoredDraftMediaOrigin,
+        StoredDraftMediaOrigin
+      >(this as StoredDraftMediaOrigin, $identity, $identity);
+  @override
+  String toString() {
+    return StoredDraftMediaOriginMapper.ensureInitialized().stringifyValue(
+      this as StoredDraftMediaOrigin,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return StoredDraftMediaOriginMapper.ensureInitialized().equalsValue(
+      this as StoredDraftMediaOrigin,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return StoredDraftMediaOriginMapper.ensureInitialized().hashValue(
+      this as StoredDraftMediaOrigin,
+    );
+  }
+}
+
+extension StoredDraftMediaOriginValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, StoredDraftMediaOrigin, $Out> {
+  StoredDraftMediaOriginCopyWith<$R, StoredDraftMediaOrigin, $Out>
+  get $asStoredDraftMediaOrigin => $base.as(
+    (v, t, t2) => _StoredDraftMediaOriginCopyWithImpl<$R, $Out>(v, t, t2),
+  );
+}
+
+abstract class StoredDraftMediaOriginCopyWith<
+  $R,
+  $In extends StoredDraftMediaOrigin,
+  $Out
+>
+    implements ClassCopyWith<$R, $In, $Out> {
+  $R call({
+    String? mediaId,
+    String? storageRevision,
+    String? sha256,
+    int? byteLength,
+  });
+  StoredDraftMediaOriginCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  );
+}
+
+class _StoredDraftMediaOriginCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, StoredDraftMediaOrigin, $Out>
+    implements
+        StoredDraftMediaOriginCopyWith<$R, StoredDraftMediaOrigin, $Out> {
+  _StoredDraftMediaOriginCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<StoredDraftMediaOrigin> $mapper =
+      StoredDraftMediaOriginMapper.ensureInitialized();
+  @override
+  $R call({
+    String? mediaId,
+    String? storageRevision,
+    String? sha256,
+    int? byteLength,
+  }) => $apply(
+    FieldCopyWithData({
+      if (mediaId != null) #mediaId: mediaId,
+      if (storageRevision != null) #storageRevision: storageRevision,
+      if (sha256 != null) #sha256: sha256,
+      if (byteLength != null) #byteLength: byteLength,
+    }),
+  );
+  @override
+  StoredDraftMediaOrigin $make(CopyWithData data) => StoredDraftMediaOrigin(
+    mediaId: data.get(#mediaId, or: $value.mediaId),
+    storageRevision: data.get(#storageRevision, or: $value.storageRevision),
+    sha256: data.get(#sha256, or: $value.sha256),
+    byteLength: data.get(#byteLength, or: $value.byteLength),
+  );
+
+  @override
+  StoredDraftMediaOriginCopyWith<$R2, StoredDraftMediaOrigin, $Out2>
+  $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
+      _StoredDraftMediaOriginCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
+class ImageUnavailableMapper extends SubClassMapperBase<ImageUnavailable> {
+  ImageUnavailableMapper._();
+
+  static ImageUnavailableMapper? _instance;
+  static ImageUnavailableMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = ImageUnavailableMapper._());
+      ComposerImagePhaseMapper.ensureInitialized().addSubMapper(_instance!);
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'ImageUnavailable';
+
+  static int _$width(ImageUnavailable v) => v.width;
+  static const Field<ImageUnavailable, int> _f$width = Field('width', _$width);
+  static int _$height(ImageUnavailable v) => v.height;
+  static const Field<ImageUnavailable, int> _f$height = Field(
+    'height',
+    _$height,
+  );
+
+  @override
+  final MappableFields<ImageUnavailable> fields = const {
+    #width: _f$width,
+    #height: _f$height,
+  };
+
+  @override
+  final String discriminatorKey = 'type';
+  @override
+  final dynamic discriminatorValue = 'ImageUnavailable';
+  @override
+  late final ClassMapperBase superMapper =
+      ComposerImagePhaseMapper.ensureInitialized();
+
+  static ImageUnavailable _instantiate(DecodingData data) {
+    return ImageUnavailable(
+      width: data.dec(_f$width),
+      height: data.dec(_f$height),
+    );
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static ImageUnavailable fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<ImageUnavailable>(map);
+  }
+
+  static ImageUnavailable fromJson(String json) {
+    return ensureInitialized().decodeJson<ImageUnavailable>(json);
+  }
+}
+
+mixin ImageUnavailableMappable {
+  String toJson() {
+    return ImageUnavailableMapper.ensureInitialized()
+        .encodeJson<ImageUnavailable>(this as ImageUnavailable);
+  }
+
+  Map<String, dynamic> toMap() {
+    return ImageUnavailableMapper.ensureInitialized()
+        .encodeMap<ImageUnavailable>(this as ImageUnavailable);
+  }
+
+  ImageUnavailableCopyWith<ImageUnavailable, ImageUnavailable, ImageUnavailable>
+  get copyWith =>
+      _ImageUnavailableCopyWithImpl<ImageUnavailable, ImageUnavailable>(
+        this as ImageUnavailable,
+        $identity,
+        $identity,
+      );
+  @override
+  String toString() {
+    return ImageUnavailableMapper.ensureInitialized().stringifyValue(
+      this as ImageUnavailable,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return ImageUnavailableMapper.ensureInitialized().equalsValue(
+      this as ImageUnavailable,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return ImageUnavailableMapper.ensureInitialized().hashValue(
+      this as ImageUnavailable,
+    );
+  }
+}
+
+extension ImageUnavailableValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, ImageUnavailable, $Out> {
+  ImageUnavailableCopyWith<$R, ImageUnavailable, $Out>
+  get $asImageUnavailable =>
+      $base.as((v, t, t2) => _ImageUnavailableCopyWithImpl<$R, $Out>(v, t, t2));
+}
+
+abstract class ImageUnavailableCopyWith<$R, $In extends ImageUnavailable, $Out>
+    implements ComposerImagePhaseCopyWith<$R, $In, $Out> {
+  @override
+  $R call({int? width, int? height});
+  ImageUnavailableCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  );
+}
+
+class _ImageUnavailableCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, ImageUnavailable, $Out>
+    implements ImageUnavailableCopyWith<$R, ImageUnavailable, $Out> {
+  _ImageUnavailableCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<ImageUnavailable> $mapper =
+      ImageUnavailableMapper.ensureInitialized();
+  @override
+  $R call({int? width, int? height}) => $apply(
+    FieldCopyWithData({
+      if (width != null) #width: width,
+      if (height != null) #height: height,
+    }),
+  );
+  @override
+  ImageUnavailable $make(CopyWithData data) => ImageUnavailable(
+    width: data.get(#width, or: $value.width),
+    height: data.get(#height, or: $value.height),
+  );
+
+  @override
+  ImageUnavailableCopyWith<$R2, ImageUnavailable, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  ) => _ImageUnavailableCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
 
 class ImageUploadingMapper extends SubClassMapperBase<ImageUploading> {

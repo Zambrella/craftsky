@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:craftsky_app/feed/composer/prepared_media_validation.dart';
 import 'package:craftsky_app/feed/media/composer_image_media_service.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 typedef ScheduledMediaBytesLoader = Future<Uint8List> Function(String id);
@@ -11,6 +14,7 @@ typedef ScheduledMediaStager =
       required String id,
       required List<int> bytes,
       required String mimeType,
+      CancelToken? cancelToken,
     });
 typedef ScheduledComposerMediaMaterializer =
     Future<List<Map<String, dynamic>>> Function(
@@ -63,6 +67,7 @@ Future<List<Map<String, dynamic>>> materializeScheduledComposerMedia(
   required ScheduledMediaStager stageMedia,
   ComposerImageMediaService mediaService = const ComposerImageMediaService(),
   void Function(int)? onStaged,
+  Duration transferBudget = const Duration(minutes: 1),
 }) async {
   final media = <Map<String, dynamic>>[];
   for (final draft in images) {
@@ -86,10 +91,20 @@ Future<List<Map<String, dynamic>>> materializeScheduledComposerMedia(
               mimeType: draft.mimeType,
             )
             .future;
-        await stageMedia(
+        verifyPreparedMediaBytes(
+          bytes: prepared.bytes,
+          mimeType: prepared.mimeType,
+          width: prepared.width,
+          height: prepared.height,
+          altText: draft.altText,
+          mediaService: mediaService,
+        );
+        await _stageWithBudget(
+          stageMedia,
           id: draft.id,
           bytes: prepared.bytes,
           mimeType: prepared.mimeType,
+          transferBudget: transferBudget,
         );
         media.add({
           'id': draft.id,
@@ -98,13 +113,69 @@ Future<List<Map<String, dynamic>>> materializeScheduledComposerMedia(
           'height': prepared.height,
         });
         onStaged?.call(media.length);
+      case ImageReady(
+        :final bytes,
+        :final mimeType,
+        :final width,
+        :final height,
+        :final sha256,
+      ):
+        verifyPreparedMediaBytes(
+          bytes: bytes,
+          mimeType: mimeType,
+          width: width,
+          height: height,
+          altText: draft.altText,
+          mediaService: mediaService,
+          expectedSha256: sha256,
+        );
+        await _stageWithBudget(
+          stageMedia,
+          id: draft.id,
+          bytes: bytes,
+          mimeType: mimeType,
+          transferBudget: transferBudget,
+        );
+        media.add({
+          'id': draft.id,
+          'alt': draft.altText.trim(),
+          'width': width,
+          'height': height,
+        });
+        onStaged?.call(media.length);
       case ImageQueued() ||
           ImageReading() ||
           ImagePreparing() ||
           ImageUploading() ||
+          ImageUnavailable() ||
           ImageFailed():
         throw StateError('scheduled image is not ready');
     }
   }
   return media;
+}
+
+Future<void> _stageWithBudget(
+  ScheduledMediaStager stageMedia, {
+  required String id,
+  required List<int> bytes,
+  required String mimeType,
+  required Duration transferBudget,
+}) async {
+  final cancelToken = CancelToken();
+  await stageMedia(
+    id: id,
+    bytes: bytes,
+    mimeType: mimeType,
+    cancelToken: cancelToken,
+  ).timeout(
+    transferBudget,
+    onTimeout: () {
+      cancelToken.cancel('scheduled image transfer timed out');
+      throw TimeoutException(
+        'scheduled image transfer timed out',
+        transferBudget,
+      );
+    },
+  );
 }

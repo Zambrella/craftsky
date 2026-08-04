@@ -11,6 +11,7 @@ import 'package:craftsky_app/shared/rich_text/data/facet_suggestion_repository.d
 import 'package:craftsky_app/shared/rich_text/data/mock_facet_suggestion_repository.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -64,7 +65,7 @@ void main() {
         '🧶 Hi @alice.craftsky.social see craftsky.social, #SockKAL',
       );
       await _pumpUntilPostEnabled(tester);
-      await tester.tap(find.widgetWithText(TextButton, 'Post'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
       await tester.pumpAndSettle();
 
       expect(capturedFacets, isNotNull);
@@ -120,7 +121,7 @@ void main() {
 
       await tester.enterText(find.byType(TextField).first, 'quote commentary');
       await _pumpUntilPostEnabled(tester);
-      await tester.tap(find.widgetWithText(TextButton, 'Post'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
       await tester.pumpAndSettle();
 
       expect(repo.lastCreateQuote?.uri, quoteTarget.uri);
@@ -185,10 +186,10 @@ Future<void> _openComposer(
 Future<void> _pumpUntilPostEnabled(WidgetTester tester) async {
   for (var i = 0; i < 200; i += 1) {
     await tester.pump(const Duration(milliseconds: 20));
-    final buttons = find.widgetWithText(TextButton, 'Post').evaluate();
+    final buttons = find.widgetWithText(ChunkyButton, 'Post').evaluate();
     if (buttons.isEmpty) continue;
-    final button = tester.widget<TextButton>(
-      find.widgetWithText(TextButton, 'Post'),
+    final button = tester.widget<ChunkyButton>(
+      find.widgetWithText(ChunkyButton, 'Post'),
     );
     if (button.onPressed != null) return;
   }
