@@ -83,6 +83,11 @@ class ProjectDraftSnapshotAdapter {
   }
 
   Object? _decodeValue(String field, Object? value) {
+    if (_stringListFields.contains(field)) {
+      if (value == null) return null;
+      if (value is! List) return const <String>[];
+      return List<String>.unmodifiable(value.whereType<String>());
+    }
     if (field != ProjectComposerFields.materials) return value;
     if (value is! List) return const <ProjectMaterial>[];
     return <ProjectMaterial>[
@@ -143,5 +148,10 @@ class ProjectDraftSnapshotAdapter {
     ProjectComposerFields.quiltingSize,
     ProjectComposerFields.quiltingPiecingTechnique,
     ProjectComposerFields.quiltingMethod,
+  };
+
+  static const _stringListFields = <String>{
+    ProjectComposerFields.colours,
+    ProjectComposerFields.designTags,
   };
 }

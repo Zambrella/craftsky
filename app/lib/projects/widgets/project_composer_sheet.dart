@@ -222,11 +222,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
         : hydrateScheduledProjectComposer(
             project is Map<String, dynamic> ? project : null,
           );
-    _patternNameController.text =
-        switch (_initialFormValues[ProjectComposerFields.patternName]) {
-          final String name when name.isNotEmpty => '#$name',
-          _ => '#',
-        };
+    _patternNameController.text = _patternDisplayText(
+      _initialFormValues[ProjectComposerFields.patternName],
+    );
     _patternDesignerController.text =
         _initialFormValues[ProjectComposerFields.patternDesigner] as String? ??
         '';
@@ -1215,6 +1213,13 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   static bool _hasMeaningfulPatternName(String value) {
     final trimmed = value.trim();
     return trimmed.isNotEmpty && trimmed != '#';
+  }
+
+  static String _patternDisplayText(Object? value) {
+    if (value is! String) return '#';
+    final trimmed = value.trim();
+    if (trimmed.isEmpty || trimmed == '#') return '#';
+    return trimmed.startsWith('#') ? trimmed : '#$trimmed';
   }
 
   static String? _patternFormValue(String value) {

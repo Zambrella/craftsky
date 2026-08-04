@@ -226,6 +226,26 @@ Runtime evidence from a subsequent immediate-post attempt showed a valid 7,251,5
 - Run command: the two focused API client files, followed by uploader, coordinator, scheduled edit, and client regressions.
 - Notes: Green. The real-network immediate regression and scheduled request-option regression pass; the focused 58-test submission/media group and complete 1,287-test Flutter suite also pass.
 
+Runtime testing of a reopened project draft exposed a display-only round-trip bug in the pattern tag/name field. The normalized form value already retained its leading `#`, but composer initialization unconditionally prepended another one. The form state itself retained the original value unless the field was edited, which is why the extra prefix appeared only once rather than accumulating on every reopen.
+
+### Runtime Correction Step P3: FR-005 / AC-004, AC-006
+
+- Write failing widget test: open a project draft whose stored pattern tag/name is `#SockKAL`, then require the visible editor value to contain exactly one leading hash and the dependent Pattern info fields to remain visible.
+- Confirmed failure: the reopened editor displayed `##SockKAL` because initialization combined `#` with an already-prefixed stored value.
+- Implement: normalize only the display value during initialization—retain one existing prefix, add one for legacy/unprefixed values, and keep empty values as the single `#` placeholder. Do not rewrite the persisted draft value.
+- Run command: focused project-draft snapshot, project composer, metadata, and submission suites.
+- Notes: Green. The regression passes and the 16-test focused project group remains green.
+
+Runtime testing on page two of a reopened project draft exposed a second project-field hydration bug. JSON decoding produced `List<dynamic>` values for the saved colour and design-tag arrays, and the snapshot adapter passed those runtime types into `FormBuilderField<List<String>>`. Materials did not fail because their adapter already reconstructed typed `ProjectMaterial` values explicitly.
+
+### Runtime Correction Step P4: FR-005 / AC-004, AC-006
+
+- Write failing tests: decode JSON-shaped dynamic lists through the project snapshot adapter and require typed string lists; open a project draft with those values, navigate to page two, and require both selections to render without a framework exception.
+- Confirmed failure: the adapter returned `List<dynamic>`, and mounting the first multi-select field threw `type 'List<dynamic>' is not a subtype of type 'List<String>?'`.
+- Implement: reconstruct immutable `List<String>` values for the known colour and design-tag fields at the draft decode boundary, retaining only valid string entries. Keep other scalar and material decoding unchanged.
+- Run command: focused manifest codec, project snapshot adapter, composer, metadata, and submission suites.
+- Notes: Green. The production-shaped page-two regression renders both selections, the adapter proves the restored runtime types, and the 23-test focused group passes.
+
 ## Test Order
 
 The steps mirror section 9 of `04-coding-plan.md`. Within a step containing several IDs, execute the IDs one at a time in the listed order and record each red-green result before moving on.
@@ -451,6 +471,8 @@ The steps mirror section 9 of `04-coding-plan.md`. Within a step containing seve
 | Post-review runtime correction | Draft save controller plus standard/project composer regression suites | Red: delayed production-shaped save left the composer open; green after widget-tree listeners, 13 tests passed |
 | Post-review media-timeout correction | `flutter test test/feed/data/post_api_client_test.dart test/scheduled_posts/scheduled_post_api_client_test.dart --reporter expanded` | Red: immediate upload inherited a 20 ms Dio response timeout and scheduled staging retained the shared timeout; green after request-scoped overrides, 37 tests passed |
 | Post-review media-timeout regression | Immediate API client/uploader/coordinator and scheduled client/edit suites | Passed; 58 tests |
+| Post-review project pattern hydration | Project draft pattern regression, snapshot adapter, composer, metadata, and submission suites | Red: `#SockKAL` reopened as `##SockKAL`; green after display-prefix normalization, 16 tests passed |
+| Post-review project list hydration | Manifest codec, JSON-shaped list adapter regression, page-two draft widget regression, and project composer suites | Red: decoded lists remained `List<dynamic>` and page two threw during FormBuilder registration; green after typed reconstruction, 23 tests passed |
 | Static analysis | `just app-analyze` | Passed; no issues found |
 | Full regression | `just app-test --reporter compact` | Passed; 1,287 tests |
 | Diff hygiene | `git diff --check` | Passed |

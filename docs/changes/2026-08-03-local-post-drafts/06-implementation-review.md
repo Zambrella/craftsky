@@ -15,7 +15,11 @@ Post-review iOS simulator testing exposed one production-only provider-lifecycle
 
 A subsequent immediate-post failure exposed a second runtime issue: the shared Dio client's 15-second response timeout canceled a valid 7,251,552-byte media upload before the composer's approved one-minute per-transfer timeout. Immediate blob uploads and scheduled media staging now disable that inherited request timeout while retaining their existing one-minute outer timers and cancellation tokens. A real-network delayed-response regression failed before the change and passes afterward; scheduled staging request options are covered directly.
 
-The earlier filesystem-containment, account-ownership, damaged-media recovery, retry revisioning, pre-submit network, privacy, retention, scheduled-wire, and integration-evidence findings remain resolved. The complete Flutter suite passes 1,287 tests, the 58-test focused media/submission regression group passes, static analysis reports no issues, and diff hygiene is clean.
+Runtime testing of a reopened project draft then exposed a pattern-tag presentation bug: stored form values already included their leading hash, while composer initialization added another. Initialization now preserves one existing prefix and adds one only for legacy/unprefixed values; draft persistence and submission payload values are unchanged. The production-shaped widget regression failed with `##SockKAL` before the correction and now passes with exactly `#SockKAL`.
+
+Navigating to page two of a reopened project draft exposed a related typed-hydration bug: JSON-decoded colour and design-tag arrays remained `List<dynamic>` and failed when registered with `FormBuilderField<List<String>>`. The snapshot adapter now reconstructs immutable typed string lists at its decode boundary and ignores malformed non-string entries. A widget regression follows the real draft flow onto page two and verifies both saved selections render without an exception.
+
+The earlier filesystem-containment, account-ownership, damaged-media recovery, retry revisioning, pre-submit network, privacy, retention, scheduled-wire, and integration-evidence findings remain resolved. The previously completed Flutter suite passes 1,287 tests; the current 23-test focused project/draft regression group and 58-test focused media/submission group pass, static analysis reports no issues, and diff hygiene is clean.
 
 One non-blocking Should-level coverage note remains: the four-media asynchronous test covers provider save progress but not the full Drafts-page widget save/open path and visible progress treatment. `05-implementation-plan.md` now records that limitation explicitly under `MAN-003` rather than claiming complete `IT-018` coverage.
 
@@ -28,7 +32,7 @@ One non-blocking Should-level coverage note remains: the four-media asynchronous
 ## Requirement And Test Traceability
 
 - Requirements implemented: All Must requirements are represented by implementation and passing automated evidence. Draft persistence, account isolation, explicit save/resume, submit-time immediate and scheduled media transfer, atomic recovery behavior, the blocking overlay, screen-awake cleanup, retry state, privacy, retention, and stale-account fencing match the approved requirements.
-- Tests implemented: Unit, repository, provider, widget, API-contract, real-network client, and regression coverage exists for the Must paths. `IT-013` includes disable-failure terminal-result and retained-release-retry coverage in addition to success, failure, and mid-run disposal. The post-review widget regression covers the real unobserved auto-dispose mutation failure that the provider-only harness missed. The post-review HTTP regression proves that immediate uploads can outlive the shared client timeout, while scheduled request inspection proves the same override is applied to staging.
+- Tests implemented: Unit, repository, provider, widget, API-contract, real-network client, and regression coverage exists for the Must paths. `IT-013` includes disable-failure terminal-result and retained-release-retry coverage in addition to success, failure, and mid-run disposal. Post-review widget regressions cover the real unobserved auto-dispose mutation failure that the provider-only harness missed, the exact project pattern-tag hydration shape, and JSON-shaped list fields mounting on project page two. The post-review HTTP regression proves that immediate uploads can outlive the shared client timeout, while scheduled request inspection proves the same override is applied to staging.
 - Unplanned behavior: None identified. No AppView route, database, worker, lexicon, PDS draft record, remote draft-storage surface, or new serialization format was added.
 - Remaining gaps: `IR-012` is a documented non-blocking Should-level coverage gap. `MAN-001` through `MAN-004` remain physical-device/release checks.
 
@@ -39,11 +43,13 @@ One non-blocking Should-level coverage note remains: the four-media asynchronous
   - Draft save controller plus standard/project composer regression suites
   - `flutter test test/feed/data/post_api_client_test.dart test/scheduled_posts/scheduled_post_api_client_test.dart --reporter expanded`
   - Immediate API client/uploader/coordinator and scheduled client/edit regression group
+  - Project draft snapshot adapter, composer, metadata, and submission regression group
+  - Draft manifest codec and JSON-shaped project page-two list hydration regression group
   - Coordinator, screen-awake, overlay, standard composer, project composer, and scheduled-submission regression group recorded in `05-implementation-plan.md`
   - `just app-test --reporter compact`
   - `just app-analyze`
   - `git diff --check`
-- Passing evidence: The focused lifecycle suite passed 4 tests during this review. The post-review controller/composer group passed 13 tests. The submission regression group passed 22 tests. The media-timeout API client group passed 37 tests, and its broader media/submission group passed 58 tests. The full Flutter suite passed 1,287 tests. Static analysis reported no issues and current diff hygiene is clean.
+- Passing evidence: The focused lifecycle suite passed 4 tests during this review. The post-review controller/composer group passed 13 tests. The submission regression group passed 22 tests. The media-timeout API client group passed 37 tests, and its broader media/submission group passed 58 tests. The combined current project/draft hydration correction group passed 23 tests. The previously completed full Flutter suite passed 1,287 tests. Static analysis reported no issues and current diff hygiene is clean.
 - Failing or skipped tests: No executed automated command is failing. The optional complete `IT-018` widget scenario is not implemented. `MAN-001` through `MAN-004` have not been run.
 
 ## Risk Review

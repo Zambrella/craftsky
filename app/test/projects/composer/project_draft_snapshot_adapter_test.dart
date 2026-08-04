@@ -20,6 +20,8 @@ void main() {
         ),
       ],
       ProjectComposerFields.knittingGaugeRows: null,
+      ProjectComposerFields.colours: <dynamic>['blue', 'cream'],
+      ProjectComposerFields.designTags: <dynamic>['cables'],
       'unknownRuntimeField': Object(),
     });
 
@@ -45,6 +47,17 @@ void main() {
           .single
           .text,
       'Wool',
+    );
+    expect(
+      decoded[ProjectComposerFields.colours],
+      isA<List<String>>().having((values) => values, 'values', [
+        'blue',
+        'cream',
+      ]),
+    );
+    expect(
+      decoded[ProjectComposerFields.designTags],
+      isA<List<String>>().having((values) => values, 'values', ['cables']),
     );
   });
 
