@@ -51,9 +51,13 @@ void main() {
     );
 
     await _selectCraft(tester, 'Embroidery');
-    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.tap(
+      find.byKey(const Key('project-composer-primary-action')),
+    );
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.tap(
+      find.byKey(const Key('project-composer-primary-action')),
+    );
     await tester.pumpAndSettle();
 
     await tester.ensureVisible(_bodyTextField());
@@ -191,7 +195,9 @@ void main() {
     );
 
     await _selectCraft(tester, 'Embroidery');
-    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.tap(
+      find.byKey(const Key('project-composer-primary-action')),
+    );
     await tester.pumpAndSettle();
     await tester.enterText(_materialsTextField(), 'Wool roving');
     await tester.pump();

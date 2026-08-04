@@ -6,6 +6,7 @@ import 'package:craftsky_app/languages/providers/language_preferences_provider.d
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -50,13 +51,15 @@ void main() {
     expect(find.text('Finished'), findsOneWidget);
     expect(find.text('Pattern tag or name'), findsOneWidget);
     expect(find.text('Next'), findsOneWidget);
+    expect(find.widgetWithText(ChunkyButton, 'Next'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Next'), findsNothing);
     expect(find.text('Post'), findsNothing);
 
     expect(find.byKey(const Key('craftType-select-button')), findsOneWidget);
     expect(find.byKey(const Key('status-select-button')), findsOneWidget);
 
     await _selectCraft(tester, 'Embroidery');
-    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Next'));
     await tester.pumpAndSettle();
 
     expect(
@@ -72,7 +75,7 @@ void main() {
     expect(find.text('Design tags'), findsOneWidget);
     expect(find.text('More project details'), findsNothing);
 
-    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Next'));
     await tester.pumpAndSettle();
 
     expect(
@@ -82,6 +85,8 @@ void main() {
     expect(find.text('When'), findsOneWidget);
     expect(find.text('Now'), findsOneWidget);
     expect(find.text('Post'), findsOneWidget);
+    expect(find.widgetWithText(ChunkyButton, 'Post'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Post'), findsNothing);
 
     final safeArea = tester.widget<SafeArea>(find.byType(SafeArea).first);
     expect(safeArea.bottom, isFalse);
@@ -89,6 +94,16 @@ void main() {
       find.byKey(const Key('project-composer-bottom-safe-space')),
       findsOneWidget,
     );
+    final postButton = find.widgetWithText(ChunkyButton, 'Post');
+    expect(
+      tester
+          .getSize(
+            find.byKey(const Key('project-composer-bottom-safe-space')),
+          )
+          .height,
+      greaterThan(tester.getSize(postButton).height),
+    );
+    expect(tester.getSize(postButton).width, greaterThan(300));
   });
 
   testWidgets('AT-003 tapping scaffold space clears focused field', (
@@ -120,9 +135,13 @@ void main() {
     );
 
     await _selectCraft(tester, 'Embroidery');
-    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.tap(
+      find.byKey(const Key('project-composer-primary-action')),
+    );
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.tap(
+      find.byKey(const Key('project-composer-primary-action')),
+    );
     await tester.pumpAndSettle();
 
     final bodyField = find.descendant(
@@ -177,7 +196,9 @@ void main() {
       greaterThan(0),
     );
 
-    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.tap(
+      find.byKey(const Key('project-composer-primary-action')),
+    );
     await tester.pumpAndSettle();
 
     expect(tester.state<ScrollableState>(scrollable).position.pixels, 0);
@@ -225,9 +246,13 @@ void main() {
         .position
         .maxScrollExtent;
 
-    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.tap(
+      find.byKey(const Key('project-composer-primary-action')),
+    );
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.tap(
+      find.byKey(const Key('project-composer-primary-action')),
+    );
     await tester.pumpAndSettle();
 
     final pageThreeMaxScrollExtent = tester
@@ -267,7 +292,9 @@ void main() {
     );
 
     await _selectCraft(tester, 'Embroidery');
-    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.tap(
+      find.byKey(const Key('project-composer-primary-action')),
+    );
     await tester.pumpAndSettle();
 
     final materials = _materialTextField();
@@ -312,7 +339,7 @@ void main() {
 
     expect(tester.widget<TextField>(designTags).focusNode?.hasFocus, isFalse);
     expect(
-      tester.widget<TextButton>(primaryAction).focusNode?.hasFocus,
+      tester.widget<ChunkyButton>(primaryAction).focusNode?.hasFocus,
       isTrue,
     );
   });
@@ -346,9 +373,13 @@ void main() {
     );
 
     await _selectCraft(tester, 'Embroidery');
-    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.tap(
+      find.byKey(const Key('project-composer-primary-action')),
+    );
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.tap(
+      find.byKey(const Key('project-composer-primary-action')),
+    );
     await tester.pumpAndSettle();
 
     final bodyField = find.descendant(
@@ -365,7 +396,7 @@ void main() {
     await tester.pump();
 
     expect(tester.widget<TextField>(bodyField).focusNode?.hasFocus, isFalse);
-    expect(tester.widget<TextButton>(postAction).focusNode?.hasFocus, isTrue);
+    expect(tester.widget<ChunkyButton>(postAction).focusNode?.hasFocus, isTrue);
   });
 }
 

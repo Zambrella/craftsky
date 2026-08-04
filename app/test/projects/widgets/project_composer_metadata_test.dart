@@ -94,7 +94,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.tap(
+      find.byKey(const Key('project-composer-primary-action')),
+    );
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
@@ -190,7 +192,9 @@ void main() {
     );
 
     await _selectCraft(tester, 'Embroidery');
-    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.tap(
+      find.byKey(const Key('project-composer-primary-action')),
+    );
     await tester.pumpAndSettle();
 
     final firstTen = ProjectOptionCatalogs.colours.take(10).toList();

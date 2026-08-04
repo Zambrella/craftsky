@@ -26,6 +26,7 @@ import 'package:craftsky_app/languages/providers/language_preferences_provider.d
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
@@ -241,7 +242,7 @@ void main() {
       await tester.enterText(find.byType(TextField).first, 'A cardigan WIP');
       await _pumpUntilPostEnabled(tester);
 
-      await tester.tap(find.widgetWithText(TextButton, 'Post'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
       await tester.pumpAndSettle();
 
       expect(find.text('Some images do not have alt text'), findsOneWidget);
@@ -316,7 +317,7 @@ void main() {
       await _pumpUntilPostEnabled(tester);
 
       tester
-          .widget<TextButton>(find.widgetWithText(TextButton, 'Post'))
+          .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Post'))
           .onPressed!();
       await _pumpUntil(tester, () => upload.uploadCalls == 1);
       final container = ProviderScope.containerOf(
@@ -370,7 +371,7 @@ void main() {
       await _pumpUntilPostEnabled(tester);
 
       tester
-          .widget<TextButton>(find.widgetWithText(TextButton, 'Post'))
+          .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Post'))
           .onPressed!();
       await tester.pumpAndSettle();
 
@@ -380,7 +381,7 @@ void main() {
       expect(find.byType(PostComposerSheet), findsOneWidget);
 
       tester
-          .widget<TextButton>(find.widgetWithText(TextButton, 'Post'))
+          .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Post'))
           .onPressed!();
       await tester.pumpAndSettle();
 
@@ -618,10 +619,10 @@ final class _RegistryStorage implements SessionRegistryStorage {
 Future<void> _pumpUntilPostEnabled(WidgetTester tester) async {
   for (var i = 0; i < 200; i += 1) {
     await tester.pump(const Duration(milliseconds: 20));
-    final buttons = find.widgetWithText(TextButton, 'Post').evaluate();
+    final buttons = find.widgetWithText(ChunkyButton, 'Post').evaluate();
     if (buttons.isEmpty) continue;
-    final button = tester.widget<TextButton>(
-      find.widgetWithText(TextButton, 'Post'),
+    final button = tester.widget<ChunkyButton>(
+      find.widgetWithText(ChunkyButton, 'Post'),
     );
     if (button.onPressed != null) return;
   }

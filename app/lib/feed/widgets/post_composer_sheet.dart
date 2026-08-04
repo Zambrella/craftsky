@@ -42,6 +42,7 @@ import 'package:craftsky_app/scheduled_posts/widgets/scheduled_staging_progress.
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -362,155 +363,178 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                           : l10n.draftSaveChangesAction,
                     ),
                   ),
-                Padding(
-                  padding: EdgeInsets.only(right: spacing.sp4),
-                  child: _PostAction(
-                    isSaving: createState.isLoading || _isScheduling,
-                    label: submitLabel,
-                    onPressed: canSubmit
-                        ? () => _submitPost(trimmedText: trimmedText)
-                        : null,
+              ],
+            ),
+            body: Stack(
+              fit: StackFit.expand,
+              children: [
+                SafeArea(
+                  top: false,
+                  bottom: false,
+                  child: SingleChildScrollView(
+                    clipBehavior: Clip.none,
+                    padding: EdgeInsets.fromLTRB(
+                      spacing.sp4,
+                      spacing.sp5,
+                      spacing.sp4,
+                      0,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (widget.replyTarget case final replyTarget?) ...[
+                          _ComposerTargetPreview(post: replyTarget),
+                          SizedBox(height: spacing.sp4),
+                        ],
+                        if (widget.quoteTarget case final quoteTarget?) ...[
+                          _ComposerTargetPreview(post: quoteTarget),
+                          SizedBox(height: spacing.sp4),
+                        ],
+                        FacetAutocompleteEditor(
+                          label: isReply
+                              ? l10n.postComposeReplyHint
+                              : l10n.postComposeHint,
+                          hintText: isReply ? null : l10n.postComposeBodyHint,
+                          controller: _controller,
+                          focusNode: _focusNode,
+                          minLines: isReply ? 5 : 3,
+                          maxLines: 12,
+                          textInputAction: TextInputAction.newline,
+                          keyboardType: TextInputType.multiline,
+                          enabled: !createState.isLoading,
+                          errorText: tooLong ? l10n.postComposeTooLong : null,
+                          helperText:
+                              '${_text.length}/${PostComposerSheet.maxCharacters}',
+                          helperAlignment: AlignmentDirectional.centerEnd,
+                          onChanged: (value) => setState(() => _text = value),
+                        ),
+                        SizedBox(height: spacing.sp4),
+                        PostLanguageSelector(
+                          selection: _languages!,
+                          enabled: !createState.isLoading,
+                          onChanged: (value) =>
+                              setState(() => _languages = value),
+                        ),
+                        if (isSchedulable) ...[
+                          SizedBox(height: spacing.sp4),
+                          Builder(
+                            builder: (menuContext) => ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(Icons.schedule_outlined),
+                              title: Text(l10n.scheduledPostWhenTitle),
+                              subtitle: Text(_whenLabel(context)),
+                              trailing: const Icon(Icons.chevron_right),
+                              enabled: !_isScheduling,
+                              onTap: () => _chooseWhen(
+                                menuContext,
+                                scheduleEnabled: capacity.scheduleEnabled,
+                              ),
+                            ),
+                          ),
+                          if (capacity.showCapacityWarning)
+                            const ScheduledPostCapacityWarning(),
+                          if (capacity.showManageLink)
+                            Align(
+                              alignment: AlignmentDirectional.centerStart,
+                              child: TextButton(
+                                onPressed: () => const ScheduledPostsRoute()
+                                    .push<void>(context),
+                                child: Text(l10n.scheduledPostManageAction),
+                              ),
+                            ),
+                          if (_missedScheduledAtLocal case final missed?)
+                            Text(
+                              l10n.scheduledPostMissedTime(
+                                _localTimeLabel(context, missed),
+                              ),
+                            ),
+                          if (widget.scheduledPost != null)
+                            Align(
+                              alignment: AlignmentDirectional.centerStart,
+                              child: TextButton.icon(
+                                onPressed: _isScheduling
+                                    ? null
+                                    : _deleteExistingSchedule,
+                                icon: const Icon(Icons.delete_outline),
+                                label: Text(l10n.scheduledPostsDeleteTooltip),
+                              ),
+                            ),
+                          if (_isScheduling &&
+                              (_stagedImageTotal > 0 || _isSavingSchedule)) ...[
+                            SizedBox(height: spacing.sp3),
+                            ScheduledStagingProgress(
+                              completed: _stagedImageCount,
+                              total: _stagedImageTotal,
+                              creating: _isSavingSchedule,
+                            ),
+                          ],
+                        ],
+                        if (!isReply) ...[
+                          SizedBox(height: spacing.sp6),
+                          if (_isLoadingScheduledMedia)
+                            const Center(child: CircularProgressIndicator())
+                          else if (_scheduledMediaLoadFailed)
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(l10n.scheduledPostsLoadError),
+                                TextButton(
+                                  onPressed: _hydrateScheduledMedia,
+                                  child: Text(l10n.scheduledPostsRetryAction),
+                                ),
+                              ],
+                            )
+                          else
+                            ComposerImageAttachmentSection(
+                              imagesState: imagesState,
+                              enabled: !createState.isLoading,
+                              onAddImages: () =>
+                                  ref.read(imagesProvider.notifier).addImages(),
+                              onAltTextChanged: (imageId, value) => ref
+                                  .read(imagesProvider.notifier)
+                                  .setAltText(imageId, value),
+                              onRemove: (imageId) => ref
+                                  .read(imagesProvider.notifier)
+                                  .remove(imageId),
+                              onReplaceUnavailable: (imageId) => ref
+                                  .read(imagesProvider.notifier)
+                                  .replaceUnavailable(imageId),
+                              onReorder: (fromIndex, toIndex) => ref
+                                  .read(imagesProvider.notifier)
+                                  .reorder(
+                                    fromIndex: fromIndex,
+                                    toIndex: toIndex,
+                                  ),
+                            ),
+                        ],
+                        SizedBox(
+                          key: const Key('post-composer-bottom-safe-space'),
+                          height:
+                              spacing.sp9 +
+                              MediaQuery.paddingOf(context).bottom,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                PositionedDirectional(
+                  start: spacing.sp4,
+                  end: spacing.sp4,
+                  bottom: 0,
+                  child: SafeArea(
+                    top: false,
+                    minimum: EdgeInsets.only(bottom: spacing.sp4),
+                    child: _PostAction(
+                      actionKey: const Key('post-composer-primary-action'),
+                      isSaving: createState.isLoading || _isScheduling,
+                      label: submitLabel,
+                      onPressed: canSubmit
+                          ? () => _submitPost(trimmedText: trimmedText)
+                          : null,
+                    ),
                   ),
                 ),
               ],
-            ),
-            body: SafeArea(
-              top: false,
-              bottom: false,
-              child: SingleChildScrollView(
-                clipBehavior: Clip.none,
-                padding: EdgeInsets.fromLTRB(
-                  spacing.sp4,
-                  spacing.sp5,
-                  spacing.sp4,
-                  spacing.sp7,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (widget.replyTarget case final replyTarget?) ...[
-                      _ComposerTargetPreview(post: replyTarget),
-                      SizedBox(height: spacing.sp4),
-                    ],
-                    if (widget.quoteTarget case final quoteTarget?) ...[
-                      _ComposerTargetPreview(post: quoteTarget),
-                      SizedBox(height: spacing.sp4),
-                    ],
-                    FacetAutocompleteEditor(
-                      label: isReply
-                          ? l10n.postComposeReplyHint
-                          : l10n.postComposeHint,
-                      hintText: isReply ? null : l10n.postComposeBodyHint,
-                      controller: _controller,
-                      focusNode: _focusNode,
-                      minLines: isReply ? 5 : 3,
-                      maxLines: 12,
-                      textInputAction: TextInputAction.newline,
-                      keyboardType: TextInputType.multiline,
-                      enabled: !createState.isLoading,
-                      errorText: tooLong ? l10n.postComposeTooLong : null,
-                      helperText:
-                          '${_text.length}/${PostComposerSheet.maxCharacters}',
-                      helperAlignment: AlignmentDirectional.centerEnd,
-                      onChanged: (value) => setState(() => _text = value),
-                    ),
-                    SizedBox(height: spacing.sp4),
-                    PostLanguageSelector(
-                      selection: _languages!,
-                      enabled: !createState.isLoading,
-                      onChanged: (value) => setState(() => _languages = value),
-                    ),
-                    if (isSchedulable) ...[
-                      SizedBox(height: spacing.sp4),
-                      Builder(
-                        builder: (menuContext) => ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.schedule_outlined),
-                          title: Text(l10n.scheduledPostWhenTitle),
-                          subtitle: Text(_whenLabel(context)),
-                          trailing: const Icon(Icons.chevron_right),
-                          enabled: !_isScheduling,
-                          onTap: () => _chooseWhen(
-                            menuContext,
-                            scheduleEnabled: capacity.scheduleEnabled,
-                          ),
-                        ),
-                      ),
-                      if (capacity.showCapacityWarning)
-                        const ScheduledPostCapacityWarning(),
-                      if (capacity.showManageLink)
-                        Align(
-                          alignment: AlignmentDirectional.centerStart,
-                          child: TextButton(
-                            onPressed: () =>
-                                const ScheduledPostsRoute().push<void>(context),
-                            child: Text(l10n.scheduledPostManageAction),
-                          ),
-                        ),
-                      if (_missedScheduledAtLocal case final missed?)
-                        Text(
-                          l10n.scheduledPostMissedTime(
-                            _localTimeLabel(context, missed),
-                          ),
-                        ),
-                      if (widget.scheduledPost != null)
-                        Align(
-                          alignment: AlignmentDirectional.centerStart,
-                          child: TextButton.icon(
-                            onPressed: _isScheduling
-                                ? null
-                                : _deleteExistingSchedule,
-                            icon: const Icon(Icons.delete_outline),
-                            label: Text(l10n.scheduledPostsDeleteTooltip),
-                          ),
-                        ),
-                      if (_isScheduling &&
-                          (_stagedImageTotal > 0 || _isSavingSchedule)) ...[
-                        SizedBox(height: spacing.sp3),
-                        ScheduledStagingProgress(
-                          completed: _stagedImageCount,
-                          total: _stagedImageTotal,
-                          creating: _isSavingSchedule,
-                        ),
-                      ],
-                    ],
-                    if (!isReply) ...[
-                      SizedBox(height: spacing.sp6),
-                      if (_isLoadingScheduledMedia)
-                        const Center(child: CircularProgressIndicator())
-                      else if (_scheduledMediaLoadFailed)
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(l10n.scheduledPostsLoadError),
-                            TextButton(
-                              onPressed: _hydrateScheduledMedia,
-                              child: Text(l10n.scheduledPostsRetryAction),
-                            ),
-                          ],
-                        )
-                      else
-                        ComposerImageAttachmentSection(
-                          imagesState: imagesState,
-                          enabled: !createState.isLoading,
-                          onAddImages: () =>
-                              ref.read(imagesProvider.notifier).addImages(),
-                          onAltTextChanged: (imageId, value) => ref
-                              .read(imagesProvider.notifier)
-                              .setAltText(imageId, value),
-                          onRemove: (imageId) =>
-                              ref.read(imagesProvider.notifier).remove(imageId),
-                          onReplaceUnavailable: (imageId) => ref
-                              .read(imagesProvider.notifier)
-                              .replaceUnavailable(imageId),
-                          onReorder: (fromIndex, toIndex) => ref
-                              .read(imagesProvider.notifier)
-                              .reorder(fromIndex: fromIndex, toIndex: toIndex),
-                        ),
-                    ],
-                  ],
-                ),
-              ),
             ),
           ),
           if (_isSubmitting)
@@ -1168,22 +1192,22 @@ class _ComposerTargetPreview extends StatelessWidget {
 
 class _PostAction extends StatelessWidget {
   const _PostAction({
+    required this.actionKey,
     required this.isSaving,
     required this.label,
     required this.onPressed,
   });
 
+  final Key actionKey;
   final bool isSaving;
   final String label;
   final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
-    return TextButton(
+    return ChunkyButton(
+      key: actionKey,
       onPressed: onPressed,
-      style: TextButton.styleFrom(
-        textStyle: const TextStyle(fontWeight: FontWeight.w800),
-      ),
       child: isSaving ? const StitchProgressIndicator(size: 18) : Text(label),
     );
   }

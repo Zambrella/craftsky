@@ -24,6 +24,7 @@ import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/rich_text/facet_generator.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
@@ -214,7 +215,7 @@ void main() {
     expect(find.textContaining("can't schedule another post"), findsNothing);
     expect(
       tester
-          .widget<TextButton>(find.widgetWithText(TextButton, 'Schedule'))
+          .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Schedule'))
           .onPressed,
       isNotNull,
     );
@@ -232,7 +233,7 @@ void main() {
     );
     await tester.tap(find.byKey(const Key('composer-move-down-old-1')));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'Schedule'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Schedule'));
     await tester.pumpAndSettle();
 
     expect(repository.updatedPayload?['media'], [
@@ -295,7 +296,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Now').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'Post'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
     await tester.pumpAndSettle();
 
     expect(repository.publishedPayload?['media'], [
@@ -434,7 +435,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(TextButton, 'Schedule'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Schedule'));
       await tester.pump();
       await repository.updateStarted.future;
       final container = ProviderScope.containerOf(
@@ -498,7 +499,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'Schedule'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Schedule'));
     await tester.pumpAndSettle();
 
     expect(
@@ -558,7 +559,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Now').last);
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'Post'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
     await tester.pumpAndSettle();
 
     expect(
@@ -620,7 +621,9 @@ void main() {
     );
     expect(find.text('A. Maker'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.tap(
+      find.byKey(const Key('project-composer-primary-action')),
+    );
     await tester.pumpAndSettle();
     expect(
       find.byKey(
@@ -633,17 +636,19 @@ void main() {
       findsOneWidget,
     );
 
-    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.tap(
+      find.byKey(const Key('project-composer-primary-action')),
+    );
     await tester.pumpAndSettle();
     expect(find.textContaining('of 3 scheduled'), findsNothing);
     expect(find.textContaining("can't schedule another post"), findsNothing);
     expect(
       tester
-          .widget<TextButton>(find.widgetWithText(TextButton, 'Schedule'))
+          .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Schedule'))
           .onPressed,
       isNotNull,
     );
-    await tester.tap(find.widgetWithText(TextButton, 'Schedule'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Schedule'));
     await tester.pumpAndSettle();
 
     expect(
@@ -710,15 +715,19 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('A. Maker'), findsOneWidget);
-      await tester.tap(find.widgetWithText(TextButton, 'Next'));
+      await tester.tap(
+        find.byKey(const Key('project-composer-primary-action')),
+      );
       await tester.pumpAndSettle();
       expect(
         find.byKey(Key('${fixture.key}ProjectType-select-button')),
         findsOneWidget,
       );
-      await tester.tap(find.widgetWithText(TextButton, 'Next'));
+      await tester.tap(
+        find.byKey(const Key('project-composer-primary-action')),
+      );
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(TextButton, 'Schedule'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Schedule'));
       await tester.pumpAndSettle();
 
       expect(repository.updatedPayload?['project'], detail.payload['project']);

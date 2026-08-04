@@ -15,6 +15,7 @@ import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -448,7 +449,7 @@ void main() {
 
     await tester.enterText(find.byType(TextField).first, 'quote commentary');
     await tester.pump();
-    await tester.tap(find.widgetWithText(TextButton, 'Post'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
     await tester.pumpAndSettle();
 
     expect(repo.lastCreateQuote?.uri, target.uri);
@@ -540,7 +541,7 @@ void main() {
     expect(find.text('Project post'), findsNothing);
     await tester.enterText(find.byType(TextField), 'new comment');
     await tester.pump();
-    await tester.tap(find.widgetWithText(TextButton, 'Reply'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Reply'));
     await tester.pumpAndSettle();
 
     expect(find.text('Thread route'), findsOneWidget);
@@ -695,7 +696,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'top-level');
     await tester.pump();
-    await tester.tap(find.widgetWithText(TextButton, 'Post'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
     await tester.pumpAndSettle();
 
     expect(capturedReply, isNull);

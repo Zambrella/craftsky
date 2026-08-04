@@ -18,6 +18,7 @@ import 'package:craftsky_app/scheduled_posts/providers/scheduled_post_repository
 import 'package:craftsky_app/scheduled_posts/services/scheduled_composer_media.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -57,7 +58,7 @@ void main() {
     await _selectLater(tester);
     await _pumpUntilEnabled(tester, 'Schedule');
     tester
-        .widget<TextButton>(find.widgetWithText(TextButton, 'Schedule'))
+        .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Schedule'))
         .onPressed!();
     await tester.pump();
 
@@ -106,7 +107,7 @@ void main() {
     await _pumpUntilEnabled(tester, 'Schedule');
 
     tester
-        .widget<TextButton>(find.widgetWithText(TextButton, 'Schedule'))
+        .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Schedule'))
         .onPressed!();
     await tester.pump();
     await _pumpUntil(tester, () => scheduled.createCalls == 1);
@@ -127,7 +128,7 @@ void main() {
 
     await _pumpUntilEnabled(tester, 'Schedule');
     tester
-        .widget<TextButton>(find.widgetWithText(TextButton, 'Schedule'))
+        .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Schedule'))
         .onPressed!();
     await tester.pump();
     await _pumpUntil(tester, () => scheduled.createCalls == 2);
@@ -237,9 +238,9 @@ Future<void> _selectLater(WidgetTester tester) async {
 
 Future<void> _pumpUntilEnabled(WidgetTester tester, String label) async {
   await _pumpUntil(tester, () {
-    final finder = find.widgetWithText(TextButton, label);
+    final finder = find.widgetWithText(ChunkyButton, label);
     return finder.evaluate().isNotEmpty &&
-        tester.widget<TextButton>(finder).onPressed != null;
+        tester.widget<ChunkyButton>(finder).onPressed != null;
   });
 }
 

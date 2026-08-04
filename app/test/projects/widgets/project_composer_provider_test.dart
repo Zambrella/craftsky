@@ -9,6 +9,7 @@ import 'package:craftsky_app/languages/providers/language_preferences_provider.d
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -67,7 +68,7 @@ void main() {
       expect(messenger.calls, contains(('error', "Couldn't post.", null)));
       expect(
         tester
-            .widget<TextButton>(find.widgetWithText(TextButton, 'Post'))
+            .widget<ChunkyButton>(find.widgetWithText(ChunkyButton, 'Post'))
             .onPressed,
         isNotNull,
       );
@@ -137,21 +138,21 @@ Future<void> _submitValidEmbroideryProject(WidgetTester tester) async {
   await tester.pumpAndSettle();
   await tester.tap(find.text('Embroidery').last);
   await tester.pumpAndSettle();
-  await tester.tap(find.widgetWithText(TextButton, 'Next'));
+  await tester.tap(find.byKey(const Key('project-composer-primary-action')));
   await tester.pumpAndSettle();
-  await tester.tap(find.widgetWithText(TextButton, 'Next'));
+  await tester.tap(find.byKey(const Key('project-composer-primary-action')));
   await tester.pumpAndSettle();
   await tester.enterText(_bodyTextField(), 'Finished project');
   await _pumpUntilPostEnabled(tester);
-  await tester.tap(find.widgetWithText(TextButton, 'Post'));
+  await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
   await tester.pumpAndSettle();
 }
 
 Future<void> _pumpUntilPostEnabled(WidgetTester tester) async {
   for (var i = 0; i < 200; i += 1) {
     await tester.pump(const Duration(milliseconds: 20));
-    final button = tester.widget<TextButton>(
-      find.widgetWithText(TextButton, 'Post'),
+    final button = tester.widget<ChunkyButton>(
+      find.widgetWithText(ChunkyButton, 'Post'),
     );
     if (button.onPressed != null) return;
   }

@@ -8,6 +8,7 @@ import 'package:craftsky_app/languages/providers/language_preferences_provider.d
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_posts_tab.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -278,7 +279,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'new comment');
       await tester.pump();
-      await tester.tap(find.widgetWithText(TextButton, 'Reply'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Reply'));
       await tester.pumpAndSettle();
 
       expect(find.text('Thread route'), findsOneWidget);

@@ -52,6 +52,7 @@ import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_text_field.dart';
@@ -503,187 +504,203 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                             : l10n.draftSaveChangesAction,
                       ),
                     ),
-                  Padding(
-                    padding: EdgeInsets.only(right: spacing.sp4),
-                    child: TextButton(
-                      key: const Key('project-composer-primary-action'),
-                      focusNode: _primaryActionFocusNode,
-                      onPressed: _currentPage < 2
-                          ? (controlsEnabled ? _goToNextPage : null)
-                          : (canSubmit
-                                ? () => _submitProject(trimmedBody: trimmedBody)
-                                : null),
-                      child: Text(
-                        _currentPage < 2
-                            ? l10n.projectComposerNextAction
-                            : _scheduleChoice == ScheduleChoice.later
-                            ? l10n.scheduledPostAction
-                            : l10n.postComposeSubmit,
-                      ),
-                    ),
-                  ),
                 ],
               ),
               body: GestureDetector(
                 behavior: HitTestBehavior.translucent,
                 onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-                child: SafeArea(
-                  top: false,
-                  bottom: false,
-                  child: SingleChildScrollView(
-                    controller: _scrollController,
-                    padding: EdgeInsets.fromLTRB(
-                      spacing.sp4,
-                      spacing.sp5,
-                      spacing.sp4,
-                      0,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        if (_formValidationError
-                            case final formValidationError?) ...[
-                          Text(
-                            formValidationError,
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.error,
-                            ),
-                          ),
-                          SizedBox(height: spacing.sp4),
-                        ],
-                        FormBuilder(
-                          key: _formKey,
-                          initialValue: _initialFormValues,
-                          onChanged: () {
-                            if (mounted) setState(() {});
-                          },
-                          child: _MountedWizardPages(
-                            key: _wizardPagesKey,
-                            currentPage: _currentPage,
-                            onExitBackward: _currentPage == 0
-                                ? null
-                                : () {
-                                    _backActionFocusNode.requestFocus();
-                                    return true;
-                                  },
-                            onExitForward: () {
-                              _primaryActionFocusNode.requestFocus();
-                              return true;
-                            },
-                            children: [
-                              _pageOne(
-                                l10n: l10n,
-                                theme: theme,
-                                spacing: spacing,
-                                imagesState: imagesState,
-                                controlsEnabled: controlsEnabled,
-                                photoErrorText: photoErrorText,
-                                patternInfoTitle:
-                                    l10n.projectComposerPatternInfoSectionLabel,
-                                onAddImages: () => ref
-                                    .read(imagesProvider.notifier)
-                                    .addImages(),
-                                onAltTextChanged: (imageId, value) => ref
-                                    .read(imagesProvider.notifier)
-                                    .setAltText(imageId, value),
-                                onRemoveImage: (imageId) => ref
-                                    .read(imagesProvider.notifier)
-                                    .remove(imageId),
-                                onReplaceUnavailable: (imageId) => ref
-                                    .read(imagesProvider.notifier)
-                                    .replaceUnavailable(imageId),
-                                onReorderImages: (fromIndex, toIndex) => ref
-                                    .read(imagesProvider.notifier)
-                                    .reorder(
-                                      fromIndex: fromIndex,
-                                      toIndex: toIndex,
-                                    ),
-                              ),
-                              _pageTwo(
-                                l10n: l10n,
-                                theme: theme,
-                                spacing: spacing,
-                                controlsEnabled: controlsEnabled,
-                              ),
-                              _pageThree(
-                                l10n: l10n,
-                                spacing: spacing,
-                                controlsEnabled: controlsEnabled,
-                                bodyErrorText: bodyErrorText,
-                              ),
-                            ],
-                          ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    SafeArea(
+                      top: false,
+                      bottom: false,
+                      child: SingleChildScrollView(
+                        controller: _scrollController,
+                        padding: EdgeInsets.fromLTRB(
+                          spacing.sp4,
+                          spacing.sp5,
+                          spacing.sp4,
+                          0,
                         ),
-                        if (_currentPage == 2) ...[
-                          SizedBox(height: spacing.sp4),
-                          PostLanguageSelector(
-                            selection: _languages!,
-                            enabled: controlsEnabled,
-                            onChanged: (value) =>
-                                setState(() => _languages = value),
-                          ),
-                          SizedBox(height: spacing.sp4),
-                          Builder(
-                            builder: (menuContext) => ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: const Icon(Icons.schedule_outlined),
-                              title: Text(l10n.scheduledPostWhenTitle),
-                              subtitle: Text(_whenLabel(context)),
-                              trailing: const Icon(Icons.chevron_right),
-                              enabled: controlsEnabled,
-                              onTap: () => _chooseWhen(
-                                menuContext,
-                                scheduleEnabled: capacity.scheduleEnabled,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            if (_formValidationError
+                                case final formValidationError?) ...[
+                              Text(
+                                formValidationError,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: theme.colorScheme.error,
+                                ),
+                              ),
+                              SizedBox(height: spacing.sp4),
+                            ],
+                            FormBuilder(
+                              key: _formKey,
+                              initialValue: _initialFormValues,
+                              onChanged: () {
+                                if (mounted) setState(() {});
+                              },
+                              child: _MountedWizardPages(
+                                key: _wizardPagesKey,
+                                currentPage: _currentPage,
+                                onExitBackward: _currentPage == 0
+                                    ? null
+                                    : () {
+                                        _backActionFocusNode.requestFocus();
+                                        return true;
+                                      },
+                                onExitForward: () {
+                                  _primaryActionFocusNode.requestFocus();
+                                  return true;
+                                },
+                                children: [
+                                  _pageOne(
+                                    l10n: l10n,
+                                    theme: theme,
+                                    spacing: spacing,
+                                    imagesState: imagesState,
+                                    controlsEnabled: controlsEnabled,
+                                    photoErrorText: photoErrorText,
+                                    patternInfoTitle: l10n
+                                        .projectComposerPatternInfoSectionLabel,
+                                    onAddImages: () => ref
+                                        .read(imagesProvider.notifier)
+                                        .addImages(),
+                                    onAltTextChanged: (imageId, value) => ref
+                                        .read(imagesProvider.notifier)
+                                        .setAltText(imageId, value),
+                                    onRemoveImage: (imageId) => ref
+                                        .read(imagesProvider.notifier)
+                                        .remove(imageId),
+                                    onReplaceUnavailable: (imageId) => ref
+                                        .read(imagesProvider.notifier)
+                                        .replaceUnavailable(imageId),
+                                    onReorderImages: (fromIndex, toIndex) => ref
+                                        .read(imagesProvider.notifier)
+                                        .reorder(
+                                          fromIndex: fromIndex,
+                                          toIndex: toIndex,
+                                        ),
+                                  ),
+                                  _pageTwo(
+                                    l10n: l10n,
+                                    theme: theme,
+                                    spacing: spacing,
+                                    controlsEnabled: controlsEnabled,
+                                  ),
+                                  _pageThree(
+                                    l10n: l10n,
+                                    spacing: spacing,
+                                    controlsEnabled: controlsEnabled,
+                                    bodyErrorText: bodyErrorText,
+                                  ),
+                                ],
                               ),
                             ),
-                          ),
-                          if (capacity.showCapacityWarning)
-                            const ScheduledPostCapacityWarning(),
-                          if (capacity.showManageLink)
-                            Align(
-                              alignment: AlignmentDirectional.centerStart,
-                              child: TextButton(
-                                onPressed: () => const ScheduledPostsRoute()
-                                    .push<void>(context),
-                                child: Text(l10n.scheduledPostManageAction),
+                            if (_currentPage == 2) ...[
+                              SizedBox(height: spacing.sp4),
+                              PostLanguageSelector(
+                                selection: _languages!,
+                                enabled: controlsEnabled,
+                                onChanged: (value) =>
+                                    setState(() => _languages = value),
                               ),
-                            ),
-                          if (_missedScheduledAtLocal case final missed?)
-                            Text(
-                              l10n.scheduledPostMissedTime(
-                                _projectLocalTimeLabel(context, missed),
+                              SizedBox(height: spacing.sp4),
+                              Builder(
+                                builder: (menuContext) => ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: const Icon(Icons.schedule_outlined),
+                                  title: Text(l10n.scheduledPostWhenTitle),
+                                  subtitle: Text(_whenLabel(context)),
+                                  trailing: const Icon(Icons.chevron_right),
+                                  enabled: controlsEnabled,
+                                  onTap: () => _chooseWhen(
+                                    menuContext,
+                                    scheduleEnabled: capacity.scheduleEnabled,
+                                  ),
+                                ),
                               ),
-                            ),
-                          if (_isScheduling &&
-                              (_stagedImageTotal > 0 || _isSavingSchedule)) ...[
-                            SizedBox(height: spacing.sp3),
-                            ScheduledStagingProgress(
-                              completed: _stagedImageCount,
-                              total: _stagedImageTotal,
-                              creating: _isSavingSchedule,
+                              if (capacity.showCapacityWarning)
+                                const ScheduledPostCapacityWarning(),
+                              if (capacity.showManageLink)
+                                Align(
+                                  alignment: AlignmentDirectional.centerStart,
+                                  child: TextButton(
+                                    onPressed: () => const ScheduledPostsRoute()
+                                        .push<void>(context),
+                                    child: Text(l10n.scheduledPostManageAction),
+                                  ),
+                                ),
+                              if (_missedScheduledAtLocal case final missed?)
+                                Text(
+                                  l10n.scheduledPostMissedTime(
+                                    _projectLocalTimeLabel(context, missed),
+                                  ),
+                                ),
+                              if (_isScheduling &&
+                                  (_stagedImageTotal > 0 ||
+                                      _isSavingSchedule)) ...[
+                                SizedBox(height: spacing.sp3),
+                                ScheduledStagingProgress(
+                                  completed: _stagedImageCount,
+                                  total: _stagedImageTotal,
+                                  creating: _isSavingSchedule,
+                                ),
+                              ],
+                            ],
+                            if (widget.scheduledPost != null)
+                              Align(
+                                alignment: AlignmentDirectional.centerStart,
+                                child: TextButton.icon(
+                                  onPressed: _isScheduling
+                                      ? null
+                                      : _deleteExistingSchedule,
+                                  icon: const Icon(Icons.delete_outline),
+                                  label: Text(l10n.scheduledPostsDeleteTooltip),
+                                ),
+                              ),
+                            SizedBox(
+                              key: const Key(
+                                'project-composer-bottom-safe-space',
+                              ),
+                              height:
+                                  spacing.sp9 +
+                                  MediaQuery.paddingOf(context).bottom,
                             ),
                           ],
-                        ],
-                        if (widget.scheduledPost != null)
-                          Align(
-                            alignment: AlignmentDirectional.centerStart,
-                            child: TextButton.icon(
-                              onPressed: _isScheduling
-                                  ? null
-                                  : _deleteExistingSchedule,
-                              icon: const Icon(Icons.delete_outline),
-                              label: Text(l10n.scheduledPostsDeleteTooltip),
-                            ),
-                          ),
-                        SizedBox(
-                          key: const Key('project-composer-bottom-safe-space'),
-                          height:
-                              spacing.sp7 +
-                              MediaQuery.paddingOf(context).bottom,
                         ),
-                      ],
+                      ),
                     ),
-                  ),
+                    PositionedDirectional(
+                      start: spacing.sp4,
+                      end: spacing.sp4,
+                      bottom: 0,
+                      child: SafeArea(
+                        top: false,
+                        minimum: EdgeInsets.only(bottom: spacing.sp4),
+                        child: ChunkyButton(
+                          key: const Key('project-composer-primary-action'),
+                          focusNode: _primaryActionFocusNode,
+                          onPressed: _currentPage < 2
+                              ? (controlsEnabled ? _goToNextPage : null)
+                              : (canSubmit
+                                    ? () => _submitProject(
+                                        trimmedBody: trimmedBody,
+                                      )
+                                    : null),
+                          child: Text(
+                            _currentPage < 2
+                                ? l10n.projectComposerNextAction
+                                : _scheduleChoice == ScheduleChoice.later
+                                ? l10n.scheduledPostAction
+                                : l10n.postComposeSubmit,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

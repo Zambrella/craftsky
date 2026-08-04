@@ -15,6 +15,7 @@ import 'package:craftsky_app/shared/rich_text/data/mock_facet_suggestion_reposit
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -759,7 +760,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'created comment');
     await tester.pump();
-    await tester.tap(find.widgetWithText(TextButton, 'Reply'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Reply'));
     await tester.pumpAndSettle();
 
     expect(createCalls, 1);
@@ -821,7 +822,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'created comment');
     await tester.pump();
-    await tester.tap(find.widgetWithText(TextButton, 'Reply'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Reply'));
     await tester.pumpAndSettle();
 
     expect(find.text('created comment'), findsOneWidget);
@@ -881,7 +882,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'created comment');
     await tester.pump();
-    await tester.tap(find.widgetWithText(TextButton, 'Reply'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Reply'));
     await tester.pumpAndSettle();
 
     final createdRect = tester.getRect(find.text('created comment'));
@@ -1015,7 +1016,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'created reply');
     await tester.pump();
-    await tester.tap(find.widgetWithText(TextButton, 'Reply'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Reply'));
     await tester.pumpAndSettle();
 
     expect(replyLoadCursors, [null, 'more-replies']);
@@ -1085,7 +1086,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'created reply');
     await tester.pump();
-    await tester.tap(find.widgetWithText(TextButton, 'Reply'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Reply'));
     await tester.pumpAndSettle();
 
     expect(find.text('1'), findsOneWidget);
@@ -1163,7 +1164,7 @@ void main() {
       '@carol.craftsky.social created nested reply',
     );
     await tester.pump();
-    await tester.tap(find.widgetWithText(TextButton, 'Reply'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Reply'));
     await tester.pumpAndSettle();
 
     expect(capturedReply?.root.uri, root.uri);

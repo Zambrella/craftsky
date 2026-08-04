@@ -6,6 +6,7 @@ import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -55,9 +56,25 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Now'), findsOneWidget);
+    expect(find.widgetWithText(ChunkyButton, 'Post'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Post'), findsNothing);
+    expect(
+      find.byKey(const Key('post-composer-bottom-safe-space')),
+      findsOneWidget,
+    );
+    final postButton = find.widgetWithText(ChunkyButton, 'Post');
+    expect(
+      tester
+          .getSize(
+            find.byKey(const Key('post-composer-bottom-safe-space')),
+          )
+          .height,
+      greaterThan(tester.getSize(postButton).height),
+    );
+    expect(tester.getSize(postButton).width, greaterThan(300));
     await tester.enterText(find.byType(TextField).first, 'Post immediately');
     await _pumpUntilEnabled(tester, 'Post');
-    await tester.tap(find.widgetWithText(TextButton, 'Post'));
+    await tester.tap(find.byKey(const Key('post-composer-primary-action')));
     await tester.pumpAndSettle();
 
     expect(createCalls, 1);
@@ -67,8 +84,8 @@ void main() {
 Future<void> _pumpUntilEnabled(WidgetTester tester, String label) async {
   for (var attempt = 0; attempt < 100; attempt++) {
     await tester.pump(const Duration(milliseconds: 20));
-    final button = tester.widget<TextButton>(
-      find.widgetWithText(TextButton, label),
+    final button = tester.widget<ChunkyButton>(
+      find.widgetWithText(ChunkyButton, label),
     );
     if (button.onPressed != null) return;
   }

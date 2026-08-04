@@ -40,7 +40,9 @@ void main() {
         ),
       );
 
-      await tester.tap(find.widgetWithText(TextButton, 'Next'));
+      await tester.tap(
+        find.byKey(const Key('project-composer-primary-action')),
+      );
       await tester.pumpAndSettle();
 
       expect(find.text('Choose a craft type.'), findsOneWidget);
@@ -188,11 +190,15 @@ void main() {
 
     await _returnToFirstPage(tester);
     await _selectCraft(tester, 'Knitting');
-    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.tap(
+      find.byKey(const Key('project-composer-primary-action')),
+    );
     await tester.pumpAndSettle();
     await _returnToFirstPage(tester);
     await _selectCraft(tester, 'Sewing');
-    await tester.tap(find.widgetWithText(TextButton, 'Next'));
+    await tester.tap(
+      find.byKey(const Key('project-composer-primary-action')),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('Garment'), findsNothing);
@@ -267,7 +273,7 @@ Future<void> _openDetailsForCraft(WidgetTester tester, String craft) async {
   );
 
   await _selectCraft(tester, craft);
-  await tester.tap(find.widgetWithText(TextButton, 'Next'));
+  await tester.tap(find.byKey(const Key('project-composer-primary-action')));
   await tester.pumpAndSettle();
 }
 

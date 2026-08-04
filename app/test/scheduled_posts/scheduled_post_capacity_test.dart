@@ -15,6 +15,7 @@ import 'package:craftsky_app/scheduled_posts/providers/scheduled_post_repository
 import 'package:craftsky_app/scheduled_posts/providers/scheduled_posts_provider.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -107,8 +108,8 @@ void main() {
   });
 }
 
-TextButton _button(WidgetTester tester, String label) =>
-    tester.widget<TextButton>(find.widgetWithText(TextButton, label));
+ChunkyButton _button(WidgetTester tester, String label) =>
+    tester.widget<ChunkyButton>(find.widgetWithText(ChunkyButton, label));
 
 Future<void> _selectLater(WidgetTester tester) async {
   await tester.tap(find.text('When'));
