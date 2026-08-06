@@ -197,6 +197,7 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	// v1 — post handlers (authenticated + device-id required).
 	postStore := api.NewPostStore(deps.DB, observer)
 	savedPostStore := api.NewSavedPostStore(deps.DB)
+	profilePinStore := api.NewProfilePinStore(deps.DB, api.ProfilePinStoreOptions{Observer: observer})
 	savedPostService := api.NewSavedPostService(savedPostStore, postStore, deps.HandleResolver)
 	oauthHandlers.NotificationSubscriptions = postStore
 	mux.Handle("GET /v1/feed/timeline", v1mw.wrap(mustPolicy("GET", "/v1/feed/timeline"), api.ListTimelineHandler(postStore, deps.HandleResolver, deps.Logger, deps.LanguagePreferences)))
@@ -224,6 +225,9 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	mux.Handle("GET /v1/posts/{did}/{rkey}", v1mw.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}"), api.GetPostHandler(postStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("POST /v1/posts/{did}/{rkey}/saves", v1mw.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/saves"), api.SavePostHandler(postStore, savedPostStore)))
 	mux.Handle("DELETE /v1/posts/{did}/{rkey}/saves", v1mw.wrap(mustPolicy("DELETE", "/v1/posts/{did}/{rkey}/saves"), api.UnsavePostHandler(savedPostStore)))
+	mux.Handle("GET /v1/profiles/me/pins", v1mw.wrap(mustPolicy("GET", "/v1/profiles/me/pins"), api.GetProfilePinsHandler(profilePinStore)))
+	mux.Handle("PUT /v1/posts/{did}/{rkey}/pin", v1mw.wrap(mustPolicy("PUT", "/v1/posts/{did}/{rkey}/pin"), api.PinProfilePostHandler(profilePinStore)))
+	mux.Handle("DELETE /v1/posts/{did}/{rkey}/pin", v1mw.wrap(mustPolicy("DELETE", "/v1/posts/{did}/{rkey}/pin"), api.UnpinProfilePostHandler(profilePinStore)))
 	mux.Handle("GET /v1/saved-posts", v1mw.wrap(mustPolicy("GET", "/v1/saved-posts"), api.ListSavedPostsHandler(savedPostService)))
 	mux.Handle("GET /v1/saved-post-folders", v1mw.wrap(mustPolicy("GET", "/v1/saved-post-folders"), api.ListSavedPostFoldersHandler(savedPostStore)))
 	mux.Handle("POST /v1/saved-post-folders", v1mw.wrap(mustPolicy("POST", "/v1/saved-post-folders"), api.CreateSavedPostFolderHandler(savedPostStore)))
@@ -249,8 +253,8 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 				deps.Logger,
 			)))
 	}
-	mux.Handle("GET /v1/profiles/{handleOrDid}/posts", v1mw.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/posts"), api.ListPostsByAuthorHandler(postStore, deps.HandleResolver, deps.Logger, deps.LanguagePreferences)))
-	mux.Handle("GET /v1/profiles/{handleOrDid}/projects", v1mw.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/projects"), api.ListProjectsByAuthorHandler(postStore, deps.HandleResolver, deps.Logger, deps.LanguagePreferences)))
+	mux.Handle("GET /v1/profiles/{handleOrDid}/posts", v1mw.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/posts"), api.ListPostsByAuthorHandler(postStore, deps.HandleResolver, deps.Logger, profilePinStore, deps.LanguagePreferences)))
+	mux.Handle("GET /v1/profiles/{handleOrDid}/projects", v1mw.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/projects"), api.ListProjectsByAuthorHandler(postStore, deps.HandleResolver, deps.Logger, profilePinStore, deps.LanguagePreferences)))
 	mux.Handle("GET /v1/profiles/{handleOrDid}/comments", v1mw.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/comments"), api.ListCommentsByAuthorHandler(postStore, deps.HandleResolver, deps.Logger, deps.LanguagePreferences)))
 
 	// Fallthrough.

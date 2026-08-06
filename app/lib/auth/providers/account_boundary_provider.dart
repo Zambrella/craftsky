@@ -8,6 +8,7 @@ import 'package:craftsky_app/feed/providers/delete_post_provider.dart';
 import 'package:craftsky_app/feed/providers/post_comment_section_provider.dart';
 import 'package:craftsky_app/feed/providers/post_provider.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/feed/providers/profile_pins_provider.dart';
 import 'package:craftsky_app/feed/providers/report_post_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
@@ -99,6 +100,7 @@ final accountStateInvalidatorProvider = Provider<AccountBoundaryAction>(
       ..invalidate(postCommentSectionProvider)
       ..invalidate(postCommentPageLoaderProvider)
       ..invalidate(postCommentRepliesLoaderProvider)
+      ..invalidate(profilePinsProvider)
       ..invalidate(userPostsProvider)
       ..invalidate(userCommentsProvider)
       ..invalidate(createPostProvider)

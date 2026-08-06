@@ -285,6 +285,7 @@ func TestReadHandlerLogsUseBoundedContextWithoutRawIdentityOrContent(t *testing.
 		&fakePostStore{listCursor: "secret-next"},
 		fakeResolver{didFor: "did:plc:alice", handleFor: "alice.example"},
 		debugLogger,
+		nil,
 	)
 	authorReq := loggedReadReq(http.MethodGet, "/v1/profiles/@alice.example/posts?cursor=secret-cursor", "")
 	authorReq.SetPathValue("handleOrDid", "alice.example")

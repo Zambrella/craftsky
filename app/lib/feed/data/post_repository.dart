@@ -3,6 +3,7 @@ import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
@@ -30,6 +31,15 @@ abstract interface class PostRepository {
 
   /// DELETE /v1/posts/{did}/{rkey}. Idempotent.
   Future<void> delete(Did did, RecordKey rkey);
+
+  /// GET /v1/profiles/me/pins.
+  Future<ProfilePinState> profilePins();
+
+  /// PUT /v1/posts/{did}/{rkey}/pin.
+  Future<ProfilePinState> pin(Did did, RecordKey rkey);
+
+  /// DELETE /v1/posts/{did}/{rkey}/pin.
+  Future<ProfilePinState> unpin(Did did, RecordKey rkey);
 
   /// POST /v1/posts/{did}/{rkey}/reports.
   Future<ReportResult> report(

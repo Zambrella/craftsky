@@ -3029,7 +3029,7 @@ func TestListPosts_HappyPath_PaginatesCorrectly(t *testing.T) {
 			rows[1].URI: {LikeCount: 1, RepostCount: 0, ReplyCount: 2, ViewerHasLiked: false, ViewerHasReposted: false},
 		},
 	}
-	h := api.ListPostsByAuthorHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
+	h := api.ListPostsByAuthorHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger(), nil)
 	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/posts?limit=2", "", "did:plc:alice")
 	req.SetPathValue("handleOrDid", "did:plc:alice")
 	rr := httptest.NewRecorder()
@@ -3083,7 +3083,7 @@ func TestListPosts_AttachesQuoteViewsToAuthoredQuotePosts(t *testing.T) {
 	h := api.ListPostsByAuthorHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
 		"did:plc:alice": "alice.example",
 		"did:plc:carol": "carol.example",
-	}}, nilLogger())
+	}}, nilLogger(), nil)
 	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/posts", "", "did:plc:viewer")
 	req.SetPathValue("handleOrDid", "did:plc:alice")
 	rr := httptest.NewRecorder()
@@ -3121,7 +3121,7 @@ func TestListPosts_WithImages_ReturnsRenderReadyMetadata(t *testing.T) {
 		},
 	}
 	store := &fakePostStore{listRows: rows}
-	h := api.ListPostsByAuthorHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
+	h := api.ListPostsByAuthorHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger(), nil)
 	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/posts", "", "did:plc:alice")
 	req.SetPathValue("handleOrDid", "did:plc:alice")
 	rr := httptest.NewRecorder()
@@ -3162,7 +3162,7 @@ func TestListProjectsByAuthor_HappyPath(t *testing.T) {
 		projectListCursor: "next-projects",
 		engagement:        map[string]api.EngagementSummary{rows[0].URI: {LikeCount: 2, ViewerHasSaved: true}},
 	}
-	h := api.ListProjectsByAuthorHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
+	h := api.ListProjectsByAuthorHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger(), nil)
 	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/projects?limit=2", "", "did:plc:viewer")
 	req.SetPathValue("handleOrDid", "did:plc:alice")
 	rr := httptest.NewRecorder()
@@ -3254,7 +3254,7 @@ func TestListPosts_ResolvesHandle(t *testing.T) {
 		didFor:    syntax.DID("did:plc:alice"),
 		handleFor: syntax.Handle("alice.example"),
 	}
-	h := api.ListPostsByAuthorHandler(store, resolver, nilLogger())
+	h := api.ListPostsByAuthorHandler(store, resolver, nilLogger(), nil)
 	req := authedReq(http.MethodGet, "/v1/profiles/@alice.example/posts", "", "did:plc:bob")
 	req.SetPathValue("handleOrDid", "alice.example")
 	rr := httptest.NewRecorder()
@@ -3267,7 +3267,7 @@ func TestListPosts_ResolvesHandle(t *testing.T) {
 func TestListPosts_BadCursor_400(t *testing.T) {
 	t.Parallel()
 	store := &fakePostStore{listErr: envelope.ErrInvalidCursor}
-	h := api.ListPostsByAuthorHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
+	h := api.ListPostsByAuthorHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger(), nil)
 	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/posts?cursor=garbage", "", "did:plc:alice")
 	req.SetPathValue("handleOrDid", "did:plc:alice")
 	rr := httptest.NewRecorder()
@@ -3280,7 +3280,7 @@ func TestListPosts_BadCursor_400(t *testing.T) {
 func TestListPosts_FinalPage_OmitsCursorField(t *testing.T) {
 	t.Parallel()
 	store := &fakePostStore{listRows: []*api.PostRow{}, listCursor: ""}
-	h := api.ListPostsByAuthorHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
+	h := api.ListPostsByAuthorHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger(), nil)
 	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/posts", "", "did:plc:alice")
 	req.SetPathValue("handleOrDid", "did:plc:alice")
 	rr := httptest.NewRecorder()
@@ -3344,6 +3344,7 @@ func TestListPosts_LoadsAuthoritativeContentLanguages(t *testing.T) {
 		store,
 		fakeResolver{handleFor: "alice.example"},
 		nilLogger(),
+		nil,
 		preferences,
 	)
 	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/posts", "", "did:plc:viewer")
@@ -3374,7 +3375,7 @@ func TestListPosts_LimitDefaultAndCap(t *testing.T) {
 		fakePostStore: fakePostStore{listRows: []*api.PostRow{}},
 		captured:      &captured,
 	}
-	h := api.ListPostsByAuthorHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
+	h := api.ListPostsByAuthorHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger(), nil)
 	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/posts?limit=500", "", "did:plc:alice")
 	req.SetPathValue("handleOrDid", "did:plc:alice")
 	rr := httptest.NewRecorder()
@@ -3562,7 +3563,7 @@ func TestListPosts_HandleResolutionFails_502(t *testing.T) {
 	store := &fakePostStore{listRows: rows}
 	// Resolver fails. With non-empty rows the handler MUST resolve the
 	// handle to render the response — and on failure must return 502.
-	h := api.ListPostsByAuthorHandler(store, fakeResolver{err: errors.New("plc down")}, nilLogger())
+	h := api.ListPostsByAuthorHandler(store, fakeResolver{err: errors.New("plc down")}, nilLogger(), nil)
 	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/posts", "", "did:plc:alice")
 	req.SetPathValue("handleOrDid", "did:plc:alice")
 	rr := httptest.NewRecorder()

@@ -3,6 +3,7 @@ import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
@@ -85,6 +86,30 @@ class PostApiClient {
   Future<void> deletePost(Did did, RecordKey rkey) => unwrapApi(() async {
     await _dio.delete<void>('/v1/posts/$did/$rkey');
   });
+
+  /// GET /v1/profiles/me/pins — private authoritative two-slot state.
+  Future<ProfilePinState> getProfilePins() => unwrapApi(() async {
+    final res = await _dio.get<Map<String, dynamic>>('/v1/profiles/me/pins');
+    return ProfilePinStateMapper.fromMap(res.data!);
+  });
+
+  /// PUT /v1/posts/{did}/{rkey}/pin — bodyless, target-specific pin.
+  Future<ProfilePinState> pinProfilePost(Did did, RecordKey rkey) =>
+      unwrapApi(() async {
+        final res = await _dio.put<Map<String, dynamic>>(
+          '/v1/posts/$did/$rkey/pin',
+        );
+        return ProfilePinStateMapper.fromMap(res.data!);
+      });
+
+  /// DELETE /v1/posts/{did}/{rkey}/pin — bodyless, target-specific unpin.
+  Future<ProfilePinState> unpinProfilePost(Did did, RecordKey rkey) =>
+      unwrapApi(() async {
+        final res = await _dio.delete<Map<String, dynamic>>(
+          '/v1/posts/$did/$rkey/pin',
+        );
+        return ProfilePinStateMapper.fromMap(res.data!);
+      });
 
   /// POST /v1/posts/{did}/{rkey}/reports — private AppView report intake.
   Future<ReportResult> reportPost(

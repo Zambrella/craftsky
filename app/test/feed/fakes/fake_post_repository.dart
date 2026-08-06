@@ -4,6 +4,7 @@ import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
@@ -33,6 +34,9 @@ class FakePostRepository implements PostRepository {
     this.onCreateWithFacets,
     this.onFetch,
     this.onDelete,
+    this.onProfilePins,
+    this.onPin,
+    this.onUnpin,
     this.onReport,
     this.onListCommentBranchReplies,
     this.onCommentSection,
@@ -62,6 +66,9 @@ class FakePostRepository implements PostRepository {
   onCreateWithFacets;
   final Future<Post> Function(Did did, RecordKey rkey)? onFetch;
   final Future<void> Function(Did did, RecordKey rkey)? onDelete;
+  final Future<ProfilePinState> Function()? onProfilePins;
+  final Future<ProfilePinState> Function(Did did, RecordKey rkey)? onPin;
+  final Future<ProfilePinState> Function(Did did, RecordKey rkey)? onUnpin;
   final Future<ReportResult> Function(
     Did did,
     RecordKey rkey,
@@ -150,6 +157,23 @@ class FakePostRepository implements PostRepository {
   Future<void> delete(Did did, RecordKey rkey) =>
       onDelete?.call(did, rkey) ??
       Future<void>.error(UnimplementedError('delete not stubbed'));
+
+  @override
+  Future<ProfilePinState> profilePins() =>
+      onProfilePins?.call() ??
+      Future<ProfilePinState>.error(
+        UnimplementedError('profilePins not stubbed'),
+      );
+
+  @override
+  Future<ProfilePinState> pin(Did did, RecordKey rkey) =>
+      onPin?.call(did, rkey) ??
+      Future<ProfilePinState>.error(UnimplementedError('pin not stubbed'));
+
+  @override
+  Future<ProfilePinState> unpin(Did did, RecordKey rkey) =>
+      onUnpin?.call(did, rkey) ??
+      Future<ProfilePinState>.error(UnimplementedError('unpin not stubbed'));
 
   @override
   Future<ReportResult> report(

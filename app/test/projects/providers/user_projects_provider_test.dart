@@ -7,6 +7,7 @@ import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -46,6 +47,61 @@ void main() {
   setUpAll(initializeMappers);
 
   group('userProjectsProvider', () {
+    test(
+      'UT-004 discards an invalid traversal and restarts page one once',
+      () async {
+        var calls = 0;
+        final fake = FakePostRepository(
+          onListProjectsByAuthor: (id, {cursor, limit}) async {
+            calls++;
+            expect(limit, userProjectsPageLimit);
+            return switch (calls) {
+              1 => PostPage(
+                items: [_post(rkey: 'old-pin')],
+                cursor: 'stale-cursor',
+                pinnedPostUri:
+                    'at://did:plc:alice/social.craftsky.feed.post/old-pin',
+              ),
+              2 => throw const ApiBadRequest('invalid_cursor'),
+              3 => PostPage(
+                items: [_post(rkey: 'new-pin')],
+                cursor: 'fresh-cursor',
+                pinnedPostUri:
+                    'at://did:plc:alice/social.craftsky.feed.post/new-pin',
+              ),
+              _ => throw StateError('unexpected request $calls'),
+            };
+          },
+        );
+        final container = ProviderContainer.test(
+          overrides: [
+            postRepositoryProvider.overrideWithValue(fake),
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: [],
+              ),
+            ),
+          ],
+        );
+        final provider = userProjectsProvider('alice.craftsky.social');
+        final subscription = container.listen(provider, (_, _) {});
+        addTearDown(subscription.close);
+
+        await container.read(provider.future);
+        await container.read(provider.notifier).loadMore();
+
+        final state = container.read(provider).requireValue;
+        expect(calls, 3);
+        expect(state.items.map((post) => post.rkey), ['new-pin']);
+        expect(state.cursor, 'fresh-cursor');
+        expect(
+          state.pinnedPostUri,
+          'at://did:plc:alice/social.craftsky.feed.post/new-pin',
+        );
+      },
+    );
+
     test(
       'AT-007 builds with limit 10 and preserves null-project rows',
       () async {

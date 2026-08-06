@@ -1,9 +1,11 @@
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/author_post_cache.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/models/user_projects_state.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'user_projects_provider.g.dart';
@@ -22,7 +24,11 @@ class UserProjects extends _$UserProjects {
       handleOrDid,
       limit: userProjectsPageLimit,
     );
-    return UserProjectsState(items: page.items, cursor: page.cursor);
+    return UserProjectsState(
+      items: page.items,
+      cursor: page.cursor,
+      pinnedPostUri: page.pinnedPostUri,
+    );
   }
 
   Future<void> loadMore() async {
@@ -35,14 +41,29 @@ class UserProjects extends _$UserProjects {
 
     final next = await AsyncValue.guard(() async {
       final repo = ref.read(postRepositoryProvider);
-      final page = await repo.listProjectsByAuthor(
-        handleOrDid,
-        cursor: current.cursor,
-        limit: userProjectsPageLimit,
-      );
+      late final PostPage page;
+      try {
+        page = await repo.listProjectsByAuthor(
+          handleOrDid,
+          cursor: current.cursor,
+          limit: userProjectsPageLimit,
+        );
+      } on ApiBadRequest catch (error) {
+        if (error.code != 'invalid_cursor') rethrow;
+        final restarted = await repo.listProjectsByAuthor(
+          handleOrDid,
+          limit: userProjectsPageLimit,
+        );
+        return UserProjectsState(
+          items: restarted.items,
+          cursor: restarted.cursor,
+          pinnedPostUri: restarted.pinnedPostUri,
+        );
+      }
       return UserProjectsState(
         items: [...current.items, ...page.items],
         cursor: page.cursor,
+        pinnedPostUri: current.pinnedPostUri,
       );
     });
 

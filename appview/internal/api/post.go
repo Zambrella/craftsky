@@ -1633,6 +1633,7 @@ func ListPostsByAuthorHandler(
 	store PostReader,
 	resolver HandleResolver,
 	logger *slog.Logger,
+	pinReader ProfilePinListReader,
 	preferenceReaders ...LanguagePreferenceReader,
 ) http.Handler {
 	var filtered authorLanguageList
@@ -1641,7 +1642,7 @@ func ListPostsByAuthorHandler(
 	}); ok {
 		filtered = languageStore.ListByAuthorWithLanguages
 	}
-	return listAuthorPostsHandler(store, resolver, logger, "post list", store.ListByAuthor, filtered, preferenceReaders)
+	return listAuthorPostsHandler(store, resolver, logger, "post list", ProfilePinSlotStandard, pinReader, store.ListByAuthor, filtered, preferenceReaders)
 }
 
 // ListProjectsByAuthorHandler serves GET /v1/profiles/{handleOrDid}/projects.
@@ -1649,6 +1650,7 @@ func ListProjectsByAuthorHandler(
 	store PostReader,
 	resolver HandleResolver,
 	logger *slog.Logger,
+	pinReader ProfilePinListReader,
 	preferenceReaders ...LanguagePreferenceReader,
 ) http.Handler {
 	var filtered authorLanguageList
@@ -1657,7 +1659,7 @@ func ListProjectsByAuthorHandler(
 	}); ok {
 		filtered = languageStore.ListProjectsByAuthorWithLanguages
 	}
-	return listAuthorPostsHandler(store, resolver, logger, "project list", store.ListProjectsByAuthor, filtered, preferenceReaders)
+	return listAuthorPostsHandler(store, resolver, logger, "project list", ProfilePinSlotProject, pinReader, store.ListProjectsByAuthor, filtered, preferenceReaders)
 }
 
 // ListCommentsByAuthorHandler serves GET /v1/profiles/{handleOrDid}/comments.
@@ -1673,7 +1675,7 @@ func ListCommentsByAuthorHandler(
 	}); ok {
 		filtered = languageStore.ListCommentsByAuthorWithLanguages
 	}
-	return listAuthorPostsHandler(store, resolver, logger, "comment list", store.ListCommentsByAuthor, filtered, preferenceReaders)
+	return listAuthorPostsHandler(store, resolver, logger, "comment list", "", nil, store.ListCommentsByAuthor, filtered, preferenceReaders)
 }
 
 type authorLanguageList func(context.Context, string, string, []string, int, string) ([]*PostRow, string, error)
@@ -1683,6 +1685,8 @@ func listAuthorPostsHandler(
 	resolver HandleResolver,
 	logger *slog.Logger,
 	logLabel string,
+	pinSlot ProfilePinSlot,
+	pinReader ProfilePinListReader,
 	list func(context.Context, string, int, string) ([]*PostRow, string, error),
 	filteredList authorLanguageList,
 	preferenceReaders []LanguagePreferenceReader,
@@ -1732,12 +1736,10 @@ func listAuthorPostsHandler(
 				slog.Int("limit", limit),
 				slog.Bool("has_cursor", cursor != ""))...)
 
-		var rows []*PostRow
-		var nextCursor string
-		if len(preferenceReaders) == 0 {
-			rows, nextCursor, err = list(r.Context(), did.String(), limit, cursor)
-		} else {
-			contentLanguages, preferenceErr := authoritativeContentLanguages(r.Context(), viewerDID, preferenceReaders)
+		contentLanguages := []string{}
+		if len(preferenceReaders) > 0 {
+			var preferenceErr error
+			contentLanguages, preferenceErr = authoritativeContentLanguages(r.Context(), viewerDID, preferenceReaders)
 			if preferenceErr != nil {
 				logger.Error(logLabel+": language preferences failed",
 					apiLogErrorAttrs(runID, operation, "language_preferences")...)
@@ -1745,6 +1747,48 @@ func listAuthorPostsHandler(
 					"internal_error", "language preferences lookup failed", runID, nil)
 				return
 			}
+		}
+
+		var profilePin *ProfileListPin
+		if pinReader != nil {
+			profilePin, err = pinReader.ReadProfileListPin(
+				r.Context(),
+				did,
+				viewerDID,
+				pinSlot,
+				contentLanguages,
+			)
+			if err != nil {
+				logger.Error(logLabel+": profile pin lookup failed",
+					apiLogErrorAttrs(runID, operation, "profile_pin")...)
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "profile pin lookup failed", runID, nil)
+				return
+			}
+		}
+		pinStateToken := ""
+		if profilePin != nil {
+			pinStateToken = profilePin.StateToken
+		}
+		storeCursor := cursor
+		if pinReader != nil && cursor != "" {
+			storeCursor, err = unwrapProfileListCursor(cursor, pinSlot, pinStateToken)
+			if err != nil {
+				envelope.WriteError(w, http.StatusBadRequest,
+					"invalid_cursor", "cursor could not be decoded", runID, nil)
+				return
+			}
+		}
+		storeLimit := limit
+		if cursor != "" && profilePin != nil {
+			storeLimit++
+		}
+
+		var rows []*PostRow
+		var nextCursor string
+		if len(preferenceReaders) == 0 {
+			rows, nextCursor, err = list(r.Context(), did.String(), storeLimit, storeCursor)
+		} else {
 			if filteredList == nil {
 				logger.Error(logLabel+": language filtering unavailable",
 					apiLogErrorAttrs(runID, operation, "language_filter")...)
@@ -1757,8 +1801,8 @@ func listAuthorPostsHandler(
 				viewerDID.String(),
 				did.String(),
 				contentLanguages,
-				limit,
-				cursor,
+				storeLimit,
+				storeCursor,
 			)
 		}
 		if err != nil {
@@ -1772,6 +1816,38 @@ func listAuthorPostsHandler(
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "post list failed", runID, nil)
 			return
+		}
+		var pinnedPostURI *string
+		if cursor == "" && profilePin != nil {
+			rows, nextCursor, err = promoteProfilePinFirstPage(rows, profilePin.Row, limit, nextCursor)
+			if err != nil {
+				logger.Error(logLabel+": profile pin cursor failed",
+					apiLogErrorAttrs(runID, operation, "profile_pin_cursor")...)
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "profile pin cursor failed", runID, nil)
+				return
+			}
+			pinnedURI := profilePin.Row.URI
+			pinnedPostURI = &pinnedURI
+		} else if cursor != "" && profilePin != nil {
+			rows, nextCursor, err = excludeProfilePinFromLaterPage(rows, profilePin.Row, limit, storeLimit, nextCursor)
+			if err != nil {
+				logger.Error(logLabel+": profile pin cursor failed",
+					apiLogErrorAttrs(runID, operation, "profile_pin_cursor")...)
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "profile pin cursor failed", runID, nil)
+				return
+			}
+		}
+		if pinReader != nil && nextCursor != "" {
+			nextCursor, err = wrapProfileListCursor(nextCursor, pinSlot, pinStateToken)
+			if err != nil {
+				logger.Error(logLabel+": profile pin cursor failed",
+					apiLogErrorAttrs(runID, operation, "profile_pin_cursor")...)
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "profile pin cursor failed", runID, nil)
+				return
+			}
 		}
 
 		items := make([]*PostResponse, 0, len(rows))
@@ -1811,9 +1887,10 @@ func listAuthorPostsHandler(
 			}
 		}
 		body := struct {
-			Items  []*PostResponse `json:"items"`
-			Cursor string          `json:"cursor,omitempty"`
-		}{Items: items, Cursor: nextCursor}
+			Items         []*PostResponse `json:"items"`
+			Cursor        string          `json:"cursor,omitempty"`
+			PinnedPostURI *string         `json:"pinnedPostUri,omitempty"`
+		}{Items: items, Cursor: nextCursor, PinnedPostURI: pinnedPostURI}
 		logger.Debug(logLabel+": response ready",
 			append(apiLogSuccessAttrs(runID, operation),
 				slog.Int("rows", len(rows)),
@@ -1824,6 +1901,106 @@ func listAuthorPostsHandler(
 		w.WriteHeader(http.StatusOK)
 		_ = json.NewEncoder(w).Encode(body)
 	})
+}
+
+func promoteProfilePinFirstPage(
+	chronological []*PostRow,
+	pinned *PostRow,
+	limit int,
+	nextCursor string,
+) ([]*PostRow, string, error) {
+	for index, row := range chronological {
+		if row.URI != pinned.URI {
+			continue
+		}
+		out := make([]*PostRow, 0, len(chronological))
+		out = append(out, pinned)
+		out = append(out, chronological[:index]...)
+		out = append(out, chronological[index+1:]...)
+		return out, nextCursor, nil
+	}
+
+	keep := limit - 1
+	if keep < 0 {
+		keep = 0
+	}
+	if keep > len(chronological) {
+		keep = len(chronological)
+	}
+	out := make([]*PostRow, 0, 1+keep)
+	out = append(out, pinned)
+	out = append(out, chronological[:keep]...)
+	if len(chronological) < limit {
+		return out, "", nil
+	}
+	if keep == 0 {
+		cursor, err := envelope.EncodeCursor(map[string]any{
+			"indexedAt": "9999-12-31T23:59:59Z",
+			"uri":       "\uffff",
+		})
+		return out, cursor, err
+	}
+	last := chronological[keep-1]
+	cursor, err := envelope.EncodeCursor(map[string]any{
+		"indexedAt": last.ProfileSortAt.UTC().Format(time.RFC3339Nano),
+		"uri":       last.URI,
+	})
+	return out, cursor, err
+}
+
+func excludeProfilePinFromLaterPage(
+	chronological []*PostRow,
+	pinned *PostRow,
+	limit int,
+	storeLimit int,
+	nextCursor string,
+) ([]*PostRow, string, error) {
+	filtered := make([]*PostRow, 0, len(chronological))
+	for _, row := range chronological {
+		if row.URI != pinned.URI {
+			filtered = append(filtered, row)
+		}
+	}
+	if len(filtered) > limit {
+		filtered = filtered[:limit]
+	}
+	if len(filtered) == limit && (len(chronological) == storeLimit || nextCursor != "") {
+		cursor, err := encodeProfileSeekCursor(filtered[len(filtered)-1])
+		return filtered, cursor, err
+	}
+	return filtered, nextCursor, nil
+}
+
+func encodeProfileSeekCursor(row *PostRow) (string, error) {
+	return envelope.EncodeCursor(map[string]any{
+		"indexedAt": row.ProfileSortAt.UTC().Format(time.RFC3339Nano),
+		"uri":       row.URI,
+	})
+}
+
+func wrapProfileListCursor(cursor string, slot ProfilePinSlot, stateToken string) (string, error) {
+	payload, err := envelope.DecodeCursor(cursor)
+	if err != nil || len(payload) != 2 {
+		return "", envelope.ErrInvalidCursor
+	}
+	payload["profileListKind"] = string(slot)
+	payload["pinStateToken"] = stateToken
+	return envelope.EncodeCursor(payload)
+}
+
+func unwrapProfileListCursor(cursor string, slot ProfilePinSlot, stateToken string) (string, error) {
+	payload, err := envelope.DecodeCursor(cursor)
+	if err != nil || len(payload) != 4 {
+		return "", envelope.ErrInvalidCursor
+	}
+	kind, kindOK := payload["profileListKind"].(string)
+	token, tokenOK := payload["pinStateToken"].(string)
+	if !kindOK || !tokenOK || kind != string(slot) || token != stateToken {
+		return "", envelope.ErrInvalidCursor
+	}
+	delete(payload, "profileListKind")
+	delete(payload, "pinStateToken")
+	return envelope.EncodeCursor(payload)
 }
 
 func resolveHandlesForRows(ctx context.Context, rows []*PostRow, resolver HandleResolver) (map[string]syntax.Handle, error) {

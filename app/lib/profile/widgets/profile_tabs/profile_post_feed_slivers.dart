@@ -56,6 +56,7 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
     required this.emptyText,
     required this.onLoadMore,
     required this.onReplacePost,
+    required this.pinnedPostUri,
     super.key,
     this.showComposeButton = false,
   });
@@ -68,6 +69,7 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
   final String emptyText;
   final Future<void> Function() onLoadMore;
   final void Function(Post post) onReplacePost;
+  final String? pinnedPostUri;
   final bool showComposeButton;
 
   @override
@@ -125,6 +127,8 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
               return PostCard(
                 post: post,
                 hideWhenAuthorProtected: true,
+                allowProfilePinAction: isOwnProfile,
+                showPinnedProfileAttribution: post.uri.value == pinnedPostUri,
                 onTap: () => PostThreadRoute(
                   did: post.author.did,
                   rkey: post.rkey,

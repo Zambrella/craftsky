@@ -225,6 +225,32 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 	} else if _, err := tx.Exec(ctx, `DELETE FROM craftsky_project_posts WHERE uri = $1`, ev.URI); err != nil {
 		return fmt.Errorf("delete stale project %s: %w", ev.URI, err)
 	}
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM profile_pins pin
+		WHERE pin.post_uri = $1
+		  AND NOT EXISTS (
+			SELECT 1
+			FROM craftsky_posts p
+			WHERE p.uri = pin.post_uri
+			  AND p.reply_root_uri IS NULL
+			  AND p.reply_parent_uri IS NULL
+			  AND (
+				(pin.slot = 'standard' AND p.is_project = false)
+				OR (
+					pin.slot = 'project'
+					AND p.is_project = true
+					AND p.quote_uri IS NULL
+					AND EXISTS (
+						SELECT 1
+						FROM craftsky_project_posts pp
+						WHERE pp.uri = p.uri
+					)
+				)
+			  )
+		  )
+	`, ev.URI); err != nil {
+		return fmt.Errorf("delete structurally invalid profile pin %s: %w", ev.URI, err)
+	}
 	if err := syncPostMentions(ctx, tx, ev.URI, mentions, createdAt); err != nil {
 		return err
 	}

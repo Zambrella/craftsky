@@ -31,17 +31,28 @@ class PostPageMapper extends ClassMapperBase<PostPage> {
     _$cursor,
     opt: true,
   );
+  static String? _$pinnedPostUri(PostPage v) => v.pinnedPostUri;
+  static const Field<PostPage, String> _f$pinnedPostUri = Field(
+    'pinnedPostUri',
+    _$pinnedPostUri,
+    opt: true,
+  );
 
   @override
   final MappableFields<PostPage> fields = const {
     #items: _f$items,
     #cursor: _f$cursor,
+    #pinnedPostUri: _f$pinnedPostUri,
   };
   @override
   final bool ignoreNull = true;
 
   static PostPage _instantiate(DecodingData data) {
-    return PostPage(items: data.dec(_f$items), cursor: data.dec(_f$cursor));
+    return PostPage(
+      items: data.dec(_f$items),
+      cursor: data.dec(_f$cursor),
+      pinnedPostUri: data.dec(_f$pinnedPostUri),
+    );
   }
 
   @override
@@ -102,7 +113,7 @@ extension PostPageValueCopy<$R, $Out> on ObjectCopyWith<$R, PostPage, $Out> {
 abstract class PostPageCopyWith<$R, $In extends PostPage, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
   ListCopyWith<$R, Post, PostCopyWith<$R, Post, Post>> get items;
-  $R call({List<Post>? items, String? cursor});
+  $R call({List<Post>? items, String? cursor, String? pinnedPostUri});
   PostPageCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
 
@@ -122,16 +133,22 @@ class _PostPageCopyWithImpl<$R, $Out>
         (v) => call(items: v),
       );
   @override
-  $R call({List<Post>? items, Object? cursor = $none}) => $apply(
+  $R call({
+    List<Post>? items,
+    Object? cursor = $none,
+    Object? pinnedPostUri = $none,
+  }) => $apply(
     FieldCopyWithData({
       if (items != null) #items: items,
       if (cursor != $none) #cursor: cursor,
+      if (pinnedPostUri != $none) #pinnedPostUri: pinnedPostUri,
     }),
   );
   @override
   PostPage $make(CopyWithData data) => PostPage(
     items: data.get(#items, or: $value.items),
     cursor: data.get(#cursor, or: $value.cursor),
+    pinnedPostUri: data.get(#pinnedPostUri, or: $value.pinnedPostUri),
   );
 
   @override

@@ -1080,6 +1080,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postReportAction => 'Report post';
 
   @override
+  String get postPinAction => 'Pin post';
+
+  @override
+  String get postUnpinAction => 'Unpin post';
+
+  @override
+  String get postPinnedAnnotation => 'Pinned post';
+
+  @override
+  String get postPinSuccess => 'Post pinned';
+
+  @override
+  String get postUnpinSuccess => 'Post unpinned';
+
+  @override
+  String get postPinError => 'Couldn’t pin post. Try again.';
+
+  @override
+  String get postUnpinError => 'Couldn’t unpin post. Try again.';
+
+  @override
   String get postMoreActions => 'More actions';
 
   @override

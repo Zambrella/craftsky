@@ -3,9 +3,13 @@ import 'dart:ui' show Tristate;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
+import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -24,6 +28,7 @@ import 'package:craftsky_app/saved_posts/providers/saved_post_repository_provide
 import 'package:craftsky_app/saved_posts/widgets/save_post_dialog.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
+import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_action_providers.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -36,7 +41,9 @@ import 'package:go_router/go_router.dart';
 
 import '../../fakes/auth_session_fakes.dart';
 import '../../fakes/image_cache_fakes.dart';
+import '../../fakes/recording_messenger.dart';
 import '../../profile/fakes/fake_profile_repository.dart';
+import '../fakes/fake_post_repository.dart';
 
 Post _post({
   String text = 'Cast on for the Hitchhiker shawl tonight.',
@@ -97,6 +104,23 @@ Post _post({
   );
 }
 
+final class _PinRegistryStorage implements SessionRegistryStorage {
+  _PinRegistryStorage()
+    : value = SessionRegistry.empty().upsertAndActivate(
+        token: 'token-alice',
+        did: 'did:plc:alice',
+        handle: 'alice.craftsky.social',
+      );
+
+  SessionRegistry value;
+
+  @override
+  Future<SessionRegistry> read() async => value;
+
+  @override
+  Future<void> write(SessionRegistry registry) async => value = registry;
+}
+
 Future<void> _pump(
   WidgetTester tester,
   Widget child, {
@@ -106,18 +130,21 @@ Future<void> _pump(
   return tester.pumpWidget(
     ProviderScope(
       overrides: List.from(overrides),
-      child: MaterialApp(
-        theme: AppTheme.lightThemeData,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        builder: (context, routeChild) {
-          final mediaQuery = MediaQuery.of(context);
-          return MediaQuery(
-            data: mediaQuery.copyWith(viewPadding: viewPadding),
-            child: routeChild!,
-          );
-        },
-        home: Scaffold(body: child),
+      child: MessengerScope(
+        messenger: RecordingMessenger(),
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, routeChild) {
+            final mediaQuery = MediaQuery.of(context);
+            return MediaQuery(
+              data: mediaQuery.copyWith(viewPadding: viewPadding),
+              child: routeChild!,
+            );
+          },
+          home: Scaffold(body: child),
+        ),
       ),
     ),
   );
@@ -125,6 +152,229 @@ Future<void> _pump(
 
 void main() {
   group('PostCard', () {
+    testWidgets(
+      'UT-005 exposes the authoritative pin action only on eligible owner '
+      'cards',
+      (tester) async {
+        final repository = FakePostRepository(
+          onProfilePins: () async => const ProfilePinState(),
+        );
+        final overrides = [
+          authSessionProvider.overrideWith(
+            () => SignedInAuthSession(did: 'did:plc:alice'),
+          ),
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _PinRegistryStorage(),
+          ),
+          postRepositoryProvider.overrideWithValue(repository),
+        ];
+
+        await _pump(
+          tester,
+          PostCard(post: _post(), allowProfilePinAction: true),
+          overrides: overrides,
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byIcon(Icons.more_horiz));
+        await tester.pumpAndSettle();
+        expect(find.text('Pin post'), findsOneWidget);
+        expect(find.text('Unpin post'), findsNothing);
+        await tester.tapAt(Offset.zero);
+        await tester.pumpAndSettle();
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pumpAndSettle();
+
+        await _pump(
+          tester,
+          PostCard(post: _post()),
+          overrides: overrides,
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.byIcon(Icons.more_horiz));
+        await tester.pumpAndSettle();
+        expect(find.text('Pin post'), findsNothing);
+      },
+    );
+
+    testWidgets('UT-005 derives Unpin and rejects non-owner and reply cards', (
+      tester,
+    ) async {
+      final standard = _post();
+      final repository = FakePostRepository(
+        onProfilePins: () async => ProfilePinState(
+          standardPostUri: standard.uri.value,
+        ),
+      );
+      final ownerOverrides = [
+        authSessionProvider.overrideWith(
+          () => SignedInAuthSession(did: 'did:plc:alice'),
+        ),
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _PinRegistryStorage(),
+        ),
+        postRepositoryProvider.overrideWithValue(repository),
+      ];
+
+      await _pump(
+        tester,
+        PostCard(post: standard, allowProfilePinAction: true),
+        overrides: ownerOverrides,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.pumpAndSettle();
+      expect(find.text('Unpin post'), findsOneWidget);
+      await tester.tapAt(Offset.zero);
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+
+      await _pump(
+        tester,
+        PostCard(post: standard, allowProfilePinAction: true),
+        overrides: [
+          authSessionProvider.overrideWith(
+            () => SignedInAuthSession(did: 'did:plc:bob'),
+          ),
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _PinRegistryStorage(),
+          ),
+          postRepositoryProvider.overrideWithValue(repository),
+        ],
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.pumpAndSettle();
+      expect(find.text('Pin post'), findsNothing);
+      expect(find.text('Unpin post'), findsNothing);
+      await tester.tapAt(Offset.zero);
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+
+      final reply = _post(
+        reply: PostReply(
+          root: PostRef(uri: standard.uri.value, cid: standard.cid.value),
+          parent: PostRef(uri: standard.uri.value, cid: standard.cid.value),
+        ),
+      );
+      await _pump(
+        tester,
+        PostCard(post: reply, allowProfilePinAction: true),
+        overrides: ownerOverrides,
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.pumpAndSettle();
+      expect(find.text('Pin post'), findsNothing);
+      expect(find.text('Unpin post'), findsNothing);
+    });
+
+    testWidgets('UT-005 disables only actions in the pending slot', (
+      tester,
+    ) async {
+      final standardPin = Completer<ProfilePinState>();
+      final repository = FakePostRepository(
+        onProfilePins: () async => const ProfilePinState(),
+        onPin: (_, _) => standardPin.future,
+      );
+      final overrides = [
+        authSessionProvider.overrideWith(
+          () => SignedInAuthSession(did: 'did:plc:alice'),
+        ),
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _PinRegistryStorage(),
+        ),
+        postRepositoryProvider.overrideWithValue(repository),
+      ];
+      final project = _post(
+        project: const Project(
+          common: ProjectCommon(
+            craftType: 'social.craftsky.feed.defs#knitting',
+          ),
+        ),
+      );
+      await _pump(
+        tester,
+        ListView(
+          children: [
+            PostCard(post: _post(), allowProfilePinAction: true),
+            PostCard(post: project, allowProfilePinAction: true),
+          ],
+        ),
+        overrides: overrides,
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.more_horiz).first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Pin post'));
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.more_horiz).first);
+      await tester.pumpAndSettle();
+      final standardTile = tester.widget<ListTile>(
+        find.ancestor(
+          of: find.text('Pin post'),
+          matching: find.byType(ListTile),
+        ),
+      );
+      expect(standardTile.enabled, isFalse);
+      await tester.tapAt(Offset.zero);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byIcon(Icons.more_horiz).at(1));
+      await tester.pumpAndSettle();
+      final projectTile = tester.widget<ListTile>(
+        find.ancestor(
+          of: find.text('Pin post'),
+          matching: find.byType(ListTile),
+        ),
+      );
+      expect(projectTile.enabled, isTrue);
+
+      standardPin.complete(const ProfilePinState());
+    });
+
+    testWidgets(
+      'UT-007 renders a non-interactive accessible pinned attribution',
+      (tester) async {
+        final semantics = tester.ensureSemantics();
+        await _pump(
+          tester,
+          MediaQuery(
+            data: const MediaQueryData(
+              size: Size(320, 800),
+              textScaler: TextScaler.linear(2),
+            ),
+            child: PostCard(
+              post: _post(),
+              showPinnedProfileAttribution: true,
+            ),
+          ),
+        );
+
+        expect(find.text('Pinned post'), findsOneWidget);
+        expect(find.byIcon(Icons.push_pin_outlined), findsOneWidget);
+        expect(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is Semantics && widget.properties.label == 'Pinned post',
+          ),
+          findsOneWidget,
+        );
+        final attributionSemantics = tester.widget<Semantics>(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is Semantics && widget.properties.label == 'Pinned post',
+          ),
+        );
+        expect(attributionSemantics.properties.button, isNot(true));
+        expect(attributionSemantics.properties.onTap, isNull);
+        semantics.dispose();
+      },
+    );
+
     testWidgets('TDD-005A author identity opens the compact profile route', (
       tester,
     ) async {

@@ -119,6 +119,15 @@ CREATE TABLE saved_posts (
     saved_at  TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (owner_did, post_uri)
 );
+CREATE TABLE profile_pins (
+    owner_did TEXT NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
+    slot TEXT NOT NULL CHECK (slot IN ('standard', 'project')),
+    post_uri TEXT NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
+    state_token UUID NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (owner_did, slot)
+);
 `
 
 // seedCraftskyMember inserts a craftsky_profiles row so a post for did
@@ -832,6 +841,84 @@ func TestCraftskyPost_Create_ProjectReplyOrQuoteIsOrdinaryPost(t *testing.T) {
 		}
 		assertProjectChildCount(t, pool, ev.URI.String(), 0)
 	}
+}
+
+func TestCraftskyPost_UpdateClearsStructurallyInvalidPinsOnly(t *testing.T) {
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	ctx := context.Background()
+	const owner = "did:plc:pinned"
+	seedCraftskyMember(t, pool, owner)
+	idx := index.NewCraftskyPost(pool, testLogger())
+	standard := tap.Event{
+		URI:        "at://did:plc:pinned/social.craftsky.feed.post/standard",
+		CID:        "cid-standard-1",
+		DID:        owner,
+		Rkey:       "standard",
+		Collection: "social.craftsky.feed.post",
+		Action:     "create",
+		Record: json.RawMessage(`{
+			"$type":"social.craftsky.feed.post",
+			"text":"standard",
+			"createdAt":"` + fixedCreatedAt + `"
+		}`),
+	}
+	project := tap.Event{
+		URI:        "at://did:plc:pinned/social.craftsky.feed.post/project",
+		CID:        "cid-project-1",
+		DID:        owner,
+		Rkey:       "project",
+		Collection: "social.craftsky.feed.post",
+		Action:     "create",
+		Record: json.RawMessage(`{
+			"$type":"social.craftsky.feed.post",
+			"text":"project",
+			"createdAt":"` + fixedCreatedAt + `",
+			"project":{"common":{"craftType":"social.craftsky.feed.defs#knitting"}}
+		}`),
+	}
+	if err := idx.Handle(ctx, standard); err != nil {
+		t.Fatalf("create standard: %v", err)
+	}
+	if err := idx.Handle(ctx, project); err != nil {
+		t.Fatalf("create project: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO profile_pins (
+			owner_did, slot, post_uri, state_token, created_at, updated_at
+		) VALUES
+			($1, 'standard', $2, '00000000-0000-4000-8000-000000000001', now(), now()),
+			($1, 'project', $3, '00000000-0000-4000-8000-000000000002', now(), now())
+	`, owner, standard.URI, project.URI); err != nil {
+		t.Fatalf("seed pins: %v", err)
+	}
+
+	standard.Action = "update"
+	standard.CID = "cid-standard-2"
+	standard.Record = json.RawMessage(`{
+		"$type":"social.craftsky.feed.post",
+		"text":"now a reply",
+		"createdAt":"` + fixedCreatedAt + `",
+		"reply":{
+			"root":{"uri":"at://did:plc:other/social.craftsky.feed.post/root","cid":"root-cid"},
+			"parent":{"uri":"at://did:plc:other/social.craftsky.feed.post/root","cid":"root-cid"}
+		}
+	}`)
+	if err := idx.Handle(ctx, standard); err != nil {
+		t.Fatalf("update standard into reply: %v", err)
+	}
+	assertStringQuery(t, pool, `SELECT slot FROM profile_pins ORDER BY slot`, []string{"project"})
+
+	project.Action = "update"
+	project.CID = "cid-project-2"
+	project.Record = json.RawMessage(`{
+		"$type":"social.craftsky.feed.post",
+		"text":"no longer a project",
+		"createdAt":"` + fixedCreatedAt + `"
+	}`)
+	if err := idx.Handle(ctx, project); err != nil {
+		t.Fatalf("update project into standard: %v", err)
+	}
+	assertStringQuery(t, pool, `SELECT slot FROM profile_pins ORDER BY slot`, nil)
 }
 
 func TestCraftskyPost_Create_GeneralPostHasNoProjectRow(t *testing.T) {

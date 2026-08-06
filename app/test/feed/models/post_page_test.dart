@@ -31,5 +31,37 @@ void main() {
       // more pages exist).
       expect(page.toMap(), {'items': <Map<String, dynamic>>[]});
     });
+
+    test('UT-001 round-trips visible page-level pinnedPostUri', () {
+      const pinned =
+          'at://did:plc:alice/social.craftsky.feed.post/pinned-standard';
+      final json = {
+        'items': <Map<String, dynamic>>[],
+        'cursor': 'opaque-next',
+        'pinnedPostUri': pinned,
+      };
+
+      final page = PostPageMapper.fromMap(json);
+
+      expect(page.pinnedPostUri, pinned);
+      expect(page.toMap(), json);
+    });
+
+    test('UT-001 treats absent or null pin metadata as omitted on encode', () {
+      final absent = PostPageMapper.fromMap({
+        'items': <Map<String, dynamic>>[],
+      });
+      final explicitNull = PostPageMapper.fromMap({
+        'items': <Map<String, dynamic>>[],
+        'pinnedPostUri': null,
+      });
+
+      expect(absent.pinnedPostUri, isNull);
+      expect(explicitNull.pinnedPostUri, isNull);
+      expect(absent.toMap(), {'items': <Map<String, dynamic>>[]});
+      expect(explicitNull.toMap(), {'items': <Map<String, dynamic>>[]});
+      expect(absent.toMap().containsKey('isPinned'), isFalse);
+      expect(explicitNull.toMap().containsKey('isPinned'), isFalse);
+    });
   });
 }

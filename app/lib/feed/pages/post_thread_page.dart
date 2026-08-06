@@ -503,6 +503,7 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
             padding: EdgeInsets.symmetric(vertical: spacing.sp2),
             child: PostCard(
               post: widget.section.post,
+              allowProfilePinAction: true,
               projectVariant: ProjectCardVariant.detail,
               replyTooltip: l10n.postCommentAction,
               onReply: () => showPostComposerSheet(

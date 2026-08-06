@@ -34,17 +34,25 @@ class UserPostsStateMapper extends ClassMapperBase<UserPostsState> {
     _$cursor,
     opt: true,
   );
+  static String? _$pinnedPostUri(UserPostsState v) => v.pinnedPostUri;
+  static const Field<UserPostsState, String> _f$pinnedPostUri = Field(
+    'pinnedPostUri',
+    _$pinnedPostUri,
+    opt: true,
+  );
 
   @override
   final MappableFields<UserPostsState> fields = const {
     #items: _f$items,
     #cursor: _f$cursor,
+    #pinnedPostUri: _f$pinnedPostUri,
   };
 
   static UserPostsState _instantiate(DecodingData data) {
     return UserPostsState(
       items: data.dec(_f$items),
       cursor: data.dec(_f$cursor),
+      pinnedPostUri: data.dec(_f$pinnedPostUri),
     );
   }
 
@@ -111,7 +119,7 @@ extension UserPostsStateValueCopy<$R, $Out>
 abstract class UserPostsStateCopyWith<$R, $In extends UserPostsState, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
   ListCopyWith<$R, Post, PostCopyWith<$R, Post, Post>> get items;
-  $R call({List<Post>? items, String? cursor});
+  $R call({List<Post>? items, String? cursor, String? pinnedPostUri});
   UserPostsStateCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   );
@@ -133,16 +141,22 @@ class _UserPostsStateCopyWithImpl<$R, $Out>
         (v) => call(items: v),
       );
   @override
-  $R call({List<Post>? items, Object? cursor = $none}) => $apply(
+  $R call({
+    List<Post>? items,
+    Object? cursor = $none,
+    Object? pinnedPostUri = $none,
+  }) => $apply(
     FieldCopyWithData({
       if (items != null) #items: items,
       if (cursor != $none) #cursor: cursor,
+      if (pinnedPostUri != $none) #pinnedPostUri: pinnedPostUri,
     }),
   );
   @override
   UserPostsState $make(CopyWithData data) => UserPostsState(
     items: data.get(#items, or: $value.items),
     cursor: data.get(#cursor, or: $value.cursor),
+    pinnedPostUri: data.get(#pinnedPostUri, or: $value.pinnedPostUri),
   );
 
   @override

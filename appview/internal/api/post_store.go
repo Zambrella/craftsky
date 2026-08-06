@@ -686,9 +686,13 @@ func postQuoteAuthorBlockedPredicate(alias string) string {
 }
 
 func scanPostRow(scanner pgx.Row) (*PostRow, error) {
+	return scanPostRowWithExtra(scanner)
+}
+
+func scanPostRowWithExtra(scanner pgx.Row, extraDestinations ...any) (*PostRow, error) {
 	out := &PostRow{}
 	var rawProject *json.RawMessage
-	err := scanner.Scan(
+	destinations := []any{
 		&out.URI, &out.DID, &out.Rkey, &out.CID, &out.Text, &out.Facets, &out.Images,
 		&out.ReplyRootURI, &out.ReplyRootCID, &out.ReplyParentURI, &out.ReplyParentCID,
 		&out.QuoteURI, &out.QuoteCID, &out.Tags, &out.Langs, &out.CreatedAt, &out.IndexedAt,
@@ -696,7 +700,9 @@ func scanPostRow(scanner pgx.Row) (*PostRow, error) {
 		&out.IsProject, &out.ProjectCraftType, &rawProject,
 		&out.AuthorDisplayName, &out.AuthorAvatarCID, &out.AuthorAvatarMime,
 		&out.ModerationWarningKind,
-	)
+	}
+	destinations = append(destinations, extraDestinations...)
+	err := scanner.Scan(destinations...)
 	if err != nil {
 		return out, err
 	}

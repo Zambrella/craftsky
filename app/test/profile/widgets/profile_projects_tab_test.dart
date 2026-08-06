@@ -84,6 +84,23 @@ Future<void> _pump(
 
 void main() {
   group('ProfileProjectsTab', () {
+    testWidgets('AT-005 annotates the project identified by page metadata', (
+      tester,
+    ) async {
+      final pinned = _projectPost('pinned');
+      final repo = FakePostRepository(
+        onListProjectsByAuthor: (_, {cursor, limit}) async => PostPage(
+          items: [pinned, _projectPost('ordinary')],
+          pinnedPostUri: pinned.uri.value,
+        ),
+      );
+
+      await _pump(tester, repo: repo);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Pinned post'), findsOneWidget);
+    });
+
     testWidgets('renders project posts from userProjectsProvider', (
       tester,
     ) async {
