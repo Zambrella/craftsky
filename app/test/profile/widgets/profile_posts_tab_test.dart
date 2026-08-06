@@ -1,6 +1,10 @@
+import 'package:craftsky_app/auth/models/session_registry.dart';
+import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
@@ -14,8 +18,26 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../fakes/auth_session_fakes.dart';
 import '../../fakes/recording_messenger.dart';
 import '../../feed/fakes/fake_post_repository.dart';
+
+final class _ProfilePinRegistryStorage implements SessionRegistryStorage {
+  _ProfilePinRegistryStorage()
+    : value = SessionRegistry.empty().upsertAndActivate(
+        token: 'token-alice',
+        did: 'did:plc:alice',
+        handle: 'alice.craftsky.social',
+      );
+
+  SessionRegistry value;
+
+  @override
+  Future<SessionRegistry> read() async => value;
+
+  @override
+  Future<void> write(SessionRegistry registry) async => value = registry;
+}
 
 Post _post(String rkey) {
   return Post(
@@ -45,10 +67,11 @@ Future<void> _pump(
   required FakePostRepository repo,
   required bool isOwnProfile,
   RecordingMessenger? messenger,
+  List<dynamic> overrides = const [],
 }) {
   return tester.pumpWidget(
     ProviderScope(
-      overrides: [
+      overrides: List.from([
         activeLanguagePreferencesProvider.overrideWith(
           (ref) => const LanguagePreferences(
             primaryLanguage: 'en',
@@ -56,7 +79,8 @@ Future<void> _pump(
           ),
         ),
         postRepositoryProvider.overrideWithValue(repo),
-      ],
+        ...overrides,
+      ]),
       child: MessengerScope(
         messenger: messenger ?? RecordingMessenger(),
         child: MaterialApp(
@@ -81,6 +105,136 @@ Future<void> _pump(
 
 void main() {
   group('ProfilePostsTab', () {
+    testWidgets('AT-001 pins an own standard post from the profile menu', (
+      tester,
+    ) async {
+      final pinnedTargets = <String>[];
+      final messenger = RecordingMessenger();
+      final post = _post('standard');
+      final repo = FakePostRepository(
+        onListByAuthor: (_, {cursor, limit}) async => PostPage(items: [post]),
+        onProfilePins: () async => const ProfilePinState(),
+        onPin: (did, rkey) async {
+          pinnedTargets.add('$did/$rkey');
+          return ProfilePinState(standardPostUri: post.uri.value);
+        },
+      );
+
+      await _pump(
+        tester,
+        repo: repo,
+        isOwnProfile: true,
+        messenger: messenger,
+        overrides: [
+          authSessionProvider.overrideWith(
+            () => SignedInAuthSession(did: 'did:plc:alice'),
+          ),
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _ProfilePinRegistryStorage(),
+          ),
+        ],
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Pin post'));
+      await tester.pumpAndSettle();
+
+      expect(pinnedTargets, ['did:plc:alice/standard']);
+      expect(messenger.calls, [('info', 'Post pinned', null)]);
+    });
+
+    testWidgets('UIP-001 uses the themed message for unpin confirmation', (
+      tester,
+    ) async {
+      final messenger = RecordingMessenger();
+      final post = _post('standard');
+      final repo = FakePostRepository(
+        onListByAuthor: (_, {cursor, limit}) async => PostPage(items: [post]),
+        onProfilePins: () async => ProfilePinState(
+          standardPostUri: post.uri.value,
+        ),
+        onUnpin: (_, _) async => const ProfilePinState(),
+      );
+
+      await _pump(
+        tester,
+        repo: repo,
+        isOwnProfile: true,
+        messenger: messenger,
+        overrides: [
+          authSessionProvider.overrideWith(
+            () => SignedInAuthSession(did: 'did:plc:alice'),
+          ),
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _ProfilePinRegistryStorage(),
+          ),
+        ],
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Unpin post'));
+      await tester.pumpAndSettle();
+
+      expect(messenger.calls, [('info', 'Post unpinned', null)]);
+    });
+
+    testWidgets('UIP-001 uses the themed error message for pin failure', (
+      tester,
+    ) async {
+      final messenger = RecordingMessenger();
+      final post = _post('standard');
+      final repo = FakePostRepository(
+        onListByAuthor: (_, {cursor, limit}) async => PostPage(items: [post]),
+        onProfilePins: () async => const ProfilePinState(),
+        onPin: (_, _) async => throw StateError('network failed'),
+      );
+
+      await _pump(
+        tester,
+        repo: repo,
+        isOwnProfile: true,
+        messenger: messenger,
+        overrides: [
+          authSessionProvider.overrideWith(
+            () => SignedInAuthSession(did: 'did:plc:alice'),
+          ),
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _ProfilePinRegistryStorage(),
+          ),
+        ],
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Pin post'));
+      await tester.pumpAndSettle();
+
+      expect(
+        messenger.calls,
+        [('error', 'Couldn’t pin post. Try again.', null)],
+      );
+    });
+
+    testWidgets('AT-005 annotates only page-one pinned metadata', (
+      tester,
+    ) async {
+      final pinned = _post('pinned');
+      final repo = FakePostRepository(
+        onListByAuthor: (_, {cursor, limit}) async => PostPage(
+          items: [pinned, _post('ordinary')],
+          pinnedPostUri: pinned.uri.value,
+        ),
+      );
+
+      await _pump(tester, repo: repo, isOwnProfile: false);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Pinned post'), findsOneWidget);
+      expect(find.byIcon(Icons.push_pin_outlined), findsOneWidget);
+    });
+
     testWidgets('renders posts from userPostsProvider', (tester) async {
       final repo = FakePostRepository(
         onListByAuthor: (_, {cursor, limit}) async =>

@@ -1,9 +1,11 @@
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/models/user_posts_state.dart';
 import 'package:craftsky_app/feed/providers/author_post_cache.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'user_posts_provider.g.dart';
@@ -23,7 +25,11 @@ class UserPosts extends _$UserPosts {
       handleOrDid,
       limit: userPostsPageLimit,
     );
-    return UserPostsState(items: page.items, cursor: page.cursor);
+    return UserPostsState(
+      items: page.items,
+      cursor: page.cursor,
+      pinnedPostUri: page.pinnedPostUri,
+    );
   }
 
   /// Append-next-page. No-op when:
@@ -44,14 +50,29 @@ class UserPosts extends _$UserPosts {
 
     final next = await AsyncValue.guard(() async {
       final repo = ref.read(postRepositoryProvider);
-      final page = await repo.listByAuthor(
-        handleOrDid,
-        cursor: current.cursor,
-        limit: userPostsPageLimit,
-      );
+      late final PostPage page;
+      try {
+        page = await repo.listByAuthor(
+          handleOrDid,
+          cursor: current.cursor,
+          limit: userPostsPageLimit,
+        );
+      } on ApiBadRequest catch (error) {
+        if (error.code != 'invalid_cursor') rethrow;
+        final restarted = await repo.listByAuthor(
+          handleOrDid,
+          limit: userPostsPageLimit,
+        );
+        return UserPostsState(
+          items: restarted.items,
+          cursor: restarted.cursor,
+          pinnedPostUri: restarted.pinnedPostUri,
+        );
+      }
       return UserPostsState(
         items: [...current.items, ...page.items],
         cursor: page.cursor,
+        pinnedPostUri: current.pinnedPostUri,
       );
     });
 

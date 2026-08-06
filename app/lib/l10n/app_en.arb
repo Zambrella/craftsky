@@ -1013,6 +1013,27 @@
   "postReportAction": "Report post",
   "@postReportAction": { "description": "Menu label for reporting a post." },
 
+  "postPinAction": "Pin post",
+  "@postPinAction": { "description": "Menu label for pinning an eligible post to its owner's profile." },
+
+  "postUnpinAction": "Unpin post",
+  "@postUnpinAction": { "description": "Menu label for removing the current profile pin." },
+
+  "postPinnedAnnotation": "Pinned post",
+  "@postPinnedAnnotation": { "description": "Non-interactive profile-card attribution identifying the visible pinned post." },
+
+  "postPinSuccess": "Post pinned",
+  "@postPinSuccess": { "description": "Confirmation shown after a post is pinned." },
+
+  "postUnpinSuccess": "Post unpinned",
+  "@postUnpinSuccess": { "description": "Confirmation shown after a post is unpinned." },
+
+  "postPinError": "Couldn’t pin post. Try again.",
+  "@postPinError": { "description": "Retry message shown when pinning a post fails." },
+
+  "postUnpinError": "Couldn’t unpin post. Try again.",
+  "@postUnpinError": { "description": "Retry message shown when unpinning a post fails." },
+
   "postMoreActions": "More actions",
   "@postMoreActions": { "description": "Tooltip for opening a post, comment, or reply context menu when no destructive action label applies." },
 

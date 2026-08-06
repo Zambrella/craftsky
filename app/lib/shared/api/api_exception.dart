@@ -13,12 +13,17 @@ final class ApiFailureDetails {
   const ApiFailureDetails({
     this.statusCode,
     this.appViewError,
+    this.appViewMessage,
     this.requestId,
     this.endpointCategory,
   });
 
   final int? statusCode;
   final String? appViewError;
+
+  /// Human-readable AppView text retained for 4xx developer diagnostics.
+  /// Server-error messages remain redacted because they can contain internals.
+  final String? appViewMessage;
   final String? requestId;
   final String? endpointCategory;
 }

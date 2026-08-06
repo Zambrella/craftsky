@@ -1,9 +1,12 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
@@ -25,6 +28,23 @@ import 'package:go_router/go_router.dart';
 import '../fakes/auth_session_fakes.dart';
 import '../fakes/recording_messenger.dart';
 import 'fakes/fake_post_repository.dart';
+
+final class _FeedPinRegistryStorage implements SessionRegistryStorage {
+  _FeedPinRegistryStorage()
+    : value = SessionRegistry.empty().upsertAndActivate(
+        token: 'token-alice',
+        did: 'did:plc:alice',
+        handle: 'alice.craftsky.social',
+      );
+
+  SessionRegistry value;
+
+  @override
+  Future<SessionRegistry> read() async => value;
+
+  @override
+  Future<void> write(SessionRegistry registry) async => value = registry;
+}
 
 Map<String, dynamic> _postMap({
   required String rkey,
@@ -154,6 +174,42 @@ void main() {
     expect(find.text('timeline post a'), findsNothing);
 
     gate.complete(const TimelinePage(items: []));
+  });
+
+  testWidgets('AT-002 pins an own top-level timeline post', (tester) async {
+    final targets = <String>[];
+    final messenger = RecordingMessenger();
+    final post = _post('timeline-pin');
+    final repository = FakePostRepository(
+      onListTimeline: ({cursor, limit}) async => _timelinePage([post]),
+      onProfilePins: () async => const ProfilePinState(),
+      onPin: (did, rkey) async {
+        targets.add('$did/$rkey');
+        return ProfilePinState(standardPostUri: post.uri.value);
+      },
+    );
+    await _pump(
+      tester,
+      repository,
+      overrides: [
+        authSessionProvider.overrideWith(
+          () => SignedInAuthSession(did: 'did:plc:alice'),
+        ),
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _FeedPinRegistryStorage(),
+        ),
+      ],
+      messenger: messenger,
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.more_horiz));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pin post'));
+    await tester.pumpAndSettle();
+
+    expect(targets, ['did:plc:alice/timeline-pin']);
+    expect(messenger.calls, [('info', 'Post pinned', null)]);
   });
 
   testWidgets('FeedPage renders loaded timeline post cards', (tester) async {

@@ -10,8 +10,9 @@ part 'post_page.mapper.dart';
 /// `null`, and re-encoding drops the key when null.
 @MappableClass(ignoreNull: true)
 class PostPage with PostPageMappable {
-  const PostPage({required this.items, this.cursor});
+  const PostPage({required this.items, this.cursor, this.pinnedPostUri});
 
   final List<Post> items;
   final String? cursor;
+  final String? pinnedPostUri;
 }

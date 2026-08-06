@@ -30,6 +30,7 @@ class ProfileProjectsTab extends ConsumerWidget {
         isLoadingMore: projectsAsync.isLoading,
         hasLoadMoreError: projectsAsync.hasError,
         isOwnProfile: isOwnProfile,
+        pinnedPostUri: value.pinnedPostUri,
         emptyText: l10n.profileEmptyProjects,
         onLoadMore: () =>
             ref.read(userProjectsProvider(handle).notifier).loadMore(),

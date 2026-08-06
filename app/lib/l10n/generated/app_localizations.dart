@@ -2002,6 +2002,48 @@ abstract class AppLocalizations {
   /// **'Report post'**
   String get postReportAction;
 
+  /// Menu label for pinning an eligible post to its owner's profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Pin post'**
+  String get postPinAction;
+
+  /// Menu label for removing the current profile pin.
+  ///
+  /// In en, this message translates to:
+  /// **'Unpin post'**
+  String get postUnpinAction;
+
+  /// Non-interactive profile-card attribution identifying the visible pinned post.
+  ///
+  /// In en, this message translates to:
+  /// **'Pinned post'**
+  String get postPinnedAnnotation;
+
+  /// Confirmation shown after a post is pinned.
+  ///
+  /// In en, this message translates to:
+  /// **'Post pinned'**
+  String get postPinSuccess;
+
+  /// Confirmation shown after a post is unpinned.
+  ///
+  /// In en, this message translates to:
+  /// **'Post unpinned'**
+  String get postUnpinSuccess;
+
+  /// Retry message shown when pinning a post fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t pin post. Try again.'**
+  String get postPinError;
+
+  /// Retry message shown when unpinning a post fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t unpin post. Try again.'**
+  String get postUnpinError;
+
   /// Tooltip for opening a post, comment, or reply context menu when no destructive action label applies.
   ///
   /// In en, this message translates to:

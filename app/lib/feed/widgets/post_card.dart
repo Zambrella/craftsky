@@ -3,9 +3,13 @@ import 'dart:async';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_uri.dart';
+import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
+import 'package:craftsky_app/feed/providers/author_post_cache.dart';
+import 'package:craftsky_app/feed/providers/profile_pins_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -17,6 +21,7 @@ import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/projects/widgets/project_card.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_bookmark_button.dart';
+import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
@@ -62,6 +67,8 @@ class PostCard extends ConsumerWidget {
     this.projectVariant = ProjectCardVariant.summary,
     this.repostReason,
     this.hideWhenAuthorProtected = false,
+    this.allowProfilePinAction = false,
+    this.showPinnedProfileAttribution = false,
   });
 
   final Post post;
@@ -89,6 +96,8 @@ class PostCard extends ConsumerWidget {
   final ProjectCardVariant projectVariant;
   final RepostReason? repostReason;
   final bool hideWhenAuthorProtected;
+  final bool allowProfilePinAction;
+  final bool showPinnedProfileAttribution;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -180,6 +189,32 @@ class PostCard extends ConsumerWidget {
     final displayName = post.author.displayName ?? post.author.handle;
     final isFlat = style == PostCardStyle.flat;
     final canShowShareAction = showRepostAction && post.reply == null;
+    final pinSlot = classifyProfilePinSlot(
+      isReply: post.reply != null,
+      isProject: post.project != null,
+      hasQuote: post.quote != null,
+    );
+    final activeLease = allowProfilePinAction
+        ? ref.watch(sessionRegistryProvider).value?.activeLease
+        : null;
+    final pinProvider =
+        isViewerOwned &&
+            pinSlot != null &&
+            activeLease != null &&
+            activeLease.session.account.did == post.author.did
+        ? profilePinsProvider(activeLease)
+        : null;
+    final pinPresentation = pinProvider == null
+        ? null
+        : ref.watch(pinProvider).value;
+    final isCurrentPin =
+        pinSlot != null &&
+        pinPresentation != null &&
+        pinPresentation.confirmed.postUriFor(pinSlot) == post.uri.value;
+    final isPinPending =
+        pinSlot != null &&
+        pinPresentation != null &&
+        pinPresentation.isPending(pinSlot);
     final borderRadius = isFlat
         ? BorderRadius.zero
         : BorderRadius.circular(radii.r3);
@@ -253,7 +288,10 @@ class PostCard extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    if (repostReason case final reason?) ...[
+                    if (showPinnedProfileAttribution) ...[
+                      const _PinnedPostAttribution(),
+                      SizedBox(height: spacing.sp2),
+                    ] else if (repostReason case final reason?) ...[
                       _RepostAttribution(
                         reason: reason,
                         onTap: openReposter,
@@ -395,6 +433,27 @@ class PostCard extends ConsumerWidget {
                             post: post,
                           ),
                         _PostCardMenu(
+                          pinLabel: pinPresentation == null
+                              ? null
+                              : isCurrentPin
+                              ? l10n.postUnpinAction
+                              : l10n.postPinAction,
+                          isPinned: isCurrentPin,
+                          onPinToggle:
+                              pinProvider == null ||
+                                  pinSlot == null ||
+                                  pinPresentation == null ||
+                                  isPinPending
+                              ? null
+                              : () => unawaited(
+                                  _mutateProfilePin(
+                                    context,
+                                    ref,
+                                    pinProvider,
+                                    pinSlot,
+                                    isCurrentPin,
+                                  ),
+                                ),
                           onDelete: onDelete,
                           onReport: onReport,
                           tooltip: deleteTooltip,
@@ -447,6 +506,43 @@ class PostCard extends ConsumerWidget {
       ),
       child: content,
     );
+  }
+
+  Future<void> _mutateProfilePin(
+    BuildContext context,
+    WidgetRef ref,
+    ProfilePinsProvider provider,
+    ProfilePinSlot slot,
+    bool isCurrentPin,
+  ) async {
+    final notifier = ref.read(provider.notifier);
+    final outcome = isCurrentPin
+        ? await notifier.unpin(
+            did: post.author.did,
+            rkey: post.rkey,
+            slot: slot,
+            authorCacheIds: authorPostCacheIds(post),
+          )
+        : await notifier.pin(
+            did: post.author.did,
+            rkey: post.rkey,
+            slot: slot,
+            authorCacheIds: authorPostCacheIds(post),
+          );
+    if (!context.mounted) return;
+    final l10n = AppLocalizations.of(context);
+    switch (outcome) {
+      case ProfilePinMutationOutcome.pinned:
+        context.showInfo(l10n.postPinSuccess);
+      case ProfilePinMutationOutcome.unpinned:
+        context.showInfo(l10n.postUnpinSuccess);
+      case ProfilePinMutationOutcome.pinFailed:
+        context.showError(l10n.postPinError);
+      case ProfilePinMutationOutcome.unpinFailed:
+        context.showError(l10n.postUnpinError);
+      case ProfilePinMutationOutcome.staleCompletion || null:
+        return;
+    }
   }
 
   Future<void> _confirmBlockAuthor(
@@ -563,6 +659,39 @@ class _RepostAttribution extends StatelessWidget {
   }
 }
 
+class _PinnedPostAttribution extends StatelessWidget {
+  const _PinnedPostAttribution();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    return Semantics(
+      label: l10n.postPinnedAnnotation,
+      child: ExcludeSemantics(
+        child: Row(
+          children: [
+            Icon(
+              Icons.push_pin_outlined,
+              size: 16,
+              color: theme.colorScheme.outline,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                l10n.postPinnedAnnotation,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.outline,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _PostCardHeader extends StatelessWidget {
   const _PostCardHeader({
     required this.displayName,
@@ -622,6 +751,9 @@ class _PostCardAuthorTapTarget extends StatelessWidget {
 
 class _PostCardMenu extends StatelessWidget {
   const _PostCardMenu({
+    required this.pinLabel,
+    required this.isPinned,
+    required this.onPinToggle,
     required this.onDelete,
     required this.onReport,
     required this.isMuted,
@@ -634,6 +766,9 @@ class _PostCardMenu extends StatelessWidget {
     this.reportLabel,
   });
 
+  final String? pinLabel;
+  final bool isPinned;
+  final VoidCallback? onPinToggle;
   final VoidCallback? onDelete;
   final VoidCallback? onReport;
   final String? tooltip;
@@ -655,6 +790,13 @@ class _PostCardMenu extends StatelessWidget {
         groups: [
           CraftskyContextMenuGroup(
             items: [
+              if (pinLabel != null)
+                CraftskyContextMenuItem(
+                  text: pinLabel!,
+                  icon: isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                  onPressed: onPinToggle,
+                  isSelected: isPinned,
+                ),
               if (onMuteToggle != null)
                 CraftskyContextMenuItem(
                   text: isMuted

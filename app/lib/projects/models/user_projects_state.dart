@@ -5,10 +5,15 @@ part 'user_projects_state.mapper.dart';
 
 @MappableClass()
 class UserProjectsState with UserProjectsStateMappable {
-  const UserProjectsState({required this.items, this.cursor});
+  const UserProjectsState({
+    required this.items,
+    this.cursor,
+    this.pinnedPostUri,
+  });
 
   final List<Post> items;
   final String? cursor;
+  final String? pinnedPostUri;
 
   bool get hasMore => cursor != null;
 

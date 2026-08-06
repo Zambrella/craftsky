@@ -14,10 +14,15 @@ part 'user_posts_state.mapper.dart';
 /// "full-page spinner" and "list + bottom spinner".
 @MappableClass()
 class UserPostsState with UserPostsStateMappable {
-  const UserPostsState({required this.items, this.cursor});
+  const UserPostsState({
+    required this.items,
+    this.cursor,
+    this.pinnedPostUri,
+  });
 
   final List<Post> items;
   final String? cursor;
+  final String? pinnedPostUri;
 
   bool get hasMore => cursor != null;
 

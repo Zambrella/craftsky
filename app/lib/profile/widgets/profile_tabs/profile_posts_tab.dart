@@ -30,6 +30,7 @@ class ProfilePostsTab extends ConsumerWidget {
         isLoadingMore: postsAsync.isLoading,
         hasLoadMoreError: postsAsync.hasError,
         isOwnProfile: isOwnProfile,
+        pinnedPostUri: value.pinnedPostUri,
         emptyText: l10n.profilePostsEmpty,
         showComposeButton: isOwnProfile,
         onLoadMore: () =>

@@ -238,6 +238,72 @@ func TestRelationshipRoutesUseAuthenticatedNoBodyPolicies(t *testing.T) {
 	}
 }
 
+func TestProfilePinRoutesUseAuthenticatedCurrentMemberNoBodyPolicies(t *testing.T) {
+	want := map[string]RateClass{
+		"GET /v1/profiles/me/pins":          RateClassRead,
+		"PUT /v1/posts/{did}/{rkey}/pin":    RateClassWrite,
+		"DELETE /v1/posts/{did}/{rkey}/pin": RateClassWrite,
+	}
+	for _, policy := range V1RoutePolicies(app.EnvDev, app.Config{Env: app.EnvDev}) {
+		key := policy.Method + " " + policy.PathPattern
+		rateClass, ok := want[key]
+		if !ok {
+			continue
+		}
+		if !policy.AuthRequired || !policy.CurrentMemberRequired || policy.BodyKind != BodyNoBody || policy.RateClass != rateClass {
+			t.Fatalf("%s policy = %+v, want authenticated current-member %s/no_body", key, policy, rateClass)
+		}
+		delete(want, key)
+	}
+	if len(want) != 0 {
+		t.Fatalf("missing profile-pin route policies: %v", want)
+	}
+
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+	for _, target := range []struct {
+		method string
+		path   string
+	}{
+		{http.MethodGet, "/v1/profiles/me/pins"},
+		{http.MethodPut, "/v1/posts/did:plc:test/post1/pin"},
+		{http.MethodDelete, "/v1/posts/did:plc:test/post1/pin"},
+	} {
+		t.Run(target.method+" "+target.path+" requires auth", func(t *testing.T) {
+			request := httptest.NewRequest(target.method, target.path, nil)
+			request.Header.Set("X-Craftsky-Device-Id", "dev-test")
+			response := httptest.NewRecorder()
+			mux.ServeHTTP(response, request)
+			if response.Code != http.StatusUnauthorized {
+				t.Fatalf("status = %d, want 401 body=%s", response.Code, response.Body.String())
+			}
+		})
+
+		t.Run(target.method+" "+target.path+" requires device", func(t *testing.T) {
+			request := httptest.NewRequest(target.method, target.path, nil)
+			request.Header.Set("Authorization", "Bearer anything")
+			request.Header.Set("X-Dev-DID", "did:plc:test")
+			response := httptest.NewRecorder()
+			mux.ServeHTTP(response, request)
+			if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "missing_device_id") {
+				t.Fatalf("status/body = %d/%s, want missing device", response.Code, response.Body.String())
+			}
+		})
+
+		t.Run(target.method+" "+target.path+" rejects a body before handler work", func(t *testing.T) {
+			request := httptest.NewRequest(target.method, target.path, strings.NewReader("{}"))
+			request.Header.Set("Authorization", "Bearer anything")
+			request.Header.Set("X-Dev-DID", "did:plc:test")
+			request.Header.Set("X-Craftsky-Device-Id", "dev-test")
+			response := httptest.NewRecorder()
+			mux.ServeHTTP(response, request)
+			if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "request_body_not_allowed") {
+				t.Fatalf("status/body = %d/%s, want body rejection", response.Code, response.Body.String())
+			}
+		})
+	}
+}
+
 func TestSavedPostRoutesUseAuthenticatedPolicies(t *testing.T) {
 	want := map[string]struct {
 		rateClass RateClass

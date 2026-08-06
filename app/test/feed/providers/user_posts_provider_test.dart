@@ -7,6 +7,7 @@ import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -98,6 +99,61 @@ void main() {
   });
 
   group('userPostsProvider loadMore', () {
+    test(
+      'UT-004 discards an invalid traversal and restarts page one once',
+      () async {
+        var calls = 0;
+        final fake = FakePostRepository(
+          onListByAuthor: (id, {cursor, limit}) async {
+            calls++;
+            expect(limit, userPostsPageLimit);
+            return switch (calls) {
+              1 => PostPage(
+                items: [_samplePost(rkey: 'old-pin')],
+                cursor: 'stale-cursor',
+                pinnedPostUri:
+                    'at://did:plc:alice/social.craftsky.feed.post/old-pin',
+              ),
+              2 => throw const ApiBadRequest('invalid_cursor'),
+              3 => PostPage(
+                items: [_samplePost(rkey: 'new-pin')],
+                cursor: 'fresh-cursor',
+                pinnedPostUri:
+                    'at://did:plc:alice/social.craftsky.feed.post/new-pin',
+              ),
+              _ => throw StateError('unexpected request $calls'),
+            };
+          },
+        );
+        final container = ProviderContainer.test(
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            postRepositoryProvider.overrideWithValue(fake),
+          ],
+        );
+        final provider = userPostsProvider('alice.craftsky.social');
+        final subscription = container.listen(provider, (_, _) {});
+        addTearDown(subscription.close);
+
+        await container.read(provider.future);
+        await container.read(provider.notifier).loadMore();
+
+        final state = container.read(provider).requireValue;
+        expect(calls, 3);
+        expect(state.items.map((post) => post.rkey), ['new-pin']);
+        expect(state.cursor, 'fresh-cursor');
+        expect(
+          state.pinnedPostUri,
+          'at://did:plc:alice/social.craftsky.feed.post/new-pin',
+        );
+      },
+    );
+
     test('appends next page and advances cursor', () async {
       var call = 0;
       final fake = FakePostRepository(

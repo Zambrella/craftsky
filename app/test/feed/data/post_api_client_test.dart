@@ -6,6 +6,7 @@ import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/data/post_api_client.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
@@ -589,6 +590,246 @@ void main() {
     });
   });
 
+  group('PostApiClient profile pins', () {
+    test(
+      'IT-015 uses exact bodyless paths and decodes every 200 state',
+      () async {
+        final dio = buildDio();
+        final requests = <RequestOptions>[];
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              requests.add(options);
+              handler.next(options);
+            },
+          ),
+        );
+        final adapter = DioAdapter(dio: dio);
+        const postA = 'at://did:plc:alice/social.craftsky.feed.post/standard-a';
+        const postB = 'at://did:plc:alice/social.craftsky.feed.post/standard-b';
+        const project =
+            'at://did:plc:alice/social.craftsky.feed.post/project-a';
+        adapter
+          ..onGet(
+            '/v1/profiles/me/pins',
+            (server) => server.reply(200, {
+              'standardPostUri': null,
+              'projectPostUri': null,
+            }),
+          )
+          ..onPut(
+            '/v1/posts/did:plc:alice/standard-a/pin',
+            (server) => server.reply(200, {
+              'standardPostUri': postA,
+              'projectPostUri': project,
+            }),
+          )
+          ..onPut(
+            '/v1/posts/did:plc:alice/standard-b/pin',
+            (server) => server.reply(200, {
+              'standardPostUri': postB,
+              'projectPostUri': project,
+            }),
+          )
+          ..onDelete(
+            '/v1/posts/did:plc:alice/standard-a/pin',
+            (server) => server.reply(200, {
+              'standardPostUri': postB,
+              'projectPostUri': project,
+            }),
+          )
+          ..onDelete(
+            '/v1/posts/did:plc:alice/standard-b/pin',
+            (server) => server.reply(200, {
+              'standardPostUri': null,
+              'projectPostUri': project,
+            }),
+          );
+        final client = PostApiClient(dio);
+
+        final empty = await client.getProfilePins();
+        final first = await client.pinProfilePost(
+          aliceDid,
+          RecordKey.parse('standard-a'),
+        );
+        final replacement = await client.pinProfilePost(
+          aliceDid,
+          RecordKey.parse('standard-b'),
+        );
+        final staleDelete = await client.unpinProfilePost(
+          aliceDid,
+          RecordKey.parse('standard-a'),
+        );
+        final currentDelete = await client.unpinProfilePost(
+          aliceDid,
+          RecordKey.parse('standard-b'),
+        );
+
+        expect(empty, const ProfilePinState());
+        expect(first.standardPostUri, postA);
+        expect(first.projectPostUri, project);
+        expect(replacement.standardPostUri, postB);
+        expect(staleDelete.standardPostUri, postB);
+        expect(currentDelete.standardPostUri, isNull);
+        expect(currentDelete.projectPostUri, project);
+        expect(
+          requests.map((request) => '${request.method} ${request.path}'),
+          [
+            'GET /v1/profiles/me/pins',
+            'PUT /v1/posts/did:plc:alice/standard-a/pin',
+            'PUT /v1/posts/did:plc:alice/standard-b/pin',
+            'DELETE /v1/posts/did:plc:alice/standard-a/pin',
+            'DELETE /v1/posts/did:plc:alice/standard-b/pin',
+          ],
+        );
+        expect(
+          requests.where((request) => request.method != 'GET'),
+          everyElement(
+            isA<RequestOptions>().having(
+              (request) => request.data,
+              'body',
+              isNull,
+            ),
+          ),
+        );
+      },
+    );
+
+    test('IT-015 maps pin failures through the shared API path', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onPut(
+        '/v1/posts/did:plc:alice/missing/pin',
+        (server) => server.reply(404, {
+          'error': 'post_not_found',
+          'message': 'Post not found',
+          'requestId': 'request-pin-404',
+        }),
+      );
+
+      await expectLater(
+        () => PostApiClient(dio).pinProfilePost(
+          aliceDid,
+          RecordKey.parse('missing'),
+        ),
+        throwsA(
+          isA<ApiBadRequest>()
+              .having((error) => error.code, 'code', 'post_not_found')
+              .having(
+                (error) => error.details.requestId,
+                'requestId',
+                'request-pin-404',
+              ),
+        ),
+      );
+    });
+
+    test('UT-009 preserves pin error diagnostics with safe 5xx text', () async {
+      final cases =
+          <
+            ({
+              int status,
+              String code,
+              String serverMessage,
+              String rkey,
+            })
+          >[
+            (
+              status: 403,
+              code: 'forbidden',
+              serverMessage: 'You can only pin your own posts.',
+              rkey: 'forbidden',
+            ),
+            (
+              status: 404,
+              code: 'post_not_found',
+              serverMessage: 'Post not found.',
+              rkey: 'missing',
+            ),
+            (
+              status: 422,
+              code: 'pin_not_allowed',
+              serverMessage: 'Only top-level posts can be pinned.',
+              rkey: 'reply',
+            ),
+          ];
+
+      for (final testCase in cases) {
+        final dio = buildDio();
+        DioAdapter(dio: dio).onPut(
+          '/v1/posts/did:plc:alice/${testCase.rkey}/pin',
+          (server) => server.reply(testCase.status, {
+            'error': testCase.code,
+            'message': testCase.serverMessage,
+            'requestId': 'request-${testCase.code}',
+          }),
+        );
+
+        final error = await _captureApiException(
+          () => PostApiClient(dio).pinProfilePost(
+            aliceDid,
+            RecordKey.parse(testCase.rkey),
+          ),
+        );
+
+        expect(error, isA<ApiBadRequest>());
+        expect((error as ApiBadRequest).code, testCase.code);
+        expect(error.message, testCase.code);
+        expect(error.details.statusCode, testCase.status);
+        expect(error.details.appViewError, testCase.code);
+        expect(error.details.appViewMessage, testCase.serverMessage);
+        expect(error.details.requestId, 'request-${testCase.code}');
+        expect(error.details.endpointCategory, 'appview.posts.pin');
+      }
+
+      final cursorDio = buildDio();
+      DioAdapter(dio: cursorDio).onGet(
+        '/v1/profiles/@alice.craftsky.social/posts',
+        (server) => server.reply(400, {
+          'error': 'invalid_cursor',
+          'message': 'The cursor is no longer valid.',
+          'requestId': 'request-invalid-cursor',
+        }),
+        queryParameters: {'cursor': 'stale'},
+      );
+      final cursorError = await _captureApiException(
+        () => PostApiClient(
+          cursorDio,
+        ).listPostsByAuthor('alice.craftsky.social', cursor: 'stale'),
+      );
+      expect(cursorError, isA<ApiBadRequest>());
+      expect((cursorError as ApiBadRequest).code, 'invalid_cursor');
+      expect(cursorError.message, 'invalid_cursor');
+      expect(
+        cursorError.details.appViewMessage,
+        'The cursor is no longer valid.',
+      );
+      expect(cursorError.details.endpointCategory, 'appview.profiles.posts');
+
+      final internalDio = buildDio();
+      DioAdapter(dio: internalDio).onPut(
+        '/v1/posts/did:plc:alice/internal/pin',
+        (server) => server.reply(500, {
+          'error': 'internal_error',
+          'message': 'database failed for did:plc:alice',
+          'requestId': 'request-pin-500',
+        }),
+      );
+      final internalError = await _captureApiException(
+        () => PostApiClient(
+          internalDio,
+        ).pinProfilePost(aliceDid, RecordKey.parse('internal')),
+      );
+      expect(internalError, isA<ApiServerError>());
+      expect(internalError.message, 'http_500');
+      expect(internalError.details.statusCode, 500);
+      expect(internalError.details.appViewError, 'internal_error');
+      expect(internalError.details.appViewMessage, isNull);
+      expect(internalError.details.requestId, 'request-pin-500');
+      expect(internalError.details.endpointCategory, 'appview.posts.pin');
+      expect(internalError.toString(), isNot(contains('did:plc:alice')));
+    });
+  });
+
   group('PostApiClient.listPostsByAuthor', () {
     test('GETs /v1/profiles/@{handleOrDid}/posts (no cursor)', () async {
       final dio = buildDio();
@@ -980,4 +1221,15 @@ void main() {
       expect(result.status, 'accepted');
     });
   });
+}
+
+Future<ApiException> _captureApiException(
+  Future<Object?> Function() action,
+) async {
+  try {
+    await action();
+  } on ApiException catch (error) {
+    return error;
+  }
+  throw TestFailure('Expected ApiException');
 }

@@ -140,6 +140,7 @@ class _FeedLoadedSlivers extends ConsumerWidget {
               return PostCard(
                 post: post,
                 hideWhenAuthorProtected: true,
+                allowProfilePinAction: true,
                 repostReason: item.reason,
                 onTap: () => PostThreadRoute(
                   did: post.author.did,

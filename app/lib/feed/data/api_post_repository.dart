@@ -5,6 +5,7 @@ import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
@@ -55,6 +56,17 @@ class ApiPostRepository implements PostRepository {
 
   @override
   Future<void> delete(Did did, RecordKey rkey) => _api.deletePost(did, rkey);
+
+  @override
+  Future<ProfilePinState> profilePins() => _api.getProfilePins();
+
+  @override
+  Future<ProfilePinState> pin(Did did, RecordKey rkey) =>
+      _api.pinProfilePost(did, rkey);
+
+  @override
+  Future<ProfilePinState> unpin(Did did, RecordKey rkey) =>
+      _api.unpinProfilePost(did, rkey);
 
   @override
   Future<ReportResult> report(

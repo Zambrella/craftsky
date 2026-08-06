@@ -57,9 +57,19 @@ class ErrorMappingInterceptor extends Interceptor {
     final requestId = data is Map && data['requestId'] is String
         ? data['requestId'] as String
         : null;
+    final statusCode = err.response?.statusCode;
+    final appViewMessage =
+        statusCode != null &&
+            statusCode >= 400 &&
+            statusCode < 500 &&
+            data is Map &&
+            data['message'] is String
+        ? data['message'] as String
+        : null;
     return ApiFailureDetails(
-      statusCode: err.response?.statusCode,
+      statusCode: statusCode,
       appViewError: appViewError,
+      appViewMessage: appViewMessage,
       requestId: requestId,
       endpointCategory: _endpointCategory(err.requestOptions.path),
     );
@@ -93,6 +103,7 @@ class ErrorMappingInterceptor extends Interceptor {
       ['posts', _, _, 'comments'] => 'appview.posts.comments',
       ['posts', _, _, 'likes'] => 'appview.posts.likes',
       ['posts', _, _, 'reposts'] => 'appview.posts.reposts',
+      ['posts', _, _, 'pin'] => 'appview.posts.pin',
       ['profiles', 'me'] => 'appview.profiles.me',
       ['profiles', 'me', 'followers'] => 'appview.profiles.me.followers',
       ['profiles', 'me', 'following'] => 'appview.profiles.me.following',

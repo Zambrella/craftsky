@@ -1,7 +1,11 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/session_registry.dart';
+import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
+import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/pages/post_thread_page.dart';
 import 'package:craftsky_app/feed/providers/post_comment_section_provider.dart'
     hide PostCommentSection;
@@ -9,6 +13,7 @@ import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter/material.dart';
@@ -16,7 +21,26 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../fakes/auth_session_fakes.dart';
+import '../../fakes/recording_messenger.dart';
 import '../fakes/fake_post_repository.dart';
+
+final class _ThreadPinRegistryStorage implements SessionRegistryStorage {
+  _ThreadPinRegistryStorage()
+    : value = SessionRegistry.empty().upsertAndActivate(
+        token: 'token-alice',
+        did: 'did:plc:alice',
+        handle: 'alice.craftsky.social',
+      );
+
+  SessionRegistry value;
+
+  @override
+  Future<SessionRegistry> read() async => value;
+
+  @override
+  Future<void> write(SessionRegistry registry) async => value = registry;
+}
 
 PostCommentSection _section(String text) => PostCommentSection(
   post: Post(
@@ -43,6 +67,58 @@ PostCommentSection _section(String text) => PostCommentSection(
 );
 
 void main() {
+  testWidgets('AT-002 pins the owner-authored thread root', (tester) async {
+    final targets = <String>[];
+    final messenger = RecordingMessenger();
+    final section = _section('thread root');
+    final repository = FakePostRepository(
+      onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+          section,
+      onProfilePins: () async => const ProfilePinState(),
+      onPin: (did, rkey) async {
+        targets.add('$did/$rkey');
+        return ProfilePinState(standardPostUri: section.post.uri.value);
+      },
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          postRepositoryProvider.overrideWithValue(repository),
+          authSessionProvider.overrideWith(
+            () => SignedInAuthSession(did: 'did:plc:alice'),
+          ),
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _ThreadPinRegistryStorage(),
+          ),
+        ],
+        child: MessengerScope(
+          messenger: messenger,
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: FormFactorWidget(
+              child: PostThreadPage(
+                did: Did.parse('did:plc:alice'),
+                rkey: RecordKey.parse('root'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.more_horiz));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Pin post'));
+    await tester.pumpAndSettle();
+
+    expect(targets, ['did:plc:alice/root']);
+    expect(messenger.calls, [('info', 'Post pinned', null)]);
+  });
+
   testWidgets('notification destination 404 shows permanent recovery actions', (
     tester,
   ) async {

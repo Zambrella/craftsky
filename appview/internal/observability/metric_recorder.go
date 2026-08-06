@@ -40,6 +40,7 @@ type MetricRecorder interface {
 	TapEventAcknowledged(ctx context.Context, result string)
 	TapIndexerRecord(ctx context.Context, nsid, result, reason string, duration time.Duration)
 	RelationshipOperation(ctx context.Context, operation, stage, result, errorClass string, duration time.Duration)
+	ProfilePinOperation(ctx context.Context, operation, slot, result, errorClass string, duration time.Duration)
 	NotificationDecision(ctx context.Context, category, result string)
 	PushDelivery(ctx context.Context, platform, result string)
 	PushQueue(ctx context.Context, pending int, oldestAge time.Duration)
@@ -67,6 +68,8 @@ func (noopMetricRecorder) TapEventAcknowledged(context.Context, string) {}
 func (noopMetricRecorder) TapIndexerRecord(context.Context, string, string, string, time.Duration) {
 }
 func (noopMetricRecorder) RelationshipOperation(context.Context, string, string, string, string, time.Duration) {
+}
+func (noopMetricRecorder) ProfilePinOperation(context.Context, string, string, string, string, time.Duration) {
 }
 func (noopMetricRecorder) NotificationDecision(context.Context, string, string) {}
 func (noopMetricRecorder) PushDelivery(context.Context, string, string)         {}
@@ -289,6 +292,23 @@ func (r *InMemoryMetricRecorder) RelationshipOperation(_ context.Context, operat
 	})
 }
 
+func (r *InMemoryMetricRecorder) ProfilePinOperation(
+	_ context.Context,
+	operation string,
+	slot string,
+	result string,
+	errorClass string,
+	duration time.Duration,
+) {
+	r.record(MetricCall{
+		Name:       "craftsky_appview_profile_pin_operation_duration_seconds",
+		Kind:       MetricKindDistribution,
+		Unit:       "second",
+		Value:      nonNegativeDuration(duration).Seconds(),
+		Attributes: profilePinOperationAttributes(operation, slot, result, errorClass),
+	})
+}
+
 func (r *InMemoryMetricRecorder) record(call MetricCall) {
 	if r == nil {
 		return
@@ -412,6 +432,15 @@ func (r *sentryMetricRecorder) RelationshipOperation(ctx context.Context, operat
 		"result":      safeRelationshipResult(result),
 		"error_class": safeRelationshipErrorClass(errorClass),
 	})
+}
+func (r *sentryMetricRecorder) ProfilePinOperation(ctx context.Context, operation, slot, result, errorClass string, duration time.Duration) {
+	r.distribution(
+		ctx,
+		"craftsky_appview_profile_pin_operation_duration_seconds",
+		nonNegativeDuration(duration).Seconds(),
+		"second",
+		profilePinOperationAttributes(operation, slot, result, errorClass),
+	)
 }
 func (r *sentryMetricRecorder) NotificationDecision(ctx context.Context, category, result string) {
 	r.count(ctx, "craftsky_appview_notifications_total", 1, "", map[string]string{"category": safeMetricCategory(category), "result": safeMetricResult(result)})
@@ -657,6 +686,39 @@ func scheduledOperationAttributes(operation, result, errorClass string) map[stri
 	}
 	return map[string]string{
 		"operation":   operation,
+		"result":      result,
+		"error_class": errorClass,
+	}
+}
+
+func profilePinOperationAttributes(operation, slot, result, errorClass string) map[string]string {
+	operation = strings.TrimSpace(operation)
+	switch operation {
+	case "pin", "replace", "unpin":
+	default:
+		operation = "pin"
+	}
+	slot = strings.TrimSpace(slot)
+	switch slot {
+	case "standard", "project":
+	default:
+		slot = "unknown"
+	}
+	result = strings.TrimSpace(result)
+	switch result {
+	case "success", "noop", "rejected", "error":
+	default:
+		result = "error"
+	}
+	errorClass = strings.TrimSpace(errorClass)
+	switch errorClass {
+	case "none", "forbidden", "not_found", "policy", "store":
+	default:
+		errorClass = "store"
+	}
+	return map[string]string{
+		"operation":   operation,
+		"slot":        slot,
 		"result":      result,
 		"error_class": errorClass,
 	}
