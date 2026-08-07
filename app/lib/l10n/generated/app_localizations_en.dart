@@ -29,6 +29,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navigationProfile => 'Profile';
 
   @override
+  String get navigationSaved => 'Saved';
+
+  @override
+  String get navigationScheduled => 'Scheduled';
+
+  @override
   String get navigationTerms => 'Terms';
 
   @override
@@ -36,6 +42,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get navigationFeedback => 'Feedback';
+
+  @override
+  String navigationBuildVersion(String version, String buildNumber) {
+    return '$version ($buildNumber)';
+  }
 
   @override
   String get navigationLinkOpenError => 'Couldn\'t open that link.';

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/account_switcher_state.dart';
 import 'package:craftsky_app/auth/providers/account_activation_coordinator.dart';
@@ -16,8 +17,8 @@ import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
-import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -83,15 +84,21 @@ const List<_DestinationSpec> _menuDestinations = [
   ..._secondaryDestinations,
 ];
 
+const _compactDrawerEdgeDragWidth = 96.0;
+const _utilityLinkHeight = 40.0;
+const _profileRailLabelWidth = 168.0;
+
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({
     required this.navigationShell,
     this.linkLauncher = launchExternalLink,
+    this.buildVersionLabel,
     super.key,
   });
 
   final StatefulNavigationShell navigationShell;
   final ExternalLinkLauncher linkLauncher;
+  final String? buildVersionLabel;
 
   @override
   ConsumerState<AppShell> createState() => _AppShellState();
@@ -142,6 +149,18 @@ class _AppShellState extends ConsumerState<AppShell> {
     final switcherState = registry == null
         ? null
         : AccountSwitcherState.fromRegistry(registry);
+    final packageInfo =
+        widget.buildVersionLabel == null && ref.exists(appDependenciesProvider)
+        ? ref.watch(packageInfoProvider)
+        : null;
+    final buildVersionLabel =
+        widget.buildVersionLabel ??
+        (packageInfo == null
+            ? null
+            : AppLocalizations.of(context).navigationBuildVersion(
+                packageInfo.version,
+                packageInfo.buildNumber,
+              ));
     final activeAvatarUrl =
         (activeIdentity?.lease == activeLease
             ? activeIdentity?.profile.avatar
@@ -180,14 +199,13 @@ class _AppShellState extends ConsumerState<AppShell> {
                 child: widget.navigationShell,
               ),
             ),
-            const CraftskyDivider(axis: Axis.vertical),
             Directionality(
               textDirection: textDirection,
               child: _ShellNavigationRail(
                 selectedIndex: selectedDestinationIndex,
                 onDestinationSelected: _goDestination,
                 notificationBadge: notificationBadge,
-                profileAvatarUrl: activeAvatarUrl,
+                buildVersionLabel: buildVersionLabel,
                 profileAnchorKey: _profileAnchorKey,
                 profileFocusNode: _profileSwitcherFocusNode,
                 onOpenAccountSwitcher: switcherState == null
@@ -208,6 +226,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     return Scaffold(
       key: _compactScaffoldKey,
+      drawerEdgeDragWidth: _compactDrawerEdgeDragWidth,
       body: AppShellDrawerScope(
         openDrawer: () => _compactScaffoldKey.currentState?.openDrawer(),
         isDrawerOpen: _isDrawerOpen,
@@ -229,7 +248,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         selectedIndex: selectedDestinationIndex,
         onDestinationSelected: _goDestination,
         notificationBadge: notificationBadge,
-        profileAvatarUrl: activeAvatarUrl,
+        buildVersionLabel: buildVersionLabel,
         profileFocusNode: _drawerProfileSwitcherFocusNode,
         onOpenAccountSwitcher: switcherState == null
             ? null
@@ -344,7 +363,7 @@ class _ShellDrawer extends StatefulWidget {
     required this.selectedIndex,
     required this.onDestinationSelected,
     required this.notificationBadge,
-    required this.profileAvatarUrl,
+    required this.buildVersionLabel,
     required this.profileFocusNode,
     required this.onOpenAccountSwitcher,
     required this.onOpenTerms,
@@ -354,7 +373,7 @@ class _ShellDrawer extends StatefulWidget {
   final int selectedIndex;
   final ValueChanged<int> onDestinationSelected;
   final NotificationBadge notificationBadge;
-  final String? profileAvatarUrl;
+  final String? buildVersionLabel;
   final FocusNode profileFocusNode;
   final VoidCallback? onOpenAccountSwitcher;
   final Future<void> Function() onOpenTerms;
@@ -370,7 +389,7 @@ class _ShellDrawerState extends State<_ShellDrawer> {
   int get selectedIndex => widget.selectedIndex;
   ValueChanged<int> get onDestinationSelected => widget.onDestinationSelected;
   NotificationBadge get notificationBadge => widget.notificationBadge;
-  String? get profileAvatarUrl => widget.profileAvatarUrl;
+  String? get buildVersionLabel => widget.buildVersionLabel;
   FocusNode get profileFocusNode => widget.profileFocusNode;
   VoidCallback? get onOpenAccountSwitcher => widget.onOpenAccountSwitcher;
   Future<void> Function() get onOpenTerms => widget.onOpenTerms;
@@ -378,8 +397,20 @@ class _ShellDrawerState extends State<_ShellDrawer> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
+    final radii = theme.extension<RadiusTheme>()!;
+    final swatches = theme.extension<BrandSwatchTheme>()!;
     return Drawer(
+      backgroundColor: swatches.paper3,
+      surfaceTintColor: Colors.transparent,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadiusDirectional.horizontal(
+          end: Radius.circular(radii.r4),
+        ),
+        side: BorderSide(color: theme.colorScheme.onSurface, width: 1.5),
+      ),
       child: SafeArea(
         child: Column(
           children: [
@@ -393,12 +424,12 @@ class _ShellDrawerState extends State<_ShellDrawer> {
                       selected: selectedIndex == index,
                       leading: index == 4
                           ? _DestinationIcon(
-                              icon: destination.icon,
-                              profileAvatarUrl: profileAvatarUrl,
-                              profileSelected: selectedIndex == index,
+                              icon: selectedIndex == index
+                                  ? destination.selectedIcon
+                                  : destination.icon,
+                              profileIconOnly: true,
                               onTapDestination: () =>
                                   _selectAndClose(context, index),
-                              profileFocusNode: profileFocusNode,
                               onOpenAccountSwitcher:
                                   onOpenAccountSwitcher == null
                                   ? null
@@ -421,9 +452,14 @@ class _ShellDrawerState extends State<_ShellDrawer> {
                         excludeSemantics: true,
                         child: Text(_destinationLabel(l10n, index)),
                       ),
+                      trailing: index == 4 && onOpenAccountSwitcher != null
+                          ? _AccountSwitcherButton(
+                              focusNode: profileFocusNode,
+                              onPressed: () => _openAccountSwitcher(context),
+                            )
+                          : null,
                       onTap: () => _selectAndClose(context, index),
                     ),
-                  const CraftskyDivider(indent: 16, endIndent: 16),
                   for (final (offset, destination)
                       in _secondaryDestinations.indexed)
                     ListTile(
@@ -448,26 +484,33 @@ class _ShellDrawerState extends State<_ShellDrawer> {
                 ],
               ),
             ),
-            const CraftskyDivider(indent: 16, endIndent: 16),
             ListTile(
               dense: true,
+              minTileHeight: _utilityLinkHeight,
               title: Text(l10n.navigationTerms),
               onTap: () => _openExternalLink(context, onOpenTerms),
             ),
             ListTile(
               dense: true,
+              minTileHeight: _utilityLinkHeight,
               title: Text(l10n.navigationPrivacy),
               onTap: () => _openExternalLink(context, onOpenPrivacy),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-              child: SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.chat_bubble_outline),
-                  label: Text(l10n.navigationFeedback),
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () {},
+                    icon: const Icon(Icons.chat_bubble_outline),
+                    label: Text(l10n.navigationFeedback),
+                  ),
+                  if (buildVersionLabel case final label?) ...[
+                    const SizedBox(height: 4),
+                    _BuildVersionText(label),
+                  ],
+                ],
               ),
             ),
           ],
@@ -631,7 +674,7 @@ class _ShellNavigationRail extends StatelessWidget {
     required this.selectedIndex,
     required this.onDestinationSelected,
     required this.notificationBadge,
-    required this.profileAvatarUrl,
+    required this.buildVersionLabel,
     required this.profileAnchorKey,
     required this.profileFocusNode,
     required this.onOpenAccountSwitcher,
@@ -642,7 +685,7 @@ class _ShellNavigationRail extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onDestinationSelected;
   final NotificationBadge notificationBadge;
-  final String? profileAvatarUrl;
+  final String? buildVersionLabel;
   final GlobalKey profileAnchorKey;
   final FocusNode profileFocusNode;
   final VoidCallback? onOpenAccountSwitcher;
@@ -665,12 +708,13 @@ class _ShellNavigationRail extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const CraftskyDivider(),
               TextButton(
+                style: _utilityLinkButtonStyle(),
                 onPressed: () => unawaited(onOpenTerms()),
                 child: Text(l10n.navigationTerms),
               ),
               TextButton(
+                style: _utilityLinkButtonStyle(),
                 onPressed: () => unawaited(onOpenPrivacy()),
                 child: Text(l10n.navigationPrivacy),
               ),
@@ -679,6 +723,10 @@ class _ShellNavigationRail extends StatelessWidget {
                 icon: const Icon(Icons.chat_bubble_outline),
                 label: Text(l10n.navigationFeedback),
               ),
+              if (buildVersionLabel case final label?) ...[
+                const SizedBox(height: 4),
+                _BuildVersionText(label),
+              ],
             ],
           ),
         ),
@@ -689,39 +737,127 @@ class _ShellNavigationRail extends StatelessWidget {
             icon: _DestinationIcon(
               icon: d.icon,
               badge: index == 3 ? notificationBadge : null,
-              profileAvatarUrl: index == 4 ? profileAvatarUrl : null,
+              profileIconOnly: index == 4,
               onTapDestination: index == 4
                   ? () => onDestinationSelected(index)
                   : null,
-              profileFocusNode: index == 4 ? profileFocusNode : null,
               onOpenAccountSwitcher: index == 4 ? onOpenAccountSwitcher : null,
             ),
             selectedIcon: _DestinationIcon(
               icon: d.selectedIcon,
               badge: index == 3 ? notificationBadge : null,
-              profileAvatarUrl: index == 4 ? profileAvatarUrl : null,
-              profileSelected: index == 4,
+              profileIconOnly: index == 4,
               onTapDestination: index == 4
                   ? () => onDestinationSelected(index)
                   : null,
-              profileFocusNode: index == 4 ? profileFocusNode : null,
               onOpenAccountSwitcher: index == 4 ? onOpenAccountSwitcher : null,
             ),
-            label: Semantics(
-              key: index == 4 ? profileAnchorKey : null,
-              label: _destinationSemanticsLabel(
-                context,
-                index: index,
-                notificationBadge: notificationBadge,
-              ),
-              excludeSemantics: true,
-              child: Text(_destinationLabel(l10n, index)),
-            ),
+            label: index == 4
+                ? _ProfileRailLabel(
+                    anchorKey: profileAnchorKey,
+                    label: _destinationSemanticsLabel(
+                      context,
+                      index: index,
+                      notificationBadge: notificationBadge,
+                    ),
+                    focusNode: profileFocusNode,
+                    onOpenAccountSwitcher: onOpenAccountSwitcher,
+                  )
+                : Semantics(
+                    label: _destinationSemanticsLabel(
+                      context,
+                      index: index,
+                      notificationBadge: notificationBadge,
+                    ),
+                    excludeSemantics: true,
+                    child: Text(_destinationLabel(l10n, index)),
+                  ),
           ),
       ],
     );
   }
 }
+
+class _BuildVersionText extends StatelessWidget {
+  const _BuildVersionText(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Text(
+      label,
+      textAlign: TextAlign.center,
+      style: theme.textTheme.labelSmall?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+      ),
+    );
+  }
+}
+
+class _ProfileRailLabel extends StatelessWidget {
+  const _ProfileRailLabel({
+    required this.anchorKey,
+    required this.label,
+    required this.focusNode,
+    required this.onOpenAccountSwitcher,
+  });
+
+  final GlobalKey anchorKey;
+  final String label;
+  final FocusNode focusNode;
+  final VoidCallback? onOpenAccountSwitcher;
+
+  @override
+  Widget build(BuildContext context) {
+    final open = onOpenAccountSwitcher;
+    return SizedBox(
+      width: _profileRailLabelWidth,
+      child: Row(
+        children: [
+          Expanded(
+            child: Semantics(
+              label: label,
+              excludeSemantics: true,
+              child: Text(label),
+            ),
+          ),
+          if (open != null)
+            _AccountSwitcherButton(
+              key: anchorKey,
+              focusNode: focusNode,
+              onPressed: open,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AccountSwitcherButton extends StatelessWidget {
+  const _AccountSwitcherButton({
+    required this.focusNode,
+    required this.onPressed,
+    super.key,
+  });
+
+  final FocusNode focusNode;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+    focusNode: focusNode,
+    tooltip: AppLocalizations.of(context).accountSwitcherTooltip,
+    onPressed: onPressed,
+    icon: const Icon(Icons.switch_account),
+  );
+}
+
+ButtonStyle _utilityLinkButtonStyle() => TextButton.styleFrom(
+  minimumSize: const Size(64, _utilityLinkHeight),
+  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+);
 
 String _destinationLabel(AppLocalizations l10n, int index) => switch (index) {
   0 => l10n.feedTitle,
@@ -729,8 +865,8 @@ String _destinationLabel(AppLocalizations l10n, int index) => switch (index) {
   2 => l10n.searchTitle,
   3 => l10n.notificationsTitle,
   4 => l10n.navigationProfile,
-  5 => l10n.savedPostsTitle,
-  6 => l10n.scheduledPostsTitle,
+  5 => l10n.navigationSaved,
+  6 => l10n.navigationScheduled,
   7 => l10n.draftsTitle,
   8 => l10n.profileSettingsAction,
   _ => throw RangeError.index(index, _menuDestinations),
@@ -762,6 +898,7 @@ class _DestinationIcon extends StatelessWidget {
     this.badge,
     this.profileAvatarUrl,
     this.profileSelected = false,
+    this.profileIconOnly = false,
     this.onTapDestination,
     this.profileFocusNode,
     this.onOpenAccountSwitcher,
@@ -771,6 +908,7 @@ class _DestinationIcon extends StatelessWidget {
   final NotificationBadge? badge;
   final String? profileAvatarUrl;
   final bool profileSelected;
+  final bool profileIconOnly;
   final VoidCallback? onTapDestination;
   final FocusNode? profileFocusNode;
   final VoidCallback? onOpenAccountSwitcher;
@@ -778,7 +916,7 @@ class _DestinationIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final value = badge;
-    Widget child = onOpenAccountSwitcher == null
+    Widget child = onOpenAccountSwitcher == null || profileIconOnly
         ? Icon(icon)
         : AccountAvatar(
             avatarUrl: profileAvatarUrl,
@@ -789,36 +927,38 @@ class _DestinationIcon extends StatelessWidget {
     }
     final open = onOpenAccountSwitcher;
     if (open == null) return child;
-    return Tooltip(
-      message: AppLocalizations.of(context).accountSwitcherTooltip,
-      child: FocusableActionDetector(
-        focusNode: profileFocusNode,
-        shortcuts: {
-          LogicalKeySet(LogicalKeyboardKey.alt, LogicalKeyboardKey.arrowDown):
-              const ActivateIntent(),
-        },
-        actions: {
-          ActivateIntent: CallbackAction<ActivateIntent>(
-            onInvoke: (_) {
-              open();
-              return null;
-            },
-          ),
-        },
-        child: Semantics(
+    final detector = FocusableActionDetector(
+      focusNode: profileFocusNode,
+      shortcuts: {
+        LogicalKeySet(LogicalKeyboardKey.alt, LogicalKeyboardKey.arrowDown):
+            const ActivateIntent(),
+      },
+      actions: {
+        ActivateIntent: CallbackAction<ActivateIntent>(
+          onInvoke: (_) {
+            open();
+            return null;
+          },
+        ),
+      },
+      child: Semantics(
+        onLongPress: open,
+        hint: AppLocalizations.of(context).accountSwitcherLongPressHint,
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: () {
+            profileFocusNode?.requestFocus();
+            onTapDestination?.call();
+          },
           onLongPress: open,
-          hint: AppLocalizations.of(context).accountSwitcherLongPressHint,
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: () {
-              profileFocusNode?.requestFocus();
-              onTapDestination?.call();
-            },
-            onLongPress: open,
-            child: child,
-          ),
+          child: child,
         ),
       ),
+    );
+    if (profileIconOnly) return detector;
+    return Tooltip(
+      message: AppLocalizations.of(context).accountSwitcherTooltip,
+      child: detector,
     );
   }
 }

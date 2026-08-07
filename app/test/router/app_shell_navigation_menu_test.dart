@@ -1,5 +1,6 @@
 import 'dart:ui' show Tristate;
 
+import 'package:craftsky_app/auth/widgets/account_avatar.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
@@ -7,6 +8,7 @@ import 'package:craftsky_app/router/app_shell.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -36,8 +38,8 @@ void main() {
         'Search',
         'Notifications',
         'Profile',
-        'Saved posts',
-        'Scheduled posts',
+        'Saved',
+        'Scheduled',
         'Drafts',
         'Settings',
         'Terms',
@@ -74,6 +76,71 @@ void main() {
       find.descendant(of: find.byType(Drawer), matching: find.text('Feed')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('UIP-004 compact drawer opens from the wider swipe region', (
+    tester,
+  ) async {
+    await _pumpShell(tester, const Size(500, 800));
+
+    await tester.dragFrom(
+      const Offset(80, 400),
+      const Offset(320, 0),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Drawer), findsOneWidget);
+  });
+
+  testWidgets('UIP-001 drawer is outlined, divider-free, and icon-only', (
+    tester,
+  ) async {
+    await _pumpShell(tester, const Size(500, 800));
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+
+    final drawerFinder = find.byType(Drawer);
+    final drawer = tester.widget<Drawer>(drawerFinder);
+    final shape = drawer.shape! as RoundedRectangleBorder;
+    expect(shape.side.width, 1.5);
+    expect(
+      shape.side.color,
+      Theme.of(tester.element(drawerFinder)).colorScheme.onSurface,
+    );
+    expect(
+      find.descendant(
+        of: drawerFinder,
+        matching: find.byType(CraftskyDivider),
+      ),
+      findsNothing,
+    );
+
+    final profileTile = find.widgetWithText(ListTile, 'Profile');
+    expect(
+      find.descendant(
+        of: profileTile,
+        matching: find.byType(AccountAvatar),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: profileTile,
+        matching: find.byIcon(Icons.person_outline),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('UIP-002 rail is divider-free and uses a profile icon', (
+    tester,
+  ) async {
+    await _pumpShell(tester, const Size(1200, 800));
+
+    expect(find.byType(NavigationRail), findsOneWidget);
+    expect(find.byType(CraftskyDivider), findsNothing);
+    expect(find.byType(AccountAvatar), findsNothing);
+    expect(find.byIcon(Icons.person_outline), findsOneWidget);
   });
 
   testWidgets('CORR-004 hamburger exposes state and returns keyboard focus', (
@@ -126,7 +193,7 @@ void main() {
     await tester.tap(find.byTooltip('Open navigation menu'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Saved posts'));
+    await tester.tap(find.text('Saved'));
     await tester.pumpAndSettle();
 
     expect(router.state.matchedLocation, '/profile/saved');
@@ -139,7 +206,7 @@ void main() {
     final router = await _pumpShell(tester, const Size(500, 800));
     await tester.tap(find.byTooltip('Open navigation menu'));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ListTile, 'Scheduled posts'));
+    await tester.tap(find.widgetWithText(ListTile, 'Scheduled'));
     await tester.pumpAndSettle();
     expect(router.state.matchedLocation, '/profile/scheduled');
 
@@ -155,8 +222,8 @@ void main() {
     ('Search', '/search'),
     ('Notifications', '/notifications'),
     ('Profile', '/profile'),
-    ('Saved posts', '/profile/saved'),
-    ('Scheduled posts', '/profile/scheduled'),
+    ('Saved', '/profile/saved'),
+    ('Scheduled', '/profile/scheduled'),
     ('Drafts', '/profile/drafts'),
     ('Settings', '/profile/settings'),
   ]) {
@@ -188,8 +255,8 @@ void main() {
     ('Search', '/search'),
     ('Notifications', '/notifications'),
     ('Profile', '/profile'),
-    ('Saved posts', '/profile/saved'),
-    ('Scheduled posts', '/profile/scheduled'),
+    ('Saved', '/profile/saved'),
+    ('Scheduled', '/profile/scheduled'),
     ('Drafts', '/profile/drafts'),
     ('Settings', '/profile/settings'),
   ]) {
@@ -279,7 +346,7 @@ void main() {
     await tester.pumpAndSettle();
 
     final savedTile = tester.widget<ListTile>(
-      find.widgetWithText(ListTile, 'Saved posts'),
+      find.widgetWithText(ListTile, 'Saved'),
     );
     savedTile.onTap!.call();
     savedTile.onTap!.call();
@@ -339,6 +406,108 @@ void main() {
     expect(find.byType(Drawer), findsNothing);
   });
 
+  testWidgets('UIP-005 legal link tap targets are compact', (tester) async {
+    await _pumpShell(tester, const Size(500, 800));
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+
+    for (final label in ['Terms', 'Privacy']) {
+      expect(
+        tester.getSize(find.widgetWithText(ListTile, label)).height,
+        40,
+      );
+    }
+
+    await _pumpShell(tester, const Size(1200, 800));
+
+    for (final label in ['Terms', 'Privacy']) {
+      expect(
+        tester.getSize(find.widgetWithText(TextButton, label)).height,
+        40,
+      );
+    }
+  });
+
+  testWidgets('UIP-007 menu uses compact Saved and Scheduled labels', (
+    tester,
+  ) async {
+    await _pumpShell(tester, const Size(500, 800));
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+
+    final drawer = find.byType(Drawer);
+    expect(find.descendant(of: drawer, matching: find.text('Saved')), findsOne);
+    expect(
+      find.descendant(of: drawer, matching: find.text('Scheduled')),
+      findsOne,
+    );
+    expect(
+      find.descendant(of: drawer, matching: find.text('Saved posts')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: drawer, matching: find.text('Scheduled posts')),
+      findsNothing,
+    );
+
+    await _pumpShell(tester, const Size(1200, 800));
+
+    final rail = find.byType(NavigationRail);
+    expect(find.descendant(of: rail, matching: find.text('Saved')), findsOne);
+    expect(
+      find.descendant(of: rail, matching: find.text('Scheduled')),
+      findsOne,
+    );
+  });
+
+  testWidgets('UIP-008 build version appears below Feedback', (tester) async {
+    await _pumpShell(tester, const Size(500, 800));
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+
+    final drawer = find.byType(Drawer);
+    final drawerVersion = find.descendant(
+      of: drawer,
+      matching: find.text('1.0.0 (1)'),
+    );
+    expect(drawerVersion, findsOneWidget);
+    expect(
+      tester.getTopLeft(drawerVersion).dy,
+      greaterThan(
+        tester
+            .getBottomLeft(
+              find.descendant(
+                of: drawer,
+                matching: find.widgetWithText(OutlinedButton, 'Feedback'),
+              ),
+            )
+            .dy,
+      ),
+    );
+
+    await _pumpShell(tester, const Size(1200, 800));
+
+    final rail = find.byType(NavigationRail);
+    final railVersion = find.descendant(
+      of: rail,
+      matching: find.text('1.0.0 (1)'),
+    );
+    expect(railVersion, findsOneWidget);
+    expect(
+      tester.getTopLeft(railVersion).dy,
+      greaterThan(
+        tester
+            .getBottomLeft(
+              find.descendant(
+                of: rail,
+                matching: find.widgetWithText(OutlinedButton, 'Feedback'),
+              ),
+            )
+            .dy,
+      ),
+    );
+  });
+
   testWidgets('large shell rail exposes primary and utility destinations', (
     tester,
   ) async {
@@ -351,8 +520,8 @@ void main() {
       'Search',
       'Notifications',
       'Profile',
-      'Saved posts',
-      'Scheduled posts',
+      'Saved',
+      'Scheduled',
       'Drafts',
       'Settings',
       'Terms',
@@ -523,6 +692,7 @@ Future<GoRouter> _pumpShell(
         builder: (context, state, navigationShell) => AppShell(
           navigationShell: navigationShell,
           linkLauncher: linkLauncher ?? (_) async => true,
+          buildVersionLabel: '1.0.0 (1)',
         ),
         branches: [
           for (final path in [

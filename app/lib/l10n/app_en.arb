@@ -22,6 +22,12 @@
   "navigationProfile": "Profile",
   "@navigationProfile": { "description": "Label for the signed-in member's Profile navigation destination." },
 
+  "navigationSaved": "Saved",
+  "@navigationSaved": { "description": "Compact label for the Saved posts navigation destination." },
+
+  "navigationScheduled": "Scheduled",
+  "@navigationScheduled": { "description": "Compact label for the Scheduled posts navigation destination." },
+
   "navigationTerms": "Terms",
   "@navigationTerms": { "description": "Label for the external Terms link in app navigation." },
 
@@ -30,6 +36,15 @@
 
   "navigationFeedback": "Feedback",
   "@navigationFeedback": { "description": "Label for the currently inert Feedback control in app navigation." },
+
+  "navigationBuildVersion": "{version} ({buildNumber})",
+  "@navigationBuildVersion": {
+    "description": "App version and build number shown below Feedback in app navigation.",
+    "placeholders": {
+      "version": { "type": "String", "example": "1.0.0" },
+      "buildNumber": { "type": "String", "example": "1" }
+    }
+  },
 
   "navigationLinkOpenError": "Couldn't open that link.",
   "@navigationLinkOpenError": { "description": "Safe error shown when an external navigation link cannot be opened." },

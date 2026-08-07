@@ -466,75 +466,88 @@ void main() {
     },
   );
 
-  testWidgets('CORR-002 compact drawer Profile opens account switcher', (
-    tester,
-  ) async {
-    final registry = SessionRegistry.empty()
-        .upsertAndActivate(
-          token: 'bob-token',
-          did: 'did:plc:bob',
-          handle: 'bob.test',
-        )
-        .upsertAndActivate(
-          token: 'alice-token',
-          did: 'did:plc:alice',
-          handle: 'alice.test',
-          cachedAvatarUrl: 'https://example.test/alice.jpg',
-        );
-    await _pumpShell(
+  testWidgets(
+    'UIP-006 compact Profile row switch button opens account switcher',
+    (
       tester,
-      registry: registry,
-      size: const Size(500, 800),
-    );
+    ) async {
+      final registry = SessionRegistry.empty()
+          .upsertAndActivate(
+            token: 'bob-token',
+            did: 'did:plc:bob',
+            handle: 'bob.test',
+          )
+          .upsertAndActivate(
+            token: 'alice-token',
+            did: 'did:plc:alice',
+            handle: 'alice.test',
+            cachedAvatarUrl: 'https://example.test/alice.jpg',
+          );
+      await _pumpShell(
+        tester,
+        registry: registry,
+        size: const Size(500, 800),
+      );
 
-    await tester.dragFrom(const Offset(0, 400), const Offset(320, 0));
-    await tester.pumpAndSettle();
+      await tester.dragFrom(const Offset(0, 400), const Offset(320, 0));
+      await tester.pumpAndSettle();
 
-    final drawerAvatar = find.descendant(
-      of: find.byType(Drawer),
-      matching: find.byType(AccountAvatar),
-    );
-    expect(drawerAvatar, findsOneWidget);
-    expect(
-      tester
-          .getSemantics(drawerAvatar)
-          .getSemanticsData()
-          .hasAction(SemanticsAction.longPress),
-      isTrue,
-    );
+      final drawerProfileIcon = find.descendant(
+        of: find.byType(Drawer),
+        matching: find.byIcon(Icons.person_outline),
+      );
+      expect(drawerProfileIcon, findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(Drawer),
+          matching: find.byType(AccountAvatar),
+        ),
+        findsNothing,
+      );
+      expect(
+        tester
+            .getSemantics(drawerProfileIcon)
+            .getSemanticsData()
+            .hasAction(SemanticsAction.longPress),
+        isTrue,
+      );
+      final profileTile = find.widgetWithText(ListTile, 'Profile');
+      final switchButton = find.descendant(
+        of: profileTile,
+        matching: find.byTooltip('Switch account'),
+      );
+      expect(switchButton, findsOneWidget);
+      expect(
+        find.descendant(
+          of: switchButton,
+          matching: find.byIcon(Icons.switch_account),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        tester.getCenter(switchButton).dx,
+        greaterThan(
+          tester
+              .getCenter(
+                find.descendant(
+                  of: profileTile,
+                  matching: find.text('Profile'),
+                ),
+              )
+              .dx,
+        ),
+      );
 
-    await tester.longPress(drawerAvatar);
-    await tester.pumpAndSettle();
+      await tester.tap(switchButton);
+      await tester.pumpAndSettle();
 
-    expect(find.byType(Drawer), findsNothing);
-    expect(find.byType(AccountSwitcherContent), findsOneWidget);
-    expect(find.text('bob.test'), findsOneWidget);
+      expect(find.byType(Drawer), findsNothing);
+      expect(find.byType(AccountSwitcherContent), findsOneWidget);
+      expect(find.text('bob.test'), findsOneWidget);
+    },
+  );
 
-    Navigator.of(tester.element(find.byType(AccountSwitcherContent))).pop();
-    await tester.pumpAndSettle();
-    await tester.dragFrom(const Offset(0, 400), const Offset(320, 0));
-    await tester.pumpAndSettle();
-
-    tester
-        .widget<FocusableActionDetector>(
-          find.descendant(
-            of: find.byType(Drawer),
-            matching: find.byType(FocusableActionDetector),
-          ),
-        )
-        .focusNode!
-        .requestFocus();
-    await tester.pump();
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.alt);
-    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.alt);
-    await tester.pumpAndSettle();
-
-    expect(find.byType(Drawer), findsNothing);
-    expect(find.byType(AccountSwitcherContent), findsOneWidget);
-  });
-
-  testWidgets('IT-011 large Profile trigger opens an anchored account menu', (
+  testWidgets('UIP-006 rail Profile switch button opens an anchored menu', (
     tester,
   ) async {
     final registry = SessionRegistry.empty()
@@ -556,44 +569,67 @@ void main() {
     );
 
     expect(find.byType(NavigationRail), findsOneWidget);
-    expect(find.byType(AccountAvatar), findsOneWidget);
+    expect(find.byType(AccountAvatar), findsNothing);
+    final profileIcon = find.byIcon(Icons.person_outline);
+    expect(profileIcon, findsOneWidget);
+    final semantics = tester.getSemantics(profileIcon);
     expect(
-      tester.widget<AccountAvatar>(find.byType(AccountAvatar)).avatarUrl,
-      'https://example.test/alice.jpg',
+      semantics.getSemanticsData().hasAction(SemanticsAction.longPress),
+      isTrue,
     );
-    expect(find.byIcon(Icons.switch_account), findsNothing);
+    final switchButton = find.byTooltip('Switch account');
+    expect(switchButton, findsOneWidget);
+    expect(
+      find.descendant(
+        of: switchButton,
+        matching: find.byIcon(Icons.switch_account),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester.getCenter(switchButton).dx,
+      greaterThan(
+        tester
+            .getCenter(
+              find.descendant(
+                of: find.byType(NavigationRail),
+                matching: find.text('Profile'),
+              ),
+            )
+            .dx,
+      ),
+    );
 
-    final profileAvatar = find.byType(AccountAvatar);
-    var avatar = tester.widget<AccountAvatar>(profileAvatar);
-    expect(avatar.selected, isFalse);
-    await tester.tap(profileAvatar);
+    await tester.tap(switchButton);
+    await tester.pumpAndSettle();
+    expect(find.byType(AccountSwitcherContent), findsOneWidget);
+    expect(
+      tester.widget<NavigationRail>(find.byType(NavigationRail)).selectedIndex,
+      0,
+    );
+    Navigator.of(tester.element(find.byType(AccountSwitcherContent))).pop();
+    await tester.pumpAndSettle();
+
+    await tester.tap(profileIcon);
     await tester.pumpAndSettle();
     expect(
       tester.widget<NavigationRail>(find.byType(NavigationRail)).selectedIndex,
       4,
     );
     expect(find.byType(AccountSwitcherContent), findsNothing);
-    avatar = tester.widget<AccountAvatar>(profileAvatar);
-    expect(avatar.selected, isTrue);
+    expect(find.byIcon(Icons.person), findsOneWidget);
 
-    final semantics = tester.getSemantics(profileAvatar);
-    expect(
-      semantics.getSemanticsData().hasAction(SemanticsAction.longPress),
-      isTrue,
-    );
     tester
-        .widget<FocusableActionDetector>(
+        .widget<IconButton>(
           find.ancestor(
-            of: profileAvatar,
-            matching: find.byType(FocusableActionDetector),
+            of: find.byIcon(Icons.switch_account),
+            matching: find.byType(IconButton),
           ),
         )
         .focusNode!
         .requestFocus();
     await tester.pump();
-    await tester.sendKeyDownEvent(LogicalKeyboardKey.alt);
-    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
-    await tester.sendKeyUpEvent(LogicalKeyboardKey.alt);
+    await tester.sendKeyEvent(LogicalKeyboardKey.enter);
     await tester.pumpAndSettle();
 
     expect(find.byType(AccountSwitcherContent), findsOneWidget);
@@ -607,7 +643,7 @@ void main() {
     );
   });
 
-  testWidgets('UT-018 large missing avatar keeps selected person fallback', (
+  testWidgets('UIP-002 large Profile stays icon-only when selected', (
     tester,
   ) async {
     final registry = SessionRegistry.empty().upsertAndActivate(
@@ -621,40 +657,18 @@ void main() {
       size: const Size(1000, 800),
     );
 
-    var avatar = tester.widget<AccountAvatar>(find.byType(AccountAvatar));
-    expect(avatar.avatarUrl, isNull);
-    expect(avatar.selected, isFalse);
-    expect(
-      find.descendant(
-        of: find.byType(AccountAvatar),
-        matching: find.byIcon(Icons.person),
-      ),
-      findsOneWidget,
-    );
+    expect(find.byType(AccountAvatar), findsNothing);
+    expect(find.byIcon(Icons.person_outline), findsOneWidget);
 
-    await tester.tap(find.byType(AccountAvatar));
+    await tester.tap(find.byIcon(Icons.person_outline));
     await tester.pumpAndSettle();
 
-    avatar = tester.widget<AccountAvatar>(find.byType(AccountAvatar));
-    expect(avatar.selected, isTrue);
     expect(
       tester.widget<NavigationRail>(find.byType(NavigationRail)).selectedIndex,
       4,
     );
-    expect(
-      tester
-          .getSemantics(find.byType(AccountAvatar))
-          .flagsCollection
-          .isSelected,
-      Tristate.isTrue,
-    );
     expect(find.byType(AccountSwitcherContent), findsNothing);
-    expect(
-      find.descendant(
-        of: find.byType(AccountAvatar),
-        matching: find.byIcon(Icons.person),
-      ),
-      findsOneWidget,
-    );
+    expect(find.byType(AccountAvatar), findsNothing);
+    expect(find.byIcon(Icons.person), findsOneWidget);
   });
 }

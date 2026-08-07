@@ -130,6 +130,18 @@ abstract class AppLocalizations {
   /// **'Profile'**
   String get navigationProfile;
 
+  /// Compact label for the Saved posts navigation destination.
+  ///
+  /// In en, this message translates to:
+  /// **'Saved'**
+  String get navigationSaved;
+
+  /// Compact label for the Scheduled posts navigation destination.
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduled'**
+  String get navigationScheduled;
+
   /// Label for the external Terms link in app navigation.
   ///
   /// In en, this message translates to:
@@ -147,6 +159,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Feedback'**
   String get navigationFeedback;
+
+  /// App version and build number shown below Feedback in app navigation.
+  ///
+  /// In en, this message translates to:
+  /// **'{version} ({buildNumber})'**
+  String navigationBuildVersion(String version, String buildNumber);
 
   /// Safe error shown when an external navigation link cannot be opened.
   ///
