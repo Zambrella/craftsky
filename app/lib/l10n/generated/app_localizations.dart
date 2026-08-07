@@ -118,6 +118,42 @@ abstract class AppLocalizations {
   /// **'Feed'**
   String get feedTitle;
 
+  /// Tooltip and accessible label for the button that opens the app navigation drawer.
+  ///
+  /// In en, this message translates to:
+  /// **'Open navigation menu'**
+  String get navigationMenuTooltip;
+
+  /// Label for the signed-in member's Profile navigation destination.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile'**
+  String get navigationProfile;
+
+  /// Label for the external Terms link in app navigation.
+  ///
+  /// In en, this message translates to:
+  /// **'Terms'**
+  String get navigationTerms;
+
+  /// Label for the external Privacy link in app navigation.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy'**
+  String get navigationPrivacy;
+
+  /// Label for the currently inert Feedback control in app navigation.
+  ///
+  /// In en, this message translates to:
+  /// **'Feedback'**
+  String get navigationFeedback;
+
+  /// Safe error shown when an external navigation link cannot be opened.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t open that link.'**
+  String get navigationLinkOpenError;
+
   /// Title for the in-app notifications page.
   ///
   /// In en, this message translates to:

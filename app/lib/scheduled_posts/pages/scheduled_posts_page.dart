@@ -3,6 +3,7 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
+import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/scheduled_posts/models/scheduled_post.dart';
 import 'package:craftsky_app/scheduled_posts/models/scheduled_post_row_model.dart';
 import 'package:craftsky_app/scheduled_posts/providers/scheduled_post_repository_provider.dart';
@@ -21,11 +22,24 @@ class ScheduledPostsPage extends ConsumerWidget {
     final activeLease = ref.watch(sessionRegistryProvider).value?.activeLease;
     final account = activeLease?.session.account;
     if (activeLease == null || account == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        appBar: AppBar(
+          leading: BackButton(
+            onPressed: () => const ProfileRoute().go(context),
+          ),
+          title: Text(l10n.scheduledPostsTitle),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
     }
     final scheduled = ref.watch(scheduledPostsProvider(account));
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.scheduledPostsTitle)),
+      appBar: AppBar(
+        leading: BackButton(
+          onPressed: () => const ProfileRoute().go(context),
+        ),
+        title: Text(l10n.scheduledPostsTitle),
+      ),
       body: switch (scheduled) {
         AsyncData(:final value) => ScheduledPostsPageContent(
           items: value.items,

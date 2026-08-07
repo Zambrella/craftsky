@@ -41,6 +41,29 @@ void main() {
       semantics.dispose();
     },
   );
+
+  testWidgets('CORR-001 compact drawer announces the uncapped count', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    await _pumpShell(tester, const Size(500, 800));
+
+    await tester.dragFrom(const Offset(0, 400), const Offset(320, 0));
+    await tester.pumpAndSettle();
+
+    final drawer = find.byType(Drawer);
+    expect(drawer, findsOneWidget);
+    expect(
+      find.descendant(
+        of: drawer,
+        matching: find.bySemanticsLabel(
+          RegExp('Notifications, 137 new activities'),
+        ),
+      ),
+      findsOneWidget,
+    );
+    semantics.dispose();
+  });
 }
 
 Future<void> _pumpShell(WidgetTester tester, Size size) async {

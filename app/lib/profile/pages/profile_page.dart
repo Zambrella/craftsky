@@ -23,6 +23,7 @@ import 'package:craftsky_app/profile/widgets/profile_tabs/profile_comments_tab.d
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_empty_tab.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_posts_tab.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_projects_tab.dart';
+import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/errors/notification_destination_error.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
@@ -132,7 +133,7 @@ class _ProfileScaffold extends ConsumerWidget {
         classifyNotificationDestinationError(destinationError) ==
             NotificationDestinationErrorKind.permanentUnavailable) {
       return Scaffold(
-        appBar: Navigator.of(context).canPop() ? AppBar() : null,
+        appBar: _profileNavigationAppBar(context),
         body: _destinationErrorState(context, ref, destinationError),
       );
     }
@@ -164,10 +165,13 @@ class _ProfileScaffold extends ConsumerWidget {
         },
       ),
       AsyncError(:final error) => Scaffold(
-        appBar: Navigator.of(context).canPop() ? AppBar() : null,
+        appBar: _profileNavigationAppBar(context),
         body: _destinationErrorState(context, ref, error),
       ),
-      _ => const Scaffold(body: Center(child: StitchProgressIndicator())),
+      _ => Scaffold(
+        appBar: _profileNavigationAppBar(context),
+        body: const Center(child: StitchProgressIndicator()),
+      ),
     };
   }
 
@@ -188,6 +192,13 @@ class _ProfileScaffold extends ConsumerWidget {
     },
     onViewNotifications: () => const NotificationsRoute().go(context),
   );
+}
+
+PreferredSizeWidget? _profileNavigationAppBar(BuildContext context) {
+  if (AppShellDrawerScope.maybeOf(context) != null) {
+    return AppBar(leading: const AppShellDrawerButton());
+  }
+  return Navigator.of(context).canPop() ? AppBar() : null;
 }
 
 class _ProfileBody extends ConsumerWidget {

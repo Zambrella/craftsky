@@ -44,7 +44,12 @@ class _SavedPostsPageState extends ConsumerState<SavedPostsPage> {
     final account = auth is SignedIn ? AccountKey(auth.did.toString()) : null;
     if (account == null) {
       return Scaffold(
-        appBar: AppBar(title: Text(l10n.savedPostsTitle)),
+        appBar: AppBar(
+          leading: BackButton(
+            onPressed: () => const ProfileRoute().go(context),
+          ),
+          title: Text(l10n.savedPostsTitle),
+        ),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
@@ -58,6 +63,9 @@ class _SavedPostsPageState extends ConsumerState<SavedPostsPage> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: BackButton(
+          onPressed: () => const ProfileRoute().go(context),
+        ),
         title: Text(l10n.savedPostsTitle),
         actions: [
           IconButton(

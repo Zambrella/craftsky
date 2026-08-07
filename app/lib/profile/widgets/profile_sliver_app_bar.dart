@@ -7,6 +7,7 @@ import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
 import 'package:craftsky_app/profile/widgets/profile_framed_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_header_background.dart';
 import 'package:craftsky_app/profile/widgets/profile_identity.dart';
+import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -49,6 +50,9 @@ class ProfileSliverAppBar extends StatelessWidget {
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final layout = _resolveLayout(context);
     return SliverAppBar(
+      leading: AppShellDrawerScope.maybeOf(context) == null
+          ? null
+          : const AppShellDrawerButton(),
       pinned: true,
       expandedHeight: layout.expandedHeight,
       backgroundColor: swatches.paper,

@@ -466,6 +466,74 @@ void main() {
     },
   );
 
+  testWidgets('CORR-002 compact drawer Profile opens account switcher', (
+    tester,
+  ) async {
+    final registry = SessionRegistry.empty()
+        .upsertAndActivate(
+          token: 'bob-token',
+          did: 'did:plc:bob',
+          handle: 'bob.test',
+        )
+        .upsertAndActivate(
+          token: 'alice-token',
+          did: 'did:plc:alice',
+          handle: 'alice.test',
+          cachedAvatarUrl: 'https://example.test/alice.jpg',
+        );
+    await _pumpShell(
+      tester,
+      registry: registry,
+      size: const Size(500, 800),
+    );
+
+    await tester.dragFrom(const Offset(0, 400), const Offset(320, 0));
+    await tester.pumpAndSettle();
+
+    final drawerAvatar = find.descendant(
+      of: find.byType(Drawer),
+      matching: find.byType(AccountAvatar),
+    );
+    expect(drawerAvatar, findsOneWidget);
+    expect(
+      tester
+          .getSemantics(drawerAvatar)
+          .getSemanticsData()
+          .hasAction(SemanticsAction.longPress),
+      isTrue,
+    );
+
+    await tester.longPress(drawerAvatar);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Drawer), findsNothing);
+    expect(find.byType(AccountSwitcherContent), findsOneWidget);
+    expect(find.text('bob.test'), findsOneWidget);
+
+    Navigator.of(tester.element(find.byType(AccountSwitcherContent))).pop();
+    await tester.pumpAndSettle();
+    await tester.dragFrom(const Offset(0, 400), const Offset(320, 0));
+    await tester.pumpAndSettle();
+
+    tester
+        .widget<FocusableActionDetector>(
+          find.descendant(
+            of: find.byType(Drawer),
+            matching: find.byType(FocusableActionDetector),
+          ),
+        )
+        .focusNode!
+        .requestFocus();
+    await tester.pump();
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.alt);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.alt);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Drawer), findsNothing);
+    expect(find.byType(AccountSwitcherContent), findsOneWidget);
+  });
+
   testWidgets('IT-011 large Profile trigger opens an anchored account menu', (
     tester,
   ) async {

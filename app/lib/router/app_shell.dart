@@ -12,7 +12,10 @@ import 'package:craftsky_app/auth/widgets/account_switcher_content.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/notification_badge.dart';
 import 'package:craftsky_app/notifications/providers/notification_new_count_provider.dart';
+import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/route_locations.dart';
+import 'package:craftsky_app/shared/link/external_link.dart';
+import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter/material.dart';
@@ -20,51 +23,75 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+export 'package:craftsky_app/router/app_shell_drawer.dart';
+
 /// Paired icon + label spec for a shell branch destination.
 class _DestinationSpec {
   const _DestinationSpec({
     required this.icon,
     required this.selectedIcon,
-    required this.label,
   });
 
   final IconData icon;
   final IconData selectedIcon;
-  final String label;
 }
 
-const _destinations = <_DestinationSpec>[
+const _primaryDestinations = <_DestinationSpec>[
   _DestinationSpec(
     icon: Icons.home_outlined,
     selectedIcon: Icons.home,
-    label: 'Feed',
   ),
   _DestinationSpec(
     icon: Icons.grid_view_outlined,
     selectedIcon: Icons.grid_view,
-    label: 'Projects',
   ),
   _DestinationSpec(
     icon: Icons.search_outlined,
     selectedIcon: Icons.search,
-    label: 'Search',
   ),
   _DestinationSpec(
     icon: Icons.notifications_outlined,
     selectedIcon: Icons.notifications,
-    label: 'Notifications',
   ),
   _DestinationSpec(
     icon: Icons.person_outline,
     selectedIcon: Icons.person,
-    label: 'Profile',
   ),
 ];
 
+const _secondaryDestinations = <_DestinationSpec>[
+  _DestinationSpec(
+    icon: Icons.bookmarks_outlined,
+    selectedIcon: Icons.bookmarks,
+  ),
+  _DestinationSpec(
+    icon: Icons.schedule_outlined,
+    selectedIcon: Icons.schedule,
+  ),
+  _DestinationSpec(
+    icon: Icons.edit_note_outlined,
+    selectedIcon: Icons.edit_note,
+  ),
+  _DestinationSpec(
+    icon: Icons.settings_outlined,
+    selectedIcon: Icons.settings,
+  ),
+];
+
+const List<_DestinationSpec> _menuDestinations = [
+  ..._primaryDestinations,
+  ..._secondaryDestinations,
+];
+
 class AppShell extends ConsumerStatefulWidget {
-  const AppShell({required this.navigationShell, super.key});
+  const AppShell({
+    required this.navigationShell,
+    this.linkLauncher = launchExternalLink,
+    super.key,
+  });
 
   final StatefulNavigationShell navigationShell;
+  final ExternalLinkLauncher linkLauncher;
 
   @override
   ConsumerState<AppShell> createState() => _AppShellState();
@@ -72,10 +99,18 @@ class AppShell extends ConsumerStatefulWidget {
 
 class _AppShellState extends ConsumerState<AppShell> {
   late final AccountActivationCoordinator _activation;
+  final GlobalKey<ScaffoldState> _compactScaffoldKey = GlobalKey();
   final GlobalKey _profileAnchorKey = GlobalKey();
+  final FocusNode _drawerProfileSwitcherFocusNode = FocusNode(
+    debugLabel: 'Drawer Profile account switcher',
+  );
+  final FocusNode _drawerButtonFocusNode = FocusNode(
+    debugLabel: 'Navigation drawer button',
+  );
   final FocusNode _profileSwitcherFocusNode = FocusNode(
     debugLabel: 'Profile account switcher',
   );
+  bool _isDrawerOpen = false;
 
   @override
   void initState() {
@@ -91,6 +126,8 @@ class _AppShellState extends ConsumerState<AppShell> {
 
   @override
   void dispose() {
+    _drawerButtonFocusNode.dispose();
+    _drawerProfileSwitcherFocusNode.dispose();
     _profileSwitcherFocusNode.dispose();
     super.dispose();
   }
@@ -120,6 +157,10 @@ class _AppShellState extends ConsumerState<AppShell> {
                     .value ??
                 0,
     );
+    final selectedDestinationIndex = _selectedDestinationIndex(
+      GoRouterState.of(context).matchedLocation,
+      widget.navigationShell.currentIndex,
+    );
 
     if (formFactor.isLarge) {
       final textDirection = Directionality.of(context);
@@ -143,8 +184,8 @@ class _AppShellState extends ConsumerState<AppShell> {
             Directionality(
               textDirection: textDirection,
               child: _ShellNavigationRail(
-                selectedIndex: widget.navigationShell.currentIndex,
-                onDestinationSelected: _goBranch,
+                selectedIndex: selectedDestinationIndex,
+                onDestinationSelected: _goDestination,
                 notificationBadge: notificationBadge,
                 profileAvatarUrl: activeAvatarUrl,
                 profileAnchorKey: _profileAnchorKey,
@@ -152,6 +193,12 @@ class _AppShellState extends ConsumerState<AppShell> {
                 onOpenAccountSwitcher: switcherState == null
                     ? null
                     : () => _showLargeSwitcher(switcherState),
+                onOpenTerms: () => _openExternalLink(
+                  Uri.parse('https://craftsky.social/terms'),
+                ),
+                onOpenPrivacy: () => _openExternalLink(
+                  Uri.parse('https://craftsky.social/privacy'),
+                ),
               ),
             ),
           ],
@@ -160,7 +207,40 @@ class _AppShellState extends ConsumerState<AppShell> {
     }
 
     return Scaffold(
-      body: widget.navigationShell,
+      key: _compactScaffoldKey,
+      body: AppShellDrawerScope(
+        openDrawer: () => _compactScaffoldKey.currentState?.openDrawer(),
+        isDrawerOpen: _isDrawerOpen,
+        menuButtonFocusNode: _drawerButtonFocusNode,
+        child: widget.navigationShell,
+      ),
+      onDrawerChanged: (isOpen) {
+        if (_isDrawerOpen != isOpen) {
+          final shouldRestoreMenuFocus = _isDrawerOpen && !isOpen;
+          setState(() => _isDrawerOpen = isOpen);
+          if (shouldRestoreMenuFocus) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (mounted) _drawerButtonFocusNode.requestFocus();
+            });
+          }
+        }
+      },
+      drawer: _ShellDrawer(
+        selectedIndex: selectedDestinationIndex,
+        onDestinationSelected: _goDestination,
+        notificationBadge: notificationBadge,
+        profileAvatarUrl: activeAvatarUrl,
+        profileFocusNode: _drawerProfileSwitcherFocusNode,
+        onOpenAccountSwitcher: switcherState == null
+            ? null
+            : () => _showCompactSwitcher(switcherState),
+        onOpenTerms: () => _openExternalLink(
+          Uri.parse('https://craftsky.social/terms'),
+        ),
+        onOpenPrivacy: () => _openExternalLink(
+          Uri.parse('https://craftsky.social/privacy'),
+        ),
+      ),
       bottomNavigationBar: _ShellNavigationBar(
         selectedIndex: widget.navigationShell.currentIndex,
         onDestinationSelected: _goBranch,
@@ -179,6 +259,33 @@ class _AppShellState extends ConsumerState<AppShell> {
       index,
       initialLocation: index == widget.navigationShell.currentIndex,
     );
+  }
+
+  void _goDestination(int index) {
+    if (index < _primaryDestinations.length) {
+      _goBranch(index);
+      return;
+    }
+    final location = switch (index - _primaryDestinations.length) {
+      0 => RouteLocations.savedPosts,
+      1 => RouteLocations.scheduledPosts,
+      2 => RouteLocations.drafts,
+      3 => RouteLocations.settings,
+      _ => throw RangeError.index(index, _menuDestinations),
+    };
+    widget.navigationShell.goBranch(4, initialLocation: true);
+    unawaited(context.push(location));
+  }
+
+  Future<void> _openExternalLink(Uri uri) async {
+    var opened = false;
+    try {
+      opened = await widget.linkLauncher(uri);
+    } on Object {
+      // Platform link handlers can fail by returning false or by throwing.
+    }
+    if (!mounted || opened) return;
+    context.showError(AppLocalizations.of(context).navigationLinkOpenError);
   }
 
   Future<void> _showCompactSwitcher(AccountSwitcherState state) =>
@@ -229,6 +336,171 @@ class _AppShellState extends ConsumerState<AppShell> {
         ),
       ],
     );
+  }
+}
+
+class _ShellDrawer extends StatefulWidget {
+  const _ShellDrawer({
+    required this.selectedIndex,
+    required this.onDestinationSelected,
+    required this.notificationBadge,
+    required this.profileAvatarUrl,
+    required this.profileFocusNode,
+    required this.onOpenAccountSwitcher,
+    required this.onOpenTerms,
+    required this.onOpenPrivacy,
+  });
+
+  final int selectedIndex;
+  final ValueChanged<int> onDestinationSelected;
+  final NotificationBadge notificationBadge;
+  final String? profileAvatarUrl;
+  final FocusNode profileFocusNode;
+  final VoidCallback? onOpenAccountSwitcher;
+  final Future<void> Function() onOpenTerms;
+  final Future<void> Function() onOpenPrivacy;
+
+  @override
+  State<_ShellDrawer> createState() => _ShellDrawerState();
+}
+
+class _ShellDrawerState extends State<_ShellDrawer> {
+  var _actionClaimed = false;
+
+  int get selectedIndex => widget.selectedIndex;
+  ValueChanged<int> get onDestinationSelected => widget.onDestinationSelected;
+  NotificationBadge get notificationBadge => widget.notificationBadge;
+  String? get profileAvatarUrl => widget.profileAvatarUrl;
+  FocusNode get profileFocusNode => widget.profileFocusNode;
+  VoidCallback? get onOpenAccountSwitcher => widget.onOpenAccountSwitcher;
+  Future<void> Function() get onOpenTerms => widget.onOpenTerms;
+  Future<void> Function() get onOpenPrivacy => widget.onOpenPrivacy;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Drawer(
+      child: SafeArea(
+        child: Column(
+          children: [
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                children: [
+                  for (final (index, destination)
+                      in _primaryDestinations.indexed)
+                    ListTile(
+                      selected: selectedIndex == index,
+                      leading: index == 4
+                          ? _DestinationIcon(
+                              icon: destination.icon,
+                              profileAvatarUrl: profileAvatarUrl,
+                              profileSelected: selectedIndex == index,
+                              onTapDestination: () =>
+                                  _selectAndClose(context, index),
+                              profileFocusNode: profileFocusNode,
+                              onOpenAccountSwitcher:
+                                  onOpenAccountSwitcher == null
+                                  ? null
+                                  : () => _openAccountSwitcher(context),
+                            )
+                          : ExcludeSemantics(
+                              child: _DestinationIcon(
+                                icon: selectedIndex == index
+                                    ? destination.selectedIcon
+                                    : destination.icon,
+                                badge: index == 3 ? notificationBadge : null,
+                              ),
+                            ),
+                      title: Semantics(
+                        label: _destinationSemanticsLabel(
+                          context,
+                          index: index,
+                          notificationBadge: notificationBadge,
+                        ),
+                        excludeSemantics: true,
+                        child: Text(_destinationLabel(l10n, index)),
+                      ),
+                      onTap: () => _selectAndClose(context, index),
+                    ),
+                  const CraftskyDivider(indent: 16, endIndent: 16),
+                  for (final (offset, destination)
+                      in _secondaryDestinations.indexed)
+                    ListTile(
+                      selected:
+                          selectedIndex == _primaryDestinations.length + offset,
+                      leading: Icon(
+                        selectedIndex == _primaryDestinations.length + offset
+                            ? destination.selectedIcon
+                            : destination.icon,
+                      ),
+                      title: Text(
+                        _destinationLabel(
+                          l10n,
+                          _primaryDestinations.length + offset,
+                        ),
+                      ),
+                      onTap: () => _selectAndClose(
+                        context,
+                        _primaryDestinations.length + offset,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const CraftskyDivider(indent: 16, endIndent: 16),
+            ListTile(
+              dense: true,
+              title: Text(l10n.navigationTerms),
+              onTap: () => _openExternalLink(context, onOpenTerms),
+            ),
+            ListTile(
+              dense: true,
+              title: Text(l10n.navigationPrivacy),
+              onTap: () => _openExternalLink(context, onOpenPrivacy),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+              child: SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.chat_bubble_outline),
+                  label: Text(l10n.navigationFeedback),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _selectAndClose(BuildContext context, int index) {
+    if (!_claimAction()) return;
+    Navigator.pop(context);
+    onDestinationSelected(index);
+  }
+
+  void _openAccountSwitcher(BuildContext context) {
+    if (!_claimAction()) return;
+    Navigator.pop(context);
+    onOpenAccountSwitcher?.call();
+  }
+
+  void _openExternalLink(
+    BuildContext context,
+    Future<void> Function() open,
+  ) {
+    if (!_claimAction()) return;
+    Navigator.pop(context);
+    unawaited(open());
+  }
+
+  bool _claimAction() {
+    if (_actionClaimed) return false;
+    _actionClaimed = true;
+    return true;
   }
 }
 
@@ -314,7 +586,7 @@ class _ShellNavigationBar extends StatelessWidget {
           labelBehavior: NavigationDestinationLabelBehavior.alwaysHide,
           onDestinationSelected: onDestinationSelected,
           destinations: [
-            for (final (index, d) in _destinations.indexed)
+            for (final (index, d) in _primaryDestinations.indexed)
               NavigationDestination(
                 icon: _DestinationIcon(
                   icon: d.icon,
@@ -344,7 +616,6 @@ class _ShellNavigationBar extends StatelessWidget {
                 label: _destinationSemanticsLabel(
                   context,
                   index: index,
-                  destination: d,
                   notificationBadge: notificationBadge,
                 ),
               ),
@@ -364,6 +635,8 @@ class _ShellNavigationRail extends StatelessWidget {
     required this.profileAnchorKey,
     required this.profileFocusNode,
     required this.onOpenAccountSwitcher,
+    required this.onOpenTerms,
+    required this.onOpenPrivacy,
   });
 
   final int selectedIndex;
@@ -373,15 +646,45 @@ class _ShellNavigationRail extends StatelessWidget {
   final GlobalKey profileAnchorKey;
   final FocusNode profileFocusNode;
   final VoidCallback? onOpenAccountSwitcher;
+  final Future<void> Function() onOpenTerms;
+  final Future<void> Function() onOpenPrivacy;
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return NavigationRail(
       selectedIndex: selectedIndex,
       onDestinationSelected: onDestinationSelected,
-      labelType: NavigationRailLabelType.all,
+      extended: true,
+      scrollable: true,
+      trailingAtBottom: true,
+      trailing: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+        child: SizedBox(
+          width: 200,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const CraftskyDivider(),
+              TextButton(
+                onPressed: () => unawaited(onOpenTerms()),
+                child: Text(l10n.navigationTerms),
+              ),
+              TextButton(
+                onPressed: () => unawaited(onOpenPrivacy()),
+                child: Text(l10n.navigationPrivacy),
+              ),
+              OutlinedButton.icon(
+                onPressed: () {},
+                icon: const Icon(Icons.chat_bubble_outline),
+                label: Text(l10n.navigationFeedback),
+              ),
+            ],
+          ),
+        ),
+      ),
       destinations: [
-        for (final (index, d) in _destinations.indexed)
+        for (final (index, d) in _menuDestinations.indexed)
           NavigationRailDestination(
             icon: _DestinationIcon(
               icon: d.icon,
@@ -409,11 +712,10 @@ class _ShellNavigationRail extends StatelessWidget {
               label: _destinationSemanticsLabel(
                 context,
                 index: index,
-                destination: d,
                 notificationBadge: notificationBadge,
               ),
               excludeSemantics: true,
-              child: Text(d.label),
+              child: Text(_destinationLabel(l10n, index)),
             ),
           ),
       ],
@@ -421,17 +723,37 @@ class _ShellNavigationRail extends StatelessWidget {
   }
 }
 
+String _destinationLabel(AppLocalizations l10n, int index) => switch (index) {
+  0 => l10n.feedTitle,
+  1 => l10n.projectsTitle,
+  2 => l10n.searchTitle,
+  3 => l10n.notificationsTitle,
+  4 => l10n.navigationProfile,
+  5 => l10n.savedPostsTitle,
+  6 => l10n.scheduledPostsTitle,
+  7 => l10n.draftsTitle,
+  8 => l10n.profileSettingsAction,
+  _ => throw RangeError.index(index, _menuDestinations),
+};
+
+int _selectedDestinationIndex(String matchedLocation, int branchIndex) {
+  if (matchedLocation.startsWith(RouteLocations.savedPosts)) return 5;
+  if (matchedLocation.startsWith(RouteLocations.scheduledPosts)) return 6;
+  if (matchedLocation.startsWith(RouteLocations.drafts)) return 7;
+  if (matchedLocation.startsWith(RouteLocations.settings)) return 8;
+  return branchIndex;
+}
+
 String _destinationSemanticsLabel(
   BuildContext context, {
   required int index,
-  required _DestinationSpec destination,
   required NotificationBadge notificationBadge,
 }) {
-  if (index != 3 || !notificationBadge.visible) return destination.label;
-  final countLabel = AppLocalizations.of(
-    context,
-  ).notificationNewActivityCount(notificationBadge.count);
-  return '${destination.label}, $countLabel';
+  final l10n = AppLocalizations.of(context);
+  final label = _destinationLabel(l10n, index);
+  if (index != 3 || !notificationBadge.visible) return label;
+  final countLabel = l10n.notificationNewActivityCount(notificationBadge.count);
+  return '$label, $countLabel';
 }
 
 class _DestinationIcon extends StatelessWidget {

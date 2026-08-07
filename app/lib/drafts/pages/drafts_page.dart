@@ -11,6 +11,7 @@ import 'package:craftsky_app/drafts/widgets/draft_thumbnail.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
+import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,14 +28,27 @@ final class DraftsPage extends ConsumerWidget {
         ?.lease;
     final account = activeLease?.session.account;
     if (activeLease == null || account == null) {
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        appBar: AppBar(
+          leading: BackButton(
+            onPressed: () => const ProfileRoute().go(context),
+          ),
+          title: Text(l10n.draftsTitle),
+        ),
+        body: const Center(child: CircularProgressIndicator()),
+      );
     }
     final drafts = ref.watch(localPostDraftsProvider(account));
     final repository = ref.watch(
       accountLocalPostDraftRepositoryProvider(account),
     );
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.draftsTitle)),
+      appBar: AppBar(
+        leading: BackButton(
+          onPressed: () => const ProfileRoute().go(context),
+        ),
+        title: Text(l10n.draftsTitle),
+      ),
       body: switch (drafts) {
         AsyncData(:final value) => DraftsPageContent(
           items: value.items,

@@ -202,24 +202,6 @@ GoRouter goRouter(Ref ref) {
                   path: RouteLocations.instagramMigrationChild,
                   name: 'instagram-migration',
                 ),
-                TypedGoRoute<ScheduledPostsRoute>(
-                  path: RouteLocations.scheduledPostsChild,
-                  name: 'scheduled-posts',
-                ),
-                TypedGoRoute<DraftsRoute>(
-                  path: RouteLocations.draftsChild,
-                  name: 'drafts',
-                ),
-                TypedGoRoute<SavedPostsRoute>(
-                  path: RouteLocations.savedPostsChild,
-                  name: 'saved-posts',
-                  routes: [
-                    TypedGoRoute<SavedPostFolderRoute>(
-                      path: RouteLocations.savedPostFolderChild,
-                      name: 'saved-post-folder',
-                    ),
-                  ],
-                ),
                 TypedGoRoute<FollowersRoute>(
                   path: RouteLocations.followersChild,
                   name: 'settings-followers',
@@ -235,6 +217,24 @@ GoRouter goRouter(Ref ref) {
                 TypedGoRoute<BlockedAccountsRoute>(
                   path: RouteLocations.blockedAccountsChild,
                   name: 'settings-blocked-accounts',
+                ),
+              ],
+            ),
+            TypedGoRoute<ScheduledPostsRoute>(
+              path: RouteLocations.scheduledPostsChild,
+              name: 'scheduled-posts',
+            ),
+            TypedGoRoute<DraftsRoute>(
+              path: RouteLocations.draftsChild,
+              name: 'drafts',
+            ),
+            TypedGoRoute<SavedPostsRoute>(
+              path: RouteLocations.savedPostsChild,
+              name: 'saved-posts',
+              routes: [
+                TypedGoRoute<SavedPostFolderRoute>(
+                  path: RouteLocations.savedPostFolderChild,
+                  name: 'saved-post-folder',
                 ),
               ],
             ),
