@@ -108,6 +108,10 @@ void main() {
       Theme.of(tester.element(drawerFinder)).colorScheme.onSurface,
     );
     expect(
+      shape.borderRadius.resolve(TextDirection.ltr).topRight.x,
+      greaterThan(0),
+    );
+    expect(
       find.descendant(
         of: drawerFinder,
         matching: find.byType(CraftskyDivider),
@@ -141,6 +145,50 @@ void main() {
     expect(find.byType(CraftskyDivider), findsNothing);
     expect(find.byType(AccountAvatar), findsNothing);
     expect(find.byIcon(Icons.person_outline), findsOneWidget);
+  });
+
+  testWidgets('UIP-009 rail selection uses primary theme colors', (
+    tester,
+  ) async {
+    await _pumpShell(tester, const Size(1200, 800));
+
+    final railFinder = find.byType(NavigationRail);
+    final theme = Theme.of(tester.element(railFinder));
+    final railTheme = theme.navigationRailTheme;
+
+    expect(railTheme.indicatorColor, theme.colorScheme.primary);
+    expect(railTheme.selectedIconTheme?.color, theme.colorScheme.onPrimary);
+    expect(
+      railTheme.selectedLabelTextStyle?.color,
+      theme.colorScheme.primary,
+    );
+  });
+
+  testWidgets('UIP-012 rail has only a content-edge border', (
+    tester,
+  ) async {
+    await _pumpShell(tester, const Size(1200, 800));
+
+    final railFinder = find.byType(NavigationRail);
+    final outlinedSurface = find.ancestor(
+      of: railFinder,
+      matching: find.byWidgetPredicate(
+        (widget) => widget is Material && widget.shape != null,
+      ),
+    );
+
+    expect(outlinedSurface, findsOneWidget);
+    final material = tester.widget<Material>(outlinedSurface);
+    final shape = material.shape! as BorderDirectional;
+    expect(shape.start, BorderSide.none);
+    expect(shape.top, BorderSide.none);
+    expect(shape.bottom, BorderSide.none);
+    expect(shape.end.width, 1.5);
+    expect(
+      shape.end.color,
+      Theme.of(tester.element(railFinder)).colorScheme.onSurface,
+    );
+    expect(material.clipBehavior, Clip.antiAlias);
   });
 
   testWidgets('CORR-004 hamburger exposes state and returns keyboard focus', (

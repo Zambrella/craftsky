@@ -2,7 +2,7 @@
 
 ## Summary
 
-Simplified the drawer and navigation rail presentation by removing separator rules, using a standard Profile icon instead of the active account picture on those two surfaces, and giving the drawer the same rounded ink-outline treatment as the app's stylized context-menu bottom sheet. The compact bottom navigation still uses the active account avatar. The drawer and rail Profile rows now include a trailing switch-account icon, while tapping the Profile destination itself still navigates normally and the existing long-press shortcut remains available. The compact drawer's swipe activation region now extends 96 logical pixels from the start edge, making the gesture easier to initiate without claiming the whole screen. Terms and Privacy use compact 40-pixel tap targets in both navigation presentations to reduce footer height. The two personal-content menu labels are shortened to “Saved” and “Scheduled” while their destination page titles remain unchanged. A small, muted localized `version (build)` label sourced from the initialized package metadata now appears below Feedback.
+Simplified the drawer and navigation rail presentation by removing separator rules and using a standard Profile icon instead of the active account picture on those two surfaces. The drawer retains the rounded ink-outline treatment used by the app's stylized context-menu bottom sheet, while the full-height rail uses a single square ink rule only on the edge adjacent to the main content. The compact bottom navigation still uses the active account avatar. The drawer and rail Profile rows now include a trailing switch-account icon, while tapping the Profile destination itself still navigates normally and the existing long-press shortcut remains available. The compact drawer's swipe activation region now extends 96 logical pixels from the start edge, making the gesture easier to initiate without claiming the whole screen. Terms and Privacy use compact 40-pixel tap targets in both navigation presentations to reduce footer height. The two personal-content menu labels are shortened to “Saved” and “Scheduled” while their destination page titles remain unchanged. A small, muted localized `version (build)` label sourced from the initialized package metadata now appears below Feedback. The large-screen rail's selected destination now uses the primary brand color with a contrasting icon instead of the default secondary indicator.
 
 ## Polish Items
 
@@ -16,6 +16,10 @@ Simplified the drawer and navigation rail presentation by removing separator rul
 | UIP-006 | User: add a switcher icon to the end of the Profile row | Added a localized trailing switch-account `IconButton` to Profile in both the compact drawer and extended rail. The button opens the existing compact sheet or anchored large-screen menu without selecting Profile; the Profile row retains its normal navigation behavior and long-press shortcut. | `app/lib/router/app_shell.dart`, `app/test/router/app_shell_account_switcher_test.dart` | Done |
 | UIP-007 | User: shorten “Saved posts” and “Scheduled posts” | Added dedicated localized navigation labels, “Saved” and “Scheduled,” for the drawer and rail while retaining the full existing titles on the destination pages. | `app/lib/l10n/app_en.arb`, `app/lib/l10n/generated/app_localizations.dart`, `app/lib/l10n/generated/app_localizations_en.dart`, `app/lib/router/app_shell.dart`, `app/test/router/app_shell_navigation_menu_test.dart` | Done |
 | UIP-008 | User: show the build version and number beneath Feedback | Reused the startup-resolved package metadata, formatted it through localization as `version (build)`, and rendered it in centered, muted `labelSmall` text directly below Feedback in both responsive navigation presentations. | `app/lib/l10n/app_en.arb`, `app/lib/l10n/generated/app_localizations.dart`, `app/lib/l10n/generated/app_localizations_en.dart`, `app/lib/router/app_shell.dart`, `app/test/router/app_shell_navigation_menu_test.dart` | Done |
+| UIP-009 | User: highlight the selected rail route with the primary color | Added a shared `NavigationRailThemeData` for light and dark themes with a primary indicator and selected label plus an `onPrimary` selected icon. | `app/lib/theme/app_theme.dart`, `app/test/router/app_shell_navigation_menu_test.dart` | Done |
+| UIP-010 | User: add an outline to the rail like the drawer | Extracted the navigation-panel outline and wrapped the rail in the same paper surface, clipping, and 1.5px `onSurface` ink border used by the drawer. | `app/lib/router/app_shell.dart`, `app/test/router/app_shell_navigation_menu_test.dart` | Done |
+| UIP-011 | User: remove rounded corners from the rail | Added a square-corner variant of the shared navigation-panel outline for the rail while preserving the drawer's rounded trailing edge. | `app/lib/router/app_shell.dart`, `app/test/router/app_shell_navigation_menu_test.dart` | Done |
+| UIP-012 | User: show the rail outline only beside the main content | Replaced the rail's full outline with a single 1.5px directional `end` border, placing it on the content-facing edge in both LTR and RTL layouts. The drawer outline remains unchanged. | `app/lib/router/app_shell.dart`, `app/test/router/app_shell_navigation_menu_test.dart` | Done |
 
 ## Verification
 
@@ -27,15 +31,20 @@ Simplified the drawer and navigation rail presentation by removing separator rul
   - `flutter test test/router/app_shell_account_switcher_test.dart --plain-name 'UIP-006 rail Profile switch button opens an anchored menu'`
   - `flutter test test/router/app_shell_navigation_menu_test.dart --plain-name 'UIP-007 menu uses compact Saved and Scheduled labels'`
   - `flutter test test/router/app_shell_navigation_menu_test.dart --plain-name 'UIP-008 build version appears below Feedback'`
+  - `flutter test test/router/app_shell_navigation_menu_test.dart --name 'UIP-0(09|10)'`
+  - `flutter test test/router/app_shell_navigation_menu_test.dart --name 'UIP-0(01|12)'`
   - `dart analyze`
   - `git diff --check`
 - Passing evidence:
-  - 60 focused navigation, account-switcher, notification-badge, and top-level hamburger tests passed.
+  - 62 focused navigation, account-switcher, notification-badge, and top-level hamburger tests passed.
   - The widened-swipe regression test failed before `drawerEdgeDragWidth` was configured and passed after it was set to 96 logical pixels.
   - The compact legal-link layout test failed at the previous 48-pixel height and passed after both presentations were reduced to 40 pixels.
   - The switch-button tests failed before the explicit icons were present and pass for both compact and large account-switcher presentations, including independent Profile navigation and keyboard activation on the rail.
   - The compact-label test failed against the former menu copy and passes with “Saved” and “Scheduled” in both responsive presentations; the old copy is absent from the drawer.
   - The version-footer test failed before the label existed and passes with `1.0.0 (1)` positioned below Feedback in both the drawer and rail.
+  - The rail-selection test failed against the default secondary indicator and passed after the primary/on-primary rail theme was applied.
+  - The rail-outline test failed without a shaped ancestor and passed after the shared drawer outline treatment was applied to the rail surface.
+  - The content-edge rail test failed against the full `RoundedRectangleBorder` and passed after the rail switched to a single directional `end` border; the drawer outline and radius assertion also passes.
   - Static analysis completed with no issues.
   - Diff whitespace validation passed.
 - Skipped checks and reason:

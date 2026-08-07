@@ -81,6 +81,7 @@ class AppTheme {
       extensions: _extensions(base.colorScheme),
       appBarTheme: _appBarTheme(base),
       navigationBarTheme: _navigationBarTheme(base),
+      navigationRailTheme: _navigationRailTheme(base),
       tabBarTheme: _tabBarTheme(base),
       segmentedButtonTheme: _segmentedButtonTheme(base.colorScheme),
       timePickerTheme: _timePickerTheme(base),
@@ -104,6 +105,7 @@ class AppTheme {
     );
     return base.copyWith(
       extensions: _extensions(base.colorScheme),
+      navigationRailTheme: _navigationRailTheme(base),
       segmentedButtonTheme: _segmentedButtonTheme(base.colorScheme),
       timePickerTheme: _timePickerTheme(base),
     );
@@ -339,6 +341,19 @@ class AppTheme {
       // shape, so we wrap with a decoration — but NavigationBarThemeData
       // doesn't expose shape. The AppShell adds a Border on the wrapper
       // Container instead (see app_shell.dart).
+    );
+  }
+
+  /// NavigationRail: use the primary brand colour for the selected route,
+  /// with sufficient contrast inside the selected indicator.
+  static NavigationRailThemeData _navigationRailTheme(ThemeData base) {
+    final colors = base.colorScheme;
+    return NavigationRailThemeData(
+      indicatorColor: colors.primary,
+      selectedIconTheme: IconThemeData(color: colors.onPrimary),
+      selectedLabelTextStyle: base.textTheme.labelLarge?.copyWith(
+        color: colors.primary,
+      ),
     );
   }
 

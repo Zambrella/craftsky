@@ -88,6 +88,20 @@ const _compactDrawerEdgeDragWidth = 96.0;
 const _utilityLinkHeight = 40.0;
 const _profileRailLabelWidth = 168.0;
 
+RoundedRectangleBorder _navigationDrawerShape(ThemeData theme) {
+  final radii = theme.extension<RadiusTheme>()!;
+  return RoundedRectangleBorder(
+    borderRadius: BorderRadiusDirectional.horizontal(
+      end: Radius.circular(radii.r4),
+    ),
+    side: BorderSide(color: theme.colorScheme.onSurface, width: 1.5),
+  );
+}
+
+BorderDirectional _navigationRailBorder(ThemeData theme) => BorderDirectional(
+  end: BorderSide(color: theme.colorScheme.onSurface, width: 1.5),
+);
+
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({
     required this.navigationShell,
@@ -399,18 +413,12 @@ class _ShellDrawerState extends State<_ShellDrawer> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    final radii = theme.extension<RadiusTheme>()!;
     final swatches = theme.extension<BrandSwatchTheme>()!;
     return Drawer(
       backgroundColor: swatches.paper3,
       surfaceTintColor: Colors.transparent,
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadiusDirectional.horizontal(
-          end: Radius.circular(radii.r4),
-        ),
-        side: BorderSide(color: theme.colorScheme.onSurface, width: 1.5),
-      ),
+      shape: _navigationDrawerShape(theme),
       child: SafeArea(
         child: Column(
           children: [
@@ -694,86 +702,99 @@ class _ShellNavigationRail extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    return NavigationRail(
-      selectedIndex: selectedIndex,
-      onDestinationSelected: onDestinationSelected,
-      extended: true,
-      scrollable: true,
-      trailingAtBottom: true,
-      trailing: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-        child: SizedBox(
-          width: 200,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              TextButton(
-                style: _utilityLinkButtonStyle(),
-                onPressed: () => unawaited(onOpenTerms()),
-                child: Text(l10n.navigationTerms),
-              ),
-              TextButton(
-                style: _utilityLinkButtonStyle(),
-                onPressed: () => unawaited(onOpenPrivacy()),
-                child: Text(l10n.navigationPrivacy),
-              ),
-              OutlinedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.chat_bubble_outline),
-                label: Text(l10n.navigationFeedback),
-              ),
-              if (buildVersionLabel case final label?) ...[
-                const SizedBox(height: 4),
-                _BuildVersionText(label),
+    final swatches = theme.extension<BrandSwatchTheme>()!;
+    return Material(
+      color: swatches.paper3,
+      surfaceTintColor: Colors.transparent,
+      clipBehavior: Clip.antiAlias,
+      shape: _navigationRailBorder(theme),
+      child: NavigationRail(
+        backgroundColor: Colors.transparent,
+        selectedIndex: selectedIndex,
+        onDestinationSelected: onDestinationSelected,
+        extended: true,
+        scrollable: true,
+        trailingAtBottom: true,
+        trailing: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+          child: SizedBox(
+            width: 200,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                TextButton(
+                  style: _utilityLinkButtonStyle(),
+                  onPressed: () => unawaited(onOpenTerms()),
+                  child: Text(l10n.navigationTerms),
+                ),
+                TextButton(
+                  style: _utilityLinkButtonStyle(),
+                  onPressed: () => unawaited(onOpenPrivacy()),
+                  child: Text(l10n.navigationPrivacy),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.chat_bubble_outline),
+                  label: Text(l10n.navigationFeedback),
+                ),
+                if (buildVersionLabel case final label?) ...[
+                  const SizedBox(height: 4),
+                  _BuildVersionText(label),
+                ],
               ],
-            ],
+            ),
           ),
         ),
+        destinations: [
+          for (final (index, d) in _menuDestinations.indexed)
+            NavigationRailDestination(
+              icon: _DestinationIcon(
+                icon: d.icon,
+                badge: index == 3 ? notificationBadge : null,
+                profileIconOnly: index == 4,
+                onTapDestination: index == 4
+                    ? () => onDestinationSelected(index)
+                    : null,
+                onOpenAccountSwitcher: index == 4
+                    ? onOpenAccountSwitcher
+                    : null,
+              ),
+              selectedIcon: _DestinationIcon(
+                icon: d.selectedIcon,
+                badge: index == 3 ? notificationBadge : null,
+                profileIconOnly: index == 4,
+                onTapDestination: index == 4
+                    ? () => onDestinationSelected(index)
+                    : null,
+                onOpenAccountSwitcher: index == 4
+                    ? onOpenAccountSwitcher
+                    : null,
+              ),
+              label: index == 4
+                  ? _ProfileRailLabel(
+                      anchorKey: profileAnchorKey,
+                      label: _destinationSemanticsLabel(
+                        context,
+                        index: index,
+                        notificationBadge: notificationBadge,
+                      ),
+                      focusNode: profileFocusNode,
+                      onOpenAccountSwitcher: onOpenAccountSwitcher,
+                    )
+                  : Semantics(
+                      label: _destinationSemanticsLabel(
+                        context,
+                        index: index,
+                        notificationBadge: notificationBadge,
+                      ),
+                      excludeSemantics: true,
+                      child: Text(_destinationLabel(l10n, index)),
+                    ),
+            ),
+        ],
       ),
-      destinations: [
-        for (final (index, d) in _menuDestinations.indexed)
-          NavigationRailDestination(
-            icon: _DestinationIcon(
-              icon: d.icon,
-              badge: index == 3 ? notificationBadge : null,
-              profileIconOnly: index == 4,
-              onTapDestination: index == 4
-                  ? () => onDestinationSelected(index)
-                  : null,
-              onOpenAccountSwitcher: index == 4 ? onOpenAccountSwitcher : null,
-            ),
-            selectedIcon: _DestinationIcon(
-              icon: d.selectedIcon,
-              badge: index == 3 ? notificationBadge : null,
-              profileIconOnly: index == 4,
-              onTapDestination: index == 4
-                  ? () => onDestinationSelected(index)
-                  : null,
-              onOpenAccountSwitcher: index == 4 ? onOpenAccountSwitcher : null,
-            ),
-            label: index == 4
-                ? _ProfileRailLabel(
-                    anchorKey: profileAnchorKey,
-                    label: _destinationSemanticsLabel(
-                      context,
-                      index: index,
-                      notificationBadge: notificationBadge,
-                    ),
-                    focusNode: profileFocusNode,
-                    onOpenAccountSwitcher: onOpenAccountSwitcher,
-                  )
-                : Semantics(
-                    label: _destinationSemanticsLabel(
-                      context,
-                      index: index,
-                      notificationBadge: notificationBadge,
-                    ),
-                    excludeSemantics: true,
-                    child: Text(_destinationLabel(l10n, index)),
-                  ),
-          ),
-      ],
     );
   }
 }
