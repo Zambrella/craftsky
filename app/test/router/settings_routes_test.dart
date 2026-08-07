@@ -50,6 +50,53 @@ void main() {
     );
   });
 
+  testWidgets('Profile Settings action keeps one large navigation rail', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 800);
+
+    final container = _container();
+    addTearDown(container.dispose);
+    final routerSubscription = container.listen(
+      goRouterProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(routerSubscription.close);
+    final router = routerSubscription.read()..go(const ProfileRoute().location);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(
+          routerConfig: router,
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) => MessengerScope(
+            messenger: RecordingMessenger(),
+            child: FormFactorWidget(child: child!),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Settings').hitTestable().first);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SettingsPage), findsOneWidget);
+    expect(find.byType(NavigationRail), findsOneWidget);
+    expect(
+      tester.widget<NavigationRail>(find.byType(NavigationRail)).selectedIndex,
+      8,
+    );
+    expect(find.byType(NavigationBar), findsNothing);
+  });
+
   for (final routeCase in _routeCases) {
     testWidgets(
       'Settings opens ${routeCase.label} through the production router',

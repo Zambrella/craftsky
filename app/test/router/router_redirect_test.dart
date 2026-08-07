@@ -13,6 +13,7 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
 import 'package:craftsky_app/auth/services/session_validation_coordinator.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
+import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/pages/post_thread_page.dart';
@@ -94,7 +95,14 @@ Future<void> _pumpRouter(
   ProviderContainer container, {
   String initialLocation = RouteLocations.welcome,
   bool settle = true,
+  Size? size,
 }) async {
+  if (size case final value?) {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = value;
+  }
   // Drive the router to a specific initial location before pumping
   // the app, so deep-link-style tests can start on /auth/complete.
   final router = container.read(goRouterProvider)..go(initialLocation);
@@ -202,7 +210,6 @@ void main() {
           ),
         ],
       );
-
       await _pumpRouter(
         tester,
         container,
@@ -338,6 +345,143 @@ void main() {
 
       expect(find.byType(PostThreadPage), findsOneWidget);
       expect(find.text('did:plc:alice/root'), findsOneWidget);
+    });
+
+    testWidgets('large post details keep the navigation rail visible', (
+      tester,
+    ) async {
+      final repo = FakePostRepository(
+        onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+            _section(did, rkey),
+      );
+      final container = ProviderContainer.test(
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          onboardingStatusProvider.overrideWith2(
+            (_) => CompletedOnboardingStatus(),
+          ),
+          postRepositoryProvider.overrideWithValue(repo),
+        ],
+      );
+      await _pumpRouter(
+        tester,
+        container,
+        initialLocation: '/posts/did:plc:alice/root',
+        size: const Size(1200, 800),
+      );
+
+      expect(find.byType(PostThreadPage), findsOneWidget);
+      final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
+      expect(rail.selectedIndex, 0);
+    });
+
+    testWidgets('pushing post details does not cover the large rail', (
+      tester,
+    ) async {
+      final repo = FakePostRepository(
+        onListTimeline: ({cursor, limit}) async =>
+            const TimelinePage(items: []),
+        onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+            _section(did, rkey),
+      );
+      final container = ProviderContainer.test(
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          onboardingStatusProvider.overrideWith2(
+            (_) => CompletedOnboardingStatus(),
+          ),
+          postRepositoryProvider.overrideWithValue(repo),
+        ],
+        retry: (_, _) => null,
+      );
+      final routerSubscription = container.listen(
+        goRouterProvider,
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(routerSubscription.close);
+
+      await _pumpRouter(
+        tester,
+        container,
+        initialLocation: RouteLocations.feed,
+        size: const Size(1200, 800),
+      );
+
+      final router = routerSubscription.read();
+      router.push<void>('/posts/did:plc:alice/root').ignore();
+      await tester.pumpAndSettle();
+
+      expect(router.state.matchedLocation, '/posts/did:plc:alice/root');
+      expect(router.state.error, isNull);
+      expect(find.byType(PostThreadPage), findsOneWidget);
+      expect(find.byType(NavigationRail), findsOneWidget);
+    });
+
+    testWidgets('compact post details remain full-screen', (tester) async {
+      final repo = FakePostRepository(
+        onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+            _section(did, rkey),
+      );
+      final container = ProviderContainer.test(
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          onboardingStatusProvider.overrideWith2(
+            (_) => CompletedOnboardingStatus(),
+          ),
+          postRepositoryProvider.overrideWithValue(repo),
+        ],
+      );
+
+      await _pumpRouter(
+        tester,
+        container,
+        initialLocation: '/posts/did:plc:alice/root',
+        size: const Size(500, 800),
+      );
+
+      expect(find.byType(PostThreadPage), findsOneWidget);
+      expect(find.byType(NavigationRail), findsNothing);
+      expect(find.byType(NavigationBar), findsNothing);
+    });
+
+    testWidgets('large other-user profiles keep the navigation rail visible', (
+      tester,
+    ) async {
+      final container = ProviderContainer.test(
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          onboardingStatusProvider.overrideWith2(
+            (_) => CompletedOnboardingStatus(),
+          ),
+          profileRepositoryProvider.overrideWithValue(
+            FakeProfileRepository(
+              onFetch: (_) async => Profile(
+                did: 'did:plc:alice',
+                handle: 'alice.test',
+                crafts: [],
+              ),
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(
+            FakePostRepository(
+              onListByAuthor: (_, {cursor, limit}) async =>
+                  const PostPage(items: []),
+            ),
+          ),
+        ],
+        retry: (_, _) => null,
+      );
+
+      await _pumpRouter(
+        tester,
+        container,
+        initialLocation: '/profile/alice.test',
+        size: const Size(1200, 800),
+      );
+
+      final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
+      expect(rail.selectedIndex, 4);
     });
 
     testWidgets('post route decodes focus query parameter', (tester) async {

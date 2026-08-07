@@ -36,6 +36,7 @@ import 'package:craftsky_app/projects/composer/project_draft_snapshot_adapter.da
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
+import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/scheduled_posts/composer/schedule_capacity_state.dart';
 import 'package:craftsky_app/scheduled_posts/composer/schedule_composer_state.dart';
@@ -72,7 +73,7 @@ Future<Post?> showProjectComposerSheet(
   LocalPostDraftSeed? draftSeed,
   ActiveAccountLease? draftOwner,
 }) {
-  return Navigator.of(context, rootNavigator: true).push<Post?>(
+  return responsiveModalNavigator(context).push<Post?>(
     MaterialPageRoute<Post?>(
       fullscreenDialog: true,
       builder: (_) => ProjectComposerSheet(
@@ -628,8 +629,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                                 Align(
                                   alignment: AlignmentDirectional.centerStart,
                                   child: TextButton(
-                                    onPressed: () => const ScheduledPostsRoute()
-                                        .push<void>(context),
+                                    onPressed: () =>
+                                        const ScheduledPostsRoute().go(context),
                                     child: Text(l10n.scheduledPostManageAction),
                                   ),
                                 ),

@@ -180,11 +180,9 @@ class _OverviewBody extends ConsumerWidget {
                       leading: const Icon(Icons.folder_outlined),
                       title: Text(folder.name),
                       trailing: const Icon(Icons.chevron_right),
-                      onTap: () => unawaited(
-                        SavedPostFolderRoute(
-                          $extra: SavedPostFolderRouteData(folder: folder),
-                        ).push<void>(context),
-                      ),
+                      onTap: () => SavedPostFolderRoute(
+                        $extra: SavedPostFolderRouteData(folder: folder),
+                      ).go(context),
                     );
                   },
                 ),

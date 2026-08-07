@@ -194,6 +194,83 @@ void main() {
     },
   );
 
+  for (final routePresentation in [
+    (size: const Size(1200, 800), showsRail: true),
+    (size: const Size(500, 800), showsRail: false),
+  ]) {
+    final presentationName = routePresentation.showsRail
+        ? 'keeps the large rail'
+        : 'stays full-screen on compact';
+    testWidgets(
+      'Saved posts $presentationName',
+      (tester) async {
+        final container = _productionContainer(
+          savedRepository: const _RouteRepository(null),
+        );
+        addTearDown(container.dispose);
+        final routerSubscription = container.listen(
+          goRouterProvider,
+          (_, _) {},
+          fireImmediately: true,
+        );
+        addTearDown(routerSubscription.close);
+        final router = routerSubscription.read()
+          ..go(const SavedPostsRoute().location);
+
+        await _pumpProductionRouter(
+          tester,
+          container,
+          router,
+          size: routePresentation.size,
+        );
+
+        expect(find.byType(SavedPostsPage), findsOneWidget);
+        expect(
+          find.byType(NavigationRail),
+          routePresentation.showsRail ? findsOneWidget : findsNothing,
+        );
+        if (routePresentation.showsRail) {
+          expect(
+            tester
+                .widget<NavigationRail>(find.byType(NavigationRail))
+                .selectedIndex,
+            5,
+          );
+        }
+        expect(find.byType(NavigationBar), findsNothing);
+      },
+    );
+  }
+
+  testWidgets('pushing Saved posts does not cover the large rail', (
+    tester,
+  ) async {
+    final container = _productionContainer(
+      savedRepository: const _RouteRepository(null),
+    );
+    addTearDown(container.dispose);
+    final routerSubscription = container.listen(
+      goRouterProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(routerSubscription.close);
+    final router = routerSubscription.read()..go(RouteLocations.profile);
+
+    await _pumpProductionRouter(
+      tester,
+      container,
+      router,
+      size: const Size(1200, 800),
+    );
+
+    router.push<void>(const SavedPostsRoute().location).ignore();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(SavedPostsPage), findsOneWidget);
+    expect(find.byType(NavigationRail), findsOneWidget);
+  });
+
   for (final routeCase in [
     (
       label: 'Scheduled posts',
@@ -317,8 +394,15 @@ ProviderContainer _productionContainer({SavedPostRepository? savedRepository}) {
 Future<void> _pumpProductionRouter(
   WidgetTester tester,
   ProviderContainer container,
-  GoRouter router,
-) async {
+  GoRouter router, {
+  Size? size,
+}) async {
+  if (size case final value?) {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = value;
+  }
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
@@ -340,11 +424,11 @@ Future<void> _pumpProductionRouter(
 
 final class _RouteRepository implements SavedPostRepository {
   const _RouteRepository(this.folder);
-  final SavedPostFolder folder;
+  final SavedPostFolder? folder;
 
   @override
   Future<SavedPostFolderPage> listFolders({String? cursor, int? limit}) async =>
-      SavedPostFolderPage(items: [folder]);
+      SavedPostFolderPage(items: [?folder]);
   @override
   Future<SavedPostPage> list({
     required SavedPostScope scope,

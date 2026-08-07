@@ -28,7 +28,7 @@ class _SettingsPageBody extends ConsumerWidget {
         ListTile(
           leading: const Icon(Icons.language_outlined),
           title: Text(l10n.settingsLanguages),
-          onTap: () => const LanguagesRoute().push<void>(context),
+          onTap: () => const LanguagesRoute().go(context),
         ),
         ListTile(
           leading: const Icon(Icons.group_outlined),
@@ -54,7 +54,7 @@ class _SettingsPageBody extends ConsumerWidget {
           leading: const Icon(Icons.photo_camera_outlined),
           title: Text(l10n.instagramMigrationTitle),
           subtitle: Text(l10n.instagramMigrationSettingsSubtitle),
-          onTap: () => const InstagramMigrationRoute().push<void>(context),
+          onTap: () => const InstagramMigrationRoute().go(context),
         ),
         const ClearImageCacheTile(),
         const SignOutTile(),

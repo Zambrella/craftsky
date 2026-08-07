@@ -2,7 +2,7 @@
 
 ## Summary
 
-Simplified the drawer and navigation rail presentation by removing separator rules and using a standard Profile icon instead of the active account picture on those two surfaces. The drawer retains the rounded ink-outline treatment used by the app's stylized context-menu bottom sheet, while the full-height rail uses a single square ink rule only on the edge adjacent to the main content. The compact bottom navigation still uses the active account avatar. The drawer and rail Profile rows now include a trailing switch-account icon, while tapping the Profile destination itself still navigates normally and the existing long-press shortcut remains available. The compact drawer's swipe activation region now extends 96 logical pixels from the start edge, making the gesture easier to initiate without claiming the whole screen. Terms and Privacy use compact 40-pixel tap targets in both navigation presentations to reduce footer height. The two personal-content menu labels are shortened to “Saved” and “Scheduled” while their destination page titles remain unchanged. A small, muted localized `version (build)` label sourced from the initialized package metadata now appears below Feedback. The large-screen rail's selected destination now uses the primary brand color with a contrasting icon instead of the default secondary indicator.
+Simplified the drawer and navigation rail presentation by removing separator rules and using a standard Profile icon instead of the active account picture on those two surfaces. The drawer retains the rounded ink-outline treatment used by the app's stylized context-menu bottom sheet, while the full-height rail uses a single square ink rule only on the edge adjacent to the main content. The compact bottom navigation still uses the active account avatar. The drawer and rail Profile rows now include a trailing switch-account icon, while tapping the Profile destination itself still navigates normally and the existing long-press shortcut remains available. The compact drawer's swipe activation region now extends 96 logical pixels from the start edge, making the gesture easier to initiate without claiming the whole screen. Terms and Privacy use compact 40-pixel tap targets in both navigation presentations to reduce footer height. The two personal-content menu labels are shortened to “Saved” and “Scheduled” while their destination page titles remain unchanged. A small, muted localized `version (build)` label sourced from the initialized package metadata now appears below Feedback. The large-screen rail's selected destination now uses the primary brand color with a contrasting icon instead of the default secondary indicator. The rail now persists beside signed-in detail, other-member profile, personal-content, and management routes on large screens. Post and project composers also stay within the large-screen content area, while compact details and composers retain their existing full-screen presentation over the bottom navigation.
 
 ## Polish Items
 
@@ -20,6 +20,9 @@ Simplified the drawer and navigation rail presentation by removing separator rul
 | UIP-010 | User: add an outline to the rail like the drawer | Extracted the navigation-panel outline and wrapped the rail in the same paper surface, clipping, and 1.5px `onSurface` ink border used by the drawer. | `app/lib/router/app_shell.dart`, `app/test/router/app_shell_navigation_menu_test.dart` | Done |
 | UIP-011 | User: remove rounded corners from the rail | Added a square-corner variant of the shared navigation-panel outline for the rail while preserving the drawer's rounded trailing edge. | `app/lib/router/app_shell.dart`, `app/test/router/app_shell_navigation_menu_test.dart` | Done |
 | UIP-012 | User: show the rail outline only beside the main content | Replaced the rail's full outline with a single 1.5px directional `end` border, placing it on the content-facing edge in both LTR and RTL layouts. The drawer outline remains unchanged. | `app/lib/router/app_shell.dart`, `app/test/router/app_shell_navigation_menu_test.dart` | Done |
+| UIP-013 | User: keep the rail visible on large-screen detail and secondary routes | Added an authenticated outer shell that reuses the extended rail for routes lifted above the stateful branches. Post details, other members' profiles, Saved and other management routes stay beside the rail on large screens, while compact routes remain full-screen without bottom navigation. | `app/lib/router/router.dart`, `app/lib/router/router.g.dart`, `app/lib/router/app_shell.dart`, `app/test/router/router_redirect_test.dart`, `app/test/router/saved_posts_route_test.dart` | Done |
+| UIP-014 | User: keep full-screen modal flows from covering the large rail | Added responsive modal navigator selection and applied it to post/project composers, reports, image galleries, profile editing, and project filters: compact uses the root navigator; large uses the authenticated content navigator. | `app/lib/router/responsive_modal_navigation.dart`, `app/lib/feed/widgets/post_composer_sheet.dart`, `app/lib/projects/widgets/project_composer_sheet.dart`, `app/lib/moderation/widgets/report_flow.dart`, `app/lib/feed/widgets/post_image_gallery.dart`, `app/lib/profile/pages/edit_profile_dialog.dart`, `app/lib/projects/pages/projects_page.dart`, `app/test/router/responsive_modal_navigation_test.dart` | Done |
+| UIP-015 | User: repair full-screen routes, Settings behavior, navigation semantics, and navigator keys | Made the authenticated outer shell the sole rail owner in production large-screen routing, removed redundant parent-key declarations from its direct post/profile children, and changed section/management destinations from imperative pushes to declarative navigation. True drill-ins such as post details retain push semantics and Back-to-origin behavior without covering the rail. | `app/lib/router/app_shell.dart`, `app/lib/router/router.dart`, `app/lib/router/router.g.dart`, affected route callers, `app/test/router/router_redirect_test.dart`, `app/test/router/saved_posts_route_test.dart`, `app/test/router/settings_routes_test.dart` | Done |
 
 ## Verification
 
@@ -33,6 +36,12 @@ Simplified the drawer and navigation rail presentation by removing separator rul
   - `flutter test test/router/app_shell_navigation_menu_test.dart --plain-name 'UIP-008 build version appears below Feedback'`
   - `flutter test test/router/app_shell_navigation_menu_test.dart --name 'UIP-0(09|10)'`
   - `flutter test test/router/app_shell_navigation_menu_test.dart --name 'UIP-0(01|12)'`
+  - `dart run build_runner build --delete-conflicting-outputs`
+  - `flutter test test/router`
+  - `flutter test test/feed/widgets/post_type_chooser_test.dart test/notifications/app_shell_notification_badge_test.dart test/router/responsive_modal_navigation_test.dart`
+  - `flutter test test/moderation/widgets/report_flow_test.dart test/feed/widgets/post_image_gallery_test.dart test/profile/edit_profile_dialog_test.dart`
+  - `flutter test test/router/router_redirect_test.dart test/router/saved_posts_route_test.dart test/router/settings_routes_test.dart --name 'pushing post details does not cover the large rail|pushing Saved posts does not cover the large rail|Profile Settings action keeps one large navigation rail'`
+  - `flutter test test/notifications/notification_open_flow_test.dart test/notifications/notifications_page_test.dart test/feed/widgets/post_type_chooser_test.dart test/feed/widgets/post_card_test.dart test/saved_posts/pages/saved_posts_page_test.dart test/search/search_page_test.dart test/profile/widgets/profile_comments_tab_test.dart`
   - `dart analyze`
   - `git diff --check`
 - Passing evidence:
@@ -45,6 +54,11 @@ Simplified the drawer and navigation rail presentation by removing separator rul
   - The rail-selection test failed against the default secondary indicator and passed after the primary/on-primary rail theme was applied.
   - The rail-outline test failed without a shaped ancestor and passed after the shared drawer outline treatment was applied to the rail surface.
   - The content-edge rail test failed against the full `RoundedRectangleBorder` and passed after the rail switched to a single directional `end` border; the drawer outline and radius assertion also passes.
+  - All 97 router tests passed, including large-screen post detail, other-member profile, Saved-route rail persistence, the real Profile Settings action, imperative-push rail ownership, and compact full-screen regressions.
+  - All 7 composer-chooser, responsive-modal-navigator, and notification-badge regression tests passed. The modal tests verify both nested large-screen presentation and compact root presentation.
+  - All 19 report-flow, image-gallery, and profile-edit modal regression tests passed after adopting the shared responsive navigator.
+  - The new post-detail and Saved push tests both failed with no rail before rail ownership was centralized and passed afterward; the Profile Settings action test verifies one rail with Settings selected.
+  - All 102 affected notification, post-card, composer, Saved, Search, and profile-comment regression tests passed after navigation semantics were aligned.
   - Static analysis completed with no issues.
   - Diff whitespace validation passed.
 - Skipped checks and reason:
@@ -52,10 +66,10 @@ Simplified the drawer and navigation rail presentation by removing separator rul
 
 ## Scope Guardrails
 
-- Requirement behavior changed: No. The user's latest visual instruction supersedes the earlier avatar presentation for drawer/rail only, and the wider gesture region refines the existing required swipe-to-open behavior; routing, selection, account switching, badges, and Back behavior are unchanged.
+- Requirement behavior changed: Yes. The user explicitly extended the responsive behavior so the rail persists beside authenticated details and modals on large screens while compact detail and composer flows remain full-screen over the bottom navigation.
 - Business logic changed: No.
 - APIs, data models, migrations, permissions, or dependencies changed: No.
-- Notes: The compact bottom bar remains intentionally unchanged and continues to display the active account avatar.
+- Notes: The compact bottom bar remains intentionally unchanged and continues to display the active account avatar. Compact detail pages and composer modals continue to cover it.
 
 ## Follow-ups
 

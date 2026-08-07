@@ -914,8 +914,7 @@ class _NotificationSettingsNotice extends StatelessWidget {
               decorationColor: theme.colorScheme.primary,
             ),
             recognizer: TapGestureRecognizer()
-              ..onTap = () =>
-                  const NotificationSettingsRoute().push<void>(context),
+              ..onTap = () => const NotificationSettingsRoute().go(context),
           ),
           const TextSpan(text: '.'),
         ],

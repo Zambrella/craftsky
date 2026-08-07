@@ -748,7 +748,6 @@ Future<GoRouter> _pumpShell(
             '/projects',
             '/search',
             '/notifications',
-            '/profile',
           ])
             StatefulShellBranch(
               routes: [
@@ -761,18 +760,32 @@ Future<GoRouter> _pumpShell(
                 ),
               ],
             ),
+          StatefulShellBranch(
+            routes: [
+              GoRoute(
+                path: '/profile',
+                builder: (context, state) => Scaffold(
+                  appBar: AppBar(leading: const AppShellDrawerButton()),
+                  body: const Text('/profile'),
+                ),
+                routes: [
+                  for (final path in [
+                    'saved',
+                    'scheduled',
+                    'drafts',
+                    'settings',
+                  ])
+                    GoRoute(
+                      path: path,
+                      builder: (context, state) =>
+                          Scaffold(body: Text('/profile/$path')),
+                    ),
+                ],
+              ),
+            ],
+          ),
         ],
       ),
-      for (final path in [
-        '/profile/saved',
-        '/profile/scheduled',
-        '/profile/drafts',
-        '/profile/settings',
-      ])
-        GoRoute(
-          path: path,
-          builder: (context, state) => Scaffold(body: Text(path)),
-        ),
     ],
   );
   addTearDown(router.dispose);

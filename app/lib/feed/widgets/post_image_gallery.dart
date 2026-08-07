@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_image_page_indicator.dart';
+import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -33,7 +34,7 @@ Future<void> showImageGallery(
 }) {
   if (images.isEmpty) return Future<void>.value();
 
-  return Navigator.of(context, rootNavigator: true).push<void>(
+  return responsiveModalNavigator(context).push<void>(
     MaterialPageRoute<void>(
       fullscreenDialog: true,
       builder: (context) {

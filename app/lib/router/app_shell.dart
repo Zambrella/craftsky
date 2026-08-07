@@ -102,6 +102,223 @@ BorderDirectional _navigationRailBorder(ThemeData theme) => BorderDirectional(
   end: BorderSide(color: theme.colorScheme.onSurface, width: 1.5),
 );
 
+/// Keeps signed-in detail routes beside the navigation rail on large screens.
+/// Compact routes remain full-screen because their navigator is returned
+/// unchanged.
+class AuthenticatedShell extends StatelessWidget {
+  const AuthenticatedShell({
+    required this.child,
+    required this.matchedLocation,
+    super.key,
+  });
+
+  final Widget child;
+  final String matchedLocation;
+
+  @override
+  Widget build(BuildContext context) {
+    if (!FormFactorWidget.of(context).isLarge) return child;
+    return _AuthenticatedShellNavigationScope(
+      child: _LargeShellNavigationFrame(
+        selectedIndex: _destinationIndexForLocation(matchedLocation),
+        onDestinationSelected: (index) => _goDestination(context, index),
+        child: child,
+      ),
+    );
+  }
+
+  void _goDestination(BuildContext context, int index) {
+    final location = switch (index) {
+      0 => RouteLocations.feed,
+      1 => RouteLocations.projects,
+      2 => RouteLocations.search,
+      3 => RouteLocations.notifications,
+      4 => RouteLocations.profile,
+      5 => RouteLocations.savedPosts,
+      6 => RouteLocations.scheduledPosts,
+      7 => RouteLocations.drafts,
+      8 => RouteLocations.settings,
+      _ => throw RangeError.index(index, _menuDestinations),
+    };
+    context.go(location);
+  }
+}
+
+class _AuthenticatedShellNavigationScope extends InheritedWidget {
+  const _AuthenticatedShellNavigationScope({required super.child});
+
+  static bool ownsLargeRail(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<
+            _AuthenticatedShellNavigationScope
+          >() !=
+      null;
+
+  @override
+  bool updateShouldNotify(_AuthenticatedShellNavigationScope oldWidget) =>
+      false;
+}
+
+class _LargeShellNavigationFrame extends ConsumerStatefulWidget {
+  const _LargeShellNavigationFrame({
+    required this.selectedIndex,
+    required this.onDestinationSelected,
+    required this.child,
+    this.linkLauncher = launchExternalLink,
+    this.buildVersionLabel,
+  });
+
+  final int selectedIndex;
+  final ValueChanged<int> onDestinationSelected;
+  final Widget child;
+  final ExternalLinkLauncher linkLauncher;
+  final String? buildVersionLabel;
+
+  @override
+  ConsumerState<_LargeShellNavigationFrame> createState() =>
+      _LargeShellNavigationFrameState();
+}
+
+class _LargeShellNavigationFrameState
+    extends ConsumerState<_LargeShellNavigationFrame> {
+  late final AccountActivationCoordinator _activation;
+  final GlobalKey _profileAnchorKey = GlobalKey();
+  final FocusNode _profileSwitcherFocusNode = FocusNode(
+    debugLabel: 'Large navigation Profile account switcher',
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    _activation = AccountActivationCoordinator(
+      readRegistry: () => ref.read(sessionRegistryProvider).requireValue,
+      commitActivation: ref.read(sessionRegistryProvider.notifier).activate,
+      invalidateAccountState: ref.read(accountStateInvalidatorProvider),
+      resetToHome: () async => context.go(RouteLocations.home),
+      confirmLeave: ref.read(unsavedWorkGuardProvider).confirmLeave,
+    );
+  }
+
+  @override
+  void dispose() {
+    _profileSwitcherFocusNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final registry = ref.watch(sessionRegistryProvider).value;
+    final activeAccount = registry?.activeLease?.session.account;
+    final switcherState = registry == null
+        ? null
+        : AccountSwitcherState.fromRegistry(registry);
+    final packageInfo =
+        widget.buildVersionLabel == null && ref.exists(appDependenciesProvider)
+        ? ref.watch(packageInfoProvider)
+        : null;
+    final buildVersionLabel =
+        widget.buildVersionLabel ??
+        (packageInfo == null
+            ? null
+            : AppLocalizations.of(context).navigationBuildVersion(
+                packageInfo.version,
+                packageInfo.buildNumber,
+              ));
+    final notificationBadge = NotificationBadge.fromCount(
+      activeAccount == null
+          ? ref.watch(notificationNewCountProvider).value ?? 0
+          : ref
+                    .watch(accountNotificationNewCountProvider(activeAccount))
+                    .value ??
+                0,
+    );
+    final textDirection = Directionality.of(context);
+    return Scaffold(
+      body: Row(
+        textDirection: switch (textDirection) {
+          TextDirection.ltr => TextDirection.rtl,
+          TextDirection.rtl => TextDirection.ltr,
+        },
+        children: [
+          Expanded(
+            child: Directionality(
+              textDirection: textDirection,
+              child: widget.child,
+            ),
+          ),
+          Directionality(
+            textDirection: textDirection,
+            child: _ShellNavigationRail(
+              selectedIndex: widget.selectedIndex,
+              onDestinationSelected: widget.onDestinationSelected,
+              notificationBadge: notificationBadge,
+              buildVersionLabel: buildVersionLabel,
+              profileAnchorKey: _profileAnchorKey,
+              profileFocusNode: _profileSwitcherFocusNode,
+              onOpenAccountSwitcher: switcherState == null
+                  ? null
+                  : () => _showLargeSwitcher(switcherState),
+              onOpenTerms: () => _openExternalLink(
+                Uri.parse('https://craftsky.social/terms'),
+              ),
+              onOpenPrivacy: () => _openExternalLink(
+                Uri.parse('https://craftsky.social/privacy'),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _openExternalLink(Uri uri) async {
+    var opened = false;
+    try {
+      opened = await widget.linkLauncher(uri);
+    } on Object {
+      // Platform link handlers can fail by returning false or by throwing.
+    }
+    if (!mounted || opened) return;
+    context.showError(AppLocalizations.of(context).navigationLinkOpenError);
+  }
+
+  Future<void> _showLargeSwitcher(AccountSwitcherState state) async {
+    final box =
+        _profileAnchorKey.currentContext?.findRenderObject() as RenderBox?;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (box == null || overlay == null) return;
+    final origin = box.localToGlobal(Offset.zero, ancestor: overlay);
+    final position = RelativeRect.fromLTRB(
+      origin.dx + box.size.width,
+      origin.dy,
+      overlay.size.width - origin.dx,
+      overlay.size.height - origin.dy - box.size.height,
+    );
+    await showMenu<void>(
+      context: context,
+      position: position,
+      items: [
+        PopupMenuItem<void>(
+          enabled: false,
+          padding: EdgeInsets.zero,
+          child: SizedBox(
+            width: 320,
+            child: _LiveAccountSwitcherContent(
+              fallbackState: state,
+              onSelect: _activation.activate,
+              onAddAccount: () {
+                Navigator.pop(context);
+                unawaited(context.push(RouteLocations.addAccount));
+              },
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class AppShell extends ConsumerStatefulWidget {
   const AppShell({
     required this.navigationShell,
@@ -121,7 +338,6 @@ class AppShell extends ConsumerStatefulWidget {
 class _AppShellState extends ConsumerState<AppShell> {
   late final AccountActivationCoordinator _activation;
   final GlobalKey<ScaffoldState> _compactScaffoldKey = GlobalKey();
-  final GlobalKey _profileAnchorKey = GlobalKey();
   final FocusNode _drawerProfileSwitcherFocusNode = FocusNode(
     debugLabel: 'Drawer Profile account switcher',
   );
@@ -196,45 +412,15 @@ class _AppShellState extends ConsumerState<AppShell> {
     );
 
     if (formFactor.isLarge) {
-      final textDirection = Directionality.of(context);
-      return Scaffold(
-        body: Row(
-          // Put the nested branch navigator first in semantics order so its
-          // route boundary does not suppress the rail. Reverse only the Row's
-          // layout direction to keep the rail on the leading edge.
-          textDirection: switch (textDirection) {
-            TextDirection.ltr => TextDirection.rtl,
-            TextDirection.rtl => TextDirection.ltr,
-          },
-          children: [
-            Expanded(
-              child: Directionality(
-                textDirection: textDirection,
-                child: widget.navigationShell,
-              ),
-            ),
-            Directionality(
-              textDirection: textDirection,
-              child: _ShellNavigationRail(
-                selectedIndex: selectedDestinationIndex,
-                onDestinationSelected: _goDestination,
-                notificationBadge: notificationBadge,
-                buildVersionLabel: buildVersionLabel,
-                profileAnchorKey: _profileAnchorKey,
-                profileFocusNode: _profileSwitcherFocusNode,
-                onOpenAccountSwitcher: switcherState == null
-                    ? null
-                    : () => _showLargeSwitcher(switcherState),
-                onOpenTerms: () => _openExternalLink(
-                  Uri.parse('https://craftsky.social/terms'),
-                ),
-                onOpenPrivacy: () => _openExternalLink(
-                  Uri.parse('https://craftsky.social/privacy'),
-                ),
-              ),
-            ),
-          ],
-        ),
+      if (_AuthenticatedShellNavigationScope.ownsLargeRail(context)) {
+        return widget.navigationShell;
+      }
+      return _LargeShellNavigationFrame(
+        selectedIndex: selectedDestinationIndex,
+        onDestinationSelected: _goDestination,
+        linkLauncher: widget.linkLauncher,
+        buildVersionLabel: widget.buildVersionLabel,
+        child: widget.navigationShell,
       );
     }
 
@@ -306,8 +492,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       3 => RouteLocations.settings,
       _ => throw RangeError.index(index, _menuDestinations),
     };
-    widget.navigationShell.goBranch(4, initialLocation: true);
-    unawaited(context.push(location));
+    context.go(location);
   }
 
   Future<void> _openExternalLink(Uri uri) async {
@@ -334,42 +519,6 @@ class _AppShellState extends ConsumerState<AppShell> {
           },
         ),
       );
-
-  Future<void> _showLargeSwitcher(AccountSwitcherState state) async {
-    final box =
-        _profileAnchorKey.currentContext?.findRenderObject() as RenderBox?;
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox?;
-    if (box == null || overlay == null) return;
-    final origin = box.localToGlobal(Offset.zero, ancestor: overlay);
-    final position = RelativeRect.fromLTRB(
-      origin.dx + box.size.width,
-      origin.dy,
-      overlay.size.width - origin.dx,
-      overlay.size.height - origin.dy - box.size.height,
-    );
-    await showMenu<void>(
-      context: context,
-      position: position,
-      items: [
-        PopupMenuItem<void>(
-          enabled: false,
-          padding: EdgeInsets.zero,
-          child: SizedBox(
-            width: 320,
-            child: _LiveAccountSwitcherContent(
-              fallbackState: state,
-              onSelect: _activation.activate,
-              onAddAccount: () {
-                Navigator.pop(context);
-                unawaited(context.push(RouteLocations.addAccount));
-              },
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 }
 
 class _ShellDrawer extends StatefulWidget {
@@ -899,6 +1048,16 @@ int _selectedDestinationIndex(String matchedLocation, int branchIndex) {
   if (matchedLocation.startsWith(RouteLocations.drafts)) return 7;
   if (matchedLocation.startsWith(RouteLocations.settings)) return 8;
   return branchIndex;
+}
+
+int _destinationIndexForLocation(String matchedLocation) {
+  final personalDestination = _selectedDestinationIndex(matchedLocation, 4);
+  if (personalDestination != 4) return personalDestination;
+  if (matchedLocation.startsWith(RouteLocations.projects)) return 1;
+  if (matchedLocation.startsWith(RouteLocations.search)) return 2;
+  if (matchedLocation.startsWith(RouteLocations.notifications)) return 3;
+  if (matchedLocation.startsWith(RouteLocations.profile)) return 4;
+  return 0;
 }
 
 String _destinationSemanticsLabel(

@@ -28,6 +28,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/languages/widgets/post_language_selector.dart';
+import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/scheduled_posts/composer/schedule_capacity_state.dart';
 import 'package:craftsky_app/scheduled_posts/composer/schedule_composer_state.dart';
@@ -60,7 +61,7 @@ Future<Post?> showPostComposerSheet(
   LocalPostDraftSeed? draftSeed,
   ActiveAccountLease? draftOwner,
 }) {
-  return Navigator.of(context, rootNavigator: true).push<Post?>(
+  return responsiveModalNavigator(context).push<Post?>(
     MaterialPageRoute<Post?>(
       fullscreenDialog: true,
       builder: (_) => PostComposerSheet(
@@ -437,8 +438,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                             Align(
                               alignment: AlignmentDirectional.centerStart,
                               child: TextButton(
-                                onPressed: () => const ScheduledPostsRoute()
-                                    .push<void>(context),
+                                onPressed: () =>
+                                    const ScheduledPostsRoute().go(context),
                                 child: Text(l10n.scheduledPostManageAction),
                               ),
                             ),

@@ -52,6 +52,7 @@ class _NavigatorKeys {
   _NavigatorKeys._();
 
   static GlobalKey<NavigatorState>? _rootKey;
+  static GlobalKey<NavigatorState>? _authenticatedShellKey;
   static GlobalKey<NavigatorState>? _feedKey;
   static GlobalKey<NavigatorState>? _projectsKey;
   static GlobalKey<NavigatorState>? _searchKey;
@@ -60,6 +61,10 @@ class _NavigatorKeys {
 
   static GlobalKey<NavigatorState> get rootNavigatorKey =>
       _rootKey ??= GlobalKey<NavigatorState>(debugLabel: 'rootNavigator');
+  static GlobalKey<NavigatorState> get authenticatedShellNavigatorKey =>
+      _authenticatedShellKey ??= GlobalKey<NavigatorState>(
+        debugLabel: 'authenticatedShellNavigator',
+      );
   static GlobalKey<NavigatorState> get feedNavigatorKey =>
       _feedKey ??= GlobalKey<NavigatorState>(debugLabel: 'feedNavigator');
   static GlobalKey<NavigatorState> get projectsNavigatorKey => _projectsKey ??=
@@ -141,113 +146,140 @@ GoRouter goRouter(Ref ref) {
 
 // --- Shell route -----------------------------------------------------------
 
-@TypedStatefulShellRoute<AppShellRoute>(
-  branches: [
-    TypedStatefulShellBranch<FeedBranch>(
-      routes: [
-        TypedGoRoute<FeedRoute>(path: RouteLocations.feed, name: 'feed'),
-      ],
-    ),
-    TypedStatefulShellBranch<ProjectsBranch>(
-      routes: [
-        TypedGoRoute<ProjectsRoute>(
-          path: RouteLocations.projects,
-          name: 'projects',
-        ),
-      ],
-    ),
-    TypedStatefulShellBranch<SearchBranch>(
-      routes: [
-        TypedGoRoute<SearchRoute>(
-          path: RouteLocations.search,
-          name: 'search',
+@TypedShellRoute<AuthenticatedShellRoute>(
+  routes: [
+    TypedStatefulShellRoute<AppShellRoute>(
+      branches: [
+        TypedStatefulShellBranch<FeedBranch>(
           routes: [
-            TypedGoRoute<TagSearchRoute>(
-              path: RouteLocations.searchTagsChild,
-              name: 'search-tag',
+            TypedGoRoute<FeedRoute>(path: RouteLocations.feed, name: 'feed'),
+          ],
+        ),
+        TypedStatefulShellBranch<ProjectsBranch>(
+          routes: [
+            TypedGoRoute<ProjectsRoute>(
+              path: RouteLocations.projects,
+              name: 'projects',
             ),
           ],
         ),
-      ],
-    ),
-    TypedStatefulShellBranch<NotificationsBranch>(
-      routes: [
-        TypedGoRoute<NotificationsRoute>(
-          path: RouteLocations.notifications,
-          name: 'notifications',
+        TypedStatefulShellBranch<SearchBranch>(
           routes: [
-            TypedGoRoute<NotificationSettingsRoute>(
-              path: RouteLocations.notificationSettingsChild,
-              name: 'notification-settings',
-            ),
-          ],
-        ),
-      ],
-    ),
-    TypedStatefulShellBranch<ProfileBranch>(
-      routes: [
-        TypedGoRoute<ProfileRoute>(
-          path: RouteLocations.profile,
-          name: 'profile',
-          routes: [
-            TypedGoRoute<SettingsRoute>(
-              path: RouteLocations.settingsChild,
-              name: 'settings',
+            TypedGoRoute<SearchRoute>(
+              path: RouteLocations.search,
+              name: 'search',
               routes: [
-                TypedGoRoute<LanguagesRoute>(
-                  path: RouteLocations.languagesChild,
-                  name: 'languages',
-                ),
-                TypedGoRoute<InstagramMigrationRoute>(
-                  path: RouteLocations.instagramMigrationChild,
-                  name: 'instagram-migration',
-                ),
-                TypedGoRoute<FollowersRoute>(
-                  path: RouteLocations.followersChild,
-                  name: 'settings-followers',
-                ),
-                TypedGoRoute<FollowingRoute>(
-                  path: RouteLocations.followingChild,
-                  name: 'settings-following',
-                ),
-                TypedGoRoute<MutedAccountsRoute>(
-                  path: RouteLocations.mutedAccountsChild,
-                  name: 'settings-muted-accounts',
-                ),
-                TypedGoRoute<BlockedAccountsRoute>(
-                  path: RouteLocations.blockedAccountsChild,
-                  name: 'settings-blocked-accounts',
+                TypedGoRoute<TagSearchRoute>(
+                  path: RouteLocations.searchTagsChild,
+                  name: 'search-tag',
                 ),
               ],
             ),
-            TypedGoRoute<ScheduledPostsRoute>(
-              path: RouteLocations.scheduledPostsChild,
-              name: 'scheduled-posts',
-            ),
-            TypedGoRoute<DraftsRoute>(
-              path: RouteLocations.draftsChild,
-              name: 'drafts',
-            ),
-            TypedGoRoute<SavedPostsRoute>(
-              path: RouteLocations.savedPostsChild,
-              name: 'saved-posts',
+          ],
+        ),
+        TypedStatefulShellBranch<NotificationsBranch>(
+          routes: [
+            TypedGoRoute<NotificationsRoute>(
+              path: RouteLocations.notifications,
+              name: 'notifications',
               routes: [
-                TypedGoRoute<SavedPostFolderRoute>(
-                  path: RouteLocations.savedPostFolderChild,
-                  name: 'saved-post-folder',
+                TypedGoRoute<NotificationSettingsRoute>(
+                  path: RouteLocations.notificationSettingsChild,
+                  name: 'notification-settings',
                 ),
               ],
             ),
-            TypedGoRoute<PlaygroundRoute>(
-              path: RouteLocations.playgroundChild,
-              name: 'playground',
+          ],
+        ),
+        TypedStatefulShellBranch<ProfileBranch>(
+          routes: [
+            TypedGoRoute<ProfileRoute>(
+              path: RouteLocations.profile,
+              name: 'profile',
+              routes: [
+                TypedGoRoute<SettingsRoute>(
+                  path: RouteLocations.settingsChild,
+                  name: 'settings',
+                  routes: [
+                    TypedGoRoute<LanguagesRoute>(
+                      path: RouteLocations.languagesChild,
+                      name: 'languages',
+                    ),
+                    TypedGoRoute<InstagramMigrationRoute>(
+                      path: RouteLocations.instagramMigrationChild,
+                      name: 'instagram-migration',
+                    ),
+                    TypedGoRoute<FollowersRoute>(
+                      path: RouteLocations.followersChild,
+                      name: 'settings-followers',
+                    ),
+                    TypedGoRoute<FollowingRoute>(
+                      path: RouteLocations.followingChild,
+                      name: 'settings-following',
+                    ),
+                    TypedGoRoute<MutedAccountsRoute>(
+                      path: RouteLocations.mutedAccountsChild,
+                      name: 'settings-muted-accounts',
+                    ),
+                    TypedGoRoute<BlockedAccountsRoute>(
+                      path: RouteLocations.blockedAccountsChild,
+                      name: 'settings-blocked-accounts',
+                    ),
+                  ],
+                ),
+                TypedGoRoute<ScheduledPostsRoute>(
+                  path: RouteLocations.scheduledPostsChild,
+                  name: 'scheduled-posts',
+                ),
+                TypedGoRoute<DraftsRoute>(
+                  path: RouteLocations.draftsChild,
+                  name: 'drafts',
+                ),
+                TypedGoRoute<SavedPostsRoute>(
+                  path: RouteLocations.savedPostsChild,
+                  name: 'saved-posts',
+                  routes: [
+                    TypedGoRoute<SavedPostFolderRoute>(
+                      path: RouteLocations.savedPostFolderChild,
+                      name: 'saved-post-folder',
+                    ),
+                  ],
+                ),
+                TypedGoRoute<PlaygroundRoute>(
+                  path: RouteLocations.playgroundChild,
+                  name: 'playground',
+                ),
+              ],
             ),
           ],
         ),
       ],
+    ),
+    TypedGoRoute<PostThreadRoute>(
+      path: RouteLocations.postThread,
+      name: 'post-thread',
+    ),
+    TypedGoRoute<UserProfileRoute>(
+      path: '${RouteLocations.profile}/:handle',
+      name: 'user-profile',
     ),
   ],
 )
+class AuthenticatedShellRoute extends ShellRouteData {
+  const AuthenticatedShellRoute();
+
+  static final GlobalKey<NavigatorState> $navigatorKey =
+      _NavigatorKeys.authenticatedShellNavigatorKey;
+
+  @override
+  Widget builder(BuildContext context, GoRouterState state, Widget navigator) {
+    return AuthenticatedShell(
+      matchedLocation: state.matchedLocation,
+      child: navigator,
+    );
+  }
+}
+
 class AppShellRoute extends StatefulShellRouteData {
   const AppShellRoute();
 
@@ -337,7 +369,7 @@ class NotificationSettingsRoute extends GoRouteData
   const NotificationSettingsRoute();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.rootNavigatorKey;
+      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
@@ -353,13 +385,13 @@ class ProfileRoute extends GoRouteData with $ProfileRoute {
 
 /// Declared as a child of [ProfileRoute] so its path becomes
 /// `/profile/settings` and the back arrow pops to `/profile`. The parent
-/// navigator key lifts it onto the root navigator so it covers the shell's
-/// bottom navigation.
+/// navigator key lifts it onto the authenticated shell navigator: it covers
+/// compact navigation while remaining beside the large-screen rail.
 class SettingsRoute extends GoRouteData with $SettingsRoute {
   const SettingsRoute();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.rootNavigatorKey;
+      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
@@ -370,7 +402,7 @@ class LanguagesRoute extends GoRouteData with $LanguagesRoute {
   const LanguagesRoute();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.rootNavigatorKey;
+      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
@@ -381,7 +413,7 @@ class ScheduledPostsRoute extends GoRouteData with $ScheduledPostsRoute {
   const ScheduledPostsRoute();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.rootNavigatorKey;
+      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
@@ -392,7 +424,7 @@ class DraftsRoute extends GoRouteData with $DraftsRoute {
   const DraftsRoute();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.rootNavigatorKey;
+      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
   Widget build(BuildContext context, GoRouterState state) => const DraftsPage();
@@ -403,7 +435,7 @@ class InstagramMigrationRoute extends GoRouteData
   const InstagramMigrationRoute();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.rootNavigatorKey;
+      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
@@ -414,7 +446,7 @@ class FollowersRoute extends GoRouteData with $FollowersRoute {
   const FollowersRoute();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.rootNavigatorKey;
+      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
@@ -425,7 +457,7 @@ class FollowingRoute extends GoRouteData with $FollowingRoute {
   const FollowingRoute();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.rootNavigatorKey;
+      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
@@ -436,7 +468,7 @@ class MutedAccountsRoute extends GoRouteData with $MutedAccountsRoute {
   const MutedAccountsRoute();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.rootNavigatorKey;
+      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
@@ -447,7 +479,7 @@ class BlockedAccountsRoute extends GoRouteData with $BlockedAccountsRoute {
   const BlockedAccountsRoute();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.rootNavigatorKey;
+      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
@@ -458,7 +490,7 @@ class SavedPostsRoute extends GoRouteData with $SavedPostsRoute {
   const SavedPostsRoute();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.rootNavigatorKey;
+      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
@@ -480,7 +512,7 @@ class SavedPostFolderRoute extends GoRouteData with $SavedPostFolderRoute {
   const SavedPostFolderRoute({this.$extra});
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.rootNavigatorKey;
+      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   final SavedPostFolderRouteData? $extra;
 
@@ -501,20 +533,20 @@ class SavedPostFolderRoute extends GoRouteData with $SavedPostFolderRoute {
 }
 
 /// Dev-only design playground. Same shape as [SettingsRoute] — nested under
-/// profile for back-button semantics, pushed on the root navigator to cover
-/// the bottom nav.
+/// profile for back-button semantics and pushed on the authenticated shell
+/// navigator for responsive navigation presentation.
 class PlaygroundRoute extends GoRouteData with $PlaygroundRoute {
   const PlaygroundRoute();
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.rootNavigatorKey;
+      _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const DesignPlaygroundPage();
 }
 
-// --- Root-navigator routes (push over the shell) ---------------------------
+// --- Routes outside the authenticated shell -------------------------------
 
 @TypedGoRoute<WelcomeRoute>(path: RouteLocations.welcome, name: 'welcome')
 class WelcomeRoute extends GoRouteData with $WelcomeRoute {
@@ -586,10 +618,8 @@ class OnboardingRoute extends GoRouteData with $OnboardingRoute {
       const OnboardingPage();
 }
 
-@TypedGoRoute<PostThreadRoute>(
-  path: RouteLocations.postThread,
-  name: 'post-thread',
-)
+// --- Authenticated detail routes ------------------------------------------
+
 class PostThreadRoute extends GoRouteData with $PostThreadRoute {
   const PostThreadRoute({
     required this.did,
@@ -597,9 +627,6 @@ class PostThreadRoute extends GoRouteData with $PostThreadRoute {
     this.focus,
     this.$extra,
   });
-
-  static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.rootNavigatorKey;
 
   final String did;
   final String rkey;
@@ -615,15 +642,8 @@ class PostThreadRoute extends GoRouteData with $PostThreadRoute {
   );
 }
 
-@TypedGoRoute<UserProfileRoute>(
-  path: '${RouteLocations.profile}/:handle',
-  name: 'user-profile',
-)
 class UserProfileRoute extends GoRouteData with $UserProfileRoute {
   const UserProfileRoute({required this.handle});
-
-  static final GlobalKey<NavigatorState> $parentNavigatorKey =
-      _NavigatorKeys.rootNavigatorKey;
 
   final String handle;
 

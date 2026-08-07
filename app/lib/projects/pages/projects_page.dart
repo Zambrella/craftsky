@@ -6,6 +6,7 @@ import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/projects/providers/project_feed_provider.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
+import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/search/models/search_sort.dart';
 import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
@@ -105,9 +106,8 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
     final craftType =
         ProjectOptionCatalogs.craftTypes[_selectedCraftIndex].value;
     final filters =
-        await Navigator.of(
+        await responsiveModalNavigator(
           context,
-          rootNavigator: true,
         ).push<ProjectBrowseFilters>(
           MaterialPageRoute<ProjectBrowseFilters>(
             fullscreenDialog: true,

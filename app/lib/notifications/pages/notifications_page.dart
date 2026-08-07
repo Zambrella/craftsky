@@ -39,8 +39,7 @@ class NotificationsPage extends ConsumerWidget {
             actions: [
               IconButton(
                 tooltip: l10n.notificationSettingsAction,
-                onPressed: () =>
-                    const NotificationSettingsRoute().push<void>(context),
+                onPressed: () => const NotificationSettingsRoute().go(context),
                 icon: const Icon(Icons.settings_outlined),
               ),
             ],
