@@ -96,6 +96,91 @@ void main() {
       expect(tapped, isTrue);
     });
 
+    testWidgets('opens a wide popup below a target near the top', (
+      tester,
+    ) async {
+      await pumpHarness(
+        tester,
+        size: const Size(1200, 800),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 80),
+            child: CraftskyContextMenuButton(
+              groups: [
+                CraftskyContextMenuGroup(
+                  items: [
+                    CraftskyContextMenuItem(
+                      text: 'Share',
+                      icon: Icons.ios_share,
+                      onPressed: () {},
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final target = find.byIcon(Icons.more_horiz);
+      final targetRect = tester.getRect(target);
+      await tester.tap(target);
+      await tester.pumpAndSettle();
+
+      final menuItem = find.byType(
+        PopupMenuItem<CraftskyContextMenuItem>,
+      );
+      expect(
+        tester.getRect(menuItem).top,
+        greaterThanOrEqualTo(targetRect.bottom),
+      );
+    });
+
+    testWidgets('opens a wide popup above a target near the bottom', (
+      tester,
+    ) async {
+      await pumpHarness(
+        tester,
+        size: const Size(1200, 800),
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 80),
+            child: CraftskyContextMenuButton(
+              groups: [
+                CraftskyContextMenuGroup(
+                  items: [
+                    CraftskyContextMenuItem(
+                      text: 'Share',
+                      icon: Icons.ios_share,
+                      onPressed: () {},
+                    ),
+                    CraftskyContextMenuItem(
+                      text: 'Report',
+                      icon: Icons.flag_outlined,
+                      onPressed: () {},
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final target = find.byIcon(Icons.more_horiz);
+      final targetRect = tester.getRect(target);
+      await tester.tap(target);
+      await tester.pumpAndSettle();
+
+      final menuItems = find.byType(
+        PopupMenuItem<CraftskyContextMenuItem>,
+      );
+      final menuBottom = tester.getRect(menuItems.last).bottom;
+      expect(menuBottom, lessThanOrEqualTo(targetRect.top));
+    });
+
     testWidgets('anchors a wide popup in its nested content overlay', (
       tester,
     ) async {

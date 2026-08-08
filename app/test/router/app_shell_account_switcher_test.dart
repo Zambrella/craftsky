@@ -579,6 +579,7 @@ void main() {
     );
     final switchButton = find.byTooltip('Switch account');
     expect(switchButton, findsOneWidget);
+    final switchButtonRect = tester.getRect(switchButton);
     expect(
       find.descendant(
         of: switchButton,
@@ -611,6 +612,10 @@ void main() {
       ),
     );
     expect(switcherMenuMaterial, findsOneWidget);
+    expect(
+      tester.getRect(switcherMenuMaterial).top,
+      greaterThanOrEqualTo(switchButtonRect.bottom),
+    );
     final switcherShape =
         tester.widget<Material>(switcherMenuMaterial).shape!
             as RoundedRectangleBorder;

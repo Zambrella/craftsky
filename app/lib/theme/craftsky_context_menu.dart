@@ -1,8 +1,16 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
+
+const _popupScreenPadding = 8.0;
+const _popupAnchorGap = 4.0;
+const _popupVerticalPadding = 16.0;
+const _popupItemHeight = 56.0;
+const _popupDescribedItemHeight = 72.0;
+const _popupDividerHeight = 1.0;
 
 /// Visual treatment for a [CraftskyContextMenuItem].
 enum CraftskyContextMenuItemStyle { normal, destructive }
@@ -137,9 +145,14 @@ Future<void> showCraftskyContextMenu(
   final theme = Theme.of(context);
   final radii = theme.extension<RadiusTheme>()!;
   final swatches = theme.extension<BrandSwatchTheme>()!;
+  final popupPosition = _positionOutsideAnchor(
+    context,
+    anchor: position,
+    estimatedPopupHeight: _estimateContextMenuHeight(groups),
+  );
   final selected = await showMenu<CraftskyContextMenuItem>(
     context: context,
-    position: position,
+    position: popupPosition,
     // [position] is measured against the nearest overlay. Keeping the popup
     // on that navigator preserves the same coordinate space when the app's
     // large-screen rail sits outside the content navigator.
@@ -160,6 +173,7 @@ Future<void> showCraftskyContextMenu(
 Future<void> showCraftskyContextPopover(
   BuildContext context, {
   required RelativeRect position,
+  required double estimatedHeight,
   required Widget child,
 }) async {
   final theme = Theme.of(context);
@@ -167,7 +181,11 @@ Future<void> showCraftskyContextPopover(
   final swatches = theme.extension<BrandSwatchTheme>()!;
   await showMenu<Object?>(
     context: context,
-    position: position,
+    position: _positionOutsideAnchor(
+      context,
+      anchor: position,
+      estimatedPopupHeight: estimatedHeight,
+    ),
     color: swatches.paper3,
     surfaceTintColor: Colors.transparent,
     elevation: 0,
@@ -175,6 +193,61 @@ Future<void> showCraftskyContextPopover(
     shape: _contextMenuShape(theme, radii),
     items: [_CraftskyContextPopoverEntry(child: child)],
   );
+}
+
+RelativeRect _positionOutsideAnchor(
+  BuildContext context, {
+  required RelativeRect anchor,
+  required double estimatedPopupHeight,
+}) {
+  final overlayObject = Overlay.of(context).context.findRenderObject();
+  if (overlayObject is! RenderBox) return anchor;
+
+  final overlayBounds = Offset.zero & overlayObject.size;
+  final anchorRect = anchor.toRect(overlayBounds);
+  final mediaPadding = MediaQuery.paddingOf(context);
+  final topLimit = math.max(
+    _popupScreenPadding,
+    mediaPadding.top + _popupScreenPadding,
+  );
+  final bottomLimit =
+      overlayObject.size.height -
+      math.max(_popupScreenPadding, mediaPadding.bottom + _popupScreenPadding);
+  final belowTop = anchorRect.bottom + _popupAnchorGap;
+  final aboveTop = anchorRect.top - _popupAnchorGap - estimatedPopupHeight;
+  final spaceBelow = bottomLimit - belowTop;
+  final spaceAbove = anchorRect.top - _popupAnchorGap - topLimit;
+  final opensBelow =
+      estimatedPopupHeight <= spaceBelow ||
+      (estimatedPopupHeight > spaceAbove && spaceBelow >= spaceAbove);
+  final popupTop = opensBelow ? belowTop : math.max(topLimit, aboveTop);
+
+  return RelativeRect.fromLTRB(
+    anchor.left,
+    popupTop,
+    anchor.right,
+    overlayObject.size.height - popupTop,
+  );
+}
+
+double _estimateContextMenuHeight(
+  List<CraftskyContextMenuGroup> groups,
+) {
+  var height = _popupVerticalPadding;
+  var nonEmptyGroupCount = 0;
+
+  for (final group in groups) {
+    if (group.items.isEmpty) continue;
+    if (nonEmptyGroupCount > 0) height += _popupDividerHeight;
+    nonEmptyGroupCount++;
+    for (final item in group.items) {
+      height += item.description == null
+          ? _popupItemHeight
+          : _popupDescribedItemHeight;
+    }
+  }
+
+  return height;
 }
 
 RoundedRectangleBorder _contextMenuShape(

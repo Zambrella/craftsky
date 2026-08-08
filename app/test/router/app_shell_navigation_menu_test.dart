@@ -599,6 +599,27 @@ void main() {
     expect(find.byType(NavigationRail), findsOneWidget);
   });
 
+  testWidgets('UIP-020 large pages share a centered maximum content width', (
+    tester,
+  ) async {
+    final router = await _pumpShell(tester, const Size(1600, 800));
+    final content = find.byKey(const Key('large-shell-content'));
+    final railRect = tester.getRect(find.byType(NavigationRail));
+
+    expect(content, findsOneWidget);
+    expect(tester.getRect(content).width, 1200);
+    expect(
+      tester.getCenter(content).dx,
+      closeTo((railRect.right + 1600) / 2, 1),
+    );
+
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+
+    expect(router.state.matchedLocation, '/profile/settings');
+    expect(tester.getRect(content).width, 1200);
+  });
+
   testWidgets('CORR-006 resizing an open drawer leaves one clean rail', (
     tester,
   ) async {

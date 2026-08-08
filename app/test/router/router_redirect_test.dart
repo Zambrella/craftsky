@@ -367,12 +367,18 @@ void main() {
         tester,
         container,
         initialLocation: '/posts/did:plc:alice/root',
-        size: const Size(1200, 800),
+        size: const Size(1600, 800),
       );
 
       expect(find.byType(PostThreadPage), findsOneWidget);
       final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
       expect(rail.selectedIndex, 0);
+      expect(
+        tester
+            .getRect(find.byKey(const Key('large-shell-content')))
+            .width,
+        1200,
+      );
     });
 
     testWidgets('pushing post details does not cover the large rail', (

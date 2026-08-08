@@ -86,6 +86,7 @@ const List<_DestinationSpec> _menuDestinations = [
 ];
 
 const _compactDrawerEdgeDragWidth = 96.0;
+const _largeScreenContentMaxWidth = 1200.0;
 const _utilityLinkHeight = 40.0;
 const _profileRailLabelWidth = 168.0;
 
@@ -245,7 +246,16 @@ class _LargeShellNavigationFrameState
           Expanded(
             child: Directionality(
               textDirection: textDirection,
-              child: widget.child,
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  key: const Key('large-shell-content'),
+                  constraints: const BoxConstraints(
+                    maxWidth: _largeScreenContentMaxWidth,
+                  ),
+                  child: SizedBox.expand(child: widget.child),
+                ),
+              ),
             ),
           ),
           Directionality(
@@ -294,12 +304,13 @@ class _LargeShellNavigationFrameState
     final position = RelativeRect.fromLTRB(
       origin.dx + box.size.width,
       origin.dy,
-      overlay.size.width - origin.dx,
+      overlay.size.width - origin.dx - box.size.width,
       overlay.size.height - origin.dy - box.size.height,
     );
     await showCraftskyContextPopover(
       context,
       position: position,
+      estimatedHeight: _estimateAccountSwitcherHeight(state),
       child: SizedBox(
         width: 320,
         child: _LiveAccountSwitcherContent(
@@ -312,6 +323,25 @@ class _LargeShellNavigationFrameState
         ),
       ),
     );
+  }
+
+  double _estimateAccountSwitcherHeight(AccountSwitcherState state) {
+    const verticalPadding = 16.0;
+    const singleLineTileHeight = 56.0;
+    const twoLineTileHeight = 72.0;
+    const dividerHeight = 16.0;
+
+    return verticalPadding +
+        state.rows.fold<double>(
+          0,
+          (height, row) =>
+              height +
+              (row.displayLabel == row.handle
+                  ? singleLineTileHeight
+                  : twoLineTileHeight),
+        ) +
+        dividerHeight +
+        (state.canAddAccount ? singleLineTileHeight : twoLineTileHeight);
   }
 }
 
