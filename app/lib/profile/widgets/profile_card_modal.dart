@@ -2,7 +2,6 @@ import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
 import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
 
 /// Opens a profile route in its compact summary-card presentation.
 ///
@@ -15,12 +14,12 @@ Future<void> showUserProfileCard(
   ProfileBackgroundIllustration? backgroundIllustration,
   ProfileAvatarFrame? avatarFrame,
 }) {
-  return GoRouter.of(context).push<void>(
-    UserProfileRoute(handle: handleOrDid).location,
-    extra: ProfilePresentationRequest.compact(
+  return UserProfileRoute(
+    handle: handleOrDid,
+    $extra: ProfilePresentationRequest.compact(
       primaryColor: primaryColor,
       backgroundIllustration: backgroundIllustration,
       avatarFrame: avatarFrame,
     ),
-  );
+  ).push<void>(context);
 }

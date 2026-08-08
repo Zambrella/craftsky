@@ -7,6 +7,7 @@ import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
+import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/search/models/blank_search_data.dart';
 import 'package:craftsky_app/search/models/hashtag_search_page.dart';
@@ -215,7 +216,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           initialTab: widget.tab ?? SearchResultsTab.posts,
           onOpenHashtag: _openHashtag,
           headerSlivers: [
-            SliverAppBar(title: Text(l10n.searchTitle), pinned: true),
+            SliverAppBar(
+              leading: AppShellDrawerScope.maybeOf(context) == null
+                  ? null
+                  : const AppShellDrawerButton(),
+              title: Text(l10n.searchTitle),
+              pinned: true,
+            ),
             SliverPersistentHeader(
               pinned: true,
               delegate: _SearchInputHeaderDelegate(
@@ -277,7 +284,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
 
   List<Widget> _headerSlivers(AppLocalizations l10n, SpacingTheme spacing) {
     return [
-      SliverAppBar(title: Text(l10n.searchTitle), pinned: true),
+      SliverAppBar(
+        leading: AppShellDrawerScope.maybeOf(context) == null
+            ? null
+            : const AppShellDrawerButton(),
+        title: Text(l10n.searchTitle),
+        pinned: true,
+      ),
       SliverToBoxAdapter(
         child: _SearchInputHeader(
           l10n: l10n,

@@ -96,6 +96,148 @@ void main() {
       expect(tapped, isTrue);
     });
 
+    testWidgets('opens a wide popup below a target near the top', (
+      tester,
+    ) async {
+      await pumpHarness(
+        tester,
+        size: const Size(1200, 800),
+        child: Align(
+          alignment: Alignment.topCenter,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 80),
+            child: CraftskyContextMenuButton(
+              groups: [
+                CraftskyContextMenuGroup(
+                  items: [
+                    CraftskyContextMenuItem(
+                      text: 'Share',
+                      icon: Icons.ios_share,
+                      onPressed: () {},
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final target = find.byIcon(Icons.more_horiz);
+      final targetRect = tester.getRect(target);
+      await tester.tap(target);
+      await tester.pumpAndSettle();
+
+      final menuItem = find.byType(
+        PopupMenuItem<CraftskyContextMenuItem>,
+      );
+      expect(
+        tester.getRect(menuItem).top,
+        greaterThanOrEqualTo(targetRect.bottom),
+      );
+    });
+
+    testWidgets('opens a wide popup above a target near the bottom', (
+      tester,
+    ) async {
+      await pumpHarness(
+        tester,
+        size: const Size(1200, 800),
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 80),
+            child: CraftskyContextMenuButton(
+              groups: [
+                CraftskyContextMenuGroup(
+                  items: [
+                    CraftskyContextMenuItem(
+                      text: 'Share',
+                      icon: Icons.ios_share,
+                      onPressed: () {},
+                    ),
+                    CraftskyContextMenuItem(
+                      text: 'Report',
+                      icon: Icons.flag_outlined,
+                      onPressed: () {},
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final target = find.byIcon(Icons.more_horiz);
+      final targetRect = tester.getRect(target);
+      await tester.tap(target);
+      await tester.pumpAndSettle();
+
+      final menuItems = find.byType(
+        PopupMenuItem<CraftskyContextMenuItem>,
+      );
+      final menuBottom = tester.getRect(menuItems.last).bottom;
+      expect(menuBottom, lessThanOrEqualTo(targetRect.top));
+    });
+
+    testWidgets('anchors a wide popup in its nested content overlay', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightThemeData,
+          home: Scaffold(
+            body: Row(
+              children: [
+                const SizedBox(width: 300),
+                Expanded(
+                  child: Navigator(
+                    onGenerateRoute: (_) => MaterialPageRoute<void>(
+                      builder: (_) => Scaffold(
+                        body: Center(
+                          child: CraftskyContextMenuButton(
+                            groups: [
+                              CraftskyContextMenuGroup(
+                                items: [
+                                  CraftskyContextMenuItem(
+                                    text: 'Repost',
+                                    icon: Icons.repeat,
+                                    onPressed: () {},
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final button = find.byIcon(Icons.more_horiz);
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+
+      final menuItem = find.byType(
+        PopupMenuItem<CraftskyContextMenuItem>,
+      );
+      expect(
+        (tester.getTopLeft(menuItem).dx - tester.getTopLeft(button).dx).abs(),
+        lessThan(80),
+      );
+    });
+
     testWidgets('separates logical groups in compact sheet', (tester) async {
       await pumpHarness(
         tester,

@@ -20,16 +20,19 @@ class RouteLocations {
   static const postThread = '/posts/:did/:rkey';
   static const profile = '/profile';
   static const settingsChild = 'settings';
+  static const settings = '$profile/$settingsChild';
   static const languagesChild = 'languages';
   static const instagramMigrationChild = 'instagram';
   static const scheduledPostsChild = 'scheduled';
   static const draftsChild = 'drafts';
   static const savedPostsChild = 'saved';
   static const savedPostFolderChild = 'folder';
+  static const scheduledPosts = '$profile/$scheduledPostsChild';
+  static const drafts = '$profile/$draftsChild';
   static const followersChild = 'followers';
   static const followingChild = 'following';
   static const mutedAccountsChild = 'muted';
   static const blockedAccountsChild = 'blocked';
-  static const savedPosts = '/profile/settings/saved';
+  static const savedPosts = '$profile/$savedPostsChild';
   static const playgroundChild = 'playground';
 }

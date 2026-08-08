@@ -13,6 +13,7 @@ import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/feed/widgets/post_type_chooser.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
+import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
@@ -53,7 +54,13 @@ class FeedPage extends ConsumerWidget {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          SliverAppBar(title: Text(l10n.feedTitle), pinned: true),
+          SliverAppBar(
+            leading: AppShellDrawerScope.maybeOf(context) == null
+                ? null
+                : const AppShellDrawerButton(),
+            title: Text(l10n.feedTitle),
+            pinned: true,
+          ),
           switch (timelineAsync) {
             AsyncValue(:final value?) => _FeedLoadedSlivers(
               items: value.items,

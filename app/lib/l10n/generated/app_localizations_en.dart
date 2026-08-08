@@ -23,6 +23,35 @@ class AppLocalizationsEn extends AppLocalizations {
   String get feedTitle => 'Feed';
 
   @override
+  String get navigationMenuTooltip => 'Open navigation menu';
+
+  @override
+  String get navigationProfile => 'Profile';
+
+  @override
+  String get navigationSaved => 'Saved';
+
+  @override
+  String get navigationScheduled => 'Scheduled';
+
+  @override
+  String get navigationTerms => 'Terms';
+
+  @override
+  String get navigationPrivacy => 'Privacy';
+
+  @override
+  String get navigationFeedback => 'Feedback';
+
+  @override
+  String navigationBuildVersion(String version, String buildNumber) {
+    return '$version ($buildNumber)';
+  }
+
+  @override
+  String get navigationLinkOpenError => 'Couldn\'t open that link.';
+
+  @override
   String get notificationsTitle => 'Notifications';
 
   @override

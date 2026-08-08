@@ -7,6 +7,7 @@ import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
 import 'package:craftsky_app/notifications/providers/notification_seen_provider.dart';
 import 'package:craftsky_app/notifications/providers/notifications_provider.dart';
 import 'package:craftsky_app/notifications/widgets/notification_row.dart';
+import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
@@ -30,13 +31,15 @@ class NotificationsPage extends ConsumerWidget {
       body: CustomScrollView(
         slivers: [
           SliverAppBar(
+            leading: AppShellDrawerScope.maybeOf(context) == null
+                ? null
+                : const AppShellDrawerButton(),
             title: Text(l10n.notificationsTitle),
             pinned: true,
             actions: [
               IconButton(
                 tooltip: l10n.notificationSettingsAction,
-                onPressed: () =>
-                    const NotificationSettingsRoute().push<void>(context),
+                onPressed: () => const NotificationSettingsRoute().go(context),
                 icon: const Icon(Icons.settings_outlined),
               ),
             ],

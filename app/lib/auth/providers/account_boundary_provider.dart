@@ -36,7 +36,6 @@ import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/projects/providers/project_feed_provider.dart';
 import 'package:craftsky_app/projects/providers/project_repository_provider.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
-import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/saved_posts/providers/account_saved_post_state_provider.dart';
 import 'package:craftsky_app/saved_posts/providers/save_post_dialog_controller.dart';
@@ -153,7 +152,7 @@ final accountStateInvalidatorProvider = Provider<AccountBoundaryAction>(
 
 final accountHomeResetProvider = Provider<AccountBoundaryAction>(
   (ref) =>
-      () async => ref.read(goRouterProvider).go(RouteLocations.home),
+      () async => ref.read(goRouterProvider).go(const FeedRoute().location),
 );
 
 final accountSessionPrivateStateCleanerProvider =

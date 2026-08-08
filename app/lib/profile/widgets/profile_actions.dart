@@ -5,6 +5,8 @@ import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
+const profileActionSectionMaxWidth = 420.0;
+
 /// The action-row variants drawn under the avatar/identity block.
 ///
 /// Modelled as a sealed class so the page just hands a [ProfileActionSet]
@@ -75,7 +77,9 @@ class ProfileActionSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 420),
+        constraints: const BoxConstraints(
+          maxWidth: profileActionSectionMaxWidth,
+        ),
         child: Align(
           child: ProfileActions(actions: actions),
         ),

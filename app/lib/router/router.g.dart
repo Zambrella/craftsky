@@ -7,100 +7,131 @@ part of 'router.dart';
 // **************************************************************************
 
 List<RouteBase> get $appRoutes => [
-  $appShellRoute,
+  $authenticatedShellRoute,
   $welcomeRoute,
   $signInRoute,
   $addAccountRoute,
   $authCompleteRoute,
   $onboardingRoute,
-  $postThreadRoute,
-  $userProfileRoute,
 ];
 
-RouteBase get $appShellRoute => StatefulShellRouteData.$route(
-  factory: $AppShellRouteExtension._fromState,
-  branches: [
-    StatefulShellBranchData.$branch(
-      navigatorKey: FeedBranch.$navigatorKey,
-      routes: [
-        GoRouteData.$route(
-          path: '/feed',
-          name: 'feed',
-          factory: $FeedRoute._fromState,
-        ),
-      ],
-    ),
-    StatefulShellBranchData.$branch(
-      navigatorKey: ProjectsBranch.$navigatorKey,
-      routes: [
-        GoRouteData.$route(
-          path: '/projects',
-          name: 'projects',
-          factory: $ProjectsRoute._fromState,
-        ),
-      ],
-    ),
-    StatefulShellBranchData.$branch(
-      navigatorKey: SearchBranch.$navigatorKey,
-      routes: [
-        GoRouteData.$route(
-          path: '/search',
-          name: 'search',
-          factory: $SearchRoute._fromState,
+RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
+  navigatorKey: AuthenticatedShellRoute.$navigatorKey,
+  factory: $AuthenticatedShellRouteExtension._fromState,
+  routes: [
+    StatefulShellRouteData.$route(
+      factory: $AppShellRouteExtension._fromState,
+      branches: [
+        StatefulShellBranchData.$branch(
+          navigatorKey: FeedBranch.$navigatorKey,
           routes: [
             GoRouteData.$route(
-              path: 'tags',
-              name: 'search-tag',
-              factory: $TagSearchRoute._fromState,
+              path: '/feed',
+              name: 'feed',
+              factory: $FeedRoute._fromState,
             ),
           ],
         ),
-      ],
-    ),
-    StatefulShellBranchData.$branch(
-      navigatorKey: NotificationsBranch.$navigatorKey,
-      routes: [
-        GoRouteData.$route(
-          path: '/notifications',
-          name: 'notifications',
-          factory: $NotificationsRoute._fromState,
+        StatefulShellBranchData.$branch(
+          navigatorKey: ProjectsBranch.$navigatorKey,
           routes: [
             GoRouteData.$route(
-              path: 'settings',
-              name: 'notification-settings',
-              parentNavigatorKey: NotificationSettingsRoute.$parentNavigatorKey,
-              factory: $NotificationSettingsRoute._fromState,
+              path: '/projects',
+              name: 'projects',
+              factory: $ProjectsRoute._fromState,
             ),
           ],
         ),
-      ],
-    ),
-    StatefulShellBranchData.$branch(
-      navigatorKey: ProfileBranch.$navigatorKey,
-      routes: [
-        GoRouteData.$route(
-          path: '/profile',
-          name: 'profile',
-          factory: $ProfileRoute._fromState,
+        StatefulShellBranchData.$branch(
+          navigatorKey: SearchBranch.$navigatorKey,
           routes: [
             GoRouteData.$route(
-              path: 'settings',
-              name: 'settings',
-              parentNavigatorKey: SettingsRoute.$parentNavigatorKey,
-              factory: $SettingsRoute._fromState,
+              path: '/search',
+              name: 'search',
+              factory: $SearchRoute._fromState,
               routes: [
                 GoRouteData.$route(
-                  path: 'languages',
-                  name: 'languages',
-                  parentNavigatorKey: LanguagesRoute.$parentNavigatorKey,
-                  factory: $LanguagesRoute._fromState,
+                  path: 'tags',
+                  name: 'search-tag',
+                  factory: $TagSearchRoute._fromState,
                 ),
+              ],
+            ),
+          ],
+        ),
+        StatefulShellBranchData.$branch(
+          navigatorKey: NotificationsBranch.$navigatorKey,
+          routes: [
+            GoRouteData.$route(
+              path: '/notifications',
+              name: 'notifications',
+              factory: $NotificationsRoute._fromState,
+              routes: [
                 GoRouteData.$route(
-                  path: 'instagram',
-                  name: 'instagram-migration',
+                  path: 'settings',
+                  name: 'notification-settings',
                   parentNavigatorKey:
-                      InstagramMigrationRoute.$parentNavigatorKey,
-                  factory: $InstagramMigrationRoute._fromState,
+                      NotificationSettingsRoute.$parentNavigatorKey,
+                  factory: $NotificationSettingsRoute._fromState,
+                ),
+              ],
+            ),
+          ],
+        ),
+        StatefulShellBranchData.$branch(
+          navigatorKey: ProfileBranch.$navigatorKey,
+          routes: [
+            GoRouteData.$route(
+              path: '/profile',
+              name: 'profile',
+              factory: $ProfileRoute._fromState,
+              routes: [
+                GoRouteData.$route(
+                  path: 'settings',
+                  name: 'settings',
+                  parentNavigatorKey: SettingsRoute.$parentNavigatorKey,
+                  factory: $SettingsRoute._fromState,
+                  routes: [
+                    GoRouteData.$route(
+                      path: 'languages',
+                      name: 'languages',
+                      parentNavigatorKey: LanguagesRoute.$parentNavigatorKey,
+                      factory: $LanguagesRoute._fromState,
+                    ),
+                    GoRouteData.$route(
+                      path: 'instagram',
+                      name: 'instagram-migration',
+                      parentNavigatorKey:
+                          InstagramMigrationRoute.$parentNavigatorKey,
+                      factory: $InstagramMigrationRoute._fromState,
+                    ),
+                    GoRouteData.$route(
+                      path: 'followers',
+                      name: 'settings-followers',
+                      parentNavigatorKey: FollowersRoute.$parentNavigatorKey,
+                      factory: $FollowersRoute._fromState,
+                    ),
+                    GoRouteData.$route(
+                      path: 'following',
+                      name: 'settings-following',
+                      parentNavigatorKey: FollowingRoute.$parentNavigatorKey,
+                      factory: $FollowingRoute._fromState,
+                    ),
+                    GoRouteData.$route(
+                      path: 'muted',
+                      name: 'settings-muted-accounts',
+                      parentNavigatorKey:
+                          MutedAccountsRoute.$parentNavigatorKey,
+                      factory: $MutedAccountsRoute._fromState,
+                    ),
+                    GoRouteData.$route(
+                      path: 'blocked',
+                      name: 'settings-blocked-accounts',
+                      parentNavigatorKey:
+                          BlockedAccountsRoute.$parentNavigatorKey,
+                      factory: $BlockedAccountsRoute._fromState,
+                    ),
+                  ],
                 ),
                 GoRouteData.$route(
                   path: 'scheduled',
@@ -130,43 +161,34 @@ RouteBase get $appShellRoute => StatefulShellRouteData.$route(
                   ],
                 ),
                 GoRouteData.$route(
-                  path: 'followers',
-                  name: 'settings-followers',
-                  parentNavigatorKey: FollowersRoute.$parentNavigatorKey,
-                  factory: $FollowersRoute._fromState,
-                ),
-                GoRouteData.$route(
-                  path: 'following',
-                  name: 'settings-following',
-                  parentNavigatorKey: FollowingRoute.$parentNavigatorKey,
-                  factory: $FollowingRoute._fromState,
-                ),
-                GoRouteData.$route(
-                  path: 'muted',
-                  name: 'settings-muted-accounts',
-                  parentNavigatorKey: MutedAccountsRoute.$parentNavigatorKey,
-                  factory: $MutedAccountsRoute._fromState,
-                ),
-                GoRouteData.$route(
-                  path: 'blocked',
-                  name: 'settings-blocked-accounts',
-                  parentNavigatorKey: BlockedAccountsRoute.$parentNavigatorKey,
-                  factory: $BlockedAccountsRoute._fromState,
+                  path: 'playground',
+                  name: 'playground',
+                  parentNavigatorKey: PlaygroundRoute.$parentNavigatorKey,
+                  factory: $PlaygroundRoute._fromState,
                 ),
               ],
-            ),
-            GoRouteData.$route(
-              path: 'playground',
-              name: 'playground',
-              parentNavigatorKey: PlaygroundRoute.$parentNavigatorKey,
-              factory: $PlaygroundRoute._fromState,
             ),
           ],
         ),
       ],
     ),
+    GoRouteData.$route(
+      path: '/posts/:did/:rkey',
+      name: 'post-thread',
+      factory: $PostThreadRoute._fromState,
+    ),
+    GoRouteData.$route(
+      path: '/profile/:handle',
+      name: 'user-profile',
+      factory: $UserProfileRoute._fromState,
+    ),
   ],
 );
+
+extension $AuthenticatedShellRouteExtension on AuthenticatedShellRoute {
+  static AuthenticatedShellRoute _fromState(GoRouterState state) =>
+      const AuthenticatedShellRoute();
+}
 
 extension $AppShellRouteExtension on AppShellRoute {
   static AppShellRoute _fromState(GoRouterState state) => const AppShellRoute();
@@ -402,94 +424,6 @@ mixin $InstagramMigrationRoute on GoRouteData {
   void replace(BuildContext context) => context.replace(location);
 }
 
-mixin $ScheduledPostsRoute on GoRouteData {
-  static ScheduledPostsRoute _fromState(GoRouterState state) =>
-      const ScheduledPostsRoute();
-
-  @override
-  String get location => GoRouteData.$location('/profile/settings/scheduled');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-mixin $DraftsRoute on GoRouteData {
-  static DraftsRoute _fromState(GoRouterState state) => const DraftsRoute();
-
-  @override
-  String get location => GoRouteData.$location('/profile/settings/drafts');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-mixin $SavedPostsRoute on GoRouteData {
-  static SavedPostsRoute _fromState(GoRouterState state) =>
-      const SavedPostsRoute();
-
-  @override
-  String get location => GoRouteData.$location('/profile/settings/saved');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-mixin $SavedPostFolderRoute on GoRouteData {
-  static SavedPostFolderRoute _fromState(GoRouterState state) =>
-      SavedPostFolderRoute($extra: state.extra as SavedPostFolderRouteData?);
-
-  SavedPostFolderRoute get _self => this as SavedPostFolderRoute;
-
-  @override
-  String get location =>
-      GoRouteData.$location('/profile/settings/saved/folder');
-
-  @override
-  void go(BuildContext context) => context.go(location, extra: _self.$extra);
-
-  @override
-  Future<T?> push<T>(BuildContext context) =>
-      context.push<T>(location, extra: _self.$extra);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location, extra: _self.$extra);
-
-  @override
-  void replace(BuildContext context) =>
-      context.replace(location, extra: _self.$extra);
-}
-
 mixin $FollowersRoute on GoRouteData {
   static FollowersRoute _fromState(GoRouterState state) =>
       const FollowersRoute();
@@ -574,6 +508,93 @@ mixin $BlockedAccountsRoute on GoRouteData {
   void replace(BuildContext context) => context.replace(location);
 }
 
+mixin $ScheduledPostsRoute on GoRouteData {
+  static ScheduledPostsRoute _fromState(GoRouterState state) =>
+      const ScheduledPostsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/profile/scheduled');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $DraftsRoute on GoRouteData {
+  static DraftsRoute _fromState(GoRouterState state) => const DraftsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/profile/drafts');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $SavedPostsRoute on GoRouteData {
+  static SavedPostsRoute _fromState(GoRouterState state) =>
+      const SavedPostsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/profile/saved');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $SavedPostFolderRoute on GoRouteData {
+  static SavedPostFolderRoute _fromState(GoRouterState state) =>
+      SavedPostFolderRoute($extra: state.extra as SavedPostFolderRouteData?);
+
+  SavedPostFolderRoute get _self => this as SavedPostFolderRoute;
+
+  @override
+  String get location => GoRouteData.$location('/profile/saved/folder');
+
+  @override
+  void go(BuildContext context) => context.go(location, extra: _self.$extra);
+
+  @override
+  Future<T?> push<T>(BuildContext context) =>
+      context.push<T>(location, extra: _self.$extra);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location, extra: _self.$extra);
+
+  @override
+  void replace(BuildContext context) =>
+      context.replace(location, extra: _self.$extra);
+}
+
 mixin $PlaygroundRoute on GoRouteData {
   static PlaygroundRoute _fromState(GoRouterState state) =>
       const PlaygroundRoute();
@@ -593,6 +614,66 @@ mixin $PlaygroundRoute on GoRouteData {
 
   @override
   void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $PostThreadRoute on GoRouteData {
+  static PostThreadRoute _fromState(GoRouterState state) => PostThreadRoute(
+    did: state.pathParameters['did']!,
+    rkey: state.pathParameters['rkey']!,
+    focus: state.uri.queryParameters['focus'],
+    $extra: state.extra as Post?,
+  );
+
+  PostThreadRoute get _self => this as PostThreadRoute;
+
+  @override
+  String get location => GoRouteData.$location(
+    '/posts/${Uri.encodeComponent(_self.did)}/${Uri.encodeComponent(_self.rkey)}',
+    queryParams: {if (_self.focus != null) 'focus': _self.focus},
+  );
+
+  @override
+  void go(BuildContext context) => context.go(location, extra: _self.$extra);
+
+  @override
+  Future<T?> push<T>(BuildContext context) =>
+      context.push<T>(location, extra: _self.$extra);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location, extra: _self.$extra);
+
+  @override
+  void replace(BuildContext context) =>
+      context.replace(location, extra: _self.$extra);
+}
+
+mixin $UserProfileRoute on GoRouteData {
+  static UserProfileRoute _fromState(GoRouterState state) => UserProfileRoute(
+    handle: state.pathParameters['handle']!,
+    $extra: state.extra as ProfilePresentationRequest?,
+  );
+
+  UserProfileRoute get _self => this as UserProfileRoute;
+
+  @override
+  String get location =>
+      GoRouteData.$location('/profile/${Uri.encodeComponent(_self.handle)}');
+
+  @override
+  void go(BuildContext context) => context.go(location, extra: _self.$extra);
+
+  @override
+  Future<T?> push<T>(BuildContext context) =>
+      context.push<T>(location, extra: _self.$extra);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location, extra: _self.$extra);
+
+  @override
+  void replace(BuildContext context) =>
+      context.replace(location, extra: _self.$extra);
 }
 
 T? _$convertMapValue<T>(
@@ -737,76 +818,6 @@ mixin $OnboardingRoute on GoRouteData {
 
   @override
   String get location => GoRouteData.$location('/onboarding');
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-RouteBase get $postThreadRoute => GoRouteData.$route(
-  path: '/posts/:did/:rkey',
-  name: 'post-thread',
-  parentNavigatorKey: PostThreadRoute.$parentNavigatorKey,
-  factory: $PostThreadRoute._fromState,
-);
-
-mixin $PostThreadRoute on GoRouteData {
-  static PostThreadRoute _fromState(GoRouterState state) => PostThreadRoute(
-    did: state.pathParameters['did']!,
-    rkey: state.pathParameters['rkey']!,
-    focus: state.uri.queryParameters['focus'],
-    $extra: state.extra as Post?,
-  );
-
-  PostThreadRoute get _self => this as PostThreadRoute;
-
-  @override
-  String get location => GoRouteData.$location(
-    '/posts/${Uri.encodeComponent(_self.did)}/${Uri.encodeComponent(_self.rkey)}',
-    queryParams: {if (_self.focus != null) 'focus': _self.focus},
-  );
-
-  @override
-  void go(BuildContext context) => context.go(location, extra: _self.$extra);
-
-  @override
-  Future<T?> push<T>(BuildContext context) =>
-      context.push<T>(location, extra: _self.$extra);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location, extra: _self.$extra);
-
-  @override
-  void replace(BuildContext context) =>
-      context.replace(location, extra: _self.$extra);
-}
-
-RouteBase get $userProfileRoute => GoRouteData.$route(
-  path: '/profile/:handle',
-  name: 'user-profile',
-  parentNavigatorKey: UserProfileRoute.$parentNavigatorKey,
-  factory: $UserProfileRoute._fromState,
-);
-
-mixin $UserProfileRoute on GoRouteData {
-  static UserProfileRoute _fromState(GoRouterState state) =>
-      UserProfileRoute(handle: state.pathParameters['handle']!);
-
-  UserProfileRoute get _self => this as UserProfileRoute;
-
-  @override
-  String get location =>
-      GoRouteData.$location('/profile/${Uri.encodeComponent(_self.handle)}');
 
   @override
   void go(BuildContext context) => context.go(location);

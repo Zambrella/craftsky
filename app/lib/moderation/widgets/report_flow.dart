@@ -6,6 +6,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/widgets/report_subject_sheet.dart';
 import 'package:craftsky_app/profile/providers/report_profile_provider.dart';
+import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,7 +18,7 @@ Future<void> showPostReportSheet(
 ) {
   final successMessage = AppLocalizations.of(context).reportSubmitSuccess;
   ref.read(reportPostProvider.notifier).reset();
-  return Navigator.of(context, rootNavigator: true).push<void>(
+  return responsiveModalNavigator(context).push<void>(
     MaterialPageRoute<void>(
       fullscreenDialog: true,
       builder: (routeContext) => _PostReportRouteBody(
@@ -36,7 +37,7 @@ Future<void> showProfileReportSheet(
 ) {
   final successMessage = AppLocalizations.of(context).reportSubmitSuccess;
   ref.read(reportProfileProvider.notifier).reset();
-  return Navigator.of(context, rootNavigator: true).push<void>(
+  return responsiveModalNavigator(context).push<void>(
     MaterialPageRoute<void>(
       fullscreenDialog: true,
       builder: (routeContext) => _ProfileReportRouteBody(
@@ -156,7 +157,7 @@ void _handleAcceptedReport({
 
 void _dismissReportRoute(BuildContext routeContext) {
   try {
-    Navigator.of(routeContext, rootNavigator: true).pop();
+    Navigator.of(routeContext).pop();
   } on Object {
     // The report has already been accepted. Do not turn a best-effort UI
     // dismissal problem into a false submission failure in the route.

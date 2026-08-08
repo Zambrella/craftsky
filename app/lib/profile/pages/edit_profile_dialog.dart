@@ -15,6 +15,7 @@ import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_banner_avatar.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_crafts_picker.dart';
 import 'package:craftsky_app/profile/widgets/profile_page_error.dart';
+import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
@@ -58,7 +59,7 @@ const _bioMaxLength = 256;
 /// so the close button and system-back with unsaved changes prompt a
 /// confirm dialog before the pop completes.
 Future<void> showEditProfileDialog(BuildContext context) {
-  return Navigator.of(context, rootNavigator: true).push<void>(
+  return responsiveModalNavigator(context).push<void>(
     MaterialPageRoute<void>(
       fullscreenDialog: true,
       builder: (_) => const EditProfileDialog(),
