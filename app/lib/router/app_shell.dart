@@ -17,6 +17,7 @@ import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -87,6 +88,7 @@ const List<_DestinationSpec> _menuDestinations = [
 
 const _compactDrawerEdgeDragWidth = 96.0;
 const _largeScreenContentMaxWidth = 800.0;
+const _desktopSidebarSize = 300.0;
 const _utilityLinkHeight = 40.0;
 const _profileRailLabelWidth = 168.0;
 
@@ -203,6 +205,7 @@ class _LargeShellNavigationFrameState extends ConsumerState<_LargeShellNavigatio
 
   @override
   Widget build(BuildContext context) {
+    final formFactor = FormFactorWidget.of(context);
     final registry = ref.watch(sessionRegistryProvider).value;
     final activeAccount = registry?.activeLease?.session.account;
     final switcherState = registry == null ? null : AccountSwitcherState.fromRegistry(registry);
@@ -233,15 +236,32 @@ class _LargeShellNavigationFrameState extends ConsumerState<_LargeShellNavigatio
           Expanded(
             child: Directionality(
               textDirection: textDirection,
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: ConstrainedBox(
-                  key: const Key('large-shell-content'),
-                  constraints: const BoxConstraints(
-                    maxWidth: _largeScreenContentMaxWidth,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        key: const Key('large-shell-content'),
+                        constraints: const BoxConstraints(
+                          maxWidth: _largeScreenContentMaxWidth,
+                        ),
+                        child: SizedBox.expand(child: widget.child),
+                      ),
+                    ),
                   ),
-                  child: SizedBox.expand(child: widget.child),
-                ),
+                  if (formFactor == FormFactor.desktop) ...[
+                    SizedBox(
+                      key: const Key('desktop-sidebar-divider'),
+                      width: 1.5,
+                      child: ColoredBox(
+                        color: Theme.of(context).colorScheme.onSurface,
+                      ),
+                    ),
+                    const _DesktopSidebarPlaceholder(),
+                  ],
+                ],
               ),
             ),
           ),
@@ -321,6 +341,29 @@ class _LargeShellNavigationFrameState extends ConsumerState<_LargeShellNavigatio
         ) +
         dividerHeight +
         (state.canAddAccount ? singleLineTileHeight : twoLineTileHeight);
+  }
+}
+
+class _DesktopSidebarPlaceholder extends StatelessWidget {
+  const _DesktopSidebarPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    final spacing = Theme.of(context).extension<SpacingTheme>()!;
+    return SizedBox(
+      width: _desktopSidebarSize + (spacing.sp5 * 2),
+      child: Align(
+        alignment: AlignmentDirectional.topCenter,
+        child: Padding(
+          padding: EdgeInsets.only(top: spacing.sp5),
+          child: const SizedBox.square(
+            key: Key('desktop-sidebar-placeholder'),
+            dimension: _desktopSidebarSize,
+            child: CraftskyCard(child: SizedBox.expand()),
+          ),
+        ),
+      ),
+    );
   }
 }
 

@@ -377,7 +377,7 @@ void main() {
         tester
             .getRect(find.byKey(const Key('large-shell-content')))
             .width,
-        1200,
+        800,
       );
     });
 

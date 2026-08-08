@@ -8,6 +8,7 @@ import 'package:craftsky_app/router/app_shell.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter/material.dart';
@@ -604,20 +605,51 @@ void main() {
   ) async {
     final router = await _pumpShell(tester, const Size(1600, 800));
     final content = find.byKey(const Key('large-shell-content'));
-    final railRect = tester.getRect(find.byType(NavigationRail));
 
     expect(content, findsOneWidget);
-    expect(tester.getRect(content).width, 1200);
-    expect(
-      tester.getCenter(content).dx,
-      closeTo((railRect.right + 1600) / 2, 1),
-    );
+    expect(tester.getRect(content).width, 800);
 
     await tester.tap(find.text('Settings'));
     await tester.pumpAndSettle();
 
     expect(router.state.matchedLocation, '/profile/settings');
-    expect(tester.getRect(content).width, 1200);
+    expect(tester.getRect(content).width, 800);
+  });
+
+  testWidgets('UIP-022 desktop adds a fixed themed right-hand section', (
+    tester,
+  ) async {
+    await _pumpShell(tester, const Size(1600, 800));
+
+    final content = find.byKey(const Key('large-shell-content'));
+    final divider = find.byKey(const Key('desktop-sidebar-divider'));
+    final section = find.byKey(const Key('desktop-sidebar-placeholder'));
+
+    expect(divider, findsOneWidget);
+    expect(section, findsOneWidget);
+    expect(tester.getSize(section), const Size.square(300));
+    expect(
+      tester.getRect(section).left,
+      greaterThan(tester.getRect(content).right),
+    );
+    expect(tester.getSize(divider), const Size(1.5, 800));
+    expect(
+      tester.getRect(divider).left,
+      greaterThanOrEqualTo(tester.getRect(content).right),
+    );
+    expect(
+      tester.getRect(divider).right,
+      lessThan(tester.getRect(section).left),
+    );
+    expect(
+      find.descendant(of: section, matching: find.byType(CraftskyCard)),
+      findsOneWidget,
+    );
+
+    await _pumpShell(tester, const Size(1200, 800));
+
+    expect(divider, findsNothing);
+    expect(section, findsNothing);
   });
 
   testWidgets('CORR-006 resizing an open drawer leaves one clean rail', (
