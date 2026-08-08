@@ -106,6 +106,66 @@ void main() {
     );
   });
 
+  testWidgets('Back from Settings reselects Profile in the compact drawer', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(500, 800);
+
+    final container = _container();
+    addTearDown(container.dispose);
+    final routerSubscription = container.listen(
+      goRouterProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(routerSubscription.close);
+    final router = routerSubscription.read()..go(const ProfileRoute().location);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(
+          routerConfig: router,
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) => MessengerScope(
+            messenger: RecordingMessenger(),
+            child: FormFactorWidget(child: child!),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Settings').hitTestable().first);
+    await tester.pumpAndSettle();
+    expect(find.byType(SettingsPage), findsOneWidget);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+    expect(router.state.matchedLocation, const ProfileRoute().location);
+
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+
+    final drawer = find.byType(Drawer);
+    final profileTile = find.ancestor(
+      of: find.descendant(of: drawer, matching: find.text('Profile')),
+      matching: find.byType(ListTile),
+    );
+    final settingsTile = find.ancestor(
+      of: find.descendant(of: drawer, matching: find.text('Settings')),
+      matching: find.byType(ListTile),
+    );
+
+    expect(tester.widget<ListTile>(profileTile).selected, isTrue);
+    expect(tester.widget<ListTile>(settingsTile).selected, isFalse);
+  });
+
   for (final routeCase in _routeCases) {
     testWidgets(
       'Settings opens ${routeCase.label} through the production router',

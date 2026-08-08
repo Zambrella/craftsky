@@ -448,6 +448,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       GoRouterState.of(context).matchedLocation,
       widget.navigationShell.currentIndex,
     );
+    final router = GoRouter.of(context);
 
     if (formFactor.isLarge) {
       if (_AuthenticatedShellNavigationScope.ownsLargeRail(context)) {
@@ -482,18 +483,24 @@ class _AppShellState extends ConsumerState<AppShell> {
           }
         }
       },
-      drawer: _ShellDrawer(
-        selectedIndex: selectedDestinationIndex,
-        onDestinationSelected: _goDestination,
-        notificationBadge: notificationBadge,
-        buildVersionLabel: buildVersionLabel,
-        profileFocusNode: _drawerProfileSwitcherFocusNode,
-        onOpenAccountSwitcher: switcherState == null ? null : () => _showCompactSwitcher(switcherState),
-        onOpenTerms: () => _openExternalLink(
-          Uri.parse('https://craftsky.social/terms'),
-        ),
-        onOpenPrivacy: () => _openExternalLink(
-          Uri.parse('https://craftsky.social/privacy'),
+      drawer: ListenableBuilder(
+        listenable: router.routerDelegate,
+        builder: (context, _) => _ShellDrawer(
+          selectedIndex: _selectedDestinationIndex(
+            router.state.matchedLocation,
+            widget.navigationShell.currentIndex,
+          ),
+          onDestinationSelected: _goDestination,
+          notificationBadge: notificationBadge,
+          buildVersionLabel: buildVersionLabel,
+          profileFocusNode: _drawerProfileSwitcherFocusNode,
+          onOpenAccountSwitcher: switcherState == null ? null : () => _showCompactSwitcher(switcherState),
+          onOpenTerms: () => _openExternalLink(
+            Uri.parse('https://craftsky.social/terms'),
+          ),
+          onOpenPrivacy: () => _openExternalLink(
+            Uri.parse('https://craftsky.social/privacy'),
+          ),
         ),
       ),
       bottomNavigationBar: _ShellNavigationBar(
