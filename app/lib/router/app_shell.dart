@@ -86,7 +86,7 @@ const List<_DestinationSpec> _menuDestinations = [
 ];
 
 const _compactDrawerEdgeDragWidth = 96.0;
-const _largeScreenContentMaxWidth = 1200.0;
+const _largeScreenContentMaxWidth = 800.0;
 const _utilityLinkHeight = 40.0;
 const _profileRailLabelWidth = 168.0;
 
@@ -151,15 +151,10 @@ class _AuthenticatedShellNavigationScope extends InheritedWidget {
   const _AuthenticatedShellNavigationScope({required super.child});
 
   static bool ownsLargeRail(BuildContext context) =>
-      context
-          .dependOnInheritedWidgetOfExactType<
-            _AuthenticatedShellNavigationScope
-          >() !=
-      null;
+      context.dependOnInheritedWidgetOfExactType<_AuthenticatedShellNavigationScope>() != null;
 
   @override
-  bool updateShouldNotify(_AuthenticatedShellNavigationScope oldWidget) =>
-      false;
+  bool updateShouldNotify(_AuthenticatedShellNavigationScope oldWidget) => false;
 }
 
 class _LargeShellNavigationFrame extends ConsumerStatefulWidget {
@@ -178,12 +173,10 @@ class _LargeShellNavigationFrame extends ConsumerStatefulWidget {
   final String? buildVersionLabel;
 
   @override
-  ConsumerState<_LargeShellNavigationFrame> createState() =>
-      _LargeShellNavigationFrameState();
+  ConsumerState<_LargeShellNavigationFrame> createState() => _LargeShellNavigationFrameState();
 }
 
-class _LargeShellNavigationFrameState
-    extends ConsumerState<_LargeShellNavigationFrame> {
+class _LargeShellNavigationFrameState extends ConsumerState<_LargeShellNavigationFrame> {
   late final AccountActivationCoordinator _activation;
   final GlobalKey _profileAnchorKey = GlobalKey();
   final FocusNode _profileSwitcherFocusNode = FocusNode(
@@ -212,11 +205,8 @@ class _LargeShellNavigationFrameState
   Widget build(BuildContext context) {
     final registry = ref.watch(sessionRegistryProvider).value;
     final activeAccount = registry?.activeLease?.session.account;
-    final switcherState = registry == null
-        ? null
-        : AccountSwitcherState.fromRegistry(registry);
-    final packageInfo =
-        widget.buildVersionLabel == null && ref.exists(appDependenciesProvider)
+    final switcherState = registry == null ? null : AccountSwitcherState.fromRegistry(registry);
+    final packageInfo = widget.buildVersionLabel == null && ref.exists(appDependenciesProvider)
         ? ref.watch(packageInfoProvider)
         : null;
     final buildVersionLabel =
@@ -230,10 +220,7 @@ class _LargeShellNavigationFrameState
     final notificationBadge = NotificationBadge.fromCount(
       activeAccount == null
           ? ref.watch(notificationNewCountProvider).value ?? 0
-          : ref
-                    .watch(accountNotificationNewCountProvider(activeAccount))
-                    .value ??
-                0,
+          : ref.watch(accountNotificationNewCountProvider(activeAccount)).value ?? 0,
     );
     final textDirection = Directionality.of(context);
     return Scaffold(
@@ -267,9 +254,7 @@ class _LargeShellNavigationFrameState
               buildVersionLabel: buildVersionLabel,
               profileAnchorKey: _profileAnchorKey,
               profileFocusNode: _profileSwitcherFocusNode,
-              onOpenAccountSwitcher: switcherState == null
-                  ? null
-                  : () => _showLargeSwitcher(switcherState),
+              onOpenAccountSwitcher: switcherState == null ? null : () => _showLargeSwitcher(switcherState),
               onOpenTerms: () => _openExternalLink(
                 Uri.parse('https://craftsky.social/terms'),
               ),
@@ -295,10 +280,8 @@ class _LargeShellNavigationFrameState
   }
 
   Future<void> _showLargeSwitcher(AccountSwitcherState state) async {
-    final box =
-        _profileAnchorKey.currentContext?.findRenderObject() as RenderBox?;
-    final overlay =
-        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    final box = _profileAnchorKey.currentContext?.findRenderObject() as RenderBox?;
+    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
     if (box == null || overlay == null) return;
     final origin = box.localToGlobal(Offset.zero, ancestor: overlay);
     final position = RelativeRect.fromLTRB(
@@ -334,11 +317,7 @@ class _LargeShellNavigationFrameState
     return verticalPadding +
         state.rows.fold<double>(
           0,
-          (height, row) =>
-              height +
-              (row.displayLabel == row.handle
-                  ? singleLineTileHeight
-                  : twoLineTileHeight),
+          (height, row) => height + (row.displayLabel == row.handle ? singleLineTileHeight : twoLineTileHeight),
         ) +
         dividerHeight +
         (state.canAddAccount ? singleLineTileHeight : twoLineTileHeight);
@@ -402,11 +381,8 @@ class _AppShellState extends ConsumerState<AppShell> {
     final activeIdentity = ref.watch(activeAccountIdentityProvider).value;
     final activeLease = registry?.activeLease?.session;
     final activeAccount = activeLease?.account;
-    final switcherState = registry == null
-        ? null
-        : AccountSwitcherState.fromRegistry(registry);
-    final packageInfo =
-        widget.buildVersionLabel == null && ref.exists(appDependenciesProvider)
+    final switcherState = registry == null ? null : AccountSwitcherState.fromRegistry(registry);
+    final packageInfo = widget.buildVersionLabel == null && ref.exists(appDependenciesProvider)
         ? ref.watch(packageInfoProvider)
         : null;
     final buildVersionLabel =
@@ -418,19 +394,12 @@ class _AppShellState extends ConsumerState<AppShell> {
                 packageInfo.buildNumber,
               ));
     final activeAvatarUrl =
-        (activeIdentity?.lease == activeLease
-            ? activeIdentity?.profile.avatar
-            : null) ??
-        (activeAccount == null
-            ? null
-            : registry?.sessions[activeAccount.did]?.cachedAvatarUrl);
+        (activeIdentity?.lease == activeLease ? activeIdentity?.profile.avatar : null) ??
+        (activeAccount == null ? null : registry?.sessions[activeAccount.did]?.cachedAvatarUrl);
     final notificationBadge = NotificationBadge.fromCount(
       activeAccount == null
           ? ref.watch(notificationNewCountProvider).value ?? 0
-          : ref
-                    .watch(accountNotificationNewCountProvider(activeAccount))
-                    .value ??
-                0,
+          : ref.watch(accountNotificationNewCountProvider(activeAccount)).value ?? 0,
     );
     final selectedDestinationIndex = _selectedDestinationIndex(
       GoRouterState.of(context).matchedLocation,
@@ -476,9 +445,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         notificationBadge: notificationBadge,
         buildVersionLabel: buildVersionLabel,
         profileFocusNode: _drawerProfileSwitcherFocusNode,
-        onOpenAccountSwitcher: switcherState == null
-            ? null
-            : () => _showCompactSwitcher(switcherState),
+        onOpenAccountSwitcher: switcherState == null ? null : () => _showCompactSwitcher(switcherState),
         onOpenTerms: () => _openExternalLink(
           Uri.parse('https://craftsky.social/terms'),
         ),
@@ -492,9 +459,7 @@ class _AppShellState extends ConsumerState<AppShell> {
         notificationBadge: notificationBadge,
         profileAvatarUrl: activeAvatarUrl,
         profileFocusNode: _profileSwitcherFocusNode,
-        onOpenAccountSwitcher: switcherState == null
-            ? null
-            : () => _showCompactSwitcher(switcherState),
+        onOpenAccountSwitcher: switcherState == null ? null : () => _showCompactSwitcher(switcherState),
       ),
     );
   }
@@ -532,19 +497,18 @@ class _AppShellState extends ConsumerState<AppShell> {
     context.showError(AppLocalizations.of(context).navigationLinkOpenError);
   }
 
-  Future<void> _showCompactSwitcher(AccountSwitcherState state) =>
-      showModalBottomSheet<void>(
-        context: context,
-        showDragHandle: true,
-        builder: (sheetContext) => _LiveAccountSwitcherContent(
-          fallbackState: state,
-          onSelect: _activation.activate,
-          onAddAccount: () {
-            Navigator.pop(sheetContext);
-            unawaited(context.push(RouteLocations.addAccount));
-          },
-        ),
-      );
+  Future<void> _showCompactSwitcher(AccountSwitcherState state) => showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    builder: (sheetContext) => _LiveAccountSwitcherContent(
+      fallbackState: state,
+      onSelect: _activation.activate,
+      onAddAccount: () {
+        Navigator.pop(sheetContext);
+        unawaited(context.push(RouteLocations.addAccount));
+      },
+    ),
+  );
 }
 
 class _ShellDrawer extends StatefulWidget {
@@ -601,28 +565,21 @@ class _ShellDrawerState extends State<_ShellDrawer> {
               child: ListView(
                 padding: const EdgeInsets.symmetric(vertical: 8),
                 children: [
-                  for (final (index, destination)
-                      in _primaryDestinations.indexed)
+                  for (final (index, destination) in _primaryDestinations.indexed)
                     ListTile(
                       selected: selectedIndex == index,
                       leading: index == 4
                           ? _DestinationIcon(
-                              icon: selectedIndex == index
-                                  ? destination.selectedIcon
-                                  : destination.icon,
+                              icon: selectedIndex == index ? destination.selectedIcon : destination.icon,
                               profileIconOnly: true,
-                              onTapDestination: () =>
-                                  _selectAndClose(context, index),
-                              onOpenAccountSwitcher:
-                                  onOpenAccountSwitcher == null
+                              onTapDestination: () => _selectAndClose(context, index),
+                              onOpenAccountSwitcher: onOpenAccountSwitcher == null
                                   ? null
                                   : () => _openAccountSwitcher(context),
                             )
                           : ExcludeSemantics(
                               child: _DestinationIcon(
-                                icon: selectedIndex == index
-                                    ? destination.selectedIcon
-                                    : destination.icon,
+                                icon: selectedIndex == index ? destination.selectedIcon : destination.icon,
                                 badge: index == 3 ? notificationBadge : null,
                               ),
                             ),
@@ -643,11 +600,9 @@ class _ShellDrawerState extends State<_ShellDrawer> {
                           : null,
                       onTap: () => _selectAndClose(context, index),
                     ),
-                  for (final (offset, destination)
-                      in _secondaryDestinations.indexed)
+                  for (final (offset, destination) in _secondaryDestinations.indexed)
                     ListTile(
-                      selected:
-                          selectedIndex == _primaryDestinations.length + offset,
+                      selected: selectedIndex == _primaryDestinations.length + offset,
                       leading: Icon(
                         selectedIndex == _primaryDestinations.length + offset
                             ? destination.selectedIcon
@@ -742,20 +697,16 @@ class _LiveAccountSwitcherContent extends ConsumerStatefulWidget {
   final VoidCallback onAddAccount;
 
   @override
-  ConsumerState<_LiveAccountSwitcherContent> createState() =>
-      _LiveAccountSwitcherContentState();
+  ConsumerState<_LiveAccountSwitcherContent> createState() => _LiveAccountSwitcherContentState();
 }
 
-class _LiveAccountSwitcherContentState
-    extends ConsumerState<_LiveAccountSwitcherContent> {
+class _LiveAccountSwitcherContentState extends ConsumerState<_LiveAccountSwitcherContent> {
   AccountSessionLease? _activating;
 
   @override
   Widget build(BuildContext context) {
     final registry = ref.watch(sessionRegistryProvider).value;
-    final state = registry == null
-        ? widget.fallbackState
-        : AccountSwitcherState.fromRegistry(registry);
+    final state = registry == null ? widget.fallbackState : AccountSwitcherState.fromRegistry(registry);
     return AccountSwitcherContent(
       state: state,
       activating: _activating,
@@ -770,8 +721,7 @@ class _LiveAccountSwitcherContentState
     try {
       final result = await widget.onSelect(lease);
       if (!mounted) return;
-      if (result == AccountActivationResult.activated ||
-          result == AccountActivationResult.alreadyActive) {
+      if (result == AccountActivationResult.activated || result == AccountActivationResult.alreadyActive) {
         await Navigator.maybePop(context);
       }
     } finally {
@@ -818,26 +768,18 @@ class _ShellNavigationBar extends StatelessWidget {
                   icon: d.icon,
                   badge: index == 3 ? notificationBadge : null,
                   profileAvatarUrl: index == 4 ? profileAvatarUrl : null,
-                  onTapDestination: index == 4
-                      ? () => onDestinationSelected(index)
-                      : null,
+                  onTapDestination: index == 4 ? () => onDestinationSelected(index) : null,
                   profileFocusNode: index == 4 ? profileFocusNode : null,
-                  onOpenAccountSwitcher: index == 4
-                      ? onOpenAccountSwitcher
-                      : null,
+                  onOpenAccountSwitcher: index == 4 ? onOpenAccountSwitcher : null,
                 ),
                 selectedIcon: _DestinationIcon(
                   icon: d.selectedIcon,
                   badge: index == 3 ? notificationBadge : null,
                   profileAvatarUrl: index == 4 ? profileAvatarUrl : null,
                   profileSelected: index == 4,
-                  onTapDestination: index == 4
-                      ? () => onDestinationSelected(index)
-                      : null,
+                  onTapDestination: index == 4 ? () => onDestinationSelected(index) : null,
                   profileFocusNode: index == 4 ? profileFocusNode : null,
-                  onOpenAccountSwitcher: index == 4
-                      ? onOpenAccountSwitcher
-                      : null,
+                  onOpenAccountSwitcher: index == 4 ? onOpenAccountSwitcher : null,
                 ),
                 label: _destinationSemanticsLabel(
                   context,
@@ -929,23 +871,15 @@ class _ShellNavigationRail extends StatelessWidget {
                 icon: d.icon,
                 badge: index == 3 ? notificationBadge : null,
                 profileIconOnly: index == 4,
-                onTapDestination: index == 4
-                    ? () => onDestinationSelected(index)
-                    : null,
-                onOpenAccountSwitcher: index == 4
-                    ? onOpenAccountSwitcher
-                    : null,
+                onTapDestination: index == 4 ? () => onDestinationSelected(index) : null,
+                onOpenAccountSwitcher: index == 4 ? onOpenAccountSwitcher : null,
               ),
               selectedIcon: _DestinationIcon(
                 icon: d.selectedIcon,
                 badge: index == 3 ? notificationBadge : null,
                 profileIconOnly: index == 4,
-                onTapDestination: index == 4
-                    ? () => onDestinationSelected(index)
-                    : null,
-                onOpenAccountSwitcher: index == 4
-                    ? onOpenAccountSwitcher
-                    : null,
+                onTapDestination: index == 4 ? () => onDestinationSelected(index) : null,
+                onOpenAccountSwitcher: index == 4 ? onOpenAccountSwitcher : null,
               ),
               label: index == 4
                   ? _ProfileRailLabel(
@@ -1136,8 +1070,7 @@ class _DestinationIcon extends StatelessWidget {
     final detector = FocusableActionDetector(
       focusNode: profileFocusNode,
       shortcuts: {
-        LogicalKeySet(LogicalKeyboardKey.alt, LogicalKeyboardKey.arrowDown):
-            const ActivateIntent(),
+        LogicalKeySet(LogicalKeyboardKey.alt, LogicalKeyboardKey.arrowDown): const ActivateIntent(),
       },
       actions: {
         ActivateIntent: CallbackAction<ActivateIntent>(
