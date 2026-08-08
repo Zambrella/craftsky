@@ -6,6 +6,8 @@ import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
+/// Uses an injected router because [context] belongs to
+/// `MaterialApp.router.builder`, above the Router inherited widget.
 void navigateToNotificationOutcome(
   BuildContext context,
   GoRouter router,

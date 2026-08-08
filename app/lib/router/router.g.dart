@@ -649,8 +649,10 @@ mixin $PostThreadRoute on GoRouteData {
 }
 
 mixin $UserProfileRoute on GoRouteData {
-  static UserProfileRoute _fromState(GoRouterState state) =>
-      UserProfileRoute(handle: state.pathParameters['handle']!);
+  static UserProfileRoute _fromState(GoRouterState state) => UserProfileRoute(
+    handle: state.pathParameters['handle']!,
+    $extra: state.extra as ProfilePresentationRequest?,
+  );
 
   UserProfileRoute get _self => this as UserProfileRoute;
 
@@ -659,17 +661,19 @@ mixin $UserProfileRoute on GoRouteData {
       GoRouteData.$location('/profile/${Uri.encodeComponent(_self.handle)}');
 
   @override
-  void go(BuildContext context) => context.go(location);
+  void go(BuildContext context) => context.go(location, extra: _self.$extra);
 
   @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+  Future<T?> push<T>(BuildContext context) =>
+      context.push<T>(location, extra: _self.$extra);
 
   @override
   void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
+      context.pushReplacement(location, extra: _self.$extra);
 
   @override
-  void replace(BuildContext context) => context.replace(location);
+  void replace(BuildContext context) =>
+      context.replace(location, extra: _self.$extra);
 }
 
 T? _$convertMapValue<T>(

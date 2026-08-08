@@ -14,7 +14,6 @@ import 'package:craftsky_app/notifications/providers/notifications_provider.dart
 import 'package:craftsky_app/notifications/services/notification_registration_coordinator.dart';
 import 'package:craftsky_app/notifications/services/notification_runtime.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
-import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -58,7 +57,8 @@ NotificationRuntime notificationRuntime(Ref ref) {
     readRegistry: () => ref.read(sessionRegistryProvider).requireValue,
     commitActivation: ref.read(sessionRegistryProvider.notifier).activate,
     invalidateAccountState: ref.read(accountStateInvalidatorProvider),
-    resetToHome: () async => ref.read(goRouterProvider).go(RouteLocations.home),
+    resetToHome: () async =>
+        ref.read(goRouterProvider).go(const FeedRoute().location),
     confirmLeave: ref.read(unsavedWorkGuardProvider).confirmLeave,
   );
   final runtime = NotificationRuntime(

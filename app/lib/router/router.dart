@@ -640,9 +640,10 @@ class PostThreadRoute extends GoRouteData with $PostThreadRoute {
 }
 
 class UserProfileRoute extends GoRouteData with $UserProfileRoute {
-  const UserProfileRoute({required this.handle});
+  const UserProfileRoute({required this.handle, this.$extra});
 
   final String handle;
+  final ProfilePresentationRequest? $extra;
 
   /// `/profile/me` is a soft alias — resolves to the signed-in user's
   /// real handle so deep links remain shareable. When the user is
@@ -664,10 +665,7 @@ class UserProfileRoute extends GoRouteData with $UserProfileRoute {
 
   @override
   Page<void> buildPage(BuildContext context, GoRouterState state) {
-    final request = switch (state.extra) {
-      final ProfilePresentationRequest value => value,
-      _ => null,
-    };
+    final request = $extra;
     return ProfilePresentationPage(
       key: state.pageKey,
       startsCompact: request?.startsCompact ?? false,
@@ -679,15 +677,5 @@ class UserProfileRoute extends GoRouteData with $UserProfileRoute {
         avatarFrame: request?.avatarFrame,
       ),
     );
-  }
-}
-
-extension GoRouterExtension on GoRouter {
-  /// Pops any existing stack and replaces the current location.
-  void clearStackAndNavigate(String location) {
-    while (canPop()) {
-      pop();
-    }
-    unawaited(pushReplacement(location));
   }
 }
