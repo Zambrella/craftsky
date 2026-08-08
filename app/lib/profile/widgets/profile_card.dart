@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_bio.dart';
 import 'package:craftsky_app/profile/widgets/profile_craft_chips.dart';
 import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
@@ -306,15 +307,27 @@ class _ProfileCardSurface extends StatelessWidget {
                                         SizedBox(height: spacing.sp4),
                                         ProfileStats(profile: profile),
                                         SizedBox(height: statsToActions),
-                                        _ProfileCardActions(
-                                          isOwnProfile: isOwnProfile,
-                                          isFollowing:
-                                              profile.viewerIsFollowing,
-                                          isBusy: isPrimaryActionBusy,
-                                          compactOpacity: compactOpacity,
-                                          expandedOpacity: expandedOpacity,
-                                          onVisitProfile: onVisitProfile,
-                                          onPrimaryAction: onPrimaryAction,
+                                        ConstrainedBox(
+                                          key: const Key(
+                                            'profile-card-action-section',
+                                          ),
+                                          constraints: const BoxConstraints(
+                                            maxWidth:
+                                                profileActionSectionMaxWidth,
+                                          ),
+                                          child: SizedBox(
+                                            width: double.infinity,
+                                            child: _ProfileCardActions(
+                                              isOwnProfile: isOwnProfile,
+                                              isFollowing:
+                                                  profile.viewerIsFollowing,
+                                              isBusy: isPrimaryActionBusy,
+                                              compactOpacity: compactOpacity,
+                                              expandedOpacity: expandedOpacity,
+                                              onVisitProfile: onVisitProfile,
+                                              onPrimaryAction: onPrimaryAction,
+                                            ),
+                                          ),
                                         ),
                                       ],
                                     ),

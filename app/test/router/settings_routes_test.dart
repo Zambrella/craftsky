@@ -95,6 +95,15 @@ void main() {
       8,
     );
     expect(find.byType(NavigationBar), findsNothing);
+
+    await tester.pageBack();
+    await tester.pumpAndSettle();
+
+    expect(router.state.matchedLocation, const ProfileRoute().location);
+    expect(
+      tester.widget<NavigationRail>(find.byType(NavigationRail)).selectedIndex,
+      4,
+    );
   });
 
   for (final routeCase in _routeCases) {

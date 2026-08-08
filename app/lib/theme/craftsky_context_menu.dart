@@ -140,16 +140,71 @@ Future<void> showCraftskyContextMenu(
   final selected = await showMenu<CraftskyContextMenuItem>(
     context: context,
     position: position,
-    useRootNavigator: true,
+    // [position] is measured against the nearest overlay. Keeping the popup
+    // on that navigator preserves the same coordinate space when the app's
+    // large-screen rail sits outside the content navigator.
     color: swatches.paper3,
+    surfaceTintColor: Colors.transparent,
     elevation: 0,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(radii.r3),
-      side: BorderSide(color: theme.colorScheme.onSurface, width: 1.5),
-    ),
+    shape: _contextMenuShape(theme, radii),
     items: _popupEntries(groups),
   );
   await selected?.onPressed?.call();
+}
+
+/// Shows arbitrary interactive content using the same large-screen surface as
+/// CraftSky context menus.
+///
+/// Unlike a disabled [PopupMenuItem], this entry leaves descendant controls
+/// interactive and does not apply Flutter's disabled text/icon opacity.
+Future<void> showCraftskyContextPopover(
+  BuildContext context, {
+  required RelativeRect position,
+  required Widget child,
+}) async {
+  final theme = Theme.of(context);
+  final radii = theme.extension<RadiusTheme>()!;
+  final swatches = theme.extension<BrandSwatchTheme>()!;
+  await showMenu<Object?>(
+    context: context,
+    position: position,
+    color: swatches.paper3,
+    surfaceTintColor: Colors.transparent,
+    elevation: 0,
+    menuPadding: EdgeInsets.zero,
+    shape: _contextMenuShape(theme, radii),
+    items: [_CraftskyContextPopoverEntry(child: child)],
+  );
+}
+
+RoundedRectangleBorder _contextMenuShape(
+  ThemeData theme,
+  RadiusTheme radii,
+) => RoundedRectangleBorder(
+  borderRadius: BorderRadius.circular(radii.r3),
+  side: BorderSide(color: theme.colorScheme.onSurface, width: 1.5),
+);
+
+class _CraftskyContextPopoverEntry extends PopupMenuEntry<Object?> {
+  const _CraftskyContextPopoverEntry({required this.child});
+
+  final Widget child;
+
+  @override
+  double get height => 0;
+
+  @override
+  bool represents(Object? value) => false;
+
+  @override
+  State<_CraftskyContextPopoverEntry> createState() =>
+      _CraftskyContextPopoverEntryState();
+}
+
+class _CraftskyContextPopoverEntryState
+    extends State<_CraftskyContextPopoverEntry> {
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 List<PopupMenuEntry<CraftskyContextMenuItem>> _popupEntries(

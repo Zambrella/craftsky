@@ -639,6 +639,14 @@ void main() {
           tester.getRect(responsiveSurface).height,
           greaterThan(compactCardRect.height),
         );
+        expect(
+          tester
+              .getRect(
+                find.byKey(const Key('profile-card-action-section')),
+              )
+              .width,
+          lessThanOrEqualTo(420),
+        );
         final paintedSurface = find
             .descendant(
               of: responsiveSurface,

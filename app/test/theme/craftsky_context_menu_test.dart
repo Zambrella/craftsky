@@ -96,6 +96,63 @@ void main() {
       expect(tapped, isTrue);
     });
 
+    testWidgets('anchors a wide popup in its nested content overlay', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1200, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightThemeData,
+          home: Scaffold(
+            body: Row(
+              children: [
+                const SizedBox(width: 300),
+                Expanded(
+                  child: Navigator(
+                    onGenerateRoute: (_) => MaterialPageRoute<void>(
+                      builder: (_) => Scaffold(
+                        body: Center(
+                          child: CraftskyContextMenuButton(
+                            groups: [
+                              CraftskyContextMenuGroup(
+                                items: [
+                                  CraftskyContextMenuItem(
+                                    text: 'Repost',
+                                    icon: Icons.repeat,
+                                    onPressed: () {},
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final button = find.byIcon(Icons.more_horiz);
+      await tester.tap(button);
+      await tester.pumpAndSettle();
+
+      final menuItem = find.byType(
+        PopupMenuItem<CraftskyContextMenuItem>,
+      );
+      expect(
+        (tester.getTopLeft(menuItem).dx - tester.getTopLeft(button).dx).abs(),
+        lessThan(80),
+      );
+    });
+
     testWidgets('separates logical groups in compact sheet', (tester) async {
       await pumpHarness(
         tester,

@@ -17,6 +17,7 @@ import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -106,23 +107,24 @@ BorderDirectional _navigationRailBorder(ThemeData theme) => BorderDirectional(
 /// Compact routes remain full-screen because their navigator is returned
 /// unchanged.
 class AuthenticatedShell extends StatelessWidget {
-  const AuthenticatedShell({
-    required this.child,
-    required this.matchedLocation,
-    super.key,
-  });
+  const AuthenticatedShell({required this.child, super.key});
 
   final Widget child;
-  final String matchedLocation;
 
   @override
   Widget build(BuildContext context) {
     if (!FormFactorWidget.of(context).isLarge) return child;
-    return _AuthenticatedShellNavigationScope(
-      child: _LargeShellNavigationFrame(
-        selectedIndex: _destinationIndexForLocation(matchedLocation),
-        onDestinationSelected: (index) => _goDestination(context, index),
-        child: child,
+    final router = GoRouter.of(context);
+    return ListenableBuilder(
+      listenable: router.routerDelegate,
+      builder: (context, _) => _AuthenticatedShellNavigationScope(
+        child: _LargeShellNavigationFrame(
+          selectedIndex: _destinationIndexForLocation(
+            router.state.matchedLocation,
+          ),
+          onDestinationSelected: (index) => _goDestination(context, index),
+          child: child,
+        ),
       ),
     );
   }
@@ -295,26 +297,20 @@ class _LargeShellNavigationFrameState
       overlay.size.width - origin.dx,
       overlay.size.height - origin.dy - box.size.height,
     );
-    await showMenu<void>(
-      context: context,
+    await showCraftskyContextPopover(
+      context,
       position: position,
-      items: [
-        PopupMenuItem<void>(
-          enabled: false,
-          padding: EdgeInsets.zero,
-          child: SizedBox(
-            width: 320,
-            child: _LiveAccountSwitcherContent(
-              fallbackState: state,
-              onSelect: _activation.activate,
-              onAddAccount: () {
-                Navigator.pop(context);
-                unawaited(context.push(RouteLocations.addAccount));
-              },
-            ),
-          ),
+      child: SizedBox(
+        width: 320,
+        child: _LiveAccountSwitcherContent(
+          fallbackState: state,
+          onSelect: _activation.activate,
+          onAddAccount: () {
+            Navigator.pop(context);
+            unawaited(context.push(RouteLocations.addAccount));
+          },
         ),
-      ],
+      ),
     );
   }
 }

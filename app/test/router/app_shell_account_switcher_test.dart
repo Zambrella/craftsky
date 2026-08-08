@@ -603,6 +603,30 @@ void main() {
     await tester.tap(switchButton);
     await tester.pumpAndSettle();
     expect(find.byType(AccountSwitcherContent), findsOneWidget);
+    final switcherMenuMaterial = find.ancestor(
+      of: find.byType(AccountSwitcherContent),
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is Material && widget.shape is RoundedRectangleBorder,
+      ),
+    );
+    expect(switcherMenuMaterial, findsOneWidget);
+    final switcherShape =
+        tester.widget<Material>(switcherMenuMaterial).shape!
+            as RoundedRectangleBorder;
+    expect(switcherShape.side.width, 1.5);
+    expect(
+      switcherShape.side.color,
+      Theme.of(
+        tester.element(find.byType(AccountSwitcherContent)),
+      ).colorScheme.onSurface,
+    );
+    expect(
+      IconTheme.of(
+        tester.element(find.widgetWithText(ListTile, 'Add account')),
+      ).opacity,
+      1,
+    );
     expect(
       tester.widget<NavigationRail>(find.byType(NavigationRail)).selectedIndex,
       0,
