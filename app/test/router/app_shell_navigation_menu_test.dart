@@ -11,6 +11,7 @@ import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -355,6 +356,37 @@ void main() {
           )
           .where((tile) => tile.selected),
       hasLength(1),
+    );
+  });
+
+  testWidgets('UIP-023 only the rail uses the scaffold background', (
+    tester,
+  ) async {
+    await _pumpShell(tester, const Size(1200, 800));
+
+    final rail = find.byType(NavigationRail);
+    final railSurface = find.ancestor(
+      of: rail,
+      matching: find.byWidgetPredicate(
+        (widget) => widget is Material && widget.shape != null,
+      ),
+    );
+    final railTheme = Theme.of(tester.element(rail));
+
+    expect(
+      tester.widget<Material>(railSurface).color,
+      railTheme.scaffoldBackgroundColor,
+    );
+
+    await _pumpShell(tester, const Size(500, 800));
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+
+    final drawer = find.byType(Drawer);
+    final drawerTheme = Theme.of(tester.element(drawer));
+    expect(
+      tester.widget<Drawer>(drawer).backgroundColor,
+      drawerTheme.extension<BrandSwatchTheme>()!.paper3,
     );
   });
 

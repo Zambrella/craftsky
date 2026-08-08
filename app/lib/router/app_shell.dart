@@ -864,9 +864,8 @@ class _ShellNavigationRail extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    final swatches = theme.extension<BrandSwatchTheme>()!;
     return Material(
-      color: swatches.paper3,
+      color: theme.scaffoldBackgroundColor,
       surfaceTintColor: Colors.transparent,
       clipBehavior: Clip.antiAlias,
       shape: _navigationRailBorder(theme),
