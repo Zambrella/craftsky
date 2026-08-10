@@ -37,6 +37,7 @@ var (
 		"amber",
 		"lime",
 		"teal",
+		"ink",
 	}
 	ProfileBorderCatalogue = []string{
 		"thin",

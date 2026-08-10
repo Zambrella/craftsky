@@ -17,6 +17,7 @@ func TestProfileCustomisationCatalogueIsClosedAndStable(t *testing.T) {
 		"amber",
 		"lime",
 		"teal",
+		"ink",
 	})
 	assertCatalogue(t, "borders", api.ProfileBorderCatalogue, []string{
 		"thin",

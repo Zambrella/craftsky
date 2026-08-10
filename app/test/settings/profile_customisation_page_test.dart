@@ -135,16 +135,28 @@ void main() {
       tester.widget<ProfileAvatar>(find.byType(ProfileAvatar)).showShadow,
       isFalse,
     );
-    await tester.tap(find.text('Teal'));
+    await tester.tap(find.text('Ink'));
     await tester.tap(find.text('Thick'));
-    await tester.tap(find.text('Crosshatch'));
-    await tester.pump();
+    final scrollable = find.byType(Scrollable).first;
+    await tester.scrollUntilVisible(
+      find.widgetWithText(ChoiceChip, 'Crosshatch'),
+      300,
+      scrollable: scrollable,
+    );
+    await tester.drag(scrollable, const Offset(0, -120));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Crosshatch'));
+    await tester.drag(
+      scrollable,
+      const Offset(0, 1000),
+    );
+    await tester.pumpAndSettle();
 
     final avatar = tester.widget<Container>(
       find.byKey(const Key('profile-avatar-border')),
     );
     final border = (avatar.decoration! as BoxDecoration).border! as Border;
-    expect(border.top.color, const Color(0xFF007663));
+    expect(border.top.color, const Color(0xFF161210));
     expect(border.top.width, 8);
     expect(
       find.byKey(const Key('profile-header-background-texture')),
@@ -154,7 +166,7 @@ void main() {
     await tester.scrollUntilVisible(
       find.text('Save'),
       300,
-      scrollable: find.byType(Scrollable).first,
+      scrollable: scrollable,
     );
     await tester.tap(find.text('Save'));
     await tester.pumpAndSettle();
@@ -162,7 +174,7 @@ void main() {
     expect(
       submitted,
       const ProfileCustomisation(
-        colour: 'teal',
+        colour: 'ink',
         border: 'thick',
         background: 'x2',
       ),
@@ -375,6 +387,7 @@ void main() {
         13,
         14,
         15,
+        16,
         20,
         21,
         22,

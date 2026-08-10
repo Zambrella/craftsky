@@ -18,7 +18,7 @@ This plan implements the approved AppView-owned public customisation resource, a
 
 Two design inputs remain deliberately gated rather than being invented during implementation; the palette gate closed on 2026-08-10:
 
-1. **Palette gate (GAP-001 / DR-005, closed):** the approved `cobalt`, `orchid`, `rose`, `amber`, `lime`, and `teal` bundles are recorded in `01-requirements.md` Q11 and may now drive exact tests.
+1. **Palette gate (GAP-001 / DR-005, closed):** the approved `cobalt`, `orchid`, `rose`, `amber`, `lime`, `teal`, and `ink` bundles are recorded in `01-requirements.md` Q11 and may now drive exact tests.
 2. **Texture-style gate (GAP-002 / DR-005, closed):** each bundle uses its foreground as texture tint at 18% opacity.
 3. **Failure-copy gate (GAP-003 / DR-005, closed):** exact failure feedback is `Couldn't save your profile customisation.`
 
@@ -125,7 +125,7 @@ Remove the decorative `ProfileAvatarFrame` rendering path. Where the full/compac
 
 ### 2.6 Profile theme and texture boundaries
 
-Replace runtime `ColorScheme.fromSeed` and route-supplied colours with a fixed `ProfileColourThemeBundle` resolved from `profile.customisation.colour`. Each approved bundle contains base, readable foreground, hover, pressed, soft container, and the approved texture tint/opacity. `ProfileCustomisationTheme` consumes that bundle and supplies Material state styles for text links, icon buttons, primary/secondary buttons, and containers.
+Replace runtime `ColorScheme.fromSeed` and route-supplied colours with a fixed `ProfileColourThemeBundle` resolved from `profile.customisation.colour`. Each approved bundle contains base, readable foreground, hover, pressed, soft container, and the approved texture tint/opacity. The `ink` bundle uses theme Ink `#161210` as its exact base, theme Ink 2 `#3E3733` as hover, `#0B0908` as pressed, theme Paper 2 `#EFE7D6` as its soft container, and white foreground/texture tint. `ProfileCustomisationTheme` consumes that bundle and supplies Material state styles for text links, icon buttons, primary/secondary buttons, and containers.
 
 Scope it as follows:
 
@@ -306,7 +306,7 @@ Every slice starts with the named smallest failing test, adds only enough produc
 - Start with `UT-001` in Go and Dart.
 - Create the canonical server value/default policy and tolerant Flutter value.
 - Lock cobalt, border keys/width vocabulary, background keys/display mapping, uniqueness, and independent fallback.
-- Assert the six approved Q11 keys and exact bundle constants; GAP-001 closed before this red test was written.
+- Assert the seven approved Q11 keys and exact bundle constants; GAP-001 closed before each red test was written.
 - Extend parent model fixtures for old responses and per-field unknown values (`UT-003`, `IT-008`).
 
 ### Slice 2: Strict mutation request policy

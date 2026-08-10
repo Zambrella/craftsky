@@ -12,13 +12,13 @@ func TestProfileCustomisationRequestAcceptsCompleteSupportedValue(t *testing.T) 
 	t.Parallel()
 
 	got, err := api.DecodeProfileCustomisationPut(strings.NewReader(
-		`{"colour":"teal","profileBorder":"thick","profileBackground":"cubedark"}`,
+		`{"colour":"ink","profileBorder":"thick","profileBackground":"cubedark"}`,
 	))
 	if err != nil {
 		t.Fatalf("DecodeProfileCustomisationPut: %v", err)
 	}
 	want := api.ProfileCustomisation{
-		Colour:     "teal",
+		Colour:     "ink",
 		Border:     "thick",
 		Background: "cubedark",
 	}

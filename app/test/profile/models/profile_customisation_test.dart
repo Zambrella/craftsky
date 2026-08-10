@@ -22,6 +22,7 @@ void main() {
         'amber',
         'lime',
         'teal',
+        'ink',
       ]);
       expect(profileBorderCatalogue, ['thin', 'medium', 'thick']);
       expect(profileBackgroundCatalogue, [
@@ -34,7 +35,7 @@ void main() {
         'x2',
       ]);
 
-      expect(profileColourCatalogue.toSet(), hasLength(6));
+      expect(profileColourCatalogue.toSet(), hasLength(7));
       expect(profileBorderCatalogue.toSet(), hasLength(3));
       expect(profileBackgroundCatalogue.toSet(), hasLength(7));
       expect(ProfileCustomisation.defaults.toMap(), {
@@ -102,7 +103,21 @@ void main() {
         textureTint: '#FFFFFF',
         textureOpacity: 0.18,
       ),
+      'ink': const ProfileColourBundle(
+        base: '#161210',
+        foreground: '#FFFFFF',
+        hover: '#3E3733',
+        pressed: '#0B0908',
+        softContainer: '#EFE7D6',
+        textureTint: '#FFFFFF',
+        textureOpacity: 0.18,
+      ),
     });
+
+    final ink = profileColourBundles['ink']!;
+    expect(_colour(ink.base), BrandColors.ink);
+    expect(_colour(ink.hover), BrandColors.ink2);
+    expect(_colour(ink.softContainer), BrandColors.paper2);
   });
 
   test('every approved foreground and container pair meets AA contrast', () {

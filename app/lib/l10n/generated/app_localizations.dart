@@ -2542,6 +2542,12 @@ abstract class AppLocalizations {
   /// **'Teal'**
   String get profileCustomisationColourTeal;
 
+  /// Label for the profile colour that uses the CraftSky theme Ink colour.
+  ///
+  /// In en, this message translates to:
+  /// **'Ink'**
+  String get profileCustomisationColourInk;
+
   /// Label for the thin profile picture border.
   ///
   /// In en, this message translates to:

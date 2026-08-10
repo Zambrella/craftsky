@@ -1289,6 +1289,9 @@
   "profileCustomisationColourTeal": "Teal",
   "@profileCustomisationColourTeal": { "description": "Label for the teal profile colour." },
 
+  "profileCustomisationColourInk": "Ink",
+  "@profileCustomisationColourInk": { "description": "Label for the profile colour that uses the CraftSky theme Ink colour." },
+
   "profileCustomisationBorderThin": "Thin",
   "@profileCustomisationBorderThin": { "description": "Label for the thin profile picture border." },
 

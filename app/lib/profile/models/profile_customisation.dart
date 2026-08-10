@@ -8,6 +8,7 @@ const profileColourCatalogue = <String>[
   'amber',
   'lime',
   'teal',
+  'ink',
 ];
 
 const profileBorderCatalogue = <String>['thin', 'medium', 'thick'];
@@ -118,6 +119,15 @@ const profileColourBundles = <String, ProfileColourBundle>{
     hover: '#006454',
     pressed: '#005146',
     softContainer: '#D8F9F3',
+    textureTint: '#FFFFFF',
+    textureOpacity: 0.18,
+  ),
+  'ink': ProfileColourBundle(
+    base: '#161210',
+    foreground: '#FFFFFF',
+    hover: '#3E3733',
+    pressed: '#0B0908',
+    softContainer: '#EFE7D6',
     textureTint: '#FFFFFF',
     textureOpacity: 0.18,
   ),

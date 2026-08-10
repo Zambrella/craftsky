@@ -13,7 +13,7 @@ The requirements and acceptance-test specification are ready for coding-plan wor
 
 All four findings from the first review are resolved:
 
-- The non-goal now agrees with the confirmed six-colour and `none` plus six-texture catalogues.
+- The non-goal now agrees with the confirmed seven-colour and `none` plus six-texture catalogues. The seventh theme-Ink bundle was approved as a later additive catalogue extension on 2026-08-10 and does not change the reviewed architecture.
 - The three unresolved exact inputs use one consistent gate: they do not block coding planning, but must close before their affected implementation tests are written.
 - Public response acceptance allows additive future customisation fields while the current mutation request remains strict.
 - Every approved texture is now exercised in both compact and full profile presentations at acceptance level.
@@ -26,7 +26,7 @@ No `00-initial-prompt.md` exists in this workflow folder. This is acceptable bec
 
 | ID | Severity | Area | Finding | References | Required Action |
 |---|---|---|---|---|---|
-| DR-005 | Suggestion | Risk / Coding plan | Three exact inputs were deliberately gated: the five non-cobalt theme bundles, per-colour texture tint/opacity, and save-failure copy. GAP-001 through GAP-003 closed on 2026-08-10 before their dependent exact assertions. | `01-requirements.md` §§3 Q9/Q11–Q13, 19 RISK-006, 21, 23; `02-acceptance-tests.md` §§1, 9 GAP-001–GAP-003, 11, 12 | Preserve the recorded constants and exact copy in implementation tests. |
+| DR-005 | Suggestion | Risk / Coding plan | Three exact inputs were deliberately gated: the non-default theme bundles, per-colour texture tint/opacity, and save-failure copy. GAP-001 through GAP-003 closed on 2026-08-10 before their dependent exact assertions. | `01-requirements.md` §§3 Q9/Q11–Q13, 19 RISK-006, 21, 23; `02-acceptance-tests.md` §§1, 9 GAP-001–GAP-003, 11, 12 | Preserve the recorded constants and exact copy in implementation tests. |
 
 ## Traceability Review
 

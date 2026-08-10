@@ -4,8 +4,8 @@
 
 Stage: Implementation
 Started: 2026-08-10
-Current loop: Implementation-review corrections complete
-Current result: IR-001 through IR-005 have focused passing correction evidence and IR-006 traceability is corrected below. IR-007's Should-level custom signal is explicitly deferred; generic HTTP instrumentation remains. The full AppView race suite and static analysis pass. The broad Flutter run passes 1,409 tests and reproduces only the two pre-existing untouched `auth_complete_page_test.dart` failures caused by its `MaterialApp` harness lacking `GoRouter`.
+Current loop: Theme-Ink catalogue extension complete
+Current result: AppView accepts and persists the seventh stable `ink` value; Flutter maps it to the exact theme-Ink bundle, exposes the localized Ink choice, previews/saves `ink`, and passes the affected regression matrix. Earlier implementation-review corrections remain complete. IR-007's Should-level custom signal remains explicitly deferred; generic HTTP instrumentation remains.
 
 GAP-001 through GAP-003 closed on 2026-08-10 before their dependent exact assertions. `01-requirements.md` Q11–Q13 record all stable colour, texture, and feedback constants.
 
@@ -36,7 +36,7 @@ GAP-001 through GAP-003 closed on 2026-08-10 before their dependent exact assert
 
 | Gate | Required before | Status | Closure evidence |
 |---|---|---|---|
-| GAP-001: five non-cobalt stable keys and audited base/foreground/hover/pressed/soft-container values | Palette-sensitive part of UT-001; UT-006; AT-005/AT-010 exact colour checks | Approved 2026-08-10 | `01-requirements.md` Q11 records `cobalt`, `orchid`, `rose`, `amber`, `lime`, and `teal` plus exact bundle constants. |
+| GAP-001: six non-default stable keys and audited base/foreground/hover/pressed/soft-container values | Palette-sensitive part of UT-001; UT-006; AT-005/AT-010 exact colour checks | Approved 2026-08-10 | `01-requirements.md` Q11 records `cobalt`, `orchid`, `rose`, `amber`, `lime`, `teal`, and `ink` plus exact bundle constants. |
 | GAP-002: per-colour texture tint and opacity | Exact UT-007 painter/style tests; AT-005 visual baselines | Approved 2026-08-10 | Each bundle uses its foreground tint at 18% opacity; recorded in `01-requirements.md` Q11–Q12. |
 | GAP-003: exact save-failure feedback | Exact copy assertion in UT-009/AT-006 | Approved 2026-08-10 | Exact localized copy is `Couldn't save your profile customisation.`; recorded in `01-requirements.md` Q13. |
 | High-risk implementation approval | IT-001 migration and later authenticated/privacy-sensitive AppView work | Approved 2026-08-10 | User instructed the implementation to proceed to completion after the explicit high-risk approval request. |
@@ -73,6 +73,7 @@ The order mirrors `04-coding-plan.md`. Acceptance and regression IDs that close 
 | 24 | AT-001 / AT-003 / AT-008 / AT-009 | BR-001, BR-004, BR-005, FR-001–FR-004, FR-012, FR-013, NFR-004, RULE-004, RULE-005 | AC-001–AC-005, AC-013, AC-015–AC-017 | Fails until underlying slices are complete |
 | 25 | REG-001 / REG-002 / REG-006 | NFR-002, NFR-004, NFR-006, FR-013 | AC-015, AC-017, AC-020 | Existing suites must remain green |
 | 26 | MAN-001–MAN-003 | BR-003, FR-005, FR-009, FR-011, NFR-003, RULE-003 | AC-006, AC-007, AC-011, AC-012, AC-018, AC-019 | Manual supplements after automated green |
+| 27 | UT-001 / UT-002 / UT-006 / AT-006 | FR-003, FR-005, FR-011, NFR-003, RULE-001 | AC-005, AC-006, AC-012, AC-018 | Fails until `ink` is accepted and rendered by both catalogues and the Settings editor |
 
 ## Implementation Steps
 
@@ -91,7 +92,7 @@ The order mirrors `04-coding-plan.md`. Acceptance and regression IDs that close 
 - Confirmed failure: Both focused suites failed to compile because the intended Go and Dart catalogue/value APIs did not exist.
 - Implement: Added only the standalone Go catalogue/effective-value policy and Dart immutable value/local theme-bundle catalogue; no parent response wiring, persistence, route, or widgets.
 - Refactor: Kept the Go policy independent from storage/handlers and the Dart value independent from Flutter rendering types.
-- Notes: Use only the six approved Q11 keys and bundle constants.
+- Notes: Use only the seven approved Q11 keys and bundle constants.
 
 ### Step 2: UT-002 — Strict full-replacement request validation
 
@@ -163,6 +164,22 @@ The order mirrors `04-coding-plan.md`. Acceptance and regression IDs that close 
 - NFR-005 customisation-specific result/error-class instrumentation is Should priority and is deferred after implementation review. Existing generic HTTP instrumentation remains; no DID, catalogue choice, asset name, or URL is introduced as a metric label. IT-009 is therefore not claimed as executed.
 - Run manual assistive-technology, texture-balance, and colour-vision checks only after the automated suite is green and visual gates are closed.
 
+### Step 27: UT-001 / UT-002 / UT-006 / AT-006 — Theme-Ink catalogue extension
+
+- Requirement IDs: FR-003, FR-005, FR-011, NFR-003, RULE-001.
+- Acceptance criteria: AC-005, AC-006, AC-012, AC-018.
+- Write failing tests:
+  - Go catalogue/request tests require stable `ink` to be accepted alongside the existing six keys.
+  - Dart catalogue tests require the exact Q11 `ink` bundle and AA contrast on profile paper/white surfaces.
+  - Settings widget tests require a labelled `Ink` option whose selection keeps the stable `ink` value.
+- Focused commands:
+  - `cd appview && go test ./internal/api -run 'ProfileCustomisation(Catalogue|Request)'`
+  - `cd app && flutter test test/profile/models/profile_customisation_test.dart test/settings/profile_customisation_page_test.dart`
+- Confirmed failure: The focused Go command failed because the catalogue omitted `ink` and request validation rejected it. The focused Flutter command failed because the catalogue/bundle omitted `ink` and no `Ink` choice was rendered. After implementation, the first Settings rerun exposed two expected test-maintenance needs from the seventh chip: focus order gained `16`, and the 600 px harness needed to scroll Crosshatch fully on-screen before tapping it.
+- Implement: Added only the server key, Flutter bundle, English label/generated localizations, and fixed-choice mapping. Updated the existing Settings test setup for the extra chip without changing production layout behavior.
+- Refactor: None planned outside the existing catalogue seams.
+- Notes: No migration, route shape, persistence schema, hydration, PDS, Lexicon, Tap, blob, or remote resource behavior changes. Existing stored values remain valid and defaults remain cobalt/medium/none.
+
 ## Codebase Inspection Notes
 
 - Go API tests commonly use external package `api_test` and exercise exported public interfaces; new catalogue tests should follow that pattern.
@@ -233,6 +250,13 @@ Run `flutter gen-l10n` after ARB edits and `dart run build_runner build` after m
 | 2026-08-10 | IR-007 / NFR-005 / IT-009 | Decision | Customisation-specific bounded observability is deferred as a Should-level follow-up. Existing generic HTTP instrumentation remains; IT-009 is not marked executed. | Explicit deferment |
 | 2026-08-10 | Correction verification | Green | The focused Flutter correction matrix passes 128 tests; the focused real-Postgres AppView API/routes suites pass; `dart analyze` reports no issues; `just test` passes every AppView package under the race detector; and `git diff --check` passes. | Pass |
 | 2026-08-10 | Flutter regression | Broad | Final `flutter test` after review corrections. | 1,409 pass; the same two untouched `auth_complete_page_test.dart` tests fail because their `MaterialApp` harness has no `GoRouter`. No feature test fails. |
+| 2026-08-10 | Ink extension / UT-001 / UT-002 | Red | `go test ./internal/api -run 'ProfileCustomisation(Catalogue|Request)' -count=1` failed because the server catalogue omitted `ink` and strict request validation rejected it. | Expected failure |
+| 2026-08-10 | Ink extension / UT-001 / UT-002 | Green | Added only the stable `ink` server key; the same focused AppView command passes. | Pass |
+| 2026-08-10 | Ink extension / UT-001 / UT-006 / AT-006 | Red | `flutter test test/profile/models/profile_customisation_test.dart test/settings/profile_customisation_page_test.dart` failed because the client catalogue/bundle omitted `ink` and the editor had no `Ink` choice. | Expected failure |
+| 2026-08-10 | Ink extension / UT-001 / UT-006 / AT-006 | Green | Added the exact audited Ink bundle, localized label, generated localizations, and editor mapping. After adapting the 600 px test scroll/focus expectations for the seventh chip, the focused command passes 16 tests. | Pass |
+| 2026-08-10 | Ink extension / AppView regression | Green | `go test ./internal/api ./internal/routes -run 'ProfileCustomisation|IdentityCustomisation' -count=1`. | Pass |
+| 2026-08-10 | Ink extension / Flutter regression | Green | The focused catalogue/API/provider/theme/avatar/profile/editor matrix passes 86 tests. | Pass |
+| 2026-08-10 | Ink extension / Static | Green | `flutter gen-l10n`, `dart analyze`, and `git diff --check`. | Pass; localization generation succeeds and analysis reports no issues |
 
 ## Completion Checklist
 
@@ -248,4 +272,5 @@ Run `flutter gen-l10n` after ARB edits and `dart run build_runner build` after m
 - [x] Implementation notes updated and read back.
 - [x] IR-001 through IR-006 correction evidence records only assertions and commands that actually ran.
 - [x] NFR-005 / IR-007 explicitly deferred without claiming IT-009 evidence.
+- [x] The seventh `ink` catalogue extension passes focused AppView/Flutter tests and affected regressions.
 - [ ] Implementation review completed or explicitly skipped.

@@ -14,7 +14,7 @@ The feature changes a public identity contract used across most avatar-bearing r
 
 All tests below are implementation designs. No application code, test code, migration, generated output, or dependency is created or run during this stage.
 
-All gated implementation inputs closed on 2026-08-10. The six colour bundles, foreground-tinted textures at 18% opacity, and exact failure feedback are recorded in `01-requirements.md` Q11–Q13.
+All gated implementation inputs closed on 2026-08-10. The seven colour bundles, foreground-tinted textures at 18% opacity, and exact failure feedback are recorded in `01-requirements.md` Q11–Q13.
 
 ## 2. Requirement Coverage Matrix
 
@@ -422,7 +422,7 @@ Feature: Accessible fixed customisation choices
 
 | Test ID | Requirement / AC IDs | Component | Test design | Expected result | Proposed target |
 |---|---|---|---|---|---|
-| UT-001 | FR-011, FR-012, RULE-001, RULE-002, RULE-003; AC-005, AC-011, AC-012, AC-013 | Shared server/client catalogue fixtures | Assert six committed colour keys, exactly `thin`/`medium`/`thick`, and exactly `none` plus the six named texture keys; assert cobalt/default constants and uniqueness/stability of keys. | Catalogues are closed, deterministic, versioned, and server/client fixtures agree. | Go catalogue test and `app/test/profile/models/profile_customisation_test.dart` |
+| UT-001 | FR-011, FR-012, RULE-001, RULE-002, RULE-003; AC-005, AC-011, AC-012, AC-013 | Shared server/client catalogue fixtures | Assert seven committed colour keys including Ink, exactly `thin`/`medium`/`thick`, and exactly `none` plus the six named texture keys; assert cobalt/default constants and uniqueness/stability of keys. | Catalogues are closed, deterministic, versioned, and server/client fixtures agree. | Go catalogue test and `app/test/profile/models/profile_customisation_test.dart` |
 | UT-002 | FR-003, RULE-001, RULE-002, RULE-003; AC-005 | Go request decoder and validator | Table-test valid body plus missing fields, unknown fields, non-strings, arbitrary colour values, unsupported keys, nested resource data, URLs, malformed JSON, duplicate JSON keys if the shared strict decoder rejects them, and oversized bodies. | Only exact complete supported objects pass; errors use standard codes and field-specific `422 validation_failed` details where required. | `appview/internal/api/profile_customisation_request_test.go` |
 | UT-003 | FR-012, NFR-004; AC-013, AC-017 | Flutter model/JSON decoding | Decode complete new, absent, null/malformed if tolerated by existing model policy, and one-unknown-field fixtures. Encode/decode repository response fixtures as applicable. | Absence uses all defaults; each unknown key falls back independently without discarding valid siblings or crashing. | `app/test/profile/models/profile_customisation_test.dart`, extend `profile_test.dart` and affected response-model tests |
 | UT-004 | FR-007, RULE-002; AC-009 | Border width policy | Table-test all nine size/level combinations and reject/no-map unsupported sizes or levels according to implementation policy. | Widths are exactly 1.5/2.5/4, 2/3.5/5, and 3/5/8 px. | `app/test/profile/widgets/profile_avatar_test.dart` or pure style-policy test |
@@ -468,7 +468,7 @@ Feature: Accessible fixed customisation choices
 | Fixture ID | Data | Purpose |
 |---|---|---|
 | TD-001 | Alice with no customisation row; Bob with a complete non-default row; Carol removed; Dana blocked/unavailable | Defaults, persistence, account isolation, lifecycle, and policy cases |
-| TD-002 | Canonical catalogue fixture shared or equivalently asserted across Go and Dart: six colour keys, three border keys, `none` plus six background keys | Prevent server/client catalogue drift and arbitrary values |
+| TD-002 | Canonical catalogue fixture shared or equivalently asserted across Go and Dart: seven colour keys, three border keys, `none` plus six background keys | Prevent server/client catalogue drift and arbitrary values |
 | TD-003 | Valid complete request and invalid corpus: omitted/extra fields, non-string values, arbitrary hex/RGB, bad keys, URLs/resource data, malformed/oversized JSON | Strict request and no-resource-loading validation |
 | TD-004 | Old identity JSON without `customisation`; new default/customized JSON; each single retired/unknown field; existing blocked-shell fixtures | Compatibility and independent fallback |
 | TD-005 | Avatar matrix of 36/48/96 px × thin/medium/thick × success/loading/null/error × light/dark | Exact geometry, clipping, fallback, semantics, and shadow coverage |
@@ -478,21 +478,21 @@ Feature: Accessible fixed customisation choices
 | TD-009 | Compact/full profiles at supported viewport widths, text scales, light/dark themes, keyboard/touch/semantics modes | Scope, responsive behavior, and accessibility |
 | TD-010 | Paginated post/notification/search/relationship datasets with repeated authors and increasing page sizes | Bounded query-count and indexed-plan assertions |
 | TD-011 | Recording/spying PDS client, Tap/indexer hook, profile/blob writer, HTTP image/resource loader, metrics sink, and log sink | Negative boundaries and observability |
-| TD-012 | Final six audited colour bundles and their approved per-colour texture tint/opacity pairs | Exact contrast, theme-state, and visual assertions after GAP-001/GAP-002 close |
+| TD-012 | Final seven audited colour bundles and their approved per-colour texture tint/opacity pairs | Exact contrast, theme-state, and visual assertions after GAP-001/GAP-002 close |
 
 ## 8. Manual Verification
 
 | Test ID | Requirement / AC IDs | Check | Expected result | Why manual remains |
 |---|---|---|---|---|
 | MAN-001 | FR-005, NFR-003; AC-006, AC-007, AC-018 | Use the completed settings flow with VoiceOver/TalkBack and hardware keyboard on representative iOS/Android targets in light/dark themes and maximum supported text scale. | Spoken labels, grouping, selection changes, preview, focus order, Save state, Back/discard dialog, and feedback are clear and coherent. | Widget semantics tests cannot fully reproduce platform speech and focus presentation. |
-| MAN-002 | BR-003, FR-009, FR-011, RULE-003; AC-011, AC-012, AC-019 | Review all six approved colour bundles with all six textures plus `none` in compact/full headers at representative phone/tablet widths. | Texture density/tint is legible but subordinate, header clipping is exact, buttons/links are readable, and the full-profile boundary ends before the tab bar. | Final aesthetic balance requires human review after exact colour/tint values are approved; bounds and contrast remain automated. |
+| MAN-002 | BR-003, FR-009, FR-011, RULE-003; AC-011, AC-012, AC-019 | Review all seven approved colour bundles with all six textures plus `none` in compact/full headers at representative phone/tablet widths. | Texture density/tint is legible but subordinate, header clipping is exact, buttons/links are readable, and the full-profile boundary ends before the tab bar. | Final aesthetic balance requires human review after exact colour/tint values are approved; bounds and contrast remain automated. |
 | MAN-003 | NFR-003; AC-018 | Review 36 px thick-border fallbacks and all palette colours under common colour-vision simulations. | Initial/image remains legible, thickness labels distinguish options, and no choice depends on hue alone. | Simulation and perceptual review complement automated semantics/contrast checks. |
 
 ## 9. Known Test Gaps
 
 | Gap ID | Open requirement detail | Tests affected | Impact and closure condition |
 |---|---|---|---|
-| GAP-001 | Closed 2026-08-10: `cobalt`, `orchid`, `rose`, `amber`, `lime`, and `teal` keys plus audited bundle constants are recorded in `01-requirements.md` Q11. | UT-001, UT-006, AT-005, AT-010, MAN-002, TD-002, TD-012 | Closed before the first palette-sensitive test was written. |
+| GAP-001 | Closed 2026-08-10: `cobalt`, `orchid`, `rose`, `amber`, `lime`, `teal`, and `ink` keys plus audited bundle constants are recorded in `01-requirements.md` Q11. | UT-001, UT-006, AT-005, AT-010, MAN-002, TD-002, TD-012 | Closed before each palette-sensitive test was written. |
 | GAP-002 | Closed 2026-08-10: each colour bundle uses its foreground as texture tint at 18% opacity. | UT-007, AT-005, MAN-002, TD-012 | Closed before exact painter/style assertions. |
 | GAP-003 | Closed 2026-08-10: exact failure feedback is `Couldn't save your profile customisation.` | AT-006, UT-009 | Closed before the exact copy assertion. |
 
