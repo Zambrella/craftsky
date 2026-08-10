@@ -2,7 +2,7 @@
 
 ## Summary
 
-Applied the user-requested visual corrections from the 2026-08-10 iPhone simulator reviews: profile app-bar and compact-close icons now have transparent surfaces, the shared avatar renders exactly one selected-colour inside border without exposing its fallback colour as a second ring, the customisation preview uses the loaded member's profile image and identity seed when available without an avatar shadow, the Amber, Green, and Teal choices use darker accessible accents, and the stable `lime` choice is labelled `Green` in the UI.
+Applied the user-requested visual corrections from the 2026-08-10 iPhone simulator reviews: profile controls use neutral contrast surfaces while they are displayed over customised header colours and return to transparent surfaces once the full header collapses, the shared avatar renders exactly one selected-colour inside border without exposing its fallback colour as a second ring, the customisation preview uses the loaded member's profile image and identity seed when available without an avatar shadow, the Amber, Green, and Teal choices use darker accessible accents, and the stable `lime` choice is labelled `Green` in the UI.
 
 ## Polish Items
 
@@ -15,6 +15,7 @@ Applied the user-requested visual corrections from the 2026-08-10 iPhone simulat
 | UIP-005 | User follow-up: remove the shadow from the profile preview on the customisation page | Disabled the shared avatar shadow only for the customisation preview; profile-page and other avatar shadows are unchanged. | `app/lib/settings/pages/profile_customisation_page.dart`, `app/test/settings/profile_customisation_page_test.dart` | Done |
 | UIP-006 | User follow-up: Amber, Lime, and Teal were too light for readable hyperlink and accent text | Darkened the three high-saturation base and interaction tones, changed their button/texture foreground to white, and added AA contrast coverage for normal, hover, and pressed accent text on the cream-paper and white profile surfaces. Updated the approved palette table to match. | `app/lib/profile/models/profile_customisation.dart`, `app/test/profile/models/profile_customisation_test.dart`, `app/test/profile/widgets/profile_header_background_test.dart`, `app/test/settings/profile_customisation_page_test.dart`, `docs/changes/2026-08-09-profile-customisation/01-requirements.md` | Done |
 | UIP-007 | User follow-up: the darker Lime choice should be called Green | Renamed the English UI/localization label and localization identifier to Green while preserving `lime` as the stable catalogue, persistence, and API key. Added an editor assertion that Green is present and Lime is absent. | `app/lib/l10n/app_en.arb`, `app/lib/l10n/generated/app_localizations.dart`, `app/lib/l10n/generated/app_localizations_en.dart`, `app/lib/settings/pages/profile_customisation_page.dart`, `app/test/settings/profile_customisation_page_test.dart`, `docs/changes/2026-08-09-profile-customisation/01-requirements.md` | Done |
+| UIP-008 | User follow-up: profile leading and compact-close controls need contrast when displayed over different custom header colours | Restored a neutral paper surface behind the compact close control. Added the same surface to the full-profile hamburger or routed back button while the custom header is expanded, fading it to the existing transparent treatment as the header collapses; the collapsed trailing action remains unchanged. | `app/lib/profile/widgets/profile_sliver_app_bar.dart`, `app/lib/profile/widgets/profile_card.dart`, `app/test/profile/profile_page_test.dart`, `app/test/profile/widgets/profile_card_test.dart` | Done |
 
 ## Verification
 
@@ -24,6 +25,7 @@ Applied the user-requested visual corrections from the 2026-08-10 iPhone simulat
   - `flutter test test/profile/profile_page_test.dart`
   - `flutter test test/profile/widgets/profile_avatar_test.dart test/profile/profile_page_test.dart test/profile/widgets/profile_card_test.dart test/feed/widgets/post_card_test.dart test/notifications/notifications_page_test.dart test/search/search_page_test.dart test/shared/widgets/post_summary_test.dart test/profile/widgets/edit_profile_banner_avatar_test.dart test/router/app_shell_account_switcher_test.dart test/settings/profile_customisation_page_test.dart test/profile/providers/profile_customisation_provider_test.dart`
   - `flutter test test/profile/profile_page_test.dart test/profile/widgets/profile_card_test.dart test/settings/profile_customisation_page_test.dart`
+  - `flutter test test/profile/profile_page_test.dart test/profile/widgets/profile_card_test.dart`
   - `flutter test test/router/app_shell_navigation_menu_test.dart`
   - `flutter test test/profile/models/profile_customisation_test.dart test/profile/widgets/profile_customisation_controls_test.dart test/profile/widgets/profile_header_background_test.dart test/settings/profile_customisation_page_test.dart`
   - `flutter test test/profile/profile_page_test.dart test/profile/widgets/profile_card_test.dart test/feed/widgets/post_card_test.dart test/notifications/notifications_page_test.dart test/search/search_page_test.dart test/shared/widgets/post_summary_test.dart test/profile/widgets/edit_profile_banner_avatar_test.dart test/router/app_shell_account_switcher_test.dart`
@@ -31,7 +33,7 @@ Applied the user-requested visual corrections from the 2026-08-10 iPhone simulat
   - `flutter test test/settings/profile_customisation_page_test.dart`
   - `dart analyze`
   - `git diff --check`
-- Passing evidence: The initial focused group passes 46 tests. The compact profile suite passes 15 tests after updating its old combined-layer shadow assertion. The final shared-avatar surface matrix passes 162 tests. The strengthened profile app-bar suite passes 29 tests. The follow-up profile/customisation group passes 54 tests, and the shared compact-navigation suite passes 48 tests. The palette/contrast group passes 20 tests and the affected-surface matrix passes 143 tests. The Green-label settings suite passes 9 tests. Localization generation succeeds, static analysis reports no issues, and the follow-up diffs pass whitespace checks.
+- Passing evidence: The initial focused group passes 46 tests. The compact profile suite passes 15 tests after updating its old combined-layer shadow assertion. The final shared-avatar surface matrix passes 162 tests. The strengthened profile app-bar suite passes 29 tests. The follow-up profile/customisation group passes 54 tests, and the shared compact-navigation suite passes 48 tests. The palette/contrast group passes 20 tests and the affected-surface matrix passes 143 tests. The Green-label settings suite passes 9 tests. The state-responsive profile-control group passes 46 tests, including expanded and collapsed menu/back coverage and the compact close contrast surface. Localization generation succeeds, static analysis reports no issues, and the follow-up diffs pass whitespace checks.
 - Skipped checks and reason: No full Flutter suite was run because the wider affected-surface matrices cover the shared renderer, palette, profile presentations, and touched UI seams; the existing two unrelated auth router-harness failures remain documented in `06-implementation-review.md`. Simulator visual recheck remains a manual confirmation.
 
 ## Scope Guardrails
@@ -43,4 +45,4 @@ Applied the user-requested visual corrections from the 2026-08-10 iPhone simulat
 
 ## Follow-ups
 
-- [ ] Confirm the corrected single-ring border, transparent profile-header controls, shadowless customisation preview, and darker Amber/Green/Teal balance on the simulator/device at the three supported avatar sizes.
+- [ ] Confirm the corrected single-ring border, state-responsive profile-header controls, shadowless customisation preview, and darker Amber/Green/Teal balance on the simulator/device at the three supported avatar sizes.

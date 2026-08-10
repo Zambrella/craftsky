@@ -294,9 +294,11 @@ void main() {
       expect(tester.widget<Opacity>(divider).opacity, 1);
     });
 
-    testWidgets('profile app bar icon buttons have transparent surfaces', (
+    testWidgets('profile menu surface fades out as the header collapses', (
       tester,
     ) async {
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.lightThemeData,
@@ -307,6 +309,7 @@ void main() {
             isDrawerOpen: false,
             child: Scaffold(
               body: CustomScrollView(
+                controller: controller,
                 slivers: [
                   ProfileCustomisationTheme(
                     customisation: const ProfileCustomisation(
@@ -320,6 +323,7 @@ void main() {
                       ),
                     ),
                   ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 1200)),
                 ],
               ),
             ),
@@ -328,15 +332,93 @@ void main() {
       );
       await tester.pump();
 
-      expect(find.byType(IconButton), findsNWidgets(2));
-      for (final button in tester.widgetList<IconButton>(
-        find.byType(IconButton),
-      )) {
-        expect(
-          button.style?.backgroundColor?.resolve({}),
-          Colors.transparent,
-        );
-      }
+      final appBar = tester.widget<SliverAppBar>(find.byType(SliverAppBar));
+      final paper3 = AppTheme.lightThemeData.colorScheme.surface;
+      IconButton menuButton() => tester.widget<IconButton>(
+        find.widgetWithIcon(IconButton, Icons.menu),
+      );
+
+      expect(menuButton().style?.backgroundColor?.resolve({}), paper3);
+
+      controller.jumpTo(appBar.expandedHeight! - kToolbarHeight);
+      await tester.pump();
+
+      expect(
+        menuButton().style?.backgroundColor?.resolve({}),
+        Colors.transparent,
+      );
+      final settingsButton = tester.widget<IconButton>(
+        find.widgetWithIcon(IconButton, Icons.settings_outlined),
+      );
+      expect(
+        settingsButton.style?.backgroundColor?.resolve({}),
+        Colors.transparent,
+      );
+    });
+
+    testWidgets('profile back surface fades out as the header collapses', (
+      tester,
+    ) async {
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: TextButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => Scaffold(
+                      body: CustomScrollView(
+                        controller: controller,
+                        slivers: [
+                          ProfileCustomisationTheme(
+                            customisation: const ProfileCustomisation(
+                              colour: 'orchid',
+                            ),
+                            child: ProfileSliverAppBar(
+                              handle: 'alice.bsky.social',
+                              actions: SelfProfileActionSet(
+                                onEdit: () {},
+                                onSettings: () {},
+                              ),
+                            ),
+                          ),
+                          const SliverToBoxAdapter(
+                            child: SizedBox(height: 1200),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                child: const Text('Open profile'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Open profile'));
+      await tester.pumpAndSettle();
+
+      final appBar = tester.widget<SliverAppBar>(find.byType(SliverAppBar));
+      final paper3 = AppTheme.lightThemeData.colorScheme.surface;
+      BackButton backButton() => tester.widget<BackButton>(
+        find.byType(BackButton),
+      );
+
+      expect(backButton().style?.backgroundColor?.resolve({}), paper3);
+
+      controller.jumpTo(appBar.expandedHeight! - kToolbarHeight);
+      await tester.pump();
+
+      expect(
+        backButton().style?.backgroundColor?.resolve({}),
+        Colors.transparent,
+      );
     });
 
     testWidgets(

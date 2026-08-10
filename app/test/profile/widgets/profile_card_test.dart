@@ -226,7 +226,7 @@ void main() {
       expect(avatarDecoration.boxShadow, isEmpty);
     });
 
-    testWidgets('compact close button has a transparent surface', (
+    testWidgets('compact close button has a neutral contrast surface', (
       tester,
     ) async {
       await tester.pumpWidget(
@@ -254,7 +254,7 @@ void main() {
         closeButton.style?.backgroundColor?.resolve({}),
         Colors.transparent,
       );
-      expect(closeSurface.color, Colors.transparent);
+      expect(closeSurface.color, AppTheme.lightThemeData.colorScheme.surface);
     });
 
     testWidgets('TDD-003 uses the public shared profile presentation widgets', (

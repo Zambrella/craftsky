@@ -51,12 +51,15 @@ class ProfileSliverAppBar extends StatelessWidget {
     final theme = Theme.of(context);
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final layout = _resolveLayout(context);
+    final hasDrawer = AppShellDrawerScope.maybeOf(context) != null;
+    final hasBack = ModalRoute.of(context)?.impliesAppBarDismissal ?? false;
     return SliverAppBar(
-      leading: AppShellDrawerScope.maybeOf(context) == null
-          ? null
-          : const AppShellDrawerButton(
-              style: _transparentProfileAppBarIconStyle,
-            ),
+      leading: hasDrawer || hasBack
+          ? _ProfileLeadingAction(
+              showDrawer: hasDrawer,
+              expandedHeight: layout.expandedHeight,
+            )
+          : null,
       pinned: true,
       expandedHeight: layout.expandedHeight,
       backgroundColor: swatches.paper,
@@ -170,6 +173,42 @@ class ProfileSliverAppBar extends StatelessWidget {
       textScaler: textScaler,
     )..layout(maxWidth: maxWidth);
     return painter.height;
+  }
+}
+
+class _ProfileLeadingAction extends StatelessWidget {
+  const _ProfileLeadingAction({
+    required this.showDrawer,
+    required this.expandedHeight,
+  });
+
+  final bool showDrawer;
+  final double expandedHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    final swatches = Theme.of(context).extension<BrandSwatchTheme>()!;
+    final settings = context
+        .dependOnInheritedWidgetOfExactType<FlexibleSpaceBarSettings>();
+    final topPadding = MediaQuery.paddingOf(context).top;
+    final maxExtent = settings?.maxExtent ?? expandedHeight;
+    final minExtent = settings?.minExtent ?? (kToolbarHeight + topPadding);
+    final currentExtent = settings?.currentExtent ?? maxExtent;
+    final range = (maxExtent - minExtent).abs();
+    final collapsed = range == 0
+        ? 0.0
+        : ((maxExtent - currentExtent) / range).clamp(0.0, 1.0);
+    final backgroundColor = collapsed >= 1
+        ? Colors.transparent
+        : swatches.paper3.withValues(alpha: 1 - collapsed);
+    final style = ButtonStyle(
+      backgroundColor: WidgetStatePropertyAll(backgroundColor),
+    );
+
+    if (showDrawer) {
+      return AppShellDrawerButton(style: style);
+    }
+    return BackButton(style: style);
   }
 }
 

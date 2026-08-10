@@ -379,7 +379,11 @@ class _ProfileCardSurface extends StatelessWidget {
                                     key: const Key(
                                       'profile-card-close-surface',
                                     ),
-                                    color: Colors.transparent,
+                                    color: Color.lerp(
+                                      swatches.paper3,
+                                      theme.scaffoldBackgroundColor,
+                                      progress,
+                                    ),
                                     shape: const CircleBorder(),
                                     child: IconButton(
                                       key: const Key('profile-card-close'),
