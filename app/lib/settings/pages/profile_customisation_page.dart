@@ -124,6 +124,7 @@ class _LoadedCustomisationPageState
                             avatarUrl: widget.value.previewAvatarUrl,
                             size: ProfileAvatarSize.large,
                             customisation: draft,
+                            showShadow: false,
                           ),
                         ),
                       ],

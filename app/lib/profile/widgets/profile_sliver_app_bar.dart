@@ -11,6 +11,10 @@ import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
+const _transparentProfileAppBarIconStyle = ButtonStyle(
+  backgroundColor: WidgetStatePropertyAll(Colors.transparent),
+);
+
 /// Collapsing profile header styled like the compact profile card.
 ///
 /// The expanded state shows the themed illustration band, overlapping avatar,
@@ -50,8 +54,8 @@ class ProfileSliverAppBar extends StatelessWidget {
     return SliverAppBar(
       leading: AppShellDrawerScope.maybeOf(context) == null
           ? null
-          : const _TransparentProfileAppBarIconTheme(
-              child: AppShellDrawerButton(),
+          : const AppShellDrawerButton(
+              style: _transparentProfileAppBarIconStyle,
             ),
       pinned: true,
       expandedHeight: layout.expandedHeight,
@@ -306,9 +310,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
             ignoring: collapsed < 0.5,
             child: Opacity(
               opacity: collapsed,
-              child: _TransparentProfileAppBarIconTheme(
-                child: _CollapsedTrailingAction(actions: actions),
-              ),
+              child: _CollapsedTrailingAction(actions: actions),
             ),
           ),
         ),
@@ -344,28 +346,6 @@ class _ProfileFlexibleSpace extends StatelessWidget {
   }
 }
 
-class _TransparentProfileAppBarIconTheme extends StatelessWidget {
-  const _TransparentProfileAppBarIconTheme({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final inheritedStyle = theme.iconButtonTheme.style ?? const ButtonStyle();
-    return Theme(
-      data: theme.copyWith(
-        iconButtonTheme: IconButtonThemeData(
-          style: inheritedStyle.copyWith(
-            backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
-          ),
-        ),
-      ),
-      child: child,
-    );
-  }
-}
-
 class _CollapsedTrailingAction extends StatelessWidget {
   const _CollapsedTrailingAction({required this.actions});
 
@@ -379,6 +359,7 @@ class _CollapsedTrailingAction extends StatelessWidget {
         tooltip: l10n.profileSettingsAction,
         icon: const Icon(Icons.settings_outlined),
         onPressed: onSettings,
+        style: _transparentProfileAppBarIconStyle,
       ),
       VisitorProfileActionSet(
         :final isMuted,
@@ -397,6 +378,7 @@ class _CollapsedTrailingAction extends StatelessWidget {
                       : Icons.volume_off_outlined,
                 ),
                 onPressed: isBusy ? null : onMuteToggle,
+                style: _transparentProfileAppBarIconStyle,
               )
             : const SizedBox.shrink(),
     };

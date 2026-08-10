@@ -6,6 +6,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/settings/pages/profile_customisation_page.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -127,6 +128,10 @@ void main() {
           .widget<CachedNetworkImage>(find.byType(CachedNetworkImage))
           .imageUrl,
       'https://example.test/alice.jpg',
+    );
+    expect(
+      tester.widget<ProfileAvatar>(find.byType(ProfileAvatar)).showShadow,
+      isFalse,
     );
     await tester.tap(find.text('Teal'));
     await tester.tap(find.text('Thick'));

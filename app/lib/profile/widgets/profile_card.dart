@@ -376,11 +376,10 @@ class _ProfileCardSurface extends StatelessWidget {
                                   ),
                                   opacity: compactOpacity,
                                   child: Material(
-                                    color: Color.lerp(
-                                      swatches.paper3,
-                                      theme.scaffoldBackgroundColor,
-                                      progress,
+                                    key: const Key(
+                                      'profile-card-close-surface',
                                     ),
+                                    color: Colors.transparent,
                                     shape: const CircleBorder(),
                                     child: IconButton(
                                       key: const Key('profile-card-close'),
@@ -388,6 +387,11 @@ class _ProfileCardSurface extends StatelessWidget {
                                         context,
                                       ).closeButtonTooltip,
                                       onPressed: onClose,
+                                      style: const ButtonStyle(
+                                        backgroundColor: WidgetStatePropertyAll(
+                                          Colors.transparent,
+                                        ),
+                                      ),
                                       icon: const Icon(Icons.close),
                                     ),
                                   ),

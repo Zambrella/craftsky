@@ -329,11 +329,11 @@ void main() {
       await tester.pump();
 
       expect(find.byType(IconButton), findsNWidgets(2));
-      for (final button in find.byType(IconButton).evaluate()) {
+      for (final button in tester.widgetList<IconButton>(
+        find.byType(IconButton),
+      )) {
         expect(
-          Theme.of(
-            button,
-          ).iconButtonTheme.style?.backgroundColor?.resolve({}),
+          button.style?.backgroundColor?.resolve({}),
           Colors.transparent,
         );
       }

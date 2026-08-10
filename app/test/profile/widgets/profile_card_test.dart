@@ -226,6 +226,37 @@ void main() {
       expect(avatarDecoration.boxShadow, isEmpty);
     });
 
+    testWidgets('compact close button has a transparent surface', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          ProfileCard(
+            profile: _profile(
+              customisation: const ProfileCustomisation(colour: 'amber'),
+            ),
+            isOwnProfile: false,
+            onClose: () {},
+            onVisitProfile: () {},
+            onPrimaryAction: () {},
+          ),
+        ),
+      );
+
+      final closeButton = tester.widget<IconButton>(
+        find.byKey(const Key('profile-card-close')),
+      );
+      final closeSurface = tester.widget<Material>(
+        find.byKey(const Key('profile-card-close-surface')),
+      );
+
+      expect(
+        closeButton.style?.backgroundColor?.resolve({}),
+        Colors.transparent,
+      );
+      expect(closeSurface.color, Colors.transparent);
+    });
+
     testWidgets('TDD-003 uses the public shared profile presentation widgets', (
       tester,
     ) async {
