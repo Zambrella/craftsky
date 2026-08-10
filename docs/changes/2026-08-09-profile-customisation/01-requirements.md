@@ -118,11 +118,11 @@ Approved fixed bundles (2026-08-10):
 | `cobalt` | `#1535D6` | `#FFFFFF` | `#122EBA` | `#0F279E` | `#D8DDF9` | `#FFFFFF` | 18% |
 | `orchid` | `#B615D6` | `#FFFFFF` | `#9E12BA` | `#860F9E` | `#F3D8F9` | `#FFFFFF` | 18% |
 | `rose` | `#D61535` | `#FFFFFF` | `#BA122E` | `#9E0F27` | `#F9D8DD` | `#FFFFFF` | 18% |
-| `amber` | `#D6B615` | `#111318` | `#BA9E12` | `#9E860F` | `#F9F3D8` | `#111318` | 18% |
-| `lime` | `#35D615` | `#111318` | `#2EBA12` | `#279E0F` | `#DDF9D8` | `#111318` | 18% |
-| `teal` | `#15D6B6` | `#111318` | `#12BA9E` | `#0F9E86` | `#D8F9F3` | `#111318` | 18% |
+| `amber` | `#766200` | `#FFFFFF` | `#655300` | `#544500` | `#F9F3D8` | `#FFFFFF` | 18% |
+| `lime` | `#23770F` | `#FFFFFF` | `#1D650C` | `#175309` | `#DDF9D8` | `#FFFFFF` | 18% |
+| `teal` | `#007663` | `#FFFFFF` | `#006454` | `#005146` | `#D8F9F3` | `#FFFFFF` | 18% |
 
-The foreground applies to the base, hover, and pressed tones. Every such pair has a contrast ratio of at least 5.16:1. Soft containers use Craftsky ink `#111318` as their readable content colour.
+The foreground applies to the base, hover, and pressed tones. Every such pair has a contrast ratio of at least 5.16:1. The base, hover, and pressed tones also maintain at least 4.5:1 contrast when used as link/accent text on the Craftsky paper and white surfaces. Soft containers use Craftsky ink `#111318` as their readable content colour. Amber, lime, and teal were darkened after simulator review on 2026-08-10 so their link and accent uses meet this surface-contrast requirement.
 
 ### Q12: Which background catalogue and placement are approved?
 

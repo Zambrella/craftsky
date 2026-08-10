@@ -41,9 +41,9 @@ void main() {
     expect((image.image as AssetImage).assetName, endsWith('/x2.png'));
     expect(image.repeat, ImageRepeat.repeat);
     expect(image.color?.a, moreOrLessEquals(0.18));
-    expect(image.color?.r, moreOrLessEquals(0x11 / 255));
-    expect(image.color?.g, moreOrLessEquals(0x13 / 255));
-    expect(image.color?.b, moreOrLessEquals(0x18 / 255));
+    expect(image.color?.r, 1);
+    expect(image.color?.g, 1);
+    expect(image.color?.b, 1);
     expect(image.colorBlendMode, BlendMode.srcIn);
   });
 

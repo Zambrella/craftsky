@@ -142,7 +142,7 @@ void main() {
       find.byKey(const Key('profile-avatar-border')),
     );
     final border = (avatar.decoration! as BoxDecoration).border! as Border;
-    expect(border.top.color, const Color(0xFF15D6B6));
+    expect(border.top.color, const Color(0xFF007663));
     expect(border.top.width, 8);
     expect(
       find.byKey(const Key('profile-header-background-texture')),

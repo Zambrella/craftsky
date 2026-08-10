@@ -5,6 +5,7 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/search/models/profile_search_page.dart';
+import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -75,30 +76,30 @@ void main() {
         textureOpacity: 0.18,
       ),
       'amber': const ProfileColourBundle(
-        base: '#D6B615',
-        foreground: '#111318',
-        hover: '#BA9E12',
-        pressed: '#9E860F',
+        base: '#766200',
+        foreground: '#FFFFFF',
+        hover: '#655300',
+        pressed: '#544500',
         softContainer: '#F9F3D8',
-        textureTint: '#111318',
+        textureTint: '#FFFFFF',
         textureOpacity: 0.18,
       ),
       'lime': const ProfileColourBundle(
-        base: '#35D615',
-        foreground: '#111318',
-        hover: '#2EBA12',
-        pressed: '#279E0F',
+        base: '#23770F',
+        foreground: '#FFFFFF',
+        hover: '#1D650C',
+        pressed: '#175309',
         softContainer: '#DDF9D8',
-        textureTint: '#111318',
+        textureTint: '#FFFFFF',
         textureOpacity: 0.18,
       ),
       'teal': const ProfileColourBundle(
-        base: '#15D6B6',
-        foreground: '#111318',
-        hover: '#12BA9E',
-        pressed: '#0F9E86',
+        base: '#007663',
+        foreground: '#FFFFFF',
+        hover: '#006454',
+        pressed: '#005146',
         softContainer: '#D8F9F3',
-        textureTint: '#111318',
+        textureTint: '#FFFFFF',
         textureOpacity: 0.18,
       ),
     });
@@ -119,6 +120,20 @@ void main() {
         greaterThanOrEqualTo(4.5),
         reason: '#111318 on ${bundle.softContainer}',
       );
+    }
+  });
+
+  test('profile accent and link states meet AA contrast on paper surfaces', () {
+    for (final bundle in profileColourBundles.values) {
+      for (final accent in [bundle.base, bundle.hover, bundle.pressed]) {
+        for (final surface in [BrandColors.paper, BrandColors.paper3]) {
+          expect(
+            _contrast(_colour(accent), surface),
+            greaterThanOrEqualTo(4.5),
+            reason: '$accent on ${surface.toARGB32().toRadixString(16)}',
+          );
+        }
+      }
     }
   });
 
