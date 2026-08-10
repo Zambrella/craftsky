@@ -262,7 +262,7 @@ Map<String, String> _colourLabels(AppLocalizations l10n) => {
   'orchid': l10n.profileCustomisationColourOrchid,
   'rose': l10n.profileCustomisationColourRose,
   'amber': l10n.profileCustomisationColourAmber,
-  'lime': l10n.profileCustomisationColourLime,
+  'lime': l10n.profileCustomisationColourGreen,
   'teal': l10n.profileCustomisationColourTeal,
 };
 

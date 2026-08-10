@@ -122,7 +122,7 @@ Approved fixed bundles (2026-08-10):
 | `lime` | `#23770F` | `#FFFFFF` | `#1D650C` | `#175309` | `#DDF9D8` | `#FFFFFF` | 18% |
 | `teal` | `#007663` | `#FFFFFF` | `#006454` | `#005146` | `#D8F9F3` | `#FFFFFF` | 18% |
 
-The foreground applies to the base, hover, and pressed tones. Every such pair has a contrast ratio of at least 5.16:1. The base, hover, and pressed tones also maintain at least 4.5:1 contrast when used as link/accent text on the Craftsky paper and white surfaces. Soft containers use Craftsky ink `#111318` as their readable content colour. Amber, lime, and teal were darkened after simulator review on 2026-08-10 so their link and accent uses meet this surface-contrast requirement.
+The foreground applies to the base, hover, and pressed tones. Every such pair has a contrast ratio of at least 5.16:1. The base, hover, and pressed tones also maintain at least 4.5:1 contrast when used as link/accent text on the Craftsky paper and white surfaces. Soft containers use Craftsky ink `#111318` as their readable content colour. Amber, lime, and teal were darkened after simulator review on 2026-08-10 so their link and accent uses meet this surface-contrast requirement. The stable `lime` key is shown to members as `Green`; persisted values and API payloads remain `lime`.
 
 ### Q12: Which background catalogue and placement are approved?
 

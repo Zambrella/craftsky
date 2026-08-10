@@ -1356,7 +1356,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileCustomisationColourAmber => 'Amber';
 
   @override
-  String get profileCustomisationColourLime => 'Lime';
+  String get profileCustomisationColourGreen => 'Green';
 
   @override
   String get profileCustomisationColourTeal => 'Teal';

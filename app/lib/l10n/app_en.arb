@@ -1283,8 +1283,8 @@
   "profileCustomisationColourAmber": "Amber",
   "@profileCustomisationColourAmber": { "description": "Label for the amber profile colour." },
 
-  "profileCustomisationColourLime": "Lime",
-  "@profileCustomisationColourLime": { "description": "Label for the lime profile colour." },
+  "profileCustomisationColourGreen": "Green",
+  "@profileCustomisationColourGreen": { "description": "Label for the green profile colour stored under the stable lime key." },
 
   "profileCustomisationColourTeal": "Teal",
   "@profileCustomisationColourTeal": { "description": "Label for the teal profile colour." },

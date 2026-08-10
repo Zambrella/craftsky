@@ -2530,11 +2530,11 @@ abstract class AppLocalizations {
   /// **'Amber'**
   String get profileCustomisationColourAmber;
 
-  /// Label for the lime profile colour.
+  /// Label for the green profile colour stored under the stable lime key.
   ///
   /// In en, this message translates to:
-  /// **'Lime'**
-  String get profileCustomisationColourLime;
+  /// **'Green'**
+  String get profileCustomisationColourGreen;
 
   /// Label for the teal profile colour.
   ///

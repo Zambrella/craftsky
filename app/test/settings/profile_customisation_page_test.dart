@@ -123,6 +123,8 @@ void main() {
     expect(find.text('Colour'), findsOneWidget);
     expect(find.text('Profile border'), findsOneWidget);
     expect(find.text('Profile background'), findsOneWidget);
+    expect(find.text('Green'), findsOneWidget);
+    expect(find.text('Lime'), findsNothing);
     expect(
       tester
           .widget<CachedNetworkImage>(find.byType(CachedNetworkImage))
