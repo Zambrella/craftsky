@@ -1,17 +1,20 @@
 import 'dart:async';
 import 'dart:ui' show Tristate;
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/settings/pages/profile_customisation_page.dart';
+import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../fakes/image_cache_fakes.dart';
 import '../fakes/recording_messenger.dart';
 import '../profile/fakes/fake_profile_repository.dart';
 
@@ -82,10 +85,13 @@ void main() {
   ) async {
     ProfileCustomisation? submitted;
     final messenger = RecordingMessenger();
+    final imageCache = FakeBaseCacheManager();
     final repository = FakeProfileRepository(
       onFetchMe: () async => Profile(
         did: 'did:plc:alice',
         handle: 'alice.example',
+        displayName: 'Alice',
+        avatar: 'https://example.test/alice.jpg',
         crafts: [],
       ),
       onUpdateCustomisation: (value) async {
@@ -98,6 +104,7 @@ void main() {
       ProviderScope(
         overrides: [
           profileRepositoryProvider.overrideWithValue(repository),
+          profileImageCacheManagerProvider.overrideWith((ref) => imageCache),
         ],
         child: MessengerScope(
           messenger: messenger,
@@ -115,6 +122,12 @@ void main() {
     expect(find.text('Colour'), findsOneWidget);
     expect(find.text('Profile border'), findsOneWidget);
     expect(find.text('Profile background'), findsOneWidget);
+    expect(
+      tester
+          .widget<CachedNetworkImage>(find.byType(CachedNetworkImage))
+          .imageUrl,
+      'https://example.test/alice.jpg',
+    );
     await tester.tap(find.text('Teal'));
     await tester.tap(find.text('Thick'));
     await tester.tap(find.text('Crosshatch'));

@@ -15,10 +15,14 @@ final class ProfileCustomisationEditorState {
   const ProfileCustomisationEditorState({
     required this.confirmed,
     required this.draft,
+    required this.previewSeed,
+    this.previewAvatarUrl,
   });
 
   final ProfileCustomisation confirmed;
   final ProfileCustomisation draft;
+  final String previewSeed;
+  final String? previewAvatarUrl;
 
   bool get isDirty => confirmed != draft;
 
@@ -28,6 +32,8 @@ final class ProfileCustomisationEditorState {
   }) => ProfileCustomisationEditorState(
     confirmed: confirmed ?? this.confirmed,
     draft: draft ?? this.draft,
+    previewSeed: previewSeed,
+    previewAvatarUrl: previewAvatarUrl,
   );
 }
 
@@ -44,6 +50,10 @@ class ProfileCustomisationEditor extends _$ProfileCustomisationEditor {
     return ProfileCustomisationEditorState(
       confirmed: profile.customisation,
       draft: profile.customisation,
+      previewSeed: profile.displayName?.trim().isNotEmpty == true
+          ? profile.displayName!
+          : profile.handle,
+      previewAvatarUrl: profile.avatar,
     );
   }
 
@@ -86,9 +96,7 @@ class ProfileCustomisationEditor extends _$ProfileCustomisationEditor {
       }
       if (!isActiveAccountOperationCurrent(ref, ownership)) return;
 
-      state = AsyncData(
-        ProfileCustomisationEditorState(confirmed: saved, draft: saved),
-      );
+      state = AsyncData(current.copyWith(confirmed: saved, draft: saved));
       for (final id in <String?>{_profileDid, _profileHandle}) {
         if (id == null) continue;
         final profileProvider = userProfileProvider(id);

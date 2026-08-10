@@ -50,7 +50,9 @@ class ProfileSliverAppBar extends StatelessWidget {
     return SliverAppBar(
       leading: AppShellDrawerScope.maybeOf(context) == null
           ? null
-          : const AppShellDrawerButton(),
+          : const _TransparentProfileAppBarIconTheme(
+              child: AppShellDrawerButton(),
+            ),
       pinned: true,
       expandedHeight: layout.expandedHeight,
       backgroundColor: swatches.paper,
@@ -304,7 +306,9 @@ class _ProfileFlexibleSpace extends StatelessWidget {
             ignoring: collapsed < 0.5,
             child: Opacity(
               opacity: collapsed,
-              child: _CollapsedTrailingAction(actions: actions),
+              child: _TransparentProfileAppBarIconTheme(
+                child: _CollapsedTrailingAction(actions: actions),
+              ),
             ),
           ),
         ),
@@ -335,6 +339,28 @@ class _ProfileFlexibleSpace extends StatelessWidget {
       key: const Key('profile-avatar-viewer-target'),
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
+      child: child,
+    );
+  }
+}
+
+class _TransparentProfileAppBarIconTheme extends StatelessWidget {
+  const _TransparentProfileAppBarIconTheme({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final inheritedStyle = theme.iconButtonTheme.style ?? const ButtonStyle();
+    return Theme(
+      data: theme.copyWith(
+        iconButtonTheme: IconButtonThemeData(
+          style: inheritedStyle.copyWith(
+            backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
+          ),
+        ),
+      ),
       child: child,
     );
   }

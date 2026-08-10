@@ -124,23 +124,18 @@ void main() {
       expect(find.text('D'), findsOneWidget);
     });
 
-    testWidgets('preserves chunky border + seeded background', (tester) async {
+    testWidgets('preserves seeded background and chunky shadow', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrap(const ProfileAvatar(seed: 'E')));
 
-      // Find the outermost Container (the one decorated with the circle
-      // shape + border + shadow). It is the first Container ancestor
-      // of the rendered Text 'E' that has a circular BoxDecoration.
-      final containers = tester.widgetList<Container>(find.byType(Container));
-      final circle = containers.firstWhere((c) {
-        final d = c.decoration;
-        return d is BoxDecoration && d.shape == BoxShape.circle;
-      });
-      final decoration = circle.decoration! as BoxDecoration;
+      final shadow = tester.widget<DecoratedBox>(
+        find.byKey(const Key('profile-avatar-shadow')),
+      );
+      final decoration = shadow.decoration as BoxDecoration;
 
-      // Seeded background present, ink border applied.
       final swatches = AppTheme.lightThemeData.extension<BrandSwatchTheme>()!;
       expect(decoration.color, swatches.sky);
-      expect(decoration.border, isNotNull);
       expect(decoration.boxShadow, isNotEmpty);
     });
 
@@ -166,7 +161,20 @@ void main() {
       final border = decoration.border! as Border;
       expect(border.top.color, const Color(0xFFD61535));
       expect(border.top.width, 5);
-      expect(avatar.padding, const EdgeInsets.all(5));
+      expect(avatar.padding, isNull);
+      final borderedLayers = tester
+          .widgetList<Container>(
+            find.descendant(
+              of: find.byType(ProfileAvatar),
+              matching: find.byType(Container),
+            ),
+          )
+          .where(
+            (container) =>
+                container.decoration is BoxDecoration &&
+                (container.decoration! as BoxDecoration).border != null,
+          );
+      expect(borderedLayers, hasLength(1));
     });
   });
 }

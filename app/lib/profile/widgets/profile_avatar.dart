@@ -54,45 +54,59 @@ class ProfileAvatar extends ConsumerWidget {
       foregroundColor: theme.colorScheme.onSurface,
     );
 
-    return Container(
-      key: const Key('profile-avatar-border'),
+    return SizedBox(
       width: dimension,
       height: dimension,
-      padding: EdgeInsets.all(borderWidth),
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: fallbackBackground,
-        border: Border.all(
-          color: _colourFromHex(colourBundle.base),
-          width: borderWidth,
-        ),
-        boxShadow: showShadow ? size.shadowsFrom(shadows) : const [],
-      ),
-      child: ClipOval(
-        child: imageProvider != null
-            ? Image(
-                image: imageProvider!,
-                fit: BoxFit.cover,
-                width: dimension,
-                height: dimension,
-              )
-            : avatarUrl == null
-            ? fallback
-            : CachedNetworkImage(
-                imageUrl: avatarUrl!,
-                cacheManager: ref.watch(profileImageCacheManagerProvider),
-                fit: BoxFit.cover,
-                width: dimension,
-                height: dimension,
-                placeholder: (_, _) => fallback,
-                errorWidget: (_, _, _) => fallback,
-                // Quick cross-fade instead of the 500ms default —
-                // CachedNetworkImage always remounts in the placeholder
-                // state (even on a disk-cache hit), so a slow fade makes
-                // every revisit feel laggy.
-                fadeInDuration: const Duration(milliseconds: 150),
-                fadeOutDuration: const Duration(milliseconds: 150),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          DecoratedBox(
+            key: const Key('profile-avatar-shadow'),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: fallbackBackground,
+              boxShadow: showShadow ? size.shadowsFrom(shadows) : const [],
+            ),
+          ),
+          ClipOval(
+            child: imageProvider != null
+                ? Image(
+                    image: imageProvider!,
+                    fit: BoxFit.cover,
+                    width: dimension,
+                    height: dimension,
+                  )
+                : avatarUrl == null
+                ? fallback
+                : CachedNetworkImage(
+                    imageUrl: avatarUrl!,
+                    cacheManager: ref.watch(profileImageCacheManagerProvider),
+                    fit: BoxFit.cover,
+                    width: dimension,
+                    height: dimension,
+                    placeholder: (_, _) => fallback,
+                    errorWidget: (_, _, _) => fallback,
+                    // Quick cross-fade instead of the 500ms default —
+                    // CachedNetworkImage always remounts in the placeholder
+                    // state (even on a disk-cache hit), so a slow fade makes
+                    // every revisit feel laggy.
+                    fadeInDuration: const Duration(milliseconds: 150),
+                    fadeOutDuration: const Duration(milliseconds: 150),
+                  ),
+          ),
+          IgnorePointer(
+            child: Container(
+              key: const Key('profile-avatar-border'),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: _colourFromHex(colourBundle.base),
+                  width: borderWidth,
+                ),
               ),
+            ),
+          ),
+        ],
       ),
     );
   }

@@ -18,11 +18,13 @@ import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
+import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
 import 'package:craftsky_app/profile/widgets/profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_meta_section.dart';
 import 'package:craftsky_app/profile/widgets/profile_sliver_app_bar.dart';
 import 'package:craftsky_app/profile/widgets/profile_stats.dart';
 import 'package:craftsky_app/profile/widgets/profile_tab_bar.dart';
+import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -290,6 +292,51 @@ void main() {
       controller.jumpTo(collapseRange);
       await tester.pump();
       expect(tester.widget<Opacity>(divider).opacity, 1);
+    });
+
+    testWidgets('profile app bar icon buttons have transparent surfaces', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: AppShellDrawerScope(
+            openDrawer: () {},
+            isDrawerOpen: false,
+            child: Scaffold(
+              body: CustomScrollView(
+                slivers: [
+                  ProfileCustomisationTheme(
+                    customisation: const ProfileCustomisation(
+                      colour: 'orchid',
+                    ),
+                    child: ProfileSliverAppBar(
+                      handle: 'alice.bsky.social',
+                      actions: SelfProfileActionSet(
+                        onEdit: () {},
+                        onSettings: () {},
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byType(IconButton), findsNWidgets(2));
+      for (final button in find.byType(IconButton).evaluate()) {
+        expect(
+          Theme.of(
+            button,
+          ).iconButtonTheme.style?.backgroundColor?.resolve({}),
+          Colors.transparent,
+        );
+      }
     });
 
     testWidgets(

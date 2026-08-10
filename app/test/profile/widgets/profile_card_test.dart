@@ -215,18 +215,13 @@ void main() {
         ),
       );
 
-      final avatarContainers = tester.widgetList<Container>(
+      final shadowLayer = tester.widget<DecoratedBox>(
         find.descendant(
           of: find.byType(ProfileAvatar),
-          matching: find.byType(Container),
+          matching: find.byKey(const Key('profile-avatar-shadow')),
         ),
       );
-      final avatarDecoration = avatarContainers
-          .map((container) => container.decoration)
-          .whereType<BoxDecoration>()
-          .firstWhere(
-            (decoration) => decoration.shape == BoxShape.circle,
-          );
+      final avatarDecoration = shadowLayer.decoration as BoxDecoration;
 
       expect(avatarDecoration.boxShadow, isEmpty);
     });

@@ -120,7 +120,8 @@ class _LoadedCustomisationPageState
                         ProfileHeaderBackground(customisation: draft),
                         Center(
                           child: ProfileAvatar(
-                            seed: 'Craftsky',
+                            seed: widget.value.previewSeed,
+                            avatarUrl: widget.value.previewAvatarUrl,
                             size: ProfileAvatarSize.large,
                             customisation: draft,
                           ),
