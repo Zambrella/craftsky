@@ -5,6 +5,7 @@ import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
 import 'package:craftsky_app/auth/services/session_validation_coordinator.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
 import 'package:craftsky_app/shared/api/providers/session_auth_interceptor.dart';
 import 'package:craftsky_app/shared/api/providers/sign_out_on_401_interceptor.dart';
@@ -149,6 +150,7 @@ void main() {
             lease,
             displayName: 'Alice',
             avatarUrl: 'https://example.test/alice.jpg',
+            customisation: ProfileCustomisation.defaults,
           );
 
       expect(container.read(dioProvider), same(activeBefore));

@@ -16,7 +16,11 @@ class ProfileAccountSummaryMapper
   static ProfileAccountSummaryMapper ensureInitialized() {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = ProfileAccountSummaryMapper._());
-      MapperContainer.globals.useAll([DidMapper(), HandleMapper()]);
+      MapperContainer.globals.useAll([
+        DidMapper(),
+        HandleMapper(),
+        ProfileCustomisationMapper(),
+      ]);
     }
     return _instance!;
   }
@@ -83,6 +87,15 @@ class ProfileAccountSummaryMapper
     opt: true,
     def: false,
   );
+  static ProfileCustomisation _$customisation(ProfileAccountSummary v) =>
+      v.customisation;
+  static const Field<ProfileAccountSummary, ProfileCustomisation>
+  _f$customisation = Field(
+    'customisation',
+    _$customisation,
+    opt: true,
+    def: ProfileCustomisation.defaults,
+  );
 
   @override
   final MappableFields<ProfileAccountSummary> fields = const {
@@ -95,6 +108,7 @@ class ProfileAccountSummaryMapper
     #muted: _f$muted,
     #blocking: _f$blocking,
     #blockedBy: _f$blockedBy,
+    #customisation: _f$customisation,
   };
 
   static ProfileAccountSummary _instantiate(DecodingData data) {
@@ -108,6 +122,7 @@ class ProfileAccountSummaryMapper
       muted: data.dec(_f$muted),
       blocking: data.dec(_f$blocking),
       blockedBy: data.dec(_f$blockedBy),
+      customisation: data.dec(_f$customisation),
     );
   }
 
@@ -191,6 +206,7 @@ abstract class ProfileAccountSummaryCopyWith<
     bool? muted,
     bool? blocking,
     bool? blockedBy,
+    ProfileCustomisation? customisation,
   });
   ProfileAccountSummaryCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
@@ -216,6 +232,7 @@ class _ProfileAccountSummaryCopyWithImpl<$R, $Out>
     bool? muted,
     bool? blocking,
     bool? blockedBy,
+    ProfileCustomisation? customisation,
   }) => $apply(
     FieldCopyWithData({
       if (did != null) #did: did,
@@ -227,6 +244,7 @@ class _ProfileAccountSummaryCopyWithImpl<$R, $Out>
       if (muted != null) #muted: muted,
       if (blocking != null) #blocking: blocking,
       if (blockedBy != null) #blockedBy: blockedBy,
+      if (customisation != null) #customisation: customisation,
     }),
   );
   @override
@@ -243,6 +261,7 @@ class _ProfileAccountSummaryCopyWithImpl<$R, $Out>
     muted: data.get(#muted, or: $value.muted),
     blocking: data.get(#blocking, or: $value.blocking),
     blockedBy: data.get(#blockedBy, or: $value.blockedBy),
+    customisation: data.get(#customisation, or: $value.customisation),
   );
 
   @override

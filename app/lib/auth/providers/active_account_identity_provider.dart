@@ -44,6 +44,7 @@ final activeAccountIdentityProvider =
               target.lease,
               displayName: profile.displayName,
               avatarUrl: profile.avatar,
+              customisation: profile.customisation,
             );
         final afterUpdate = ref.read(sessionRegistryProvider).value;
         return ref.mounted && afterUpdate?.activeLease?.session == target.lease

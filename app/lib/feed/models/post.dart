@@ -1,4 +1,5 @@
 import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dart_mappable/dart_mappable.dart';
@@ -240,7 +241,12 @@ class PostImageAspectRatio with PostImageAspectRatioMappable {
 /// the raw CID.
 @MappableClass(
   ignoreNull: true,
-  includeCustomMappers: [DidMapper(), HandleMapper(), CidMapper()],
+  includeCustomMappers: [
+    DidMapper(),
+    HandleMapper(),
+    CidMapper(),
+    ProfileCustomisationMapper(),
+  ],
 )
 class PostAuthor with PostAuthorMappable {
   PostAuthor({
@@ -252,6 +258,7 @@ class PostAuthor with PostAuthorMappable {
     this.muted,
     this.blocking,
     this.blockedBy,
+    this.customisation = ProfileCustomisation.defaults,
   }) : did = Did.parse(did),
        handle = Handle.parse(handle),
        avatarCid = avatarCid == null ? null : Cid.parse(avatarCid);
@@ -264,6 +271,7 @@ class PostAuthor with PostAuthorMappable {
   final bool? muted;
   final bool? blocking;
   final bool? blockedBy;
+  final ProfileCustomisation customisation;
 
   bool get hasViewerState =>
       muted != null || blocking != null || blockedBy != null;

@@ -37,6 +37,8 @@ class AccountSwitcherContent extends StatelessWidget {
                 enabled: !busy && !row.isCurrent,
                 leading: AccountAvatar(
                   avatarUrl: row.avatarUrl,
+                  seed: row.displayLabel,
+                  customisation: row.customisation,
                   selected: row.isCurrent,
                 ),
                 title: Text(row.displayLabel),

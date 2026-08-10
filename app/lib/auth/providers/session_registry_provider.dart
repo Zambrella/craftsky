@@ -2,6 +2,7 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart' as registry;
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'session_registry_provider.g.dart';
@@ -21,6 +22,7 @@ class SessionRegistry extends _$SessionRegistry {
     required String handle,
     String? cachedDisplayName,
     String? cachedAvatarUrl,
+    ProfileCustomisation cachedCustomisation = ProfileCustomisation.defaults,
     Future<void> Function()? beforePublish,
   }) => _mutate(
     (current) => current.upsertAndActivate(
@@ -29,6 +31,7 @@ class SessionRegistry extends _$SessionRegistry {
       handle: handle,
       cachedDisplayName: cachedDisplayName,
       cachedAvatarUrl: cachedAvatarUrl,
+      cachedCustomisation: cachedCustomisation,
     ),
     beforePublish: beforePublish,
   );
@@ -62,12 +65,21 @@ class SessionRegistry extends _$SessionRegistry {
     AccountSessionLease lease, {
     required String? displayName,
     required String? avatarUrl,
+    required ProfileCustomisation customisation,
   }) => _mutate(
     (current) => current.updateCachedIdentity(
       lease,
       displayName: displayName,
       avatarUrl: avatarUrl,
+      customisation: customisation,
     ),
+  );
+
+  Future<void> updateCachedCustomisation(
+    AccountSessionLease lease,
+    ProfileCustomisation customisation,
+  ) => _mutate(
+    (current) => current.updateCachedCustomisation(lease, customisation),
   );
 
   Future<void> _mutate(

@@ -1,9 +1,16 @@
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 
 part 'profile_account_summary.mapper.dart';
 
-@MappableClass(includeCustomMappers: [DidMapper(), HandleMapper()])
+@MappableClass(
+  includeCustomMappers: [
+    DidMapper(),
+    HandleMapper(),
+    ProfileCustomisationMapper(),
+  ],
+)
 class ProfileAccountSummary with ProfileAccountSummaryMappable {
   ProfileAccountSummary({
     required String did,
@@ -15,6 +22,7 @@ class ProfileAccountSummary with ProfileAccountSummaryMappable {
     this.muted = false,
     this.blocking = false,
     this.blockedBy = false,
+    this.customisation = ProfileCustomisation.defaults,
   }) : did = Did.parse(did),
        handle = Handle.parse(handle);
 
@@ -27,4 +35,5 @@ class ProfileAccountSummary with ProfileAccountSummaryMappable {
   final bool muted;
   final bool blocking;
   final bool blockedBy;
+  final ProfileCustomisation customisation;
 }

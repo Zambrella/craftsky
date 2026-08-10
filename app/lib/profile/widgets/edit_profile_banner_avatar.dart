@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_banner.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -89,6 +90,7 @@ class EditProfileBannerAvatar extends StatelessWidget {
                 _EditableAvatar(
                   seed: profile.displayName ?? profile.handle,
                   avatarUrl: profile.avatar,
+                  customisation: profile.customisation,
                   previewBytes: avatarPreviewBytes,
                   isUploading: avatarUploading,
                   hasError: avatarError,
@@ -167,6 +169,7 @@ class _EditableAvatar extends StatelessWidget {
   const _EditableAvatar({
     required this.seed,
     required this.avatarUrl,
+    required this.customisation,
     required this.previewBytes,
     required this.isUploading,
     required this.hasError,
@@ -174,26 +177,20 @@ class _EditableAvatar extends StatelessWidget {
 
   final String seed;
   final String? avatarUrl;
+  final ProfileCustomisation customisation;
   final Uint8List? previewBytes;
   final bool isUploading;
   final bool hasError;
 
   @override
   Widget build(BuildContext context) {
-    final avatar = previewBytes == null
-        ? ProfileAvatar(
-            seed: seed,
-            avatarUrl: avatarUrl,
-            size: ProfileAvatarSize.large,
-          )
-        : ClipOval(
-            child: Image.memory(
-              previewBytes!,
-              width: 96,
-              height: 96,
-              fit: BoxFit.cover,
-            ),
-          );
+    final avatar = ProfileAvatar(
+      seed: seed,
+      avatarUrl: avatarUrl,
+      imageProvider: previewBytes == null ? null : MemoryImage(previewBytes!),
+      size: ProfileAvatarSize.large,
+      customisation: customisation,
+    );
     if (!isUploading && !hasError) return avatar;
     return Stack(
       alignment: Alignment.center,

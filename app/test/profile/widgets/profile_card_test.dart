@@ -3,13 +3,13 @@ import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_bio.dart';
 import 'package:craftsky_app/profile/widgets/profile_card.dart';
 import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/profile/widgets/profile_craft_chips.dart';
-import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
 import 'package:craftsky_app/profile/widgets/profile_framed_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_header_background.dart';
 import 'package:craftsky_app/profile/widgets/profile_identity.dart';
@@ -84,7 +84,9 @@ Widget _wrap(Widget child, {List<dynamic> overrides = const []}) {
   );
 }
 
-Profile _profile() {
+Profile _profile({
+  ProfileCustomisation customisation = ProfileCustomisation.defaults,
+}) {
   return Profile(
     did: 'did:plc:alice',
     handle: 'alice.craftsky.social',
@@ -94,6 +96,7 @@ Profile _profile() {
     createdAt: DateTime.now().subtract(const Duration(days: 370)),
     postsLast7Days: 3,
     projectCount: 12,
+    customisation: customisation,
   );
 }
 
@@ -130,15 +133,14 @@ Map<String, double> _profileVerticalGaps(
 void main() {
   group('ProfileCard', () {
     testWidgets(
-      'TDD-001 scopes a supplied primary colour and defaults decorations off',
+      'TDD-001 scopes the profile colour and defaults the texture off',
       (tester) async {
-        const customPrimary = Color(0xFF9A4DFF);
-
         await tester.pumpWidget(
           _wrap(
             ProfileCard(
-              profile: _profile(),
-              primaryColor: customPrimary,
+              profile: _profile(
+                customisation: const ProfileCustomisation(colour: 'orchid'),
+              ),
               isOwnProfile: false,
               onClose: () {},
               onVisitProfile: () {},
@@ -150,21 +152,7 @@ void main() {
         final header = tester.widget<ColoredBox>(
           find.byKey(const Key('profile-card-header')),
         );
-        final framedAvatar = find.byType(ProfileFramedAvatar);
-        final avatarRim = tester.widget<DecoratedBox>(
-          find
-              .descendant(
-                of: framedAvatar,
-                matching: find.byType(DecoratedBox),
-              )
-              .first,
-        );
-        final avatarRimDecoration = avatarRim.decoration as BoxDecoration;
-        expect(header.color, customPrimary);
-        expect(
-          avatarRimDecoration.color,
-          Theme.of(tester.element(framedAvatar)).colorScheme.surface,
-        );
+        expect(header.color, const Color(0xFFB615D6));
         expect(
           find.byKey(const Key('profile-card-background-illustration')),
           findsNothing,
@@ -177,17 +165,17 @@ void main() {
     );
 
     testWidgets(
-      'TDD-002 renders independently selected curated decorations',
+      'TDD-002 renders the selected local texture without a second frame',
       (tester) async {
-        expect(ProfileBackgroundIllustration.values, hasLength(3));
-        expect(ProfileAvatarFrame.values, hasLength(3));
-
         await tester.pumpWidget(
           _wrap(
             ProfileCard(
-              profile: _profile(),
-              backgroundIllustration: ProfileBackgroundIllustration.botanical,
-              avatarFrame: ProfileAvatarFrame.stitched,
+              profile: _profile(
+                customisation: const ProfileCustomisation(
+                  background: 'bayerdark',
+                  border: 'thick',
+                ),
+              ),
               isOwnProfile: false,
               onClose: () {},
               onVisitProfile: () {},
@@ -202,7 +190,7 @@ void main() {
         );
         expect(
           find.byKey(const Key('profile-card-avatar-frame')),
-          findsOneWidget,
+          findsNothing,
         );
       },
     );
@@ -538,10 +526,6 @@ void main() {
                     onPressed: () => showUserProfileCard(
                       context,
                       handleOrDid: 'alice.craftsky.social',
-                      primaryColor: const Color(0xFF00796B),
-                      backgroundIllustration:
-                          ProfileBackgroundIllustration.botanical,
-                      avatarFrame: ProfileAvatarFrame.stitched,
                     ),
                     child: const Text('Open card'),
                   ),
@@ -559,9 +543,6 @@ void main() {
                   child: ProfileRoutePresentation(
                     handle: state.pathParameters['handle']!,
                     startsCompact: request?.startsCompact ?? false,
-                    primaryColor: request?.primaryColor,
-                    backgroundIllustration: request?.backgroundIllustration,
-                    avatarFrame: request?.avatarFrame,
                   ),
                 );
               },
@@ -751,12 +732,7 @@ void main() {
         await tester.pump();
         expect(router.state.uri, routeBeforeExpansion);
         final request = navigationExtra! as ProfilePresentationRequest;
-        expect(request.primaryColor, const Color(0xFF00796B));
-        expect(
-          request.backgroundIllustration,
-          ProfileBackgroundIllustration.botanical,
-        );
-        expect(request.avatarFrame, ProfileAvatarFrame.stitched);
+        expect(request.startsCompact, isTrue);
         expect(find.byType(ProfileCard), findsNothing);
         expect(find.byKey(const Key('profile-route-expanded')), findsOneWidget);
         final fullProfileGaps = _profileVerticalGaps(tester);

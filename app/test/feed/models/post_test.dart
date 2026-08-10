@@ -196,6 +196,11 @@ void main() {
           'handle': 'alice.craftsky.social',
           'displayName': 'Alice',
           'avatarCid': 'bafyA',
+          'customisation': {
+            'colour': 'cobalt',
+            'profileBorder': 'medium',
+            'profileBackground': 'none',
+          },
         },
         'moderation': {'warningKind': 'post'},
       };
@@ -248,7 +253,15 @@ void main() {
         'viewerHasSaved': false,
         'createdAt': '2026-05-04T18:23:45.000Z',
         'indexedAt': '2026-05-04T18:23:47.000Z',
-        'author': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},
+        'author': {
+          'did': 'did:plc:alice',
+          'handle': 'alice.craftsky.social',
+          'customisation': {
+            'colour': 'cobalt',
+            'profileBorder': 'medium',
+            'profileBackground': 'none',
+          },
+        },
       };
 
       final post = PostMapper.fromMap(json);
@@ -380,6 +393,11 @@ void main() {
               'did': 'did:plc:carol',
               'handle': 'carol.craftsky.social',
               'displayName': 'Carol',
+              'customisation': {
+                'colour': 'cobalt',
+                'profileBorder': 'medium',
+                'profileBackground': 'none',
+              },
             },
             'images': [
               {
@@ -393,7 +411,15 @@ void main() {
         },
         'createdAt': '2026-05-04T18:23:45.000Z',
         'indexedAt': '2026-05-04T18:23:47.000Z',
-        'author': {'did': 'did:plc:bob', 'handle': 'bob.craftsky.social'},
+        'author': {
+          'did': 'did:plc:bob',
+          'handle': 'bob.craftsky.social',
+          'customisation': {
+            'colour': 'cobalt',
+            'profileBorder': 'medium',
+            'profileBackground': 'none',
+          },
+        },
       };
 
       final post = PostMapper.fromMap(json);
@@ -428,7 +454,15 @@ void main() {
         'viewerHasSaved': false,
         'createdAt': '2026-05-04T18:23:45.000Z',
         'indexedAt': '2026-05-04T18:23:47.000Z',
-        'author': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},
+        'author': {
+          'did': 'did:plc:alice',
+          'handle': 'alice.craftsky.social',
+          'customisation': {
+            'colour': 'cobalt',
+            'profileBorder': 'medium',
+            'profileBackground': 'none',
+          },
+        },
       };
 
       final post = PostMapper.fromMap(json);
@@ -473,7 +507,15 @@ void main() {
         'viewerHasSaved': false,
         'createdAt': '2026-05-04T18:23:45.000Z',
         'indexedAt': '2026-05-04T18:23:47.000Z',
-        'author': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},
+        'author': {
+          'did': 'did:plc:alice',
+          'handle': 'alice.craftsky.social',
+          'customisation': {
+            'colour': 'cobalt',
+            'profileBorder': 'medium',
+            'profileBackground': 'none',
+          },
+        },
         'project': {
           'common': {
             'craftType': 'social.craftsky.feed.defs#knitting',
@@ -512,7 +554,15 @@ void main() {
         'viewerHasSaved': false,
         'createdAt': '2026-05-04T18:23:45.000Z',
         'indexedAt': '2026-05-04T18:23:47.000Z',
-        'author': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},
+        'author': {
+          'did': 'did:plc:alice',
+          'handle': 'alice.craftsky.social',
+          'customisation': {
+            'colour': 'cobalt',
+            'profileBorder': 'medium',
+            'profileBackground': 'none',
+          },
+        },
       };
 
       final post = PostMapper.fromMap(json);

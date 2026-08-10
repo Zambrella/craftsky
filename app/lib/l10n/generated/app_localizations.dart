@@ -2428,6 +2428,174 @@ abstract class AppLocalizations {
   /// **'Keep editing'**
   String get editProfileDiscardCancel;
 
+  /// Title for the profile customisation settings page and settings tile.
+  ///
+  /// In en, this message translates to:
+  /// **'Customisation'**
+  String get profileCustomisationTitle;
+
+  /// Accessible heading for the live profile customisation preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview'**
+  String get profileCustomisationPreview;
+
+  /// Heading for the fixed profile colour choices.
+  ///
+  /// In en, this message translates to:
+  /// **'Colour'**
+  String get profileCustomisationColour;
+
+  /// Heading for profile picture border thickness choices.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile border'**
+  String get profileCustomisationBorder;
+
+  /// Heading for profile background texture choices.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile background'**
+  String get profileCustomisationBackground;
+
+  /// Action that saves profile customisation choices.
+  ///
+  /// In en, this message translates to:
+  /// **'Save'**
+  String get profileCustomisationSave;
+
+  /// Success feedback shown after saving profile customisation.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile customisation saved'**
+  String get profileCustomisationSaved;
+
+  /// Retryable failure feedback shown when profile customisation cannot be saved.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save your profile customisation.'**
+  String get profileCustomisationSaveError;
+
+  /// Error shown when the customisation editor cannot load.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t load your profile customisation.'**
+  String get profileCustomisationLoadError;
+
+  /// Retries loading profile customisation.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get profileCustomisationRetry;
+
+  /// Title of the customisation discard confirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard customisation changes?'**
+  String get profileCustomisationDiscardTitle;
+
+  /// Body of the customisation discard confirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Your customisation changes won\'t be saved.'**
+  String get profileCustomisationDiscardMessage;
+
+  /// Label for no profile background texture.
+  ///
+  /// In en, this message translates to:
+  /// **'None'**
+  String get profileCustomisationNone;
+
+  /// Label for the cobalt profile colour.
+  ///
+  /// In en, this message translates to:
+  /// **'Cobalt'**
+  String get profileCustomisationColourCobalt;
+
+  /// Label for the orchid profile colour.
+  ///
+  /// In en, this message translates to:
+  /// **'Orchid'**
+  String get profileCustomisationColourOrchid;
+
+  /// Label for the rose profile colour.
+  ///
+  /// In en, this message translates to:
+  /// **'Rose'**
+  String get profileCustomisationColourRose;
+
+  /// Label for the amber profile colour.
+  ///
+  /// In en, this message translates to:
+  /// **'Amber'**
+  String get profileCustomisationColourAmber;
+
+  /// Label for the lime profile colour.
+  ///
+  /// In en, this message translates to:
+  /// **'Lime'**
+  String get profileCustomisationColourLime;
+
+  /// Label for the teal profile colour.
+  ///
+  /// In en, this message translates to:
+  /// **'Teal'**
+  String get profileCustomisationColourTeal;
+
+  /// Label for the thin profile picture border.
+  ///
+  /// In en, this message translates to:
+  /// **'Thin'**
+  String get profileCustomisationBorderThin;
+
+  /// Label for the medium profile picture border.
+  ///
+  /// In en, this message translates to:
+  /// **'Medium'**
+  String get profileCustomisationBorderMedium;
+
+  /// Label for the thick profile picture border.
+  ///
+  /// In en, this message translates to:
+  /// **'Thick'**
+  String get profileCustomisationBorderThick;
+
+  /// Label for the bayerdark profile texture.
+  ///
+  /// In en, this message translates to:
+  /// **'Dither'**
+  String get profileCustomisationBackgroundDither;
+
+  /// Label for the cubedark profile texture.
+  ///
+  /// In en, this message translates to:
+  /// **'Grid'**
+  String get profileCustomisationBackgroundGrid;
+
+  /// Label for the dotcrossdark profile texture.
+  ///
+  /// In en, this message translates to:
+  /// **'Cross stitch'**
+  String get profileCustomisationBackgroundCrossStitch;
+
+  /// Label for the scallopdark profile texture.
+  ///
+  /// In en, this message translates to:
+  /// **'Scallops'**
+  String get profileCustomisationBackgroundScallops;
+
+  /// Label for the skewdark profile texture.
+  ///
+  /// In en, this message translates to:
+  /// **'Diagonal weave'**
+  String get profileCustomisationBackgroundDiagonalWeave;
+
+  /// Label for the x2 profile texture.
+  ///
+  /// In en, this message translates to:
+  /// **'Crosshatch'**
+  String get profileCustomisationBackgroundCrosshatch;
+
   /// Display label for the 'sewing' craft option in the crafts picker.
   ///
   /// In en, this message translates to:

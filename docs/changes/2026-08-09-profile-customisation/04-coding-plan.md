@@ -16,11 +16,11 @@ Workflow inputs:
 
 This plan implements the approved AppView-owned public customisation resource, additive identity response enrichment, authenticated full-replacement mutation, shared Flutter rendering, and Settings editing flow. It does not change a Lexicon, PDS record, Tap indexer, blob, atproto profile mutation, or public interaction record.
 
-Three design inputs remain deliberately gated rather than being invented during implementation:
+Two design inputs remain deliberately gated rather than being invented during implementation; the palette gate closed on 2026-08-10:
 
-1. **Palette gate (GAP-001 / DR-005):** approve and record stable keys plus audited base, foreground, hover, pressed, and soft-container values for the five non-cobalt colour bundles before the first exact-value, contrast, or palette-sensitive red test.
-2. **Texture-style gate (GAP-002 / DR-005):** approve and record the tint and opacity for every colour bundle before the first exact texture painter/style test or visual baseline.
-3. **Failure-copy gate (GAP-003 / DR-005):** approve and record the themed save-failure message before adding its exact string assertion. State, retention, and retry behavior can be implemented earlier.
+1. **Palette gate (GAP-001 / DR-005, closed):** the approved `cobalt`, `orchid`, `rose`, `amber`, `lime`, and `teal` bundles are recorded in `01-requirements.md` Q11 and may now drive exact tests.
+2. **Texture-style gate (GAP-002 / DR-005, closed):** each bundle uses its foreground as texture tint at 18% opacity.
+3. **Failure-copy gate (GAP-003 / DR-005, closed):** exact failure feedback is `Couldn't save your profile customisation.`
 
 These gates do not block persistence, API contracts, response hydration, tolerant decoding, draft state, avatar geometry, local asset plumbing, or structural theme-boundary work.
 
@@ -306,7 +306,7 @@ Every slice starts with the named smallest failing test, adds only enough produc
 - Start with `UT-001` in Go and Dart.
 - Create the canonical server value/default policy and tolerant Flutter value.
 - Lock cobalt, border keys/width vocabulary, background keys/display mapping, uniqueness, and independent fallback.
-- For the five non-cobalt entries, test only six-slot structure until the palette gate is approved; do not invent final names or values.
+- Assert the six approved Q11 keys and exact bundle constants; GAP-001 closed before this red test was written.
 - Extend parent model fixtures for old responses and per-field unknown values (`UT-003`, `IT-008`).
 
 ### Slice 2: Strict mutation request policy
@@ -354,7 +354,7 @@ Every slice starts with the named smallest failing test, adds only enough produc
 - Acquire/check in the six exact source assets and provenance/license notes before asset-dependent implementation. If the source site cannot be automated, pause only this asset step for a reviewed local acquisition; do not substitute unrelated textures.
 - Add structural local-asset mapping/no-network/tiling/clipping tests (`UT-007`, `IT-010`) that do not depend on final tint.
 - Resolve route extras out of compact/full presentation and establish the structural theme boundary.
-- Close the palette gate, record the approved bundle constants in `01-requirements.md` or a linked approved design artifact, then write exact catalogue/contrast/material-state tests (`UT-001`, `UT-006`).
+- Use the approved Q11 bundle constants for exact catalogue/contrast/material-state tests (`UT-001`, `UT-006`).
 - Close the texture-style gate, record per-colour tint/opacity, then write the exact texture style/baseline assertions (`UT-007`, AT-005).
 - Run REG-005 to prove compact scope is complete and full scope ends before the tab bar.
 

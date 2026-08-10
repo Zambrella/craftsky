@@ -1,10 +1,17 @@
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 
 part 'profile_search_page.mapper.dart';
 
-@MappableClass(includeCustomMappers: [DidMapper(), HandleMapper()])
+@MappableClass(
+  includeCustomMappers: [
+    DidMapper(),
+    HandleMapper(),
+    ProfileCustomisationMapper(),
+  ],
+)
 class ProfileSearchResult with ProfileSearchResultMappable {
   ProfileSearchResult({
     required String did,
@@ -15,6 +22,7 @@ class ProfileSearchResult with ProfileSearchResultMappable {
     this.displayName,
     this.description,
     this.avatar,
+    this.customisation = ProfileCustomisation.defaults,
   }) : did = Did.parse(did),
        handle = Handle.parse(handle);
 
@@ -26,6 +34,7 @@ class ProfileSearchResult with ProfileSearchResultMappable {
   final String? displayName;
   final String? description;
   final String? avatar;
+  final ProfileCustomisation customisation;
 
   ProfileAccountSummary get summary => ProfileAccountSummary(
     did: did,
@@ -34,6 +43,7 @@ class ProfileSearchResult with ProfileSearchResultMappable {
     displayName: displayName,
     description: description,
     avatar: avatar,
+    customisation: customisation,
   );
 }
 

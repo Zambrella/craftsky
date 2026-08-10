@@ -12,17 +12,17 @@ import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
-import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
-import 'package:craftsky_app/profile/widgets/profile_framed_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_meta_section.dart';
 import 'package:craftsky_app/profile/widgets/profile_sliver_app_bar.dart';
 import 'package:craftsky_app/profile/widgets/profile_stats.dart';
+import 'package:craftsky_app/profile/widgets/profile_tab_bar.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -140,16 +140,16 @@ void main() {
       expect(find.text('Non CraftSky profile'), findsNothing);
     });
 
-    testWidgets('applies a supplied primary colour to the entire profile', (
+    testWidgets('applies the profile colour only above the tab bar', (
       tester,
     ) async {
-      const customPrimary = Color(0xFF9A4DFF);
       final profile = Profile(
         did: 'did:plc:other',
         handle: 'alice.bsky.social',
         displayName: 'Alice',
         crafts: const [],
         postsLast7Days: 2,
+        customisation: const ProfileCustomisation(colour: 'orchid'),
       );
       final repo = FakeProfileRepository(onFetch: (_) async => profile);
 
@@ -164,10 +164,7 @@ void main() {
             theme: AppTheme.lightThemeData,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const ProfilePage(
-              handle: 'alice.bsky.social',
-              primaryColor: customPrimary,
-            ),
+            home: const ProfilePage(handle: 'alice.bsky.social'),
           ),
         ),
       );
@@ -177,26 +174,30 @@ void main() {
       final header = tester.widget<ColoredBox>(
         find.byKey(const Key('profile-header-background')),
       );
-      final avatarRim = tester.widget<DecoratedBox>(
-        find
-            .descendant(
-              of: find.byType(ProfileFramedAvatar),
-              matching: find.byType(DecoratedBox),
-            )
-            .first,
+      final avatar = tester.widget<Container>(
+        find.byKey(const Key('profile-avatar-border')),
       );
-      final avatarRimDecoration = avatarRim.decoration as BoxDecoration;
-      expect(Theme.of(statsContext).colorScheme.primary, customPrimary);
-      expect(header.color, customPrimary);
+      final avatarBorder =
+          (avatar.decoration! as BoxDecoration).border! as Border;
       expect(
-        avatarRimDecoration.color,
-        Theme.of(statsContext).scaffoldBackgroundColor,
+        Theme.of(statsContext).colorScheme.primary,
+        const Color(0xFFB615D6),
+      );
+      expect(header.color, const Color(0xFFB615D6));
+      expect(
+        avatarBorder.top.color,
+        const Color(0xFFB615D6),
       );
       expect(
         find.byKey(const Key('profile-header-background-illustration')),
         findsNothing,
       );
-      expect(find.byKey(const Key('profile-avatar-frame')), findsNothing);
+      expect(
+        Theme.of(
+          tester.element(find.byType(ProfileTabBar)),
+        ).colorScheme.primary,
+        AppTheme.lightThemeData.colorScheme.primary,
+      );
     });
 
     testWidgets('expanded header grows with the system text scale', (
@@ -292,7 +293,7 @@ void main() {
     });
 
     testWidgets(
-      'replaces the banner image with configured illustration and frame',
+      'replaces the banner image with the configured local texture',
       (tester) async {
         final profile = Profile(
           did: 'did:plc:other',
@@ -300,6 +301,10 @@ void main() {
           displayName: 'Alice',
           banner: 'https://example.test/old-banner.jpg',
           crafts: const [],
+          customisation: const ProfileCustomisation(
+            background: 'x2',
+            border: 'thick',
+          ),
         );
         final repo = FakeProfileRepository(onFetch: (_) async => profile);
 
@@ -314,11 +319,7 @@ void main() {
               theme: AppTheme.lightThemeData,
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
-              home: const ProfilePage(
-                handle: 'alice.bsky.social',
-                backgroundIllustration: ProfileBackgroundIllustration.botanical,
-                avatarFrame: ProfileAvatarFrame.stitched,
-              ),
+              home: const ProfilePage(handle: 'alice.bsky.social'),
             ),
           ),
         );
@@ -337,10 +338,10 @@ void main() {
           128,
         );
         expect(
-          find.byKey(const Key('profile-header-background-illustration')),
+          find.byKey(const Key('profile-header-background-texture')),
           findsOneWidget,
         );
-        expect(find.byKey(const Key('profile-avatar-frame')), findsOneWidget);
+        expect(find.byKey(const Key('profile-avatar-frame')), findsNothing);
         expect(
           find.byKey(const Key('profile-banner-viewer-target')),
           findsNothing,

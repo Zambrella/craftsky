@@ -1,4 +1,3 @@
-import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
 import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:flutter/material.dart';
@@ -10,16 +9,9 @@ import 'package:flutter/material.dart';
 Future<void> showUserProfileCard(
   BuildContext context, {
   required String handleOrDid,
-  Color? primaryColor,
-  ProfileBackgroundIllustration? backgroundIllustration,
-  ProfileAvatarFrame? avatarFrame,
 }) {
   return UserProfileRoute(
     handle: handleOrDid,
-    $extra: ProfilePresentationRequest.compact(
-      primaryColor: primaryColor,
-      backgroundIllustration: backgroundIllustration,
-      avatarFrame: avatarFrame,
-    ),
+    $extra: const ProfilePresentationRequest.compact(),
   ).push<void>(context);
 }

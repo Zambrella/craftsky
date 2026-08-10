@@ -1,5 +1,6 @@
 import 'package:craftsky_app/auth/models/account_switcher_state.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -16,6 +17,7 @@ void main() {
           did: 'did:plc:bob',
           handle: 'bob.test',
           cachedAvatarUrl: 'https://example.test/bob.jpg',
+          cachedCustomisation: const ProfileCustomisation(colour: 'rose'),
         )
         .upsertAndActivate(
           token: 'a-token',
@@ -33,6 +35,7 @@ void main() {
     expect(state.rows.first.isCurrent, isTrue);
     expect(state.rows.first.displayLabel, 'alice.test');
     expect(state.rows[1].avatarUrl, 'https://example.test/bob.jpg');
+    expect(state.rows[1].customisation.colour, 'rose');
     expect(state.rows[2].displayLabel, 'Carol');
     expect(state.canAddAccount, isTrue);
   });

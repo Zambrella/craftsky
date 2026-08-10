@@ -21,6 +21,7 @@ import 'package:craftsky_app/notifications/providers/notification_repository_pro
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/router/router.dart';
@@ -165,6 +166,7 @@ void main() {
           did: 'did:plc:alice',
           handle: 'alice.test',
           avatar: 'https://example.test/alice.jpg',
+          customisation: const ProfileCustomisation(colour: 'teal'),
           crafts: const [],
         ),
       );
@@ -174,12 +176,28 @@ void main() {
         'https://example.test/alice.jpg',
       );
       expect(
+        tester
+            .widget<AccountAvatar>(find.byType(AccountAvatar))
+            .customisation
+            .colour,
+        'teal',
+      );
+      expect(
         container
             .read(sessionRegistryProvider)
             .requireValue
             .sessions[AccountKey('did:plc:alice').did]
             ?.cachedAvatarUrl,
         'https://example.test/alice.jpg',
+      );
+      expect(
+        container
+            .read(sessionRegistryProvider)
+            .requireValue
+            .sessions[AccountKey('did:plc:alice').did]
+            ?.cachedCustomisation
+            .colour,
+        'teal',
       );
     },
   );
@@ -446,7 +464,7 @@ void main() {
       expect(
         find.descendant(
           of: find.byType(AccountAvatar),
-          matching: find.byIcon(Icons.person),
+          matching: find.text('A'),
         ),
         findsOneWidget,
       );

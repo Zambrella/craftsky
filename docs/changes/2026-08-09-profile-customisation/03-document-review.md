@@ -26,7 +26,7 @@ No `00-initial-prompt.md` exists in this workflow folder. This is acceptable bec
 
 | ID | Severity | Area | Finding | References | Required Action |
 |---|---|---|---|---|---|
-| DR-005 | Suggestion | Risk / Coding plan | Three exact inputs remain deliberately gated: the five non-cobalt theme bundles, per-colour texture tint/opacity, and save-failure copy. Their timing is now unambiguous and does not block coding planning, but the plan must make each gate visible before its dependent red test. | `01-requirements.md` §§3 Q9/Q12, 19 RISK-006, 21, 23; `02-acceptance-tests.md` §§1, 9 GAP-001–GAP-003, 11, 12 | Put explicit approval-and-record tasks before palette/texture-sensitive tests and before the exact failure-copy assertion. Do not silently choose these constants inside an implementation step. |
+| DR-005 | Suggestion | Risk / Coding plan | Three exact inputs were deliberately gated: the five non-cobalt theme bundles, per-colour texture tint/opacity, and save-failure copy. GAP-001 through GAP-003 closed on 2026-08-10 before their dependent exact assertions. | `01-requirements.md` §§3 Q9/Q11–Q13, 19 RISK-006, 21, 23; `02-acceptance-tests.md` §§1, 9 GAP-001–GAP-003, 11, 12 | Preserve the recorded constants and exact copy in implementation tests. |
 
 ## Traceability Review
 
@@ -37,7 +37,7 @@ No `00-initial-prompt.md` exists in this workflow folder. This is acceptable bec
 ## Coverage Review
 
 - Must requirements covered: 28 of 28 have planned acceptance, unit, integration, regression, or explicit gated-gap coverage.
-- Missing or weak coverage: None identified. GAP-001 through GAP-003 are controlled inputs with closure conditions, not unowned behavior gaps.
+- Missing or weak coverage: None identified. GAP-001 through GAP-003 are closed.
 - Manual-only coverage: None. MAN-001 through MAN-003 supplement automated semantics, focus, layout, contrast, bounds, local-asset, network-boundary, and rendering assertions with platform speech and perceptual review.
 - Test practicality: Proposed targets match the repository's real-Postgres migration/query-plan patterns and focused Flutter model, provider, widget, router, and account-switch suites. The suggested red-green order is coherent.
 
@@ -60,5 +60,5 @@ No `00-initial-prompt.md` exists in this workflow folder. This is acceptable bec
 - Inventory every full and embedded identity builder/query before planning response changes so hydration is centralized and bounded rather than added as per-surface lookups.
 - Preserve additive public response decoding while keeping the current mutation request strict to exactly the three current keys.
 - Centralize Flutter catalogue/default mapping, active-account state, avatar border rendering, texture rendering, and profile theme scoping; remove obsolete experimental frame/background/route-extra paths deliberately.
-- Add explicit plan gates for the five non-cobalt theme bundles, texture tint/opacity, and failure copy before their dependent tests.
+- Preserve the recorded palette, texture tint/opacity, and failure copy in dependent tests.
 - Carry the acceptance specification's TDD order and regression matrix into the coding plan, including generated-output commands and full-suite verification.

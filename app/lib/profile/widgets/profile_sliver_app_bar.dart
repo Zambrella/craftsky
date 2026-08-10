@@ -1,9 +1,9 @@
 import 'dart:math' as math;
 
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_craft_chips.dart';
-import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
 import 'package:craftsky_app/profile/widgets/profile_framed_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_header_background.dart';
 import 'package:craftsky_app/profile/widgets/profile_identity.dart';
@@ -23,8 +23,7 @@ class ProfileSliverAppBar extends StatelessWidget {
     this.crafts = const [],
     this.displayName,
     this.avatarUrl,
-    this.backgroundIllustration,
-    this.avatarFrame,
+    this.customisation = ProfileCustomisation.defaults,
     this.onAvatarTap,
     super.key,
   });
@@ -34,8 +33,7 @@ class ProfileSliverAppBar extends StatelessWidget {
   final List<String> crafts;
   final String? displayName;
   final String? avatarUrl;
-  final ProfileBackgroundIllustration? backgroundIllustration;
-  final ProfileAvatarFrame? avatarFrame;
+  final ProfileCustomisation customisation;
   final VoidCallback? onAvatarTap;
 
   static const double backgroundHeight = 128;
@@ -64,8 +62,7 @@ class ProfileSliverAppBar extends StatelessWidget {
         crafts: crafts,
         displayName: displayName,
         avatarUrl: avatarUrl,
-        backgroundIllustration: backgroundIllustration,
-        avatarFrame: avatarFrame,
+        customisation: customisation,
         actions: actions,
         onAvatarTap: onAvatarTap,
         expandedHeight: layout.expandedHeight,
@@ -188,8 +185,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
     required this.crafts,
     required this.displayName,
     required this.avatarUrl,
-    required this.backgroundIllustration,
-    required this.avatarFrame,
+    required this.customisation,
     required this.actions,
     required this.onAvatarTap,
     required this.expandedHeight,
@@ -201,8 +197,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
   final List<String> crafts;
   final String? displayName;
   final String? avatarUrl;
-  final ProfileBackgroundIllustration? backgroundIllustration;
-  final ProfileAvatarFrame? avatarFrame;
+  final ProfileCustomisation customisation;
   final ProfileActionSet actions;
   final VoidCallback? onAvatarTap;
   final double expandedHeight;
@@ -228,8 +223,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
     final avatar = ProfileFramedAvatar(
       seed: seed,
       avatarUrl: avatarUrl,
-      frame: avatarFrame,
-      rimColor: theme.scaffoldBackgroundColor,
+      customisation: customisation,
     );
 
     return Stack(
@@ -249,7 +243,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
                   right: 0,
                   height: topPadding + ProfileSliverAppBar.backgroundHeight,
                   child: ProfileHeaderBackground(
-                    illustration: backgroundIllustration,
+                    customisation: customisation,
                   ),
                 ),
                 Positioned(

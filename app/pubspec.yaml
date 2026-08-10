@@ -76,6 +76,7 @@ flutter:
     - assets/design/paper-grain.svg
     - assets/design/logo/
     - assets/design/icons/
+    - assets/profile_backgrounds/
 
 sentry:
   upload_debug_symbols: true

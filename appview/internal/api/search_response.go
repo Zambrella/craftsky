@@ -53,19 +53,21 @@ func (p ProfileSearchSummary) MarshalJSON() ([]byte, error) {
 		return json.Marshal(ordinary(p))
 	}
 	type blockedSearchShell struct {
-		DID               any     `json:"did"`
-		Handle            any     `json:"handle"`
-		DisplayName       *string `json:"displayName,omitempty"`
-		Avatar            *string `json:"avatar,omitempty"`
-		IsCraftskyProfile bool    `json:"isCraftskyProfile"`
-		Muted             bool    `json:"muted"`
-		Blocking          bool    `json:"blocking"`
-		BlockedBy         bool    `json:"blockedBy"`
+		DID               any                   `json:"did"`
+		Handle            any                   `json:"handle"`
+		DisplayName       *string               `json:"displayName,omitempty"`
+		Avatar            *string               `json:"avatar,omitempty"`
+		IsCraftskyProfile bool                  `json:"isCraftskyProfile"`
+		Muted             bool                  `json:"muted"`
+		Blocking          bool                  `json:"blocking"`
+		BlockedBy         bool                  `json:"blockedBy"`
+		Customisation     *ProfileCustomisation `json:"customisation,omitempty"`
 	}
 	return json.Marshal(blockedSearchShell{
 		DID: p.DID, Handle: p.Handle, DisplayName: p.DisplayName, Avatar: p.Avatar,
 		IsCraftskyProfile: p.IsCraftskyProfile,
 		Muted:             p.Muted, Blocking: p.Blocking, BlockedBy: p.BlockedBy,
+		Customisation: p.Customisation,
 	})
 }
 

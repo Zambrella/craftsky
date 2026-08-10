@@ -14,7 +14,7 @@ The feature changes a public identity contract used across most avatar-bearing r
 
 All tests below are implementation designs. No application code, test code, migration, generated output, or dependency is created or run during this stage.
 
-Three gated implementation inputs remain intentionally unresolved: the five non-cobalt colour bundles, per-colour texture tint/opacity values, and exact failure feedback. They do not block coding planning or structural test design. The colour and texture constants must be approved and recorded before their first palette/texture-sensitive implementation tests are written, and the failure copy must be approved before its exact string assertion, as identified in Section 9.
+All gated implementation inputs closed on 2026-08-10. The six colour bundles, foreground-tinted textures at 18% opacity, and exact failure feedback are recorded in `01-requirements.md` Q11–Q13.
 
 ## 2. Requirement Coverage Matrix
 
@@ -44,7 +44,7 @@ Three gated implementation inputs remain intentionally unresolved: the five non-
 | NFR-004 | AC-013, AC-015, AC-017 | AT-008, AT-009, UT-003, IT-006, IT-008, REG-002 | Acceptance / Unit / Integration / Regression | Yes |
 | NFR-005 | AC-019 | IT-009 | Integration | Yes |
 | NFR-006 | AC-020 | UT-001–UT-011, IT-001–IT-010, REG-001–REG-009, MAN-001–MAN-003 | All applicable levels | Partial until manual checks and open exact values are resolved |
-| RULE-001 | AC-005, AC-012 | AT-005, UT-001, UT-002, UT-006 | Acceptance / Unit | Partial pending exact palette |
+| RULE-001 | AC-005, AC-012 | AT-005, UT-001, UT-002, UT-006 | Acceptance / Unit | Yes; palette approved 2026-08-10 |
 | RULE-002 | AC-005, AC-009 | AT-004, UT-001, UT-002, UT-004, UT-005 | Acceptance / Unit | Yes |
 | RULE-003 | AC-005, AC-011, AC-019 | AT-005, UT-001, UT-002, UT-007, IT-010, MAN-002 | Acceptance / Unit / Integration / Manual | Partial pending exact tint/opacity |
 | RULE-004 | AC-001, AC-004, AC-015 | AT-001, AT-008, IT-002, IT-006 | Acceptance / Integration | Yes |
@@ -274,7 +274,7 @@ Feature: Profile customisation settings lifecycle
     Then the confirmed public and cached appearance remains unchanged
     And Alice's draft and preview remain available for retry
     And Save is re-enabled
-    And the approved themed failure feedback is shown
+    And exact feedback "Couldn't save your profile customisation." is shown
 
   Scenario Outline: Back navigation respects draft state
     Given the draft is <state>
@@ -492,9 +492,9 @@ Feature: Accessible fixed customisation choices
 
 | Gap ID | Open requirement detail | Tests affected | Impact and closure condition |
 |---|---|---|---|
-| GAP-001 | Exact names, stable keys, and audited base/foreground/hover/pressed/soft-container values for the five non-cobalt colour bundles are not yet approved. | UT-001, UT-006, AT-005, AT-010, MAN-002, TD-002, TD-012 | This is not a coding-plan blocker. Structural six-entry and fixed-key tests may be designed first, but the pre-visual-implementation gate must approve and record the palette before the first exact-value, contrast, or palette-sensitive implementation test is written. |
-| GAP-002 | Exact texture tint and opacity for each colour bundle are not yet approved. | UT-007, AT-005, MAN-002, TD-012 | This is not a coding-plan blocker. Local mapping, tiling, and clipping tests may be designed first, but the pre-visual-implementation gate must approve and record tint/opacity before the first exact painter/style implementation test or visual baseline is written. |
-| GAP-003 | Exact themed failure feedback copy is not yet approved. | AT-006, UT-009 | This is not a coding-plan blocker. State/retry behavior is fully testable, but the pre-copy-test gate must approve and record the message before its exact string assertion is written. Success copy is already exact. |
+| GAP-001 | Closed 2026-08-10: `cobalt`, `orchid`, `rose`, `amber`, `lime`, and `teal` keys plus audited bundle constants are recorded in `01-requirements.md` Q11. | UT-001, UT-006, AT-005, AT-010, MAN-002, TD-002, TD-012 | Closed before the first palette-sensitive test was written. |
+| GAP-002 | Closed 2026-08-10: each colour bundle uses its foreground as texture tint at 18% opacity. | UT-007, AT-005, MAN-002, TD-012 | Closed before exact painter/style assertions. |
+| GAP-003 | Closed 2026-08-10: exact failure feedback is `Couldn't save your profile customisation.` | AT-006, UT-009 | Closed before the exact copy assertion. |
 
 There are no other known coverage gaps. Manual checks supplement rather than replace automated behavioral assertions.
 
@@ -566,4 +566,4 @@ At every step, keep the smallest relevant test red, implement only enough behavi
 
 Status: Complete with three explicit gated implementation inputs.
 
-All Must requirements and AC-001 through AC-020 have planned coverage. The specification is ready for cross-document review and coding planning once that review approves it. GAP-001 and GAP-002 must close before their first palette/texture-sensitive implementation tests are written; GAP-003 must close before its exact failure-copy assertion is written.
+All Must requirements and AC-001 through AC-020 have planned coverage. GAP-001 through GAP-003 closed before their dependent exact assertions.

@@ -1,6 +1,7 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:flutter/foundation.dart';
 
 @immutable
@@ -10,6 +11,7 @@ final class AccountSwitcherRow {
     required this.handle,
     required this.displayName,
     required this.avatarUrl,
+    required this.customisation,
     required this.isCurrent,
   });
 
@@ -17,6 +19,7 @@ final class AccountSwitcherRow {
   final String handle;
   final String? displayName;
   final String? avatarUrl;
+  final ProfileCustomisation customisation;
   final bool isCurrent;
 
   String get displayLabel {
@@ -41,6 +44,7 @@ final class AccountSwitcherState {
               handle: session.handle.value,
               displayName: session.cachedDisplayName,
               avatarUrl: session.cachedAvatarUrl,
+              customisation: session.cachedCustomisation,
               isCurrent: session.did == registry.activeDid,
             ),
         ]),

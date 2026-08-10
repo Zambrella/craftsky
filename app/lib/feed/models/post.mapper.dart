@@ -537,6 +537,7 @@ class PostAuthorMapper extends ClassMapperBase<PostAuthor> {
         DidMapper(),
         HandleMapper(),
         CidMapper(),
+        ProfileCustomisationMapper(),
       ]);
     }
     return _instance!;
@@ -597,6 +598,13 @@ class PostAuthorMapper extends ClassMapperBase<PostAuthor> {
     _$blockedBy,
     opt: true,
   );
+  static ProfileCustomisation _$customisation(PostAuthor v) => v.customisation;
+  static const Field<PostAuthor, ProfileCustomisation> _f$customisation = Field(
+    'customisation',
+    _$customisation,
+    opt: true,
+    def: ProfileCustomisation.defaults,
+  );
 
   @override
   final MappableFields<PostAuthor> fields = const {
@@ -608,6 +616,7 @@ class PostAuthorMapper extends ClassMapperBase<PostAuthor> {
     #muted: _f$muted,
     #blocking: _f$blocking,
     #blockedBy: _f$blockedBy,
+    #customisation: _f$customisation,
   };
   @override
   final bool ignoreNull = true;
@@ -622,6 +631,7 @@ class PostAuthorMapper extends ClassMapperBase<PostAuthor> {
       muted: data.dec(_f$muted),
       blocking: data.dec(_f$blocking),
       blockedBy: data.dec(_f$blockedBy),
+      customisation: data.dec(_f$customisation),
     );
   }
 
@@ -694,6 +704,7 @@ abstract class PostAuthorCopyWith<$R, $In extends PostAuthor, $Out>
     bool? muted,
     bool? blocking,
     bool? blockedBy,
+    ProfileCustomisation? customisation,
   });
   PostAuthorCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
@@ -716,6 +727,7 @@ class _PostAuthorCopyWithImpl<$R, $Out>
     Object? muted = $none,
     Object? blocking = $none,
     Object? blockedBy = $none,
+    ProfileCustomisation? customisation,
   }) => $apply(
     FieldCopyWithData({
       if (did != null) #did: did,
@@ -726,6 +738,7 @@ class _PostAuthorCopyWithImpl<$R, $Out>
       if (muted != $none) #muted: muted,
       if (blocking != $none) #blocking: blocking,
       if (blockedBy != $none) #blockedBy: blockedBy,
+      if (customisation != null) #customisation: customisation,
     }),
   );
   @override
@@ -738,6 +751,7 @@ class _PostAuthorCopyWithImpl<$R, $Out>
     muted: data.get(#muted, or: $value.muted),
     blocking: data.get(#blocking, or: $value.blocking),
     blockedBy: data.get(#blockedBy, or: $value.blockedBy),
+    customisation: data.get(#customisation, or: $value.customisation),
   );
 
   @override

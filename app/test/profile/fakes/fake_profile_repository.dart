@@ -3,6 +3,7 @@ import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 
@@ -27,6 +28,7 @@ class FakeProfileRepository implements ProfileRepository {
     this.onFetch,
     this.onFetchMe,
     this.onUpdateMe,
+    this.onUpdateCustomisation,
     this.onFollow,
     this.onUnfollow,
     this.onMute,
@@ -53,6 +55,8 @@ class FakeProfileRepository implements ProfileRepository {
     bool clearBanner,
   })?
   onUpdateMe;
+  final Future<ProfileCustomisation> Function(ProfileCustomisation value)?
+  onUpdateCustomisation;
   final Future<Profile> Function(String handleOrDid)? onFollow;
   final Future<Profile> Function(String handleOrDid)? onUnfollow;
   final Future<ProfileRelationship> Function(String handleOrDid)? onMute;
@@ -109,6 +113,15 @@ class FakeProfileRepository implements ProfileRepository {
         clearBanner: clearBanner,
       ) ??
       Future<Profile>.error(UnimplementedError('updateMe not stubbed'));
+
+  @override
+  Future<ProfileCustomisation> updateCustomisation(
+    ProfileCustomisation customisation,
+  ) =>
+      onUpdateCustomisation?.call(customisation) ??
+      Future<ProfileCustomisation>.error(
+        UnimplementedError('updateCustomisation not stubbed'),
+      );
 
   @override
   Future<Profile> follow(String handleOrDid) =>

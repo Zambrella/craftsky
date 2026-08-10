@@ -95,9 +95,9 @@ Decision / implication: The page has a live preview plus an explicit Save action
 
 ### Q9: What remains to be selected?
 
-Answer: Requirements grilling fixed the palette derivation, texture subset/display names, and raw border-width table. The five shifted palette values/theme bundles, per-colour texture tint/opacity values, and exact failure copy remain to be finalized.
+Answer: Requirements grilling fixed the palette derivation, texture subset/display names, and raw border-width table. All six colour bundles, their texture treatment, and the save-failure copy were finalized on 2026-08-10 when the user authorized implementation through completion.
 
-Decision / implication: Product/design must generate and audit five approximately 60-degree hue rotations from cobalt, tune them for high saturation and contrast, then commit all six colours as stable keyed theme bundles. Texture and border entries are already fixed below. Coding planning may define this selection and audit work, but the exact colour bundles and texture tint/opacity values must be approved and recorded before their first implementation tests are written. Exact failure copy must likewise be approved before its string assertion is implemented. Requirements and tests target committed constants rather than runtime colour generation.
+Decision / implication: The approved colour constants in Q11 are committed catalogue inputs rather than runtime colour generation. Texture and border entries are fixed below. Exact texture and feedback assertions use the recorded values below.
 
 ### Q10: How does the custom border relate to existing avatar styling?
 
@@ -111,17 +111,30 @@ Answer: The user confirmed six colours: cobalt plus five high-saturation colours
 
 Decision / implication: A theme bundle includes the saturated base, readable foreground, hover/pressed tone, and soft container tone. The selected bundle themes everything in the compact profile view, including buttons and links. In the full profile it themes everything above the tab bar. The tab bar itself and all content below it keep the normal Craftsky theme.
 
+Approved fixed bundles (2026-08-10):
+
+| Key | Base | Foreground | Hover | Pressed | Soft container | Texture tint | Opacity |
+|---|---|---|---|---|---|---|---|
+| `cobalt` | `#1535D6` | `#FFFFFF` | `#122EBA` | `#0F279E` | `#D8DDF9` | `#FFFFFF` | 18% |
+| `orchid` | `#B615D6` | `#FFFFFF` | `#9E12BA` | `#860F9E` | `#F3D8F9` | `#FFFFFF` | 18% |
+| `rose` | `#D61535` | `#FFFFFF` | `#BA122E` | `#9E0F27` | `#F9D8DD` | `#FFFFFF` | 18% |
+| `amber` | `#D6B615` | `#111318` | `#BA9E12` | `#9E860F` | `#F9F3D8` | `#111318` | 18% |
+| `lime` | `#35D615` | `#111318` | `#2EBA12` | `#279E0F` | `#DDF9D8` | `#111318` | 18% |
+| `teal` | `#15D6B6` | `#111318` | `#12BA9E` | `#0F9E86` | `#D8F9F3` | `#111318` | 18% |
+
+The foreground applies to the base, hover, and pressed tones. Every such pair has a contrast ratio of at least 5.16:1. Soft containers use Craftsky ink `#111318` as their readable content colour.
+
 ### Q12: Which background catalogue and placement are approved?
 
 Answer: The user approved `none` plus six Ribo source tiles: `bayerdark`, `cubedark`, `dotcrossdark`, `scallopdark`, `skewdark`, and `x2`.
 
-Decision / implication: User-facing names are `Dither`, `Grid`, `Cross stitch`, `Scallops`, `Diagonal weave`, and `Crosshatch`. Each texture is treated as a transparent tiled mask over the selected colour, using tint/opacity approved at the pre-visual-implementation gate and then committed with its colour bundle. Texture is confined to the header region in both compact and full views.
+Decision / implication: User-facing names are `Dither`, `Grid`, `Cross stitch`, `Scallops`, `Diagonal weave`, and `Crosshatch`. Each texture is treated as a transparent tiled mask over the selected colour, using the bundle foreground as its tint at 18% opacity. Texture is confined to the header region in both compact and full views.
 
 ### Q13: What is the confirmed editing lifecycle?
 
 Answer: Explicit Save, dirty-draft discard confirmation, remain-on-page success, and exact success copy were confirmed.
 
-Decision / implication: Saves publish the complete combination atomically. Pending Save prevents duplicates. Success keeps the page open, updates confirmed state, and shows `Profile customisation saved`. Back only prompts when the draft differs from confirmed state. Failure copy remains open, but failure must retain the draft for retry and the last confirmed public state.
+Decision / implication: Saves publish the complete combination atomically. Pending Save prevents duplicates. Success keeps the page open, updates confirmed state, and shows `Profile customisation saved`. Back only prompts when the draft differs from confirmed state. Failure retains the draft and last confirmed public state and shows `Couldn't save your profile customisation.`
 
 ## 4. Candidate Approaches
 
@@ -254,7 +267,7 @@ Members with no persisted row receive catalogue defaults. New Flutter tolerates 
 | FR-003 | Functional | Must | AppView shall atomically create or replace the authenticated member's complete customisation record, validate each submitted value against its server catalogue, treat an identical retry as idempotent success, reject unknown/missing/malformed fields without changing confirmed state, and return field-specific `422 validation_failed` details for unsupported catalogue values. | Prevents partial or unrenderable saved combinations and supports safe retries. | Prompt; API conventions; User grilling decision | AC-003, AC-005, AC-013 |
 | FR-004 | Functional | Must | Customisation shall be stored as one AppView-owned logical record keyed by the member's canonical DID, linked to current Craftsky membership, durable across sessions/devices, isolated between accounts, and removed when membership is permanently removed. | Implements the required AppView ownership and lifecycle. | Prompt; Codebase pattern | AC-003, AC-004, AC-014, AC-016 |
 | FR-005 | Functional | Must | `/profile/settings` shall include a Customisation entry leading to `/profile/settings/customisation`. The page shall load the active member's confirmed values, present only fixed catalogue choices for all three fields, show a representative live preview, expose an explicit Save action, disable duplicate saves while pending, and support Back navigation to Settings. Back with a dirty draft shall show the existing branded discard confirmation; a clean draft shall return directly. | Provides a discoverable, bounded editing flow under the existing router hierarchy without silently losing a composed draft. | Prompt; Codebase; User grilling decision | AC-006, AC-007, AC-018 |
-| FR-006 | Functional | Must | On successful save, Flutter shall reconcile the initiating account's confirmed customisation from the authoritative response, invalidate/update affected profile, embedded-identity, and cached account presentation, remain on the customisation page, mark the draft confirmed, and show exact feedback `Profile customisation saved`. On failure it shall preserve confirmed public state, retain the draft selections for retry, re-enable Save, and show themed failure feedback. | Gives immediate, recoverable behavior while protecting account-scoped state and the confirmed editing lifecycle. | Existing provider/messaging patterns; User grilling decision | AC-007, AC-014 |
+| FR-006 | Functional | Must | On successful save, Flutter shall reconcile the initiating account's confirmed customisation from the authoritative response, invalidate/update affected profile, embedded-identity, and cached account presentation, remain on the customisation page, mark the draft confirmed, and show exact feedback `Profile customisation saved`. On failure it shall preserve confirmed public state, retain the draft selections for retry, re-enable Save, and show exact feedback `Couldn't save your profile customisation.` | Gives immediate, recoverable behavior while protecting account-scoped state and the confirmed editing lifecycle. | Existing provider/messaging patterns; User grilling decision | AC-007, AC-014 |
 | FR-007 | Functional | Must | The shared avatar rendering seam shall accept effective customisation and replace the current ink border with exactly one circular stroke inside the existing avatar bounds. It shall use the selected colour and thin/medium/thick width table: 36 px avatars use 1.5/2.5/4 px, 48 px avatars use 2/3.5/5 px, and 96 px avatars use 3/5/8 px. The same rule applies to every image state; external dimensions and existing hard-offset ink shadows remain unchanged, and no second ring or decorative frame is drawn. | Implements exact border behavior consistently without layout drift or loss of the paper-cutout shadow. | Prompt; User grilling decision | AC-008, AC-009, AC-010 |
 | FR-008 | Functional | Must | Every avatar-bearing Flutter surface shall pass the identity's effective customisation to the shared renderer, including feed posts, post-thread roots/replies/comments, quote previews, notifications with actors, profile compact/full headers, search profile results, relationship/account lists, post summaries, editing/customisation previews, and app navigation/account switching. A future avatar surface shall use the same seam rather than reimplementing border logic. | Covers the requested examples and current consumers. | Prompt; Codebase | AC-002, AC-008, AC-010 |
 | FR-009 | Functional | Must | Compact and full profile header regions shall render the selected `profileBackground` as a transparent tiled mask over the selected profile colour, using audited tint/opacity from the colour theme bundle. The texture shall not extend beyond the header region in either view. The `none` key shall render the colour without a texture. Both presentations shall derive values from their loaded `Profile`, not route extras or caller-supplied styling. | Ensures responsive consistency, protects body-content legibility, and removes presentation-only data injection. | Prompt; Codebase; User grilling decision | AC-011, AC-012 |
@@ -284,7 +297,7 @@ Members with no persisted row receive catalogue defaults. New Flutter tolerates 
 | AC-004 | BR-005, FR-002, FR-004, RULE-004 | Given no valid session/device context, another member's DID, or a removed/non-current member, when customisation mutation is attempted, then existing authentication/current-membership error policy rejects it, no member's record changes, and no route permits selecting a mutation target other than `me`. |
 | AC-005 | FR-003, FR-011, RULE-001, RULE-002, RULE-003 | Given a request has an unknown field, omits one of the three required fields, supplies a non-string value, arbitrary colour, unsupported border/background key, or extra resource data, when it is submitted, then AppView rejects it using the standard envelope (with field-specific `422 validation_failed` for unsupported catalogue values), confirmed state remains unchanged, and no supplied URL/resource is loaded. |
 | AC-006 | BR-004, FR-005 | Given a signed-in member is on `/profile/settings`, when they activate Customisation, then `/profile/settings/customisation` opens and the page shows the active account's confirmed colour, border, and background choices plus a representative preview. Given a clean draft, Back returns directly to Settings; given a dirty draft, Back first shows branded discard confirmation. |
-| AC-007 | FR-005, FR-006 | Given the member changes one or more selections, when Save is pending, then duplicate saves are disabled while navigation/focus remains coherent. On success, the page remains open, the authoritative choices become confirmed, newly rendered surfaces reflect them without restart, and exact feedback `Profile customisation saved` is shown. On failure, prior confirmed public state remains, draft selections remain available for retry, Save is re-enabled, and themed failure feedback is shown. |
+| AC-007 | FR-005, FR-006 | Given the member changes one or more selections, when Save is pending, then duplicate saves are disabled while navigation/focus remains coherent. On success, the page remains open, the authoritative choices become confirmed, newly rendered surfaces reflect them without restart, and exact feedback `Profile customisation saved` is shown. On failure, prior confirmed public state remains, draft selections remain available for retry, Save is re-enabled, and exact feedback `Couldn't save your profile customisation.` is shown. |
 | AC-008 | BR-002, FR-007, FR-008 | Given a customised member appears in each current avatar-bearing surface, when the surface renders, then the same shared avatar seam replaces the old ink border with exactly one selected-colour inside border on feed posts, thread roots/replies/comments, quote previews, notifications, compact/full profiles, search, relationship/account lists, post summaries, previews, and navigation/account presentation, while retaining the surface's existing ink shadow behavior. |
 | AC-009 | BR-002, FR-007, RULE-002 | Given identical 36 px, 48 px, and 96 px avatars, when `thin`, `medium`, and `thick` are rendered, then their widths are respectively 1.5/2.5/4 px, 2/3.5/5 px, and 3/5/8 px; all strokes stay inside the circle, image/fallback content remains clipped, external dimensions and surrounding layout are unchanged, and no borderless, second-ring, or decorative-frame state appears. |
 | AC-010 | BR-002, FR-007, FR-008 | Given avatar URL is absent, loading, or fails, when the initial fallback renders, then the selected inside border thickness and colour remain visible and the fallback/semantics match the existing avatar behavior. |
@@ -406,18 +419,18 @@ Members with no persisted row receive catalogue defaults. New Flutter tolerates 
 
 ## 21. Open Questions
 
-- [ ] Pre-visual-implementation gate; not a coding-plan blocker: Generate, manually tune, name, and approve the five approximately 60-degree high-saturation hue shifts from cobalt, including each fixed base/foreground/hover/pressed/container value. Record the approved constants before the first palette-sensitive implementation test is written.
-- [ ] Pre-visual-implementation gate; not a coding-plan blocker: Approve the per-colour tint and opacity used to render each confirmed transparent texture mask. Record the approved constants before the first texture-style implementation test is written.
-- [ ] Pre-copy-test gate; not a coding-plan blocker: Confirm the exact save-failure feedback before implementing its exact string assertion. Draft behavior already requires retaining the draft and last confirmed public state.
+- [x] Pre-visual-implementation gate closed 2026-08-10: Approved and recorded the `cobalt`, `orchid`, `rose`, `amber`, `lime`, and `teal` base/foreground/hover/pressed/soft-container constants in Q11.
+- [x] Pre-visual-implementation gate closed 2026-08-10: Use each bundle foreground as the texture tint at 18% opacity.
+- [x] Pre-copy-test gate closed 2026-08-10: Use exact failure feedback `Couldn't save your profile customisation.`
 
 ## 22. Review Status
 
-Status: Draft
+Status: Approved
 Risk level: Medium
 Review recommended: Yes
-Reviewer:
-Date: 2026-08-09
-Notes: Requirements grilling confirmed effective defaults; exactly three always-on inside borders and their per-size widths; one replacement colour stroke with preserved ink shadow; cobalt default; six-colour hue-shift palette design; audited colour theme bundles and exact theme boundaries; `none` plus six named Ribo textures; header-only texture placement; and explicit Save/discard/success behavior. Review remains recommended because the change adds AppView persistence and an API mutation, modifies every public identity response shape, and affects all avatar-bearing UI surfaces. Coding planning may proceed with tasks for the remaining constants, but the colour-bundle values and texture tint/opacity must pass their pre-visual-implementation gate, and failure copy its pre-copy-test gate, before the affected tests are written.
+Reviewer: User
+Date: 2026-08-10
+Notes: Requirements grilling confirmed effective defaults; exactly three always-on inside borders and their per-size widths; one replacement colour stroke with preserved ink shadow; cobalt default; six-colour hue-shift palette design; audited colour theme bundles and exact theme boundaries; `none` plus six named Ribo textures; header-only texture placement; and explicit Save/discard/success/failure behavior. All implementation-input gates are closed.
 
 ## 23. Handoff To Test Design
 
@@ -433,4 +446,4 @@ Notes: Requirements grilling confirmed effective defaults; exactly three always-
   - Widget/golden/semantics tests for settings Save/discard/success behavior, the exact border-width table at all sizes/states, preserved ink shadows, the six compact/full header backgrounds, exact colour-theme boundaries, light/dark themes, and every avatar-bearing surface.
   - Asset/provenance and no-remote-resource checks.
   - Existing profile/feed/thread/notification/search/relationship/navigation regression suites.
-- Blocking open questions: None for coding planning or structural test design. Pre-implementation gates remain: approve and record the five shifted colour theme bundles and per-colour texture tint/opacity before their first implementation tests, and confirm exact failure feedback before its copy assertion.
+- Blocking open questions: None. All catalogue, texture-style, and feedback-copy inputs are recorded above.
