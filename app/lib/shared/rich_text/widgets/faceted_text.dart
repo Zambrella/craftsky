@@ -13,6 +13,7 @@ class FacetedText extends ConsumerStatefulWidget {
     super.key,
     this.facets,
     this.style,
+    this.linkStyle,
     this.textAlign,
     this.maxLines,
     this.overflow,
@@ -26,6 +27,9 @@ class FacetedText extends ConsumerStatefulWidget {
 
   /// Base text style for non-faceted ranges.
   final TextStyle? style;
+
+  /// Additional style applied only to link facets.
+  final TextStyle? linkStyle;
 
   /// Text alignment.
   final TextAlign? textAlign;
@@ -72,6 +76,7 @@ class _FacetedTextState extends ConsumerState<FacetedText> {
       ranges: ranges,
       baseStyle: baseStyle,
       facetColor: theme.colorScheme.primary,
+      linkStyle: widget.linkStyle,
       recognizerForRange: (range) {
         final visibleText = widget.text.substring(
           range.charStart,

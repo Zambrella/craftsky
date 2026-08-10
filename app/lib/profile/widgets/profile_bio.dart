@@ -24,6 +24,7 @@ class ProfileBio extends StatelessWidget {
       style: theme.textTheme.bodyMedium?.copyWith(
         color: theme.colorScheme.onSurface,
       ),
+      linkStyle: const TextStyle(decoration: TextDecoration.underline),
     );
   }
 }
