@@ -461,6 +461,7 @@ class _ProfileResultTile extends StatelessWidget {
       leading: ProfileAvatar(
         seed: profile.displayName ?? profile.handle,
         size: ProfileAvatarSize.small,
+        customisation: profile.customisation,
       ),
       title: Text(title),
       subtitle: subtitle == null ? null : Text(subtitle),

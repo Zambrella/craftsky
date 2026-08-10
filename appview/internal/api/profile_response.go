@@ -15,26 +15,27 @@ import (
 // syntax.DID and syntax.Handle JSON-marshal via TextMarshaler — the
 // wire shape is the same plain-string JSON it always was.
 type ProfileResponse struct {
-	DID                 syntax.DID          `json:"did"`
-	Handle              syntax.Handle       `json:"handle"`
-	ViewerIsFollowing   bool                `json:"viewerIsFollowing"`
-	Muted               bool                `json:"muted"`
-	Blocking            bool                `json:"blocking"`
-	BlockedBy           bool                `json:"blockedBy"`
-	IsCraftskyProfile   bool                `json:"isCraftskyProfile"`
-	FollowingCount      *int                `json:"followingCount,omitempty"`
-	FollowerCount       *int                `json:"followerCount,omitempty"`
-	MutualFollowerCount *int                `json:"mutualFollowerCount,omitempty"`
-	PostCount           *int                `json:"postCount,omitempty"`
-	PostsLast7Days      *int                `json:"postsLast7Days,omitempty"`
-	ProjectCount        *int                `json:"projectCount,omitempty"`
-	DisplayName         *string             `json:"displayName,omitempty"`
-	Description         *string             `json:"description,omitempty"`
-	Avatar              *string             `json:"avatar,omitempty"`
-	Banner              *string             `json:"banner,omitempty"`
-	Crafts              []string            `json:"crafts"`
-	CreatedAt           *time.Time          `json:"createdAt,omitempty"`
-	Moderation          *ModerationMetadata `json:"moderation,omitempty"`
+	DID                 syntax.DID            `json:"did"`
+	Handle              syntax.Handle         `json:"handle"`
+	ViewerIsFollowing   bool                  `json:"viewerIsFollowing"`
+	Muted               bool                  `json:"muted"`
+	Blocking            bool                  `json:"blocking"`
+	BlockedBy           bool                  `json:"blockedBy"`
+	IsCraftskyProfile   bool                  `json:"isCraftskyProfile"`
+	FollowingCount      *int                  `json:"followingCount,omitempty"`
+	FollowerCount       *int                  `json:"followerCount,omitempty"`
+	MutualFollowerCount *int                  `json:"mutualFollowerCount,omitempty"`
+	PostCount           *int                  `json:"postCount,omitempty"`
+	PostsLast7Days      *int                  `json:"postsLast7Days,omitempty"`
+	ProjectCount        *int                  `json:"projectCount,omitempty"`
+	DisplayName         *string               `json:"displayName,omitempty"`
+	Description         *string               `json:"description,omitempty"`
+	Avatar              *string               `json:"avatar,omitempty"`
+	Banner              *string               `json:"banner,omitempty"`
+	Crafts              []string              `json:"crafts"`
+	CreatedAt           *time.Time            `json:"createdAt,omitempty"`
+	Moderation          *ModerationMetadata   `json:"moderation,omitempty"`
+	Customisation       *ProfileCustomisation `json:"customisation,omitempty"`
 }
 
 // MarshalJSON keeps the ordinary profile contract unchanged while enforcing
@@ -45,19 +46,21 @@ func (p ProfileResponse) MarshalJSON() ([]byte, error) {
 		return json.Marshal(ordinary(p))
 	}
 	type blockedShell struct {
-		DID               syntax.DID    `json:"did"`
-		Handle            syntax.Handle `json:"handle"`
-		DisplayName       *string       `json:"displayName,omitempty"`
-		Avatar            *string       `json:"avatar,omitempty"`
-		IsCraftskyProfile bool          `json:"isCraftskyProfile"`
-		Muted             bool          `json:"muted"`
-		Blocking          bool          `json:"blocking"`
-		BlockedBy         bool          `json:"blockedBy"`
+		DID               syntax.DID            `json:"did"`
+		Handle            syntax.Handle         `json:"handle"`
+		DisplayName       *string               `json:"displayName,omitempty"`
+		Avatar            *string               `json:"avatar,omitempty"`
+		IsCraftskyProfile bool                  `json:"isCraftskyProfile"`
+		Muted             bool                  `json:"muted"`
+		Blocking          bool                  `json:"blocking"`
+		BlockedBy         bool                  `json:"blockedBy"`
+		Customisation     *ProfileCustomisation `json:"customisation,omitempty"`
 	}
 	return json.Marshal(blockedShell{
 		DID: p.DID, Handle: p.Handle, DisplayName: p.DisplayName, Avatar: p.Avatar,
 		IsCraftskyProfile: p.IsCraftskyProfile,
 		Muted:             p.Muted, Blocking: p.Blocking, BlockedBy: p.BlockedBy,
+		Customisation: p.Customisation,
 	})
 }
 
@@ -68,15 +71,16 @@ type ProfileAccountPage struct {
 }
 
 type ProfileAccountSummary struct {
-	DID               syntax.DID    `json:"did"`
-	Handle            syntax.Handle `json:"handle"`
-	DisplayName       *string       `json:"displayName,omitempty"`
-	Description       *string       `json:"description,omitempty"`
-	Avatar            *string       `json:"avatar,omitempty"`
-	IsCraftskyProfile bool          `json:"isCraftskyProfile"`
-	Muted             bool          `json:"muted"`
-	Blocking          bool          `json:"blocking"`
-	BlockedBy         bool          `json:"blockedBy"`
+	DID               syntax.DID            `json:"did"`
+	Handle            syntax.Handle         `json:"handle"`
+	DisplayName       *string               `json:"displayName,omitempty"`
+	Description       *string               `json:"description,omitempty"`
+	Avatar            *string               `json:"avatar,omitempty"`
+	IsCraftskyProfile bool                  `json:"isCraftskyProfile"`
+	Muted             bool                  `json:"muted"`
+	Blocking          bool                  `json:"blocking"`
+	BlockedBy         bool                  `json:"blockedBy"`
+	Customisation     *ProfileCustomisation `json:"customisation,omitempty"`
 }
 
 func BuildProfileAccountSummary(row *ProfileAccountRow, handle syntax.Handle) ProfileAccountSummary {
@@ -89,6 +93,10 @@ func BuildProfileAccountSummary(row *ProfileAccountRow, handle syntax.Handle) Pr
 		Muted:             row.Muted,
 		Blocking:          row.Blocking,
 		BlockedBy:         row.BlockedBy,
+	}
+	if row.IsCraftskyProfile {
+		value := DefaultProfileCustomisation
+		out.Customisation = &value
 	}
 	if avatar := synthBlobURL("avatar", row.DID, row.AvatarCID, row.AvatarMime); avatar != "" {
 		out.Avatar = &avatar
@@ -136,6 +144,10 @@ func BuildProfileResponse(row *ProfileRow, handle syntax.Handle, includeCreatedA
 		DisplayName:         row.DisplayName,
 		Description:         row.Description,
 		Crafts:              crafts,
+	}
+	if row.IsCraftskyProfile {
+		value := DefaultProfileCustomisation
+		out.Customisation = &value
 	}
 	if avatar := synthBlobURL("avatar", row.DID, row.AvatarCID, row.AvatarMime); avatar != "" {
 		out.Avatar = &avatar

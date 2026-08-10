@@ -33,6 +33,10 @@ import '../profile/fakes/fake_profile_repository.dart';
 void main() {
   test('Settings list routes use canonical typed locations', () {
     expect(
+      const ProfileCustomisationRoute().location,
+      '/profile/settings/customisation',
+    );
+    expect(
       const FollowersRoute().location,
       '/profile/settings/followers',
     );

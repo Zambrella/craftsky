@@ -272,6 +272,7 @@ class _PostSummaryAuthor extends StatelessWidget {
           seed: displayName ?? author.handle,
           avatarUrl: author.avatar,
           size: ProfileAvatarSize.small,
+          customisation: author.customisation,
         ),
         const SizedBox(width: 12),
         Expanded(

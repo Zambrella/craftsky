@@ -1,6 +1,7 @@
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/data/profile_api_client.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:dio/dio.dart';
@@ -83,6 +84,40 @@ void main() {
     await ProfileApiClient(
       dio,
     ).updateMyProfile(clearAvatar: true, clearBanner: true);
+  });
+
+  test('replaces customisation with exactly the three wire fields', () async {
+    final dio = buildDio();
+    DioAdapter(dio: dio).onPut(
+      '/v1/profiles/me/customisation',
+      (server) => server.reply(200, {
+        'colour': 'teal',
+        'profileBorder': 'thick',
+        'profileBackground': 'x2',
+      }),
+      data: {
+        'colour': 'teal',
+        'profileBorder': 'thick',
+        'profileBackground': 'x2',
+      },
+    );
+
+    final saved = await ProfileApiClient(dio).updateMyCustomisation(
+      const ProfileCustomisation(
+        colour: 'teal',
+        border: 'thick',
+        background: 'x2',
+      ),
+    );
+
+    expect(
+      saved,
+      const ProfileCustomisation(
+        colour: 'teal',
+        border: 'thick',
+        background: 'x2',
+      ),
+    );
   });
 
   test('REG-001 omits descriptionFacets from profile update body', () async {

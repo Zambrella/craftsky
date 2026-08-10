@@ -39,18 +39,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class ProfilePage extends ConsumerWidget {
   const ProfilePage({
     this.handle,
-    this.primaryColor,
-    this.backgroundIllustration,
-    this.avatarFrame,
     super.key,
   });
 
   /// Handle of the profile to render. `null` resolves to the signed-in
   /// user from `authSessionProvider`.
   final String? handle;
-  final Color? primaryColor;
-  final ProfileBackgroundIllustration? backgroundIllustration;
-  final ProfileAvatarFrame? avatarFrame;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -69,23 +63,15 @@ class ProfilePage extends ConsumerWidget {
       // Either auth is still loading or a visitor route somehow
       // landed here without a handle. Both are transient — show a
       // neutral progress state and let the router redirect resolve.
-      return ProfileCustomisationTheme(
-        primaryColor: primaryColor,
-        child: const Scaffold(
-          body: Center(child: StitchProgressIndicator()),
-        ),
+      return const Scaffold(
+        body: Center(child: StitchProgressIndicator()),
       );
     }
 
-    return ProfileCustomisationTheme(
-      primaryColor: primaryColor,
-      child: _ProfileScaffold(
-        handle: targetHandle,
-        isOwnProfile: targetHandle == myHandle,
-        viewerAccount: viewerAccount,
-        backgroundIllustration: backgroundIllustration,
-        avatarFrame: avatarFrame,
-      ),
+    return _ProfileScaffold(
+      handle: targetHandle,
+      isOwnProfile: targetHandle == myHandle,
+      viewerAccount: viewerAccount,
     );
   }
 }
@@ -95,15 +81,11 @@ class _ProfileScaffold extends ConsumerWidget {
     required this.handle,
     required this.isOwnProfile,
     required this.viewerAccount,
-    required this.backgroundIllustration,
-    required this.avatarFrame,
   });
 
   final String handle;
   final bool isOwnProfile;
   final AccountKey? viewerAccount;
-  final ProfileBackgroundIllustration? backgroundIllustration;
-  final ProfileAvatarFrame? avatarFrame;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -124,6 +106,7 @@ class _ProfileScaffold extends ConsumerWidget {
                 lease,
                 displayName: profile.displayName,
                 avatarUrl: profile.avatar,
+                customisation: profile.customisation,
               ),
         );
       });
@@ -149,8 +132,6 @@ class _ProfileScaffold extends ConsumerWidget {
                   profile: value,
                   isOwnProfile: isOwnProfile,
                   viewerAccount: viewerAccount,
-                  backgroundIllustration: backgroundIllustration,
-                  avatarFrame: avatarFrame,
                 ),
               ),
             ],
@@ -159,8 +140,6 @@ class _ProfileScaffold extends ConsumerWidget {
             profile: value,
             isOwnProfile: isOwnProfile,
             viewerAccount: viewerAccount,
-            backgroundIllustration: backgroundIllustration,
-            avatarFrame: avatarFrame,
           ),
         },
       ),
@@ -206,15 +185,11 @@ class _ProfileBody extends ConsumerWidget {
     required this.profile,
     required this.isOwnProfile,
     required this.viewerAccount,
-    required this.backgroundIllustration,
-    required this.avatarFrame,
   });
 
   final Profile profile;
   final bool isOwnProfile;
   final AccountKey? viewerAccount;
-  final ProfileBackgroundIllustration? backgroundIllustration;
-  final ProfileAvatarFrame? avatarFrame;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -256,8 +231,6 @@ class _ProfileBody extends ConsumerWidget {
         profile: profile,
         actions: actions,
         relationship: relationship,
-        backgroundIllustration: backgroundIllustration,
-        avatarFrame: avatarFrame,
       );
     }
     return DefaultTabController(
@@ -267,8 +240,6 @@ class _ProfileBody extends ConsumerWidget {
         actions: actions,
         isOwnProfile: isOwnProfile,
         relationship: relationship,
-        backgroundIllustration: backgroundIllustration,
-        avatarFrame: avatarFrame,
       ),
     );
   }
@@ -405,47 +376,51 @@ class _ProfileScrollView extends StatelessWidget {
     required this.actions,
     required this.isOwnProfile,
     required this.relationship,
-    required this.backgroundIllustration,
-    required this.avatarFrame,
   });
 
   final Profile profile;
   final ProfileActionSet actions;
   final bool isOwnProfile;
   final ProfileRelationship relationship;
-  final ProfileBackgroundIllustration? backgroundIllustration;
-  final ProfileAvatarFrame? avatarFrame;
 
   @override
   Widget build(BuildContext context) {
     return NestedScrollView(
       headerSliverBuilder: (context, innerBoxIsScrolled) => [
-        ProfileSliverAppBar(
-          handle: profile.handle,
-          crafts: profile.crafts,
-          displayName: profile.displayName,
-          avatarUrl: profile.avatar,
-          backgroundIllustration: backgroundIllustration,
-          avatarFrame: avatarFrame,
-          actions: actions,
-          onAvatarTap: profile.avatar == null
-              ? null
-              : () => _openProfileImage(
-                  context,
-                  url: profile.avatar!,
-                  alt: _profileImageAlt(profile, 'profile picture'),
-                ),
+        ProfileCustomisationTheme(
+          customisation: profile.customisation,
+          child: ProfileSliverAppBar(
+            handle: profile.handle,
+            crafts: profile.crafts,
+            displayName: profile.displayName,
+            avatarUrl: profile.avatar,
+            customisation: profile.customisation,
+            actions: actions,
+            onAvatarTap: profile.avatar == null
+                ? null
+                : () => _openProfileImage(
+                    context,
+                    url: profile.avatar!,
+                    alt: _profileImageAlt(profile, 'profile picture'),
+                  ),
+          ),
         ),
         SliverToBoxAdapter(
-          child: ProfileMetaSection(
-            profile: profile,
-            isOwnProfile: isOwnProfile,
-            actions: actions,
+          child: ProfileCustomisationTheme(
+            customisation: profile.customisation,
+            child: ProfileMetaSection(
+              profile: profile,
+              isOwnProfile: isOwnProfile,
+              actions: actions,
+            ),
           ),
         ),
         if (relationship.kind != ProfileRelationshipKind.none)
           SliverToBoxAdapter(
-            child: _RelationshipAnnotation(relationship: relationship),
+            child: ProfileCustomisationTheme(
+              customisation: profile.customisation,
+              child: _RelationshipAnnotation(relationship: relationship),
+            ),
           ),
         const SliverPersistentHeader(
           pinned: true,
@@ -491,26 +466,24 @@ class _BlockedProfileView extends StatelessWidget {
     required this.profile,
     required this.actions,
     required this.relationship,
-    required this.backgroundIllustration,
-    required this.avatarFrame,
   });
 
   final Profile profile;
   final ProfileActionSet actions;
   final ProfileRelationship relationship;
-  final ProfileBackgroundIllustration? backgroundIllustration;
-  final ProfileAvatarFrame? avatarFrame;
 
   @override
   Widget build(BuildContext context) => CustomScrollView(
     slivers: [
-      ProfileSliverAppBar(
-        handle: profile.handle,
-        displayName: profile.displayName,
-        avatarUrl: profile.avatar,
-        backgroundIllustration: backgroundIllustration,
-        avatarFrame: avatarFrame,
-        actions: actions,
+      ProfileCustomisationTheme(
+        customisation: profile.customisation,
+        child: ProfileSliverAppBar(
+          handle: profile.handle,
+          displayName: profile.displayName,
+          avatarUrl: profile.avatar,
+          customisation: profile.customisation,
+          actions: actions,
+        ),
       ),
       SliverToBoxAdapter(
         child: Padding(

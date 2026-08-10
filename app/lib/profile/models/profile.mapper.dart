@@ -15,7 +15,11 @@ class ProfileMapper extends ClassMapperBase<Profile> {
   static ProfileMapper ensureInitialized() {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = ProfileMapper._());
-      MapperContainer.globals.useAll([DidMapper(), HandleMapper()]);
+      MapperContainer.globals.useAll([
+        DidMapper(),
+        HandleMapper(),
+        ProfileCustomisationMapper(),
+      ]);
       ModerationMetadataMapper.ensureInitialized();
     }
     return _instance!;
@@ -150,6 +154,13 @@ class ProfileMapper extends ClassMapperBase<Profile> {
     _$moderation,
     opt: true,
   );
+  static ProfileCustomisation _$customisation(Profile v) => v.customisation;
+  static const Field<Profile, ProfileCustomisation> _f$customisation = Field(
+    'customisation',
+    _$customisation,
+    opt: true,
+    def: ProfileCustomisation.defaults,
+  );
 
   @override
   final MappableFields<Profile> fields = const {
@@ -173,6 +184,7 @@ class ProfileMapper extends ClassMapperBase<Profile> {
     #postsLast7Days: _f$postsLast7Days,
     #projectCount: _f$projectCount,
     #moderation: _f$moderation,
+    #customisation: _f$customisation,
   };
 
   static Profile _instantiate(DecodingData data) {
@@ -197,6 +209,7 @@ class ProfileMapper extends ClassMapperBase<Profile> {
       postsLast7Days: data.dec(_f$postsLast7Days),
       projectCount: data.dec(_f$projectCount),
       moderation: data.dec(_f$moderation),
+      customisation: data.dec(_f$customisation),
     );
   }
 
@@ -281,6 +294,7 @@ abstract class ProfileCopyWith<$R, $In extends Profile, $Out>
     int? postsLast7Days,
     int? projectCount,
     ModerationMetadata? moderation,
+    ProfileCustomisation? customisation,
   });
   ProfileCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
@@ -326,6 +340,7 @@ class _ProfileCopyWithImpl<$R, $Out>
     Object? postsLast7Days = $none,
     Object? projectCount = $none,
     Object? moderation = $none,
+    ProfileCustomisation? customisation,
   }) => $apply(
     FieldCopyWithData({
       if (did != null) #did: did,
@@ -349,6 +364,7 @@ class _ProfileCopyWithImpl<$R, $Out>
       if (postsLast7Days != $none) #postsLast7Days: postsLast7Days,
       if (projectCount != $none) #projectCount: projectCount,
       if (moderation != $none) #moderation: moderation,
+      if (customisation != null) #customisation: customisation,
     }),
   );
   @override
@@ -382,6 +398,7 @@ class _ProfileCopyWithImpl<$R, $Out>
     postsLast7Days: data.get(#postsLast7Days, or: $value.postsLast7Days),
     projectCount: data.get(#projectCount, or: $value.projectCount),
     moderation: data.get(#moderation, or: $value.moderation),
+    customisation: data.get(#customisation, or: $value.customisation),
   );
 
   @override

@@ -15,7 +15,11 @@ class ProfileSearchResultMapper extends ClassMapperBase<ProfileSearchResult> {
   static ProfileSearchResultMapper ensureInitialized() {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = ProfileSearchResultMapper._());
-      MapperContainer.globals.useAll([DidMapper(), HandleMapper()]);
+      MapperContainer.globals.useAll([
+        DidMapper(),
+        HandleMapper(),
+        ProfileCustomisationMapper(),
+      ]);
     }
     return _instance!;
   }
@@ -72,6 +76,15 @@ class ProfileSearchResultMapper extends ClassMapperBase<ProfileSearchResult> {
     _$avatar,
     opt: true,
   );
+  static ProfileCustomisation _$customisation(ProfileSearchResult v) =>
+      v.customisation;
+  static const Field<ProfileSearchResult, ProfileCustomisation>
+  _f$customisation = Field(
+    'customisation',
+    _$customisation,
+    opt: true,
+    def: ProfileCustomisation.defaults,
+  );
 
   @override
   final MappableFields<ProfileSearchResult> fields = const {
@@ -83,6 +96,7 @@ class ProfileSearchResultMapper extends ClassMapperBase<ProfileSearchResult> {
     #displayName: _f$displayName,
     #description: _f$description,
     #avatar: _f$avatar,
+    #customisation: _f$customisation,
   };
 
   static ProfileSearchResult _instantiate(DecodingData data) {
@@ -95,6 +109,7 @@ class ProfileSearchResultMapper extends ClassMapperBase<ProfileSearchResult> {
       displayName: data.dec(_f$displayName),
       description: data.dec(_f$description),
       avatar: data.dec(_f$avatar),
+      customisation: data.dec(_f$customisation),
     );
   }
 
@@ -178,6 +193,7 @@ abstract class ProfileSearchResultCopyWith<
     String? displayName,
     String? description,
     String? avatar,
+    ProfileCustomisation? customisation,
   });
   ProfileSearchResultCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
@@ -209,6 +225,7 @@ class _ProfileSearchResultCopyWithImpl<$R, $Out>
     Object? displayName = $none,
     Object? description = $none,
     Object? avatar = $none,
+    ProfileCustomisation? customisation,
   }) => $apply(
     FieldCopyWithData({
       if (did != null) #did: did,
@@ -219,6 +236,7 @@ class _ProfileSearchResultCopyWithImpl<$R, $Out>
       if (displayName != $none) #displayName: displayName,
       if (description != $none) #description: description,
       if (avatar != $none) #avatar: avatar,
+      if (customisation != null) #customisation: customisation,
     }),
   );
   @override
@@ -237,6 +255,7 @@ class _ProfileSearchResultCopyWithImpl<$R, $Out>
     displayName: data.get(#displayName, or: $value.displayName),
     description: data.get(#description, or: $value.description),
     avatar: data.get(#avatar, or: $value.avatar),
+    customisation: data.get(#customisation, or: $value.customisation),
   );
 
   @override

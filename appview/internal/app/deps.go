@@ -81,6 +81,8 @@ type Deps struct {
 
 	// ProfileStore serves the /v1/profiles endpoints.
 	ProfileStore *api.ProfileStore
+	// ProfileCustomisationStore owns AppView-only public appearance choices.
+	ProfileCustomisationStore *api.ProfileCustomisationStore
 	// IdentityCacheUpdater upserts authenticated users' current handles after profile initialization.
 	IdentityCacheUpdater auth.IdentityCacheUpdater
 	// RepositoryTracker requests ordinary Tap tracking/backfill on membership and OAuth initialization.
@@ -326,6 +328,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	}
 
 	deps.ProfileStore = api.NewProfileStore(pool)
+	deps.ProfileCustomisationStore = api.NewProfileCustomisationStore(pool)
 	verificationStore := instagram.NewVerificationStore(pool)
 	var challengeCodec *instagram.ChallengeCodec
 	if cfg.InstagramData.Available() {

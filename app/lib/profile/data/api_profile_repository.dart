@@ -4,6 +4,7 @@ import 'package:craftsky_app/profile/data/profile_api_client.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 
@@ -37,6 +38,11 @@ class ApiProfileRepository implements ProfileRepository {
     banner: banner,
     clearBanner: clearBanner,
   );
+
+  @override
+  Future<ProfileCustomisation> updateCustomisation(
+    ProfileCustomisation customisation,
+  ) => _api.updateMyCustomisation(customisation);
 
   @override
   Future<Profile> follow(String handleOrDid) => _api.followProfile(handleOrDid);

@@ -248,6 +248,10 @@ func BuildProfileSearchSummary(row ProfileSearchRow) ProfileSearchSummary {
 		ViewerIsFollowing: row.ViewerIsFollowing,
 		Crafts:            append([]string(nil), row.Crafts...),
 	}
+	if row.IsCraftskyProfile {
+		value := DefaultProfileCustomisation
+		out.Customisation = &value
+	}
 	if avatar := synthBlobURL("avatar", row.DID, row.AvatarCID, row.AvatarMime); avatar != "" {
 		out.Avatar = &avatar
 	}

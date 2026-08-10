@@ -14,6 +14,7 @@ import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
@@ -68,6 +69,7 @@ Post _post({
   bool? authorMuted,
   bool? authorBlocking,
   bool? authorBlockedBy,
+  ProfileCustomisation customisation = ProfileCustomisation.defaults,
 }) {
   return Post(
     uri: 'at://did:plc:alice/social.craftsky.feed.post/3lf2abc',
@@ -96,6 +98,7 @@ Post _post({
       muted: authorMuted,
       blocking: authorBlocking,
       blockedBy: authorBlockedBy,
+      customisation: customisation,
     ),
     moderation: moderation,
     project: project,
@@ -964,6 +967,10 @@ void main() {
         PostCard(
           post: _post(
             text: 'My take on this pattern.',
+            customisation: const ProfileCustomisation(
+              colour: 'teal',
+              border: 'thick',
+            ),
             quoteView: QuoteView(
               state: 'visible',
               post: QuotePreviewPost(
@@ -975,6 +982,10 @@ void main() {
                   handle: 'bob.craftsky.social',
                   displayName: 'Bob',
                   avatar: 'https://cdn.example.com/bob.jpg',
+                  customisation: const ProfileCustomisation(
+                    colour: 'orchid',
+                    border: 'thin',
+                  ),
                 ),
                 createdAt: DateTime(2026, 5, 22, 12),
               ),
@@ -995,6 +1006,13 @@ void main() {
         tester.widget<ProfileAvatar>(find.byType(ProfileAvatar).last).avatarUrl,
         'https://cdn.example.com/bob.jpg',
       );
+      final avatars = tester
+          .widgetList<ProfileAvatar>(find.byType(ProfileAvatar))
+          .toList();
+      expect(avatars.first.customisation.colour, 'teal');
+      expect(avatars.first.customisation.border, 'thick');
+      expect(avatars.last.customisation.colour, 'orchid');
+      expect(avatars.last.customisation.border, 'thin');
 
       await tester.tap(find.text('Bob'));
       expect(quotedAuthorTaps, 1);

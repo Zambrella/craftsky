@@ -22,6 +22,7 @@ class RouteLocations {
   static const settingsChild = 'settings';
   static const settings = '$profile/$settingsChild';
   static const languagesChild = 'languages';
+  static const customisationChild = 'customisation';
   static const instagramMigrationChild = 'instagram';
   static const scheduledPostsChild = 'scheduled';
   static const draftsChild = 'drafts';

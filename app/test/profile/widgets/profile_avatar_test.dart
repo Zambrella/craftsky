@@ -1,4 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -24,6 +25,18 @@ Widget _wrap(Widget child, {List<dynamic> overrides = const []}) {
 
 void main() {
   group('ProfileAvatar', () {
+    test('uses the approved border-width table at every avatar size', () {
+      expect(ProfileAvatarSize.small.borderWidthFor('thin'), 1.5);
+      expect(ProfileAvatarSize.small.borderWidthFor('medium'), 2.5);
+      expect(ProfileAvatarSize.small.borderWidthFor('thick'), 4);
+      expect(ProfileAvatarSize.medium.borderWidthFor('thin'), 2);
+      expect(ProfileAvatarSize.medium.borderWidthFor('medium'), 3.5);
+      expect(ProfileAvatarSize.medium.borderWidthFor('thick'), 5);
+      expect(ProfileAvatarSize.large.borderWidthFor('thin'), 3);
+      expect(ProfileAvatarSize.large.borderWidthFor('medium'), 5);
+      expect(ProfileAvatarSize.large.borderWidthFor('thick'), 8);
+    });
+
     testWidgets('renders the initial-letter fallback when avatarUrl is null', (
       tester,
     ) async {
@@ -111,24 +124,57 @@ void main() {
       expect(find.text('D'), findsOneWidget);
     });
 
-    testWidgets('preserves chunky border + seeded background', (tester) async {
+    testWidgets('preserves seeded background and chunky shadow', (
+      tester,
+    ) async {
       await tester.pumpWidget(_wrap(const ProfileAvatar(seed: 'E')));
 
-      // Find the outermost Container (the one decorated with the circle
-      // shape + border + shadow). It is the first Container ancestor
-      // of the rendered Text 'E' that has a circular BoxDecoration.
-      final containers = tester.widgetList<Container>(find.byType(Container));
-      final circle = containers.firstWhere((c) {
-        final d = c.decoration;
-        return d is BoxDecoration && d.shape == BoxShape.circle;
-      });
-      final decoration = circle.decoration! as BoxDecoration;
+      final shadow = tester.widget<DecoratedBox>(
+        find.byKey(const Key('profile-avatar-shadow')),
+      );
+      final decoration = shadow.decoration as BoxDecoration;
 
-      // Seeded background present, ink border applied.
       final swatches = AppTheme.lightThemeData.extension<BrandSwatchTheme>()!;
       expect(decoration.color, swatches.sky);
-      expect(decoration.border, isNotNull);
       expect(decoration.boxShadow, isNotEmpty);
+    });
+
+    testWidgets('renders the selected customisation border inside the avatar', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          const ProfileAvatar(
+            seed: 'F',
+            customisation: ProfileCustomisation(
+              colour: 'rose',
+              border: 'thick',
+            ),
+          ),
+        ),
+      );
+
+      final avatar = tester.widget<Container>(
+        find.byKey(const Key('profile-avatar-border')),
+      );
+      final decoration = avatar.decoration! as BoxDecoration;
+      final border = decoration.border! as Border;
+      expect(border.top.color, const Color(0xFFD61535));
+      expect(border.top.width, 5);
+      expect(avatar.padding, isNull);
+      final borderedLayers = tester
+          .widgetList<Container>(
+            find.descendant(
+              of: find.byType(ProfileAvatar),
+              matching: find.byType(Container),
+            ),
+          )
+          .where(
+            (container) =>
+                container.decoration is BoxDecoration &&
+                (container.decoration! as BoxDecoration).border != null,
+          );
+      expect(borderedLayers, hasLength(1));
     });
   });
 }

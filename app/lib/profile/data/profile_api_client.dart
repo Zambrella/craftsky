@@ -2,6 +2,7 @@ import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/shared/api/api_unwrap.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
@@ -72,6 +73,18 @@ class ProfileApiClient {
       data: body,
     );
     return ProfileMapper.fromMap(res.data!);
+  });
+
+  /// PUT /v1/profiles/me/customisation — replaces the authenticated user's
+  /// AppView-owned customisation and returns the authoritative saved value.
+  Future<ProfileCustomisation> updateMyCustomisation(
+    ProfileCustomisation customisation,
+  ) => unwrapApi(() async {
+    final res = await _dio.put<Map<String, dynamic>>(
+      '/v1/profiles/me/customisation',
+      data: customisation.toMap(),
+    );
+    return ProfileCustomisation.fromMap(res.data);
   });
 
   /// POST /v1/profiles/@{handleOrDid}/follows — follow a profile.

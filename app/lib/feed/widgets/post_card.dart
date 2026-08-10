@@ -318,6 +318,7 @@ class PostCard extends ConsumerWidget {
                             seed: displayName,
                             avatarUrl: post.author.avatar,
                             size: ProfileAvatarSize.small,
+                            customisation: post.author.customisation,
                           ),
                         ),
                         SizedBox(width: spacing.sp3),

@@ -31,9 +31,6 @@ class ProfileCard extends StatelessWidget {
     required this.onClose,
     required this.onVisitProfile,
     required this.onPrimaryAction,
-    this.primaryColor,
-    this.backgroundIllustration,
-    this.avatarFrame,
     this.isPrimaryActionBusy = false,
     this.expansionProgress = 0,
     this.transitionProgress = 0,
@@ -47,9 +44,6 @@ class ProfileCard extends StatelessWidget {
   final VoidCallback onClose;
   final VoidCallback onVisitProfile;
   final VoidCallback onPrimaryAction;
-  final Color? primaryColor;
-  final ProfileBackgroundIllustration? backgroundIllustration;
-  final ProfileAvatarFrame? avatarFrame;
   final bool isPrimaryActionBusy;
   final double expansionProgress;
   final double transitionProgress;
@@ -59,11 +53,9 @@ class ProfileCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ProfileCustomisationTheme(
-      primaryColor: primaryColor,
+      customisation: profile.customisation,
       child: _ProfileCardSurface(
         profile: profile,
-        backgroundIllustration: backgroundIllustration,
-        avatarFrame: avatarFrame,
         isOwnProfile: isOwnProfile,
         isPrimaryActionBusy: isPrimaryActionBusy,
         expansionProgress: expansionProgress,
@@ -81,8 +73,6 @@ class ProfileCard extends StatelessWidget {
 class _ProfileCardSurface extends StatelessWidget {
   const _ProfileCardSurface({
     required this.profile,
-    required this.backgroundIllustration,
-    required this.avatarFrame,
     required this.isOwnProfile,
     required this.isPrimaryActionBusy,
     required this.expansionProgress,
@@ -95,8 +85,6 @@ class _ProfileCardSurface extends StatelessWidget {
   });
 
   final Profile profile;
-  final ProfileBackgroundIllustration? backgroundIllustration;
-  final ProfileAvatarFrame? avatarFrame;
   final bool isOwnProfile;
   final bool isPrimaryActionBusy;
   final double expansionProgress;
@@ -111,10 +99,10 @@ class _ProfileCardSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final swatches = theme.extension<BrandSwatchTheme>()!;
     final spacing = theme.extension<SpacingTheme>()!;
     final radii = theme.extension<RadiusTheme>()!;
     final shadows = theme.extension<BrandShadowTheme>()!;
-    final swatches = theme.extension<BrandSwatchTheme>()!;
     final shadow = shadows.paper2.first;
     final progress = expansionProgress.clamp(0.0, 1.0);
     final timeline = transitionProgress.clamp(0.0, 1.0);
@@ -264,11 +252,11 @@ class _ProfileCardSurface extends StatelessWidget {
                                     height: headerHeight,
                                     width: double.infinity,
                                     child: ProfileHeaderBackground(
-                                      illustration: backgroundIllustration,
+                                      customisation: profile.customisation,
                                       backgroundKey: const Key(
                                         'profile-card-header',
                                       ),
-                                      illustrationKey: const Key(
+                                      textureKey: const Key(
                                         'profile-card-background-illustration',
                                       ),
                                     ),
@@ -376,15 +364,7 @@ class _ProfileCardSurface extends StatelessWidget {
                                       profile.displayName ??
                                       profile.handle.toString(),
                                   avatarUrl: profile.avatar,
-                                  frame: avatarFrame,
-                                  rimColor: Color.lerp(
-                                    colors.surface,
-                                    theme.scaffoldBackgroundColor,
-                                    progress,
-                                  ),
-                                  frameKey: const Key(
-                                    'profile-card-avatar-frame',
-                                  ),
+                                  customisation: profile.customisation,
                                 ),
                               ),
                               Positioned(
@@ -396,6 +376,9 @@ class _ProfileCardSurface extends StatelessWidget {
                                   ),
                                   opacity: compactOpacity,
                                   child: Material(
+                                    key: const Key(
+                                      'profile-card-close-surface',
+                                    ),
                                     color: Color.lerp(
                                       swatches.paper3,
                                       theme.scaffoldBackgroundColor,
@@ -408,6 +391,11 @@ class _ProfileCardSurface extends StatelessWidget {
                                         context,
                                       ).closeButtonTooltip,
                                       onPressed: onClose,
+                                      style: const ButtonStyle(
+                                        backgroundColor: WidgetStatePropertyAll(
+                                          Colors.transparent,
+                                        ),
+                                      ),
                                       icon: const Icon(Icons.close),
                                     ),
                                   ),
@@ -453,7 +441,6 @@ class _ProfileCardActions extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final swatches = theme.extension<BrandSwatchTheme>()!;
     final spacing = theme.extension<SpacingTheme>()!;
     final primaryLabel = isFollowing
         ? l10n.profileFollowingAction
@@ -486,8 +473,7 @@ class _ProfileCardActions extends StatelessWidget {
                 children: [
                   ChunkyButton(
                     onPressed: () {},
-                    backgroundColor: swatches.paper3,
-                    foregroundColor: colors.onSurface,
+                    variant: ChunkyButtonVariant.secondary,
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -557,8 +543,9 @@ class _ProfileCardActions extends StatelessWidget {
             Expanded(
               child: ChunkyButton(
                 onPressed: isBusy ? null : onPrimaryAction,
-                backgroundColor: isFollowing ? swatches.paper3 : null,
-                foregroundColor: isFollowing ? colors.onSurface : null,
+                variant: isFollowing
+                    ? ChunkyButtonVariant.secondary
+                    : ChunkyButtonVariant.primary,
                 child: Text(primaryLabel),
               ),
             ),

@@ -11,6 +11,7 @@ class FacetedTextSpanBuilder {
     required List<NormalizedFacetRange> ranges,
     required TextStyle baseStyle,
     required Color facetColor,
+    TextStyle? linkStyle,
     GestureRecognizer? Function(NormalizedFacetRange range)? recognizerForRange,
   }) {
     if (text.isEmpty) {
@@ -29,10 +30,14 @@ class FacetedTextSpanBuilder {
         );
       }
       final visibleText = text.substring(range.charStart, range.charEnd);
+      final facetStyle = baseStyle.copyWith(color: facetColor);
       children.add(
         TextSpan(
           text: _displayTextForRange(range, visibleText),
-          style: baseStyle.copyWith(color: facetColor),
+          style: switch (range.feature) {
+            LinkFacetFeature() => facetStyle.merge(linkStyle),
+            _ => facetStyle,
+          },
           recognizer: recognizerForRange?.call(range),
         ),
       );

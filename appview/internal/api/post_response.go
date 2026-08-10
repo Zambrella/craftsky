@@ -22,14 +22,15 @@ var postImageMimeExt = map[string]string{
 // Display name and avatar may be null when the user has no Bluesky
 // profile mirror.
 type PostAuthor struct {
-	DID         string  `json:"did"`
-	Handle      string  `json:"handle"`
-	DisplayName *string `json:"displayName"`
-	Avatar      *string `json:"avatar,omitempty"`
-	AvatarCID   *string `json:"avatarCid"`
-	Muted       bool    `json:"muted"`
-	Blocking    bool    `json:"blocking"`
-	BlockedBy   bool    `json:"blockedBy"`
+	DID           string                `json:"did"`
+	Handle        string                `json:"handle"`
+	DisplayName   *string               `json:"displayName"`
+	Avatar        *string               `json:"avatar,omitempty"`
+	AvatarCID     *string               `json:"avatarCid"`
+	Muted         bool                  `json:"muted"`
+	Blocking      bool                  `json:"blocking"`
+	BlockedBy     bool                  `json:"blockedBy"`
+	Customisation *ProfileCustomisation `json:"customisation,omitempty"`
 }
 
 // ResponseStrongRef is the JSON wire shape of a strongRef on a response
@@ -279,10 +280,11 @@ func BuildPostResponse(row *PostRow, handle syntax.Handle) *PostResponse {
 		IndexedAt:      row.IndexedAt.UTC(),
 		ExternalImport: buildExternalImportResponse(row.ExternalImportSource),
 		Author: PostAuthor{
-			DID:         row.DID,
-			Handle:      handle.String(),
-			DisplayName: row.AuthorDisplayName,
-			AvatarCID:   row.AuthorAvatarCID,
+			DID:           row.DID,
+			Handle:        handle.String(),
+			DisplayName:   row.AuthorDisplayName,
+			AvatarCID:     row.AuthorAvatarCID,
+			Customisation: defaultProfileCustomisationPointer(),
 		},
 		Project: row.Project,
 	}
@@ -322,10 +324,11 @@ func BuildQuoteView(row *QuoteViewRow, handle syntax.Handle) *QuoteView {
 		return view
 	}
 	author := PostAuthor{
-		DID:         row.Post.DID,
-		Handle:      handle.String(),
-		DisplayName: row.Post.AuthorDisplayName,
-		AvatarCID:   row.Post.AuthorAvatarCID,
+		DID:           row.Post.DID,
+		Handle:        handle.String(),
+		DisplayName:   row.Post.AuthorDisplayName,
+		AvatarCID:     row.Post.AuthorAvatarCID,
+		Customisation: defaultProfileCustomisationPointer(),
 	}
 	if avatar := synthBlobURL("avatar", row.Post.DID, row.Post.AuthorAvatarCID, row.Post.AuthorAvatarMime); avatar != "" {
 		author.Avatar = &avatar

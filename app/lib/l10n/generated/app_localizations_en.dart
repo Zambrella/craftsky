@@ -1301,6 +1301,97 @@ class AppLocalizationsEn extends AppLocalizations {
   String get editProfileDiscardCancel => 'Keep editing';
 
   @override
+  String get profileCustomisationTitle => 'Customisation';
+
+  @override
+  String get profileCustomisationPreview => 'Preview';
+
+  @override
+  String get profileCustomisationColour => 'Colour';
+
+  @override
+  String get profileCustomisationBorder => 'Profile border';
+
+  @override
+  String get profileCustomisationBackground => 'Profile background';
+
+  @override
+  String get profileCustomisationSave => 'Save';
+
+  @override
+  String get profileCustomisationSaved => 'Profile customisation saved';
+
+  @override
+  String get profileCustomisationSaveError =>
+      'Couldn\'t save your profile customisation.';
+
+  @override
+  String get profileCustomisationLoadError =>
+      'Couldn\'t load your profile customisation.';
+
+  @override
+  String get profileCustomisationRetry => 'Retry';
+
+  @override
+  String get profileCustomisationDiscardTitle =>
+      'Discard customisation changes?';
+
+  @override
+  String get profileCustomisationDiscardMessage =>
+      'Your customisation changes won\'t be saved.';
+
+  @override
+  String get profileCustomisationNone => 'None';
+
+  @override
+  String get profileCustomisationColourCobalt => 'Cobalt';
+
+  @override
+  String get profileCustomisationColourOrchid => 'Orchid';
+
+  @override
+  String get profileCustomisationColourRose => 'Rose';
+
+  @override
+  String get profileCustomisationColourAmber => 'Amber';
+
+  @override
+  String get profileCustomisationColourGreen => 'Green';
+
+  @override
+  String get profileCustomisationColourTeal => 'Teal';
+
+  @override
+  String get profileCustomisationColourInk => 'Ink';
+
+  @override
+  String get profileCustomisationBorderThin => 'Thin';
+
+  @override
+  String get profileCustomisationBorderMedium => 'Medium';
+
+  @override
+  String get profileCustomisationBorderThick => 'Thick';
+
+  @override
+  String get profileCustomisationBackgroundDither => 'Dither';
+
+  @override
+  String get profileCustomisationBackgroundGrid => 'Grid';
+
+  @override
+  String get profileCustomisationBackgroundCrossStitch => 'Cross stitch';
+
+  @override
+  String get profileCustomisationBackgroundScallops => 'Scallops';
+
+  @override
+  String get profileCustomisationBackgroundDiagonalWeave => 'Diagonal weave';
+
+  @override
+  String get profileCustomisationBackgroundCrosshatch => 'Crosshatch';
+
+  @override
   String get craftSewing => 'Sewing';
 
   @override

@@ -1,18 +1,10 @@
-import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
 import 'package:flutter/material.dart';
 
 /// Describes a profile route that should initially appear as a summary card.
 class ProfilePresentationRequest {
-  const ProfilePresentationRequest.compact({
-    this.primaryColor,
-    this.backgroundIllustration,
-    this.avatarFrame,
-  });
+  const ProfilePresentationRequest.compact();
 
   bool get startsCompact => true;
-  final Color? primaryColor;
-  final ProfileBackgroundIllustration? backgroundIllustration;
-  final ProfileAvatarFrame? avatarFrame;
 }
 
 /// A non-opaque page that can present both the compact and expanded profile.

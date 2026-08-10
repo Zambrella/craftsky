@@ -33,6 +33,7 @@ import 'package:craftsky_app/search/models/search_results_tab.dart';
 import 'package:craftsky_app/search/pages/search_page.dart';
 import 'package:craftsky_app/search/pages/tag_search_page.dart';
 import 'package:craftsky_app/settings/pages/follow_list_page.dart';
+import 'package:craftsky_app/settings/pages/profile_customisation_page.dart';
 import 'package:craftsky_app/settings/pages/relationship_list_page.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -201,6 +202,10 @@ GoRouter goRouter(Ref ref) {
                   path: RouteLocations.settingsChild,
                   name: 'settings',
                   routes: [
+                    TypedGoRoute<ProfileCustomisationRoute>(
+                      path: RouteLocations.customisationChild,
+                      name: 'profile-customisation',
+                    ),
                     TypedGoRoute<LanguagesRoute>(
                       path: RouteLocations.languagesChild,
                       name: 'languages',
@@ -404,6 +409,18 @@ class LanguagesRoute extends GoRouteData with $LanguagesRoute {
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const LanguagesPage();
+}
+
+class ProfileCustomisationRoute extends GoRouteData
+    with $ProfileCustomisationRoute {
+  const ProfileCustomisationRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.authenticatedShellNavigatorKey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const ProfileCustomisationPage();
 }
 
 class ScheduledPostsRoute extends GoRouteData with $ScheduledPostsRoute {
@@ -672,9 +689,6 @@ class UserProfileRoute extends GoRouteData with $UserProfileRoute {
       child: ProfileRoutePresentation(
         handle: handle,
         startsCompact: request?.startsCompact ?? false,
-        primaryColor: request?.primaryColor,
-        backgroundIllustration: request?.backgroundIllustration,
-        avatarFrame: request?.avatarFrame,
       ),
     );
   }

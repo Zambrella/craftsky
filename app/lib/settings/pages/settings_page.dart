@@ -26,6 +26,11 @@ class _SettingsPageBody extends ConsumerWidget {
     return ListView(
       children: [
         ListTile(
+          leading: const Icon(Icons.palette_outlined),
+          title: Text(l10n.profileCustomisationTitle),
+          onTap: () => const ProfileCustomisationRoute().go(context),
+        ),
+        ListTile(
           leading: const Icon(Icons.language_outlined),
           title: Text(l10n.settingsLanguages),
           onTap: () => const LanguagesRoute().go(context),

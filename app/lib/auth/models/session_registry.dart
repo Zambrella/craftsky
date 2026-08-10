@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/stored_session.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
 class AccountLimitReached implements Exception {
@@ -69,6 +70,9 @@ class SessionRegistry {
         lastUsedOrdinal: _requiredPositiveInt(value, 'lastUsedOrdinal'),
         cachedDisplayName: _optionalString(value, 'cachedDisplayName'),
         cachedAvatarUrl: _optionalString(value, 'cachedAvatarUrl'),
+        cachedCustomisation: _cachedCustomisation(
+          value['cachedCustomisation'],
+        ),
       );
     }
 
@@ -180,6 +184,7 @@ class SessionRegistry {
     required String handle,
     String? cachedDisplayName,
     String? cachedAvatarUrl,
+    ProfileCustomisation cachedCustomisation = ProfileCustomisation.defaults,
   }) {
     final parsedDid = Did.parse(did);
     if (!sessions.containsKey(parsedDid) &&
@@ -201,6 +206,7 @@ class SessionRegistry {
           lastUsedOrdinal: nextUseOrdinal,
           cachedDisplayName: cachedDisplayName,
           cachedAvatarUrl: cachedAvatarUrl,
+          cachedCustomisation: cachedCustomisation,
         ),
       },
     );
@@ -228,6 +234,7 @@ class SessionRegistry {
           lastUsedOrdinal: nextUseOrdinal,
           cachedDisplayName: current.cachedDisplayName,
           cachedAvatarUrl: current.cachedAvatarUrl,
+          cachedCustomisation: current.cachedCustomisation,
         ),
       },
     );
@@ -275,13 +282,15 @@ class SessionRegistry {
     AccountSessionLease lease, {
     required String? displayName,
     required String? avatarUrl,
+    required ProfileCustomisation customisation,
   }) {
     final stored = sessions[lease.account.did];
     if (stored == null || stored.sessionGeneration != lease.sessionGeneration) {
       return this;
     }
     if (stored.cachedDisplayName == displayName &&
-        stored.cachedAvatarUrl == avatarUrl) {
+        stored.cachedAvatarUrl == avatarUrl &&
+        stored.cachedCustomisation == customisation) {
       return this;
     }
     return _copyWith(
@@ -295,6 +304,34 @@ class SessionRegistry {
           lastUsedOrdinal: stored.lastUsedOrdinal,
           cachedDisplayName: displayName,
           cachedAvatarUrl: avatarUrl,
+          cachedCustomisation: customisation,
+        ),
+      },
+    );
+  }
+
+  SessionRegistry updateCachedCustomisation(
+    AccountSessionLease lease,
+    ProfileCustomisation customisation,
+  ) {
+    final stored = sessions[lease.account.did];
+    if (stored == null ||
+        stored.sessionGeneration != lease.sessionGeneration ||
+        stored.cachedCustomisation == customisation) {
+      return this;
+    }
+    return _copyWith(
+      sessions: {
+        ...sessions,
+        lease.account.did: StoredSession(
+          token: stored.token,
+          did: stored.did.value,
+          handle: stored.handle.value,
+          sessionGeneration: stored.sessionGeneration,
+          lastUsedOrdinal: stored.lastUsedOrdinal,
+          cachedDisplayName: stored.cachedDisplayName,
+          cachedAvatarUrl: stored.cachedAvatarUrl,
+          cachedCustomisation: customisation,
         ),
       },
     );
@@ -320,6 +357,7 @@ class SessionRegistry {
           'lastUsedOrdinal': session.lastUsedOrdinal,
           'cachedDisplayName': session.cachedDisplayName,
           'cachedAvatarUrl': session.cachedAvatarUrl,
+          'cachedCustomisation': session.cachedCustomisation.toMap(),
         },
     },
   });
@@ -369,6 +407,11 @@ class SessionRegistry {
       throw FormatException('Invalid $key');
     }
     return value as String?;
+  }
+
+  static ProfileCustomisation _cachedCustomisation(Object? value) {
+    if (value is! Map) return ProfileCustomisation.defaults;
+    return ProfileCustomisation.fromMap(Map<String, dynamic>.from(value));
   }
 
   static int _requiredInt(Map<String, Object?> map, String key) {

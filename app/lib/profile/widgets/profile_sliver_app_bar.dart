@@ -1,15 +1,19 @@
 import 'dart:math' as math;
 
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_craft_chips.dart';
-import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
 import 'package:craftsky_app/profile/widgets/profile_framed_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_header_background.dart';
 import 'package:craftsky_app/profile/widgets/profile_identity.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
+
+const _transparentProfileAppBarIconStyle = ButtonStyle(
+  backgroundColor: WidgetStatePropertyAll(Colors.transparent),
+);
 
 /// Collapsing profile header styled like the compact profile card.
 ///
@@ -23,8 +27,7 @@ class ProfileSliverAppBar extends StatelessWidget {
     this.crafts = const [],
     this.displayName,
     this.avatarUrl,
-    this.backgroundIllustration,
-    this.avatarFrame,
+    this.customisation = ProfileCustomisation.defaults,
     this.onAvatarTap,
     super.key,
   });
@@ -34,8 +37,7 @@ class ProfileSliverAppBar extends StatelessWidget {
   final List<String> crafts;
   final String? displayName;
   final String? avatarUrl;
-  final ProfileBackgroundIllustration? backgroundIllustration;
-  final ProfileAvatarFrame? avatarFrame;
+  final ProfileCustomisation customisation;
   final VoidCallback? onAvatarTap;
 
   static const double backgroundHeight = 128;
@@ -49,10 +51,15 @@ class ProfileSliverAppBar extends StatelessWidget {
     final theme = Theme.of(context);
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final layout = _resolveLayout(context);
+    final hasDrawer = AppShellDrawerScope.maybeOf(context) != null;
+    final hasBack = ModalRoute.of(context)?.impliesAppBarDismissal ?? false;
     return SliverAppBar(
-      leading: AppShellDrawerScope.maybeOf(context) == null
-          ? null
-          : const AppShellDrawerButton(),
+      leading: hasDrawer || hasBack
+          ? _ProfileLeadingAction(
+              showDrawer: hasDrawer,
+              expandedHeight: layout.expandedHeight,
+            )
+          : null,
       pinned: true,
       expandedHeight: layout.expandedHeight,
       backgroundColor: swatches.paper,
@@ -64,8 +71,7 @@ class ProfileSliverAppBar extends StatelessWidget {
         crafts: crafts,
         displayName: displayName,
         avatarUrl: avatarUrl,
-        backgroundIllustration: backgroundIllustration,
-        avatarFrame: avatarFrame,
+        customisation: customisation,
         actions: actions,
         onAvatarTap: onAvatarTap,
         expandedHeight: layout.expandedHeight,
@@ -170,6 +176,42 @@ class ProfileSliverAppBar extends StatelessWidget {
   }
 }
 
+class _ProfileLeadingAction extends StatelessWidget {
+  const _ProfileLeadingAction({
+    required this.showDrawer,
+    required this.expandedHeight,
+  });
+
+  final bool showDrawer;
+  final double expandedHeight;
+
+  @override
+  Widget build(BuildContext context) {
+    final swatches = Theme.of(context).extension<BrandSwatchTheme>()!;
+    final settings = context
+        .dependOnInheritedWidgetOfExactType<FlexibleSpaceBarSettings>();
+    final topPadding = MediaQuery.paddingOf(context).top;
+    final maxExtent = settings?.maxExtent ?? expandedHeight;
+    final minExtent = settings?.minExtent ?? (kToolbarHeight + topPadding);
+    final currentExtent = settings?.currentExtent ?? maxExtent;
+    final range = (maxExtent - minExtent).abs();
+    final collapsed = range == 0
+        ? 0.0
+        : ((maxExtent - currentExtent) / range).clamp(0.0, 1.0);
+    final backgroundColor = collapsed >= 1
+        ? Colors.transparent
+        : swatches.paper3.withValues(alpha: 1 - collapsed);
+    final style = ButtonStyle(
+      backgroundColor: WidgetStatePropertyAll(backgroundColor),
+    );
+
+    if (showDrawer) {
+      return AppShellDrawerButton(style: style);
+    }
+    return BackButton(style: style);
+  }
+}
+
 class _ProfileHeaderLayout {
   const _ProfileHeaderLayout({
     required this.identityHeight,
@@ -188,8 +230,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
     required this.crafts,
     required this.displayName,
     required this.avatarUrl,
-    required this.backgroundIllustration,
-    required this.avatarFrame,
+    required this.customisation,
     required this.actions,
     required this.onAvatarTap,
     required this.expandedHeight,
@@ -201,8 +242,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
   final List<String> crafts;
   final String? displayName;
   final String? avatarUrl;
-  final ProfileBackgroundIllustration? backgroundIllustration;
-  final ProfileAvatarFrame? avatarFrame;
+  final ProfileCustomisation customisation;
   final ProfileActionSet actions;
   final VoidCallback? onAvatarTap;
   final double expandedHeight;
@@ -228,8 +268,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
     final avatar = ProfileFramedAvatar(
       seed: seed,
       avatarUrl: avatarUrl,
-      frame: avatarFrame,
-      rimColor: theme.scaffoldBackgroundColor,
+      customisation: customisation,
     );
 
     return Stack(
@@ -249,7 +288,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
                   right: 0,
                   height: topPadding + ProfileSliverAppBar.backgroundHeight,
                   child: ProfileHeaderBackground(
-                    illustration: backgroundIllustration,
+                    customisation: customisation,
                   ),
                 ),
                 Positioned(
@@ -359,6 +398,7 @@ class _CollapsedTrailingAction extends StatelessWidget {
         tooltip: l10n.profileSettingsAction,
         icon: const Icon(Icons.settings_outlined),
         onPressed: onSettings,
+        style: _transparentProfileAppBarIconStyle,
       ),
       VisitorProfileActionSet(
         :final isMuted,
@@ -377,6 +417,7 @@ class _CollapsedTrailingAction extends StatelessWidget {
                       : Icons.volume_off_outlined,
                 ),
                 onPressed: isBusy ? null : onMuteToggle,
+                style: _transparentProfileAppBarIconStyle,
               )
             : const SizedBox.shrink(),
     };

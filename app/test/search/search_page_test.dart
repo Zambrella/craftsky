@@ -3,6 +3,8 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/search/models/hashtag_search_page.dart';
@@ -56,6 +58,10 @@ void main() {
                         displayName: 'Alice',
                         isCraftskyProfile: true,
                         viewerIsFollowing: false,
+                        customisation: const ProfileCustomisation(
+                          colour: 'amber',
+                          border: 'thin',
+                        ),
                         crafts: const [
                           ProjectOptionCatalogs.knittingCraftToken,
                         ],
@@ -91,6 +97,9 @@ void main() {
     expect(find.text('#sockkal'), findsOneWidget);
     expect(find.text('12 posts'), findsOneWidget);
     expect(find.text('View all'), findsNWidgets(2));
+    final avatar = tester.widget<ProfileAvatar>(find.byType(ProfileAvatar));
+    expect(avatar.customisation.colour, 'amber');
+    expect(avatar.customisation.border, 'thin');
   });
 
   testWidgets('SearchPage renders submitted result tabs and post results', (

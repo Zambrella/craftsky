@@ -26,7 +26,9 @@ class AppShellDrawerScope extends InheritedWidget {
 
 /// Leading action used by each compact top-level branch app bar.
 class AppShellDrawerButton extends StatelessWidget {
-  const AppShellDrawerButton({super.key});
+  const AppShellDrawerButton({super.key, this.style});
+
+  final ButtonStyle? style;
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +45,7 @@ class AppShellDrawerButton extends StatelessWidget {
         tooltip: tooltip,
         focusNode: scope.menuButtonFocusNode,
         onPressed: scope.openDrawer,
+        style: style,
         icon: const Icon(Icons.menu),
       ),
     );

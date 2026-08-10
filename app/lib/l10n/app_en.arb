@@ -1232,6 +1232,93 @@
   "editProfileDiscardCancel": "Keep editing",
   "@editProfileDiscardCancel": { "description": "Cancel action in the confirm-discard dialog — returns the user to the edit form." },
 
+  "profileCustomisationTitle": "Customisation",
+  "@profileCustomisationTitle": { "description": "Title for the profile customisation settings page and settings tile." },
+
+  "profileCustomisationPreview": "Preview",
+  "@profileCustomisationPreview": { "description": "Accessible heading for the live profile customisation preview." },
+
+  "profileCustomisationColour": "Colour",
+  "@profileCustomisationColour": { "description": "Heading for the fixed profile colour choices." },
+
+  "profileCustomisationBorder": "Profile border",
+  "@profileCustomisationBorder": { "description": "Heading for profile picture border thickness choices." },
+
+  "profileCustomisationBackground": "Profile background",
+  "@profileCustomisationBackground": { "description": "Heading for profile background texture choices." },
+
+  "profileCustomisationSave": "Save",
+  "@profileCustomisationSave": { "description": "Action that saves profile customisation choices." },
+
+  "profileCustomisationSaved": "Profile customisation saved",
+  "@profileCustomisationSaved": { "description": "Success feedback shown after saving profile customisation." },
+
+  "profileCustomisationSaveError": "Couldn't save your profile customisation.",
+  "@profileCustomisationSaveError": { "description": "Retryable failure feedback shown when profile customisation cannot be saved." },
+
+  "profileCustomisationLoadError": "Couldn't load your profile customisation.",
+  "@profileCustomisationLoadError": { "description": "Error shown when the customisation editor cannot load." },
+
+  "profileCustomisationRetry": "Retry",
+  "@profileCustomisationRetry": { "description": "Retries loading profile customisation." },
+
+  "profileCustomisationDiscardTitle": "Discard customisation changes?",
+  "@profileCustomisationDiscardTitle": { "description": "Title of the customisation discard confirmation." },
+
+  "profileCustomisationDiscardMessage": "Your customisation changes won't be saved.",
+  "@profileCustomisationDiscardMessage": { "description": "Body of the customisation discard confirmation." },
+
+  "profileCustomisationNone": "None",
+  "@profileCustomisationNone": { "description": "Label for no profile background texture." },
+
+  "profileCustomisationColourCobalt": "Cobalt",
+  "@profileCustomisationColourCobalt": { "description": "Label for the cobalt profile colour." },
+
+  "profileCustomisationColourOrchid": "Orchid",
+  "@profileCustomisationColourOrchid": { "description": "Label for the orchid profile colour." },
+
+  "profileCustomisationColourRose": "Rose",
+  "@profileCustomisationColourRose": { "description": "Label for the rose profile colour." },
+
+  "profileCustomisationColourAmber": "Amber",
+  "@profileCustomisationColourAmber": { "description": "Label for the amber profile colour." },
+
+  "profileCustomisationColourGreen": "Green",
+  "@profileCustomisationColourGreen": { "description": "Label for the green profile colour stored under the stable lime key." },
+
+  "profileCustomisationColourTeal": "Teal",
+  "@profileCustomisationColourTeal": { "description": "Label for the teal profile colour." },
+
+  "profileCustomisationColourInk": "Ink",
+  "@profileCustomisationColourInk": { "description": "Label for the profile colour that uses the CraftSky theme Ink colour." },
+
+  "profileCustomisationBorderThin": "Thin",
+  "@profileCustomisationBorderThin": { "description": "Label for the thin profile picture border." },
+
+  "profileCustomisationBorderMedium": "Medium",
+  "@profileCustomisationBorderMedium": { "description": "Label for the medium profile picture border." },
+
+  "profileCustomisationBorderThick": "Thick",
+  "@profileCustomisationBorderThick": { "description": "Label for the thick profile picture border." },
+
+  "profileCustomisationBackgroundDither": "Dither",
+  "@profileCustomisationBackgroundDither": { "description": "Label for the bayerdark profile texture." },
+
+  "profileCustomisationBackgroundGrid": "Grid",
+  "@profileCustomisationBackgroundGrid": { "description": "Label for the cubedark profile texture." },
+
+  "profileCustomisationBackgroundCrossStitch": "Cross stitch",
+  "@profileCustomisationBackgroundCrossStitch": { "description": "Label for the dotcrossdark profile texture." },
+
+  "profileCustomisationBackgroundScallops": "Scallops",
+  "@profileCustomisationBackgroundScallops": { "description": "Label for the scallopdark profile texture." },
+
+  "profileCustomisationBackgroundDiagonalWeave": "Diagonal weave",
+  "@profileCustomisationBackgroundDiagonalWeave": { "description": "Label for the skewdark profile texture." },
+
+  "profileCustomisationBackgroundCrosshatch": "Crosshatch",
+  "@profileCustomisationBackgroundCrosshatch": { "description": "Label for the x2 profile texture." },
+
   "craftSewing": "Sewing",
   "@craftSewing": { "description": "Display label for the 'sewing' craft option in the crafts picker." },
 

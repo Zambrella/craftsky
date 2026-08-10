@@ -1,6 +1,8 @@
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
@@ -89,6 +91,9 @@ void main() {
     );
     expect(find.byIcon(Icons.bookmark), findsNothing);
     expect(find.byIcon(Icons.favorite_border), findsNothing);
+    final avatar = tester.widget<ProfileAvatar>(find.byType(ProfileAvatar));
+    expect(avatar.customisation.colour, 'lime');
+    expect(avatar.customisation.border, 'thick');
     await tester.tap(find.text(post.text));
     await tester.tap(find.text('@alice.craftsky.social'));
     expect((postTaps, authorTaps), (1, 1));
@@ -106,6 +111,10 @@ Post _post() => Post(
   author: PostAuthor(
     did: 'did:plc:alice',
     handle: 'alice.craftsky.social',
+    customisation: const ProfileCustomisation(
+      colour: 'lime',
+      border: 'thick',
+    ),
   ),
   likeCount: 0,
   repostCount: 0,

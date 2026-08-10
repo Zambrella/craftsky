@@ -28,6 +28,11 @@ void main() {
       'author': {
         'did': 'did:plc:alice',
         'handle': 'alice.craftsky.social',
+        'customisation': {
+          'colour': 'cobalt',
+          'profileBorder': 'medium',
+          'profileBackground': 'none',
+        },
       },
     };
     final stateJson = <String, dynamic>{

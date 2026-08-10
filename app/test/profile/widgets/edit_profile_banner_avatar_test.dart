@@ -1,6 +1,8 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_banner_avatar.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,6 +22,10 @@ void main() {
     handle: 'test.craftsky.social',
     displayName: 'Test User',
     crafts: const [],
+    customisation: const ProfileCustomisation(
+      colour: 'orchid',
+      border: 'thick',
+    ),
   );
 
   testWidgets('avatar edit button is tappable in the overlap area', (
@@ -41,6 +47,9 @@ void main() {
     await tester.pump();
 
     expect(tapped, 1);
+    final avatar = tester.widget<ProfileAvatar>(find.byType(ProfileAvatar));
+    expect(avatar.customisation.colour, 'orchid');
+    expect(avatar.customisation.border, 'thick');
   });
 
   testWidgets('cover edit button remains tappable', (tester) async {

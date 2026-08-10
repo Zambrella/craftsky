@@ -179,6 +179,8 @@ class NotificationRow extends ConsumerWidget {
                         seed: actor,
                         avatarUrl: actorNotification.actor.displayAvatarUrl,
                         size: ProfileAvatarSize.small,
+                        customisation:
+                            actorNotification.actor.customisation,
                       ),
                     ),
                     const SizedBox(height: 8),

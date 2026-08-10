@@ -22,10 +22,14 @@ type v1Middleware struct {
 	bodyLimit middleware.BodyLimitConfig
 	rateLimit map[RateClass]func(http.Handler) http.Handler
 	observer  *observability.Observer
+	hydrator  *api.IdentityCustomisationHydrator
 }
 
 func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handler {
 	wrapped := handler
+	if m.hydrator != nil {
+		wrapped = m.hydrator.Handler(wrapped)
+	}
 	if policy.CurrentMemberRequired {
 		wrapped = m.member(wrapped)
 	}
@@ -105,7 +109,19 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	if bodyLimitCfg.DefaultJSONBytes == 0 {
 		bodyLimitCfg.DefaultJSONBytes = defaultJSONBodyLimitBytes
 	}
-	v1mw := v1Middleware{authN: authN, deviceID: deviceID, member: currentMember, bodyLimit: bodyLimitCfg, rateLimit: rateLimits, observer: observer}
+	profileCustomisationStore := deps.ProfileCustomisationStore
+	if profileCustomisationStore == nil && deps.DB != nil {
+		profileCustomisationStore = api.NewProfileCustomisationStore(deps.DB)
+	}
+	var identityCustomisationHydrator *api.IdentityCustomisationHydrator
+	if profileCustomisationStore != nil {
+		identityCustomisationHydrator = api.NewIdentityCustomisationHydrator(profileCustomisationStore)
+	}
+	v1mw := v1Middleware{
+		authN: authN, deviceID: deviceID, member: currentMember,
+		bodyLimit: bodyLimitCfg, rateLimit: rateLimits, observer: observer,
+		hydrator: identityCustomisationHydrator,
+	}
 	instagramLimit := func(handler http.Handler, rules ...middleware.InstagramRateLimitRule) http.Handler {
 		// A missing data-plane key means Instagram's rate-limited private write
 		// plane is unavailable. The middleware deliberately accepts a nil limiter
@@ -183,6 +199,10 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	mux.Handle("GET /v1/profiles/me/followers", v1mw.wrap(mustPolicy("GET", "/v1/profiles/me/followers"), api.GetMeFollowersHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("GET /v1/profiles/me/following", v1mw.wrap(mustPolicy("GET", "/v1/profiles/me/following"), api.GetMeFollowingHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("PUT /v1/profiles/me", v1mw.wrap(mustPolicy("PUT", "/v1/profiles/me"), api.PutMeProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, mediaLimits, deps.Logger)))
+	mux.Handle("PUT /v1/profiles/me/customisation", v1mw.wrap(
+		mustPolicy("PUT", "/v1/profiles/me/customisation"),
+		api.PutProfileCustomisationHandler(profileCustomisationStore),
+	))
 	mux.Handle("GET /v1/profiles/{handleOrDid}/mutual-followers", v1mw.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/mutual-followers"), api.GetMutualFollowersHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("POST /v1/profiles/{handleOrDid}/follows", v1mw.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/follows"), api.FollowProfileHandler(deps.FollowStore, deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, deps.Logger)))
 	mux.Handle("DELETE /v1/profiles/{handleOrDid}/follows", v1mw.wrap(mustPolicy("DELETE", "/v1/profiles/{handleOrDid}/follows"), api.UnfollowProfileHandler(deps.FollowStore, deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, deps.Logger)))

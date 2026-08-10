@@ -1,4 +1,5 @@
 import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 
@@ -10,7 +11,13 @@ part 'profile.mapper.dart';
 /// be absent from the JSON; `crafts` is always present (empty list when
 /// the user has none). `avatar` and `banner` are CDN URLs synthesised
 /// server-side from blob CIDs — clients never see the raw blob.
-@MappableClass(includeCustomMappers: [DidMapper(), HandleMapper()])
+@MappableClass(
+  includeCustomMappers: [
+    DidMapper(),
+    HandleMapper(),
+    ProfileCustomisationMapper(),
+  ],
+)
 class Profile with ProfileMappable {
   Profile({
     required String did,
@@ -33,6 +40,7 @@ class Profile with ProfileMappable {
     this.postsLast7Days,
     this.projectCount,
     this.moderation,
+    this.customisation = ProfileCustomisation.defaults,
   }) : did = Did.parse(did),
        handle = Handle.parse(handle);
 
@@ -56,4 +64,5 @@ class Profile with ProfileMappable {
   final int? postsLast7Days;
   final int? projectCount;
   final ModerationMetadata? moderation;
+  final ProfileCustomisation customisation;
 }

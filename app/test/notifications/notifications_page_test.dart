@@ -76,6 +76,21 @@ void main() {
     expect(find.text('Alice commented on your post'), findsOneWidget);
     expect(find.text('viewer post'), findsNWidgets(3));
     expect(find.text('alice.craftsky.social followed you'), findsOneWidget);
+    final customisedAvatars = tester
+        .widgetList<ProfileAvatar>(find.byType(ProfileAvatar))
+        .where((avatar) => avatar.customisation.colour == 'rose')
+        .toList();
+    expect(customisedAvatars, isNotEmpty);
+    expect(
+      customisedAvatars,
+      everyElement(
+        isA<ProfileAvatar>().having(
+          (avatar) => avatar.customisation.border,
+          'border',
+          'thick',
+        ),
+      ),
+    );
   });
 
   testWidgets('UT-016 uses post, comment, and reply language in rows', (
@@ -823,6 +838,11 @@ Map<String, dynamic> _baseNotification(String type, String rkey) => {
     'handle': 'alice.craftsky.social',
     'displayName': 'Alice',
     'avatar': 'https://cdn.example/avatar/alice.jpg',
+    'customisation': {
+      'colour': 'rose',
+      'profileBorder': 'thick',
+      'profileBackground': 'none',
+    },
   },
   'createdAt': '2026-05-28T13:00:00Z',
   'indexedAt': '2026-05-28T13:00:01Z',

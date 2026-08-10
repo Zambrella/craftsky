@@ -1,10 +1,11 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Circular paper-cutout avatar with the chunky 1.5px ink border and
+/// Circular paper-cutout avatar with the selected custom inside border and
 /// hard-offset drop shadow that are signature to the design system.
 /// Reused on profile headers, post cards, comments, search results —
 /// anywhere we render someone's face.
@@ -18,23 +19,32 @@ class ProfileAvatar extends ConsumerWidget {
   const ProfileAvatar({
     required this.seed,
     this.avatarUrl,
+    this.imageProvider,
     this.size = ProfileAvatarSize.medium,
     this.showShadow = true,
+    this.customisation = ProfileCustomisation.defaults,
     super.key,
   });
 
   final String seed;
   final String? avatarUrl;
+  final ImageProvider<Object>? imageProvider;
   final ProfileAvatarSize size;
   final bool showShadow;
+  final ProfileCustomisation customisation;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final swatches = theme.extension<BrandSwatchTheme>()!;
-    final shadows = theme.extension<BrandShadowTheme>()!;
+    final swatches =
+        theme.extension<BrandSwatchTheme>() ?? const BrandSwatchTheme();
+    final shadows =
+        theme.extension<BrandShadowTheme>() ?? const BrandShadowTheme();
     final dimension = size.dimension;
-    final borderWidth = size.borderWidth;
+    final borderWidth = size.borderWidthFor(customisation.border);
+    final colourBundle =
+        profileColourBundles[customisation.colour] ??
+        profileColourBundles[ProfileCustomisation.defaults.colour]!;
     final fallbackBackground = _fallbackBackgroundFor(seed, swatches);
 
     final fallback = _AvatarInitialFallback(
@@ -44,40 +54,67 @@ class ProfileAvatar extends ConsumerWidget {
       foregroundColor: theme.colorScheme.onSurface,
     );
 
-    return Container(
+    return SizedBox(
       width: dimension,
       height: dimension,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: fallbackBackground,
-        border: Border.all(
-          color: theme.colorScheme.onSurface,
-          width: borderWidth,
-        ),
-        boxShadow: showShadow ? size.shadowsFrom(shadows) : const [],
-      ),
-      child: ClipOval(
-        child: avatarUrl == null
-            ? fallback
-            : CachedNetworkImage(
-                imageUrl: avatarUrl!,
-                cacheManager: ref.watch(profileImageCacheManagerProvider),
-                fit: BoxFit.cover,
-                width: dimension,
-                height: dimension,
-                placeholder: (_, _) => fallback,
-                errorWidget: (_, _, _) => fallback,
-                // Quick cross-fade instead of the 500ms default —
-                // CachedNetworkImage always remounts in the placeholder
-                // state (even on a disk-cache hit), so a slow fade makes
-                // every revisit feel laggy.
-                fadeInDuration: const Duration(milliseconds: 150),
-                fadeOutDuration: const Duration(milliseconds: 150),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          DecoratedBox(
+            key: const Key('profile-avatar-shadow'),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: fallbackBackground,
+              boxShadow: showShadow ? size.shadowsFrom(shadows) : const [],
+            ),
+          ),
+          ClipOval(
+            child: imageProvider != null
+                ? Image(
+                    image: imageProvider!,
+                    fit: BoxFit.cover,
+                    width: dimension,
+                    height: dimension,
+                  )
+                : avatarUrl == null
+                ? fallback
+                : CachedNetworkImage(
+                    imageUrl: avatarUrl!,
+                    cacheManager: ref.watch(profileImageCacheManagerProvider),
+                    fit: BoxFit.cover,
+                    width: dimension,
+                    height: dimension,
+                    placeholder: (_, _) => fallback,
+                    errorWidget: (_, _, _) => fallback,
+                    // Quick cross-fade instead of the 500ms default —
+                    // CachedNetworkImage always remounts in the placeholder
+                    // state (even on a disk-cache hit), so a slow fade makes
+                    // every revisit feel laggy.
+                    fadeInDuration: const Duration(milliseconds: 150),
+                    fadeOutDuration: const Duration(milliseconds: 150),
+                  ),
+          ),
+          IgnorePointer(
+            child: Container(
+              key: const Key('profile-avatar-border'),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: _colourFromHex(colourBundle.base),
+                  width: borderWidth,
+                ),
               ),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
+
+Color _colourFromHex(String hex) => Color(
+  int.parse(hex.substring(1), radix: 16) | 0xFF000000,
+);
 
 Color _fallbackBackgroundFor(String seed, BrandSwatchTheme swatches) {
   final trimmed = seed.trim();
@@ -129,14 +166,25 @@ class _AvatarInitialFallback extends StatelessWidget {
 /// Avatar size variants. Dimensions and border weights are tuned per
 /// surface so the chunky border reads at every scale.
 enum ProfileAvatarSize {
-  small(dimension: 36, borderWidth: 2),
-  medium(dimension: 48, borderWidth: 2),
-  large(dimension: 96, borderWidth: 2);
+  small(dimension: 36),
+  medium(dimension: 48),
+  large(dimension: 96);
 
-  const ProfileAvatarSize({required this.dimension, required this.borderWidth});
+  const ProfileAvatarSize({required this.dimension});
 
   final double dimension;
-  final double borderWidth;
+
+  double borderWidthFor(String border) => switch ((this, border)) {
+    (ProfileAvatarSize.small, 'thin') => 1.5,
+    (ProfileAvatarSize.small, 'thick') => 4,
+    (ProfileAvatarSize.small, _) => 2.5,
+    (ProfileAvatarSize.medium, 'thin') => 2,
+    (ProfileAvatarSize.medium, 'thick') => 5,
+    (ProfileAvatarSize.medium, _) => 3.5,
+    (ProfileAvatarSize.large, 'thin') => 3,
+    (ProfileAvatarSize.large, 'thick') => 8,
+    (ProfileAvatarSize.large, _) => 5,
+  };
 
   /// Hard-offset drop shadow scaled to the avatar's surface. Small avatars
   /// render flat so dense surfaces like post cards stay visually clean.

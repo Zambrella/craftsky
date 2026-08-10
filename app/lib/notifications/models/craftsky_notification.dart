@@ -1,5 +1,6 @@
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/notifications/models/notification_category.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 
@@ -306,7 +307,12 @@ final class SystemNotificationCommon with SystemNotificationCommonMappable {
 
 @MappableClass(
   generateMethods: _notificationValueMethods,
-  includeCustomMappers: [DidMapper(), HandleMapper(), CidMapper()],
+  includeCustomMappers: [
+    DidMapper(),
+    HandleMapper(),
+    CidMapper(),
+    ProfileCustomisationMapper(),
+  ],
 )
 final class NotificationActor with NotificationActorMappable {
   const NotificationActor({
@@ -320,6 +326,7 @@ final class NotificationActor with NotificationActorMappable {
     this.muted,
     this.blocking,
     this.blockedBy,
+    this.customisation = ProfileCustomisation.defaults,
   });
 
   factory NotificationActor.fromMap(Map<String, dynamic> map) =>
@@ -344,6 +351,7 @@ final class NotificationActor with NotificationActorMappable {
   final bool? muted;
   final bool? blocking;
   final bool? blockedBy;
+  final ProfileCustomisation customisation;
 
   bool get hasViewerState =>
       muted != null || blocking != null || blockedBy != null;

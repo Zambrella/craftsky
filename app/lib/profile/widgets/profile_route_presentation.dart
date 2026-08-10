@@ -8,7 +8,6 @@ import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_card.dart';
-import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
 import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
@@ -22,17 +21,11 @@ class ProfileRoutePresentation extends ConsumerStatefulWidget {
   const ProfileRoutePresentation({
     required this.handle,
     required this.startsCompact,
-    this.primaryColor,
-    this.backgroundIllustration,
-    this.avatarFrame,
     super.key,
   });
 
   final String handle;
   final bool startsCompact;
-  final Color? primaryColor;
-  final ProfileBackgroundIllustration? backgroundIllustration;
-  final ProfileAvatarFrame? avatarFrame;
 
   static const expansionDuration = Duration(milliseconds: 600);
 
@@ -95,54 +88,46 @@ class _ProfileRoutePresentationState
       }
     });
 
-    return ProfileCustomisationTheme(
-      primaryColor: widget.primaryColor,
-      child: AnimatedBuilder(
-        key: _transitioning
-            ? const Key('profile-route-expansion')
-            : const Key('profile-route-compact'),
-        animation: _controller,
-        builder: (context, child) {
-          final value = _controller.value;
-          final progress = Curves.easeInOutCubicEmphasized.transform(value);
-          return AbsorbPointer(
-            absorbing: _transitioning,
-            child: Stack(
-              fit: StackFit.expand,
-              children: [
-                if (!_expanded || _transitioning)
-                  GestureDetector(
-                    key: const Key('profile-route-barrier'),
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => Navigator.of(context).pop(),
-                    child: ColoredBox(
-                      color: Colors.black.withValues(
-                        alpha: 0.54 * (1 - progress),
-                      ),
+    return AnimatedBuilder(
+      key: _transitioning
+          ? const Key('profile-route-expansion')
+          : const Key('profile-route-compact'),
+      animation: _controller,
+      builder: (context, child) {
+        final value = _controller.value;
+        final progress = Curves.easeInOutCubicEmphasized.transform(value);
+        return AbsorbPointer(
+          absorbing: _transitioning,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (!_expanded || _transitioning)
+                GestureDetector(
+                  key: const Key('profile-route-barrier'),
+                  behavior: HitTestBehavior.opaque,
+                  onTap: () => Navigator.of(context).pop(),
+                  child: ColoredBox(
+                    color: Colors.black.withValues(
+                      alpha: 0.54 * (1 - progress),
                     ),
                   ),
-                if (!_expanded || _transitioning)
-                  _compactProfile(
-                    profileAsync: profileAsync,
-                    toggleState: toggleState,
-                    auth: auth,
-                    expansionProgress: progress,
-                    transitionProgress: value,
-                  ),
-              ],
-            ),
-          );
-        },
-      ),
+                ),
+              if (!_expanded || _transitioning)
+                _compactProfile(
+                  profileAsync: profileAsync,
+                  toggleState: toggleState,
+                  auth: auth,
+                  expansionProgress: progress,
+                  transitionProgress: value,
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 
-  Widget _fullProfile() => ProfilePage(
-    handle: widget.handle,
-    primaryColor: widget.primaryColor,
-    backgroundIllustration: widget.backgroundIllustration,
-    avatarFrame: widget.avatarFrame,
-  );
+  Widget _fullProfile() => ProfilePage(handle: widget.handle);
 
   Widget _compactProfile({
     required AsyncValue<Profile> profileAsync,
@@ -154,9 +139,6 @@ class _ProfileRoutePresentationState
     return switch (profileAsync) {
       AsyncValue(:final value?) => ProfileCard(
         profile: value,
-        primaryColor: widget.primaryColor,
-        backgroundIllustration: widget.backgroundIllustration,
-        avatarFrame: widget.avatarFrame,
         isOwnProfile: _isOwnProfile(auth, value.did.toString()),
         isPrimaryActionBusy: toggleState.isLoading,
         expansionProgress: expansionProgress,

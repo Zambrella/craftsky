@@ -1,3 +1,4 @@
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
 /// One retained account entry inside the secure session-registry snapshot.
@@ -10,6 +11,7 @@ class StoredSession {
     this.lastUsedOrdinal = 0,
     this.cachedDisplayName,
     this.cachedAvatarUrl,
+    this.cachedCustomisation = ProfileCustomisation.defaults,
   }) : did = Did.parse(did),
        handle = Handle.parse(handle);
 
@@ -20,6 +22,7 @@ class StoredSession {
   final int lastUsedOrdinal;
   final String? cachedDisplayName;
   final String? cachedAvatarUrl;
+  final ProfileCustomisation cachedCustomisation;
 
   /// Never include the token in string form — the default mappable
   /// `toString` prints every field, which would land bearer tokens in

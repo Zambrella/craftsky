@@ -1,4 +1,6 @@
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/profile_bio.dart';
+import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_action_providers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
@@ -48,8 +50,45 @@ void main() {
         expect(spans[1].style?.color, BrandColors.cobalt);
         expect(spans[3].style?.color, BrandColors.cobalt);
         expect(spans[5].style?.color, BrandColors.cobalt);
+        expect(spans[1].style?.decoration, TextDecoration.underline);
+        expect(spans[3].style?.decoration, TextDecoration.none);
+        expect(spans[5].style?.decoration, TextDecoration.none);
       },
     );
+
+    testWidgets('Ink hyperlinks remain identifiable by their underline', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            home: const Scaffold(
+              body: ProfileCustomisationTheme(
+                customisation: ProfileCustomisation(colour: 'ink'),
+                child: ProfileBio(
+                  description: 'Read craftsky.social',
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final body = tester.widget<Text>(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is Text &&
+              widget.textSpan?.toPlainText() == 'Read craftsky.social',
+        ),
+      );
+      final spans = _leafTextSpans(body.textSpan! as TextSpan);
+
+      expect(spans[0].style?.color, BrandColors.ink);
+      expect(spans[1].style?.color, BrandColors.ink);
+      expect(spans[0].style?.decoration, TextDecoration.none);
+      expect(spans[1].style?.decoration, TextDecoration.underline);
+    });
 
     testWidgets('UT-009 leaves unsupported schemes and URL fragments safe', (
       tester,

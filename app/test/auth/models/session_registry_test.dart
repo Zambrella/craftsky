@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/models/stored_session.dart';
+import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -27,6 +28,10 @@ void main() {
           handle: 'bob.test',
           sessionGeneration: 11,
           lastUsedOrdinal: 19,
+          cachedCustomisation: const ProfileCustomisation(
+            colour: 'teal',
+            border: 'thick',
+          ),
         ),
       },
       routingBindings: const {
@@ -43,6 +48,10 @@ void main() {
       'did:plc:alice': 'alice_binding',
       'did:plc:bob': 'bob_binding',
     });
+    expect(
+      restored.sessions[AccountKey('did:plc:bob').did]?.cachedCustomisation,
+      const ProfileCustomisation(colour: 'teal', border: 'thick'),
+    );
     final diagnostic = '$restored ${restored.sessions.values.join(' ')}';
     expect(diagnostic, isNot(contains('secret-token')));
     expect(diagnostic, isNot(contains('did:plc:alice')));
@@ -78,6 +87,32 @@ void main() {
         }),
       ),
       throwsFormatException,
+    );
+  });
+
+  test('older session snapshots default absent cached customisation', () {
+    final restored = SessionRegistry.fromJson(
+      jsonEncode({
+        'schemaVersion': 1,
+        'nextSessionGeneration': 2,
+        'nextUseOrdinal': 2,
+        'activationGeneration': 1,
+        'activeDid': 'did:plc:alice',
+        'sessions': {
+          'did:plc:alice': {
+            'token': 'secret-token-alice',
+            'did': 'did:plc:alice',
+            'handle': 'alice.test',
+            'sessionGeneration': 1,
+            'lastUsedOrdinal': 1,
+          },
+        },
+      }),
+    );
+
+    expect(
+      restored.orderedSessions.single.cachedCustomisation,
+      ProfileCustomisation.defaults,
     );
   });
 
@@ -164,9 +199,14 @@ void main() {
       lease,
       displayName: 'Alice',
       avatarUrl: 'https://example.test/alice.jpg',
+      customisation: const ProfileCustomisation(colour: 'teal'),
     );
 
     expect(updated.sessions[lease.account.did]?.cachedDisplayName, 'Alice');
+    expect(
+      updated.sessions[lease.account.did]?.cachedCustomisation.colour,
+      'teal',
+    );
     expect(
       updated.updateCachedIdentity(
         AccountSessionLease(
@@ -175,8 +215,18 @@ void main() {
         ),
         displayName: 'Stale',
         avatarUrl: null,
+        customisation: ProfileCustomisation.defaults,
       ),
       same(updated),
+    );
+
+    final recoloured = updated.updateCachedCustomisation(
+      lease,
+      const ProfileCustomisation(colour: 'rose'),
+    );
+    expect(
+      recoloured.sessions[lease.account.did]?.cachedCustomisation.colour,
+      'rose',
     );
   });
 }

@@ -3,6 +3,66 @@ import 'dart:async';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
+enum ChunkyButtonVariant { primary, secondary }
+
+/// Optional, locally scoped colours for the custom-painted Chunky controls.
+///
+/// This is separate from the app-wide brand theme so a bounded surface can
+/// replace every interaction state without changing controls elsewhere.
+@immutable
+class ChunkyButtonColourTheme extends ThemeExtension<ChunkyButtonColourTheme> {
+  const ChunkyButtonColourTheme({
+    required this.base,
+    required this.foreground,
+    required this.hover,
+    required this.pressed,
+    required this.softContainer,
+    required this.onSoftContainer,
+  });
+
+  final Color base;
+  final Color foreground;
+  final Color hover;
+  final Color pressed;
+  final Color softContainer;
+  final Color onSoftContainer;
+
+  @override
+  ChunkyButtonColourTheme copyWith({
+    Color? base,
+    Color? foreground,
+    Color? hover,
+    Color? pressed,
+    Color? softContainer,
+    Color? onSoftContainer,
+  }) {
+    return ChunkyButtonColourTheme(
+      base: base ?? this.base,
+      foreground: foreground ?? this.foreground,
+      hover: hover ?? this.hover,
+      pressed: pressed ?? this.pressed,
+      softContainer: softContainer ?? this.softContainer,
+      onSoftContainer: onSoftContainer ?? this.onSoftContainer,
+    );
+  }
+
+  @override
+  ChunkyButtonColourTheme lerp(
+    covariant ChunkyButtonColourTheme? other,
+    double t,
+  ) {
+    if (other == null) return this;
+    return ChunkyButtonColourTheme(
+      base: Color.lerp(base, other.base, t)!,
+      foreground: Color.lerp(foreground, other.foreground, t)!,
+      hover: Color.lerp(hover, other.hover, t)!,
+      pressed: Color.lerp(pressed, other.pressed, t)!,
+      softContainer: Color.lerp(softContainer, other.softContainer, t)!,
+      onSoftContainer: Color.lerp(onSoftContainer, other.onSoftContainer, t)!,
+    );
+  }
+}
+
 /// A pill-shaped button with a hard-offset shadow that lifts on hover and
 /// presses down onto its shadow on tap. The "press" signature move of the
 /// CraftSky paper-cutout direction.
@@ -26,14 +86,16 @@ class ChunkyButton extends ButtonStyleButton {
     super.statesController,
     this.backgroundColor,
     this.foregroundColor,
+    this.variant = ChunkyButtonVariant.primary,
   });
 
-  /// Surface color at rest. Defaults to `colorScheme.primary` (cobalt). Hover
-  /// and press states darken this via alpha-blend.
+  /// Surface color at rest. Defaults to `colorScheme.primary` (cobalt).
   final Color? backgroundColor;
 
   /// Label/icon color. Defaults to `colorScheme.onPrimary`.
   final Color? foregroundColor;
+
+  final ChunkyButtonVariant variant;
 
   /// Extra lift applied on hover (negative Y = up).
   static const Offset _hoverLift = Offset(-1, -1);
@@ -47,10 +109,27 @@ class ChunkyButton extends ButtonStyleButton {
     final colors = theme.colorScheme;
     final text = theme.textTheme;
     final shadows = theme.extension<BrandShadowTheme>()!;
+    final swatches = theme.extension<BrandSwatchTheme>()!;
     final durations = theme.extension<DurationTheme>()!;
+    final localColours = theme.extension<ChunkyButtonColourTheme>();
 
-    final surface = backgroundColor ?? colors.primary;
-    final onSurface = foregroundColor ?? colors.onPrimary;
+    final isSecondary = variant == ChunkyButtonVariant.secondary;
+    final surface =
+        backgroundColor ??
+        (isSecondary
+            ? localColours?.softContainer ?? swatches.paper3
+            : localColours?.base ?? colors.primary);
+    final onSurface =
+        foregroundColor ??
+        (isSecondary
+            ? localColours?.onSoftContainer ?? colors.onSurface
+            : localColours?.foreground ?? colors.onPrimary);
+    final hoverSurface =
+        localColours?.hover ??
+        Color.alphaBlend(Colors.black.withValues(alpha: 0.08), surface);
+    final pressedSurface =
+        localColours?.pressed ??
+        Color.alphaBlend(Colors.black.withValues(alpha: 0.18), surface);
 
     // Offset of the drop shadow at rest. The button travels this far when
     // pressed so it meets the shadow.
@@ -66,8 +145,21 @@ class ChunkyButton extends ButtonStyleButton {
         ),
       ),
       backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
-      foregroundColor: WidgetStatePropertyAll(onSurface),
+      foregroundColor: WidgetStateProperty.resolveWith((states) {
+        if (foregroundColor != null || localColours == null || !isSecondary) {
+          return onSurface;
+        }
+        if (states.contains(WidgetState.pressed) ||
+            states.contains(WidgetState.hovered) ||
+            states.contains(WidgetState.focused)) {
+          return localColours.foreground;
+        }
+        return onSurface;
+      }),
       overlayColor: WidgetStateProperty.resolveWith((states) {
+        // A scoped colour theme supplies exact audited interaction surfaces;
+        // do not alter them with Material's translucent overlay.
+        if (localColours != null) return Colors.transparent;
         if (states.contains(WidgetState.pressed)) {
           return onSurface.withValues(alpha: 0.12);
         }
@@ -115,6 +207,7 @@ class ChunkyButton extends ButtonStyleButton {
       // hover, while the shadow stays put.
       backgroundBuilder: (context, states, child) {
         final hovered = states.contains(WidgetState.hovered);
+        final focused = states.contains(WidgetState.focused);
         final disabled = states.contains(WidgetState.disabled);
 
         final shadowColor = disabled
@@ -127,11 +220,14 @@ class ChunkyButton extends ButtonStyleButton {
           restSurfaceColor: disabled
               ? colors.onSurface.withValues(alpha: 0.12)
               : surface,
+          hoverSurfaceColor: hoverSurface,
+          pressedSurfaceColor: pressedSurface,
           borderColor: disabled
               ? colors.onSurface.withValues(alpha: 0.38)
               : colors.onSurface,
           borderWidth: _borderWidth,
           hovered: hovered,
+          focused: focused,
           disabled: disabled,
           hoverLift: _hoverLift,
           pressOffset: restShadowOffset,
@@ -156,9 +252,12 @@ class _ChunkyBackground extends StatefulWidget {
     required this.shadowOffset,
     required this.shadowColor,
     required this.restSurfaceColor,
+    required this.hoverSurfaceColor,
+    required this.pressedSurfaceColor,
     required this.borderColor,
     required this.borderWidth,
     required this.hovered,
+    required this.focused,
     required this.disabled,
     required this.hoverLift,
     required this.pressOffset,
@@ -170,13 +269,16 @@ class _ChunkyBackground extends StatefulWidget {
   final Offset shadowOffset;
   final Color shadowColor;
 
-  /// Surface color at rest. Hover/press states darken this via alpha-blend.
+  /// Surface color at rest.
   final Color restSurfaceColor;
+  final Color hoverSurfaceColor;
+  final Color pressedSurfaceColor;
 
   final Color borderColor;
   final double borderWidth;
 
   final bool hovered;
+  final bool focused;
   final bool disabled;
 
   final Offset hoverLift;
@@ -265,15 +367,10 @@ class _ChunkyBackgroundState extends State<_ChunkyBackground>
 
   Color _surfaceColorFor(double t) {
     if (widget.disabled) return widget.restSurfaceColor;
-    // Hover darkens by 8%; press adds up to another 10% on top so a full
-    // press is 18% darker than rest — matches the original _darken scale.
-    final hoverBlend = widget.hovered ? 0.08 : 0.0;
-    final pressBlend = hoverBlend + (0.18 - hoverBlend) * t;
-    if (pressBlend == 0) return widget.restSurfaceColor;
-    return Color.alphaBlend(
-      Colors.black.withValues(alpha: pressBlend),
-      widget.restSurfaceColor,
-    );
+    final rest = widget.hovered || widget.focused
+        ? widget.hoverSurfaceColor
+        : widget.restSurfaceColor;
+    return Color.lerp(rest, widget.pressedSurfaceColor, t)!;
   }
 
   @override
