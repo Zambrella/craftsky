@@ -20,6 +20,15 @@ type ProfileCustomisationStore struct {
 	now  func() time.Time
 }
 
+// ProfileCustomisationBatchQuery is kept as one statement so response
+// hydration remains bounded and its PostgreSQL plan can be regression-tested.
+const ProfileCustomisationBatchQuery = `
+	SELECT p.did, c.colour, c.profile_border, c.profile_background
+	FROM craftsky_profiles p
+	LEFT JOIN profile_customisations c ON c.owner_did = p.did
+	WHERE p.did = ANY($1::text[])
+`
+
 func NewProfileCustomisationStore(
 	pool *pgxpool.Pool,
 	options ...ProfileCustomisationStoreOptions,
@@ -99,12 +108,7 @@ func (s *ProfileCustomisationStore) ReadBatch(
 		return result, nil
 	}
 
-	rows, err := s.pool.Query(ctx, `
-		SELECT p.did, c.colour, c.profile_border, c.profile_background
-		FROM craftsky_profiles p
-		LEFT JOIN profile_customisations c ON c.owner_did = p.did
-		WHERE p.did = ANY($1::text[])
-	`, dids)
+	rows, err := s.pool.Query(ctx, ProfileCustomisationBatchQuery, dids)
 	if err != nil {
 		return nil, fmt.Errorf("profile customisation batch query: %w", err)
 	}

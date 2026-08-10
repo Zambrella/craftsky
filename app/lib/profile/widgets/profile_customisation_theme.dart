@@ -1,4 +1,5 @@
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
 
 /// Applies one fixed, audited profile colour bundle without generating hues
@@ -46,6 +47,19 @@ class ProfileCustomisationTheme extends StatelessWidget {
 
     return Theme(
       data: parent.copyWith(
+        extensions: [
+          ...parent.extensions.values.where(
+            (extension) => extension is! ChunkyButtonColourTheme,
+          ),
+          ChunkyButtonColourTheme(
+            base: base,
+            foreground: foreground,
+            hover: hover,
+            pressed: pressed,
+            softContainer: soft,
+            onSoftContainer: ink,
+          ),
+        ],
         colorScheme: parent.colorScheme.copyWith(
           primary: base,
           onPrimary: foreground,
@@ -78,13 +92,24 @@ class ProfileCustomisationTheme extends StatelessWidget {
         ),
         iconButtonTheme: IconButtonThemeData(
           style: ButtonStyle(
-            foregroundColor: WidgetStateProperty.resolveWith((states) {
+            backgroundColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.disabled)) {
+                return soft.withValues(alpha: 0.38);
+              }
               if (states.contains(WidgetState.pressed)) return pressed;
               if (states.contains(WidgetState.hovered) ||
                   states.contains(WidgetState.focused)) {
                 return hover;
               }
-              return base;
+              return soft;
+            }),
+            foregroundColor: WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.pressed) ||
+                  states.contains(WidgetState.hovered) ||
+                  states.contains(WidgetState.focused)) {
+                return foreground;
+              }
+              return ink;
             }),
           ),
         ),

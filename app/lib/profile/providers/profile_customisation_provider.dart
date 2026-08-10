@@ -2,18 +2,10 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
-import 'package:craftsky_app/feed/providers/timeline_provider.dart';
-import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
-import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
-import 'package:craftsky_app/notifications/providers/notifications_provider.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/profile/providers/profile_identity_cache_invalidator.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
-import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
-import 'package:craftsky_app/saved_posts/providers/saved_posts_provider.dart';
-import 'package:craftsky_app/search/providers/post_search_provider.dart';
-import 'package:craftsky_app/search/providers/profile_search_provider.dart';
-import 'package:craftsky_app/search/providers/project_search_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'profile_customisation_provider.g.dart';
@@ -108,21 +100,8 @@ class ProfileCustomisationEditor extends _$ProfileCustomisationEditor {
                 .setCached(profile.copyWith(customisation: saved));
           }
         }
-        ref
-          ..invalidate(userPostsProvider(id))
-          ..invalidate(userProjectsProvider(id))
-          ..invalidate(userCommentsProvider(id));
       }
-      ref
-        ..invalidate(timelineProvider)
-        ..invalidate(notificationsProvider)
-        ..invalidate(profileSearchProvider)
-        ..invalidate(postSearchProvider)
-        ..invalidate(projectSearchProvider)
-        ..invalidate(savedPostsProvider);
-      if (ownership != null) {
-        ref.invalidate(accountNotificationsProvider(ownership.session.account));
-      }
+      ref.read(profileIdentityCacheInvalidatorProvider)();
     } on Object catch (error, stackTrace) {
       if (!isActiveAccountOperationCurrent(ref, ownership)) return;
       state = AsyncError(error, stackTrace);

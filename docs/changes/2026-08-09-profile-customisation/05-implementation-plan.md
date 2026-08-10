@@ -4,8 +4,8 @@
 
 Stage: Implementation
 Started: 2026-08-10
-Current loop: Complete
-Current result: AppView persistence, mutation, public hydration, Flutter editing, account-scoped cache reconciliation, shared-avatar rendering, local textures, and bounded profile theming are implemented and verified. The full AppView suite passes. The Flutter feature/regression suites pass; the final broad Flutter run passed 1,398 tests and retained two pre-existing `auth_complete_page_test.dart` router-harness failures in untouched code.
+Current loop: Implementation-review corrections complete
+Current result: IR-001 through IR-005 have focused passing correction evidence and IR-006 traceability is corrected below. IR-007's Should-level custom signal is explicitly deferred; generic HTTP instrumentation remains. The full AppView race suite and static analysis pass. The broad Flutter run passes 1,409 tests and reproduces only the two pre-existing untouched `auth_complete_page_test.dart` failures caused by its `MaterialApp` harness lacking `GoRouter`.
 
 GAP-001 through GAP-003 closed on 2026-08-10 before their dependent exact assertions. `01-requirements.md` Q11–Q13 record all stable colour, texture, and feedback constants.
 
@@ -159,7 +159,8 @@ The order mirrors `04-coding-plan.md`. Acceptance and regression IDs that close 
 
 - Tests: UT-011, AT-010, IT-009, AT-001, AT-003, AT-008, AT-009, REG-001, REG-002, REG-006, MAN-001–MAN-003.
 - Requirements: all remaining linked Must requirements plus NFR-005.
-- Complete automated semantics, focus, text-scale, contrast, response-inventory, moderation, compatibility, privacy-label, and full migration/regression assertions.
+- Complete automated semantics, focus, text-scale, contrast, response-inventory, moderation, compatibility, and full migration/regression assertions.
+- NFR-005 customisation-specific result/error-class instrumentation is Should priority and is deferred after implementation review. Existing generic HTTP instrumentation remains; no DID, catalogue choice, asset name, or URL is introduced as a metric label. IT-009 is therefore not claimed as executed.
 - Run manual assistive-technology, texture-balance, and colour-vision checks only after the automated suite is green and visual gates are closed.
 
 ## Codebase Inspection Notes
@@ -220,6 +221,18 @@ Run `flutter gen-l10n` after ARB edits and `dart run build_runner build` after m
 | 2026-08-10 | AppView regression | Green | `just test` with local PostgreSQL and MinIO, including `-race` across all AppView packages. | Pass |
 | 2026-08-10 | Flutter regression | Broad | Final `flutter test` after account-scoped cache integration. | 1,398 pass; two untouched `auth_complete_page_test.dart` tests fail because their `MaterialApp` harness has no `GoRouter`. The same two fail alone and neither the production page nor its test changed in this implementation. |
 | 2026-08-10 | Flutter regression | Green | Corrected post and saved-post round-trip fixtures to include the newly required default nested customisation, then reran those focused suites. | Pass |
+| 2026-08-10 | IR-001 / UT-006 / AT-005 | Red | `flutter test test/profile/widgets/profile_customisation_controls_test.dart` failed because the actual secondary Chunky control did not paint the selected bundle's soft-container colour. | Expected failure |
+| 2026-08-10 | IR-001 / UT-006 / AT-005 | Green | `flutter test test/profile/widgets/profile_customisation_controls_test.dart test/profile/widgets/profile_card_test.dart` exercises real primary and secondary Chunky surfaces at rest, hover, focus, and full press; the existing compact profile suite also passes. | Pass |
+| 2026-08-10 | IR-002 / UT-009 / REG-008 | Red | `flutter test test/profile/providers/profile_identity_cache_invalidator_test.dart` failed because no centralized identity-cache invalidator or auditable family inventory existed. | Expected failure |
+| 2026-08-10 | IR-002 / UT-009 / REG-008 | Green | The focused invalidator and editor-provider suites pass. The inventory now includes single post, thread/comments, pins, timeline, notifications, owner collections, project feed, searches/suggestions/recent results, saved posts, and relationship lists; the authoritative-save and late-account fencing tests remain green. | Pass |
+| 2026-08-10 | IR-003 / IT-005 | Red | The focused Go test failed to compile because the production batch query had no single named contract that a PostgreSQL plan test could explain. | Expected failure |
+| 2026-08-10 | IR-003 / IT-005 | Green | With local PostgreSQL on port 5433, the focused test proves one hydrator batch call for page sizes 1, 25, and 250 with repeated DIDs, and `EXPLAIN` contains both `craftsky_profiles_pkey` and `profile_customisations_pkey`. | Pass |
+| 2026-08-10 | IR-004 / AT-002 / REG-004 | Coverage | Non-default colour/thickness assertions were added to profile card, feed root/thread plus quote, notification actor, search profile result, post summary, edit preview, and navigation/account-switcher suites. Existing propagation passed on first execution; one notification assertion was narrowed from the first page avatar to the matching non-default actor avatar. | Pass |
+| 2026-08-10 | IR-005 / UT-011 / AT-006 / AT-010 / REG-007 | Red | The expanded Settings suite initially proved the missing ordered focus structure; lifecycle test setup also required a rebuild before simulating dirty Back. | Expected failure |
+| 2026-08-10 | IR-005 / UT-011 / AT-006 / AT-010 / REG-007 | Green | `flutter test test/settings/profile_customisation_page_test.dart` passes nine tests covering clean/dirty/reverted/saved Back, branded discard/cancel, duplicate pending activation, initial-load retry, selected semantics, explicit focus order, and 2x text in light/dark themes. | Pass |
+| 2026-08-10 | IR-007 / NFR-005 / IT-009 | Decision | Customisation-specific bounded observability is deferred as a Should-level follow-up. Existing generic HTTP instrumentation remains; IT-009 is not marked executed. | Explicit deferment |
+| 2026-08-10 | Correction verification | Green | The focused Flutter correction matrix passes 128 tests; the focused real-Postgres AppView API/routes suites pass; `dart analyze` reports no issues; `just test` passes every AppView package under the race detector; and `git diff --check` passes. | Pass |
+| 2026-08-10 | Flutter regression | Broad | Final `flutter test` after review corrections. | 1,409 pass; the same two untouched `auth_complete_page_test.dart` tests fail because their `MaterialApp` harness has no `GoRouter`. No feature test fails. |
 
 ## Completion Checklist
 
@@ -233,4 +246,6 @@ Run `flutter gen-l10n` after ARB edits and `dart run build_runner build` after m
 - [x] High-risk implementation approval recorded before migration/auth/privacy changes.
 - [x] Durable implementation plan created and initialized.
 - [x] Implementation notes updated and read back.
+- [x] IR-001 through IR-006 correction evidence records only assertions and commands that actually ran.
+- [x] NFR-005 / IR-007 explicitly deferred without claiming IT-009 evidence.
 - [ ] Implementation review completed or explicitly skipped.

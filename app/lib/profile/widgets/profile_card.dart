@@ -99,10 +99,10 @@ class _ProfileCardSurface extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
+    final swatches = theme.extension<BrandSwatchTheme>()!;
     final spacing = theme.extension<SpacingTheme>()!;
     final radii = theme.extension<RadiusTheme>()!;
     final shadows = theme.extension<BrandShadowTheme>()!;
-    final swatches = theme.extension<BrandSwatchTheme>()!;
     final shadow = shadows.paper2.first;
     final progress = expansionProgress.clamp(0.0, 1.0);
     final timeline = transitionProgress.clamp(0.0, 1.0);
@@ -433,7 +433,6 @@ class _ProfileCardActions extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
     final colors = theme.colorScheme;
-    final swatches = theme.extension<BrandSwatchTheme>()!;
     final spacing = theme.extension<SpacingTheme>()!;
     final primaryLabel = isFollowing
         ? l10n.profileFollowingAction
@@ -466,8 +465,7 @@ class _ProfileCardActions extends StatelessWidget {
                 children: [
                   ChunkyButton(
                     onPressed: () {},
-                    backgroundColor: swatches.paper3,
-                    foregroundColor: colors.onSurface,
+                    variant: ChunkyButtonVariant.secondary,
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -537,8 +535,9 @@ class _ProfileCardActions extends StatelessWidget {
             Expanded(
               child: ChunkyButton(
                 onPressed: isBusy ? null : onPrimaryAction,
-                backgroundColor: isFollowing ? swatches.paper3 : null,
-                foregroundColor: isFollowing ? colors.onSurface : null,
+                variant: isFollowing
+                    ? ChunkyButtonVariant.secondary
+                    : ChunkyButtonVariant.primary,
                 child: Text(primaryLabel),
               ),
             ),

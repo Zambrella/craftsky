@@ -166,7 +166,10 @@ void main() {
           did: 'did:plc:alice',
           handle: 'alice.test',
           avatar: 'https://example.test/alice.jpg',
-          customisation: const ProfileCustomisation(colour: 'teal'),
+          customisation: const ProfileCustomisation(
+            colour: 'teal',
+            border: 'thick',
+          ),
           crafts: const [],
         ),
       );
@@ -181,6 +184,13 @@ void main() {
             .customisation
             .colour,
         'teal',
+      );
+      expect(
+        tester
+            .widget<AccountAvatar>(find.byType(AccountAvatar))
+            .customisation
+            .border,
+        'thick',
       );
       expect(
         container

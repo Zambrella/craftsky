@@ -96,7 +96,6 @@ class _SelfActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final swatches = theme.extension<BrandSwatchTheme>()!;
     final spacing = theme.extension<SpacingTheme>()!;
     final l10n = AppLocalizations.of(context);
     return Row(
@@ -108,8 +107,7 @@ class _SelfActions extends StatelessWidget {
       children: [
         ChunkyButton(
           onPressed: actions.onEdit,
-          backgroundColor: swatches.paper3,
-          foregroundColor: theme.colorScheme.onSurface,
+          variant: ChunkyButtonVariant.secondary,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
@@ -139,7 +137,6 @@ class _VisitorActions extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final swatches = theme.extension<BrandSwatchTheme>()!;
     final spacing = theme.extension<SpacingTheme>()!;
     final l10n = AppLocalizations.of(context);
     final blockLabel = actions.isBlocking
@@ -154,10 +151,9 @@ class _VisitorActions extends StatelessWidget {
           Expanded(
             child: ChunkyButton(
               onPressed: actions.isBusy ? null : actions.onFollowToggle,
-              backgroundColor: actions.isFollowing ? swatches.paper3 : null,
-              foregroundColor: actions.isFollowing
-                  ? theme.colorScheme.onSurface
-                  : null,
+              variant: actions.isFollowing
+                  ? ChunkyButtonVariant.secondary
+                  : ChunkyButtonVariant.primary,
               child: Text(
                 actions.isFollowing
                     ? l10n.profileFollowingAction

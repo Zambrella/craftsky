@@ -101,70 +101,79 @@ class _LoadedCustomisationPageState
       },
       child: Scaffold(
         appBar: AppBar(title: Text(l10n.profileCustomisationTitle)),
-        body: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
-          children: [
-            Semantics(
-              label: l10n.profileCustomisationPreview,
-              container: true,
-              child: ProfileCustomisationTheme(
-                customisation: draft,
-                child: SizedBox(
-                  height: 160,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    alignment: Alignment.center,
-                    children: [
-                      ProfileHeaderBackground(customisation: draft),
-                      Center(
-                        child: ProfileAvatar(
-                          seed: 'Craftsky',
-                          size: ProfileAvatarSize.large,
-                          customisation: draft,
+        body: FocusTraversalGroup(
+          policy: OrderedTraversalPolicy(),
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
+            children: [
+              Semantics(
+                label: l10n.profileCustomisationPreview,
+                container: true,
+                child: ProfileCustomisationTheme(
+                  customisation: draft,
+                  child: SizedBox(
+                    height: 160,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      alignment: Alignment.center,
+                      children: [
+                        ProfileHeaderBackground(customisation: draft),
+                        Center(
+                          child: ProfileAvatar(
+                            seed: 'Craftsky',
+                            size: ProfileAvatarSize.large,
+                            customisation: draft,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 24),
-            _ChoiceGroup(
-              label: l10n.profileCustomisationColour,
-              values: profileColourCatalogue,
-              selected: draft.colour,
-              labels: _colourLabels(l10n),
-              onSelected: notifier.selectColour,
-            ),
-            const SizedBox(height: 20),
-            _ChoiceGroup(
-              label: l10n.profileCustomisationBorder,
-              values: profileBorderCatalogue,
-              selected: draft.border,
-              labels: _borderLabels(l10n),
-              onSelected: notifier.selectBorder,
-            ),
-            const SizedBox(height: 20),
-            _ChoiceGroup(
-              label: l10n.profileCustomisationBackground,
-              values: profileBackgroundCatalogue,
-              selected: draft.background,
-              labels: _backgroundLabels(l10n),
-              onSelected: notifier.selectBackground,
-            ),
-            const SizedBox(height: 28),
-            FilledButton(
-              onPressed: widget.value.isDirty && !widget.isSaving
-                  ? () => unawaited(notifier.save())
-                  : null,
-              child: widget.isSaving
-                  ? const SizedBox.square(
-                      dimension: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Text(l10n.profileCustomisationSave),
-            ),
-          ],
+              const SizedBox(height: 24),
+              _ChoiceGroup(
+                label: l10n.profileCustomisationColour,
+                values: profileColourCatalogue,
+                selected: draft.colour,
+                labels: _colourLabels(l10n),
+                orderStart: 10,
+                onSelected: notifier.selectColour,
+              ),
+              const SizedBox(height: 20),
+              _ChoiceGroup(
+                label: l10n.profileCustomisationBorder,
+                values: profileBorderCatalogue,
+                selected: draft.border,
+                labels: _borderLabels(l10n),
+                orderStart: 20,
+                onSelected: notifier.selectBorder,
+              ),
+              const SizedBox(height: 20),
+              _ChoiceGroup(
+                label: l10n.profileCustomisationBackground,
+                values: profileBackgroundCatalogue,
+                selected: draft.background,
+                labels: _backgroundLabels(l10n),
+                orderStart: 30,
+                onSelected: notifier.selectBackground,
+              ),
+              const SizedBox(height: 28),
+              FocusTraversalOrder(
+                order: const NumericFocusOrder(40),
+                child: FilledButton(
+                  onPressed: widget.value.isDirty && !widget.isSaving
+                      ? () => unawaited(notifier.save())
+                      : null,
+                  child: widget.isSaving
+                      ? const SizedBox.square(
+                          dimension: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(l10n.profileCustomisationSave),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -206,6 +215,7 @@ class _ChoiceGroup extends StatelessWidget {
     required this.values,
     required this.selected,
     required this.onSelected,
+    required this.orderStart,
     this.labels = const {},
   });
 
@@ -213,6 +223,7 @@ class _ChoiceGroup extends StatelessWidget {
   final List<String> values;
   final String selected;
   final ValueChanged<String> onSelected;
+  final double orderStart;
   final Map<String, String> labels;
 
   @override
@@ -228,11 +239,14 @@ class _ChoiceGroup extends StatelessWidget {
           spacing: 8,
           runSpacing: 8,
           children: [
-            for (final value in values)
-              ChoiceChip(
-                label: Text(labels[value] ?? value),
-                selected: selected == value,
-                onSelected: (_) => onSelected(value),
+            for (final (index, value) in values.indexed)
+              FocusTraversalOrder(
+                order: NumericFocusOrder(orderStart + index),
+                child: ChoiceChip(
+                  label: Text(labels[value] ?? value),
+                  selected: selected == value,
+                  onSelected: (_) => onSelected(value),
+                ),
               ),
           ],
         ),

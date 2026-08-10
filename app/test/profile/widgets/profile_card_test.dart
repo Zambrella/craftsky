@@ -19,7 +19,6 @@ import 'package:craftsky_app/profile/widgets/profile_stats.dart';
 import 'package:craftsky_app/profile/widgets/profile_tab_bar.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
-import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/cupertino.dart'
     show CupertinoPageTransition, CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
@@ -160,6 +159,12 @@ void main() {
         expect(
           find.byKey(const Key('profile-card-avatar-frame')),
           findsNothing,
+        );
+        expect(
+          tester
+              .widget<ProfileAvatar>(find.byType(ProfileAvatar))
+              .customisation,
+          const ProfileCustomisation(colour: 'orchid'),
         );
       },
     );
@@ -306,13 +311,9 @@ void main() {
             matching: find.byType(ChunkyButton),
           ),
         );
-        final theme = AppTheme.lightThemeData;
-
-        expect(
-          unfollowButton.backgroundColor,
-          theme.extension<BrandSwatchTheme>()!.paper3,
-        );
-        expect(unfollowButton.foregroundColor, theme.colorScheme.onSurface);
+        expect(unfollowButton.variant, ChunkyButtonVariant.secondary);
+        expect(unfollowButton.backgroundColor, isNull);
+        expect(unfollowButton.foregroundColor, isNull);
       },
     );
 
