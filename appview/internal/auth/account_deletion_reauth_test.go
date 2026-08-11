@@ -115,7 +115,7 @@ func TestOAuthCallbackUsesDeletionOnlyPurposeWithoutMintingOrdinaryAccess(t *tes
 		t.Fatalf("deletion callback status = %d, body = %s", response.Code, response.Body.String())
 	}
 	if !strings.Contains(response.Body.String(), "craftsky:///account-deletion/reauth-complete") ||
-		!strings.Contains(response.Body.String(), "jobId=job-alice") ||
+		!strings.Contains(response.Body.String(), "job-id=job-alice") ||
 		!strings.Contains(response.Body.String(), "proof=proof-secret") {
 		t.Fatalf("deletion callback body = %s", response.Body.String())
 	}
@@ -135,7 +135,7 @@ func TestOAuthCallbackUsesDeletionOnlyPurposeWithoutMintingOrdinaryAccess(t *tes
 	}
 }
 
-func TestNormalOAuthCallbackHandsPendingDeletionToStatusOnly(t *testing.T) {
+func TestNormalOAuthCallbackReturnsCoarsePendingDeletionWithoutOrdinaryAccess(t *testing.T) {
 	owner := syntax.DID("did:plc:alice")
 	pool := testdb.WithSchema(t, `
 		CREATE TABLE oauth_auth_requests(
@@ -152,9 +152,7 @@ func TestNormalOAuthCallbackHandsPendingDeletionToStatusOnly(t *testing.T) {
 	`); err != nil {
 		t.Fatal(err)
 	}
-	policy := &recordingPendingLoginPolicy{result: AccountDeletionPendingLogin{
-		JobID: "job-alice", Owner: owner, Handle: syntax.Handle("alice.test"), StatusToken: "status-only",
-	}}
+	policy := &recordingPendingLoginPolicy{}
 	pdsCreated := false
 	handlers := &HTTPHandlers{
 		Pool: pool, Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
@@ -173,11 +171,11 @@ func TestNormalOAuthCallbackHandsPendingDeletionToStatusOnly(t *testing.T) {
 	handlers.CallbackHandler().ServeHTTP(response, request)
 
 	if response.Code != http.StatusOK ||
-		!strings.Contains(response.Body.String(), "craftsky:///account-deletion/pending-login") ||
-		!strings.Contains(response.Body.String(), "statusToken=status-only") {
+		!strings.Contains(response.Body.String(), "craftsky:///auth/complete") ||
+		!strings.Contains(response.Body.String(), "account_deletion_pending") {
 		t.Fatalf("pending callback status = %d body = %s", response.Code, response.Body.String())
 	}
-	if pdsCreated || policy.rejectedSession != "ordinary-oauth-must-be-deleted" {
+	if pdsCreated || policy.rejectedSession != "" || policy.sessionID != "ordinary-oauth-must-be-deleted" {
 		t.Fatalf("pending callback pdsCreated=%v rejected=%q", pdsCreated, policy.rejectedSession)
 	}
 }
@@ -185,9 +183,11 @@ func TestNormalOAuthCallbackHandsPendingDeletionToStatusOnly(t *testing.T) {
 type recordingPendingLoginPolicy struct {
 	result          AccountDeletionPendingLogin
 	rejectedSession string
+	sessionID       string
 }
 
-func (policy *recordingPendingLoginPolicy) PendingLogin(context.Context, syntax.DID, string) (AccountDeletionPendingLogin, bool, error) {
+func (policy *recordingPendingLoginPolicy) PendingLogin(_ context.Context, _ syntax.DID, sessionID, _ string) (AccountDeletionPendingLogin, bool, error) {
+	policy.sessionID = sessionID
 	return policy.result, true, nil
 }
 

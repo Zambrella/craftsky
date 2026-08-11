@@ -58,14 +58,10 @@ type AccountDeletionOAuthResult struct {
 }
 
 type AccountDeletionPendingLogin struct {
-	JobID       string
-	Owner       syntax.DID
-	Handle      syntax.Handle
-	StatusToken string
 }
 
 type AccountDeletionPendingLoginPolicy interface {
-	PendingLogin(context.Context, syntax.DID, string) (AccountDeletionPendingLogin, bool, error)
+	PendingLogin(context.Context, syntax.DID, string, string) (AccountDeletionPendingLogin, bool, error)
 	Reject(context.Context, syntax.DID, string) error
 }
 

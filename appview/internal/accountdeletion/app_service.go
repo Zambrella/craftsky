@@ -25,30 +25,23 @@ type OAuthFlowStarter interface {
 type AppServiceOptions struct {
 	Pool      *pgxpool.Pool
 	Store     *Store
-	Signer    *StatusCapabilitySigner
 	OAuth     OAuthFlowStarter
 	Now       func() time.Time
 	Random    io.Reader
 	IntentTTL time.Duration
-	StatusTTL time.Duration
 }
 
-// AppService owns the narrow account-deletion request/status contract. It
-// starts fresh OAuth but never exposes the resulting OAuth session to a
-// device; only the lifecycle worker can resume the bound session.
 type AppService struct {
 	pool      *pgxpool.Pool
 	store     *Store
-	signer    *StatusCapabilitySigner
 	oauth     OAuthFlowStarter
 	now       func() time.Time
 	random    io.Reader
 	intentTTL time.Duration
-	statusTTL time.Duration
 }
 
 func NewAppService(options AppServiceOptions) (*AppService, error) {
-	if options.Pool == nil || options.Store == nil || options.Signer == nil || options.OAuth == nil {
+	if options.Pool == nil || options.Store == nil || options.OAuth == nil {
 		return nil, errors.New("account deletion service dependencies are unavailable")
 	}
 	if options.Now == nil {
@@ -60,18 +53,14 @@ func NewAppService(options AppServiceOptions) (*AppService, error) {
 	if options.IntentTTL <= 0 {
 		options.IntentTTL = 10 * time.Minute
 	}
-	if options.StatusTTL <= 0 {
-		options.StatusTTL = 30 * 24 * time.Hour
-	}
 	return &AppService{
-		pool: options.Pool, store: options.Store, signer: options.Signer,
-		oauth: options.OAuth, now: options.Now, random: options.Random,
-		intentTTL: options.IntentTTL, statusTTL: options.StatusTTL,
+		pool: options.Pool, store: options.Store, oauth: options.OAuth,
+		now: options.Now, random: options.Random, intentTTL: options.IntentTTL,
 	}, nil
 }
 
 func (service *AppService) CreateIntent(ctx context.Context, params CreateIntentParams) (IntentResult, error) {
-	if params.Owner == "" || params.DeviceID == "" {
+	if params.Owner == "" {
 		return IntentResult{}, errors.New("invalid account deletion intent scope")
 	}
 	var handle syntax.Handle
@@ -80,17 +69,11 @@ func (service *AppService) CreateIntent(ctx context.Context, params CreateIntent
 	}
 	now := service.now().UTC()
 	jobID := uuid.New()
-	intentExpiresAt := now.Add(service.intentTTL)
-	statusExpiresAt := now.Add(service.statusTTL)
-	capability, err := service.signer.Generate(jobID, params.Owner, statusExpiresAt)
-	if err != nil {
-		return IntentResult{}, err
-	}
+	expiresAt := now.Add(service.intentTTL)
 	if err := service.store.CreateIntent(ctx, IntentRecord{
-		JobID: jobID, Owner: params.Owner, DeviceID: params.DeviceID,
-		StatusCapabilityHash:   capability.Hash,
+		JobID: jobID, Owner: params.Owner,
 		ConfirmationHandleHash: HashSecret("@" + handle.String()),
-		ExpiresAt:              intentExpiresAt,
+		ExpiresAt:              expiresAt,
 	}); err != nil {
 		return IntentResult{}, err
 	}
@@ -114,121 +97,35 @@ func (service *AppService) CreateIntent(ctx context.Context, params CreateIntent
 		}
 		return IntentResult{}, fmt.Errorf("verify account deletion OAuth request: %w", err)
 	}
-	return IntentResult{
-		JobID: jobID.String(), StatusToken: capability.Token,
-		AuthURL: authURL, ExpiresAt: intentExpiresAt,
-	}, nil
+	return IntentResult{JobID: jobID.String(), AuthURL: authURL, ExpiresAt: expiresAt}, nil
 }
 
-func (service *AppService) Accept(ctx context.Context, params AcceptParams) (AcceptResult, error) {
+func (service *AppService) Accept(ctx context.Context, params AcceptParams) error {
 	jobID, err := uuid.Parse(params.JobID)
 	if err != nil {
-		return AcceptResult{}, ErrOperationNotFound
+		return ErrOperationNotFound
 	}
-	operation, err := service.store.Accept(ctx, AcceptanceRequest{
+	_, err = service.store.Accept(ctx, AcceptanceRequest{
 		JobID: jobID, Owner: params.Owner,
-		StatusCapability:   params.StatusCapability,
-		ReauthProof:        params.ReauthProof,
-		ConfirmationHandle: params.ConfirmationHandle,
+		ReauthProof: params.ReauthProof, ConfirmationHandle: params.ConfirmationHandle,
 	})
-	if err != nil {
-		return AcceptResult{}, err
-	}
-	return AcceptResult{JobID: operation.JobID.String(), Status: operation.Status, Phase: operation.Phase}, nil
+	return err
 }
 
-func (service *AppService) CancelIntent(ctx context.Context, rawJobID string, owner syntax.DID, statusCapability string) error {
+func (service *AppService) CancelIntent(ctx context.Context, rawJobID string, owner syntax.DID) error {
 	jobID, err := uuid.Parse(rawJobID)
 	if err != nil {
 		return ErrOperationNotFound
 	}
-	return service.store.CancelIntent(ctx, jobID, owner, statusCapability)
+	return service.store.CancelIntent(ctx, jobID, owner)
 }
 
-func (service *AppService) Recover(ctx context.Context, formerBearer, deviceID string) (RecoveryResult, error) {
-	if formerBearer == "" || deviceID == "" {
-		return RecoveryResult{}, ErrRecoveryUnauthorized
+func (service *AppService) PendingLogin(ctx context.Context, owner syntax.DID, sessionID, _ string) (auth.AccountDeletionPendingLogin, bool, error) {
+	refreshed, err := service.store.RefreshBoundOAuthFromLogin(ctx, owner, sessionID)
+	if err != nil || !refreshed {
+		return auth.AccountDeletionPendingLogin{}, refreshed, err
 	}
-	now := service.now().UTC()
-	var result RecoveryResult
-	err := pgx.BeginFunc(ctx, service.pool, func(tx pgx.Tx) error {
-		var owner syntax.DID
-		err := tx.QueryRow(ctx, `
-			SELECT recovery.job_id,recovery.owner_did,operation.state,COALESCE(operation.phase,'')
-			FROM account_deletion_recovery_credentials recovery
-			JOIN account_deletion_operations operation ON operation.id=recovery.job_id
-			WHERE recovery.token_hash=$1 AND recovery.used_at IS NULL
-			  AND (recovery.device_id IS NULL OR recovery.device_id=$2)
-			FOR UPDATE OF recovery
-		`, HashSecret(formerBearer), deviceID).Scan(&result.JobID, &owner, &result.Status, &result.Phase)
-		if errors.Is(err, pgx.ErrNoRows) {
-			return ErrRecoveryUnauthorized
-		}
-		if err != nil {
-			return err
-		}
-		jobID, err := uuid.Parse(result.JobID)
-		if err != nil {
-			return ErrRecoveryUnauthorized
-		}
-		capability, err := service.signer.Generate(jobID, owner, now.Add(service.statusTTL))
-		if err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, `
-			INSERT INTO account_deletion_status_credentials(token_hash,job_id,owner_did,device_id,expires_at)
-			VALUES($1,$2,$3,$4,$5)
-		`, capability.Hash, jobID, owner, deviceID, now.Add(service.statusTTL)); err != nil {
-			return err
-		}
-		if _, err := tx.Exec(ctx, `
-			UPDATE account_deletion_recovery_credentials SET used_at=$2 WHERE token_hash=$1
-		`, HashSecret(formerBearer), now); err != nil {
-			return err
-		}
-		result.StatusToken = capability.Token
-		return nil
-	})
-	if err != nil {
-		return RecoveryResult{}, err
-	}
-	return result, nil
-}
-
-func (service *AppService) PendingLogin(ctx context.Context, owner syntax.DID, deviceID string) (auth.AccountDeletionPendingLogin, bool, error) {
-	if deviceID == "" {
-		return auth.AccountDeletionPendingLogin{}, false, ErrStatusUnauthorized
-	}
-	var (
-		jobID  uuid.UUID
-		handle syntax.Handle
-	)
-	err := service.pool.QueryRow(ctx, `
-		SELECT operation.id,identity.handle
-		FROM account_deletion_operations operation
-		JOIN atproto_identity_cache identity ON identity.did=operation.owner_did
-		WHERE operation.owner_did=$1 AND operation.state<>'intent'
-	`, owner).Scan(&jobID, &handle)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return auth.AccountDeletionPendingLogin{}, false, nil
-	}
-	if err != nil {
-		return auth.AccountDeletionPendingLogin{}, false, err
-	}
-	expiresAt := service.now().UTC().Add(service.statusTTL)
-	capability, err := service.signer.Generate(jobID, owner, expiresAt)
-	if err != nil {
-		return auth.AccountDeletionPendingLogin{}, false, err
-	}
-	if _, err := service.pool.Exec(ctx, `
-		INSERT INTO account_deletion_status_credentials(token_hash,job_id,owner_did,device_id,expires_at)
-		VALUES($1,$2,$3,$4,$5)
-	`, capability.Hash, jobID, owner, deviceID, expiresAt); err != nil {
-		return auth.AccountDeletionPendingLogin{}, false, err
-	}
-	return auth.AccountDeletionPendingLogin{
-		JobID: jobID.String(), Owner: owner, Handle: handle, StatusToken: capability.Token,
-	}, true, nil
+	return auth.AccountDeletionPendingLogin{}, true, nil
 }
 
 func (service *AppService) RequestForState(ctx context.Context, state string) (auth.AccountDeletionAuthRequest, bool, error) {
@@ -269,113 +166,28 @@ func (service *AppService) Reject(ctx context.Context, did syntax.DID, sessionID
 	return err
 }
 
-func (service *AppService) AuthorizeStatusRoute(ctx context.Context, token string, jobID uuid.UUID, deviceID string, action StatusAction) (StatusGrant, error) {
-	grant, err := service.signer.Verify(token)
-	if err != nil || grant.JobID != jobID.String() {
-		return StatusGrant{}, ErrStatusUnauthorized
-	}
-	return service.store.AuthorizeStatusCapability(ctx, service.signer, token, jobID, grant.Owner, deviceID, action)
-}
-
-func (service *AppService) GetStatus(ctx context.Context, jobID uuid.UUID, owner syntax.DID) (DeletionStatusView, error) {
-	operation, err := service.store.GetOperation(ctx, jobID, owner)
-	if err == nil {
-		return ProjectDeletionStatus(
-			jobID.String(), operation.Status, operation.Phase,
-			operation.Status == StatusNeedsAttention,
-			operation.Status == StatusNeedsAttention && service.operationNeedsReauthentication(ctx, jobID, owner),
-		), nil
-	}
-	if !errors.Is(err, ErrOperationNotFound) {
-		return DeletionStatusView{}, err
-	}
-	var exists bool
-	if err := service.pool.QueryRow(ctx, `
-		SELECT EXISTS(SELECT 1 FROM account_deletion_audits WHERE job_id=$1 AND did=$2 AND expires_at>$3)
-	`, jobID, owner, service.now().UTC()).Scan(&exists); err != nil || !exists {
-		if err == nil {
-			err = ErrOperationNotFound
-		}
-		return DeletionStatusView{}, err
-	}
-	return ProjectDeletionStatus(jobID.String(), StatusDeleted, PhaseNone, false, false), nil
-}
-
-func (service *AppService) Retry(ctx context.Context, jobID uuid.UUID, owner syntax.DID) (DeletionStatusView, error) {
-	if err := service.store.ManualRetry(ctx, jobID, owner); err != nil {
-		return DeletionStatusView{}, err
-	}
-	return service.GetStatus(ctx, jobID, owner)
-}
-
-func (service *AppService) StartReauthentication(ctx context.Context, jobID uuid.UUID, owner syntax.DID) (ReauthenticationStart, error) {
-	if !service.operationNeedsReauthentication(ctx, jobID, owner) {
-		return ReauthenticationStart{}, ErrReauthenticationRequired
-	}
-	var handle syntax.Handle
-	if err := service.pool.QueryRow(ctx, `SELECT handle FROM atproto_identity_cache WHERE did=$1`, owner).Scan(&handle); err != nil {
-		return ReauthenticationStart{}, ErrReauthenticationRequired
-	}
-	authContext := auth.WithAccountDeletionAuthRequest(ctx, owner, jobID)
-	authURL, err := service.oauth.StartAuthFlow(authContext, handle.String())
-	if err != nil {
-		return ReauthenticationStart{}, fmt.Errorf("start replacement account deletion OAuth: %w", err)
-	}
-	requestURI, err := deletionRequestURI(authURL)
-	if err != nil {
-		return ReauthenticationStart{}, err
-	}
-	persisted, err := service.deletionOAuthRequestPersisted(ctx, requestURI, jobID, owner)
-	if err != nil || !persisted {
-		service.discardOAuthRequest(ctx, requestURI)
-		if err == nil {
-			err = errors.New("OAuth request metadata was not persisted atomically")
-		}
-		return ReauthenticationStart{}, fmt.Errorf("verify replacement account deletion OAuth request: %w", err)
-	}
-	return ReauthenticationStart{AuthURL: authURL, ExpiresAt: service.now().UTC().Add(service.intentTTL)}, nil
-}
-
-func (service *AppService) operationNeedsReauthentication(ctx context.Context, jobID uuid.UUID, owner syntax.DID) bool {
-	var needed bool
-	_ = service.pool.QueryRow(ctx, `
-		SELECT COALESCE(error_category='reauthentication',false)
-		FROM account_deletion_operations WHERE id=$1 AND owner_did=$2
-	`, jobID, owner).Scan(&needed)
-	return needed
-}
-
 func (service *AppService) discardIntent(ctx context.Context, jobID uuid.UUID, owner syntax.DID) {
 	_, _ = service.pool.Exec(ctx, `
 		DELETE FROM oauth_auth_requests
-		WHERE purpose='accountDeletion'
-		  AND account_deletion_owner_did=$1
+		WHERE purpose='accountDeletion' AND account_deletion_owner_did=$1
 		  AND account_deletion_job_id=$2
 	`, owner, jobID)
 	_, _ = service.pool.Exec(ctx, `DELETE FROM account_deletion_operations WHERE id=$1 AND owner_did=$2 AND state='intent'`, jobID, owner)
 }
 
 func (service *AppService) discardOAuthRequest(ctx context.Context, requestURI string) {
-	if requestURI == "" {
-		return
+	if requestURI != "" {
+		_, _ = service.pool.Exec(ctx, `DELETE FROM oauth_auth_requests WHERE data->>'request_uri'=$1`, requestURI)
 	}
-	_, _ = service.pool.Exec(ctx, `DELETE FROM oauth_auth_requests WHERE data->>'request_uri'=$1`, requestURI)
 }
 
-func (service *AppService) deletionOAuthRequestPersisted(
-	ctx context.Context,
-	requestURI string,
-	jobID uuid.UUID,
-	owner syntax.DID,
-) (bool, error) {
+func (service *AppService) deletionOAuthRequestPersisted(ctx context.Context, requestURI string, jobID uuid.UUID, owner syntax.DID) (bool, error) {
 	var persisted bool
 	err := service.pool.QueryRow(ctx, `
 		SELECT EXISTS(
 			SELECT 1 FROM oauth_auth_requests
-			WHERE data->>'request_uri'=$1
-			  AND purpose='accountDeletion'
-			  AND account_deletion_job_id=$2
-			  AND account_deletion_owner_did=$3
+			WHERE data->>'request_uri'=$1 AND purpose='accountDeletion'
+			  AND account_deletion_job_id=$2 AND account_deletion_owner_did=$3
 		)
 	`, requestURI, jobID, owner).Scan(&persisted)
 	return persisted, err
@@ -394,7 +206,7 @@ func deletionRequestURI(authURL string) (string, error) {
 }
 
 var (
-	_ Service                            = (*AppService)(nil)
-	_ StatusRouteService                 = (*AppService)(nil)
-	_ auth.AccountDeletionOAuthCallbacks = (*AppService)(nil)
+	_ Service                                = (*AppService)(nil)
+	_ auth.AccountDeletionOAuthCallbacks     = (*AppService)(nil)
+	_ auth.AccountDeletionPendingLoginPolicy = (*AppService)(nil)
 )

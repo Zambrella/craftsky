@@ -4,13 +4,11 @@ import 'package:craftsky_app/auth/models/session_registry.dart';
 
 enum DeletionAcceptanceResult { activeRemoved, inactiveRemoved, stale }
 
-/// Applies the irreversible client-side boundary after the server has accepted
-/// deletion. The status capability is durably stored first; no ordinary
-/// credential or product data is removed if that secure write fails.
+/// Applies the irreversible client-side boundary only after AppView has
+/// durably accepted deletion. There is no client-side job/status state.
 final class AccountDeletionAcceptanceCoordinator {
   const AccountDeletionAcceptanceCoordinator({
     required this.readRegistry,
-    required this.persistStatus,
     required this.invalidateActiveState,
     required this.cleanProductData,
     required this.removeOrdinarySession,
@@ -18,7 +16,6 @@ final class AccountDeletionAcceptanceCoordinator {
   });
 
   final Future<SessionRegistry> Function() readRegistry;
-  final Future<void> Function(DeletionStatusEntry entry) persistStatus;
   final Future<void> Function() invalidateActiveState;
   final Future<void> Function(AccountSessionLease lease) cleanProductData;
   final Future<void> Function(AccountSessionLease lease) removeOrdinarySession;
@@ -27,19 +24,14 @@ final class AccountDeletionAcceptanceCoordinator {
 
   Future<DeletionAcceptanceResult> reconcile({
     required AccountDeletionLeaseFence fence,
-    required DeletionStatusEntry entry,
   }) async {
     final before = await readRegistry();
     final deletingLease = fence.lease.session;
-    if (before.leaseFor(deletingLease.account) != deletingLease ||
-        deletingLease.account.did != entry.did) {
+    if (before.leaseFor(deletingLease.account) != deletingLease) {
       return DeletionAcceptanceResult.stale;
     }
 
-    await persistStatus(entry);
-
-    final current = await readRegistry();
-    final removesActive = fence.isCurrent(current);
+    final removesActive = fence.isCurrent(before);
     if (removesActive) await invalidateActiveState();
     Object? cleanupError;
     StackTrace? cleanupStackTrace;

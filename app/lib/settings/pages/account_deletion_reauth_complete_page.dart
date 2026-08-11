@@ -1,10 +1,6 @@
 import 'dart:async';
 
-import 'package:craftsky_app/auth/models/account_deletion.dart';
-import 'package:craftsky_app/auth/providers/deletion_status_registry_provider.dart'
-    show deletionStatusRegistryProvider;
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
-import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/settings/models/delete_account_confirmation.dart';
 import 'package:craftsky_app/settings/providers/account_deletion_controller.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
@@ -32,7 +28,6 @@ class _AccountDeletionReauthCompletePageState
     extends ConsumerState<AccountDeletionReauthCompletePage> {
   final _controller = TextEditingController();
   bool _busy = false;
-  bool _replacementRefreshStarted = false;
   bool _submissionStarted = false;
   bool _cancelStarted = false;
 
@@ -45,37 +40,9 @@ class _AccountDeletionReauthCompletePageState
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    final entry = ref
-        .watch(deletionStatusRegistryProvider)
-        .value?[widget.jobId];
-    final canComplete = ref
-        .read(accountDeletionControllerProvider.notifier)
-        .canComplete(widget.jobId);
-    if (entry != null &&
-        entry.status != AccountDeletionStatus.intent &&
-        !canComplete) {
-      if (!_replacementRefreshStarted) {
-        _replacementRefreshStarted = true;
-        WidgetsBinding.instance.addPostFrameCallback((_) async {
-          try {
-            await ref
-                .read(accountDeletionControllerProvider.notifier)
-                .refresh(widget.jobId);
-          } on Object {
-            // The status page retains safe retry/support actions.
-          }
-          if (!context.mounted) return;
-          AccountDeletionStatusRoute(jobId: widget.jobId).go(context);
-        });
-      }
-      return _guardIntent(
-        Scaffold(
-          appBar: AppBar(title: Text(l10n.deleteAccountConfirmTitle)),
-          body: Center(child: Text(l10n.accountDeletionPreparing)),
-        ),
-      );
-    }
-    if (entry == null || !canComplete) {
+    final deletion = ref.read(accountDeletionControllerProvider.notifier);
+    final requiredHandle = deletion.requiredHandle(widget.jobId);
+    if (requiredHandle == null || !deletion.canComplete(widget.jobId)) {
       return _guardIntent(
         Scaffold(
           appBar: AppBar(title: Text(l10n.deleteAccountConfirmTitle)),
@@ -83,7 +50,6 @@ class _AccountDeletionReauthCompletePageState
         ),
       );
     }
-    final requiredHandle = '@${entry.handle.value}';
     final matches = matchesDeletionConfirmationHandle(
       requiredHandle: requiredHandle,
       input: _controller.text,

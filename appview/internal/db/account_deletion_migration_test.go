@@ -3,8 +3,6 @@ package db_test
 import (
 	"context"
 	"os"
-	"reflect"
-	"sort"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -58,8 +56,10 @@ func TestAccountDeletionMigrationUpDown(t *testing.T) {
 		t.Fatalf("apply account deletion migration: %v", err)
 	}
 
+	if !tableExists(t, pool, "account_deletion_operations") {
+		t.Fatal("table account_deletion_operations missing")
+	}
 	for _, table := range []string{
-		"account_deletion_operations",
 		"account_deletion_status_credentials",
 		"account_deletion_recovery_credentials",
 		"account_deletion_expected_records",
@@ -68,8 +68,8 @@ func TestAccountDeletionMigrationUpDown(t *testing.T) {
 		"account_deletion_cleanup_artifacts",
 		"account_deletion_audits",
 	} {
-		if !tableExists(t, pool, table) {
-			t.Errorf("table %s missing", table)
+		if tableExists(t, pool, table) {
+			t.Errorf("superseded table %s exists", table)
 		}
 	}
 	for _, column := range []string{"purpose", "account_deletion_owner_did", "account_deletion_job_id"} {
@@ -78,21 +78,13 @@ func TestAccountDeletionMigrationUpDown(t *testing.T) {
 		}
 	}
 
-	wantAuditColumns := []string{"accepted_at", "did", "expires_at", "job_id", "outcome", "terminal_at"}
-	gotAuditColumns := tableColumns(t, pool, "account_deletion_audits")
-	sort.Strings(wantAuditColumns)
-	sort.Strings(gotAuditColumns)
-	if !reflect.DeepEqual(gotAuditColumns, wantAuditColumns) {
-		t.Fatalf("audit columns = %v, want closed set %v", gotAuditColumns, wantAuditColumns)
-	}
-
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO oauth_sessions(account_did,session_id,data)
 		VALUES('did:plc:alice','oauth-bound','{}'),('did:plc:alice','oauth-other','{}');
 		INSERT INTO account_deletion_operations(
-			id,owner_did,state,phase,accepted_at,deletion_oauth_session_id
+			id,owner_did,state,accepted_at,deletion_oauth_session_id
 		) VALUES (
-			'10000000-0000-0000-0000-000000000001','did:plc:alice','active','queued',now(),'oauth-bound'
+			'10000000-0000-0000-0000-000000000001','did:plc:alice','active',now(),'oauth-bound'
 		);
 	`); err != nil {
 		t.Fatalf("seed bound deletion operation: %v", err)
@@ -105,23 +97,6 @@ func TestAccountDeletionMigrationUpDown(t *testing.T) {
 		VALUES('10000000-0000-0000-0000-000000000002','did:plc:alice','intent')
 	`); err == nil {
 		t.Fatal("second active operation for the same owner succeeded")
-	}
-
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO account_deletion_status_credentials(token_hash,job_id,owner_did,device_id,expires_at)
-		VALUES(decode('01','hex'),'10000000-0000-0000-0000-000000000001','did:plc:alice','device-a',now()+interval '1 day');
-		INSERT INTO account_deletion_expected_records(job_id,uri,collection)
-		VALUES('10000000-0000-0000-0000-000000000001','at://did:plc:alice/social.craftsky.feed.post/one','social.craftsky.feed.post');
-		INSERT INTO account_deletion_index_receipts(job_id,uri,collection,tap_event_id,repo_revision)
-		VALUES('10000000-0000-0000-0000-000000000001','at://did:plc:alice/social.craftsky.feed.post/one','social.craftsky.feed.post',1,'rev-1');
-	`); err != nil {
-		t.Fatalf("seed deletion artifacts: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `DELETE FROM account_deletion_operations WHERE id='10000000-0000-0000-0000-000000000001'`); err != nil {
-		t.Fatalf("delete operation: %v", err)
-	}
-	for _, table := range []string{"account_deletion_status_credentials", "account_deletion_expected_records", "account_deletion_index_receipts"} {
-		assertTableCount(t, pool, table, 0)
 	}
 
 	if _, err := pool.Exec(ctx, string(down)); err != nil {

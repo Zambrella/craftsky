@@ -1,9 +1,6 @@
 package routes
 
-import (
-	"social.craftsky/appview/internal/accountdeletion"
-	"social.craftsky/appview/internal/app"
-)
+import "social.craftsky/appview/internal/app"
 
 type RateClass string
 
@@ -52,8 +49,6 @@ type RoutePolicy struct {
 	AuthRequired          bool
 	CurrentMemberRequired bool
 	DevOnly               bool
-	DeletionStatusAction  accountdeletion.StatusAction
-	DeletionRecovery      bool
 }
 
 func V1RoutePolicies(env app.Env, cfg app.Config) []RoutePolicy {
@@ -99,10 +94,6 @@ func baseV1RoutePolicies() []RoutePolicy {
 		{Method: "POST", PathPattern: "/v1/account-deletion/intents", RateClass: RateClassWrite, BodyKind: BodyNoBody, AuthRequired: true, CurrentMemberRequired: true},
 		{Method: "DELETE", PathPattern: "/v1/account-deletion/intents/{jobId}", RateClass: RateClassWrite, BodyKind: BodyNoBody, AuthRequired: true, CurrentMemberRequired: true},
 		{Method: "POST", PathPattern: "/v1/account-deletions/{jobId}", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AuthRequired: true, CurrentMemberRequired: true},
-		{Method: "POST", PathPattern: "/v1/account-deletions/recover", RateClass: RateClassWrite, BodyKind: BodyNoBody, DeletionRecovery: true},
-		{Method: "GET", PathPattern: "/v1/account-deletions/{jobId}", RateClass: RateClassRead, BodyKind: BodyNoBody, DeletionStatusAction: accountdeletion.StatusRead},
-		{Method: "POST", PathPattern: "/v1/account-deletions/{jobId}/retry", RateClass: RateClassWrite, BodyKind: BodyNoBody, DeletionStatusAction: accountdeletion.StatusRetry},
-		{Method: "POST", PathPattern: "/v1/account-deletions/{jobId}/reauth", RateClass: RateClassWrite, BodyKind: BodyNoBody, DeletionStatusAction: accountdeletion.StatusStartReauthentication},
 		{Method: "POST", PathPattern: "/v1/migrations/instagram/verifications", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AuthRequired: true, CurrentMemberRequired: true},
 		{Method: "GET", PathPattern: "/v1/migrations/instagram/verifications/current", RateClass: RateClassRead, BodyKind: BodyNoBody, AuthRequired: true, CurrentMemberRequired: true},
 		{Method: "GET", PathPattern: "/v1/migrations/instagram/verifications/{verificationId}", RateClass: RateClassRead, BodyKind: BodyNoBody, AuthRequired: true, CurrentMemberRequired: true},

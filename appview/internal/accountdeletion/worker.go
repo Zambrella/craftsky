@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -13,8 +14,6 @@ import (
 type ClaimedOperation struct {
 	JobID        uuid.UUID
 	Owner        syntax.DID
-	Status       Status
-	Phase        Phase
 	AttemptCount int
 	LeaseToken   uuid.UUID
 }
@@ -25,32 +24,24 @@ type DeletionProcessor interface {
 
 type WorkerStore interface {
 	ClaimDue(context.Context, string, time.Duration) (ClaimedOperation, bool, error)
-	RecordFailure(context.Context, ClaimedOperation, RetryDecision, ErrorCategory, int) error
-	DeferAttempt(context.Context, ClaimedOperation, time.Time) error
+	RecordFailure(context.Context, ClaimedOperation, time.Time, ErrorCategory, int) error
 	CompleteAttempt(context.Context, ClaimedOperation) error
 }
 
-type PhaseFailure struct {
-	kind     FailureKind
+type DeletionFailure struct {
 	category ErrorCategory
 	err      error
 }
 
-type PhasePending struct {
-	At time.Time
-}
-
-func (pending *PhasePending) Error() string { return "account deletion phase is awaiting convergence" }
-
-func NewPhaseFailure(kind FailureKind, category ErrorCategory, err error) error {
+func NewDeletionFailure(category ErrorCategory, err error) error {
 	if err == nil {
-		err = errors.New("account deletion phase failed")
+		err = errors.New("account deletion failed")
 	}
-	return &PhaseFailure{kind: kind, category: category, err: err}
+	return &DeletionFailure{category: category, err: err}
 }
 
-func (failure *PhaseFailure) Error() string { return failure.err.Error() }
-func (failure *PhaseFailure) Unwrap() error { return failure.err }
+func (failure *DeletionFailure) Error() string { return failure.err.Error() }
+func (failure *DeletionFailure) Unwrap() error { return failure.err }
 
 type WorkerOptions struct {
 	Store         WorkerStore
@@ -59,7 +50,7 @@ type WorkerOptions struct {
 	Now           func() time.Time
 	LeaseDuration time.Duration
 	RetryPolicy   RetryPolicy
-	Telemetry     *DeletionTelemetry
+	Logger        *slog.Logger
 }
 
 type Worker struct {
@@ -69,7 +60,7 @@ type Worker struct {
 	now           func() time.Time
 	leaseDuration time.Duration
 	retryPolicy   RetryPolicy
-	telemetry     *DeletionTelemetry
+	logger        *slog.Logger
 }
 
 func NewWorker(options WorkerOptions) (*Worker, error) {
@@ -83,13 +74,9 @@ func NewWorker(options WorkerOptions) (*Worker, error) {
 		options.RetryPolicy = DefaultRetryPolicy()
 	}
 	return &Worker{
-		store:         options.Store,
-		processor:     options.Processor,
-		workerID:      options.WorkerID,
-		now:           options.Now,
-		leaseDuration: options.LeaseDuration,
-		retryPolicy:   options.RetryPolicy,
-		telemetry:     options.Telemetry,
+		store: options.Store, processor: options.Processor, workerID: options.WorkerID,
+		now: options.Now, leaseDuration: options.LeaseDuration,
+		retryPolicy: options.RetryPolicy, logger: options.Logger,
 	}, nil
 }
 
@@ -98,42 +85,31 @@ func (worker *Worker) ProcessOne(ctx context.Context) (bool, error) {
 	if err != nil || !found {
 		return found, err
 	}
-	if worker.telemetry != nil {
-		worker.telemetry.Phase(ctx, operation.Phase)
-	}
 	if err := worker.processor.Process(ctx, operation); err != nil {
-		var pending *PhasePending
-		if errors.As(err, &pending) {
-			if persistErr := worker.store.DeferAttempt(ctx, operation, pending.At); persistErr != nil {
-				return true, fmt.Errorf("defer account deletion phase: %w", persistErr)
-			}
-			return true, nil
+		category := ErrorCategoryTerminal
+		var failure *DeletionFailure
+		if errors.As(err, &failure) {
+			category = failure.category
 		}
-		kind, category := classifyPhaseFailure(err)
 		nextAttempt := operation.AttemptCount + 1
-		decision := worker.retryPolicy.Decide(worker.now().UTC(), operation.JobID.String(), nextAttempt, kind)
-		if persistErr := worker.store.RecordFailure(ctx, operation, decision, category, nextAttempt); persistErr != nil {
+		nextAt := worker.retryPolicy.Next(worker.now().UTC(), operation.JobID.String(), nextAttempt)
+		if persistErr := worker.store.RecordFailure(ctx, operation, nextAt, category, nextAttempt); persistErr != nil {
 			return true, fmt.Errorf("persist account deletion failure: %w", persistErr)
 		}
-		if worker.telemetry != nil {
-			if decision.Action == RetrySchedule {
-				worker.telemetry.AutomaticRetry(ctx, operation.Phase, category)
-			} else {
-				worker.telemetry.NeedsAttention(ctx, operation.Phase, category)
-			}
+		if worker.logger != nil {
+			worker.logger.WarnContext(ctx, "account deletion attempt scheduled for retry",
+				slog.String("jobId", operation.JobID.String()),
+				slog.String("errorCategory", string(category)),
+				slog.Int("attempt", nextAttempt),
+			)
 		}
 		return true, nil
 	}
 	if err := worker.store.CompleteAttempt(ctx, operation); err != nil {
-		return true, fmt.Errorf("complete account deletion attempt: %w", err)
+		return true, fmt.Errorf("finalize account deletion: %w", err)
+	}
+	if worker.logger != nil {
+		worker.logger.InfoContext(ctx, "account deletion completed", slog.String("jobId", operation.JobID.String()))
 	}
 	return true, nil
-}
-
-func classifyPhaseFailure(err error) (FailureKind, ErrorCategory) {
-	var failure *PhaseFailure
-	if errors.As(err, &failure) {
-		return failure.kind, failure.category
-	}
-	return FailurePermanent, ErrorCategoryTerminal
 }

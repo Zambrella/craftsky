@@ -79,15 +79,42 @@ func TestAccountDeletionAcceptanceRouteIsAuthenticatedOwnerScopedAndStrict(t *te
 
 	validBody := `{"reauthProof":"proof","confirmationHandle":"alice.test"}`
 	response = serveAccountDeletionRequest(mux, path, validBody, "bearer", "device-alice", "status-token")
-	if response.Code != http.StatusAccepted || !strings.Contains(response.Body.String(), `"jobId":"`+jobID+`"`) {
+	if response.Code != http.StatusAccepted || response.Body.Len() != 0 {
 		t.Fatalf("valid acceptance status = %d body = %s", response.Code, response.Body.String())
 	}
 	response = serveAccountDeletionRequest(mux, path, validBody, "bearer", "device-alice", "status-token")
 	if response.Code != http.StatusAccepted || service.acceptedJobs[jobID] != 2 {
 		t.Fatalf("duplicate acceptance status = %d calls = %d body = %s", response.Code, service.acceptedJobs[jobID], response.Body.String())
 	}
-	if service.last.Owner != owner || service.last.DeviceID != "device-alice" || service.last.StatusCapability != "status-token" {
+	if service.last.Owner != owner {
 		t.Fatalf("derived acceptance scope = %+v", service.last)
+	}
+
+	for _, removed := range []struct {
+		method     string
+		path       string
+		bearer     string
+		wantStatus int
+	}{
+		{method: http.MethodGet, path: path, bearer: "bearer", wantStatus: http.StatusMethodNotAllowed},
+		{method: http.MethodPost, path: path + "/retry", bearer: "bearer", wantStatus: http.StatusNotFound},
+		{method: http.MethodPost, path: path + "/reauth", bearer: "bearer", wantStatus: http.StatusNotFound},
+		// The static recovery route is gone. The generic acceptance pattern
+		// may parse "recover" as a job ID, but a former status credential can
+		// no longer authorize it as a recovery endpoint.
+		{method: http.MethodPost, path: "/v1/account-deletions/recover", wantStatus: http.StatusUnauthorized},
+	} {
+		request := httptest.NewRequest(removed.method, removed.path, strings.NewReader(`{}`))
+		if removed.bearer != "" {
+			request.Header.Set("Authorization", "Bearer "+removed.bearer)
+		}
+		request.Header.Set("X-Craftsky-Device-Id", "device-alice")
+		request.Header.Set("X-Craftsky-Deletion-Status", "former-status-token")
+		response := httptest.NewRecorder()
+		mux.ServeHTTP(response, request)
+		if response.Code != removed.wantStatus {
+			t.Fatalf("removed endpoint %s %s status=%d want=%d body=%s", removed.method, removed.path, response.Code, removed.wantStatus, response.Body.String())
+		}
 	}
 }
 
@@ -128,28 +155,27 @@ type recordingAccountDeletionService struct {
 
 func (service *recordingAccountDeletionService) CreateIntent(context.Context, accountdeletion.CreateIntentParams) (accountdeletion.IntentResult, error) {
 	return accountdeletion.IntentResult{
-		JobID:       "10000000-0000-0000-0000-000000000099",
-		StatusToken: "status-token",
-		AuthURL:     "https://auth.invalid/authorize",
-		ExpiresAt:   time.Date(2026, 8, 10, 15, 10, 0, 0, time.UTC),
+		JobID:     "10000000-0000-0000-0000-000000000099",
+		AuthURL:   "https://auth.invalid/authorize",
+		ExpiresAt: time.Date(2026, 8, 10, 15, 10, 0, 0, time.UTC),
 	}, nil
 }
 
-func (service *recordingAccountDeletionService) CancelIntent(context.Context, string, syntax.DID, string) error {
+func (service *recordingAccountDeletionService) CancelIntent(context.Context, string, syntax.DID) error {
 	return nil
 }
 
-func (service *recordingAccountDeletionService) Accept(_ context.Context, params accountdeletion.AcceptParams) (accountdeletion.AcceptResult, error) {
+func (service *recordingAccountDeletionService) Accept(_ context.Context, params accountdeletion.AcceptParams) error {
 	service.acceptCalls++
 	service.last = params
 	if params.ReauthProof == "stale" {
-		return accountdeletion.AcceptResult{}, accountdeletion.ErrReauthenticationRequired
+		return accountdeletion.ErrReauthenticationRequired
 	}
 	if service.acceptedJobs == nil {
 		service.acceptedJobs = make(map[string]int)
 	}
 	service.acceptedJobs[params.JobID]++
-	return accountdeletion.AcceptResult{JobID: params.JobID, Status: accountdeletion.StatusActive, Phase: accountdeletion.PhaseQueued}, nil
+	return nil
 }
 
 var _ accountdeletion.Service = (*recordingAccountDeletionService)(nil)

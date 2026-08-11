@@ -27,12 +27,12 @@ func (*AccountDeletion) Name() string { return "scheduledPosts" }
 
 // Purge removes scheduled state for an accepted deletion job and records only
 // the content-free object-cleanup job IDs needed by the terminal gate.
-func (deletion *AccountDeletion) Purge(ctx context.Context, jobID uuid.UUID, ownerDID syntax.DID) error {
-	if deletion == nil || deletion.pool == nil || jobID == uuid.Nil {
+func (deletion *AccountDeletion) Purge(ctx context.Context, ownerDID syntax.DID) error {
+	if deletion == nil || deletion.pool == nil || ownerDID == "" {
 		return errors.New("scheduled account deletion is unavailable")
 	}
 	return pgx.BeginFunc(ctx, deletion.pool, func(tx pgx.Tx) error {
-		return deletion.hardDeleteByActor(ctx, tx, ownerDID, &jobID)
+		return deletion.hardDeleteByActor(ctx, tx, ownerDID)
 	})
 }
 
@@ -44,7 +44,7 @@ func (deletion *AccountDeletion) HandleIdentityDeleted(
 		return errors.New("scheduled account deletion is unavailable")
 	}
 	return pgx.BeginFunc(ctx, deletion.pool, func(tx pgx.Tx) error {
-		return deletion.hardDeleteByActor(ctx, tx, ownerDID, nil)
+		return deletion.hardDeleteByActor(ctx, tx, ownerDID)
 	})
 }
 
@@ -53,14 +53,13 @@ func (deletion *AccountDeletion) HardDeleteByActor(
 	tx pgx.Tx,
 	ownerDID syntax.DID,
 ) error {
-	return deletion.hardDeleteByActor(ctx, tx, ownerDID, nil)
+	return deletion.hardDeleteByActor(ctx, tx, ownerDID)
 }
 
 func (deletion *AccountDeletion) hardDeleteByActor(
 	ctx context.Context,
 	tx pgx.Tx,
 	ownerDID syntax.DID,
-	accountDeletionJobID *uuid.UUID,
 ) error {
 	if deletion == nil || deletion.pool == nil || deletion.now == nil || tx == nil || ownerDID == "" {
 		return errors.New("scheduled account deletion is unavailable")
@@ -132,25 +131,13 @@ func (deletion *AccountDeletion) hardDeleteByActor(
 		return fmt.Errorf("delete scheduled account tombstones: %w", err)
 	}
 	for _, objectKey := range objectKeys {
-		var cleanupJobID uuid.UUID
-		if err := tx.QueryRow(ctx, `
+		if _, err := tx.Exec(ctx, `
 			INSERT INTO scheduled_post_cleanup_jobs (
 				id, object_key, next_attempt_at, created_at, updated_at
 			) VALUES ($1, $2, $3, $3, $3)
 			ON CONFLICT (object_key) DO UPDATE SET object_key=EXCLUDED.object_key
-			RETURNING id
-		`, uuid.New(), objectKey, now).Scan(&cleanupJobID); err != nil {
+		`, uuid.New(), objectKey, now); err != nil {
 			return fmt.Errorf("enqueue scheduled account media: %w", err)
-		}
-		if accountDeletionJobID != nil {
-			if _, err := tx.Exec(ctx, `
-				INSERT INTO account_deletion_cleanup_artifacts(
-					job_id,component,artifact_id,created_at
-				) VALUES($1,'scheduledPosts',$2,$3)
-				ON CONFLICT(job_id,component,artifact_id) DO NOTHING
-			`, *accountDeletionJobID, cleanupJobID, now); err != nil {
-				return fmt.Errorf("record scheduled account cleanup artifact: %w", err)
-			}
 		}
 	}
 	return nil

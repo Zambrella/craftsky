@@ -6,15 +6,9 @@ import (
 	"fmt"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
-
-type PrivateCleanupCheckpoints interface {
-	CleanupStepComplete(context.Context, uuid.UUID, syntax.DID, string) (bool, error)
-	CompleteCleanupStep(context.Context, uuid.UUID, syntax.DID, string) error
-}
 
 type DatabasePrivateCleanup struct {
 	pool *pgxpool.Pool
@@ -26,8 +20,8 @@ func NewDatabasePrivateCleanup(pool *pgxpool.Pool) *DatabasePrivateCleanup {
 
 func (*DatabasePrivateCleanup) Name() string { return "databasePrivate" }
 
-func (cleanup *DatabasePrivateCleanup) Purge(ctx context.Context, jobID uuid.UUID, owner syntax.DID) error {
-	if cleanup == nil || cleanup.pool == nil || jobID == uuid.Nil || owner == "" {
+func (cleanup *DatabasePrivateCleanup) Purge(ctx context.Context, owner syntax.DID) error {
+	if cleanup == nil || cleanup.pool == nil || owner == "" {
 		return errors.New("private database cleanup scope is invalid")
 	}
 	return pgx.BeginFunc(ctx, cleanup.pool, func(tx pgx.Tx) error {
@@ -35,9 +29,9 @@ func (cleanup *DatabasePrivateCleanup) Purge(ctx context.Context, jobID uuid.UUI
 		if err := tx.QueryRow(ctx, `
 			SELECT COALESCE(deletion_oauth_session_id,'')
 			FROM account_deletion_operations
-			WHERE id=$1 AND owner_did=$2 AND state IN ('active','retrying','needsAttention')
+			WHERE owner_did=$1 AND state IN ('active','retrying')
 			FOR UPDATE
-		`, jobID, owner).Scan(&boundOAuthSessionID); err != nil {
+		`, owner).Scan(&boundOAuthSessionID); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrOperationNotFound
 			}
@@ -97,15 +91,15 @@ func (cleanup *DatabasePrivateCleanup) Purge(ctx context.Context, jobID uuid.UUI
 
 type PrivateCleanupComponent interface {
 	Name() string
-	Purge(context.Context, uuid.UUID, syntax.DID) error
+	Purge(context.Context, syntax.DID) error
 }
 
 type NamedPrivateCleanup struct {
 	name  string
-	purge func(context.Context, uuid.UUID, syntax.DID) error
+	purge func(context.Context, syntax.DID) error
 }
 
-func NewNamedPrivateCleanup(name string, purge func(context.Context, uuid.UUID, syntax.DID) error) (*NamedPrivateCleanup, error) {
+func NewNamedPrivateCleanup(name string, purge func(context.Context, syntax.DID) error) (*NamedPrivateCleanup, error) {
 	if name == "" || purge == nil {
 		return nil, errors.New("private cleanup component is invalid")
 	}
@@ -114,17 +108,16 @@ func NewNamedPrivateCleanup(name string, purge func(context.Context, uuid.UUID, 
 
 func (cleanup *NamedPrivateCleanup) Name() string { return cleanup.name }
 
-func (cleanup *NamedPrivateCleanup) Purge(ctx context.Context, jobID uuid.UUID, owner syntax.DID) error {
-	return cleanup.purge(ctx, jobID, owner)
+func (cleanup *NamedPrivateCleanup) Purge(ctx context.Context, owner syntax.DID) error {
+	return cleanup.purge(ctx, owner)
 }
 
 type PrivateCleaner struct {
-	checkpoints PrivateCleanupCheckpoints
-	components  []PrivateCleanupComponent
+	components []PrivateCleanupComponent
 }
 
-func NewPrivateCleaner(checkpoints PrivateCleanupCheckpoints, components []PrivateCleanupComponent) (*PrivateCleaner, error) {
-	if checkpoints == nil || len(components) == 0 {
+func NewPrivateCleaner(components []PrivateCleanupComponent) (*PrivateCleaner, error) {
+	if len(components) == 0 {
 		return nil, errors.New("private cleanup is unavailable")
 	}
 	seen := make(map[string]struct{}, len(components))
@@ -138,28 +131,17 @@ func NewPrivateCleaner(checkpoints PrivateCleanupCheckpoints, components []Priva
 		seen[component.Name()] = struct{}{}
 	}
 	return &PrivateCleaner{
-		checkpoints: checkpoints,
-		components:  append([]PrivateCleanupComponent(nil), components...),
+		components: append([]PrivateCleanupComponent(nil), components...),
 	}, nil
 }
 
-func (cleaner *PrivateCleaner) Run(ctx context.Context, jobID uuid.UUID, owner syntax.DID) error {
-	if cleaner == nil || cleaner.checkpoints == nil || jobID == uuid.Nil || owner == "" {
+func (cleaner *PrivateCleaner) Run(ctx context.Context, owner syntax.DID) error {
+	if cleaner == nil || owner == "" {
 		return errors.New("private cleanup scope is invalid")
 	}
 	for _, component := range cleaner.components {
-		complete, err := cleaner.checkpoints.CleanupStepComplete(ctx, jobID, owner, component.Name())
-		if err != nil {
-			return fmt.Errorf("read private cleanup checkpoint %s: %w", component.Name(), err)
-		}
-		if complete {
-			continue
-		}
-		if err := component.Purge(ctx, jobID, owner); err != nil {
+		if err := component.Purge(ctx, owner); err != nil {
 			return fmt.Errorf("purge private cleanup component %s: %w", component.Name(), err)
-		}
-		if err := cleaner.checkpoints.CompleteCleanupStep(ctx, jobID, owner, component.Name()); err != nil {
-			return fmt.Errorf("checkpoint private cleanup component %s: %w", component.Name(), err)
 		}
 	}
 	return nil

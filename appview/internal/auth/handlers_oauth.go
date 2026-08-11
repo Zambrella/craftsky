@@ -148,7 +148,7 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 				renderErrorHTML(w, http.StatusBadRequest, "Account deletion reauthentication could not be completed. Please try again.")
 				return
 			}
-			query := url.Values{"jobId": {result.JobID}, "proof": {result.Proof}}
+			query := url.Values{"job-id": {result.JobID}, "proof": {result.Proof}}
 			data := callbackPageData{
 				DeepLinkURL: "craftsky:///account-deletion/reauth-complete?" + query.Encode(),
 			}
@@ -172,22 +172,17 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 			mode = "deep_link"
 		}
 		if h.DeletionPendingLogin != nil {
-			pending, exists, err := h.DeletionPendingLogin.PendingLogin(r.Context(), sessData.AccountDID, deviceID)
+			_, exists, err := h.DeletionPendingLogin.PendingLogin(r.Context(), sessData.AccountDID, sessData.SessionID, deviceID)
 			if err != nil {
 				_ = h.DeletionPendingLogin.Reject(r.Context(), sessData.AccountDID, sessData.SessionID)
-				renderErrorHTML(w, http.StatusInternalServerError, "Account deletion status could not be restored. Please try again.")
+				renderErrorHTML(w, http.StatusInternalServerError, "Account deletion could not be resumed. Please try again.")
 				return
 			}
 			if exists {
-				if err := h.DeletionPendingLogin.Reject(r.Context(), sessData.AccountDID, sessData.SessionID); err != nil {
-					renderErrorHTML(w, http.StatusInternalServerError, "Account deletion status could not be restored. Please try again.")
-					return
-				}
-				query := url.Values{
-					"jobId": {pending.JobID}, "statusToken": {pending.StatusToken},
-					"did": {pending.Owner.String()}, "handle": {pending.Handle.String()},
-				}
-				data := callbackPageData{DeepLinkURL: "craftsky:///account-deletion/pending-login?" + query.Encode()}
+				// PendingLogin has rebound this fresh OAuth session to the durable
+				// deletion operation. Do not reject it or mint an ordinary bearer.
+				query := url.Values{"error": {"account_deletion_pending"}}
+				data := callbackPageData{DeepLinkURL: "craftsky:///auth/complete?" + query.Encode()}
 				w.Header().Set("Content-Type", "text/html; charset=utf-8")
 				if err := callbackTmpl.Execute(w, data); err != nil {
 					h.Logger.Error("pending account deletion callback template", authLogErrorAttrs(runID, "oauth.callback", "template")...)

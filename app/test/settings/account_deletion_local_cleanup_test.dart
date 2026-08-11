@@ -1,28 +1,33 @@
-import 'package:craftsky_app/settings/models/account_deletion_local_cleanup.dart';
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/settings/services/account_product_data_cleaner.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('cleanup erases product data and ordinary credentials only', () {
-    final plan = AccountDeletionLocalCleanupPlan.forAcceptedDeletion();
+  test(
+    'production cleaner attempts every local cleanup and reports first error',
+    () async {
+      final calls = <String>[];
+      final cleaner = AccountProductDataCleaner([
+        (_) async {
+          calls.add('draftsAndStagedMedia');
+          throw StateError('draft cleanup failed');
+        },
+        (_) async => calls.add('instagramVerificationSnapshot'),
+        (_) async => calls.add('imageCaches'),
+      ]);
+      final lease = AccountSessionLease(
+        account: AccountKey('did:plc:alice'),
+        sessionGeneration: 1,
+      );
 
-    expect(
-      plan.erase,
-      containsAll(<AccountDeletionLocalArtifact>{
-        AccountDeletionLocalArtifact.draftsAndStagedMedia,
-        AccountDeletionLocalArtifact.instagramVerificationSnapshot,
-        AccountDeletionLocalArtifact.imageCaches,
-        AccountDeletionLocalArtifact.accountScopedProviderState,
-        AccountDeletionLocalArtifact.ordinarySession,
-      }),
-    );
-    expect(
-      plan.preserve,
-      containsAll(<AccountDeletionLocalArtifact>{
-        AccountDeletionLocalArtifact.deletionJobId,
-        AccountDeletionLocalArtifact.deletionStatusCredential,
-        AccountDeletionLocalArtifact.deletionDisplayIdentity,
-      }),
-    );
-    expect(plan.erase.intersection(plan.preserve), isEmpty);
-  });
+      await expectLater(cleaner.clean(lease), throwsStateError);
+
+      expect(calls, [
+        'draftsAndStagedMedia',
+        'instagramVerificationSnapshot',
+        'imageCaches',
+      ]);
+    },
+  );
 }

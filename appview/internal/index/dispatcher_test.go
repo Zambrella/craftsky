@@ -19,18 +19,6 @@ type fakeIndexer struct {
 	err    error
 }
 
-type fakePostHandleObserver struct {
-	calls  *[]string
-	err    error
-	events []tap.Event
-}
-
-func (observer *fakePostHandleObserver) ObserveHandled(_ context.Context, event tap.Event) error {
-	*observer.calls = append(*observer.calls, "observer")
-	observer.events = append(observer.events, event)
-	return observer.err
-}
-
 func (f *fakeIndexer) Handle(_ context.Context, ev tap.Event) error {
 	f.events = append(f.events, ev)
 	return f.err
@@ -86,57 +74,6 @@ func TestDispatcher_PropagatesDownstreamError(t *testing.T) {
 	if !errors.Is(err, boom) {
 		t.Fatalf("got %v, want boom", err)
 	}
-}
-
-func TestDispatcher_ObservesOnlyAfterSuccessfulIndexingAndBeforeAck(t *testing.T) {
-	var calls []string
-	indexer := &orderingIndexer{calls: &calls}
-	observer := &fakePostHandleObserver{calls: &calls}
-	d := NewDispatcher(NotImplemented{})
-	d.Register("social.craftsky.feed.post", indexer)
-	d.AddPostHandleObserver(observer)
-	event := tap.Event{
-		URI: "at://did:plc:alice/social.craftsky.feed.post/post1", Collection: "social.craftsky.feed.post",
-		Action: "delete", ID: 41, Rev: "rev-1",
-	}
-	if err := d.Handle(context.Background(), event); err != nil {
-		t.Fatalf("handle observed event: %v", err)
-	}
-	if got, want := strings.Join(calls, ","), "indexer,observer"; got != want {
-		t.Fatalf("call order=%q want=%q", got, want)
-	}
-	if len(observer.events) != 1 || observer.events[0].ID != 41 || observer.events[0].Rev != "rev-1" {
-		t.Fatalf("observed events=%+v", observer.events)
-	}
-
-	calls = nil
-	indexer.err = errors.New("index transaction failed")
-	if err := d.Handle(context.Background(), event); !errors.Is(err, indexer.err) {
-		t.Fatalf("indexer failure=%v", err)
-	}
-	if got, want := strings.Join(calls, ","), "indexer"; got != want {
-		t.Fatalf("failed-index call order=%q want=%q", got, want)
-	}
-
-	calls = nil
-	indexer.err = nil
-	observer.err = errors.New("receipt transaction failed")
-	if err := d.Handle(context.Background(), event); !errors.Is(err, observer.err) || !errors.Is(err, tap.ErrMustReplay) {
-		t.Fatalf("observer failure=%v", err)
-	}
-	if got, want := strings.Join(calls, ","), "indexer,observer"; got != want {
-		t.Fatalf("observer-failure call order=%q want=%q", got, want)
-	}
-}
-
-type orderingIndexer struct {
-	calls *[]string
-	err   error
-}
-
-func (indexer *orderingIndexer) Handle(context.Context, tap.Event) error {
-	*indexer.calls = append(*indexer.calls, "indexer")
-	return indexer.err
 }
 
 func TestDispatcher_LogOmitsRawRecordIdentity(t *testing.T) {

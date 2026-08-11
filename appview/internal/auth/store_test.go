@@ -55,18 +55,6 @@ const authSchemaDDL = `
 			REFERENCES oauth_sessions (account_did, session_id)
 			ON DELETE CASCADE
 	);
-	CREATE TABLE account_deletion_operations (
-		id UUID PRIMARY KEY,
-		owner_did TEXT NOT NULL,
-		state TEXT NOT NULL
-	);
-	CREATE TABLE account_deletion_recovery_credentials (
-		token_hash BYTEA PRIMARY KEY,
-		job_id UUID NOT NULL REFERENCES account_deletion_operations(id),
-		owner_did TEXT NOT NULL,
-		device_id TEXT,
-		used_at TIMESTAMPTZ
-	);
 `
 
 // withAuthSchema returns a pool scoped to a fresh schema seeded with the

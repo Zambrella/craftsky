@@ -4335,76 +4335,16 @@ abstract class AppLocalizations {
   /// **'Type {handle} exactly to permanently delete this CraftSky account.'**
   String deleteAccountConfirmationPrompt(String handle);
 
-  /// Coarse account-deletion preparation phase.
+  /// Coarse sign-in outcome while durable account deletion is active.
   ///
   /// In en, this message translates to:
-  /// **'Preparing deletion'**
-  String get accountDeletionPreparing;
-
-  /// Coarse private-data deletion phase.
-  ///
-  /// In en, this message translates to:
-  /// **'Removing private CraftSky data'**
-  String get accountDeletionRemovingPrivateData;
-
-  /// Coarse PDS record-deletion phase.
-  ///
-  /// In en, this message translates to:
-  /// **'Removing CraftSky records'**
-  String get accountDeletionRemovingRecords;
-
-  /// Coarse AppView convergence phase.
-  ///
-  /// In en, this message translates to:
-  /// **'Waiting for CraftSky to update'**
-  String get accountDeletionWaitingForCraftsky;
-
-  /// Coarse account-deletion finalization phase.
-  ///
-  /// In en, this message translates to:
-  /// **'Finalizing'**
-  String get accountDeletionFinalizing;
-
-  /// Coarse account-deletion retry phase.
-  ///
-  /// In en, this message translates to:
-  /// **'Retrying'**
-  String get accountDeletionRetrying;
-
-  /// Account-deletion attention-required state.
-  ///
-  /// In en, this message translates to:
-  /// **'Deletion needs attention'**
-  String get accountDeletionNeedsAttention;
-
-  /// Terminal account-deletion state.
-  ///
-  /// In en, this message translates to:
-  /// **'Deleted'**
-  String get accountDeletionDeleted;
-
-  /// Manual account-deletion retry action.
-  ///
-  /// In en, this message translates to:
-  /// **'Retry'**
-  String get accountDeletionRetry;
-
-  /// Action replacing unusable deletion-only OAuth authority.
-  ///
-  /// In en, this message translates to:
-  /// **'Reauthenticate'**
-  String get accountDeletionReauthenticate;
-
-  /// External account-deletion support action.
-  ///
-  /// In en, this message translates to:
-  /// **'Get support'**
-  String get accountDeletionSupport;
+  /// **'Your CraftSky account deletion is already in progress. You cannot sign in again until it has finished.'**
+  String get accountDeletionAlreadyInProgress;
 
   /// Permanent CraftSky deletion boundary shown before typed-handle confirmation.
   ///
   /// In en, this message translates to:
-  /// **'Deleting {handle} permanently removes your CraftSky membership, private CraftSky data, and every social.craftsky.* record from your PDS. You will be signed out of CraftSky on every device, and this cannot be undone after you submit your typed handle. It does not delete your AT Protocol account, does not delete your PDS account or the rest of its contents, and does not delete records from other apps. CraftSky does not directly delete blobs and does not wait for your PDS to reclaim unreferenced blobs. Offline devices remove local CraftSky data the next time they connect.'**
+  /// **'Deleting {handle} permanently removes your CraftSky membership, private CraftSky data, and every social.craftsky.* record from your PDS. You will be signed out of CraftSky on every device as soon as you submit your typed handle. The app does not wait for your PDS cleanup to finish before signing you out. Deletion then continues in the background and cannot be undone; CraftSky may briefly show stale copies while its index updates. It does not delete your AT Protocol account, does not delete your PDS account, does not delete records from other apps, and does not directly delete blobs. Offline devices remove local CraftSky data the next time they connect.'**
   String deleteAccountBoundary(String handle);
 }
 

@@ -8,26 +8,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
-func TestInstagramExplicitDeletionPlanAlwaysHardDeletes(t *testing.T) {
+func TestInstagramAccountDeletionUsesOnlyTheTerminalOwnerPurge(t *testing.T) {
 	t.Parallel()
-
-	want := []InstagramDataCategory{
-		InstagramAccountLinks,
-		InstagramGraphImports,
-		InstagramAutomaticFollowSuggestions,
-		InstagramVerification,
-		InstagramPrivateImportedData,
-		InstagramUsernameClaims,
-	}
-	plan := InstagramExplicitDeletionPlan()
-	if !reflect.DeepEqual(plan, want) {
-		t.Fatalf("Instagram explicit deletion plan = %#v, want %#v", plan, want)
-	}
-	for _, category := range plan {
-		if category.Policy != HardDelete {
-			t.Fatalf("Instagram category %q policy = %q, want hard delete", category.Name, category.Policy)
-		}
-	}
 
 	owner := syntax.DID("did:plc:alice")
 	purger := &recordingInstagramPurger{}

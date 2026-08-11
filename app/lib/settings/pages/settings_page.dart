@@ -79,81 +79,101 @@ class SettingsPage extends ConsumerWidget {
                 : () => unawaited(_openSwitcher(context, ref, switcherState)),
           ),
           _SectionLabel(l10n.settingsSectionPreferences),
-          _row(
-            context,
-            SettingsRowId.customisation,
-            l10n.profileCustomisationTitle,
-            Icons.palette_outlined,
-            () => const ProfileCustomisationRoute().go(context),
+          SettingsRowTile(
+            descriptor: const SettingsRowDescriptor(
+              id: SettingsRowId.customisation,
+              kind: SettingsRowKind.disclosure,
+            ),
+            label: l10n.profileCustomisationTitle,
+            leading: Icons.palette_outlined,
+            onTap: () => const ProfileCustomisationRoute().go(context),
           ),
-          _row(
-            context,
-            SettingsRowId.languages,
-            l10n.settingsLanguages,
-            Icons.language_outlined,
-            () => const LanguagesRoute().go(context),
+          SettingsRowTile(
+            descriptor: const SettingsRowDescriptor(
+              id: SettingsRowId.languages,
+              kind: SettingsRowKind.disclosure,
+            ),
+            label: l10n.settingsLanguages,
+            leading: Icons.language_outlined,
+            onTap: () => const LanguagesRoute().go(context),
           ),
-          _row(
-            context,
-            SettingsRowId.notifications,
-            l10n.settingsNotifications,
-            Icons.notifications_outlined,
-            () => unawaited(
+          SettingsRowTile(
+            descriptor: const SettingsRowDescriptor(
+              id: SettingsRowId.notifications,
+              kind: SettingsRowKind.disclosure,
+            ),
+            label: l10n.settingsNotifications,
+            leading: Icons.notifications_outlined,
+            onTap: () => unawaited(
               const NotificationSettingsRoute().push<void>(context),
             ),
           ),
           _SectionLabel(l10n.settingsSectionConnections),
-          _row(
-            context,
-            SettingsRowId.followers,
-            l10n.settingsFollowers,
-            Icons.group_outlined,
-            () => const FollowersRoute().go(context),
+          SettingsRowTile(
+            descriptor: const SettingsRowDescriptor(
+              id: SettingsRowId.followers,
+              kind: SettingsRowKind.disclosure,
+            ),
+            label: l10n.settingsFollowers,
+            leading: Icons.group_outlined,
+            onTap: () => const FollowersRoute().go(context),
           ),
-          _row(
-            context,
-            SettingsRowId.following,
-            l10n.settingsFollowing,
-            Icons.person_add_alt_outlined,
-            () => const FollowingRoute().go(context),
+          SettingsRowTile(
+            descriptor: const SettingsRowDescriptor(
+              id: SettingsRowId.following,
+              kind: SettingsRowKind.disclosure,
+            ),
+            label: l10n.settingsFollowing,
+            leading: Icons.person_add_alt_outlined,
+            onTap: () => const FollowingRoute().go(context),
           ),
-          _row(
-            context,
-            SettingsRowId.mutedAccounts,
-            l10n.settingsMutedAccounts,
-            Icons.volume_off_outlined,
-            () => const MutedAccountsRoute().go(context),
+          SettingsRowTile(
+            descriptor: const SettingsRowDescriptor(
+              id: SettingsRowId.mutedAccounts,
+              kind: SettingsRowKind.disclosure,
+            ),
+            label: l10n.settingsMutedAccounts,
+            leading: Icons.volume_off_outlined,
+            onTap: () => const MutedAccountsRoute().go(context),
           ),
-          _row(
-            context,
-            SettingsRowId.blockedAccounts,
-            l10n.settingsBlockedAccounts,
-            Icons.block_outlined,
-            () => const BlockedAccountsRoute().go(context),
+          SettingsRowTile(
+            descriptor: const SettingsRowDescriptor(
+              id: SettingsRowId.blockedAccounts,
+              kind: SettingsRowKind.disclosure,
+            ),
+            label: l10n.settingsBlockedAccounts,
+            leading: Icons.block_outlined,
+            onTap: () => const BlockedAccountsRoute().go(context),
           ),
           _SectionLabel(l10n.settingsSectionDiscovery),
-          _row(
-            context,
-            SettingsRowId.findPeopleFromInstagram,
-            l10n.instagramMigrationTitle,
-            Icons.photo_camera_outlined,
-            () => const InstagramMigrationRoute().go(context),
+          SettingsRowTile(
+            descriptor: const SettingsRowDescriptor(
+              id: SettingsRowId.findPeopleFromInstagram,
+              kind: SettingsRowKind.disclosure,
+            ),
+            label: l10n.instagramMigrationTitle,
+            leading: Icons.photo_camera_outlined,
+            onTap: () => const InstagramMigrationRoute().go(context),
             subtitle: l10n.instagramMigrationSettingsSubtitle,
           ),
           _SectionLabel(l10n.settingsSectionGeneral),
-          _row(
-            context,
-            SettingsRowId.account,
-            l10n.settingsAccount,
-            Icons.manage_accounts_outlined,
-            () => const AccountRoute().go(context),
+          SettingsRowTile(
+            descriptor: const SettingsRowDescriptor(
+              id: SettingsRowId.account,
+              kind: SettingsRowKind.disclosure,
+            ),
+            label: l10n.settingsAccount,
+            leading: Icons.manage_accounts_outlined,
+            onTap: () => const AccountRoute().go(context),
           ),
-          _row(
-            context,
-            SettingsRowId.about,
-            l10n.settingsAbout,
-            Icons.info_outline,
-            () => const AboutRoute().go(context),
+          SettingsRowTile(
+            descriptor: const SettingsRowDescriptor(
+              id: SettingsRowId.about,
+              kind: SettingsRowKind.disclosure,
+            ),
+            label: l10n.settingsAbout,
+            leading: Icons.info_outline,
+            onTap: () => const AboutRoute().go(context),
           ),
           const Divider(),
           const SignOutTile(),
@@ -162,24 +182,6 @@ class SettingsPage extends ConsumerWidget {
       ),
     );
   }
-
-  SettingsRowTile _row(
-    BuildContext context,
-    SettingsRowId id,
-    String label,
-    IconData icon,
-    VoidCallback onTap, {
-    String? subtitle,
-  }) => SettingsRowTile(
-    descriptor: SettingsRowDescriptor(
-      id: id,
-      kind: SettingsRowKind.disclosure,
-    ),
-    label: label,
-    subtitle: subtitle,
-    leading: icon,
-    onTap: onTap,
-  );
 
   Future<void> _openSwitcher(
     BuildContext context,

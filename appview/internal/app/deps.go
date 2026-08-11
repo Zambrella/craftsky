@@ -14,7 +14,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/accountdeletion"
@@ -51,12 +50,9 @@ type Deps struct {
 	RateLimiter                 *middleware.LocalRateLimiter
 	Observability               *observability.Observer
 	AccountDeletion             accountdeletion.Service
-	AccountDeletionStatus       accountdeletion.StatusRouteService
-	AccountDeletionRecovery     accountdeletion.RecoveryService
 	AccountDeletionOAuth        auth.AccountDeletionOAuthCallbacks
 	AccountDeletionPendingLogin auth.AccountDeletionPendingLoginPolicy
 	AccountDeletionWorker       *accountdeletion.Worker
-	AccountDeletionAuditSweeper *accountdeletion.AuditSweeper
 
 	// OAuth subsystem.
 	OAuthApp             *oauth.ClientApp
@@ -125,24 +121,6 @@ type Deps struct {
 
 type instagramRelationshipSafetyProvider struct {
 	store *relationships.Store
-}
-
-type accountDeletionMetricAdapter struct {
-	observer *observability.Observer
-}
-
-func (adapter accountDeletionMetricAdapter) RecordDeletionMetric(
-	ctx context.Context,
-	event accountdeletion.DeletionMetricEvent,
-) {
-	adapter.observer.ObserveAccountDeletion(
-		ctx,
-		event.Event,
-		string(event.Phase),
-		string(event.Outcome),
-		string(event.ErrorCategory),
-		event.Duration,
-	)
 }
 
 func (p instagramRelationshipSafetyProvider) RelationshipSafety(
@@ -289,7 +267,6 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		lifecycle,
 		profileDeletion,
 	)
-	dispatcher.AddPostHandleObserver(accountdeletion.NewReceiptObserver(pool, time.Now))
 	identityDeletion := &terminalIdentityDeletion{handlers: []tap.IdentityDeletionHandler{
 		notificationActorDeletion,
 		instagramPrivateData,
@@ -544,22 +521,8 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		}, nil
 	})
 	deletionStore := accountdeletion.NewStore(pool, time.Now)
-	deletionTelemetry := accountdeletion.NewDeletionTelemetry(
-		logger,
-		accountDeletionMetricAdapter{observer: observer},
-	)
-	deletionStore.SetTelemetry(deletionTelemetry)
-	deletionSigner, err := accountdeletion.NewStatusCapabilitySigner(
-		cfg.AccountDeletionStatusHMACKey,
-		time.Now,
-		rand.Reader,
-	)
-	if err != nil {
-		pool.Close()
-		return nil, nil, fmt.Errorf("account deletion status signer: %w", err)
-	}
 	deletionService, err := accountdeletion.NewAppService(accountdeletion.AppServiceOptions{
-		Pool: pool, Store: deletionStore, Signer: deletionSigner,
+		Pool: pool, Store: deletionStore,
 		OAuth: oauthApp, Now: time.Now, Random: rand.Reader,
 	})
 	if err != nil {
@@ -568,7 +531,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	}
 	instagramDeletion, err := accountdeletion.NewNamedPrivateCleanup(
 		"instagramPrivate",
-		func(ctx context.Context, _ uuid.UUID, owner syntax.DID) error {
+		func(ctx context.Context, owner syntax.DID) error {
 			return accountdeletion.PurgeInstagramForAccountDeletion(ctx, instagramPrivateData, owner)
 		},
 	)
@@ -577,7 +540,6 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		return nil, nil, fmt.Errorf("account deletion Instagram cleanup: %w", err)
 	}
 	deletionCleaner, err := accountdeletion.NewPrivateCleaner(
-		deletionStore,
 		[]accountdeletion.PrivateCleanupComponent{
 			accountdeletion.NewDatabasePrivateCleanup(pool),
 			instagramDeletion,
@@ -590,7 +552,6 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	}
 	deletionLifecycle, err := accountdeletion.NewLifecycleProcessor(accountdeletion.LifecycleProcessorOptions{
 		Store: deletionStore, Cleaner: deletionCleaner,
-		Convergence: accountdeletion.NewConvergenceVerifier(pool),
 		NewPDSClient: func(ctx context.Context, owner syntax.DID, sessionID string) (auth.DeletionPDSClient, error) {
 			client, err := deps.NewPDSClient(ctx, owner, sessionID)
 			if err != nil {
@@ -602,8 +563,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 			}
 			return deletionClient, nil
 		},
-		PollInterval: 2 * time.Second, BatchSize: 20, Now: time.Now,
-		Telemetry: deletionTelemetry,
+		BatchSize: 20,
 	})
 	if err != nil {
 		pool.Close()
@@ -613,20 +573,16 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		Store: deletionStore, Processor: deletionLifecycle,
 		WorkerID: "appview", Now: time.Now, LeaseDuration: 2 * time.Minute,
 		RetryPolicy: accountdeletion.DefaultRetryPolicy(),
-		Telemetry:   deletionTelemetry,
+		Logger:      logger,
 	})
 	if err != nil {
 		pool.Close()
 		return nil, nil, fmt.Errorf("account deletion worker: %w", err)
 	}
 	deps.AccountDeletion = deletionService
-	deps.AccountDeletionStatus = deletionService
-	deps.AccountDeletionRecovery = deletionService
 	deps.AccountDeletionOAuth = deletionService
 	deps.AccountDeletionPendingLogin = deletionService
 	deps.AccountDeletionWorker = deletionWorker
-	deps.AccountDeletionAuditSweeper = accountdeletion.NewAuditSweeper(pool, time.Now)
-	deps.AccountDeletionAuditSweeper.SetTelemetry(deletionTelemetry)
 	scheduledPublisher, err := scheduledposts.NewPublicationProcessor(scheduledposts.PublicationProcessorOptions{
 		Store:         scheduledStore,
 		Sessions:      auth.NewBackgroundSessionSelector(pool),

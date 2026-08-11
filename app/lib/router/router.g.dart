@@ -8,7 +8,6 @@ part of 'router.dart';
 
 List<RouteBase> get $appRoutes => [
   $accountDeletionReauthCompleteRoute,
-  $accountDeletionStatusRoute,
   $authenticatedShellRoute,
   $welcomeRoute,
   $signInRoute,
@@ -37,37 +36,6 @@ mixin $AccountDeletionReauthCompleteRoute on GoRouteData {
   String get location => GoRouteData.$location(
     '/account-deletion/reauth-complete',
     queryParams: {'job-id': _self.jobId, 'proof': _self.proof},
-  );
-
-  @override
-  void go(BuildContext context) => context.go(location);
-
-  @override
-  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
-
-  @override
-  void pushReplacement(BuildContext context) =>
-      context.pushReplacement(location);
-
-  @override
-  void replace(BuildContext context) => context.replace(location);
-}
-
-RouteBase get $accountDeletionStatusRoute => GoRouteData.$route(
-  path: '/account-deletion/:jobId',
-  name: 'account-deletion-status',
-  factory: $AccountDeletionStatusRoute._fromState,
-);
-
-mixin $AccountDeletionStatusRoute on GoRouteData {
-  static AccountDeletionStatusRoute _fromState(GoRouterState state) =>
-      AccountDeletionStatusRoute(jobId: state.pathParameters['jobId']!);
-
-  AccountDeletionStatusRoute get _self => this as AccountDeletionStatusRoute;
-
-  @override
-  String get location => GoRouteData.$location(
-    '/account-deletion/${Uri.encodeComponent(_self.jobId)}',
   );
 
   @override
@@ -930,15 +898,20 @@ RouteBase get $authCompleteRoute => GoRouteData.$route(
 );
 
 mixin $AuthCompleteRoute on GoRouteData {
-  static AuthCompleteRoute _fromState(GoRouterState state) =>
-      AuthCompleteRoute(token: state.uri.queryParameters['token']!);
+  static AuthCompleteRoute _fromState(GoRouterState state) => AuthCompleteRoute(
+    token: state.uri.queryParameters['token'],
+    error: state.uri.queryParameters['error'],
+  );
 
   AuthCompleteRoute get _self => this as AuthCompleteRoute;
 
   @override
   String get location => GoRouteData.$location(
     '/auth/complete',
-    queryParams: {'token': _self.token},
+    queryParams: {
+      if (_self.token != null) 'token': _self.token,
+      if (_self.error != null) 'error': _self.error,
+    },
   );
 
   @override
@@ -1029,4 +1002,4 @@ final class GoRouterProvider
   }
 }
 
-String _$goRouterHash() => r'83cdeafcea71df9f113fcf439f51ed03f1dd9e6f';
+String _$goRouterHash() => r'84b61d729a4e05c596eb7a620b1c49ee4726c5c3';

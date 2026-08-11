@@ -30,17 +30,7 @@ void main() {
       l10n.deleteAccountTypeHandleLabel,
       l10n.deleteAccountConfirmationPrompt('@alice.test'),
       l10n.actionCancel,
-      l10n.accountDeletionPreparing,
-      l10n.accountDeletionRemovingPrivateData,
-      l10n.accountDeletionRemovingRecords,
-      l10n.accountDeletionWaitingForCraftsky,
-      l10n.accountDeletionFinalizing,
-      l10n.accountDeletionRetrying,
-      l10n.accountDeletionNeedsAttention,
-      l10n.accountDeletionDeleted,
-      l10n.accountDeletionRetry,
-      l10n.accountDeletionReauthenticate,
-      l10n.accountDeletionSupport,
+      l10n.accountDeletionAlreadyInProgress,
     ];
 
     expect(values, everyElement(isNotEmpty));

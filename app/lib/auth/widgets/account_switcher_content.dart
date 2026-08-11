@@ -1,4 +1,3 @@
-import 'package:craftsky_app/auth/models/account_deletion.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/account_switcher_state.dart';
 import 'package:craftsky_app/auth/widgets/account_avatar.dart';
@@ -10,7 +9,6 @@ class AccountSwitcherContent extends StatelessWidget {
     required this.state,
     required this.onSelect,
     required this.onAddAccount,
-    this.onOpenDeletionStatus,
     this.activating,
     this.showAddAccount = true,
     super.key,
@@ -19,7 +17,6 @@ class AccountSwitcherContent extends StatelessWidget {
   final AccountSwitcherState state;
   final ValueChanged<AccountSessionLease> onSelect;
   final VoidCallback onAddAccount;
-  final ValueChanged<String>? onOpenDeletionStatus;
   final AccountSessionLease? activating;
   final bool showAddAccount;
 
@@ -59,25 +56,6 @@ class AccountSwitcherContent extends StatelessWidget {
                 onTap: busy || row.isCurrent ? null : () => onSelect(row.lease),
               ),
             ),
-          for (final row in state.deletingRows)
-            Semantics(
-              enabled: false,
-              child: ListTile(
-                leading: AccountAvatar(
-                  avatarUrl: row.avatarUrl,
-                  seed: row.displayLabel,
-                ),
-                title: Text(row.displayLabel),
-                subtitle: Text(
-                  '${row.displayLabel == row.handle ? '' : '@${row.handle} · '}'
-                  '${_deletionLabel(l10n, row)}',
-                ),
-                trailing: const Icon(Icons.hourglass_top),
-                onTap: busy || onOpenDeletionStatus == null
-                    ? null
-                    : () => onOpenDeletionStatus!(row.jobId),
-              ),
-            ),
           if (showAddAccount) ...[
             const Divider(),
             ListTile(
@@ -94,27 +72,4 @@ class AccountSwitcherContent extends StatelessWidget {
       ),
     );
   }
-}
-
-String _deletionLabel(
-  AppLocalizations l10n,
-  DeletingAccountSwitcherRow row,
-) {
-  if (row.status == AccountDeletionStatus.needsAttention) {
-    return l10n.accountDeletionNeedsAttention;
-  }
-  if (row.status == AccountDeletionStatus.retrying) {
-    return l10n.accountDeletionRetrying;
-  }
-  return switch (row.phase) {
-    AccountDeletionPhase.preparing => l10n.accountDeletionPreparing,
-    AccountDeletionPhase.removingPrivateData =>
-      l10n.accountDeletionRemovingPrivateData,
-    AccountDeletionPhase.removingCraftskyRecords =>
-      l10n.accountDeletionRemovingRecords,
-    AccountDeletionPhase.waitingForCraftsky =>
-      l10n.accountDeletionWaitingForCraftsky,
-    AccountDeletionPhase.finalizing => l10n.accountDeletionFinalizing,
-    AccountDeletionPhase.deleted => l10n.accountDeletionDeleted,
-  };
 }

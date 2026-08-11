@@ -4,18 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"strconv"
 	"testing"
-	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/auth"
-	"social.craftsky/appview/internal/testdb"
 )
 
 func TestPDSDeleterIsOwnerScopedAndNamespaceClosed(t *testing.T) {
@@ -39,6 +34,7 @@ func TestPDSDeleterIsOwnerScopedAndNamespaceClosed(t *testing.T) {
 	owner := syntax.DID("did:plc:alice")
 	post := syntax.NSID("social.craftsky.feed.post")
 	like := syntax.NSID("social.craftsky.feed.like")
+	profile := syntax.NSID("social.craftsky.actor.profile")
 	fake := &fakeDeletionPDS{
 		owner: owner,
 		records: map[syntax.NSID][]auth.PDSRecord{
@@ -47,22 +43,21 @@ func TestPDSDeleterIsOwnerScopedAndNamespaceClosed(t *testing.T) {
 				{URI: syntax.ATURI("at://did:plc:alice/social.craftsky.feed.post/two")},
 				{URI: syntax.ATURI("at://did:plc:alice/social.craftsky.feed.post/three")},
 			},
-			like: {{URI: syntax.ATURI("at://did:plc:alice/social.craftsky.feed.like/already-missing")}},
+			like:    {{URI: syntax.ATURI("at://did:plc:alice/social.craftsky.feed.like/already-missing")}},
+			profile: {{URI: syntax.ATURI("at://did:plc:alice/social.craftsky.actor.profile/self")}},
 		},
 		missingRKey: "already-missing",
 	}
-	registrar := &recordingExpectedRegistrar{registered: make(map[syntax.ATURI]bool)}
-	fake.registrar = registrar
-	deleter := NewPDSDeleter(fake, registrar, 2)
+	deleter := NewPDSDeleter(fake, 2)
 
-	result, err := deleter.DeleteAll(context.Background(), "job-1", owner)
+	result, err := deleter.DeleteAll(context.Background(), owner)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Listed != 4 || result.DeleteCalls != 4 {
-		t.Fatalf("deletion result = %+v, want four listed/delete attempts", result)
+	if result.Listed != 5 || result.DeleteCalls != 5 {
+		t.Fatalf("deletion result = %+v, want five listed/delete attempts", result)
 	}
-	if len(fake.records[post]) != 0 || len(fake.records[like]) != 0 {
+	if len(fake.records[post]) != 0 || len(fake.records[like]) != 0 || len(fake.records[profile]) != 0 {
 		t.Fatalf("records remain after convergent rescan: %#v", fake.records)
 	}
 	if fake.emptyCursorCalls[post] < 2 {
@@ -76,15 +71,61 @@ func TestPDSDeleterIsOwnerScopedAndNamespaceClosed(t *testing.T) {
 	if got := fake.listedCollections[len(fake.listedCollections)-1]; got != syntax.NSID("social.craftsky.actor.profile") {
 		t.Fatalf("last listed collection = %q, want membership profile", got)
 	}
+	if got := fake.deletedCollections[len(fake.deletedCollections)-1]; got != profile {
+		t.Fatalf("last deleted collection = %q, want membership profile; order=%v", got, fake.deletedCollections)
+	}
+}
+
+func TestPDSDeleterReplaysWithoutPerRecordPersistenceAndPreservesOtherData(t *testing.T) {
+	t.Parallel()
+
+	owner := syntax.DID("did:plc:alice")
+	pds := &fakeDeletionPDS{
+		owner: owner,
+		records: map[syntax.NSID][]auth.PDSRecord{
+			syntax.NSID("social.craftsky.feed.post"): {
+				{URI: syntax.ATURI("at://did:plc:alice/social.craftsky.feed.post/one")},
+				{URI: syntax.ATURI("at://did:plc:alice/social.craftsky.feed.post/two")},
+			},
+		},
+		nonCraftsky: []syntax.ATURI{
+			syntax.ATURI("at://did:plc:alice/app.bsky.feed.post/preserve"),
+		},
+		sharedBlobReferences: 2,
+		failAfterDeletes:     1,
+	}
+	deleter := NewPDSDeleter(pds, 1)
+	if _, err := deleter.DeleteAll(context.Background(), owner); err == nil {
+		t.Fatal("first deletion unexpectedly survived injected interruption")
+	}
+	if got := len(pds.records[syntax.NSID("social.craftsky.feed.post")]); got != 1 {
+		t.Fatalf("remaining after interruption = %d, want 1", got)
+	}
+
+	pds.failAfterDeletes = 0
+	result, err := deleter.DeleteAll(context.Background(), owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Listed != 1 || len(pds.records[syntax.NSID("social.craftsky.feed.post")]) != 0 {
+		t.Fatalf("replayed deletion result = %+v remaining = %#v", result, pds.records)
+	}
+	if len(pds.nonCraftsky) != 1 || pds.sharedBlobReferences != 2 {
+		t.Fatalf("preservation controls changed: nonCraftsky=%v blobRefs=%d", pds.nonCraftsky, pds.sharedBlobReferences)
+	}
 }
 
 type fakeDeletionPDS struct {
-	owner             syntax.DID
-	records           map[syntax.NSID][]auth.PDSRecord
-	missingRKey       string
-	registrar         *recordingExpectedRegistrar
-	listedCollections []syntax.NSID
-	emptyCursorCalls  map[syntax.NSID]int
+	owner                syntax.DID
+	records              map[syntax.NSID][]auth.PDSRecord
+	missingRKey          string
+	listedCollections    []syntax.NSID
+	deletedCollections   []syntax.NSID
+	emptyCursorCalls     map[syntax.NSID]int
+	nonCraftsky          []syntax.ATURI
+	sharedBlobReferences int
+	failAfterDeletes     int
+	deleteCalls          int
 }
 
 func (fake *fakeDeletionPDS) ListRecords(_ context.Context, repo syntax.DID, collection string, cursor string, limit int) ([]auth.PDSRecord, string, error) {
@@ -127,14 +168,12 @@ func (fake *fakeDeletionPDS) ListRecords(_ context.Context, repo syntax.DID, col
 }
 
 func (fake *fakeDeletionPDS) DeleteRecord(_ context.Context, repo syntax.DID, collection string, rkey string) error {
-	if repo != fake.owner {
-		return fmt.Errorf("wrong repo %s", repo)
+	if repo != fake.owner || !containsCraftskyCollection(syntax.NSID(collection)) {
+		return errors.New("out-of-bound delete")
 	}
 	uri := syntax.ATURI(fmt.Sprintf("at://%s/%s/%s", repo, collection, rkey))
-	if !fake.registrar.registered[uri] {
-		return fmt.Errorf("record %s was deleted before expected registration", uri)
-	}
 	nsid := syntax.NSID(collection)
+	fake.deletedCollections = append(fake.deletedCollections, nsid)
 	records := fake.records[nsid]
 	for index, record := range records {
 		if record.URI == uri {
@@ -142,18 +181,13 @@ func (fake *fakeDeletionPDS) DeleteRecord(_ context.Context, repo syntax.DID, co
 			break
 		}
 	}
+	fake.deleteCalls++
+	if fake.failAfterDeletes > 0 && fake.deleteCalls == fake.failAfterDeletes {
+		return errors.New("injected interruption")
+	}
 	if rkey == fake.missingRKey {
 		return auth.ErrRecordNotFound
 	}
-	return nil
-}
-
-type recordingExpectedRegistrar struct {
-	registered map[syntax.ATURI]bool
-}
-
-func (registrar *recordingExpectedRegistrar) RegisterExpected(_ context.Context, _ string, _ syntax.DID, uri syntax.ATURI, _ syntax.NSID) error {
-	registrar.registered[uri] = true
 	return nil
 }
 
@@ -167,103 +201,3 @@ func containsCraftskyCollection(collection syntax.NSID) bool {
 }
 
 var _ auth.DeletionPDSClient = (*fakeDeletionPDS)(nil)
-
-func TestPDSDeleterPersistsExpectedRecordsAndPreservesOtherData(t *testing.T) {
-	t.Parallel()
-
-	up, err := os.ReadFile("../../migrations/000037_account_deletion.up.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	pool := testdb.WithSchema(t, accountDeletionStorePreStateDDL)
-	ctx := context.Background()
-	if _, err := pool.Exec(ctx, string(up)); err != nil {
-		t.Fatal(err)
-	}
-	owner := syntax.DID("did:plc:alice")
-	jobID := uuid.MustParse("10000000-0000-0000-0000-000000000031")
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO account_deletion_operations(id,owner_did,state,phase,accepted_at)
-		VALUES($1,$2,'active','removingCraftskyRecords',$3)
-	`, jobID, owner, time.Date(2026, 8, 10, 15, 0, 0, 0, time.UTC)); err != nil {
-		t.Fatal(err)
-	}
-
-	pds := &durableBoundaryPDS{
-		pool:  pool,
-		jobID: jobID,
-		owner: owner,
-		craftsky: []auth.PDSRecord{
-			{URI: syntax.ATURI("at://did:plc:alice/social.craftsky.feed.post/one"), Value: map[string]any{"image": "blob-shared"}},
-			{URI: syntax.ATURI("at://did:plc:alice/social.craftsky.feed.like/two")},
-		},
-		nonCraftsky: []syntax.ATURI{
-			syntax.ATURI("at://did:plc:alice/app.bsky.feed.post/preserve"),
-		},
-		sharedBlobReferences: 2,
-	}
-	store := NewStore(pool, func() time.Time { return time.Date(2026, 8, 10, 15, 1, 0, 0, time.UTC) })
-	deleter := NewPDSDeleter(pds, store, 1)
-	result, err := deleter.DeleteAll(ctx, jobID.String(), owner)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.Listed != 2 || len(pds.craftsky) != 0 {
-		t.Fatalf("first deletion result = %+v remaining = %#v", result, pds.craftsky)
-	}
-	result, err = deleter.DeleteAll(ctx, jobID.String(), owner)
-	if err != nil || result.Listed != 0 {
-		t.Fatalf("repeat deletion = (%+v, %v)", result, err)
-	}
-	if len(pds.nonCraftsky) != 1 || pds.sharedBlobReferences != 2 {
-		t.Fatalf("preservation controls changed: nonCraftsky=%v blobRefs=%d", pds.nonCraftsky, pds.sharedBlobReferences)
-	}
-	assertJobRowCount(t, pool, "account_deletion_expected_records", jobID, 2)
-}
-
-type durableBoundaryPDS struct {
-	pool                 *pgxpool.Pool
-	jobID                uuid.UUID
-	owner                syntax.DID
-	craftsky             []auth.PDSRecord
-	nonCraftsky          []syntax.ATURI
-	sharedBlobReferences int
-}
-
-func (pds *durableBoundaryPDS) ListRecords(_ context.Context, repo syntax.DID, collection string, _ string, limit int) ([]auth.PDSRecord, string, error) {
-	if repo != pds.owner || !containsCraftskyCollection(syntax.NSID(collection)) {
-		return nil, "", errors.New("out-of-bound list")
-	}
-	var records []auth.PDSRecord
-	for _, record := range pds.craftsky {
-		if record.URI.Collection() == syntax.NSID(collection) {
-			records = append(records, record)
-			if len(records) == limit {
-				break
-			}
-		}
-	}
-	return records, "", nil
-}
-
-func (pds *durableBoundaryPDS) DeleteRecord(ctx context.Context, repo syntax.DID, collection string, rkey string) error {
-	uri := syntax.ATURI(fmt.Sprintf("at://%s/%s/%s", repo, collection, rkey))
-	var exists bool
-	if err := pds.pool.QueryRow(ctx, `
-		SELECT EXISTS(SELECT 1 FROM account_deletion_expected_records WHERE job_id=$1 AND uri=$2)
-	`, pds.jobID, uri).Scan(&exists); err != nil {
-		return err
-	}
-	if !exists {
-		return errors.New("delete called before durable expected record")
-	}
-	for index, record := range pds.craftsky {
-		if record.URI == uri {
-			pds.craftsky = append(pds.craftsky[:index], pds.craftsky[index+1:]...)
-			return nil
-		}
-	}
-	return auth.ErrRecordNotFound
-}
-
-var _ auth.DeletionPDSClient = (*durableBoundaryPDS)(nil)

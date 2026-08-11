@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -96,10 +95,6 @@ func Authenticated(authService auth.AuthService, logger *slog.Logger) func(http.
 				logger.Warn("auth: Authenticate returned error",
 					slog.String("error_category", "auth"),
 					slog.String("run_id", GetRunID(r.Context())))
-				if errors.Is(err, auth.ErrAccountDeletionPending) {
-					envelope.WriteError(w, http.StatusUnauthorized, "account_deletion_pending", "account deletion is pending", GetRunID(r.Context()), nil)
-					return
-				}
 				envelope.WriteError(w, http.StatusUnauthorized, "unauthorized", "authentication required", GetRunID(r.Context()), nil)
 				return
 			}

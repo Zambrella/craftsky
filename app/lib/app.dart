@@ -8,7 +8,6 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/providers/app_language_provider.dart';
 import 'package:craftsky_app/notifications/widgets/notification_effect_host.dart';
 import 'package:craftsky_app/router/router.dart';
-import 'package:craftsky_app/settings/widgets/account_deletion_status_refresh_host.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -110,10 +109,8 @@ class _ReadyApp extends ConsumerWidget {
           return TextScaleFactorClamper(
             child: FormFactorWidget(
               child: NotificationEffectHost(
-                child: AccountDeletionStatusRefreshHost(
-                  child: ActiveAccountInitializationGate(
-                    child: child ?? const SizedBox.shrink(),
-                  ),
+                child: ActiveAccountInitializationGate(
+                  child: child ?? const SizedBox.shrink(),
                 ),
               ),
             ),

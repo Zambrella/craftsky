@@ -66,26 +66,23 @@ void main() {
   });
 
   test(
-    'pending deletion runs status recovery without generic invalidation',
+    'any 401, including stale pending-deletion responses, invalidates normally',
     () async {
       final lease = AccountSessionLease(
         account: AccountKey('did:plc:alice'),
         sessionGeneration: 3,
       );
-      var recovered = 0;
       var invalidated = 0;
       final interceptor = SignOutOn401Interceptor.withLease(
         lease: lease,
         invalidate: (_) async => invalidated++,
-        recoverPendingDeletion: () async => recovered++,
       );
       final handler = _CapturingHandler();
 
       interceptor.onError(_pendingDeletion(), handler);
       await Future<void>.delayed(Duration.zero);
 
-      expect(recovered, 1);
-      expect(invalidated, 0);
+      expect(invalidated, 1);
     },
   );
 }

@@ -8,22 +8,37 @@ import 'package:path_provider/path_provider.dart';
 
 typedef AccountProductDataCleanup =
     Future<void> Function(AccountSessionLease lease);
+typedef AccountProductDataCleanupStep =
+    Future<void> Function(AccountSessionLease lease);
 
-final accountProductDataCleanerProvider = Provider<AccountProductDataCleanup>(
-  (ref) => (lease) async {
+final class AccountProductDataCleaner {
+  AccountProductDataCleaner(List<AccountProductDataCleanupStep> steps)
+    : _steps = List.unmodifiable(steps);
+
+  final List<AccountProductDataCleanupStep> _steps;
+
+  Future<void> clean(AccountSessionLease lease) async {
     Object? firstError;
     StackTrace? firstStackTrace;
 
-    Future<void> attempt(Future<void> Function() action) async {
+    for (final step in _steps) {
       try {
-        await action();
+        await step(lease);
       } on Object catch (error, stackTrace) {
         firstError ??= error;
         firstStackTrace ??= stackTrace;
       }
     }
 
-    await attempt(() async {
+    if (firstError != null) {
+      Error.throwWithStackTrace(firstError, firstStackTrace!);
+    }
+  }
+}
+
+final accountProductDataCleanerProvider = Provider<AccountProductDataCleanup>(
+  (ref) => AccountProductDataCleaner([
+    (lease) async {
       final documents = await getApplicationDocumentsDirectory();
       final paths = DraftStoragePaths(
         documentsRoot: documents.path,
@@ -36,20 +51,14 @@ final accountProductDataCleanerProvider = Provider<AccountProductDataCleanup>(
         );
       }
       await files.deleteDirectory(paths.accountRoot);
-    });
-    await attempt(
-      () =>
-          ref.read(instagramVerificationStorageProvider).delete(lease.account),
-    );
-    await attempt(() async {
+    },
+    (lease) =>
+        ref.read(instagramVerificationStorageProvider).delete(lease.account),
+    (_) async {
       await Future.wait([
         ref.read(profileImageCacheManagerProvider).emptyCache(),
         ref.read(feedImageCacheManagerProvider).emptyCache(),
       ]);
-    });
-
-    if (firstError != null) {
-      Error.throwWithStackTrace(firstError!, firstStackTrace!);
-    }
-  },
+    },
+  ]).clean,
 );

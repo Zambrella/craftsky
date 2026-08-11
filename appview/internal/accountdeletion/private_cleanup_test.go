@@ -15,23 +15,21 @@ import (
 	"social.craftsky/appview/internal/testdb"
 )
 
-func TestPrivateCleanupCheckpointsCompletedComponentsAndRetriesFailedStep(t *testing.T) {
+func TestPrivateCleanupReplaysEveryComponentAfterFailure(t *testing.T) {
 	t.Parallel()
 
-	jobID := uuid.MustParse("00000000-0000-4000-8000-000000000901")
 	owner := syntax.DID("did:plc:alice")
-	checkpoints := &fakeCleanupCheckpoints{completed: map[string]bool{}}
 	var calls []string
 	firstFailure := true
-	cleaner, err := NewPrivateCleaner(checkpoints, []PrivateCleanupComponent{
-		fakePrivateCleanupComponent{name: "databasePrivate", run: func(gotJobID uuid.UUID, gotOwner syntax.DID) error {
-			if gotJobID != jobID || gotOwner != owner {
-				t.Fatalf("database component scope = %s/%s", gotJobID, gotOwner)
+	cleaner, err := NewPrivateCleaner([]PrivateCleanupComponent{
+		fakePrivateCleanupComponent{name: "databasePrivate", run: func(gotOwner syntax.DID) error {
+			if gotOwner != owner {
+				t.Fatalf("database component scope = %s", gotOwner)
 			}
 			calls = append(calls, "databasePrivate")
 			return nil
 		}},
-		fakePrivateCleanupComponent{name: "scheduledPosts", run: func(uuid.UUID, syntax.DID) error {
+		fakePrivateCleanupComponent{name: "scheduledPosts", run: func(syntax.DID) error {
 			calls = append(calls, "scheduledPosts")
 			if firstFailure {
 				firstFailure = false
@@ -39,7 +37,7 @@ func TestPrivateCleanupCheckpointsCompletedComponentsAndRetriesFailedStep(t *tes
 			}
 			return nil
 		}},
-		fakePrivateCleanupComponent{name: "instagram", run: func(uuid.UUID, syntax.DID) error {
+		fakePrivateCleanupComponent{name: "instagram", run: func(syntax.DID) error {
 			calls = append(calls, "instagram")
 			return nil
 		}},
@@ -48,26 +46,17 @@ func TestPrivateCleanupCheckpointsCompletedComponentsAndRetriesFailedStep(t *tes
 		t.Fatalf("construct cleaner: %v", err)
 	}
 
-	if err := cleaner.Run(context.Background(), jobID, owner); err == nil {
+	if err := cleaner.Run(context.Background(), owner); err == nil {
 		t.Fatal("first cleanup unexpectedly succeeded")
 	}
 	if got, want := calls, []string{"databasePrivate", "scheduledPosts"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("first calls = %v, want %v", got, want)
 	}
-	if !checkpoints.completed["databasePrivate"] || checkpoints.completed["scheduledPosts"] {
-		t.Fatalf("first checkpoints = %v", checkpoints.completed)
-	}
-
-	if err := cleaner.Run(context.Background(), jobID, owner); err != nil {
+	if err := cleaner.Run(context.Background(), owner); err != nil {
 		t.Fatalf("retry cleanup: %v", err)
 	}
-	if got, want := calls, []string{"databasePrivate", "scheduledPosts", "scheduledPosts", "instagram"}; !reflect.DeepEqual(got, want) {
+	if got, want := calls, []string{"databasePrivate", "scheduledPosts", "databasePrivate", "scheduledPosts", "instagram"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("retry calls = %v, want %v", got, want)
-	}
-	for _, component := range []string{"databasePrivate", "scheduledPosts", "instagram"} {
-		if !checkpoints.completed[component] {
-			t.Errorf("component %s was not checkpointed", component)
-		}
 	}
 }
 
@@ -91,8 +80,8 @@ func TestDatabasePrivateCleanupDeletesOnlyOwnerPrivateState(t *testing.T) {
 		INSERT INTO oauth_sessions(account_did,session_id,data)
 		VALUES($1,'alice-deletion-oauth','{}'),($2,'bob-oauth','{}');
 		INSERT INTO account_deletion_operations(
-			id,owner_did,state,phase,accepted_at,deletion_oauth_session_id
-		) VALUES($4,$1,'active','removingPrivateData',$3,'alice-deletion-oauth');
+			id,owner_did,state,accepted_at,deletion_oauth_session_id
+		) VALUES($4,$1,'active',$3,'alice-deletion-oauth');
 
 		INSERT INTO craftsky_recent_searches(id,viewer_did,search_type,display_label,normalized_payload,normalized_payload_hash)
 		VALUES('alice-search',$1,'profile','Alice private search','{}','alice-search-hash'),
@@ -150,10 +139,10 @@ func TestDatabasePrivateCleanupDeletesOnlyOwnerPrivateState(t *testing.T) {
 	}
 
 	component := NewDatabasePrivateCleanup(pool)
-	if err := component.Purge(ctx, jobID, alice); err != nil {
+	if err := component.Purge(ctx, alice); err != nil {
 		t.Fatalf("purge Alice private database state: %v", err)
 	}
-	if err := component.Purge(ctx, jobID, alice); err != nil {
+	if err := component.Purge(ctx, alice); err != nil {
 		t.Fatalf("repeat Alice private database purge: %v", err)
 	}
 
@@ -205,26 +194,13 @@ func assertPrivateCleanupCount(t *testing.T, pool *pgxpool.Pool, table, column s
 	}
 }
 
-type fakeCleanupCheckpoints struct {
-	completed map[string]bool
-}
-
-func (store *fakeCleanupCheckpoints) CleanupStepComplete(_ context.Context, _ uuid.UUID, _ syntax.DID, component string) (bool, error) {
-	return store.completed[component], nil
-}
-
-func (store *fakeCleanupCheckpoints) CompleteCleanupStep(_ context.Context, _ uuid.UUID, _ syntax.DID, component string) error {
-	store.completed[component] = true
-	return nil
-}
-
 type fakePrivateCleanupComponent struct {
 	name string
-	run  func(uuid.UUID, syntax.DID) error
+	run  func(syntax.DID) error
 }
 
 func (component fakePrivateCleanupComponent) Name() string { return component.name }
 
-func (component fakePrivateCleanupComponent) Purge(_ context.Context, jobID uuid.UUID, owner syntax.DID) error {
-	return component.run(jobID, owner)
+func (component fakePrivateCleanupComponent) Purge(_ context.Context, owner syntax.DID) error {
+	return component.run(owner)
 }

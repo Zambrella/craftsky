@@ -1,11 +1,4 @@
-DROP TABLE IF EXISTS account_deletion_cleanup_artifacts;
-DROP TABLE IF EXISTS account_deletion_cleanup_steps;
-DROP TABLE IF EXISTS account_deletion_index_receipts;
-DROP TABLE IF EXISTS account_deletion_expected_records;
-DROP TABLE IF EXISTS account_deletion_recovery_credentials;
-DROP TABLE IF EXISTS account_deletion_status_credentials;
 DROP TABLE IF EXISTS account_deletion_operations;
-DROP TABLE IF EXISTS account_deletion_audits;
 
 ALTER TABLE oauth_auth_requests
     DROP CONSTRAINT IF EXISTS oauth_auth_requests_account_deletion_metadata_check,

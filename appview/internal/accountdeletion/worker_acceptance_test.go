@@ -1,282 +1,111 @@
 package accountdeletion
 
 import (
-	"bytes"
 	"context"
 	"errors"
-	"sort"
 	"testing"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"social.craftsky/appview/internal/auth"
-	"social.craftsky/appview/internal/instagram"
-	"social.craftsky/appview/internal/scheduledposts"
-	"social.craftsky/appview/internal/tap"
 	"social.craftsky/appview/internal/testdb"
 )
 
-func TestWorkerAcceptanceRunsCompleteDeletionLifecycleAcrossRestart(t *testing.T) {
+func TestWorkerAcceptanceReplaysWholeCleanupAndFinishesWithoutIndexerState(t *testing.T) {
 	t.Parallel()
-
 	pool := testdb.WithSchema(t, "")
 	applyAllAccountDeletionTestMigrations(t, pool)
 	ctx := context.Background()
-	current := time.Date(2026, 8, 10, 18, 0, 0, 0, time.UTC)
-	now := func() time.Time { return current }
-	alice := syntax.DID("did:plc:alice")
-	bob := syntax.DID("did:plc:bob")
-	jobID := uuid.MustParse("00000000-0000-4000-8000-000000000927")
-	seedPrivateManifestExecutionFixture(t, pool, alice, bob, jobID, current)
-	if _, err := pool.Exec(ctx, `DELETE FROM account_deletion_operations WHERE id=$1`, jobID); err != nil {
-		t.Fatalf("replace fixture operation with acceptance intent: %v", err)
+	now := time.Date(2026, 8, 11, 12, 0, 0, 0, time.UTC)
+	owner := syntax.DID("did:plc:alice")
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO oauth_sessions(account_did,session_id,data) VALUES($1,'deletion-oauth','{}');
+		INSERT INTO account_deletion_operations(
+			id,owner_did,state,accepted_at,deletion_oauth_session_id,next_attempt_at
+		) VALUES('10000000-0000-4000-8000-000000000003',$1,'active',$2,'deletion-oauth',$2);
+	`, owner, now); err != nil {
+		t.Fatal(err)
 	}
 
-	store := NewStore(pool, now)
-	if err := store.CreateIntent(ctx, IntentRecord{
-		JobID: jobID, Owner: alice, DeviceID: "alice-phone",
-		StatusCapabilityHash:   HashSecret("status-token"),
-		ConfirmationHandleHash: HashSecret("@alice.test"),
-		ExpiresAt:              current.Add(10 * time.Minute),
-	}); err != nil {
-		t.Fatalf("create deletion intent: %v", err)
-	}
-	if err := store.CompleteReauthentication(ctx, jobID, alice, "alice-deletion-oauth", HashSecret("fresh-proof")); err != nil {
-		t.Fatalf("bind fresh reauthentication: %v", err)
-	}
-	accepted, err := store.Accept(ctx, AcceptanceRequest{
-		JobID: jobID, Owner: alice, StatusCapability: "status-token",
-		ReauthProof: "fresh-proof", ConfirmationHandle: "@alice.test",
+	cleanupCalls := 0
+	failFirst := true
+	cleaner, err := NewPrivateCleaner([]PrivateCleanupComponent{
+		fakePrivateCleanupComponent{name: "private", run: func(got syntax.DID) error {
+			if got != owner {
+				t.Fatalf("cleanup owner = %s", got)
+			}
+			cleanupCalls++
+			if failFirst {
+				failFirst = false
+				return errors.New("synthetic interruption")
+			}
+			return nil
+		}},
 	})
 	if err != nil {
-		t.Fatalf("accept account deletion: %v", err)
+		t.Fatal(err)
 	}
-	if accepted.DeletionOAuthSessionID != "alice-deletion-oauth" || accepted.Phase != PhaseQueued {
-		t.Fatalf("accepted operation=%+v", accepted)
+	pds := &leanAcceptancePDS{
+		owner:   owner,
+		records: []auth.PDSRecord{{URI: "at://did:plc:alice/social.craftsky.feed.post/post1"}},
 	}
-	assertPrivateCleanupCount(t, pool, "craftsky_sessions", "account_did", alice, 0)
-	assertPrivateCleanupCount(t, pool, "oauth_sessions", "session_id", "alice-ordinary-oauth", 0)
-	assertPrivateCleanupCount(t, pool, "oauth_sessions", "session_id", "alice-deletion-oauth", 1)
-
-	limiter, err := instagram.NewPostgresRateLimiter(pool, bytes.Repeat([]byte{0x3e}, 32), now)
-	if err != nil {
-		t.Fatalf("construct Instagram limiter: %v", err)
-	}
-	instagramPrivate := instagram.NewPrivateDataService(pool, limiter, now)
-	instagramCleanup, err := NewNamedPrivateCleanup(
-		"instagramPrivate",
-		func(ctx context.Context, _ uuid.UUID, owner syntax.DID) error {
-			return PurgeInstagramForAccountDeletion(ctx, instagramPrivate, owner)
-		},
-	)
-	if err != nil {
-		t.Fatalf("construct Instagram cleanup: %v", err)
-	}
-	scheduledStore := scheduledposts.NewStore(pool)
-	scheduledDeletion := scheduledposts.NewAccountDeletion(pool, now)
-	newCleaner := func(store *Store) *PrivateCleaner {
-		cleaner, err := NewPrivateCleaner(store, []PrivateCleanupComponent{
-			NewDatabasePrivateCleanup(pool), instagramCleanup, scheduledDeletion,
-		})
-		if err != nil {
-			t.Fatalf("construct private cleaner: %v", err)
-		}
-		return cleaner
-	}
-
-	craftskyRecords := []auth.PDSRecord{
-		{URI: syntax.ATURI("at://did:plc:alice/social.craftsky.feed.post/a")},
-		{URI: syntax.ATURI("at://did:plc:alice/social.craftsky.feed.post/b")},
-		{URI: syntax.ATURI("at://did:plc:alice/social.craftsky.feed.like/l")},
-		{URI: syntax.ATURI("at://did:plc:alice/social.craftsky.feed.repost/r")},
-		{URI: syntax.ATURI("at://did:plc:alice/social.craftsky.actor.profile/self")},
-	}
-	pds := &acceptanceDeletionPDS{
-		owner: alice, records: append([]auth.PDSRecord(nil), craftskyRecords...),
-		preserved: []syntax.ATURI{
-			"at://did:plc:alice/app.bsky.feed.post/keep",
-			"at://did:plc:alice/com.example.private/keep",
-		},
-	}
-	newProcessor := func(store *Store, cleaner *PrivateCleaner) *LifecycleProcessor {
+	newWorker := func(workerID string) *Worker {
+		store := NewStore(pool, func() time.Time { return now })
 		processor, err := NewLifecycleProcessor(LifecycleProcessorOptions{
-			Store: store, Cleaner: cleaner, Convergence: NewConvergenceVerifier(pool),
-			NewPDSClient: func(_ context.Context, owner syntax.DID, sessionID string) (auth.DeletionPDSClient, error) {
-				if owner != alice || sessionID != "alice-deletion-oauth" {
-					return nil, errors.New("worker requested an unbound OAuth scope")
-				}
-				pds.workerOAuthCalls++
+			Store: store, Cleaner: cleaner, BatchSize: 1,
+			NewPDSClient: func(context.Context, syntax.DID, string) (auth.DeletionPDSClient, error) {
 				return pds, nil
 			},
-			PollInterval: time.Second, BatchSize: 1, Now: now,
 		})
 		if err != nil {
-			t.Fatalf("construct lifecycle processor: %v", err)
+			t.Fatal(err)
 		}
-		return processor
-	}
-	newWorker := func(store *Store, cleaner *PrivateCleaner, workerID string) *Worker {
 		worker, err := NewWorker(WorkerOptions{
-			Store: store, Processor: newProcessor(store, cleaner), WorkerID: workerID,
-			Now: now, LeaseDuration: time.Minute, RetryPolicy: DefaultRetryPolicy(),
+			Store: store, Processor: processor, WorkerID: workerID,
+			Now: func() time.Time { return now }, LeaseDuration: time.Minute,
+			RetryPolicy: RetryPolicy{Delays: []time.Duration{0}},
 		})
 		if err != nil {
-			t.Fatalf("construct deletion worker: %v", err)
+			t.Fatal(err)
 		}
 		return worker
 	}
 
-	worker := newWorker(store, newCleaner(store), "acceptance-before-restart")
-	processAcceptancePass(t, worker, ctx, "queued phase")
-	processAcceptancePass(t, worker, ctx, "private cleanup phase")
-
-	// Simulate a process restart after durable private checkpoints. The new
-	// store/cleaner/worker must continue the same operation without reacceptance.
-	restartedStore := NewStore(pool, now)
-	restartedCleaner := newCleaner(restartedStore)
-	worker = newWorker(restartedStore, restartedCleaner, "acceptance-after-restart")
-	processAcceptancePass(t, worker, ctx, "PDS deletion phase")
-	processAcceptancePass(t, worker, ctx, "pre-receipt convergence poll")
-
-	if len(pds.records) != 0 || pds.listCalls < len(CraftskyRecordCollections())*2 {
-		t.Fatalf("PDS CraftSky records=%v listCalls=%d", pds.records, pds.listCalls)
+	if processed, err := newWorker("before-restart").ProcessOne(ctx); err != nil || !processed {
+		t.Fatalf("first attempt = (%t, %v)", processed, err)
 	}
-	if len(pds.preserved) != 2 {
-		t.Fatalf("non-CraftSky PDS controls changed: %v", pds.preserved)
+	if processed, err := newWorker("after-restart").ProcessOne(ctx); err != nil || !processed {
+		t.Fatalf("restarted attempt = (%t, %v)", processed, err)
 	}
-
-	objects := &manifestMemoryObjectStore{objects: map[string][]byte{
-		"scheduled-media/alice": []byte("alice-private"),
-		"scheduled-media/bob":   []byte("bob-private"),
-	}}
-	objectCleaner, err := scheduledposts.NewCleanupProcessor(scheduledposts.CleanupProcessorOptions{
-		Store: scheduledStore, Objects: objects, Now: now,
-	})
-	if err != nil {
-		t.Fatalf("construct scheduled object cleaner: %v", err)
+	if cleanupCalls != 2 || len(pds.records) != 0 || pds.listCalls < len(CraftskyRecordCollections())*2 {
+		t.Fatalf("cleanupCalls=%d records=%v listCalls=%d", cleanupCalls, pds.records, pds.listCalls)
 	}
-	if processed, err := objectCleaner.ProcessBatch(ctx); err != nil || processed != 1 {
-		t.Fatalf("scheduled object cleanup processed=%d err=%v", processed, err)
-	}
-
-	observer := NewReceiptObserver(pool, now)
-	for index := len(craftskyRecords) - 1; index >= 0; index-- {
-		record := craftskyRecords[index]
-		deleteAcceptanceProjection(t, pool, alice, record.URI)
-		event := tap.Event{
-			URI: record.URI, DID: alice, Collection: record.URI.Collection(), Action: "delete",
-			ID: uint64(100 + index), Rev: "acceptance-rev-" + record.URI.RecordKey().String(),
-		}
-		if err := observer.ObserveHandled(ctx, event); err != nil {
-			t.Fatalf("persist reordered receipt %s: %v", record.URI, err)
-		}
-		if index == len(craftskyRecords)-1 {
-			if err := observer.ObserveHandled(ctx, event); err != nil {
-				t.Fatalf("persist duplicate receipt %s: %v", record.URI, err)
-			}
-		}
-	}
-
-	current = current.Add(time.Second)
-	processAcceptancePass(t, worker, ctx, "converged waiting phase")
-	processAcceptancePass(t, worker, ctx, "terminal full-rescan phase")
-
-	assertPrivateCleanupCount(t, pool, "account_deletion_operations", "id", jobID, 0)
-	assertPrivateCleanupCount(t, pool, "oauth_sessions", "account_did", alice, 0)
-	assertPrivateCleanupCount(t, pool, "account_deletion_audits", "job_id", jobID, 1)
-	for _, operational := range []string{
-		"account_deletion_status_credentials", "account_deletion_recovery_credentials",
-		"account_deletion_expected_records", "account_deletion_index_receipts",
-		"account_deletion_cleanup_steps", "account_deletion_cleanup_artifacts",
-	} {
-		assertPrivateCleanupCount(t, pool, operational, "job_id", jobID, 0)
-	}
-	assertPrivateCleanupCount(t, pool, "craftsky_profiles", "did", bob, 1)
-	assertPrivateCleanupCount(t, pool, "atproto_identity_cache", "did", alice, 1)
-	assertPrivateCleanupCount(t, pool, "bluesky_profiles", "did", alice, 1)
-	assertPrivateCleanupCount(t, pool, "instagram_account_links", "owner_did", bob, 1)
-	assertPrivateCleanupCount(t, pool, "scheduled_post_media", "owner_did", bob, 1)
-	if pds.workerOAuthCalls < 2 {
-		t.Fatalf("worker bound-OAuth calls=%d, want deletion plus final rescan", pds.workerOAuthCalls)
-	}
+	assertCount(t, pool, `SELECT count(*) FROM account_deletion_operations WHERE owner_did=$1`, owner, 0)
+	assertCount(t, pool, `SELECT count(*) FROM oauth_sessions WHERE account_did=$1`, owner, 0)
 }
 
-func processAcceptancePass(t *testing.T, worker *Worker, ctx context.Context, label string) {
-	t.Helper()
-	processed, err := worker.ProcessOne(ctx)
-	if err != nil || !processed {
-		t.Fatalf("%s processed=%t err=%v", label, processed, err)
-	}
+type leanAcceptancePDS struct {
+	owner     syntax.DID
+	records   []auth.PDSRecord
+	listCalls int
 }
 
-func deleteAcceptanceProjection(t *testing.T, pool *pgxpool.Pool, owner syntax.DID, uri syntax.ATURI) {
-	t.Helper()
-	var err error
-	switch uri.Collection().String() {
-	case "social.craftsky.feed.post":
-		_, err = pool.Exec(context.Background(), `DELETE FROM craftsky_posts WHERE uri=$1`, uri)
-	case "social.craftsky.feed.like":
-		_, err = pool.Exec(context.Background(), `DELETE FROM craftsky_likes WHERE uri=$1`, uri)
-	case "social.craftsky.feed.repost":
-		_, err = pool.Exec(context.Background(), `DELETE FROM craftsky_reposts WHERE uri=$1`, uri)
-	case "social.craftsky.actor.profile":
-		_, err = pool.Exec(context.Background(), `DELETE FROM craftsky_profiles WHERE did=$1`, owner)
-	}
-	if err != nil {
-		t.Fatalf("delete indexed projection %s: %v", uri, err)
-	}
-}
-
-type acceptanceDeletionPDS struct {
-	owner            syntax.DID
-	records          []auth.PDSRecord
-	preserved        []syntax.ATURI
-	listCalls        int
-	workerOAuthCalls int
-}
-
-func (pds *acceptanceDeletionPDS) ListRecords(
-	_ context.Context,
-	owner syntax.DID,
-	collection string,
-	cursor string,
-	limit int,
-) ([]auth.PDSRecord, string, error) {
+func (pds *leanAcceptancePDS) ListRecords(_ context.Context, owner syntax.DID, collection, _ string, _ int) ([]auth.PDSRecord, string, error) {
 	if owner != pds.owner {
-		return nil, "", errors.New("wrong PDS owner")
+		return nil, "", errors.New("wrong owner")
 	}
 	pds.listCalls++
-	matches := make([]auth.PDSRecord, 0)
 	for _, record := range pds.records {
-		if record.URI.Collection().String() == collection && record.URI.RecordKey().String() > cursor {
-			matches = append(matches, record)
+		if record.URI.Collection().String() == collection {
+			return []auth.PDSRecord{record}, "", nil
 		}
 	}
-	sort.Slice(matches, func(i, j int) bool { return matches[i].URI.String() < matches[j].URI.String() })
-	if len(matches) == 0 {
-		return nil, "", nil
-	}
-	if limit > len(matches) {
-		limit = len(matches)
-	}
-	page := append([]auth.PDSRecord(nil), matches[:limit]...)
-	nextCursor := ""
-	if len(matches) > limit {
-		nextCursor = page[len(page)-1].URI.RecordKey().String()
-	}
-	return page, nextCursor, nil
+	return nil, "", nil
 }
 
-func (pds *acceptanceDeletionPDS) DeleteRecord(
-	_ context.Context,
-	owner syntax.DID,
-	collection string,
-	rkey string,
-) error {
+func (pds *leanAcceptancePDS) DeleteRecord(_ context.Context, owner syntax.DID, collection, rkey string) error {
 	if owner != pds.owner {
-		return errors.New("wrong PDS owner")
+		return errors.New("wrong owner")
 	}
 	for index, record := range pds.records {
 		if record.URI.Collection().String() == collection && record.URI.RecordKey().String() == rkey {

@@ -3,7 +3,6 @@ package accountdeletion
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
@@ -11,150 +10,34 @@ import (
 	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/auth"
-	"social.craftsky/appview/internal/testdb"
 )
 
 func TestPDSDeletionRestartConvergesAfterUncertainSideEffect(t *testing.T) {
 	t.Parallel()
 
-	up, err := os.ReadFile("../../migrations/000037_account_deletion.up.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	pool := testdb.WithSchema(t, accountDeletionStorePreStateDDL)
-	ctx := context.Background()
-	if _, err := pool.Exec(ctx, string(up)); err != nil {
-		t.Fatal(err)
-	}
 	owner := syntax.DID("did:plc:alice")
-	jobID := uuid.MustParse("10000000-0000-0000-0000-000000000041")
-	now := time.Date(2026, 8, 10, 15, 0, 0, 0, time.UTC)
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO account_deletion_operations(id,owner_did,state,phase,accepted_at)
-		VALUES($1,$2,'active','removingCraftskyRecords',$3)
-	`, jobID, owner, now); err != nil {
-		t.Fatal(err)
-	}
 	pds := &uncertainDeletePDS{
 		owner:               owner,
 		record:              auth.PDSRecord{URI: syntax.ATURI("at://did:plc:alice/social.craftsky.feed.post/uncertain")},
 		failAfterSideEffect: true,
 	}
-	store := NewStore(pool, func() time.Time { return now })
-	deleter := NewPDSDeleter(pds, store, 20)
-	if _, err := deleter.DeleteAll(ctx, jobID.String(), owner); err == nil {
+	deleter := NewPDSDeleter(pds, 20)
+	if _, err := deleter.DeleteAll(context.Background(), owner); err == nil {
 		t.Fatal("uncertain PDS failure unexpectedly succeeded")
 	}
-
-	var deleteRequested bool
-	if err := pool.QueryRow(ctx, `
-		SELECT delete_requested_at IS NOT NULL FROM account_deletion_expected_records
-		WHERE job_id=$1 AND uri=$2
-	`, jobID, pds.deletedURI).Scan(&deleteRequested); err != nil {
-		t.Fatal(err)
-	}
-	if !deleteRequested {
-		t.Fatal("uncertain delete request was not durably marked")
+	if pds.record.URI != "" {
+		t.Fatal("injected failure did not occur after the PDS side effect")
 	}
 
-	restartedStore := NewStore(pool, func() time.Time { return now.Add(time.Minute) })
-	restarted := NewPDSDeleter(pds, restartedStore, 20)
-	result, err := restarted.DeleteAll(ctx, jobID.String(), owner)
+	result, err := deleter.DeleteAll(context.Background(), owner)
 	if err != nil || result.Listed != 0 {
 		t.Fatalf("restart convergence = (%+v, %v)", result, err)
 	}
-	if TerminalSuccessEligible(TerminalGates{ExpectedRecordReceiptsComplete: false}) {
-		t.Fatal("an uncertain side effect without an index receipt must not permit terminal success")
-	}
-}
-
-func TestPDSDeletionDoesNotRunBeforeDeleteRequestMarkerPersists(t *testing.T) {
-	t.Parallel()
-
-	up, err := os.ReadFile("../../migrations/000037_account_deletion.up.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	pool := testdb.WithSchema(t, accountDeletionStorePreStateDDL)
-	ctx := context.Background()
-	if _, err := pool.Exec(ctx, string(up)); err != nil {
-		t.Fatal(err)
-	}
-	owner := syntax.DID("did:plc:alice")
-	jobID := uuid.MustParse("10000000-0000-0000-0000-000000000042")
-	now := time.Date(2026, 8, 10, 15, 0, 0, 0, time.UTC)
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO account_deletion_operations(id,owner_did,state,phase,accepted_at)
-		VALUES($1,$2,'active','removingCraftskyRecords',$3)
-	`, jobID, owner, now); err != nil {
-		t.Fatal(err)
-	}
-	pds := &uncertainDeletePDS{
-		owner: owner,
-		record: auth.PDSRecord{
-			URI: syntax.ATURI("at://did:plc:alice/social.craftsky.feed.post/marker"),
-		},
-	}
-	store := NewStore(pool, func() time.Time { return now })
-	registrar := &failOnceDeleteRequestMarker{store: store, fail: true}
-	deleter := NewPDSDeleter(pds, registrar, 20)
-	if _, err := deleter.DeleteAll(ctx, jobID.String(), owner); err == nil {
-		t.Fatal("marker persistence failure unexpectedly succeeded")
-	}
-	if pds.record.URI == "" || pds.deletedURI != "" {
-		t.Fatalf("PDS delete ran before marker persisted: record=%q deleted=%q", pds.record.URI, pds.deletedURI)
-	}
-
-	if _, err := deleter.DeleteAll(ctx, jobID.String(), owner); err != nil {
-		t.Fatalf("retry after marker persistence failure: %v", err)
-	}
-	if pds.record.URI != "" || pds.deletedURI == "" {
-		t.Fatalf("PDS retry did not delete record: record=%q deleted=%q", pds.record.URI, pds.deletedURI)
-	}
-	var marked bool
-	if err := pool.QueryRow(ctx, `
-		SELECT delete_requested_at IS NOT NULL
-		FROM account_deletion_expected_records WHERE job_id=$1 AND uri=$2
-	`, jobID, pds.deletedURI).Scan(&marked); err != nil {
-		t.Fatal(err)
-	}
-	if !marked {
-		t.Fatal("successful retry did not retain the durable delete marker")
-	}
-}
-
-type failOnceDeleteRequestMarker struct {
-	store *Store
-	fail  bool
-}
-
-func (registrar *failOnceDeleteRequestMarker) RegisterExpected(
-	ctx context.Context,
-	jobID string,
-	owner syntax.DID,
-	uri syntax.ATURI,
-	collection syntax.NSID,
-) error {
-	return registrar.store.RegisterExpected(ctx, jobID, owner, uri, collection)
-}
-
-func (registrar *failOnceDeleteRequestMarker) MarkDeleteRequested(
-	ctx context.Context,
-	jobID string,
-	owner syntax.DID,
-	uri syntax.ATURI,
-) error {
-	if registrar.fail {
-		registrar.fail = false
-		return errors.New("synthetic marker persistence failure")
-	}
-	return registrar.store.MarkDeleteRequested(ctx, jobID, owner, uri)
 }
 
 type uncertainDeletePDS struct {
 	owner               syntax.DID
 	record              auth.PDSRecord
-	deletedURI          syntax.ATURI
 	failAfterSideEffect bool
 }
 
@@ -169,7 +52,6 @@ func (pds *uncertainDeletePDS) ListRecords(_ context.Context, repo syntax.DID, c
 }
 
 func (pds *uncertainDeletePDS) DeleteRecord(_ context.Context, _ syntax.DID, _ string, _ string) error {
-	pds.deletedURI = pds.record.URI
 	pds.record = auth.PDSRecord{}
 	if pds.failAfterSideEffect {
 		pds.failAfterSideEffect = false
@@ -179,3 +61,85 @@ func (pds *uncertainDeletePDS) DeleteRecord(_ context.Context, _ syntax.DID, _ s
 }
 
 var _ auth.DeletionPDSClient = (*uncertainDeletePDS)(nil)
+
+func TestWorkerSchedulesCappedRetryThroughProductionBoundary(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 11, 12, 0, 0, 0, time.UTC)
+	operation := ClaimedOperation{
+		JobID:        uuid.MustParse("10000000-0000-4000-8000-000000000099"),
+		Owner:        syntax.DID("did:plc:alice"),
+		AttemptCount: 99,
+		LeaseToken:   uuid.MustParse("20000000-0000-4000-8000-000000000099"),
+	}
+	store := &recordingRetryWorkerStore{operation: operation}
+	worker, err := NewWorker(WorkerOptions{
+		Store: store,
+		Processor: deletionProcessorFunc(func(context.Context, ClaimedOperation) error {
+			return NewDeletionFailure(ErrorCategoryPDS, errors.New("synthetic PDS outage"))
+		}),
+		WorkerID:      "worker",
+		Now:           func() time.Time { return now },
+		LeaseDuration: time.Minute,
+		RetryPolicy: RetryPolicy{
+			Delays: []time.Duration{0, time.Minute, 6 * time.Hour},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	processed, err := worker.ProcessOne(context.Background())
+	if err != nil || !processed {
+		t.Fatalf("process = (%t, %v)", processed, err)
+	}
+	if store.nextAttemptCount != 100 || store.category != ErrorCategoryPDS || !store.nextAt.Equal(now.Add(6*time.Hour)) {
+		t.Fatalf("failure update attempt=%d category=%q next=%s", store.nextAttemptCount, store.category, store.nextAt)
+	}
+	if store.completed {
+		t.Fatal("failed attempt was finalized")
+	}
+}
+
+type deletionProcessorFunc func(context.Context, ClaimedOperation) error
+
+func (process deletionProcessorFunc) Process(ctx context.Context, operation ClaimedOperation) error {
+	return process(ctx, operation)
+}
+
+type recordingRetryWorkerStore struct {
+	operation        ClaimedOperation
+	claimed          bool
+	nextAt           time.Time
+	category         ErrorCategory
+	nextAttemptCount int
+	completed        bool
+}
+
+func (store *recordingRetryWorkerStore) ClaimDue(context.Context, string, time.Duration) (ClaimedOperation, bool, error) {
+	if store.claimed {
+		return ClaimedOperation{}, false, nil
+	}
+	store.claimed = true
+	return store.operation, true, nil
+}
+
+func (store *recordingRetryWorkerStore) RecordFailure(
+	_ context.Context,
+	_ ClaimedOperation,
+	nextAt time.Time,
+	category ErrorCategory,
+	nextAttemptCount int,
+) error {
+	store.nextAt = nextAt
+	store.category = category
+	store.nextAttemptCount = nextAttemptCount
+	return nil
+}
+
+func (store *recordingRetryWorkerStore) CompleteAttempt(context.Context, ClaimedOperation) error {
+	store.completed = true
+	return nil
+}
+
+var _ WorkerStore = (*recordingRetryWorkerStore)(nil)

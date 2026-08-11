@@ -9,8 +9,6 @@ class RouteLocations {
   static const authComplete = '/auth/complete';
   static const accountDeletionReauthComplete =
       '/account-deletion/reauth-complete';
-  static const accountDeletionPendingLogin = '/account-deletion/pending-login';
-  static const accountDeletionStatus = '/account-deletion/:jobId';
   static const onboarding = '/onboarding';
   static const feed = '/feed';
   // Alias: the post-auth home landing. Keep as a const reference to `feed`

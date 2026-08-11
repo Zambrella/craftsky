@@ -1,14 +1,9 @@
-import 'package:craftsky_app/auth/data/account_deletion_repository.dart';
-import 'package:craftsky_app/auth/models/account_deletion.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart'
     as import_registry;
 import 'package:craftsky_app/auth/providers/account_boundary_provider.dart';
-import 'package:craftsky_app/auth/providers/deletion_status_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
-import 'package:craftsky_app/router/router.dart';
-import 'package:craftsky_app/settings/services/account_product_data_cleaner.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:craftsky_app/shared/api/providers/session_auth_interceptor.dart';
 import 'package:craftsky_app/shared/api/providers/sign_out_on_401_interceptor.dart';
@@ -23,7 +18,6 @@ part 'dio_provider.g.dart';
 typedef _ClientTarget = ({
   String token,
   String did,
-  String handle,
   int generation,
 });
 typedef _AccountClientSelection = ({bool loaded, _ClientTarget? target});
@@ -107,11 +101,6 @@ Future<Dio> accountDio(Ref ref, AccountKey account) async {
     SignOutOn401Interceptor.withLease(
       lease: lease,
       invalidate: ref.read(accountSessionInvalidatorProvider),
-      recoverPendingDeletion: () => _recoverPendingDeletion(
-        ref,
-        lease: lease,
-        target: target,
-      ),
     ),
   ]);
   ref.onDispose(() => client.close(force: true));
@@ -145,11 +134,6 @@ Dio dio(Ref ref) {
       SignOutOn401Interceptor.withLease(
         lease: lease,
         invalidate: ref.read(accountSessionInvalidatorProvider),
-        recoverPendingDeletion: () => _recoverPendingDeletion(
-          ref,
-          lease: lease,
-          target: active,
-        ),
       ),
     ]);
   }
@@ -168,7 +152,6 @@ _ClientTarget? _activeClientTarget(
       : (
           token: session.token,
           did: session.did.value,
-          handle: session.handle.value,
           generation: session.sessionGeneration,
         );
 }
@@ -185,74 +168,7 @@ _AccountClientSelection _accountClientSelection(
         : (
             token: session.token,
             did: session.did.value,
-            handle: session.handle.value,
             generation: session.sessionGeneration,
           ),
   );
-}
-
-Future<void> _recoverPendingDeletion(
-  Ref ref, {
-  required AccountSessionLease lease,
-  required _ClientTarget target,
-}) async {
-  final deviceId = await ref.read(deviceIdProvider.future);
-  final base = baseDioOptions();
-  final recoveryDio = Dio(
-    base.copyWith(
-      headers: {
-        ...base.headers,
-        'Authorization': 'Bearer ${target.token}',
-        'X-Craftsky-Device-Id': deviceId,
-      },
-    ),
-  )..interceptors.add(const ErrorMappingInterceptor());
-  try {
-    final recovered = await AccountDeletionRecoveryClient(
-      recoveryDio,
-    ).recover();
-    final snapshot = recovered.snapshot;
-    final before = await ref.read(sessionRegistryProvider.future);
-    final stored = before.sessions[lease.account.did];
-    if (before.leaseFor(lease.account) != lease || stored == null) return;
-    final entry = DeletionStatusEntry(
-      jobId: recovered.jobId,
-      did: target.did,
-      handle: target.handle,
-      statusToken: recovered.statusToken,
-      status: snapshot.status,
-      phase: snapshot.phase,
-      canRetry: snapshot.canRetry,
-      needsReauthentication: snapshot.needsReauthentication,
-      displayName: stored.cachedDisplayName,
-      avatarUrl: stored.cachedAvatarUrl,
-    );
-
-    // Persist status-only access before touching the ordinary session.
-    await ref.read(deletionStatusRegistryProvider.notifier).upsert(entry);
-    final removesActive = before.activeLease?.session == lease;
-    if (removesActive) await ref.read(accountStateInvalidatorProvider)();
-    Object? cleanupError;
-    StackTrace? cleanupStackTrace;
-    try {
-      await ref.read(accountProductDataCleanerProvider)(lease);
-    } on Object catch (error, stackTrace) {
-      cleanupError = error;
-      cleanupStackTrace = stackTrace;
-    }
-    await ref.read(sessionRegistryProvider.notifier).removeConfirmed(lease);
-    if (removesActive) {
-      final after = await ref.read(sessionRegistryProvider.future);
-      if (after.activeDid != null) {
-        await ref.read(accountHomeResetProvider)();
-      } else {
-        ref.read(goRouterProvider).go('/account-deletion/${entry.jobId}');
-      }
-    }
-    if (cleanupError != null) {
-      Error.throwWithStackTrace(cleanupError, cleanupStackTrace!);
-    }
-  } finally {
-    recoveryDio.close(force: true);
-  }
 }

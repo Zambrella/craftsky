@@ -16,19 +16,4 @@ func TestBlobBoundaryIsReferenceOnlyAndNeverTerminalGate(t *testing.T) {
 			t.Fatalf("deletion PDS capability exposes forbidden %s", forbidden)
 		}
 	}
-	gates := TerminalGates{
-		PrivateCleanupComplete:           true,
-		OrdinarySessionsAbsent:           true,
-		SubscriptionsAbsent:              true,
-		ExpectedRecordReceiptsComplete:   true,
-		IndexedRecordsAbsent:             true,
-		DerivedEffectsRetracted:          true,
-		ScheduledObjectCleanupComplete:   true,
-		FinalPDSRescanEmpty:              true,
-		BoundOAuthSessionRemoved:         true,
-		PDSBlobGarbageCollectionComplete: false,
-	}
-	if !TerminalSuccessEligible(gates) {
-		t.Fatal("unknown or delayed PDS blob GC incorrectly blocked terminal success")
-	}
 }
