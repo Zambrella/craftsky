@@ -6,6 +6,8 @@ import 'package:craftsky_app/auth/pages/auth_complete_page.dart';
 import 'package:craftsky_app/auth/pages/sign_in_page.dart';
 import 'package:craftsky_app/auth/pages/welcome_page.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/deletion_status_registry_provider.dart'
+    show deletionStatusRegistryProvider;
 import 'package:craftsky_app/design_playground/pages/design_playground_page.dart';
 import 'package:craftsky_app/drafts/pages/drafts_page.dart';
 import 'package:craftsky_app/feed/models/post.dart';
@@ -32,6 +34,11 @@ import 'package:craftsky_app/scheduled_posts/pages/scheduled_posts_page.dart';
 import 'package:craftsky_app/search/models/search_results_tab.dart';
 import 'package:craftsky_app/search/pages/search_page.dart';
 import 'package:craftsky_app/search/pages/tag_search_page.dart';
+import 'package:craftsky_app/settings/pages/about_page.dart';
+import 'package:craftsky_app/settings/pages/account_deletion_pending_login_page.dart';
+import 'package:craftsky_app/settings/pages/account_deletion_reauth_complete_page.dart';
+import 'package:craftsky_app/settings/pages/account_deletion_status_page.dart';
+import 'package:craftsky_app/settings/pages/account_page.dart';
 import 'package:craftsky_app/settings/pages/follow_list_page.dart';
 import 'package:craftsky_app/settings/pages/profile_customisation_page.dart';
 import 'package:craftsky_app/settings/pages/relationship_list_page.dart';
@@ -103,7 +110,8 @@ GoRouter goRouter(Ref ref) {
     ..listen(authSessionProvider, (_, next) {
       refresh.fire();
       onboardingListener.update(next.value);
-    });
+    })
+    ..listen(deletionStatusRegistryProvider, (_, _) => refresh.fire());
 
   return GoRouter(
     initialLocation: RouteLocations.welcome,
@@ -122,12 +130,22 @@ GoRouter goRouter(Ref ref) {
       switch (auth) {
         case SignedOut():
           if (loc == RouteLocations.authComplete) return null;
+          if (loc == RouteLocations.accountDeletionPendingLogin) return null;
+          if (loc == RouteLocations.accountDeletionStatus) {
+            final jobId = state.pathParameters['jobId'];
+            final statuses = ref.read(deletionStatusRegistryProvider).value;
+            if (jobId != null && statuses?[jobId] != null) return null;
+          }
           return unauthenticatedRoutes.contains(loc)
               ? null
               : RouteLocations.welcome;
         case SignedIn(:final did):
           final onboarded = ref.read(onboardingStatusProvider(did));
           if (loc == RouteLocations.authComplete) return null;
+          if (loc == RouteLocations.accountDeletionReauthComplete ||
+              loc == RouteLocations.accountDeletionStatus) {
+            return null;
+          }
           if (!onboarded && loc != RouteLocations.onboarding) {
             return RouteLocations.onboarding;
           }
@@ -139,10 +157,56 @@ GoRouter goRouter(Ref ref) {
           return null;
       }
     },
-    routes: $appRoutes,
+    routes: [
+      GoRoute(
+        path: RouteLocations.accountDeletionPendingLogin,
+        name: 'account-deletion-pending-login',
+        builder: (context, state) => AccountDeletionPendingLoginPage(
+          jobId: state.uri.queryParameters['jobId'] ?? '',
+          statusToken: state.uri.queryParameters['statusToken'] ?? '',
+          did: state.uri.queryParameters['did'] ?? '',
+          handle: state.uri.queryParameters['handle'] ?? '',
+        ),
+      ),
+      ...$appRoutes,
+    ],
     errorBuilder: (context, state) =>
         ErrorScreen(error: state.error ?? 'Unknown routing error'),
   );
+}
+
+@TypedGoRoute<AccountDeletionReauthCompleteRoute>(
+  path: RouteLocations.accountDeletionReauthComplete,
+  name: 'account-deletion-reauth-complete',
+)
+class AccountDeletionReauthCompleteRoute extends GoRouteData
+    with $AccountDeletionReauthCompleteRoute {
+  const AccountDeletionReauthCompleteRoute({
+    required this.jobId,
+    required this.proof,
+  });
+
+  final String jobId;
+  final String proof;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      AccountDeletionReauthCompletePage(jobId: jobId, proof: proof);
+}
+
+@TypedGoRoute<AccountDeletionStatusRoute>(
+  path: RouteLocations.accountDeletionStatus,
+  name: 'account-deletion-status',
+)
+class AccountDeletionStatusRoute extends GoRouteData
+    with $AccountDeletionStatusRoute {
+  const AccountDeletionStatusRoute({required this.jobId});
+
+  final String jobId;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      AccountDeletionStatusPage(jobId: jobId);
 }
 
 // --- Shell route -----------------------------------------------------------
@@ -205,6 +269,14 @@ GoRouter goRouter(Ref ref) {
                     TypedGoRoute<ProfileCustomisationRoute>(
                       path: RouteLocations.customisationChild,
                       name: 'profile-customisation',
+                    ),
+                    TypedGoRoute<AccountRoute>(
+                      path: RouteLocations.accountChild,
+                      name: 'settings-account',
+                    ),
+                    TypedGoRoute<AboutRoute>(
+                      path: RouteLocations.aboutChild,
+                      name: 'settings-about',
                     ),
                     TypedGoRoute<LanguagesRoute>(
                       path: RouteLocations.languagesChild,
@@ -421,6 +493,27 @@ class ProfileCustomisationRoute extends GoRouteData
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const ProfileCustomisationPage();
+}
+
+class AccountRoute extends GoRouteData with $AccountRoute {
+  const AccountRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.authenticatedShellNavigatorKey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const AccountPage();
+}
+
+class AboutRoute extends GoRouteData with $AboutRoute {
+  const AboutRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.authenticatedShellNavigatorKey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) => const AboutPage();
 }
 
 class ScheduledPostsRoute extends GoRouteData with $ScheduledPostsRoute {

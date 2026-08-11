@@ -4190,6 +4190,222 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Replace image'**
   String get draftsReplaceImageAction;
+
+  /// Settings page title.
+  ///
+  /// In en, this message translates to:
+  /// **'Settings'**
+  String get settingsTitle;
+
+  /// Action opening the retained-account switcher.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch account'**
+  String get settingsSwitchAccount;
+
+  /// Settings section containing app preferences.
+  ///
+  /// In en, this message translates to:
+  /// **'Preferences'**
+  String get settingsSectionPreferences;
+
+  /// Settings section containing relationship lists.
+  ///
+  /// In en, this message translates to:
+  /// **'Connections'**
+  String get settingsSectionConnections;
+
+  /// Settings section containing account discovery.
+  ///
+  /// In en, this message translates to:
+  /// **'Discovery'**
+  String get settingsSectionDiscovery;
+
+  /// Settings section containing Account and About.
+  ///
+  /// In en, this message translates to:
+  /// **'General'**
+  String get settingsSectionGeneral;
+
+  /// Settings row opening notification settings.
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get settingsNotifications;
+
+  /// Settings row opening followers.
+  ///
+  /// In en, this message translates to:
+  /// **'Followers'**
+  String get settingsFollowers;
+
+  /// Settings row opening followed accounts.
+  ///
+  /// In en, this message translates to:
+  /// **'Following'**
+  String get settingsFollowing;
+
+  /// Settings row opening account settings.
+  ///
+  /// In en, this message translates to:
+  /// **'Account'**
+  String get settingsAccount;
+
+  /// Settings row opening About.
+  ///
+  /// In en, this message translates to:
+  /// **'About'**
+  String get settingsAbout;
+
+  /// External Terms link on About.
+  ///
+  /// In en, this message translates to:
+  /// **'Terms'**
+  String get settingsTerms;
+
+  /// External Privacy policy link on About.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy policy'**
+  String get settingsPrivacyPolicy;
+
+  /// Immediate action clearing downloaded image caches.
+  ///
+  /// In en, this message translates to:
+  /// **'Clear image cache'**
+  String get settingsClearImageCache;
+
+  /// Success feedback after clearing image caches.
+  ///
+  /// In en, this message translates to:
+  /// **'Image cache cleared'**
+  String get settingsImageCacheCleared;
+
+  /// Read-only app version label on About.
+  ///
+  /// In en, this message translates to:
+  /// **'Version'**
+  String get settingsVersion;
+
+  /// Immediate action signing out the active account.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign out'**
+  String get settingsSignOut;
+
+  /// Account settings page title.
+  ///
+  /// In en, this message translates to:
+  /// **'Account'**
+  String get accountTitle;
+
+  /// First permanent CraftSky deletion dialog title.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete CraftSky account?'**
+  String get deleteAccountTitle;
+
+  /// Destructive account deletion action.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete account'**
+  String get deleteAccountAction;
+
+  /// Action continuing to fresh reauthentication.
+  ///
+  /// In en, this message translates to:
+  /// **'Continue'**
+  String get deleteAccountContinue;
+
+  /// Typed-handle confirmation dialog title.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm account deletion'**
+  String get deleteAccountConfirmTitle;
+
+  /// Label for exact-handle deletion confirmation input.
+  ///
+  /// In en, this message translates to:
+  /// **'Type your handle'**
+  String get deleteAccountTypeHandleLabel;
+
+  /// Prompt for exact-handle deletion confirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Type {handle} exactly to permanently delete this CraftSky account.'**
+  String deleteAccountConfirmationPrompt(String handle);
+
+  /// Coarse account-deletion preparation phase.
+  ///
+  /// In en, this message translates to:
+  /// **'Preparing deletion'**
+  String get accountDeletionPreparing;
+
+  /// Coarse private-data deletion phase.
+  ///
+  /// In en, this message translates to:
+  /// **'Removing private CraftSky data'**
+  String get accountDeletionRemovingPrivateData;
+
+  /// Coarse PDS record-deletion phase.
+  ///
+  /// In en, this message translates to:
+  /// **'Removing CraftSky records'**
+  String get accountDeletionRemovingRecords;
+
+  /// Coarse AppView convergence phase.
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for CraftSky to update'**
+  String get accountDeletionWaitingForCraftsky;
+
+  /// Coarse account-deletion finalization phase.
+  ///
+  /// In en, this message translates to:
+  /// **'Finalizing'**
+  String get accountDeletionFinalizing;
+
+  /// Coarse account-deletion retry phase.
+  ///
+  /// In en, this message translates to:
+  /// **'Retrying'**
+  String get accountDeletionRetrying;
+
+  /// Account-deletion attention-required state.
+  ///
+  /// In en, this message translates to:
+  /// **'Deletion needs attention'**
+  String get accountDeletionNeedsAttention;
+
+  /// Terminal account-deletion state.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleted'**
+  String get accountDeletionDeleted;
+
+  /// Manual account-deletion retry action.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get accountDeletionRetry;
+
+  /// Action replacing unusable deletion-only OAuth authority.
+  ///
+  /// In en, this message translates to:
+  /// **'Reauthenticate'**
+  String get accountDeletionReauthenticate;
+
+  /// External account-deletion support action.
+  ///
+  /// In en, this message translates to:
+  /// **'Get support'**
+  String get accountDeletionSupport;
+
+  /// Permanent CraftSky deletion boundary shown before typed-handle confirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Deleting {handle} permanently removes your CraftSky membership, private CraftSky data, and every social.craftsky.* record from your PDS. You will be signed out of CraftSky on every device, and this cannot be undone after you submit your typed handle. It does not delete your AT Protocol account, does not delete your PDS account or the rest of its contents, and does not delete records from other apps. CraftSky does not directly delete blobs and does not wait for your PDS to reclaim unreferenced blobs. Offline devices remove local CraftSky data the next time they connect.'**
+  String deleteAccountBoundary(String handle);
 }
 
 class _AppLocalizationsDelegate

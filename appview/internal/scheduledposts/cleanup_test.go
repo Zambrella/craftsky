@@ -14,7 +14,6 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 func TestStoreCleansEligiblePrivateArtifactsSafely(t *testing.T) {
@@ -277,6 +276,18 @@ func TestAccountDeletionRemovesPrivateSchedulesAndQueuesEveryObject(t *testing.T
 	ownerAttachedID := uuid.MustParse("00000000-0000-4000-8000-000000000114")
 	ownerUnclaimedID := uuid.MustParse("00000000-0000-4000-8000-000000000115")
 	otherID := uuid.MustParse("00000000-0000-4000-8000-000000000116")
+	jobID := uuid.MustParse("00000000-0000-4000-8000-000000000117")
+	if _, err := store.pool.Exec(ctx, `
+		CREATE TABLE account_deletion_cleanup_artifacts(
+			job_id UUID NOT NULL,
+			component TEXT NOT NULL,
+			artifact_id UUID NOT NULL,
+			created_at TIMESTAMPTZ NOT NULL,
+			PRIMARY KEY(job_id,component,artifact_id)
+		)
+	`); err != nil {
+		t.Fatalf("create account deletion artifact fixture: %v", err)
+	}
 	for _, fixture := range []struct {
 		owner syntax.DID
 		id    uuid.UUID
@@ -310,15 +321,20 @@ func TestAccountDeletionRemovesPrivateSchedulesAndQueuesEveryObject(t *testing.T
 	}
 
 	deletion := NewAccountDeletion(store.pool, func() time.Time { return now })
-	if err := pgx.BeginFunc(ctx, store.pool, func(tx pgx.Tx) error {
-		return deletion.HardDeleteByActor(ctx, tx, owner)
-	}); err != nil {
+	if err := deletion.Purge(ctx, jobID, owner); err != nil {
 		t.Fatalf("delete scheduled account state: %v", err)
 	}
 
 	assertRowCount(t, store, `SELECT count(*) FROM scheduled_posts WHERE owner_did=$1`, 0, owner)
 	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_media WHERE owner_did=$1`, 0, owner)
 	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_cleanup_jobs WHERE object_key IN ($1, $2)`, 2, "scheduled-media/"+ownerAttachedID.String(), "scheduled-media/"+ownerUnclaimedID.String())
+	assertRowCount(t, store, `SELECT count(*) FROM account_deletion_cleanup_artifacts WHERE job_id=$1 AND component='scheduledPosts'`, 2, jobID)
+	assertRowCount(t, store, `
+		SELECT count(*)
+		FROM account_deletion_cleanup_artifacts artifact
+		JOIN scheduled_post_cleanup_jobs cleanup ON cleanup.id=artifact.artifact_id
+		WHERE artifact.job_id=$1 AND artifact.component='scheduledPosts'
+	`, 2, jobID)
 	assertRowCount(t, store, `SELECT count(*) FROM scheduled_posts WHERE id=$1`, 1, otherSchedule.ID)
 	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_media WHERE id=$1`, 1, otherID)
 	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_cleanup_jobs WHERE object_key=$1`, 0, "scheduled-media/"+otherID.String())
@@ -326,12 +342,11 @@ func TestAccountDeletionRemovesPrivateSchedulesAndQueuesEveryObject(t *testing.T
 	if ownerSchedule.ID == uuid.Nil {
 		t.Fatal("owner schedule fixture was not created")
 	}
-	if err := pgx.BeginFunc(ctx, store.pool, func(tx pgx.Tx) error {
-		return deletion.HardDeleteByActor(ctx, tx, owner)
-	}); err != nil {
+	if err := deletion.Purge(ctx, jobID, owner); err != nil {
 		t.Fatalf("repeat scheduled account deletion: %v", err)
 	}
 	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_cleanup_jobs WHERE object_key IN ($1, $2)`, 2, "scheduled-media/"+ownerAttachedID.String(), "scheduled-media/"+ownerUnclaimedID.String())
+	assertRowCount(t, store, `SELECT count(*) FROM account_deletion_cleanup_artifacts WHERE job_id=$1 AND component='scheduledPosts'`, 2, jobID)
 }
 
 func TestCleanupProcessorDeletesObjectsAndRetriesSafely(t *testing.T) {

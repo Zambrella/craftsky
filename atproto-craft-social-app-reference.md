@@ -148,7 +148,8 @@ The recommended approach for a Flutter app is to use your backend as a **Token M
 
 ### Content Moderation
 
-- **Your App View decides what gets served.** You can't delete data from someone's PDS, but you can stop surfacing it.
+- **Your App View decides what gets served.** Moderation, retention, and ordinary cleanup stop surfacing content; they do not delete data from someone's PDS.
+- **Permanent CraftSky account deletion is the sole narrow exception.** After the authenticated owner completes fresh PDS OAuth reauthentication and exact-handle confirmation, a server-only deletion worker may list and delete only that owner's registered `social.craftsky.*` record collections. It must not delete or deactivate the DID/PDS account, touch another namespace, directly delete blobs, expose PDS credentials to Flutter, or provide a generic PDS-delete facility. The existing Tap/indexer delete handlers remain responsible for public App View convergence.
 - **Reporting system:** Users flag content → stored in your DB → reviewed by you or community moderators.
 - **Labelling system:** atproto has built-in labelling where labellers tag content (NSFW, spam, etc.) and App Views subscribe to trusted labellers. You could run your own labeller.
 - For a crafting community, moderation needs are lighter — mostly spam and off-topic content rather than heavy abuse.

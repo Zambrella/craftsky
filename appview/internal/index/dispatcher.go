@@ -19,8 +19,16 @@ import (
 // consumer. Handle is called serially by the Tap consumer (one event at
 // a time per connection), so no locking is needed on the read path.
 type Dispatcher struct {
-	handlers map[syntax.NSID]Indexer
-	fallback Indexer
+	handlers            map[syntax.NSID]Indexer
+	fallback            Indexer
+	postHandleObservers []PostHandleObserver
+}
+
+// PostHandleObserver runs after the registered indexer transaction succeeds.
+// Returning an error keeps Tap from acknowledging the event, so replay can
+// durably retry the observer after the idempotent indexer runs again.
+type PostHandleObserver interface {
+	ObserveHandled(context.Context, tap.Event) error
 }
 
 // NewDispatcher returns a Dispatcher with the given fallback for events
@@ -44,6 +52,13 @@ func (d *Dispatcher) Register(collection syntax.NSID, idx Indexer) {
 	d.handlers[collection] = idx
 }
 
+func (d *Dispatcher) AddPostHandleObserver(observer PostHandleObserver) {
+	if observer == nil {
+		panic("index.Dispatcher.AddPostHandleObserver: observer must not be nil")
+	}
+	d.postHandleObservers = append(d.postHandleObservers, observer)
+}
+
 // Handle routes ev to the indexer registered for ev.Collection, or to
 // the fallback if none matches. Downstream errors propagate unchanged.
 func (d *Dispatcher) Handle(ctx context.Context, ev tap.Event) error {
@@ -57,7 +72,15 @@ func (d *Dispatcher) Handle(ctx context.Context, ev tap.Event) error {
 		slog.String("indexer", fmt.Sprintf("%T", h)),
 		slog.Bool("fallback", !ok),
 	)
-	return h.Handle(ctx, ev)
+	if err := h.Handle(ctx, ev); err != nil {
+		return err
+	}
+	for _, observer := range d.postHandleObservers {
+		if err := observer.ObserveHandled(ctx, ev); err != nil {
+			return fmt.Errorf("%w: %w", tap.ErrMustReplay, err)
+		}
+	}
+	return nil
 }
 
 var _ Indexer = (*Dispatcher)(nil)

@@ -63,5 +63,7 @@ Project-scoped skills that Claude Code auto-discovers:
 - Don't add a second serialization format. The API is JSON/HTTP to match atproto's XRPC. No protobuf/gRPC unless the whole project pivots.
 - Don't store PDS tokens on the device.
 - Don't put private-by-intent data (drafts, mutes, wishlists) on the PDS — it's all public right now.
-- Don't try to delete data from a user's PDS. The App View controls what's surfaced; the PDS is the user's.
+- Don't delete data from a user's PDS for moderation, retention, cleanup, or ordinary product behavior. The App View controls what's surfaced; the PDS is the user's.
+  - The sole exception is the explicit permanent CraftSky account-deletion flow approved by the authenticated owner after fresh PDS OAuth reauthentication and exact-handle confirmation. Its deletion worker may list and delete only that owner's records in registered `social.craftsky.*` record collections.
+  - The exception does not permit deleting/deactivating the DID or PDS account, deleting another namespace, directly deleting blobs, exposing PDS credentials to Flutter, or adding a reusable generic PDS-delete facility. Public AppView removal still converges through the existing Tap/indexer delete handlers.
 - Don't bypass the lexicon. Records written to a PDS must validate against the lexicon schema or the App View will drop them on index.

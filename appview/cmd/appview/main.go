@@ -23,6 +23,7 @@ import (
 	"syscall"
 	"time"
 
+	"social.craftsky/appview/internal/accountdeletion"
 	"social.craftsky/appview/internal/app"
 	"social.craftsky/appview/internal/instagram"
 )
@@ -35,6 +36,9 @@ const (
 	instagramAutomaticFollowBatchSize    = instagram.AutomaticFollowBatchDefault
 	instagramRetentionInterval           = time.Hour
 	scheduledWorkerPollInterval          = 10 * time.Second
+	accountDeletionWorkerPollInterval    = 2 * time.Second
+	accountDeletionAuditSweepInterval    = time.Hour
+	accountDeletionAuditSweepBatchSize   = 100
 )
 
 type instagramWebhookBatchProcessor interface {
@@ -51,6 +55,14 @@ type instagramReconciliationBatchProcessor interface {
 
 type instagramRetentionRunner interface {
 	Run(context.Context, int) (instagram.RetentionStats, error)
+}
+
+type accountDeletionProcessor interface {
+	ProcessOne(context.Context) (bool, error)
+}
+
+type accountDeletionAuditSweeper interface {
+	Sweep(context.Context, int) (int, error)
 }
 
 func main() {
@@ -219,6 +231,35 @@ func run(ctx context.Context, args []string) error {
 	} else {
 		close(scheduledCleanupDone)
 	}
+	accountDeletionDone := make(chan struct{})
+	if deps.AccountDeletionWorker != nil {
+		go func() {
+			defer close(accountDeletionDone)
+			runAccountDeletionWorker(
+				consumerCtx,
+				deps.AccountDeletionWorker,
+				deps.Logger,
+				accountDeletionWorkerPollInterval,
+			)
+		}()
+	} else {
+		close(accountDeletionDone)
+	}
+	accountDeletionAuditDone := make(chan struct{})
+	if deps.AccountDeletionAuditSweeper != nil {
+		go func() {
+			defer close(accountDeletionAuditDone)
+			runAccountDeletionAuditSweeper(
+				consumerCtx,
+				deps.AccountDeletionAuditSweeper,
+				deps.Logger,
+				accountDeletionAuditSweepBatchSize,
+				accountDeletionAuditSweepInterval,
+			)
+		}()
+	} else {
+		close(accountDeletionAuditDone)
+	}
 
 	// listenErr receives the result of ListenAndServe. A non-nil,
 	// non-ErrServerClosed error (e.g. port already in use) must unblock
@@ -270,10 +311,67 @@ func run(ctx context.Context, args []string) error {
 	<-instagramRetentionDone
 	<-scheduledPublicationDone
 	<-scheduledCleanupDone
+	<-accountDeletionDone
+	<-accountDeletionAuditDone
 	deps.Logger.Info("shutdown: tap consumer stopped")
 	// Drain the listener goroutine's final send.
 	<-listenErr
 	return nil
+}
+
+func runAccountDeletionAuditSweeper(ctx context.Context, sweeper accountDeletionAuditSweeper, logger *slog.Logger, batchSize int, interval time.Duration) {
+	if sweeper == nil || batchSize <= 0 || interval <= 0 {
+		return
+	}
+	for {
+		if _, err := sweeper.Sweep(ctx, batchSize); err != nil && ctx.Err() == nil && logger != nil {
+			logger.Error("account deletion audit sweep failed",
+				slog.String("component", "account_deletion"),
+				slog.String("operation", "audit_sweep"),
+				slog.String("result", "error"),
+				slog.String("error_category", "store"))
+		}
+		timer := time.NewTimer(interval)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return
+		case <-timer.C:
+		}
+	}
+}
+
+func runAccountDeletionWorker(ctx context.Context, worker accountDeletionProcessor, logger *slog.Logger, pollInterval time.Duration) {
+	if worker == nil || pollInterval <= 0 {
+		return
+	}
+	for {
+		processed, err := worker.ProcessOne(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+		if err != nil && logger != nil {
+			logger.Error("account deletion worker failed",
+				slog.String("component", "account_deletion"),
+				slog.String("operation", "process"),
+				slog.String("result", "error"),
+				slog.String("error_category", string(accountdeletion.ErrorCategoryRetry)))
+		}
+		if err == nil && processed {
+			continue
+		}
+		timer := time.NewTimer(pollInterval)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return
+		case <-timer.C:
+		}
+	}
 }
 
 func runScheduledWorker(ctx context.Context, worker scheduledBatchProcessor, logger *slog.Logger, pollInterval time.Duration, operation string) {

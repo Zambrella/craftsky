@@ -48,6 +48,14 @@ type PDSRecordLister interface {
 	) (records []PDSRecord, nextCursor string, err error)
 }
 
+// DeletionPDSClient is the deliberately closed capability available to the
+// CraftSky account-deletion worker. It cannot delete an AT Protocol account,
+// mutate other records, upload/delete blobs, or read record bodies directly.
+type DeletionPDSClient interface {
+	PDSRecordLister
+	DeleteRecord(ctx context.Context, repo syntax.DID, collection string, rkey string) error
+}
+
 // UploadedBlob is normalized metadata returned from com.atproto.repo.uploadBlob.
 // Raw preserves the atproto blob object for pass-through into later record writes.
 type UploadedBlob struct {

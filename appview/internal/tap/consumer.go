@@ -101,6 +101,10 @@ type HandlerIndexer interface {
 	Handle(ctx context.Context, ev Event) error
 }
 
+// ErrMustReplay classifies a handler failure whose event must remain
+// unacknowledged regardless of the ordinary poison-pill threshold.
+var ErrMustReplay = errors.New("tap event must replay")
+
 // WSConsumer connects to Tap's /channel WebSocket and dispatches events
 // to an indexer, sending acks on success.
 type WSConsumer struct {
@@ -464,9 +468,11 @@ func (c *WSConsumer) handleWithTimeout(ctx context.Context, ev Event) (err error
 		}
 	}()
 	if err := c.cfg.Indexer.Handle(handleCtx, ev); err != nil {
-		c.mu.Lock()
-		c.retryCount[ev.ID]++
-		c.mu.Unlock()
+		if !errors.Is(err, ErrMustReplay) {
+			c.mu.Lock()
+			c.retryCount[ev.ID]++
+			c.mu.Unlock()
+		}
 		return err
 	}
 	return nil

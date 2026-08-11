@@ -10,6 +10,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/auth"
@@ -35,7 +36,11 @@ const authSchemaDDL = `
 		data                   JSONB NOT NULL,
 		created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
 		handoff_mode           TEXT NOT NULL DEFAULT 'deep_link',
-		loopback_redirect_uri  TEXT
+		loopback_redirect_uri  TEXT,
+		device_id              TEXT,
+		purpose                TEXT NOT NULL DEFAULT 'login',
+		account_deletion_owner_did TEXT,
+		account_deletion_job_id UUID
 	);
 	CREATE TABLE craftsky_sessions (
 		token_hash        BYTEA NOT NULL PRIMARY KEY,
@@ -49,6 +54,18 @@ const authSchemaDDL = `
 		FOREIGN KEY (account_did, oauth_session_id)
 			REFERENCES oauth_sessions (account_did, session_id)
 			ON DELETE CASCADE
+	);
+	CREATE TABLE account_deletion_operations (
+		id UUID PRIMARY KEY,
+		owner_did TEXT NOT NULL,
+		state TEXT NOT NULL
+	);
+	CREATE TABLE account_deletion_recovery_credentials (
+		token_hash BYTEA PRIMARY KEY,
+		job_id UUID NOT NULL REFERENCES account_deletion_operations(id),
+		owner_did TEXT NOT NULL,
+		device_id TEXT,
+		used_at TIMESTAMPTZ
 	);
 `
 
@@ -138,6 +155,33 @@ func TestStore_SaveGetAuthRequest(t *testing.T) {
 	}
 	if got.PKCEVerifier != info.PKCEVerifier {
 		t.Fatalf("PKCEVerifier: got %q want %q", got.PKCEVerifier, info.PKCEVerifier)
+	}
+}
+
+func TestStoreSavesAccountDeletionAuthRequestMetadataAtomically(t *testing.T) {
+	pool := withAuthSchema(t)
+	store := auth.NewPostgresAuthStore(pool, testStoreConfig())
+	ctx := auth.WithAccountDeletionAuthRequest(
+		context.Background(),
+		syntax.DID("did:plc:alice"),
+		uuid.MustParse("10000000-0000-4000-8000-000000000091"),
+	)
+	info := oauth.AuthRequestData{
+		State: "deletion-state", AuthServerURL: "https://bsky.social",
+		RequestURI: "urn:request:deletion",
+	}
+	if err := store.SaveAuthRequestInfo(ctx, info); err != nil {
+		t.Fatalf("save deletion auth request: %v", err)
+	}
+	var purpose, owner, jobID string
+	if err := pool.QueryRow(context.Background(), `
+		SELECT purpose,account_deletion_owner_did,account_deletion_job_id::text
+		FROM oauth_auth_requests WHERE state=$1
+	`, info.State).Scan(&purpose, &owner, &jobID); err != nil {
+		t.Fatalf("read deletion auth request metadata: %v", err)
+	}
+	if purpose != "accountDeletion" || owner != "did:plc:alice" || jobID != "10000000-0000-4000-8000-000000000091" {
+		t.Fatalf("atomic deletion metadata purpose=%q owner=%q job=%q", purpose, owner, jobID)
 	}
 }
 

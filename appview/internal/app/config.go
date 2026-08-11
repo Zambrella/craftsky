@@ -81,6 +81,7 @@ type Config struct {
 	OAuthSessionInactivity          time.Duration // default 30d
 	OAuthAuthRequestExpiry          time.Duration // default 30m
 	CraftskySessionLastSeenThrottle time.Duration // default 5m
+	AccountDeletionStatusHMACKey    []byte
 
 	// Media policy. Defaults preserve the approved image-posting contract;
 	// env overrides may lower but not raise these ceilings.
@@ -183,6 +184,14 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	if cfg.CraftskySessionLastSeenThrottle, err = durationEnv("CRAFTSKY_SESSION_LAST_SEEN_THROTTLE", 5*time.Minute); err != nil {
 		return Config{}, err
 	}
+	statusHMACKey := strings.TrimSpace(os.Getenv("ACCOUNT_DELETION_STATUS_HMAC_KEY"))
+	if statusHMACKey == "" && env == EnvDev {
+		statusHMACKey = "craftsky-local-account-deletion-status-hmac-key-v1"
+	}
+	if len(statusHMACKey) < 32 {
+		return Config{}, fmt.Errorf("ACCOUNT_DELETION_STATUS_HMAC_KEY must be at least 32 bytes")
+	}
+	cfg.AccountDeletionStatusHMACKey = []byte(statusHMACKey)
 	if cfg.PushEnabled, err = boolEnv("PUSH_ENABLED", false); err != nil {
 		return Config{}, err
 	}

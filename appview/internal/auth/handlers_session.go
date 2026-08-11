@@ -104,7 +104,8 @@ func (h *HTTPHandlers) LoginHandler() http.Handler {
 		// in the returned URL, only in its persisted AuthRequestData). A
 		// parallel callback arriving between INSERT and UPDATE would see
 		// the default handoff_mode='deep_link'. Acceptable for v1.
-		if err := h.recordHandoff(r.Context(), requestURI, req.HandoffMode, req.LoopbackRedirectURI); err != nil {
+		deviceID, _ := ctxkeys.GetDeviceID(r.Context())
+		if err := h.recordHandoff(r.Context(), requestURI, req.HandoffMode, req.LoopbackRedirectURI, deviceID); err != nil {
 			h.Logger.Error("recordHandoff failed",
 				authLogErrorAttrs(runID, "login.record_handoff", "store")...)
 			// Continue: callback's loadHandoff falls back to deep_link.
@@ -145,21 +146,25 @@ func extractRequestURI(authURL string) (string, error) {
 // inside the opaque JSONB blob, not as a top-level column. The UPDATE is
 // idempotent and affects at most one row (request_uri is a per-flow
 // random string).
-func (h *HTTPHandlers) recordHandoff(ctx context.Context, requestURI, mode, loopbackURI string) error {
+func (h *HTTPHandlers) recordHandoff(ctx context.Context, requestURI, mode, loopbackURI, deviceID string) error {
 	_, err := h.Pool.Exec(ctx,
-		`UPDATE oauth_auth_requests SET handoff_mode = $1, loopback_redirect_uri = $2 WHERE data->>'request_uri' = $3`,
-		mode, nullableString(loopbackURI), requestURI)
+		`UPDATE oauth_auth_requests SET handoff_mode = $1, loopback_redirect_uri = $2, device_id=$3 WHERE data->>'request_uri' = $4`,
+		mode, nullableString(loopbackURI), nullableString(deviceID), requestURI)
 	return err
 }
 
 // loadHandoff is the counterpart used by CallbackHandler. Sibling-column variant.
-func (h *HTTPHandlers) loadHandoff(ctx context.Context, state string) (mode string, loopbackURI string, err error) {
+func (h *HTTPHandlers) loadHandoff(ctx context.Context, state string) (mode string, loopbackURI string, deviceID string, err error) {
 	var uri *string
+	var storedDeviceID *string
 	err = h.Pool.QueryRow(ctx,
-		`SELECT handoff_mode, loopback_redirect_uri FROM oauth_auth_requests WHERE state = $1`,
-		state).Scan(&mode, &uri)
+		`SELECT handoff_mode, loopback_redirect_uri, device_id FROM oauth_auth_requests WHERE state = $1`,
+		state).Scan(&mode, &uri, &storedDeviceID)
 	if uri != nil {
 		loopbackURI = *uri
+	}
+	if storedDeviceID != nil {
+		deviceID = *storedDeviceID
 	}
 	return
 }

@@ -1,58 +1,61 @@
+import 'package:craftsky_app/auth/models/account_deletion.dart';
 import 'package:craftsky_app/auth/models/account_switcher_state.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
-import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('UT-016 builds active-first rows with cached identity', () {
-    final registry = SessionRegistry.empty()
-        .upsertAndActivate(
-          token: 'c-token',
-          did: 'did:plc:carol',
-          handle: 'carol.test',
-          cachedDisplayName: 'Carol',
-        )
-        .upsertAndActivate(
-          token: 'b-token',
-          did: 'did:plc:bob',
-          handle: 'bob.test',
-          cachedAvatarUrl: 'https://example.test/bob.jpg',
-          cachedCustomisation: const ProfileCustomisation(colour: 'rose'),
-        )
-        .upsertAndActivate(
-          token: 'a-token',
-          did: 'did:plc:alice',
-          handle: 'alice.test',
-        );
+  test('deleting rows are disabled and expose only coarse status state', () {
+    final sessions = SessionRegistry.empty().upsertAndActivate(
+      token: 'bob-token',
+      did: 'did:plc:bob',
+      handle: 'bob.test',
+    );
+    final deleting = DeletionStatusRegistry.empty().upsert(
+      DeletionStatusEntry.pending(
+        jobId: '10000000-0000-0000-0000-000000000001',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+        statusToken: 'status-token',
+      ).withStatus(
+        status: AccountDeletionStatus.needsAttention,
+        phase: AccountDeletionPhase.waitingForCraftsky,
+        canRetry: true,
+      ),
+    );
 
-    final state = AccountSwitcherState.fromRegistry(registry);
+    final state = AccountSwitcherState.fromRegistries(
+      sessions: sessions,
+      deletions: deleting,
+    );
 
-    expect(state.rows.map((row) => row.handle), [
-      'alice.test',
-      'bob.test',
-      'carol.test',
-    ]);
-    expect(state.rows.first.isCurrent, isTrue);
-    expect(state.rows.first.displayLabel, 'alice.test');
-    expect(state.rows[1].avatarUrl, 'https://example.test/bob.jpg');
-    expect(state.rows[1].customisation.colour, 'rose');
-    expect(state.rows[2].displayLabel, 'Carol');
-    expect(state.canAddAccount, isTrue);
+    expect(state.rows, hasLength(1));
+    expect(state.deletingRows, hasLength(1));
+    final row = state.deletingRows.single;
+    expect(row.canActivate, isFalse);
+    expect(row.canRetry, isTrue);
+    expect(row.phase, AccountDeletionPhase.waitingForCraftsky);
+    expect(row.toString(), isNot(contains('did:plc:alice')));
+    expect(row.toString(), isNot(contains('status-token')));
   });
 
-  test('UT-016 disables Add at five without exposing removal actions', () {
-    var registry = SessionRegistry.empty();
-    for (var index = 0; index < SessionRegistry.maxRetainedAccounts; index++) {
-      registry = registry.upsertAndActivate(
-        token: 'token-$index',
-        did: 'did:plc:a$index',
-        handle: 'a$index.test',
-      );
-    }
+  test('terminal deletion rows are omitted', () {
+    final deleting = DeletionStatusRegistry.empty().upsert(
+      DeletionStatusEntry.pending(
+        jobId: '10000000-0000-0000-0000-000000000001',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+        statusToken: 'status-token',
+      ).withStatus(
+        status: AccountDeletionStatus.deleted,
+        phase: AccountDeletionPhase.deleted,
+      ),
+    );
 
-    final state = AccountSwitcherState.fromRegistry(registry);
+    final state = AccountSwitcherState.fromRegistries(
+      sessions: SessionRegistry.empty(),
+      deletions: deleting,
+    );
 
-    expect(state.canAddAccount, isFalse);
-    expect('$state ${state.rows.join(' ')}', isNot(contains('did:plc:')));
+    expect(state.deletingRows, isEmpty);
   });
 }

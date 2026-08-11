@@ -7,6 +7,8 @@ part of 'router.dart';
 // **************************************************************************
 
 List<RouteBase> get $appRoutes => [
+  $accountDeletionReauthCompleteRoute,
+  $accountDeletionStatusRoute,
   $authenticatedShellRoute,
   $welcomeRoute,
   $signInRoute,
@@ -14,6 +16,73 @@ List<RouteBase> get $appRoutes => [
   $authCompleteRoute,
   $onboardingRoute,
 ];
+
+RouteBase get $accountDeletionReauthCompleteRoute => GoRouteData.$route(
+  path: '/account-deletion/reauth-complete',
+  name: 'account-deletion-reauth-complete',
+  factory: $AccountDeletionReauthCompleteRoute._fromState,
+);
+
+mixin $AccountDeletionReauthCompleteRoute on GoRouteData {
+  static AccountDeletionReauthCompleteRoute _fromState(GoRouterState state) =>
+      AccountDeletionReauthCompleteRoute(
+        jobId: state.uri.queryParameters['job-id']!,
+        proof: state.uri.queryParameters['proof']!,
+      );
+
+  AccountDeletionReauthCompleteRoute get _self =>
+      this as AccountDeletionReauthCompleteRoute;
+
+  @override
+  String get location => GoRouteData.$location(
+    '/account-deletion/reauth-complete',
+    queryParams: {'job-id': _self.jobId, 'proof': _self.proof},
+  );
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+RouteBase get $accountDeletionStatusRoute => GoRouteData.$route(
+  path: '/account-deletion/:jobId',
+  name: 'account-deletion-status',
+  factory: $AccountDeletionStatusRoute._fromState,
+);
+
+mixin $AccountDeletionStatusRoute on GoRouteData {
+  static AccountDeletionStatusRoute _fromState(GoRouterState state) =>
+      AccountDeletionStatusRoute(jobId: state.pathParameters['jobId']!);
+
+  AccountDeletionStatusRoute get _self => this as AccountDeletionStatusRoute;
+
+  @override
+  String get location => GoRouteData.$location(
+    '/account-deletion/${Uri.encodeComponent(_self.jobId)}',
+  );
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
 
 RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
   navigatorKey: AuthenticatedShellRoute.$navigatorKey,
@@ -98,6 +167,18 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
                       parentNavigatorKey:
                           ProfileCustomisationRoute.$parentNavigatorKey,
                       factory: $ProfileCustomisationRoute._fromState,
+                    ),
+                    GoRouteData.$route(
+                      path: 'account',
+                      name: 'settings-account',
+                      parentNavigatorKey: AccountRoute.$parentNavigatorKey,
+                      factory: $AccountRoute._fromState,
+                    ),
+                    GoRouteData.$route(
+                      path: 'about',
+                      name: 'settings-about',
+                      parentNavigatorKey: AboutRoute.$parentNavigatorKey,
+                      factory: $AboutRoute._fromState,
                     ),
                     GoRouteData.$route(
                       path: 'languages',
@@ -396,6 +477,46 @@ mixin $ProfileCustomisationRoute on GoRouteData {
   @override
   String get location =>
       GoRouteData.$location('/profile/settings/customisation');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $AccountRoute on GoRouteData {
+  static AccountRoute _fromState(GoRouterState state) => const AccountRoute();
+
+  @override
+  String get location => GoRouteData.$location('/profile/settings/account');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $AboutRoute on GoRouteData {
+  static AboutRoute _fromState(GoRouterState state) => const AboutRoute();
+
+  @override
+  String get location => GoRouteData.$location('/profile/settings/about');
 
   @override
   void go(BuildContext context) => context.go(location);
@@ -908,4 +1029,4 @@ final class GoRouterProvider
   }
 }
 
-String _$goRouterHash() => r'd7c4006c77889245a28a8bdcb7498226054726d7';
+String _$goRouterHash() => r'83cdeafcea71df9f113fcf439f51ed03f1dd9e6f';

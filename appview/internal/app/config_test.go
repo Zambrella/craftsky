@@ -47,6 +47,7 @@ func testConfigFile(t *testing.T, contents string) string {
 		"OAUTH_HOSTNAME", "OAUTH_CALLBACK_URL", "OAUTH_CLIENT_SECRET_KEY", "OAUTH_CLIENT_SECRET_KEY_ID",
 		"OAUTH_SCOPES", "OAUTH_SESSION_EXPIRY", "OAUTH_SESSION_INACTIVITY",
 		"OAUTH_AUTH_REQUEST_EXPIRY", "CRAFTSKY_SESSION_LAST_SEEN_THROTTLE",
+		"ACCOUNT_DELETION_STATUS_HMAC_KEY",
 		"MAX_POST_IMAGES", "MAX_IMAGE_UPLOAD_BYTES", "APPVIEW_JSON_BODY_LIMIT_BYTES",
 		"SCHEDULED_POSTS_S3_ENDPOINT", "SCHEDULED_POSTS_S3_REGION", "SCHEDULED_POSTS_S3_BUCKET",
 		"SCHEDULED_POSTS_S3_ACCESS_KEY_ID", "SCHEDULED_POSTS_S3_SECRET_ACCESS_KEY",
@@ -90,6 +91,9 @@ func testConfigFile(t *testing.T, contents string) string {
 				_ = os.Unsetenv(k)
 			}
 		})
+	}
+	if !strings.Contains(contents, "ACCOUNT_DELETION_STATUS_HMAC_KEY=") {
+		contents += "ACCOUNT_DELETION_STATUS_HMAC_KEY=synthetic-account-deletion-status-key\n"
 	}
 	f, err := os.CreateTemp(t.TempDir(), "test-*.env")
 	if err != nil {

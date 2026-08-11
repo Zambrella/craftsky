@@ -48,6 +48,7 @@ type MetricRecorder interface {
 	ScheduledOperation(ctx context.Context, operation, result, errorClass string, duration time.Duration)
 	ScheduledPublication(ctx context.Context, attempt int, startLatency, duration time.Duration)
 	ScheduledCleanupQueue(ctx context.Context, pending int, oldestAge time.Duration)
+	AccountDeletion(ctx context.Context, event, phase, outcome, errorCategory string, duration time.Duration)
 }
 
 type noopMetricRecorder struct{}
@@ -81,6 +82,8 @@ func (noopMetricRecorder) ScheduledOperation(context.Context, string, string, st
 func (noopMetricRecorder) ScheduledPublication(context.Context, int, time.Duration, time.Duration) {
 }
 func (noopMetricRecorder) ScheduledCleanupQueue(context.Context, int, time.Duration) {}
+func (noopMetricRecorder) AccountDeletion(context.Context, string, string, string, string, time.Duration) {
+}
 
 type InMemoryMetricRecorder struct {
 	mu       sync.Mutex
@@ -260,6 +263,18 @@ func (r *InMemoryMetricRecorder) ScheduledCleanupQueue(
 ) {
 	r.record(MetricCall{Name: "craftsky_appview_scheduled_posts_cleanup_pending", Kind: MetricKindGauge, Value: float64(pending)})
 	r.record(MetricCall{Name: "craftsky_appview_scheduled_posts_cleanup_oldest_age_seconds", Kind: MetricKindGauge, Unit: "second", Value: nonNegativeDuration(oldestAge).Seconds()})
+}
+
+func (r *InMemoryMetricRecorder) AccountDeletion(
+	_ context.Context,
+	event, phase, outcome, errorCategory string,
+	duration time.Duration,
+) {
+	attrs := accountDeletionMetricAttributes(event, phase, outcome, errorCategory)
+	r.record(MetricCall{Name: "craftsky_appview_account_deletion_events_total", Kind: MetricKindCounter, Value: 1, Attributes: attrs})
+	if duration > 0 {
+		r.record(MetricCall{Name: "craftsky_appview_account_deletion_duration_seconds", Kind: MetricKindDistribution, Unit: "second", Value: nonNegativeDuration(duration).Seconds(), Attributes: attrs})
+	}
 }
 
 func (r *InMemoryMetricRecorder) TapIndexerRecord(_ context.Context, nsid, result, reason string, duration time.Duration) {
@@ -477,6 +492,18 @@ func (r *sentryMetricRecorder) ScheduledCleanupQueue(ctx context.Context, pendin
 	r.gauge(ctx, "craftsky_appview_scheduled_posts_cleanup_oldest_age_seconds", nonNegativeDuration(oldestAge).Seconds(), "second", nil)
 }
 
+func (r *sentryMetricRecorder) AccountDeletion(
+	ctx context.Context,
+	event, phase, outcome, errorCategory string,
+	duration time.Duration,
+) {
+	attrs := accountDeletionMetricAttributes(event, phase, outcome, errorCategory)
+	r.count(ctx, "craftsky_appview_account_deletion_events_total", 1, "", attrs)
+	if duration > 0 {
+		r.distribution(ctx, "craftsky_appview_account_deletion_duration_seconds", nonNegativeDuration(duration).Seconds(), "second", attrs)
+	}
+}
+
 func (r *sentryMetricRecorder) count(ctx context.Context, name string, value int64, unit string, attrs map[string]string) {
 	options := metricOptions(unit, attrs)
 	sentry.NewMeter(r.context(ctx)).Count(name, value, options...)
@@ -637,6 +664,20 @@ func safeMetricStage(stage string) string {
 		return "unknown"
 	}
 	return stage
+}
+
+func accountDeletionMetricAttributes(event, phase, outcome, errorCategory string) map[string]string {
+	attrs := map[string]string{"event": safeMetricOperation(event)}
+	if phase != "" {
+		attrs["phase"] = safeMetricOperation(phase)
+	}
+	if outcome != "" {
+		attrs["outcome"] = safeMetricResult(outcome)
+	}
+	if errorCategory != "" {
+		attrs["error_category"] = safeMetricCategory(errorCategory)
+	}
+	return attrs
 }
 
 func safeMetricCategory(category string) string {

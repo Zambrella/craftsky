@@ -2309,4 +2309,118 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get draftsReplaceImageAction => 'Replace image';
+
+  @override
+  String get settingsTitle => 'Settings';
+
+  @override
+  String get settingsSwitchAccount => 'Switch account';
+
+  @override
+  String get settingsSectionPreferences => 'Preferences';
+
+  @override
+  String get settingsSectionConnections => 'Connections';
+
+  @override
+  String get settingsSectionDiscovery => 'Discovery';
+
+  @override
+  String get settingsSectionGeneral => 'General';
+
+  @override
+  String get settingsNotifications => 'Notifications';
+
+  @override
+  String get settingsFollowers => 'Followers';
+
+  @override
+  String get settingsFollowing => 'Following';
+
+  @override
+  String get settingsAccount => 'Account';
+
+  @override
+  String get settingsAbout => 'About';
+
+  @override
+  String get settingsTerms => 'Terms';
+
+  @override
+  String get settingsPrivacyPolicy => 'Privacy policy';
+
+  @override
+  String get settingsClearImageCache => 'Clear image cache';
+
+  @override
+  String get settingsImageCacheCleared => 'Image cache cleared';
+
+  @override
+  String get settingsVersion => 'Version';
+
+  @override
+  String get settingsSignOut => 'Sign out';
+
+  @override
+  String get accountTitle => 'Account';
+
+  @override
+  String get deleteAccountTitle => 'Delete CraftSky account?';
+
+  @override
+  String get deleteAccountAction => 'Delete account';
+
+  @override
+  String get deleteAccountContinue => 'Continue';
+
+  @override
+  String get deleteAccountConfirmTitle => 'Confirm account deletion';
+
+  @override
+  String get deleteAccountTypeHandleLabel => 'Type your handle';
+
+  @override
+  String deleteAccountConfirmationPrompt(String handle) {
+    return 'Type $handle exactly to permanently delete this CraftSky account.';
+  }
+
+  @override
+  String get accountDeletionPreparing => 'Preparing deletion';
+
+  @override
+  String get accountDeletionRemovingPrivateData =>
+      'Removing private CraftSky data';
+
+  @override
+  String get accountDeletionRemovingRecords => 'Removing CraftSky records';
+
+  @override
+  String get accountDeletionWaitingForCraftsky =>
+      'Waiting for CraftSky to update';
+
+  @override
+  String get accountDeletionFinalizing => 'Finalizing';
+
+  @override
+  String get accountDeletionRetrying => 'Retrying';
+
+  @override
+  String get accountDeletionNeedsAttention => 'Deletion needs attention';
+
+  @override
+  String get accountDeletionDeleted => 'Deleted';
+
+  @override
+  String get accountDeletionRetry => 'Retry';
+
+  @override
+  String get accountDeletionReauthenticate => 'Reauthenticate';
+
+  @override
+  String get accountDeletionSupport => 'Get support';
+
+  @override
+  String deleteAccountBoundary(String handle) {
+    return 'Deleting $handle permanently removes your CraftSky membership, private CraftSky data, and every social.craftsky.* record from your PDS. You will be signed out of CraftSky on every device, and this cannot be undone after you submit your typed handle. It does not delete your AT Protocol account, does not delete your PDS account or the rest of its contents, and does not delete records from other apps. CraftSky does not directly delete blobs and does not wait for your PDS to reclaim unreferenced blobs. Offline devices remove local CraftSky data the next time they connect.';
+  }
 }

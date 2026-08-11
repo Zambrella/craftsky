@@ -363,9 +363,53 @@ func TestWSConsumer_PoisonPillIsDroppedAfterMaxRetries(t *testing.T) {
 	}
 }
 
+func TestWSConsumer_MustReplayErrorNeverPoisonAcks(t *testing.T) {
+	t.Parallel()
+
+	sameFrame := `{"id":199,"type":"record","record":{"live":false,"rev":"r","did":"did:plc:a","collection":"social.craftsky.feed.post","rkey":"k","action":"delete","cid":"bafy"}}`
+	frames := []string{sameFrame, sameFrame, sameFrame, sameFrame, sameFrame}
+	ft := newFakeTap(frames)
+	srv := httptest.NewServer(ft.handler(t))
+	defer srv.Close()
+
+	idx := &mustReplayIndexer{}
+	c := tap.NewWSConsumer(tap.WSConsumerConfig{
+		URL:          strings.Replace(srv.URL, "http://", "ws://", 1),
+		Indexer:      idx,
+		AckTimeout:   time.Second,
+		ReconnectMax: 500 * time.Millisecond,
+		MaxRetries:   1,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	go c.Run(ctx)
+
+	deadline := time.Now().Add(time.Second)
+	for idx.calls.Load() < int32(len(frames)) && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if got := idx.calls.Load(); got != int32(len(frames)) {
+		t.Fatalf("must-replay calls=%d want=%d", got, len(frames))
+	}
+	select {
+	case id := <-ft.acks:
+		t.Fatalf("must-replay event was poison-acked: id=%d", id)
+	case <-time.After(250 * time.Millisecond):
+	}
+}
+
 type alwaysFailIndexer struct{}
 
 func (alwaysFailIndexer) Handle(ctx context.Context, ev tap.Event) error { return errTest }
+
+type mustReplayIndexer struct {
+	calls atomic.Int32
+}
+
+func (indexer *mustReplayIndexer) Handle(context.Context, tap.Event) error {
+	indexer.calls.Add(1)
+	return fmt.Errorf("receipt unavailable: %w", tap.ErrMustReplay)
+}
 
 type panicIndexer struct{}
 

@@ -78,6 +78,26 @@ func (s *CraftskySessionStore) Lookup(ctx context.Context, token string) (AuthIn
 	return AuthInfo{DID: syntax.DID(did), SessionID: sessID}, nil
 }
 
+// PendingDeletion reports whether token is a former ordinary bearer retained
+// only as a one-time account-deletion recovery credential. It never restores
+// ordinary API access.
+func (s *CraftskySessionStore) PendingDeletion(ctx context.Context, token string) (bool, error) {
+	hash := sha256.Sum256([]byte(token))
+	var pending bool
+	err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS(
+			SELECT 1
+			FROM account_deletion_recovery_credentials recovery
+			JOIN account_deletion_operations operation ON operation.id=recovery.job_id
+			WHERE recovery.token_hash=$1 AND operation.state<>'intent'
+		)
+	`, hash[:]).Scan(&pending)
+	if err != nil {
+		return false, fmt.Errorf("lookup pending account deletion: %w", err)
+	}
+	return pending, nil
+}
+
 func (s *CraftskySessionStore) Revoke(ctx context.Context, token string) error {
 	hash := sha256.Sum256([]byte(token))
 	_, err := s.pool.Exec(ctx,

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"time"
 
+	"social.craftsky/appview/internal/accountdeletion"
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/app"
 	"social.craftsky/appview/internal/auth"
@@ -16,13 +17,14 @@ import (
 const defaultJSONBodyLimitBytes int64 = 1024 * 1024
 
 type v1Middleware struct {
-	authN     func(http.Handler) http.Handler
-	deviceID  func(http.Handler) http.Handler
-	member    func(http.Handler) http.Handler
-	bodyLimit middleware.BodyLimitConfig
-	rateLimit map[RateClass]func(http.Handler) http.Handler
-	observer  *observability.Observer
-	hydrator  *api.IdentityCustomisationHydrator
+	authN      func(http.Handler) http.Handler
+	deviceID   func(http.Handler) http.Handler
+	member     func(http.Handler) http.Handler
+	bodyLimit  middleware.BodyLimitConfig
+	rateLimit  map[RateClass]func(http.Handler) http.Handler
+	observer   *observability.Observer
+	hydrator   *api.IdentityCustomisationHydrator
+	statusAuth func(accountdeletion.StatusAction) func(http.Handler) http.Handler
 }
 
 func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handler {
@@ -36,9 +38,14 @@ func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handle
 	if rl := m.rateLimit[policy.RateClass]; rl != nil {
 		wrapped = rl(wrapped)
 	}
-	if policy.AuthRequired {
+	if policy.DeletionStatusAction != "" {
+		wrapped = m.statusAuth(policy.DeletionStatusAction)(wrapped)
+		wrapped = m.deviceID(wrapped)
+	} else if policy.AuthRequired {
 		wrapped = m.deviceID(wrapped)
 		wrapped = m.authN(wrapped)
+	} else if policy.DeletionRecovery {
+		wrapped = m.deviceID(wrapped)
 	} else if policy.RateClass == RateClassAuth {
 		wrapped = m.deviceID(wrapped)
 	}
@@ -75,6 +82,8 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		deps.IdentityCacheUpdater,
 	)
 	oauthHandlers.RepositoryTracker = deps.RepositoryTracker
+	oauthHandlers.DeletionOAuthCallbacks = deps.AccountDeletionOAuth
+	oauthHandlers.DeletionPendingLogin = deps.AccountDeletionPendingLogin
 	mux.Handle("GET /oauth/client-metadata.json", inFlight(oauthHandlers.ClientMetadataHandler()))
 	mux.Handle("GET /oauth/jwks.json", inFlight(oauthHandlers.JWKSHandler()))
 	mux.Handle("GET /oauth/callback", inFlight(oauthHandlers.CallbackHandler()))
@@ -121,6 +130,9 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		authN: authN, deviceID: deviceID, member: currentMember,
 		bodyLimit: bodyLimitCfg, rateLimit: rateLimits, observer: observer,
 		hydrator: identityCustomisationHydrator,
+		statusAuth: func(action accountdeletion.StatusAction) func(http.Handler) http.Handler {
+			return middleware.AccountDeletionStatus(deps.AccountDeletionStatus, action, deps.Logger)
+		},
 	}
 	instagramLimit := func(handler http.Handler, rules ...middleware.InstagramRateLimitRule) http.Handler {
 		// A missing data-plane key means Instagram's rate-limited private write
@@ -165,6 +177,13 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	mux.Handle("POST /v1/search/recent", v1mw.wrap(mustPolicy("POST", "/v1/search/recent"), api.SaveRecentSearchHandler(searchStore, deps.Logger)))
 	mux.Handle("DELETE /v1/search/recent/{id}", v1mw.wrap(mustPolicy("DELETE", "/v1/search/recent/{id}"), api.DeleteRecentSearchHandler(searchStore, deps.Logger)))
 	mux.Handle("POST /v1/auth/logout", v1mw.wrap(mustPolicy("POST", "/v1/auth/logout"), oauthHandlers.LogoutHandler()))
+	mux.Handle("POST /v1/account-deletion/intents", v1mw.wrap(mustPolicy("POST", "/v1/account-deletion/intents"), api.CreateAccountDeletionIntentHandler(deps.AccountDeletion)))
+	mux.Handle("DELETE /v1/account-deletion/intents/{jobId}", v1mw.wrap(mustPolicy("DELETE", "/v1/account-deletion/intents/{jobId}"), api.CancelAccountDeletionIntentHandler(deps.AccountDeletion)))
+	mux.Handle("POST /v1/account-deletions/{jobId}", v1mw.wrap(mustPolicy("POST", "/v1/account-deletions/{jobId}"), api.AcceptAccountDeletionHandler(deps.AccountDeletion)))
+	mux.Handle("POST /v1/account-deletions/recover", v1mw.wrap(mustPolicy("POST", "/v1/account-deletions/recover"), api.RecoverAccountDeletionHandler(deps.AccountDeletionRecovery)))
+	mux.Handle("GET /v1/account-deletions/{jobId}", v1mw.wrap(mustPolicy("GET", "/v1/account-deletions/{jobId}"), api.GetAccountDeletionStatusHandler(deps.AccountDeletionStatus)))
+	mux.Handle("POST /v1/account-deletions/{jobId}/retry", v1mw.wrap(mustPolicy("POST", "/v1/account-deletions/{jobId}/retry"), api.RetryAccountDeletionHandler(deps.AccountDeletionStatus)))
+	mux.Handle("POST /v1/account-deletions/{jobId}/reauth", v1mw.wrap(mustPolicy("POST", "/v1/account-deletions/{jobId}/reauth"), api.StartAccountDeletionReauthenticationHandler(deps.AccountDeletionStatus)))
 	mux.Handle("POST /v1/migrations/instagram/verifications", v1mw.wrap(mustPolicy("POST", "/v1/migrations/instagram/verifications"), instagramLimit(
 		api.CreateInstagramVerificationHandler(deps.InstagramVerification, deps.Logger),
 		middleware.InstagramRateLimitRule{Scope: instagram.RateLimitChallengeDID, Identity: middleware.InstagramRateIdentityDID, Window: 15 * time.Minute, Limit: deps.Config.InstagramLimits.ChallengeDIDPer15Minutes},
