@@ -32,14 +32,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Delete CraftSky account?'), findsOneWidget);
     expect(
-      find.textContaining('does not delete your AT Protocol account'),
+      find.textContaining('all your CraftSky data from your PDS'),
       findsOneWidget,
     );
     expect(
-      find.textContaining('does not delete your PDS account'),
+      find.textContaining('won’t delete your PDS, DID'),
       findsOneWidget,
     );
-    expect(find.textContaining('social.craftsky.*'), findsOneWidget);
 
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();

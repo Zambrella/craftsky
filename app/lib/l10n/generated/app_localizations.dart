@@ -4344,7 +4344,7 @@ abstract class AppLocalizations {
   /// Permanent CraftSky deletion boundary shown before typed-handle confirmation.
   ///
   /// In en, this message translates to:
-  /// **'Deleting {handle} permanently removes your CraftSky membership, private CraftSky data, and every social.craftsky.* record from your PDS. You will be signed out of CraftSky on every device as soon as you submit your typed handle. The app does not wait for your PDS cleanup to finish before signing you out. Deletion then continues in the background and cannot be undone; CraftSky may briefly show stale copies while its index updates. It does not delete your AT Protocol account, does not delete your PDS account, does not delete records from other apps, and does not directly delete blobs. Offline devices remove local CraftSky data the next time they connect.'**
+  /// **'Deleting {handle} permanently removes all your CraftSky data from your PDS and all private data held by CraftSky. It won’t delete your PDS, DID, or wider AT Protocol account.\n\nTo continue, you’ll need to authenticate with your PDS again.'**
   String deleteAccountBoundary(String handle);
 }
 
