@@ -16,6 +16,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/accountdeletion"
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/db"
@@ -42,12 +43,16 @@ import (
 // Handler factories in internal/api take only the specific dependencies
 // they use.
 type Deps struct {
-	Config        Config
-	Logger        *slog.Logger
-	DB            *pgxpool.Pool
-	AuthService   auth.AuthService
-	RateLimiter   *middleware.LocalRateLimiter
-	Observability *observability.Observer
+	Config                      Config
+	Logger                      *slog.Logger
+	DB                          *pgxpool.Pool
+	AuthService                 auth.AuthService
+	RateLimiter                 *middleware.LocalRateLimiter
+	Observability               *observability.Observer
+	AccountDeletion             accountdeletion.Service
+	AccountDeletionOAuth        auth.AccountDeletionOAuthCallbacks
+	AccountDeletionPendingLogin auth.AccountDeletionPendingLoginPolicy
+	AccountDeletionWorker       *accountdeletion.Worker
 
 	// OAuth subsystem.
 	OAuthApp             *oauth.ClientApp
@@ -515,6 +520,69 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 			},
 		}, nil
 	})
+	deletionStore := accountdeletion.NewStore(pool, time.Now)
+	deletionService, err := accountdeletion.NewAppService(accountdeletion.AppServiceOptions{
+		Pool: pool, Store: deletionStore,
+		OAuth: oauthApp, Now: time.Now, Random: rand.Reader,
+	})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("account deletion service: %w", err)
+	}
+	instagramDeletion, err := accountdeletion.NewNamedPrivateCleanup(
+		"instagramPrivate",
+		func(ctx context.Context, owner syntax.DID) error {
+			return accountdeletion.PurgeInstagramForAccountDeletion(ctx, instagramPrivateData, owner)
+		},
+	)
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("account deletion Instagram cleanup: %w", err)
+	}
+	deletionCleaner, err := accountdeletion.NewPrivateCleaner(
+		[]accountdeletion.PrivateCleanupComponent{
+			accountdeletion.NewDatabasePrivateCleanup(pool),
+			instagramDeletion,
+			scheduledAccountDeletion,
+		},
+	)
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("account deletion private cleanup: %w", err)
+	}
+	deletionLifecycle, err := accountdeletion.NewLifecycleProcessor(accountdeletion.LifecycleProcessorOptions{
+		Store: deletionStore, Cleaner: deletionCleaner,
+		NewPDSClient: func(ctx context.Context, owner syntax.DID, sessionID string) (auth.DeletionPDSClient, error) {
+			client, err := deps.NewPDSClient(ctx, owner, sessionID)
+			if err != nil {
+				return nil, err
+			}
+			deletionClient, ok := client.(auth.DeletionPDSClient)
+			if !ok {
+				return nil, errors.New("PDS client lacks narrow deletion capability")
+			}
+			return deletionClient, nil
+		},
+		BatchSize: 20,
+	})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("account deletion lifecycle: %w", err)
+	}
+	deletionWorker, err := accountdeletion.NewWorker(accountdeletion.WorkerOptions{
+		Store: deletionStore, Processor: deletionLifecycle,
+		WorkerID: "appview", Now: time.Now, LeaseDuration: 2 * time.Minute,
+		RetryPolicy: accountdeletion.DefaultRetryPolicy(),
+		Logger:      logger,
+	})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("account deletion worker: %w", err)
+	}
+	deps.AccountDeletion = deletionService
+	deps.AccountDeletionOAuth = deletionService
+	deps.AccountDeletionPendingLogin = deletionService
+	deps.AccountDeletionWorker = deletionWorker
 	scheduledPublisher, err := scheduledposts.NewPublicationProcessor(scheduledposts.PublicationProcessorOptions{
 		Store:         scheduledStore,
 		Sessions:      auth.NewBackgroundSessionSelector(pool),

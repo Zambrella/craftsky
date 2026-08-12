@@ -35,6 +35,7 @@ const (
 	instagramAutomaticFollowBatchSize    = instagram.AutomaticFollowBatchDefault
 	instagramRetentionInterval           = time.Hour
 	scheduledWorkerPollInterval          = 10 * time.Second
+	accountDeletionWorkerPollInterval    = 2 * time.Second
 )
 
 type instagramWebhookBatchProcessor interface {
@@ -51,6 +52,10 @@ type instagramReconciliationBatchProcessor interface {
 
 type instagramRetentionRunner interface {
 	Run(context.Context, int) (instagram.RetentionStats, error)
+}
+
+type accountDeletionProcessor interface {
+	ProcessOne(context.Context) (bool, error)
 }
 
 func main() {
@@ -219,7 +224,20 @@ func run(ctx context.Context, args []string) error {
 	} else {
 		close(scheduledCleanupDone)
 	}
-
+	accountDeletionDone := make(chan struct{})
+	if deps.AccountDeletionWorker != nil {
+		go func() {
+			defer close(accountDeletionDone)
+			runAccountDeletionWorker(
+				consumerCtx,
+				deps.AccountDeletionWorker,
+				deps.Logger,
+				accountDeletionWorkerPollInterval,
+			)
+		}()
+	} else {
+		close(accountDeletionDone)
+	}
 	// listenErr receives the result of ListenAndServe. A non-nil,
 	// non-ErrServerClosed error (e.g. port already in use) must unblock
 	// the main goroutine so run() returns the error instead of hanging
@@ -270,10 +288,42 @@ func run(ctx context.Context, args []string) error {
 	<-instagramRetentionDone
 	<-scheduledPublicationDone
 	<-scheduledCleanupDone
+	<-accountDeletionDone
 	deps.Logger.Info("shutdown: tap consumer stopped")
 	// Drain the listener goroutine's final send.
 	<-listenErr
 	return nil
+}
+
+func runAccountDeletionWorker(ctx context.Context, worker accountDeletionProcessor, logger *slog.Logger, pollInterval time.Duration) {
+	if worker == nil || pollInterval <= 0 {
+		return
+	}
+	for {
+		processed, err := worker.ProcessOne(ctx)
+		if ctx.Err() != nil {
+			return
+		}
+		if err != nil && logger != nil {
+			logger.Error("account deletion worker failed",
+				slog.String("component", "account_deletion"),
+				slog.String("operation", "process"),
+				slog.String("result", "error"),
+				slog.String("error_category", "worker"))
+		}
+		if err == nil && processed {
+			continue
+		}
+		timer := time.NewTimer(pollInterval)
+		select {
+		case <-ctx.Done():
+			if !timer.Stop() {
+				<-timer.C
+			}
+			return
+		case <-timer.C:
+		}
+	}
 }
 
 func runScheduledWorker(ctx context.Context, worker scheduledBatchProcessor, logger *slog.Logger, pollInterval time.Duration, operation string) {

@@ -5,17 +5,22 @@ import 'package:craftsky_app/auth/providers/active_account_initialization_provid
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/instagram_migration/pages/instagram_migration_page.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/data/language_preferences_repository.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/pages/languages_page.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_repository_provider.dart';
+import 'package:craftsky_app/notifications/pages/notification_settings_page.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/settings/pages/about_page.dart';
+import 'package:craftsky_app/settings/pages/account_page.dart';
 import 'package:craftsky_app/settings/pages/follow_list_page.dart';
+import 'package:craftsky_app/settings/pages/profile_customisation_page.dart';
 import 'package:craftsky_app/settings/pages/relationship_list_page.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -52,6 +57,8 @@ void main() {
       const BlockedAccountsRoute().location,
       '/profile/settings/blocked',
     );
+    expect(const AccountRoute().location, '/profile/settings/account');
+    expect(const AboutRoute().location, '/profile/settings/about');
   });
 
   testWidgets('Profile Settings action keeps one large navigation rail', (
@@ -170,6 +177,69 @@ void main() {
     expect(tester.widget<ListTile>(settingsTile).selected, isFalse);
   });
 
+  testWidgets('Settings shows identity, sectioned disclosures, and actions', (
+    tester,
+  ) async {
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(500, 1400);
+    final container = _container();
+    addTearDown(container.dispose);
+    final subscription = container.listen(
+      goRouterProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+    final router = subscription.read()..go(const SettingsRoute().location);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(
+          routerConfig: router,
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) => MessengerScope(
+            messenger: RecordingMessenger(),
+            child: FormFactorWidget(child: child!),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    for (final label in [
+      '@test.bsky.social',
+      'Switch account',
+      'Preferences',
+      'Customisation',
+      'Languages',
+      'Notifications',
+      'Connections',
+      'Followers',
+      'Following',
+      'Muted accounts',
+      'Blocked accounts',
+      'Discovery',
+      'Find people from Instagram',
+      'General',
+      'Account',
+      'About',
+      'Sign out',
+    ]) {
+      expect(find.text(label), findsOneWidget, reason: label);
+    }
+    expect(find.text('Clear image cache'), findsNothing);
+    expect(find.byIcon(Icons.chevron_right), findsNWidgets(11));
+    final signOut = tester.widget<Text>(find.text('Sign out'));
+    expect(
+      signOut.style?.color,
+      Theme.of(tester.element(find.text('Sign out'))).colorScheme.error,
+    );
+  });
+
   for (final routeCase in _routeCases) {
     testWidgets(
       'Settings opens ${routeCase.label} through the production router',
@@ -202,8 +272,14 @@ void main() {
         );
         await tester.pumpAndSettle();
 
+        await tester.scrollUntilVisible(
+          find.text(routeCase.label),
+          200,
+          scrollable: find.byType(Scrollable).last,
+        );
         await tester.tap(find.text(routeCase.label));
-        await tester.pumpAndSettle();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
 
         expect(router.state.matchedLocation, routeCase.location);
         expect(
@@ -291,9 +367,34 @@ const _emptyAccountPage = ProfileAccountPage(
 
 final _routeCases = <_SettingsRouteCase>[
   _SettingsRouteCase(
+    label: 'Customisation',
+    location: '/profile/settings/customisation',
+    matchesPage: (widget) => widget is ProfileCustomisationPage,
+  ),
+  _SettingsRouteCase(
+    label: 'Notifications',
+    location: '/notifications/settings',
+    matchesPage: (widget) => widget is NotificationSettingsPage,
+  ),
+  _SettingsRouteCase(
+    label: 'Account',
+    location: '/profile/settings/account',
+    matchesPage: (widget) => widget is AccountPage,
+  ),
+  _SettingsRouteCase(
+    label: 'About',
+    location: '/profile/settings/about',
+    matchesPage: (widget) => widget is AboutPage,
+  ),
+  _SettingsRouteCase(
     label: 'Languages',
     location: '/profile/settings/languages',
     matchesPage: (widget) => widget is LanguagesPage,
+  ),
+  _SettingsRouteCase(
+    label: 'Find people from Instagram',
+    location: '/profile/settings/instagram',
+    matchesPage: (widget) => widget is InstagramMigrationPage,
   ),
   _SettingsRouteCase(
     label: 'Followers',

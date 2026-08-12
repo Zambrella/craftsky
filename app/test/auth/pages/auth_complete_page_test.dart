@@ -28,11 +28,17 @@ void main() {
     tester,
   ) async {
     final seen = <String>[];
+    final neverCompletes = Completer<void>();
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           authControllerProvider.overrideWith(
-            () => _FakeAuthController(onComplete: (t) async => seen.add(t)),
+            () => _FakeAuthController(
+              onComplete: (t) async {
+                seen.add(t);
+                await neverCompletes.future;
+              },
+            ),
           ),
         ],
         child: const MaterialApp(
@@ -47,11 +53,14 @@ void main() {
   });
 
   testWidgets('renders spinner by default', (tester) async {
+    final neverCompletes = Completer<void>();
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           authControllerProvider.overrideWith(
-            () => _FakeAuthController(onComplete: (_) async {}),
+            () => _FakeAuthController(
+              onComplete: (_) => neverCompletes.future,
+            ),
           ),
         ],
         child: const MaterialApp(
@@ -89,5 +98,31 @@ void main() {
       find.textContaining('sign in again', findRichText: true),
       findsOneWidget,
     );
+  });
+
+  testWidgets('renders a coarse pending-deletion outcome without signing in', (
+    tester,
+  ) async {
+    final seen = <String>[];
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authControllerProvider.overrideWith(
+            () => _FakeAuthController(
+              onComplete: (token) async => seen.add(token),
+            ),
+          ),
+        ],
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: AuthCompletePage(error: 'account_deletion_pending'),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    expect(seen, isEmpty);
+    expect(find.textContaining('already in progress'), findsOneWidget);
   });
 }

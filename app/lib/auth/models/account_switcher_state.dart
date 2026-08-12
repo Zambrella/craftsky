@@ -33,7 +33,9 @@ final class AccountSwitcherRow {
 
 @immutable
 final class AccountSwitcherState {
-  const AccountSwitcherState._({required this.rows});
+  const AccountSwitcherState._({
+    required this.rows,
+  });
 
   factory AccountSwitcherState.fromRegistry(SessionRegistry registry) =>
       AccountSwitcherState._(

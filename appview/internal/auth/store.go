@@ -15,6 +15,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/google/uuid"
 )
 
 // ErrOAuthSessionNotFound is returned by GetSession / GetAuthRequestInfo
@@ -111,9 +112,22 @@ func (s *PostgresAuthStore) SaveAuthRequestInfo(ctx context.Context, info oauth.
 	if err != nil {
 		return fmt.Errorf("marshal auth request: %w", err)
 	}
-	_, err = s.pool.Exec(ctx,
-		`INSERT INTO oauth_auth_requests (state, data) VALUES ($1, $2)`,
-		info.State, data)
+	purpose := OAuthPurpose("login")
+	var owner any
+	var jobID any
+	if metadata, ok := AuthRequestMetadataFromContext(ctx); ok {
+		if metadata.Purpose != AccountDeletionOAuthPurpose || metadata.Owner == "" || metadata.JobID == uuid.Nil {
+			return errors.New("invalid account deletion auth request metadata")
+		}
+		purpose = metadata.Purpose
+		owner = metadata.Owner
+		jobID = metadata.JobID
+	}
+	_, err = s.pool.Exec(ctx, `
+		INSERT INTO oauth_auth_requests (
+			state,data,purpose,account_deletion_owner_did,account_deletion_job_id
+		) VALUES ($1,$2,$3,$4,$5)
+	`, info.State, data, purpose, owner, jobID)
 	if err != nil {
 		return fmt.Errorf("insert auth request: %w", err)
 	}

@@ -7,6 +7,8 @@ class RouteLocations {
   static const signIn = '/sign-in';
   static const addAccount = '/add-account';
   static const authComplete = '/auth/complete';
+  static const accountDeletionReauthComplete =
+      '/account-deletion/reauth-complete';
   static const onboarding = '/onboarding';
   static const feed = '/feed';
   // Alias: the post-auth home landing. Keep as a const reference to `feed`
@@ -23,6 +25,8 @@ class RouteLocations {
   static const settings = '$profile/$settingsChild';
   static const languagesChild = 'languages';
   static const customisationChild = 'customisation';
+  static const accountChild = 'account';
+  static const aboutChild = 'about';
   static const instagramMigrationChild = 'instagram';
   static const scheduledPostsChild = 'scheduled';
   static const draftsChild = 'drafts';

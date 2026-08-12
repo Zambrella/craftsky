@@ -38,6 +38,8 @@ class BrandTextField extends StatefulWidget {
     this.maxLines = 1,
     this.minLines,
     this.obscureText = false,
+    this.autocorrect = true,
+    this.enableSuggestions = true,
     this.keyboardType,
     this.textInputAction,
     this.inputFormatters,
@@ -74,6 +76,8 @@ class BrandTextField extends StatefulWidget {
   final int? maxLines;
   final int? minLines;
   final bool obscureText;
+  final bool autocorrect;
+  final bool enableSuggestions;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
   final List<TextInputFormatter>? inputFormatters;
@@ -181,6 +185,8 @@ class _BrandTextFieldState extends State<BrandTextField> {
         maxLines: widget.maxLines,
         minLines: widget.minLines,
         obscureText: widget.obscureText,
+        autocorrect: widget.autocorrect,
+        enableSuggestions: widget.enableSuggestions,
         keyboardType: widget.keyboardType,
         textInputAction: widget.textInputAction,
         inputFormatters: widget.inputFormatters,

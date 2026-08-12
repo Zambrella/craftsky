@@ -14,7 +14,6 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/v5"
 )
 
 func TestStoreCleansEligiblePrivateArtifactsSafely(t *testing.T) {
@@ -310,9 +309,7 @@ func TestAccountDeletionRemovesPrivateSchedulesAndQueuesEveryObject(t *testing.T
 	}
 
 	deletion := NewAccountDeletion(store.pool, func() time.Time { return now })
-	if err := pgx.BeginFunc(ctx, store.pool, func(tx pgx.Tx) error {
-		return deletion.HardDeleteByActor(ctx, tx, owner)
-	}); err != nil {
+	if err := deletion.Purge(ctx, owner); err != nil {
 		t.Fatalf("delete scheduled account state: %v", err)
 	}
 
@@ -326,9 +323,7 @@ func TestAccountDeletionRemovesPrivateSchedulesAndQueuesEveryObject(t *testing.T
 	if ownerSchedule.ID == uuid.Nil {
 		t.Fatal("owner schedule fixture was not created")
 	}
-	if err := pgx.BeginFunc(ctx, store.pool, func(tx pgx.Tx) error {
-		return deletion.HardDeleteByActor(ctx, tx, owner)
-	}); err != nil {
+	if err := deletion.Purge(ctx, owner); err != nil {
 		t.Fatalf("repeat scheduled account deletion: %v", err)
 	}
 	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_cleanup_jobs WHERE object_key IN ($1, $2)`, 2, "scheduled-media/"+ownerAttachedID.String(), "scheduled-media/"+ownerUnclaimedID.String())

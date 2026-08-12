@@ -32,6 +32,9 @@ import 'package:craftsky_app/scheduled_posts/pages/scheduled_posts_page.dart';
 import 'package:craftsky_app/search/models/search_results_tab.dart';
 import 'package:craftsky_app/search/pages/search_page.dart';
 import 'package:craftsky_app/search/pages/tag_search_page.dart';
+import 'package:craftsky_app/settings/pages/about_page.dart';
+import 'package:craftsky_app/settings/pages/account_deletion_reauth_complete_page.dart';
+import 'package:craftsky_app/settings/pages/account_page.dart';
 import 'package:craftsky_app/settings/pages/follow_list_page.dart';
 import 'package:craftsky_app/settings/pages/profile_customisation_page.dart';
 import 'package:craftsky_app/settings/pages/relationship_list_page.dart';
@@ -128,6 +131,9 @@ GoRouter goRouter(Ref ref) {
         case SignedIn(:final did):
           final onboarded = ref.read(onboardingStatusProvider(did));
           if (loc == RouteLocations.authComplete) return null;
+          if (loc == RouteLocations.accountDeletionReauthComplete) {
+            return null;
+          }
           if (!onboarded && loc != RouteLocations.onboarding) {
             return RouteLocations.onboarding;
           }
@@ -143,6 +149,25 @@ GoRouter goRouter(Ref ref) {
     errorBuilder: (context, state) =>
         ErrorScreen(error: state.error ?? 'Unknown routing error'),
   );
+}
+
+@TypedGoRoute<AccountDeletionReauthCompleteRoute>(
+  path: RouteLocations.accountDeletionReauthComplete,
+  name: 'account-deletion-reauth-complete',
+)
+class AccountDeletionReauthCompleteRoute extends GoRouteData
+    with $AccountDeletionReauthCompleteRoute {
+  const AccountDeletionReauthCompleteRoute({
+    required this.jobId,
+    required this.proof,
+  });
+
+  final String jobId;
+  final String proof;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      AccountDeletionReauthCompletePage(jobId: jobId, proof: proof);
 }
 
 // --- Shell route -----------------------------------------------------------
@@ -205,6 +230,14 @@ GoRouter goRouter(Ref ref) {
                     TypedGoRoute<ProfileCustomisationRoute>(
                       path: RouteLocations.customisationChild,
                       name: 'profile-customisation',
+                    ),
+                    TypedGoRoute<AccountRoute>(
+                      path: RouteLocations.accountChild,
+                      name: 'settings-account',
+                    ),
+                    TypedGoRoute<AboutRoute>(
+                      path: RouteLocations.aboutChild,
+                      name: 'settings-about',
                     ),
                     TypedGoRoute<LanguagesRoute>(
                       path: RouteLocations.languagesChild,
@@ -423,6 +456,27 @@ class ProfileCustomisationRoute extends GoRouteData
       const ProfileCustomisationPage();
 }
 
+class AccountRoute extends GoRouteData with $AccountRoute {
+  const AccountRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.authenticatedShellNavigatorKey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const AccountPage();
+}
+
+class AboutRoute extends GoRouteData with $AboutRoute {
+  const AboutRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.authenticatedShellNavigatorKey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) => const AboutPage();
+}
+
 class ScheduledPostsRoute extends GoRouteData with $ScheduledPostsRoute {
   const ScheduledPostsRoute();
 
@@ -605,16 +659,17 @@ class AddAccountRoute extends GoRouteData with $AddAccountRoute {
   name: 'auth-complete',
 )
 class AuthCompleteRoute extends GoRouteData with $AuthCompleteRoute {
-  const AuthCompleteRoute({required this.token});
+  const AuthCompleteRoute({this.token, this.error});
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.rootNavigatorKey;
 
-  final String token;
+  final String? token;
+  final String? error;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
-      AuthCompletePage(token: token);
+      AuthCompletePage(token: token, error: error);
 }
 
 @TypedGoRoute<OnboardingRoute>(

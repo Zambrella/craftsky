@@ -15,7 +15,11 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'dio_provider.g.dart';
 
-typedef _ClientTarget = ({String token, String did, int generation});
+typedef _ClientTarget = ({
+  String token,
+  String did,
+  int generation,
+});
 typedef _AccountClientSelection = ({bool loaded, _ClientTarget? target});
 
 /// Android emulator maps the host machine to 10.0.2.2. iOS simulator

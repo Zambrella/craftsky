@@ -637,6 +637,7 @@ func samplePath(pattern string) string {
 		"{rkey}", "post1",
 		"{tag}", "sock",
 		"{id}", "recent_123",
+		"{jobId}", "10000000-0000-0000-0000-000000000001",
 	)
 	path := replacer.Replace(pattern)
 	switch pattern {

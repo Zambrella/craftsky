@@ -75,6 +75,8 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		deps.IdentityCacheUpdater,
 	)
 	oauthHandlers.RepositoryTracker = deps.RepositoryTracker
+	oauthHandlers.DeletionOAuthCallbacks = deps.AccountDeletionOAuth
+	oauthHandlers.DeletionPendingLogin = deps.AccountDeletionPendingLogin
 	mux.Handle("GET /oauth/client-metadata.json", inFlight(oauthHandlers.ClientMetadataHandler()))
 	mux.Handle("GET /oauth/jwks.json", inFlight(oauthHandlers.JWKSHandler()))
 	mux.Handle("GET /oauth/callback", inFlight(oauthHandlers.CallbackHandler()))
@@ -165,6 +167,9 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	mux.Handle("POST /v1/search/recent", v1mw.wrap(mustPolicy("POST", "/v1/search/recent"), api.SaveRecentSearchHandler(searchStore, deps.Logger)))
 	mux.Handle("DELETE /v1/search/recent/{id}", v1mw.wrap(mustPolicy("DELETE", "/v1/search/recent/{id}"), api.DeleteRecentSearchHandler(searchStore, deps.Logger)))
 	mux.Handle("POST /v1/auth/logout", v1mw.wrap(mustPolicy("POST", "/v1/auth/logout"), oauthHandlers.LogoutHandler()))
+	mux.Handle("POST /v1/account-deletion/intents", v1mw.wrap(mustPolicy("POST", "/v1/account-deletion/intents"), api.CreateAccountDeletionIntentHandler(deps.AccountDeletion)))
+	mux.Handle("DELETE /v1/account-deletion/intents/{jobId}", v1mw.wrap(mustPolicy("DELETE", "/v1/account-deletion/intents/{jobId}"), api.CancelAccountDeletionIntentHandler(deps.AccountDeletion)))
+	mux.Handle("POST /v1/account-deletions/{jobId}", v1mw.wrap(mustPolicy("POST", "/v1/account-deletions/{jobId}"), api.AcceptAccountDeletionHandler(deps.AccountDeletion)))
 	mux.Handle("POST /v1/migrations/instagram/verifications", v1mw.wrap(mustPolicy("POST", "/v1/migrations/instagram/verifications"), instagramLimit(
 		api.CreateInstagramVerificationHandler(deps.InstagramVerification, deps.Logger),
 		middleware.InstagramRateLimitRule{Scope: instagram.RateLimitChallengeDID, Identity: middleware.InstagramRateIdentityDID, Window: 15 * time.Minute, Limit: deps.Config.InstagramLimits.ChallengeDIDPer15Minutes},

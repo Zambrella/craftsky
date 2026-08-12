@@ -10,9 +10,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class AuthCompletePage extends ConsumerStatefulWidget {
-  const AuthCompletePage({required this.token, super.key});
+  const AuthCompletePage({this.token, this.error, super.key});
 
-  final String token;
+  final String? token;
+  final String? error;
 
   @override
   ConsumerState<AuthCompletePage> createState() => _AuthCompletePageState();
@@ -22,11 +23,12 @@ class _AuthCompletePageState extends ConsumerState<AuthCompletePage> {
   @override
   void initState() {
     super.initState();
+    if (widget.error != null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      final token = widget.token;
+      if (token == null || token.isEmpty) return;
       unawaited(
-        ref
-            .read(authControllerProvider.notifier)
-            .completeFromDeepLink(widget.token),
+        ref.read(authControllerProvider.notifier).completeFromDeepLink(token),
       );
     });
   }
@@ -39,6 +41,20 @@ class _AuthCompletePageState extends ConsumerState<AuthCompletePage> {
       }
     });
     final state = ref.watch(authControllerProvider);
+
+    if (widget.error == 'account_deletion_pending') {
+      return Scaffold(
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Text(
+              AppLocalizations.of(context).accountDeletionAlreadyInProgress,
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       body: Center(

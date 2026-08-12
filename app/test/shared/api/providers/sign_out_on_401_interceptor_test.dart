@@ -19,6 +19,19 @@ DioException _exWithStatus(int status) {
   );
 }
 
+DioException _pendingDeletion() {
+  final req = RequestOptions(path: '/v1/whoami');
+  return DioException(
+    requestOptions: req,
+    response: Response<Map<String, Object?>>(
+      requestOptions: req,
+      statusCode: 401,
+      data: const {'error': 'account_deletion_pending'},
+    ),
+    type: DioExceptionType.badResponse,
+  );
+}
+
 void main() {
   test('401 invalidates only the captured account session lease', () async {
     final leaseA = AccountSessionLease(
@@ -51,4 +64,25 @@ void main() {
     expect(handlerA.error, same(error401));
     expect(handlerB.error, same(error500));
   });
+
+  test(
+    'any 401, including stale pending-deletion responses, invalidates normally',
+    () async {
+      final lease = AccountSessionLease(
+        account: AccountKey('did:plc:alice'),
+        sessionGeneration: 3,
+      );
+      var invalidated = 0;
+      final interceptor = SignOutOn401Interceptor.withLease(
+        lease: lease,
+        invalidate: (_) async => invalidated++,
+      );
+      final handler = _CapturingHandler();
+
+      interceptor.onError(_pendingDeletion(), handler);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(invalidated, 1);
+    },
+  );
 }

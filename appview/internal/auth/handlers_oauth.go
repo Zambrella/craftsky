@@ -29,6 +29,9 @@ type HTTPHandlers struct {
 	IdentityCacheUpdater      IdentityCacheUpdater
 	RepositoryTracker         RepositoryTracker
 	NotificationSubscriptions NotificationSubscriptionCleaner
+	ProcessOAuthCallback      func(context.Context, url.Values) (*oauth.ClientSessionData, error)
+	DeletionOAuthCallbacks    AccountDeletionOAuthCallbacks
+	DeletionPendingLogin      AccountDeletionPendingLoginPolicy
 }
 
 type NotificationSubscriptionCleaner interface {
@@ -49,7 +52,7 @@ func NewHTTPHandlers(
 	if len(identityCacheUpdater) > 0 {
 		updater = identityCacheUpdater[0]
 	}
-	return &HTTPHandlers{
+	handlers := &HTTPHandlers{
 		OAuth:                oauthApp,
 		CraftskySessions:     craftskyStore,
 		Pool:                 pool,
@@ -58,6 +61,10 @@ func NewHTTPHandlers(
 		NewPDSClient:         newPDSClient,
 		IdentityCacheUpdater: updater,
 	}
+	if oauthApp != nil {
+		handlers.ProcessOAuthCallback = oauthApp.ProcessCallback
+	}
+	return handlers
 }
 
 // ClientMetadataHandler serves /oauth/client-metadata.json — the
@@ -99,7 +106,30 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := ctxkeys.GetRunID(r.Context())
 		state := r.URL.Query().Get("state")
-		sessData, err := h.OAuth.ProcessCallback(r.Context(), r.URL.Query())
+		var (
+			deletionRequest AccountDeletionAuthRequest
+			deletionPurpose bool
+		)
+		if h.DeletionOAuthCallbacks != nil {
+			var err error
+			deletionRequest, deletionPurpose, err = h.DeletionOAuthCallbacks.RequestForState(r.Context(), state)
+			if err != nil {
+				h.Logger.Warn("load OAuth callback purpose failed",
+					authLogErrorAttrs(runID, "oauth.callback", "store")...)
+				renderErrorHTML(w, http.StatusBadRequest, "Sign-in could not be completed. Please try again.")
+				return
+			}
+			deletionPurpose = deletionPurpose && deletionRequest.Purpose == AccountDeletionOAuthPurpose
+		}
+		processCallback := h.ProcessOAuthCallback
+		if processCallback == nil && h.OAuth != nil {
+			processCallback = h.OAuth.ProcessCallback
+		}
+		if processCallback == nil {
+			renderErrorHTML(w, http.StatusInternalServerError, "Internal error. Please try again.")
+			return
+		}
+		sessData, err := processCallback(r.Context(), r.URL.Query())
 		if err != nil {
 			h.Logger.Warn("ProcessCallback failed",
 				authLogErrorAttrs(runID, "oauth.callback", "authorization_server")...)
@@ -107,7 +137,30 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 			return
 		}
 
-		mode, loopbackURI, herr := h.loadHandoff(r.Context(), state)
+		if deletionPurpose {
+			result, err := h.DeletionOAuthCallbacks.Complete(
+				r.Context(), deletionRequest, sessData.AccountDID, sessData.SessionID,
+			)
+			if err != nil {
+				_ = h.DeletionOAuthCallbacks.Reject(r.Context(), sessData.AccountDID, sessData.SessionID)
+				h.Logger.Warn("account deletion reauthentication failed",
+					authLogErrorAttrs(runID, "oauth.callback", "reauthentication")...)
+				renderErrorHTML(w, http.StatusBadRequest, "Account deletion reauthentication could not be completed. Please try again.")
+				return
+			}
+			query := url.Values{"job-id": {result.JobID}, "proof": {result.Proof}}
+			data := callbackPageData{
+				DeepLinkURL: "craftsky:///account-deletion/reauth-complete?" + query.Encode(),
+			}
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			if err := callbackTmpl.Execute(w, data); err != nil {
+				h.Logger.Error("account deletion callback template",
+					authLogErrorAttrs(runID, "oauth.callback", "template")...)
+			}
+			return
+		}
+
+		mode, loopbackURI, deviceID, herr := h.loadHandoff(r.Context(), state)
 		if herr != nil {
 			// Best-effort: ProcessCallback may already have deleted the
 			// auth-request row (it's single-use). Fall back to deep_link.
@@ -117,6 +170,25 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 		}
 		if mode == "" {
 			mode = "deep_link"
+		}
+		if h.DeletionPendingLogin != nil {
+			_, exists, err := h.DeletionPendingLogin.PendingLogin(r.Context(), sessData.AccountDID, sessData.SessionID, deviceID)
+			if err != nil {
+				_ = h.DeletionPendingLogin.Reject(r.Context(), sessData.AccountDID, sessData.SessionID)
+				renderErrorHTML(w, http.StatusInternalServerError, "Account deletion could not be resumed. Please try again.")
+				return
+			}
+			if exists {
+				// PendingLogin has rebound this fresh OAuth session to the durable
+				// deletion operation. Do not reject it or mint an ordinary bearer.
+				query := url.Values{"error": {"account_deletion_pending"}}
+				data := callbackPageData{DeepLinkURL: "craftsky:///auth/complete?" + query.Encode()}
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				if err := callbackTmpl.Execute(w, data); err != nil {
+					h.Logger.Error("pending account deletion callback template", authLogErrorAttrs(runID, "oauth.callback", "template")...)
+				}
+				return
+			}
 		}
 
 		pdsClient, err := h.NewPDSClient(r.Context(), sessData.AccountDID, sessData.SessionID)

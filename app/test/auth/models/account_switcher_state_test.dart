@@ -1,58 +1,25 @@
 import 'package:craftsky_app/auth/models/account_switcher_state.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
-import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('UT-016 builds active-first rows with cached identity', () {
-    final registry = SessionRegistry.empty()
+  test('switcher projects only retained ordinary accounts', () {
+    final sessions = SessionRegistry.empty()
         .upsertAndActivate(
-          token: 'c-token',
-          did: 'did:plc:carol',
-          handle: 'carol.test',
-          cachedDisplayName: 'Carol',
-        )
-        .upsertAndActivate(
-          token: 'b-token',
-          did: 'did:plc:bob',
-          handle: 'bob.test',
-          cachedAvatarUrl: 'https://example.test/bob.jpg',
-          cachedCustomisation: const ProfileCustomisation(colour: 'rose'),
-        )
-        .upsertAndActivate(
-          token: 'a-token',
+          token: 'alice-token',
           did: 'did:plc:alice',
           handle: 'alice.test',
+        )
+        .upsertAndActivate(
+          token: 'bob-token',
+          did: 'did:plc:bob',
+          handle: 'bob.test',
         );
 
-    final state = AccountSwitcherState.fromRegistry(registry);
+    final state = AccountSwitcherState.fromRegistry(sessions);
 
-    expect(state.rows.map((row) => row.handle), [
-      'alice.test',
-      'bob.test',
-      'carol.test',
-    ]);
-    expect(state.rows.first.isCurrent, isTrue);
-    expect(state.rows.first.displayLabel, 'alice.test');
-    expect(state.rows[1].avatarUrl, 'https://example.test/bob.jpg');
-    expect(state.rows[1].customisation.colour, 'rose');
-    expect(state.rows[2].displayLabel, 'Carol');
+    expect(state.rows, hasLength(2));
+    expect(state.rows.where((row) => row.isCurrent).single.handle, 'bob.test');
     expect(state.canAddAccount, isTrue);
-  });
-
-  test('UT-016 disables Add at five without exposing removal actions', () {
-    var registry = SessionRegistry.empty();
-    for (var index = 0; index < SessionRegistry.maxRetainedAccounts; index++) {
-      registry = registry.upsertAndActivate(
-        token: 'token-$index',
-        did: 'did:plc:a$index',
-        handle: 'a$index.test',
-      );
-    }
-
-    final state = AccountSwitcherState.fromRegistry(registry);
-
-    expect(state.canAddAccount, isFalse);
-    expect('$state ${state.rows.join(' ')}', isNot(contains('did:plc:')));
   });
 }

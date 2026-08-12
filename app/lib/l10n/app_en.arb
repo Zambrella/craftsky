@@ -2023,5 +2023,69 @@
   "@draftCleanupError": { "description": "Safe warning after remote success and local draft cleanup failure." },
 
   "draftsReplaceImageAction": "Replace image",
-  "@draftsReplaceImageAction": { "description": "Action replacing unavailable media in an editable local draft." }
+  "@draftsReplaceImageAction": { "description": "Action replacing unavailable media in an editable local draft." },
+
+  "settingsTitle": "Settings",
+  "@settingsTitle": { "description": "Settings page title." },
+  "settingsSwitchAccount": "Switch account",
+  "@settingsSwitchAccount": { "description": "Action opening the retained-account switcher." },
+  "settingsSectionPreferences": "Preferences",
+  "@settingsSectionPreferences": { "description": "Settings section containing app preferences." },
+  "settingsSectionConnections": "Connections",
+  "@settingsSectionConnections": { "description": "Settings section containing relationship lists." },
+  "settingsSectionDiscovery": "Discovery",
+  "@settingsSectionDiscovery": { "description": "Settings section containing account discovery." },
+  "settingsSectionGeneral": "General",
+  "@settingsSectionGeneral": { "description": "Settings section containing Account and About." },
+  "settingsNotifications": "Notifications",
+  "@settingsNotifications": { "description": "Settings row opening notification settings." },
+  "settingsFollowers": "Followers",
+  "@settingsFollowers": { "description": "Settings row opening followers." },
+  "settingsFollowing": "Following",
+  "@settingsFollowing": { "description": "Settings row opening followed accounts." },
+  "settingsAccount": "Account",
+  "@settingsAccount": { "description": "Settings row opening account settings." },
+  "settingsAbout": "About",
+  "@settingsAbout": { "description": "Settings row opening About." },
+  "settingsTerms": "Terms",
+  "@settingsTerms": { "description": "External Terms link on About." },
+  "settingsPrivacyPolicy": "Privacy policy",
+  "@settingsPrivacyPolicy": { "description": "External Privacy policy link on About." },
+  "settingsClearImageCache": "Clear image cache",
+  "@settingsClearImageCache": { "description": "Immediate action clearing downloaded image caches." },
+  "settingsImageCacheCleared": "Image cache cleared",
+  "@settingsImageCacheCleared": { "description": "Success feedback after clearing image caches." },
+  "settingsVersion": "Version",
+  "@settingsVersion": { "description": "Read-only app version label on About." },
+  "settingsSignOut": "Sign out",
+  "@settingsSignOut": { "description": "Immediate action signing out the active account." },
+  "accountTitle": "Account",
+  "@accountTitle": { "description": "Account settings page title." },
+  "deleteAccountTitle": "Delete CraftSky account?",
+  "@deleteAccountTitle": { "description": "First permanent CraftSky deletion dialog title." },
+  "deleteAccountAction": "Delete account",
+  "@deleteAccountAction": { "description": "Destructive account deletion action." },
+  "deleteAccountContinue": "Continue",
+  "@deleteAccountContinue": { "description": "Action continuing to fresh reauthentication." },
+  "deleteAccountConfirmTitle": "Confirm account deletion",
+  "@deleteAccountConfirmTitle": { "description": "Typed-handle confirmation dialog title." },
+  "deleteAccountTypeHandleLabel": "Type your handle",
+  "@deleteAccountTypeHandleLabel": { "description": "Label for exact-handle deletion confirmation input." },
+  "deleteAccountConfirmationPrompt": "Type {handle} exactly to permanently delete this CraftSky account.",
+  "@deleteAccountConfirmationPrompt": {
+    "description": "Prompt for exact-handle deletion confirmation.",
+    "placeholders": {
+      "handle": { "type": "String", "example": "@alice.test" }
+    }
+  },
+  "accountDeletionAlreadyInProgress": "Your CraftSky account deletion is already in progress. You cannot sign in again until it has finished.",
+  "@accountDeletionAlreadyInProgress": { "description": "Coarse sign-in outcome while durable account deletion is active." },
+
+  "deleteAccountBoundary": "Deleting {handle} permanently removes all your CraftSky data from your PDS and all private data held by CraftSky. It won’t delete your PDS, DID, or wider AT Protocol account.\n\nTo continue, you’ll need to authenticate with your PDS again.",
+  "@deleteAccountBoundary": {
+    "description": "Permanent CraftSky deletion boundary shown before typed-handle confirmation.",
+    "placeholders": {
+      "handle": { "type": "String", "example": "@alice.test" }
+    }
+  }
 }

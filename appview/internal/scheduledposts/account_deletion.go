@@ -23,6 +23,19 @@ func NewAccountDeletion(pool *pgxpool.Pool, now func() time.Time) *AccountDeleti
 	return &AccountDeletion{pool: pool, now: now}
 }
 
+func (*AccountDeletion) Name() string { return "scheduledPosts" }
+
+// Purge removes scheduled state for an accepted deletion job and records only
+// the content-free object-cleanup job IDs needed by the terminal gate.
+func (deletion *AccountDeletion) Purge(ctx context.Context, ownerDID syntax.DID) error {
+	if deletion == nil || deletion.pool == nil || ownerDID == "" {
+		return errors.New("scheduled account deletion is unavailable")
+	}
+	return pgx.BeginFunc(ctx, deletion.pool, func(tx pgx.Tx) error {
+		return deletion.hardDeleteByActor(ctx, tx, ownerDID)
+	})
+}
+
 func (deletion *AccountDeletion) HandleIdentityDeleted(
 	ctx context.Context,
 	ownerDID syntax.DID,
@@ -31,11 +44,19 @@ func (deletion *AccountDeletion) HandleIdentityDeleted(
 		return errors.New("scheduled account deletion is unavailable")
 	}
 	return pgx.BeginFunc(ctx, deletion.pool, func(tx pgx.Tx) error {
-		return deletion.HardDeleteByActor(ctx, tx, ownerDID)
+		return deletion.hardDeleteByActor(ctx, tx, ownerDID)
 	})
 }
 
 func (deletion *AccountDeletion) HardDeleteByActor(
+	ctx context.Context,
+	tx pgx.Tx,
+	ownerDID syntax.DID,
+) error {
+	return deletion.hardDeleteByActor(ctx, tx, ownerDID)
+}
+
+func (deletion *AccountDeletion) hardDeleteByActor(
 	ctx context.Context,
 	tx pgx.Tx,
 	ownerDID syntax.DID,
@@ -110,7 +131,12 @@ func (deletion *AccountDeletion) HardDeleteByActor(
 		return fmt.Errorf("delete scheduled account tombstones: %w", err)
 	}
 	for _, objectKey := range objectKeys {
-		if _, err := tx.Exec(ctx, insertCleanupJobSQL, uuid.New(), objectKey, now); err != nil {
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO scheduled_post_cleanup_jobs (
+				id, object_key, next_attempt_at, created_at, updated_at
+			) VALUES ($1, $2, $3, $3, $3)
+			ON CONFLICT (object_key) DO UPDATE SET object_key=EXCLUDED.object_key
+		`, uuid.New(), objectKey, now); err != nil {
 			return fmt.Errorf("enqueue scheduled account media: %w", err)
 		}
 	}
