@@ -71,8 +71,8 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Multi-account support
 - [x] Drafts
 - [x] Drawer
-- [ ] Profile settings screen — handle change, avatar upload, privacy controls
-- [ ] Profile customisation
+- [x] Profile settings screen — handle change, avatar upload, privacy controls
+- [x] Profile customisation
 - [ ] Onboarding
 - [ ] Support custom PDS instances for login
 - [ ] Link previews, YouTube video embeds
