@@ -5,7 +5,7 @@
   if (!successMessage) return;
 
   function redirectAfterSuccess() {
-    if (window.getComputedStyle(successMessage).display !== 'none') {
+    if (successMessage.classList.contains('sib-form-message-panel--active')) {
       window.location.replace('/');
     }
   }

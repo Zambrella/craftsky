@@ -383,9 +383,16 @@ a:hover { color: var(--cobalt-deep); }
 .waitlist-card .waitlist-form__submit .btn {
   width: 100%;
   min-height: 52px;
+  gap: var(--sp-2);
   font-family: var(--font-ui);
   font-size: var(--t-body);
   text-align: center;
+}
+
+.waitlist-card .progress-indicator__icon {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 18px;
 }
 
 .waitlist-message {
