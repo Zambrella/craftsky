@@ -5,6 +5,7 @@ Single static HTML page served at https://craftsky.social.
 ## Contents
 
 - `index.html` — landing page, nine sections
+- `waitlist.html` — focused waiting-list signup page at `/waitlist`
 - `privacy.html` — privacy policy (linked from footer)
 - `terms.html` — terms of service (linked from footer)
 - `styles.css` — all styles, design tokens copied from `../docs/design/colors_and_type.css`

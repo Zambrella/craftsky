@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Join the CraftSky waiting list</title>
+    <meta name="description" content="Join the waiting list for Craftsky, a new social platform for textile crafters." />
+    <link rel="canonical" href="https://craftsky.social/waitlist" />
+
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="/assets/favicon-32.png" type="image/png" sizes="32x32" />
+    <link rel="icon" href="/assets/favicon-16.png" type="image/png" sizes="16x16" />
+    <link rel="apple-touch-icon" href="/assets/apple-touch-icon.png" sizes="180x180" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://sibforms.com" />
+    <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Outfit:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" />
+    <link rel="stylesheet" href="https://sibforms.com/forms/end-form/build/sib-styles.css" />
+    <link rel="stylesheet" href="/styles.css" />
+</head>
+
+<body class="waitlist-page">
+    <a class="skip-link" href="#main">Skip to main content</a>
+
+    <main id="main" class="waitlist-page__main">
+        <section class="waitlist-card" aria-labelledby="waitlist-title">
+            <div id="sib-form-container" class="sib-form-container">
+                <div id="error-message" class="sib-form-message-panel waitlist-message waitlist-message--error"
+                    role="alert">
+                    <div class="sib-form-message-panel__text sib-form-message-panel__text--center">
+                        <span class="sib-form-message-panel__inner-text">
+                            Your subscription could not be saved. Please try again.
+                        </span>
+                    </div>
+                </div>
+
+                <div id="success-message" class="sib-form-message-panel waitlist-message waitlist-message--success"
+                    role="status">
+                    <div class="sib-form-message-panel__text sib-form-message-panel__text--center">
+                        <span class="sib-form-message-panel__inner-text">Successfully joined waiting list!</span>
+                    </div>
+                </div>
+
+                <div id="sib-container" class="sib-container--large sib-container--vertical waitlist-form-container">
+                    <form id="sib-form" method="POST"
+                        action="https://537f57e5.sibforms.com/serve/MUIFAK2yaDNdNXlRWw2kavO7EeWUj20Xl9OteRR0zrDT8EIsjBA_Dme9L74XztuGu6EUCf4yKrL2m8KiPpvNaPMF-R7FKfkzf402M1pnARZTwX35tXOsiD63vxuGa4n_W0Kc-Qal_dcM8rDZZLnjeJdApPdivEYBUVBjbQuyLoNRjL1o3PThn1B4XvCmFQm2eEc1yy9V_WXFgHuAxA=="
+                        data-type="subscription">
+                        <div class="sib-form-block waitlist-form__heading">
+                            <h1 id="waitlist-title">Join the CraftSky waiting list</h1>
+                        </div>
+
+                        <div class="sib-form-block waitlist-form__intro">
+                            <p>Your email address is only used to send you information about CraftSky. Your email will
+                                be deleted after launch.</p>
+                        </div>
+
+                        <div class="sib-input sib-form-block waitlist-form__field">
+                            <div class="form__entry entry_block">
+                                <div class="form__label-row">
+                                    <label class="entry__label" for="EMAIL" data-required="*">Enter your email
+                                        address</label>
+                                    <div class="entry__field">
+                                        <input class="input" type="email" id="EMAIL" name="EMAIL"
+                                            autocomplete="email" placeholder="you@email.com" data-required="true"
+                                            required />
+                                    </div>
+                                </div>
+                                <label class="entry__error entry__error--primary"></label>
+                            </div>
+                        </div>
+
+                        <div class="sib-optin sib-form-block waitlist-form__opt-in" data-required="true">
+                            <div class="form__entry entry_mcq">
+                                <div class="form__label-row">
+                                    <div class="entry__choice">
+                                        <label>
+                                            <input type="checkbox" class="input_replaced" value="1" id="GDPR_OPT_IN"
+                                                name="GDPR_OPT_IN" required />
+                                            <span class="checkbox checkbox_tick_positive"></span>
+                                            <span>I agree to receive your emails and accept the data privacy
+                                                statement.</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <label class="entry__error entry__error--primary"></label>
+                            </div>
+                        </div>
+
+                        <div class="sib-captcha sib-form-block waitlist-form__captcha">
+                            <div class="form__entry entry_block">
+                                <div class="form__label-row">
+                                    <div class="cf-turnstile g-recaptcha" data-sitekey="0x4AAAAAADDqVh2pRgd-m51v"
+                                        id="sib-captcha" data-callback="handleCaptchaResponse" data-language="en">
+                                    </div>
+                                </div>
+                                <label class="entry__error entry__error--primary"></label>
+                            </div>
+                        </div>
+
+                        <div class="sib-form-block waitlist-form__submit">
+                            <button class="sib-form-block__button sib-form-block__button-with-loader btn btn--primary"
+                                form="sib-form" type="submit">
+                                <svg class="icon clickable__icon progress-indicator__icon sib-hide-loader-icon"
+                                    viewBox="0 0 512 512" aria-hidden="true">
+                                    <path
+                                        d="M460.116 373.846l-20.823-12.022c-5.541-3.199-7.54-10.159-4.663-15.874 30.137-59.886 28.343-131.652-5.386-189.946-33.641-58.394-94.896-93.833-161.827-99.676C261.028 55.961 256 50.751 256 44.352V20.309c0-6.904 5.808-12.337 12.703-11.982 83.556 4.306 160.163 50.864 202.11 123.677 42.063 72.696 44.079 162.316 6.031 236.832-3.14 6.148-10.75 8.461-16.728 5.01z" />
+                                </svg>
+                                Join the waiting list
+                            </button>
+                        </div>
+
+                        <input type="text" name="email_address_check" value="" class="input--hidden" />
+                        <input type="hidden" name="locale" value="en" />
+                    </form>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer class="waitlist-page__footer">
+        <a href="/">Find out more</a>
+    </footer>
+
+    <script>
+        window.REQUIRED_CODE_ERROR_MESSAGE = 'Please choose a country code';
+        window.LOCALE = 'en';
+        window.EMAIL_INVALID_MESSAGE = window.SMS_INVALID_MESSAGE =
+            'The information provided is invalid. Please review the field format and try again.';
+        window.REQUIRED_ERROR_MESSAGE = 'This field cannot be left blank. ';
+        window.GENERIC_INVALID_MESSAGE =
+            'The information provided is invalid. Please review the field format and try again.';
+        window.INVALID_NUMBER = 'The information provided is invalid. Please review the field format and try again.';
+        window.INVALID_DATE = 'Please enter a valid date';
+        window.REQUIRED_MULTISELECT_MESSAGE = 'Please select at least 1 option';
+        window.translation = {
+            common: {
+                selectedList: '{quantity} list selected',
+                selectedLists: '{quantity} lists selected',
+                selectedOption: '{quantity} selected',
+                selectedOptions: '{quantity} selected',
+            },
+        };
+        window.AUTOHIDE = false;
+
+        function handleCaptchaResponse() {
+            var event = new Event('captchaChange');
+            document.getElementById('sib-captcha').dispatchEvent(event);
+            window.grecaptcha = window.turnstile;
+        }
+    </script>
+    <script src="https://sibforms.com/forms/end-form/build/main.js" defer></script>
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+    <script src="/waitlist.js" defer></script>
+</body>
+
+</html>

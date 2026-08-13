@@ -259,6 +259,177 @@ a:hover { color: var(--cobalt-deep); }
   color: var(--cobalt);
 }
 
+/* =========================================================================
+   Waiting-list page
+   ========================================================================= */
+
+.waitlist-page {
+  min-height: 100vh;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  background:
+    linear-gradient(rgba(245, 239, 228, 0.9), rgba(245, 239, 228, 0.9)),
+    url('/assets/paper-grain.svg');
+}
+
+.waitlist-page__main {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  padding: var(--sp-6) var(--sp-4);
+}
+
+.waitlist-card {
+  width: min(100%, 540px);
+  padding: clamp(var(--sp-5), 5vw, var(--sp-7));
+  background: var(--paper-3);
+  border: var(--border-w) solid var(--rule);
+  border-radius: var(--r-4);
+  box-shadow: var(--sh-drop-lg);
+}
+
+.waitlist-card .sib-form-container,
+.waitlist-card .waitlist-form-container {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  text-align: left;
+}
+
+.waitlist-card .sib-form-block {
+  padding: 0;
+}
+
+.waitlist-form__heading h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(42px, 8vw, 58px);
+  font-weight: 400;
+  line-height: var(--lh-display);
+  letter-spacing: -0.02em;
+}
+
+.waitlist-form__intro {
+  margin-top: var(--sp-4);
+  color: var(--fg-2);
+}
+
+.waitlist-form__field {
+  margin-top: var(--sp-6);
+}
+
+.waitlist-card .entry__label {
+  display: block;
+  margin-bottom: var(--sp-2);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--t-body);
+  font-weight: 700;
+}
+
+.waitlist-card .entry__field {
+  border: 0;
+}
+
+.waitlist-card .entry__field .input {
+  width: 100%;
+  min-height: 52px;
+  padding: var(--sp-3) var(--sp-4);
+  border: var(--border-w) solid var(--rule);
+  border-radius: var(--r-2);
+  background: var(--paper-3);
+  color: var(--ink);
+  font: inherit;
+}
+
+.waitlist-card .entry__field .input:focus {
+  border-color: var(--cobalt);
+  outline: 2px solid var(--cobalt);
+  outline-offset: 2px;
+}
+
+.waitlist-form__opt-in,
+.waitlist-form__captcha,
+.waitlist-form__submit {
+  margin-top: var(--sp-4);
+}
+
+.waitlist-card .entry__choice label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--sp-2);
+  color: var(--fg-2);
+  font-family: var(--font-ui);
+  font-size: var(--t-body-sm);
+  line-height: 1.4;
+}
+
+.waitlist-card .entry__choice .checkbox {
+  flex: 0 0 auto;
+}
+
+.waitlist-card .entry__error {
+  margin-top: var(--sp-2);
+  border: 0;
+  background: transparent;
+  color: var(--red-deep);
+  font-family: var(--font-ui);
+  font-size: var(--t-body-sm);
+}
+
+.waitlist-card .waitlist-form__submit .btn {
+  width: 100%;
+  min-height: 52px;
+  font-family: var(--font-ui);
+  font-size: var(--t-body);
+  text-align: center;
+}
+
+.waitlist-message {
+  display: none;
+  max-width: none;
+  margin-bottom: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+  border: var(--border-w) solid var(--rule);
+  border-radius: var(--r-2);
+  font-family: var(--font-ui);
+  font-size: var(--t-body);
+  text-align: left;
+}
+
+.waitlist-message--error {
+  background: var(--red-soft);
+  color: var(--red-deep);
+}
+
+.waitlist-message--success {
+  background: var(--paper);
+  color: var(--moss);
+}
+
+.waitlist-page__footer {
+  padding: var(--sp-4) var(--sp-5) var(--sp-5);
+  text-align: center;
+  font-size: var(--t-body-sm);
+  font-weight: 600;
+}
+
+@media (max-width: 480px) {
+  .waitlist-page__main {
+    align-items: start;
+    padding-top: var(--sp-4);
+  }
+
+  .waitlist-card {
+    padding: var(--sp-5) var(--sp-4);
+    border-radius: var(--r-3);
+    box-shadow: var(--sh-drop);
+  }
+}
+
 /* Eyebrow chip (hero + any other eyebrow callouts) */
 .eyebrow-chip {
   display: inline-block;
