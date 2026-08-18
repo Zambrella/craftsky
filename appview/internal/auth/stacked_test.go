@@ -16,10 +16,7 @@ import (
 func TestStackedAuth_RealTokenWins(t *testing.T) {
 	pool := withAuthSchema(t)
 	ctx := context.Background()
-	if _, err := pool.Exec(ctx,
-		`INSERT INTO oauth_sessions (account_did, session_id, data) VALUES ('did:plc:real', 'oauth-1', '{}')`); err != nil {
-		t.Fatal(err)
-	}
+	seedActiveOAuthSession(t, pool, "did:plc:real", "oauth-1")
 	craftsky := auth.NewCraftskySessionStore(pool, 5*time.Minute)
 	token, err := craftsky.Create(ctx, "did:plc:real", "oauth-1", "")
 	if err != nil {

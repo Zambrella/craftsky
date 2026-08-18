@@ -7,8 +7,11 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
+
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
 type NotificationNewCountStore interface {
@@ -30,6 +33,8 @@ func (s *PostStore) NotificationNewCount(ctx context.Context, accountDID string)
 		FROM notification_events event
 		WHERE event.recipient_did = $1
 		  AND event.state = 'active'
+		  AND NOT appview_owner_is_terminal(event.recipient_did)
+		  AND NOT appview_owner_is_terminal(event.actor_did)
 		  AND NOT EXISTS (
 			SELECT 1 FROM actor_mutes mute
 			WHERE mute.owner_did = $1 AND mute.subject_did = event.actor_did
@@ -48,6 +53,7 @@ func (s *PostStore) NotificationNewCount(ctx context.Context, accountDID string)
 			SELECT 1
 			FROM moderation_outputs output
 			WHERE output.action = 'apply'
+			  AND NOT appview_owner_is_terminal(output.source_did)
 			  AND output.subject_type = 'account'
 			  AND output.subject_did = event.actor_did
 			  AND output.value IN ('hide', 'takedown')
@@ -72,7 +78,15 @@ func (s *PostStore) NotificationNewCount(ctx context.Context, accountDID string)
 }
 
 func (s *PostStore) MarkNotificationsSeen(ctx context.Context, accountDID string) error {
-	_, err := s.pool.Exec(ctx, `
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("mark notifications seen begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, syntax.DID(accountDID), nil); err != nil {
+		return fmt.Errorf("mark notifications seen authorization: %w", err)
+	}
+	_, err = tx.Exec(ctx, `
 		INSERT INTO notification_seen_state (
 			account_did,
 			last_seen_revision,
@@ -90,6 +104,9 @@ func (s *PostStore) MarkNotificationsSeen(ctx context.Context, accountDID string
 	`, accountDID)
 	if err != nil {
 		return fmt.Errorf("mark notifications seen: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("mark notifications seen commit: %w", err)
 	}
 	return nil
 }

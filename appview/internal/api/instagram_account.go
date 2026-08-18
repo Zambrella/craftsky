@@ -37,7 +37,7 @@ func GetInstagramAccountHandler(store InstagramAccountStore, available Instagram
 			return
 		}
 		if store == nil {
-			writeInstagramAccountError(w, r, logger, errors.New("Instagram account store unavailable"))
+			writeInstagramAccountError(w, r, logger, errors.New("instagram account store unavailable"))
 			return
 		}
 
@@ -68,7 +68,7 @@ func PatchInstagramSettingsHandler(store InstagramAccountStore, available Instag
 			return
 		}
 		if store == nil {
-			writeInstagramAccountError(w, r, logger, errors.New("Instagram account store unavailable"))
+			writeInstagramAccountError(w, r, logger, errors.New("instagram account store unavailable"))
 			return
 		}
 
@@ -93,7 +93,7 @@ func DeleteInstagramAccountHandler(store InstagramAccountStore, logger *slog.Log
 			return
 		}
 		if store == nil {
-			writeInstagramAccountError(w, r, logger, errors.New("Instagram account store unavailable"))
+			writeInstagramAccountError(w, r, logger, errors.New("instagram account store unavailable"))
 			return
 		}
 

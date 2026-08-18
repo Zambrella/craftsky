@@ -149,7 +149,7 @@ void main() {
                 _follow('alice-one'),
                 _follow('bob-one', actorDid: 'did:plc:bob'),
                 _follow('alice-two'),
-                _instagramMatch(),
+                _retiredInstagramMatch(),
               ],
             ),
           ),
@@ -168,7 +168,7 @@ void main() {
       expect(removed, 2);
       expect(retained, hasLength(2));
       expect(retainedSocial.actor.did, 'did:plc:bob');
-      expect(retained.whereType<InstagramMatchNotification>(), hasLength(1));
+      expect(retained.whereType<GenericSystemNotification>(), hasLength(1));
     },
   );
 }
@@ -176,7 +176,7 @@ void main() {
 String _socialRkey(CraftskyNotification notification) =>
     (notification as SocialNotification).rkey.toString();
 
-InstagramMatchNotification _instagramMatch() =>
+GenericSystemNotification _retiredInstagramMatch() =>
     CraftskyNotification.fromMap({
           'id': 'instagram-match',
           'type': 'instagramMatch',
@@ -189,7 +189,7 @@ InstagramMatchNotification _instagramMatch() =>
           'createdAt': '2026-05-28T13:00:00Z',
           'indexedAt': '2026-05-28T13:00:01Z',
         })
-        as InstagramMatchNotification;
+        as GenericSystemNotification;
 
 FollowNotification _follow(
   String rkey, {

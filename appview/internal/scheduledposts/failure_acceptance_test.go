@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/pdseffects"
 )
 
 func TestTransientFailureUsesAllSixAttemptsThenRequiresRecovery(t *testing.T) {
@@ -32,7 +33,7 @@ func TestTransientFailureUsesAllSixAttemptsThenRequiresRecovery(t *testing.T) {
 		Sessions: stubPublicationSessionSelector{
 			wantOwner: "did:plc:alice", err: auth.ErrNoUsableBackgroundSession,
 		},
-		NewPDS: func(context.Context, syntax.DID, string) (auth.PDSClient, error) {
+		NewEffects: func(context.Context, syntax.DID, string) (pdseffects.GuardedEffectCoordinator, error) {
 			t.Fatal("PDS factory called without a usable owner session")
 			return nil, errors.New("unreachable")
 		},
@@ -102,11 +103,9 @@ func TestPermanentPolicyFailurePreservesMemberContent(t *testing.T) {
 		Sessions: stubPublicationSessionSelector{
 			wantOwner: "did:plc:alice", sessionID: "owner-session",
 		},
-		NewPDS: func(context.Context, syntax.DID, string) (auth.PDSClient, error) {
-			return pds, nil
-		},
-		Objects: newMemoryPrivateObjectStore(),
-		Now:     func() time.Time { return now },
+		NewEffects: recordingGuardedFactory(pds, nil),
+		Objects:    newMemoryPrivateObjectStore(),
+		Now:        func() time.Time { return now },
 		Validate: func(context.Context, syntax.DID, Payload) error {
 			return ErrPolicyInvalid
 		},

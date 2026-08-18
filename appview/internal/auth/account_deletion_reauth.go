@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"crypto/subtle"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -19,12 +20,40 @@ var (
 
 type OAuthPurpose string
 
-const AccountDeletionOAuthPurpose OAuthPurpose = "accountDeletion"
+const (
+	LoginOAuthPurpose           OAuthPurpose = "login"
+	AccountDeletionOAuthPurpose OAuthPurpose = "accountDeletion"
+)
+
+type HandoffMode string
+
+const (
+	HandoffVerifiedLink HandoffMode = "verified_link"
+	HandoffLoopback     HandoffMode = "loopback"
+)
+
+type AuthRequestState string
+
+const (
+	AuthRequestReady             AuthRequestState = "ready"
+	AuthRequestExchangeStarted   AuthRequestState = "exchange_started"
+	AuthRequestExchangeFailed    AuthRequestState = "exchange_failed"
+	AuthRequestExchangeAmbiguous AuthRequestState = "exchange_ambiguous"
+	AuthRequestConsumed          AuthRequestState = "consumed"
+	AuthRequestRevoked           AuthRequestState = "revoked"
+)
 
 type AuthRequestMetadata struct {
-	Purpose OAuthPurpose
-	Owner   syntax.DID
-	JobID   uuid.UUID
+	Purpose           OAuthPurpose
+	Owner             syntax.DID
+	OwnerGeneration   int64
+	AuthEpoch         int64
+	JobID             uuid.UUID
+	HandoffMode       HandoffMode
+	LoopbackURI       string
+	DeviceID          string
+	RequestState      AuthRequestState
+	ExchangeAttemptID uuid.UUID
 }
 
 type authRequestMetadataContextKey struct{}
@@ -34,6 +63,10 @@ func WithAccountDeletionAuthRequest(
 	owner syntax.DID,
 	jobID uuid.UUID,
 ) context.Context {
+	// Retained only as a compile-time migration aid for callers which have not
+	// yet supplied lifecycle authority. SaveAuthRequestInfo rejects this
+	// incomplete metadata; production wiring must call the authority-bearing
+	// variant below.
 	return context.WithValue(ctx, authRequestMetadataContextKey{}, AuthRequestMetadata{
 		Purpose: AccountDeletionOAuthPurpose,
 		Owner:   owner,
@@ -41,9 +74,69 @@ func WithAccountDeletionAuthRequest(
 	})
 }
 
+func WithLoginAuthRequest(
+	ctx context.Context,
+	owner syntax.DID,
+	ownerGeneration int64,
+	authEpoch int64,
+	mode HandoffMode,
+	deviceID string,
+	loopbackURI string,
+) context.Context {
+	return context.WithValue(ctx, authRequestMetadataContextKey{}, AuthRequestMetadata{
+		Purpose:         LoginOAuthPurpose,
+		Owner:           owner,
+		OwnerGeneration: ownerGeneration,
+		AuthEpoch:       authEpoch,
+		HandoffMode:     mode,
+		LoopbackURI:     loopbackURI,
+		DeviceID:        deviceID,
+	})
+}
+
+func WithAccountDeletionAuthRequestAuthority(
+	ctx context.Context,
+	owner syntax.DID,
+	ownerGeneration int64,
+	authEpoch int64,
+	jobID uuid.UUID,
+	deviceID string,
+) context.Context {
+	return context.WithValue(ctx, authRequestMetadataContextKey{}, AuthRequestMetadata{
+		Purpose:         AccountDeletionOAuthPurpose,
+		Owner:           owner,
+		OwnerGeneration: ownerGeneration,
+		AuthEpoch:       authEpoch,
+		JobID:           jobID,
+		HandoffMode:     HandoffVerifiedLink,
+		DeviceID:        deviceID,
+	})
+}
+
 func AuthRequestMetadataFromContext(ctx context.Context) (AuthRequestMetadata, bool) {
 	metadata, ok := ctx.Value(authRequestMetadataContextKey{}).(AuthRequestMetadata)
 	return metadata, ok
+}
+
+func (metadata AuthRequestMetadata) valid() bool {
+	if metadata.Owner == "" || metadata.OwnerGeneration <= 0 || metadata.AuthEpoch <= 0 ||
+		strings.TrimSpace(metadata.DeviceID) == "" {
+		return false
+	}
+	if metadata.HandoffMode != HandoffVerifiedLink && metadata.HandoffMode != HandoffLoopback {
+		return false
+	}
+	if (metadata.HandoffMode == HandoffLoopback) != (metadata.LoopbackURI != "") {
+		return false
+	}
+	switch metadata.Purpose {
+	case LoginOAuthPurpose:
+		return metadata.JobID == uuid.Nil
+	case AccountDeletionOAuthPurpose:
+		return metadata.JobID != uuid.Nil && metadata.HandoffMode == HandoffVerifiedLink
+	default:
+		return false
+	}
 }
 
 type AccountDeletionAuthRequest struct {
@@ -73,6 +166,17 @@ type AccountDeletionOAuthCallbacks interface {
 	RequestForState(ctx context.Context, state string) (AccountDeletionAuthRequest, bool, error)
 	Complete(ctx context.Context, request AccountDeletionAuthRequest, did syntax.DID, sessionID string) (AccountDeletionOAuthResult, error)
 	Reject(ctx context.Context, did syntax.DID, sessionID string) error
+}
+
+// AccountDeletionOAuthAttemptCallbacks is the fenced callback contract. The
+// implementation must bind the exact pending parent through
+// PostgresAuthStore.BindDeletionCredential before returning proof material.
+type AccountDeletionOAuthAttemptCallbacks interface {
+	CompleteAttempt(
+		context.Context,
+		AccountDeletionAuthRequest,
+		CallbackAttempt,
+	) (AccountDeletionOAuthResult, error)
 }
 
 type AccountDeletionReauthIntent struct {

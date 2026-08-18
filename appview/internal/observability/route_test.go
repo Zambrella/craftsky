@@ -7,6 +7,8 @@ import (
 	"testing"
 )
 
+type routeTestContextKey struct{}
+
 func TestRoutePatternUsesMuxPatternOrUnmatched(t *testing.T) {
 	matched := httptest.NewRequest(http.MethodGet, "/v1/posts/did:plc:raw/rkey123?cursor=secret", nil)
 	matched.Pattern = "GET /v1/posts/{did}/{rkey}"
@@ -22,7 +24,7 @@ func TestRoutePatternUsesMuxPatternOrUnmatched(t *testing.T) {
 
 func TestRoutePatternRecorderSharesPatternAcrossDerivedContexts(t *testing.T) {
 	outer := WithRoutePatternRecorder(context.Background())
-	inner := context.WithValue(outer, struct{}{}, "derived")
+	inner := context.WithValue(outer, routeTestContextKey{}, "derived")
 
 	RecordRoutePattern(inner, "/v1/posts/{did}/{rkey}")
 

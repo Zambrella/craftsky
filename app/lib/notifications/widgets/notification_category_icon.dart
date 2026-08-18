@@ -10,7 +10,6 @@ IconData notificationCategoryIcon(NotificationCategory category) =>
       NotificationCategory.mention => Icons.alternate_email,
       NotificationCategory.quote => Icons.format_quote,
       NotificationCategory.repost => Icons.repeat,
-      NotificationCategory.instagramMatch => Icons.people_outline,
       NotificationCategory.everythingElse ||
       NotificationCategory.unknown => Icons.notifications_none,
     };

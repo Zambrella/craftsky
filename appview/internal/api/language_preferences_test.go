@@ -169,6 +169,20 @@ func newLanguagePreferencesAPIStore(t *testing.T) *languages.Store {
 			record JSONB NOT NULL,
 			created_at TIMESTAMPTZ NOT NULL
 		);
+		CREATE TABLE owner_lifecycles (
+			owner_did TEXT PRIMARY KEY,
+			state TEXT NOT NULL,
+			generation BIGINT NOT NULL,
+			auth_epoch BIGINT NOT NULL DEFAULT 1,
+			transition_reason TEXT NOT NULL DEFAULT 'test',
+			transitioned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+			terminal_at TIMESTAMPTZ,
+			purge_completed_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+		);
+		INSERT INTO owner_lifecycles(owner_did,state,generation)
+		VALUES('did:plc:alice','active',1),('did:plc:bob','active',1);
 	`)
 	if _, err := pool.Exec(context.Background(), string(up)); err != nil {
 		t.Fatalf("apply language migration: %v", err)
@@ -195,7 +209,8 @@ func languagePreferencesRequest(
 ) *http.Request {
 	request := httptest.NewRequest(method, target, strings.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
-	return request.WithContext(middleware.WithDID(request.Context(), did))
+	ctx := middleware.WithDID(request.Context(), did)
+	return request.WithContext(middleware.WithOwnerGeneration(ctx, 1))
 }
 
 func assertLanguagePreferencesJSON(

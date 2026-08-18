@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/models/pending_handoff.dart';
 import 'package:craftsky_app/auth/models/stored_session.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -25,6 +26,7 @@ class SessionRegistry {
     required String? activeDid,
     required Map<String, StoredSession> sessions,
     Map<String, String> routingBindings = const {},
+    this.pendingHandoff,
   }) : activeDid = activeDid == null ? null : Did.parse(activeDid),
        sessions = Map.unmodifiable({
          for (final MapEntry(key: did, value: session) in sessions.entries)
@@ -101,6 +103,18 @@ class SessionRegistry {
       throw const FormatException('Invalid active session');
     }
 
+    final rawPendingHandoff = decoded['pendingHandoff'];
+    final PendingHandoff? pendingHandoff;
+    if (rawPendingHandoff == null) {
+      pendingHandoff = null;
+    } else if (rawPendingHandoff is Map) {
+      pendingHandoff = PendingHandoff.fromMap(
+        Map<String, dynamic>.from(rawPendingHandoff),
+      );
+    } else {
+      throw const FormatException('Invalid pending handoff');
+    }
+
     final nextSessionGeneration = _requiredPositiveInt(
       decoded,
       'nextSessionGeneration',
@@ -123,6 +137,7 @@ class SessionRegistry {
       activeDid: activeDid,
       sessions: sessions,
       routingBindings: routingBindings,
+      pendingHandoff: pendingHandoff,
     );
   }
 
@@ -136,6 +151,7 @@ class SessionRegistry {
   final Did? activeDid;
   final Map<Did, StoredSession> sessions;
   final Map<Did, String> routingBindings;
+  final PendingHandoff? pendingHandoff;
 
   List<StoredSession> get orderedSessions {
     final ordered = sessions.values.toList()
@@ -210,6 +226,42 @@ class SessionRegistry {
         ),
       },
     );
+  }
+
+  /// Stores the entire inactive handoff receipt in the same secure snapshot as
+  /// retained accounts. No session becomes usable or visible through
+  /// [activeDid] until [confirmHandoff] runs after server confirmation.
+  SessionRegistry stageHandoff(PendingHandoff handoff) {
+    final current = pendingHandoff;
+    if (current != null) {
+      if (_sameHandoff(current, handoff)) return this;
+      throw StateError('Another handoff is pending confirmation');
+    }
+    if (!sessions.containsKey(handoff.did) &&
+        sessions.length >= maxRetainedAccounts) {
+      throw const AccountLimitReached();
+    }
+    return _copyWith(pendingHandoff: handoff);
+  }
+
+  /// Promotes exactly the durably stored receipt after the server has made the
+  /// parent and child session active.
+  SessionRegistry confirmHandoff(String receiptId) {
+    final pending = pendingHandoff;
+    if (pending == null || pending.receiptId != receiptId) {
+      throw StateError('Pending handoff unavailable');
+    }
+    return upsertAndActivate(
+      token: pending.token,
+      did: pending.did.value,
+      handle: pending.handle.value,
+    )._copyWith(pendingHandoff: null);
+  }
+
+  SessionRegistry discardHandoff(String receiptId) {
+    final pending = pendingHandoff;
+    if (pending == null || pending.receiptId != receiptId) return this;
+    return _copyWith(pendingHandoff: null);
   }
 
   SessionRegistry activate(AccountSessionLease target) {
@@ -347,6 +399,7 @@ class SessionRegistry {
       for (final MapEntry(key: did, value: binding) in routingBindings.entries)
         did: binding,
     },
+    'pendingHandoff': pendingHandoff?.toMap(),
     'sessions': {
       for (final MapEntry(key: did, value: session) in sessions.entries)
         did: {
@@ -369,12 +422,16 @@ class SessionRegistry {
     Object? activeDid = _unchanged,
     Map<Did, StoredSession>? sessions,
     Map<Did, String>? routingBindings,
+    Object? pendingHandoff = _unchanged,
   }) {
     final resolvedActiveDid = identical(activeDid, _unchanged)
         ? this.activeDid
         : activeDid as Did?;
     final resolvedSessions = sessions ?? this.sessions;
     final resolvedBindings = routingBindings ?? this.routingBindings;
+    final resolvedPendingHandoff = identical(pendingHandoff, _unchanged)
+        ? this.pendingHandoff
+        : pendingHandoff as PendingHandoff?;
     return SessionRegistry(
       nextSessionGeneration:
           nextSessionGeneration ?? this.nextSessionGeneration,
@@ -389,6 +446,7 @@ class SessionRegistry {
         for (final entry in resolvedBindings.entries)
           entry.key.value: entry.value,
       },
+      pendingHandoff: resolvedPendingHandoff,
     );
   }
 
@@ -445,4 +503,11 @@ class SessionRegistry {
       });
     return entries.first.key;
   }
+
+  static bool _sameHandoff(PendingHandoff left, PendingHandoff right) =>
+      left.token == right.token &&
+      left.did == right.did &&
+      left.handle == right.handle &&
+      left.receiptId == right.receiptId &&
+      left.confirmBy == right.confirmBy;
 }

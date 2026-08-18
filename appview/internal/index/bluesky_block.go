@@ -17,8 +17,9 @@ const blueskyBlockNSID syntax.NSID = "app.bsky.graph.block"
 
 // BlueskyBlock is the sole writer of the public block projection.
 type BlueskyBlock struct {
-	pool     *pgxpool.Pool
-	observer RelationshipObserver
+	pool         *pgxpool.Pool
+	projectionDB transactionalDatabase
+	observer     RelationshipObserver
 }
 
 // RelationshipObserver is the identifier-free operational boundary shared by
@@ -81,7 +82,7 @@ func (b *BlueskyBlock) Handle(ctx context.Context, ev tap.Event) (err error) {
 		}
 		observeRelationshipOutcome(b.observer, operation, "lag", "success", "none", time.Since(createdAt))
 		stage = "store"
-		tx, err := b.pool.Begin(ctx)
+		tx, err := b.database().Begin(ctx)
 		if err != nil {
 			errorClass = "store"
 			return fmt.Errorf("begin block %s: %w", ev.URI, err)
@@ -130,7 +131,7 @@ func (b *BlueskyBlock) Handle(ctx context.Context, ev tap.Event) (err error) {
 		return nil
 	case "delete":
 		stage = "store"
-		if _, err := b.pool.Exec(ctx, `DELETE FROM atproto_blocks WHERE uri = $1`, ev.URI); err != nil {
+		if _, err := b.database().Exec(ctx, `DELETE FROM atproto_blocks WHERE uri = $1`, ev.URI); err != nil {
 			errorClass = "store"
 			return fmt.Errorf("delete block %s: %w", ev.URI, err)
 		}
@@ -140,6 +141,13 @@ func (b *BlueskyBlock) Handle(ctx context.Context, ev tap.Event) (err error) {
 		errorClass = "validation"
 		return fmt.Errorf("unknown block action %q on %s", ev.Action, ev.URI)
 	}
+}
+
+func (b *BlueskyBlock) database() transactionalDatabase {
+	if b.projectionDB != nil {
+		return b.projectionDB
+	}
+	return b.pool
 }
 
 func observeRelationshipOutcome(observer RelationshipObserver, operation, stage, result, errorClass string, duration time.Duration) {

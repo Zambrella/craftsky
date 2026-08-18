@@ -130,39 +130,3 @@ func TestBuildPayloadUT012BoundsLargestReplyData(t *testing.T) {
 		t.Fatal("over-bound subjectUri entered provider data")
 	}
 }
-
-func TestBuildInstagramMatchPayloadIsActorlessAndBounded(t *testing.T) {
-	const privateCanary = "private-instagram-identity-canary"
-	payload := BuildPayload(
-		notifications.InstagramMatch,
-		"opaque-account-subscription",
-		privateCanary,
-		RoutingFacts{
-			ActorDID:       syntax.DID("did:plc:" + privateCanary),
-			SourceURI:      syntax.ATURI("at://" + privateCanary + "/source"),
-			SubjectURI:     syntax.ATURI("at://" + privateCanary + "/subject"),
-			RootURI:        syntax.ATURI("at://" + privateCanary + "/root"),
-			NotificationID: "00000000-0000-0000-0000-000000000654",
-		},
-	)
-
-	want := map[string]string{
-		"payloadVersion":        "1",
-		"type":                  "instagramMatch",
-		"accountSubscriptionId": "opaque-account-subscription",
-		"notificationId":        "00000000-0000-0000-0000-000000000654",
-	}
-	if !reflect.DeepEqual(payload.Data, want) {
-		t.Fatalf("data=%#v, want %#v", payload.Data, want)
-	}
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(encoded), privateCanary) || strings.Contains(string(encoded), "did:plc:") || strings.Contains(string(encoded), "at://") {
-		t.Fatalf("actorless payload leaked social/private facts: %s", encoded)
-	}
-	if payload.Title != "CraftSky" || payload.Body == "" {
-		t.Fatalf("visible copy=%q / %q", payload.Title, payload.Body)
-	}
-}

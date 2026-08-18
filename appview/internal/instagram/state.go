@@ -10,7 +10,7 @@ import (
 var (
 	ErrInvalidInstagramState     = errors.New("invalid Instagram state")
 	ErrInstagramStateTransition  = errors.New("invalid Instagram state transition")
-	ErrInstagramResourceNotFound = errors.New("Instagram resource not found")
+	ErrInstagramResourceNotFound = errors.New("instagram resource not found")
 )
 
 type VerificationAttemptState string
@@ -157,58 +157,6 @@ func ValidateInstagramImportTransition(from, to InstagramImportState) error {
 		allowed = oneOf(to, ImportMembershipInactive)
 	case ImportMembershipInactive:
 		allowed = oneOf(to, ImportActive)
-	}
-	return transitionResult(allowed, from, to)
-}
-
-type AutomaticFollowState string
-
-const (
-	AutomaticFollowPending          AutomaticFollowState = "pending"
-	AutomaticFollowWriting          AutomaticFollowState = "writing"
-	AutomaticFollowFollowed         AutomaticFollowState = "followed"
-	AutomaticFollowAlreadyFollowing AutomaticFollowState = "alreadyFollowing"
-	AutomaticFollowInvalidated      AutomaticFollowState = "invalidated"
-)
-
-func (s AutomaticFollowState) Valid() bool {
-	switch s {
-	case AutomaticFollowPending,
-		AutomaticFollowWriting,
-		AutomaticFollowFollowed,
-		AutomaticFollowAlreadyFollowing,
-		AutomaticFollowInvalidated:
-		return true
-	default:
-		return false
-	}
-}
-
-func (s AutomaticFollowState) SuppressesReconciliation() bool {
-	return s == AutomaticFollowFollowed || s == AutomaticFollowAlreadyFollowing
-}
-
-func ValidateAutomaticFollowTransition(from, to AutomaticFollowState) error {
-	if !from.Valid() || !to.Valid() {
-		return ErrInvalidInstagramState
-	}
-	if from == to {
-		return nil
-	}
-	allowed := false
-	switch from {
-	case AutomaticFollowPending:
-		allowed = oneOf(to, AutomaticFollowWriting, AutomaticFollowInvalidated)
-	case AutomaticFollowWriting:
-		allowed = oneOf(
-			to,
-			AutomaticFollowPending,
-			AutomaticFollowFollowed,
-			AutomaticFollowAlreadyFollowing,
-			AutomaticFollowInvalidated,
-		)
-	case AutomaticFollowInvalidated:
-		allowed = to == AutomaticFollowPending
 	}
 	return transitionResult(allowed, from, to)
 }

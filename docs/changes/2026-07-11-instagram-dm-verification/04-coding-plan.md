@@ -1,5 +1,9 @@
 # Coding Plan: Instagram DM Ownership Verification And Automatic Following
 
+> **2026-08-14 AppView audit amendment:** Section 13 supersedes the
+> automatic-follow worker, background-session, notification, and
+> suggestion-removal portions of this plan.
+
 ## 1. Inputs
 
 - Requirements: `01-requirements.md`
@@ -529,3 +533,88 @@ just test
 - Production enablement remains blocked on MAN-001 and the applicable device
   checks. Run MAN-001–MAN-005 at their documented release stages. No commit,
   push, Meta configuration, or production mutation is authorized by this plan.
+
+## 13. AppView Audit Correction Plan
+
+The correction lands with the coordinated owner-lifecycle/session work. The
+central migration owner assigns its final sequence number; the Instagram pair
+is named `<next>_instagram_private_suggestions.up.sql` and
+`<next>_instagram_private_suggestions.down.sql` until that reservation is made.
+
+### 13.1 Failure-first tests
+
+| Test | File | Required failure before implementation |
+|---|---|---|
+| UT-021, UT-022 | `appview/internal/instagram/suggestion_state_test.go` | Current storage cannot express private pending/dismissed/accepted state with participant generations. |
+| UT-023 | `appview/internal/app/instagram_capability_test.go` | Current dependency graph can construct a background session selector and PDS writer. |
+| IT-026 | `appview/internal/instagram/private_suggestion_store_test.go` | Matching currently queues a public-write operation rather than stopping at a private suggestion. |
+| IT-027 | `appview/internal/instagram/suggestion_acceptance_test.go` | There is no current-member, owner-effect-fenced suggestion acceptance boundary. |
+| IT-028 | `appview/internal/notifications/instagram_match_test.go`, `appview/internal/routes/instagram_routes_test.go` | Automatic-follow notification/schema behavior and removed suggestion routes still reflect the superseded contract. |
+| IT-029 | `app/test/instagram_migration/instagram_suggestions_test.dart` | Flutter no longer has a private suggestion review surface. |
+| REG-015 | `appview/internal/app/instagram_capability_test.go` | Worker startup/wiring still exposes session/PDS/follow capabilities. |
+
+### 13.2 Schema and stores
+
+- Rewrite the current development-only automatic-follow schema into a private
+  suggestion contract. Keep source support and verification-lifetime
+  suppression, add importer and target owner generations, and constrain the
+  states from Requirements §24.3.
+- Remove/reset obsolete `pds_follow_operations` public-write lease/retry state
+  and delete pre-production `instagramMatch` rows/preferences. There are no
+  production users and no compatibility backfill.
+- Replace public-write methods in
+  `appview/internal/instagram/automatic_follow_store.go` with narrow suggestion
+  create/list/accept/dismiss/invalidate transaction methods, or rename the file
+  to `suggestion_store.go` in the same breaking change.
+- Refactor `automatic_follow_matcher.go` and `reconciliation.go` to persist only
+  private suggestions with both generations. Neither type accepts a session or
+  writer dependency.
+
+### 13.3 Server capability boundary
+
+- Delete `appview/internal/instagram/automatic_follow_worker.go` and its retry,
+  recovery, and background-write tests.
+- Remove its construction from `appview/internal/app/deps.go` and its runner
+  from `appview/cmd/appview/main.go` and related server tests.
+- Remove Instagram's use of
+  `appview/internal/auth/background_session_selector.go`. Delete that selector
+  if no non-Instagram caller remains.
+- Remove Instagram's `followwrite.Service` dependency. Delete
+  `appview/internal/followwrite/` if no ordinary route uses it after the shared
+  owner-effect executor lands.
+- Add/restore `appview/internal/instagram/suggestions.go` and
+  `appview/internal/api/instagram_suggestions.go`. Accept invokes the shared
+  ordinary follow effect through a narrow interface and receives no raw PDS
+  factory or client.
+- Register current-member-only GET/list, POST/accept, and DELETE/dismiss
+  policies in `appview/internal/routes/policy.go` and handlers in
+  `appview/internal/routes/routes.go`.
+- Remove the dedicated automatic `instagramMatch` creator, preference, push,
+  and rendering paths from `appview/internal/notifications/`, the notification
+  API/store, and `appview/internal/push/`. Preserve ordinary incoming-follow
+  behavior.
+
+### 13.4 Flutter boundary
+
+- Restore a private suggestion model, repository/API methods, Riverpod
+  provider, and a suggestion section in the existing Instagram page under
+  `app/lib/instagram_migration/`.
+- Follow and Dismiss use a captured `AccountSessionLease`; late results cannot
+  navigate or mutate under another active account.
+- Replace automatic-follow import/revocation/notification copy in
+  `app/lib/l10n/app_en.arb`, regenerate localization output, and remove the
+  `instagramMatch` notification rendering/preference branch.
+- Keep the completed file-backed ZIP parser, exact normalization, verification
+  UX, discovery controls, and bottom revocation placement unchanged.
+
+### 13.5 TDD order and gate
+
+1. UT-023/REG-015: remove capability from composition.
+2. UT-021/UT-022 and the migration: establish suggestion state/generation.
+3. IT-026: stop matching at private persistence.
+4. IT-027: implement explicit owner-fenced accept/dismiss.
+5. IT-028: retire automatic notification and restore route inventory.
+6. IT-029: restore the fixed-account Flutter review surface.
+7. Run `go test -race` for `internal/instagram`, `internal/app`,
+   `internal/routes`, `internal/notifications`, and the shared owner/session
+   packages, then the full Go/Flutter gates.

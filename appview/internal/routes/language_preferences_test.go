@@ -28,8 +28,7 @@ func TestLanguagePreferenceRoutesUseExactAuthenticatedContract(t *testing.T) {
 		if !exists {
 			continue
 		}
-		if !policy.AuthRequired ||
-			policy.CurrentMemberRequired ||
+		if policy.AccessClass != AccessCurrentMember ||
 			policy.RateClass != want.rateClass ||
 			policy.BodyKind != want.bodyKind {
 			t.Fatalf("%s policy = %+v", key, policy)
@@ -45,6 +44,10 @@ func TestLanguagePreferenceRoutesUseExactAuthenticatedContract(t *testing.T) {
 		t.Fatalf("read language migration: %v", err)
 	}
 	pool := testdb.WithSchema(t, `
+		CREATE TABLE craftsky_profiles (
+			did TEXT PRIMARY KEY
+		);
+		INSERT INTO craftsky_profiles(did) VALUES ('did:plc:alice');
 		CREATE TABLE craftsky_posts (
 			uri TEXT PRIMARY KEY,
 			did TEXT NOT NULL,

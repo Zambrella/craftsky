@@ -6,10 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
-
-	"social.craftsky/appview/internal/auth"
 )
 
 func TestHealthyDueSchedulePublishesExactlyOnceWithoutFlutter(t *testing.T) {
@@ -37,11 +34,9 @@ func TestHealthyDueSchedulePublishesExactlyOnceWithoutFlutter(t *testing.T) {
 		Sessions: stubPublicationSessionSelector{
 			wantOwner: "did:plc:alice", sessionID: "owner-session",
 		},
-		NewPDS: func(context.Context, syntax.DID, string) (auth.PDSClient, error) {
-			return pds, nil
-		},
-		Objects: newMemoryPrivateObjectStore(),
-		Now:     func() time.Time { return current },
+		NewEffects: recordingGuardedFactory(pds, nil),
+		Objects:    newMemoryPrivateObjectStore(),
+		Now:        func() time.Time { return current },
 	})
 	if err != nil {
 		t.Fatal(err)

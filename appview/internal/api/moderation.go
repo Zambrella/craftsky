@@ -13,9 +13,10 @@ import (
 )
 
 const devModerationTokenHeader = "X-Craftsky-Dev-Moderation-Token"
+const moderationIdempotencyKeyHeader = "Idempotency-Key"
 
 type ModerationOutputInserter interface {
-	InsertOutput(rctx context.Context, input ModerationOutputInput) (*ModerationOutputRow, error)
+	InsertOutput(rctx context.Context, idempotencyKey string, input ModerationOutputInput) (*ModerationInsertResult, error)
 }
 
 type syntheticModerationResponse struct {
@@ -39,6 +40,15 @@ func DevModerationOzoneEventsHandler(expectedToken string, cfg ModerationRequest
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "moderation store unavailable", runID, nil)
 			return
 		}
+		idempotencyKey := r.Header.Get(moderationIdempotencyKeyHeader)
+		if err := ValidateModerationIdempotencyKey(idempotencyKey); err != nil {
+			if errors.Is(err, ErrModerationIdempotencyKeyMissing) {
+				envelope.WriteError(w, http.StatusBadRequest, "missing_idempotency_key", "Idempotency-Key is required", runID, nil)
+			} else {
+				envelope.WriteError(w, http.StatusBadRequest, "invalid_idempotency_key", "Idempotency-Key must be 16 to 128 printable ASCII characters", runID, nil)
+			}
+			return
+		}
 
 		input, err := DecodeSyntheticModerationRequest(r.Body, cfg)
 		if err != nil {
@@ -57,8 +67,12 @@ func DevModerationOzoneEventsHandler(expectedToken string, cfg ModerationRequest
 			return
 		}
 
-		row, err := store.InsertOutput(r.Context(), input)
+		result, err := store.InsertOutput(r.Context(), idempotencyKey, input)
 		if err != nil {
+			if errors.Is(err, ErrModerationIdempotencyKeyConflict) {
+				envelope.WriteError(w, http.StatusConflict, "idempotency_key_conflict", "Idempotency-Key was already used for a different request", runID, nil)
+				return
+			}
 			logger.Error("dev moderation: insert output failed",
 				apiLogErrorAttrs(runID, "moderation.dev_output.create", "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "moderation output persistence failed", runID, nil)
@@ -66,6 +80,6 @@ func DevModerationOzoneEventsHandler(expectedToken string, cfg ModerationRequest
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		_ = json.NewEncoder(w).Encode(syntheticModerationResponse{OutputID: row.ID, Status: "indexed"})
+		_ = json.NewEncoder(w).Encode(syntheticModerationResponse{OutputID: result.OutputID, Status: result.Status})
 	})
 }

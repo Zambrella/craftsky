@@ -12,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/observability"
+	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
 var (
@@ -148,6 +149,9 @@ func (s *ProfilePinStore) Pin(
 		return ProfilePinMutationResult{}, fmt.Errorf("profile pin begin: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, owner, nil); err != nil {
+		return ProfilePinMutationResult{}, fmt.Errorf("profile pin authorization: %w", err)
+	}
 
 	var (
 		targetURI string

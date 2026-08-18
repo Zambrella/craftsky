@@ -11,10 +11,7 @@ import (
 
 func TestCraftskyAuthService_HappyPath(t *testing.T) {
 	pool := withAuthSchema(t)
-	if _, err := pool.Exec(context.Background(),
-		`INSERT INTO oauth_sessions (account_did, session_id, data) VALUES ('did:plc:a', 's1', '{}')`); err != nil {
-		t.Fatal(err)
-	}
+	seedActiveOAuthSession(t, pool, "did:plc:a", "s1")
 	store := auth.NewCraftskySessionStore(pool, 5*time.Minute)
 	token, err := store.Create(context.Background(), "did:plc:a", "s1", "")
 	if err != nil {

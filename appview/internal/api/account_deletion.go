@@ -25,7 +25,15 @@ func CreateAccountDeletionIntentHandler(service accountdeletion.Service) http.Ha
 			envelope.WriteError(w, http.StatusServiceUnavailable, "account_deletion_unavailable", "account deletion is unavailable", runID, nil)
 			return
 		}
-		result, err := service.CreateIntent(r.Context(), accountdeletion.CreateIntentParams{Owner: owner})
+		deviceID, ok := middleware.GetDeviceID(r.Context())
+		if !ok || deviceID == "" {
+			envelope.WriteError(w, http.StatusBadRequest, "invalid_request", "device identity is required", runID, nil)
+			return
+		}
+		result, err := service.CreateIntent(r.Context(), accountdeletion.CreateIntentParams{
+			Owner:    owner,
+			DeviceID: deviceID,
+		})
 		if err != nil {
 			writeAccountDeletionError(w, runID, err)
 			return

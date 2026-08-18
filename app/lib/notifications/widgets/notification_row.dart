@@ -87,10 +87,6 @@ class NotificationRow extends ConsumerWidget {
     final actionColor = _actionColor(actorNotification, theme.colorScheme);
     final (title, subjectPost) = switch (actorNotification) {
       FollowNotification() => (l10n.notificationFollowRow(actor), null),
-      InstagramMatchNotification() => (
-        l10n.notificationInstagramMatchActorRow(actor),
-        null,
-      ),
       LikeNotification(:final subjectPost) => (
         switch (_roleOf(subjectPost)) {
           _NotificationContentRole.post => l10n.notificationLikeRow(actor),
@@ -179,8 +175,7 @@ class NotificationRow extends ConsumerWidget {
                         seed: actor,
                         avatarUrl: actorNotification.actor.displayAvatarUrl,
                         size: ProfileAvatarSize.small,
-                        customisation:
-                            actorNotification.actor.customisation,
+                        customisation: actorNotification.actor.customisation,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -211,8 +206,7 @@ class NotificationRow extends ConsumerWidget {
                         padding: EdgeInsets.zero,
                       ),
                     ],
-                    if ((actorNotification is FollowNotification ||
-                            actorNotification is InstagramMatchNotification) &&
+                    if (actorNotification is FollowNotification &&
                         actorNotification.actor.available) ...[
                       const SizedBox(height: 8),
                       _NotificationFollowButton(
@@ -300,10 +294,6 @@ class NotificationRow extends ConsumerWidget {
         break;
       case GenericSystemNotification():
         break;
-      case InstagramMatchNotification(:final actor):
-        unawaited(
-          UserProfileRoute(handle: actor.handle.toString()).push<void>(context),
-        );
       case UnavailableNotification():
         context.showWarning(
           AppLocalizations.of(context).notificationUnavailableRow,
@@ -432,7 +422,6 @@ Color _actionColor(
   RepostNotification() => colors.tertiary,
   ReplyNotification() => colors.primary,
   MentionNotification() || QuoteNotification() => colors.secondary,
-  InstagramMatchNotification() => colors.primary,
   GenericNotification() => colors.outline,
   GenericSystemNotification() => colors.outline,
   UnavailableNotification() => colors.error,

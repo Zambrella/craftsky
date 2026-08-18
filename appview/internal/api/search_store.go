@@ -11,7 +11,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5"
 
-	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
 )
@@ -71,16 +70,24 @@ func (s *SearchStore) searchProfilesObserved(ctx context.Context, viewerDID stri
 			EXISTS (
 				SELECT 1 FROM atproto_follows f
 				WHERE f.did = $2 AND f.subject_did = cp.did
+				  AND NOT appview_owner_is_terminal(f.did)
+				  AND NOT appview_owner_is_terminal(f.subject_did)
 				  AND NOT EXISTS (
 					SELECT 1 FROM atproto_blocks b
-					WHERE (b.blocker_did = $2 AND b.subject_did = cp.did)
-					   OR (b.blocker_did = cp.did AND b.subject_did = $2)
+					WHERE ((b.blocker_did = $2 AND b.subject_did = cp.did)
+					   OR (b.blocker_did = cp.did AND b.subject_did = $2))
+					  AND NOT appview_owner_is_terminal(b.blocker_did)
+					  AND NOT appview_owner_is_terminal(b.subject_did)
 				  )
 			) AS viewer_is_following,
-			EXISTS (SELECT 1 FROM actor_mutes m WHERE m.owner_did = $2 AND m.subject_did = cp.did) AS muted,
-			EXISTS (SELECT 1 FROM atproto_blocks b WHERE b.blocker_did = $2 AND b.subject_did = cp.did) AS blocking,
-			EXISTS (SELECT 1 FROM atproto_blocks b WHERE b.blocker_did = cp.did AND b.subject_did = $2) AS blocked_by,
-			CASE WHEN EXISTS (SELECT 1 FROM atproto_follows f WHERE f.did = $2 AND f.subject_did = cp.did) THEN 0 ELSE 1 END AS followed_rank,
+			EXISTS (SELECT 1 FROM actor_mutes m WHERE m.owner_did = $2 AND m.subject_did = cp.did
+			        AND NOT appview_owner_is_terminal(m.owner_did) AND NOT appview_owner_is_terminal(m.subject_did)) AS muted,
+			EXISTS (SELECT 1 FROM atproto_blocks b WHERE b.blocker_did = $2 AND b.subject_did = cp.did
+			        AND NOT appview_owner_is_terminal(b.blocker_did) AND NOT appview_owner_is_terminal(b.subject_did)) AS blocking,
+			EXISTS (SELECT 1 FROM atproto_blocks b WHERE b.blocker_did = cp.did AND b.subject_did = $2
+			        AND NOT appview_owner_is_terminal(b.blocker_did) AND NOT appview_owner_is_terminal(b.subject_did)) AS blocked_by,
+			CASE WHEN EXISTS (SELECT 1 FROM atproto_follows f WHERE f.did = $2 AND f.subject_did = cp.did
+			                 AND NOT appview_owner_is_terminal(f.did) AND NOT appview_owner_is_terminal(f.subject_did)) THEN 0 ELSE 1 END AS followed_rank,
 			CASE
 				WHEN ic.handle_lower = $1 THEN 0
 				WHEN ic.handle_lower LIKE $1 || '%' THEN 1
@@ -101,8 +108,10 @@ func (s *SearchStore) searchProfilesObserved(ctx context.Context, viewerDID stri
 			ic.handle_lower = $1
 			OR NOT EXISTS (
 				SELECT 1 FROM atproto_blocks b
-				WHERE (b.blocker_did = $2 AND b.subject_did = cp.did)
-				   OR (b.blocker_did = cp.did AND b.subject_did = $2)
+				WHERE ((b.blocker_did = $2 AND b.subject_did = cp.did)
+				   OR (b.blocker_did = cp.did AND b.subject_did = $2))
+				  AND NOT appview_owner_is_terminal(b.blocker_did)
+				  AND NOT appview_owner_is_terminal(b.subject_did)
 			)
 		)
 		` + profileVisibleModerationPredicate + `
@@ -425,15 +434,17 @@ func (s *SearchStore) searchProjectsObserved(
 		FROM craftsky_posts p
 		JOIN craftsky_project_posts pp ON pp.uri = p.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
-		LEFT JOIN (SELECT subject_uri, count(*) AS like_count FROM craftsky_likes WHERE deleted_at IS NULL GROUP BY subject_uri) l ON l.subject_uri = p.uri
-		LEFT JOIN (SELECT subject_uri, count(*) AS repost_count FROM craftsky_reposts WHERE deleted_at IS NULL GROUP BY subject_uri) r ON r.subject_uri = p.uri
+		LEFT JOIN (SELECT subject_uri, count(*) AS like_count FROM craftsky_likes WHERE deleted_at IS NULL AND NOT appview_owner_is_terminal(did) GROUP BY subject_uri) l ON l.subject_uri = p.uri
+		LEFT JOIN (SELECT subject_uri, count(*) AS repost_count FROM craftsky_reposts WHERE deleted_at IS NULL AND NOT appview_owner_is_terminal(did) GROUP BY subject_uri) r ON r.subject_uri = p.uri
 		LEFT JOIN (
 			SELECT reply_root_uri AS subject_uri, count(*) AS reply_count
 			FROM craftsky_posts rp
 			WHERE rp.reply_root_uri IS NOT NULL
+			  AND NOT appview_owner_is_terminal(rp.did)
 			  AND NOT EXISTS (
 				SELECT 1 FROM moderation_outputs mo
 				WHERE mo.action = 'apply'
+				  AND NOT appview_owner_is_terminal(mo.source_did)
 				  AND mo.value IN ('hide', 'takedown')
 				  AND (mo.expires_at IS NULL OR mo.expires_at > now())
 				  AND ((mo.subject_type = 'post' AND mo.subject_uri = rp.uri) OR (mo.subject_type = 'account' AND mo.subject_did = rp.did))
@@ -729,11 +740,10 @@ func (s *SearchStore) searchPosts(ctx context.Context, req searchPostQuery) ([]S
 	}
 
 	var rows pgx.Rows
-	var err error
 	if req.Sort == SearchSortPopular {
-		cur, err := DecodePopularityCursor(req.Cursor)
-		if err != nil {
-			return nil, "", err
+		cur, decodeErr := DecodePopularityCursor(req.Cursor)
+		if decodeErr != nil {
+			return nil, "", decodeErr
 		}
 		if !cur.RankedAt.IsZero() {
 			req.Now = cur.RankedAt
@@ -749,15 +759,17 @@ func (s *SearchStore) searchPosts(ctx context.Context, req searchPostQuery) ([]S
 			FROM craftsky_posts p
 			LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
 			LEFT JOIN bluesky_profiles bp ON bp.did = p.did
-			LEFT JOIN (SELECT subject_uri, count(*) AS like_count FROM craftsky_likes WHERE deleted_at IS NULL GROUP BY subject_uri) l ON l.subject_uri = p.uri
-			LEFT JOIN (SELECT subject_uri, count(*) AS repost_count FROM craftsky_reposts WHERE deleted_at IS NULL GROUP BY subject_uri) r ON r.subject_uri = p.uri
+			LEFT JOIN (SELECT subject_uri, count(*) AS like_count FROM craftsky_likes WHERE deleted_at IS NULL AND NOT appview_owner_is_terminal(did) GROUP BY subject_uri) l ON l.subject_uri = p.uri
+			LEFT JOIN (SELECT subject_uri, count(*) AS repost_count FROM craftsky_reposts WHERE deleted_at IS NULL AND NOT appview_owner_is_terminal(did) GROUP BY subject_uri) r ON r.subject_uri = p.uri
 			LEFT JOIN (
 				SELECT reply_root_uri AS subject_uri, count(*) AS reply_count
 				FROM craftsky_posts rp
 				WHERE rp.reply_root_uri IS NOT NULL
+				  AND NOT appview_owner_is_terminal(rp.did)
 				  AND NOT EXISTS (
 					SELECT 1 FROM moderation_outputs mo
 					WHERE mo.action = 'apply'
+					  AND NOT appview_owner_is_terminal(mo.source_did)
 					  AND mo.value IN ('hide', 'takedown')
 					  AND (mo.expires_at IS NULL OR mo.expires_at > now())
 					  AND ((mo.subject_type = 'post' AND mo.subject_uri = rp.uri) OR (mo.subject_type = 'account' AND mo.subject_did = rp.did))
@@ -783,11 +795,15 @@ func (s *SearchStore) searchPosts(ctx context.Context, req searchPostQuery) ([]S
 		WHERE ($4::double precision IS NULL OR (popularity_score, p.created_at, p.uri) < ($4::double precision, $5::timestamptz, $6::text))
 		ORDER BY popularity_score DESC, p.created_at DESC, p.uri DESC
 		LIMIT $2`
-		rows, err = s.pool.Query(ctx, q, req.Tag, queryLimit, req.Now, cur.ScorePtr(), cur.CreatedAtPtr(), cur.URIPtr(), strings.ToLower(req.Query), req.ViewerDID, req.ContentLanguages)
+		var queryErr error
+		rows, queryErr = s.pool.Query(ctx, q, req.Tag, queryLimit, req.Now, cur.ScorePtr(), cur.CreatedAtPtr(), cur.URIPtr(), strings.ToLower(req.Query), req.ViewerDID, req.ContentLanguages)
+		if queryErr != nil {
+			return nil, "", fmt.Errorf("search hashtag posts: %w", queryErr)
+		}
 	} else {
-		curCreatedAt, curURI, err := DecodeChronologicalSearchCursor(req.Cursor)
-		if err != nil {
-			return nil, "", err
+		curCreatedAt, curURI, decodeErr := DecodeChronologicalSearchCursor(req.Cursor)
+		if decodeErr != nil {
+			return nil, "", decodeErr
 		}
 		q := `
 		SELECT ` + postSelectColumns + `, 0::double precision AS popularity_score
@@ -808,10 +824,11 @@ func (s *SearchStore) searchPosts(ctx context.Context, req searchPostQuery) ([]S
 		` + postVisibleModerationPredicate + `
 		ORDER BY p.created_at DESC, p.uri DESC
 		LIMIT $2`
-		rows, err = s.pool.Query(ctx, q, req.Tag, queryLimit, curCreatedAt, curURI, strings.ToLower(req.Query), req.ViewerDID, req.ContentLanguages)
-	}
-	if err != nil {
-		return nil, "", fmt.Errorf("search hashtag posts: %w", err)
+		var queryErr error
+		rows, queryErr = s.pool.Query(ctx, q, req.Tag, queryLimit, curCreatedAt, curURI, strings.ToLower(req.Query), req.ViewerDID, req.ContentLanguages)
+		if queryErr != nil {
+			return nil, "", fmt.Errorf("search hashtag posts: %w", queryErr)
+		}
 	}
 	defer rows.Close()
 
@@ -844,11 +861,15 @@ func relationshipTopLevelPredicate(viewerParam string) string {
 		  AND NOT EXISTS (
 			SELECT 1 FROM actor_mutes mute
 			WHERE mute.owner_did = ` + viewerParam + ` AND mute.subject_did = p.did
+			  AND NOT appview_owner_is_terminal(mute.owner_did)
+			  AND NOT appview_owner_is_terminal(mute.subject_did)
 		  )
 		  AND NOT EXISTS (
 			SELECT 1 FROM atproto_blocks block
-			WHERE (block.blocker_did = ` + viewerParam + ` AND block.subject_did = p.did)
-			   OR (block.blocker_did = p.did AND block.subject_did = ` + viewerParam + `)
+			WHERE ((block.blocker_did = ` + viewerParam + ` AND block.subject_did = p.did)
+			   OR (block.blocker_did = p.did AND block.subject_did = ` + viewerParam + `))
+			  AND NOT appview_owner_is_terminal(block.blocker_did)
+			  AND NOT appview_owner_is_terminal(block.subject_did)
 		  )
 	`
 }
@@ -919,5 +940,3 @@ func PopularityScore(likes, visibleReplies, reposts int, createdAt, rankedAt tim
 	weighted := float64(likes + 2*visibleReplies + 3*reposts)
 	return weighted / math.Pow(1+ageHours/72, 1.5)
 }
-
-func isInvalidCursor(err error) bool { return err == envelope.ErrInvalidCursor }

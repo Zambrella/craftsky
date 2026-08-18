@@ -6,6 +6,7 @@ import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
+import 'package:craftsky_app/feed/media/composer_image_media_service.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
@@ -40,17 +41,18 @@ void main() {
     'new scheduled media gets a one-minute-style independent budget',
     () async {
       CancelToken? capturedToken;
+      final bytes = _pngBytes(width: 2, height: 3);
       final image = ComposerImageDraft(
         id: 'new-ready',
-        fileName: 'detail.jpg',
-        mimeType: 'image/jpeg',
+        fileName: 'detail.png',
+        mimeType: 'image/png',
         altText: '',
         phase: ImageReady(
-          bytes: Uint8List.fromList([1, 2, 3]),
-          mimeType: 'image/jpeg',
+          bytes: bytes,
+          mimeType: 'image/png',
           width: 2,
           height: 3,
-          sha256: sha256.convert([1, 2, 3]).toString(),
+          sha256: sha256.convert(bytes).toString(),
         ),
       );
 
@@ -109,6 +111,58 @@ void main() {
       throwsStateError,
     );
     expect(stageCalls, 0);
+  });
+
+  test('scheduled ready media is resized before private staging', () async {
+    const mediaService = ComposerImageMediaService(
+      scheduledImageLimits: ScheduledImageLimits(
+        maxWidth: 20,
+        maxHeight: 20,
+        maxPixels: 100,
+        maxAspectRatio: 20,
+      ),
+    );
+    final bytes = _pngBytes(width: 20, height: 10);
+    final image = ComposerImageDraft(
+      id: 'large-ready',
+      fileName: 'detail.png',
+      mimeType: 'image/png',
+      altText: '  project detail  ',
+      phase: ImageReady(
+        bytes: bytes,
+        mimeType: 'image/png',
+        width: 20,
+        height: 10,
+        sha256: sha256.convert(bytes).toString(),
+      ),
+    );
+    Uint8List? stagedBytes;
+
+    final media = await materializeScheduledComposerMedia(
+      [image],
+      mediaService: mediaService,
+      stageMedia:
+          ({
+            required id,
+            required bytes,
+            required mimeType,
+            cancelToken,
+          }) async {
+            stagedBytes = Uint8List.fromList(bytes);
+          },
+    );
+
+    expect(media, [
+      {
+        'id': 'large-ready',
+        'alt': 'project detail',
+        'width': 14,
+        'height': 7,
+      },
+    ]);
+    final decoded = img.decodePng(stagedBytes!);
+    expect(decoded, isNotNull);
+    expect((decoded!.width, decoded.height), (14, 7));
   });
 
   test(

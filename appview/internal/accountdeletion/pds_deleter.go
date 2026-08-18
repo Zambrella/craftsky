@@ -20,11 +20,47 @@ type PDSDeleter struct {
 	batchSize int
 }
 
+func isDeletionCollection(collection syntax.NSID) bool {
+	for _, candidate := range CraftskyRecordCollections() {
+		if collection == candidate {
+			return true
+		}
+	}
+	return false
+}
+
 func NewPDSDeleter(client auth.DeletionPDSClient, batchSize int) *PDSDeleter {
 	if batchSize <= 0 {
 		batchSize = 20
 	}
 	return &PDSDeleter{client: client, batchSize: batchSize}
+}
+
+// DeleteExact removes one already-authorized safety URI. The URI is
+// revalidated against the authenticated owner and the closed CraftSky
+// collection registry before the narrow PDS capability is invoked.
+func (deleter *PDSDeleter) DeleteExact(
+	ctx context.Context,
+	owner syntax.DID,
+	uri syntax.ATURI,
+) error {
+	if deleter == nil || deleter.client == nil {
+		return errors.New("PDS deletion client is unavailable")
+	}
+	parsed, err := parsePDSSafetyURI(owner, uri.String())
+	if err != nil {
+		return err
+	}
+	err = deleter.client.DeleteRecord(
+		ctx,
+		owner,
+		parsed.Collection().String(),
+		parsed.RecordKey().String(),
+	)
+	if err != nil && !errors.Is(err, auth.ErrRecordNotFound) {
+		return fmt.Errorf("delete exact CraftSky safety record: %w", err)
+	}
+	return nil
 }
 
 // DeleteAll converges the authenticated owner's registered CraftSky record

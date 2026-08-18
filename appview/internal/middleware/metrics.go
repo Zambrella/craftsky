@@ -53,7 +53,7 @@ func HTTPMetrics(observer *observability.Observer) func(http.Handler) http.Handl
 						handlerSpan.SetAttributes(observability.EventContext{
 							"component":     "http",
 							"operation":     "http.handler",
-							"route_pattern": observability.RoutePattern(req),
+							"route_pattern": observability.RecordedRoutePattern(req.Context(), observability.RoutePattern(req)),
 							"http_method":   req.Method,
 							"result":        "error",
 						})
@@ -69,7 +69,7 @@ func HTTPMetrics(observer *observability.Observer) func(http.Handler) http.Handl
 			rw := &responseLogger{ResponseWriter: w, status: http.StatusOK}
 			next.ServeHTTP(rw, req)
 			if observer != nil {
-				routePattern := observability.RoutePattern(req)
+				routePattern := observability.RecordedRoutePattern(req.Context(), observability.RoutePattern(req))
 				observability.RecordRoutePattern(req.Context(), routePattern)
 				duration := time.Since(started)
 				observedStatus := rw.status

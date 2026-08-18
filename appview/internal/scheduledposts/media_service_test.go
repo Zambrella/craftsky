@@ -16,7 +16,7 @@ import (
 func TestPrivateMediaServiceIsIdempotentAndOwnerScoped(t *testing.T) {
 	store := NewStore(newScheduledPostStoreTestPool(t))
 	objects := newMemoryPrivateObjectStore()
-	service := NewPrivateMediaService(store, objects)
+	service, _ := newScheduledTestMediaService(t, store, objects)
 	ctx := context.Background()
 	alice := syntax.DID("did:plc:alice")
 	bob := syntax.DID("did:plc:bob")
@@ -24,7 +24,8 @@ func TestPrivateMediaServiceIsIdempotentAndOwnerScoped(t *testing.T) {
 	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
 	body := []byte("private-image-bytes")
 	params := PutPrivateMediaParams{
-		ID: mediaID, OwnerDID: alice, MIMEType: "image/jpeg", Bytes: body, Now: now,
+		ID: mediaID, OwnerDID: alice, OwnerGeneration: 1,
+		MIMEType: "image/jpeg", Bytes: body, Now: now,
 	}
 
 	created, err := service.Put(ctx, params)
@@ -59,16 +60,16 @@ func TestPrivateMediaServiceIsIdempotentAndOwnerScoped(t *testing.T) {
 	if err != nil || closeErr != nil || !bytes.Equal(got, body) {
 		t.Fatalf("owner bytes=%q read=%v close=%v", got, err, closeErr)
 	}
-	if err := service.Delete(ctx, bob, mediaID, now); err != nil {
+	if err := service.Delete(ctx, bob, mediaID, now, 1); err != nil {
 		t.Fatalf("foreign idempotent delete: %v", err)
 	}
 	if _, err := service.Open(ctx, alice, mediaID); err != nil {
 		t.Fatalf("foreign delete changed owner media: %v", err)
 	}
-	if err := service.Delete(ctx, alice, mediaID, now); err != nil {
+	if err := service.Delete(ctx, alice, mediaID, now, 1); err != nil {
 		t.Fatalf("owner delete: %v", err)
 	}
-	if err := service.Delete(ctx, alice, mediaID, now); err != nil {
+	if err := service.Delete(ctx, alice, mediaID, now, 1); err != nil {
 		t.Fatalf("repeat owner delete: %v", err)
 	}
 	if _, err := service.Open(ctx, alice, mediaID); !errors.Is(err, ErrScheduledMediaNotFound) {
@@ -118,4 +119,11 @@ func (s *memoryPrivateObjectStore) Delete(_ context.Context, key string) error {
 	defer s.mu.Unlock()
 	delete(s.objects, key)
 	return nil
+}
+
+func (s *memoryPrivateObjectStore) Exists(_ context.Context, key string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	_, ok := s.objects[key]
+	return ok, nil
 }

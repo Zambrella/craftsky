@@ -7,20 +7,31 @@ import (
 	"sync"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const CleanupErrorObjectDeleteFailed = "object_delete_failed"
+const (
+	CleanupErrorObjectDeleteFailed = "object_delete_failed"
+	CleanupErrorSettlementPending  = "settlement_pending"
+)
 
 var ErrCleanupLeaseLost = errors.New("scheduled cleanup lease lost")
 
 type CleanupClaim struct {
-	ID           uuid.UUID
-	ObjectKey    string
-	LeaseToken   uuid.UUID
-	AttemptCount int
+	ID                  uuid.UUID
+	ObjectKey           string
+	OwnerDID            syntax.DID
+	OwnerGeneration     int64
+	UploadGeneration    int64
+	SourceAttemptID     uuid.UUID
+	OutcomeUncertain    bool
+	RemoteDeadline      time.Time
+	SettlementNotBefore *time.Time
+	LeaseToken          uuid.UUID
+	AttemptCount        int
 }
 
 type cleanupEffectGuard struct {
@@ -141,14 +152,32 @@ func (s *Store) ClaimCleanup(
 		return nil, fmt.Errorf("select cleanup jobs: %w", err)
 	}
 	type dueCleanup struct {
-		id           uuid.UUID
-		objectKey    string
-		attemptCount int
+		id                  uuid.UUID
+		objectKey           string
+		ownerDID            syntax.DID
+		ownerGeneration     int64
+		uploadGeneration    int64
+		sourceAttemptID     uuid.UUID
+		outcomeUncertain    bool
+		remoteDeadline      time.Time
+		settlementNotBefore *time.Time
+		attemptCount        int
 	}
 	due := make([]dueCleanup, 0, limit)
 	for rows.Next() {
 		var job dueCleanup
-		if err := rows.Scan(&job.id, &job.objectKey, &job.attemptCount); err != nil {
+		if err := rows.Scan(
+			&job.id,
+			&job.objectKey,
+			&job.ownerDID,
+			&job.ownerGeneration,
+			&job.uploadGeneration,
+			&job.sourceAttemptID,
+			&job.outcomeUncertain,
+			&job.remoteDeadline,
+			&job.settlementNotBefore,
+			&job.attemptCount,
+		); err != nil {
 			rows.Close()
 			return nil, fmt.Errorf("scan cleanup job: %w", err)
 		}
@@ -174,10 +203,17 @@ func (s *Store) ClaimCleanup(
 			return nil, fmt.Errorf("claim cleanup job: %w", err)
 		}
 		claims = append(claims, CleanupClaim{
-			ID:           job.id,
-			ObjectKey:    job.objectKey,
-			LeaseToken:   leaseToken,
-			AttemptCount: job.attemptCount + 1,
+			ID:                  job.id,
+			ObjectKey:           job.objectKey,
+			OwnerDID:            job.ownerDID,
+			OwnerGeneration:     job.ownerGeneration,
+			UploadGeneration:    job.uploadGeneration,
+			SourceAttemptID:     job.sourceAttemptID,
+			OutcomeUncertain:    job.outcomeUncertain,
+			RemoteDeadline:      job.remoteDeadline,
+			SettlementNotBefore: job.settlementNotBefore,
+			LeaseToken:          leaseToken,
+			AttemptCount:        job.attemptCount + 1,
 		})
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -193,16 +229,80 @@ func (s *Store) ClaimCleanup(
 	return claims, nil
 }
 
+func (s *Store) RecordCleanupAbsence(
+	ctx context.Context,
+	claim CleanupClaim,
+	absentAt time.Time,
+) (ObjectCleanupSettlement, error) {
+	if s == nil || s.pool == nil || claim.ID == uuid.Nil ||
+		claim.LeaseToken == uuid.Nil || absentAt.IsZero() {
+		return ObjectCleanupSettlement{}, errors.New("invalid scheduled cleanup absence")
+	}
+	var settlement ObjectCleanupSettlement
+	if err := s.pool.QueryRow(
+		ctx,
+		recordCleanupAbsenceSQL,
+		claim.ID,
+		claim.LeaseToken,
+		absentAt.UTC(),
+	).Scan(
+		&settlement.OutcomeUncertain,
+		&settlement.SettlementNotBefore,
+		&settlement.LastAbsenceAt,
+	); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ObjectCleanupSettlement{}, ErrCleanupLeaseLost
+		}
+		return ObjectCleanupSettlement{}, fmt.Errorf("record scheduled cleanup absence: %w", err)
+	}
+	settlement.RemoteDeadline = claim.RemoteDeadline
+	return settlement, nil
+}
+
 func (s *Store) CompleteCleanup(ctx context.Context, claim CleanupClaim) error {
 	if s == nil || s.pool == nil || claim.ID == uuid.Nil || claim.LeaseToken == uuid.Nil {
 		return errors.New("invalid scheduled cleanup completion")
 	}
-	result, err := s.pool.Exec(ctx, completeCleanupJobSQL, claim.ID, claim.LeaseToken)
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("complete cleanup job: %w", err)
 	}
-	if result.RowsAffected() != 1 {
+	defer tx.Rollback(ctx)
+	var sourceAttemptID uuid.UUID
+	if err := tx.QueryRow(ctx, `
+		DELETE FROM scheduled_post_cleanup_jobs
+		WHERE id=$1 AND state='deleting' AND lease_token=$2
+		RETURNING source_attempt_id
+	`, claim.ID, claim.LeaseToken).Scan(&sourceAttemptID); errors.Is(err, pgx.ErrNoRows) {
 		return ErrCleanupLeaseLost
+	} else if err != nil {
+		return fmt.Errorf("complete cleanup job: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		UPDATE account_deletion_safety_tombstones
+		SET state='settled',next_attempt_at=NULL,lease_token=NULL,
+		    lease_expires_at=NULL,last_result_category='finalAbsenceProven',
+		    settled_at=clock_timestamp(),updated_at=clock_timestamp()
+		WHERE kind='scheduled_object'
+		  AND owner_did=$1 AND owner_generation=$2
+		  AND exact_key=$3 AND upload_generation=$4
+		  AND source_attempt_id=$5 AND state<>'settled'
+	`, claim.OwnerDID, claim.OwnerGeneration, claim.ObjectKey,
+		claim.UploadGeneration, sourceAttemptID.String()); err != nil {
+		return fmt.Errorf("settle account deletion object safety: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM scheduled_post_object_attempts AS attempts
+		WHERE attempts.upload_attempt_id=$1
+		  AND NOT EXISTS (
+			SELECT 1 FROM scheduled_post_media AS media
+			WHERE media.upload_attempt_id=attempts.upload_attempt_id
+		  )
+	`, sourceAttemptID); err != nil {
+		return fmt.Errorf("remove settled object attempt: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit completed cleanup: %w", err)
 	}
 	return nil
 }
@@ -356,7 +456,8 @@ func (s *Store) RetryCleanup(
 	now time.Time,
 ) error {
 	if s == nil || s.pool == nil || claim.ID == uuid.Nil || claim.LeaseToken == uuid.Nil ||
-		now.IsZero() || nextAttemptAt.Before(now) || safeCode != CleanupErrorObjectDeleteFailed {
+		now.IsZero() || nextAttemptAt.Before(now) ||
+		(safeCode != CleanupErrorObjectDeleteFailed && safeCode != CleanupErrorSettlementPending) {
 		return errors.New("invalid scheduled cleanup retry")
 	}
 	result, err := s.pool.Exec(

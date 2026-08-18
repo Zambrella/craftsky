@@ -8,6 +8,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
 var ErrPreferencesNotFound = errors.New("language preferences not found")
@@ -41,7 +43,15 @@ func (s *Store) Replace(
 	if err := ValidatePreferences(preferences); err != nil {
 		return Preferences{}, err
 	}
-	return scanPreferences(s.pool.QueryRow(ctx, `
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Preferences{}, fmt.Errorf("begin language preferences replacement: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, did, nil); err != nil {
+		return Preferences{}, fmt.Errorf("authorize language preferences replacement: %w", err)
+	}
+	replaced, err := scanPreferences(tx.QueryRow(ctx, `
 		UPDATE account_language_preferences
 		SET primary_language = $2,
 		    content_languages = $3,
@@ -49,6 +59,13 @@ func (s *Store) Replace(
 		WHERE account_did = $1
 		RETURNING primary_language, content_languages
 	`, did, preferences.PrimaryLanguage, preferences.ContentLanguages))
+	if err != nil {
+		return Preferences{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Preferences{}, fmt.Errorf("commit language preferences replacement: %w", err)
+	}
+	return replaced, nil
 }
 
 func (s *Store) Initialize(
@@ -64,6 +81,9 @@ func (s *Store) Initialize(
 		return Preferences{}, fmt.Errorf("begin language preferences initialization: %w", err)
 	}
 	defer tx.Rollback(ctx)
+	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, did, nil); err != nil {
+		return Preferences{}, fmt.Errorf("authorize language preferences initialization: %w", err)
+	}
 
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO account_language_preferences (

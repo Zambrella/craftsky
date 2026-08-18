@@ -17,14 +17,14 @@ void main() {
   // `http_mock_adapter`'s default `FullHttpRequestMatcher` matches on
   // method + path + data + query, so POST tests must either pass `data:`
   // on the match OR use `UrlRequestMatcher`. The body the client sends
-  // for login is always `{handle, handoffMode: 'deep_link'}`.
+  // for login is always `{handle, handoffMode: 'verified_link'}`.
   const kLoginBody = {
     'handle': 'alice.bsky.social',
-    'handoffMode': 'deep_link',
+    'handoffMode': 'verified_link',
   };
 
   group('AuthApiClient.login', () {
-    test('POSTs /v1/auth/login with handle + deep_link handoff', () async {
+    test('POSTs /v1/auth/login with a verified-link handoff', () async {
       final dio = buildDio();
       DioAdapter(dio: dio).onPost(
         '/v1/auth/login',

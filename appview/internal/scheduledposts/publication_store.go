@@ -36,7 +36,8 @@ func (s *Store) ClaimBatch(ctx context.Context, limit int, now time.Time) ([]Wor
 	items := make([]WorkItem, 0, len(claims))
 	for _, claim := range claims {
 		items = append(items, WorkItem{
-			ID: claim.ID, OwnerDID: claim.OwnerDID, LeaseToken: claim.LeaseToken,
+			ID: claim.ID, OwnerDID: claim.OwnerDID, OwnerGeneration: claim.OwnerGeneration,
+			LeaseToken:     claim.LeaseToken,
 			PayloadVersion: claim.PayloadVersion, Rkey: claim.Rkey, CreatedAt: claim.CreatedAt,
 		})
 	}
@@ -44,14 +45,18 @@ func (s *Store) ClaimBatch(ctx context.Context, limit int, now time.Time) ([]Wor
 }
 
 func workItemClaim(item WorkItem) PublishingClaim {
-	return PublishingClaim{ID: item.ID, OwnerDID: item.OwnerDID, LeaseToken: item.LeaseToken,
+	return PublishingClaim{ID: item.ID, OwnerDID: item.OwnerDID,
+		OwnerGeneration: item.OwnerGeneration, LeaseToken: item.LeaseToken,
 		PayloadVersion: item.PayloadVersion, Rkey: item.Rkey, CreatedAt: item.CreatedAt}
 }
 
 func (s *Store) publicationSnapshot(ctx context.Context, claim PublishingClaim) (publicationSnapshot, error) {
 	var snapshot publicationSnapshot
-	err := s.pool.QueryRow(ctx, selectPublicationSnapshotSQL, claim.OwnerDID, claim.ID,
-		claim.LeaseToken, claim.PayloadVersion).Scan(
+	database := s.publicationDB(ctx)
+	err := database.QueryRow(
+		ctx, selectPublicationSnapshotSQL, claim.OwnerDID, claim.ID, claim.OwnerGeneration,
+		claim.LeaseToken, claim.PayloadVersion,
+	).Scan(
 		&snapshot.Payload, &snapshot.FrozenRecord, &snapshot.AttemptCount, &snapshot.ScheduledAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -60,7 +65,9 @@ func (s *Store) publicationSnapshot(ctx context.Context, claim PublishingClaim) 
 	if err != nil {
 		return publicationSnapshot{}, fmt.Errorf("read publication snapshot: %w", err)
 	}
-	rows, err := s.pool.Query(ctx, selectPublicationMediaSQL, claim.OwnerDID, claim.ID)
+	rows, err := database.Query(
+		ctx, selectPublicationMediaSQL, claim.OwnerDID, claim.ID, claim.OwnerGeneration,
+	)
 	if err != nil {
 		return publicationSnapshot{}, fmt.Errorf("read publication media: %w", err)
 	}
@@ -98,8 +105,8 @@ func (s *Store) failPublication(ctx context.Context, claim PublishingClaim, deci
 		needsAt = now.UTC()
 		needsExpires = NeedsAttentionExpiresAt(now.UTC())
 	}
-	result, err := s.pool.Exec(ctx, failScheduledPublicationSQL,
-		claim.OwnerDID, claim.ID, claim.LeaseToken, claim.PayloadVersion,
+	result, err := s.publicationDB(ctx).Exec(ctx, failScheduledPublicationSQL,
+		claim.OwnerDID, claim.ID, claim.OwnerGeneration, claim.LeaseToken, claim.PayloadVersion,
 		status, nextAttempt.UTC(), decision.SafeCode, now.UTC(), needsAt, needsExpires,
 	)
 	if err != nil {

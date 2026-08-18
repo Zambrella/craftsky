@@ -1,5 +1,6 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/auth_state.dart';
+import 'package:craftsky_app/auth/models/pending_handoff.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
@@ -31,6 +32,33 @@ ProviderContainer _container(SessionRegistry initial) => ProviderContainer.test(
 );
 
 void main() {
+  test('cold start launches recovery for a durable pending receipt', () async {
+    final pending = PendingHandoff(
+      token: 'pending-token',
+      did: 'did:plc:pending',
+      handle: 'pending.test',
+      receiptId: '00000000-0000-4000-8000-000000000817',
+      confirmBy: DateTime.utc(2026, 8, 14, 12, 5),
+    );
+    var launches = 0;
+    final container = ProviderContainer.test(
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _FakeRegistryStorage(SessionRegistry.empty().stageHandoff(pending)),
+        ),
+        sessionValidationLauncherProvider.overrideWithValue((_) async {}),
+        pendingHandoffRecoveryLauncherProvider.overrideWithValue(() async {
+          launches++;
+        }),
+      ],
+    );
+
+    expect(await container.read(authSessionProvider.future), isA<SignedOut>());
+    await Future<void>.delayed(Duration.zero);
+
+    expect(launches, 1);
+  });
+
   test('projects SignedOut from an empty registry', () async {
     final container = _container(SessionRegistry.empty());
     expect(await container.read(authSessionProvider.future), isA<SignedOut>());

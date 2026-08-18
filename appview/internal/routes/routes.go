@@ -15,39 +15,75 @@ import (
 
 const defaultJSONBodyLimitBytes int64 = 1024 * 1024
 
+func newScheduledImageValidator(
+	limits api.ImageDecodeLimits,
+	observer api.ImageValidationObserver,
+) api.ImageValidator {
+	if limits.MaxWidth == 0 {
+		// Route tests sometimes construct Config directly. Real startup always
+		// receives the fully validated limits from LoadConfig.
+		limits = api.DefaultImageDecodeLimits()
+	}
+	validator, err := api.NewImageValidatorWithObserver(
+		limits,
+		observer,
+	)
+	if err != nil {
+		panic("invalid scheduled image decode limits")
+	}
+	return validator
+}
+
 type v1Middleware struct {
-	authN     func(http.Handler) http.Handler
-	deviceID  func(http.Handler) http.Handler
-	member    func(http.Handler) http.Handler
-	bodyLimit middleware.BodyLimitConfig
-	rateLimit map[RateClass]func(http.Handler) http.Handler
-	observer  *observability.Observer
-	hydrator  *api.IdentityCustomisationHydrator
+	authCurrentMember func(http.Handler) http.Handler
+	authRecovery      func(http.Handler) http.Handler
+	deviceID          func(http.Handler) http.Handler
+	member            func(http.Handler) http.Handler
+	bodyLimit         middleware.BodyLimitConfig
+	rateLimit         map[RateClass]func(http.Handler) http.Handler
+	observer          *observability.Observer
+	hydrator          *api.IdentityCustomisationHydrator
 }
 
 func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handler {
-	wrapped := handler
+	accessClass := policy.AccessClass
+	if !accessClass.Valid() {
+		// Catalogue construction rejects invalid classes. Keep direct wrapper
+		// use fail-closed as current-member authorization too.
+		accessClass = AccessCurrentMember
+	}
+	wrapped := middleware.BodyLimit(m.bodyLimit, middleware.BodyKind(policy.BodyKind), nil)(handler)
 	if m.hydrator != nil {
 		wrapped = m.hydrator.Handler(wrapped)
 	}
-	if policy.CurrentMemberRequired {
+	if accessClass == AccessCurrentMember {
 		wrapped = m.member(wrapped)
 	}
 	if rl := m.rateLimit[policy.RateClass]; rl != nil {
 		wrapped = rl(wrapped)
 	}
-	if policy.AuthRequired {
+	switch accessClass {
+	case AccessAuthenticatedRecovery:
 		wrapped = m.deviceID(wrapped)
-		wrapped = m.authN(wrapped)
-	} else if policy.RateClass == RateClassAuth {
+		wrapped = m.authRecovery(wrapped)
+	case AccessCurrentMember:
 		wrapped = m.deviceID(wrapped)
+		wrapped = m.authCurrentMember(wrapped)
+	case AccessAnonymous:
+		if policy.RateClass == RateClassAuth {
+			wrapped = m.deviceID(wrapped)
+		}
 	}
-	wrapped = middleware.BodyLimit(m.bodyLimit, middleware.BodyKind(policy.BodyKind), nil)(wrapped)
+	wrapped = middleware.BodyPrecheck(m.bodyLimit, middleware.BodyKind(policy.BodyKind), nil)(wrapped)
 	return middleware.HTTPInFlight(m.observer)(wrapped)
 }
 
+type Registrar interface {
+	Handle(string, http.Handler)
+}
+
 // AddRoutes registers all App View routes on mux.
-func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
+func AddRoutes(ctx context.Context, mux Registrar, deps *app.Deps) {
 	observer := deps.Observability
 	if observer == nil {
 		observer = observability.New(observability.Config{Env: string(deps.Config.Env)})
@@ -67,6 +103,7 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	// OAuth discovery endpoints (contracts with the AS; not versioned).
 	oauthHandlers := auth.NewHTTPHandlers(
 		deps.OAuthApp,
+		deps.OAuthArtifacts,
 		deps.CraftskySessionStore,
 		deps.DB,
 		deps.Logger,
@@ -77,6 +114,12 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	oauthHandlers.RepositoryTracker = deps.RepositoryTracker
 	oauthHandlers.DeletionOAuthCallbacks = deps.AccountDeletionOAuth
 	oauthHandlers.DeletionPendingLogin = deps.AccountDeletionPendingLogin
+	oauthHandlers.OAuthFlow = deps.OAuthFlow
+	oauthHandlers.Handoffs = deps.HandoffCoordinator
+	oauthHandlers.SessionLifecycle = deps.SessionLifecycle
+	oauthHandlers.NewPendingPDSClient = deps.NewPendingPDSClient
+	oauthHandlers.LoginCompleteURL = deps.LoginCompleteURL
+	oauthHandlers.DeletionCompleteURL = deps.DeletionCompleteURL
 	mux.Handle("GET /oauth/client-metadata.json", inFlight(oauthHandlers.ClientMetadataHandler()))
 	mux.Handle("GET /oauth/jwks.json", inFlight(oauthHandlers.JWKSHandler()))
 	mux.Handle("GET /oauth/callback", inFlight(oauthHandlers.CallbackHandler()))
@@ -89,13 +132,29 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	}
 
 	// Middleware stacks.
-	authN := middleware.Authenticated(deps.AuthService, deps.Logger)
+	devAuthPolicy := middleware.DevAuthPolicy{Mode: middleware.DevAuthDisabled}
+	if deps.Config.Env == app.EnvDev {
+		devAuthPolicy.Mode = middleware.DevAuthLocal
+		if deps.Config.DevRemoteAccess {
+			devAuthPolicy.Mode = middleware.DevAuthRemote
+			devAuthPolicy.Secret = deps.Config.DevAuthSecret.Reveal()
+		}
+	}
+	recoveryAuthService, ok := deps.AuthService.(auth.RecoveryAuthService)
+	if !ok {
+		panic("routes: auth service does not implement recovery authentication")
+	}
+	authCurrentMember := middleware.Authenticated(deps.AuthService, deps.Logger, devAuthPolicy)
+	authRecovery := middleware.AuthenticatedRecovery(recoveryAuthService, deps.Logger, devAuthPolicy)
 	deviceID := middleware.DeviceID(deps.CraftskySessionStore, deps.Logger)
 	membership := deps.InstagramMembership
 	if membership == nil {
 		membership = instagram.NewMembershipStore(deps.DB)
 	}
 	currentMember := middleware.CurrentMember(membership, deps.Logger)
+	if deps.OwnerLifecycles != nil {
+		currentMember = middleware.CurrentMember(membership, deps.Logger, deps.OwnerLifecycles)
+	}
 	rateLimits := map[RateClass]func(http.Handler) http.Handler{}
 	if deps.RateLimiter != nil {
 		rateLimits[RateClassAuth] = middleware.RateLimit(deps.RateLimiter, middleware.RateClassAuth, deps.Logger)
@@ -105,8 +164,10 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		rateLimits[RateClassUpload] = middleware.RateLimit(deps.RateLimiter, middleware.RateClassUpload, deps.Logger)
 	}
 	bodyLimitCfg := middleware.BodyLimitConfig{
-		DefaultJSONBytes: deps.Config.JSONBodyLimitBytes,
-		UploadBytes:      deps.Config.MaxImageUploadBytes,
+		DefaultJSONBytes:       deps.Config.JSONBodyLimitBytes,
+		UploadBytes:            deps.Config.MaxImageUploadBytes,
+		DefaultJSONReadTimeout: deps.Config.HTTPJSONBodyReadTimeout,
+		UploadReadTimeout:      deps.Config.HTTPUploadBodyReadTimeout,
 	}
 	if bodyLimitCfg.DefaultJSONBytes == 0 {
 		bodyLimitCfg.DefaultJSONBytes = defaultJSONBodyLimitBytes
@@ -120,7 +181,8 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		identityCustomisationHydrator = api.NewIdentityCustomisationHydrator(profileCustomisationStore)
 	}
 	v1mw := v1Middleware{
-		authN: authN, deviceID: deviceID, member: currentMember,
+		authCurrentMember: authCurrentMember, authRecovery: authRecovery,
+		deviceID: deviceID, member: currentMember,
 		bodyLimit: bodyLimitCfg, rateLimit: rateLimits, observer: observer,
 		hydrator: identityCustomisationHydrator,
 	}
@@ -143,12 +205,15 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 
 	// v1 — unauthenticated but device-id required.
 	mux.Handle("POST /v1/auth/login", v1mw.wrap(mustPolicy("POST", "/v1/auth/login"), oauthHandlers.LoginHandler()))
+	mux.Handle("POST /v1/auth/handoffs/exchange", v1mw.wrap(mustPolicy("POST", "/v1/auth/handoffs/exchange"), oauthHandlers.HandoffExchangeHandler()))
+	mux.Handle("POST /v1/auth/handoffs/confirm", v1mw.wrap(mustPolicy("POST", "/v1/auth/handoffs/confirm"), oauthHandlers.HandoffConfirmHandler()))
 
 	// v1 — authenticated + device-id required.
 	mediaLimits := api.MediaLimits{
 		MaxPostImages:       deps.Config.MaxPostImages,
 		MaxImageUploadBytes: deps.Config.MaxImageUploadBytes,
 	}
+	scheduledImageValidator := newScheduledImageValidator(deps.Config.ImageDecodeLimits, observer)
 	facetStore := api.NewFacetStore(deps.DB, deps.HandleResolver)
 	searchStore := api.NewSearchStore(deps.DB, observer)
 	mux.Handle("GET /v1/whoami", v1mw.wrap(mustPolicy("GET", "/v1/whoami"), api.WhoAmIHandler(deps.HandleResolver, deps.Logger)))
@@ -199,6 +264,23 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	mux.Handle("GET /v1/migrations/instagram/imports/{importId}", v1mw.wrap(mustPolicy("GET", "/v1/migrations/instagram/imports/{importId}"), api.GetInstagramImportHandler(deps.InstagramImports, deps.Logger)))
 	mux.Handle("PATCH /v1/migrations/instagram/imports/{importId}", v1mw.wrap(mustPolicy("PATCH", "/v1/migrations/instagram/imports/{importId}"), api.PatchInstagramImportHandler(deps.InstagramImports, deps.Logger)))
 	mux.Handle("DELETE /v1/migrations/instagram/imports/{importId}", v1mw.wrap(mustPolicy("DELETE", "/v1/migrations/instagram/imports/{importId}"), api.DeleteInstagramImportHandler(deps.InstagramImports, deps.Logger)))
+	mux.Handle("GET /v1/migrations/instagram/suggestions", v1mw.wrap(
+		mustPolicy("GET", "/v1/migrations/instagram/suggestions"),
+		api.ListInstagramSuggestionsHandler(
+			deps.InstagramSuggestions,
+			deps.ProfileStore,
+			deps.HandleResolver,
+			deps.Logger,
+		),
+	))
+	mux.Handle("POST /v1/migrations/instagram/suggestions/{suggestionId}/accept", v1mw.wrap(
+		mustPolicy("POST", "/v1/migrations/instagram/suggestions/{suggestionId}/accept"),
+		api.AcceptInstagramSuggestionHandler(deps.InstagramSuggestions, deps.Logger),
+	))
+	mux.Handle("DELETE /v1/migrations/instagram/suggestions/{suggestionId}", v1mw.wrap(
+		mustPolicy("DELETE", "/v1/migrations/instagram/suggestions/{suggestionId}"),
+		api.DismissInstagramSuggestionHandler(deps.InstagramSuggestions, deps.Logger),
+	))
 	mux.Handle("GET /v1/profiles/{handleOrDid}", v1mw.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}"), api.GetProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("GET /v1/profiles/me", v1mw.wrap(mustPolicy("GET", "/v1/profiles/me"), api.GetMeProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger)))
 	mux.Handle("GET /v1/profiles/me/followers", v1mw.wrap(mustPolicy("GET", "/v1/profiles/me/followers"), api.GetMeFollowersHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger)))
@@ -237,7 +319,7 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 	mux.Handle("POST /v1/notifications/devices", v1mw.wrap(mustPolicy("POST", "/v1/notifications/devices"), api.RegisterNotificationDeviceHandler(postStore, deps.Logger)))
 	mux.Handle("DELETE /v1/notifications/devices/{accountSubscriptionId}", v1mw.wrap(mustPolicy("DELETE", "/v1/notifications/devices/{accountSubscriptionId}"), api.RemoveNotificationDeviceHandler(postStore, deps.Logger)))
 	mux.Handle("POST /v1/blobs/images", v1mw.wrap(mustPolicy("POST", "/v1/blobs/images"), api.ImageBlobUploadHandler(deps.NewPDSClient, mediaLimits, deps.Logger)))
-	mux.Handle("PUT /v1/scheduled-post-media/{mediaId}", v1mw.wrap(mustPolicy("PUT", "/v1/scheduled-post-media/{mediaId}"), api.PutScheduledMediaHandler(deps.ScheduledMedia, mediaLimits, deps.Logger)))
+	mux.Handle("PUT /v1/scheduled-post-media/{mediaId}", v1mw.wrap(mustPolicy("PUT", "/v1/scheduled-post-media/{mediaId}"), api.PutScheduledMediaHandler(deps.ScheduledMedia, mediaLimits, scheduledImageValidator, deps.Logger)))
 	mux.Handle("GET /v1/scheduled-post-media/{mediaId}", v1mw.wrap(mustPolicy("GET", "/v1/scheduled-post-media/{mediaId}"), api.GetScheduledMediaHandler(deps.ScheduledMedia, deps.Logger)))
 	mux.Handle("DELETE /v1/scheduled-post-media/{mediaId}", v1mw.wrap(mustPolicy("DELETE", "/v1/scheduled-post-media/{mediaId}"), api.DeleteScheduledMediaHandler(deps.ScheduledMedia, time.Now, deps.Logger)))
 	mux.Handle("POST /v1/scheduled-posts", v1mw.wrap(mustPolicy("POST", "/v1/scheduled-posts"), api.CreateScheduledPostHandler(deps.ScheduledPosts, mediaLimits, time.Now, deps.Logger)))

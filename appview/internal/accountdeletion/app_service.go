@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -16,32 +15,49 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
-type OAuthFlowStarter interface {
-	StartAuthFlow(context.Context, string) (string, error)
+type DeletionOAuthFlowStarter interface {
+	StartAccountDeletion(
+		context.Context,
+		syntax.DID,
+		syntax.Handle,
+		uuid.UUID,
+		string,
+	) (string, error)
 }
 
 type AppServiceOptions struct {
-	Pool      *pgxpool.Pool
-	Store     *Store
-	OAuth     OAuthFlowStarter
-	Now       func() time.Time
-	Random    io.Reader
-	IntentTTL time.Duration
+	Pool                 *pgxpool.Pool
+	Store                *Store
+	OAuth                DeletionOAuthFlowStarter
+	Owners               *ownerlifecycle.Store
+	Sessions             *auth.SessionLifecycleService
+	OAuthStore           *auth.PostgresAuthStore
+	DepartureParticipant ownerlifecycle.TransitionParticipant
+	Now                  func() time.Time
+	Random               io.Reader
+	IntentTTL            time.Duration
 }
 
 type AppService struct {
-	pool      *pgxpool.Pool
-	store     *Store
-	oauth     OAuthFlowStarter
-	now       func() time.Time
-	random    io.Reader
-	intentTTL time.Duration
+	pool       *pgxpool.Pool
+	store      *Store
+	oauth      DeletionOAuthFlowStarter
+	owners     *ownerlifecycle.Store
+	sessions   *auth.SessionLifecycleService
+	oauthStore *auth.PostgresAuthStore
+	departure  ownerlifecycle.TransitionParticipant
+	now        func() time.Time
+	random     io.Reader
+	intentTTL  time.Duration
 }
 
 func NewAppService(options AppServiceOptions) (*AppService, error) {
-	if options.Pool == nil || options.Store == nil || options.OAuth == nil {
+	if options.Pool == nil || options.Store == nil || options.OAuth == nil ||
+		options.Owners == nil || options.Sessions == nil || options.OAuthStore == nil ||
+		options.DepartureParticipant == nil {
 		return nil, errors.New("account deletion service dependencies are unavailable")
 	}
 	if options.Now == nil {
@@ -55,12 +71,14 @@ func NewAppService(options AppServiceOptions) (*AppService, error) {
 	}
 	return &AppService{
 		pool: options.Pool, store: options.Store, oauth: options.OAuth,
-		now: options.Now, random: options.Random, intentTTL: options.IntentTTL,
+		owners: options.Owners, sessions: options.Sessions, oauthStore: options.OAuthStore,
+		departure: options.DepartureParticipant,
+		now:       options.Now, random: options.Random, intentTTL: options.IntentTTL,
 	}, nil
 }
 
 func (service *AppService) CreateIntent(ctx context.Context, params CreateIntentParams) (IntentResult, error) {
-	if params.Owner == "" {
+	if params.Owner == "" || params.DeviceID == "" {
 		return IntentResult{}, errors.New("invalid account deletion intent scope")
 	}
 	var handle syntax.Handle
@@ -70,32 +88,44 @@ func (service *AppService) CreateIntent(ctx context.Context, params CreateIntent
 	now := service.now().UTC()
 	jobID := uuid.New()
 	expiresAt := now.Add(service.intentTTL)
-	if err := service.store.CreateIntent(ctx, IntentRecord{
+	intent := IntentRecord{
 		JobID: jobID, Owner: params.Owner,
 		ConfirmationHandleHash: HashSecret("@" + handle.String()),
 		ExpiresAt:              expiresAt,
+	}
+	current, err := service.owners.Get(ctx, params.Owner)
+	if err != nil {
+		return IntentResult{}, err
+	}
+	if current.State != ownerlifecycle.StateActive {
+		return IntentResult{}, ErrDeletionAlreadyPending
+	}
+	intentParticipant := service.store.CreateIntentParticipant(intent)
+	if _, err := service.owners.TransitionWith(ctx, ownerlifecycle.TransitionRequest{
+		Owner: params.Owner, ExpectedGeneration: current.Generation,
+		To: ownerlifecycle.StateDeletionPending, Reason: "accountDeletionIntent",
+	}, func(
+		participantCtx context.Context,
+		tx pgx.Tx,
+		before ownerlifecycle.Lifecycle,
+		after ownerlifecycle.Lifecycle,
+	) error {
+		if err := intentParticipant(participantCtx, tx, before, after); err != nil {
+			return err
+		}
+		return service.departure(participantCtx, tx, before, after)
 	}); err != nil {
 		return IntentResult{}, err
 	}
-	authContext := auth.WithAccountDeletionAuthRequest(ctx, params.Owner, jobID)
-	authURL, err := service.oauth.StartAuthFlow(authContext, handle.String())
+	authURL, err := service.oauth.StartAccountDeletion(
+		ctx, params.Owner, handle, jobID, params.DeviceID,
+	)
 	if err != nil {
-		service.discardIntent(ctx, jobID, params.Owner)
-		return IntentResult{}, fmt.Errorf("start account deletion OAuth: %w", err)
-	}
-	requestURI, err := deletionRequestURI(authURL)
-	if err != nil {
-		service.discardIntent(ctx, jobID, params.Owner)
-		return IntentResult{}, err
-	}
-	persisted, err := service.deletionOAuthRequestPersisted(ctx, requestURI, jobID, params.Owner)
-	if err != nil || !persisted {
-		service.discardOAuthRequest(ctx, requestURI)
-		service.discardIntent(ctx, jobID, params.Owner)
-		if err == nil {
-			err = errors.New("OAuth request metadata was not persisted atomically")
+		rollbackErr := service.cancelIntent(ctx, jobID, params.Owner, "accountDeletionStartFailed")
+		if rollbackErr != nil {
+			return IntentResult{}, errors.Join(fmt.Errorf("start account deletion OAuth: %w", err), rollbackErr)
 		}
-		return IntentResult{}, fmt.Errorf("verify account deletion OAuth request: %w", err)
+		return IntentResult{}, fmt.Errorf("start account deletion OAuth: %w", err)
 	}
 	return IntentResult{JobID: jobID.String(), AuthURL: authURL, ExpiresAt: expiresAt}, nil
 }
@@ -105,10 +135,26 @@ func (service *AppService) Accept(ctx context.Context, params AcceptParams) erro
 	if err != nil {
 		return ErrOperationNotFound
 	}
-	_, err = service.store.Accept(ctx, AcceptanceRequest{
+	request := AcceptanceRequest{
 		JobID: jobID, Owner: params.Owner,
 		ReauthProof: params.ReauthProof, ConfirmationHandle: params.ConfirmationHandle,
-	})
+	}
+	binding, err := service.store.AcceptanceBinding(ctx, request)
+	if err != nil {
+		return err
+	}
+	current, err := service.owners.Get(ctx, params.Owner)
+	if err != nil {
+		return err
+	}
+	participant := service.sessions.OwnerTransitionParticipant(
+		&binding,
+		service.store.AcceptParticipant(request, binding),
+	)
+	_, err = service.owners.TransitionWith(ctx, ownerlifecycle.TransitionRequest{
+		Owner: params.Owner, ExpectedGeneration: current.Generation,
+		To: ownerlifecycle.StateDeleting, Reason: "accountDeletionAccepted",
+	}, participant)
 	return err
 }
 
@@ -117,7 +163,47 @@ func (service *AppService) CancelIntent(ctx context.Context, rawJobID string, ow
 	if err != nil {
 		return ErrOperationNotFound
 	}
-	return service.store.CancelIntent(ctx, jobID, owner)
+	return service.cancelIntent(ctx, jobID, owner, "accountDeletionCanceled")
+}
+
+func (service *AppService) ExpireIntent(ctx context.Context, jobID uuid.UUID, owner syntax.DID) error {
+	if jobID == uuid.Nil || owner == "" {
+		return ErrOperationNotFound
+	}
+	return service.cancelIntent(ctx, jobID, owner, "accountDeletionIntentExpired")
+}
+
+func (service *AppService) cancelIntent(
+	ctx context.Context,
+	jobID uuid.UUID,
+	owner syntax.DID,
+	reason string,
+) error {
+	for attempt := 0; attempt < 2; attempt++ {
+		current, err := service.owners.Get(ctx, owner)
+		if err != nil {
+			return err
+		}
+		if current.State != ownerlifecycle.StateDeletionPending {
+			return ErrPointOfNoReturn
+		}
+		target, err := service.store.CancellationTarget(ctx, owner)
+		if err != nil {
+			return err
+		}
+		participant := service.store.CancelIntentParticipant(jobID, owner)
+		if target == ownerlifecycle.StateDeparted {
+			participant = service.sessions.OwnerTransitionParticipant(nil, participant)
+		}
+		_, err = service.owners.TransitionWith(ctx, ownerlifecycle.TransitionRequest{
+			Owner: owner, ExpectedGeneration: current.Generation,
+			To: target, Reason: reason,
+		}, participant)
+		if !errors.Is(err, ownerlifecycle.ErrGenerationChanged) {
+			return err
+		}
+	}
+	return ownerlifecycle.ErrGenerationChanged
 }
 
 func (service *AppService) PendingLogin(ctx context.Context, owner syntax.DID, sessionID, _ string) (auth.AccountDeletionPendingLogin, bool, error) {
@@ -146,67 +232,69 @@ func (service *AppService) RequestForState(ctx context.Context, state string) (a
 }
 
 func (service *AppService) Complete(ctx context.Context, request auth.AccountDeletionAuthRequest, did syntax.DID, sessionID string) (auth.AccountDeletionOAuthResult, error) {
+	return auth.AccountDeletionOAuthResult{}, ErrReauthenticationRequired
+}
+
+func (service *AppService) Reject(ctx context.Context, did syntax.DID, sessionID string) error {
+	return ErrReauthenticationRequired
+}
+
+func (service *AppService) CompleteAttempt(
+	ctx context.Context,
+	request auth.AccountDeletionAuthRequest,
+	attempt auth.CallbackAttempt,
+) (auth.AccountDeletionOAuthResult, error) {
 	jobID, err := uuid.Parse(request.JobID)
-	if err != nil || request.Purpose != auth.AccountDeletionOAuthPurpose || request.Owner != did || sessionID == "" {
+	if err != nil || request.Purpose != auth.AccountDeletionOAuthPurpose ||
+		request.Owner != attempt.Owner || attempt.Purpose != auth.AccountDeletionOAuthPurpose ||
+		attempt.State == "" {
 		return auth.AccountDeletionOAuthResult{}, ErrReauthenticationRequired
+	}
+	credentialGeneration, err := service.store.ReauthenticationGeneration(ctx, jobID, attempt.Owner)
+	if err != nil {
+		return auth.AccountDeletionOAuthResult{}, err
 	}
 	proofBytes := make([]byte, 32)
 	if _, err := io.ReadFull(service.random, proofBytes); err != nil {
 		return auth.AccountDeletionOAuthResult{}, err
 	}
 	proof := base64.RawURLEncoding.EncodeToString(proofBytes)
-	if err := service.store.CompleteReauthentication(ctx, jobID, did, sessionID, HashSecret(proof)); err != nil {
+	if err := service.oauthStore.BindDeletionCredential(
+		ctx,
+		attempt,
+		jobID,
+		credentialGeneration,
+		service.store.BindReauthentication(
+			jobID, attempt.Owner, attempt.State, credentialGeneration, HashSecret(proof),
+		),
+	); err != nil {
 		return auth.AccountDeletionOAuthResult{}, err
 	}
 	return auth.AccountDeletionOAuthResult{JobID: jobID.String(), Proof: proof}, nil
 }
 
-func (service *AppService) Reject(ctx context.Context, did syntax.DID, sessionID string) error {
-	_, err := service.pool.Exec(ctx, `DELETE FROM oauth_sessions WHERE account_did=$1 AND session_id=$2`, did, sessionID)
+func (service *AppService) CompleteAccepted(ctx context.Context, operation ClaimedOperation) error {
+	current, err := service.owners.Get(ctx, operation.Owner)
+	if err != nil {
+		return err
+	}
+	if current.State != ownerlifecycle.StateDeleting {
+		return ErrOperationNotFound
+	}
+	participant := service.sessions.OwnerTransitionParticipant(
+		nil,
+		service.store.CompleteParticipant(operation),
+	)
+	_, err = service.owners.TransitionWith(ctx, ownerlifecycle.TransitionRequest{
+		Owner: operation.Owner, ExpectedGeneration: current.Generation,
+		To: ownerlifecycle.StateDeparted, Reason: "accountDeletionCompleted",
+	}, participant)
 	return err
 }
 
-func (service *AppService) discardIntent(ctx context.Context, jobID uuid.UUID, owner syntax.DID) {
-	_, _ = service.pool.Exec(ctx, `
-		DELETE FROM oauth_auth_requests
-		WHERE purpose='accountDeletion' AND account_deletion_owner_did=$1
-		  AND account_deletion_job_id=$2
-	`, owner, jobID)
-	_, _ = service.pool.Exec(ctx, `DELETE FROM account_deletion_operations WHERE id=$1 AND owner_did=$2 AND state='intent'`, jobID, owner)
-}
-
-func (service *AppService) discardOAuthRequest(ctx context.Context, requestURI string) {
-	if requestURI != "" {
-		_, _ = service.pool.Exec(ctx, `DELETE FROM oauth_auth_requests WHERE data->>'request_uri'=$1`, requestURI)
-	}
-}
-
-func (service *AppService) deletionOAuthRequestPersisted(ctx context.Context, requestURI string, jobID uuid.UUID, owner syntax.DID) (bool, error) {
-	var persisted bool
-	err := service.pool.QueryRow(ctx, `
-		SELECT EXISTS(
-			SELECT 1 FROM oauth_auth_requests
-			WHERE data->>'request_uri'=$1 AND purpose='accountDeletion'
-			  AND account_deletion_job_id=$2 AND account_deletion_owner_did=$3
-		)
-	`, requestURI, jobID, owner).Scan(&persisted)
-	return persisted, err
-}
-
-func deletionRequestURI(authURL string) (string, error) {
-	parsed, err := url.Parse(authURL)
-	if err != nil {
-		return "", err
-	}
-	requestURI := parsed.Query().Get("request_uri")
-	if requestURI == "" {
-		return "", errors.New("account deletion OAuth URL missing request_uri")
-	}
-	return requestURI, nil
-}
-
 var (
-	_ Service                                = (*AppService)(nil)
-	_ auth.AccountDeletionOAuthCallbacks     = (*AppService)(nil)
-	_ auth.AccountDeletionPendingLoginPolicy = (*AppService)(nil)
+	_ Service                                   = (*AppService)(nil)
+	_ auth.AccountDeletionOAuthCallbacks        = (*AppService)(nil)
+	_ auth.AccountDeletionOAuthAttemptCallbacks = (*AppService)(nil)
+	_ auth.AccountDeletionPendingLoginPolicy    = (*AppService)(nil)
 )

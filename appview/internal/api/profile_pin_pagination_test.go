@@ -14,6 +14,7 @@ import (
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/languages"
+	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -23,7 +24,7 @@ func TestProfilePinFirstPagePromotionAndMetadataOmission(t *testing.T) {
 		t.Fatalf("read profile pin migration: %v", err)
 	}
 	pool := testdb.WithSchema(t, postStoreDDL+string(migration))
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	base := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
 	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol", "did:plc:viewer"} {
 		seedMember(t, pool, did)
@@ -134,7 +135,7 @@ func TestProfilePinTraversalIsUniqueAndPinChangesInvalidateCursor(t *testing.T) 
 		t.Fatalf("read profile pin migration: %v", err)
 	}
 	pool := testdb.WithSchema(t, postStoreDDL+string(migration))
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	base := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
 	for _, did := range []string{"did:plc:alice", "did:plc:viewer"} {
 		seedMember(t, pool, did)
@@ -235,7 +236,7 @@ func TestProfilePinPromotionRespectsAndRetainsViewerPolicy(t *testing.T) {
 		t.Fatalf("read profile pin migration: %v", err)
 	}
 	pool := testdb.WithSchema(t, postStoreDDL+string(migration))
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	base := time.Date(2026, 8, 3, 12, 0, 0, 0, time.UTC)
 	for _, did := range []string{"did:plc:alice", "did:plc:viewer"} {
 		seedMember(t, pool, did)

@@ -23,7 +23,6 @@ const (
 	NotificationTypeMention        NotificationType = "mention"
 	NotificationTypeQuote          NotificationType = "quote"
 	NotificationTypeEverythingElse NotificationType = "everythingElse"
-	NotificationTypeInstagramMatch NotificationType = "instagramMatch"
 )
 
 type NotificationReplyRef struct {
@@ -74,7 +73,10 @@ func (s *PostStore) NotificationHandles(ctx context.Context, dids []string) (map
 	if len(dids) == 0 {
 		return out, nil
 	}
-	rows, err := s.pool.Query(ctx, `SELECT did,handle FROM atproto_identity_cache WHERE did=ANY($1)`, dids)
+	rows, err := s.pool.Query(ctx, `
+		SELECT did,handle FROM atproto_identity_cache
+		WHERE did=ANY($1) AND NOT appview_owner_is_terminal(did)
+	`, dids)
 	if err != nil {
 		return nil, fmt.Errorf("notification handle batch: %w", err)
 	}
@@ -105,6 +107,8 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			FROM notification_events e
 			WHERE e.recipient_did = $1
 			  AND e.state = 'active'
+			  AND NOT appview_owner_is_terminal(e.recipient_did)
+			  AND NOT appview_owner_is_terminal(e.actor_did)
 			  AND NOT EXISTS (
 				SELECT 1 FROM actor_mutes mute
 				WHERE mute.owner_did = $1 AND mute.subject_did = e.actor_did
@@ -120,6 +124,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 				SELECT 1
 				FROM moderation_outputs mo
 				WHERE mo.action = 'apply'
+				  AND NOT appview_owner_is_terminal(mo.source_did)
 				  AND mo.subject_type = 'account'
 				  AND mo.subject_did = e.actor_did
 				  AND mo.value IN ('hide', 'takedown')
@@ -163,7 +168,8 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			SELECT p.*
 			FROM craftsky_posts p
 			JOIN reference_uris refs ON refs.uri=p.uri
-			WHERE NOT EXISTS (
+			WHERE NOT appview_owner_is_terminal(p.did)
+			AND NOT EXISTS (
 				SELECT 1 FROM atproto_blocks block
 				WHERE (block.blocker_did = $1 AND block.subject_did = p.did)
 				   OR (block.blocker_did = p.did AND block.subject_did = $1)
@@ -171,6 +177,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			AND NOT EXISTS (
 				SELECT 1 FROM moderation_outputs mo
 				WHERE mo.action='apply' AND mo.value IN ('hide','takedown')
+				  AND NOT appview_owner_is_terminal(mo.source_did)
 				  AND (mo.expires_at IS NULL OR mo.expires_at>now())
 				  AND ((mo.subject_type='post' AND mo.subject_uri=p.uri)
 				       OR (mo.subject_type='account' AND mo.subject_did=p.did))
@@ -202,6 +209,8 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 				FROM atproto_follows actor_follow
 				WHERE actor_follow.did = $1
 				  AND actor_follow.subject_did = e.actor_did
+				  AND NOT appview_owner_is_terminal(actor_follow.did)
+				  AND NOT appview_owner_is_terminal(actor_follow.subject_did)
 			) AS actor_viewer_is_following,
 			e.activity_at,
 			e.indexed_at,
@@ -261,17 +270,15 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 		}
 		row.Type = NotificationType(eventType)
 		row.ActorDID = actorDID.String
-		if row.Type != NotificationTypeInstagramMatch {
-			row.References = NotificationReferences{
-				Source:  *notificationReference(sourceURI, sourceCID, sourceRkey.String, sourceAvailable),
-				Subject: notificationReference(subjectURI, subjectCID, "", subjectAvailable),
-				Parent:  notificationReference(parentURI, parentCID, "", parentAvailable),
-				Root:    notificationReference(rootURI, rootCID, "", rootAvailable),
-				Quoted:  notificationReference(quotedURI, quotedCID, "", quotedAvailable),
-			}
-			if sourceAvailable {
-				row.URI, row.CID, row.Rkey = sourceURI.String, sourceCID.String, sourceRkey.String
-			}
+		row.References = NotificationReferences{
+			Source:  *notificationReference(sourceURI, sourceCID, sourceRkey.String, sourceAvailable),
+			Subject: notificationReference(subjectURI, subjectCID, "", subjectAvailable),
+			Parent:  notificationReference(parentURI, parentCID, "", parentAvailable),
+			Root:    notificationReference(rootURI, rootCID, "", rootAvailable),
+			Quoted:  notificationReference(quotedURI, quotedCID, "", quotedAvailable),
+		}
+		if sourceAvailable {
+			row.URI, row.CID, row.Rkey = sourceURI.String, sourceCID.String, sourceRkey.String
 		}
 		if subject.URI.Valid {
 			row.SubjectPost = subject.postRow()

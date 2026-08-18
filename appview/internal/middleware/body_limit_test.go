@@ -123,7 +123,7 @@ func TestBodyLimitNoBodyRejectsNonEmptyBodies(t *testing.T) {
 		wantCalled bool
 	}{
 		{name: "absent", body: "", wantStatus: http.StatusNoContent, wantCalled: true},
-		{name: "empty whitespace", body: "   ", wantStatus: http.StatusNoContent, wantCalled: true},
+		{name: "empty whitespace", body: "   ", wantStatus: http.StatusBadRequest, wantCalled: false},
 		{name: "non-empty", body: "{}", wantStatus: http.StatusBadRequest, wantCalled: false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -153,4 +153,73 @@ func TestBodyLimitNoBodyRejectsNonEmptyBodies(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBodyLimitUnknownLengthStreamsThroughMaxBytesReader(t *testing.T) {
+	t.Parallel()
+
+	const limit = int64(8)
+	probe := &countingBodyReader{reader: strings.NewReader("1234567890123456")}
+	handlerCalled := false
+	var requestClosed bool
+	handler := BodyLimit(BodyLimitConfig{DefaultJSONBytes: limit}, BodyDefaultJSON, nil)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		handlerCalled = true
+		_, err := io.ReadAll(r.Body)
+		if err == nil {
+			t.Fatal("ReadAll() error = nil, want MaxBytesError")
+		}
+		http.Error(w, "handler-mapped-malformed-body", http.StatusBadRequest)
+		requestClosed = r.Close
+	}))
+	req := httptest.NewRequest(http.MethodPost, "/v1/test", probe)
+	req.ContentLength = -1
+	req.TransferEncoding = []string{"chunked"}
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+
+	if !handlerCalled {
+		t.Fatal("handler was not called for unknown-length streaming body")
+	}
+	if recorder.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d, want 413; body=%s", recorder.Code, recorder.Body.String())
+	}
+	if strings.Contains(recorder.Body.String(), "handler-mapped") {
+		t.Fatalf("body = %q, handler response was not suppressed", recorder.Body.String())
+	}
+	if !requestClosed || recorder.Header().Get("Connection") != "close" {
+		t.Fatalf("boundary rejection did not disable connection reuse: request.Close=%v headers=%v", requestClosed, recorder.Header())
+	}
+	if probe.bytesRead > limit+1 {
+		t.Fatalf("underlying bytes read = %d, want at most %d", probe.bytesRead, limit+1)
+	}
+}
+
+func TestBodyPrecheckDoesNotReadUnknownLength(t *testing.T) {
+	t.Parallel()
+
+	probe := &countingBodyReader{reader: strings.NewReader("123456789")}
+	handler := BodyPrecheck(BodyLimitConfig{DefaultJSONBytes: 8}, BodyDefaultJSON, nil)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	req := httptest.NewRequest(http.MethodPost, "/v1/test", probe)
+	req.ContentLength = -1
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204", recorder.Code)
+	}
+	if probe.bytesRead != 0 {
+		t.Fatalf("bytes read = %d, want 0", probe.bytesRead)
+	}
+}
+
+type countingBodyReader struct {
+	reader    io.Reader
+	bytesRead int64
+}
+
+func (reader *countingBodyReader) Read(buffer []byte) (int, error) {
+	read, err := reader.reader.Read(buffer)
+	reader.bytesRead += int64(read)
+	return read, err
 }

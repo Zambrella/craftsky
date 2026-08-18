@@ -8,52 +8,49 @@
 
 part of 'craftsky_notification.dart';
 
-class ActorNotificationCommonMapper
-    extends ClassMapperBase<ActorNotificationCommon> {
-  ActorNotificationCommonMapper._();
+class SystemNotificationCommonMapper
+    extends ClassMapperBase<SystemNotificationCommon> {
+  SystemNotificationCommonMapper._();
 
-  static ActorNotificationCommonMapper? _instance;
-  static ActorNotificationCommonMapper ensureInitialized() {
+  static SystemNotificationCommonMapper? _instance;
+  static SystemNotificationCommonMapper ensureInitialized() {
     if (_instance == null) {
       MapperContainer.globals.use(
-        _instance = ActorNotificationCommonMapper._(),
+        _instance = SystemNotificationCommonMapper._(),
       );
-      NotificationActorMapper.ensureInitialized();
     }
     return _instance!;
   }
 
   @override
-  final String id = 'ActorNotificationCommon';
+  final String id = 'SystemNotificationCommon';
 
-  static String _$id(ActorNotificationCommon v) => v.id;
-  static const Field<ActorNotificationCommon, String> _f$id = Field('id', _$id);
-  static NotificationActor _$actor(ActorNotificationCommon v) => v.actor;
-  static const Field<ActorNotificationCommon, NotificationActor> _f$actor =
-      Field('actor', _$actor);
-  static DateTime _$createdAt(ActorNotificationCommon v) => v.createdAt;
-  static const Field<ActorNotificationCommon, DateTime> _f$createdAt = Field(
+  static String _$id(SystemNotificationCommon v) => v.id;
+  static const Field<SystemNotificationCommon, String> _f$id = Field(
+    'id',
+    _$id,
+  );
+  static DateTime _$createdAt(SystemNotificationCommon v) => v.createdAt;
+  static const Field<SystemNotificationCommon, DateTime> _f$createdAt = Field(
     'createdAt',
     _$createdAt,
   );
-  static DateTime _$indexedAt(ActorNotificationCommon v) => v.indexedAt;
-  static const Field<ActorNotificationCommon, DateTime> _f$indexedAt = Field(
+  static DateTime _$indexedAt(SystemNotificationCommon v) => v.indexedAt;
+  static const Field<SystemNotificationCommon, DateTime> _f$indexedAt = Field(
     'indexedAt',
     _$indexedAt,
   );
 
   @override
-  final MappableFields<ActorNotificationCommon> fields = const {
+  final MappableFields<SystemNotificationCommon> fields = const {
     #id: _f$id,
-    #actor: _f$actor,
     #createdAt: _f$createdAt,
     #indexedAt: _f$indexedAt,
   };
 
-  static ActorNotificationCommon _instantiate(DecodingData data) {
-    return ActorNotificationCommon(
+  static SystemNotificationCommon _instantiate(DecodingData data) {
+    return SystemNotificationCommon(
       id: data.dec(_f$id),
-      actor: data.dec(_f$actor),
       createdAt: data.dec(_f$createdAt),
       indexedAt: data.dec(_f$indexedAt),
     );
@@ -62,106 +59,90 @@ class ActorNotificationCommonMapper
   @override
   final Function instantiate = _instantiate;
 
-  static ActorNotificationCommon fromMap(Map<String, dynamic> map) {
-    return ensureInitialized().decodeMap<ActorNotificationCommon>(map);
+  static SystemNotificationCommon fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<SystemNotificationCommon>(map);
   }
 
-  static ActorNotificationCommon fromJson(String json) {
-    return ensureInitialized().decodeJson<ActorNotificationCommon>(json);
+  static SystemNotificationCommon fromJson(String json) {
+    return ensureInitialized().decodeJson<SystemNotificationCommon>(json);
   }
 }
 
-mixin ActorNotificationCommonMappable {
-  ActorNotificationCommonCopyWith<
-    ActorNotificationCommon,
-    ActorNotificationCommon,
-    ActorNotificationCommon
+mixin SystemNotificationCommonMappable {
+  SystemNotificationCommonCopyWith<
+    SystemNotificationCommon,
+    SystemNotificationCommon,
+    SystemNotificationCommon
   >
   get copyWith =>
-      _ActorNotificationCommonCopyWithImpl<
-        ActorNotificationCommon,
-        ActorNotificationCommon
-      >(this as ActorNotificationCommon, $identity, $identity);
+      _SystemNotificationCommonCopyWithImpl<
+        SystemNotificationCommon,
+        SystemNotificationCommon
+      >(this as SystemNotificationCommon, $identity, $identity);
   @override
   bool operator ==(Object other) {
-    return ActorNotificationCommonMapper.ensureInitialized().equalsValue(
-      this as ActorNotificationCommon,
+    return SystemNotificationCommonMapper.ensureInitialized().equalsValue(
+      this as SystemNotificationCommon,
       other,
     );
   }
 
   @override
   int get hashCode {
-    return ActorNotificationCommonMapper.ensureInitialized().hashValue(
-      this as ActorNotificationCommon,
+    return SystemNotificationCommonMapper.ensureInitialized().hashValue(
+      this as SystemNotificationCommon,
     );
   }
 }
 
-extension ActorNotificationCommonValueCopy<$R, $Out>
-    on ObjectCopyWith<$R, ActorNotificationCommon, $Out> {
-  ActorNotificationCommonCopyWith<$R, ActorNotificationCommon, $Out>
-  get $asActorNotificationCommon => $base.as(
-    (v, t, t2) => _ActorNotificationCommonCopyWithImpl<$R, $Out>(v, t, t2),
+extension SystemNotificationCommonValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, SystemNotificationCommon, $Out> {
+  SystemNotificationCommonCopyWith<$R, SystemNotificationCommon, $Out>
+  get $asSystemNotificationCommon => $base.as(
+    (v, t, t2) => _SystemNotificationCommonCopyWithImpl<$R, $Out>(v, t, t2),
   );
 }
 
-abstract class ActorNotificationCommonCopyWith<
+abstract class SystemNotificationCommonCopyWith<
   $R,
-  $In extends ActorNotificationCommon,
+  $In extends SystemNotificationCommon,
   $Out
 >
     implements ClassCopyWith<$R, $In, $Out> {
-  NotificationActorCopyWith<$R, NotificationActor, NotificationActor> get actor;
-  $R call({
-    String? id,
-    NotificationActor? actor,
-    DateTime? createdAt,
-    DateTime? indexedAt,
-  });
-  ActorNotificationCommonCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+  $R call({String? id, DateTime? createdAt, DateTime? indexedAt});
+  SystemNotificationCommonCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   );
 }
 
-class _ActorNotificationCommonCopyWithImpl<$R, $Out>
-    extends ClassCopyWithBase<$R, ActorNotificationCommon, $Out>
+class _SystemNotificationCommonCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, SystemNotificationCommon, $Out>
     implements
-        ActorNotificationCommonCopyWith<$R, ActorNotificationCommon, $Out> {
-  _ActorNotificationCommonCopyWithImpl(super.value, super.then, super.then2);
+        SystemNotificationCommonCopyWith<$R, SystemNotificationCommon, $Out> {
+  _SystemNotificationCommonCopyWithImpl(super.value, super.then, super.then2);
 
   @override
-  late final ClassMapperBase<ActorNotificationCommon> $mapper =
-      ActorNotificationCommonMapper.ensureInitialized();
+  late final ClassMapperBase<SystemNotificationCommon> $mapper =
+      SystemNotificationCommonMapper.ensureInitialized();
   @override
-  NotificationActorCopyWith<$R, NotificationActor, NotificationActor>
-  get actor => $value.actor.copyWith.$chain((v) => call(actor: v));
-  @override
-  $R call({
-    String? id,
-    NotificationActor? actor,
-    DateTime? createdAt,
-    DateTime? indexedAt,
-  }) => $apply(
+  $R call({String? id, DateTime? createdAt, DateTime? indexedAt}) => $apply(
     FieldCopyWithData({
       if (id != null) #id: id,
-      if (actor != null) #actor: actor,
       if (createdAt != null) #createdAt: createdAt,
       if (indexedAt != null) #indexedAt: indexedAt,
     }),
   );
   @override
-  ActorNotificationCommon $make(CopyWithData data) => ActorNotificationCommon(
+  SystemNotificationCommon $make(CopyWithData data) => SystemNotificationCommon(
     id: data.get(#id, or: $value.id),
-    actor: data.get(#actor, or: $value.actor),
     createdAt: data.get(#createdAt, or: $value.createdAt),
     indexedAt: data.get(#indexedAt, or: $value.indexedAt),
   );
 
   @override
-  ActorNotificationCommonCopyWith<$R2, ActorNotificationCommon, $Out2>
+  SystemNotificationCommonCopyWith<$R2, SystemNotificationCommon, $Out2>
   $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
-      _ActorNotificationCommonCopyWithImpl<$R2, $Out2>($value, $cast, t);
+      _SystemNotificationCommonCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
 
 class NotificationActorMapper extends ClassMapperBase<NotificationActor> {
@@ -422,143 +403,6 @@ class _NotificationActorCopyWithImpl<$R, $Out>
   NotificationActorCopyWith<$R2, NotificationActor, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   ) => _NotificationActorCopyWithImpl<$R2, $Out2>($value, $cast, t);
-}
-
-class SystemNotificationCommonMapper
-    extends ClassMapperBase<SystemNotificationCommon> {
-  SystemNotificationCommonMapper._();
-
-  static SystemNotificationCommonMapper? _instance;
-  static SystemNotificationCommonMapper ensureInitialized() {
-    if (_instance == null) {
-      MapperContainer.globals.use(
-        _instance = SystemNotificationCommonMapper._(),
-      );
-    }
-    return _instance!;
-  }
-
-  @override
-  final String id = 'SystemNotificationCommon';
-
-  static String _$id(SystemNotificationCommon v) => v.id;
-  static const Field<SystemNotificationCommon, String> _f$id = Field(
-    'id',
-    _$id,
-  );
-  static DateTime _$createdAt(SystemNotificationCommon v) => v.createdAt;
-  static const Field<SystemNotificationCommon, DateTime> _f$createdAt = Field(
-    'createdAt',
-    _$createdAt,
-  );
-  static DateTime _$indexedAt(SystemNotificationCommon v) => v.indexedAt;
-  static const Field<SystemNotificationCommon, DateTime> _f$indexedAt = Field(
-    'indexedAt',
-    _$indexedAt,
-  );
-
-  @override
-  final MappableFields<SystemNotificationCommon> fields = const {
-    #id: _f$id,
-    #createdAt: _f$createdAt,
-    #indexedAt: _f$indexedAt,
-  };
-
-  static SystemNotificationCommon _instantiate(DecodingData data) {
-    return SystemNotificationCommon(
-      id: data.dec(_f$id),
-      createdAt: data.dec(_f$createdAt),
-      indexedAt: data.dec(_f$indexedAt),
-    );
-  }
-
-  @override
-  final Function instantiate = _instantiate;
-
-  static SystemNotificationCommon fromMap(Map<String, dynamic> map) {
-    return ensureInitialized().decodeMap<SystemNotificationCommon>(map);
-  }
-
-  static SystemNotificationCommon fromJson(String json) {
-    return ensureInitialized().decodeJson<SystemNotificationCommon>(json);
-  }
-}
-
-mixin SystemNotificationCommonMappable {
-  SystemNotificationCommonCopyWith<
-    SystemNotificationCommon,
-    SystemNotificationCommon,
-    SystemNotificationCommon
-  >
-  get copyWith =>
-      _SystemNotificationCommonCopyWithImpl<
-        SystemNotificationCommon,
-        SystemNotificationCommon
-      >(this as SystemNotificationCommon, $identity, $identity);
-  @override
-  bool operator ==(Object other) {
-    return SystemNotificationCommonMapper.ensureInitialized().equalsValue(
-      this as SystemNotificationCommon,
-      other,
-    );
-  }
-
-  @override
-  int get hashCode {
-    return SystemNotificationCommonMapper.ensureInitialized().hashValue(
-      this as SystemNotificationCommon,
-    );
-  }
-}
-
-extension SystemNotificationCommonValueCopy<$R, $Out>
-    on ObjectCopyWith<$R, SystemNotificationCommon, $Out> {
-  SystemNotificationCommonCopyWith<$R, SystemNotificationCommon, $Out>
-  get $asSystemNotificationCommon => $base.as(
-    (v, t, t2) => _SystemNotificationCommonCopyWithImpl<$R, $Out>(v, t, t2),
-  );
-}
-
-abstract class SystemNotificationCommonCopyWith<
-  $R,
-  $In extends SystemNotificationCommon,
-  $Out
->
-    implements ClassCopyWith<$R, $In, $Out> {
-  $R call({String? id, DateTime? createdAt, DateTime? indexedAt});
-  SystemNotificationCommonCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
-    Then<$Out2, $R2> t,
-  );
-}
-
-class _SystemNotificationCommonCopyWithImpl<$R, $Out>
-    extends ClassCopyWithBase<$R, SystemNotificationCommon, $Out>
-    implements
-        SystemNotificationCommonCopyWith<$R, SystemNotificationCommon, $Out> {
-  _SystemNotificationCommonCopyWithImpl(super.value, super.then, super.then2);
-
-  @override
-  late final ClassMapperBase<SystemNotificationCommon> $mapper =
-      SystemNotificationCommonMapper.ensureInitialized();
-  @override
-  $R call({String? id, DateTime? createdAt, DateTime? indexedAt}) => $apply(
-    FieldCopyWithData({
-      if (id != null) #id: id,
-      if (createdAt != null) #createdAt: createdAt,
-      if (indexedAt != null) #indexedAt: indexedAt,
-    }),
-  );
-  @override
-  SystemNotificationCommon $make(CopyWithData data) => SystemNotificationCommon(
-    id: data.get(#id, or: $value.id),
-    createdAt: data.get(#createdAt, or: $value.createdAt),
-    indexedAt: data.get(#indexedAt, or: $value.indexedAt),
-  );
-
-  @override
-  SystemNotificationCommonCopyWith<$R2, SystemNotificationCommon, $Out2>
-  $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
-      _SystemNotificationCommonCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
 
 class NotificationReplyRefMapper extends ClassMapperBase<NotificationReplyRef> {

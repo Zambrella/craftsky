@@ -2,6 +2,7 @@ package relationships
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -10,6 +11,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -21,6 +23,29 @@ CREATE TABLE craftsky_profiles (
     indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE owner_lifecycles (
+	owner_did TEXT PRIMARY KEY,
+	state TEXT NOT NULL,
+	generation BIGINT NOT NULL,
+	auth_epoch BIGINT NOT NULL DEFAULT 1,
+	transition_reason TEXT NOT NULL DEFAULT 'test',
+	transitioned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	terminal_at TIMESTAMPTZ,
+	purge_completed_at TIMESTAMPTZ,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE FUNCTION seed_active_relationship_owner() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+	INSERT INTO owner_lifecycles(owner_did,state,generation)
+	VALUES(NEW.did,'active',1)
+	ON CONFLICT (owner_did) DO NOTHING;
+	RETURN NEW;
+END
+$$;
+CREATE TRIGGER seed_active_relationship_owner
+AFTER INSERT ON craftsky_profiles
+FOR EACH ROW EXECUTE FUNCTION seed_active_relationship_owner();
 `
 
 func TestStoreMuteIsOwnerScopedImmediateAndIdempotent(t *testing.T) {
@@ -29,7 +54,7 @@ func TestStoreMuteIsOwnerScopedImmediateAndIdempotent(t *testing.T) {
 		t.Fatalf("read migration: %v", err)
 	}
 	pool := testdb.WithSchema(t, relationshipStorePreStateDDL)
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	if _, err := pool.Exec(ctx, string(migration)); err != nil {
 		t.Fatalf("apply migration: %v", err)
 	}
@@ -73,13 +98,40 @@ func TestStoreMuteIsOwnerScopedImmediateAndIdempotent(t *testing.T) {
 	assertTableCount(t, pool, "actor_mutes", 1)
 }
 
+func TestStoreMuteRejectsTerminalSubjectWithoutPersisting(t *testing.T) {
+	migration, err := os.ReadFile("../../migrations/000023_mutes_blocks.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool := testdb.WithSchema(t, relationshipStorePreStateDDL)
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
+	owner := syntax.DID("did:plc:alice")
+	subject := syntax.DID("did:plc:bob")
+	if _, err := pool.Exec(ctx, string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'alice'),($2,'bob');
+		UPDATE owner_lifecycles
+		SET state='terminal', generation=2, terminal_at=now()
+		WHERE owner_did=$2
+	`, owner, subject); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := NewStore(pool).Mute(ctx, owner, subject); !errors.Is(err, ownerlifecycle.ErrTerminalOwner) {
+		t.Fatalf("Mute error = %v, want ErrTerminalOwner", err)
+	}
+	assertTableCount(t, pool, "actor_mutes", 0)
+}
+
 func TestMutationServiceMuteRollsBackWhenDeliveryCancellationFails(t *testing.T) {
 	migration, err := os.ReadFile("../../migrations/000023_mutes_blocks.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}
 	pool := testdb.WithSchema(t, relationshipStorePreStateDDL)
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	if _, err := pool.Exec(ctx, string(migration)); err != nil {
 		t.Fatalf("apply migration: %v", err)
 	}
@@ -148,7 +200,7 @@ func TestMutationServiceMuteObservesPushCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	pool := testdb.WithSchema(t, relationshipStorePreStateDDL)
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	if _, err := pool.Exec(ctx, string(migration)); err != nil {
 		t.Fatal(err)
 	}
@@ -208,7 +260,7 @@ func TestStoreStateDoesNotExposeAnotherOwnersMute(t *testing.T) {
 		t.Fatalf("read migration: %v", err)
 	}
 	pool := testdb.WithSchema(t, relationshipStorePreStateDDL)
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	if _, err := pool.Exec(ctx, string(migration)); err != nil {
 		t.Fatalf("apply migration: %v", err)
 	}

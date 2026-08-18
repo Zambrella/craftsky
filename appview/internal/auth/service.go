@@ -29,6 +29,13 @@ type AuthService interface {
 	Authenticate(ctx context.Context, token string) (AuthInfo, error)
 }
 
+// RecoveryAuthService authenticates the small route allowlist used for
+// onboarding/rejoin and a reversible account-deletion intent. It must never
+// be substituted for ordinary authentication on product data routes.
+type RecoveryAuthService interface {
+	AuthenticateRecovery(ctx context.Context, token string) (AuthInfo, error)
+}
+
 // contextKey is unexported to prevent collisions across packages.
 type contextKey string
 

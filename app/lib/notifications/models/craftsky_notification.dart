@@ -30,7 +30,6 @@ sealed class CraftskyNotification {
     if (type is! String) {
       throw const FormatException('invalid_notification_type');
     }
-    if (type == 'instagramMatch') return _instagramMatchFromMap(map);
     if (!_socialTypes.contains(type) &&
         (map['actor'] is! Map ||
             map['uri'] is! String ||
@@ -106,24 +105,6 @@ sealed class CraftskyNotification {
     'quote',
     'everythingElse',
   };
-
-  static CraftskyNotification _instagramMatchFromMap(
-    Map<String, dynamic> map,
-  ) {
-    if (map['actor'] case final Map<String, dynamic> actorMap) {
-      final common = ActorNotificationCommon.fromMap({
-        ...map,
-        'actor': actorMap,
-      });
-      if (common.actor.available) {
-        return InstagramMatchNotification(common);
-      }
-    }
-    return GenericSystemNotification(
-      SystemNotificationCommon.fromMap(map),
-      originalType: NotificationCategory.instagramMatch,
-    );
-  }
 }
 
 sealed class ActorNotification extends CraftskyNotification {
@@ -238,40 +219,6 @@ sealed class SystemNotification extends CraftskyNotification {
         createdAt: common.createdAt,
         indexedAt: common.indexedAt,
       );
-}
-
-final class InstagramMatchNotification extends ActorNotification {
-  InstagramMatchNotification(ActorNotificationCommon common)
-    : super(
-        id: common.id,
-        actor: common.actor,
-        createdAt: common.createdAt,
-        indexedAt: common.indexedAt,
-      );
-
-  @override
-  NotificationCategory get type => NotificationCategory.instagramMatch;
-}
-
-@MappableClass(
-  generateMethods:
-      GenerateMethods.decode | GenerateMethods.copy | GenerateMethods.equals,
-)
-final class ActorNotificationCommon with ActorNotificationCommonMappable {
-  const ActorNotificationCommon({
-    required this.id,
-    required this.actor,
-    required this.createdAt,
-    required this.indexedAt,
-  });
-
-  factory ActorNotificationCommon.fromMap(Map<String, dynamic> map) =>
-      ActorNotificationCommonMapper.fromMap(map);
-
-  final String id;
-  final NotificationActor actor;
-  final DateTime createdAt;
-  final DateTime indexedAt;
 }
 
 final class GenericSystemNotification extends SystemNotification {

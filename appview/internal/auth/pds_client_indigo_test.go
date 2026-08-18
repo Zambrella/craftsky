@@ -9,12 +9,82 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/bluesky-social/indigo/api/bsky"
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
+
+func newTestIndigoPDSClient(
+	t *testing.T,
+	host string,
+	onSessionExpired ...func(context.Context),
+) *IndigoPDSClient {
+	t.Helper()
+	newAPIClient := func() *atclient.APIClient {
+		client := atclient.NewAPIClient(host)
+		client.Client = &http.Client{Transport: http.DefaultTransport}
+		return client
+	}
+	var expired func(context.Context)
+	if len(onSessionExpired) > 0 {
+		expired = onSessionExpired[0]
+	}
+	client, err := NewIndigoPDSClient(newAPIClient(), newAPIClient(), expired)
+	if err != nil {
+		t.Fatalf("NewIndigoPDSClient: %v", err)
+	}
+	return client
+}
+
+type pdsRoundTripFunc func(*http.Request) (*http.Response, error)
+
+func (roundTrip pdsRoundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
+	return roundTrip(request)
+}
+
+func TestNewIndigoPDSClientFailsClosedWithoutSeparatePurposeClients(t *testing.T) {
+	t.Parallel()
+	api := atclient.NewAPIClient("https://pds.example")
+	api.Client = &http.Client{Transport: http.DefaultTransport}
+	if client, err := NewIndigoPDSClient(api, api, nil); err == nil || client != nil {
+		t.Fatalf("client/error = %#v/%v, want fail-closed construction", client, err)
+	}
+}
+
+func TestIndigoPDSClientUploadUsesUploadPurposeClient(t *testing.T) {
+	t.Parallel()
+
+	jsonCalls := 0
+	uploadCalls := 0
+	jsonAPI := atclient.NewAPIClient("https://pds.example")
+	jsonAPI.Client = &http.Client{Transport: pdsRoundTripFunc(func(*http.Request) (*http.Response, error) {
+		jsonCalls++
+		return nil, errors.New("JSON client must not handle an upload")
+	})}
+	uploadAPI := atclient.NewAPIClient("https://pds.example")
+	uploadAPI.Client = &http.Client{Transport: pdsRoundTripFunc(func(*http.Request) (*http.Response, error) {
+		uploadCalls++
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Body: io.NopCloser(strings.NewReader(
+				`{"blob":{"ref":{"$link":"bafkimage"},"mimeType":"image/jpeg","size":3}}`,
+			)),
+		}, nil
+	})}
+	client, err := NewIndigoPDSClient(jsonAPI, uploadAPI, nil)
+	if err != nil {
+		t.Fatalf("NewIndigoPDSClient: %v", err)
+	}
+	if _, err := client.UploadBlob(context.Background(), "image/jpeg", []byte("img")); err != nil {
+		t.Fatalf("UploadBlob: %v", err)
+	}
+	if uploadCalls != 1 || jsonCalls != 0 {
+		t.Fatalf("upload/json calls = %d/%d, want 1/0", uploadCalls, jsonCalls)
+	}
+}
 
 // translateGetRecordError is the error-translation helper the indigo
 // adapter uses; the test exercises each branch without making a real
@@ -55,7 +125,7 @@ func TestIndigoPDSClientListRecordsReturnsTypedPaginatedBlocks(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := &IndigoPDSClient{Client: atclient.NewAPIClient(srv.URL)}
+	client := newTestIndigoPDSClient(t, srv.URL)
 	records, cursor, err := client.ListRecords(context.Background(), syntax.DID("did:plc:alice"), "app.bsky.graph.block", "page-1", 100)
 	if err != nil {
 		t.Fatalf("ListRecords: %v", err)
@@ -122,7 +192,7 @@ func TestIndigoPDSClient_CreateRecord_HappyPath(t *testing.T) {
 		_, _ = w.Write([]byte(`{"uri":"at://did:plc:xyz/social.craftsky.feed.post/3lf2abc","cid":"bafyabc"}`))
 	}))
 	defer srv.Close()
-	cli := &IndigoPDSClient{Client: atclient.NewAPIClient(srv.URL)}
+	cli := newTestIndigoPDSClient(t, srv.URL)
 
 	uri, cid, err := cli.CreateRecord(
 		context.Background(),
@@ -147,7 +217,7 @@ func TestIndigoPDSClient_CreateRecord_EmptyURIErrors(t *testing.T) {
 		_, _ = w.Write([]byte(`{"uri":"","cid":"bafyabc"}`))
 	}))
 	defer srv.Close()
-	cli := &IndigoPDSClient{Client: atclient.NewAPIClient(srv.URL)}
+	cli := newTestIndigoPDSClient(t, srv.URL)
 	_, _, err := cli.CreateRecord(context.Background(),
 		syntax.DID("did:plc:xyz"), "social.craftsky.feed.post", map[string]any{})
 	if err == nil {
@@ -161,7 +231,7 @@ func TestIndigoPDSClient_CreateRecord_EmptyCIDErrors(t *testing.T) {
 		_, _ = w.Write([]byte(`{"uri":"at://did:plc:xyz/social.craftsky.feed.post/3lf2abc","cid":""}`))
 	}))
 	defer srv.Close()
-	cli := &IndigoPDSClient{Client: atclient.NewAPIClient(srv.URL)}
+	cli := newTestIndigoPDSClient(t, srv.URL)
 	_, _, err := cli.CreateRecord(context.Background(),
 		syntax.DID("did:plc:xyz"), "social.craftsky.feed.post", map[string]any{})
 	if err == nil {
@@ -178,12 +248,9 @@ func TestIndigoPDSClient_CreateRecord_AuthErrorExpiresSession(t *testing.T) {
 	defer srv.Close()
 
 	expired := false
-	cli := &IndigoPDSClient{
-		Client: atclient.NewAPIClient(srv.URL),
-		OnSessionExpired: func(context.Context) {
-			expired = true
-		},
-	}
+	cli := newTestIndigoPDSClient(t, srv.URL, func(context.Context) {
+		expired = true
+	})
 	_, _, err := cli.CreateRecord(context.Background(),
 		syntax.DID("did:plc:xyz"), "social.craftsky.feed.post", map[string]any{})
 	if !errors.Is(err, ErrPDSSessionExpired) {
@@ -208,7 +275,7 @@ func TestIndigoPDSClient_DeleteRecord_HappyPath(t *testing.T) {
 		_, _ = w.Write([]byte(`{}`))
 	}))
 	defer srv.Close()
-	cli := &IndigoPDSClient{Client: atclient.NewAPIClient(srv.URL)}
+	cli := newTestIndigoPDSClient(t, srv.URL)
 	if err := cli.DeleteRecord(context.Background(),
 		syntax.DID("did:plc:xyz"), "social.craftsky.feed.post", "3lf2abc"); err != nil {
 		t.Fatalf("DeleteRecord: %v", err)
@@ -222,12 +289,131 @@ func TestIndigoPDSClient_DeleteRecord_NotFound_TranslatesToErrRecordNotFound(t *
 		_, _ = w.Write([]byte(`{"error":"RecordNotFound","message":"no such record"}`))
 	}))
 	defer srv.Close()
-	cli := &IndigoPDSClient{Client: atclient.NewAPIClient(srv.URL)}
+	cli := newTestIndigoPDSClient(t, srv.URL)
 	err := cli.DeleteRecord(context.Background(),
 		syntax.DID("did:plc:xyz"), "social.craftsky.feed.post", "3lf2abc")
 	if !errors.Is(err, ErrRecordNotFound) {
 		t.Fatalf("want ErrRecordNotFound, got %v", err)
 	}
+}
+
+func TestIndigoPDSClientDeleteRecordWithSwapSendsExpectedCID(t *testing.T) {
+	client := newTestIndigoPDSClientWithTransport(t, pdsRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if body["repo"] != "did:plc:xyz" ||
+			body["collection"] != "social.craftsky.feed.post" ||
+			body["rkey"] != "3lf2abc" || body["swapRecord"] != "bafy-expected-record" {
+			t.Fatalf("conditional delete body = %+v", body)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{}`)),
+		}, nil
+	}))
+	if err := client.DeleteRecordWithSwap(
+		context.Background(),
+		syntax.DID("did:plc:xyz"),
+		"social.craftsky.feed.post",
+		"3lf2abc",
+		syntax.CID("bafy-expected-record"),
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestIndigoPDSClientDeleteRecordWithSwapTranslatesInvalidSwap(t *testing.T) {
+	client := newTestIndigoPDSClientWithTransport(t, pdsRoundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusBadRequest,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body: io.NopCloser(strings.NewReader(
+				`{"error":"InvalidSwap","message":"record changed"}`,
+			)),
+		}, nil
+	}))
+	err := client.DeleteRecordWithSwap(
+		context.Background(),
+		syntax.DID("did:plc:xyz"),
+		"social.craftsky.feed.post",
+		"3lf2abc",
+		syntax.CID("bafy-stale-record"),
+	)
+	if !errors.Is(err, ErrRecordSwapConflict) {
+		t.Fatalf("conditional delete error = %v, want ErrRecordSwapConflict", err)
+	}
+}
+
+func TestIndigoPDSClientPutRecordWithSwapSendsExpectedCID(t *testing.T) {
+	client := newTestIndigoPDSClientWithTransport(t, pdsRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if body["repo"] != "did:plc:xyz" ||
+			body["collection"] != "social.craftsky.actor.profile" ||
+			body["rkey"] != "self" || body["swapRecord"] != "bafy-prior-profile" {
+			t.Fatalf("conditional Put body = %+v", body)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{}`)),
+		}, nil
+	}))
+	if err := client.PutRecordWithSwap(
+		context.Background(),
+		syntax.DID("did:plc:xyz"),
+		"social.craftsky.actor.profile",
+		"self",
+		map[string]any{"displayName": "updated"},
+		syntax.CID("bafy-prior-profile"),
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestIndigoPDSClientPutRecordWithSwapTranslatesInvalidSwap(t *testing.T) {
+	client := newTestIndigoPDSClientWithTransport(t, pdsRoundTripFunc(func(*http.Request) (*http.Response, error) {
+		return &http.Response{
+			StatusCode: http.StatusBadRequest,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body: io.NopCloser(strings.NewReader(
+				`{"error":"InvalidSwap","message":"record changed"}`,
+			)),
+		}, nil
+	}))
+	err := client.PutRecordWithSwap(
+		context.Background(),
+		syntax.DID("did:plc:xyz"),
+		"social.craftsky.actor.profile",
+		"self",
+		map[string]any{"displayName": "stale"},
+		syntax.CID("bafy-stale-profile"),
+	)
+	if !errors.Is(err, ErrRecordSwapConflict) {
+		t.Fatalf("conditional Put error = %v, want ErrRecordSwapConflict", err)
+	}
+}
+
+func newTestIndigoPDSClientWithTransport(
+	t *testing.T,
+	transport http.RoundTripper,
+) *IndigoPDSClient {
+	t.Helper()
+	newAPIClient := func() *atclient.APIClient {
+		client := atclient.NewAPIClient("https://pds.example")
+		client.Client = &http.Client{Transport: transport}
+		return client
+	}
+	client, err := NewIndigoPDSClient(newAPIClient(), newAPIClient(), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return client
 }
 
 func TestIndigoPDSClient_UploadBlob_HappyPath(t *testing.T) {
@@ -252,7 +438,7 @@ func TestIndigoPDSClient_UploadBlob_HappyPath(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	cli := &IndigoPDSClient{Client: atclient.NewAPIClient(srv.URL)}
+	cli := newTestIndigoPDSClient(t, srv.URL)
 	blob, err := cli.UploadBlob(context.Background(), "image/jpeg", wantBody)
 	if err != nil {
 		t.Fatalf("UploadBlob: %v", err)
@@ -276,7 +462,7 @@ func TestIndigoPDSClient_UploadBlob_EmptyBlobErrors(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	cli := &IndigoPDSClient{Client: atclient.NewAPIClient(srv.URL)}
+	cli := newTestIndigoPDSClient(t, srv.URL)
 	_, err := cli.UploadBlob(context.Background(), "image/jpeg", []byte("img"))
 	if err == nil {
 		t.Fatal("want error on null blob, got nil")

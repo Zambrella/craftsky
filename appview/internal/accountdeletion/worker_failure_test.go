@@ -78,6 +78,7 @@ func TestWorkerSchedulesCappedRetryThroughProductionBoundary(t *testing.T) {
 		Processor: deletionProcessorFunc(func(context.Context, ClaimedOperation) error {
 			return NewDeletionFailure(ErrorCategoryPDS, errors.New("synthetic PDS outage"))
 		}),
+		Finalizer:     deletionFinalizerFunc(store.CompleteAttempt),
 		WorkerID:      "worker",
 		Now:           func() time.Time { return now },
 		LeaseDuration: time.Minute,
@@ -101,10 +102,84 @@ func TestWorkerSchedulesCappedRetryThroughProductionBoundary(t *testing.T) {
 	}
 }
 
+func TestWorkerSchedulesRetryWhenRemoteSafetyAppearsBeforeFinalization(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 8, 14, 15, 0, 0, 0, time.UTC)
+	operation := ClaimedOperation{
+		JobID:           uuid.MustParse("10000000-0000-4000-8000-000000000037"),
+		Owner:           syntax.DID("did:plc:alice"),
+		OwnerGeneration: 7,
+		AttemptCount:    2,
+		LeaseToken:      uuid.MustParse("20000000-0000-4000-8000-000000000037"),
+		LeaseExpiresAt:  now.Add(time.Minute),
+	}
+	store := &recordingRetryWorkerStore{operation: operation, completeErr: ErrSafetyPending}
+	worker, err := NewWorker(WorkerOptions{
+		Store: store,
+		Processor: deletionProcessorFunc(func(context.Context, ClaimedOperation) error {
+			return nil
+		}),
+		Finalizer: deletionFinalizerFunc(store.CompleteAttempt),
+		WorkerID:  "worker", Now: func() time.Time { return now },
+		LeaseDuration: time.Minute,
+		RetryPolicy:   RetryPolicy{Delays: []time.Duration{0, time.Second, time.Minute}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	processed, err := worker.ProcessOne(context.Background())
+	if err != nil || !processed {
+		t.Fatalf("process = (%t, %v)", processed, err)
+	}
+	if store.nextAttemptCount != 3 || store.category != ErrorCategoryPDS ||
+		!store.nextAt.Equal(now.Add(time.Minute)) {
+		t.Fatalf("safety retry attempt=%d category=%q next=%s", store.nextAttemptCount, store.category, store.nextAt)
+	}
+}
+
+func TestWorkerStopsRetryingAfterDeletionCredentialRequiresReauthentication(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 8, 14, 20, 0, 0, 0, time.UTC)
+	operation := ClaimedOperation{
+		JobID: uuid.New(), Owner: syntax.DID("did:plc:reauth-required"),
+		OwnerGeneration: 3, LeaseToken: uuid.New(), LeaseExpiresAt: now.Add(time.Minute),
+	}
+	store := &recordingRetryWorkerStore{operation: operation}
+	worker, err := NewWorker(WorkerOptions{
+		Store: store,
+		Processor: deletionProcessorFunc(func(context.Context, ClaimedOperation) error {
+			return NewDeletionFailure(
+				ErrorCategoryReauthentication,
+				errors.Join(auth.ErrDeletionReauthenticationRequired, errors.New("terminal refresh")),
+			)
+		}),
+		Finalizer: deletionFinalizerFunc(store.CompleteAttempt),
+		WorkerID:  "worker", Now: func() time.Time { return now }, LeaseDuration: time.Minute,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	processed, err := worker.ProcessOne(context.Background())
+	if err != nil || !processed {
+		t.Fatalf("process reauthentication boundary = (%t, %v)", processed, err)
+	}
+	if store.nextAttemptCount != 0 || store.completed {
+		t.Fatalf("reauth-required job was retried/finalized: retry=%d complete=%t", store.nextAttemptCount, store.completed)
+	}
+}
+
 type deletionProcessorFunc func(context.Context, ClaimedOperation) error
+
+type deletionFinalizerFunc func(context.Context, ClaimedOperation) error
 
 func (process deletionProcessorFunc) Process(ctx context.Context, operation ClaimedOperation) error {
 	return process(ctx, operation)
+}
+
+func (finalize deletionFinalizerFunc) CompleteAccepted(ctx context.Context, operation ClaimedOperation) error {
+	return finalize(ctx, operation)
 }
 
 type recordingRetryWorkerStore struct {
@@ -114,6 +189,7 @@ type recordingRetryWorkerStore struct {
 	category         ErrorCategory
 	nextAttemptCount int
 	completed        bool
+	completeErr      error
 }
 
 func (store *recordingRetryWorkerStore) ClaimDue(context.Context, string, time.Duration) (ClaimedOperation, bool, error) {
@@ -139,7 +215,7 @@ func (store *recordingRetryWorkerStore) RecordFailure(
 
 func (store *recordingRetryWorkerStore) CompleteAttempt(context.Context, ClaimedOperation) error {
 	store.completed = true
-	return nil
+	return store.completeErr
 }
 
 var _ WorkerStore = (*recordingRetryWorkerStore)(nil)

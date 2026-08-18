@@ -1,5 +1,9 @@
 # Implementation Review: Instagram DM Verification And Automatic Following
 
+> **2026-08-14 status:** The 2026-07-27 approval applies only to the historical
+> automatic-follow contract. Section "AppView Audit Review Reopening" is the
+> current verdict.
+
 ## Verdict
 
 Status: Approved with notes
@@ -124,3 +128,33 @@ change does not alter the approved behavior or external release gates.
   review. Before a future merge after further edits, rerun the affected focused
   tests, real-Postgres AppView suite, Flutter suite/analysis, formatting, and
   `git diff --check`.
+
+## AppView Audit Review Reopening (2026-08-14)
+
+Status: Changes required
+
+Risk level: High
+
+AV-007 shows that the approved background writer cannot guarantee the claimed
+post-departure boundary across an AppView crash and an independently committing
+PDS. The product owner approved the strict correction: private suggestions and
+explicit current-member Follow, with no background PDS-write capability.
+
+The earlier implementation remains useful evidence for verification, import
+privacy, exact matching, membership inactivation, ZIP parsing, and account
+fencing. It is no longer acceptable evidence for match-to-follow authority,
+background session selection, automatic `instagramMatch` notifications, or
+the absence of a suggestion review surface.
+
+Required implementation evidence is UT-021–UT-023, IT-026–IT-029, and REG-015
+from `02-acceptance-tests.md` Section 12. Re-review must also confirm:
+
+- the dependency graph cannot construct the retired writer;
+- explicit acceptance uses the common owner/session effect boundary;
+- departure and terminal races make no new background external call;
+- Flutter restores explicit consent without cross-account effects; and
+- cleanup never deletes `app.bsky.graph.follow`.
+
+This review returns to Approved only after the correction execution log in
+`05-implementation-plan.md` is complete and the coordinated PostgreSQL/race and
+full Go/Flutter gates have actually run.

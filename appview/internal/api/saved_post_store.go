@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
 var (
@@ -44,6 +45,9 @@ func (s *SavedPostStore) Save(ctx context.Context, owner syntax.DID, postURI syn
 		return SaveMutationResult{}, fmt.Errorf("saved post save begin: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, owner, nil); err != nil {
+		return SaveMutationResult{}, fmt.Errorf("saved post save authorization: %w", err)
+	}
 
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))`, owner, postURI); err != nil {
 		return SaveMutationResult{}, fmt.Errorf("saved post save lock: %w", err)
@@ -128,8 +132,16 @@ func (s *SavedPostStore) CreateFolder(ctx context.Context, owner syntax.DID, nam
 		return SavedPostFolder{}, err
 	}
 	now := s.now().UTC()
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return SavedPostFolder{}, fmt.Errorf("saved post folder create begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, owner, nil); err != nil {
+		return SavedPostFolder{}, fmt.Errorf("saved post folder create authorization: %w", err)
+	}
 	var folder SavedPostFolder
-	if err := s.pool.QueryRow(ctx, `
+	if err := tx.QueryRow(ctx, `
 		INSERT INTO saved_post_folders (id, owner_did, name, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $4)
 		RETURNING id::text, name, created_at, updated_at
@@ -140,6 +152,9 @@ func (s *SavedPostStore) CreateFolder(ctx context.Context, owner syntax.DID, nam
 		&folder.UpdatedAt,
 	); err != nil {
 		return SavedPostFolder{}, fmt.Errorf("saved post folder create: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return SavedPostFolder{}, fmt.Errorf("saved post folder create commit: %w", err)
 	}
 	return folder, nil
 }
@@ -154,8 +169,16 @@ func (s *SavedPostStore) RenameFolder(ctx context.Context, owner syntax.DID, fol
 		return SavedPostFolder{}, err
 	}
 	now := s.now().UTC()
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return SavedPostFolder{}, fmt.Errorf("saved post folder rename begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, owner, nil); err != nil {
+		return SavedPostFolder{}, fmt.Errorf("saved post folder rename authorization: %w", err)
+	}
 	var folder SavedPostFolder
-	err = s.pool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		UPDATE saved_post_folders
 		SET name = $3, updated_at = $4
 		WHERE owner_did = $1 AND id = $2
@@ -171,6 +194,9 @@ func (s *SavedPostStore) RenameFolder(ctx context.Context, owner syntax.DID, fol
 	}
 	if err != nil {
 		return SavedPostFolder{}, fmt.Errorf("saved post folder rename: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return SavedPostFolder{}, fmt.Errorf("saved post folder rename commit: %w", err)
 	}
 	return folder, nil
 }

@@ -13,7 +13,7 @@ const (
 
 var (
 	ErrInvalidPayload       = errors.New("invalid Instagram webhook payload")
-	ErrPayloadTooLarge      = errors.New("Instagram webhook payload too large")
+	ErrPayloadTooLarge      = errors.New("instagram webhook payload too large")
 	ErrTooManyMessageEvents = errors.New("too many Instagram webhook message events")
 )
 
@@ -54,7 +54,7 @@ func NewPayloadReducer(officialAccountID string, digests *DigestCodec) (*Payload
 		return nil, errors.New("official Instagram account ID is required")
 	}
 	if digests == nil {
-		return nil, errors.New("Instagram webhook digest codec is required")
+		return nil, errors.New("instagram webhook digest codec is required")
 	}
 	return &PayloadReducer{officialAccountID: officialAccountID, digests: digests}, nil
 }

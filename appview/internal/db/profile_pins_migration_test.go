@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -152,18 +153,19 @@ func assertProfilePinsSchema(t *testing.T, pool *pgxpool.Pool) {
 func assertProfilePinsUnrelatedState(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 	var (
-		profileSortAt string
+		profileSortAt time.Time
 		savedCount    int
 	)
 	if err := pool.QueryRow(context.Background(), `
-		SELECT profile_sort_at::text
+		SELECT profile_sort_at
 		FROM craftsky_posts
 		WHERE uri = 'at://did:plc:bob/social.craftsky.feed.post/sentinel'
 	`).Scan(&profileSortAt); err != nil {
 		t.Fatalf("read chronology sentinel: %v", err)
 	}
-	if profileSortAt != "2026-08-01 12:00:00+00" {
-		t.Fatalf("chronology sentinel changed: %q", profileSortAt)
+	wantProfileSortAt := time.Date(2026, time.August, 1, 12, 0, 0, 0, time.UTC)
+	if !profileSortAt.UTC().Equal(wantProfileSortAt) {
+		t.Fatalf("chronology sentinel = %s, want %s", profileSortAt.UTC(), wantProfileSortAt)
 	}
 	if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM saved_posts`).Scan(&savedCount); err != nil {
 		t.Fatalf("count saved-post sentinel: %v", err)

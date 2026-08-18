@@ -9,6 +9,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -42,7 +43,7 @@ func TestProfilePinMutationsOnlyChangePrivateAppViewState(t *testing.T) {
 		AFTER INSERT OR UPDATE OR DELETE ON saved_posts
 		FOR EACH ROW EXECUTE FUNCTION audit_pin_external_change();
 	`)
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	for _, did := range []string{"did:plc:alice", "did:plc:bob"} {
 		seedMember(t, pool, did)
 	}

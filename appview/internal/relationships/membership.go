@@ -13,8 +13,8 @@ var (
 	ErrMembershipUnavailable = errors.New("membership unavailable")
 )
 
-// MembershipLookup exposes the sole Craftsky membership predicate: the
-// presence of a craftsky_profiles row.
+// MembershipLookup exposes the canonical current-member predicate. A retained
+// profile projection cannot make an irreversible terminal owner current.
 type MembershipLookup interface {
 	IsCurrentMember(context.Context, syntax.DID) (bool, error)
 }
@@ -32,7 +32,9 @@ func RequireCurrentMember(ctx context.Context, lookup MembershipLookup, did synt
 	return nil
 }
 
-// IsCurrentMember checks only the canonical Craftsky profile table.
+// IsCurrentMember requires the public membership row and authoritative
+// lifecycle state to agree that the owner is active. A retained projection
+// cannot grant ordinary access while departed or in any deletion state.
 func (s *Store) IsCurrentMember(ctx context.Context, did syntax.DID) (bool, error) {
 	var current bool
 	if err := s.pool.QueryRow(ctx, `
@@ -40,6 +42,7 @@ func (s *Store) IsCurrentMember(ctx context.Context, did syntax.DID) (bool, erro
 			SELECT 1
 			FROM craftsky_profiles
 			WHERE did = $1
+			  AND appview_owner_is_active(did)
 		)
 	`, did).Scan(&current); err != nil {
 		return false, fmt.Errorf("read current membership: %w", err)

@@ -1,5 +1,9 @@
 # Document Review: Instagram DM Ownership Verification And Automatic Following
 
+> **2026-08-14 status:** The original automatic-follow review is historical.
+> Section 7 records the approved AppView audit correction and is authoritative
+> for coding readiness.
+
 ## Verdict
 
 Status: Approved with notes
@@ -111,3 +115,38 @@ plan must handle.
   temporary session/PDS failure remains retryable.
 - Preserve completed ZIP/parser/privacy work and the existing `instagramJson`
   server contract.
+
+## 7. AppView Audit Re-review
+
+Date: 2026-08-14
+
+Verdict: Approved for correction planning; the automatic-follow implementation
+is not acceptable as the final lifecycle contract.
+
+The product owner selected the strict AV-007 branch. Requirements Section 24
+and Acceptance Tests Section 12 consistently replace background public writes
+with private, generation-bound suggestions and an explicit current-member
+Follow action. They preserve verification, exact matching, private import
+retention, discoverability, block/mute policy, account fencing, and the rule
+that successful ordinary follows are not cleanup targets.
+
+The correction is internally consistent:
+
+- the matcher/reconciliation boundary produces private suggestions only;
+- public suggestion list/accept/dismiss APIs and fixed-account Flutter state
+  return as an explicit consent surface;
+- only accept may enter the ordinary owner-effect/session coordinator;
+- the Instagram background graph has no OAuth selector, PDS factory,
+  `followwrite.Service`, or record-write capability;
+- `instagramMatch` automatic-follow notification behavior is retired; and
+- departure/terminal cleanup invalidates unwritten suggestions but never
+  deletes `app.bsky.graph.follow`.
+
+Risk remains High because the correction changes public-write authority,
+private persistence, routes, and UI. Product approval is recorded; no further
+product choice blocks coding. The Meta and physical-device items remain
+release gates, not implementation gates.
+
+Coding-plan readiness: Ready after `04-coding-plan.md` Section 13 is followed.
+The old Notes For Next Stage instructions to remove suggestions and design a
+background OAuth selector are superseded and must not be implemented.

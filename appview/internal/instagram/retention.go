@@ -13,7 +13,7 @@ import (
 
 const MaxRetentionBatch = 500
 
-var ErrInvalidRetentionBatch = errors.New("Instagram retention batch must be between 1 and 500")
+var ErrInvalidRetentionBatch = errors.New("instagram retention batch must be between 1 and 500")
 
 // RetentionStats contains counts only. It is safe for operator output and
 // observability because it never contains an owner, username, IGSID, digest,
@@ -32,8 +32,6 @@ type RetentionStats struct {
 	ConflictsExpired       int
 	ConflictsPurged        int
 	SuggestionsPurged      int
-	DeliveriesPurged       int
-	NotificationsPurged    int
 	RateBucketsPurged      int
 	AuditsPurged           int
 }
@@ -43,29 +41,37 @@ type RetentionStats struct {
 // in a transaction bounded by the caller's batch size. Cascading dependants do
 // not count against the primary-record batch.
 type RetentionService struct {
-	pool        *pgxpool.Pool
-	now         func() time.Time
-	restoration ExpiredModerationRestorationEnqueuer
+	pool               *pgxpool.Pool
+	now                func() time.Time
+	restoration        ExpiredModerationRestorationEnqueuer
+	moderationReceipts ExpiredModerationReceiptSweeper
 }
 
 type ExpiredModerationRestorationEnqueuer interface {
 	EnqueueExpiredModerationRestorations(context.Context, int) (int, error)
 }
 
+type ExpiredModerationReceiptSweeper interface {
+	SweepExpiredIdempotencyReceipts(context.Context, int) (int, error)
+}
+
+type RetentionServiceOptions struct {
+	Restoration        ExpiredModerationRestorationEnqueuer
+	ModerationReceipts ExpiredModerationReceiptSweeper
+}
+
 func NewRetentionService(
 	pool *pgxpool.Pool,
 	now func() time.Time,
-	restorations ...ExpiredModerationRestorationEnqueuer,
+	options RetentionServiceOptions,
 ) *RetentionService {
 	if now == nil {
 		now = time.Now
 	}
-	var restoration ExpiredModerationRestorationEnqueuer
-	if len(restorations) > 0 {
-		restoration = restorations[0]
-	}
 	return &RetentionService{
-		pool: pool, now: now, restoration: restoration,
+		pool: pool, now: now,
+		restoration:        options.Restoration,
+		moderationReceipts: options.ModerationReceipts,
 	}
 }
 
@@ -75,7 +81,7 @@ func (s *RetentionService) Run(ctx context.Context, batch int) (RetentionStats, 
 	}
 	now := s.now().UTC()
 	if now.IsZero() {
-		return RetentionStats{}, errors.New("Instagram retention clock returned zero time")
+		return RetentionStats{}, errors.New("instagram retention clock returned zero time")
 	}
 	if s.restoration != nil {
 		if _, err := s.restoration.EnqueueExpiredModerationRestorations(
@@ -84,6 +90,17 @@ func (s *RetentionService) Run(ctx context.Context, batch int) (RetentionStats, 
 		); err != nil {
 			return RetentionStats{}, fmt.Errorf(
 				"enqueue expired moderation restoration: %w",
+				err,
+			)
+		}
+	}
+	if s.moderationReceipts != nil {
+		if _, err := s.moderationReceipts.SweepExpiredIdempotencyReceipts(
+			ctx,
+			batch,
+		); err != nil {
+			return RetentionStats{}, fmt.Errorf(
+				"sweep expired moderation idempotency receipts: %w",
 				err,
 			)
 		}
@@ -118,8 +135,6 @@ func (s *RetentionService) Run(ctx context.Context, batch int) (RetentionStats, 
 		run         func(context.Context, int, time.Time) (int, error)
 	}{
 		{&stats.SuggestionsPurged, s.purgeTerminalSuggestions},
-		{&stats.DeliveriesPurged, s.purgeRetractedDeliveries},
-		{&stats.NotificationsPurged, s.purgeMatchNotifications},
 		{&stats.RateBucketsPurged, s.purgeRateBuckets},
 		{&stats.AuditsPurged, s.purgeAuditEvents},
 	}
@@ -135,7 +150,7 @@ func (s *RetentionService) Run(ctx context.Context, batch int) (RetentionStats, 
 
 func (s *RetentionService) validate(batch int) error {
 	if s == nil || s.pool == nil {
-		return errors.New("Instagram retention service is unavailable")
+		return errors.New("instagram retention service is unavailable")
 	}
 	if batch < 1 || batch > MaxRetentionBatch {
 		return ErrInvalidRetentionBatch
@@ -335,18 +350,13 @@ func (s *RetentionService) expireInactiveLinks(ctx context.Context, batch int, n
 		`, ids, now); err != nil {
 			return fmt.Errorf("release membership-expired Instagram claims: %w", err)
 		}
-		suggestionIDs, err := retentionUUIDs(ctx, tx, `
-			UPDATE instagram_automatic_follow_ledger
+		if _, err := tx.Exec(ctx, `
+			UPDATE instagram_private_suggestions
 			SET state='invalidated',accepting_since=NULL,
 			    terminal_at=COALESCE(terminal_at,$2),updated_at=$2
-			WHERE target_did=ANY($1::text[]) AND state IN ('pending','writing')
-			RETURNING id
-		`, owners, now)
-		if err != nil {
+			WHERE target_did=ANY($1::text[]) AND state IN ('pending','accepting')
+		`, owners, now); err != nil {
 			return fmt.Errorf("invalidate membership-expired link suggestions: %w", err)
-		}
-		if err := invalidateUnwrittenFollowOperations(ctx, tx, suggestionIDs, "linkExpired", now); err != nil {
-			return err
 		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE instagram_reconciliation_jobs
@@ -450,19 +460,21 @@ func (s *RetentionService) purgeTerminalSuggestions(ctx context.Context, batch i
 	count := 0
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		ids, err := retentionUUIDs(ctx, tx, `
-			SELECT id FROM instagram_automatic_follow_ledger
-			WHERE state='invalidated'
+			SELECT suggestion.id
+			FROM instagram_private_suggestions AS suggestion
+			WHERE suggestion.state IN ('followed','alreadyFollowing','dismissed','invalidated')
 			  AND COALESCE(terminal_at,updated_at) <= $1::timestamptz - interval '90 days'
+			  AND NOT EXISTS (
+				SELECT 1 FROM instagram_private_suggestion_sources AS source
+				WHERE source.suggestion_id=suggestion.id
+			  )
 			ORDER BY COALESCE(terminal_at,updated_at),id
 			FOR UPDATE SKIP LOCKED LIMIT $2
 		`, now, batch)
 		if err != nil || len(ids) == 0 {
 			return err
 		}
-		if _, err := tx.Exec(ctx, `DELETE FROM pds_follow_operations WHERE automatic_follow_id=ANY($1::uuid[])`, ids); err != nil {
-			return fmt.Errorf("purge retained Instagram follow ledgers: %w", err)
-		}
-		result, err := tx.Exec(ctx, `DELETE FROM instagram_automatic_follow_ledger WHERE id=ANY($1::uuid[])`, ids)
+		result, err := tx.Exec(ctx, `DELETE FROM instagram_private_suggestions WHERE id=ANY($1::uuid[])`, ids)
 		if err != nil {
 			return fmt.Errorf("purge terminal Instagram suggestions: %w", err)
 		}
@@ -470,42 +482,6 @@ func (s *RetentionService) purgeTerminalSuggestions(ctx context.Context, batch i
 		return nil
 	})
 	return count, err
-}
-
-func (s *RetentionService) purgeRetractedDeliveries(ctx context.Context, batch int, now time.Time) (int, error) {
-	count := 0
-	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		ids, err := retentionUUIDs(ctx, tx, `
-			SELECT delivery.id
-			FROM push_deliveries delivery
-			JOIN notification_events event ON event.id=delivery.notification_id
-			WHERE event.category='instagramMatch' AND event.state='retracted'
-			  AND delivery.status='cancelled'
-			  AND delivery.updated_at <= $1::timestamptz - interval '7 days'
-			ORDER BY delivery.updated_at,delivery.id
-			FOR UPDATE OF delivery SKIP LOCKED LIMIT $2
-		`, now, batch)
-		if err != nil || len(ids) == 0 {
-			return err
-		}
-		result, err := tx.Exec(ctx, `DELETE FROM push_deliveries WHERE id=ANY($1::uuid[])`, ids)
-		if err != nil {
-			return fmt.Errorf("purge retracted Instagram deliveries: %w", err)
-		}
-		count = int(result.RowsAffected())
-		return nil
-	})
-	return count, err
-}
-
-func (s *RetentionService) purgeMatchNotifications(ctx context.Context, batch int, now time.Time) (int, error) {
-	return s.deleteUUIDBatch(ctx, batch, `
-		SELECT id FROM notification_events
-		WHERE category='instagramMatch'
-		  AND activity_at <= $1::timestamptz - interval '90 days'
-		ORDER BY activity_at,id
-		FOR UPDATE SKIP LOCKED LIMIT $2
-	`, "notification_events", now, "purge Instagram match notifications")
 }
 
 func (s *RetentionService) purgeRateBuckets(ctx context.Context, batch int, now time.Time) (int, error) {

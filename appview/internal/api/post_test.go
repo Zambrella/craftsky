@@ -379,6 +379,7 @@ func authedReq(method, path, body string, did string) *http.Request {
 		r = httptest.NewRequest(method, path, strings.NewReader(body))
 	}
 	ctx := middleware.WithDID(r.Context(), syntax.DID(did))
+	ctx = middleware.WithOwnerGeneration(ctx, 1)
 	return r.WithContext(ctx)
 }
 

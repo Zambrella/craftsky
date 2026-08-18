@@ -245,7 +245,9 @@ func (s *PostStore) RequiredContextStates(ctx context.Context, viewer syntax.DID
 		), targets AS (
 			SELECT input.uri, p.reply_root_uri, p.reply_parent_uri
 			FROM input
-			LEFT JOIN craftsky_posts p ON p.uri = input.uri
+			LEFT JOIN craftsky_posts p
+			  ON p.uri = input.uri
+			 AND NOT appview_owner_is_terminal(p.did)
 		), walk(target_uri, current_uri, root_uri, path, depth) AS (
 			SELECT uri, reply_parent_uri, reply_root_uri, ARRAY[uri]::text[], 0
 			FROM targets
@@ -281,7 +283,9 @@ func (s *PostStore) RequiredContextStates(ctx context.Context, viewer syntax.DID
 				ELSE valid_replies.target_uri IS NOT NULL
 		       END
 		FROM targets
-		LEFT JOIN craftsky_posts p ON p.uri = targets.uri
+		LEFT JOIN craftsky_posts p
+		  ON p.uri = targets.uri
+		 AND NOT appview_owner_is_terminal(p.did)
 		LEFT JOIN valid_replies ON valid_replies.target_uri = targets.uri
 	`
 	rows, err := s.pool.Query(ctx, q, values, viewer)
@@ -498,11 +502,21 @@ func (s *PostStore) RelationshipStates(ctx context.Context, viewer syntax.DID, s
 	}
 	rows, err := s.pool.Query(ctx, `
 		SELECT cp.did,
-			EXISTS (SELECT 1 FROM actor_mutes mute WHERE mute.owner_did = $1 AND mute.subject_did = cp.did),
-			EXISTS (SELECT 1 FROM atproto_blocks block WHERE block.blocker_did = $1 AND block.subject_did = cp.did),
-			EXISTS (SELECT 1 FROM atproto_blocks block WHERE block.blocker_did = cp.did AND block.subject_did = $1)
+			EXISTS (SELECT 1 FROM actor_mutes mute
+			        WHERE mute.owner_did = $1 AND mute.subject_did = cp.did
+			          AND NOT appview_owner_is_terminal(mute.owner_did)
+			          AND NOT appview_owner_is_terminal(mute.subject_did)),
+			EXISTS (SELECT 1 FROM atproto_blocks block
+			        WHERE block.blocker_did = $1 AND block.subject_did = cp.did
+			          AND NOT appview_owner_is_terminal(block.blocker_did)
+			          AND NOT appview_owner_is_terminal(block.subject_did)),
+			EXISTS (SELECT 1 FROM atproto_blocks block
+			        WHERE block.blocker_did = cp.did AND block.subject_did = $1
+			          AND NOT appview_owner_is_terminal(block.blocker_did)
+			          AND NOT appview_owner_is_terminal(block.subject_did))
 		FROM craftsky_profiles cp
 		WHERE cp.did = ANY($2)
+		  AND NOT appview_owner_is_terminal(cp.did)
 	`, viewer, values)
 	if err != nil {
 		return nil, fmt.Errorf("batch post relationship state: %w", err)
@@ -537,8 +551,10 @@ func (s *PostStore) BlockedPairs(ctx context.Context, pairs []RelationshipPair) 
 		SELECT pair.first_did, pair.second_did,
 			EXISTS (
 				SELECT 1 FROM atproto_blocks block
-				WHERE (block.blocker_did = pair.first_did AND block.subject_did = pair.second_did)
-				   OR (block.blocker_did = pair.second_did AND block.subject_did = pair.first_did)
+				WHERE ((block.blocker_did = pair.first_did AND block.subject_did = pair.second_did)
+				   OR (block.blocker_did = pair.second_did AND block.subject_did = pair.first_did))
+				  AND NOT appview_owner_is_terminal(block.blocker_did)
+				  AND NOT appview_owner_is_terminal(block.subject_did)
 			)
 		FROM unnest($1::text[], $2::text[]) AS pair(first_did, second_did)
 	`, first, second)
@@ -569,6 +585,7 @@ const postSelectColumns = `
 			SELECT 1
 			FROM moderation_outputs mo
 			WHERE mo.action = 'apply'
+			  AND NOT appview_owner_is_terminal(mo.source_did)
 			  AND mo.subject_type = 'post'
 			  AND mo.subject_uri = p.uri
 			  AND mo.value = 'warn'
@@ -590,6 +607,7 @@ const postSelectColumns = `
 			SELECT 1
 			FROM moderation_outputs mo
 			WHERE mo.action = 'apply'
+			  AND NOT appview_owner_is_terminal(mo.source_did)
 			  AND mo.subject_type = 'account'
 			  AND mo.subject_did = p.did
 			  AND mo.value = 'warn'
@@ -611,10 +629,12 @@ const postSelectColumns = `
 `
 
 const postVisibleModerationPredicate = `
+		  AND NOT appview_owner_is_terminal(p.did)
 		  AND NOT EXISTS (
 			SELECT 1
 			FROM moderation_outputs mo
 			WHERE mo.action = 'apply'
+			  AND NOT appview_owner_is_terminal(mo.source_did)
 			  AND mo.value IN ('hide', 'takedown')
 			  AND (mo.expires_at IS NULL OR mo.expires_at > now())
 			  AND (
@@ -639,8 +659,10 @@ const postVisibleModerationPredicate = `
 func postAuthorBlockedPredicate(alias, viewerParam string) string {
 	return `EXISTS (
 		SELECT 1 FROM atproto_blocks block
-		WHERE (block.blocker_did = ` + viewerParam + ` AND block.subject_did = ` + alias + `.did)
-		   OR (block.blocker_did = ` + alias + `.did AND block.subject_did = ` + viewerParam + `)
+		WHERE ((block.blocker_did = ` + viewerParam + ` AND block.subject_did = ` + alias + `.did)
+		   OR (block.blocker_did = ` + alias + `.did AND block.subject_did = ` + viewerParam + `))
+		  AND NOT appview_owner_is_terminal(block.blocker_did)
+		  AND NOT appview_owner_is_terminal(block.subject_did)
 	)`
 }
 
@@ -649,6 +671,8 @@ func postAuthorMutedPredicate(alias, viewerParam string) string {
 		SELECT 1 FROM actor_mutes mute
 		WHERE mute.owner_did = ` + viewerParam + `
 		  AND mute.subject_did = ` + alias + `.did
+		  AND NOT appview_owner_is_terminal(mute.owner_did)
+		  AND NOT appview_owner_is_terminal(mute.subject_did)
 	)`
 }
 
@@ -660,6 +684,9 @@ func postReplyAuthorBlockedPredicate(alias string) string {
 			(block.blocker_did = parent_post.did AND block.subject_did = ` + alias + `.did)
 			OR (block.blocker_did = ` + alias + `.did AND block.subject_did = parent_post.did)
 		WHERE parent_post.uri = ` + alias + `.reply_parent_uri
+		  AND NOT appview_owner_is_terminal(parent_post.did)
+		  AND NOT appview_owner_is_terminal(block.blocker_did)
+		  AND NOT appview_owner_is_terminal(block.subject_did)
 	)`
 }
 
@@ -671,6 +698,9 @@ func postMentionAuthorBlockedPredicate(alias string) string {
 			(block.blocker_did = mention.mentioned_did AND block.subject_did = ` + alias + `.did)
 			OR (block.blocker_did = ` + alias + `.did AND block.subject_did = mention.mentioned_did)
 		WHERE mention.post_uri = ` + alias + `.uri
+		  AND NOT appview_owner_is_terminal(mention.mentioned_did)
+		  AND NOT appview_owner_is_terminal(block.blocker_did)
+		  AND NOT appview_owner_is_terminal(block.subject_did)
 	)`
 }
 
@@ -682,6 +712,9 @@ func postQuoteAuthorBlockedPredicate(alias string) string {
 			(block.blocker_did = quoted_post.did AND block.subject_did = ` + alias + `.did)
 			OR (block.blocker_did = ` + alias + `.did AND block.subject_did = quoted_post.did)
 		WHERE quoted_post.uri = ` + alias + `.quote_uri
+		  AND NOT appview_owner_is_terminal(quoted_post.did)
+		  AND NOT appview_owner_is_terminal(block.blocker_did)
+		  AND NOT appview_owner_is_terminal(block.subject_did)
 	)`
 }
 
@@ -983,7 +1016,7 @@ func (s *PostStore) ReadAuthor(ctx context.Context, did string) (*PostAuthorRow,
 	const q = `
 		SELECT display_name, avatar_cid, avatar_mime
 		FROM bluesky_profiles
-		WHERE did = $1
+		WHERE did = $1 AND NOT appview_owner_is_terminal(did)
 	`
 	out := &PostAuthorRow{}
 	err := s.pool.QueryRow(ctx, q, did).Scan(&out.DisplayName, &out.AvatarCID, &out.AvatarMime)
@@ -1003,6 +1036,7 @@ func (s *PostStore) ResolvePostTarget(ctx context.Context, did, rkey string) (*P
 		SELECT uri, cid
 		FROM craftsky_posts
 		WHERE did = $1 AND rkey = $2
+		  AND NOT appview_owner_is_terminal(did)
 	`
 	out := &PostTargetRef{}
 	err := s.pool.QueryRow(ctx, q, did, rkey).Scan(&out.URI, &out.CID)
@@ -1069,6 +1103,7 @@ func (s *PostStore) ResolvePostReportTarget(ctx context.Context, did syntax.DID,
 		FROM craftsky_posts p
 		JOIN craftsky_profiles profile ON profile.did = p.did
 		WHERE p.did = $1 AND p.rkey = $2
+		  AND NOT appview_owner_is_terminal(p.did)
 	`
 	out := &PostReportTarget{DID: did.String(), Rkey: rkey.String()}
 	err := s.pool.QueryRow(ctx, q, did, rkey).Scan(&out.URI, &out.CIDSnapshot)
@@ -1095,6 +1130,7 @@ func (s *PostStore) findActiveInteraction(ctx context.Context, table, label, did
 		SELECT uri, did, rkey, cid, subject_uri, subject_cid, created_at, indexed_at
 		FROM ` + table + `
 		WHERE did = $1 AND subject_uri = $2 AND deleted_at IS NULL
+		  AND NOT appview_owner_is_terminal(did)
 	`
 	row, err := scanInteractionRow(s.pool.QueryRow(ctx, q, did, subjectURI))
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -1128,6 +1164,7 @@ func (s *PostStore) countActiveInteractions(ctx context.Context, table, label st
 		SELECT subject_uri, count(*)::int
 		FROM ` + table + `
 		WHERE deleted_at IS NULL AND subject_uri = ANY($1::text[])
+		  AND NOT appview_owner_is_terminal(did)
 		GROUP BY subject_uri
 	`
 	rows, err := s.pool.Query(ctx, q, postURIs)
@@ -1212,11 +1249,13 @@ func (s *PostStore) CountDescendantReplies(ctx context.Context, postURIs []strin
 			SELECT subjects.subject_uri, p.uri, 1
 			FROM unnest($1::text[]) AS subjects(subject_uri)
 			JOIN craftsky_posts p ON p.reply_parent_uri = subjects.subject_uri
+			WHERE NOT appview_owner_is_terminal(p.did)
 			UNION ALL
 			SELECT descendants.subject_uri, child.uri, descendants.depth + 1
 			FROM descendants
 			JOIN craftsky_posts child ON child.reply_parent_uri = descendants.uri
 			WHERE descendants.depth < 64
+			  AND NOT appview_owner_is_terminal(child.did)
 		)
 		SELECT subject_uri, count(*)::int
 		FROM descendants
@@ -1259,10 +1298,12 @@ func (s *PostStore) ViewerInteractionStates(ctx context.Context, viewerDID strin
 			SELECT subject_uri, 'like' AS kind
 			FROM craftsky_likes
 			WHERE did = $1 AND deleted_at IS NULL AND subject_uri = ANY($2::text[])
+			  AND NOT appview_owner_is_terminal(did)
 			UNION ALL
 			SELECT subject_uri, 'repost' AS kind
 			FROM craftsky_reposts
 			WHERE did = $1 AND deleted_at IS NULL AND subject_uri = ANY($2::text[])
+			  AND NOT appview_owner_is_terminal(did)
 		) interactions
 		GROUP BY subject_uri
 	`
@@ -1299,21 +1340,25 @@ func (s *PostStore) ViewerReplyStates(ctx context.Context, viewerDID string, pos
 			SELECT uri, reply_parent_uri
 			FROM craftsky_posts
 			WHERE uri = ANY($2::text[])
+			  AND NOT appview_owner_is_terminal(did)
 		), descendants(subject_uri, uri, depth) AS (
 			SELECT subjects.uri, child.uri, 1
 			FROM subjects
 			JOIN craftsky_posts child ON child.reply_parent_uri = subjects.uri
+			WHERE NOT appview_owner_is_terminal(child.did)
 			UNION ALL
 			SELECT descendants.subject_uri, child.uri, descendants.depth + 1
 			FROM descendants
 			JOIN craftsky_posts child ON child.reply_parent_uri = descendants.uri
 			WHERE descendants.depth < 64
+			  AND NOT appview_owner_is_terminal(child.did)
 		)
 		SELECT descendants.subject_uri, true
 		FROM descendants
 		JOIN subjects ON subjects.uri = descendants.subject_uri
 		JOIN craftsky_posts viewer_reply ON viewer_reply.uri = descendants.uri
 		WHERE viewer_reply.did = $1
+		  AND NOT appview_owner_is_terminal(viewer_reply.did)
 		  AND (subjects.reply_parent_uri IS NOT NULL OR descendants.depth = 1)
 		GROUP BY descendants.subject_uri
 	`
@@ -1474,7 +1519,11 @@ func (s *PostStore) QuoteViewRows(ctx context.Context, refs []ResponseStrongRef)
 		return nil, fmt.Errorf("quote view rows iter: %w", err)
 	}
 
-	hiddenRows, err := s.pool.Query(ctx, `SELECT uri FROM craftsky_posts WHERE uri = ANY($1::text[])`, uris)
+	hiddenRows, err := s.pool.Query(ctx, `
+		SELECT uri FROM craftsky_posts
+		WHERE uri = ANY($1::text[])
+		  AND NOT appview_owner_is_terminal(did)
+	`, uris)
 	if err != nil {
 		return nil, fmt.Errorf("quote view hidden rows: %w", err)
 	}

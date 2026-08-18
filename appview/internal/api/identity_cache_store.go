@@ -9,6 +9,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
 const identityCacheFreshness = 24 * time.Hour
@@ -61,6 +63,7 @@ func (s *IdentityCacheStore) FreshByHandle(ctx context.Context, handle syntax.Ha
 		FROM atproto_identity_cache ic
 		JOIN craftsky_profiles cp ON cp.did = ic.did
 		WHERE ic.handle_lower = $1 AND ic.resolved_at >= $2
+		  AND NOT appview_owner_is_terminal(ic.did)
 	`, strings.ToLower(handle.String()), now.Add(-identityCacheFreshness)).Scan(&row.DID, &row.Handle, &row.ResolvedAt)
 	if err == nil {
 		return &row, nil
@@ -72,12 +75,65 @@ func (s *IdentityCacheStore) FreshByHandle(ctx context.Context, handle syntax.Ha
 }
 
 func (s *IdentityCacheStore) Upsert(ctx context.Context, did syntax.DID, handle syntax.Handle, resolvedAt time.Time) error {
+	if used, err := ownerlifecycle.WithPreheldNonTerminalOwnerTx(ctx, did, func(tx pgx.Tx) error {
+		return s.upsertAuthorizedTx(ctx, tx, did, handle, resolvedAt)
+	}); used {
+		if err != nil {
+			return fmt.Errorf("identity cache fenced upsert %s: %w", did.String(), err)
+		}
+		return nil
+	}
+	return s.upsert(ctx, did, handle, resolvedAt, func(tx pgx.Tx) error {
+		return ownerlifecycle.GuardNonTerminalTargetsTx(ctx, tx, []syntax.DID{did})
+	})
+}
+
+func (s *IdentityCacheStore) upsertForViewer(
+	ctx context.Context,
+	viewer syntax.DID,
+	did syntax.DID,
+	handle syntax.Handle,
+	resolvedAt time.Time,
+) error {
+	return s.upsert(ctx, did, handle, resolvedAt, func(tx pgx.Tx) error {
+		return ownerlifecycle.GuardPrivateMutationTx(ctx, tx, viewer, []syntax.DID{did})
+	})
+}
+
+func (s *IdentityCacheStore) upsert(
+	ctx context.Context,
+	did syntax.DID,
+	handle syntax.Handle,
+	resolvedAt time.Time,
+	authorize func(pgx.Tx) error,
+) error {
+	if authorize == nil {
+		return fmt.Errorf("identity cache authorization missing")
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("identity cache begin upsert %s: %w", did.String(), err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := authorize(tx); err != nil {
+		return fmt.Errorf("identity cache authorize upsert: %w", err)
+	}
+	if err := s.upsertAuthorizedTx(ctx, tx, did, handle, resolvedAt); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("identity cache commit upsert %s: %w", did.String(), err)
+	}
+	return nil
+}
 
+func (s *IdentityCacheStore) upsertAuthorizedTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	did syntax.DID,
+	handle syntax.Handle,
+	resolvedAt time.Time,
+) error {
 	handleLower := strings.ToLower(handle.String())
 	if _, err := tx.Exec(ctx, `
 		DELETE FROM atproto_identity_cache
@@ -86,7 +142,7 @@ func (s *IdentityCacheStore) Upsert(ctx context.Context, did syntax.DID, handle 
 		return fmt.Errorf("identity cache delete stale handle owner %s: %w", did.String(), err)
 	}
 
-	_, err = tx.Exec(ctx, `
+	if _, err := tx.Exec(ctx, `
 		INSERT INTO atproto_identity_cache (did, handle, handle_lower, resolved_at, updated_at)
 		VALUES ($1, $2, $3, $4, now())
 		ON CONFLICT (did) DO UPDATE SET
@@ -94,19 +150,20 @@ func (s *IdentityCacheStore) Upsert(ctx context.Context, did syntax.DID, handle 
 			handle_lower = EXCLUDED.handle_lower,
 			resolved_at = EXCLUDED.resolved_at,
 			updated_at = now()
-	`, did.String(), handle.String(), handleLower, resolvedAt)
-	if err != nil {
+	`, did.String(), handle.String(), handleLower, resolvedAt); err != nil {
 		return fmt.Errorf("identity cache upsert %s: %w", did.String(), err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("identity cache commit upsert %s: %w", did.String(), err)
 	}
 	return nil
 }
 
 func (s *IdentityCacheStore) IsCraftskyProfile(ctx context.Context, did syntax.DID) (bool, error) {
 	var exists bool
-	if err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM craftsky_profiles WHERE did = $1)`, did.String()).Scan(&exists); err != nil {
+	if err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1 FROM craftsky_profiles
+			WHERE did = $1 AND NOT appview_owner_is_terminal(did)
+		)
+	`, did.String()).Scan(&exists); err != nil {
 		return false, fmt.Errorf("craftsky profile exists %s: %w", did.String(), err)
 	}
 	return exists, nil
@@ -120,7 +177,8 @@ func (s *IdentityCacheStore) BackfillCandidateDIDs(ctx context.Context, limit in
 		SELECT cp.did
 		FROM craftsky_profiles cp
 		LEFT JOIN atproto_identity_cache ic ON ic.did = cp.did
-		WHERE ic.did IS NULL OR ic.resolved_at < $1
+		WHERE (ic.did IS NULL OR ic.resolved_at < $1)
+		  AND NOT appview_owner_is_terminal(cp.did)
 		ORDER BY cp.did ASC
 		LIMIT $2
 	`, now.Add(-identityCacheFreshness), limit)

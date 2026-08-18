@@ -130,11 +130,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notificationUnavailableRow => 'Activity unavailable';
 
   @override
-  String notificationInstagramMatchActorRow(String actor) {
-    return 'You automatically followed $actor from your Instagram import';
-  }
-
-  @override
   String get notificationSettingsAction => 'Notification settings';
 
   @override
@@ -169,13 +164,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notificationCategoryReposts => 'Reposts';
-
-  @override
-  String get notificationCategoryInstagramMatches => 'Instagram matches';
-
-  @override
-  String get notificationInstagramMatchPreferenceDescription =>
-      'Push alerts are based on your Instagram migration eligibility. They never name matched accounts.';
 
   @override
   String get notificationCategoryEverythingElse => 'Everything else';
@@ -276,10 +264,6 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get authCompleteTimedOutError =>
       'That sign-in link expired. Please sign in again.';
-
-  @override
-  String get authCompleteNoPendingSignInError =>
-      'No sign-in is in progress. Please sign in again.';
 
   @override
   String get authCompleteStorageError =>
@@ -1641,7 +1625,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get instagramVerificationRequiredForImport =>
-      'Complete verification to sync the accounts you follow.';
+      'Complete verification to import the accounts you follow.';
 
   @override
   String get instagramVerificationStart => 'Create verification challenge';
@@ -1687,7 +1671,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get instagramDiscoverableDescription =>
-      'When enabled, eligible CraftSky members who imported your Instagram username will automatically follow you when CraftSky finds a match.';
+      'When enabled, eligible CraftSky members who imported your Instagram username may see a private suggestion to follow you.';
 
   @override
   String get instagramDiscoverableAllow => 'Allow discovery';
@@ -1914,11 +1898,32 @@ class AppLocalizationsEn extends AppLocalizations {
   String get instagramImportDelete => 'Delete import';
 
   @override
-  String get instagramImportNotifications =>
-      'CraftSky will notify you when someone in this list joins. You can disable Instagram match push notifications in';
+  String get instagramImportSuggestionDisclosure =>
+      'Importing creates private suggestions only. You choose whether to follow each account.';
 
   @override
-  String get instagramImportNotificationSettings => 'Notification settings';
+  String get instagramSuggestionsTitle => 'Possible CraftSky accounts';
+
+  @override
+  String get instagramSuggestionsDescription =>
+      'Your imports find possible CraftSky accounts privately. Nobody is followed until you choose Follow.';
+
+  @override
+  String get instagramSuggestionsLoadError =>
+      'Possible CraftSky accounts didn\'t load.';
+
+  @override
+  String get instagramSuggestionsEmpty => 'No possible CraftSky accounts yet.';
+
+  @override
+  String get instagramSuggestionFollow => 'Follow';
+
+  @override
+  String get instagramSuggestionDismiss => 'Dismiss';
+
+  @override
+  String get instagramSuggestionsActionError =>
+      'That suggestion action didn\'t complete. Try again.';
 
   @override
   String get savedPostSaveAction => 'Save post';

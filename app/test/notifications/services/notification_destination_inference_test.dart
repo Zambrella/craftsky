@@ -1,4 +1,3 @@
-import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/notifications/models/notification_destination.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/services/notification_destination_inference.dart';
@@ -153,7 +152,7 @@ void main() {
     expect(futureOutcome.feedback, isNull);
   });
 
-  test('IT-017 infers identity-free Instagram pushes to notifications', () {
+  test('IT-028 treats retired Instagram pushes as unknown and inert', () {
     final attempt = NotificationOpenAttempt.fromProviderData({
       'payloadVersion': '1',
       'type': 'instagramMatch',
@@ -161,13 +160,9 @@ void main() {
       'notificationId': '00000000-0000-0000-0000-000000000321',
     });
 
-    expect(attempt.facts, isA<ValidNotificationFacts>());
-    final facts = attempt.facts as ValidNotificationFacts;
-    expect(facts.category, NotificationCategory.instagramMatch);
-    expect(facts.actorDid, isNull);
-    expect(facts.subjectUri, isNull);
+    expect(attempt.facts, isA<UnknownNotificationFacts>());
     expect(
-      NotificationDestinationInference.forFacts(facts).destination,
+      NotificationDestinationInference.forFacts(attempt.facts).destination,
       const NotificationsDestination(),
     );
   });

@@ -19,8 +19,9 @@ const blueskyFollowNSID syntax.NSID = "app.bsky.graph.follow"
 // BlueskyFollow indexes app.bsky.graph.follow events into atproto_follows.
 // Required invariant: idempotent on (URI, CID).
 type BlueskyFollow struct {
-	pool      *pgxpool.Pool
-	lifecycle notifications.Lifecycle
+	pool         *pgxpool.Pool
+	projectionDB transactionalDatabase
+	lifecycle    notifications.Lifecycle
 }
 
 var _ Indexer = (*BlueskyFollow)(nil)
@@ -62,7 +63,7 @@ func (b *BlueskyFollow) Handle(ctx context.Context, ev tap.Event) error {
 		}
 		return nil
 	case "delete":
-		tx, err := b.pool.Begin(ctx)
+		tx, err := b.database().Begin(ctx)
 		if err != nil {
 			return fmt.Errorf("begin delete %s: %w", ev.URI, err)
 		}
@@ -84,7 +85,7 @@ func (b *BlueskyFollow) Handle(ctx context.Context, ev tap.Event) error {
 }
 
 func (b *BlueskyFollow) upsertActive(ctx context.Context, ev tap.Event, subject syntax.DID, createdAt time.Time) error {
-	tx, err := b.pool.Begin(ctx)
+	tx, err := b.database().Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin: %w", err)
 	}
@@ -122,7 +123,12 @@ func (b *BlueskyFollow) upsertActive(ctx context.Context, ev tap.Event, subject 
 
 	if subject != ev.DID {
 		var recipientIsMember bool
-		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM craftsky_profiles WHERE did=$1)`, subject).Scan(&recipientIsMember); err != nil {
+		if err := tx.QueryRow(ctx, `
+			SELECT EXISTS(
+				SELECT 1 FROM craftsky_profiles
+				WHERE did=$1 AND NOT appview_owner_is_terminal(did)
+			)
+		`, subject).Scan(&recipientIsMember); err != nil {
 			return fmt.Errorf("check notification recipient membership: %w", err)
 		}
 		if recipientIsMember {
@@ -145,4 +151,11 @@ func (b *BlueskyFollow) upsertActive(ctx context.Context, ev tap.Event, subject 
 		return fmt.Errorf("commit: %w", err)
 	}
 	return nil
+}
+
+func (b *BlueskyFollow) database() transactionalDatabase {
+	if b.projectionDB != nil {
+		return b.projectionDB
+	}
+	return b.pool
 }

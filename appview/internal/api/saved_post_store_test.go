@@ -14,6 +14,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -28,6 +29,29 @@ CREATE TABLE craftsky_posts (
     rkey        TEXT NOT NULL,
     cid         TEXT NOT NULL
 );
+CREATE TABLE owner_lifecycles (
+	owner_did TEXT PRIMARY KEY,
+	state TEXT NOT NULL,
+	generation BIGINT NOT NULL,
+	auth_epoch BIGINT NOT NULL DEFAULT 1,
+	transition_reason TEXT NOT NULL DEFAULT 'test',
+	transitioned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	terminal_at TIMESTAMPTZ,
+	purge_completed_at TIMESTAMPTZ,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE FUNCTION seed_active_saved_post_owner() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+	INSERT INTO owner_lifecycles(owner_did,state,generation)
+	VALUES(NEW.did,'active',1)
+	ON CONFLICT (owner_did) DO NOTHING;
+	RETURN NEW;
+END
+$$;
+CREATE TRIGGER seed_active_saved_post_owner
+AFTER INSERT ON craftsky_profiles
+FOR EACH ROW EXECUTE FUNCTION seed_active_saved_post_owner();
 `
 
 const savedPostContextDDL = `
@@ -53,6 +77,29 @@ CREATE TABLE atproto_blocks (
     blocker_did TEXT NOT NULL,
     subject_did TEXT NOT NULL
 );
+CREATE TABLE owner_lifecycles (
+	owner_did TEXT PRIMARY KEY,
+	state TEXT NOT NULL,
+	generation BIGINT NOT NULL,
+	auth_epoch BIGINT NOT NULL DEFAULT 1,
+	transition_reason TEXT NOT NULL DEFAULT 'test',
+	transitioned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	terminal_at TIMESTAMPTZ,
+	purge_completed_at TIMESTAMPTZ,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE FUNCTION seed_active_saved_post_context_owner() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+	INSERT INTO owner_lifecycles(owner_did,state,generation)
+	VALUES(NEW.did,'active',1)
+	ON CONFLICT (owner_did) DO NOTHING;
+	RETURN NEW;
+END
+$$;
+CREATE TRIGGER seed_active_saved_post_context_owner
+AFTER INSERT ON craftsky_profiles
+FOR EACH ROW EXECUTE FUNCTION seed_active_saved_post_context_owner();
 CREATE TABLE moderation_outputs (
     id UUID NOT NULL PRIMARY KEY,
     source_did TEXT NOT NULL,
@@ -68,7 +115,7 @@ CREATE TABLE moderation_outputs (
 
 func TestSavedPostStorePersistsTriStateOwnerScopedSave(t *testing.T) {
 	pool := testdb.WithSchema(t, savedPostStorePreStateDDL)
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	up, err := os.ReadFile("../../migrations/000024_saved_posts.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
@@ -202,9 +249,47 @@ func TestSavedPostStorePersistsTriStateOwnerScopedSave(t *testing.T) {
 	}
 }
 
-func TestSavedPostStoreCreatesRenamesAndListsDuplicateFolders(t *testing.T) {
+func TestSavedPostStoreRejectsStaleOwnerGeneration(t *testing.T) {
 	pool := testdb.WithSchema(t, savedPostStorePreStateDDL)
 	ctx := context.Background()
+	up, err := os.ReadFile("../../migrations/000024_saved_posts.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, string(up)); err != nil {
+		t.Fatal(err)
+	}
+	owner := syntax.DID("did:plc:alice")
+	postURI := syntax.ATURI("at://did:plc:bob/social.craftsky.feed.post/one")
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'alice'),('did:plc:bob','bob');
+		INSERT INTO craftsky_posts(uri,did,rkey,cid) VALUES($2,'did:plc:bob','one','post');
+		UPDATE owner_lifecycles SET generation=2 WHERE owner_did=$1
+	`, owner, postURI); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = api.NewSavedPostStore(pool).Save(
+		ownerlifecycle.WithExpectedGeneration(ctx, 1),
+		owner,
+		postURI,
+		api.FolderAssignment{},
+	)
+	if !errors.Is(err, ownerlifecycle.ErrGenerationChanged) {
+		t.Fatalf("Save error = %v, want ErrGenerationChanged", err)
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM saved_posts WHERE owner_did=$1`, owner).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("saved rows = %d, want 0", count)
+	}
+}
+
+func TestSavedPostStoreCreatesRenamesAndListsDuplicateFolders(t *testing.T) {
+	pool := testdb.WithSchema(t, savedPostStorePreStateDDL)
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	up, err := os.ReadFile("../../migrations/000024_saved_posts.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
@@ -317,7 +402,7 @@ func TestSavedPostStoreCreatesRenamesAndListsDuplicateFolders(t *testing.T) {
 
 func TestSavedPostStoreListsMoreThanOneHundredDuplicateFoldersExactlyOnce(t *testing.T) {
 	pool := testdb.WithSchema(t, savedPostStorePreStateDDL)
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	up, err := os.ReadFile("../../migrations/000024_saved_posts.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
@@ -389,7 +474,7 @@ func TestSavedPostStoreListsMoreThanOneHundredDuplicateFoldersExactlyOnce(t *tes
 
 func TestSavedPostStoreDeleteFolderUnfilesSavesIdempotently(t *testing.T) {
 	pool := testdb.WithSchema(t, savedPostStorePreStateDDL)
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	up, err := os.ReadFile("../../migrations/000024_saved_posts.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
@@ -535,7 +620,7 @@ func TestSavedPostStoreDeleteFolderUnfilesSavesIdempotently(t *testing.T) {
 
 func TestSavedPostStoreListsAllFolderAndUnfiledInBothDirections(t *testing.T) {
 	pool := testdb.WithSchema(t, savedPostStorePreStateDDL)
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	up, err := os.ReadFile("../../migrations/000024_saved_posts.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
@@ -792,7 +877,7 @@ func sameTestStringPointer(first, second *string) bool {
 
 func TestSavedPostStoreConcurrentMutationsRemainSerialValid(t *testing.T) {
 	pool := testdb.WithSchema(t, savedPostStorePreStateDDL)
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	up, err := os.ReadFile("../../migrations/000024_saved_posts.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
@@ -966,7 +1051,7 @@ func TestSavedPostStoreConcurrentMutationsRemainSerialValid(t *testing.T) {
 
 func TestSavedPostStoreRequiredContextStates(t *testing.T) {
 	pool := testdb.WithSchema(t, savedPostContextDDL)
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	rootURI := syntax.ATURI("at://did:plc:root/social.craftsky.feed.post/root")
 	parentURI := syntax.ATURI("at://did:plc:parent/social.craftsky.feed.post/parent")
 	targetURI := syntax.ATURI("at://did:plc:target/social.craftsky.feed.post/target")

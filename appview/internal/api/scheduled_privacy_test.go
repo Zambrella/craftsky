@@ -92,8 +92,10 @@ func TestScheduledHandlerCaptureExcludesPrivateCanaries(t *testing.T) {
 	}{
 		{
 			method: http.MethodPut, contentType: "image/jpeg",
-			body:    validJPEGBytes(t),
-			handler: PutScheduledMediaHandler(media, DefaultMediaLimits(), logger),
+			body: validJPEGBytes(t),
+			handler: PutScheduledMediaHandler(
+				media, DefaultMediaLimits(), mustTestImageValidator(t), logger,
+			),
 		},
 		{method: http.MethodGet, handler: GetScheduledMediaHandler(media, logger)},
 		{
@@ -110,7 +112,7 @@ func TestScheduledHandlerCaptureExcludesPrivateCanaries(t *testing.T) {
 		request.SetPathValue("mediaId", mediaID.String())
 		request.Header.Set("Content-Type", target.contentType)
 		request.Header.Set("Authorization", "Bearer "+canaries[6])
-		request = request.WithContext(middleware.WithDID(request.Context(), owner))
+		request = request.WithContext(middleware.WithOwnerGeneration(middleware.WithDID(request.Context(), owner), 5))
 		response := httptest.NewRecorder()
 		target.handler.ServeHTTP(response, request)
 		if response.Code != http.StatusInternalServerError {
@@ -165,6 +167,7 @@ func (service canaryFailingScheduledMediaService) Delete(
 	syntax.DID,
 	uuid.UUID,
 	time.Time,
+	...int64,
 ) error {
 	return service.err
 }

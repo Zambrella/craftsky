@@ -899,7 +899,7 @@ RouteBase get $authCompleteRoute => GoRouteData.$route(
 
 mixin $AuthCompleteRoute on GoRouteData {
   static AuthCompleteRoute _fromState(GoRouterState state) => AuthCompleteRoute(
-    token: state.uri.queryParameters['token'],
+    code: state.uri.queryParameters['code'],
     error: state.uri.queryParameters['error'],
   );
 
@@ -909,7 +909,7 @@ mixin $AuthCompleteRoute on GoRouteData {
   String get location => GoRouteData.$location(
     '/auth/complete',
     queryParams: {
-      if (_self.token != null) 'token': _self.token,
+      if (_self.code != null) 'code': _self.code,
       if (_self.error != null) 'error': _self.error,
     },
   );

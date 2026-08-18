@@ -109,55 +109,23 @@ type instagramUnknownFixture struct {
 	Body                  json.RawMessage `json:"body"`
 }
 
-func TestInstagramWireCorpusOmitsSuggestionsAndUsesActorfulMatch(t *testing.T) {
-	_, filename, _, ok := runtime.Caller(0)
-	if !ok {
-		t.Fatal("resolve fixture path")
-	}
-	path := filepath.Join(
-		filepath.Dir(filename),
-		"../../../docs/changes/2026-07-11-instagram-dm-verification/fixtures/instagram_wire/corpus.json",
-	)
-	contents, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatal(err)
-	}
-	var raw map[string]json.RawMessage
-	if err := json.Unmarshal(contents, &raw); err != nil {
-		t.Fatal(err)
-	}
-	for _, removed := range []string{
-		"suggestionResponses",
-		"suggestionActionResponses",
-	} {
-		if _, present := raw[removed]; present {
-			t.Errorf("removed corpus section %q remains", removed)
-		}
-	}
-	if strings.Contains(string(contents), "/v1/migrations/instagram/suggestions") {
-		t.Fatal("removed suggestion route remains in corpus")
-	}
+func TestInstagramWireCorpusRetiresAutomaticMatchNotifications(t *testing.T) {
 	corpus := loadInstagramWireCorpus(t)
-	var match map[string]any
 	for _, item := range decodeWireMap(t, corpus.NotificationContract.Body)["items"].([]any) {
 		candidate := item.(map[string]any)
 		if candidate["type"] == "instagramMatch" {
-			match = candidate
-			break
+			t.Fatal("retired instagramMatch fixture remains in active feed")
 		}
 	}
-	if match == nil {
-		t.Fatal("actorful instagramMatch fixture missing")
-	}
-	if _, present := match["actor"]; !present {
-		t.Fatal("instagramMatch fixture has no actor")
-	}
-	for _, forbidden := range []string{
-		"system", "uri", "cid", "rkey", "references",
-	} {
-		if _, present := match[forbidden]; present {
-			t.Errorf("instagramMatch fixture contains %q", forbidden)
+	negativeFixture := false
+	for _, candidate := range corpus.NotificationContract.UnknownClientCases {
+		if strings.Contains(string(candidate.Body), `"type":"instagramMatch"`) ||
+			strings.Contains(string(candidate.Body), `"type": "instagramMatch"`) {
+			negativeFixture = true
 		}
+	}
+	if !negativeFixture {
+		t.Fatal("retired instagramMatch negative client fixture missing")
 	}
 }
 
@@ -480,29 +448,23 @@ func TestInstagramWireCorpusNotificationTypesAndPrivateFieldAbsence(t *testing.T
 	assertWireRoundTrip[NotificationPage](t, corpus.NotificationContract.Body)
 	page := decodeWireMap(t, corpus.NotificationContract.Body)
 	items := page["items"].([]any)
-	if len(items) != 8 {
+	if len(items) != 7 {
 		t.Fatalf("notification item count = %d", len(items))
 	}
 	socialTypes := map[string]bool{}
-	var instagramMatch map[string]any
 	for _, raw := range items {
 		item := raw.(map[string]any)
 		if _, ok := item["kind"]; ok {
 			t.Fatalf("notification %s exposes redundant kind", item["type"])
 		}
-		switch item["type"] {
-		case "instagramMatch":
-			instagramMatch = item
-		default:
-			socialTypes[item["type"].(string)] = true
-			for _, required := range []string{"uri", "cid", "rkey", "actor", "references"} {
-				if _, ok := item[required]; !ok {
-					t.Errorf("social %s omits %s", item["type"], required)
-				}
+		socialTypes[item["type"].(string)] = true
+		for _, required := range []string{"uri", "cid", "rkey", "actor", "references"} {
+			if _, ok := item[required]; !ok {
+				t.Errorf("social %s omits %s", item["type"], required)
 			}
-			if _, ok := item["system"]; ok {
-				t.Errorf("social %s contains system payload", item["type"])
-			}
+		}
+		if _, ok := item["system"]; ok {
+			t.Errorf("social %s contains system payload", item["type"])
 		}
 	}
 	for _, value := range []string{"follow", "like", "repost", "reply", "mention", "quote", "everythingElse"} {
@@ -510,18 +472,6 @@ func TestInstagramWireCorpusNotificationTypesAndPrivateFieldAbsence(t *testing.T
 			t.Errorf("social notification type %q is absent", value)
 		}
 	}
-	if instagramMatch == nil {
-		t.Fatal("Instagram match notification is absent")
-	}
-	if _, ok := instagramMatch["actor"].(map[string]any); !ok {
-		t.Error("Instagram match notification omits its actor")
-	}
-	for _, forbidden := range []string{"uri", "cid", "rkey", "references", "subjectPost", "reply", "contentAvailable", "system"} {
-		if _, ok := instagramMatch[forbidden]; ok {
-			t.Errorf("Instagram match notification exposes %q", forbidden)
-		}
-	}
-
 	privateKeys := map[string]bool{
 		"challengeDigest": true, "candidateIgsid": true, "senderIgsid": true,
 		"officialAccountId": true, "messageIdDigest": true, "leaseOwner": true,

@@ -2,6 +2,7 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/instagram_migration/data/instagram_migration_repository.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_migration_repository_provider.dart';
+import 'package:craftsky_app/instagram_migration/providers/instagram_suggestions_provider.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'instagram_imports_provider.g.dart';
@@ -73,6 +74,7 @@ class InstagramImports extends _$InstagramImports {
           cursor: current?.cursor,
         ),
       );
+      ref.invalidate(instagramSuggestionsProvider(lease));
       return result;
     } on InstagramOperationDiscarded {
       return null;
@@ -103,6 +105,7 @@ class InstagramImports extends _$InstagramImports {
           ),
         );
       }
+      ref.invalidate(instagramSuggestionsProvider(lease));
       return true;
     } on InstagramOperationDiscarded {
       return false;
@@ -127,6 +130,7 @@ class InstagramImports extends _$InstagramImports {
           ),
         );
       }
+      ref.invalidate(instagramSuggestionsProvider(lease));
       return true;
     } on InstagramOperationDiscarded {
       return false;

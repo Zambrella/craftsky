@@ -11,20 +11,20 @@ import 'package:flutter_test/flutter_test.dart';
 
 class _FakeAuthController extends AuthController {
   _FakeAuthController({required this.onComplete});
-  final Future<void> Function(String token) onComplete;
+  final Future<void> Function(String code) onComplete;
 
   @override
   FutureOr<void> build() => null;
 
   @override
-  Future<void> completeFromDeepLink(String token) async {
+  Future<void> completeFromDeepLink(String code) async {
     state = const AsyncLoading();
-    state = await AsyncValue.guard(() => onComplete(token));
+    state = await AsyncValue.guard(() => onComplete(code));
   }
 }
 
 void main() {
-  testWidgets('calls completeFromDeepLink with the token on init', (
+  testWidgets('calls completeFromDeepLink with the browser code on init', (
     tester,
   ) async {
     final seen = <String>[];
@@ -44,12 +44,12 @@ void main() {
         child: const MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: AuthCompletePage(token: 'tok-123'),
+          home: AuthCompletePage(code: 'code-123'),
         ),
       ),
     );
     await tester.pump(); // one frame for addPostFrameCallback
-    expect(seen, ['tok-123']);
+    expect(seen, ['code-123']);
   });
 
   testWidgets('renders spinner by default', (tester) async {
@@ -66,7 +66,7 @@ void main() {
         child: const MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: AuthCompletePage(token: 't'),
+          home: AuthCompletePage(code: 'code'),
         ),
       ),
     );
@@ -75,27 +75,67 @@ void main() {
     expect(find.text('Signing in…'), findsOneWidget);
   });
 
-  testWidgets('renders retry text on AuthError', (tester) async {
+  testWidgets('retries a transient handoff failure with the same code', (
+    tester,
+  ) async {
+    final seen = <String>[];
+    final retryInProgress = Completer<void>();
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
           authControllerProvider.overrideWith(
             () => _FakeAuthController(
-              onComplete: (_) async => throw const NoPendingSignIn(),
+              onComplete: (code) async {
+                seen.add(code);
+                if (seen.length == 1) throw const ServerUnavailable();
+                await retryInProgress.future;
+              },
             ),
           ),
         ],
         child: const MaterialApp(
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: AuthCompletePage(token: 't'),
+          home: AuthCompletePage(code: 'retry-code'),
         ),
       ),
     );
     await tester.pump();
     await tester.pump(); // allow AsyncError to propagate
+    expect(find.text('Retry'), findsOneWidget);
+
+    await tester.tap(find.text('Retry'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(seen, ['retry-code', 'retry-code']);
+  });
+
+  testWidgets('a callback without a code fails closed without exchanging', (
+    tester,
+  ) async {
+    final seen = <String>[];
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authControllerProvider.overrideWith(
+            () => _FakeAuthController(
+              onComplete: (code) async => seen.add(code),
+            ),
+          ),
+        ],
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: AuthCompletePage(),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    expect(seen, isEmpty);
     expect(
-      find.textContaining('sign in again', findRichText: true),
+      find.textContaining('sign-in link expired', findRichText: true),
       findsOneWidget,
     );
   });

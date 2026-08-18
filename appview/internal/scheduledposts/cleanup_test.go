@@ -42,40 +42,42 @@ func TestStoreCleansEligiblePrivateArtifactsSafely(t *testing.T) {
 	}
 
 	mediaRows := []struct {
-		id           string
+		id           uuid.UUID
 		objectKey    string
 		scheduleID   *uuid.UUID
 		ordinal      *int
 		expiresAt    time.Time
 		predictedCID string
 	}{
-		{id: "00000000-0000-4000-8000-000000000101", objectKey: "scheduled-media/00000000-0000-4000-8000-000000000101", scheduleID: &live.ID, ordinal: intPointer(0), expiresAt: now.Add(24 * time.Hour), predictedCID: "bafk-live"},
-		{id: "00000000-0000-4000-8000-000000000102", objectKey: "scheduled-media/00000000-0000-4000-8000-000000000102", expiresAt: now, predictedCID: "bafk-unclaimed"},
-		{id: "00000000-0000-4000-8000-000000000103", objectKey: "scheduled-media/00000000-0000-4000-8000-000000000103", scheduleID: &expired.ID, ordinal: intPointer(0), expiresAt: now.Add(24 * time.Hour), predictedCID: "bafk-expired"},
+		{id: uuid.MustParse("00000000-0000-4000-8000-000000000101"), scheduleID: &live.ID, ordinal: intPointer(0), expiresAt: now.Add(24 * time.Hour), predictedCID: "bafk-live"},
+		{id: uuid.MustParse("00000000-0000-4000-8000-000000000102"), expiresAt: now, predictedCID: "bafk-unclaimed"},
+		{id: uuid.MustParse("00000000-0000-4000-8000-000000000103"), scheduleID: &expired.ID, ordinal: intPointer(0), expiresAt: now.Add(24 * time.Hour), predictedCID: "bafk-expired"},
 	}
-	for _, media := range mediaRows {
-		if _, err := store.pool.Exec(ctx, `
-			INSERT INTO scheduled_post_media (
-				id, owner_did, object_key, state, schedule_id, ordinal,
-				mime_type, size_bytes, sha256, blob_cid, unclaimed_expires_at
-			) VALUES ($1, $2, $3, 'ready', $4, $5, 'image/jpeg', 4,
-				decode(repeat('03', 32), 'hex'), $6, $7)
-		`, media.id, owner, media.objectKey, media.scheduleID, media.ordinal,
-			media.predictedCID, media.expiresAt); err != nil {
-			t.Fatalf("insert media %s: %v", media.id, err)
-		}
+	for index := range mediaRows {
+		media := &mediaRows[index]
+		media.objectKey = insertReadyPrivateMediaFixture(
+			t, store, owner, media.id, media.scheduleID, media.ordinal,
+			media.predictedCID, media.expiresAt,
+		)
 	}
 
 	queuedKeys := []string{
 		mediaRows[0].objectKey,
-		"scheduled-media/00000000-0000-4000-8000-000000000104",
-		"scheduled-media/00000000-0000-4000-8000-000000000105",
-		"scheduled-media/00000000-0000-4000-8000-000000000106",
+		insertCleanupFixture(t, store, owner, uuid.MustParse("00000000-0000-4000-8000-000000000104"), now, false),
+		insertCleanupFixture(t, store, owner, uuid.MustParse("00000000-0000-4000-8000-000000000105"), now, false),
+		insertCleanupFixture(t, store, owner, uuid.MustParse("00000000-0000-4000-8000-000000000106"), now, false),
 	}
-	for index, objectKey := range queuedKeys {
+	for index, objectKey := range queuedKeys[:1] {
 		if _, err := store.pool.Exec(ctx, `
-			INSERT INTO scheduled_post_cleanup_jobs (id, object_key, next_attempt_at)
-			VALUES ($1, $2, $3)
+			INSERT INTO scheduled_post_cleanup_jobs (
+				id,object_key,owner_did,owner_generation,upload_generation,
+				source_attempt_id,outcome_uncertain,next_attempt_at
+			)
+			SELECT $1,attempts.object_key,attempts.owner_did,
+			       attempts.owner_generation,attempts.upload_generation,
+			       attempts.upload_attempt_id,false,$3
+			FROM scheduled_post_object_attempts AS attempts
+			WHERE attempts.object_key=$2
 		`, uuid.MustParse(cleanupUUID(index+1)), objectKey, now); err != nil {
 			t.Fatalf("insert cleanup fixture: %v", err)
 		}
@@ -162,16 +164,9 @@ func TestStoreDeleteEnqueuesAttachedMediaCleanupAtomically(t *testing.T) {
 	owner := syntax.DID("did:plc:alice")
 	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
 	mediaID := uuid.MustParse("00000000-0000-4000-8000-000000000107")
-	objectKey := "scheduled-media/00000000-0000-4000-8000-000000000107"
-	if _, err := store.pool.Exec(ctx, `
-		INSERT INTO scheduled_post_media (
-			id, owner_did, object_key, state, mime_type, size_bytes,
-			sha256, blob_cid, unclaimed_expires_at
-		) VALUES ($1, $2, $3, 'ready', 'image/jpeg', 4,
-			decode(repeat('03', 32), 'hex'), 'bafk-delete', $4)
-	`, mediaID, owner, objectKey, now.Add(24*time.Hour)); err != nil {
-		t.Fatalf("insert private media: %v", err)
-	}
+	objectKey := insertReadyPrivateMediaFixture(
+		t, store, owner, mediaID, nil, nil, "bafk-delete", now.Add(24*time.Hour),
+	)
 	createParams := capacityCreateParams(owner, 1, now.Add(time.Hour))
 	createParams.MediaIDs = []uuid.UUID{mediaID}
 	created, err := store.Create(ctx, createParams)
@@ -203,17 +198,12 @@ func TestStoreUpdateEnqueuesOnlyReplacedMediaCleanupAtomically(t *testing.T) {
 	oldMediaID := uuid.MustParse("00000000-0000-4000-8000-000000000111")
 	keptMediaID := uuid.MustParse("00000000-0000-4000-8000-000000000112")
 	newMediaID := uuid.MustParse("00000000-0000-4000-8000-000000000113")
+	objectKeys := make(map[uuid.UUID]string)
 	for _, mediaID := range []uuid.UUID{oldMediaID, keptMediaID, newMediaID} {
-		objectKey := "scheduled-media/" + mediaID.String()
-		if _, err := store.pool.Exec(ctx, `
-			INSERT INTO scheduled_post_media (
-				id, owner_did, object_key, state, mime_type, size_bytes,
-				sha256, blob_cid, unclaimed_expires_at
-			) VALUES ($1, $2, $3, 'ready', 'image/jpeg', 4,
-				decode(repeat('03', 32), 'hex'), $4, $5)
-		`, mediaID, owner, objectKey, "bafk-"+mediaID.String(), now.Add(24*time.Hour)); err != nil {
-			t.Fatalf("insert private media %s: %v", mediaID, err)
-		}
+		objectKeys[mediaID] = insertReadyPrivateMediaFixture(
+			t, store, owner, mediaID, nil, nil,
+			"bafk-"+mediaID.String(), now.Add(24*time.Hour),
+		)
 	}
 	createParams := capacityCreateParams(owner, 1, now.Add(time.Hour))
 	createParams.MediaIDs = []uuid.UUID{oldMediaID, keptMediaID}
@@ -233,8 +223,8 @@ func TestStoreUpdateEnqueuesOnlyReplacedMediaCleanupAtomically(t *testing.T) {
 	}
 
 	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_media WHERE id=$1`, 0, oldMediaID)
-	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_cleanup_jobs WHERE object_key=$1`, 1, "scheduled-media/"+oldMediaID.String())
-	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_cleanup_jobs WHERE object_key IN ($1, $2)`, 0, "scheduled-media/"+keptMediaID.String(), "scheduled-media/"+newMediaID.String())
+	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_cleanup_jobs WHERE object_key=$1`, 1, objectKeys[oldMediaID])
+	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_cleanup_jobs WHERE object_key IN ($1, $2)`, 0, objectKeys[keptMediaID], objectKeys[newMediaID])
 
 	rows, err := store.pool.Query(ctx, `
 		SELECT id, ordinal
@@ -284,16 +274,10 @@ func TestAccountDeletionRemovesPrivateSchedulesAndQueuesEveryObject(t *testing.T
 		{owner: owner, id: ownerUnclaimedID},
 		{owner: otherOwner, id: otherID},
 	} {
-		if _, err := store.pool.Exec(ctx, `
-			INSERT INTO scheduled_post_media (
-				id, owner_did, object_key, state, mime_type, size_bytes,
-				sha256, blob_cid, unclaimed_expires_at
-			) VALUES ($1, $2, $3, 'ready', 'image/jpeg', 4,
-				decode(repeat('03', 32), 'hex'), $4, $5)
-		`, fixture.id, fixture.owner, "scheduled-media/"+fixture.id.String(),
-			"bafk-"+fixture.id.String(), now.Add(24*time.Hour)); err != nil {
-			t.Fatalf("insert private media %s: %v", fixture.id, err)
-		}
+		insertReadyPrivateMediaFixture(
+			t, store, fixture.owner, fixture.id, nil, nil,
+			"bafk-"+fixture.id.String(), now.Add(24*time.Hour),
+		)
 	}
 	ownerCreate := capacityCreateParams(owner, 1, now.Add(time.Hour))
 	ownerCreate.MediaIDs = []uuid.UUID{ownerAttachedID}
@@ -308,17 +292,23 @@ func TestAccountDeletionRemovesPrivateSchedulesAndQueuesEveryObject(t *testing.T
 		t.Fatalf("create other schedule: %v", err)
 	}
 
-	deletion := NewAccountDeletion(store.pool, func() time.Time { return now })
+	deletion := NewAccountDeletion(
+		store.pool, func() time.Time { return now },
+		newScheduledTestOwnerFencer(t, store.pool),
+	)
 	if err := deletion.Purge(ctx, owner); err != nil {
 		t.Fatalf("delete scheduled account state: %v", err)
 	}
 
 	assertRowCount(t, store, `SELECT count(*) FROM scheduled_posts WHERE owner_did=$1`, 0, owner)
 	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_media WHERE owner_did=$1`, 0, owner)
-	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_cleanup_jobs WHERE object_key IN ($1, $2)`, 2, "scheduled-media/"+ownerAttachedID.String(), "scheduled-media/"+ownerUnclaimedID.String())
+	ownerAttachedKey, _, _ := NewGenerationObjectKey(owner, 1, ownerAttachedID)
+	ownerUnclaimedKey, _, _ := NewGenerationObjectKey(owner, 1, ownerUnclaimedID)
+	otherKey, _, _ := NewGenerationObjectKey(otherOwner, 1, otherID)
+	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_cleanup_jobs WHERE object_key IN ($1, $2)`, 2, ownerAttachedKey, ownerUnclaimedKey)
 	assertRowCount(t, store, `SELECT count(*) FROM scheduled_posts WHERE id=$1`, 1, otherSchedule.ID)
 	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_media WHERE id=$1`, 1, otherID)
-	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_cleanup_jobs WHERE object_key=$1`, 0, "scheduled-media/"+otherID.String())
+	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_cleanup_jobs WHERE object_key=$1`, 0, otherKey)
 
 	if ownerSchedule.ID == uuid.Nil {
 		t.Fatal("owner schedule fixture was not created")
@@ -326,19 +316,20 @@ func TestAccountDeletionRemovesPrivateSchedulesAndQueuesEveryObject(t *testing.T
 	if err := deletion.Purge(ctx, owner); err != nil {
 		t.Fatalf("repeat scheduled account deletion: %v", err)
 	}
-	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_cleanup_jobs WHERE object_key IN ($1, $2)`, 2, "scheduled-media/"+ownerAttachedID.String(), "scheduled-media/"+ownerUnclaimedID.String())
+	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_cleanup_jobs WHERE object_key IN ($1, $2)`, 2, ownerAttachedKey, ownerUnclaimedKey)
 }
 
 func TestCleanupProcessorDeletesObjectsAndRetriesSafely(t *testing.T) {
 	store := NewStore(newScheduledPostStoreTestPool(t))
 	objects := &flakyCleanupObjectStore{objects: map[string][]byte{}}
-	service := NewPrivateMediaService(store, objects)
+	service, ownerFence := newScheduledTestMediaService(t, store, objects)
 	ctx := context.Background()
 	owner := syntax.DID("did:plc:alice")
 	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
 	currentTime := now
 	processor, err := NewCleanupProcessor(CleanupProcessorOptions{
-		Store: store, Objects: objects, Now: func() time.Time { return currentTime },
+		Store: store, Objects: objects, OwnerFence: ownerFence,
+		Now:       func() time.Time { return currentTime },
 		BatchSize: 10, LeaseDuration: time.Minute, RetryDelay: time.Minute,
 	})
 	if err != nil {
@@ -346,13 +337,13 @@ func TestCleanupProcessorDeletesObjectsAndRetriesSafely(t *testing.T) {
 	}
 	mediaID := uuid.MustParse("00000000-0000-4000-8000-000000000108")
 	created, err := service.Put(ctx, PutPrivateMediaParams{
-		ID: mediaID, OwnerDID: owner, MIMEType: "image/jpeg",
+		ID: mediaID, OwnerDID: owner, OwnerGeneration: 1, MIMEType: "image/jpeg",
 		Bytes: []byte("private-image-bytes"), Now: now,
 	})
 	if err != nil {
 		t.Fatalf("stage cleanup fixture: %v", err)
 	}
-	if err := service.Delete(ctx, owner, mediaID, now); err != nil {
+	if err := service.Delete(ctx, owner, mediaID, now, 1); err != nil {
 		t.Fatalf("queue cleanup fixture: %v", err)
 	}
 	objects.failDeletes = 1
@@ -389,24 +380,25 @@ func TestCleanupProcessorDoesNotDeleteAConcurrentReupload(t *testing.T) {
 		deleteStarted:           make(chan struct{}),
 		continueDelete:          make(chan struct{}),
 	}
-	service := NewPrivateMediaService(store, objects)
+	service, ownerFence := newScheduledTestMediaService(t, store, objects)
 	ctx := context.Background()
 	owner := syntax.DID("did:plc:alice")
 	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
 	mediaID := uuid.MustParse("00000000-0000-4000-8000-000000000109")
 	putParams := PutPrivateMediaParams{
-		ID: mediaID, OwnerDID: owner, MIMEType: "image/jpeg",
+		ID: mediaID, OwnerDID: owner, OwnerGeneration: 1, MIMEType: "image/jpeg",
 		Bytes: []byte("private-image-bytes"), Now: now,
 	}
 	created, err := service.Put(ctx, putParams)
 	if err != nil {
 		t.Fatalf("stage cleanup fixture: %v", err)
 	}
-	if err := service.Delete(ctx, owner, mediaID, now); err != nil {
+	if err := service.Delete(ctx, owner, mediaID, now, 1); err != nil {
 		t.Fatalf("queue cleanup fixture: %v", err)
 	}
 	processor, err := NewCleanupProcessor(CleanupProcessorOptions{
-		Store: store, Objects: objects, Now: func() time.Time { return now },
+		Store: store, Objects: objects, OwnerFence: ownerFence,
+		Now: func() time.Time { return now },
 	})
 	if err != nil {
 		t.Fatalf("construct cleanup processor: %v", err)
@@ -450,25 +442,26 @@ func TestCleanupProcessorFencesExpiredLeaseDeleteAcrossReupload(t *testing.T) {
 		firstDeleteStarted:  make(chan struct{}),
 		continueFirstDelete: make(chan struct{}),
 	}
-	service := NewPrivateMediaService(store, objects)
+	service, ownerFence := newScheduledTestMediaService(t, store, objects)
 	ctx := context.Background()
 	owner := syntax.DID("did:plc:alice")
 	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
 	mediaID := uuid.MustParse("00000000-0000-4000-8000-000000000110")
 	putParams := PutPrivateMediaParams{
-		ID: mediaID, OwnerDID: owner, MIMEType: "image/jpeg",
+		ID: mediaID, OwnerDID: owner, OwnerGeneration: 1, MIMEType: "image/jpeg",
 		Bytes: []byte("private-image-bytes"), Now: now,
 	}
 	created, err := service.Put(ctx, putParams)
 	if err != nil {
 		t.Fatalf("stage cleanup fixture: %v", err)
 	}
-	if err := service.Delete(ctx, owner, mediaID, now); err != nil {
+	if err := service.Delete(ctx, owner, mediaID, now, 1); err != nil {
 		t.Fatalf("queue cleanup fixture: %v", err)
 	}
 
 	firstProcessor, err := NewCleanupProcessor(CleanupProcessorOptions{
-		Store: store, Objects: objects, Now: func() time.Time { return now },
+		Store: store, Objects: objects, OwnerFence: ownerFence,
+		Now:       func() time.Time { return now },
 		BatchSize: 1, LeaseDuration: time.Minute,
 	})
 	if err != nil {
@@ -486,7 +479,7 @@ func TestCleanupProcessorFencesExpiredLeaseDeleteAcrossReupload(t *testing.T) {
 		beforeAcquire: make(chan struct{}),
 	}
 	secondProcessor, err := NewCleanupProcessor(CleanupProcessorOptions{
-		Store: secondStore, Objects: objects,
+		Store: secondStore, Objects: objects, OwnerFence: ownerFence,
 		Now:       func() time.Time { return now.Add(time.Minute) },
 		BatchSize: 1, LeaseDuration: time.Minute,
 	})
@@ -514,9 +507,11 @@ func TestCleanupProcessorFencesExpiredLeaseDeleteAcrossReupload(t *testing.T) {
 		t.Fatalf("recovered cleanup processor: %v", processErr)
 	}
 	if putErr := <-reuploadResult; putErr != nil &&
-		!errors.Is(putErr, ErrScheduledMediaConflict) {
+		!errors.Is(putErr, ErrScheduledMediaConflict) &&
+		!errors.Is(putErr, ErrScheduledMediaOutcomeUnknown) {
 		t.Fatalf("reupload during recovered cleanup: %v", putErr)
-	} else if errors.Is(putErr, ErrScheduledMediaConflict) {
+	} else if errors.Is(putErr, ErrScheduledMediaConflict) ||
+		errors.Is(putErr, ErrScheduledMediaOutcomeUnknown) {
 		if _, err := service.Put(ctx, putParams); err != nil {
 			t.Fatalf("retry reupload after recovered cleanup: %v", err)
 		}
@@ -529,6 +524,50 @@ func TestCleanupProcessorFencesExpiredLeaseDeleteAcrossReupload(t *testing.T) {
 	payload, err := io.ReadAll(opened.Body)
 	if err != nil || !bytes.Equal(payload, putParams.Bytes) || !objects.has(created.ObjectKey) {
 		t.Fatalf("recreated media payload=%q read=%v object present=%v", payload, err, objects.has(created.ObjectKey))
+	}
+}
+
+func TestCleanupProcessorBoundsRemoteWorkByItsLease(t *testing.T) {
+	store := NewStore(newScheduledPostStoreTestPool(t))
+	baseObjects := &flakyCleanupObjectStore{objects: map[string][]byte{}}
+	objects := &blockingCleanupObjectStore{
+		flakyCleanupObjectStore: baseObjects,
+		deleteStarted:           make(chan struct{}),
+		continueDelete:          make(chan struct{}),
+	}
+	service, ownerFence := newScheduledTestMediaService(t, store, objects)
+	owner := syntax.DID("did:plc:alice")
+	now := time.Date(2026, 8, 14, 13, 0, 0, 0, time.UTC)
+	mediaID := uuid.MustParse("00000000-0000-4000-8000-000000000117")
+	if _, err := service.Put(context.Background(), PutPrivateMediaParams{
+		ID: mediaID, OwnerDID: owner, OwnerGeneration: 1,
+		MIMEType: "image/jpeg", Bytes: []byte("bounded-cleanup"), Now: now,
+	}); err != nil {
+		t.Fatalf("stage bounded cleanup fixture: %v", err)
+	}
+	if err := service.Delete(context.Background(), owner, mediaID, now, 1); err != nil {
+		t.Fatalf("queue bounded cleanup fixture: %v", err)
+	}
+
+	const leaseDuration = 25 * time.Millisecond
+	processor, err := NewCleanupProcessor(CleanupProcessorOptions{
+		Store: store, Objects: objects, OwnerFence: ownerFence,
+		Now: func() time.Time { return now }, BatchSize: 1,
+		LeaseDuration: leaseDuration, RetryDelay: time.Minute,
+	})
+	if err != nil {
+		t.Fatalf("construct bounded cleanup processor: %v", err)
+	}
+	parentCtx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	defer cancel()
+	started := time.Now()
+	_, processErr := processor.ProcessBatch(parentCtx)
+	elapsed := time.Since(started)
+	if processErr == nil {
+		t.Fatal("cleanup whose remote delete exceeded the lease returned nil")
+	}
+	if elapsed >= 150*time.Millisecond {
+		t.Fatalf("cleanup elapsed=%s, want its %s lease to bound remote work", elapsed, leaseDuration)
 	}
 }
 
@@ -610,6 +649,10 @@ func (store *sequencedCleanupObjectStore) has(key string) bool {
 	return ok
 }
 
+func (store *sequencedCleanupObjectStore) Exists(_ context.Context, key string) (bool, error) {
+	return store.has(key), nil
+}
+
 type flakyCleanupObjectStore struct {
 	objects     map[string][]byte
 	failDeletes int
@@ -668,6 +711,10 @@ func (store *flakyCleanupObjectStore) Delete(_ context.Context, key string) erro
 func (store *flakyCleanupObjectStore) has(key string) bool {
 	_, ok := store.objects[key]
 	return ok
+}
+
+func (store *flakyCleanupObjectStore) Exists(_ context.Context, key string) (bool, error) {
+	return store.has(key), nil
 }
 
 func intPointer(value int) *int { return &value }

@@ -659,17 +659,17 @@ class AddAccountRoute extends GoRouteData with $AddAccountRoute {
   name: 'auth-complete',
 )
 class AuthCompleteRoute extends GoRouteData with $AuthCompleteRoute {
-  const AuthCompleteRoute({this.token, this.error});
+  const AuthCompleteRoute({this.code, this.error});
 
   static final GlobalKey<NavigatorState> $parentNavigatorKey =
       _NavigatorKeys.rootNavigatorKey;
 
-  final String? token;
+  final String? code;
   final String? error;
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
-      AuthCompletePage(token: token, error: error);
+      AuthCompletePage(code: code, error: error);
 }
 
 @TypedGoRoute<OnboardingRoute>(

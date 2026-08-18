@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -24,6 +25,20 @@ CREATE TABLE craftsky_recent_searches (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (viewer_did, search_type, normalized_payload_hash)
 );
+CREATE TABLE owner_lifecycles (
+	owner_did TEXT PRIMARY KEY,
+	state TEXT NOT NULL,
+	generation BIGINT NOT NULL,
+	auth_epoch BIGINT NOT NULL DEFAULT 1,
+	transition_reason TEXT NOT NULL DEFAULT 'test',
+	transitioned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	terminal_at TIMESTAMPTZ,
+	purge_completed_at TIMESTAMPTZ,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+INSERT INTO owner_lifecycles(owner_did,state,generation)
+VALUES('did:plc:alice','active',1),('did:plc:bob','active',1);
 `
 
 func recentReq(t *testing.T, body string) api.SaveRecentSearchRequest {
@@ -39,7 +54,7 @@ func recentReq(t *testing.T, body string) api.SaveRecentSearchRequest {
 func TestSearchStore_RecentSearchLifecycleDedupesPrunesAndHardDeletes(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, recentSearchStoreDDL)
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	store := api.NewSearchStore(pool, nil)
 	now := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 

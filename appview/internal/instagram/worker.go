@@ -110,20 +110,20 @@ type WebhookWorker struct {
 
 func NewWebhookWorker(queue WebhookWorkQueue, redeemer WebhookRedeemer, membership WebhookMembership, meta instagrammeta.Client, options WebhookWorkerOptions) (*WebhookWorker, error) {
 	if queue == nil || redeemer == nil || membership == nil || meta == nil {
-		return nil, errors.New("Instagram webhook worker dependencies are incomplete")
+		return nil, errors.New("instagram webhook worker dependencies are incomplete")
 	}
 	inactivator := options.MembershipInactivator
 	if inactivator == nil {
 		inactivator, _ = membership.(WebhookMembershipInactivator)
 	}
 	if inactivator == nil {
-		return nil, errors.New("Instagram webhook worker membership inactivator is incomplete")
+		return nil, errors.New("instagram webhook worker membership inactivator is incomplete")
 	}
 	if options.BatchSize == 0 {
 		options.BatchSize = 1
 	}
 	if options.BatchSize < 0 || options.BatchSize > instagrammeta.MaxSupportedEvents {
-		return nil, errors.New("Instagram webhook worker batch size is invalid")
+		return nil, errors.New("instagram webhook worker batch size is invalid")
 	}
 	if options.Now == nil {
 		options.Now = time.Now
@@ -132,7 +132,7 @@ func NewWebhookWorker(queue WebhookWorkQueue, redeemer WebhookRedeemer, membersh
 		options.RetryPolicy = DefaultWebhookRetryPolicy()
 	}
 	if !options.RetryPolicy.valid() {
-		return nil, errors.New("Instagram webhook worker retry policy is invalid")
+		return nil, errors.New("instagram webhook worker retry policy is invalid")
 	}
 	if options.RateLimiter != nil {
 		if options.InvalidIGSIDPer15Minutes == 0 {
@@ -143,7 +143,7 @@ func NewWebhookWorker(queue WebhookWorkQueue, redeemer WebhookRedeemer, membersh
 		}
 		if options.InvalidIGSIDPer15Minutes < 1 || options.InvalidIGSIDPer15Minutes > WebhookInvalidIGSIDLimit ||
 			options.MetaLookupsPerIGSIDPerHour < 1 || options.MetaLookupsPerIGSIDPerHour > WebhookMetaLookupIGSIDLimit {
-			return nil, errors.New("Instagram webhook identifier limits are invalid")
+			return nil, errors.New("instagram webhook identifier limits are invalid")
 		}
 	}
 	if options.ReplyText != "" {
@@ -151,7 +151,7 @@ func NewWebhookWorker(queue WebhookWorkQueue, redeemer WebhookRedeemer, membersh
 			options.ReplyWindow = WebhookMaxReplyWindow
 		}
 		if options.ReplyWindow < 0 || options.ReplyWindow > WebhookMaxReplyWindow {
-			return nil, errors.New("Instagram webhook reply window is invalid")
+			return nil, errors.New("instagram webhook reply window is invalid")
 		}
 	}
 	return &WebhookWorker{

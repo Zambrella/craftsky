@@ -38,6 +38,8 @@ func (s *FollowStore) FindActiveFollow(ctx context.Context, did string, subjectD
 		SELECT uri, did, rkey, cid, subject_did, created_at
 		FROM atproto_follows
 		WHERE did = $1 AND subject_did = $2
+		  AND NOT appview_owner_is_terminal(did)
+		  AND NOT appview_owner_is_terminal(subject_did)
 		LIMIT 1
 	`, did, subjectDID).Scan(
 		&out.URI,
@@ -116,6 +118,8 @@ func (s *FollowStore) ListActiveFollowedDIDs(ctx context.Context, did string) ([
 		SELECT subject_did
 		FROM atproto_follows
 		WHERE did = $1
+		  AND NOT appview_owner_is_terminal(did)
+		  AND NOT appview_owner_is_terminal(subject_did)
 		ORDER BY subject_did ASC
 	`, did)
 	if err != nil {

@@ -7,6 +7,8 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
 // Store persists private actor mutes and reads the Tap-owned public block
@@ -35,13 +37,24 @@ func NewStore(pool *pgxpool.Pool) *Store {
 
 // Mute idempotently stores an owner-private actor mute.
 func (s *Store) Mute(ctx context.Context, owner, subject syntax.DID) error {
-	if _, err := s.pool.Exec(ctx, `
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin mute actor: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, owner, []syntax.DID{subject}); err != nil {
+		return fmt.Errorf("authorize mute actor: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
 		INSERT INTO actor_mutes (owner_did, subject_did)
 		VALUES ($1, $2)
 		ON CONFLICT (owner_did, subject_did) DO UPDATE
 		SET updated_at = now()
 	`, owner, subject); err != nil {
 		return fmt.Errorf("mute actor: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit mute actor: %w", err)
 	}
 	return nil
 }
@@ -54,6 +67,9 @@ func (s *Store) MuteAndCancelPendingDeliveries(ctx context.Context, owner, subje
 		return 0, fmt.Errorf("begin mute actor: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, owner, []syntax.DID{subject}); err != nil {
+		return 0, fmt.Errorf("authorize mute actor: %w", err)
+	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO actor_mutes (owner_did, subject_did)
 		VALUES ($1, $2)
@@ -99,6 +115,8 @@ func (s *Store) IsMuted(ctx context.Context, owner, subject syntax.DID) (bool, e
 			SELECT 1
 			FROM actor_mutes
 			WHERE owner_did = $1 AND subject_did = $2
+			  AND NOT appview_owner_is_terminal(owner_did)
+			  AND NOT appview_owner_is_terminal(subject_did)
 		)
 	`, owner, subject).Scan(&muted); err != nil {
 		return false, fmt.Errorf("read actor mute: %w", err)
@@ -116,14 +134,20 @@ func (s *Store) State(ctx context.Context, viewer, subject syntax.DID) (State, e
 			EXISTS (
 				SELECT 1 FROM actor_mutes
 				WHERE owner_did = $1 AND subject_did = $2
+				  AND NOT appview_owner_is_terminal(owner_did)
+				  AND NOT appview_owner_is_terminal(subject_did)
 			),
 			EXISTS (
 				SELECT 1 FROM atproto_blocks
 				WHERE blocker_did = $1 AND subject_did = $2
+				  AND NOT appview_owner_is_terminal(blocker_did)
+				  AND NOT appview_owner_is_terminal(subject_did)
 			),
 			EXISTS (
 				SELECT 1 FROM atproto_blocks
 				WHERE blocker_did = $2 AND subject_did = $1
+				  AND NOT appview_owner_is_terminal(blocker_did)
+				  AND NOT appview_owner_is_terminal(subject_did)
 			)
 	`, viewer, subject).Scan(&state.Muted, &state.Blocking, &state.BlockedBy); err != nil {
 		return State{}, fmt.Errorf("read relationship state: %w", err)
@@ -138,6 +162,8 @@ func (s *Store) OwnedBlockRecords(ctx context.Context, blocker, subject syntax.D
 		SELECT uri, blocker_did, rkey, cid, subject_did, created_at
 		FROM atproto_blocks
 		WHERE blocker_did = $1 AND subject_did = $2
+		  AND NOT appview_owner_is_terminal(blocker_did)
+		  AND NOT appview_owner_is_terminal(subject_did)
 		ORDER BY uri ASC
 	`, blocker, subject)
 	if err != nil {
@@ -182,6 +208,8 @@ func (s *Store) ListMutes(
 		FROM actor_mutes m
 		JOIN craftsky_profiles cp ON cp.did = m.subject_did
 		WHERE m.owner_did = $1
+		  AND NOT appview_owner_is_terminal(m.owner_did)
+		  AND NOT appview_owner_is_terminal(m.subject_did)
 		  AND ($2::timestamptz IS NULL
 		       OR (m.created_at, m.subject_did) < ($2::timestamptz, $3::text))
 		ORDER BY m.created_at DESC, m.subject_did DESC
@@ -216,6 +244,8 @@ func (s *Store) ListBlocks(
 				b.subject_did, b.created_at
 			FROM atproto_blocks b
 			WHERE b.blocker_did = $1
+			  AND NOT appview_owner_is_terminal(b.blocker_did)
+			  AND NOT appview_owner_is_terminal(b.subject_did)
 			ORDER BY b.subject_did, b.created_at DESC, b.uri DESC
 		)
 		SELECT owned.subject_did, owned.created_at

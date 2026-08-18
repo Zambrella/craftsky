@@ -6,8 +6,11 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
 // ReportSubjectType identifies the kind of subject a private report targets.
@@ -75,6 +78,22 @@ func NewReportStore(pool *pgxpool.Pool) *ReportStore {
 // CreateReport inserts a private report row. Duplicate reports are allowed by
 // design; there is deliberately no uniqueness constraint over reporter/subject.
 func (s *ReportStore) CreateReport(ctx context.Context, input CreateReportInput) (*ReportRow, error) {
+	reporter, err := syntax.ParseDID(input.ReporterDID)
+	if err != nil {
+		return nil, fmt.Errorf("report reporter DID: %w", err)
+	}
+	subject, err := syntax.ParseDID(input.SubjectDID)
+	if err != nil {
+		return nil, fmt.Errorf("report subject DID: %w", err)
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("report create begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, reporter, []syntax.DID{subject}); err != nil {
+		return nil, fmt.Errorf("report create authorization: %w", err)
+	}
 	const q = `
 		INSERT INTO moderation_reports (
 			id,
@@ -114,7 +133,7 @@ func (s *ReportStore) CreateReport(ctx context.Context, input CreateReportInput)
 	`
 	out := &ReportRow{}
 	var subjectType string
-	err := s.pool.QueryRow(ctx, q,
+	err = tx.QueryRow(ctx, q,
 		uuid.NewString(),
 		input.ReporterDID,
 		string(input.SubjectType),
@@ -150,6 +169,9 @@ func (s *ReportStore) CreateReport(ctx context.Context, input CreateReportInput)
 	)
 	if err != nil {
 		return nil, fmt.Errorf("report create: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("report create commit: %w", err)
 	}
 	out.SubjectType = ReportSubjectType(subjectType)
 	return out, nil

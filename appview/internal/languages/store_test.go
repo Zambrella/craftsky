@@ -9,6 +9,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
+	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -24,6 +25,22 @@ CREATE TABLE craftsky_posts (
     indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (did, rkey)
 );
+CREATE TABLE owner_lifecycles (
+	owner_did TEXT PRIMARY KEY,
+	state TEXT NOT NULL,
+	generation BIGINT NOT NULL,
+	auth_epoch BIGINT NOT NULL DEFAULT 1,
+	transition_reason TEXT NOT NULL DEFAULT 'test',
+	transitioned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	terminal_at TIMESTAMPTZ,
+	purge_completed_at TIMESTAMPTZ,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+INSERT INTO owner_lifecycles(owner_did,state,generation) VALUES
+	('did:plc:alice','active',1),
+	('did:plc:bob','active',1),
+	('did:plc:unknown','active',1);
 `
 
 func newLanguageStoreTestStore(t *testing.T) *Store {
@@ -41,7 +58,7 @@ func newLanguageStoreTestStore(t *testing.T) *Store {
 
 func TestStoreGetAndReplaceAreIsolatedByDID(t *testing.T) {
 	store := newLanguageStoreTestStore(t)
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	alice := syntax.DID("did:plc:alice")
 	bob := syntax.DID("did:plc:bob")
 
@@ -102,7 +119,7 @@ func TestStoreGetAndReplaceAreIsolatedByDID(t *testing.T) {
 
 func TestStoreInitializeConcurrentlyReturnsOneAuthoritativeRow(t *testing.T) {
 	store := newLanguageStoreTestStore(t)
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	did := syntax.DID("did:plc:alice")
 	proposals := []Preferences{
 		{
@@ -158,7 +175,7 @@ func TestStoreInitializeConcurrentlyReturnsOneAuthoritativeRow(t *testing.T) {
 
 func TestStoreReplaceRejectsInvalidPreferencesAtomically(t *testing.T) {
 	store := newLanguageStoreTestStore(t)
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	did := syntax.DID("did:plc:alice")
 	if _, err := store.pool.Exec(ctx, `
 		INSERT INTO account_language_preferences (
@@ -235,7 +252,7 @@ func TestStoreReplaceRejectsInvalidPreferencesAtomically(t *testing.T) {
 
 func TestStoreHandleIdentityDeletedIsIdempotent(t *testing.T) {
 	store := newLanguageStoreTestStore(t)
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	alice := syntax.DID("did:plc:alice")
 	bob := syntax.DID("did:plc:bob")
 	for did, primary := range map[syntax.DID]string{alice: "en", bob: "fr"} {

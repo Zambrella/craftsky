@@ -8,11 +8,41 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/testdb"
 )
+
+const testHandoffReceiptKey = "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+
+func testOAuthDeployment(t *testing.T, env Env) OAuthDeployment {
+	t.Helper()
+	if env == EnvDev {
+		callback, err := parseLoopbackOAuthCallback("http://127.0.0.1:18080/oauth/callback")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return OAuthDeployment{Mode: OAuthModeLocalhost, CallbackURL: callback, Scopes: []string{"atproto"}}
+	}
+	origin, err := parseCanonicalPublicOrigin("https://appview.craftsky.social")
+	if err != nil {
+		t.Fatal(err)
+	}
+	privateKey, err := atcrypto.GeneratePrivateKeyP256()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return OAuthDeployment{
+		Mode: OAuthModeConfidential, PublicOrigin: origin,
+		ClientID:        resolveOriginPath(origin, "/oauth/client-metadata.json"),
+		CallbackURL:     resolveOriginPath(origin, "/oauth/callback"),
+		JWKSURL:         resolveOriginPath(origin, "/oauth/jwks.json"),
+		ClientSecretKey: Secret(privateKey.Multibase()), ClientKeyID: "primary",
+		Scopes: []string{"atproto"},
+	}
+}
 
 const authSchemaDDL = `
 	CREATE TABLE oauth_sessions (
@@ -40,10 +70,12 @@ const authSchemaDDL = `
 
 func TestNewDevDeps_UnreachableDBReturnsError(t *testing.T) {
 	cfg := Config{
-		Env:            EnvDev,
-		DatabaseURL:    "postgres://u:p@127.0.0.1:1/x?sslmode=disable&connect_timeout=1",
-		AllowedOrigins: []string{"*"},
-		DevDID:         "did:plc:test",
+		Env:                    EnvDev,
+		DatabaseURL:            "postgres://u:p@127.0.0.1:1/x?sslmode=disable&connect_timeout=1",
+		AllowedOrigins:         []string{"*"},
+		DevDID:                 "did:plc:test",
+		OAuth:                  testOAuthDeployment(t, EnvDev),
+		OAuthHandoffReceiptKey: Secret(testHandoffReceiptKey),
 	}
 	deps, cleanup, err := NewDevDeps(context.Background(), cfg)
 	if err == nil {
@@ -65,13 +97,50 @@ func TestNewDevDeps_UnreachableDBReturnsError(t *testing.T) {
 
 func TestNewProdDeps_UnreachableDBReturnsError(t *testing.T) {
 	cfg := Config{
-		Env:            EnvProd,
-		DatabaseURL:    "postgres://u:p@127.0.0.1:1/x?sslmode=disable&connect_timeout=1",
-		AllowedOrigins: []string{"https://craftsky.social"},
+		Env:                    EnvProd,
+		DatabaseURL:            "postgres://u:p@127.0.0.1:1/x?sslmode=disable&connect_timeout=1",
+		AllowedOrigins:         []string{"https://craftsky.social"},
+		OAuth:                  testOAuthDeployment(t, EnvProd),
+		OAuthHandoffReceiptKey: Secret(testHandoffReceiptKey),
 	}
 	_, _, err := NewProdDeps(context.Background(), cfg)
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestNewProdDepsRejectsInvalidOAuthBeforeDatabaseConnection(t *testing.T) {
+	cfg := Config{
+		Env:                    EnvProd,
+		DatabaseURL:            "postgres://u:p@127.0.0.1:1/x?sslmode=disable&connect_timeout=1",
+		AllowedOrigins:         []string{"https://craftsky.social"},
+		OAuth:                  testOAuthDeployment(t, EnvProd),
+		OAuthHandoffReceiptKey: Secret(testHandoffReceiptKey),
+	}
+	cfg.OAuth.ClientSecretKey = "not-a-private-key"
+
+	_, _, err := NewProdDeps(context.Background(), cfg)
+	if err == nil || !strings.Contains(err.Error(), "OAUTH_CLIENT_SECRET_KEY") {
+		t.Fatalf("NewProdDeps error = %v", err)
+	}
+	if strings.Contains(err.Error(), "db connect") {
+		t.Fatalf("OAuth validation happened after database connection: %v", err)
+	}
+}
+
+func TestNewDepsRejectsMissingHandoffReceiptKeyBeforeDatabaseConnection(t *testing.T) {
+	cfg := Config{
+		Env:         EnvDev,
+		DatabaseURL: "postgres://u:p@127.0.0.1:1/x?sslmode=disable&connect_timeout=1",
+		OAuth:       testOAuthDeployment(t, EnvDev),
+	}
+
+	_, _, err := NewDevDeps(context.Background(), cfg)
+	if err == nil || !strings.Contains(err.Error(), "OAUTH_HANDOFF_RECEIPT_KEY") {
+		t.Fatalf("NewDevDeps error = %v, want handoff receipt key failure", err)
+	}
+	if strings.Contains(err.Error(), "db connect") {
+		t.Fatalf("handoff key validation happened after database connection: %v", err)
 	}
 }
 

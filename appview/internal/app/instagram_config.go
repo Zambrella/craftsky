@@ -117,7 +117,7 @@ func (c InstagramMetaConfig) RepliesEnabled() bool {
 // a resource identifier.
 func (c InstagramMetaConfig) GraphAPIURL(segments ...string) (string, error) {
 	if !c.configured || c.apiBaseURL == nil {
-		return "", errors.New("Instagram Meta configuration is unavailable")
+		return "", errors.New("instagram Meta configuration is unavailable")
 	}
 	path := make([]string, 0, len(segments)+1)
 	path = append(path, c.apiVersion)

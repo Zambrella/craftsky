@@ -16,7 +16,8 @@ import (
 // bluesky_profiles table for Craftsky and non-Craftsky accounts.
 // Required invariant: idempotent on (DID, CID).
 type BlueskyProfile struct {
-	pool *pgxpool.Pool
+	pool         *pgxpool.Pool
+	projectionDB transactionalDatabase
 }
 
 var _ Indexer = (*BlueskyProfile)(nil)
@@ -83,14 +84,14 @@ func (b *BlueskyProfile) Handle(ctx context.Context, ev tap.Event) error {
 			bannerCID = &rec.Banner.Ref.Link
 			bannerMime = &rec.Banner.MimeType
 		}
-		if _, err := b.pool.Exec(ctx, q,
+		if _, err := b.database().Exec(ctx, q,
 			ev.DID, rec.DisplayName, rec.Description,
 			avatarCID, avatarMime, bannerCID, bannerMime, ev.CID); err != nil {
 			return fmt.Errorf("upsert %s: %w", ev.URI, err)
 		}
 		return nil
 	case "delete":
-		if _, err := b.pool.Exec(ctx,
+		if _, err := b.database().Exec(ctx,
 			`DELETE FROM bluesky_profiles WHERE did = $1`, ev.DID); err != nil {
 			return fmt.Errorf("delete %s: %w", ev.URI, err)
 		}
@@ -98,4 +99,11 @@ func (b *BlueskyProfile) Handle(ctx context.Context, ev tap.Event) error {
 	default:
 		return fmt.Errorf("unknown action %q on %s", ev.Action, ev.URI)
 	}
+}
+
+func (b *BlueskyProfile) database() transactionalDatabase {
+	if b.projectionDB != nil {
+		return b.projectionDB
+	}
+	return b.pool
 }

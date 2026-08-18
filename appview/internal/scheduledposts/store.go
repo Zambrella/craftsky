@@ -11,6 +11,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -42,16 +43,17 @@ type CreateParams struct {
 }
 
 type ScheduledPost struct {
-	ID             uuid.UUID
-	OwnerDID       syntax.DID
-	OperationID    uuid.UUID
-	Status         Status
-	ScheduledAt    time.Time
-	PayloadVersion int64
-	PublicationURI syntax.ATURI
-	PublicationCID syntax.CID
-	PublishedAt    time.Time
-	Created        bool
+	ID              uuid.UUID
+	OwnerDID        syntax.DID
+	OwnerGeneration int64
+	OperationID     uuid.UUID
+	Status          Status
+	ScheduledAt     time.Time
+	PayloadVersion  int64
+	PublicationURI  syntax.ATURI
+	PublicationCID  syntax.CID
+	PublishedAt     time.Time
+	Created         bool
 }
 
 type Resource struct {
@@ -75,22 +77,24 @@ type UpdateResult struct {
 }
 
 type FrozenRecordParams struct {
-	ID             uuid.UUID
-	OwnerDID       syntax.DID
-	LeaseToken     uuid.UUID
-	PayloadVersion int64
-	RecordBytes    []byte
-	RecordHash     [32]byte
-	Now            time.Time
+	ID              uuid.UUID
+	OwnerDID        syntax.DID
+	OwnerGeneration int64
+	LeaseToken      uuid.UUID
+	PayloadVersion  int64
+	RecordBytes     []byte
+	RecordHash      [32]byte
+	Now             time.Time
 }
 
 type PublishingClaim struct {
-	ID             uuid.UUID
-	OwnerDID       syntax.DID
-	LeaseToken     uuid.UUID
-	PayloadVersion int64
-	Rkey           syntax.RecordKey
-	CreatedAt      time.Time
+	ID              uuid.UUID
+	OwnerDID        syntax.DID
+	OwnerGeneration int64
+	LeaseToken      uuid.UUID
+	PayloadVersion  int64
+	Rkey            syntax.RecordKey
+	CreatedAt       time.Time
 }
 
 type PublishingEffectGuard struct {
@@ -99,6 +103,15 @@ type PublishingEffectGuard struct {
 	id       uuid.UUID
 	mu       sync.Mutex
 	released bool
+}
+
+type publishingEffectConnectionKey struct{}
+
+type publicationDatabase interface {
+	Begin(context.Context) (pgx.Tx, error)
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+	Query(context.Context, string, ...any) (pgx.Rows, error)
+	QueryRow(context.Context, string, ...any) pgx.Row
 }
 
 type Store struct {
@@ -114,6 +127,13 @@ func (s *Store) SetOperationalObserver(observer OperationalObserver) {
 	if s != nil {
 		s.observer = observer
 	}
+}
+
+func (s *Store) publicationDB(ctx context.Context) publicationDatabase {
+	if conn, ok := ctx.Value(publishingEffectConnectionKey{}).(*pgxpool.Conn); ok && conn != nil {
+		return conn
+	}
+	return s.pool
 }
 
 func (s *Store) Create(ctx context.Context, params CreateParams) (ScheduledPost, error) {
@@ -132,6 +152,14 @@ func (s *Store) Create(ctx context.Context, params CreateParams) (ScheduledPost,
 	}
 	defer tx.Rollback(ctx)
 
+	var ownerGeneration int64
+	if err := tx.QueryRow(ctx, lockActiveScheduledOwnerGenerationSQL, params.OwnerDID).
+		Scan(&ownerGeneration); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ScheduledPost{}, errors.New("scheduled post owner unavailable")
+		}
+		return ScheduledPost{}, fmt.Errorf("lock scheduled post owner lifecycle: %w", err)
+	}
 	var owner syntax.DID
 	if err := tx.QueryRow(ctx, lockScheduledPostOwnerSQL, params.OwnerDID).Scan(&owner); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -146,10 +174,12 @@ func (s *Store) Create(ctx context.Context, params CreateParams) (ScheduledPost,
 		ctx,
 		selectScheduledPostByOperationSQL,
 		params.OwnerDID,
+		ownerGeneration,
 		params.OperationID,
 	).Scan(
 		&existing.ID,
 		&existing.OwnerDID,
+		&existing.OwnerGeneration,
 		&existing.OperationID,
 		&existing.Status,
 		&existing.ScheduledAt,
@@ -175,10 +205,12 @@ func (s *Store) Create(ctx context.Context, params CreateParams) (ScheduledPost,
 		ctx,
 		selectPublicationTombstoneByOperationSQL,
 		params.OwnerDID,
+		ownerGeneration,
 		params.OperationID,
 	).Scan(
 		&completed.ID,
 		&completed.OwnerDID,
+		&completed.OwnerGeneration,
 		&completed.OperationID,
 		&completedRequestHash,
 		&publicationURI,
@@ -200,7 +232,7 @@ func (s *Store) Create(ctx context.Context, params CreateParams) (ScheduledPost,
 	}
 
 	var active int
-	if err := tx.QueryRow(ctx, countScheduledPostsSQL, params.OwnerDID).Scan(&active); err != nil {
+	if err := tx.QueryRow(ctx, countScheduledPostsSQL, params.OwnerDID, ownerGeneration).Scan(&active); err != nil {
 		return ScheduledPost{}, fmt.Errorf("count scheduled posts: %w", err)
 	}
 	if active >= MaximumActivePosts {
@@ -209,7 +241,7 @@ func (s *Store) Create(ctx context.Context, params CreateParams) (ScheduledPost,
 
 	scheduledAt := params.ScheduledAt.UTC()
 	if _, err := tx.Exec(ctx, insertScheduledPostSQL,
-		params.ID, params.OwnerDID, params.OperationID, params.RequestHash[:],
+		params.ID, params.OwnerDID, ownerGeneration, params.OperationID, params.RequestHash[:],
 		StatusScheduled, scheduledAt, params.PayloadBytes, params.PayloadHash[:],
 		params.PayloadVersion); err != nil {
 		return ScheduledPost{}, fmt.Errorf("insert scheduled post: %w", err)
@@ -222,6 +254,7 @@ func (s *Store) Create(ctx context.Context, params CreateParams) (ScheduledPost,
 			selectScheduledMediaForClaimSQL,
 			params.OwnerDID,
 			mediaID,
+			ownerGeneration,
 		).Scan(&state, &scheduleID); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ScheduledPost{}, ErrScheduledMediaUnavailable
@@ -236,6 +269,7 @@ func (s *Store) Create(ctx context.Context, params CreateParams) (ScheduledPost,
 			attachScheduledMediaSQL,
 			params.OwnerDID,
 			mediaID,
+			ownerGeneration,
 			params.ID,
 			ordinal,
 		)
@@ -251,13 +285,14 @@ func (s *Store) Create(ctx context.Context, params CreateParams) (ScheduledPost,
 	}
 
 	return ScheduledPost{
-		ID:             params.ID,
-		OwnerDID:       params.OwnerDID,
-		OperationID:    params.OperationID,
-		Status:         StatusScheduled,
-		ScheduledAt:    scheduledAt,
-		PayloadVersion: params.PayloadVersion,
-		Created:        true,
+		ID:              params.ID,
+		OwnerDID:        params.OwnerDID,
+		OwnerGeneration: ownerGeneration,
+		OperationID:     params.OperationID,
+		Status:          StatusScheduled,
+		ScheduledAt:     scheduledAt,
+		PayloadVersion:  params.PayloadVersion,
+		Created:         true,
 	}, nil
 }
 
@@ -308,6 +343,7 @@ func scanScheduledPostResource(scanner scheduledPostResourceScanner) (Resource, 
 	if err := scanner.Scan(
 		&resource.ID,
 		&resource.OwnerDID,
+		&resource.OwnerGeneration,
 		&resource.OperationID,
 		&resource.Status,
 		&resource.ScheduledAt,
@@ -352,13 +388,21 @@ func (s *Store) Update(ctx context.Context, params UpdateParams) (UpdateResult, 
 		return UpdateResult{}, err
 	}
 	defer tx.Rollback(ctx)
+	var ownerGeneration int64
+	if err := tx.QueryRow(ctx, lockActiveScheduledOwnerGenerationSQL, params.OwnerDID).
+		Scan(&ownerGeneration); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return UpdateResult{}, ErrScheduleNotFound
+		}
+		return UpdateResult{}, fmt.Errorf("lock scheduled post owner lifecycle: %w", err)
+	}
 	if _, err := tx.Exec(ctx, lockScheduleEffectForTransactionSQL, params.OwnerDID, params.ID); err != nil {
 		return UpdateResult{}, fmt.Errorf("lock scheduled post effect for update: %w", err)
 	}
 
 	var status Status
 	var currentVersion int64
-	if err := tx.QueryRow(ctx, selectScheduledPostForUpdateSQL, params.OwnerDID, params.ID).
+	if err := tx.QueryRow(ctx, selectScheduledPostForUpdateSQL, params.OwnerDID, params.ID, ownerGeneration).
 		Scan(&status, &currentVersion); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return UpdateResult{}, ErrScheduleNotFound
@@ -370,17 +414,20 @@ func (s *Store) Update(ctx context.Context, params UpdateParams) (UpdateResult, 
 	}
 
 	type attachedMedia struct {
-		id        uuid.UUID
-		objectKey string
+		id              uuid.UUID
+		objectKey       string
+		ownerGeneration int64
 	}
 	attached := make([]attachedMedia, 0, 4)
-	rows, err := tx.Query(ctx, selectAttachedScheduledMediaForUpdateSQL, params.OwnerDID, params.ID)
+	rows, err := tx.Query(
+		ctx, selectAttachedScheduledMediaForUpdateSQL, params.OwnerDID, params.ID, ownerGeneration,
+	)
 	if err != nil {
 		return UpdateResult{}, fmt.Errorf("select scheduled post media for update: %w", err)
 	}
 	for rows.Next() {
 		var media attachedMedia
-		if err := rows.Scan(&media.id, &media.objectKey); err != nil {
+		if err := rows.Scan(&media.id, &media.objectKey, &media.ownerGeneration); err != nil {
 			rows.Close()
 			return UpdateResult{}, fmt.Errorf("scan scheduled post media for update: %w", err)
 		}
@@ -400,6 +447,7 @@ func (s *Store) Update(ctx context.Context, params UpdateParams) (UpdateResult, 
 			selectScheduledMediaForClaimSQL,
 			params.OwnerDID,
 			mediaID,
+			ownerGeneration,
 		).Scan(&state, &scheduleID); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return UpdateResult{}, ErrScheduledMediaUnavailable
@@ -410,7 +458,9 @@ func (s *Store) Update(ctx context.Context, params UpdateParams) (UpdateResult, 
 			return UpdateResult{}, ErrScheduledMediaUnavailable
 		}
 	}
-	if _, err := tx.Exec(ctx, detachScheduledMediaForUpdateSQL, params.OwnerDID, params.ID); err != nil {
+	if _, err := tx.Exec(
+		ctx, detachScheduledMediaForUpdateSQL, params.OwnerDID, params.ID, ownerGeneration,
+	); err != nil {
 		return UpdateResult{}, fmt.Errorf("detach scheduled post media for update: %w", err)
 	}
 	for ordinal, mediaID := range params.MediaIDs {
@@ -419,6 +469,7 @@ func (s *Store) Update(ctx context.Context, params UpdateParams) (UpdateResult, 
 			attachScheduledMediaSQL,
 			params.OwnerDID,
 			mediaID,
+			ownerGeneration,
 			params.ID,
 			ordinal,
 		)
@@ -437,7 +488,10 @@ func (s *Store) Update(ctx context.Context, params UpdateParams) (UpdateResult, 
 		if _, ok := retained[media.id]; ok {
 			continue
 		}
-		result, err := tx.Exec(ctx, deleteUnclaimedPrivateMediaSQL, params.OwnerDID, media.id)
+		result, err := tx.Exec(
+			ctx, deleteUnclaimedPrivateMediaSQL,
+			params.OwnerDID, media.ownerGeneration, media.id,
+		)
 		if err != nil {
 			return UpdateResult{}, fmt.Errorf("delete replaced scheduled post media: %w", err)
 		}
@@ -451,7 +505,7 @@ func (s *Store) Update(ctx context.Context, params UpdateParams) (UpdateResult, 
 
 	var version int64
 	if err := tx.QueryRow(ctx, updateScheduledPostSQL,
-		params.OwnerDID, params.ID, params.ScheduledAt.UTC(), params.PayloadBytes,
+		params.OwnerDID, params.ID, ownerGeneration, params.ScheduledAt.UTC(), params.PayloadBytes,
 		params.PayloadHash[:], params.Now.UTC()).Scan(&version); err != nil {
 		return UpdateResult{}, fmt.Errorf("update scheduled post: %w", err)
 	}
@@ -477,16 +531,24 @@ func (s *Store) PrepareManualPublication(
 		return WorkItem{}, err
 	}
 	defer tx.Rollback(ctx)
-	if _, err := tx.Exec(ctx, lockScheduleEffectForTransactionSQL, params.OwnerDID, params.ID); err != nil {
-		return WorkItem{}, fmt.Errorf("lock manual scheduled publication: %w", err)
+	var ownerGeneration int64
+	if err := tx.QueryRow(ctx, lockActiveScheduledOwnerGenerationSQL, params.OwnerDID).
+		Scan(&ownerGeneration); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return WorkItem{}, ErrScheduleNotFound
+		}
+		return WorkItem{}, fmt.Errorf("lock manual publication owner lifecycle: %w", err)
 	}
 	if _, err := tx.Exec(ctx, lockScheduledPostOwnerForTransactionSQL, params.OwnerDID); err != nil {
 		return WorkItem{}, fmt.Errorf("lock manual publication owner: %w", err)
 	}
+	if _, err := tx.Exec(ctx, lockScheduleEffectForTransactionSQL, params.OwnerDID, params.ID); err != nil {
+		return WorkItem{}, fmt.Errorf("lock manual scheduled publication: %w", err)
+	}
 
 	var status Status
 	var currentVersion int64
-	if err := tx.QueryRow(ctx, selectScheduledPostForUpdateSQL, params.OwnerDID, params.ID).
+	if err := tx.QueryRow(ctx, selectScheduledPostForUpdateSQL, params.OwnerDID, params.ID, ownerGeneration).
 		Scan(&status, &currentVersion); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return WorkItem{}, ErrScheduleNotFound
@@ -498,8 +560,9 @@ func (s *Store) PrepareManualPublication(
 	}
 
 	type attachedMedia struct {
-		id        uuid.UUID
-		objectKey string
+		id              uuid.UUID
+		objectKey       string
+		ownerGeneration int64
 	}
 	attached := make([]attachedMedia, 0, 4)
 	rows, err := tx.Query(
@@ -507,13 +570,14 @@ func (s *Store) PrepareManualPublication(
 		selectAttachedScheduledMediaForUpdateSQL,
 		params.OwnerDID,
 		params.ID,
+		ownerGeneration,
 	)
 	if err != nil {
 		return WorkItem{}, fmt.Errorf("select manual publication media: %w", err)
 	}
 	for rows.Next() {
 		var media attachedMedia
-		if err := rows.Scan(&media.id, &media.objectKey); err != nil {
+		if err := rows.Scan(&media.id, &media.objectKey, &media.ownerGeneration); err != nil {
 			rows.Close()
 			return WorkItem{}, fmt.Errorf("scan manual publication media: %w", err)
 		}
@@ -533,6 +597,7 @@ func (s *Store) PrepareManualPublication(
 			selectScheduledMediaForClaimSQL,
 			params.OwnerDID,
 			mediaID,
+			ownerGeneration,
 		).Scan(&state, &scheduleID); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return WorkItem{}, ErrScheduledMediaUnavailable
@@ -548,6 +613,7 @@ func (s *Store) PrepareManualPublication(
 		detachScheduledMediaForUpdateSQL,
 		params.OwnerDID,
 		params.ID,
+		ownerGeneration,
 	); err != nil {
 		return WorkItem{}, fmt.Errorf("detach manual publication media: %w", err)
 	}
@@ -557,6 +623,7 @@ func (s *Store) PrepareManualPublication(
 			attachScheduledMediaSQL,
 			params.OwnerDID,
 			mediaID,
+			ownerGeneration,
 			params.ID,
 			ordinal,
 		)
@@ -579,6 +646,7 @@ func (s *Store) PrepareManualPublication(
 			ctx,
 			deleteUnclaimedPrivateMediaSQL,
 			params.OwnerDID,
+			media.ownerGeneration,
 			media.id,
 		)
 		if err != nil {
@@ -615,6 +683,7 @@ func (s *Store) PrepareManualPublication(
 		updateAndClaimManualPublicationSQL,
 		params.OwnerDID,
 		params.ID,
+		ownerGeneration,
 		params.Now.UTC(),
 		params.PayloadBytes,
 		params.PayloadHash[:],
@@ -628,14 +697,15 @@ func (s *Store) PrepareManualPublication(
 		return WorkItem{}, err
 	}
 	return WorkItem{
-		ID: params.ID, OwnerDID: params.OwnerDID, LeaseToken: leaseToken,
+		ID: params.ID, OwnerDID: params.OwnerDID, OwnerGeneration: ownerGeneration,
+		LeaseToken:     leaseToken,
 		PayloadVersion: version, Rkey: rkey, CreatedAt: params.Now.UTC(), Manual: true,
 	}, nil
 }
 
 func (s *Store) SaveFrozenRecord(ctx context.Context, params FrozenRecordParams) error {
 	if s == nil || s.pool == nil || params.ID == uuid.Nil || params.OwnerDID == "" ||
-		params.LeaseToken == uuid.Nil || params.PayloadVersion < 1 ||
+		params.OwnerGeneration <= 0 || params.LeaseToken == uuid.Nil || params.PayloadVersion < 1 ||
 		len(params.RecordBytes) == 0 || params.Now.IsZero() {
 		return errors.New("invalid frozen publication record")
 	}
@@ -644,11 +714,21 @@ func (s *Store) SaveFrozenRecord(ctx context.Context, params FrozenRecordParams)
 		return err
 	}
 	defer tx.Rollback(ctx)
+	var activeGeneration int64
+	if err := tx.QueryRow(ctx, lockActiveScheduledOwnerGenerationSQL, params.OwnerDID).
+		Scan(&activeGeneration); err != nil || activeGeneration != params.OwnerGeneration {
+		if err == nil || errors.Is(err, pgx.ErrNoRows) {
+			return ErrWorkerLeaseLost
+		}
+		return fmt.Errorf("lock frozen publication owner lifecycle: %w", err)
+	}
 
 	var status Status
 	var leaseToken *uuid.UUID
 	var currentVersion int64
-	if err := tx.QueryRow(ctx, selectWorkerFenceSQL, params.OwnerDID, params.ID).
+	if err := tx.QueryRow(
+		ctx, selectWorkerFenceSQL, params.OwnerDID, params.ID, params.OwnerGeneration,
+	).
 		Scan(&status, &leaseToken, &currentVersion); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrScheduleNotFound
@@ -662,7 +742,7 @@ func (s *Store) SaveFrozenRecord(ctx context.Context, params FrozenRecordParams)
 		return err
 	}
 	if _, err := tx.Exec(ctx, saveFrozenRecordSQL,
-		params.OwnerDID, params.ID, params.LeaseToken, params.PayloadVersion,
+		params.OwnerDID, params.ID, params.OwnerGeneration, params.LeaseToken, params.PayloadVersion,
 		params.RecordBytes, params.RecordHash[:], params.Now.UTC()); err != nil {
 		return fmt.Errorf("save frozen publication record: %w", err)
 	}
@@ -683,12 +763,20 @@ func (s *Store) Delete(
 		return err
 	}
 	defer tx.Rollback(ctx)
+	var ownerGeneration int64
+	if err := tx.QueryRow(ctx, lockActiveScheduledOwnerGenerationSQL, ownerDID).
+		Scan(&ownerGeneration); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil
+		}
+		return fmt.Errorf("lock deleted schedule owner lifecycle: %w", err)
+	}
 	if _, err := tx.Exec(ctx, lockScheduleEffectForTransactionSQL, ownerDID, id); err != nil {
 		return fmt.Errorf("lock scheduled post effect for delete: %w", err)
 	}
 	var status Status
 	var version int64
-	if err := tx.QueryRow(ctx, selectScheduledPostForUpdateSQL, ownerDID, id).
+	if err := tx.QueryRow(ctx, selectScheduledPostForUpdateSQL, ownerDID, id, ownerGeneration).
 		Scan(&status, &version); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
@@ -698,7 +786,9 @@ func (s *Store) Delete(
 	if !status.AllowsMemberMutation() {
 		return ErrMutationLocked
 	}
-	rows, err := tx.Query(ctx, selectScheduledMediaForFinalizationSQL, ownerDID, id)
+	rows, err := tx.Query(
+		ctx, selectScheduledMediaForFinalizationSQL, ownerDID, id, ownerGeneration,
+	)
 	if err != nil {
 		return fmt.Errorf("select scheduled post media for delete: %w", err)
 	}
@@ -716,7 +806,7 @@ func (s *Store) Delete(
 		return fmt.Errorf("read scheduled post media for delete: %w", err)
 	}
 	rows.Close()
-	if _, err := tx.Exec(ctx, deleteScheduledPostSQL, ownerDID, id); err != nil {
+	if _, err := tx.Exec(ctx, deleteScheduledPostSQL, ownerDID, id, ownerGeneration); err != nil {
 		return fmt.Errorf("delete scheduled post: %w", err)
 	}
 	for _, objectKey := range objectKeys {
@@ -732,7 +822,7 @@ func (s *Store) AcquirePublishingEffect(
 	claim PublishingClaim,
 ) (*PublishingEffectGuard, error) {
 	if s == nil || s.pool == nil || claim.ID == uuid.Nil || claim.OwnerDID == "" ||
-		claim.LeaseToken == uuid.Nil || claim.PayloadVersion < 1 {
+		claim.OwnerGeneration <= 0 || claim.LeaseToken == uuid.Nil || claim.PayloadVersion < 1 {
 		return nil, errors.New("invalid publishing effect claim")
 	}
 	conn, err := s.pool.Acquire(ctx)
@@ -740,18 +830,35 @@ func (s *Store) AcquirePublishingEffect(
 		return nil, err
 	}
 	handedOff := false
+	lockHeld := false
 	defer func() {
 		if !handedOff {
-			_, _ = conn.Exec(
-				context.Background(),
-				unlockScheduleEffectForSessionSQL,
-				claim.OwnerDID,
-				claim.ID,
-			)
+			if lockHeld {
+				_, _ = conn.Exec(
+					context.Background(),
+					unlockScheduleEffectForSessionSQL,
+					claim.OwnerDID,
+					claim.ID,
+				)
+			}
 			conn.Release()
 		}
 	}()
-	if _, err := conn.Exec(
+
+	tx, err := conn.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	var activeGeneration int64
+	if err := tx.QueryRow(ctx, lockActiveScheduledOwnerGenerationSQL, claim.OwnerDID).
+		Scan(&activeGeneration); err != nil || activeGeneration != claim.OwnerGeneration {
+		if err == nil || errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrWorkerLeaseLost
+		}
+		return nil, fmt.Errorf("recheck publishing owner lifecycle: %w", err)
+	}
+	if _, err := tx.Exec(
 		ctx,
 		lockScheduleEffectForSessionSQL,
 		claim.OwnerDID,
@@ -759,16 +866,13 @@ func (s *Store) AcquirePublishingEffect(
 	); err != nil {
 		return nil, fmt.Errorf("lock publishing effect: %w", err)
 	}
-
-	tx, err := conn.Begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback(ctx)
+	lockHeld = true
 	var status Status
 	var leaseToken *uuid.UUID
 	var currentVersion int64
-	if err := tx.QueryRow(ctx, selectWorkerFenceSQL, claim.OwnerDID, claim.ID).
+	if err := tx.QueryRow(
+		ctx, selectWorkerFenceSQL, claim.OwnerDID, claim.ID, claim.OwnerGeneration,
+	).
 		Scan(&status, &leaseToken, &currentVersion); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrScheduleNotFound
@@ -835,6 +939,24 @@ func (guard *PublishingEffectGuard) Release(_ context.Context) error {
 	return errors.New("publishing effect lock was not held")
 }
 
+// bind keeps publication completion on the same pool connection that holds
+// the session advisory lock. The real OAuth effect boundary already occupies
+// its own fenced connection, so consulting the general pool here can deadlock
+// at small but valid pool capacities.
+func (guard *PublishingEffectGuard) bind(ctx context.Context) context.Context {
+	if guard == nil {
+		return ctx
+	}
+	guard.mu.Lock()
+	conn := guard.conn
+	released := guard.released
+	guard.mu.Unlock()
+	if released || conn == nil {
+		return ctx
+	}
+	return context.WithValue(ctx, publishingEffectConnectionKey{}, conn)
+}
+
 func (s *Store) ClaimDue(
 	ctx context.Context,
 	limit int,
@@ -856,19 +978,23 @@ func (s *Store) ClaimDue(
 	}
 	recoveredCount := recoveredResult.RowsAffected()
 	type dueRow struct {
-		id             uuid.UUID
-		ownerDID       syntax.DID
-		payloadVersion int64
-		rkey           *string
-		createdAt      *time.Time
-		finalRecovery  bool
+		id              uuid.UUID
+		ownerDID        syntax.DID
+		ownerGeneration int64
+		payloadVersion  int64
+		rkey            *string
+		createdAt       *time.Time
+		finalRecovery   bool
 	}
 	due := make([]dueRow, 0, limit)
 	appendRows := func(rows pgx.Rows, finalRecovery bool) error {
 		defer rows.Close()
 		for rows.Next() {
 			var row dueRow
-			if err := rows.Scan(&row.id, &row.ownerDID, &row.payloadVersion, &row.rkey, &row.createdAt); err != nil {
+			if err := rows.Scan(
+				&row.id, &row.ownerDID, &row.ownerGeneration, &row.payloadVersion,
+				&row.rkey, &row.createdAt,
+			); err != nil {
 				return fmt.Errorf("scan due scheduled post: %w", err)
 			}
 			row.finalRecovery = finalRecovery
@@ -925,15 +1051,20 @@ func (s *Store) ClaimDue(
 		leaseToken := uuid.New()
 		if row.finalRecovery {
 			if _, err := tx.Exec(ctx, reclaimExpiredFinalPublishingSQL,
-				row.ownerDID, row.id, leaseToken, now.Add(leaseDuration), now); err != nil {
+				row.ownerDID, row.id, row.ownerGeneration, leaseToken,
+				now.Add(leaseDuration), now,
+			); err != nil {
 				return nil, fmt.Errorf("reclaim final scheduled post: %w", err)
 			}
 		} else if _, err := tx.Exec(ctx, claimScheduledPostSQL,
-			row.ownerDID, row.id, leaseToken, now.Add(leaseDuration), rkey, createdAt); err != nil {
+			row.ownerDID, row.id, row.ownerGeneration, leaseToken,
+			now.Add(leaseDuration), rkey, createdAt,
+		); err != nil {
 			return nil, fmt.Errorf("claim scheduled post: %w", err)
 		}
 		claims = append(claims, PublishingClaim{
-			ID: row.id, OwnerDID: row.ownerDID, LeaseToken: leaseToken,
+			ID: row.id, OwnerDID: row.ownerDID, OwnerGeneration: row.ownerGeneration,
+			LeaseToken:     leaseToken,
 			PayloadVersion: row.payloadVersion, Rkey: rkey, CreatedAt: createdAt,
 		})
 	}

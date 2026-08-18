@@ -55,7 +55,6 @@ func (cleanup *DatabasePrivateCleanup) Purge(ctx context.Context, owner syntax.D
 			{"moderation reports", `DELETE FROM moderation_reports WHERE reporter_did=$1 OR subject_did=$1`},
 			{"moderation outputs", `DELETE FROM moderation_outputs WHERE source_did=$1 OR subject_did=$1`},
 			{"deletion OAuth requests", `DELETE FROM oauth_auth_requests WHERE account_deletion_owner_did=$1`},
-			{"ordinary CraftSky sessions", `DELETE FROM craftsky_sessions WHERE account_did=$1`},
 		}
 		for _, statement := range statements {
 			if _, err := tx.Exec(ctx, statement.sql, owner); err != nil {
@@ -79,12 +78,11 @@ func (cleanup *DatabasePrivateCleanup) Purge(ctx context.Context, owner syntax.D
 		`, owner); err != nil {
 			return fmt.Errorf("delete owner push subscriptions: %w", err)
 		}
-		if _, err := tx.Exec(ctx, `
-			DELETE FROM oauth_sessions
-			WHERE account_did=$1 AND session_id<>$2
-		`, owner, boundOAuthSessionID); err != nil {
-			return fmt.Errorf("delete owner unbound OAuth sessions: %w", err)
-		}
+		// Authentication rows are deliberately not purged here. The owner
+		// lifecycle transition has already revoked ordinary children and queued
+		// every non-bound parent for upstream cleanup; finalization does the same
+		// for the accepted deletion-only parent.
+		_ = boundOAuthSessionID
 		return nil
 	})
 }

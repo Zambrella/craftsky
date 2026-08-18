@@ -1,10 +1,11 @@
 // Package tap consumes atproto events from a Tap sidecar over WebSocket.
 //
 // WSConsumer is the production consumer. It dials Tap's /channel WS endpoint,
-// dispatches each record envelope to an indexer, and acks on success.
-// Identity envelopes are acked and dropped at debug level. Reconnection uses
-// exponential backoff capped at WSConsumerConfig.ReconnectMax. A poison-pill
-// guard drops an event after MaxRetries consecutive Handle failures.
+// durably ingests record, identity, and invalid envelopes, and acknowledges
+// only after the ingestor reports a committed terminal outcome. Reconnection
+// uses exponential backoff capped at WSConsumerConfig.ReconnectMax. Retryable
+// failures remain unacknowledged until Tap redelivers and a durable outcome
+// succeeds. Delivery counts are never a correctness boundary.
 package tap
 
 import (
@@ -13,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -47,7 +49,7 @@ type Event struct {
 // Consumer is the interface the appview uses to consume events from Tap.
 type Consumer interface {
 	// Run blocks until ctx is cancelled, continuously connecting to Tap
-	// and dispatching events to the configured indexer. It always returns
+	// and passing events to the configured durable ingestor. It always returns
 	// a non-nil error; on graceful shutdown the error is ctx.Err().
 	Run(ctx context.Context) error
 
@@ -79,37 +81,29 @@ func (NotImplemented) State() ConnState {
 	return ConnState{LastError: "not implemented"}
 }
 
-// WSConsumerConfig wires a WSConsumer. All fields are required.
+// WSConsumerConfig wires a WSConsumer. Ingestor is the only event-processing
+// boundary; Logger and Observer are optional.
 type WSConsumerConfig struct {
-	URL             string // ws://tap:2480/channel
-	Indexer         HandlerIndexer
-	AckTimeout      time.Duration // per-event Handle deadline
-	ReconnectMax    time.Duration // cap for exponential reconnect backoff
-	MaxRetries      int           // poison-pill threshold per event id
-	Logger          *slog.Logger  // optional; nil → slog.Default()
-	Observer        *observability.Observer
-	IdentityHandler IdentityDeletionHandler
+	URL          string // ws://tap:2480/channel
+	Ingestor     DurableIngestor
+	AckTimeout   time.Duration // per-event durable ingestion deadline
+	ReconnectMax time.Duration // cap for exponential reconnect backoff
+	Logger       *slog.Logger  // optional; nil → slog.Default()
+	Observer     *observability.Observer
 }
 
 type IdentityDeletionHandler interface {
 	HandleIdentityDeleted(context.Context, syntax.DID) error
 }
 
-// HandlerIndexer is the narrow interface the consumer needs. Defined here
-// (not imported from internal/index) to avoid an import cycle.
-type HandlerIndexer interface {
-	Handle(ctx context.Context, ev Event) error
-}
-
-// WSConsumer connects to Tap's /channel WebSocket and dispatches events
-// to an indexer, sending acks on success.
+// WSConsumer connects to Tap's /channel WebSocket and sends ACKs only after a
+// durable source, lifecycle, or quarantine outcome has committed.
 type WSConsumer struct {
 	cfg    WSConsumerConfig
 	logger *slog.Logger
 
-	mu         sync.Mutex
-	state      ConnState
-	retryCount map[uint64]int // event id → how many times it's failed
+	mu    sync.Mutex
+	state ConnState
 }
 
 var _ Consumer = (*WSConsumer)(nil)
@@ -121,9 +115,8 @@ func NewWSConsumer(cfg WSConsumerConfig) *WSConsumer {
 		logger = slog.Default()
 	}
 	return &WSConsumer{
-		cfg:        cfg,
-		logger:     logger,
-		retryCount: map[uint64]int{},
+		cfg:    cfg,
+		logger: logger,
 	}
 }
 
@@ -231,7 +224,14 @@ type recordPayload struct {
 	Record     json.RawMessage `json:"record,omitempty"`
 }
 
-// ackFrame is sent back to Tap after a successful Handle.
+const (
+	maxTapRecordBytes = 1 << 20
+	maxTapFrameBytes  = 2 << 20
+	maxTapRevisionLen = 128
+	maxTapCIDLen      = 512
+)
+
+// ackFrame is sent back to Tap after a durable acknowledgable outcome.
 //
 // Shape confirmed by reading indigo/cmd/tap/types.go (types WsResponse,
 // WsResponseAck) and server.go's /channel handler during Task 3.2.
@@ -276,6 +276,10 @@ func (c *WSConsumer) runOnce(ctx context.Context) (err error) {
 	// first. CloseNow() skips the close-frame handshake, which is both
 	// faster on cancel and avoids a blocked write when the peer is gone.
 	defer conn.CloseNow()
+	// coder/websocket defaults to only 32 KiB. AT Protocol records may be
+	// larger, while AppView's source contract intentionally caps record JSON
+	// at 1 MiB and leaves bounded room for the Tap envelope.
+	conn.SetReadLimit(maxTapFrameBytes)
 	c.setConnected(true)
 	c.logger.Info("tap consumer connected",
 		slog.String("component", "tap"),
@@ -285,19 +289,40 @@ func (c *WSConsumer) runOnce(ctx context.Context) (err error) {
 	for {
 		var env envelope
 		readCtx, readSpan := c.startTapSpan(ctx, "tap.receive", false)
-		if err := wsjson.Read(readCtx, conn, &env); err != nil {
+		_, rawFrame, readErr := conn.Read(readCtx)
+		if readErr != nil {
 			c.finishTapSpan(readSpan, "error", observability.EventContext{
 				"component": "tap",
 				"operation": "tap.receive",
 				"result":    "error",
 			})
-			return fmt.Errorf("read: %w", err)
+			return fmt.Errorf("read: %w", readErr)
 		}
 		c.finishTapSpan(readSpan, "success", observability.EventContext{
 			"component": "tap",
 			"operation": "tap.receive",
 			"result":    "success",
 		})
+		if err := json.Unmarshal(rawFrame, &env); err != nil {
+			outcome, quarantineErr := c.quarantineInvalid(ctx, InvalidEvent{
+				Type: "unknown", Reason: ReasonInvalidEnvelope, Envelope: append(json.RawMessage(nil), rawFrame...),
+			})
+			if quarantineErr != nil {
+				return fmt.Errorf("quarantine malformed Tap envelope: %w", quarantineErr)
+			}
+			if !outcome.Acknowledgable() {
+				return errors.New("quarantine malformed Tap envelope: outcome was not durable")
+			}
+			// Without a trustworthy Tap id an ACK cannot be constructed. Reconnect
+			// so Tap retains and redelivers the event after operator correction.
+			return fmt.Errorf("decode Tap envelope: %w", err)
+		}
+		if env.ID == 0 {
+			if err := c.quarantineAndAck(ctx, conn, env, rawFrame, ReasonInvalidEnvelope); err != nil {
+				return err
+			}
+			return errors.New("Tap envelope without an acknowledgement id")
+		}
 		c.recordEvent()
 		if c.cfg.Observer != nil {
 			c.cfg.Observer.ObserveTapEventReceived(env.Type)
@@ -306,33 +331,29 @@ func (c *WSConsumer) runOnce(ctx context.Context) (err error) {
 		switch env.Type {
 		case "record":
 			if env.Record == nil {
-				c.logger.Warn("record envelope missing record field", slog.Uint64("id", env.ID))
-				if c.cfg.Observer != nil {
-					c.cfg.Observer.ObserveIndexerSkipped("", "malformed")
+				if err := c.quarantineAndAck(ctx, conn, env, rawFrame, ReasonMissingRecord); err != nil {
+					return err
 				}
 				continue
 			}
 			decodeCtx, decodeSpan := c.startTapSpan(ctx, "tap.decode", false)
-			ev, err := decodeRecordEvent(env)
+			ev, reason, err := decodeRecordEvent(env)
 			if err != nil {
 				c.finishTapSpan(decodeSpan, "error", observability.EventContext{
 					"component": "tap",
 					"operation": "tap.decode",
 					"result":    "error",
 				})
-				// Malformed identifiers in the envelope itself: this won't
-				// improve on retry, so ack and drop rather than letting
-				// Tap redeliver indefinitely.
-				c.logger.Error("dropping event with invalid identifier",
+				c.logger.Error("quarantining event with invalid input",
 					slog.Uint64("id", env.ID),
-					slog.String("result", "dropped"),
-					slog.String("error_category", "malformed_identifier"),
+					slog.String("result", "invalid"),
+					slog.String("error_category", string(reason)),
 				)
 				if c.cfg.Observer != nil {
 					c.cfg.Observer.ObserveIndexerSkipped(env.Record.Collection, "malformed")
 				}
-				if ackErr := c.sendAck(ctx, conn, env.ID); ackErr != nil {
-					return fmt.Errorf("ack: %w", ackErr)
+				if quarantineErr := c.quarantineAndAck(ctx, conn, env, rawFrame, reason); quarantineErr != nil {
+					return quarantineErr
 				}
 				continue
 			}
@@ -349,45 +370,30 @@ func (c *WSConsumer) runOnce(ctx context.Context) (err error) {
 				slog.String("nsid", observability.SafeNSIDLabel(ev.Collection.String())),
 				slog.Int("recordBytes", len(ev.Record)),
 			)
-			if err := c.handleWithTimeout(ctx, ev); err != nil {
+			outcome, err := c.ingestRecordWithTimeout(ctx, ev)
+			if err != nil || !outcome.Acknowledgable() {
 				c.logger.Error("indexer handle failed",
 					slog.Uint64("id", ev.ID),
 					slog.String("nsid", observability.SafeNSIDLabel(ev.Collection.String())),
 					slog.String("result", "error"),
 					slog.String("error_category", "indexer"),
 				)
-				if c.shouldDrop(ev.ID) {
-					c.logger.Error("dropping poison-pill event after retries",
-						slog.Uint64("id", ev.ID),
-						slog.String("nsid", observability.SafeNSIDLabel(ev.Collection.String())),
-					)
-					if err := c.sendAck(ctx, conn, ev.ID); err != nil {
-						return fmt.Errorf("ack: %w", err)
-					}
-					c.forgetRetry(ev.ID)
-				}
 				continue // do not ack on ordinary error
 			}
-			c.forgetRetry(ev.ID)
 			if err := c.sendAck(ctx, conn, ev.ID); err != nil {
 				return fmt.Errorf("ack: %w", err)
 			}
 		case "identity":
-			var identity struct {
-				DID    string `json:"did"`
-				Status string `json:"status"`
-			}
-			if err := json.Unmarshal(env.Identity, &identity); err != nil {
+			identity, reason, decodeErr := decodeIdentityEvent(env)
+			if decodeErr != nil {
+				if err := c.quarantineAndAck(ctx, conn, env, rawFrame, reason); err != nil {
+					return err
+				}
 				continue
 			}
-			if identity.Status == "deleted" && c.cfg.IdentityHandler != nil {
-				did, err := syntax.ParseDID(identity.DID)
-				if err != nil {
-					continue
-				}
-				if err := c.cfg.IdentityHandler.HandleIdentityDeleted(ctx, did); err != nil {
-					continue
-				}
+			outcome, err := c.ingestIdentityWithTimeout(ctx, identity)
+			if err != nil || !outcome.Acknowledgable() {
+				continue
 			}
 			c.logger.Debug("tap identity event received", slog.Uint64("id", env.ID))
 			if c.cfg.Observer != nil {
@@ -398,18 +404,17 @@ func (c *WSConsumer) runOnce(ctx context.Context) (err error) {
 			}
 		default:
 			c.logger.Warn("unknown tap envelope type", slog.String("type", env.Type), slog.Uint64("id", env.ID))
-			// Ack anyway to avoid blocking.
 			if c.cfg.Observer != nil {
 				c.cfg.Observer.ObserveIndexerSkipped("", "unsupported")
 			}
-			if err := c.sendAck(ctx, conn, env.ID); err != nil {
-				return fmt.Errorf("ack: %w", err)
+			if err := c.quarantineAndAck(ctx, conn, env, rawFrame, ReasonUnsupportedEventType); err != nil {
+				return err
 			}
 		}
 	}
 }
 
-func (c *WSConsumer) handleWithTimeout(ctx context.Context, ev Event) (err error) {
+func (c *WSConsumer) ingestRecordWithTimeout(ctx context.Context, ev Event) (outcome Outcome, err error) {
 	started := time.Now()
 	handleCtx, cancel := context.WithTimeout(ctx, c.cfg.AckTimeout)
 	defer cancel()
@@ -425,9 +430,6 @@ func (c *WSConsumer) handleWithTimeout(ctx context.Context, ev Event) (err error
 	defer func() {
 		panicCaptured := false
 		if recovered := recover(); recovered != nil {
-			c.mu.Lock()
-			c.retryCount[ev.ID]++
-			c.mu.Unlock()
 			if c.cfg.Observer != nil {
 				panicCaptured = true
 				c.cfg.Observer.CapturePanic(handleCtx, observability.EventContext{
@@ -436,7 +438,8 @@ func (c *WSConsumer) handleWithTimeout(ctx context.Context, ev Event) (err error
 					"result":    "error",
 				}, recovered)
 			}
-			err = fmt.Errorf("indexer panic: %T", recovered)
+			outcome = Retryable(ReasonProjectionFailure)
+			err = fmt.Errorf("ingestion panic: %T", recovered)
 		}
 		if c.cfg.Observer != nil {
 			c.cfg.Observer.ObserveIndexerHandled(ev.Collection.String(), err, time.Since(started))
@@ -463,28 +466,59 @@ func (c *WSConsumer) handleWithTimeout(ctx context.Context, ev Event) (err error
 			indexerSpan.Finish(result)
 		}
 	}()
-	if err := c.cfg.Indexer.Handle(handleCtx, ev); err != nil {
-		c.mu.Lock()
-		c.retryCount[ev.ID]++
-		c.mu.Unlock()
-		return err
+	if c.cfg.Ingestor == nil {
+		return Retryable(ReasonDurableIngestorRequired), errors.New("tap: durable ingestor is required")
+	}
+	return c.cfg.Ingestor.IngestRecord(handleCtx, ev)
+}
+
+func (c *WSConsumer) ingestIdentityWithTimeout(ctx context.Context, event IdentityEvent) (outcome Outcome, err error) {
+	callCtx, cancel := context.WithTimeout(ctx, c.cfg.AckTimeout)
+	defer cancel()
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			outcome = Retryable(ReasonProjectionFailure)
+			err = fmt.Errorf("identity ingestion panic: %T", recovered)
+		}
+	}()
+	if c.cfg.Ingestor == nil {
+		return Retryable(ReasonDurableIngestorRequired), errors.New("tap: durable ingestor is required")
+	}
+	return c.cfg.Ingestor.IngestIdentity(callCtx, event)
+}
+
+func (c *WSConsumer) quarantineAndAck(ctx context.Context, conn *websocket.Conn, env envelope, rawFrame []byte, reason ReasonCode) error {
+	outcome, ingestErr := c.quarantineInvalid(ctx, InvalidEvent{
+		ID: env.ID, Type: env.Type, Reason: reason, Envelope: append(json.RawMessage(nil), rawFrame...),
+	})
+	if ingestErr != nil {
+		return fmt.Errorf("persist Tap quarantine: %w", ingestErr)
+	}
+	if !outcome.Acknowledgable() {
+		return errors.New("persist Tap quarantine: outcome was not durable")
+	}
+	if env.ID == 0 {
+		return errors.New("persisted Tap quarantine but envelope has no acknowledgement id")
+	}
+	if err := c.sendAck(ctx, conn, env.ID); err != nil {
+		return fmt.Errorf("ack: %w", err)
 	}
 	return nil
 }
 
-func (c *WSConsumer) shouldDrop(id uint64) bool {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	// Drop when we have failed MORE THAN MaxRetries times. With
-	// MaxRetries=5: first 5 failures are ignored (Tap redelivers), the
-	// 6th failure triggers drop+ack.
-	return c.retryCount[id] > c.cfg.MaxRetries
-}
-
-func (c *WSConsumer) forgetRetry(id uint64) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	delete(c.retryCount, id)
+func (c *WSConsumer) quarantineInvalid(ctx context.Context, invalid InvalidEvent) (outcome Outcome, err error) {
+	callCtx, cancel := context.WithTimeout(ctx, c.cfg.AckTimeout)
+	defer cancel()
+	if c.cfg.Ingestor == nil {
+		return Retryable(ReasonDurableIngestorRequired), errors.New("tap: durable ingestor is required")
+	}
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			outcome = Retryable(ReasonStorageUnavailable)
+			err = fmt.Errorf("quarantine ingestion panic: %T", recovered)
+		}
+	}()
+	return c.cfg.Ingestor.Quarantine(callCtx, invalid)
 }
 
 func (c *WSConsumer) sendAck(ctx context.Context, conn *websocket.Conn, id uint64) error {
@@ -526,19 +560,37 @@ func (c *WSConsumer) finishTapSpan(span *observability.Span, result string, attr
 // validator, and tests use short fixture strings that wouldn't pass
 // syntax.ParseCID. The downstream guarantee we want is type safety, not
 // CID well-formedness; that's the codec's job.
-func decodeRecordEvent(env envelope) (Event, error) {
+func decodeRecordEvent(env envelope) (Event, ReasonCode, error) {
 	rec := env.Record
+	if rec.Rev == "" || rec.Rev != strings.TrimSpace(rec.Rev) || len(rec.Rev) > maxTapRevisionLen {
+		return Event{}, ReasonInvalidEnvelope, errors.New("repository revision is missing or invalid")
+	}
 	did, err := syntax.ParseDID(rec.DID)
 	if err != nil {
-		return Event{}, fmt.Errorf("did %q: %w", rec.DID, err)
+		return Event{}, ReasonInvalidDID, fmt.Errorf("did %q: %w", rec.DID, err)
 	}
 	nsid, err := syntax.ParseNSID(rec.Collection)
 	if err != nil {
-		return Event{}, fmt.Errorf("collection %q: %w", rec.Collection, err)
+		return Event{}, ReasonInvalidCollection, fmt.Errorf("collection %q: %w", rec.Collection, err)
 	}
 	rkey, err := syntax.ParseRecordKey(rec.Rkey)
 	if err != nil {
-		return Event{}, fmt.Errorf("rkey %q: %w", rec.Rkey, err)
+		return Event{}, ReasonInvalidRecordKey, fmt.Errorf("rkey %q: %w", rec.Rkey, err)
+	}
+	switch rec.Action {
+	case "create", "update":
+		if rec.CID == "" || rec.CID != strings.TrimSpace(rec.CID) || len(rec.CID) > maxTapCIDLen {
+			return Event{}, ReasonMalformedRecord, errors.New("record CID is missing or invalid")
+		}
+		if len(rec.Record) == 0 || !json.Valid(rec.Record) {
+			return Event{}, ReasonMalformedRecord, errors.New("record body is missing or malformed")
+		}
+		if len(rec.Record) > maxTapRecordBytes {
+			return Event{}, ReasonRecordTooLarge, errors.New("record body exceeds the durable source limit")
+		}
+	case "delete":
+	default:
+		return Event{}, ReasonUnsupportedAction, fmt.Errorf("unsupported record action %q", rec.Action)
 	}
 	return Event{
 		URI:        syntax.ATURI(fmt.Sprintf("at://%s/%s/%s", did, nsid, rkey)),
@@ -551,5 +603,29 @@ func decodeRecordEvent(env envelope) (Event, error) {
 		Live:       rec.Live,
 		ID:         env.ID,
 		Rev:        rec.Rev,
-	}, nil
+	}, ReasonNone, nil
+}
+
+func decodeIdentityEvent(env envelope) (IdentityEvent, ReasonCode, error) {
+	var raw struct {
+		DID      string `json:"did"`
+		Handle   string `json:"handle"`
+		IsActive bool   `json:"is_active"`
+		Status   string `json:"status"`
+	}
+	if len(env.Identity) == 0 || json.Unmarshal(env.Identity, &raw) != nil {
+		return IdentityEvent{}, ReasonInvalidIdentity, errors.New("identity body is missing or malformed")
+	}
+	did, err := syntax.ParseDID(raw.DID)
+	if err != nil {
+		return IdentityEvent{}, ReasonInvalidDID, fmt.Errorf("identity DID %q: %w", raw.DID, err)
+	}
+	switch raw.Status {
+	case "active", "takendown", "suspended", "deactivated", "deleted":
+	default:
+		return IdentityEvent{}, ReasonUnsupportedIdentityStatus, fmt.Errorf("unsupported identity status %q", raw.Status)
+	}
+	return IdentityEvent{
+		ID: env.ID, DID: did, Handle: raw.Handle, IsActive: raw.IsActive, Status: raw.Status,
+	}, ReasonNone, nil
 }

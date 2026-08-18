@@ -9,6 +9,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -18,7 +19,7 @@ func TestProfilePinPermanentDeleteAndMembershipCascades(t *testing.T) {
 		t.Fatalf("read profile pin migration: %v", err)
 	}
 	pool := testdb.WithSchema(t, postStoreDDL+string(migration))
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	owner := syntax.DID("did:plc:alice")
 	seedMember(t, pool, owner.String())
 	standardURI := seedPost(t, pool, owner.String(), "standard", "Standard", time.Now())

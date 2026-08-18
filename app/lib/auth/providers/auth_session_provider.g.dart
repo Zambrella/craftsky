@@ -36,7 +36,7 @@ final class AuthSessionProvider
   AuthSession create() => AuthSession();
 }
 
-String _$authSessionHash() => r'16e15f2255d4ede95bac390bc0a6ca2fc36638dc';
+String _$authSessionHash() => r'87138b40596ff96b45c6636f6aa571467d57be1e';
 
 /// Token-free UI/router projection of the durable session registry.
 

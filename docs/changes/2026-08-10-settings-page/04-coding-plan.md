@@ -1,5 +1,7 @@
 # Coding Plan: Settings Page And Lean Account Deletion
 
+> **AppView audit correction (2026-08-14):** Section 13 is the authoritative implementation design for remote outcome uncertainty. It replaces the earlier “one operation table / finalize after first empty scan” assumptions with the approved temporary exact-key safety tombstones while preserving every lean user-facing and final-minimization boundary.
+
 ## 1. Inputs
 
 - Requirements: `01-requirements.md` (Approved, High risk, product-owner implementation approval 2026-08-11)
@@ -171,3 +173,160 @@ type WorkerStore interface {
 - Start with: IT-029
 - Focused command: `cd appview && TEST_DATABASE_URL=... go test ./internal/db -run TestAccountDeletionMigration -count=1`
 - Notes: The product owner explicitly authorized this high-risk implementation. No blocking questions remain.
+
+## 13. AppView Audit Correction Plan: Crash-Safe Exact-Key Convergence
+
+### 13.1 Inputs and implementation strategy
+
+- Requirements amendment: `01-requirements.md` §24 (Approved, High risk, product-owner decision 2026-08-14).
+- Acceptance amendment: `02-acceptance-tests.md` §12 (AT-007–AT-009, UT-025–UT-026, IT-035–IT-038, REG-017).
+- Document re-review: `03-document-review.md` §7 (`Approved`).
+- Audit design: `docs/2026-appview-code-audit-plan/AV-002_AV-003_AV-006_AV-007-account-lifecycle.md`.
+
+Keep the existing client contract and lean private-cleanup replay. Correct only the server's cross-system completion proof:
+
+```text
+ordinary PDS/object effect
+  persist deterministic attempt + owner generation + exact remote key
+  cross remote acceptance boundary
+  settle locally OR remain outcome-uncertain after crash
+
+accepted deletion, under owner/job fence
+  freeze new ordinary effects
+  adopt every unresolved registered-collection/object attempt as an exact-key tombstone
+  replay private cleanup
+  reconcile each exact key without repeating its original write
+  run registered-collection deletion/final scan
+  if any key lacks settlement proof: keep operation reconciling
+  if all keys settled: atomically delete tombstones + operation + deletion-only OAuth
+```
+
+An AppView advisory lock disappearing, an outbound client deadline passing, an absent `HEAD`, or an empty first PDS scan is not settlement proof. The PDS/object adapter may mark a tombstone settled only from proved pre-acceptance failure or from a tested server-side settlement boundary followed by a final exact-key delete/absence check. Otherwise bounded reconciliation continues.
+
+### 13.2 Migration and storage contract
+
+Reserve the next audit migration number centrally and add:
+
+- `appview/migrations/<next>_account_deletion_safety_tombstones.up.sql`
+- `appview/migrations/<next>_account_deletion_safety_tombstones.down.sql`
+
+Create `account_deletion_safety_tombstones` with this minimized contract:
+
+| Column / constraint | Purpose |
+|---|---|
+| `operation_id`, `owner_did`, `owner_generation` | Exact accepted deletion owner/job/generation; operation FK cascades only during verified finalization. |
+| `kind` | Constrained to `pds_record` or `scheduled_object`. |
+| `exact_key` | Canonical typed AT URI for PDS or immutable private object key; never a wildcard/prefix selector. |
+| `upload_generation` | Null for PDS; positive and required for scheduled objects. |
+| `source_attempt_id` | Non-secret deterministic reference to the durable PDS/upload attempt that created the uncertainty. |
+| `state` | Constrained to `pending`, `reconciling`, or `settled`; no user-visible progress semantics. |
+| `remote_deadline`, `settlement_not_before` | Optional adapter evidence; `settlement_not_before` is populated only from a configured/tested server-side guarantee. |
+| `attempts`, `next_attempt_at`, `lease_token`, `lease_expires_at`, `last_result_category` | Bounded worker claiming/retry with lease-field consistency checks and coarse errors. |
+| `created_at`, `updated_at`, `settled_at` | Operational reconciliation timestamps; not an audit narrative. |
+
+Use `UNIQUE NULLS NOT DISTINCT (operation_id, kind, exact_key, upload_generation)` plus owner/job/exact-key claim indexes. Checks require registered-owner AT URIs for PDS rows, immutable key + positive generation for object rows, positive owner generation, non-negative attempts, valid state/timestamp combinations, and paired lease fields. Store no handle, OAuth/PDS token, record body/CID payload, media metadata/content, status capability, or client recovery data.
+
+Coordinate rather than duplicate the grouped audit schema:
+
+- `owner_lifecycles` supplies owner state/generation and the exclusive effect fence.
+- The ordinary owner-effect attempt relation supplies deterministic PDS URI and remote-boundary outcome.
+- Scheduled-media upload attempts supply immutable object key/generation and remote deadline.
+- `oauth_sessions.lifecycle_state = deletion_only` and credential generation supply the only PDS deletion capability.
+- Final migration numbers and foreign keys must be allocated in the shared lifecycle/auth migration series; the semantic migration name above is fixed even if its numeric prefix changes.
+
+### 13.3 Files and modules
+
+| Path / module | Create / change | Planned correction | Requirement IDs | Test IDs |
+|---|---|---|---|---|
+| `appview/internal/accountdeletion/state.go` | Change | Add internal reconciling/tombstone value types without exposing a client phase model. | FR-028–FR-031, NFR-007 | UT-025, IT-037 |
+| `appview/internal/accountdeletion/store.go` | Change | Atomically adopt exact-key attempts at acceptance/claim, lease tombstones, compare-and-set outcomes, block finalization on unsettled keys, and delete settled rows with operation/OAuth. | FR-028, FR-031, NFR-007 | UT-025, IT-035, IT-038 |
+| `appview/internal/accountdeletion/lifecycle.go` | Change | Order private cleanup, exact-key reconciliation, final collection scan, and artifact-free finalization under the owner/job fence. | FR-028–FR-031, RULE-013 | IT-035–IT-038 |
+| `appview/internal/accountdeletion/worker.go` | Change | Claim bounded tombstone reconciliation, retain operations without a finite proof, and never promote elapsed timeout to success. | FR-029, FR-030, RULE-013 | IT-035, IT-037, IT-038 |
+| `appview/internal/accountdeletion/pds_deleter.go` | Change | Add exact typed URI read/delete/absence reconciliation using only the matching `deletion_only` session; retain full registered collection scan and membership-last ordering. | FR-029, RULE-012 | UT-025, IT-035 |
+| `appview/internal/accountdeletion/app_service.go` | Change | On acceptance, fence the owner and bind/adopt all unresolved exact-key attempts before ordinary authority is revoked. | FR-028, RULE-013 | IT-035, IT-038 |
+| `appview/internal/accountdeletion/private_cleanup.go` | Preserve/narrow integration | Continue whole-component idempotent cleanup; do not turn safety tombstones into component checkpoints. | FR-031 | REG-017 |
+| `appview/internal/scheduledposts/media_service.go` | Change | Persist immutable upload attempt/key/generation/deadline before `Put`; hold owner/object fences through ready CAS. | FR-028, FR-030 | UT-026, IT-036 |
+| `appview/internal/scheduledposts/account_deletion.go` | Change | Expose only matching owner/job/generation unresolved object attempts for adoption/reconciliation. | FR-028, RULE-012 | IT-036 |
+| `appview/internal/scheduledposts/cleanup_processor.go` | Change | Repeat exact-key delete/absence checks, fence stale leases, and require tested settlement evidence before settled CAS. | FR-030, RULE-013 | IT-036, IT-037 |
+| `appview/internal/scheduledposts/store.go`, `store_queries.go`, `tombstone.go` | Change | Persist/claim generation-specific attempt and deletion-tombstone state; prevent key reuse across owner generations. | FR-028, FR-030, NFR-007 | UT-026, IT-036, IT-037 |
+| `appview/internal/auth/account_deletion_reauth.go`, `store.go` | Change | Keep exact job/owner/credential-generation `deletion_only` lookup; finalization removes it only with converged operation/tombstones. | FR-029, FR-031, RULE-012 | IT-035, IT-038 |
+| `appview/internal/app/deps.go`, `appview/cmd/appview/main.go` | Change | Wire bounded reconcilers and validated settlement configuration; do not add status/audit/metrics services. | FR-029–FR-031, NFR-007 | IT-037, REG-017 |
+| `appview/internal/accountdeletion/migrations_test.go` | Change | Assert exact table/columns/checks/indexes and absence of superseded status/receipt/checkpoint/audit tables. | NFR-007, RULE-012 | UT-025, IT-038, REG-017 |
+
+No Flutter, route, response-body, or localization change is required. Acceptance remains `202`; the confirming account is removed locally and pending login remains non-ordinary.
+
+### 13.4 Service boundaries and partial signatures
+
+```go
+// Partial signatures only. syntax.ATURI is parsed at the boundary.
+type SafetyKey struct {
+    Kind             SafetyKind
+    URI              syntax.ATURI // pds_record only
+    ObjectKey        string       // scheduled_object only
+    UploadGeneration int64        // scheduled_object only
+}
+
+type SafetyStore interface {
+    AdoptUncertainAttempts(ctx context.Context, op ClaimedOperation) error
+    ClaimDueSafety(ctx context.Context, leaseDuration time.Duration) (SafetyClaim, bool, error)
+    RecordSafetyRetry(ctx context.Context, claim SafetyClaim, next time.Time, category ErrorCategory) error
+    MarkSafetySettled(ctx context.Context, claim SafetyClaim, evidence SettlementEvidence) error
+    FinalizeIfConverged(ctx context.Context, op ClaimedOperation) (bool, error)
+}
+
+type ExactPDSReconciler interface {
+    ReconcileDelete(ctx context.Context, deletionCapability DeletionCapability, uri syntax.ATURI, settlement SettlementPolicy) (SettlementEvidence, error)
+}
+
+type ExactObjectReconciler interface {
+    ReconcileDelete(ctx context.Context, owner syntax.DID, key string, uploadGeneration int64, settlement SettlementPolicy) (SettlementEvidence, error)
+}
+```
+
+`SettlementEvidence` is an internal typed proof, not arbitrary adapter text. It can express proved-not-accepted or tested-bound-plus-final-absence. It cannot express “client timeout elapsed”, “lock vanished”, or “first lookup absent” as terminal evidence.
+
+### 13.5 Error and edge-state handling
+
+| State / case | Planned handling | Requirement IDs | Test IDs |
+|---|---|---|---|
+| Known uncertain PDS write; first scan empty | Keep tombstone/operation, retry exact URI, do not finalize. | FR-028, FR-029, RULE-013 | AT-007, IT-035 |
+| Delayed PDS record appears | Delete exact URI with deletion-only capability, verify post-settlement absence. | FR-029, RULE-012 | IT-035 |
+| Early object delete/HEAD absent; delayed `Put` appears | Keep generation tombstone and repeat exact-key delete/absence verification. | FR-030, RULE-013 | AT-008, IT-036 |
+| No tested finite server settlement guarantee | Keep bounded, lease-claimed reconciliation indefinitely; ordinary login remains denied. | FR-029, FR-030, RULE-013 | IT-037 |
+| Wrong owner/job/namespace/key/generation | Reject before adapter call and leave unrelated data untouched. | NFR-007, RULE-012 | UT-025, UT-026, REG-017 |
+| Crash after settled CAS before finalization | Resume, revalidate all exact keys, then atomically remove temporary state. | FR-031, NFR-002 | IT-038 |
+| All exact keys converged | Delete tombstones + operation + matching deletion-only OAuth in one fenced transaction. | FR-031 | AT-009, IT-038 |
+
+### 13.6 TDD implementation order
+
+| Order | Test ID | Target | Setup / fixture | Initial expected failure |
+|---|---|---|---|---|
+| 1 | IT-035 | `accountdeletion/worker_acceptance_test.go` | Barrier PDS adapter plus deterministic effect attempt/URI | Current worker can finalize after the first empty scan and has no retained exact-URI key. |
+| 2 | UT-025 | `accountdeletion/store_test.go`, `migrations_test.go` | Typed PDS rows plus invalid follow/namespace/owner cases | No minimized safety relation or typed exact-key guard exists. |
+| 3 | UT-026 | `scheduledposts/tombstone_test.go`, `media_service_test.go` | Generation-specific object attempts and settlement table | Current state cannot represent late `Put` uncertainty safely. |
+| 4 | IT-036 | new `scheduledposts/account_deletion_race_test.go` plus MinIO-compatible adapter | Barrier accepted `Put`, crash, early delete, delayed materialization | Early absence lets cleanup forget the key. |
+| 5 | IT-037 | account-deletion/scheduled cleanup failure suites | No finite settlement bound | Current retry exhaustion/finalization can discard uncertainty. |
+| 6 | IT-038 / AT-009 | worker/store/migration suites | All keys settled plus crash-at-finalize barriers | No atomic post-convergence artifact-removal contract exists. |
+| 7 | REG-017 | existing route/Flutter/boundary/residue suites | Full corrected system | Must prove no user status/audit/broader deletion capability returned. |
+
+First TDD command:
+
+`cd appview && go test ./internal/accountdeletion -run 'Test.*Delayed.*PDS' -count=1`
+
+Then run focused PostgreSQL/MinIO packages, `go test -race` for both deterministic barriers, the full AppView test suite, Flutter Settings/auth/router regressions, formatting/static analysis, migration up/down/up, and `git diff --check`. Do not claim MAN-003 or real remote settlement verification unless it actually ran against a disposable development account/backend.
+
+### 13.7 Guardrails and resolved questions
+
+- The product decision is resolved: use temporary minimized exact-key safety tombstones until convergence; do not require an unverified finite settlement/staging assumption.
+- Keep the registered `social.craftsky.*` manifest and exact-owner/job/generation deletion-only capability. Never grant account/terminal cleanup authority over `app.bsky.graph.follow`, blobs, another namespace, or a DID/PDS account.
+- Safety rows are not per-component private-cleanup checkpoints, Tap/index receipts, a deletion audit, detailed metrics, user status, or recovery credentials.
+- Keep PDS/object I/O outside SQL transactions but inside the prescribed owner/object/session advisory fences; use short compare-and-set transactions before/after remote calls.
+- No Lexicon change is required.
+- No additional product input blocks implementation. Deployment may later supply tested settlement bounds, but absence of one is already specified as continued reconciliation rather than success.
+
+### 13.8 Updated handoff
+
+- Start with: IT-035.
+- Migration: centrally numbered `<next>_account_deletion_safety_tombstones.up.sql` / `.down.sql`.
+- Focused packages: `appview/internal/accountdeletion`, `appview/internal/scheduledposts`, `appview/internal/auth`, `appview/internal/routes`.
+- Completion means both crash barriers pass, indefinite reconciliation is honest, final residue is empty after proven convergence, and every pre-amendment no-status/no-audit/narrow-authority regression stays green.

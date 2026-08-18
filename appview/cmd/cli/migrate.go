@@ -28,8 +28,8 @@ var migrateCmd = &cobra.Command{
 // golang-migrate's own postgres driver rather than our pgxpool, so we
 // don't want loadDeps's side effect of opening a second connection.
 // This also means `cli migrate status --env dev` against an empty
-// migrations/ directory exits 0 even when Postgres is unreachable —
-// which is the AC #9 contract.
+// migrations/ directory is validated before configuration is loaded so a
+// missing or unreadable operational bundle fails closed.
 func migrateCfg() (string, error) {
 	env, err := parseEnvFlag()
 	if err != nil {
@@ -46,9 +46,8 @@ var migrateUpCmd = &cobra.Command{
 	Use:   "up",
 	Short: "Apply all unapplied migrations",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if isMigrationsDirEmpty(migrationsDir) {
-			fmt.Println("no migrations applied (migrations directory is empty)")
-			return nil
+		if err := requireMigrationsDir(migrationsDir); err != nil {
+			return err
 		}
 		dbURL, err := migrateCfg()
 		if err != nil {
@@ -71,9 +70,8 @@ var migrateDownCmd = &cobra.Command{
 			}
 			n = v
 		}
-		if isMigrationsDirEmpty(migrationsDir) {
-			fmt.Println("no migrations applied (migrations directory is empty)")
-			return nil
+		if err := requireMigrationsDir(migrationsDir); err != nil {
+			return err
 		}
 		dbURL, err := migrateCfg()
 		if err != nil {
@@ -87,9 +85,8 @@ var migrateStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Print current migration version and dirty flag",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if isMigrationsDirEmpty(migrationsDir) {
-			fmt.Println("no migrations applied (migrations directory is empty)")
-			return nil
+		if err := requireMigrationsDir(migrationsDir); err != nil {
+			return err
 		}
 		dbURL, err := migrateCfg()
 		if err != nil {
@@ -108,9 +105,8 @@ var migrateRedoCmd = &cobra.Command{
 	Use:   "redo",
 	Short: "Roll back one migration and re-apply it",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if isMigrationsDirEmpty(migrationsDir) {
-			fmt.Println("no migrations applied (migrations directory is empty)")
-			return nil
+		if err := requireMigrationsDir(migrationsDir); err != nil {
+			return err
 		}
 		dbURL, err := migrateCfg()
 		if err != nil {
@@ -125,20 +121,30 @@ func init() {
 	rootCmd.AddCommand(migrateCmd)
 }
 
-// isMigrationsDirEmpty returns true if dir contains no .sql files.
-// Missing dir → treated as empty (callers get the same "no migrations"
-// message rather than a confusing "no such file" error).
-func isMigrationsDirEmpty(dir string) bool {
+// inspectMigrationsDir reports whether dir contains no migration SQL files.
+// Filesystem errors remain distinguishable from a genuinely empty directory.
+func inspectMigrationsDir(dir string) (bool, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
-		return true
+		return false, fmt.Errorf("read migration directory %q: %w", dir, err)
 	}
 	for _, e := range entries {
 		if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") {
-			return false
+			return false, nil
 		}
 	}
-	return true
+	return true, nil
+}
+
+func requireMigrationsDir(dir string) error {
+	empty, err := inspectMigrationsDir(dir)
+	if err != nil {
+		return err
+	}
+	if empty {
+		return fmt.Errorf("migration directory %q is empty", dir)
+	}
+	return nil
 }
 
 // fileSourceURL produces the file:// URL golang-migrate expects. It
@@ -167,9 +173,8 @@ func newMigrate(databaseURL, dir string) (*migrate.Migrate, error) {
 }
 
 func runMigrateUp(databaseURL, dir string) error {
-	if isMigrationsDirEmpty(dir) {
-		fmt.Println("no migrations applied (migrations directory is empty)")
-		return nil
+	if err := requireMigrationsDir(dir); err != nil {
+		return err
 	}
 	m, err := newMigrate(databaseURL, dir)
 	if err != nil {
@@ -183,9 +188,8 @@ func runMigrateUp(databaseURL, dir string) error {
 }
 
 func runMigrateDown(databaseURL, dir string, n int) error {
-	if isMigrationsDirEmpty(dir) {
-		fmt.Println("no migrations applied (migrations directory is empty)")
-		return nil
+	if err := requireMigrationsDir(dir); err != nil {
+		return err
 	}
 	m, err := newMigrate(databaseURL, dir)
 	if err != nil {
@@ -199,8 +203,8 @@ func runMigrateDown(databaseURL, dir string, n int) error {
 }
 
 func runMigrateStatus(databaseURL, dir string) (string, error) {
-	if isMigrationsDirEmpty(dir) {
-		return "no migrations applied (migrations directory is empty)", nil
+	if err := requireMigrationsDir(dir); err != nil {
+		return "", err
 	}
 	m, err := newMigrate(databaseURL, dir)
 	if err != nil {
@@ -218,9 +222,8 @@ func runMigrateStatus(databaseURL, dir string) (string, error) {
 }
 
 func runMigrateRedo(databaseURL, dir string) error {
-	if isMigrationsDirEmpty(dir) {
-		fmt.Println("no migrations applied (migrations directory is empty)")
-		return nil
+	if err := requireMigrationsDir(dir); err != nil {
+		return err
 	}
 	m, err := newMigrate(databaseURL, dir)
 	if err != nil {

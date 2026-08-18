@@ -84,8 +84,8 @@ func TestWorkerProcessesBoundedBatchWithoutHTTP(t *testing.T) {
 
 	now := time.Date(2026, time.July, 31, 12, 0, 0, 0, time.UTC)
 	store := &recordingClaimStore{items: []WorkItem{
-		{ID: uuid.MustParse("11111111-1111-4111-8111-111111111111")},
-		{ID: uuid.MustParse("22222222-2222-4222-8222-222222222222")},
+		{ID: uuid.MustParse("11111111-1111-4111-8111-111111111111"), OwnerGeneration: 1},
+		{ID: uuid.MustParse("22222222-2222-4222-8222-222222222222"), OwnerGeneration: 1},
 	}}
 	processor := &recordingWorkProcessor{}
 	observer := &recordingScheduledObserver{}

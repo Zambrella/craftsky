@@ -14,10 +14,15 @@ type MockAuthService struct {
 }
 
 var _ AuthService = (*MockAuthService)(nil)
+var _ RecoveryAuthService = (*MockAuthService)(nil)
 
 func (m *MockAuthService) Authenticate(ctx context.Context, token string) (AuthInfo, error) {
 	if did, ok := DevDIDFromContext(ctx); ok {
 		return AuthInfo{DID: did}, nil
 	}
 	return AuthInfo{DID: m.DefaultDID}, nil
+}
+
+func (m *MockAuthService) AuthenticateRecovery(ctx context.Context, token string) (AuthInfo, error) {
+	return m.Authenticate(ctx, token)
 }

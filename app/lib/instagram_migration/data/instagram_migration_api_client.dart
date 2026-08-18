@@ -1,5 +1,6 @@
 import 'package:craftsky_app/instagram_migration/models/instagram_account.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
+import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_verification.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/api_unwrap.dart';
@@ -154,6 +155,40 @@ final class InstagramMigrationApiClient {
   Future<void> deleteImport(String importId) => unwrapApi(() async {
     final response = await _dio.delete<void>(
       '/v1/migrations/instagram/imports/${Uri.encodeComponent(importId)}',
+    );
+    _requireStatus(response, 204);
+  });
+
+  Future<InstagramSuggestionPage> listSuggestions({
+    int? limit,
+    String? cursor,
+  }) => unwrapApi(() async {
+    final response = await _dio.get<Object?>(
+      '/v1/migrations/instagram/suggestions',
+      queryParameters: {'limit': ?limit, 'cursor': ?cursor},
+    );
+    _requireStatus(response, 200);
+    return _decodeMap(response.data, InstagramSuggestionPage.fromMap);
+  });
+
+  Future<InstagramSuggestionActionResult> acceptSuggestion(
+    String suggestionId,
+  ) => unwrapApi(() async {
+    final response = await _dio.post<Object?>(
+      '/v1/migrations/instagram/suggestions/'
+      '${Uri.encodeComponent(suggestionId)}/accept',
+    );
+    _requireStatus(response, 200);
+    return _decodeMap(
+      response.data,
+      InstagramSuggestionActionResult.fromMap,
+    );
+  });
+
+  Future<void> dismissSuggestion(String suggestionId) => unwrapApi(() async {
+    final response = await _dio.delete<void>(
+      '/v1/migrations/instagram/suggestions/'
+      '${Uri.encodeComponent(suggestionId)}',
     );
     _requireStatus(response, 204);
   });

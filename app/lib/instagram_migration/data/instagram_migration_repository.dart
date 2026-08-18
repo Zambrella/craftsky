@@ -1,5 +1,6 @@
 import 'package:craftsky_app/instagram_migration/models/instagram_account.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
+import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_verification.dart';
 
 abstract interface class InstagramMigrationRepository {
@@ -40,4 +41,15 @@ abstract interface class InstagramMigrationRepository {
   );
 
   Future<void> deleteImport(String importId);
+
+  Future<InstagramSuggestionPage> listSuggestions({
+    int? limit,
+    String? cursor,
+  });
+
+  Future<InstagramSuggestionActionResult> acceptSuggestion(
+    String suggestionId,
+  );
+
+  Future<void> dismissSuggestion(String suggestionId);
 }

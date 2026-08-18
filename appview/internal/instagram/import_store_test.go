@@ -155,7 +155,7 @@ func TestImportStoreMembershipReactivationAndDeleteArePrivate(t *testing.T) {
 	}
 }
 
-func TestImportStoreDeleteInvalidatesEveryUnsupportedUnwrittenOperation(t *testing.T) {
+func TestImportStoreDeleteInvalidatesEveryUnsupportedPrivateSuggestion(t *testing.T) {
 	store, pool := newImportTestStore(t)
 	ctx := context.Background()
 	owner := syntax.DID("did:plc:synthetic-import-delete")
@@ -173,28 +173,22 @@ func TestImportStoreDeleteInvalidatesEveryUnsupportedUnwrittenOperation(t *testi
 		t.Fatalf("create import: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO instagram_automatic_follow_ledger(
-			id,importer_did,target_did,state,reason,created_at,updated_at
-		) VALUES($1,$2,$3,'pending','verifiedInstagramFollow',$4,$4)
+		INSERT INTO instagram_private_suggestions(
+			id,importer_did,target_did,importer_generation,target_generation,
+			evidence_link_id,state,reason,created_at,updated_at
+		) VALUES(
+			$1,$2,$3,1,1,
+			(SELECT id FROM instagram_account_links WHERE owner_did=$2 LIMIT 1),
+			'pending','verifiedInstagramFollow',$4,$4
+		)
 	`, suggestionID, owner, target, now); err != nil {
 		t.Fatalf("seed import suggestion: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO instagram_automatic_follow_sources(automatic_follow_id,import_id,created_at)
+		INSERT INTO instagram_private_suggestion_sources(suggestion_id,import_id,created_at)
 		VALUES($1,$2,$3)
 	`, suggestionID, importID, now); err != nil {
 		t.Fatalf("seed import suggestion source: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO pds_follow_operations(
-			id,automatic_follow_id,owner_did,target_did,rkey,status,
-			attempt_count,next_attempt_at,created_at,updated_at
-		) VALUES(
-			'00000000-0000-0000-0000-000000000207',$1,$2,$3,
-			'3kyimportdelete','pending',0,$4,$4,$4
-		)
-	`, suggestionID, owner, target, now); err != nil {
-		t.Fatalf("seed import follow operation: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO instagram_reconciliation_jobs(
@@ -210,18 +204,17 @@ func TestImportStoreDeleteInvalidatesEveryUnsupportedUnwrittenOperation(t *testi
 	if err := store.DeleteImport(ctx, owner, importID, now.Add(time.Minute)); err != nil {
 		t.Fatalf("delete import: %v", err)
 	}
-	var suggestionState AutomaticFollowState
-	var followStatus, jobStatus string
+	var suggestionState SuggestionState
+	var jobStatus string
 	if err := pool.QueryRow(ctx, `
 		SELECT
-			(SELECT state FROM instagram_automatic_follow_ledger WHERE id=$1),
-			(SELECT status FROM pds_follow_operations WHERE automatic_follow_id=$1),
+			(SELECT state FROM instagram_private_suggestions WHERE id=$1),
 			(SELECT status FROM instagram_reconciliation_jobs WHERE id='00000000-0000-0000-0000-00000000020a')
-	`, suggestionID).Scan(&suggestionState, &followStatus, &jobStatus); err != nil {
+	`, suggestionID).Scan(&suggestionState, &jobStatus); err != nil {
 		t.Fatalf("inspect deleted-import dependents: %v", err)
 	}
-	if suggestionState != AutomaticFollowInvalidated || followStatus != "invalidated" || jobStatus != "ignored" {
-		t.Fatalf("dependents automaticFollow=%s operation=%s job=%s", suggestionState, followStatus, jobStatus)
+	if suggestionState != SuggestionInvalidated || jobStatus != "ignored" {
+		t.Fatalf("dependents suggestion=%s job=%s", suggestionState, jobStatus)
 	}
 }
 
@@ -288,6 +281,7 @@ func newImportTestStore(t *testing.T) (*ImportStore, *pgxpool.Pool) {
 		"000029_notification_client_owned_destination.up.sql",
 		"000030_instagram_automatic_follows.up.sql",
 		"000031_instagram_automatic_follow_storage_names.up.sql",
+		"000042_instagram_private_suggestions.up.sql",
 	} {
 		contents, err := os.ReadFile("../../migrations/" + name)
 		if err != nil {

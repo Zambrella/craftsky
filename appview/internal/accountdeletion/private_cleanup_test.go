@@ -73,6 +73,12 @@ func TestDatabasePrivateCleanupDeletesOnlyOwnerPrivateState(t *testing.T) {
 
 	seedSQL := `
 		INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'alice-profile-cid'),($2,'bob-profile-cid');
+		INSERT INTO owner_lifecycles(
+			owner_did,state,generation,auth_epoch,transition_reason,
+			transitioned_at,created_at,updated_at
+		) VALUES
+			($1,'deleting',1,2,'accountDeletionTest',$3,$3,$3),
+			($2,'active',1,1,'accountDeletionTest',$3,$3,$3);
 		INSERT INTO craftsky_posts(uri,did,rkey,cid,text,record,created_at)
 		VALUES
 			('at://did:plc:alice/social.craftsky.feed.post/a',$1,'a','alice-post-cid','alice','{}',$3),
@@ -80,8 +86,9 @@ func TestDatabasePrivateCleanupDeletesOnlyOwnerPrivateState(t *testing.T) {
 		INSERT INTO oauth_sessions(account_did,session_id,data)
 		VALUES($1,'alice-deletion-oauth','{}'),($2,'bob-oauth','{}');
 		INSERT INTO account_deletion_operations(
-			id,owner_did,state,accepted_at,deletion_oauth_session_id
-		) VALUES($4,$1,'active',$3,'alice-deletion-oauth');
+			id,owner_did,owner_generation,state,accepted_at,
+			deletion_oauth_session_id,deletion_credential_generation
+		) VALUES($4,$1,1,'active',$3,'alice-deletion-oauth',1);
 
 		INSERT INTO craftsky_recent_searches(id,viewer_did,search_type,display_label,normalized_payload,normalized_payload_hash)
 		VALUES('alice-search',$1,'profile','Alice private search','{}','alice-search-hash'),

@@ -18,7 +18,7 @@ import (
 	"social.craftsky/appview/internal/testdb"
 )
 
-func TestInstagramVerificationRoutePoliciesRequireAuthDeviceAndCurrentMember(t *testing.T) {
+func TestInstagramRoutePoliciesRequireAuthDeviceAndCurrentMember(t *testing.T) {
 	t.Parallel()
 
 	want := map[string]struct {
@@ -38,17 +38,17 @@ func TestInstagramVerificationRoutePoliciesRequireAuthDeviceAndCurrentMember(t *
 		"GET /v1/migrations/instagram/imports/{importId}":                      {rate: RateClassRead, body: BodyNoBody},
 		"PATCH /v1/migrations/instagram/imports/{importId}":                    {rate: RateClassWrite, body: BodyDefaultJSON},
 		"DELETE /v1/migrations/instagram/imports/{importId}":                   {rate: RateClassWrite, body: BodyNoBody},
+		"GET /v1/migrations/instagram/suggestions":                             {rate: RateClassRead, body: BodyNoBody},
+		"POST /v1/migrations/instagram/suggestions/{suggestionId}/accept":      {rate: RateClassWrite, body: BodyNoBody},
+		"DELETE /v1/migrations/instagram/suggestions/{suggestionId}":           {rate: RateClassWrite, body: BodyNoBody},
 	}
 	for _, policy := range V1RoutePolicies(app.EnvProd, app.Config{Env: app.EnvProd}) {
 		key := policy.Method + " " + policy.PathPattern
-		if strings.Contains(policy.PathPattern, "/migrations/instagram/suggestions") {
-			t.Errorf("removed Instagram suggestion policy remains public: %s", key)
-		}
 		expected, ok := want[key]
 		if !ok {
 			continue
 		}
-		if !policy.AuthRequired || !policy.CurrentMemberRequired || policy.RateClass != expected.rate || policy.BodyKind != expected.body {
+		if policy.AccessClass != AccessCurrentMember || policy.RateClass != expected.rate || policy.BodyKind != expected.body {
 			t.Errorf("policy %s = %+v", key, policy)
 		}
 		delete(want, key)
@@ -211,7 +211,11 @@ func TestInstagramWebhookRoutesAreAbsentUntilCompleteHandlerIsWired(t *testing.T
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	disabledMux := http.NewServeMux()
-	AddRoutes(context.Background(), disabledMux, &app.Deps{Config: app.Config{Env: app.EnvDev}, Logger: logger})
+	AddRoutes(context.Background(), disabledMux, &app.Deps{
+		Config:      app.Config{Env: app.EnvDev},
+		Logger:      logger,
+		AuthService: &auth.MockAuthService{DefaultDID: "did:plc:test"},
+	})
 	for _, method := range []string{http.MethodGet, http.MethodPost} {
 		rr := httptest.NewRecorder()
 		disabledMux.ServeHTTP(rr, httptest.NewRequest(method, "/integrations/instagram/webhook", nil))
@@ -223,8 +227,9 @@ func TestInstagramWebhookRoutesAreAbsentUntilCompleteHandlerIsWired(t *testing.T
 	calls := make(map[string]int)
 	enabledMux := http.NewServeMux()
 	AddRoutes(context.Background(), enabledMux, &app.Deps{
-		Config: app.Config{Env: app.EnvDev},
-		Logger: logger,
+		Config:      app.Config{Env: app.EnvDev},
+		Logger:      logger,
+		AuthService: &auth.MockAuthService{DefaultDID: "did:plc:test"},
 		InstagramWebhook: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			calls[r.Method]++
 			w.WriteHeader(http.StatusOK)

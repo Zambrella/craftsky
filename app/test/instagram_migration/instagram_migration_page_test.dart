@@ -8,6 +8,7 @@ import 'package:craftsky_app/instagram_migration/data/instagram_migration_reposi
 import 'package:craftsky_app/instagram_migration/data/instagram_verification_storage.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_account.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
+import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_verification.dart';
 import 'package:craftsky_app/instagram_migration/pages/instagram_migration_page.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_migration_repository_provider.dart';
@@ -77,7 +78,7 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.text('Complete verification to sync the accounts you follow.'),
+        find.text('Complete verification to import the accounts you follow.'),
         findsOneWidget,
       );
       expect(
@@ -254,28 +255,13 @@ void main() {
     expect(find.text('Preview normalized handles'), findsNothing);
     await tester.drag(find.byType(ListView), const Offset(0, -300));
     await tester.pumpAndSettle();
-    final notificationSettings = find.byWidgetPredicate(
-      (widget) =>
-          widget is RichText &&
-          widget.text.toPlainText().contains('Notification settings'),
-      description: 'Instagram notification settings link',
-    );
-    expect(notificationSettings, findsOneWidget);
     expect(
-      find.widgetWithText(TextButton, 'Notification settings'),
-      findsNothing,
+      find.text(
+        'Importing creates private suggestions only. You choose whether to '
+        'follow each account.',
+      ),
+      findsOneWidget,
     );
-    final notificationNotice = tester.widget<RichText>(notificationSettings);
-    var hasNotificationSettingsLink = false;
-    notificationNotice.text.visitChildren((span) {
-      if (span is TextSpan &&
-          span.text == 'Notification settings' &&
-          span.recognizer != null) {
-        hasNotificationSettingsLink = true;
-      }
-      return true;
-    });
-    expect(hasNotificationSettingsLink, isTrue);
     final importButton = find.text('Import handles');
     await tester.drag(find.byType(ListView), const Offset(0, -300));
     await tester.pumpAndSettle();
@@ -801,7 +787,7 @@ void main() {
     expect(
       find.text(
         'When enabled, eligible CraftSky members who imported your Instagram '
-        'username will automatically follow you when CraftSky finds a match.',
+        'username may see a private suggestion to follow you.',
       ),
       findsOneWidget,
     );
@@ -816,8 +802,8 @@ void main() {
             .getTopLeft(
               find.text(
                 'When enabled, eligible CraftSky members who imported your '
-                'Instagram username will automatically follow you when '
-                'CraftSky finds a match.',
+                'Instagram username may see a private suggestion to follow '
+                'you.',
               ),
             )
             .dy,
@@ -837,7 +823,7 @@ void main() {
     expect(
       find.text(
         'When enabled, eligible CraftSky members who imported your Instagram '
-        'username will automatically follow you when CraftSky finds a match.',
+        'username may see a private suggestion to follow you.',
       ),
       findsNothing,
     );
@@ -1311,6 +1297,12 @@ final class _Repository implements InstagramMigrationRepository {
   @override
   Future<InstagramImportPage> listImports({int? limit, String? cursor}) async =>
       imports;
+
+  @override
+  Future<InstagramSuggestionPage> listSuggestions({
+    int? limit,
+    String? cursor,
+  }) async => InstagramSuggestionPage(items: const [], cursor: null);
 
   @override
   Future<void> revokeAccount() => onRevokeAccount!.call();

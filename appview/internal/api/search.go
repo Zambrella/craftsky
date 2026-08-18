@@ -462,15 +462,6 @@ func DeleteRecentSearchHandler(store *SearchStore, logger *slog.Logger) http.Han
 	})
 }
 
-func searchNotImplementedHandler(logger *slog.Logger) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if logger != nil {
-			logger.Debug("search endpoint reached before store loop", slog.String("run_id", middleware.GetRunID(r.Context())))
-		}
-		envelope.WriteError(w, http.StatusNotImplemented, "not_implemented", "search endpoint not implemented", middleware.GetRunID(r.Context()), nil)
-	})
-}
-
 func buildSearchPostResponses(ctx context.Context, rows []SearchPostRow, viewerDID string, store *SearchStore, resolver HandleResolver) ([]*PostResponse, error) {
 	items := make([]*PostResponse, 0, len(rows))
 	uris := make([]string, 0, len(rows))

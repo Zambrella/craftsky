@@ -6,9 +6,12 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
+
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/notifications"
+	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
 type NotificationPreferencesResponse struct {
@@ -47,6 +50,9 @@ func (s *PostStore) PatchNotificationPreferences(ctx context.Context, did string
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
+	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, syntax.DID(did), nil); err != nil {
+		return nil, err
+	}
 	rows, err := tx.Query(ctx, `SELECT category, scope, push_enabled FROM notification_preferences WHERE account_did = $1 FOR UPDATE`, did)
 	if err != nil {
 		return nil, err

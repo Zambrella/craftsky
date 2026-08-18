@@ -2,7 +2,7 @@
 
 - **Severity:** High
 - **Priority/order:** 1 — land with the inbound body/admission work before scheduled media is exposed outside controlled development
-- **Status:** Planned
+- **Status:** Partially implemented — core/server, client resize, fuzz, and host benchmark complete; release-container memory proof and legacy cleanup pending
 - **Source:** [AV-016](../2026-08-12-appview-code-audit.md#av-016--scheduled-image-validation-permits-decompression-bomb-oom)
 
 ## Shared implementation strategy
@@ -152,13 +152,13 @@ If the product later requires dimension-policy changes to revalidate already sta
 
 ### AV-016
 
-- [ ] `image.DecodeConfig` runs before every full scheduled-image decode.
-- [ ] Width, height, total pixels, and long-to-short aspect ratio have explicit non-disableable ceilings enforced with overflow-safe arithmetic for JPEG, PNG, and WebP.
-- [ ] A test seam proves no full decode occurs for a compact header declaring over-limit geometry.
-- [ ] Full decoding of accepted geometry still rejects truncated/corrupt streams and verifies MIME/format/bounds consistency.
-- [ ] One process-wide concurrency gate and bounded admission wait cap aggregate decoder memory; cancellation and panic always release the permit.
+- [x] `image.DecodeConfig` runs before every full scheduled-image decode.
+- [x] Width, height, total pixels, and long-to-short aspect ratio have explicit non-disableable ceilings enforced with overflow-safe arithmetic for JPEG, PNG, and WebP.
+- [x] A test seam proves no full decode occurs for a compact header declaring over-limit geometry.
+- [x] Full decoding of accepted geometry still rejects truncated/corrupt streams and verifies MIME/format/bounds consistency.
+- [x] One process-wide concurrency gate and bounded admission wait cap aggregate decoder memory; cancellation and panic always release the permit.
 - [ ] Worst-case per-codec container measurements demonstrate baseline + peak decoder use + safety margin below the deployment limit, or decoding is moved to a constrained worker.
-- [ ] Invalid or saturated requests create no scheduled-media reservation/object and use safe standard error envelopes.
+- [x] Invalid or saturated requests create no scheduled-media reservation/object and use safe standard error envelopes.
 - [ ] Legacy non-production staged private media is removed through durable cleanup, without deleting any PDS record/blob.
 
 ## Dependencies and coordination

@@ -55,36 +55,12 @@ func TestResolvePreferencesRejectsInvalidPatchWithoutReturningPartialState(t *te
 	}
 }
 
-func TestInstagramMatchPreferenceHasFixedScopeAndPushOnlyPatch(t *testing.T) {
+func TestRetiredInstagramMatchPreferenceIsRejected(t *testing.T) {
 	pushOff := false
 	got, err := ResolvePreferences(nil, map[Category]PreferencePatch{
-		InstagramMatch: {PushEnabled: &pushOff},
+		Category("instagramMatch"): {PushEnabled: &pushOff},
 	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got[InstagramMatch] != (Preference{Scope: Everyone, PushEnabled: false}) {
-		t.Fatalf("instagramMatch = %+v, want fixed everyone scope with push disabled", got[InstagramMatch])
-	}
-
-	for _, scope := range []Scope{Everyone, PeopleIFollow} {
-		t.Run(string(scope), func(t *testing.T) {
-			got, err := ResolvePreferences(nil, map[Category]PreferencePatch{
-				InstagramMatch: {Scope: &scope},
-			})
-			if err == nil {
-				t.Fatal("instagramMatch scope mutation succeeded")
-			}
-			if got != nil {
-				t.Fatalf("invalid scope mutation returned partial preferences: %+v", got)
-			}
-		})
-	}
-
-	got, err = ResolvePreferences(map[Category]Preference{
-		InstagramMatch: {Scope: PeopleIFollow, PushEnabled: true},
-	}, nil)
 	if err == nil || got != nil {
-		t.Fatalf("invalid persisted instagramMatch scope returned got=%+v err=%v", got, err)
+		t.Fatalf("retired category returned got=%+v err=%v", got, err)
 	}
 }

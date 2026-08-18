@@ -19,6 +19,7 @@ type StackedAuthService struct {
 }
 
 var _ AuthService = (*StackedAuthService)(nil)
+var _ RecoveryAuthService = (*StackedAuthService)(nil)
 
 func (s *StackedAuthService) Authenticate(ctx context.Context, token string) (AuthInfo, error) {
 	info, err := s.Real.Authenticate(ctx, token)
@@ -30,6 +31,20 @@ func (s *StackedAuthService) Authenticate(ctx context.Context, token string) (Au
 	}
 	// Real lookup said "no such token" (or token was empty). Fall back to
 	// the X-Dev-DID header if present.
+	if did, ok := DevDIDFromContext(ctx); ok && did != "" {
+		return AuthInfo{DID: did}, nil
+	}
+	return AuthInfo{}, err
+}
+
+func (s *StackedAuthService) AuthenticateRecovery(ctx context.Context, token string) (AuthInfo, error) {
+	info, err := s.Real.AuthenticateRecovery(ctx, token)
+	if err == nil {
+		return info, nil
+	}
+	if !errors.Is(err, ErrAuthTokenInvalid) {
+		return AuthInfo{}, err
+	}
 	if did, ok := DevDIDFromContext(ctx); ok && did != "" {
 		return AuthInfo{DID: did}, nil
 	}

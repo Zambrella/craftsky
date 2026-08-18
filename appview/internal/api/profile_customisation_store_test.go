@@ -9,6 +9,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -17,6 +18,29 @@ CREATE TABLE craftsky_profiles (
     did        TEXT NOT NULL PRIMARY KEY,
     record_cid TEXT NOT NULL
 );
+CREATE TABLE owner_lifecycles (
+	owner_did TEXT PRIMARY KEY,
+	state TEXT NOT NULL,
+	generation BIGINT NOT NULL,
+	auth_epoch BIGINT NOT NULL DEFAULT 1,
+	transition_reason TEXT NOT NULL DEFAULT 'test',
+	transitioned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	terminal_at TIMESTAMPTZ,
+	purge_completed_at TIMESTAMPTZ,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE FUNCTION seed_active_profile_customisation_owner() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+	INSERT INTO owner_lifecycles(owner_did,state,generation)
+	VALUES(NEW.did,'active',1)
+	ON CONFLICT (owner_did) DO NOTHING;
+	RETURN NEW;
+END
+$$;
+CREATE TRIGGER seed_active_profile_customisation_owner
+AFTER INSERT ON craftsky_profiles
+FOR EACH ROW EXECUTE FUNCTION seed_active_profile_customisation_owner();
 INSERT INTO craftsky_profiles (did, record_cid)
 VALUES ('did:plc:alice', 'alice-cid'), ('did:plc:bob', 'bob-cid');
 `
@@ -27,7 +51,7 @@ func TestProfileCustomisationStorePersistsCompleteOwnerScopedValues(t *testing.T
 		t.Fatalf("read profile customisation migration: %v", err)
 	}
 	pool := testdb.WithSchema(t, profileCustomisationStoreTestDDL+string(migration))
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	alice := syntax.DID("did:plc:alice")
 	bob := syntax.DID("did:plc:bob")
 	now := time.Date(2026, 8, 10, 12, 0, 0, 0, time.UTC)

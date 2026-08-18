@@ -5,15 +5,42 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"os"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"social.craftsky/appview/internal/testdb"
 )
+
+type permissiveLifecycleFence struct{}
+
+func (permissiveLifecycleFence) WithActiveOwners(
+	ctx context.Context,
+	_ []syntax.DID,
+	callback func(context.Context) error,
+) error {
+	return callback(ctx)
+}
+
+func newTestDispatcher(
+	t *testing.T,
+	pool *pgxpool.Pool,
+	sender Sender,
+	options DispatcherOptions,
+) *Dispatcher {
+	t.Helper()
+	options.LifecycleFence = permissiveLifecycleFence{}
+	dispatcher, err := NewDispatcherValidated(pool, sender, options)
+	if err != nil {
+		t.Fatalf("NewDispatcherValidated: %v", err)
+	}
+	return dispatcher
+}
 
 type blockingSender struct {
 	mu       sync.Mutex
@@ -36,6 +63,48 @@ type queueObserver struct {
 
 type privacyObserver struct{ values []string }
 
+type claimedDeliveryRowsStub struct {
+	remaining int
+	err       error
+	closed    bool
+}
+
+func (rows *claimedDeliveryRowsStub) Next() bool {
+	if rows.remaining == 0 {
+		return false
+	}
+	rows.remaining--
+	return true
+}
+
+func (*claimedDeliveryRowsStub) Scan(...any) error {
+	return nil
+}
+
+func (rows *claimedDeliveryRowsStub) Err() error {
+	return rows.err
+}
+
+func (rows *claimedDeliveryRowsStub) Close() {
+	rows.closed = true
+}
+
+func TestScanClaimedDeliveriesRejectsPrefixOnTerminalError(t *testing.T) {
+	sentinel := errors.New("claim iterator failed after prefix")
+	rows := &claimedDeliveryRowsStub{remaining: 1, err: sentinel}
+
+	deliveries, err := scanClaimedDeliveries(rows)
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("error = %v, want terminal iterator error", err)
+	}
+	if len(deliveries) != 0 {
+		t.Fatalf("deliveries = %v, want no usable partial prefix", deliveries)
+	}
+	if !rows.closed {
+		t.Fatal("rows were not closed before returning")
+	}
+}
+
 func (o *privacyObserver) ObservePushDelivery(platform, result string) {
 	o.values = append(o.values, platform, result)
 }
@@ -52,6 +121,22 @@ func (s sentinelFailureSender) Send(context.Context, SendRequest) (ProviderResul
 type contextBlockingSender struct {
 	request  SendRequest
 	deadline time.Time
+}
+
+type deadlineCaptureSender struct {
+	request  SendRequest
+	deadline time.Time
+	calls    int
+}
+
+func (s *deadlineCaptureSender) Send(
+	ctx context.Context,
+	request SendRequest,
+) (ProviderResult, error) {
+	s.calls++
+	s.request = request
+	s.deadline, _ = ctx.Deadline()
+	return ProviderResult{Class: ResultSuccess}, nil
 }
 
 func (s *contextBlockingSender) Send(ctx context.Context, request SendRequest) (ProviderResult, error) {
@@ -138,7 +223,7 @@ func TestDispatcherIT001ProjectsCanonicalRoutingFacts(t *testing.T) {
 
 	sender := &scriptedSender{}
 	now := time.Now().UTC()
-	dispatcher := NewDispatcher(pool, sender, DispatcherOptions{Now: func() time.Time { return now }})
+	dispatcher := newTestDispatcher(t, pool, sender, DispatcherOptions{Now: func() time.Time { return now }})
 	if n, err := dispatcher.ProcessBatch(context.Background(), "worker"); err != nil || n != 1 {
 		t.Fatalf("n=%d err=%v", n, err)
 	}
@@ -177,7 +262,7 @@ func TestDispatcherSuppressesRelationshipProtectedDeliveryBeforeProviderSend(t *
 				t.Fatal(err)
 			}
 			sender := &scriptedSender{}
-			dispatcher := NewDispatcher(pool, sender, DispatcherOptions{})
+			dispatcher := newTestDispatcher(t, pool, sender, DispatcherOptions{})
 			if n, err := dispatcher.ProcessBatch(context.Background(), "worker"); err != nil || n != 0 {
 				t.Fatalf("n=%d err=%v", n, err)
 			}
@@ -185,6 +270,39 @@ func TestDispatcherSuppressesRelationshipProtectedDeliveryBeforeProviderSend(t *
 				t.Fatalf("provider sends = %d, want 0", sender.requestCount())
 			}
 		})
+	}
+}
+
+func TestDispatcherNeverClaimsDeliveryForTerminalActor(t *testing.T) {
+	pool := dispatcherPool(t)
+	seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
+	if _, err := pool.Exec(context.Background(), `
+		CREATE OR REPLACE FUNCTION appview_owner_is_terminal(candidate_did TEXT)
+		RETURNS BOOLEAN
+		LANGUAGE SQL
+		IMMUTABLE
+		AS $$ SELECT candidate_did = 'did:plc:actor' $$
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	sender := &scriptedSender{}
+	dispatcher := newTestDispatcher(t, pool, sender, DispatcherOptions{})
+	if n, err := dispatcher.ProcessBatch(context.Background(), "terminal-fence"); err != nil || n != 0 {
+		t.Fatalf("n=%d err=%v, want no claimed terminal delivery", n, err)
+	}
+	if sender.requestCount() != 0 {
+		t.Fatalf("provider sends=%d, want 0", sender.requestCount())
+	}
+	var status string
+	if err := pool.QueryRow(context.Background(), `
+		SELECT status FROM push_deliveries
+		WHERE id='40000000-0000-0000-0000-000000000001'
+	`).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != "pending" {
+		t.Fatalf("delivery status=%q, want pending for later purge", status)
 	}
 }
 
@@ -226,7 +344,7 @@ func TestDispatcherIT012ProjectsTargetContentRole(t *testing.T) {
 
 			sender := &scriptedSender{}
 			now := time.Now().UTC()
-			dispatcher := NewDispatcher(pool, sender, DispatcherOptions{Now: func() time.Time { return now }})
+			dispatcher := newTestDispatcher(t, pool, sender, DispatcherOptions{Now: func() time.Time { return now }})
 			if n, err := dispatcher.ProcessBatch(context.Background(), "worker"); err != nil || n != 1 {
 				t.Fatalf("n=%d err=%v", n, err)
 			}
@@ -242,7 +360,7 @@ func TestDispatcherRetriesThenSucceedsAndDoesNotResendSuccess(t *testing.T) {
 	seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
 	sender := &scriptedSender{results: []ProviderResult{{Class: ResultRetryable}, {Class: ResultSuccess}}}
 	now := time.Now().UTC()
-	dispatcher := NewDispatcher(pool, sender, DispatcherOptions{BatchSize: 10, LeaseDuration: time.Minute, Now: func() time.Time { return now }, Jitter: func() float64 { return 0 }})
+	dispatcher := newTestDispatcher(t, pool, sender, DispatcherOptions{BatchSize: 10, LeaseDuration: time.Minute, Now: func() time.Time { return now }, Jitter: func() float64 { return 0 }})
 	if n, err := dispatcher.ProcessBatch(context.Background(), "worker-1"); err != nil || n != 1 {
 		t.Fatalf("first n=%d err=%v", n, err)
 	}
@@ -268,7 +386,7 @@ func TestDispatcherExpiresWithoutSendingAndInvalidTokenDeactivatesInstallation(t
 		pool := dispatcherPool(t)
 		seedDelivery(t, pool, "pending", time.Now().Add(-time.Minute))
 		sender := &scriptedSender{}
-		d := NewDispatcher(pool, sender, DispatcherOptions{Now: time.Now, BatchSize: 10, LeaseDuration: time.Minute})
+		d := newTestDispatcher(t, pool, sender, DispatcherOptions{Now: time.Now, BatchSize: 10, LeaseDuration: time.Minute})
 		if n, err := d.ProcessBatch(context.Background(), "w"); err != nil || n != 1 {
 			t.Fatalf("n=%d err=%v", n, err)
 		}
@@ -282,7 +400,7 @@ func TestDispatcherExpiresWithoutSendingAndInvalidTokenDeactivatesInstallation(t
 		pool := dispatcherPool(t)
 		seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
 		sender := &scriptedSender{results: []ProviderResult{{Class: ResultInvalidToken}}}
-		d := NewDispatcher(pool, sender, DispatcherOptions{Now: time.Now, BatchSize: 10, LeaseDuration: time.Minute})
+		d := newTestDispatcher(t, pool, sender, DispatcherOptions{Now: time.Now, BatchSize: 10, LeaseDuration: time.Minute})
 		if _, err := d.ProcessBatch(context.Background(), "w"); err != nil {
 			t.Fatal(err)
 		}
@@ -298,8 +416,8 @@ func TestDispatchersClaimOneDeliveryOnceAndRecoverExpiredLease(t *testing.T) {
 	pool := dispatcherPool(t)
 	seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
 	sender := &scriptedSender{}
-	d1 := NewDispatcher(pool, sender, DispatcherOptions{Now: time.Now, BatchSize: 1, LeaseDuration: time.Minute})
-	d2 := NewDispatcher(pool, sender, DispatcherOptions{Now: time.Now, BatchSize: 1, LeaseDuration: time.Minute})
+	d1 := newTestDispatcher(t, pool, sender, DispatcherOptions{Now: time.Now, BatchSize: 1, LeaseDuration: time.Minute})
+	d2 := newTestDispatcher(t, pool, sender, DispatcherOptions{Now: time.Now, BatchSize: 1, LeaseDuration: time.Minute})
 	var wg sync.WaitGroup
 	wg.Add(2)
 	errs := make(chan error, 2)
@@ -333,7 +451,7 @@ func TestDispatcherDoesNotSendClaimedDeliveryCancelledBeforeItsTurn(t *testing.T
 	seedDelivery(t, pool, "pending", deadline)
 	seedSecondDelivery(t, pool, deadline)
 	sender := &blockingSender{started: make(chan int, 2), release: make(chan struct{}, 2)}
-	d := NewDispatcher(pool, sender, DispatcherOptions{Now: time.Now, BatchSize: 2, LeaseDuration: time.Minute})
+	d := newTestDispatcher(t, pool, sender, DispatcherOptions{Now: time.Now, BatchSize: 2, Concurrency: 1, LeaseDuration: time.Minute})
 
 	done := make(chan error, 1)
 	go func() { _, err := d.ProcessBatch(context.Background(), "worker"); done <- err }()
@@ -364,19 +482,234 @@ func TestDispatcherDoesNotSendClaimedDeliveryCancelledBeforeItsTurn(t *testing.T
 	}
 }
 
+func TestDispatcherClaimsOnlyAvailableWorkerSlotsJustInTime(t *testing.T) {
+	pool := dispatcherPool(t)
+	deadline := time.Now().Add(6 * time.Hour)
+	seedDelivery(t, pool, "pending", deadline)
+	for index := 2; index <= 5; index++ {
+		seedAdditionalDelivery(t, pool, index, deadline)
+	}
+
+	sender := &blockingSender{
+		started: make(chan int, 5),
+		release: make(chan struct{}, 5),
+	}
+	dispatcher := newTestDispatcher(t, pool, sender, DispatcherOptions{
+		BatchSize:     5,
+		Concurrency:   2,
+		LeaseDuration: time.Minute,
+	})
+	done := make(chan struct {
+		processed int
+		err       error
+	}, 1)
+	go func() {
+		processed, err := dispatcher.ProcessBatch(context.Background(), "worker")
+		done <- struct {
+			processed int
+			err       error
+		}{processed: processed, err: err}
+	}()
+
+	for started := 0; started < 2; started++ {
+		select {
+		case <-sender.started:
+		case <-time.After(time.Second):
+			t.Fatalf("provider calls started = %d, want 2 concurrent slots", started)
+		}
+	}
+
+	var leased, pending int
+	if err := pool.QueryRow(context.Background(), `
+		SELECT
+			count(*) FILTER (WHERE status='leased')::int,
+			count(*) FILTER (WHERE status='pending')::int
+		FROM push_deliveries
+	`).Scan(&leased, &pending); err != nil {
+		t.Fatal(err)
+	}
+	if leased != 2 || pending != 3 {
+		t.Fatalf("leased=%d pending=%d, want only two active-slot claims", leased, pending)
+	}
+
+	for completed := 0; completed < 5; completed++ {
+		sender.release <- struct{}{}
+		if completed >= 3 {
+			continue
+		}
+		select {
+		case <-sender.started:
+		case <-time.After(time.Second):
+			t.Fatalf("provider calls did not refill available slot after %d completions", completed+1)
+		}
+	}
+
+	select {
+	case result := <-done:
+		if result.err != nil || result.processed != 5 {
+			t.Fatalf("processed=%d err=%v", result.processed, result.err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("dispatcher did not finish bounded work budget")
+	}
+}
+
+func TestDispatcherClaimPersistsExactLeaseExpiryAndTypedDIDs(t *testing.T) {
+	pool := dispatcherPool(t)
+	base := time.Now().UTC().Add(time.Second).Truncate(time.Microsecond)
+	seedDelivery(t, pool, "pending", base.Add(6*time.Hour))
+	dispatcher := newTestDispatcher(t, pool, &scriptedSender{}, DispatcherOptions{
+		BatchSize:     1,
+		Concurrency:   1,
+		LeaseDuration: time.Minute,
+		Now:           func() time.Time { return base },
+	})
+
+	items, err := dispatcher.claimOne(context.Background(), "worker")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("claims = %d, want 1", len(items))
+	}
+	item := items[0]
+	wantExpiry := base.Add(time.Minute)
+	if !item.leaseExpiresAt.Equal(wantExpiry) {
+		t.Fatalf("claim expiry = %s, want %s", item.leaseExpiresAt, wantExpiry)
+	}
+	if item.recipientDID.String() != "did:plc:viewer" {
+		t.Fatalf("recipient DID = %q", item.recipientDID)
+	}
+	if item.actorDID == nil || item.actorDID.String() != "did:plc:actor" {
+		t.Fatalf("actor DID = %v", item.actorDID)
+	}
+
+	var persistedExpiry time.Time
+	if err := pool.QueryRow(context.Background(), `
+		SELECT lease_expires_at FROM push_deliveries WHERE id=$1
+	`, item.id).Scan(&persistedExpiry); err != nil {
+		t.Fatal(err)
+	}
+	if !persistedExpiry.Equal(item.leaseExpiresAt) {
+		t.Fatalf("persisted expiry = %s, claim expiry = %s", persistedExpiry, item.leaseExpiresAt)
+	}
+}
+
+func TestDispatcherAttemptDeadlineFitsInsidePersistedLease(t *testing.T) {
+	pool := dispatcherPool(t)
+	base := time.Now().UTC().Add(time.Second).Truncate(time.Microsecond)
+	seedDelivery(t, pool, "pending", base.Add(time.Hour))
+	now := base
+	sender := &deadlineCaptureSender{}
+	dispatcher := newTestDispatcher(t, pool, sender, DispatcherOptions{
+		BatchSize:          1,
+		Concurrency:        1,
+		LeaseDuration:      20 * time.Second,
+		SendTimeout:        10 * time.Second,
+		FinalizationMargin: 5 * time.Second,
+		Now:                func() time.Time { return now },
+	})
+	items, err := dispatcher.claimOne(context.Background(), "worker")
+	if err != nil || len(items) != 1 {
+		t.Fatalf("claims=%d err=%v", len(items), err)
+	}
+	item := items[0]
+	now = base.Add(8 * time.Second)
+
+	if err := dispatcher.processClaim(context.Background(), item); err != nil {
+		t.Fatal(err)
+	}
+	wantDeadline := item.leaseExpiresAt.Add(-5 * time.Second)
+	if sender.calls != 1 || !sender.deadline.Equal(wantDeadline) {
+		t.Fatalf("calls=%d deadline=%s, want %s", sender.calls, sender.deadline, wantDeadline)
+	}
+	if !sender.deadline.Before(item.leaseExpiresAt) {
+		t.Fatalf("attempt deadline=%s does not precede lease expiry=%s", sender.deadline, item.leaseExpiresAt)
+	}
+}
+
+func TestDispatcherDoesNotSendWithoutLeaseFinalizationWindow(t *testing.T) {
+	pool := dispatcherPool(t)
+	base := time.Now().UTC().Add(time.Second).Truncate(time.Microsecond)
+	seedDelivery(t, pool, "pending", base.Add(time.Hour))
+	now := base
+	sender := &deadlineCaptureSender{}
+	dispatcher := newTestDispatcher(t, pool, sender, DispatcherOptions{
+		BatchSize:          1,
+		Concurrency:        1,
+		LeaseDuration:      20 * time.Second,
+		SendTimeout:        10 * time.Second,
+		FinalizationMargin: 5 * time.Second,
+		Now:                func() time.Time { return now },
+	})
+	items, err := dispatcher.claimOne(context.Background(), "worker")
+	if err != nil || len(items) != 1 {
+		t.Fatalf("claims=%d err=%v", len(items), err)
+	}
+	now = items[0].leaseExpiresAt.Add(-dispatcher.options.FinalizationMargin)
+
+	if err := dispatcher.processClaim(context.Background(), items[0]); err != nil {
+		t.Fatal(err)
+	}
+	if sender.calls != 0 {
+		t.Fatalf("provider calls=%d, want none without finalization window", sender.calls)
+	}
+	var status string
+	var owner sql.NullString
+	if err := pool.QueryRow(context.Background(), `
+		SELECT status, lease_owner FROM push_deliveries WHERE id=$1
+	`, items[0].id).Scan(&status, &owner); err != nil {
+		t.Fatal(err)
+	}
+	if status != "retry" || owner.Valid {
+		t.Fatalf("status=%q owner=%v, want released retry", status, owner)
+	}
+}
+
+func TestDispatcherRejectsClaimWhenPersistedLeaseIdentityChanges(t *testing.T) {
+	pool := dispatcherPool(t)
+	base := time.Now().UTC().Add(time.Second).Truncate(time.Microsecond)
+	seedDelivery(t, pool, "pending", base.Add(time.Hour))
+	now := base
+	sender := &scriptedSender{}
+	dispatcher := newTestDispatcher(t, pool, sender, DispatcherOptions{
+		BatchSize:     1,
+		Concurrency:   1,
+		LeaseDuration: time.Minute,
+		Now:           func() time.Time { return now },
+	})
+	items, err := dispatcher.claimOne(context.Background(), "worker")
+	if err != nil || len(items) != 1 {
+		t.Fatalf("claims=%d err=%v", len(items), err)
+	}
+	item := items[0]
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE push_deliveries SET lease_expires_at=$2 WHERE id=$1
+	`, item.id, item.leaseExpiresAt.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := dispatcher.processClaim(context.Background(), item); err != nil {
+		t.Fatal(err)
+	}
+	if sender.requestCount() != 0 {
+		t.Fatalf("provider sends = %d, want stale claim rejected", sender.requestCount())
+	}
+}
+
 func TestDispatcherStaleWorkerCannotOverwriteRecoveredSuccess(t *testing.T) {
 	pool := dispatcherPool(t)
 	seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
 	now := time.Now().UTC().Add(time.Second)
 	staleSender := &blockingSender{results: []ProviderResult{{Class: ResultPermanentFailure}}, started: make(chan int, 1), release: make(chan struct{}, 1)}
-	stale := NewDispatcher(pool, staleSender, DispatcherOptions{Now: func() time.Time { return now }, BatchSize: 1, LeaseDuration: time.Minute})
+	stale := newTestDispatcher(t, pool, staleSender, DispatcherOptions{Now: func() time.Time { return now }, BatchSize: 1, LeaseDuration: time.Minute})
 
 	done := make(chan error, 1)
 	go func() { _, err := stale.ProcessBatch(context.Background(), "appview"); done <- err }()
 	<-staleSender.started
 	now = now.Add(2 * time.Minute)
 	freshSender := &blockingSender{started: make(chan int, 1), release: make(chan struct{}, 1)}
-	fresh := NewDispatcher(pool, freshSender, DispatcherOptions{Now: func() time.Time { return now }, BatchSize: 1, LeaseDuration: time.Minute})
+	fresh := newTestDispatcher(t, pool, freshSender, DispatcherOptions{Now: func() time.Time { return now }, BatchSize: 1, LeaseDuration: time.Minute})
 	freshDone := make(chan error, 1)
 	go func() { _, err := fresh.ProcessBatch(context.Background(), "appview"); freshDone <- err }()
 	<-freshSender.started
@@ -402,7 +735,7 @@ func TestDispatcherCannotFinalizeAfterItsLeaseExpires(t *testing.T) {
 	seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
 	now := time.Now().UTC().Add(time.Second)
 	sender := &blockingSender{started: make(chan int, 1), release: make(chan struct{}, 1)}
-	d := NewDispatcher(pool, sender, DispatcherOptions{Now: func() time.Time { return now }, BatchSize: 1, LeaseDuration: time.Minute})
+	d := newTestDispatcher(t, pool, sender, DispatcherOptions{Now: func() time.Time { return now }, BatchSize: 1, LeaseDuration: time.Minute})
 	done := make(chan error, 1)
 	go func() { _, err := d.ProcessBatch(context.Background(), "appview"); done <- err }()
 	<-sender.started
@@ -424,7 +757,7 @@ func TestDispatcherInvalidTokenResultCannotDeactivateRotatedInstallation(t *test
 	pool := dispatcherPool(t)
 	seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
 	sender := &blockingSender{results: []ProviderResult{{Class: ResultInvalidToken}}, started: make(chan int, 1), release: make(chan struct{}, 1)}
-	d := NewDispatcher(pool, sender, DispatcherOptions{Now: time.Now, BatchSize: 1, LeaseDuration: time.Minute})
+	d := newTestDispatcher(t, pool, sender, DispatcherOptions{Now: time.Now, BatchSize: 1, LeaseDuration: time.Minute})
 
 	done := make(chan error, 1)
 	go func() { _, err := d.ProcessBatch(context.Background(), "worker"); done <- err }()
@@ -450,7 +783,7 @@ func TestDispatcherSuccessForOldTokenCannotFinalizeAfterRotation(t *testing.T) {
 	pool := dispatcherPool(t)
 	seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
 	sender := &blockingSender{started: make(chan int, 1), release: make(chan struct{}, 1)}
-	d := NewDispatcher(pool, sender, DispatcherOptions{Now: time.Now, BatchSize: 1, LeaseDuration: time.Minute})
+	d := newTestDispatcher(t, pool, sender, DispatcherOptions{Now: time.Now, BatchSize: 1, LeaseDuration: time.Minute})
 	done := make(chan error, 1)
 	go func() { _, err := d.ProcessBatch(context.Background(), "worker"); done <- err }()
 	<-sender.started
@@ -476,7 +809,7 @@ func TestDispatcherRechecksDeadlineBeforeEachSend(t *testing.T) {
 	seedDelivery(t, pool, "pending", base.Add(time.Hour))
 	seedSecondDelivery(t, pool, base.Add(time.Second))
 	sender := &advancingSender{now: &base, advance: 2 * time.Second}
-	d := NewDispatcher(pool, sender, DispatcherOptions{Now: func() time.Time { return base }, BatchSize: 2, LeaseDuration: time.Minute})
+	d := newTestDispatcher(t, pool, sender, DispatcherOptions{Now: func() time.Time { return base }, BatchSize: 2, Concurrency: 1, LeaseDuration: time.Minute})
 	if n, err := d.ProcessBatch(context.Background(), "worker"); err != nil || n != 2 {
 		t.Fatalf("n=%d err=%v", n, err)
 	}
@@ -500,7 +833,7 @@ func TestDispatcherBoundsInFlightSendByAbsoluteDeadline(t *testing.T) {
 	deadline := time.Now().UTC().Add(250 * time.Millisecond)
 	seedDelivery(t, pool, "pending", deadline)
 	sender := &contextBlockingSender{}
-	d := NewDispatcher(pool, sender, DispatcherOptions{Now: time.Now, BatchSize: 1, LeaseDuration: time.Minute, SendTimeout: time.Second})
+	d := newTestDispatcher(t, pool, sender, DispatcherOptions{Now: time.Now, BatchSize: 1, LeaseDuration: time.Minute, SendTimeout: time.Second})
 	started := time.Now()
 	if n, err := d.ProcessBatch(context.Background(), "appview"); err != nil || n != 1 {
 		t.Fatalf("n=%d err=%v", n, err)
@@ -533,7 +866,7 @@ func TestDispatcherRunRecoversFromTransientStoreFailure(t *testing.T) {
 		CREATE TABLE atproto_blocks(uri TEXT PRIMARY KEY, blocker_did TEXT NOT NULL, subject_did TEXT NOT NULL);
 	`)
 	sender := &scriptedSender{}
-	d := NewDispatcher(pool, sender, DispatcherOptions{Now: time.Now, BatchSize: 1, LeaseDuration: time.Minute})
+	d := newTestDispatcher(t, pool, sender, DispatcherOptions{Now: time.Now, BatchSize: 1, LeaseDuration: time.Minute})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	done := make(chan error, 1)
@@ -579,7 +912,7 @@ func TestDispatcherObservesPersistedQueueDepthAndOldestAge(t *testing.T) {
 		t.Fatal(err)
 	}
 	observer := &queueObserver{}
-	d := NewDispatcher(pool, &scriptedSender{}, DispatcherOptions{Now: func() time.Time { return base }, BatchSize: 1, LeaseDuration: time.Minute, Observer: observer})
+	d := newTestDispatcher(t, pool, &scriptedSender{}, DispatcherOptions{Now: func() time.Time { return base }, BatchSize: 1, LeaseDuration: time.Minute, Observer: observer})
 	if _, err := d.ProcessBatch(context.Background(), "worker"); err != nil {
 		t.Fatal(err)
 	}
@@ -596,7 +929,7 @@ func TestDispatcherTelemetryNeverExposesProviderSentinels(t *testing.T) {
 		t.Fatal(err)
 	}
 	observer := &privacyObserver{}
-	d := NewDispatcher(pool, sentinelFailureSender{sentinel: sentinel}, DispatcherOptions{Now: time.Now, BatchSize: 1, LeaseDuration: time.Minute, Observer: observer})
+	d := newTestDispatcher(t, pool, sentinelFailureSender{sentinel: sentinel}, DispatcherOptions{Now: time.Now, BatchSize: 1, LeaseDuration: time.Minute, Observer: observer})
 	if _, err := d.ProcessBatch(context.Background(), "worker"); err != nil {
 		t.Fatal(err)
 	}
@@ -657,6 +990,35 @@ func seedSecondDelivery(t *testing.T, pool *pgxpool.Pool, deadline time.Time) {
 	if _, err := pool.Exec(context.Background(), `
 		INSERT INTO push_deliveries(id,notification_id,account_subscription_id,status,next_attempt_at,deadline_at)
 		VALUES('40000000-0000-0000-0000-000000000002','00000000-0000-0000-0000-000000000002','20000000-0000-0000-0000-000000000001','pending',now(),$1)`, deadline); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func seedAdditionalDelivery(
+	t *testing.T,
+	pool *pgxpool.Pool,
+	index int,
+	deadline time.Time,
+) {
+	t.Helper()
+	notificationID := fmt.Sprintf("00000000-0000-0000-0000-%012d", index)
+	deliveryID := fmt.Sprintf("40000000-0000-0000-0000-%012d", index)
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO notification_events(
+			id,recipient_did,actor_did,category,subject_key,source_uri,
+			source_cid,source_rkey,eligibility_scope,recipient_followed_actor,
+			push_enabled_snapshot,state,first_activity_at,activity_at,indexed_at,
+			initial_push_evaluated_at
+		) VALUES($1,'did:plc:viewer','did:plc:actor','like',$2,$3,$4,$5,
+			'everyone',false,true,'active',now(),now(),now(),now())
+	`, notificationID, fmt.Sprintf("subject-%d", index), fmt.Sprintf("source-%d", index), fmt.Sprintf("cid-%d", index), fmt.Sprintf("r-%d", index)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO push_deliveries(
+			id,notification_id,account_subscription_id,status,next_attempt_at,deadline_at
+		) VALUES($1,$2,'20000000-0000-0000-0000-000000000001','pending',now(),$3)
+	`, deliveryID, notificationID, deadline); err != nil {
 		t.Fatal(err)
 	}
 }

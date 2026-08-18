@@ -27,6 +27,11 @@ func TestNotificationNewnessAccountWideAcrossDevicesAndIsolatedByAccount(t *test
 		}
 	}
 	if _, err := pool.Exec(ctx, `
+		CREATE TABLE craftsky_profiles (
+			did TEXT PRIMARY KEY
+		);
+		INSERT INTO craftsky_profiles(did)
+		VALUES ('did:plc:alice'), ('did:plc:bob');
 		CREATE TABLE actor_mutes (
 			owner_did TEXT NOT NULL,
 			subject_did TEXT NOT NULL,

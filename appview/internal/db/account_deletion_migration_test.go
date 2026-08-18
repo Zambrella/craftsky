@@ -119,27 +119,6 @@ func TestAccountDeletionMigrationUpDown(t *testing.T) {
 	assertTableCount(t, pool, "migration_sentinel", 1)
 }
 
-func tableColumns(t *testing.T, pool *pgxpool.Pool, table string) []string {
-	t.Helper()
-	rows, err := pool.Query(context.Background(), `
-		SELECT column_name FROM information_schema.columns
-		WHERE table_schema=current_schema() AND table_name=$1
-	`, table)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer rows.Close()
-	var columns []string
-	for rows.Next() {
-		var column string
-		if err := rows.Scan(&column); err != nil {
-			t.Fatal(err)
-		}
-		columns = append(columns, column)
-	}
-	return columns
-}
-
 func assertTableCount(t *testing.T, pool *pgxpool.Pool, table string, want int) {
 	t.Helper()
 	var got int

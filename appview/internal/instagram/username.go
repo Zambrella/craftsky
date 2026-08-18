@@ -27,9 +27,7 @@ func (e ImportEntry) GoString() string { return e.String() }
 
 func NormalizeInstagramUsername(input string) (string, error) {
 	username := strings.TrimSpace(input)
-	if strings.HasPrefix(username, "@") {
-		username = username[1:]
-	}
+	username = strings.TrimPrefix(username, "@")
 	if len(username) == 0 || len(username) > MaxInstagramUsernameLength {
 		return "", ErrInvalidInstagramUsername
 	}

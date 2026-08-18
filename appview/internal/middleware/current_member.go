@@ -8,7 +8,20 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/ownerlifecycle"
 )
+
+type OwnerLifecycleReader interface {
+	Get(context.Context, syntax.DID) (ownerlifecycle.Lifecycle, error)
+}
+
+func WithOwnerGeneration(ctx context.Context, generation int64) context.Context {
+	return ownerlifecycle.WithExpectedGeneration(ctx, generation)
+}
+
+func GetOwnerGeneration(ctx context.Context) (int64, bool) {
+	return ownerlifecycle.ExpectedGeneration(ctx)
+}
 
 type CurrentMemberChecker interface {
 	IsCurrentMember(context.Context, syntax.DID) (bool, error)
@@ -17,7 +30,11 @@ type CurrentMemberChecker interface {
 // CurrentMember enforces the current craftsky_profiles membership boundary
 // after authentication. It deliberately maps a departed member to the same
 // public profile-not-found contract used by other membership-aware surfaces.
-func CurrentMember(checker CurrentMemberChecker, logger *slog.Logger) func(http.Handler) http.Handler {
+func CurrentMember(
+	checker CurrentMemberChecker,
+	logger *slog.Logger,
+	lifecycleReaders ...OwnerLifecycleReader,
+) func(http.Handler) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -45,6 +62,23 @@ func CurrentMember(checker CurrentMemberChecker, logger *slog.Logger) func(http.
 				envelope.WriteError(w, http.StatusNotFound,
 					"profile_not_found", "profile not found", GetRunID(r.Context()), nil)
 				return
+			}
+			if len(lifecycleReaders) == 1 && lifecycleReaders[0] != nil {
+				lifecycle, err := lifecycleReaders[0].Get(r.Context(), did)
+				if err != nil {
+					logger.Error("owner lifecycle check failed",
+						slog.String("run_id", GetRunID(r.Context())),
+						slog.String("error_category", "database"))
+					envelope.WriteError(w, http.StatusServiceUnavailable,
+						"lifecycle_unavailable", "membership unavailable", GetRunID(r.Context()), nil)
+					return
+				}
+				if lifecycle.State != ownerlifecycle.StateActive {
+					envelope.WriteError(w, http.StatusNotFound,
+						"profile_not_found", "profile not found", GetRunID(r.Context()), nil)
+					return
+				}
+				r = r.WithContext(WithOwnerGeneration(r.Context(), lifecycle.Generation))
 			}
 			next.ServeHTTP(w, r)
 		})

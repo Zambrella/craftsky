@@ -9,6 +9,6 @@ import "io"
 // dance, so we can write XSS regression tests against the JS-string
 // escaping in callbackTmpl without standing up a fake Authorization
 // Server.
-func RenderCallbackForTest(w io.Writer, token, loopbackURI string) error {
-	return callbackTmpl.Execute(w, callbackPageData{Token: token, LoopbackURI: loopbackURI})
+func RenderCallbackForTest(w io.Writer, code, loopbackURI string) error {
+	return callbackTmpl.Execute(w, callbackPageData{Code: code, LoopbackURI: loopbackURI, Nonce: "test-nonce"})
 }

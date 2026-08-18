@@ -1,4 +1,5 @@
 import 'package:craftsky_app/auth/data/handoff_api_client.dart';
+import 'package:craftsky_app/auth/models/pending_handoff.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/pages/auth_complete_page.dart';
 import 'package:craftsky_app/auth/pages/sign_in_page.dart';
@@ -29,7 +30,6 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/router/router.dart';
-import 'package:craftsky_app/shared/api/models/whoami.dart';
 import 'package:craftsky_app/shared/device/device_id_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
@@ -55,8 +55,20 @@ final class _RegistryStorage implements SessionRegistryStorage {
 
 final class _HandoffApi implements HandoffApiClient {
   @override
-  Future<WhoAmI> whoami() async =>
-      WhoAmI(did: 'did:plc:bob', handle: 'bob.test');
+  Future<PendingHandoff> exchange({required String code}) async =>
+      PendingHandoff(
+        token: 'token-b',
+        did: 'did:plc:bob',
+        handle: 'bob.test',
+        receiptId: '00000000-0000-4000-8000-000000000821',
+        confirmBy: DateTime.utc(2026, 8, 14, 12, 5),
+      );
+
+  @override
+  Future<void> confirm({
+    required String token,
+    required String receiptId,
+  }) async {}
 }
 
 final class _ZeroCountRepository implements NotificationNewnessRepository {
@@ -143,7 +155,7 @@ void main() {
     });
 
     testWidgets(
-      'SignedOut + /auth/complete stays on AuthCompletePage',
+      'SignedOut + legacy token callback stays on page but fails closed',
       (tester) async {
         final container = ProviderContainer.test(
           overrides: [
@@ -153,9 +165,11 @@ void main() {
         await _pumpRouter(
           tester,
           container,
-          initialLocation: '${RouteLocations.authComplete}?token=t',
+          initialLocation:
+              '${RouteLocations.authComplete}?token=not-a-credential',
         );
         expect(find.byType(AuthCompletePage), findsOneWidget);
+        expect(find.textContaining('sign-in link expired'), findsOneWidget);
       },
     );
 
@@ -247,7 +261,7 @@ void main() {
         await _pumpRouter(
           tester,
           container,
-          initialLocation: '${RouteLocations.authComplete}?token=t',
+          initialLocation: RouteLocations.authComplete,
         );
         expect(find.byType(AuthCompletePage), findsOneWidget);
       },
@@ -269,7 +283,7 @@ void main() {
           overrides: [
             secureSessionRegistryStorageProvider.overrideWithValue(storage),
             sessionValidationLauncherProvider.overrideWithValue((_) async {}),
-            handoffApiClientProvider.overrideWith((ref, key) => _HandoffApi()),
+            handoffApiClientProvider.overrideWithValue(_HandoffApi()),
             deviceIdProvider.overrideWith((ref) async => 'test-device'),
             accountStateInvalidatorProvider.overrideWithValue(() async {}),
             accountNotificationNewnessRepositoryProvider.overrideWith(
@@ -307,7 +321,7 @@ void main() {
         await _pumpRouter(
           tester,
           container,
-          initialLocation: '${RouteLocations.authComplete}?token=token-b',
+          initialLocation: '${RouteLocations.authComplete}?code=browser-code',
           settle: false,
         );
         for (var index = 0; index < 10; index++) {
@@ -374,9 +388,7 @@ void main() {
       final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
       expect(rail.selectedIndex, 0);
       expect(
-        tester
-            .getRect(find.byKey(const Key('large-shell-content')))
-            .width,
+        tester.getRect(find.byKey(const Key('large-shell-content'))).width,
         800,
       );
     });
@@ -543,7 +555,7 @@ void main() {
         await _pumpRouter(
           tester,
           container,
-          initialLocation: '${RouteLocations.authComplete}?token=t',
+          initialLocation: RouteLocations.authComplete,
         );
         expect(find.byType(AuthCompletePage), findsOneWidget);
       },

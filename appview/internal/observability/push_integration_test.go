@@ -48,6 +48,16 @@ func (s *privacyIntegrationSender) Calls() []push.SendRequest {
 	return append([]push.SendRequest(nil), s.calls...)
 }
 
+type permissivePushLifecycleFence struct{}
+
+func (permissivePushLifecycleFence) WithActiveOwners(
+	ctx context.Context,
+	_ []syntax.DID,
+	callback func(context.Context) error,
+) error {
+	return callback(ctx)
+}
+
 func TestPushPrivacySentinelsAcrossRegistrationEnqueueDispatchAndTelemetry(t *testing.T) {
 	pool := testdb.WithSchema(t, `
 		CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT);
@@ -144,7 +154,13 @@ func TestPushPrivacySentinelsAcrossRegistrationEnqueueDispatchAndTelemetry(t *te
 
 	now := base.Add(time.Second)
 	sender := &privacyIntegrationSender{failure: failureText}
-	dispatcher := push.NewDispatcher(pool, sender, push.DispatcherOptions{Now: func() time.Time { return now }, BatchSize: 1, LeaseDuration: time.Minute, Observer: observer})
+	dispatcher, err := push.NewDispatcherValidated(pool, sender, push.DispatcherOptions{
+		Now: func() time.Time { return now }, BatchSize: 1, LeaseDuration: time.Minute,
+		Observer: observer, LifecycleFence: permissivePushLifecycleFence{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if n, err := dispatcher.ProcessBatch(context.Background(), "appview"); err != nil || n != 1 {
 		t.Fatalf("retry batch n=%d err=%v", n, err)
 	}

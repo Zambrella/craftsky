@@ -121,6 +121,7 @@ func DecodeSyntheticModerationRequest(body io.Reader, cfg ModerationRequestConfi
 	}
 	return ModerationOutputInput{
 		SourceDID:         sourceDID,
+		SourceAuthority:   ModerationSourceTrustedExternal,
 		SubjectType:       subjectType,
 		SubjectDID:        subjectDID.String(),
 		SubjectCollection: collection,

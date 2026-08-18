@@ -6,7 +6,7 @@ import (
 )
 
 func TestCategoriesExposeExactlyTheApprovedWireValues(t *testing.T) {
-	want := []Category{Like, Follow, Reply, Mention, Quote, Repost, EverythingElse, InstagramMatch}
+	want := []Category{Like, Follow, Reply, Mention, Quote, Repost, EverythingElse}
 
 	if got := Categories(); !slices.Equal(got, want) {
 		t.Fatalf("Categories() = %v, want %v", got, want)
@@ -20,6 +20,9 @@ func TestCategoriesExposeExactlyTheApprovedWireValues(t *testing.T) {
 
 	if Category("likeViaRepost").Valid() || Category("repostViaRepost").Valid() {
 		t.Fatal("via-repost attribution must not be a notification category")
+	}
+	if Category("instagramMatch").Valid() {
+		t.Fatal("retired automatic-follow notification must not be a category")
 	}
 	if EverythingElse.HasProducer() {
 		t.Fatal("everythingElse must remain reserved without a producer")

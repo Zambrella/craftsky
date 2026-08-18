@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
-	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/accountdeletion"
@@ -22,12 +22,15 @@ import (
 	"social.craftsky/appview/internal/db"
 	"social.craftsky/appview/internal/followwrite"
 	"social.craftsky/appview/internal/index"
+	"social.craftsky/appview/internal/ingestion"
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/integrations/instagrammeta"
 	"social.craftsky/appview/internal/languages"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/observability"
+	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/push"
 	"social.craftsky/appview/internal/relationships"
 	"social.craftsky/appview/internal/scheduledposts"
@@ -53,36 +56,53 @@ type Deps struct {
 	AccountDeletionOAuth        auth.AccountDeletionOAuthCallbacks
 	AccountDeletionPendingLogin auth.AccountDeletionPendingLoginPolicy
 	AccountDeletionWorker       *accountdeletion.Worker
+	AccountDeletionIntentExpiry *accountdeletion.IntentExpiryProcessor
 
 	// OAuth subsystem.
 	OAuthApp             *oauth.ClientApp
+	OAuthArtifacts       auth.ClientArtifacts
 	OAuthStore           *auth.PostgresAuthStore
+	OAuthFlow            auth.OAuthFlowCoordinator
+	HandoffCoordinator   auth.HandoffCoordinator
+	SessionLifecycle     *auth.SessionLifecycleService
+	OAuthRevocation      *auth.OAuthRevocationProcessor
+	AuthAuxiliaryCleanup *auth.AuxiliaryCleanupProcessor
+	SessionExpiry        *auth.SessionExpiryProcessor
+	TerminalPurge        *ownerlifecycle.TerminalPurgeProcessor
 	CraftskySessionStore *auth.CraftskySessionStore
+	OwnerLifecycles      *ownerlifecycle.Store
+	OwnerFence           *ownerlifecycle.Fencer
+	NewPendingPDSClient  auth.PendingOnboardingPDSClientFactory
+	LoginCompleteURL     string
+	DeletionCompleteURL  string
 
 	// Identity resolution for /v1/whoami. Typed as the interface
 	// (not the concrete struct) so route tests can inject a stub
 	// without constructing an identity.Directory.
 	HandleResolver api.HandleResolver
 
-	Consumer       tap.Consumer
-	Indexer        index.Indexer
-	PushDispatcher *push.Dispatcher
+	Consumer            tap.Consumer
+	Indexer             index.Indexer
+	TapProjectionWorker *ingestion.ProjectionWorker
+	TapRepositoryWorker *ingestion.RepositoryWorker
+	TapQuarantineWorker *ingestion.QuarantineReplayWorker
+	PushDispatcher      *push.Dispatcher
 
 	// Instagram migration is private AppView data. Verification can remain
 	// disabled while the membership/store dependencies continue to expose
 	// retained local state and privacy controls.
-	InstagramMembership      *instagram.MembershipStore
-	InstagramRateLimiter     *instagram.PostgresRateLimiter
-	InstagramVerification    *instagram.VerificationService
-	InstagramWebhook         http.Handler
-	InstagramWebhookWorker   *instagram.WebhookWorker
-	InstagramPrivateData     *instagram.PrivateDataService
-	InstagramReconciliation  *instagram.ReconciliationWorker
-	InstagramAutomaticFollow *instagram.AutomaticFollowWorker
-	InstagramRetention       *instagram.RetentionService
-	InstagramAccount         *instagram.AccountStore
-	InstagramImports         *instagram.ImportService
-	InstagramRestoration     *instagram.ReconciliationTrigger
+	InstagramMembership     *instagram.MembershipStore
+	InstagramRateLimiter    *instagram.PostgresRateLimiter
+	InstagramVerification   *instagram.VerificationService
+	InstagramWebhook        http.Handler
+	InstagramWebhookWorker  *instagram.WebhookWorker
+	InstagramPrivateData    *instagram.PrivateDataService
+	InstagramReconciliation *instagram.ReconciliationWorker
+	InstagramSuggestions    *instagram.SuggestionService
+	InstagramRetention      *instagram.RetentionService
+	InstagramAccount        *instagram.AccountStore
+	InstagramImports        *instagram.ImportService
+	InstagramRestoration    *instagram.ReconciliationTrigger
 
 	// ProfileStore serves the /v1/profiles endpoints.
 	ProfileStore *api.ProfileStore
@@ -110,6 +130,10 @@ type Deps struct {
 	// by the OAuth callback's InitializeProfile step and the write-proxy
 	// handlers (today PUT /v1/profiles/me).
 	NewPDSClient auth.PDSClientFactory
+	// NewPDSEffects is the only ordinary authenticated PDS mutation
+	// capability exposed to request and background-work handlers. It persists
+	// deterministic effect intent before crossing the remote boundary.
+	NewPDSEffects pdseffects.ExecutorFactory
 
 	// Scheduled posts and their private staged media are AppView-owned data.
 	ScheduledPosts           *scheduledposts.Store
@@ -140,9 +164,10 @@ func (p instagramRelationshipSafetyProvider) RelationshipSafety(
 	}, nil
 }
 
-// NewDevDeps wires the dev variant: debug-level logger, StackedAuthService
-// (real OAuth tokens take precedence; X-Dev-DID header is the fallback so
-// the legacy curl-with-header workflow keeps working), full OAuth subsystem.
+// NewDevDeps wires the dev variant: debug-level logger and StackedAuthService.
+// Real OAuth tokens take precedence; the route middleware applies the explicit
+// local/remote dev-authorization policy before making X-Dev-DID available as a
+// fallback.
 func NewDevDeps(ctx context.Context, cfg Config) (*Deps, func(), error) {
 	deps, cleanup, err := newDeps(ctx, cfg, slog.LevelDebug)
 	if err != nil {
@@ -168,6 +193,14 @@ func NewProdDeps(ctx context.Context, cfg Config) (*Deps, func(), error) {
 // newDeps is the shared core of NewDevDeps and NewProdDeps. AuthService is
 // left nil — the caller assigns it based on env.
 func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), error) {
+	oauthArtifacts, err := buildOAuthArtifacts(cfg.OAuth)
+	if err != nil {
+		return nil, nil, fmt.Errorf("build oauth client artifacts: %w", err)
+	}
+	handoffReceiptKey, err := decodeHandoffReceiptKey(cfg.OAuthHandoffReceiptKey)
+	if err != nil {
+		return nil, nil, err
+	}
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
 	// Third-party libs that reach for slog.Default should get our logger.
 	slog.SetDefault(logger)
@@ -176,6 +209,22 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	if err != nil {
 		return nil, nil, fmt.Errorf("db connect: %w", err)
 	}
+	federated, err := newFederatedClients(cfg.FederatedHTTP)
+	if err != nil {
+		pool.Close()
+		return nil, nil, err
+	}
+	ownerFence, err := ownerlifecycle.NewFencer(pool, cfg.OwnerFenceAcquireTimeout)
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("owner lifecycle fence: %w", err)
+	}
+	ownerLifecycles, err := ownerlifecycle.NewStore(pool, ownerFence, time.Now)
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("owner lifecycle store: %w", err)
+	}
+	deletionStore := accountdeletion.NewStore(pool, time.Now)
 	scheduledStore := scheduledposts.NewStore(pool)
 	scheduledObjects, err := scheduledposts.NewS3ObjectStore(ctx, cfg.ScheduledPostsS3)
 	if err != nil {
@@ -188,33 +237,78 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	}
 	var scheduledCleanup *scheduledposts.CleanupProcessor
 
-	oauthCfg, err := auth.BuildClientConfig(
-		cfg.OAuthHostname,
-		cfg.OAuthCallbackURL,
-		cfg.OAuthClientSecretKey,
-		cfg.OAuthClientKeyID,
-		cfg.OAuthScopes,
-	)
+	oauthStore := auth.NewPostgresAuthStore(pool, auth.StoreConfig{
+		SessionExpiry:                cfg.OAuthSessionAbsoluteLifetime,
+		SessionInactivity:            cfg.CraftskySessionInactivity,
+		SessionAbsoluteLifetime:      cfg.OAuthSessionAbsoluteLifetime,
+		AuthRequestExpiry:            cfg.OAuthAuthRequestExpiry,
+		PendingAuthRequestCapacity:   cfg.OAuthPendingAuthRequestCapacity,
+		AuthRequestTerminalRetention: cfg.OAuthAuthRequestTerminalRetention,
+		OwnerLifecycles:              ownerLifecycles,
+		EndpointValidator:            federated.boundary,
+		Logger:                       logger,
+	})
+	oauthApp := oauth.NewClientApp(&oauthArtifacts.Config, oauthStore)
+	oauthApp.Client = federated.oauth
+	oauthApp.Resolver.Client = federated.metadata
+	oauthApp.Dir = federated.directory
+	craftskyStore, err := auth.NewCraftskySessionStoreWithConfig(pool, auth.CraftskySessionConfig{
+		Inactivity:            cfg.CraftskySessionInactivity,
+		ActivityWriteInterval: cfg.CraftskySessionActivityWriteInterval,
+		RecoveryAuthorization: deletionStore,
+	})
 	if err != nil {
 		pool.Close()
-		return nil, nil, fmt.Errorf("build oauth client config: %w", err)
+		return nil, nil, fmt.Errorf("CraftSky session store: %w", err)
 	}
-	oauthStore := auth.NewPostgresAuthStore(pool, auth.StoreConfig{
-		SessionExpiry:     cfg.OAuthSessionExpiry,
-		SessionInactivity: cfg.OAuthSessionInactivity,
-		AuthRequestExpiry: cfg.OAuthAuthRequestExpiry,
-		Logger:            logger,
+	oauthFlow, err := auth.NewOAuthFlowService(auth.OAuthFlowServiceOptions{
+		App: oauthApp, Store: oauthStore, Owners: ownerLifecycles,
+		StartOperationTimeout:    cfg.OAuthLoginStartTimeout,
+		CallbackOperationTimeout: cfg.OAuthCallbackOperationTimeout,
+		DeletionRequests:         deletionStore,
 	})
-	oauthApp := oauth.NewClientApp(&oauthCfg, oauthStore)
-	craftskyStore := auth.NewCraftskySessionStore(pool, cfg.CraftskySessionLastSeenThrottle)
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("OAuth flow service: %w", err)
+	}
+	handoffs, err := auth.NewHandoffService(auth.HandoffServiceOptions{
+		Pool: pool, Owners: ownerLifecycles, Sessions: craftskyStore,
+		ExchangeTTL: cfg.OAuthHandoffExchangeTTL, ConfirmationTTL: cfg.OAuthHandoffConfirmationTTL,
+		ReceiptKey: handoffReceiptKey, ReceiptKeyVersion: cfg.OAuthHandoffReceiptKeyVersion,
+		Random: rand.Reader, Now: time.Now,
+	})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("OAuth handoff service: %w", err)
+	}
+	sessionLifecycle, err := auth.NewSessionLifecycleService(auth.SessionLifecycleOptions{
+		Pool: pool, Owners: ownerLifecycles, Sessions: craftskyStore,
+		DeletionExemption: deletionStore,
+		Now:               time.Now,
+	})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("session lifecycle service: %w", err)
+	}
+	oauthSessionCoordinator, err := auth.NewOAuthSessionCoordinator(auth.OAuthSessionCoordinatorOptions{
+		App: oauthApp, Store: oauthStore, Owners: ownerLifecycles,
+		OperationTimeout: cfg.OAuthSessionOperationTimeout,
+	})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("OAuth session coordinator: %w", err)
+	}
 	rateLimiter := middleware.NewLocalRateLimiter(cfg.RateLimits, time.Now)
 	logger.Warn("rate limiter is process-local; run one AppView instance or configure shared/edge enforcement before horizontal scaling")
 
-	// Shared atproto identity directory for DID↔handle lookups.
-	// indigo provides an in-process cache via DefaultDirectory.
-	identityDir := identity.DefaultDirectory()
-
-	anonPDS := auth.NewAnonymousPDSClient(identityDir, 5*time.Second)
+	// Identity and every metadata/PDS request share one hardened outbound
+	// boundary. There is no process-default HTTP client fallback.
+	identityDir := federated.directory
+	anonPDS, err := auth.NewAnonymousPDSClient(identityDir, federated.pdsJSON, federated.boundary)
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("anonymous PDS client: %w", err)
+	}
 	repositoryTracker, err := tap.NewAdminClient(cfg.TapWSURL, &http.Client{Timeout: 5 * time.Second})
 	if err != nil {
 		pool.Close()
@@ -223,16 +317,65 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	observer := observability.New(observability.Config{
 		Env: string(cfg.Env), Release: cfg.SentryRelease, LogsEnabled: cfg.SentryLogsEnabled, TracingEnabled: cfg.SentryTracingEnabled, TracesSampleRate: cfg.SentryTracesSampleRate, MetricsEnabled: cfg.SentryMetricsEnabled, TapTracingEnabled: cfg.SentryTapTracingEnabled, TapTracesSampleRate: cfg.SentryTapTracesSampleRate, SentryDSN: cfg.SentryDSN, Logger: logger,
 	})
+	notificationStore := api.NewPostStore(pool, observer)
+	oauthCredentialRevoker, err := auth.NewIndigoOAuthCredentialRevoker(oauthApp, oauthStore)
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("OAuth credential revoker: %w", err)
+	}
+	oauthRevocation, err := auth.NewOAuthRevocationProcessor(auth.OAuthRevocationProcessorOptions{
+		Pool: pool, Revoker: oauthCredentialRevoker, Now: time.Now,
+		BatchSize: cfg.OAuthRevocationBatchSize, LeaseDuration: cfg.OAuthRevocationLeaseDuration,
+		OperationTimeout: cfg.OAuthRevocationOperationTimeout, MaxAttempts: cfg.OAuthRevocationMaxAttempts,
+		BaseBackoff: cfg.OAuthRevocationBackoffMin, MaxBackoff: cfg.OAuthRevocationBackoffMax,
+		MaxCredentialRetention: cfg.OAuthRevocationMaxCredentialRetention,
+	})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("OAuth revocation processor: %w", err)
+	}
+	authAuxiliaryCleanup, err := auth.NewAuxiliaryCleanupProcessor(auth.AuxiliaryCleanupProcessorOptions{
+		Pool: pool, Cleaner: notificationStore, Now: time.Now,
+		BatchSize: cfg.AuthAuxiliaryCleanupBatchSize, LeaseDuration: cfg.AuthAuxiliaryCleanupLeaseDuration,
+		OperationTimeout: cfg.AuthAuxiliaryCleanupOperationTimeout, MaxAttempts: cfg.AuthAuxiliaryCleanupMaxAttempts,
+		BaseBackoff: cfg.AuthAuxiliaryCleanupBackoffMin, MaxBackoff: cfg.AuthAuxiliaryCleanupBackoffMax,
+	})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("auth auxiliary cleanup processor: %w", err)
+	}
+	sessionExpiry, err := auth.NewSessionExpiryProcessor(auth.SessionExpiryProcessorOptions{
+		Lifecycle: sessionLifecycle,
+		BatchSize: cfg.SessionExpirySweepBatch,
+	})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("session expiry processor: %w", err)
+	}
+	terminalPurge, err := ownerlifecycle.NewTerminalPurgeProcessor(ownerlifecycle.TerminalPurgeProcessorConfig{
+		Store:          ownerLifecycles,
+		WorkerID:       "appview-terminal-purge",
+		PollInterval:   cfg.TerminalPurgePollInterval,
+		ComponentLimit: cfg.TerminalPurgeComponentLimit,
+		RowBatchSize:   cfg.TerminalPurgeRowBatchSize,
+		LeaseDuration:  cfg.TerminalPurgeLeaseDuration,
+		RetryDelay:     cfg.TerminalPurgeRetryDelay,
+		Observer:       observer,
+	})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("terminal purge processor: %w", err)
+	}
 	scheduledStore.SetOperationalObserver(observer)
 	scheduledCleanup, err = scheduledposts.NewCleanupProcessor(scheduledposts.CleanupProcessorOptions{
 		Store: scheduledStore, Objects: scheduledObjects, Now: time.Now,
-		Observer: observer,
+		OwnerFence: ownerFence, Observer: observer,
 	})
 	if err != nil {
 		pool.Close()
 		return nil, nil, fmt.Errorf("scheduled cleanup processor: %w", err)
 	}
-	lifecycle := notifications.NewService(observer)
+	notificationLifecycle := notifications.NewService(observer)
 	relationshipStore := relationships.NewStore(pool)
 	languagePreferences := languages.NewStore(pool)
 	suggestionPolicy := instagram.NewPostgresInstagramSuggestionEligibilityPolicy(
@@ -246,34 +389,127 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		instagramRateLimiter, err = instagram.NewPostgresRateLimiter(pool, cfg.InstagramData.HMACKey(), time.Now)
 		if err != nil {
 			pool.Close()
-			return nil, nil, fmt.Errorf("Instagram persistent rate limiter: %w", err)
+			return nil, nil, fmt.Errorf("instagram persistent rate limiter: %w", err)
 		}
 	}
 	instagramPrivateData := instagram.NewPrivateDataService(pool, instagramRateLimiter, time.Now)
 	notificationActorDeletion := notifications.NewActorDeletionService(pool)
-	scheduledAccountDeletion := scheduledposts.NewAccountDeletion(pool, time.Now)
+	scheduledAccountDeletion := scheduledposts.NewAccountDeletion(pool, time.Now, ownerFence)
+	scheduledDepartureParticipant := scheduledAccountDeletion.DepartureParticipant()
 	profileDeletion := &profileMembershipDeletion{
 		notifications: notificationActorDeletion,
 		scheduled:     scheduledAccountDeletion,
 		instagram:     instagramPrivateData,
 		now:           time.Now,
 	}
-	dispatcher := newIndexerDispatcherWithActorDeletion(
+	dispatchers := newIndexerDispatcherBundleWithActorDeletion(
 		pool,
 		anonPDS,
 		logger,
 		repositoryTracker,
 		observer,
-		lifecycle,
+		notificationLifecycle,
 		profileDeletion,
 	)
-	identityDeletion := &terminalIdentityDeletion{handlers: []tap.IdentityDeletionHandler{
-		notificationActorDeletion,
-		instagramPrivateData,
-		languagePreferences,
-		scheduledAccountDeletion,
-	}}
+	dispatcher := dispatchers.legacy
+	ingestionStore, err := ingestion.NewStore(pool, time.Now)
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("Tap ingestion store: %w", err)
+	}
+	profileDepartureParticipant := sessionLifecycle.OwnerTransitionParticipant(
+		nil,
+		composeTransitionParticipants(
+			deletionStore.ProfileDepartureParticipant(),
+			scheduledDepartureParticipant,
+		),
+	)
+	profileParticipant := func(
+		ctx context.Context,
+		tx pgx.Tx,
+		before ownerlifecycle.Lifecycle,
+		after ownerlifecycle.Lifecycle,
+	) error {
+		if after.State == ownerlifecycle.StateActive {
+			return nil
+		}
+		return profileDepartureParticipant(ctx, tx, before, after)
+	}
+	terminalAuthParticipant := sessionLifecycle.OwnerTransitionParticipant(
+		nil,
+		scheduledDepartureParticipant,
+	)
+	terminalParticipant := func(
+		ctx context.Context,
+		tx pgx.Tx,
+		before *ownerlifecycle.Lifecycle,
+		terminal ownerlifecycle.Lifecycle,
+	) error {
+		prior := ownerlifecycle.Lifecycle{Owner: terminal.Owner}
+		if before != nil {
+			prior = *before
+		}
+		return terminalAuthParticipant(ctx, tx, prior, terminal)
+	}
+	ingestionService, err := ingestion.NewService(ingestion.ServiceConfig{
+		Store: ingestionStore, Lifecycles: ownerLifecycles,
+		ProfileParticipant: profileParticipant, TerminalParticipant: terminalParticipant,
+		TerminalComponents: terminalPurgeCatalogue(),
+	})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("Tap ingestion service: %w", err)
+	}
+	tapProjectionWorker, err := ingestion.NewProjectionWorker(ingestion.ProjectionWorkerConfig{
+		Store: ingestionStore, Projector: dispatchers.transactional.Project,
+		WorkerID: "appview-tap-projection", PollInterval: cfg.TapProjectionPollInterval,
+		LeaseDuration: cfg.TapProjectionLeaseDuration, BatchSize: cfg.TapProjectionBatchSize,
+		BackoffMin: cfg.TapProjectionBackoffMin, BackoffMax: cfg.TapProjectionBackoffMax,
+		Logger: logger,
+	})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("Tap projection worker: %w", err)
+	}
+	tapRepositoryWorker, err := ingestion.NewRepositoryWorker(ingestion.RepositoryWorkerConfig{
+		Store:    ingestionStore,
+		Handler:  newTapRepositoryJobHandler(ingestionStore, ingestionService, repositoryTracker, anonPDS),
+		WorkerID: "appview-tap-repository", PollInterval: cfg.TapRepositoryPollInterval,
+		LeaseDuration: cfg.TapRepositoryLeaseDuration, BatchSize: cfg.TapRepositoryBatchSize,
+		BackoffMin: cfg.TapRepositoryBackoffMin, BackoffMax: cfg.TapRepositoryBackoffMax,
+		Logger: logger,
+	})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("Tap repository worker: %w", err)
+	}
+	tapQuarantineWorker, err := ingestion.NewQuarantineReplayWorker(ingestion.QuarantineReplayWorkerConfig{
+		Store: ingestionStore,
+		Handler: func(ctx context.Context, envelope []byte) (tap.Outcome, error) {
+			return ingestionStore.ReplayEnvelope(ctx, envelope, ingestionService)
+		},
+		WorkerID: "appview-tap-quarantine", PollInterval: cfg.TapQuarantinePollInterval,
+		LeaseDuration:    cfg.TapQuarantineLeaseDuration,
+		OperationTimeout: cfg.TapQuarantineOperationTimeout,
+		BatchSize:        cfg.TapQuarantineBatchSize, Logger: logger,
+	})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("Tap quarantine replay worker: %w", err)
+	}
 	instagramRestoration := instagram.NewReconciliationTrigger(pool, time.Now)
+	moderationRestoration, err := instagram.NewModerationRestorationRelay(pool, ownerLifecycles, time.Now)
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("moderation restoration relay: %w", err)
+	}
+	moderationStore, err := api.NewModerationStore(pool, ownerLifecycles)
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("moderation store: %w", err)
+	}
+	loginCompleteURL := resolveOriginPath(cfg.VerifiedLinkOrigin, "/auth/complete")
+	deletionCompleteURL := resolveOriginPath(cfg.VerifiedLinkOrigin, "/account-deletion/reauth-complete")
 
 	deps := &Deps{
 		Config:               cfg,
@@ -282,11 +518,26 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		RateLimiter:          rateLimiter,
 		Observability:        observer,
 		OAuthApp:             oauthApp,
+		OAuthArtifacts:       oauthArtifacts,
 		OAuthStore:           oauthStore,
+		OAuthFlow:            oauthFlow,
+		HandoffCoordinator:   handoffs,
+		SessionLifecycle:     sessionLifecycle,
+		OAuthRevocation:      oauthRevocation,
+		AuthAuxiliaryCleanup: authAuxiliaryCleanup,
+		SessionExpiry:        sessionExpiry,
+		TerminalPurge:        terminalPurge,
 		CraftskySessionStore: craftskyStore,
+		OwnerLifecycles:      ownerLifecycles,
+		OwnerFence:           ownerFence,
+		LoginCompleteURL:     loginCompleteURL.String(),
+		DeletionCompleteURL:  deletionCompleteURL.String(),
 		RepositoryTracker:    repositoryTracker,
 		HandleResolver:       api.DirectoryHandleResolver{Directory: identityDir},
 		Indexer:              dispatcher,
+		TapProjectionWorker:  tapProjectionWorker,
+		TapRepositoryWorker:  tapRepositoryWorker,
+		TapQuarantineWorker:  tapQuarantineWorker,
 		Consumer:             tap.NotImplemented{}, // temp, replaced below
 		RelationshipStore:    relationshipStore,
 		LanguagePreferences:  languagePreferences,
@@ -296,12 +547,35 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		InstagramRetention: instagram.NewRetentionService(
 			pool,
 			time.Now,
-			instagramRestoration,
+			instagram.RetentionServiceOptions{
+				Restoration:        instagramRestoration,
+				ModerationReceipts: moderationStore,
+			},
 		),
 		InstagramRestoration: instagramRestoration,
+		ModerationStore:      moderationStore,
 		ScheduledPosts:       scheduledStore,
-		ScheduledMedia:       scheduledposts.NewPrivateMediaService(scheduledStore, scheduledObjects),
-		ScheduledCleanup:     scheduledCleanup,
+		ScheduledMedia: scheduledposts.NewPrivateMediaService(
+			scheduledStore,
+			scheduledObjects,
+			scheduledposts.PrivateMediaServiceOptions{
+				Lifecycle:  ownerLifecycles,
+				PutTimeout: cfg.ScheduledMediaPutTimeout,
+				// No finite MinIO/S3 server-side settlement guarantee is
+				// assumed. Exact-key tombstones therefore remain eligible for
+				// reconciliation until object absence is independently proven.
+				TestedSettlementBound: 0,
+				SettlementMargin:      0,
+			},
+		),
+		ScheduledCleanup: scheduledCleanup,
+	}
+	deps.NewPendingPDSClient = func(ctx context.Context, attempt auth.CallbackAttempt) (auth.PDSClient, error) {
+		stored, err := oauthStore.ResumePendingOnboardingSession(ctx, attempt)
+		if err != nil {
+			return nil, err
+		}
+		return federated.newPendingPDSClient(ctx, oauthApp.Config, stored.Data)
 	}
 	if cfg.PushEnabled {
 		sender, err := push.NewFirebaseSender(ctx, cfg.FirebaseProjectID)
@@ -309,21 +583,22 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 			pool.Close()
 			return nil, nil, fmt.Errorf("firebase messaging init: %w", err)
 		}
-		deps.PushDispatcher = push.NewDispatcher(pool, sender, push.DispatcherOptions{
-			BatchSize: cfg.PushBatchSize, LeaseDuration: cfg.PushLeaseDuration,
-			SendTimeout: cfg.PushSendTimeout, Observer: observer,
+		deps.PushDispatcher, err = push.NewDispatcherValidated(pool, sender, push.DispatcherOptions{
+			BatchSize: cfg.PushBatchSize, Concurrency: cfg.PushConcurrency,
+			LeaseDuration: cfg.PushLeaseDuration, SendTimeout: cfg.PushSendTimeout,
+			FinalizationMargin: cfg.PushFinalizationMargin, Observer: observer,
+			LifecycleFence: pushOwnerLifecycleFence{store: ownerLifecycles},
 		})
+		if err != nil {
+			pool.Close()
+			return nil, nil, fmt.Errorf("push dispatcher init: %w", err)
+		}
 	}
 
 	deps.Consumer = tap.NewWSConsumer(tap.WSConsumerConfig{
-		URL:             cfg.TapWSURL,
-		Indexer:         dispatcher,
-		AckTimeout:      cfg.TapAckTimeout,
-		ReconnectMax:    cfg.TapReconnectMax,
-		MaxRetries:      cfg.TapMaxRetries,
-		Logger:          logger,
-		Observer:        deps.Observability,
-		IdentityHandler: identityDeletion,
+		URL: cfg.TapWSURL, Ingestor: ingestionService,
+		AckTimeout: cfg.TapAckTimeout, ReconnectMax: cfg.TapReconnectMax,
+		Logger: logger, Observer: deps.Observability,
 	})
 	if cfg.Env == EnvDev {
 		deps.HandleResolver = api.DevHandleResolver{
@@ -340,7 +615,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		challengeCodec, err = instagram.NewChallengeCodec(rand.Reader, cfg.InstagramData.HMACKey())
 		if err != nil {
 			pool.Close()
-			return nil, nil, fmt.Errorf("Instagram challenge codec: %w", err)
+			return nil, nil, fmt.Errorf("instagram challenge codec: %w", err)
 		}
 	}
 	deps.InstagramVerification, err = instagram.NewVerificationService(instagram.VerificationServiceOptions{
@@ -353,22 +628,22 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	})
 	if err != nil {
 		pool.Close()
-		return nil, nil, fmt.Errorf("Instagram verification service: %w", err)
+		return nil, nil, fmt.Errorf("instagram verification service: %w", err)
 	}
 	if cfg.InstagramMeta.Enabled() && cfg.InstagramMeta.Configured() {
 		if deps.InstagramRateLimiter == nil {
 			pool.Close()
-			return nil, nil, errors.New("Instagram Meta integration requires the persistent rate limiter")
+			return nil, nil, errors.New("instagram Meta integration requires the persistent rate limiter")
 		}
 		digests, digestErr := instagrammeta.NewDigestCodec(cfg.InstagramData.HMACKey(), instagram.CanonicalizeChallenge)
 		if digestErr != nil {
 			pool.Close()
-			return nil, nil, fmt.Errorf("Instagram webhook digest codec: %w", digestErr)
+			return nil, nil, fmt.Errorf("instagram webhook digest codec: %w", digestErr)
 		}
 		reducer, reducerErr := instagrammeta.NewPayloadReducer(cfg.InstagramMeta.InstagramAccountID(), digests)
 		if reducerErr != nil {
 			pool.Close()
-			return nil, nil, fmt.Errorf("Instagram webhook reducer: %w", reducerErr)
+			return nil, nil, fmt.Errorf("instagram webhook reducer: %w", reducerErr)
 		}
 		webhookRateLimiter, limiterErr := middleware.NewInstagramWebhookRateLimiter(
 			deps.InstagramRateLimiter,
@@ -379,7 +654,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		)
 		if limiterErr != nil {
 			pool.Close()
-			return nil, nil, fmt.Errorf("Instagram webhook limiter: %w", limiterErr)
+			return nil, nil, fmt.Errorf("instagram webhook limiter: %w", limiterErr)
 		}
 		retryPolicy := instagram.WebhookRetryPolicy{
 			MaxAttempts:      cfg.InstagramLimits.WorkerMaxAttempts,
@@ -393,7 +668,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		})
 		if storeErr != nil {
 			pool.Close()
-			return nil, nil, fmt.Errorf("Instagram webhook store: %w", storeErr)
+			return nil, nil, fmt.Errorf("instagram webhook store: %w", storeErr)
 		}
 		deps.InstagramWebhook, err = instagrammeta.NewWebhookHandler(instagrammeta.WebhookHandlerConfig{
 			AppSecret:       []byte(cfg.InstagramMeta.AppSecret()),
@@ -409,7 +684,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		})
 		if err != nil {
 			pool.Close()
-			return nil, nil, fmt.Errorf("Instagram webhook handler: %w", err)
+			return nil, nil, fmt.Errorf("instagram webhook handler: %w", err)
 		}
 		baseURL := cfg.InstagramMeta.APIBaseURL()
 		metaClient, clientErr := instagrammeta.NewHTTPClient(instagrammeta.HTTPClientConfig{
@@ -424,12 +699,12 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		})
 		if clientErr != nil {
 			pool.Close()
-			return nil, nil, fmt.Errorf("Instagram Meta client: %w", clientErr)
+			return nil, nil, fmt.Errorf("instagram Meta client: %w", clientErr)
 		}
 		redeemer, redeemerErr := instagram.NewVerificationWebhookRedeemer(verificationStore)
 		if redeemerErr != nil {
 			pool.Close()
-			return nil, nil, fmt.Errorf("Instagram webhook redeemer: %w", redeemerErr)
+			return nil, nil, fmt.Errorf("instagram webhook redeemer: %w", redeemerErr)
 		}
 		replyText := ""
 		if cfg.InstagramMeta.RepliesEnabled() {
@@ -454,76 +729,96 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		)
 		if err != nil {
 			pool.Close()
-			return nil, nil, fmt.Errorf("Instagram webhook worker: %w", err)
+			return nil, nil, fmt.Errorf("instagram webhook worker: %w", err)
 		}
 	}
-	automaticFollowStore, err := instagram.NewAutomaticFollowStoreWithOptions(
+	privateSuggestions, err := instagram.NewPrivateSuggestionStore(
 		pool,
-		instagram.AutomaticFollowStoreOptions{
-			LeaseDuration:  cfg.InstagramLimits.WorkerLeaseDuration,
-			InitialBackoff: cfg.InstagramLimits.WorkerBackoffInitial,
-			MaxBackoff:     cfg.InstagramLimits.WorkerBackoffMax,
-		},
-		lifecycle,
+		ownerLifecycles,
+		time.Now,
 	)
 	if err != nil {
 		pool.Close()
-		return nil, nil, fmt.Errorf("Instagram automatic-follow store: %w", err)
+		return nil, nil, fmt.Errorf("instagram private suggestion store: %w", err)
 	}
 	deps.InstagramImports, err = instagram.NewImportService(instagram.ImportServiceOptions{
 		Repository:      instagram.NewImportStore(pool),
-		Matcher:         instagram.NewAutomaticFollowMatcher(pool, automaticFollowStore, suggestionPolicy, time.Now),
+		Matcher:         instagram.NewPrivateSuggestionMatcher(pool, privateSuggestions, suggestionPolicy, time.Now),
 		MaxEntries:      cfg.InstagramLimits.ImportMaxEntries,
 		DefaultPageSize: cfg.InstagramLimits.PageDefault,
 		MaxPageSize:     cfg.InstagramLimits.PageMax,
 	})
 	if err != nil {
 		pool.Close()
-		return nil, nil, fmt.Errorf("Instagram import service: %w", err)
+		return nil, nil, fmt.Errorf("instagram import service: %w", err)
 	}
 	deps.InstagramAccount = instagram.NewAccountStore(pool, time.Now)
 	deps.InstagramReconciliation, err = instagram.NewReconciliationWorker(instagram.ReconciliationWorkerOptions{
 		Pool:                  pool,
-		AutomaticFollows:      automaticFollowStore,
+		PrivateSuggestions:    privateSuggestions,
 		Policy:                suggestionPolicy,
 		Membership:            instagramMembership,
 		MembershipInactivator: instagramPrivateData,
 		Now:                   time.Now,
 		LeaseDuration:         cfg.InstagramLimits.WorkerLeaseDuration,
 		MaxAttempts:           cfg.InstagramLimits.WorkerMaxAttempts,
+		ModerationRestoration: moderationRestoration,
 	})
 	if err != nil {
 		pool.Close()
-		return nil, nil, fmt.Errorf("Instagram reconciliation worker: %w", err)
+		return nil, nil, fmt.Errorf("instagram reconciliation worker: %w", err)
 	}
 	deps.IdentityCacheUpdater = api.NewIdentityCacheService(pool, deps.HandleResolver, time.Now)
 	deps.FollowStore = api.NewFollowStore(pool)
 	deps.ReportStore = api.NewReportStore(pool)
 	deps.ReportForwarder = api.NewPlaceholderReportForwarder(time.Now)
-	deps.ModerationStore = api.NewModerationStore(
-		pool,
-		deps.InstagramRestoration,
-	)
-	deps.NewPDSClient = deps.Observability.WrapPDSFactory(func(ctx context.Context, did syntax.DID, sid string) (auth.PDSClient, error) {
-		sess, err := oauthApp.ResumeSession(ctx, did, sid)
-		if err != nil {
-			err = auth.TranslatePDSError(err)
-			if errors.Is(err, auth.ErrPDSSessionExpired) {
-				deps.expirePDSSession(ctx, did, sid)
-			}
-			return nil, err
-		}
-		return &auth.IndigoPDSClient{
-			Client: sess.APIClient(),
-			OnSessionExpired: func(ctx context.Context) {
-				deps.expirePDSSession(ctx, did, sid)
+	deps.NewPDSClient = deps.Observability.WrapPDSFactory(func(_ context.Context, did syntax.DID, sid string) (auth.PDSClient, error) {
+		return auth.NewCoordinatedPDSClient(
+			oauthSessionCoordinator,
+			did,
+			sid,
+			func(operationCtx context.Context, session *oauth.ClientSession) (auth.PDSClient, error) {
+				// The coordinator translates terminal OAuth failures and performs
+				// local-first versioned revocation after the operation returns.
+				return federated.newPDSClient(operationCtx, session, nil)
 			},
-		}, nil
+		)
 	})
-	deletionStore := accountdeletion.NewStore(pool, time.Now)
+	deps.NewPDSEffects, err = pdseffects.NewExecutorFactory(
+		ownerLifecycles,
+		deps.NewPDSClient,
+		cfg.PDSEffectTimeout,
+		time.Now,
+	)
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("ordinary PDS effect executor: %w", err)
+	}
+	followCoordinator, err := followwrite.NewCoordinator(
+		ownerLifecycles,
+		followwrite.NewService(deps.NewPDSClient),
+		cfg.PDSEffectTimeout,
+		time.Now,
+	)
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("ordinary follow effect coordinator: %w", err)
+	}
+	deps.InstagramSuggestions, err = instagram.NewSuggestionService(
+		privateSuggestions,
+		ownerLifecycles,
+		suggestionPolicy,
+		instagramSuggestionFollowAdapter{coordinator: followCoordinator},
+	)
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("instagram suggestion service: %w", err)
+	}
 	deletionService, err := accountdeletion.NewAppService(accountdeletion.AppServiceOptions{
-		Pool: pool, Store: deletionStore,
-		OAuth: oauthApp, Now: time.Now, Random: rand.Reader,
+		Pool: pool, Store: deletionStore, OAuth: oauthFlow,
+		Owners: ownerLifecycles, Sessions: sessionLifecycle, OAuthStore: oauthStore,
+		DepartureParticipant: scheduledDepartureParticipant,
+		Now:                  time.Now, Random: rand.Reader, IntentTTL: cfg.AccountDeletionIntentTTL,
 	})
 	if err != nil {
 		pool.Close()
@@ -543,7 +838,6 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		[]accountdeletion.PrivateCleanupComponent{
 			accountdeletion.NewDatabasePrivateCleanup(pool),
 			instagramDeletion,
-			scheduledAccountDeletion,
 		},
 	)
 	if err != nil {
@@ -551,17 +845,16 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		return nil, nil, fmt.Errorf("account deletion private cleanup: %w", err)
 	}
 	deletionLifecycle, err := accountdeletion.NewLifecycleProcessor(accountdeletion.LifecycleProcessorOptions{
-		Store: deletionStore, Cleaner: deletionCleaner,
-		NewPDSClient: func(ctx context.Context, owner syntax.DID, sessionID string) (auth.DeletionPDSClient, error) {
-			client, err := deps.NewPDSClient(ctx, owner, sessionID)
-			if err != nil {
-				return nil, err
-			}
-			deletionClient, ok := client.(auth.DeletionPDSClient)
-			if !ok {
-				return nil, errors.New("PDS client lacks narrow deletion capability")
-			}
-			return deletionClient, nil
+		Store: deletionStore, Cleaner: deletionCleaner, AcceptedCleanup: scheduledAccountDeletion,
+		NewPDSClient: func(_ context.Context, owner syntax.DID, authority auth.DeletionSessionAuthority) (auth.DeletionPDSClient, error) {
+			return auth.NewCoordinatedDeletionPDSClient(
+				oauthSessionCoordinator,
+				owner,
+				authority,
+				func(operationCtx context.Context, session *oauth.ClientSession) (auth.PDSClient, error) {
+					return federated.newPDSClient(operationCtx, session, nil)
+				},
+			)
 		},
 		BatchSize: 20,
 	})
@@ -570,7 +863,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		return nil, nil, fmt.Errorf("account deletion lifecycle: %w", err)
 	}
 	deletionWorker, err := accountdeletion.NewWorker(accountdeletion.WorkerOptions{
-		Store: deletionStore, Processor: deletionLifecycle,
+		Store: deletionStore, Processor: deletionLifecycle, Finalizer: deletionService,
 		WorkerID: "appview", Now: time.Now, LeaseDuration: 2 * time.Minute,
 		RetryPolicy: accountdeletion.DefaultRetryPolicy(),
 		Logger:      logger,
@@ -579,10 +872,18 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		pool.Close()
 		return nil, nil, fmt.Errorf("account deletion worker: %w", err)
 	}
+	deletionIntentExpiry, err := accountdeletion.NewIntentExpiryProcessor(accountdeletion.IntentExpiryProcessorOptions{
+		Source: deletionStore, Expirer: deletionService, BatchSize: cfg.AccountDeletionIntentSweepBatch,
+	})
+	if err != nil {
+		pool.Close()
+		return nil, nil, fmt.Errorf("account deletion intent expiry processor: %w", err)
+	}
 	deps.AccountDeletion = deletionService
 	deps.AccountDeletionOAuth = deletionService
 	deps.AccountDeletionPendingLogin = deletionService
 	deps.AccountDeletionWorker = deletionWorker
+	deps.AccountDeletionIntentExpiry = deletionIntentExpiry
 	scheduledPublisher, err := scheduledposts.NewPublicationProcessor(scheduledposts.PublicationProcessorOptions{
 		Store:         scheduledStore,
 		Sessions:      auth.NewBackgroundSessionSelector(pool),
@@ -624,23 +925,6 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 		pool.Close()
 		return nil, nil, fmt.Errorf("scheduled publication worker: %w", err)
 	}
-	deps.InstagramAutomaticFollow, err = instagram.NewAutomaticFollowWorker(
-		instagram.AutomaticFollowWorkerOptions{
-			Store:                 automaticFollowStore,
-			Policy:                suggestionPolicy,
-			Sessions:              auth.NewBackgroundSessionSelector(pool),
-			Writer:                followwrite.NewService(deps.NewPDSClient),
-			Membership:            instagramMembership,
-			MembershipInactivator: instagramPrivateData,
-			Now:                   time.Now,
-
-			MaxProviderAttempts: cfg.InstagramLimits.WorkerMaxAttempts,
-		},
-	)
-	if err != nil {
-		pool.Close()
-		return nil, nil, fmt.Errorf("Instagram automatic-follow worker: %w", err)
-	}
 	deps.RelationshipMutations = relationships.NewMutationServiceWithRestoration(
 		deps.RelationshipStore,
 		deps.NewPDSClient,
@@ -652,6 +936,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	var once sync.Once
 	cleanup := func() {
 		once.Do(func() {
+			federated.boundary.CloseIdleConnections()
 			deps.Observability.Flush(2 * time.Second)
 			deps.DB.Close()
 			deps.Logger.Info("shutdown: db pool closed")
@@ -665,6 +950,19 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (*Deps, func(), 
 	logger.Info("deps initialised", slog.String("env", string(cfg.Env)))
 
 	return deps, cleanup, nil
+}
+
+func buildOAuthArtifacts(deployment OAuthDeployment) (auth.ClientArtifacts, error) {
+	mode := auth.ClientMode(deployment.Mode)
+	return auth.BuildClientArtifacts(auth.ClientConfigInput{
+		Mode:            mode,
+		ClientID:        deployment.ClientID,
+		CallbackURL:     deployment.CallbackURL,
+		JWKSURL:         deployment.JWKSURL,
+		ClientSecretKey: deployment.ClientSecretKey.Reveal(),
+		ClientKeyID:     deployment.ClientKeyID,
+		Scopes:          append([]string(nil), deployment.Scopes...),
+	})
 }
 
 func (d *Deps) expirePDSSession(ctx context.Context, did syntax.DID, sid string) {
@@ -724,27 +1022,59 @@ func newIndexerDispatcherWithActorDeletion(
 	lifecycle notifications.Lifecycle,
 	actorDeletion notifications.ActorDeletion,
 ) *index.Dispatcher {
+	return newIndexerDispatcherBundleWithActorDeletion(
+		pool, anonPDS, logger, repositoryTracker, observer, lifecycle, actorDeletion,
+	).legacy
+}
+
+type indexerDispatcherBundle struct {
+	legacy        *index.Dispatcher
+	transactional *index.TransactionalDispatcher
+}
+
+func newIndexerDispatcherBundleWithActorDeletion(
+	pool *pgxpool.Pool,
+	anonPDS auth.PDSClient,
+	logger *slog.Logger,
+	repositoryTracker tap.RepositoryTracker,
+	observer index.RelationshipObserver,
+	lifecycle notifications.Lifecycle,
+	actorDeletion notifications.ActorDeletion,
+) indexerDispatcherBundle {
 	if lifecycle == nil {
 		lifecycle = notifications.NoopLifecycle{}
 	}
 	if actorDeletion == nil {
 		actorDeletion = notifications.NoopActorDeletion{}
 	}
-	dispatcher := index.NewDispatcher(index.NotImplemented{})
+	legacy := index.NewDispatcher(index.NotImplemented{})
+	transactional := index.NewTransactionalDispatcher()
 	blueskyIdx := index.NewBlueskyProfile(pool)
 	backfiller := index.NewObservedBlueskyBackfiller(anonPDS, blueskyIdx, repositoryTracker, observer)
-	dispatcher.Register("social.craftsky.actor.profile",
-		index.NewCraftskyProfile(pool, backfiller, logger, actorDeletion))
-	dispatcher.Register("social.craftsky.feed.post",
-		index.NewCraftskyPost(pool, logger, lifecycle))
-	dispatcher.Register("social.craftsky.feed.like",
-		index.NewCraftskyLike(pool, logger, lifecycle))
-	dispatcher.Register("social.craftsky.feed.repost",
-		index.NewCraftskyRepost(pool, logger, lifecycle))
-	dispatcher.Register("app.bsky.graph.follow",
-		index.NewBlueskyFollow(pool, lifecycle))
-	dispatcher.Register("app.bsky.graph.block",
-		index.NewBlueskyBlock(pool, observer))
-	dispatcher.Register("app.bsky.actor.profile", blueskyIdx)
-	return dispatcher
+	profile := index.NewCraftskyProfile(pool, backfiller, logger, actorDeletion)
+	post := index.NewCraftskyPost(pool, logger, lifecycle)
+	like := index.NewCraftskyLike(pool, logger, lifecycle)
+	repost := index.NewCraftskyRepost(pool, logger, lifecycle)
+	follow := index.NewBlueskyFollow(pool, lifecycle)
+	block := index.NewBlueskyBlock(pool, observer)
+	registrations := []struct {
+		collection syntax.NSID
+		indexer    interface {
+			index.Indexer
+			index.TransactionalIndexer
+		}
+	}{
+		{collection: "social.craftsky.actor.profile", indexer: profile},
+		{collection: "social.craftsky.feed.post", indexer: post},
+		{collection: "social.craftsky.feed.like", indexer: like},
+		{collection: "social.craftsky.feed.repost", indexer: repost},
+		{collection: "app.bsky.actor.profile", indexer: blueskyIdx},
+		{collection: "app.bsky.graph.follow", indexer: follow},
+		{collection: "app.bsky.graph.block", indexer: block},
+	}
+	for _, registration := range registrations {
+		legacy.Register(registration.collection, registration.indexer)
+		transactional.Register(registration.collection, registration.indexer)
+	}
+	return indexerDispatcherBundle{legacy: legacy, transactional: transactional}
 }

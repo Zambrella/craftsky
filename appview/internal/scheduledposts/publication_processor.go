@@ -12,13 +12,14 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
-	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/pdseffects"
 )
 
 type PublicationProcessorOptions struct {
 	Store         *Store
 	Sessions      PublicationSessionSelector
-	NewPDS        auth.PDSClientFactory
+	NewEffects    pdseffects.GuardedExecutorFactory
 	Objects       PrivateObjectStore
 	Now           func() time.Time
 	Validate      func(context.Context, syntax.DID, Payload) error
@@ -29,7 +30,7 @@ type PublicationProcessorOptions struct {
 type PublicationProcessor struct {
 	store         *Store
 	sessions      PublicationSessionSelector
-	newPDS        auth.PDSClientFactory
+	newEffects    pdseffects.GuardedExecutorFactory
 	objects       PrivateObjectStore
 	now           func() time.Time
 	validate      func(context.Context, syntax.DID, Payload) error
@@ -38,7 +39,7 @@ type PublicationProcessor struct {
 }
 
 func NewPublicationProcessor(options PublicationProcessorOptions) (*PublicationProcessor, error) {
-	if options.Store == nil || options.Sessions == nil || options.NewPDS == nil || options.Objects == nil {
+	if options.Store == nil || options.Sessions == nil || options.NewEffects == nil || options.Objects == nil {
 		return nil, errors.New("scheduled publication processor dependencies are required")
 	}
 	if options.Now == nil {
@@ -54,7 +55,7 @@ func NewPublicationProcessor(options PublicationProcessorOptions) (*PublicationP
 		return nil, errors.New("scheduled publication media limit is invalid")
 	}
 	return &PublicationProcessor{store: options.Store, sessions: options.Sessions,
-		newPDS: options.NewPDS, objects: options.Objects, now: options.Now,
+		newEffects: options.NewEffects, objects: options.Objects, now: options.Now,
 		validate: options.Validate, maxMediaBytes: options.MaxMediaBytes,
 		observer: options.Observer}, nil
 }
@@ -73,7 +74,11 @@ func (p *PublicationProcessor) Process(ctx context.Context, item WorkItem) (proc
 		}
 	}()
 	claim := workItemClaim(item)
-	guard, err := p.store.AcquirePublishingEffect(ctx, claim)
+	if claim.OwnerGeneration <= 0 {
+		return errors.New("scheduled publication generation is unavailable")
+	}
+
+	snapshot, err := p.store.publicationSnapshot(ctx, claim)
 	if errors.Is(err, ErrWorkerLeaseLost) || errors.Is(err, ErrScheduleNotFound) {
 		if p.observer != nil {
 			p.observer.ObserveScheduledOperation(
@@ -82,16 +87,6 @@ func (p *PublicationProcessor) Process(ctx context.Context, item WorkItem) (proc
 		}
 		return nil
 	}
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if releaseErr := guard.Release(context.Background()); processErr == nil && releaseErr != nil {
-			processErr = releaseErr
-		}
-	}()
-
-	snapshot, err := p.store.publicationSnapshot(ctx, claim)
 	if err != nil {
 		return err
 	}
@@ -142,7 +137,8 @@ func (p *PublicationProcessor) Process(ctx context.Context, item WorkItem) (proc
 		}
 		recordBytes = frozen.RecordBytes
 		if err := p.store.SaveFrozenRecord(ctx, FrozenRecordParams{
-			ID: claim.ID, OwnerDID: claim.OwnerDID, LeaseToken: claim.LeaseToken,
+			ID: claim.ID, OwnerDID: claim.OwnerDID, OwnerGeneration: claim.OwnerGeneration,
+			LeaseToken:     claim.LeaseToken,
 			PayloadVersion: claim.PayloadVersion, RecordBytes: recordBytes,
 			RecordHash: frozen.RecordHash, Now: p.now().UTC(),
 		}); err != nil {
@@ -154,53 +150,88 @@ func (p *PublicationProcessor) Process(ctx context.Context, item WorkItem) (proc
 	if err != nil {
 		return p.recordFailure(ctx, claim, err, item.Manual)
 	}
-	pds, err := p.newPDS(ctx, claim.OwnerDID, sessionID)
-	if err != nil {
+	coordinator, err := p.newEffects(ctx, claim.OwnerDID, sessionID)
+	if err != nil || coordinator == nil {
 		return p.recordFailure(ctx, claim, ErrAuthUnavailable, item.Manual)
 	}
-	if err := p.uploadPrivateMedia(ctx, pds, snapshot.Media); err != nil {
-		return p.recordFailure(ctx, claim, err, item.Manual)
-	}
-	var record map[string]any
-	if err := json.Unmarshal(recordBytes, &record); err != nil {
-		return p.recordFailure(ctx, claim, ErrRecordConflict, item.Manual)
-	}
-
-	cid, found, err := matchingPDSRecord(ctx, pds, claim, recordBytes)
-	if err != nil {
-		return p.recordFailure(ctx, claim, err, item.Manual)
-	}
-	if !found {
-		if err := pds.PutRecord(ctx, claim.OwnerDID, PostCollection, claim.Rkey.String(), record); err != nil {
-			if item.Manual {
-				return ErrPublicationAmbiguous
+	expectedOwners := []ownerlifecycle.ExpectedOwner{{
+		Owner: claim.OwnerDID, Generation: claim.OwnerGeneration,
+	}}
+	finalized := false
+	effectErr := coordinator.WithGuardedEffects(
+		ctx,
+		expectedOwners,
+		func(effectCtx context.Context, effects pdseffects.EffectExecutor) (effectErr error) {
+			guard, err := p.store.AcquirePublishingEffect(effectCtx, claim)
+			if err != nil {
+				return err
 			}
-			return p.recordFailure(ctx, claim, ErrPDSUnavailable, false)
-		}
-		cid, found, err = matchingPDSRecord(ctx, pds, claim, recordBytes)
-		if err != nil {
-			if item.Manual {
-				return ErrPublicationAmbiguous
+			effectCtx = guard.bind(effectCtx)
+			defer func() {
+				effectErr = errors.Join(effectErr, guard.Release(effectCtx))
+			}()
+			if err := p.uploadPrivateMedia(
+				effectCtx,
+				effects,
+				claim,
+				expectedOwners,
+				snapshot.Media,
+			); err != nil {
+				return p.handleEffectFailure(effectCtx, claim, scheduledBlobEffect, err, item.Manual)
 			}
-			return p.recordFailure(ctx, claim, err, false)
-		}
-		if !found {
-			if item.Manual {
-				return ErrPublicationAmbiguous
+			var record map[string]any
+			if err := json.Unmarshal(recordBytes, &record); err != nil {
+				return p.recordFailure(effectCtx, claim, ErrRecordConflict, item.Manual)
 			}
-			return p.recordFailure(ctx, claim, ErrPDSUnavailable, false)
+			effectID := scheduledRecordEffectIdentity(claim)
+			result, err := effects.PutRecord(effectCtx, pdseffects.PutRecordRequest{
+				OperationID:     effectID,
+				MutationKey:     effectID,
+				Owner:           claim.OwnerDID,
+				OwnerGeneration: claim.OwnerGeneration,
+				ExpectedOwners:  expectedOwners,
+				Collection:      syntax.NSID(PostCollection),
+				Rkey:            claim.Rkey,
+				Record:          record,
+			})
+			if err != nil {
+				return p.handleEffectFailure(
+					effectCtx, claim, scheduledRecordEffect, err, item.Manual,
+				)
+			}
+			_, err = p.store.FinalizePublication(effectCtx, FinalizePublicationParams{
+				Claim: claim, PublicationURI: result.URI, PublicationCID: result.CID,
+				PublishedAt: p.now().UTC(),
+			})
+			if err == nil {
+				finalized = true
+			}
+			return err
+		},
+	)
+	if errors.Is(effectErr, ownerlifecycle.ErrGenerationChanged) ||
+		errors.Is(effectErr, ownerlifecycle.ErrOwnerNotActive) ||
+		errors.Is(effectErr, ownerlifecycle.ErrTerminalOwner) ||
+		errors.Is(effectErr, ErrWorkerLeaseLost) || errors.Is(effectErr, ErrScheduleNotFound) {
+		if p.observer != nil {
+			p.observer.ObserveScheduledOperation(
+				"stale_worker", "stale", "stale_worker", time.Since(started),
+			)
 		}
+		return nil
 	}
-	uri := syntax.ATURI(fmt.Sprintf("at://%s/%s/%s", claim.OwnerDID, PostCollection, claim.Rkey))
-	_, err = p.store.FinalizePublication(ctx, FinalizePublicationParams{
-		Claim: claim, PublicationURI: uri, PublicationCID: syntax.CID(cid), PublishedAt: p.now().UTC(),
-	})
-	if err == nil && p.observer != nil {
+	if item.Manual && errors.Is(effectErr, pdseffects.ErrOutcomeAmbiguous) {
+		return errors.Join(ErrPublicationAmbiguous, effectErr)
+	}
+	if finalized && effectErr != nil {
+		return fmt.Errorf("release finalized scheduled publication effect: %w", effectErr)
+	}
+	if effectErr == nil && p.observer != nil {
 		p.observer.ObserveScheduledOperation(
 			"publish", "success", "none", time.Since(started),
 		)
 	}
-	return err
+	return effectErr
 }
 
 func (p *PublicationProcessor) recordFailure(
@@ -233,8 +264,14 @@ func (p *PublicationProcessor) recordFailure(
 	return nil
 }
 
-func (p *PublicationProcessor) uploadPrivateMedia(ctx context.Context, pds auth.PDSClient, media []publicationMedia) error {
-	for _, item := range media {
+func (p *PublicationProcessor) uploadPrivateMedia(
+	ctx context.Context,
+	effects pdseffects.EffectExecutor,
+	claim PublishingClaim,
+	expectedOwners []ownerlifecycle.ExpectedOwner,
+	media []publicationMedia,
+) error {
+	for ordinal, item := range media {
 		body, err := p.objects.Open(ctx, item.ObjectKey)
 		if err != nil {
 			return ErrObjectUnavailable
@@ -244,9 +281,21 @@ func (p *PublicationProcessor) uploadPrivateMedia(ctx context.Context, pds auth.
 		if readErr != nil || closeErr != nil || int64(len(bytesValue)) != item.SizeBytes || sha256.Sum256(bytesValue) != item.SHA256 {
 			return ErrMediaInvalid
 		}
-		uploaded, err := pds.UploadBlob(ctx, item.MIMEType, bytesValue)
-		if err != nil || uploaded == nil || len(uploaded.Raw) == 0 {
-			return ErrPDSUnavailable
+		effectID := scheduledBlobEffectIdentity(claim, ordinal)
+		uploaded, err := effects.UploadBlob(ctx, pdseffects.UploadBlobRequest{
+			OperationID:     effectID,
+			MutationKey:     effectID,
+			Owner:           claim.OwnerDID,
+			OwnerGeneration: claim.OwnerGeneration,
+			ExpectedOwners:  expectedOwners,
+			MIME:            item.MIMEType,
+			Bytes:           bytesValue,
+		})
+		if err != nil {
+			return err
+		}
+		if uploaded == nil || len(uploaded.Raw) == 0 {
+			return errors.Join(ErrMediaInvalid, errors.New("durable blob effect returned no result"))
 		}
 		expected := publicationBlob(item)
 		expectedJSON, expectedErr := json.Marshal(expected)
@@ -260,6 +309,61 @@ func (p *PublicationProcessor) uploadPrivateMedia(ctx context.Context, pds auth.
 		}
 	}
 	return nil
+}
+
+type scheduledEffectKind uint8
+
+const (
+	scheduledRecordEffect scheduledEffectKind = iota + 1
+	scheduledBlobEffect
+)
+
+func scheduledEffectIdentityBase(claim PublishingClaim) string {
+	return fmt.Sprintf(
+		"scheduled-post/%s/g%d/v%d",
+		claim.ID,
+		claim.OwnerGeneration,
+		claim.PayloadVersion,
+	)
+}
+
+func scheduledRecordEffectIdentity(claim PublishingClaim) string {
+	return scheduledEffectIdentityBase(claim) + "/record"
+}
+
+func scheduledBlobEffectIdentity(claim PublishingClaim, ordinal int) string {
+	return fmt.Sprintf("%s/blob/%d", scheduledEffectIdentityBase(claim), ordinal)
+}
+
+func classifyScheduledEffectError(kind scheduledEffectKind, err error) error {
+	if errors.Is(err, pdseffects.ErrEffectConflict) ||
+		errors.Is(err, pdseffects.ErrEffectRejected) {
+		if kind == scheduledBlobEffect {
+			return errors.Join(ErrMediaInvalid, err)
+		}
+		return errors.Join(ErrRecordConflict, err)
+	}
+	return errors.Join(ErrPDSUnavailable, err)
+}
+
+func (p *PublicationProcessor) handleEffectFailure(
+	ctx context.Context,
+	claim PublishingClaim,
+	kind scheduledEffectKind,
+	err error,
+	manual bool,
+) error {
+	if errors.Is(err, ownerlifecycle.ErrGenerationChanged) ||
+		errors.Is(err, ownerlifecycle.ErrOwnerNotActive) ||
+		errors.Is(err, ownerlifecycle.ErrTerminalOwner) ||
+		errors.Is(err, ErrWorkerLeaseLost) ||
+		errors.Is(err, ErrScheduleNotFound) {
+		return err
+	}
+	if manual && errors.Is(err, pdseffects.ErrOutcomeAmbiguous) {
+		return errors.Join(ErrPublicationAmbiguous, err)
+	}
+	return p.recordFailure(ctx, claim, classifyScheduledEffectError(kind, err), manual)
 }
 
 func predictedPublicationBlobs(media []publicationMedia) ([]map[string]any, error) {
@@ -319,23 +423,4 @@ func publicationRecord(payload Payload, blobs []map[string]any, createdAt time.T
 		record["images"] = images
 	}
 	return record, nil
-}
-
-func matchingPDSRecord(ctx context.Context, pds auth.PDSClient, claim PublishingClaim, expected []byte) (string, bool, error) {
-	var existing map[string]any
-	cid, err := pds.GetRecord(ctx, claim.OwnerDID, PostCollection, claim.Rkey.String(), &existing)
-	if errors.Is(err, auth.ErrRecordNotFound) {
-		return "", false, nil
-	}
-	if err != nil {
-		return "", false, ErrPDSUnavailable
-	}
-	actual, err := json.Marshal(existing)
-	if err != nil {
-		return "", false, ErrRecordConflict
-	}
-	if !bytes.Equal(actual, expected) {
-		return "", false, ErrRecordConflict
-	}
-	return cid, true, nil
 }

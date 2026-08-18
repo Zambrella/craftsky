@@ -252,6 +252,64 @@ void main() {
       await expectLater(job.future, throwsA(isA<FormatException>()));
     });
 
+    test(
+      'scheduled preparation proportionally resizes over-budget pixels',
+      () async {
+        const scheduledService = ComposerImageMediaService(
+          scheduledImageLimits: ScheduledImageLimits(
+            maxWidth: 20,
+            maxHeight: 20,
+            maxPixels: 100,
+            maxAspectRatio: 20,
+          ),
+        );
+        final source = img.Image(width: 20, height: 10);
+
+        final prepared = await scheduledService
+            .prepareScheduledImage(
+              bytes: Uint8List.fromList(img.encodePng(source)),
+              fileName: 'project.png',
+              mimeType: 'image/png',
+            )
+            .future;
+
+        expect((prepared.width, prepared.height), (14, 7));
+        final decoded = img.decodePng(prepared.bytes);
+        expect(decoded, isNotNull);
+        expect((decoded!.width, decoded.height), (14, 7));
+      },
+    );
+
+    test('scheduled preparation rejects an extreme aspect ratio', () async {
+      const scheduledService = ComposerImageMediaService(
+        scheduledImageLimits: ScheduledImageLimits(
+          maxWidth: 21,
+          maxHeight: 21,
+          maxPixels: 21,
+          maxAspectRatio: 20,
+        ),
+      );
+
+      await expectLater(
+        scheduledService
+            .prepareScheduledImage(
+              bytes: Uint8List.fromList(
+                img.encodePng(img.Image(width: 21, height: 1)),
+              ),
+              fileName: 'panorama.png',
+              mimeType: 'image/png',
+            )
+            .future,
+        throwsA(
+          isA<FormatException>().having(
+            (error) => error.message,
+            'message',
+            contains('aspect ratio'),
+          ),
+        ),
+      );
+    });
+
     test('validates prepared upload byte limits', () {
       expect(
         service

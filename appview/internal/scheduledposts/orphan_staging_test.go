@@ -23,16 +23,10 @@ func TestStoreExpiresOnlyTrulyUnclaimedStagingAfterCreateRetry(t *testing.T) {
 	claimedMedia := uuid.MustParse("00000000-0000-4000-8000-000000000401")
 	orphanMedia := uuid.MustParse("00000000-0000-4000-8000-000000000402")
 	for _, mediaID := range []uuid.UUID{claimedMedia, orphanMedia} {
-		if _, err := store.pool.Exec(ctx, `
-			INSERT INTO scheduled_post_media (
-				id, owner_did, object_key, state, mime_type, size_bytes,
-				sha256, blob_cid, unclaimed_expires_at
-			) VALUES ($1, $2, $3, 'ready', 'image/jpeg', 4,
-				decode(repeat('03', 32), 'hex'), $4, $5)
-		`, mediaID, owner, "scheduled-media/"+mediaID.String(),
-			"bafk-"+mediaID.String(), now.Add(24*time.Hour)); err != nil {
-			t.Fatalf("seed ready media: %v", err)
-		}
+		insertReadyPrivateMediaFixture(
+			t, store, owner, mediaID, nil, nil,
+			"bafk-"+mediaID.String(), now.Add(24*time.Hour),
+		)
 	}
 
 	params := capacityCreateParams(owner, 4, now.Add(2*time.Hour))
@@ -69,7 +63,8 @@ func TestStoreExpiresOnlyTrulyUnclaimedStagingAfterCreateRetry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("claim orphan cleanup: %v", err)
 	}
-	if len(claims) != 1 || claims[0].ObjectKey != "scheduled-media/"+orphanMedia.String() {
+	orphanKey, _, _ := NewGenerationObjectKey(owner, 1, orphanMedia)
+	if len(claims) != 1 || claims[0].ObjectKey != orphanKey {
 		t.Fatalf("orphan cleanup claims=%#v", claims)
 	}
 }

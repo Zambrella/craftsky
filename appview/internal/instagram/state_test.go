@@ -118,7 +118,6 @@ func TestInstagramStateValidationAndOwnerBoundary(t *testing.T) {
 	if VerificationAttemptState("futureState").Valid() ||
 		InstagramLinkState("futureState").Valid() ||
 		InstagramImportState("futureState").Valid() ||
-		AutomaticFollowState("futureState").Valid() ||
 		InstagramConflictState("futureState").Valid() {
 		t.Fatal("server state validation accepted an unknown public value")
 	}

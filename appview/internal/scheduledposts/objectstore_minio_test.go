@@ -8,6 +8,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 )
 
@@ -33,7 +34,14 @@ func TestS3ObjectStoreAgainstMinIO(t *testing.T) {
 		t.Fatalf("check private MinIO bucket: %v", err)
 	}
 
-	objectKey := "scheduled-media/" + uuid.NewString()
+	objectKey, _, err := NewGenerationObjectKey(
+		syntax.DID("did:plc:minio-fixture"),
+		1,
+		uuid.New(),
+	)
+	if err != nil {
+		t.Fatalf("derive MinIO object key: %v", err)
+	}
 	payload := []byte("minio-private-object-checksum-fixture")
 	t.Cleanup(func() {
 		_ = store.Delete(context.Background(), objectKey)
@@ -47,6 +55,9 @@ func TestS3ObjectStoreAgainstMinIO(t *testing.T) {
 		"image/jpeg",
 	); err != nil {
 		t.Fatalf("put private MinIO object: %v", err)
+	}
+	if exists, err := store.Exists(context.Background(), objectKey); err != nil || !exists {
+		t.Fatalf("private MinIO object exists=%v error=%v after Put", exists, err)
 	}
 	opened, err := store.Open(context.Background(), objectKey)
 	if err != nil {
@@ -72,6 +83,9 @@ func TestS3ObjectStoreAgainstMinIO(t *testing.T) {
 
 	if err := store.Delete(context.Background(), objectKey); err != nil {
 		t.Fatalf("delete private MinIO object: %v", err)
+	}
+	if exists, err := store.Exists(context.Background(), objectKey); err != nil || exists {
+		t.Fatalf("private MinIO object exists=%v error=%v after Delete", exists, err)
 	}
 	if err := store.Delete(context.Background(), objectKey); err != nil {
 		t.Fatalf("repeat private MinIO delete: %v", err)

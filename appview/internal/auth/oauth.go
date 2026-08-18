@@ -18,12 +18,27 @@ type CraftskyAuthService struct {
 }
 
 var _ AuthService = (*CraftskyAuthService)(nil)
+var _ RecoveryAuthService = (*CraftskyAuthService)(nil)
 
 func (s *CraftskyAuthService) Authenticate(ctx context.Context, token string) (AuthInfo, error) {
 	if token == "" {
 		return AuthInfo{}, ErrAuthTokenInvalid
 	}
 	info, err := s.Store.Lookup(ctx, token)
+	if errors.Is(err, ErrCraftskySessionNotFound) {
+		return AuthInfo{}, ErrAuthTokenInvalid
+	}
+	if err != nil {
+		return AuthInfo{}, err
+	}
+	return info, nil
+}
+
+func (s *CraftskyAuthService) AuthenticateRecovery(ctx context.Context, token string) (AuthInfo, error) {
+	if token == "" {
+		return AuthInfo{}, ErrAuthTokenInvalid
+	}
+	info, err := s.Store.LookupRecovery(ctx, token)
 	if errors.Is(err, ErrCraftskySessionNotFound) {
 		return AuthInfo{}, ErrAuthTokenInvalid
 	}

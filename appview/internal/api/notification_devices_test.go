@@ -8,9 +8,11 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -23,6 +25,7 @@ func TestRegisterNotificationDeviceIsIdempotentAndRotatesTokenWithoutEcho(t *tes
 	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
 		t.Fatal(err)
 	}
+	seedMember(t, pool, "did:plc:viewer")
 	handler := api.RegisterNotificationDeviceHandler(api.NewPostStore(pool), nilLogger())
 	register := func(token string) api.NotificationDeviceResponse {
 		t.Helper()
@@ -67,6 +70,8 @@ func TestRegisterNotificationDeviceRebindsTokenWithoutTransferringAccounts(t *te
 	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
 		t.Fatal(err)
 	}
+	seedMember(t, pool, "did:plc:alice")
+	seedMember(t, pool, "did:plc:bob")
 	handler := api.RegisterNotificationDeviceHandler(api.NewPostStore(pool), nilLogger())
 	register := func(did, deviceID string) api.NotificationDeviceResponse {
 		t.Helper()
@@ -132,12 +137,15 @@ func TestRemoveNotificationSubscriptionOnlyRemovesOwnedAccountOnCurrentDevice(t 
 	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
 		t.Fatal(err)
 	}
+	seedMember(t, pool, "did:plc:alice")
+	seedMember(t, pool, "did:plc:bob")
 	store := api.NewPostStore(pool)
-	aliceRouting, err := store.RegisterNotificationDevice(context.Background(), "did:plc:alice", "shared-device", "android", "shared-token")
+	mutationCtx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
+	aliceRouting, err := store.RegisterNotificationDevice(mutationCtx, "did:plc:alice", "shared-device", "android", "shared-token")
 	if err != nil {
 		t.Fatal(err)
 	}
-	bobRouting, err := store.RegisterNotificationDevice(context.Background(), "did:plc:bob", "shared-device", "android", "shared-token")
+	bobRouting, err := store.RegisterNotificationDevice(mutationCtx, "did:plc:bob", "shared-device", "android", "shared-token")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -161,5 +169,59 @@ func TestRemoveNotificationSubscriptionOnlyRemovesOwnedAccountOnCurrentDevice(t 
 	}
 	if aliceActive != 0 || bobActive != 1 {
 		t.Fatalf("aliceActive=%d bobActive=%d", aliceActive, bobActive)
+	}
+}
+
+func TestDeactivateForAccountBeforeDoesNotDeactivateReactivatedSubscription(t *testing.T) {
+	pool := testdb.WithSchema(t, timelineStoreDDL)
+	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	store := api.NewPostStore(pool)
+	const owner = "did:plc:cleanup-fence"
+	seedMember(t, pool, owner)
+	mutationCtx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
+	if _, err := store.RegisterNotificationDevice(mutationCtx, owner, "old-device", "ios", "old-token"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.RegisterNotificationDevice(mutationCtx, owner, "new-device", "ios", "new-token"); err != nil {
+		t.Fatal(err)
+	}
+	cutoff := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC)
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE push_account_subscriptions subscription
+		SET updated_at=CASE installation.device_id
+		  WHEN 'old-device' THEN $2::timestamptz-interval '1 minute'
+		  ELSE $2::timestamptz+interval '1 minute' END
+		FROM push_installations installation
+		WHERE installation.id=subscription.installation_id
+		  AND subscription.account_did=$1
+	`, owner, cutoff); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.DeactivateForAccountBefore(context.Background(), owner, cutoff); err != nil {
+		t.Fatal(err)
+	}
+	var oldActive, newActive int
+	if err := pool.QueryRow(context.Background(), `
+		SELECT count(*) FROM push_account_subscriptions subscription
+		JOIN push_installations installation ON installation.id=subscription.installation_id
+		WHERE subscription.account_did=$1 AND installation.device_id='old-device' AND subscription.active
+	`, owner).Scan(&oldActive); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(context.Background(), `
+		SELECT count(*) FROM push_account_subscriptions subscription
+		JOIN push_installations installation ON installation.id=subscription.installation_id
+		WHERE subscription.account_did=$1 AND installation.device_id='new-device' AND subscription.active
+	`, owner).Scan(&newActive); err != nil {
+		t.Fatal(err)
+	}
+	if oldActive != 0 || newActive != 1 {
+		t.Fatalf("oldActive=%d newActive=%d, want old cleanup/new registration fenced", oldActive, newActive)
 	}
 }

@@ -1,5 +1,7 @@
 # TDD Implementation Plan: Lean Account Deletion Simplification
 
+> **Current status (2026-08-14):** The earlier lean simplification loops are complete, but the AppView audit exact-key safety correction in the final section is approved and pending. The implementation is not complete against amended FR-028–FR-031/NFR-007/RULE-012–RULE-013 until those loops and the reopened review pass.
+
 ## Inputs
 
 - Requirements: `01-requirements.md` (Approved, High risk)
@@ -148,3 +150,110 @@ Correction rules:
 - [x] `05-implementation-plan.md` updated with actual red/green evidence and read back.
 - [x] Manual real-OAuth/PDS gates recorded without claiming they ran.
 - [x] Implementation review completed; IR-001–IR-004 correction evidence is recorded above and is ready for re-review.
+
+## AppView Audit Exact-Key Safety Correction (Approved 2026-08-14)
+
+### Correction inputs and rules
+
+- Authoritative requirements: `01-requirements.md` §24.
+- Authoritative tests: `02-acceptance-tests.md` §12.
+- Approved re-review: `03-document-review.md` §7.
+- Coding plan: `04-coding-plan.md` §13.
+- Product decision: permit minimal non-secret, exact-owner/job/key safety tombstones while PDS/object outcomes remain uncertain; remove them with operation/OAuth state after convergence.
+- Preserve the completed no-status, no-recovery-credential, no-manual-Retry, no-index-receipt, no-component-checkpoint, no-audit, no-detailed-metrics, namespace/blob/DID-account, and final artifact-free boundaries.
+- Do not implement Go or migration changes from this documentation update; begin the code stage with a meaningful red IT-035.
+
+### Correction test order
+
+| Step | Test IDs | Requirement IDs | Acceptance Criteria | Expected initial state |
+|---|---|---|---|---|
+| S1 | IT-035 | FR-028, FR-029, RULE-013 | AC-050 | Current worker can finalize after an initially empty PDS scan and retains no exact-URI key for a delayed commit. |
+| S2 | UT-025 | FR-028, FR-029, NFR-007, RULE-012 | AC-049, AC-054 | No minimized tombstone migration/store/type or exact-scope constraint exists. |
+| S3 | UT-026 | FR-028, FR-030, NFR-007, RULE-012 | AC-049, AC-054 | Scheduled media does not fully encode immutable upload generation and tested settlement proof. |
+| S4 | IT-036 | FR-028, FR-030, RULE-013 | AC-051 | An early object delete/absence can discard tracking before a delayed accepted `Put` materializes. |
+| S5 | IT-037 | FR-029, FR-030, RULE-013 | AC-052, AC-054 | Retry exhaustion/elapsed time lacks the amended “remain reconciling” barrier. |
+| S6 | IT-038, AT-009 | FR-031, NFR-007 | AC-053 | Finalization does not atomically prove/remove the approved temporary state because that state does not yet exist. |
+| S7 | REG-017 and broad regressions | FR-031, NFR-007, RULE-012, RULE-013 | AC-053, AC-054 | The corrected persistence must not revive deleted status/audit/receipt/checkpoint/metrics or broaden deletion authority. |
+
+### Planned red-green-refactor loops
+
+#### S1 — IT-035 delayed PDS commit barrier
+
+- Write failing test: in `appview/internal/accountdeletion/worker_acceptance_test.go`, persist one outcome-uncertain exact registered CraftSky URI, make the fake PDS accept but delay visibility/completion, crash/recreate AppView services, allow the first deletion scan to return empty, then expose the record.
+- Run command: `cd appview && go test ./internal/accountdeletion -run 'Test.*Delayed.*PDS' -count=1`.
+- Meaningful red: operation finalizes or loses exact-key authority before the delayed record appears.
+- Minimum green: adopt a minimized exact-URI tombstone before finalization, keep the operation reconciling, and delete/reverify that URI without repeating its original write.
+- Refactor only while green: extract typed settlement evidence/capability scope; do not generalize PDS deletion.
+
+#### S2 — UT-025 migration/store/scope
+
+- Write failing tests: migration shape/check/index/residue assertions plus typed invalid owner/job/follow/namespace/blob/secret cases.
+- Run command: `cd appview && go test ./internal/accountdeletion -run 'Test.*Migration|Test.*SafetyTombstone|Test.*PDS.*Scope' -count=1`.
+- Minimum green: centrally numbered `account_deletion_safety_tombstones` migration and store compare-and-set/lease API with the exact minimized schema from `04-coding-plan.md` §13.2.
+- Refactor only while green: keep PDS/object variants in one relation unless normalization demonstrably improves constraints without widening scope.
+
+#### S3/S4 — UT-026 and IT-036 delayed object `Put`
+
+- Write failing unit test: settlement decision rejects elapsed client time/first absent HEAD and binds immutable key + upload generation.
+- Write failing integration test: new `appview/internal/scheduledposts/account_deletion_race_test.go` barriers accepted `Put`, service crash, early delete/absence, delayed materialization, and later cleanup.
+- Run commands: focused scheduled-post tombstone/media tests, then the new race test with PostgreSQL and MinIO-compatible adapter.
+- Minimum green: persist attempt/key/generation before `Put`, hold owner/object fence through ready CAS while alive, adopt deletion tombstone, and repeatedly delete/verify that exact generation after crash.
+- Refactor only while green: share lease/settlement types without merging ordinary object cleanup into a broad account-deletion capability.
+
+#### S5 — IT-037 honest indefinite reconciliation
+
+- Write failing test: no PDS/object finite settlement guarantee, client deadlines/retry windows elapsed, adapters currently absent.
+- Meaningful red: operation/tombstone is finalized, discarded, or moved to a terminal-success state.
+- Minimum green: bounded leased/backoff reconciliation remains active; client account stays removed; ordinary login/member authority stays denied; no user status route appears.
+
+#### S6 — IT-038/AT-009 final minimization
+
+- Write failing barriers around settled CAS, worker crash, retry, and finalization.
+- Minimum green: after revalidation of every exact key, one owner/job-fenced transaction deletes all temporary tombstones, the operation, and matching deletion-only OAuth generation. Duplicate retry is idempotent and no deletion-specific residue remains.
+
+#### S7 — REG-017 and full gate
+
+- Re-run removed-route/no-status Flutter tests, follow/namespace/blob/owner/job/generation capability tests, no-audit/no-detailed-metrics residue searches, migration up/down/up, focused PostgreSQL/MinIO/race suites, full Go and Flutter suites, formatting/static analysis, and `git diff --check`.
+- Record only commands that actually run; keep MAN-003 and real remote settlement checks as explicit unrun release gates unless performed with disposable infrastructure.
+
+### Correction execution log
+
+| Test IDs | Red evidence | Green evidence | Status |
+|---|---|---|---|
+| IT-035 | Not run; documentation-only decision recording. | Not implemented. | Pending |
+| UT-025 | Not run; documentation-only decision recording. | Not implemented. | Pending |
+| UT-026, IT-036 | Migration/key/settlement tests and the accepted-`Put` crash barrier failed before durable attempts, generation keys, final-absence proof, and owner/object fencing existed. | Scheduled-object PostgreSQL tests, migration `000040`/`000041` up/down/up, and the PostgreSQL+MinIO race suite pass. The barrier retains tracking across early absence and removes delayed materialization on a repeated exact-key cleanup. | Object sub-lane complete |
+| IT-037 | The settlement decision initially allowed no durable representation of an unbounded uncertain result; cleanup remote work also outlived its lease. | No-bound cleanup remains pending after repeated absence; a separate bounded-policy test requires post-boundary absence; cleanup remote work is context-bounded by its lease. | Object half complete; PDS half pending |
+| IT-038, AT-009 | Not run; documentation-only decision recording. | Not implemented. | Pending |
+| REG-017 / broad verification | Not run for the amended behavior. | Not implemented. | Pending |
+
+#### Scheduled-object sub-lane execution (AV-006)
+
+- This sub-lane owns only `UT-026`, `IT-036`, the object half of `IT-037`, and
+  the schema needed by the account-deletion lane. `IT-035`, PDS reconciliation,
+  operation/OAuth finalization, and the client contract remain outside it.
+- Test order is migration shape -> settlement decision -> delayed accepted
+  `Put` barrier -> no-finite-bound retention -> focused PostgreSQL/MinIO/race
+  regressions.
+- Verification on 2026-08-14: database-required `go test
+  ./internal/scheduledposts -count=1`; database-required focused migration
+  up/down/up; and database-required, MinIO-configured `go test -race
+  ./internal/scheduledposts -count=1` pass. `go vet
+  ./internal/scheduledposts` passes. The installed Staticcheck binary is built
+  with Go 1.25 and cannot analyze the Go 1.26 module, so Staticcheck is not
+  claimed.
+- No real remote settlement-bound validation ran. The dependency wiring uses
+  a zero bound, so unknown object outcomes remain exact-key, lease-claimable
+  reconciliation work rather than reporting data-free completion.
+
+### Correction completion checklist
+
+- [ ] IT-035 proves accepted-write → AppView crash → empty scan → delayed PDS commit convergence.
+- [x] IT-036 proves accepted `Put` → AppView crash → early absent/delete → delayed object creation convergence.
+- [x] No finite-settlement object configuration leaves tombstones reconciling rather than fabricating success; PDS coverage remains separate.
+- [x] Scheduled-object tombstone fields and typed APIs are exact-owner/job/key/generation and non-secret; PDS store coverage remains separate.
+- [ ] Only registered `social.craftsky.*` records and matching private object generations can be reconciled; follow/blob/DID/other namespace/owner remain impossible.
+- [ ] Proven convergence atomically removes tombstones, operation, and matching deletion-only OAuth authority.
+- [ ] No status/recovery/manual-Retry/receipt/component-checkpoint/audit/detailed-metrics surface is restored.
+- [ ] Focused PostgreSQL/MinIO/race, full Go/Flutter, migration, formatting/static-analysis, and diff checks are recorded truthfully.
+- [ ] `06-implementation-review.md` is re-reviewed and approved after implementation.

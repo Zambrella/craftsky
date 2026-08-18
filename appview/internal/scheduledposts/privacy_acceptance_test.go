@@ -18,7 +18,7 @@ import (
 func TestUnpublishedScheduleAndPreviewRemainOwnerPrivate(t *testing.T) {
 	store := NewStore(newScheduledPostStoreTestPool(t))
 	objects := newMemoryPrivateObjectStore()
-	media := NewPrivateMediaService(store, objects)
+	media, _ := newScheduledTestMediaService(t, store, objects)
 	ctx := context.Background()
 	alice := syntax.DID("did:plc:alice")
 	bob := syntax.DID("did:plc:bob")
@@ -26,7 +26,8 @@ func TestUnpublishedScheduleAndPreviewRemainOwnerPrivate(t *testing.T) {
 	mediaID := uuid.New()
 	privateBytes := []byte("private-image-canary")
 	staged, err := media.Put(ctx, PutPrivateMediaParams{
-		ID: mediaID, OwnerDID: alice, MIMEType: "image/jpeg", Bytes: privateBytes, Now: now,
+		ID: mediaID, OwnerDID: alice, OwnerGeneration: 1,
+		MIMEType: "image/jpeg", Bytes: privateBytes, Now: now,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -55,7 +56,7 @@ func TestUnpublishedScheduleAndPreviewRemainOwnerPrivate(t *testing.T) {
 	if _, err := media.Open(ctx, bob, mediaID); !errors.Is(err, ErrScheduledMediaNotFound) {
 		t.Fatalf("foreign preview error=%v", err)
 	}
-	if err := media.Delete(ctx, bob, mediaID, now); err != nil {
+	if err := media.Delete(ctx, bob, mediaID, now, 1); err != nil {
 		t.Fatalf("foreign idempotent media delete disclosed state: %v", err)
 	}
 	owned, err := store.Get(ctx, alice, created.ID)

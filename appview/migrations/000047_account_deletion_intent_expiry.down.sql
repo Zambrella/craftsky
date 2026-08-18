@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS account_deletion_operations_intent_expiry_idx;

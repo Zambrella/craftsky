@@ -181,22 +181,15 @@ func TestVerificationServiceCollisionDoesNotTransferExistingIdentity(t *testing.
 	}
 	dependentSuggestionID := uuid.MustParse("00000000-0000-0000-0000-00000000004e")
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO instagram_automatic_follow_ledger(
-			id,importer_did,target_did,state,reason,created_at,updated_at
-		) VALUES($1,'did:plc:synthetic-importer',$2,'pending','verifiedInstagramFollow',$3,$3)
-	`, dependentSuggestionID, alice, now); err != nil {
-		t.Fatalf("seed collision suggestion: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO pds_follow_operations(
-			id,automatic_follow_id,owner_did,target_did,rkey,status,
-			attempt_count,next_attempt_at,created_at,updated_at
+		INSERT INTO instagram_private_suggestions(
+			id,importer_did,target_did,importer_generation,target_generation,
+			evidence_link_id,state,reason,created_at,updated_at
 		) VALUES(
-			'00000000-0000-0000-0000-00000000004f',$1,
-			'did:plc:synthetic-importer',$2,'3kycollision','pending',0,$3,$3,$3
+			$1,'did:plc:synthetic-importer',$2,1,1,$3,
+			'pending','verifiedInstagramFollow',$4,$4
 		)
-	`, dependentSuggestionID, alice, now); err != nil {
-		t.Fatalf("seed collision follow operation: %v", err)
+	`, dependentSuggestionID, alice, aliceLinkID, now); err != nil {
+		t.Fatalf("seed collision suggestion: %v", err)
 	}
 	bobAttempt := verifyCandidate(bob, "alice.crafts")
 	now = now.Add(3 * time.Minute)
@@ -227,18 +220,17 @@ func TestVerificationServiceCollisionDoesNotTransferExistingIdentity(t *testing.
 	if bobLinks != 0 || conflicts != 1 {
 		t.Fatalf("Bob links=%d conflicts=%d", bobLinks, conflicts)
 	}
-	var suggestionState AutomaticFollowState
-	var followStatus, jobStatus string
+	var suggestionState SuggestionState
+	var jobStatus string
 	if err := pool.QueryRow(ctx, `
 		SELECT
-			(SELECT state FROM instagram_automatic_follow_ledger WHERE id=$1),
-			(SELECT status FROM pds_follow_operations WHERE automatic_follow_id=$1),
+			(SELECT state FROM instagram_private_suggestions WHERE id=$1),
 			(SELECT status FROM instagram_reconciliation_jobs WHERE link_id=$2 ORDER BY created_at DESC LIMIT 1)
-	`, dependentSuggestionID, aliceLinkID).Scan(&suggestionState, &followStatus, &jobStatus); err != nil {
+	`, dependentSuggestionID, aliceLinkID).Scan(&suggestionState, &jobStatus); err != nil {
 		t.Fatalf("inspect collision dependents: %v", err)
 	}
-	if suggestionState != AutomaticFollowInvalidated || followStatus != "invalidated" || jobStatus != "ignored" {
-		t.Fatalf("collision dependents automaticFollow=%s operation=%s job=%s", suggestionState, followStatus, jobStatus)
+	if suggestionState != SuggestionInvalidated || jobStatus != "ignored" {
+		t.Fatalf("collision dependents suggestion=%s job=%s", suggestionState, jobStatus)
 	}
 }
 
@@ -474,22 +466,15 @@ func TestVerificationServiceSupersessionImmediatelyPurgesPlaintextIdentity(t *te
 	oldLinkID := confirm("100000000000401", "old.identity")
 	dependentSuggestionID := uuid.MustParse("00000000-0000-0000-0000-0000000000ce")
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO instagram_automatic_follow_ledger(
-			id,importer_did,target_did,state,reason,created_at,updated_at
-		) VALUES($1,'did:plc:synthetic-supersession-importer',$2,'pending','verifiedInstagramFollow',$3,$3)
-	`, dependentSuggestionID, owner, now); err != nil {
-		t.Fatalf("seed supersession suggestion: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO pds_follow_operations(
-			id,automatic_follow_id,owner_did,target_did,rkey,status,
-			attempt_count,next_attempt_at,created_at,updated_at
+		INSERT INTO instagram_private_suggestions(
+			id,importer_did,target_did,importer_generation,target_generation,
+			evidence_link_id,state,reason,created_at,updated_at
 		) VALUES(
-			'00000000-0000-0000-0000-0000000000cf',$1,
-			'did:plc:synthetic-supersession-importer',$2,'3kysupersession','pending',0,$3,$3,$3
+			$1,'did:plc:synthetic-supersession-importer',$2,1,1,$3,
+			'pending','verifiedInstagramFollow',$4,$4
 		)
-	`, dependentSuggestionID, owner, now); err != nil {
-		t.Fatalf("seed supersession follow operation: %v", err)
+	`, dependentSuggestionID, owner, oldLinkID, now); err != nil {
+		t.Fatalf("seed supersession suggestion: %v", err)
 	}
 	newLinkID := confirm("100000000000402", "new.identity")
 	if oldLinkID == newLinkID {
@@ -507,18 +492,17 @@ func TestVerificationServiceSupersessionImmediatelyPurgesPlaintextIdentity(t *te
 	if state != LinkSuperseded || plaintextFields != 0 || purgeAt == nil || !purgeAt.Equal(now) {
 		t.Fatalf("superseded link state=%s plaintextFields=%d purgeAt=%v", state, plaintextFields, purgeAt)
 	}
-	var suggestionState AutomaticFollowState
-	var followStatus, jobStatus string
+	var suggestionState SuggestionState
+	var jobStatus string
 	if err := pool.QueryRow(ctx, `
 		SELECT
-			(SELECT state FROM instagram_automatic_follow_ledger WHERE id=$1),
-			(SELECT status FROM pds_follow_operations WHERE automatic_follow_id=$1),
+			(SELECT state FROM instagram_private_suggestions WHERE id=$1),
 			(SELECT status FROM instagram_reconciliation_jobs WHERE link_id=$2 ORDER BY created_at DESC LIMIT 1)
-	`, dependentSuggestionID, oldLinkID).Scan(&suggestionState, &followStatus, &jobStatus); err != nil {
+	`, dependentSuggestionID, oldLinkID).Scan(&suggestionState, &jobStatus); err != nil {
 		t.Fatalf("inspect supersession dependents: %v", err)
 	}
-	if suggestionState != AutomaticFollowInvalidated || followStatus != "invalidated" || jobStatus != "ignored" {
-		t.Fatalf("supersession dependents automaticFollow=%s operation=%s job=%s", suggestionState, followStatus, jobStatus)
+	if suggestionState != SuggestionInvalidated || jobStatus != "ignored" {
+		t.Fatalf("supersession dependents suggestion=%s job=%s", suggestionState, jobStatus)
 	}
 }
 
@@ -548,6 +532,7 @@ func verificationServicePool(t *testing.T) *pgxpool.Pool {
 		"000029_notification_client_owned_destination.up.sql",
 		"000030_instagram_automatic_follows.up.sql",
 		"000031_instagram_automatic_follow_storage_names.up.sql",
+		"000042_instagram_private_suggestions.up.sql",
 	} {
 		contents, err := os.ReadFile("../../migrations/" + name)
 		if err != nil {

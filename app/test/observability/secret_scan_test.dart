@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_switcher_state.dart';
+import 'package:craftsky_app/auth/models/pending_handoff.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/handoff_api_client_provider.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_account.dart';
@@ -17,17 +18,18 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('UT-014 provider diagnostics redact handoff credentials', () {
     const tokenSentinel = 'token-sentinel-private';
-    const deviceSentinel = 'device-sentinel-private';
-    final provider = handoffApiClientProvider(
-      const HandoffClientKey(
-        token: tokenSentinel,
-        deviceId: deviceSentinel,
-      ),
+    const receiptSentinel = 'receipt-sentinel-private';
+    final handoff = PendingHandoff(
+      token: tokenSentinel,
+      did: 'did:plc:handoffsentinel',
+      handle: 'handoff-sentinel.test',
+      receiptId: receiptSentinel,
+      confirmBy: DateTime.utc(2026, 8, 14, 12, 5),
     );
 
-    final diagnostic = '$provider ${provider.argument}';
+    final diagnostic = '$handoffApiClientProvider $handoff';
     expect(diagnostic, isNot(contains(tokenSentinel)));
-    expect(diagnostic, isNot(contains(deviceSentinel)));
+    expect(diagnostic, isNot(contains(receiptSentinel)));
   });
 
   test('UT-014 account and routing diagnostics redact every sentinel', () {

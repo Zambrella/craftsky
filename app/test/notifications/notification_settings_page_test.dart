@@ -12,7 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets(
-    'AT-008 renders social scopes and a push-only Instagram control',
+    'IT-028 renders only current notification preferences',
     (
       tester,
     ) async {
@@ -35,7 +35,7 @@ void main() {
 
       expect(find.text('Notification settings'), findsOneWidget);
       expect(find.textContaining('all devices'), findsOneWidget);
-      expect(find.byType(Switch), findsNWidgets(8));
+      expect(find.byType(Switch), findsNWidgets(7));
       for (final category in NotificationCategory.preferenceValues) {
         expect(
           find.byKey(
@@ -55,11 +55,7 @@ void main() {
         find.byKey(const Key('notification-instagramMatch-scope')),
         findsNothing,
       );
-      expect(find.text('Instagram matches'), findsOneWidget);
-      expect(
-        find.textContaining('based on your Instagram migration eligibility'),
-        findsOneWidget,
-      );
+      expect(find.text('Instagram matches'), findsNothing);
       expect(find.byType(DropdownButtonFormField), findsNothing);
       expect(find.byType(SwitchListTile), findsNothing);
       expect(find.text('Everything else'), findsOneWidget);

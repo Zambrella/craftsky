@@ -18,11 +18,19 @@ import (
 // HTTPHandlers bundles the OAuth-related HTTP handlers. Construct via
 // NewHTTPHandlers; wire the resulting methods into routes.AddRoutes.
 type HTTPHandlers struct {
-	OAuth            *oauth.ClientApp
-	CraftskySessions *CraftskySessionStore
-	Pool             *pgxpool.Pool // for handoff read/write
-	Logger           *slog.Logger
-	DevMode          bool // emits the session token in the callback HTML when true
+	OAuth               *oauth.ClientApp
+	OAuthFlow           OAuthFlowCoordinator
+	ClientMetadata      oauth.ClientMetadata
+	PublicJWKS          oauth.JWKS
+	CraftskySessions    *CraftskySessionStore
+	Handoffs            HandoffCoordinator
+	SessionLifecycle    *SessionLifecycleService
+	NewPendingPDSClient PendingOnboardingPDSClientFactory
+	LoginCompleteURL    string
+	DeletionCompleteURL string
+	Pool                *pgxpool.Pool // for handoff read/write
+	Logger              *slog.Logger
+	DevMode             bool // emits the session token in the callback HTML when true
 	// NewPDSClient builds a PDSClient scoped to the given OAuth session.
 	// Injected so tests can supply a mock without standing up indigo.
 	NewPDSClient              PDSClientFactory
@@ -41,6 +49,7 @@ type NotificationSubscriptionCleaner interface {
 
 func NewHTTPHandlers(
 	oauthApp *oauth.ClientApp,
+	artifacts ClientArtifacts,
 	craftskyStore *CraftskySessionStore,
 	pool *pgxpool.Pool,
 	logger *slog.Logger,
@@ -54,6 +63,8 @@ func NewHTTPHandlers(
 	}
 	handlers := &HTTPHandlers{
 		OAuth:                oauthApp,
+		ClientMetadata:       artifacts.Metadata,
+		PublicJWKS:           artifacts.JWKS,
 		CraftskySessions:     craftskyStore,
 		Pool:                 pool,
 		Logger:               logger,
@@ -72,20 +83,15 @@ func NewHTTPHandlers(
 // client.
 func (h *HTTPHandlers) ClientMetadataHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		cfg := h.OAuth.Config
-		meta := cfg.ClientMetadata()
-		if cfg.IsConfidential() {
-			jwksURL := fmt.Sprintf("https://%s/oauth/jwks.json", r.Host)
-			meta.JWKSURI = &jwksURL
-		}
-		if err := meta.Validate(cfg.ClientID); err != nil {
+		if h.OAuth == nil || h.OAuth.Config == nil || h.ClientMetadata.ClientID == "" ||
+			h.ClientMetadata.Validate(h.OAuth.Config.ClientID) != nil {
 			h.Logger.Error("client metadata validation failed",
 				authLogErrorAttrs(ctxkeys.GetRunID(r.Context()), "oauth.client_metadata", "validation")...)
 			http.Error(w, "internal error", http.StatusInternalServerError)
 			return
 		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(meta)
+		setOAuthDiscoveryHeaders(w)
+		_ = json.NewEncoder(w).Encode(h.ClientMetadata)
 	})
 }
 
@@ -93,163 +99,118 @@ func (h *HTTPHandlers) ClientMetadataHandler() http.Handler {
 // client auth. In dev (public client) this is an empty keys array.
 func (h *HTTPHandlers) JWKSHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(h.OAuth.Config.PublicJWKS())
+		setOAuthDiscoveryHeaders(w)
+		_ = json.NewEncoder(w).Encode(h.PublicJWKS)
 	})
 }
 
-// CallbackHandler receives the user browser after the PDS authentication
-// step. It completes the OAuth dance via indigo, issues a Craftsky
-// bearer token, and renders an HTML page that hands the token to the
-// client (deep link for mobile/desktop; loopback POST for CLI/dev).
+func setOAuthDiscoveryHeaders(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+}
+
+type PendingOnboardingPDSClientFactory func(context.Context, CallbackAttempt) (PDSClient, error)
+
+// CallbackHandler receives the browser after PDS authorization. The callback
+// owns the fenced attempt and emits only a short-lived handoff code; no bearer
+// or PDS credential crosses the browser boundary.
 func (h *HTTPHandlers) CallbackHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := ctxkeys.GetRunID(r.Context())
-		state := r.URL.Query().Get("state")
 		var (
-			deletionRequest AccountDeletionAuthRequest
-			deletionPurpose bool
+			result         OAuthCallbackResult
+			handoffCode    string
+			deletionResult AccountDeletionOAuthResult
+			deletionFlow   bool
 		)
-		if h.DeletionOAuthCallbacks != nil {
-			var err error
-			deletionRequest, deletionPurpose, err = h.DeletionOAuthCallbacks.RequestForState(r.Context(), state)
-			if err != nil {
-				h.Logger.Warn("load OAuth callback purpose failed",
-					authLogErrorAttrs(runID, "oauth.callback", "store")...)
-				renderErrorHTML(w, http.StatusBadRequest, "Sign-in could not be completed. Please try again.")
-				return
-			}
-			deletionPurpose = deletionPurpose && deletionRequest.Purpose == AccountDeletionOAuthPurpose
-		}
-		processCallback := h.ProcessOAuthCallback
-		if processCallback == nil && h.OAuth != nil {
-			processCallback = h.OAuth.ProcessCallback
-		}
-		if processCallback == nil {
+		if h.OAuthFlow == nil {
 			renderErrorHTML(w, http.StatusInternalServerError, "Internal error. Please try again.")
 			return
 		}
-		sessData, err := processCallback(r.Context(), r.URL.Query())
+		err := h.OAuthFlow.CompleteCallback(r.Context(), r.URL.Query(), func(callbackCtx context.Context, callbackResult OAuthCallbackResult) error {
+			result = callbackResult
+			switch callbackResult.Metadata.Purpose {
+			case AccountDeletionOAuthPurpose:
+				callbacks, ok := h.DeletionOAuthCallbacks.(AccountDeletionOAuthAttemptCallbacks)
+				if !ok {
+					return errors.New("account deletion callback lacks attempt-aware finalization")
+				}
+				request := AccountDeletionAuthRequest{
+					Purpose: AccountDeletionOAuthPurpose,
+					JobID:   callbackResult.Metadata.JobID.String(),
+					Owner:   callbackResult.Metadata.Owner,
+				}
+				var err error
+				deletionResult, err = callbacks.CompleteAttempt(callbackCtx, request, callbackResult.Attempt)
+				deletionFlow = err == nil
+				return err
+			case LoginOAuthPurpose:
+				if h.NewPendingPDSClient == nil || h.Handoffs == nil {
+					return errors.New("login callback finalization unavailable")
+				}
+				pdsClient, err := h.NewPendingPDSClient(callbackCtx, callbackResult.Attempt)
+				if err != nil {
+					return fmt.Errorf("build pending onboarding PDS client: %w", err)
+				}
+				if err := InitializeProfileAndIdentityCache(
+					callbackCtx, pdsClient, callbackResult.Session.AccountDID,
+					h.IdentityCacheUpdater, h.Logger, h.RepositoryTracker,
+				); err != nil {
+					return err
+				}
+				handoffCode, err = h.Handoffs.CreateExchange(
+					callbackCtx, callbackResult.Attempt, callbackResult.Handle,
+					callbackResult.Metadata.DeviceID,
+				)
+				return err
+			default:
+				return ErrOAuthFlowInvalid
+			}
+		})
 		if err != nil {
-			h.Logger.Warn("ProcessCallback failed",
-				authLogErrorAttrs(runID, "oauth.callback", "authorization_server")...)
+			if h.Logger != nil {
+				h.Logger.Warn("OAuth callback finalization failed",
+					authLogErrorAttrs(runID, "oauth.callback", "finalization")...)
+			}
 			renderErrorHTML(w, http.StatusBadRequest, "Sign-in could not be completed. Please try again.")
 			return
 		}
-
-		if deletionPurpose {
-			result, err := h.DeletionOAuthCallbacks.Complete(
-				r.Context(), deletionRequest, sessData.AccountDID, sessData.SessionID,
-			)
-			if err != nil {
-				_ = h.DeletionOAuthCallbacks.Reject(r.Context(), sessData.AccountDID, sessData.SessionID)
-				h.Logger.Warn("account deletion reauthentication failed",
-					authLogErrorAttrs(runID, "oauth.callback", "reauthentication")...)
-				renderErrorHTML(w, http.StatusBadRequest, "Account deletion reauthentication could not be completed. Please try again.")
-				return
-			}
-			query := url.Values{"job-id": {result.JobID}, "proof": {result.Proof}}
-			data := callbackPageData{
-				DeepLinkURL: "craftsky:///account-deletion/reauth-complete?" + query.Encode(),
-			}
-			w.Header().Set("Content-Type", "text/html; charset=utf-8")
-			if err := callbackTmpl.Execute(w, data); err != nil {
-				h.Logger.Error("account deletion callback template",
-					authLogErrorAttrs(runID, "oauth.callback", "template")...)
-			}
-			return
-		}
-
-		mode, loopbackURI, deviceID, herr := h.loadHandoff(r.Context(), state)
-		if herr != nil {
-			// Best-effort: ProcessCallback may already have deleted the
-			// auth-request row (it's single-use). Fall back to deep_link.
-			h.Logger.Warn("loadHandoff failed; defaulting to deep_link",
-				authLogErrorAttrs(runID, "oauth.callback", "handoff")...)
-			mode = "deep_link"
-		}
-		if mode == "" {
-			mode = "deep_link"
-		}
-		if h.DeletionPendingLogin != nil {
-			_, exists, err := h.DeletionPendingLogin.PendingLogin(r.Context(), sessData.AccountDID, sessData.SessionID, deviceID)
-			if err != nil {
-				_ = h.DeletionPendingLogin.Reject(r.Context(), sessData.AccountDID, sessData.SessionID)
-				renderErrorHTML(w, http.StatusInternalServerError, "Account deletion could not be resumed. Please try again.")
-				return
-			}
-			if exists {
-				// PendingLogin has rebound this fresh OAuth session to the durable
-				// deletion operation. Do not reject it or mint an ordinary bearer.
-				query := url.Values{"error": {"account_deletion_pending"}}
-				data := callbackPageData{DeepLinkURL: "craftsky:///auth/complete?" + query.Encode()}
-				w.Header().Set("Content-Type", "text/html; charset=utf-8")
-				if err := callbackTmpl.Execute(w, data); err != nil {
-					h.Logger.Error("pending account deletion callback template", authLogErrorAttrs(runID, "oauth.callback", "template")...)
+		data := callbackPageData{Code: handoffCode}
+		if deletionFlow {
+			data.DeepLinkURL, err = verifiedCompletionURL(h.DeletionCompleteURL, url.Values{
+				"job-id": {deletionResult.JobID}, "proof": {deletionResult.Proof},
+			})
+		} else {
+			switch result.Metadata.HandoffMode {
+			case HandoffLoopback:
+				if !loopbackRedirectPattern.MatchString(result.Metadata.LoopbackURI) {
+					err = ErrOAuthFlowInvalid
+				} else {
+					data.LoopbackURI = result.Metadata.LoopbackURI
 				}
-				return
-			}
-		}
-
-		pdsClient, err := h.NewPDSClient(r.Context(), sessData.AccountDID, sessData.SessionID)
-		if err != nil {
-			h.Logger.Error("NewPDSClient failed",
-				authLogErrorAttrs(runID, "oauth.callback", "pds")...)
-			renderErrorHTML(w, http.StatusBadGateway,
-				"Sign-in succeeded but we couldn't initialise your profile. Please try again.")
-			return
-		}
-		if err := InitializeProfileAndIdentityCache(r.Context(), pdsClient, sessData.AccountDID, h.IdentityCacheUpdater, h.Logger, h.RepositoryTracker); err != nil {
-			h.Logger.Warn("InitializeProfile failed",
-				authLogErrorAttrs(runID, "oauth.callback", "profile_init")...)
-			switch {
-			case errors.Is(err, ErrProfileDataInvalid):
-				renderErrorHTML(w, http.StatusBadGateway,
-					"Your Craftsky profile record is in an unexpected format. Contact support.")
+			case HandoffVerifiedLink:
+				data.DeepLinkURL, err = verifiedCompletionURL(h.LoginCompleteURL, url.Values{"code": {handoffCode}})
 			default:
-				renderErrorHTML(w, http.StatusBadGateway,
-					"Sign-in succeeded but we couldn't initialise your profile. Please try again.")
+				err = ErrOAuthFlowInvalid
 			}
-			return
 		}
-
-		token, err := h.CraftskySessions.Create(r.Context(), sessData.AccountDID.String(), sessData.SessionID, "")
 		if err != nil {
-			h.Logger.Error("CraftskySessions.Create failed",
-				authLogErrorAttrs(runID, "oauth.callback", "store")...)
-			renderErrorHTML(w, http.StatusInternalServerError, "Internal error. Please try again.")
+			renderErrorHTML(w, http.StatusInternalServerError, "Sign-in could not be completed. Please try again.")
 			return
 		}
-
-		data := callbackPageData{Token: token, DevMode: h.DevMode}
-		switch mode {
-		case "loopback":
-			if loopbackURI == "" {
-				renderErrorHTML(w, http.StatusInternalServerError, "Missing loopback redirect URI.")
-				return
-			}
-			// Re-validate at egress (defence in depth; ingress check is primary).
-			if !loopbackRedirectPattern.MatchString(loopbackURI) {
-				h.Logger.Error("loopback_redirect_uri failed egress validation",
-					authLogErrorAttrs(runID, "oauth.callback", "validation")...)
-				renderErrorHTML(w, http.StatusInternalServerError, "Invalid loopback redirect URI.")
-				return
-			}
-			data.LoopbackURI = loopbackURI
-		default: // deep_link
-			// Triple slash — empty host, path "/auth/complete". Matches
-			// the Flutter route at RouteLocations.authComplete ('/auth/complete').
-			data.DeepLinkURL = "craftsky:///auth/complete?token=" + urlEscape(token)
-		}
-
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		if err := callbackTmpl.Execute(w, data); err != nil {
-			h.Logger.Error("callback template",
-				authLogErrorAttrs(runID, "oauth.callback", "template")...)
+		if err := renderCallbackHTML(w, data); err != nil && h.Logger != nil {
+			h.Logger.Error("callback template", authLogErrorAttrs(runID, "oauth.callback", "template")...)
 		}
 	})
 }
 
-// urlEscape avoids importing net/url just for the tiny QueryEscape call;
-// we re-export it here for the callback's deep-link rendering.
-var urlEscape = url.QueryEscape
+func verifiedCompletionURL(raw string, query url.Values) (string, error) {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil ||
+		parsed.RawQuery != "" || parsed.Fragment != "" || parsed.Path == "" {
+		return "", errors.New("verified completion URL is not configured")
+	}
+	parsed.RawQuery = query.Encode()
+	return parsed.String(), nil
+}

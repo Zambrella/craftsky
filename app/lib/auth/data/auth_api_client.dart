@@ -14,11 +14,11 @@ class AuthApiClient {
 
   /// POST /v1/auth/login — starts an OAuth flow for [handle], returns
   /// the authorization URL the caller opens in the system browser.
-  /// The app-level handoff is always `deep_link` (mobile-only).
+  /// The app-level handoff is always an HTTPS verified link.
   Future<LoginResponse> login({required String handle}) => unwrapApi(() async {
     final res = await _dio.post<Map<String, dynamic>>(
       '/v1/auth/login',
-      data: {'handle': handle, 'handoffMode': 'deep_link'},
+      data: {'handle': handle, 'handoffMode': 'verified_link'},
     );
     return LoginResponseMapper.fromMap(res.data!);
   });

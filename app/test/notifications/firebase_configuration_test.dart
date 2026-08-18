@@ -105,14 +105,23 @@ void main() {
     final adapter = File(
       'lib/notifications/services/firebase_notification_service.dart',
     ).readAsStringSync();
+    final localGateway = File(
+      'lib/notifications/services/flutter_local_notification_gateway.dart',
+    ).readAsStringSync();
+    final localPresenter = File(
+      'lib/notifications/services/notification_local_presenter.dart',
+    ).readAsStringSync();
+    final androidGradle = File(
+      'android/app/build.gradle.kts',
+    ).readAsStringSync();
 
     expect(
       adapter,
       contains(
         'setForegroundNotificationPresentationOptions(\n'
-        '        alert: false,\n'
-        '        badge: false,\n'
-        '        sound: false,',
+        '      alert: false,\n'
+        '      badge: false,\n'
+        '      sound: false,',
       ),
     );
     expect(
@@ -124,7 +133,40 @@ void main() {
         '      sound: true,',
       ),
     );
-    expect(adapter, isNot(contains('localNotification')));
     expect(adapter, isNot(contains('vibration')));
+    expect(
+      localGateway,
+      contains('tag: presentation.tag'),
+      reason: 'Android must use the full notificationId as the stable tag',
+    );
+    expect(
+      localGateway,
+      contains("'ic_stat_craftsky_notification'"),
+    );
+    expect(
+      File(
+        'android/app/src/main/res/drawable/'
+        'ic_stat_craftsky_notification.xml',
+      ).existsSync(),
+      isTrue,
+      reason: 'flutter_local_notifications resolves small icons as drawables',
+    );
+    expect(
+      localPresenter,
+      contains('static const int androidTypeId = 0x43534b59;'),
+    );
+    expect(localPresenter, isNot(contains('.hashCode')));
+    expect(localPresenter, isNot(contains('substring(')));
+    expect(
+      androidGradle,
+      contains('isCoreLibraryDesugaringEnabled = true'),
+    );
+    expect(
+      androidGradle,
+      contains(
+        'coreLibraryDesugaring('
+        '"com.android.tools:desugar_jdk_libs:2.1.4")',
+      ),
+    );
   });
 }

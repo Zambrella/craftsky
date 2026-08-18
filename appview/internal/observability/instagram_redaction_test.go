@@ -41,7 +41,7 @@ func TestInstagramCanariesStayOutOfDiagnosticsTelemetryPushPDSAndURLs(t *testing
 		instagram.VerificationAttempt{CandidateIGSID: canaries[3], CandidateUsername: canaries[2]},
 		instagram.AccountView{Username: canaries[2]},
 		instagram.ImportEntry{Username: canaries[4]},
-		instagram.AutomaticFollowOperation{
+		instagram.PrivateSuggestion{
 			ID:               uuid.MustParse("00000000-0000-0000-0000-000000000702"),
 			ImportedUsername: canaries[4],
 		},
@@ -79,7 +79,7 @@ func TestInstagramCanariesStayOutOfDiagnosticsTelemetryPushPDSAndURLs(t *testing
 		t.Fatal(err)
 	}
 
-	payload, err := json.Marshal(push.BuildPayload(notifications.InstagramMatch, "safe-routing-id", "", push.RoutingFacts{
+	payload, err := json.Marshal(push.BuildPayload(notifications.Follow, "safe-routing-id", "", push.RoutingFacts{
 		NotificationID: "00000000-0000-0000-0000-000000000701",
 	}))
 	if err != nil {

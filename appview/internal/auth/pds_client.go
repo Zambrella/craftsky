@@ -11,7 +11,12 @@ import (
 // ErrRecordNotFound is the canonical "getRecord returned 404" sentinel
 // used across this package. PDSClient implementations wrap whatever
 // their upstream library raises into this value.
-var ErrRecordNotFound = errors.New("pds: record not found")
+var (
+	ErrRecordNotFound               = errors.New("pds: record not found")
+	ErrRecordSwapConflict           = errors.New("pds: record changed before conditional mutation")
+	ErrConditionalPutUnsupported    = errors.New("pds: conditional record Put is unsupported")
+	ErrConditionalDeleteUnsupported = errors.New("pds: conditional record delete is unsupported")
+)
 
 // PDSClient is the minimal surface users of this package exercise against
 // the caller's PDS. In production it's an adapter over indigo's
@@ -28,6 +33,35 @@ type PDSClient interface {
 	CreateRecord(ctx context.Context, repo syntax.DID, collection string, record any) (uri syntax.ATURI, cid syntax.CID, err error)
 	DeleteRecord(ctx context.Context, repo syntax.DID, collection string, rkey string) error
 	UploadBlob(ctx context.Context, contentType string, body []byte) (*UploadedBlob, error)
+}
+
+// ConditionalPDSRecordDeleter is the compare-and-swap delete capability for
+// ordinary record effects. Implementations must send expectedCID as
+// com.atproto.repo.deleteRecord's swapRecord precondition and must never fall
+// back to an unconditional delete.
+type ConditionalPDSRecordDeleter interface {
+	DeleteRecordWithSwap(
+		ctx context.Context,
+		repo syntax.DID,
+		collection string,
+		rkey string,
+		expectedCID syntax.CID,
+	) error
+}
+
+// ConditionalPDSRecordPutter is the compare-and-swap Put capability for
+// ordinary record effects. Implementations must send expectedCID as
+// com.atproto.repo.putRecord's swapRecord precondition and must never fall
+// back to an unconditional Put.
+type ConditionalPDSRecordPutter interface {
+	PutRecordWithSwap(
+		ctx context.Context,
+		repo syntax.DID,
+		collection string,
+		rkey string,
+		record any,
+		expectedCID syntax.CID,
+	) error
 }
 
 type PDSRecord struct {

@@ -9,45 +9,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/syntax"
-
 	"social.craftsky/appview/internal/api"
-	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/testdb"
 )
-
-type fakeProfileHydrator struct {
-	record map[string]any
-	cid    string
-	err    error
-}
-
-func (f fakeProfileHydrator) GetRecord(_ context.Context, _ syntax.DID, _ string, _ string, out any) (string, error) {
-	if f.err != nil {
-		return "", f.err
-	}
-	*(out.(*map[string]any)) = f.record
-	if f.cid == "" {
-		return "cid-hydrated", nil
-	}
-	return f.cid, nil
-}
-
-func (f fakeProfileHydrator) PutRecord(context.Context, syntax.DID, string, string, any) error {
-	return errors.New("not implemented")
-}
-
-func (f fakeProfileHydrator) CreateRecord(context.Context, syntax.DID, string, any) (syntax.ATURI, syntax.CID, error) {
-	return "", "", errors.New("not implemented")
-}
-
-func (f fakeProfileHydrator) DeleteRecord(context.Context, syntax.DID, string, string) error {
-	return errors.New("not implemented")
-}
-
-func (f fakeProfileHydrator) UploadBlob(context.Context, string, []byte) (*auth.UploadedBlob, error) {
-	return nil, errors.New("not implemented")
-}
 
 const profileStoreDDL = `
 CREATE TABLE craftsky_profiles (

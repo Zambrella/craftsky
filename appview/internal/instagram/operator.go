@@ -17,12 +17,12 @@ import (
 const MaxOperatorBatch = 500
 
 var (
-	ErrInvalidOperatorBatch        = errors.New("Instagram operator batch must be between 1 and 500")
+	ErrInvalidOperatorBatch        = errors.New("instagram operator batch must be between 1 and 500")
 	ErrInvalidOperatorRequest      = errors.New("invalid Instagram operator request")
-	ErrOperatorResourceNotFound    = errors.New("Instagram operator resource not found")
-	ErrOperatorConflictResolved    = errors.New("Instagram conflict already has a different resolution")
-	ErrOperatorJobNotRetryable     = errors.New("Instagram job is not safely retryable")
-	ErrOperatorConfigurationUnsafe = errors.New("Instagram operator key is unavailable")
+	ErrOperatorResourceNotFound    = errors.New("instagram operator resource not found")
+	ErrOperatorConflictResolved    = errors.New("instagram conflict already has a different resolution")
+	ErrOperatorJobNotRetryable     = errors.New("instagram job is not safely retryable")
+	ErrOperatorConfigurationUnsafe = errors.New("instagram operator key is unavailable")
 )
 
 type OperatorConflictResolution string
@@ -285,18 +285,13 @@ func (s *OperatorService) revokeLinkTx(ctx context.Context, tx pgx.Tx, id uuid.U
 	`, id, now); err != nil {
 		return "", false, fmt.Errorf("operator release Instagram claim: %w", err)
 	}
-	suggestionIDs, err := retentionUUIDs(ctx, tx, `
-		UPDATE instagram_automatic_follow_ledger
+	if _, err := tx.Exec(ctx, `
+		UPDATE instagram_private_suggestions
 		SET state='invalidated',accepting_since=NULL,
 		    terminal_at=COALESCE(terminal_at,$2),updated_at=$2
-		WHERE target_did=$1 AND state IN ('pending','writing')
-		RETURNING id
-	`, owner, now)
-	if err != nil {
+		WHERE target_did=$1 AND state IN ('pending','accepting')
+	`, owner, now); err != nil {
 		return "", false, fmt.Errorf("operator invalidate Instagram suggestions: %w", err)
-	}
-	if err := invalidateUnwrittenFollowOperations(ctx, tx, suggestionIDs, "operatorLinkRevoked", now); err != nil {
-		return "", false, err
 	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE instagram_reconciliation_jobs

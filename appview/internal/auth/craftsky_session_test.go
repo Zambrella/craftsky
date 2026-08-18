@@ -15,12 +15,7 @@ func TestCraftskySession_Create_ReturnsTokenAndRow(t *testing.T) {
 	store := auth.NewCraftskySessionStore(pool, 15*time.Minute)
 	ctx := context.Background()
 
-	// Seed the oauth_sessions FK row.
-	_, err := pool.Exec(ctx,
-		`INSERT INTO oauth_sessions (account_did, session_id, data) VALUES ('did:plc:a', 's1', '{}')`)
-	if err != nil {
-		t.Fatalf("seed oauth_sessions: %v", err)
-	}
+	seedActiveOAuthSession(t, pool, "did:plc:a", "s1")
 
 	token, err := store.Create(ctx, "did:plc:a", "s1", "")
 	if err != nil {
@@ -55,11 +50,7 @@ func TestCraftskySession_Lookup_HappyPath(t *testing.T) {
 	store := auth.NewCraftskySessionStore(pool, 15*time.Minute)
 	ctx := context.Background()
 
-	_, err := pool.Exec(ctx,
-		`INSERT INTO oauth_sessions (account_did, session_id, data) VALUES ('did:plc:a', 's1', '{}')`)
-	if err != nil {
-		t.Fatalf("seed oauth_sessions: %v", err)
-	}
+	seedActiveOAuthSession(t, pool, "did:plc:a", "s1")
 
 	token, err := store.Create(ctx, "did:plc:a", "s1", "")
 	if err != nil {
@@ -94,11 +85,7 @@ func TestCraftskySession_Lookup_Revoked(t *testing.T) {
 	store := auth.NewCraftskySessionStore(pool, 15*time.Minute)
 	ctx := context.Background()
 
-	_, err := pool.Exec(ctx,
-		`INSERT INTO oauth_sessions (account_did, session_id, data) VALUES ('did:plc:a', 's1', '{}')`)
-	if err != nil {
-		t.Fatalf("seed oauth_sessions: %v", err)
-	}
+	seedActiveOAuthSession(t, pool, "did:plc:a", "s1")
 
 	token, err := store.Create(ctx, "did:plc:a", "s1", "")
 	if err != nil {
@@ -120,12 +107,8 @@ func TestCraftskySession_RevokeAll_SetsRevokedAtOnAllRowsForDID(t *testing.T) {
 	store := auth.NewCraftskySessionStore(pool, 15*time.Minute)
 	ctx := context.Background()
 
-	// Seed two oauth_sessions rows for the same DID with different session IDs.
-	_, err := pool.Exec(ctx,
-		`INSERT INTO oauth_sessions (account_did, session_id, data) VALUES ('did:plc:b', 'sA', '{}'), ('did:plc:b', 'sB', '{}')`)
-	if err != nil {
-		t.Fatalf("seed oauth_sessions: %v", err)
-	}
+	seedActiveOAuthSession(t, pool, "did:plc:b", "sA")
+	seedActiveOAuthSession(t, pool, "did:plc:b", "sB")
 
 	token1, err := store.Create(ctx, "did:plc:b", "sA", "")
 	if err != nil {
@@ -165,11 +148,9 @@ func TestCraftskySession_RevokeOAuthSession_OnlyRevokesMatchingSession(t *testin
 	store := auth.NewCraftskySessionStore(pool, 15*time.Minute)
 	ctx := context.Background()
 
-	_, err := pool.Exec(ctx,
-		`INSERT INTO oauth_sessions (account_did, session_id, data) VALUES ('did:plc:b', 'sA', '{}'), ('did:plc:b', 'sB', '{}'), ('did:plc:c', 'sA', '{}')`)
-	if err != nil {
-		t.Fatalf("seed oauth_sessions: %v", err)
-	}
+	seedActiveOAuthSession(t, pool, "did:plc:b", "sA")
+	seedActiveOAuthSession(t, pool, "did:plc:b", "sB")
+	seedActiveOAuthSession(t, pool, "did:plc:c", "sA")
 
 	matching, err := store.Create(ctx, "did:plc:b", "sA", "")
 	if err != nil {
@@ -205,11 +186,7 @@ func TestCraftskySession_LastSeenThrottled(t *testing.T) {
 	store := auth.NewCraftskySessionStore(pool, 1*time.Hour)
 	ctx := context.Background()
 
-	_, err := pool.Exec(ctx,
-		`INSERT INTO oauth_sessions (account_did, session_id, data) VALUES ('did:plc:c', 's1', '{}')`)
-	if err != nil {
-		t.Fatalf("seed oauth_sessions: %v", err)
-	}
+	seedActiveOAuthSession(t, pool, "did:plc:c", "s1")
 
 	token, err := store.Create(ctx, "did:plc:c", "s1", "")
 	if err != nil {
@@ -255,11 +232,7 @@ func TestCraftskySession_FKCascadeFromOAuthSessionDelete(t *testing.T) {
 	store := auth.NewCraftskySessionStore(pool, 15*time.Minute)
 	ctx := context.Background()
 
-	_, err := pool.Exec(ctx,
-		`INSERT INTO oauth_sessions (account_did, session_id, data) VALUES ('did:plc:d', 's1', '{}')`)
-	if err != nil {
-		t.Fatalf("seed oauth_sessions: %v", err)
-	}
+	seedActiveOAuthSession(t, pool, "did:plc:d", "s1")
 
 	if _, err := store.Create(ctx, "did:plc:d", "s1", ""); err != nil {
 		t.Fatalf("Create: %v", err)
@@ -267,7 +240,7 @@ func TestCraftskySession_FKCascadeFromOAuthSessionDelete(t *testing.T) {
 
 	// Delete the parent oauth_sessions row; the FK ON DELETE CASCADE should
 	// remove the craftsky_sessions row automatically.
-	_, err = pool.Exec(ctx,
+	_, err := pool.Exec(ctx,
 		`DELETE FROM oauth_sessions WHERE account_did = $1 AND session_id = $2`,
 		"did:plc:d", "s1")
 	if err != nil {
@@ -290,11 +263,7 @@ func TestCraftskySession_TouchDeviceID_PersistsValue(t *testing.T) {
 	store := auth.NewCraftskySessionStore(pool, 0) // throttle disabled
 	ctx := context.Background()
 
-	_, err := pool.Exec(ctx,
-		`INSERT INTO oauth_sessions (account_did, session_id, data) VALUES ('did:plc:a', 's1', '{}')`)
-	if err != nil {
-		t.Fatalf("seed oauth_sessions: %v", err)
-	}
+	seedActiveOAuthSession(t, pool, "did:plc:a", "s1")
 	if _, err := store.Create(ctx, "did:plc:a", "s1", ""); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -304,7 +273,7 @@ func TestCraftskySession_TouchDeviceID_PersistsValue(t *testing.T) {
 	}
 
 	var got *string
-	err = pool.QueryRow(ctx,
+	err := pool.QueryRow(ctx,
 		`SELECT last_device_id FROM craftsky_sessions WHERE account_did = $1`,
 		"did:plc:a").Scan(&got)
 	if err != nil {
@@ -315,16 +284,12 @@ func TestCraftskySession_TouchDeviceID_PersistsValue(t *testing.T) {
 	}
 }
 
-func TestCraftskySession_TouchDeviceID_ThrottlesRepeats(t *testing.T) {
+func TestCraftskySession_TouchDeviceID_PersistsChangedDeviceImmediately(t *testing.T) {
 	pool := withAuthSchema(t)
 	store := auth.NewCraftskySessionStore(pool, time.Hour)
 	ctx := context.Background()
 
-	_, err := pool.Exec(ctx,
-		`INSERT INTO oauth_sessions (account_did, session_id, data) VALUES ('did:plc:b', 's2', '{}')`)
-	if err != nil {
-		t.Fatalf("seed oauth_sessions: %v", err)
-	}
+	seedActiveOAuthSession(t, pool, "did:plc:b", "s2")
 	if _, err := store.Create(ctx, "did:plc:b", "s2", ""); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -337,13 +302,13 @@ func TestCraftskySession_TouchDeviceID_ThrottlesRepeats(t *testing.T) {
 	}
 
 	var got *string
-	err = pool.QueryRow(ctx,
+	err := pool.QueryRow(ctx,
 		`SELECT last_device_id FROM craftsky_sessions WHERE account_did = $1`,
 		"did:plc:b").Scan(&got)
 	if err != nil {
 		t.Fatalf("SELECT: %v", err)
 	}
-	if got == nil || *got != "dev-first" {
-		t.Errorf("last_device_id = %v, want dev-first (throttle should have blocked the second write)", got)
+	if got == nil || *got != "dev-second" {
+		t.Errorf("last_device_id = %v, want dev-second", got)
 	}
 }

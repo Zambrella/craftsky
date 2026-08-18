@@ -65,7 +65,7 @@ func NewVerificationStore(pool *pgxpool.Pool) *VerificationStore {
 
 func (s *VerificationStore) CreateVerificationAttempt(ctx context.Context, params CreateVerificationAttemptParams) (*VerificationAttempt, error) {
 	if s == nil || s.pool == nil {
-		return nil, errors.New("Instagram verification store is unavailable")
+		return nil, errors.New("instagram verification store is unavailable")
 	}
 	if params.ID == uuid.Nil || params.OwnerDID == "" || params.Digest.IsZero() || params.ExpiresAt.IsZero() || params.Now.IsZero() || !params.ExpiresAt.After(params.Now) {
 		return nil, errors.New("invalid Instagram verification attempt parameters")
@@ -113,7 +113,7 @@ func (s *VerificationStore) CreateVerificationAttempt(ctx context.Context, param
 
 func (s *VerificationStore) GetVerificationAttempt(ctx context.Context, owner syntax.DID, id uuid.UUID, now time.Time) (*VerificationAttempt, error) {
 	if s == nil || s.pool == nil {
-		return nil, errors.New("Instagram verification store is unavailable")
+		return nil, errors.New("instagram verification store is unavailable")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -150,7 +150,7 @@ func (s *VerificationStore) GetVerificationAttempt(ctx context.Context, owner sy
 
 func (s *VerificationStore) GetCurrentVerificationAttempt(ctx context.Context, owner syntax.DID, now time.Time) (*VerificationAttempt, error) {
 	if s == nil || s.pool == nil {
-		return nil, errors.New("Instagram verification store is unavailable")
+		return nil, errors.New("instagram verification store is unavailable")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -193,7 +193,7 @@ func (s *VerificationStore) GetCurrentVerificationAttempt(ctx context.Context, o
 
 func (s *VerificationStore) CancelVerificationAttempt(ctx context.Context, owner syntax.DID, id uuid.UUID, now time.Time) error {
 	if s == nil || s.pool == nil {
-		return errors.New("Instagram verification store is unavailable")
+		return errors.New("instagram verification store is unavailable")
 	}
 	_, err := s.pool.Exec(ctx, `
 		UPDATE instagram_verification_attempts
@@ -212,7 +212,7 @@ func (s *VerificationStore) CancelVerificationAttempt(ctx context.Context, owner
 
 func (s *VerificationStore) RedeemVerificationChallenge(ctx context.Context, digest ChallengeDigest, senderIGSID string, now time.Time) (*VerificationAttempt, error) {
 	if s == nil || s.pool == nil {
-		return nil, errors.New("Instagram verification store is unavailable")
+		return nil, errors.New("instagram verification store is unavailable")
 	}
 	if digest.IsZero() || senderIGSID == "" {
 		return nil, ErrInstagramResourceNotFound
@@ -255,7 +255,7 @@ func (s *VerificationStore) RedeemVerificationChallenge(ctx context.Context, dig
 
 func (s *VerificationStore) SetVerificationCandidate(ctx context.Context, id uuid.UUID, username string, now time.Time) error {
 	if s == nil || s.pool == nil {
-		return errors.New("Instagram verification store is unavailable")
+		return errors.New("instagram verification store is unavailable")
 	}
 	normalized, err := NormalizeInstagramUsername(username)
 	if err != nil {
@@ -277,7 +277,7 @@ func (s *VerificationStore) SetVerificationCandidate(ctx context.Context, id uui
 
 func (s *VerificationStore) ConfirmVerificationAttempt(ctx context.Context, params ConfirmVerificationAttemptParams) (ConfirmationResult, error) {
 	if s == nil || s.pool == nil {
-		return ConfirmationResult{}, errors.New("Instagram verification store is unavailable")
+		return ConfirmationResult{}, errors.New("instagram verification store is unavailable")
 	}
 	// The owner, stable IGSID, and normalized username advisory locks below are
 	// the serialization boundary for confirmation. Read committed lets the
@@ -391,18 +391,13 @@ func (s *VerificationStore) ConfirmVerificationAttempt(ctx context.Context, para
 		`, conflictingLinkID, params.Now); err != nil {
 			return ConfirmationResult{}, err
 		}
-		suggestionIDs, err := updateSuggestionState(ctx, tx, `
-			UPDATE instagram_automatic_follow_ledger
+		if _, err := tx.Exec(ctx, `
+			UPDATE instagram_private_suggestions
 			SET state='invalidated', accepting_since=NULL,
 			    terminal_at=COALESCE(terminal_at,$2), updated_at=$2
-			WHERE target_did=$1 AND state IN ('pending','writing')
-			RETURNING id
-		`, conflictingOwner, params.Now)
-		if err != nil {
+			WHERE target_did=$1 AND state IN ('pending','accepting')
+		`, conflictingOwner, params.Now); err != nil {
 			return ConfirmationResult{}, fmt.Errorf("invalidate conflicted Instagram suggestions: %w", err)
-		}
-		if err := invalidateUnwrittenFollowOperations(ctx, tx, suggestionIDs, "linkConflict", params.Now); err != nil {
-			return ConfirmationResult{}, err
 		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE instagram_reconciliation_jobs
@@ -428,18 +423,13 @@ func (s *VerificationStore) ConfirmVerificationAttempt(ctx context.Context, para
 	}
 	if hasExistingIGSID && existingIGSIDOwner == params.OwnerDID.String() {
 		if existingIGSIDUsername != normalized {
-			suggestionIDs, err := updateSuggestionState(ctx, tx, `
-				UPDATE instagram_automatic_follow_ledger
+			if _, err := tx.Exec(ctx, `
+				UPDATE instagram_private_suggestions
 				SET state='invalidated', accepting_since=NULL,
 				    terminal_at=COALESCE(terminal_at,$2), updated_at=$2
-				WHERE target_did=$1 AND state IN ('pending','writing')
-				RETURNING id
-			`, params.OwnerDID, params.Now)
-			if err != nil {
+				WHERE target_did=$1 AND state IN ('pending','accepting')
+			`, params.OwnerDID, params.Now); err != nil {
 				return ConfirmationResult{}, fmt.Errorf("invalidate refreshed Instagram suggestions: %w", err)
-			}
-			if err := invalidateUnwrittenFollowOperations(ctx, tx, suggestionIDs, "usernameRefreshed", params.Now); err != nil {
-				return ConfirmationResult{}, err
 			}
 			if _, err := tx.Exec(ctx, `
 				UPDATE instagram_reconciliation_jobs
@@ -487,18 +477,13 @@ func (s *VerificationStore) ConfirmVerificationAttempt(ctx context.Context, para
 		return ConfirmationResult{State: AttemptConfirmed, Account: account}, nil
 	}
 
-	suggestionIDs, err := updateSuggestionState(ctx, tx, `
-		UPDATE instagram_automatic_follow_ledger
+	if _, err := tx.Exec(ctx, `
+		UPDATE instagram_private_suggestions
 		SET state='invalidated', accepting_since=NULL,
 		    terminal_at=COALESCE(terminal_at,$2), updated_at=$2
-		WHERE target_did=$1 AND state IN ('pending','writing')
-		RETURNING id
-	`, params.OwnerDID, params.Now)
-	if err != nil {
+		WHERE target_did=$1 AND state IN ('pending','accepting')
+	`, params.OwnerDID, params.Now); err != nil {
 		return ConfirmationResult{}, fmt.Errorf("invalidate superseded Instagram suggestions: %w", err)
-	}
-	if err := invalidateUnwrittenFollowOperations(ctx, tx, suggestionIDs, "linkSuperseded", params.Now); err != nil {
-		return ConfirmationResult{}, err
 	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE instagram_reconciliation_jobs job

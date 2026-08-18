@@ -13,6 +13,7 @@ import (
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/ctxkeys"
+	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
 func TestCurrentMemberAllowsOnlyCurrentCraftskyProfiles(t *testing.T) {
@@ -37,6 +38,39 @@ func TestCurrentMemberAllowsOnlyCurrentCraftskyProfiles(t *testing.T) {
 	if len(checker.seen) != 1 || checker.seen[0] != alice {
 		t.Fatalf("membership checks = %v, want only Alice", checker.seen)
 	}
+}
+
+func TestCurrentMemberEmbedsActiveOwnerGeneration(t *testing.T) {
+	t.Parallel()
+
+	alice := syntax.DID("did:plc:synthetic-alice")
+	checker := &stubCurrentMemberChecker{current: map[syntax.DID]bool{alice: true}}
+	lifecycles := stubOwnerLifecycleReader{row: ownerlifecycle.Lifecycle{
+		Owner: alice, State: ownerlifecycle.StateActive, Generation: 9, AuthEpoch: 4,
+	}}
+	handler := CurrentMember(checker, slog.Default(), lifecycles)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		generation, ok := GetOwnerGeneration(r.Context())
+		if !ok || generation != 9 {
+			t.Fatalf("owner generation = %d/%t", generation, ok)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/v1/scheduled-post-media/one", nil)
+	req = req.WithContext(WithDID(req.Context(), alice))
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+	if rr.Code != http.StatusNoContent {
+		t.Fatalf("status = %d", rr.Code)
+	}
+}
+
+type stubOwnerLifecycleReader struct {
+	row ownerlifecycle.Lifecycle
+	err error
+}
+
+func (stub stubOwnerLifecycleReader) Get(context.Context, syntax.DID) (ownerlifecycle.Lifecycle, error) {
+	return stub.row, stub.err
 }
 
 func TestCurrentMemberUsesProfileNotFoundBoundary(t *testing.T) {

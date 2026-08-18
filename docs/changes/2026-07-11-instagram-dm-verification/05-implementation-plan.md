@@ -1,5 +1,9 @@
 # TDD Implementation Plan: Instagram DM Ownership Verification And Automatic Following
 
+> **2026-08-14 status:** The completed automatic-follow execution below is
+> historical evidence. Section "AppView Audit Strict-Branch Correction" is the
+> active implementation pass and is not yet complete.
+
 ## Inputs
 
 - Requirements: `01-requirements.md`
@@ -1044,3 +1048,53 @@ review. This pass addresses only required finding `IR-022`; the non-blocking
 - Final security/privacy/operator-access review before production enablement
 - Remove the temporary raw-webhook diagnostic and unset
   `INSTAGRAM_UNSAFE_LOG_WEBHOOK_BODIES` after the live Meta capability spike.
+
+## AppView Audit Strict-Branch Correction (2026-08-14)
+
+Decision: Approved. Retire the background PDS writer and implement private,
+lifecycle-bound suggestions plus explicit current-member acceptance.
+
+Execution status: Not started. Do not use the earlier Automatic Following
+Completion Checklist as evidence for AV-007 closure.
+
+### Correction Test Order
+
+1. `UT-023` / `REG-015` — prove and then remove background session/PDS/follow
+   capability from Instagram composition.
+2. `UT-021` / `UT-022` — implement the suggestion transition and ownership
+   tables with importer/target generations.
+3. `IT-026` — make initial/future matching stop after one private suggestion.
+4. `IT-027` — add the idempotent, current-member, owner-effect-fenced accept
+   operation and idempotent dismiss.
+5. `IT-028` — remove automatic `instagramMatch` notification/preference/push
+   behavior and restore the suggestion route inventory.
+6. `IT-029` — restore the fixed-account Flutter suggestion model/provider/UI
+   and explicit-action copy.
+7. Run the unaffected verification/import/privacy/ZIP/lifecycle suites, the
+   coordinated owner/session race suite, then full Go and Flutter gates.
+
+### Correction Execution Log
+
+| Step | Red evidence | Green evidence | Status |
+|---|---|---|---|
+| Capability removal | Pending | Pending | Not started |
+| Suggestion schema/state | Pending | Pending | Not started |
+| Match persistence | Pending | Pending | Not started |
+| Explicit accept/dismiss | Pending | Pending | Not started |
+| Notification/route correction | Pending | Pending | Not started |
+| Flutter review surface | Pending | Pending | Not started |
+| Broad verification | Pending | Pending | Not started |
+
+### Completion Conditions
+
+- [ ] No Instagram matcher, reconciler, worker, or runner can obtain an OAuth
+  session, PDS client, follow writer, `PutRecord`, or `CreateRecord` capability.
+- [ ] Duplicate/reordered matches create one caller-private suggestion with
+  both participant generations and no external call.
+- [ ] Only explicit current-member acceptance enters the ordinary owner-effect
+  executor, and stale/departed/terminal barriers make no new call.
+- [ ] `instagramMatch` automatic notification behavior is absent.
+- [ ] Flutter clearly requires Follow and fences every action to the account.
+- [ ] No cleanup path deletes `app.bsky.graph.follow`.
+- [ ] Focused PostgreSQL/race and full Go/Flutter gates pass with recorded
+  commands and results.

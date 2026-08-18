@@ -1,8 +1,12 @@
 package routes
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"image"
+	"image/color"
+	"image/jpeg"
 	"io"
 	"log/slog"
 	"net/http"
@@ -12,10 +16,13 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/app"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
+	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -35,7 +42,50 @@ CREATE TABLE moderation_outputs (
     created_at         TIMESTAMPTZ NOT NULL,
     indexed_at         TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE moderation_idempotency_receipts (
+    request_key_hash BYTEA PRIMARY KEY,
+    request_fingerprint BYTEA NOT NULL,
+    output_id TEXT NOT NULL,
+    output_status TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL
+);
+CREATE TABLE owner_lifecycles (
+    owner_did TEXT PRIMARY KEY,
+    state TEXT NOT NULL,
+    generation BIGINT NOT NULL,
+    auth_epoch BIGINT NOT NULL,
+    transition_reason TEXT NOT NULL,
+    transitioned_at TIMESTAMPTZ NOT NULL,
+    terminal_at TIMESTAMPTZ,
+    purge_completed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+INSERT INTO owner_lifecycles(
+    owner_did,state,generation,auth_epoch,transition_reason,
+    transitioned_at,created_at,updated_at
+) VALUES
+    ('did:plc:labeler','active',1,1,'test',now(),now(),now()),
+    ('did:plc:bob','active',1,1,'test',now(),now(),now());
 `
+
+func newRouteModerationStore(t *testing.T, pool *pgxpool.Pool) *api.ModerationStore {
+	t.Helper()
+	fencer, err := ownerlifecycle.NewFencer(pool, time.Second)
+	if err != nil {
+		t.Fatalf("owner fencer: %v", err)
+	}
+	lifecycles, err := ownerlifecycle.NewStore(pool, fencer, time.Now)
+	if err != nil {
+		t.Fatalf("owner lifecycle store: %v", err)
+	}
+	store, err := api.NewModerationStore(pool, lifecycles)
+	if err != nil {
+		t.Fatalf("moderation store: %v", err)
+	}
+	return store
+}
 
 // stubResolver is a minimal api.HandleResolver used by the routing
 // tests so they don't depend on the real PLC directory.
@@ -147,7 +197,7 @@ func TestScheduledPostRoutesRequireAuthenticationAndUseDeclaredBodyPolicies(t *t
 		if !ok {
 			continue
 		}
-		if !policy.AuthRequired || !policy.CurrentMemberRequired || policy.RateClass != expected.rate || policy.BodyKind != expected.body {
+		if policy.AccessClass != AccessCurrentMember || policy.RateClass != expected.rate || policy.BodyKind != expected.body {
 			t.Fatalf("%s policy = %+v", key, policy)
 		}
 		delete(want, key)
@@ -194,8 +244,8 @@ func TestRelationshipRoutesUseAuthenticatedNoBodyPolicies(t *testing.T) {
 		if !ok {
 			continue
 		}
-		if !policy.AuthRequired || policy.BodyKind != BodyNoBody || policy.RateClass != rateClass {
-			t.Fatalf("%s policy = %+v, want authenticated %s/no_body", key, policy, rateClass)
+		if policy.AccessClass != AccessCurrentMember || policy.BodyKind != BodyNoBody || policy.RateClass != rateClass {
+			t.Fatalf("%s policy = %+v, want current-member %s/no_body", key, policy, rateClass)
 		}
 		delete(want, key)
 	}
@@ -250,7 +300,7 @@ func TestProfilePinRoutesUseAuthenticatedCurrentMemberNoBodyPolicies(t *testing.
 		if !ok {
 			continue
 		}
-		if !policy.AuthRequired || !policy.CurrentMemberRequired || policy.BodyKind != BodyNoBody || policy.RateClass != rateClass {
+		if policy.AccessClass != AccessCurrentMember || policy.BodyKind != BodyNoBody || policy.RateClass != rateClass {
 			t.Fatalf("%s policy = %+v, want authenticated current-member %s/no_body", key, policy, rateClass)
 		}
 		delete(want, key)
@@ -323,8 +373,8 @@ func TestSavedPostRoutesUseAuthenticatedPolicies(t *testing.T) {
 		if !ok {
 			continue
 		}
-		if !policy.AuthRequired || policy.RateClass != expected.rateClass || policy.BodyKind != expected.bodyKind {
-			t.Fatalf("%s policy = %+v, want authenticated %s/%s", key, policy, expected.rateClass, expected.bodyKind)
+		if policy.AccessClass != AccessCurrentMember || policy.RateClass != expected.rateClass || policy.BodyKind != expected.bodyKind {
+			t.Fatalf("%s policy = %+v, want current-member %s/%s", key, policy, expected.rateClass, expected.bodyKind)
 		}
 		delete(want, key)
 	}
@@ -478,23 +528,23 @@ func TestAddRoutes_NoMetricsAuthBypassAndV1RoutesStillEnforceDevice(t *testing.T
 }
 
 func TestAddRoutes_BodyPolicyRunsThroughMux(t *testing.T) {
-	t.Run("default JSON route rejects oversized body before auth", func(t *testing.T) {
+	t.Run("unknown-length body is not read before authentication", func(t *testing.T) {
 		deps := testDeps()
 		deps.Config.JSONBodyLimitBytes = 8
 		mux := http.NewServeMux()
 		AddRoutes(context.Background(), mux, deps)
 
-		req := httptest.NewRequest(http.MethodPost, "/v1/posts", strings.NewReader("123456789"))
-		req.Header.Set("Authorization", "Bearer anything")
+		body := &bodyReadProbe{Reader: strings.NewReader("123456789")}
+		req := httptest.NewRequest(http.MethodPost, "/v1/posts", body)
 		req.Header.Set("X-Craftsky-Device-Id", "dev-test")
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 
-		if rec.Code != http.StatusRequestEntityTooLarge {
-			t.Fatalf("status = %d, want 413; body=%s", rec.Code, rec.Body.String())
+		if rec.Code != http.StatusUnauthorized {
+			t.Fatalf("status = %d, want 401; body=%s", rec.Code, rec.Body.String())
 		}
-		if !strings.Contains(rec.Body.String(), "request_body_too_large") {
-			t.Fatalf("body = %q, want request_body_too_large", rec.Body.String())
+		if body.bytesRead != 0 {
+			t.Fatalf("body bytes read = %d before authentication, want 0", body.bytesRead)
 		}
 	})
 
@@ -516,6 +566,17 @@ func TestAddRoutes_BodyPolicyRunsThroughMux(t *testing.T) {
 			t.Fatalf("body = %q, want request_body_not_allowed", rec.Body.String())
 		}
 	})
+}
+
+type bodyReadProbe struct {
+	io.Reader
+	bytesRead int
+}
+
+func (probe *bodyReadProbe) Read(buffer []byte) (int, error) {
+	read, err := probe.Reader.Read(buffer)
+	probe.bytesRead += read
+	return read, err
 }
 
 func TestAddRoutes_RateLimitRejectsBeforeHandlerWork(t *testing.T) {
@@ -612,13 +673,33 @@ func TestAddRoutes_AllV1PoliciesEnforcedThroughMux(t *testing.T) {
 func muxWithPolicyProbe(policy RoutePolicy, cfg middleware.RateLimitConfig) *http.ServeMux {
 	mux := http.NewServeMux()
 	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusNoContent) })
+	bodyConfig := middleware.BodyLimitConfig{DefaultJSONBytes: 1, UploadBytes: 1}
+	handler = middleware.BodyLimit(bodyConfig, middleware.BodyKind(policy.BodyKind), nil)(handler)
 	limiter := middleware.NewLocalRateLimiter(cfg, func() time.Time { return time.Unix(200, 0) })
 	if policy.RateClass != RateClassExempt && policy.RateClass != RateClassDevOnly {
 		handler = middleware.RateLimit(limiter, middleware.RateClass(policy.RateClass), nil)(handler)
 	}
-	handler = middleware.DeviceID(nil, nil)(handler)
-	handler = middleware.Authenticated(&auth.MockAuthService{DefaultDID: "did:plc:test"}, nil)(handler)
-	handler = middleware.BodyLimit(middleware.BodyLimitConfig{DefaultJSONBytes: 1, UploadBytes: 1}, middleware.BodyKind(policy.BodyKind), nil)(handler)
+	switch policy.AccessClass {
+	case AccessAuthenticatedRecovery:
+		handler = middleware.DeviceID(nil, slog.Default())(handler)
+		handler = middleware.AuthenticatedRecovery(
+			&auth.MockAuthService{DefaultDID: "did:plc:test"},
+			slog.Default(),
+			middleware.DevAuthPolicy{Mode: middleware.DevAuthLocal},
+		)(handler)
+	case AccessCurrentMember:
+		handler = middleware.DeviceID(nil, slog.Default())(handler)
+		handler = middleware.Authenticated(
+			&auth.MockAuthService{DefaultDID: "did:plc:test"},
+			slog.Default(),
+			middleware.DevAuthPolicy{Mode: middleware.DevAuthLocal},
+		)(handler)
+	case AccessAnonymous:
+		if policy.RateClass == RateClassAuth {
+			handler = middleware.DeviceID(nil, slog.Default())(handler)
+		}
+	}
+	handler = middleware.BodyPrecheck(bodyConfig, middleware.BodyKind(policy.BodyKind), nil)(handler)
 	mux.Handle(policy.Method+" "+policy.PathPattern, handler)
 	return mux
 }
@@ -1071,7 +1152,7 @@ func TestRoutes_DevModerationRoutePersistsValidOutput(t *testing.T) {
 	pool := testdb.WithSchema(t, routeModerationDDL)
 	deps := testDeps()
 	deps.DB = pool
-	deps.ModerationStore = api.NewModerationStore(pool)
+	deps.ModerationStore = newRouteModerationStore(t, pool)
 	deps.Config = app.Config{
 		Env:                         app.EnvDev,
 		EnableDevModeration:         true,
@@ -1089,6 +1170,7 @@ func TestRoutes_DevModerationRoutePersistsValidOutput(t *testing.T) {
 		"internalReason":"private fixture"
 	}`))
 	req.Header.Set("X-Craftsky-Dev-Moderation-Token", "secret-token")
+	req.Header.Set("Idempotency-Key", "route-valid-output-0001")
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 
@@ -1120,7 +1202,7 @@ func TestRoutes_DevModerationRouteRejectsInvalidWithoutMutation(t *testing.T) {
 	pool := testdb.WithSchema(t, routeModerationDDL)
 	deps := testDeps()
 	deps.DB = pool
-	deps.ModerationStore = api.NewModerationStore(pool)
+	deps.ModerationStore = newRouteModerationStore(t, pool)
 	deps.Config = app.Config{
 		Env:                         app.EnvDev,
 		EnableDevModeration:         true,
@@ -1138,6 +1220,7 @@ func TestRoutes_DevModerationRouteRejectsInvalidWithoutMutation(t *testing.T) {
 		"action":"apply"
 	}`))
 	req.Header.Set("X-Craftsky-Dev-Moderation-Token", "secret-token")
+	req.Header.Set("Idempotency-Key", "route-invalid-output-0001")
 	rr := httptest.NewRecorder()
 	mux.ServeHTTP(rr, req)
 
@@ -1244,6 +1327,30 @@ func TestAddRoutes_ImageBlobUploadRouteRegistered(t *testing.T) {
 	if pattern == "/" || pattern == "" {
 		t.Fatalf("pattern = %q; /v1/blobs/images must be registered", pattern)
 	}
+}
+
+func TestScheduledImageValidatorUsesRouteObserver(t *testing.T) {
+	recorder := observability.NewInMemoryMetricRecorder()
+	observer := observability.New(observability.Config{MetricRecorder: recorder})
+	validator := newScheduledImageValidator(api.DefaultImageDecodeLimits(), observer)
+	value := image.NewRGBA(image.Rect(0, 0, 1, 1))
+	value.Set(0, 0, color.White)
+	var payload bytes.Buffer
+	if err := jpeg.Encode(&payload, value, nil); err != nil {
+		t.Fatalf("encode JPEG fixture: %v", err)
+	}
+
+	if _, err := validator.Validate(
+		context.Background(), "image/jpeg", payload.Bytes(),
+	); err != nil {
+		t.Fatalf("Validate error = %v, want nil", err)
+	}
+	for _, call := range recorder.Calls() {
+		if call.Name == "craftsky_appview_scheduled_image_validations_total" {
+			return
+		}
+	}
+	t.Fatalf("scheduled image metric missing: %#v", recorder.Calls())
 }
 
 func TestAddRoutes_FacetRoutesRegisteredAndRequireAuthenticatedDevice(t *testing.T) {
@@ -1354,8 +1461,14 @@ func TestAddRoutes_SearchRoutesRegisteredAndRequireAuthenticatedDevice(t *testin
 }
 
 func TestSearchProjectsRouteRejectsBrowseFilters(t *testing.T) {
+	pool := testdb.WithSchema(t, `
+		CREATE TABLE craftsky_profiles (did TEXT PRIMARY KEY);
+		INSERT INTO craftsky_profiles (did) VALUES ('did:plc:test');
+	`)
+	deps := testDeps()
+	deps.DB = pool
 	mux := http.NewServeMux()
-	AddRoutes(context.Background(), mux, testDeps())
+	AddRoutes(context.Background(), mux, deps)
 	req := httptest.NewRequest(http.MethodGet, "/v1/search/projects?q=sock&craftType=knitting&material=alpaca", nil)
 	req.Header.Set("Authorization", "Bearer anything")
 	req.Header.Set("X-Craftsky-Device-Id", "dev-test")

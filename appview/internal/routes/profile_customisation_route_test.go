@@ -29,7 +29,7 @@ func TestProfileCustomisationRouteUsesAuthenticatedCurrentMemberPolicy(t *testin
 		t.Fatal("PUT /v1/profiles/me/customisation route policy missing")
 	}
 	if policy.RateClass != RateClassWrite || policy.BodyKind != BodyDefaultJSON ||
-		!policy.AuthRequired || !policy.CurrentMemberRequired {
+		policy.AccessClass != AccessCurrentMember {
 		t.Fatalf("customisation route policy = %+v", policy)
 	}
 

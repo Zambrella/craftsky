@@ -311,7 +311,7 @@ func TestLoadConfig_InstagramLimitsDefaultToHardMaximaAndMayOnlyTighten(t *testi
 
 func instagramConfigFile(t *testing.T, env Env, extra string) string {
 	t.Helper()
-	base := "DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://craftsky.social\nTAP_WS_URL=ws://tap\n"
+	base := withProductionOAuth("DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://craftsky.social\nTAP_WS_URL=ws://tap\n")
 	if env == EnvDev {
 		base = "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap\n"
 	}

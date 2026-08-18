@@ -16,6 +16,7 @@ import (
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
+	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -171,7 +172,8 @@ func TestSavedPostMutationIsPrivateAndAuthorSeesNoSignal(t *testing.T) {
 	if err != nil {
 		t.Fatalf("author summary before save: %v", err)
 	}
-	result, err := savedStore.Save(context.Background(), syntax.DID("did:plc:alice"), syntax.ATURI(postURI), api.FolderAssignment{})
+	mutationCtx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
+	result, err := savedStore.Save(mutationCtx, syntax.DID("did:plc:alice"), syntax.ATURI(postURI), api.FolderAssignment{})
 	if err != nil || !result.Created {
 		t.Fatalf("private save result = %+v, err %v", result, err)
 	}
@@ -190,12 +192,12 @@ func TestSavedPostMutationIsPrivateAndAuthorSeesNoSignal(t *testing.T) {
 		t.Fatalf("Alice private viewer state = %+v, want unfiled saved", aliceAfter[postURI])
 	}
 
-	folder, err := savedStore.CreateFolder(context.Background(), syntax.DID("did:plc:alice"), "Private folder")
+	folder, err := savedStore.CreateFolder(mutationCtx, syntax.DID("did:plc:alice"), "Private folder")
 	if err != nil {
 		t.Fatalf("create private folder: %v", err)
 	}
 	if _, err := savedStore.Save(
-		context.Background(),
+		mutationCtx,
 		syntax.DID("did:plc:alice"),
 		syntax.ATURI(postURI),
 		api.FolderAssignment{Present: true, ID: &folder.ID},

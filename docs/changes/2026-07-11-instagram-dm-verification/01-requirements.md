@@ -1,5 +1,11 @@
 # Requirements: Instagram DM Ownership Verification And Automatic Following
 
+> **2026-08-14 AppView audit amendment:** Section 24 is the authoritative
+> contract for Instagram matches. It supersedes every older requirement in
+> this document that authorizes a background PDS follow write. Imports now
+> create private, lifecycle-bound suggestions; only an explicit action by a
+> current member may request the ordinary follow write.
+
 ## 1. Initial Request
 
 Implement the Instagram DM verification and follow-discovery work described in `design-plan.md` across AppView and Flutter. Complete everything that can be built and tested before a Meta app and official CraftSky Instagram professional account are configured. Live Meta dashboard setup, credential-backed calls, app review, and the real end-to-end capability spike remain release blockers rather than coding blockers.
@@ -1077,3 +1083,83 @@ or push was authorized.
   document is required before acceptance-test design and implementation. The
   four open items in §21 block production enablement or later repository-wide
   lifecycle composition only.
+
+## 24. AppView Audit Amendment: Private Suggestions And Explicit Follow
+
+Status: Approved by the product owner on 2026-08-14.
+
+This section resolves AV-007 by selecting the audit plan's recommended strict
+branch. The independently committing PDS cannot provide a transaction that
+AppView can recall after a process crash. CraftSky therefore removes the
+background automatic-follow PDS-write capability instead of claiming that an
+accepted request can always be cancelled by a later membership transition.
+
+### 24.1 Superseded Decisions
+
+- Q9 and the 2026-07-27 automatic-write follow-on are superseded only for the
+  automatic public write, actorful automatic-follow notification, and removal
+  of the private review surface. The verification, import privacy, exact-match,
+  discoverability, retention, account-isolation, and manual-unfollow decisions
+  remain in force.
+- Q2 is reinstated: a private suggestion is accepted through one dedicated,
+  idempotent, authenticated operation. Flutter must not compose an
+  uncoordinated follow request and suggestion-state request.
+- BR-003, BR-004, FR-001, FR-011, FR-012, FR-015–FR-026, FR-028, FR-030,
+  FR-032, NFR-005, RULE-008, RULE-010, and RULE-012 are superseded wherever
+  they require a queued/background PDS write, automatic-follow notification,
+  background OAuth-session selection, or absence of the private suggestion
+  surface. Their unaffected privacy and lifecycle clauses remain applicable.
+- AC-021–AC-025, AC-028–AC-031, AC-034–AC-038, AC-044, AC-048, AC-055, and
+  AC-056 are superseded to the same extent. AC-057–AC-063 below are the
+  authoritative acceptance criteria for match-to-follow behavior.
+
+### 24.2 Authoritative Requirements
+
+| ID | Type | Priority | Requirement | Rationale | Source | Acceptance Criteria |
+|---|---|---|---|---|---|---|
+| BR-005 | Business | Must | Importing following handles authorizes private exact matching and suggestion creation only. Each public follow requires an explicit action by the importing current member. | Keeps the import useful without granting an unrecallable background public-write capability. | AppView audit / User approval | AC-057–AC-060 |
+| FR-033 | Functional | Must | Initial and future exact eligible matches shall create one caller-private suggestion per importer/target/evidence lifetime. A suggestion records both participants' owner generations and is invalidated when either participant ceases to be current, the mapping becomes ineligible, supporting evidence is removed, or the importer dismisses it. | Makes suggestions durable while binding them to the lifecycle facts under which they were created. | AppView audit / User approval | AC-057, AC-058, AC-061 |
+| FR-034 | Functional | Must | AppView shall expose current-member-only list, accept, and dismiss operations under `/v1/migrations/instagram/suggestions`. List results contain only the caller's hydrated suggestion identity and opaque ID. Accept is idempotent by suggestion ID and stable operation key; it revalidates ownership, both participant generations, and the complete eligibility policy before requesting the ordinary follow write. Dismiss is an idempotent caller-owned no-op for absent or foreign IDs. | Restores an explicit consent boundary without leaking private match evidence. | AppView audit / Reinstated Q2 | AC-058–AC-060 |
+| FR-035 | Functional | Must | The Instagram matcher, reconciliation worker, and dependency graph shall have no OAuth/PDS session selector, `followwrite.Service`, `PutRecord`, `CreateRecord`, or equivalent public-write capability. They may persist or invalidate private suggestions only. | Capability absence is the strict AV-007 safety property. | AppView audit / User approval | AC-057, AC-061, AC-062 |
+| FR-036 | Functional | Must | Flutter shall show the caller's private suggestions in the Instagram feature, with explicit Follow and Dismiss actions. Copy must say that imports find possible CraftSky accounts and that no account is followed until the member chooses Follow. Account leases shall fence load, accept, dismiss, navigation, and late results. | Makes the revised consent boundary clear and preserves multi-account isolation. | AppView audit / User approval | AC-058–AC-060, AC-063 |
+| FR-037 | Functional | Must | The `instagramMatch` automatic-follow notification and its dedicated preference/push behavior shall be retired. A successful explicit follow has ordinary relationship behavior; it does not create a private system notification claiming CraftSky followed automatically. | The event no longer exists under the strict branch. | AppView audit / User approval | AC-060, AC-062 |
+| NFR-011 | Non-functional | Must | Suggestion acceptance shall use the ordinary owner-effect/session coordinator. It acquires the importer fence, rechecks active lifecycle and generation immediately before the PDS boundary, records the deterministic attempt, and never treats an old suggestion or bearer as authority. A remotely accepted foreground request that becomes outcome-uncertain follows the common PDS-attempt reconciliation contract; no background retry is authorized after departure. | Preserves lifecycle integrity for the remaining explicit write path. | AppView audit | AC-059, AC-061 |
+| RULE-013 | Business rule | Must | Account departure, terminal deletion, verification revocation, evidence removal, conflict, or target departure invalidates unwritten suggestions and cannot start a public write. Successful explicit follows remain ordinary PDS records and are not deleted as cleanup. No cleanup path may delete `app.bsky.graph.follow`. | Separates private suggestion lifecycle from the user's public graph. | AppView audit / Existing namespace boundary | AC-061, AC-062 |
+
+### 24.3 State And Wire Contract
+
+- Suggestion states are `pending`, `accepting`, `followed`,
+  `alreadyFollowing`, `dismissed`, and `invalidated`. Only `pending` is shown
+  as actionable. `followed`, `alreadyFollowing`, and `dismissed` are private
+  suppression facts for the current evidence lifetime.
+- `GET /v1/migrations/instagram/suggestions` uses opaque cursor pagination and
+  returns only caller-owned hydrated suggestions.
+- `POST /v1/migrations/instagram/suggestions/{suggestionId}/accept` is the sole
+  Instagram-specific entry to a follow write. It returns the already-satisfied
+  result idempotently and never accepts owner, DID, generation, or session
+  authority from the request body.
+- `DELETE /v1/migrations/instagram/suggestions/{suggestionId}` dismisses the
+  caller-owned suggestion and is an idempotent `204` for absent or foreign IDs.
+- Import responses may include a private `suggestionCount` only if it is
+  derived for the authenticated importer and does not expose handles or match
+  reasons. The list endpoint remains the source of suggestion details.
+- Pre-production migration may delete obsolete automatic-write operations and
+  `instagramMatch` rows. No compatibility path or background writer remains.
+
+### 24.4 Acceptance Criteria
+
+| ID | Acceptance criterion |
+|---|---|
+| AC-057 | Creating or reconciling an import with an eligible match persists one private suggestion and makes zero PDS, OAuth-session-selection, follow-writer, notification, or push calls. Duplicate and reordered triggers remain idempotent. |
+| AC-058 | Only the importing current member can list and act on a suggestion; another DID, a stale account lease, or an absent/foreign ID cannot disclose the match or mutate it. |
+| AC-059 | Accept rechecks both participant generations and the complete eligibility policy under the owner fence immediately before the ordinary PDS effect. A stale/departed/terminal participant causes no new external call. |
+| AC-060 | One explicit accept produces at most one ordinary follow and an idempotent terminal suggestion result. No `instagramMatch` automatic-follow notification or preference/push path is created. |
+| AC-061 | Departure or deletion racing matching/acceptance either invalidates the unwritten suggestion before any call or linearizes after an explicitly requested effect already began. The retired background composition cannot initiate the AV-007 accepted-request/crash/late-commit scenario. |
+| AC-062 | Static dependency and runtime recording tests prove the matcher and reconciliation worker cannot obtain a PDS client or follow writer, and no cleanup service can delete `app.bsky.graph.follow`. |
+| AC-063 | Flutter explains the explicit action, renders private suggestions, and fences Follow/Dismiss/navigation/results to the captured account without restoring automatic-follow copy or behavior. |
+
+### 24.5 Remaining External Gates
+
+The Meta capability spike, consented export-shape evidence, trusted-edge abuse
+configuration, and physical-device checks in §21 remain release gates. They do
+not alter the strict no-background-PDS-writer decision.

@@ -43,7 +43,7 @@ func RankMentionSuggestionRows(rows []MentionSuggestionRow, query string) {
 		if aRank != bRank {
 			return aRank < bRank
 		}
-		if strings.ToLower(a.Handle) != strings.ToLower(b.Handle) {
+		if !strings.EqualFold(a.Handle, b.Handle) {
 			return strings.ToLower(a.Handle) < strings.ToLower(b.Handle)
 		}
 		return a.DID < b.DID
@@ -106,15 +106,20 @@ func (s *FacetStore) SearchMentionSuggestions(ctx context.Context, viewerDID syn
 			EXISTS (
 				SELECT 1 FROM atproto_follows f
 				WHERE f.did = $1 AND f.subject_did = ic.did
+				  AND NOT appview_owner_is_terminal(f.did)
+				  AND NOT appview_owner_is_terminal(f.subject_did)
 			) AS viewer_is_following
 		FROM atproto_identity_cache ic
 		JOIN craftsky_profiles cp ON cp.did = ic.did
 		LEFT JOIN bluesky_profiles bp ON bp.did = ic.did
 		WHERE ic.resolved_at >= $2
+		  AND NOT appview_owner_is_terminal(ic.did)
 		  AND NOT EXISTS (
 			SELECT 1 FROM atproto_blocks b
-			WHERE (b.blocker_did = $1 AND b.subject_did = ic.did)
-			   OR (b.blocker_did = ic.did AND b.subject_did = $1)
+			WHERE ((b.blocker_did = $1 AND b.subject_did = ic.did)
+			   OR (b.blocker_did = ic.did AND b.subject_did = $1))
+			  AND NOT appview_owner_is_terminal(b.blocker_did)
+			  AND NOT appview_owner_is_terminal(b.subject_did)
 		  )
 		  AND (
 			ic.handle_lower LIKE '%' || $4 || '%' ESCAPE '\'
@@ -125,6 +130,8 @@ func (s *FacetStore) SearchMentionSuggestions(ctx context.Context, viewerDID syn
 			EXISTS (
 				SELECT 1 FROM atproto_follows f
 				WHERE f.did = $1 AND f.subject_did = ic.did
+				  AND NOT appview_owner_is_terminal(f.did)
+				  AND NOT appview_owner_is_terminal(f.subject_did)
 			) DESC,
 			CASE
 				WHEN ic.handle_lower = $3 THEN 0
@@ -237,7 +244,7 @@ func (s *FacetStore) ResolveMention(ctx context.Context, viewerDID syntax.DID, h
 	if err != nil || canonicalHandle.String() == "" {
 		return IdentityCacheRow{}, ErrMentionNotFound
 	}
-	if err := s.identityCache.Upsert(ctx, did, canonicalHandle, now); err != nil {
+	if err := s.identityCache.upsertForViewer(ctx, viewerDID, did, canonicalHandle, now); err != nil {
 		return IdentityCacheRow{}, err
 	}
 	return IdentityCacheRow{DID: did, Handle: canonicalHandle, ResolvedAt: now}, nil

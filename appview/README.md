@@ -42,7 +42,7 @@ appview prod   # loads environments/prod.env, info logging, (future) real OAuth
 ```
 cli ping --env dev              # pings the DB, prints pool stats
 cli migrate up|down|status|redo # wraps golang-migrate/v4
-cli request GET /whoami --env dev  # hits the running server as the dev DID
+cli request GET /v1/whoami --env dev  # hits the running server as the dev DID
 cli tap status --env dev           # prints tap connection state (exit 0 connected, 1 disconnected, 2 transport)
 cli did-resolve alice.bsky.social --env dev       # stub until the identity resolver lands
 ```
@@ -88,6 +88,136 @@ just migrate up   # wraps golang-migrate/v4 via the CLI
 
 Tests run on the **host** (the appview image has no Go toolchain), so Go must be installed locally and `just dev-d` must already be running. The `just test` recipe discovers the current checkout's published Postgres port and sets `TEST_DATABASE_URL` automatically. The primary checkout uses `localhost:5433`; linked worktrees use stable alternate ports and isolated database volumes.
 
+### Network and configuration safety
+
+Compose publishes AppView, PostgreSQL, and MinIO on `127.0.0.1` by default.
+Their bind addresses are independent:
+
+- `CRAFTSKY_APPVIEW_PUBLISH_HOST`
+- `CRAFTSKY_POSTGRES_PUBLISH_HOST`
+- `CRAFTSKY_MINIO_PUBLISH_HOST`
+
+Changing the AppView address therefore cannot expose the database or object
+store. The wrapper rejects a non-loopback AppView address unless all remote-dev
+controls are present. To test from a remote device, copy `.env.local.example`
+to the ignored `.env.local`, then:
+
+1. Set only `CRAFTSKY_APPVIEW_PUBLISH_HOST` to the interface address that the
+   protected edge may reach.
+2. Set `APPVIEW_DEV_REMOTE_ACCESS=true` and generate
+   `APPVIEW_DEV_AUTH_SECRET` with `openssl rand -hex 32`.
+3. Set `APPVIEW_EXPECTED_HOSTS` to the public DNS name of the protected edge.
+4. Put an HTTPS tunnel/reverse proxy or mTLS boundary and a narrow firewall in
+   front of the raw AppView listener, then set
+   `APPVIEW_DEV_PROTECTED_TRANSPORT=true` as the deployment attestation.
+
+The last flag does not turn this Go HTTP listener into a TLS server. It records
+an external deployment contract; a directly reachable plain-HTTP LAN listener
+is not an approved remote setup. Keep the Postgres and MinIO publish hosts on
+`127.0.0.1` and never commit the dev credential.
+
+Production uses `OAUTH_PUBLIC_ORIGIN` as its single canonical identity. It must
+be a public HTTPS origin such as `https://appview.craftsky.social`; AppView
+derives the client ID, callback, JWKS URI, and expected Host from it.
+`OAUTH_CALLBACK_URL` is localhost-development-only, and the removed
+`OAUTH_HOSTNAME` setting is rejected. A reverse proxy must preserve the
+canonical `Host`; AppView deliberately ignores `Forwarded` and
+`X-Forwarded-Host` and returns 421 for another authority.
+
+Inbound requests are bounded before application work. The listener admits at
+most `HTTP_MAX_CONNECTIONS` active sockets, while
+`HTTP_MAX_IN_FLIGHT_REQUESTS` separately bounds requests whose headers have
+completed. Header, whole-request, response-write, idle, and header-size limits
+are controlled by the corresponding `HTTP_*` settings in the environment
+examples. JSON and upload bodies also receive separate finite read budgets.
+
+`Forwarded` and `X-Forwarded-For` affect client rate limiting only when the
+immediate socket peer is in `HTTP_TRUSTED_PROXY_CIDRS`. Leave that setting empty
+for direct connections. At a controlled reverse proxy, list only its exact
+network prefixes; startup rejects `/0`, invalid, and duplicate prefixes, and a
+malformed forwarding chain falls back to the socket peer. IPv4 clients use a
+`/32` key and IPv6 clients default to `/64` via
+`HTTP_CLIENT_IPV6_PREFIX_BITS`.
+
+The outer global/client limiter and its bounded cache are process-local. Run
+one AppView replica unless a separately verified shared edge limiter enforces
+the documented limits without permitting direct access to AppView. Before
+horizontal scaling, replace the local limiter with a shared implementation or
+prove that edge contract; otherwise each replica would multiply the effective
+budget.
+
+Operational time settings are positive and bounded. Current inclusive maxima
+are 2 minutes for `TAP_ACK_TIMEOUT`, 10 minutes for `TAP_RECONNECT_MAX`, 180
+days for both session lifetime/inactivity settings, 1 hour for
+`OAUTH_AUTH_REQUEST_EXPIRY`, 24 hours for the session activity write interval,
+1 hour for push polling and leases, and 10 minutes for push sends. The current
+shared relationships are:
+
+- `CRAFTSKY_SESSION_INACTIVITY` cannot exceed
+  `OAUTH_SESSION_ABSOLUTE_LIFETIME`.
+- `OAUTH_AUTH_REQUEST_EXPIRY` must be shorter than the absolute lifetime.
+- `CRAFTSKY_SESSION_ACTIVITY_WRITE_INTERVAL` must be shorter than inactivity.
+- `PUSH_CONCURRENCY` cannot exceed the per-poll `PUSH_BATCH_SIZE` budget.
+- `PUSH_SEND_TIMEOUT` plus `PUSH_FINALIZATION_MARGIN` must fit inside
+  `PUSH_LEASE_DURATION`.
+- Tap projection and repository leases must exceed their poll intervals;
+  backoff maxima must not be shorter than their minima. The repository lease
+  must also cover the bounded PDS read deadline plus finalization margin.
+- `TAP_ACK_TIMEOUT` must cover owner-fence acquisition plus the fixed-size
+  tombstone/ledger transaction margin. It never covers an unbounded purge.
+- `HTTP_MAX_IN_FLIGHT_REQUESTS` cannot exceed `HTTP_MAX_CONNECTIONS`.
+- `HTTP_READ_HEADER_TIMEOUT`, `HTTP_JSON_BODY_READ_TIMEOUT`, and
+  `HTTP_UPLOAD_BODY_READ_TIMEOUT` cannot exceed `HTTP_READ_TIMEOUT`.
+- `HTTP_WRITE_TIMEOUT` must exceed `HTTP_READ_TIMEOUT`.
+- `HTTP_OUTER_CLIENT_LIMIT` cannot exceed `HTTP_OUTER_GLOBAL_LIMIT`.
+- `OAUTH_AUTH_REQUEST_SWEEP_BATCH` cannot exceed
+  `OAUTH_PENDING_AUTH_REQUEST_CAPACITY`.
+- `OAUTH_AUTH_REQUEST_SWEEP_INTERVAL` cannot exceed terminal retention, and
+  `OAUTH_AUTH_REQUEST_TERMINAL_RETENTION` must exceed auth-request expiry.
+- OAuth revocation and auxiliary-cleanup operation deadlines must fit inside
+  their leases; poll intervals cannot exceed those leases; and retry backoff
+  maxima cannot be shorter than their minima. Revocation credential retention
+  cannot exceed the absolute OAuth-session lifetime.
+- `AUTH_SESSION_EXPIRY_SWEEP_INTERVAL` cannot exceed CraftSky session
+  inactivity, and `ACCOUNT_DELETION_INTENT_SWEEP_INTERVAL` cannot exceed the
+  reversible deletion-intent lifetime.
+- Terminal account data is physically drained by the bounded purge worker.
+  `TERMINAL_PURGE_LEASE_DURATION` must exceed `TERMINAL_PURGE_POLL_INTERVAL`;
+  component and row limits cap each transaction while the tombstone keeps
+  retained rows non-serving until the purge ledger converges.
+
+`TAP_MAX_RETRIES` no longer exists. Retryable storage, lifecycle, or dependency
+failures remain unacknowledged until Tap redelivers them. Valid sources and
+dependency-blocked projection work are persisted before ACK, while malformed
+envelopes are durably quarantined. Projection and repository repair run from
+leased database work using the `TAP_PROJECTION_*`, `TAP_REPOSITORY_*`, and
+`TAP_QUARANTINE_*` budgets in the environment examples.
+
+OAuth login admission atomically caps pending requests. The sweeper removes
+expired `ready` requests and aged `consumed`, `revoked`, or `exchange_failed`
+terminal evidence in bounded batches. It never removes `exchange_started` or
+`exchange_ambiguous`, because those states still require settlement evidence.
+Separate bounded workers enforce session expiry, revoke remotely held OAuth
+credentials before deleting their local encrypted parent rows, and apply
+time-fenced notification-subscription cleanup without deactivating a newer
+registration. Reversible account-deletion intents expire through the same
+owner-lifecycle fence used by explicit cancellation; accepted deletion jobs
+are never reverted by that sweeper.
+
+Owner fences default to a five-second acquisition deadline, ordinary PDS
+effects to ten seconds, and scheduled object puts to thirty seconds. Those
+client deadlines do not prove that a remote service stopped processing an
+accepted request. In the absence of a tested server-side settlement guarantee,
+AppView retains the approved exact-key, non-secret cleanup tombstones and
+reconciles them until convergence.
+
+Scheduled image decode settings may only lower the compiled width, height,
+16-megapixel, aspect-ratio, single-decoder, and admission-wait ceilings.
+Compose gives AppView a 512 MiB memory limit by default. A 16-megapixel WebP
+peaked near 97 MB RSS in a host benchmark (JPEG/PNG near 41 MB), but that is not
+release-container evidence. Keep decode concurrency at one and complete the
+release-container memory benchmark before treating AV-016 as deployment-closed.
+
 ## Observability
 
 AppView emits structured JSON logs with a per-request `run_id`, safe route-pattern fields, and no request or response bodies by default. Sensitive headers such as `Authorization`, `Cookie`, `DPoP`, and Craftsky device/session token headers are redacted in request logs.
@@ -114,6 +244,10 @@ Metric names are internal ops details and use the `craftsky_appview` prefix wher
   attribute.
 - `craftsky_appview_scheduled_posts_cleanup_pending` and
   `_cleanup_oldest_age_seconds` gauges for private-media cleanup health.
+- `craftsky_appview_auth_request_sweep_failures_total` and
+  `_sweep_deleted_total` counters for the independent OAuth request sweeper.
+- `craftsky_appview_auth_requests_pending` and
+  `_oldest_pending_age_seconds` gauges for bounded pending-flow health.
 
 Initial production alert guidance for scheduled posts is: alert when the oldest
 overdue post exceeds 60 seconds for five sustained minutes; when claim or batch
@@ -162,7 +296,7 @@ just oauth-keygen
 Prints a multibase-encoded P-256 private key to stdout. Paste into your
 local prod-style `.env` as `OAUTH_CLIENT_SECRET_KEY`. Never commit.
 
-In dev (`OAUTH_HOSTNAME` unset) the appview runs as a public client
+In explicit dev mode the appview runs as a localhost public client
 against `http://127.0.0.1:18080/oauth/callback` and does not require a
 client secret.
 
@@ -182,7 +316,7 @@ For now, the flow is driven by `curl` plus a real browser:
 handle you have credentials for:
 
 ```bash
-curl -s -X POST http://localhost:8080/v1/auth/login \
+curl -s -X POST http://localhost:18080/v1/auth/login \
   -H 'Content-Type: application/json' \
   -H 'X-Craftsky-Device-Id: curl-dev' \
   -d '{"handle":"YOUR_HANDLE","handoffMode":"deep_link"}' | jq -r .authUrl
@@ -205,7 +339,7 @@ TOKEN='<paste-here>'
 curl -s \
   -H "Authorization: Bearer $TOKEN" \
   -H 'X-Craftsky-Device-Id: curl-dev' \
-  http://localhost:8080/v1/whoami | jq .
+  http://localhost:18080/v1/whoami | jq .
 # {"did":"did:plc:...","handle":"..."}
 ```
 
@@ -215,7 +349,7 @@ curl -s \
 curl -is -X POST \
   -H "Authorization: Bearer $TOKEN" \
   -H 'X-Craftsky-Device-Id: curl-dev' \
-  http://localhost:8080/v1/auth/logout
+  http://localhost:18080/v1/auth/logout
 ```
 
 **Or all devices** (revokes the underlying OAuth session, cascades
@@ -225,7 +359,7 @@ through all bearer tokens for the DID):
 curl -is -X POST \
   -H "Authorization: Bearer $TOKEN" \
   -H 'X-Craftsky-Device-Id: curl-dev' \
-  'http://localhost:8080/v1/auth/logout?all=true'
+  'http://localhost:18080/v1/auth/logout?all=true'
 ```
 
 ### Inspecting OAuth state
@@ -250,7 +384,7 @@ curl -s \
   -H 'Authorization: Bearer ignored' \
   -H 'X-Dev-DID: did:plc:example' \
   -H 'X-Craftsky-Device-Id: curl-dev' \
-  http://localhost:8080/v1/whoami
+  http://localhost:18080/v1/whoami
 ```
 
 Note `/v1/whoami` does a live PLC-directory lookup for the handle, so a
@@ -258,12 +392,21 @@ made-up DID like `did:plc:example` returns `502 identity_unavailable`.
 Use a real DID (e.g. `did:plc:ewvi7nxzyoun6zhxrhs64oiz` → `atproto.com`)
 to exercise the happy path.
 
-The fallback is **dev-only** and only fires when the bearer token is
-invalid — a real OAuth-issued token always takes precedence.
+The fallback is **dev-only** and only fires when the bearer token is invalid —
+a real OAuth-issued token always takes precedence. Loopback mode accepts the
+identity header directly. Remote mode additionally requires the configured
+`X-Craftsky-Dev-Authorization` credential, compares it in constant time, and
+treats a missing or wrong credential like ordinary failed authentication.
+Production rejects the development header path.
 
 The `cli request` subcommand sends both `X-Dev-DID` and
 `X-Craftsky-Device-Id: cli-dev` automatically in dev mode, so
-`cli request GET /v1/whoami` Just Works without extra flags.
+`cli request GET /v1/whoami` Just Works without extra flags. In remote mode it
+also reads the dev credential and canonical Host from validated config; neither
+is accepted as a command-line flag or URL. Run the CLI inside the container,
+for example `./scripts/compose-dev exec appview /app/cli request GET
+/v1/whoami --env dev`, so the credential stays in configuration rather than
+shell arguments.
 
 ## Smoke testing the indexer
 
@@ -281,13 +424,12 @@ subcommand for this yet.
   Settings → App Passwords → Add. Make a dedicated one for craftsky-dev
   so you can revoke it independently. App passwords are required by
   goat — it uses the legacy session API, not OAuth.
-- You must be **onboarded** to the local appview, i.e. have a row in
-  `craftsky_profiles` for your DID. The post indexer drops events from
-  non-members silently. If your dev DB has been reset, re-run the OAuth
-  flow above (your `social.craftsky.actor.profile` record on the PDS
-  triggers Tap's `TAP_SIGNAL_COLLECTION` discovery on first event, but
-  the membership row only re-materialises when the OAuth callback fires
-  `InitializeProfile`).
+- You must be **onboarded** to the local AppView, i.e. have a current
+  `social.craftsky.actor.profile`. If a post arrives before its profile during
+  historical backfill, AppView now retains the source and blocks its projection
+  until the membership dependency is satisfied; it no longer ACKs and loses
+  that post. If your dev DB has been reset, re-run the OAuth flow above so Tap
+  tracking and the durable projection backlog can rebuild the membership.
 
 ### One-time goat login
 
