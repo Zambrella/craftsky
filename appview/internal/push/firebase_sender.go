@@ -71,25 +71,23 @@ func (s *FirebaseSender) buildMessage(request SendRequest) (*messaging.Message, 
 		data[key] = value
 	}
 	data["notificationId"] = request.RoutingFacts.NotificationID
-	message := &messaging.Message{Token: request.Token, Data: data}
-	deadline := s.now().Add(request.TTL)
-
-	switch request.Platform {
-	case "android":
-		data["displayTitle"] = safePushDisplayText(payload.Title, "CraftSky")
-		data["displayBody"] = safePushDisplayText(
-			payload.Body,
-			"You have a new notification",
-		)
-		message.Android = &messaging.AndroidConfig{TTL: &request.TTL}
-	case "ios":
-		message.Notification = &messaging.Notification{
+	message := &messaging.Message{
+		Token: request.Token,
+		Data:  data,
+		Notification: &messaging.Notification{
 			Title: safePushDisplayText(payload.Title, "CraftSky"),
 			Body: safePushDisplayText(
 				payload.Body,
 				"You have a new notification",
 			),
-		}
+		},
+	}
+	deadline := s.now().Add(request.TTL)
+
+	switch request.Platform {
+	case "android":
+		message.Android = &messaging.AndroidConfig{TTL: &request.TTL}
+	case "ios":
 		message.APNS = &messaging.APNSConfig{
 			Headers: map[string]string{
 				"apns-expiration": strconv.FormatInt(deadline.Unix(), 10),

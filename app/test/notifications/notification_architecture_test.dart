@@ -164,7 +164,6 @@ void main() {
     }
     firebaseImporters.sort();
     expect(firebaseImporters, [
-      'lib/notifications/services/firebase_notification_background_handler.dart',
       'lib/notifications/services/firebase_notification_bootstrap.dart',
       'lib/notifications/services/firebase_notification_service.dart',
     ]);

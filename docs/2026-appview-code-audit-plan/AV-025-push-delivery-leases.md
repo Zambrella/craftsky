@@ -5,6 +5,15 @@
 - **Status:** Planned
 - **Audit source:** [AV-025](../2026-08-12-appview-code-audit.md#av-025--push-lease-geometry-allows-duplicate-provider-sends)
 
+> **Superseding product decision (2026-08-20):** Android now uses the same
+> standard notification-plus-data contract as iOS. The operating system owns
+> background and terminated presentation; Flutter retains foreground effects
+> and authenticated open routing only. The product explicitly accepts FCM's
+> notification-message collapsing, possible duplicate OS presentation after an
+> ambiguous retry, and possible late display after logout/lifecycle change.
+> The data-only/local-presentation/durable-client-dedupe steps below document
+> the earlier audit design and are no longer normative.
+
 ## Shared implementation strategy
 
 Change the dispatcher from “claim a large batch, then send it serially” to bounded just-in-time claims. A worker may claim a delivery only when it owns an available send slot, and the provider deadline must fit wholly inside the persisted lease with a finalization margin. Continue to use lease-token compare-and-set updates, but state the external guarantee accurately: PostgreSQL and Firebase cannot provide an atomic exactly-once boundary, so the remaining post-acceptance crash window is at-least-once. Provider collapse fields are semantic replacement controls, not arbitrary idempotency keys; duplicate-presentation mitigation therefore uses platform-specific payloads, stable client display identity, and bounded `notificationId` deduplication.

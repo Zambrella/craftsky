@@ -1,22 +1,19 @@
-import 'dart:collection';
 import 'dart:convert';
 
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:uuid/uuid.dart';
 
-/// Validated app-owned presentation data for an Android unique-event message.
+/// Validated copy and routing facts from a standard notification message.
 ///
-/// The notification ID is presentation/deduplication identity only. Navigation
-/// continues to be derived from [NotificationOpenAttempt]'s validated routing
-/// facts and account binding.
+/// Navigation continues to be derived from [NotificationOpenAttempt]'s
+/// validated routing facts and account binding.
 final class NotificationDeliveryEnvelope {
   NotificationDeliveryEnvelope._({
     required this.notificationId,
     required this.title,
     required this.body,
     required this.openAttempt,
-    required Map<String, String> providerData,
-  }) : providerData = UnmodifiableMapView(providerData);
+  });
 
   static const int maxDisplayBytes = 256;
   static const int maxRoutingValueBytes = 1024;
@@ -37,12 +34,6 @@ final class NotificationDeliveryEnvelope {
   final String title;
   final String body;
   final NotificationOpenAttempt openAttempt;
-  final Map<String, String> providerData;
-
-  /// Android uses the complete canonical UUID as its native string tag.
-  String get androidTag => notificationId;
-
-  String get localOpenPayload => jsonEncode(providerData);
 
   static NotificationDeliveryEnvelope? tryParse(
     Map<String, Object?> data, {
@@ -86,22 +77,7 @@ final class NotificationDeliveryEnvelope {
       title: title,
       body: body,
       openAttempt: openAttempt,
-      providerData: bounded,
     );
-  }
-
-  static NotificationDeliveryEnvelope? tryParseLocalPayload(
-    String? payload, {
-    NotificationOpenSource source = NotificationOpenSource.backgroundOpen,
-  }) {
-    if (payload == null || payload.length > 8192) return null;
-    try {
-      final decoded = jsonDecode(payload);
-      if (decoded is! Map<String, dynamic>) return null;
-      return tryParse(decoded, source: source);
-    } on FormatException {
-      return null;
-    }
   }
 
   static bool _isSafeDisplayText(String value) {

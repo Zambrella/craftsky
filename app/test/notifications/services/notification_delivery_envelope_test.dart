@@ -15,26 +15,16 @@ void main() {
     'rootUri': 'at://did:plc:viewer/social.craftsky.feed.post/root',
   };
 
-  test(
-    'UT-PUSH-001 validates and round-trips the Android display envelope',
-    () {
-      final envelope = NotificationDeliveryEnvelope.tryParse(data);
+  test('UT-PUSH-001 validates notification copy and routing facts', () {
+    final envelope = NotificationDeliveryEnvelope.tryParse(data);
 
-      expect(envelope, isNotNull);
-      expect(envelope!.notificationId, notificationId);
-      expect(envelope.androidTag, notificationId);
-      expect(envelope.title, 'Alice');
-      expect(envelope.body, 'liked your post');
-      expect(envelope.openAttempt.facts, isA<ValidNotificationFacts>());
-      expect(envelope.toString(), isNot(contains(notificationId)));
-
-      final roundTrip = NotificationDeliveryEnvelope.tryParseLocalPayload(
-        envelope.localOpenPayload,
-      );
-      expect(roundTrip?.notificationId, notificationId);
-      expect(roundTrip?.openAttempt.facts, isA<ValidNotificationFacts>());
-    },
-  );
+    expect(envelope, isNotNull);
+    expect(envelope!.notificationId, notificationId);
+    expect(envelope.title, 'Alice');
+    expect(envelope.body, 'liked your post');
+    expect(envelope.openAttempt.facts, isA<ValidNotificationFacts>());
+    expect(envelope.toString(), isNot(contains(notificationId)));
+  });
 
   test('UT-PUSH-002 rejects malformed identity, copy, and routing facts', () {
     for (final invalid in <Map<String, Object?>>[
@@ -53,9 +43,5 @@ void main() {
         reason: 'accepted $invalid',
       );
     }
-    expect(
-      NotificationDeliveryEnvelope.tryParseLocalPayload('{broken'),
-      isNull,
-    );
   });
 }

@@ -8,19 +8,16 @@ import 'package:craftsky_app/notifications/models/foreground_notification_event.
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/models/notification_permission.dart';
 import 'package:craftsky_app/notifications/services/notification_delivery_envelope.dart';
-import 'package:craftsky_app/notifications/services/notification_local_presenter.dart';
 import 'package:craftsky_app/notifications/services/notification_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 final class FirebaseNotificationService implements NotificationService {
-  FirebaseNotificationService(this._messaging, this._localPresenter);
+  FirebaseNotificationService(this._messaging);
 
   final FirebaseMessaging _messaging;
-  final NotificationLocalPresenter _localPresenter;
 
   @override
   Future<void> initialize() async {
-    await _localPresenter.initialize();
     await _messaging.setForegroundNotificationPresentationOptions(
       alert: false,
       badge: false,
@@ -29,7 +26,7 @@ final class FirebaseNotificationService implements NotificationService {
   }
 
   @override
-  Future<void> dispose() => _localPresenter.dispose();
+  Future<void> dispose() async {}
 
   @override
   Future<NotificationPermission> getPermission() async => _mapPermission(
@@ -55,30 +52,24 @@ final class FirebaseNotificationService implements NotificationService {
   @override
   Stream<ForegroundNotificationEvent> get foregroundEvents => FirebaseMessaging
       .onMessage
-      .asyncMap(
-        (message) => foregroundEventFromMessage(message, _localPresenter),
-      )
+      .map(foregroundEventFromMessage)
       .where((event) => event != null)
       .cast<ForegroundNotificationEvent>();
 
   @override
-  Stream<NotificationOpenAttempt> get openedNotifications => _mergeStreams(
-    FirebaseMessaging.onMessageOpenedApp
-        .asyncMap(
-          (message) => _providerOpenFromMessage(
-            message,
-            NotificationOpenSource.backgroundOpen,
-          ),
-        )
-        .where((attempt) => attempt != null)
-        .cast<NotificationOpenAttempt>(),
-    _localPresenter.openedNotifications,
-  );
+  Stream<NotificationOpenAttempt> get openedNotifications => FirebaseMessaging
+      .onMessageOpenedApp
+      .map(
+        (message) => _providerOpenFromMessage(
+          message,
+          NotificationOpenSource.backgroundOpen,
+        ),
+      )
+      .where((attempt) => attempt != null)
+      .cast<NotificationOpenAttempt>();
 
   @override
   Future<NotificationOpenAttempt?> takeInitialOpen() async {
-    final localOpen = await _localPresenter.takeInitialOpen();
-    if (localOpen != null) return localOpen;
     final message = await _messaging.getInitialMessage();
     if (message == null) return null;
     return _providerOpenFromMessage(
@@ -104,18 +95,14 @@ final class FirebaseNotificationService implements NotificationService {
           NotificationPermission.notDetermined,
       };
 
-  static Future<ForegroundNotificationEvent?> foregroundEventFromMessage(
+  static ForegroundNotificationEvent? foregroundEventFromMessage(
     RemoteMessage message,
-    NotificationLocalPresenter localPresenter,
-  ) async {
+  ) {
     final envelope = _envelopeFromMessage(
       message,
       source: NotificationOpenSource.foregroundBanner,
     );
-    if (envelope == null ||
-        !await localPresenter.claimForegroundEffect(envelope)) {
-      return null;
-    }
+    if (envelope == null) return null;
     return ForegroundNotificationEvent(
       title: envelope.title,
       body: envelope.body,
@@ -123,13 +110,12 @@ final class FirebaseNotificationService implements NotificationService {
     );
   }
 
-  Future<NotificationOpenAttempt?> _providerOpenFromMessage(
+  static NotificationOpenAttempt? _providerOpenFromMessage(
     RemoteMessage message,
     NotificationOpenSource source,
-  ) async {
+  ) {
     final envelope = _envelopeFromMessage(message, source: source);
-    if (envelope == null) return null;
-    return _localPresenter.claimProviderOpen(envelope);
+    return envelope?.openAttempt;
   }
 
   static NotificationDeliveryEnvelope? _envelopeFromMessage(
@@ -144,32 +130,4 @@ final class FirebaseNotificationService implements NotificationService {
     }
     return NotificationDeliveryEnvelope.tryParse(data, source: source);
   }
-}
-
-Stream<T> _mergeStreams<T>(Stream<T> first, Stream<T> second) {
-  late StreamController<T> controller;
-  final subscriptions = <StreamSubscription<T>>[];
-  var completed = 0;
-  controller = StreamController<T>(
-    onListen: () {
-      for (final stream in [first, second]) {
-        subscriptions.add(
-          stream.listen(
-            controller.add,
-            onError: controller.addError,
-            onDone: () {
-              completed++;
-              if (completed == 2) unawaited(controller.close());
-            },
-          ),
-        );
-      }
-    },
-    onCancel: () async {
-      for (final subscription in subscriptions) {
-        await subscription.cancel();
-      }
-    },
-  );
-  return controller.stream;
 }

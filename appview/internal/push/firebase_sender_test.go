@@ -44,12 +44,13 @@ func TestFirebaseSenderBuildsPlatformSpecificUniqueEventMessages(t *testing.T) {
 		assert   func(*testing.T, *messaging.Message)
 	}{
 		{
-			name:     "Android is data only and non-collapsing",
+			name:     "Android uses standard notification plus routing data",
 			platform: "android",
 			assert: func(t *testing.T, message *messaging.Message) {
 				t.Helper()
-				if message.Notification != nil {
-					t.Fatalf("Android unique event has notification payload: %+v", message.Notification)
+				if message.Notification == nil || message.Notification.Title != "Alice" ||
+					message.Notification.Body != "liked your post" {
+					t.Fatalf("Android notification = %+v", message.Notification)
 				}
 				if message.Android == nil || message.Android.TTL == nil ||
 					*message.Android.TTL != time.Hour {
@@ -61,9 +62,11 @@ func TestFirebaseSenderBuildsPlatformSpecificUniqueEventMessages(t *testing.T) {
 				if message.APNS != nil {
 					t.Fatalf("Android message unexpectedly contains APNs config: %+v", message.APNS)
 				}
-				if message.Data["displayTitle"] != "Alice" ||
-					message.Data["displayBody"] != "liked your post" {
-					t.Fatalf("Android display data = %#v", message.Data)
+				if _, ok := message.Data["displayTitle"]; ok {
+					t.Fatalf("Android data duplicates display title: %#v", message.Data)
+				}
+				if _, ok := message.Data["displayBody"]; ok {
+					t.Fatalf("Android data duplicates display body: %#v", message.Data)
 				}
 			},
 		},
@@ -151,7 +154,7 @@ func TestFirebaseSenderBuildsPlatformSpecificUniqueEventMessages(t *testing.T) {
 	}
 }
 
-func TestFirebaseSenderNeverUsesPerDeliveryCollapseMetadata(t *testing.T) {
+func TestFirebaseSenderUsesStandardNotificationsWithoutPerDeliveryCollapseMetadata(t *testing.T) {
 	client := &captureFirebaseClient{}
 	sender := &FirebaseSender{client: client, now: time.Now}
 	for index := 1; index <= 5; index++ {
@@ -179,9 +182,9 @@ func TestFirebaseSenderNeverUsesPerDeliveryCollapseMetadata(t *testing.T) {
 	}
 	seen := map[string]bool{}
 	for _, message := range client.messages {
-		if message.Notification != nil || message.Android == nil ||
+		if message.Notification == nil || message.Android == nil ||
 			message.Android.CollapseKey != "" {
-			t.Fatalf("unique Android event used collapsing payload: %+v", message)
+			t.Fatalf("Android notification contract = %+v", message)
 		}
 		id := message.Data["notificationId"]
 		if id == "" || seen[id] {

@@ -27,7 +27,6 @@ import 'package:craftsky_app/notifications/providers/notification_preferences_pr
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_seen_provider.dart';
 import 'package:craftsky_app/notifications/providers/notifications_provider.dart';
-import 'package:craftsky_app/notifications/services/notification_delivery_dedupe_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/report_profile_provider.dart';
@@ -163,25 +162,12 @@ final accountHomeResetProvider = Provider<AccountBoundaryAction>(
 final accountSessionPrivateStateCleanerProvider =
     Provider<AccountSessionInvalidator>(
       (ref) => (lease) async {
-        final registry = await ref.read(sessionRegistryProvider.future);
-        final notificationPartition =
-            registry.routingBindings[lease.account.did];
         try {
           await ref
               .read(instagramVerificationStorageProvider)
               .delete(lease.account);
         } on Object {
           // A stale snapshot still fails closed against AppView later.
-        }
-        if (notificationPartition != null) {
-          try {
-            await ref
-                .read(notificationDeliveryDedupeStoreProvider)
-                .clearAccountPartition(notificationPartition);
-          } on Object {
-            // This cache is disposable. Registry removal remains authoritative,
-            // and the presentation eligibility check fails closed afterward.
-          }
         }
       },
     );

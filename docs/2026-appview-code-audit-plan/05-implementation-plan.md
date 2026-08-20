@@ -633,26 +633,21 @@ release build.
   subscription, and unchanged-token fencing. Tests cover just-in-time claim
   counts, no-useful-window release, exact persisted expiry, malformed/absent
   actor decoding, timeout bounds, reclaim overlap, and stale finalization.
-- Provider construction is now typed as a unique event. Android messages are
-  data-only and contain bounded display copy plus routing facts and the durable
-  `notificationId`, with neither a notification object nor `collapse_key`.
-  APNs messages retain an alert but omit `apns-collapse-id`. A five-event
-  regression verifies that one registration token receives five independent
-  Android messages rather than entering FCM's four-collapse-key namespace.
-- Flutter now uses `flutter_local_notifications` for Android app-owned display
-  with `(tag = full canonical notificationId, id = fixed type ID)`. A SQLite
-  TTL/LRU cache provides persisted compare-and-set stages for `presented`,
-  `foregroundEffectEmitted`, and `opened`; its primary key is notification ID
-  plus stage, and real isolate contention tests prove one winner. Foreground,
-  reconstructed background, local-open reconstruction, five-distinct-ID, and
-  presentation/checkpoint crash-boundary tests pass; a corrupt disposable
-  cache is reset once. A real plugin method-channel test verifies the full tag
-  and fixed ID reach Android. The Android integration includes core-library
-  desugaring and a drawable status-bar icon verified by an APK build.
-- Dependency impact: `flutter_local_notifications` and `sqflite` are runtime
-  dependencies; `sqflite_common_ffi` is a test dependency. Flutter-generated
-  macOS/Windows plugin registrants and Android desugaring change accordingly.
-  The `/v1/notifications/*` API and routing envelope do not change.
+- Provider construction remains typed as a unique event. Following the
+  superseding 2026-08-20 product decision, Android and iOS both receive a
+  bounded notification object plus the existing routing data. Android retains
+  TTL and no explicit collapse key; APNs retains default sound and omits
+  `apns-collapse-id`. FCM may collapse an undelivered Android notification.
+- Flutter no longer presents background notifications itself. Android/iOS own
+  background and terminated display, while the adapter maps foreground receipt,
+  `onMessageOpenedApp`, and `getInitialMessage` into the provider-neutral
+  runtime. Equal foreground callbacks are handled normally without persisted
+  receipt suppression. Authenticated routing validation remains unchanged.
+- Removed `flutter_local_notifications`, the Android background isolate,
+  local gateway/presenter, presentation eligibility layer, SQLite stage cache,
+  account-partition cleanup, plugin-only desugaring, and their tests. The
+  existing monochrome drawable is now configured as Firebase's default
+  provider-rendered notification icon. `sqflite` is test-only again.
 - Focused evidence on 2026-08-14: database-required `go test
   ./internal/push -count=1`, database-required `go test -race
   ./internal/push -count=1`, and `go vet ./internal/push` pass; `flutter test
@@ -687,23 +682,19 @@ release build.
   classified as `accepted_unfinalized`; no token, DID, message content,
   provider error, notification ID, delivery ID, or arbitrary replacement value
   becomes a label or log field.
-- The retained-account presentation check and account-partition cache clearing
-  were already connected in Flutter. No network revalidation endpoint was
-  added. A provider-accepted message may still arrive after an AppView process
-  crash releases its fences and a lifecycle transition completes; AppView
-  cannot retract it, and an APNs alert already rendered by the OS cannot be
-  recalled. Persisted stage-specific `notificationId` dedupe suppresses an
-  ordinary retry with the same ID while a distinct ID remains presentable. The
-  provider/database and client-checkpoint/OS-presentation gaps therefore remain
-  explicitly at-least-once rather than exactly-once guarantees.
-- Focused evidence on 2026-08-20: required-PostgreSQL `go test` and `go test
+- No client presentation revalidation or network revalidation endpoint is
+  retained. A provider-accepted Android or iOS message may arrive after an
+  AppView process crash releases its fences and a lifecycle transition or
+  logout completes; the OS-rendered alert cannot be recalled. Ambiguous retries
+  may display twice, and Android may collapse undelivered notification messages.
+  Notification-tap routing still validates the retained account and authorized
+  destination.
+- Earlier focused evidence on 2026-08-20: required-PostgreSQL `go test` and `go test
   -race` pass across `./internal/push ./internal/app ./internal/observability`;
-  focused `go vet` passes for the same packages; and `flutter test
-  test/notifications test/auth/providers/account_notification_cleanup_test.dart`
-  passes all 116 tests. The remaining release-only gates are physical Firebase
-  delayed-delivery/retry exercises on Android (data-only local display, stable
-  full tag, first open and duplicate-open behavior) and iOS (unique APNs alerts
-  omit collapse metadata while an ambiguous accepted retry may display twice).
+  focused `go vet` passes for the same packages. Superseding client evidence is
+  recorded in the Flutter notification implementation plan. The remaining
+  release-only gate is physical Firebase delivery on both platforms across
+  foreground, background, terminated, tap, delayed, and ambiguous-retry cases.
 
 ### Step 13: `MOD-001`
 

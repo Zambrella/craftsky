@@ -72,7 +72,7 @@ void main() {
     expect(info, contains('<string>remote-notification</string>'));
   });
 
-  test('REG-001 and REG-005 keep Firebase inside the approved boundary', () {
+  test('REG-001 keeps Firebase inside the approved boundary', () {
     final dartFiles = Directory('lib')
         .listSync(recursive: true)
         .whereType<File>()
@@ -87,33 +87,22 @@ void main() {
         reason: 'Firebase import escaped adapter boundary: ${file.path}',
       );
     }
-
-    final handler = File(
-      'lib/notifications/services/firebase_notification_background_handler.dart',
-    ).readAsStringSync();
-    expect(handler, contains("@pragma('vm:entry-point')"));
-    expect(
-      handler,
-      contains('Future<void> firebaseMessagingBackgroundHandler'),
-    );
-    expect(handler, isNot(contains('riverpod')));
-    expect(handler, isNot(contains('go_router')));
-    expect(handler, isNot(contains('Logger')));
   });
 
-  test('UT-016 / AT-012 keeps provider presentation bounded', () {
+  test('UT-016 / AT-012 uses native background presentation only', () {
     final adapter = File(
       'lib/notifications/services/firebase_notification_service.dart',
     ).readAsStringSync();
-    final localGateway = File(
-      'lib/notifications/services/flutter_local_notification_gateway.dart',
+    final bootstrap = File(
+      'lib/notifications/services/firebase_notification_bootstrap.dart',
     ).readAsStringSync();
-    final localPresenter = File(
-      'lib/notifications/services/notification_local_presenter.dart',
+    final manifest = File(
+      'android/app/src/main/AndroidManifest.xml',
     ).readAsStringSync();
     final androidGradle = File(
       'android/app/build.gradle.kts',
     ).readAsStringSync();
+    final pubspec = File('pubspec.yaml').readAsStringSync();
 
     expect(
       adapter,
@@ -134,39 +123,33 @@ void main() {
       ),
     );
     expect(adapter, isNot(contains('vibration')));
+    expect(bootstrap, isNot(contains('onBackgroundMessage')));
+    expect(pubspec, isNot(contains('flutter_local_notifications:')));
     expect(
-      localGateway,
-      contains('tag: presentation.tag'),
-      reason: 'Android must use the full notificationId as the stable tag',
+      manifest,
+      contains('com.google.firebase.messaging.default_notification_icon'),
     );
-    expect(
-      localGateway,
-      contains("'ic_stat_craftsky_notification'"),
-    );
+    expect(manifest, contains('@drawable/ic_stat_craftsky_notification'));
     expect(
       File(
         'android/app/src/main/res/drawable/'
         'ic_stat_craftsky_notification.xml',
       ).existsSync(),
       isTrue,
-      reason: 'flutter_local_notifications resolves small icons as drawables',
+      reason: 'FCM resolves its provider-rendered small icon as a drawable',
     );
-    expect(
-      localPresenter,
-      contains('static const int androidTypeId = 0x43534b59;'),
-    );
-    expect(localPresenter, isNot(contains('.hashCode')));
-    expect(localPresenter, isNot(contains('substring(')));
-    expect(
-      androidGradle,
-      contains('isCoreLibraryDesugaringEnabled = true'),
-    );
-    expect(
-      androidGradle,
-      contains(
-        'coreLibraryDesugaring('
-        '"com.android.tools:desugar_jdk_libs:2.1.4")',
-      ),
-    );
+    expect(androidGradle, isNot(contains('coreLibraryDesugaring')));
+    expect(androidGradle, isNot(contains('isCoreLibraryDesugaringEnabled')));
+
+    for (final path in [
+      'lib/notifications/services/firebase_notification_background_handler.dart',
+      'lib/notifications/services/flutter_local_notification_gateway.dart',
+      'lib/notifications/services/notification_local_presenter.dart',
+      'lib/notifications/services/notification_delivery_dedupe_provider.dart',
+      'lib/notifications/services/notification_delivery_dedupe_store.dart',
+      'lib/notifications/services/notification_presentation_eligibility.dart',
+    ]) {
+      expect(File(path).existsSync(), isFalse, reason: '$path still exists');
+    }
   });
 }
