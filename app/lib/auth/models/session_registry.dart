@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/models/pending_account_deletion.dart';
 import 'package:craftsky_app/auth/models/pending_handoff.dart';
 import 'package:craftsky_app/auth/models/stored_session.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
@@ -27,6 +28,7 @@ class SessionRegistry {
     required Map<String, StoredSession> sessions,
     Map<String, String> routingBindings = const {},
     this.pendingHandoff,
+    this.pendingAccountDeletion,
   }) : activeDid = activeDid == null ? null : Did.parse(activeDid),
        sessions = Map.unmodifiable({
          for (final MapEntry(key: did, value: session) in sessions.entries)
@@ -115,6 +117,27 @@ class SessionRegistry {
       throw const FormatException('Invalid pending handoff');
     }
 
+    final rawPendingAccountDeletion = decoded['pendingAccountDeletion'];
+    final PendingAccountDeletion? pendingAccountDeletion;
+    if (rawPendingAccountDeletion == null) {
+      pendingAccountDeletion = null;
+    } else if (rawPendingAccountDeletion is Map) {
+      pendingAccountDeletion = PendingAccountDeletion.fromMap(
+        Map<String, Object?>.from(rawPendingAccountDeletion),
+      );
+      final pendingSession =
+          sessions[pendingAccountDeletion.lease.session.account.did];
+      if (pendingSession == null ||
+          pendingSession.sessionGeneration !=
+              pendingAccountDeletion.lease.session.sessionGeneration ||
+          pendingAccountDeletion.lease.activationGeneration >
+              _requiredNonNegativeInt(decoded, 'activationGeneration')) {
+        throw const FormatException('Invalid pending account deletion');
+      }
+    } else {
+      throw const FormatException('Invalid pending account deletion');
+    }
+
     final nextSessionGeneration = _requiredPositiveInt(
       decoded,
       'nextSessionGeneration',
@@ -138,6 +161,7 @@ class SessionRegistry {
       sessions: sessions,
       routingBindings: routingBindings,
       pendingHandoff: pendingHandoff,
+      pendingAccountDeletion: pendingAccountDeletion,
     );
   }
 
@@ -152,6 +176,7 @@ class SessionRegistry {
   final Map<Did, StoredSession> sessions;
   final Map<Did, String> routingBindings;
   final PendingHandoff? pendingHandoff;
+  final PendingAccountDeletion? pendingAccountDeletion;
 
   List<StoredSession> get orderedSessions {
     final ordered = sessions.values.toList()
@@ -225,7 +250,29 @@ class SessionRegistry {
           cachedCustomisation: cachedCustomisation,
         ),
       },
+      pendingAccountDeletion:
+          pendingAccountDeletion?.lease.session.account.did == parsedDid
+          ? null
+          : pendingAccountDeletion,
     );
+  }
+
+  SessionRegistry stageAccountDeletion(PendingAccountDeletion pending) {
+    final current = pendingAccountDeletion;
+    if (current != null) {
+      if (current.sameAs(pending)) return this;
+      throw StateError('Another account deletion is pending');
+    }
+    if (!pending.isCurrent(activeLease)) {
+      throw StateError('Active account changed before deletion staging');
+    }
+    return _copyWith(pendingAccountDeletion: pending);
+  }
+
+  SessionRegistry clearAccountDeletion(String jobId) {
+    final pending = pendingAccountDeletion;
+    if (pending == null || pending.jobId != jobId) return this;
+    return _copyWith(pendingAccountDeletion: null);
   }
 
   /// Stores the entire inactive handoff receipt in the same secure snapshot as
@@ -305,6 +352,10 @@ class SessionRegistry {
       activeDid: removedActive ? _mostRecentlyUsedDid(remaining) : activeDid,
       sessions: remaining,
       routingBindings: bindings,
+      pendingAccountDeletion:
+          pendingAccountDeletion?.lease.session.account.did == parsedDid
+          ? null
+          : pendingAccountDeletion,
     );
   }
 
@@ -400,6 +451,7 @@ class SessionRegistry {
         did: binding,
     },
     'pendingHandoff': pendingHandoff?.toMap(),
+    'pendingAccountDeletion': pendingAccountDeletion?.toMap(),
     'sessions': {
       for (final MapEntry(key: did, value: session) in sessions.entries)
         did: {
@@ -423,6 +475,7 @@ class SessionRegistry {
     Map<Did, StoredSession>? sessions,
     Map<Did, String>? routingBindings,
     Object? pendingHandoff = _unchanged,
+    Object? pendingAccountDeletion = _unchanged,
   }) {
     final resolvedActiveDid = identical(activeDid, _unchanged)
         ? this.activeDid
@@ -432,6 +485,10 @@ class SessionRegistry {
     final resolvedPendingHandoff = identical(pendingHandoff, _unchanged)
         ? this.pendingHandoff
         : pendingHandoff as PendingHandoff?;
+    final resolvedPendingAccountDeletion =
+        identical(pendingAccountDeletion, _unchanged)
+        ? this.pendingAccountDeletion
+        : pendingAccountDeletion as PendingAccountDeletion?;
     return SessionRegistry(
       nextSessionGeneration:
           nextSessionGeneration ?? this.nextSessionGeneration,
@@ -447,6 +504,7 @@ class SessionRegistry {
           entry.key.value: entry.value,
       },
       pendingHandoff: resolvedPendingHandoff,
+      pendingAccountDeletion: resolvedPendingAccountDeletion,
     );
   }
 

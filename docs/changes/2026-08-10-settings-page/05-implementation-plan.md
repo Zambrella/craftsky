@@ -1,5 +1,27 @@
 # TDD Implementation Plan: Lean Account Deletion Simplification
 
+## Development reauthentication correction (2026-08-20)
+
+| Step | Test ID | Requirement IDs | Acceptance criterion | Expected initial state |
+|---|---|---|---|---|
+| D1 | REG-018 | FR-032 | AC-055 | A delayed ordinary-route 401 removes the recovery-only session and redirects away from confirmation. |
+| D2 | REG-019 | FR-032, NFR-001 | AC-055 | The pending deletion fence exists only in the controller's in-memory map. |
+| D3 | REG-020 | FR-016, FR-032 | AC-055 | No durable pending value exists to clear on cancel/accept. |
+
+### Development reauthentication execution log
+
+| Test ID | Red evidence | Green evidence | Status |
+|---|---|---|---|
+| REG-018 | The focused test failed to compile because ordinary 401 invalidation had no locally authorized recovery-lease protection seam. | The production invalidator now consults the durable pending deletion and preserves only its exact unexpired session lease; wrong, switched, and expired leases remain invalidatable. | Completed |
+| REG-019 | The focused registry test failed to compile because no pending-deletion model or durable staging API existed. | Secure-registry JSON reconstruction restores the exact job, lease, and required handle; a reconstructed controller renders confirmation, while account switching makes it stale. | Completed |
+| REG-020 | The focused provider test failed to compile because pending deletion could not be staged or cleared independently of the session. | Controller cancellation clears the durable pending value while retaining the session; accepted exact-account removal clears both through the existing registry removal path. | Completed |
+
+Focused correction suite: 26 tests passed across the registry, production 401
+invalidation seam, deletion controller, lease fencing, and reauthentication
+completion page. Broader `test/auth`, `test/settings`, and OAuth router coverage
+passed all 153 tests. Targeted `dart analyze` reported no issues, and
+`git diff --check` was clean.
+
 > **Current status (2026-08-20):** The lean simplification and the approved
 > AppView audit exact-key safety correction are implemented. The correction
 > execution log and checklist in the final section supersede the 2026-08-14

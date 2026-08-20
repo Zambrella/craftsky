@@ -1,5 +1,21 @@
 # Coding Plan: Settings Page And Lean Account Deletion
 
+## Development reauthentication correction (2026-08-20)
+
+1. Add a minimized pending-deletion value to the existing encrypted session
+   registry: job ID, exact active-account lease, and required handle only. Do
+   not persist the reauthentication proof.
+2. Persist that value after the server creates the intent and before launching
+   the browser. If persistence or launch fails, cancel the server intent and
+   clear the local value.
+3. Make ordinary 401 invalidation consult the local pending value and retain
+   only its exact lease. Continue forwarding the HTTP failure and do not trust
+   an error-body flag.
+4. Restore the controller's confirmation state from the registry so a callback
+   after process reconstruction still requires the exact handle.
+5. Clear the pending value on cancellation or accepted deletion; preserve the
+   existing active-account generation fence and post-acceptance removal flow.
+
 > **AppView audit correction (2026-08-14):** Section 13 is the authoritative implementation design for remote outcome uncertainty. It replaces the earlier “one operation table / finalize after first empty scan” assumptions with the approved temporary exact-key safety tombstones while preserving every lean user-facing and final-minimization boundary.
 
 ## 1. Inputs

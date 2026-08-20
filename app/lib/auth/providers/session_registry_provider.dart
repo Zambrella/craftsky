@@ -1,4 +1,5 @@
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/models/pending_account_deletion.dart';
 import 'package:craftsky_app/auth/models/pending_handoff.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart' as registry;
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
@@ -50,6 +51,12 @@ class SessionRegistry extends _$SessionRegistry {
 
   Future<void> discardHandoff(String receiptId) =>
       _mutate((current) => current.discardHandoff(receiptId));
+
+  Future<void> stageAccountDeletion(PendingAccountDeletion pending) =>
+      _mutate((current) => current.stageAccountDeletion(pending));
+
+  Future<void> clearAccountDeletion(String jobId) =>
+      _mutate((current) => current.clearAccountDeletion(jobId));
 
   Future<void> invalidate(AccountSessionLease lease) {
     return removeConfirmed(lease);

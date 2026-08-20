@@ -1,5 +1,17 @@
 # Acceptance Test Specification: Settings Page And Lean Account Deletion
 
+## Development reauthentication correction (2026-08-20)
+
+| Test ID | Requirement | Acceptance criterion | Observable behavior |
+|---|---|---|---|
+| REG-018 | FR-032 | AC-055 | After intent creation, an ordinary-route 401 cannot remove the exact locally protected recovery lease. |
+| REG-019 | FR-032, NFR-001 | AC-055 | The pending job, exact active-account lease, and required handle survive secure-registry reconstruction; another account cannot complete it. |
+| REG-020 | FR-016, FR-032 | AC-055 | Cancellation clears pending recovery state without deleting the retained session; successful acceptance clears it while removing only the accepted account. |
+
+AC-055: Reauthentication returns to the exact-handle confirmation after
+background ordinary requests and process reconstruction; the account is not
+removed until the user submits the exact handle and the server accepts it.
+
 > **AppView audit amendment (2026-08-14):** Section 12 is authoritative for crash-safe PDS/object convergence. The original one-table/no-checkpoint expectations are superseded only for the approved minimized exact-key safety tombstones.
 
 ## 1. Test Strategy

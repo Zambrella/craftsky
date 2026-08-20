@@ -1,5 +1,11 @@
 # Requirements: Settings Page And Lean Account Deletion
 
+> **Development reauthentication correction (2026-08-20):** FR-032 and
+> AC-055 are authoritative for the interval between creating a deletion intent
+> and explicit exact-handle acceptance. The ordinary bearer becomes
+> recovery-only on the server, but the confirming installation must retain that
+> exact captured lease long enough to render and submit the confirmation.
+
 > **AppView audit amendment (2026-08-14):** Section 24 is authoritative where the earlier lean-deletion contract conflicts with crash-safe PDS/object convergence. The product owner approved the narrow temporary safety-tombstone branch; the no-status, no-audit, no-detailed-metrics, server-only-authority, and final artifact-free boundaries remain unchanged.
 
 ## 1. Initial Request
@@ -144,6 +150,7 @@ Settings retains the requested expanded hierarchy. Delete account still requires
 | FR-025 | Functional | Must | Terminal success shall remove the operation and deletion-bound OAuth session. CraftSky shall not retain a deletion audit; ordinary redacted infrastructure logs remain subject to existing retention. | Avoids a deletion-specific retained subsystem. | User decision | AC-046 |
 | FR-026 | Functional | Must | Explicit deletion shall hard-delete account-owned Instagram migration data and release username claims, overriding ordinary migration retention. | Private deletion must include imported data. | User decision / codebase | AC-047 |
 | FR-027 | Functional | Must | The user-visible flow shall expose only pre-acceptance validation and a successful acceptance acknowledgement; it shall not expose worker phases, counts, status polling, attention, or Retry. | Defines the simplified UX. | User decision | AC-038, AC-039 |
+| FR-032 | Functional | Must | After a deletion intent is created and before it is cancelled or accepted, the confirming installation shall durably retain the exact captured account lease and handle-confirmation state. Ordinary-route 401 responses caused by the server's recovery-only lifecycle shall not remove that exact lease; cancellation, account switching, and accepted deletion remain fail-closed. | Prevents reauthentication from logging the confirming user out before the mandatory exact-handle step. | Reported dev OAuth regression | AC-055 |
 | NFR-001 | Non-functional | Must | Identity and destructive client actions shall remain fenced to the captured active-account lease. | Prevents deleting the wrong retained account. | Codebase | AC-021, AC-025 |
 | NFR-002 | Non-functional | Must | The owner-scoped operation, private cleanup, collection scanning, and finalization shall be idempotent or safely convergent across worker restarts and partial side effects. | Makes asynchronous deletion safe. | Architecture | AC-017, AC-023, AC-037, AC-041 |
 | NFR-003 | Non-functional | Must | Changed controls shall preserve semantics, accessibility, focus, and minimum target sizes. | Maintains UI quality. | Codebase | AC-022, AC-027 |

@@ -1,4 +1,5 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/pending_account_deletion.dart';
 import 'package:craftsky_app/auth/models/pending_handoff.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
@@ -27,6 +28,54 @@ class _FakeRegistryStorage implements SessionRegistryStorage {
 }
 
 void main() {
+  test(
+    'REG-020 cancellation retains the session and accepted removal clears '
+    'pending deletion',
+    () async {
+      final original = SessionRegistry.empty().upsertAndActivate(
+        token: 'token-alice',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final storage = _FakeRegistryStorage(original);
+      final container = ProviderContainer.test(
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(storage),
+        ],
+      );
+      await container.read(sessionRegistryProvider.future);
+      final pending = PendingAccountDeletion.capture(
+        jobId: '10000000-0000-4000-8000-000000000001',
+        lease: original.activeLease!,
+        handle: 'alice.test',
+        expiresAt: DateTime.utc(2027),
+      );
+
+      await container
+          .read(sessionRegistryProvider.notifier)
+          .stageAccountDeletion(pending);
+      await container
+          .read(sessionRegistryProvider.notifier)
+          .clearAccountDeletion(pending.jobId);
+
+      expect(storage.value.pendingAccountDeletion, isNull);
+      expect(
+        storage.value.leaseFor(pending.lease.session.account),
+        pending.lease.session,
+      );
+
+      await container
+          .read(sessionRegistryProvider.notifier)
+          .stageAccountDeletion(pending);
+      await container
+          .read(sessionRegistryProvider.notifier)
+          .removeConfirmed(pending.lease.session);
+
+      expect(storage.value.pendingAccountDeletion, isNull);
+      expect(storage.value.sessions, isEmpty);
+    },
+  );
+
   test(
     'persists pending receipt before publishing a confirmed session',
     () async {

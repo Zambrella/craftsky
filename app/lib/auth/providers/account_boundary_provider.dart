@@ -58,6 +58,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 typedef AccountBoundaryAction = Future<void> Function();
 typedef AccountSessionInvalidator =
     Future<void> Function(AccountSessionLease lease);
+typedef RecoveryLeaseProtection = bool Function(AccountSessionLease lease);
 
 class AccountSessionInvalidationCoordinator {
   AccountSessionInvalidationCoordinator({
@@ -66,15 +67,18 @@ class AccountSessionInvalidationCoordinator {
     required this.invalidateLease,
     required this.invalidateAccountState,
     required this.resetHome,
+    this.protectRecoveryLease,
   });
 
   final Future<SessionRegistry> Function() readRegistry;
+  final RecoveryLeaseProtection? protectRecoveryLease;
   final AccountSessionInvalidator clearSessionState;
   final AccountSessionInvalidator invalidateLease;
   final AccountBoundaryAction invalidateAccountState;
   final AccountBoundaryAction resetHome;
 
   Future<void> invalidate(AccountSessionLease lease) async {
+    if (protectRecoveryLease?.call(lease) ?? false) return;
     final before = await readRegistry();
     final captured = before.leaseFor(lease.account);
     final removesActive = before.activeLease?.session == lease;
@@ -185,6 +189,13 @@ final accountSessionPrivateStateCleanerProvider =
 final accountSessionInvalidatorProvider = Provider<AccountSessionInvalidator>(
   (ref) => AccountSessionInvalidationCoordinator(
     readRegistry: () => ref.read(sessionRegistryProvider.future),
+    protectRecoveryLease: (lease) {
+      final registry = ref.read(sessionRegistryProvider).value;
+      final pending = registry?.pendingAccountDeletion;
+      return pending != null &&
+          pending.isCurrent(registry?.activeLease) &&
+          pending.protects(lease);
+    },
     clearSessionState: ref.read(accountSessionPrivateStateCleanerProvider),
     invalidateLease: ref.read(sessionRegistryProvider.notifier).invalidate,
     invalidateAccountState: ref.read(accountStateInvalidatorProvider),

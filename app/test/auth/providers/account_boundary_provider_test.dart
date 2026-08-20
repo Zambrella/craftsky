@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/models/pending_account_deletion.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/account_activation_coordinator.dart';
 import 'package:craftsky_app/auth/providers/account_boundary_provider.dart';
@@ -140,6 +141,106 @@ void main() {
       expect(effects, ['clear-private']);
     },
   );
+
+  test(
+    'REG-018 pending deletion protects only its exact recovery lease from '
+    'ordinary invalidation',
+    () async {
+      var registry = SessionRegistry.empty().upsertAndActivate(
+        token: 'token-alice',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final protected = registry.activeLease!.session;
+      final effects = <String>[];
+      final coordinator = AccountSessionInvalidationCoordinator(
+        readRegistry: () async => registry,
+        protectRecoveryLease: (lease) => lease == protected,
+        clearSessionState: (_) async => effects.add('clear-private'),
+        invalidateLease: (lease) async {
+          registry = registry.remove(lease.account.did.value);
+        },
+        invalidateAccountState: () async => effects.add('invalidate-account'),
+        resetHome: () async => effects.add('home'),
+      );
+
+      await coordinator.invalidate(protected);
+
+      expect(registry.leaseFor(protected.account), protected);
+      expect(effects, isEmpty);
+    },
+  );
+
+  test(
+    'REG-018 production invalidator retains the durably pending recovery lease',
+    () async {
+      var initial = SessionRegistry.empty().upsertAndActivate(
+        token: 'token-alice',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final pending = PendingAccountDeletion.capture(
+        jobId: '10000000-0000-4000-8000-000000000001',
+        lease: initial.activeLease!,
+        handle: 'alice.test',
+        expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+      );
+      initial = initial.stageAccountDeletion(pending);
+      final storage = _RegistryStorage(initial);
+      final container = ProviderContainer.test(
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(storage),
+        ],
+      );
+      await container.read(sessionRegistryProvider.future);
+
+      await container.read(accountSessionInvalidatorProvider)(
+        pending.lease.session,
+      );
+
+      expect(
+        storage.value.leaseFor(pending.lease.session.account),
+        pending.lease.session,
+      );
+      expect(storage.value.pendingAccountDeletion?.jobId, pending.jobId);
+    },
+  );
+
+  test('REG-018 account switching removes recovery-lease protection', () async {
+    var initial = SessionRegistry.empty().upsertAndActivate(
+      token: 'token-alice',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    final pending = PendingAccountDeletion.capture(
+      jobId: '10000000-0000-4000-8000-000000000001',
+      lease: initial.activeLease!,
+      handle: 'alice.test',
+      expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
+    );
+    initial = initial
+        .stageAccountDeletion(pending)
+        .upsertAndActivate(
+          token: 'token-bob',
+          did: 'did:plc:bob',
+          handle: 'bob.test',
+        );
+    final storage = _RegistryStorage(initial);
+    final container = ProviderContainer.test(
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(storage),
+      ],
+    );
+    await container.read(sessionRegistryProvider.future);
+
+    await container.read(accountSessionInvalidatorProvider)(
+      pending.lease.session,
+    );
+
+    expect(storage.value.leaseFor(pending.lease.session.account), isNull);
+    expect(storage.value.activeDid?.value, 'did:plc:bob');
+    expect(storage.value.pendingAccountDeletion, isNull);
+  });
 
   test(
     'UT-004 IT-003 late A reads errors and rollback cannot publish as B',

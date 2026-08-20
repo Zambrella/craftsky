@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/models/pending_account_deletion.dart';
 import 'package:craftsky_app/auth/models/pending_handoff.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/models/stored_session.dart';
@@ -9,6 +10,62 @@ import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'REG-019 pending deletion fence survives reconstruction and account '
+    'switching stays stale',
+    () {
+      var registry = SessionRegistry.empty().upsertAndActivate(
+        token: 'alice-token',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final pending = PendingAccountDeletion.capture(
+        jobId: '10000000-0000-4000-8000-000000000001',
+        lease: registry.activeLease!,
+        handle: 'alice.test',
+        expiresAt: DateTime.utc(2027),
+      );
+
+      registry = SessionRegistry.fromJson(
+        registry.stageAccountDeletion(pending).toJson(),
+      );
+
+      expect(registry.pendingAccountDeletion?.jobId, pending.jobId);
+      expect(registry.pendingAccountDeletion?.requiredHandle, '@alice.test');
+      expect(
+        registry.pendingAccountDeletion?.isCurrent(
+          registry.activeLease,
+          now: DateTime.utc(2026, 8, 20),
+        ),
+        isTrue,
+      );
+      expect(
+        registry.pendingAccountDeletion?.protects(
+          registry.activeLease!.session,
+          now: DateTime.utc(2027),
+        ),
+        isFalse,
+      );
+      expect(
+        '$registry ${registry.pendingAccountDeletion}',
+        isNot(contains('alice.test')),
+      );
+
+      registry = registry.upsertAndActivate(
+        token: 'bob-token',
+        did: 'did:plc:bob',
+        handle: 'bob.test',
+      );
+      expect(
+        registry.pendingAccountDeletion?.isCurrent(
+          registry.activeLease,
+          now: DateTime.utc(2026, 8, 20),
+        ),
+        isFalse,
+      );
+    },
+  );
+
   test('durably stages a pending handoff before making it active', () {
     final pending = PendingHandoff(
       token: 'pending-secret-token',
