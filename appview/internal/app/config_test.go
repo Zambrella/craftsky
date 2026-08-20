@@ -90,7 +90,7 @@ func testConfigFile(t *testing.T, contents string) string {
 		"CRAFTSKY_SESSION_ACTIVITY_WRITE_INTERVAL", "OAUTH_LOGIN_START_TIMEOUT",
 		"OAUTH_CALLBACK_OPERATION_TIMEOUT", "OAUTH_SESSION_OPERATION_TIMEOUT", "OAUTH_HANDOFF_EXCHANGE_TTL",
 		"OAUTH_HANDOFF_CONFIRMATION_TTL", "OAUTH_HANDOFF_RECEIPT_KEY",
-		"OAUTH_HANDOFF_RECEIPT_KEY_VERSION", "APP_VERIFIED_LINK_ORIGIN",
+		"OAUTH_HANDOFF_RECEIPT_KEY_VERSION", "APP_VERIFIED_LINK_ORIGIN", "APPVIEW_ENABLE_DEV_OAUTH_SCHEME",
 		"APPVIEW_PUBLISH_HOST", "APPVIEW_EXPECTED_HOSTS", "APPVIEW_DEV_REMOTE_ACCESS",
 		"APPVIEW_DEV_PROTECTED_TRANSPORT", "APPVIEW_DEV_AUTH_SECRET",
 		"MAX_POST_IMAGES", "MAX_IMAGE_UPLOAD_BYTES", "APPVIEW_JSON_BODY_LIMIT_BYTES",
@@ -455,6 +455,32 @@ func TestLoadConfig_DevModerationConfig(t *testing.T) {
 	}
 	if got := cfg.TrustedModerationSourceDIDs; len(got) != 2 || got[0] != "did:plc:ozone" || got[1] != "did:plc:labeler" {
 		t.Fatalf("TrustedModerationSourceDIDs = %v", got)
+	}
+}
+
+func TestLoadConfigDevOAuthSchemeIsExplicitAndDevelopmentOnly(t *testing.T) {
+	const devBase = "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\n"
+
+	disabled, err := LoadConfig(EnvDev, testConfigFile(t, devBase))
+	if err != nil {
+		t.Fatalf("LoadConfig disabled development scheme: %v", err)
+	}
+	if disabled.EnableDevOAuthScheme {
+		t.Fatal("EnableDevOAuthScheme = true without explicit opt-in")
+	}
+
+	enabled, err := LoadConfig(EnvDev, testConfigFile(t, devBase+"APPVIEW_ENABLE_DEV_OAUTH_SCHEME=true\n"))
+	if err != nil {
+		t.Fatalf("LoadConfig enabled development scheme: %v", err)
+	}
+	if !enabled.EnableDevOAuthScheme {
+		t.Fatal("EnableDevOAuthScheme = false after explicit development opt-in")
+	}
+
+	prod := withProductionOAuth("DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://a.example\nTAP_WS_URL=ws://tap:2480/channel\nAPPVIEW_ENABLE_DEV_OAUTH_SCHEME=true\n")
+	_, err = LoadConfig(EnvProd, testConfigFile(t, prod))
+	if err == nil || !strings.Contains(err.Error(), "APPVIEW_ENABLE_DEV_OAUTH_SCHEME") {
+		t.Fatalf("LoadConfig production dev scheme error = %v", err)
 	}
 }
 

@@ -16,7 +16,7 @@ import (
 
 type loginRequest struct {
 	Handle              string `json:"handle"`
-	HandoffMode         string `json:"handoffMode"` // "verified_link" | "loopback"
+	HandoffMode         string `json:"handoffMode"` // "verified_link" | "loopback" | dev-only "dev_scheme"
 	LoopbackRedirectURI string `json:"loopbackRedirectUri,omitempty"`
 }
 
@@ -55,9 +55,9 @@ func (h *HTTPHandlers) LoginHandler() http.Handler {
 			return
 		}
 		mode := HandoffMode(req.HandoffMode)
-		if mode != HandoffVerifiedLink && mode != HandoffLoopback {
+		if mode != HandoffVerifiedLink && mode != HandoffLoopback && !(mode == HandoffDevScheme && h.AllowDevScheme) {
 			envelope.WriteError(w, http.StatusBadRequest, "invalid_handoff_mode",
-				"handoffMode must be verified_link or loopback",
+				"handoffMode is not available",
 				runID, nil)
 			return
 		}

@@ -232,6 +232,19 @@ func TestLogin_InvalidHandoffMode(t *testing.T) {
 	expectEnvelopeError(t, rr, http.StatusBadRequest, "invalid_handoff_mode")
 }
 
+func TestLoginDevSchemeRequiresExplicitServerCapability(t *testing.T) {
+	disabled := handlersFixture(t, "")
+	rr := postLogin(t, disabled, `{"handle":"alice.example","handoffMode":"dev_scheme"}`)
+	expectEnvelopeError(t, rr, http.StatusBadRequest, "invalid_handoff_mode")
+
+	enabled := handlersFixture(t, "")
+	enabled.AllowDevScheme = true
+	rr = postLogin(t, enabled, `{"handle":"alice.example","handoffMode":"dev_scheme"}`)
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("enabled dev scheme status = %d, want 503 after reaching unavailable OAuth flow; body=%s", rr.Code, rr.Body.String())
+	}
+}
+
 func TestLogin_LoopbackMissingRedirect(t *testing.T) {
 	rr := postLogin(t, handlersFixture(t, ""), `{"handle":"alice.example","handoffMode":"loopback"}`)
 	expectEnvelopeError(t, rr, http.StatusBadRequest, "loopback_redirect_uri_required")

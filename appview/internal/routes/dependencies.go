@@ -70,6 +70,7 @@ type Config struct {
 	InstagramLimits               InstagramLimits
 	InstagramTrustedProxyCIDRs    []netip.Prefix
 	InstagramIntegrationAvailable bool
+	EnableDevOAuthScheme          bool
 	EnableDevModeration           bool
 	DevModerationToken            string
 	DevLabelerDID                 string

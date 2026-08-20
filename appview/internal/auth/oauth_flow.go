@@ -130,7 +130,7 @@ func (service *OAuthFlowService) StartLogin(
 	defer cancel()
 	ctx = operationCtx
 	if handle == "" || deviceID == "" ||
-		(mode != HandoffVerifiedLink && mode != HandoffLoopback) ||
+		(mode != HandoffVerifiedLink && mode != HandoffLoopback && mode != HandoffDevScheme) ||
 		(mode == HandoffLoopback) != (loopbackURI != "") {
 		return "", ErrOAuthFlowInvalid
 	}

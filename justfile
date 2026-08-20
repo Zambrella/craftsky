@@ -164,7 +164,9 @@ app-run *ARGS: app-env-init
     APPVIEW_PORT=${APPVIEW_ADDRESS##*:}
     cd app
     flutter run --dart-define-from-file=config/local.env \
-      --dart-define="CRAFTSKY_API_BASE_URL=http://localhost:${APPVIEW_PORT}" {{ARGS}}
+      --dart-define="CRAFTSKY_API_BASE_URL=http://localhost:${APPVIEW_PORT}" \
+      --dart-define="CRAFTSKY_DEV_OAUTH_SCHEME=true" \
+      {{ARGS}}
 
 app-run-chrome: app-env-init
     #!/usr/bin/env bash

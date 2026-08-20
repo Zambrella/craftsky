@@ -94,12 +94,17 @@ const authSchemaDDL = `
 func withAuthSchema(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	pool := testdb.WithSchema(t, authSchemaDDL)
-	migration, err := os.ReadFile("../../migrations/000038_owner_auth_lifecycle.up.sql")
-	if err != nil {
-		t.Fatalf("read auth lifecycle migration: %v", err)
-	}
-	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
-		t.Fatalf("apply auth lifecycle migration: %v", err)
+	for _, path := range []string{
+		"../../migrations/000038_owner_auth_lifecycle.up.sql",
+		"../../migrations/000052_dev_oauth_scheme.up.sql",
+	} {
+		migration, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read auth migration %s: %v", path, err)
+		}
+		if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
+			t.Fatalf("apply auth migration %s: %v", path, err)
+		}
 	}
 	return pool
 }
@@ -475,6 +480,30 @@ func TestStore_SaveGetAuthRequest(t *testing.T) {
 	}
 	if got.PKCEVerifier != info.PKCEVerifier {
 		t.Fatalf("PKCEVerifier: got %q want %q", got.PKCEVerifier, info.PKCEVerifier)
+	}
+}
+
+func TestStoreSavesDevSchemeAuthRequestWithoutClientRedirect(t *testing.T) {
+	pool := withAuthSchema(t)
+	store := auth.NewPostgresAuthStore(pool, testStoreConfig())
+	owner := syntax.DID("did:plc:dev-request-owner")
+	seedAuthOwner(t, pool, owner)
+	ctx := auth.WithLoginAuthRequest(
+		context.Background(), owner, 1, 1, auth.HandoffDevScheme, "device-dev", "",
+	)
+	info := oauth.AuthRequestData{
+		State: "state-dev-scheme", RequestURI: "urn:request:dev-scheme",
+		AuthServerURL: "https://bsky.social",
+	}
+	if err := store.SaveAuthRequestInfo(ctx, info); err != nil {
+		t.Fatalf("SaveAuthRequestInfo development scheme: %v", err)
+	}
+	metadata, err := store.LoadAuthRequestMetadata(context.Background(), info.State)
+	if err != nil {
+		t.Fatalf("LoadAuthRequestMetadata development scheme: %v", err)
+	}
+	if metadata.HandoffMode != auth.HandoffDevScheme || metadata.LoopbackURI != "" || metadata.DeviceID != "device-dev" {
+		t.Fatalf("development scheme metadata = %+v", metadata)
 	}
 }
 

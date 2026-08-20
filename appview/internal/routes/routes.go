@@ -205,6 +205,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 		onboardingProfile:   deps.OnboardingProfile,
 		loginCompleteURL:    deps.LoginCompleteURL,
 		deletionCompleteURL: deps.DeletionCompleteURL,
+		allowDevScheme:      deps.Config.EnableDevOAuthScheme,
 	})
 	registerPublicOAuthRoutes(publicOAuthRouteBundle{
 		mux: mux, inFlight: inFlight, handlers: oauthHandlers,

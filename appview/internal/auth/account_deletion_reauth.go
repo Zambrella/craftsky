@@ -30,6 +30,7 @@ type HandoffMode string
 const (
 	HandoffVerifiedLink HandoffMode = "verified_link"
 	HandoffLoopback     HandoffMode = "loopback"
+	HandoffDevScheme    HandoffMode = "dev_scheme"
 )
 
 type AuthRequestState string
@@ -123,7 +124,7 @@ func (metadata AuthRequestMetadata) valid() bool {
 		strings.TrimSpace(metadata.DeviceID) == "" {
 		return false
 	}
-	if metadata.HandoffMode != HandoffVerifiedLink && metadata.HandoffMode != HandoffLoopback {
+	if metadata.HandoffMode != HandoffVerifiedLink && metadata.HandoffMode != HandoffLoopback && metadata.HandoffMode != HandoffDevScheme {
 		return false
 	}
 	if (metadata.HandoffMode == HandoffLoopback) != (metadata.LoopbackURI != "") {

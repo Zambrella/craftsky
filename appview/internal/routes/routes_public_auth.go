@@ -50,6 +50,7 @@ type oauthRouteDependencies struct {
 	onboardingProfile    auth.OnboardingProfileWriter
 	loginCompleteURL     string
 	deletionCompleteURL  string
+	allowDevScheme       bool
 }
 
 func newOAuthHandlers(deps oauthRouteDependencies) *auth.HTTPHandlers {
@@ -71,6 +72,7 @@ func newOAuthHandlers(deps oauthRouteDependencies) *auth.HTTPHandlers {
 	handlers.OnboardingProfile = deps.onboardingProfile
 	handlers.LoginCompleteURL = deps.loginCompleteURL
 	handlers.DeletionCompleteURL = deps.deletionCompleteURL
+	handlers.AllowDevScheme = deps.allowDevScheme
 	return handlers
 }
 

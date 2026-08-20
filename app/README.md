@@ -81,7 +81,7 @@ Keep Sentry upload credentials (`SENTRY_AUTH_TOKEN`, `SENTRY_ORG`,
 ## Deep links
 
 OAuth completion uses verified HTTPS links on `app.craftsky.social`; the app no
-longer registers a custom `craftsky://` scheme. The accepted routes are:
+longer registers a production custom `craftsky://` scheme. The accepted routes are:
 
 - `https://app.craftsky.social/auth/complete?code=…` for login. The URL carries
   only a short-lived, single-use handoff code; it never carries a session
@@ -118,3 +118,23 @@ The files must be served directly by the canonical HTTPS host with the content
 types required by Android and Apple. Confirm ownership/deployment of
 `app.craftsky.social`, publish both files, and verify them on release-signed
 physical devices before release.
+
+### Local development OAuth
+
+Debug builds register the code-only `craftsky-dev` scheme without adding it to
+Profile or Release artifacts. Local AppView enables the matching server
+capability through `APPVIEW_ENABLE_DEV_OAUTH_SCHEME=true`. Opt the Flutter debug
+build in explicitly:
+
+```bash
+flutter run --dart-define=CRAFTSKY_DEV_OAUTH_SCHEME=true
+```
+
+Login then returns through
+`craftsky-dev:///auth/complete?code=...`; account-deletion reauthentication
+returns through
+`craftsky-dev:///account-deletion/reauth-complete?job-id=...&proof=...`.
+Neither URL carries a CraftSky session bearer. Without the Dart define, debug
+builds continue to request verified HTTPS links. AppView rejects the server
+flag in production, and the release platform manifests contain no custom OAuth
+scheme.

@@ -268,6 +268,7 @@ type Config struct {
 	OAuthHandoffReceiptKey               Secret
 	OAuthHandoffReceiptKeyVersion        int
 	VerifiedLinkOrigin                   url.URL
+	EnableDevOAuthScheme                 bool
 
 	// Media policy. Defaults preserve the approved image-posting contract;
 	// env overrides may lower but not raise these ceilings.
@@ -572,6 +573,12 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	cfg.VerifiedLinkOrigin, err = parseCanonicalPublicOrigin(verifiedOrigin)
 	if err != nil {
 		return Config{}, fmt.Errorf("APP_VERIFIED_LINK_ORIGIN must be a canonical public HTTPS origin")
+	}
+	if cfg.EnableDevOAuthScheme, err = boolEnv("APPVIEW_ENABLE_DEV_OAUTH_SCHEME", false); err != nil {
+		return Config{}, err
+	}
+	if env == EnvProd && cfg.EnableDevOAuthScheme {
+		return Config{}, fmt.Errorf("APPVIEW_ENABLE_DEV_OAUTH_SCHEME is not allowed in prod")
 	}
 	if cfg.PushEnabled, err = boolEnv("PUSH_ENABLED", false); err != nil {
 		return Config{}, err

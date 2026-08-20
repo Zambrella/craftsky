@@ -33,6 +33,7 @@ func RouteDependencies(deps *Deps) *routes.Dependencies {
 			},
 			InstagramTrustedProxyCIDRs:    deps.Config.InstagramDeployment.TrustedProxyCIDRs(),
 			InstagramIntegrationAvailable: deps.Config.InstagramMeta.Enabled() && deps.Config.InstagramMeta.Configured(),
+			EnableDevOAuthScheme:          deps.Config.EnableDevOAuthScheme,
 			EnableDevModeration:           deps.Config.EnableDevModeration,
 			DevModerationToken:            deps.Config.DevModerationToken,
 			DevLabelerDID:                 deps.Config.DevLabelerDID,

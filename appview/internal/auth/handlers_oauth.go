@@ -29,6 +29,7 @@ type HTTPHandlers struct {
 	OnboardingProfile         OnboardingProfileWriter
 	LoginCompleteURL          string
 	DeletionCompleteURL       string
+	AllowDevScheme            bool
 	Pool                      *pgxpool.Pool // for handoff read/write
 	Logger                    *slog.Logger
 	IdentityCacheUpdater      IdentityCacheUpdater
@@ -167,9 +168,12 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 		}
 		data := callbackPageData{Code: handoffCode}
 		if deletionFlow {
-			data.DeepLinkURL, err = verifiedCompletionURL(h.DeletionCompleteURL, url.Values{
-				"job-id": {deletionResult.JobID}, "proof": {deletionResult.Proof},
-			})
+			query := url.Values{"job-id": {deletionResult.JobID}, "proof": {deletionResult.Proof}}
+			if h.AllowDevScheme {
+				data.DeepLinkURL, err = devSchemeCompletionURL("/account-deletion/reauth-complete", query)
+			} else {
+				data.DeepLinkURL, err = verifiedCompletionURL(h.DeletionCompleteURL, query)
+			}
 		} else {
 			switch result.Metadata.HandoffMode {
 			case HandoffLoopback:
@@ -180,6 +184,12 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 				}
 			case HandoffVerifiedLink:
 				data.DeepLinkURL, err = verifiedCompletionURL(h.LoginCompleteURL, url.Values{"code": {handoffCode}})
+			case HandoffDevScheme:
+				if !h.AllowDevScheme {
+					err = ErrOAuthFlowInvalid
+				} else {
+					data.DeepLinkURL, err = devSchemeCompletionURL("/auth/complete", url.Values{"code": {handoffCode}})
+				}
 			default:
 				err = ErrOAuthFlowInvalid
 			}
@@ -199,6 +209,18 @@ func verifiedCompletionURL(raw string, query url.Values) (string, error) {
 	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil ||
 		parsed.RawQuery != "" || parsed.Fragment != "" || parsed.Path == "" {
 		return "", errors.New("verified completion URL is not configured")
+	}
+	parsed.RawQuery = query.Encode()
+	return parsed.String(), nil
+}
+
+func devSchemeCompletionURL(path string, query url.Values) (string, error) {
+	if path != "/auth/complete" && path != "/account-deletion/reauth-complete" {
+		return "", errors.New("development completion path is not allowed")
+	}
+	parsed, err := url.Parse("craftsky-dev://" + path)
+	if err != nil {
+		return "", errors.New("development completion URL is invalid")
 	}
 	parsed.RawQuery = query.Encode()
 	return parsed.String(), nil
