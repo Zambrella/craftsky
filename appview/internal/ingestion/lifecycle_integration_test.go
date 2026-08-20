@@ -187,7 +187,7 @@ func TestTerminalIdentityReceiptAndLifecycleDenialCommitAtomically(t *testing.T)
 	var components int
 	if err := pool.QueryRow(context.Background(), `
 		SELECT count(*) FROM owner_purge_components WHERE owner_did=$1
-	`, owner).Scan(&components); err != nil || components != 2 {
+	`, owner).Scan(&components); err != nil || components != len(ownerlifecycle.TerminalPurgeCatalogue()) {
 		t.Fatalf("terminal purge components=%d err=%v", components, err)
 	}
 
@@ -229,12 +229,9 @@ func newLifecycleIngestionService(
 	}
 	service, err := ingestion.NewService(ingestion.ServiceConfig{
 		Store: store, Lifecycles: lifecycles,
-		ProfileParticipant:  profileParticipant,
-		TerminalParticipant: terminalParticipant,
-		TerminalComponents: []ownerlifecycle.PurgeComponent{
-			{Component: "public_records", DIDRole: "owner"},
-			{Component: "sessions", DIDRole: "owner"},
-		},
+		ProfileParticipant:    profileParticipant,
+		TerminalParticipant:   terminalParticipant,
+		TerminalCommitTimeout: time.Second,
 	})
 	if err != nil {
 		t.Fatalf("new ingestion service: %v", err)
@@ -253,6 +250,8 @@ func lifecycleIngestionPool(t *testing.T) *pgxpool.Pool {
 		"../../migrations/000038_owner_auth_lifecycle.up.sql",
 		"../../migrations/000039_owner_effects_terminal_purge.up.sql",
 		"../../migrations/000045_tap_ingestion_durability.up.sql",
+		"../../migrations/000049_pds_effect_action.up.sql",
+		"../../migrations/000050_pds_effect_source_reconciliation.up.sql",
 	} {
 		sql, err := os.ReadFile(path)
 		if err != nil {

@@ -27,10 +27,10 @@ func (err *OutcomeAmbiguousError) Error() string {
 	if err == nil {
 		return ErrOutcomeAmbiguous.Error()
 	}
-	if err.Cause == nil {
+	if err.OperationID != "" {
 		return fmt.Sprintf("%s: operation %q", ErrOutcomeAmbiguous, err.OperationID)
 	}
-	return fmt.Sprintf("%s: operation %q: %v", ErrOutcomeAmbiguous, err.OperationID, err.Cause)
+	return ErrOutcomeAmbiguous.Error()
 }
 
 func (err *OutcomeAmbiguousError) Unwrap() []error {
@@ -53,10 +53,10 @@ func (err *ConflictError) Error() string {
 	if err == nil {
 		return ErrEffectConflict.Error()
 	}
-	if err.Cause == nil {
+	if err.OperationID != "" {
 		return fmt.Sprintf("%s: operation %q", ErrEffectConflict, err.OperationID)
 	}
-	return fmt.Sprintf("%s: operation %q: %v", ErrEffectConflict, err.OperationID, err.Cause)
+	return ErrEffectConflict.Error()
 }
 
 func (err *ConflictError) Unwrap() []error {

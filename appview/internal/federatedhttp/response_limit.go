@@ -24,7 +24,7 @@ func (t *boundaryTransport) RoundTrip(request *http.Request) (*http.Response, er
 		if response != nil && response.Body != nil {
 			_ = response.Body.Close()
 		}
-		return nil, failure(t.purpose, err)
+		return nil, &Error{Kind: Classify(err), Purpose: t.purpose, Cause: err}
 	}
 	if response == nil || response.Body == nil {
 		return nil, &Error{Kind: KindUpstreamFailure, Purpose: t.purpose}

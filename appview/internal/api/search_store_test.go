@@ -3,7 +3,6 @@ package api_test
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -17,7 +16,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/getsentry/sentry-go"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/jackc/puddle/v2"
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/api/envelope"
@@ -25,46 +23,6 @@ import (
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/testdb"
 )
-
-func TestSearchStorePostQueryAcquisitionErrorDoesNotUseInvalidRows(t *testing.T) {
-	config, err := pgxpool.ParseConfig("postgres://test:test@127.0.0.1:1/test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	pool, err := pgxpool.NewWithConfig(context.Background(), config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pool.Close()
-	store := api.NewSearchStore(pool, nil)
-
-	for _, sort := range []api.SearchSort{api.SearchSortChronological, api.SearchSortPopular} {
-		t.Run(string(sort), func(t *testing.T) {
-			defer func() {
-				if recovered := recover(); recovered != nil {
-					t.Fatalf("search used rows after query acquisition failed: %v", recovered)
-				}
-			}()
-
-			_, _, err := store.SearchHashtagPostsWithLanguages(
-				context.Background(),
-				"did:plc:viewer",
-				[]string{},
-				"knitting",
-				sort,
-				10,
-				"",
-				time.Now().UTC(),
-			)
-			if !errors.Is(err, puddle.ErrClosedPool) {
-				t.Fatalf("error = %v, want closed pool", err)
-			}
-			if !strings.Contains(err.Error(), "search hashtag posts: closed pool") {
-				t.Fatalf("error = %q, want query acquisition context", err)
-			}
-		})
-	}
-}
 
 const searchStoreDDL = timelineStoreDDL + `
 CREATE FUNCTION craftsky_text_array_to_string(arr TEXT[], delimiter TEXT)

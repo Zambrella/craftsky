@@ -56,3 +56,42 @@ func (store *Store) WithOwnerStates(
 		})
 	})
 }
+
+// WithExclusiveOwnerStates is the local destructive counterpart to
+// WithOwnerStates. It takes every source/target fence in canonical DID order,
+// locks existing lifecycle rows before later operation/outbox rows, and runs
+// one short database-only transaction. Missing trusted external DIDs remain
+// represented by their advisory fence but are omitted from states.
+func (store *Store) WithExclusiveOwnerStates(
+	ctx context.Context,
+	owners []syntax.DID,
+	participant OwnerStatesParticipant,
+) error {
+	if store == nil || participant == nil {
+		return errors.New("invalid exclusive owner-state participant")
+	}
+	canonical, err := CanonicalOwners(owners)
+	if err != nil {
+		return err
+	}
+	return store.fencer.WithExclusive(ctx, canonical, func(fenceCtx context.Context) error {
+		return store.beginFenced(fenceCtx, func(tx pgx.Tx) error {
+			states := make(map[syntax.DID]Lifecycle, len(canonical))
+			for _, owner := range canonical {
+				lifecycle, err := scanLifecycle(tx.QueryRow(
+					fenceCtx,
+					lifecycleSelect+` WHERE owner_did=$1 FOR UPDATE`,
+					owner,
+				))
+				if errors.Is(err, pgx.ErrNoRows) {
+					continue
+				}
+				if err != nil {
+					return err
+				}
+				states[owner] = lifecycle
+			}
+			return participant(fenceCtx, tx, states)
+		})
+	})
+}

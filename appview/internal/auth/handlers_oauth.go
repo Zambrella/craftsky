@@ -18,26 +18,22 @@ import (
 // HTTPHandlers bundles the OAuth-related HTTP handlers. Construct via
 // NewHTTPHandlers; wire the resulting methods into routes.AddRoutes.
 type HTTPHandlers struct {
-	OAuth               *oauth.ClientApp
-	OAuthFlow           OAuthFlowCoordinator
-	ClientMetadata      oauth.ClientMetadata
-	PublicJWKS          oauth.JWKS
-	CraftskySessions    *CraftskySessionStore
-	Handoffs            HandoffCoordinator
-	SessionLifecycle    *SessionLifecycleService
-	NewPendingPDSClient PendingOnboardingPDSClientFactory
-	LoginCompleteURL    string
-	DeletionCompleteURL string
-	Pool                *pgxpool.Pool // for handoff read/write
-	Logger              *slog.Logger
-	DevMode             bool // emits the session token in the callback HTML when true
-	// NewPDSClient builds a PDSClient scoped to the given OAuth session.
-	// Injected so tests can supply a mock without standing up indigo.
-	NewPDSClient              PDSClientFactory
+	OAuth                     *oauth.ClientApp
+	OAuthFlow                 OAuthFlowCoordinator
+	ClientMetadata            oauth.ClientMetadata
+	PublicJWKS                oauth.JWKS
+	CraftskySessions          *CraftskySessionStore
+	Handoffs                  HandoffCoordinator
+	SessionLifecycle          *SessionLifecycleService
+	NewPendingPDSClient       PendingOnboardingPDSClientFactory
+	OnboardingProfile         OnboardingProfileWriter
+	LoginCompleteURL          string
+	DeletionCompleteURL       string
+	Pool                      *pgxpool.Pool // for handoff read/write
+	Logger                    *slog.Logger
 	IdentityCacheUpdater      IdentityCacheUpdater
 	RepositoryTracker         RepositoryTracker
 	NotificationSubscriptions NotificationSubscriptionCleaner
-	ProcessOAuthCallback      func(context.Context, url.Values) (*oauth.ClientSessionData, error)
 	DeletionOAuthCallbacks    AccountDeletionOAuthCallbacks
 	DeletionPendingLogin      AccountDeletionPendingLoginPolicy
 }
@@ -53,8 +49,6 @@ func NewHTTPHandlers(
 	craftskyStore *CraftskySessionStore,
 	pool *pgxpool.Pool,
 	logger *slog.Logger,
-	devMode bool,
-	newPDSClient PDSClientFactory,
 	identityCacheUpdater ...IdentityCacheUpdater,
 ) *HTTPHandlers {
 	var updater IdentityCacheUpdater
@@ -68,12 +62,7 @@ func NewHTTPHandlers(
 		CraftskySessions:     craftskyStore,
 		Pool:                 pool,
 		Logger:               logger,
-		DevMode:              devMode,
-		NewPDSClient:         newPDSClient,
 		IdentityCacheUpdater: updater,
-	}
-	if oauthApp != nil {
-		handlers.ProcessOAuthCallback = oauthApp.ProcessCallback
 	}
 	return handlers
 }
@@ -146,7 +135,7 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 				deletionFlow = err == nil
 				return err
 			case LoginOAuthPurpose:
-				if h.NewPendingPDSClient == nil || h.Handoffs == nil {
+				if h.NewPendingPDSClient == nil || h.OnboardingProfile == nil || h.Handoffs == nil {
 					return errors.New("login callback finalization unavailable")
 				}
 				pdsClient, err := h.NewPendingPDSClient(callbackCtx, callbackResult.Attempt)
@@ -154,7 +143,7 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 					return fmt.Errorf("build pending onboarding PDS client: %w", err)
 				}
 				if err := InitializeProfileAndIdentityCache(
-					callbackCtx, pdsClient, callbackResult.Session.AccountDID,
+					callbackCtx, pdsClient, callbackResult.Attempt, h.OnboardingProfile,
 					h.IdentityCacheUpdater, h.Logger, h.RepositoryTracker,
 				); err != nil {
 					return err

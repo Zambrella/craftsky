@@ -11,8 +11,17 @@ import (
 	"social.craftsky/appview/internal/push"
 )
 
+type pushLifecycleStore interface {
+	Get(context.Context, syntax.DID) (ownerlifecycle.Lifecycle, error)
+	WithActiveEffects(
+		context.Context,
+		[]ownerlifecycle.ExpectedOwner,
+		func(context.Context) error,
+	) error
+}
+
 type pushOwnerLifecycleFence struct {
-	store *ownerlifecycle.Store
+	store pushLifecycleStore
 }
 
 func (fence pushOwnerLifecycleFence) WithActiveOwners(

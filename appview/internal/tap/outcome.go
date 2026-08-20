@@ -7,6 +7,11 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
+// MaxFrameBytes is the largest Tap WebSocket frame the consumer accepts. Any
+// durable quarantine replay payload must obey the same bound so every ACKed
+// invalid frame can re-enter the normal decoder without a second size policy.
+const MaxFrameBytes = 2 << 20
+
 // OutcomeKind is the closed result vocabulary shared by the Tap boundary,
 // durable ingestion, and projection workers.
 type OutcomeKind string
@@ -97,8 +102,9 @@ type IdentityEvent struct {
 	Status   string
 }
 
-// InvalidEvent contains only bounded replay evidence for deterministic input
-// defects. Envelope is capped by the consumer before it reaches persistence.
+// InvalidEvent contains one bounded raw Tap frame for deterministic input
+// defects. Persistence keeps the exact bytes for replay while exposing only
+// separately bounded diagnostic evidence to operator listing commands.
 type InvalidEvent struct {
 	ID       uint64
 	Type     string

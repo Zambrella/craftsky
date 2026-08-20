@@ -393,12 +393,3 @@ func applyTerminalInventoryMigrationsBefore(t *testing.T, pool *pgxpool.Pool, st
 		}
 	}
 }
-
-func dumpTerminalInventory(inventory []TerminalDIDEntry) string {
-	keys := make([]string, 0, len(inventory))
-	for _, entry := range inventory {
-		keys = append(keys, fmt.Sprintf("%s.%s", entry.Table, entry.Column))
-	}
-	sort.Strings(keys)
-	return strings.Join(keys, ", ")
-}

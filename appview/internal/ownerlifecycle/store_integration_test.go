@@ -45,6 +45,7 @@ func TestStoreLifecycleGenerationEpochAndEffectClosure(t *testing.T) {
 			Kind:               EffectPDSRecord,
 			DeterministicKey:   "at://did:plc:lifecycle-owner/social.craftsky.feed.post/one",
 			RequestFingerprint: fingerprint,
+			RecordFingerprint:  fingerprint,
 			RemoteDeadline:     time.Now().Add(time.Minute),
 		})
 		if err != nil {
@@ -166,6 +167,7 @@ func TestStoreActiveEffectSessionUsesOneOwnerFenceScope(t *testing.T) {
 				Kind:               EffectPDSRecord,
 				DeterministicKey:   "at://did:plc:effect-session-owner/social.craftsky.feed.post/one",
 				RequestFingerprint: fingerprint,
+				RecordFingerprint:  fingerprint,
 				RemoteDeadline:     time.Now().Add(time.Minute),
 			}); err != nil {
 				return err
@@ -281,6 +283,7 @@ func TestStoreOnboardingEffectUsesExistingAuthFenceForExactDepartedGeneration(t 
 					Kind: EffectPDSRecord, Action: EffectActionPutRecord,
 					DeterministicKey:   "at://did:plc:onboarding-profile-effect/social.craftsky.actor.profile/self",
 					RequestFingerprint: fingerprint,
+					RecordFingerprint:  fingerprint,
 					RemoteDeadline:     time.Now().Add(time.Minute),
 				})
 				if err != nil {
@@ -536,12 +539,8 @@ func TestStoreTerminalTombstoneLedgerAndPurgeCompletion(t *testing.T) {
 	if _, err := store.EnsureOnboardingOwner(ctx, owner); err != nil {
 		t.Fatal(err)
 	}
-	components := []PurgeComponent{
-		{Component: "profiles", DIDRole: "owner"},
-		{Component: "notifications", DIDRole: "actor"},
-	}
 	terminal, err := store.Terminalize(ctx, TerminalizeRequest{
-		Owner: owner, Reason: "identityDeleted", Components: components,
+		Owner: owner, Reason: "identityDeleted",
 	})
 	if err != nil {
 		t.Fatalf("terminalize owner: %v", err)
@@ -551,12 +550,10 @@ func TestStoreTerminalTombstoneLedgerAndPurgeCompletion(t *testing.T) {
 		t.Fatal("terminal lifecycle has no terminal timestamp")
 	}
 
-	// Duplicate delivery is monotonic and can fill a newly declared fixed
-	// catalogue entry without incrementing the tombstone generation again.
+	// Duplicate delivery is monotonic and rechecks the fixed catalogue without
+	// incrementing the tombstone generation again.
 	terminalReplay, err := store.Terminalize(ctx, TerminalizeRequest{
-		Owner:      owner,
-		Reason:     "identityDeletedReplay",
-		Components: append(components, PurgeComponent{Component: "sessions", DIDRole: "owner"}),
+		Owner: owner, Reason: "identityDeletedReplay",
 	})
 	if err != nil {
 		t.Fatalf("replay terminalize owner: %v", err)
@@ -666,26 +663,34 @@ func TestStoreTerminalizeAlwaysUsesFixedCatalogue(t *testing.T) {
 		t.Fatalf("fixed terminal catalogue rows = %d, want %d", count, len(want))
 	}
 
-	// A caller cannot weaken or expand the security catalogue. Components is
-	// retained temporarily for source compatibility while startup wiring moves
-	// to the package-owned catalogue.
+	missing := want[0]
+	if _, err := store.pool.Exec(ctx, `
+		DELETE FROM owner_purge_components
+		WHERE owner_did=$1 AND owner_generation=$2
+		  AND component=$3 AND did_role=$4
+	`, owner, terminal.Generation, missing.Component, missing.DIDRole); err != nil {
+		t.Fatalf("remove fixed terminal component for replay proof: %v", err)
+	}
+
+	// A duplicate terminal event restores the package-owned catalogue without
+	// accepting any caller-selected security coverage.
 	if _, err := store.Terminalize(ctx, TerminalizeRequest{
 		Owner: owner, Reason: "identityDeletedReplay",
-		Components: []PurgeComponent{{Component: "caller_injected", DIDRole: "owner"}},
 	}); err != nil {
 		t.Fatalf("replay terminal event: %v", err)
 	}
-	var injected bool
+	var restored bool
 	if err := store.pool.QueryRow(ctx, `
 		SELECT EXISTS(
 			SELECT 1 FROM owner_purge_components
-			WHERE owner_did=$1 AND component='caller_injected'
+			WHERE owner_did=$1 AND owner_generation=$2
+			  AND component=$3 AND did_role=$4
 		)
-	`, owner).Scan(&injected); err != nil {
-		t.Fatalf("inspect caller-injected component: %v", err)
+	`, owner, terminal.Generation, missing.Component, missing.DIDRole).Scan(&restored); err != nil {
+		t.Fatalf("inspect restored fixed component: %v", err)
 	}
-	if injected {
-		t.Fatal("terminal caller expanded the package-owned purge catalogue")
+	if !restored {
+		t.Fatal("terminal replay did not restore the package-owned purge catalogue")
 	}
 }
 
@@ -894,7 +899,8 @@ func TestStoreTransitionParticipantRollsBackLifecycleAndEffectClosure(t *testing
 		attempt, err = store.CreateEffectAttempt(effectCtx, NewEffectAttempt{
 			OperationID: "rollback-operation", Owner: owner, OwnerGeneration: row.Generation,
 			Kind: EffectPDSRecord, DeterministicKey: "at://did:plc:participant-rollback/social.craftsky.feed.post/one",
-			RequestFingerprint: fingerprint, RemoteDeadline: time.Now().Add(time.Minute),
+			RequestFingerprint: fingerprint, RecordFingerprint: fingerprint,
+			RemoteDeadline: time.Now().Add(time.Minute),
 		})
 		if err != nil {
 			return err
@@ -942,7 +948,6 @@ func TestStoreNonTerminalOwnerTransactionDistinguishesMissingAndTerminal(t *test
 	}
 	if _, err := store.Terminalize(ctx, TerminalizeRequest{
 		Owner: terminalOwner, Reason: "identityDeleted",
-		Components: []PurgeComponent{{Component: "profiles", DIDRole: "owner"}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -1065,7 +1070,9 @@ func applyOwnerLifecycleTestMigrations(t *testing.T, pool *pgxpool.Pool) {
 	for _, path := range []string{
 		"../../migrations/000038_owner_auth_lifecycle.up.sql",
 		"../../migrations/000039_owner_effects_terminal_purge.up.sql",
+		"../../migrations/000045_tap_ingestion_durability.up.sql",
 		"../../migrations/000049_pds_effect_action.up.sql",
+		"../../migrations/000050_pds_effect_source_reconciliation.up.sql",
 	} {
 		sql, err := os.ReadFile(path)
 		if err != nil {

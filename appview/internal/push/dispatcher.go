@@ -57,6 +57,39 @@ type DispatcherObserver interface {
 	ObservePushQueue(int, time.Duration)
 }
 
+// DispatcherOperationObserver is the optional detailed counterpart to
+// DispatcherObserver. Every argument is a closed, low-cardinality class;
+// delivery IDs, notification IDs, DIDs, tokens, copy, and raw errors never
+// cross this boundary.
+type DispatcherOperationObserver interface {
+	ObservePushOperation(
+		stage string,
+		platform string,
+		semantics string,
+		outcome string,
+		duration time.Duration,
+		count int64,
+	)
+}
+
+const (
+	pushOperationStageLeaseRecovery         = "lease_recovery"
+	pushOperationStageLease                 = "lease"
+	pushOperationStageSend                  = "send"
+	pushOperationStageFinalization          = "finalization"
+	pushOperationOutcomeReclaimed           = "reclaimed"
+	pushOperationOutcomeClaimed             = "claimed"
+	pushOperationOutcomeEmpty               = "empty"
+	pushOperationOutcomeInsufficientWindow  = "insufficient_window"
+	pushOperationOutcomeCancelled           = "cancelled"
+	pushOperationOutcomeFinalized           = "finalized"
+	pushOperationOutcomeStale               = "stale"
+	pushOperationOutcomeAcceptedUnfinalized = "accepted_unfinalized"
+	pushOperationOutcomeError               = "error"
+	pushOperationOutcomeUnknown             = "unknown"
+	pushOperationLabelNone                  = "none"
+)
+
 // Dispatcher polls the durable push_deliveries outbox and hands due deliveries
 // to a provider-specific Sender. Database leases allow multiple dispatchers to
 // work concurrently without normally sending the same row at the same time.
@@ -139,6 +172,7 @@ func attemptDeadline(
 type claimedDelivery struct {
 	id, notificationID, subscriptionID, installationID uuid.UUID
 	category                                           notifications.Category
+	semantics                                          DeliverySemantics
 	recipientDID                                       syntax.DID
 	actorDID                                           *syntax.DID
 	sourceURI                                          syntax.ATURI
@@ -158,7 +192,32 @@ type claimedDelivery struct {
 // The worker label is currently retained at the call boundary, but each claim
 // uses a unique UUID lease token as its real owner. That token fences stale
 // workers from finalizing a row after another worker has recovered it.
-func (d *Dispatcher) claimOne(ctx context.Context, _ string) ([]claimedDelivery, error) {
+func (d *Dispatcher) claimOne(
+	ctx context.Context,
+	_ string,
+) (deliveries []claimedDelivery, returnErr error) {
+	startedAt := time.Now()
+	defer func() {
+		platform := pushOperationLabelNone
+		semantics := pushOperationLabelNone
+		outcome := pushOperationOutcomeError
+		if returnErr == nil {
+			outcome = pushOperationOutcomeEmpty
+			if len(deliveries) > 0 {
+				platform = deliveries[0].platform
+				semantics = string(deliveries[0].semantics)
+				outcome = pushOperationOutcomeClaimed
+			}
+		}
+		d.observePushOperation(
+			pushOperationStageLease,
+			platform,
+			semantics,
+			outcome,
+			time.Since(startedAt),
+			1,
+		)
+	}()
 	now := d.options.Now().UTC()
 	tx, err := d.pool.Begin(ctx)
 	if err != nil {
@@ -225,8 +284,52 @@ func (d *Dispatcher) claimOne(ctx context.Context, _ string) ([]claimedDelivery,
 
 // recoverExpiredLeases returns work abandoned by a crashed worker to retry.
 func (d *Dispatcher) recoverExpiredLeases(ctx context.Context, now time.Time) error {
-	_, err := d.pool.Exec(ctx, `UPDATE push_deliveries SET status='retry',lease_owner=NULL,lease_expires_at=NULL,next_attempt_at=$1,updated_at=$1 WHERE status='leased' AND lease_expires_at<=$1`, now)
+	startedAt := time.Now()
+	result, err := d.pool.Exec(ctx, `UPDATE push_deliveries SET status='retry',lease_owner=NULL,lease_expires_at=NULL,next_attempt_at=$1,updated_at=$1 WHERE status='leased' AND lease_expires_at<=$1`, now)
+	if err != nil {
+		d.observePushOperation(
+			pushOperationStageLeaseRecovery,
+			pushOperationLabelNone,
+			pushOperationLabelNone,
+			pushOperationOutcomeError,
+			time.Since(startedAt),
+			1,
+		)
+		return err
+	}
+	if reclaimed := result.RowsAffected(); reclaimed > 0 {
+		d.observePushOperation(
+			pushOperationStageLeaseRecovery,
+			pushOperationLabelNone,
+			pushOperationLabelNone,
+			pushOperationOutcomeReclaimed,
+			time.Since(startedAt),
+			reclaimed,
+		)
+	}
 	return err
+}
+
+func (d *Dispatcher) observePushOperation(
+	stage string,
+	platform string,
+	semantics string,
+	outcome string,
+	duration time.Duration,
+	count int64,
+) {
+	observer, ok := d.options.Observer.(DispatcherOperationObserver)
+	if !ok {
+		return
+	}
+	observer.ObservePushOperation(
+		stage,
+		platform,
+		semantics,
+		outcome,
+		duration,
+		count,
+	)
 }
 
 type claimedDeliveryRows interface {
@@ -274,6 +377,9 @@ func scanClaimedDeliveries(rows claimedDeliveryRows) ([]claimedDelivery, error) 
 		}
 		claim.item.recipientDID = recipientDID
 		claim.item.actorDID = actorDID
+		// Every currently registered notification category is an independent
+		// event. No category has approved replace-latest semantics.
+		claim.item.semantics = DeliveryUniqueEvent
 		// Attempts counts claims, not confirmed sends. It is incremented before
 		// provider work, so a crashed or later-invalidated claim still counts.
 		// A fresh token uniquely identifies this particular claim.
@@ -400,12 +506,15 @@ func (d *Dispatcher) processClaimFenced(ctx context.Context, item claimedDeliver
 	// retracted, a device may be removed, its token may rotate, or this lease
 	// may expire and be recovered. Never send unless this exact claim still
 	// owns the current active delivery.
-	owned, err := d.ownsCurrentDelivery(ctx, item, now)
+	current, err := d.currentDeliveryStatus(ctx, item, now)
 	if err != nil {
 		return err
 	}
-	if !owned {
+	if !current.routeOwned {
 		return nil
+	}
+	if !current.eligible {
+		return d.cancelEligibilityInvalid(ctx, item, now)
 	}
 	// TTL is always the time remaining until the original absolute delivery
 	// deadline. A retry does not start a fresh delivery window.
@@ -431,6 +540,7 @@ func (d *Dispatcher) processClaimFenced(ctx context.Context, item claimedDeliver
 		return d.releaseInsufficientWindow(ctx, item, now)
 	}
 	sendCtx, cancel := context.WithDeadline(ctx, providerDeadline)
+	sendStartedAt := time.Now()
 	result, sendErr := d.sender.Send(sendCtx, SendRequest{
 		Token:                 item.token,
 		Category:              item.category,
@@ -445,35 +555,64 @@ func (d *Dispatcher) processClaimFenced(ctx context.Context, item claimedDeliver
 		},
 		ActorDisplayName: item.actorName.String,
 		Platform:         item.platform,
-		Semantics:        DeliveryUniqueEvent,
+		Semantics:        item.semantics,
 		TTL:              ttl,
 	})
 	cancel()
+	d.observePushOperation(
+		pushOperationStageSend,
+		item.platform,
+		string(item.semantics),
+		pushProviderOutcome(result.Class),
+		time.Since(sendStartedAt),
+		1,
+	)
 	now = d.options.Now().UTC()
 
 	// Every state-changing query below repeats the lease, subscription,
 	// installation, and token checks. These are compare-and-set guards: if
 	// ownership changed while the provider call was in flight, a stale result
 	// cannot overwrite the newer state.
+	finalizationStartedAt := time.Now()
+	finalized := false
 	switch result.Class {
 	case ResultSuccess:
-		_, err = d.pool.Exec(ctx, `UPDATE push_deliveries d SET status='succeeded',sent_at=$6,provider_result_class='success',lease_owner=NULL,lease_expires_at=NULL,updated_at=$6 WHERE d.id=$1 AND d.status='leased' AND d.lease_owner=$2 AND d.account_subscription_id=$3 AND d.lease_expires_at=$7 AND d.lease_expires_at>$6 AND EXISTS(SELECT 1 FROM push_account_subscriptions s JOIN push_installations i ON i.id=s.installation_id WHERE s.id=$3 AND s.active AND i.id=$4 AND i.active AND i.fcm_token=$5)`, item.id, item.leaseToken, item.subscriptionID, item.installationID, item.token, now, item.leaseExpiresAt)
+		finalized, err = d.execFinalization(ctx, `UPDATE push_deliveries d SET status='succeeded',sent_at=$6,provider_result_class='success',lease_owner=NULL,lease_expires_at=NULL,updated_at=$6 WHERE d.id=$1 AND d.status='leased' AND d.lease_owner=$2 AND d.account_subscription_id=$3 AND d.lease_expires_at=$7 AND d.lease_expires_at>$6 AND EXISTS(SELECT 1 FROM push_account_subscriptions s JOIN push_installations i ON i.id=s.installation_id WHERE s.id=$3 AND s.active AND i.id=$4 AND i.active AND i.fcm_token=$5)`, item.id, item.leaseToken, item.subscriptionID, item.installationID, item.token, now, item.leaseExpiresAt)
 	case ResultRetryable:
 		// Retry this delivery independently with bounded exponential backoff.
 		// If no retry fits before its deadline, expire it instead.
 		next, retry := NextRetry(now, item.deadline, item.attempts, d.options.Jitter())
 		if !retry {
-			_, err = d.pool.Exec(ctx, `UPDATE push_deliveries d SET status='expired',provider_result_class='retryable',lease_owner=NULL,lease_expires_at=NULL,updated_at=$6 WHERE d.id=$1 AND d.status='leased' AND d.lease_owner=$2 AND d.account_subscription_id=$3 AND d.lease_expires_at=$7 AND d.lease_expires_at>$6 AND EXISTS(SELECT 1 FROM push_account_subscriptions s JOIN push_installations i ON i.id=s.installation_id WHERE s.id=$3 AND s.active AND i.id=$4 AND i.active AND i.fcm_token=$5)`, item.id, item.leaseToken, item.subscriptionID, item.installationID, item.token, now, item.leaseExpiresAt)
+			finalized, err = d.execFinalization(ctx, `UPDATE push_deliveries d SET status='expired',provider_result_class='retryable',lease_owner=NULL,lease_expires_at=NULL,updated_at=$6 WHERE d.id=$1 AND d.status='leased' AND d.lease_owner=$2 AND d.account_subscription_id=$3 AND d.lease_expires_at=$7 AND d.lease_expires_at>$6 AND EXISTS(SELECT 1 FROM push_account_subscriptions s JOIN push_installations i ON i.id=s.installation_id WHERE s.id=$3 AND s.active AND i.id=$4 AND i.active AND i.fcm_token=$5)`, item.id, item.leaseToken, item.subscriptionID, item.installationID, item.token, now, item.leaseExpiresAt)
 		} else {
-			_, err = d.pool.Exec(ctx, `UPDATE push_deliveries d SET status='retry',next_attempt_at=$6,provider_result_class='retryable',lease_owner=NULL,lease_expires_at=NULL,updated_at=$7 WHERE d.id=$1 AND d.status='leased' AND d.lease_owner=$2 AND d.account_subscription_id=$3 AND d.lease_expires_at=$8 AND d.lease_expires_at>$7 AND EXISTS(SELECT 1 FROM push_account_subscriptions s JOIN push_installations i ON i.id=s.installation_id WHERE s.id=$3 AND s.active AND i.id=$4 AND i.active AND i.fcm_token=$5)`, item.id, item.leaseToken, item.subscriptionID, item.installationID, item.token, next, now, item.leaseExpiresAt)
+			finalized, err = d.execFinalization(ctx, `UPDATE push_deliveries d SET status='retry',next_attempt_at=$6,provider_result_class='retryable',lease_owner=NULL,lease_expires_at=NULL,updated_at=$7 WHERE d.id=$1 AND d.status='leased' AND d.lease_owner=$2 AND d.account_subscription_id=$3 AND d.lease_expires_at=$8 AND d.lease_expires_at>$7 AND EXISTS(SELECT 1 FROM push_account_subscriptions s JOIN push_installations i ON i.id=s.installation_id WHERE s.id=$3 AND s.active AND i.id=$4 AND i.active AND i.fcm_token=$5)`, item.id, item.leaseToken, item.subscriptionID, item.installationID, item.token, next, now, item.leaseExpiresAt)
 		}
 	case ResultInvalidToken:
 		// Invalidating a token affects the installation and all account
 		// subscriptions routed through it, so perform that cleanup atomically.
-		err = d.invalidate(ctx, item, now)
+		finalized, err = d.invalidate(ctx, item, now)
 	default:
-		_, err = d.pool.Exec(ctx, `UPDATE push_deliveries d SET status='permanent_failure',provider_result_class='permanent',lease_owner=NULL,lease_expires_at=NULL,updated_at=$6 WHERE d.id=$1 AND d.status='leased' AND d.lease_owner=$2 AND d.account_subscription_id=$3 AND d.lease_expires_at=$7 AND d.lease_expires_at>$6 AND EXISTS(SELECT 1 FROM push_account_subscriptions s JOIN push_installations i ON i.id=s.installation_id WHERE s.id=$3 AND s.active AND i.id=$4 AND i.active AND i.fcm_token=$5)`, item.id, item.leaseToken, item.subscriptionID, item.installationID, item.token, now, item.leaseExpiresAt)
+		finalized, err = d.execFinalization(ctx, `UPDATE push_deliveries d SET status='permanent_failure',provider_result_class='permanent',lease_owner=NULL,lease_expires_at=NULL,updated_at=$6 WHERE d.id=$1 AND d.status='leased' AND d.lease_owner=$2 AND d.account_subscription_id=$3 AND d.lease_expires_at=$7 AND d.lease_expires_at>$6 AND EXISTS(SELECT 1 FROM push_account_subscriptions s JOIN push_installations i ON i.id=s.installation_id WHERE s.id=$3 AND s.active AND i.id=$4 AND i.active AND i.fcm_token=$5)`, item.id, item.leaseToken, item.subscriptionID, item.installationID, item.token, now, item.leaseExpiresAt)
 	}
+	finalizationOutcome := pushOperationOutcomeFinalized
+	if result.Class == ResultSuccess && (err != nil || !finalized) {
+		// Firebase acceptance and the local compare-and-set are not one atomic
+		// transaction. A database error or stale/expired lease after acceptance
+		// is explicitly ambiguous and may be retried after lease recovery.
+		finalizationOutcome = pushOperationOutcomeAcceptedUnfinalized
+	} else if err != nil {
+		finalizationOutcome = pushOperationOutcomeError
+	} else if !finalized {
+		finalizationOutcome = pushOperationOutcomeStale
+	}
+	d.observePushOperation(
+		pushOperationStageFinalization,
+		item.platform,
+		string(item.semantics),
+		finalizationOutcome,
+		time.Since(finalizationStartedAt),
+		1,
+	)
 	if err != nil {
 		return err
 	}
@@ -518,35 +657,108 @@ func (d *Dispatcher) queueStats(ctx context.Context, now time.Time) (int, time.D
 	return pending, time.Duration(oldestSeconds * float64(time.Second)), err
 }
 
-// ownsCurrentDelivery verifies that this exact lease is still live and that
-// its routing information has not been cancelled or rotated since claim time.
-func (d *Dispatcher) ownsCurrentDelivery(ctx context.Context, item claimedDelivery, now time.Time) (bool, error) {
-	var owned bool
+type currentDeliveryState struct {
+	routeOwned bool
+	eligible   bool
+}
+
+// currentDeliveryStatus distinguishes a stale or rotated claim from a current
+// route whose notification eligibility has been withdrawn. That distinction
+// lets the latter settle terminally without allowing an old token or lease to
+// cancel work now owned by a newer claim.
+func (d *Dispatcher) currentDeliveryStatus(
+	ctx context.Context,
+	item claimedDelivery,
+	now time.Time,
+) (currentDeliveryState, error) {
+	var state currentDeliveryState
 	err := d.pool.QueryRow(ctx, `
-		SELECT EXISTS(
-			SELECT 1
+		WITH current_claim AS (
+			SELECT n.recipient_did,n.actor_did,n.category,n.state
 			FROM push_deliveries d
 			JOIN notification_events n ON n.id=d.notification_id
 			JOIN push_account_subscriptions s ON s.id=d.account_subscription_id
 			JOIN push_installations i ON i.id=s.installation_id
 			WHERE d.id=$1 AND d.status='leased' AND d.lease_owner=$2
 			  AND d.lease_expires_at=$7 AND d.lease_expires_at>$6
-			  AND n.state='active'
-			  AND NOT appview_owner_is_terminal(n.recipient_did)
-			  AND NOT appview_owner_is_terminal(n.actor_did)
 			  AND s.id=$3 AND s.active AND s.account_did=n.recipient_did
 			  AND i.id=$4 AND i.active AND i.fcm_token=$5
-			  AND NOT EXISTS (
-				SELECT 1 FROM actor_mutes mute
-				WHERE mute.owner_did = n.recipient_did AND mute.subject_did = n.actor_did
-			  )
-			  AND NOT EXISTS (
-				SELECT 1 FROM atproto_blocks block
-				WHERE (block.blocker_did = n.recipient_did AND block.subject_did = n.actor_did)
-				   OR (block.blocker_did = n.actor_did AND block.subject_did = n.recipient_did)
-			  )
-		)`, item.id, item.leaseToken, item.subscriptionID, item.installationID, item.token, now, item.leaseExpiresAt).Scan(&owned)
-	return owned, err
+		)
+		SELECT
+			EXISTS(SELECT 1 FROM current_claim),
+			EXISTS(
+				SELECT 1
+				FROM current_claim claim
+				LEFT JOIN notification_preferences preference
+				  ON preference.account_did=claim.recipient_did
+				 AND preference.category=claim.category
+				WHERE claim.state='active'
+				  AND NOT appview_owner_is_terminal(claim.recipient_did)
+				  AND NOT appview_owner_is_terminal(claim.actor_did)
+				  AND COALESCE(preference.push_enabled, TRUE)
+				  AND (
+					COALESCE(preference.scope, 'everyone')='everyone'
+					OR (
+						preference.scope='peopleIFollow'
+						AND EXISTS (
+							SELECT 1 FROM atproto_follows follow
+							WHERE follow.did=claim.recipient_did
+							  AND follow.subject_did=claim.actor_did
+						)
+					)
+				  )
+				  AND NOT EXISTS (
+					SELECT 1 FROM actor_mutes mute
+					WHERE mute.owner_did=claim.recipient_did
+					  AND mute.subject_did=claim.actor_did
+				  )
+				  AND NOT EXISTS (
+					SELECT 1 FROM atproto_blocks block
+					WHERE (block.blocker_did=claim.recipient_did AND block.subject_did=claim.actor_did)
+					   OR (block.blocker_did=claim.actor_did AND block.subject_did=claim.recipient_did)
+				  )
+			)
+	`, item.id, item.leaseToken, item.subscriptionID, item.installationID, item.token, now, item.leaseExpiresAt).Scan(
+		&state.routeOwned,
+		&state.eligible,
+	)
+	return state, err
+}
+
+func (d *Dispatcher) cancelEligibilityInvalid(
+	ctx context.Context,
+	item claimedDelivery,
+	now time.Time,
+) error {
+	startedAt := time.Now()
+	finalized, err := d.execFinalization(ctx, `
+		UPDATE push_deliveries d
+		SET status='cancelled',lease_owner=NULL,lease_expires_at=NULL,updated_at=$5
+		WHERE d.id=$1 AND d.account_subscription_id=$2 AND d.status='leased'
+		  AND d.lease_owner=$3 AND d.lease_expires_at=$4 AND d.lease_expires_at>$5
+		  AND EXISTS (
+			SELECT 1
+			FROM push_account_subscriptions s
+			JOIN push_installations i ON i.id=s.installation_id
+			WHERE s.id=$2 AND s.active
+			  AND i.id=$6 AND i.active AND i.fcm_token=$7
+		  )
+	`, item.id, item.subscriptionID, item.leaseToken, item.leaseExpiresAt, now, item.installationID, item.token)
+	outcome := pushOperationOutcomeCancelled
+	if err != nil {
+		outcome = pushOperationOutcomeError
+	} else if !finalized {
+		outcome = pushOperationOutcomeStale
+	}
+	d.observePushOperation(
+		pushOperationStageFinalization,
+		item.platform,
+		string(item.semantics),
+		outcome,
+		time.Since(startedAt),
+		1,
+	)
+	return err
 }
 
 func (d *Dispatcher) releaseInsufficientWindow(
@@ -554,6 +766,7 @@ func (d *Dispatcher) releaseInsufficientWindow(
 	item claimedDelivery,
 	now time.Time,
 ) error {
+	startedAt := time.Now()
 	_, err := d.pool.Exec(ctx, `
 		UPDATE push_deliveries
 		SET status='retry', next_attempt_at=$4, lease_owner=NULL,
@@ -561,16 +774,32 @@ func (d *Dispatcher) releaseInsufficientWindow(
 		WHERE id=$1 AND status='leased' AND lease_owner=$2
 		  AND lease_expires_at=$3 AND lease_expires_at>$4
 	`, item.id, item.leaseToken, item.leaseExpiresAt, now)
+	outcome := pushOperationOutcomeInsufficientWindow
+	if err != nil {
+		outcome = pushOperationOutcomeError
+	}
+	d.observePushOperation(
+		pushOperationStageLease,
+		item.platform,
+		string(item.semantics),
+		outcome,
+		time.Since(startedAt),
+		1,
+	)
 	return err
 }
 
 // invalidate deactivates an installation after the provider rejects its token.
 // It locks and rechecks the current token before changing anything so an
 // in-flight result for an old token cannot deactivate a newly rotated token.
-func (d *Dispatcher) invalidate(ctx context.Context, item claimedDelivery, now time.Time) error {
+func (d *Dispatcher) invalidate(
+	ctx context.Context,
+	item claimedDelivery,
+	now time.Time,
+) (bool, error) {
 	tx, err := d.pool.Begin(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 	defer tx.Rollback(ctx)
 	var owned bool
@@ -585,27 +814,51 @@ func (d *Dispatcher) invalidate(ctx context.Context, item claimedDelivery, now t
 			  AND i.id=$4 AND i.active AND i.fcm_token=$5
 			FOR UPDATE OF d, i
 		)`, item.id, item.leaseToken, item.subscriptionID, item.installationID, item.token, now, item.leaseExpiresAt).Scan(&owned); err != nil {
-		return err
+		return false, err
 	}
 	if !owned {
 		// Another operation changed the lease, installation, subscription, or
 		// token while the provider call was in flight. The stale result is ignored.
-		return tx.Commit(ctx)
+		return false, tx.Commit(ctx)
 	}
 
 	// One physical installation may route notifications for several signed-in
 	// accounts. An invalid FCM token therefore deactivates every subscription
 	// attached to that installation and cancels their outstanding deliveries.
 	if _, err := tx.Exec(ctx, `UPDATE push_installations SET active=false,deactivated_at=$2,updated_at=$2 WHERE id=$1 AND active AND fcm_token=$3`, item.installationID, now, item.token); err != nil {
-		return err
+		return false, err
 	}
 	if _, err := tx.Exec(ctx, `UPDATE push_account_subscriptions SET active=false,deactivated_at=$2,updated_at=$2 WHERE installation_id=$1`, item.installationID, now); err != nil {
-		return err
+		return false, err
 	}
 	if _, err := tx.Exec(ctx, `UPDATE push_deliveries SET status=CASE WHEN id=$2 THEN 'permanent_failure' ELSE 'cancelled' END,provider_result_class=CASE WHEN id=$2 THEN 'invalidToken' ELSE provider_result_class END,lease_owner=NULL,lease_expires_at=NULL,updated_at=$3 WHERE account_subscription_id IN(SELECT id FROM push_account_subscriptions WHERE installation_id=$1) AND status IN('pending','retry','leased')`, item.installationID, item.id, now); err != nil {
-		return err
+		return false, err
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func (d *Dispatcher) execFinalization(
+	ctx context.Context,
+	statement string,
+	arguments ...any,
+) (bool, error) {
+	commandTag, err := d.pool.Exec(ctx, statement, arguments...)
+	if err != nil {
+		return false, err
+	}
+	return commandTag.RowsAffected() == 1, nil
+}
+
+func pushProviderOutcome(result ResultClass) string {
+	switch result {
+	case ResultSuccess, ResultRetryable, ResultInvalidToken, ResultPermanentFailure:
+		return string(result)
+	default:
+		return pushOperationOutcomeUnknown
+	}
 }
 
 func (d *Dispatcher) Run(

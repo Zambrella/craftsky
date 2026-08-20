@@ -110,12 +110,14 @@ func TestStoreMuteRejectsTerminalSubjectWithoutPersisting(t *testing.T) {
 	if _, err := pool.Exec(ctx, string(migration)); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'alice'),($2,'bob')`, owner, subject); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'alice'),($2,'bob');
 		UPDATE owner_lifecycles
 		SET state='terminal', generation=2, terminal_at=now()
-		WHERE owner_did=$2
-	`, owner, subject); err != nil {
+		WHERE owner_did=$1
+	`, subject); err != nil {
 		t.Fatal(err)
 	}
 
@@ -123,6 +125,46 @@ func TestStoreMuteRejectsTerminalSubjectWithoutPersisting(t *testing.T) {
 		t.Fatalf("Mute error = %v, want ErrTerminalOwner", err)
 	}
 	assertTableCount(t, pool, "actor_mutes", 0)
+	if _, err := pool.Exec(ctx, `INSERT INTO actor_mutes(owner_did,subject_did) VALUES($1,$2)`, owner, subject); err != nil {
+		t.Fatal(err)
+	}
+	if err := NewStore(pool).Unmute(ctx, owner, subject); !errors.Is(err, ownerlifecycle.ErrTerminalOwner) {
+		t.Fatalf("Unmute error = %v, want ErrTerminalOwner", err)
+	}
+	assertTableCount(t, pool, "actor_mutes", 1)
+}
+
+func TestStoreUnmuteRejectsStaleOwnerGenerationWithoutDeleting(t *testing.T) {
+	migration, err := os.ReadFile("../../migrations/000023_mutes_blocks.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool := testdb.WithSchema(t, relationshipStorePreStateDDL)
+	ctx := context.Background()
+	owner := syntax.DID("did:plc:alice")
+	subject := syntax.DID("did:plc:bob")
+	if _, err := pool.Exec(ctx, string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'alice'),($2,'bob')`, owner, subject); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO actor_mutes(owner_did,subject_did) VALUES($1,$2)`, owner, subject); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE owner_lifecycles SET generation=2 WHERE owner_did=$1`, owner); err != nil {
+		t.Fatal(err)
+	}
+
+	err = NewStore(pool).Unmute(
+		ownerlifecycle.WithExpectedGeneration(ctx, 1),
+		owner,
+		subject,
+	)
+	if !errors.Is(err, ownerlifecycle.ErrGenerationChanged) {
+		t.Fatalf("Unmute error = %v, want ErrGenerationChanged", err)
+	}
+	assertTableCount(t, pool, "actor_mutes", 1)
 }
 
 func TestMutationServiceMuteRollsBackWhenDeliveryCancellationFails(t *testing.T) {

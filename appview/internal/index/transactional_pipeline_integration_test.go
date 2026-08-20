@@ -58,10 +58,14 @@ func TestTransactionalPipelineRollsBackServingMutationWhenJobCompletionFails(t *
 		INSERT INTO owner_lifecycles(
 			owner_did,state,generation,auth_epoch,transition_reason,
 			transitioned_at,created_at,updated_at
-		) VALUES($1,'active',1,1,'test',now(),now(),now());
-		UPDATE tap_source_records SET owner_generation=1 WHERE uri=$2
-	`, event.DID, event.URI); err != nil {
+		) VALUES($1,'active',1,1,'test',now(),now(),now())
+	`, event.DID); err != nil {
 		t.Fatalf("seed source lifecycle authority: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE tap_source_records SET owner_generation=1 WHERE uri=$1
+	`, event.URI); err != nil {
+		t.Fatalf("bind source lifecycle generation: %v", err)
 	}
 	claims, err := store.ClaimProjectionJobs(ctx, ingestion.ProjectionClaimRequest{
 		Worker: "atomic-worker", LeaseToken: uuid.New(), LeaseDuration: time.Minute, Limit: 1,

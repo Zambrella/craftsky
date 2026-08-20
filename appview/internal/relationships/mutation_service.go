@@ -2,15 +2,20 @@ package relationships
 
 import (
 	"context"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/api/bsky"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/pdseffects"
 )
 
 var ErrBlockMutationUnavailable = errors.New("block mutation unavailable")
@@ -20,7 +25,7 @@ var ErrBlockMutationUnavailable = errors.New("block mutation unavailable")
 // phase; keeping it behind this interface lets route policy land first.
 type MutationService struct {
 	store       *Store
-	newPDS      auth.PDSClientFactory
+	newEffects  pdseffects.ExecutorFactory
 	now         func() time.Time
 	restoration RelationshipSafetyRestorationEnqueuer
 	observer    interface {
@@ -40,12 +45,12 @@ type relationshipOutcomeObserver interface {
 	ObserveRelationshipOutcome(operation, stage, result, errorClass string, duration time.Duration)
 }
 
-func NewMutationService(store *Store, newPDS auth.PDSClientFactory, now func() time.Time, observers ...interface {
+func NewMutationService(store *Store, newEffects pdseffects.ExecutorFactory, now func() time.Time, observers ...interface {
 	ObserveRelationship(operation, result string, duration time.Duration)
 }) *MutationService {
 	return NewMutationServiceWithRestoration(
 		store,
-		newPDS,
+		newEffects,
 		now,
 		nil,
 		observers...,
@@ -54,7 +59,7 @@ func NewMutationService(store *Store, newPDS auth.PDSClientFactory, now func() t
 
 func NewMutationServiceWithRestoration(
 	store *Store,
-	newPDS auth.PDSClientFactory,
+	newEffects pdseffects.ExecutorFactory,
 	now func() time.Time,
 	restoration RelationshipSafetyRestorationEnqueuer,
 	observers ...interface {
@@ -71,7 +76,7 @@ func NewMutationServiceWithRestoration(
 		observer = observers[0]
 	}
 	return &MutationService{
-		store: store, newPDS: newPDS, now: now,
+		store: store, newEffects: newEffects, now: now,
 		restoration: restoration, observer: observer,
 	}
 }
@@ -149,22 +154,23 @@ func (s *MutationService) Block(ctx context.Context, owner, subject syntax.DID, 
 		}, nil
 	}
 	stage = "pds"
-	if s.newPDS == nil {
-		return BlockMutationResult{}, ErrBlockMutationUnavailable
-	}
-	pds, err := s.newPDS(ctx, owner, sid)
+	executor, generation, expected, err := s.effectExecutor(ctx, owner, subject, sid)
 	if err != nil {
-		return BlockMutationResult{}, fmt.Errorf("create block PDS client: %w", err)
+		return BlockMutationResult{}, fmt.Errorf("create block effect executor: %w", err)
 	}
-	lister, ok := pds.(auth.PDSRecordLister)
-	if !ok {
-		return BlockMutationResult{}, fmt.Errorf("create block: PDS client cannot list records")
-	}
-	existing, err := listMatchingPDSBlocks(ctx, lister, owner, subject)
+	rkey, err := deterministicBlockRecordKey(owner, subject)
 	if err != nil {
 		return BlockMutationResult{}, err
 	}
-	if len(existing) > 0 {
+	var current bsky.GraphBlock
+	currentCID, readErr := executor.ReadRecord(ctx, pdseffects.ReadRecordRequest{
+		Owner: owner, OwnerGeneration: generation, ExpectedOwners: expected,
+		Collection: syntax.NSID(blueskyBlockCollection), Rkey: rkey,
+	}, &current)
+	if readErr == nil {
+		if current.Subject != subject.String() {
+			return BlockMutationResult{}, &pdseffects.ConflictError{ExactKey: rkey.String()}
+		}
 		stage = "store"
 		state, err := s.store.State(ctx, owner, subject)
 		if err != nil {
@@ -173,24 +179,29 @@ func (s *MutationService) Block(ctx context.Context, owner, subject syntax.DID, 
 		state.Blocking = true
 		return BlockMutationResult{
 			State: state,
-			URI:   existing[0].URI,
-			CID:   existing[0].CID,
-			Rkey:  existing[0].URI.RecordKey(),
+			URI: syntax.ATURI(fmt.Sprintf(
+				"at://%s/%s/%s", owner, blueskyBlockCollection, rkey,
+			)),
+			CID: currentCID, Rkey: rkey,
 		}, nil
 	}
-
+	if !errors.Is(readErr, auth.ErrRecordNotFound) {
+		return BlockMutationResult{}, fmt.Errorf("read deterministic block record: %w", readErr)
+	}
 	record := &bsky.GraphBlock{
 		LexiconTypeID: blueskyBlockCollection,
 		Subject:       subject.String(),
 		CreatedAt:     s.now().UTC().Format(time.RFC3339),
 	}
-	uri, cid, err := pds.CreateRecord(ctx, owner, blueskyBlockCollection, record)
+	operationID := relationshipEffectIdentity("block", "put", rkey)
+	created, err := executor.PutRecord(ctx, pdseffects.PutRecordRequest{
+		OperationID: operationID,
+		MutationKey: operationID,
+		Owner:       owner, OwnerGeneration: generation, ExpectedOwners: expected,
+		Collection: syntax.NSID(blueskyBlockCollection), Rkey: rkey, Record: record,
+	})
 	if err != nil {
-		return BlockMutationResult{}, fmt.Errorf("create block record: %w", err)
-	}
-	rkey := uri.RecordKey()
-	if rkey == "" {
-		return BlockMutationResult{}, fmt.Errorf("create block record: PDS returned invalid uri")
+		return BlockMutationResult{}, fmt.Errorf("put block record: %w", err)
 	}
 	stage = "store"
 	state, err := s.store.State(ctx, owner, subject)
@@ -198,7 +209,7 @@ func (s *MutationService) Block(ctx context.Context, owner, subject syntax.DID, 
 		return BlockMutationResult{}, err
 	}
 	state.Blocking = true
-	return BlockMutationResult{State: state, URI: uri, CID: cid, Rkey: rkey}, nil
+	return BlockMutationResult{State: state, URI: created.URI, CID: created.CID, Rkey: rkey}, nil
 }
 
 func (s *MutationService) Unblock(ctx context.Context, owner, subject syntax.DID, sid string) (result BlockMutationResult, err error) {
@@ -207,32 +218,19 @@ func (s *MutationService) Unblock(ctx context.Context, owner, subject syntax.DID
 	if err != nil {
 		return BlockMutationResult{}, err
 	}
-	if s.newPDS == nil {
-		return BlockMutationResult{}, ErrBlockMutationUnavailable
-	}
-	pds, err := s.newPDS(ctx, owner, sid)
+	executor, generation, expected, err := s.effectExecutor(ctx, owner, subject, sid)
 	if err != nil {
-		return BlockMutationResult{}, fmt.Errorf("create unblock PDS client: %w", err)
+		return BlockMutationResult{}, fmt.Errorf("create unblock effect executor: %w", err)
 	}
 
-	rkeys := make(map[syntax.RecordKey]struct{})
-	for _, record := range indexed {
-		rkeys[record.Rkey] = struct{}{}
-	}
-	lister, ok := pds.(auth.PDSRecordLister)
-	if !ok {
-		return BlockMutationResult{}, fmt.Errorf("delete block: PDS client cannot list records")
-	}
-	matches, err := listMatchingPDSBlocks(ctx, lister, owner, subject)
+	rkeys := make(map[syntax.RecordKey]syntax.CID)
+	stableRkey, err := deterministicBlockRecordKey(owner, subject)
 	if err != nil {
 		return BlockMutationResult{}, err
 	}
-	for _, match := range matches {
-		rkey := match.URI.RecordKey()
-		if rkey == "" {
-			return BlockMutationResult{}, fmt.Errorf("delete block: PDS returned invalid uri")
-		}
-		rkeys[rkey] = struct{}{}
+	rkeys[stableRkey] = ""
+	for _, record := range indexed {
+		rkeys[record.Rkey] = record.CID
 	}
 
 	ordered := make([]syntax.RecordKey, 0, len(rkeys))
@@ -241,7 +239,14 @@ func (s *MutationService) Unblock(ctx context.Context, owner, subject syntax.DID
 	}
 	sort.Slice(ordered, func(i, j int) bool { return ordered[i].String() < ordered[j].String() })
 	for _, rkey := range ordered {
-		if err := pds.DeleteRecord(ctx, owner, blueskyBlockCollection, rkey.String()); err != nil && !errors.Is(err, auth.ErrRecordNotFound) {
+		operationID := relationshipEffectIdentity("block", "delete", rkey)
+		if _, err := executor.DeleteRecord(ctx, pdseffects.DeleteRecordRequest{
+			OperationID: operationID,
+			MutationKey: operationID,
+			Owner:       owner, OwnerGeneration: generation, ExpectedOwners: expected,
+			Collection: syntax.NSID(blueskyBlockCollection), Rkey: rkey,
+			ExpectedCID: rkeys[rkey],
+		}); err != nil {
 			return BlockMutationResult{}, fmt.Errorf("delete block record: %w", err)
 		}
 	}
@@ -263,6 +268,42 @@ func (s *MutationService) Unblock(ctx context.Context, owner, subject syntax.DID
 		}
 	}
 	return BlockMutationResult{State: state}, nil
+}
+
+func (s *MutationService) effectExecutor(
+	ctx context.Context,
+	owner, subject syntax.DID,
+	sessionID string,
+) (pdseffects.EffectExecutor, int64, []ownerlifecycle.ExpectedOwner, error) {
+	if s == nil || s.newEffects == nil || owner == "" || subject == "" ||
+		strings.TrimSpace(sessionID) == "" {
+		return nil, 0, nil, ErrBlockMutationUnavailable
+	}
+	generation, ok := ownerlifecycle.ExpectedGeneration(ctx)
+	if !ok || generation <= 0 {
+		return nil, 0, nil, ownerlifecycle.ErrGenerationChanged
+	}
+	executor, err := s.newEffects(ctx, owner, sessionID)
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	if executor == nil {
+		return nil, 0, nil, ErrBlockMutationUnavailable
+	}
+	expected, err := executor.ResolveExpectedOwners(ctx, generation, []syntax.DID{subject})
+	if err != nil {
+		return nil, 0, nil, err
+	}
+	return executor, generation, expected, nil
+}
+
+func deterministicBlockRecordKey(owner, subject syntax.DID) (syntax.RecordKey, error) {
+	digest := sha256.Sum256([]byte(owner.String() + "\x00" + subject.String()))
+	return syntax.ParseRecordKey(fmt.Sprintf("craftsky-%x", digest[:16]))
+}
+
+func relationshipEffectIdentity(kind, action string, rkey syntax.RecordKey) string {
+	return kind + ":" + action + ":" + uuid.NewString() + ":" + rkey.String()
 }
 
 func (s *MutationService) observe(operation string, started time.Time, err *error) {
@@ -288,47 +329,3 @@ func (s *MutationService) observeOutcome(operation, stage, result, errorClass st
 }
 
 const blueskyBlockCollection = "app.bsky.graph.block"
-
-func listMatchingPDSBlocks(
-	ctx context.Context,
-	lister auth.PDSRecordLister,
-	owner, subject syntax.DID,
-) ([]auth.PDSRecord, error) {
-	var matches []auth.PDSRecord
-	cursor := ""
-	seenCursors := map[string]bool{}
-	for {
-		records, next, err := lister.ListRecords(ctx, owner, blueskyBlockCollection, cursor, 100)
-		if err != nil {
-			return nil, fmt.Errorf("list block records: %w", err)
-		}
-		for _, record := range records {
-			if record.URI.Authority().String() != owner.String() ||
-				record.URI.Collection().String() != blueskyBlockCollection ||
-				record.URI.RecordKey() == "" {
-				continue
-			}
-			block, ok := record.Value.(*bsky.GraphBlock)
-			if !ok || block == nil {
-				continue
-			}
-			recordSubject, err := syntax.ParseDID(block.Subject)
-			if err != nil {
-				continue
-			}
-			if recordSubject == subject {
-				matches = append(matches, record)
-			}
-		}
-		if next == "" {
-			break
-		}
-		if next == cursor || seenCursors[next] {
-			return nil, fmt.Errorf("list block records: repeated cursor")
-		}
-		seenCursors[next] = true
-		cursor = next
-	}
-	sort.Slice(matches, func(i, j int) bool { return matches[i].URI.String() < matches[j].URI.String() })
-	return matches, nil
-}

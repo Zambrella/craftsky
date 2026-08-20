@@ -65,6 +65,7 @@ func NewServerWithAdmission(ctx context.Context, deps *app.Deps, cfg HandlerAdmi
 	if deps == nil {
 		return nil, fmt.Errorf("AppView dependencies are required")
 	}
+	routeDeps := app.RouteDependencies(deps)
 	resolver, err := middleware.NewClientAddressResolver(cfg.TrustedProxyCIDRs, cfg.IPv6PrefixBits)
 	if err != nil {
 		return nil, err
@@ -86,23 +87,23 @@ func NewServerWithAdmission(ctx context.Context, deps *app.Deps, cfg HandlerAdmi
 		return nil, err
 	}
 
-	catalogue, err := routes.NewV1Catalogue(routes.V1RoutePolicies(deps.Config.Env, deps.Config))
+	catalogue, err := routes.NewV1Catalogue(routes.V1RoutePolicies(routeDeps.Config.Env, routeDeps.Config))
 	if err != nil {
 		return nil, err
 	}
 	mux := routes.NewPolicyMux(http.NewServeMux(), catalogue)
-	routes.AddRoutes(ctx, mux, deps)
+	routes.AddRoutes(ctx, mux, routeDeps)
 	if err := mux.Validate(); err != nil {
 		return nil, err
 	}
 
 	var h http.Handler = mux
-	h = middleware.CORS(deps.Config.AllowedOrigins, catalogue)(h)
+	h = middleware.CORS(routeDeps.Config.AllowedOrigins, catalogue)(h)
 	h = catalogue.RoutingHandler(h)
-	if len(deps.Config.ExpectedHosts) > 0 {
+	if len(routeDeps.Config.ExpectedHosts) > 0 {
 		h = middleware.ExpectedHost(middleware.ExpectedHostPolicy{
-			Authorities:  deps.Config.ExpectedHosts,
-			AllowAnyPort: deps.Config.ExpectedHostAllowAnyPort,
+			Authorities:  routeDeps.Config.ExpectedHosts,
+			AllowAnyPort: routeDeps.Config.ExpectedHostAllowAnyPort,
 		})(h)
 	}
 	h = outerRate(h)

@@ -1,7 +1,5 @@
 package routes
 
-import "social.craftsky/appview/internal/app"
-
 type RateClass string
 
 const (
@@ -70,9 +68,9 @@ type RoutePolicy struct {
 	DevOnly     bool
 }
 
-func V1RoutePolicies(env app.Env, cfg app.Config) []RoutePolicy {
+func V1RoutePolicies(env Environment, cfg Config) []RoutePolicy {
 	policies := baseV1RoutePolicies()
-	if env == app.EnvDev {
+	if env == EnvDev {
 		policies = append(policies, RoutePolicy{Method: "GET", PathPattern: "/v1/dev/media/{name}", RateClass: RateClassDevOnly, BodyKind: BodyNoBody, AccessClass: AccessAnonymous, DevOnly: true})
 		policies = append(policies, RoutePolicy{Method: "GET", PathPattern: "/v1/dev/panic", RateClass: RateClassDevOnly, BodyKind: BodyNoBody, AccessClass: AccessAnonymous, DevOnly: true})
 		if cfg.EnableDevModeration && cfg.DevModerationToken != "" {
@@ -89,6 +87,15 @@ func mustPolicy(method, pathPattern string) RoutePolicy {
 		}
 	}
 	panic("missing v1 route policy: " + method + " " + pathPattern)
+}
+
+func mustConfiguredPolicy(env Environment, cfg Config, method, pathPattern string) RoutePolicy {
+	for _, policy := range V1RoutePolicies(env, cfg) {
+		if policy.Method == method && policy.PathPattern == pathPattern {
+			return policy
+		}
+	}
+	panic("missing configured v1 route policy: " + method + " " + pathPattern)
 }
 
 func baseV1RoutePolicies() []RoutePolicy {

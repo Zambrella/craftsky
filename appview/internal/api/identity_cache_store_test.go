@@ -466,9 +466,11 @@ func TestFacetStoreResolveMentionRejectsStaleViewerGenerationAtFinalCacheWrite(t
 	target := syntax.DID("did:plc:alice")
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO craftsky_profiles(did,crafts,record_cid)
-		VALUES($1,'{}','viewer'),($2,'{}','alice');
-		UPDATE owner_lifecycles SET generation=2 WHERE owner_did=$1
+		VALUES($1,'{}','viewer'),($2,'{}','alice')
 	`, viewer, target); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE owner_lifecycles SET generation=2 WHERE owner_did=$1`, viewer); err != nil {
 		t.Fatal(err)
 	}
 	resolver := exactResolveFakeResolver{

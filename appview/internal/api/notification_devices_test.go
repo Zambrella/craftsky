@@ -3,6 +3,7 @@ package api_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -169,6 +170,41 @@ func TestRemoveNotificationSubscriptionOnlyRemovesOwnedAccountOnCurrentDevice(t 
 	}
 	if aliceActive != 0 || bobActive != 1 {
 		t.Fatalf("aliceActive=%d bobActive=%d", aliceActive, bobActive)
+	}
+}
+
+func TestRemoveNotificationSubscriptionRejectsStaleOwnerGeneration(t *testing.T) {
+	pool := testdb.WithSchema(t, timelineStoreDDL)
+	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, string(migration)); err != nil {
+		t.Fatal(err)
+	}
+	const owner = "did:plc:alice"
+	seedMember(t, pool, owner)
+	store := api.NewPostStore(pool)
+	staleCtx := ownerlifecycle.WithExpectedGeneration(ctx, 1)
+	routingID, err := store.RegisterNotificationDevice(staleCtx, owner, "device", "ios", "token")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE owner_lifecycles SET generation=2 WHERE owner_did=$1`, owner); err != nil {
+		t.Fatal(err)
+	}
+
+	err = store.RemoveNotificationSubscription(staleCtx, owner, "device", routingID)
+	if !errors.Is(err, ownerlifecycle.ErrGenerationChanged) {
+		t.Fatalf("RemoveNotificationSubscription error = %v, want ErrGenerationChanged", err)
+	}
+	var active bool
+	if err := pool.QueryRow(ctx, `SELECT active FROM push_account_subscriptions WHERE routing_id=$1`, routingID).Scan(&active); err != nil {
+		t.Fatal(err)
+	}
+	if !active {
+		t.Fatal("subscription was deactivated by a stale owner generation")
 	}
 }
 

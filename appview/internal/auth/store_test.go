@@ -16,6 +16,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/federatedhttp"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -118,11 +119,30 @@ func testStoreConfig() auth.StoreConfig {
 
 type testOAuthEndpointValidator struct{}
 
+type failingOAuthEndpointValidator struct {
+	err error
+}
+
+func (validator failingOAuthEndpointValidator) ValidateOrigin(
+	context.Context,
+	string,
+) (*url.URL, error) {
+	return nil, validator.err
+}
+
+func (validator failingOAuthEndpointValidator) ValidateOAuthEndpoint(
+	context.Context,
+	string,
+	string,
+) (*url.URL, error) {
+	return nil, validator.err
+}
+
 func (testOAuthEndpointValidator) ValidateOrigin(_ context.Context, raw string) (*url.URL, error) {
 	u, err := url.Parse(raw)
 	if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil ||
 		u.Path != "" || u.RawQuery != "" || u.Fragment != "" {
-		return nil, errors.New("invalid test OAuth origin")
+		return nil, &federatedhttp.Error{Kind: federatedhttp.KindDestinationRejected}
 	}
 	return u, nil
 }
@@ -140,7 +160,7 @@ func (v testOAuthEndpointValidator) ValidateOAuthEndpoint(
 	if err != nil || endpointURL.Scheme != "https" || endpointURL.Host == "" ||
 		endpointURL.User != nil || endpointURL.RawQuery != "" || endpointURL.Fragment != "" ||
 		endpointURL.Scheme != issuerURL.Scheme || endpointURL.Host != issuerURL.Host {
-		return nil, errors.New("invalid test OAuth endpoint")
+		return nil, &federatedhttp.Error{Kind: federatedhttp.KindDestinationRejected}
 	}
 	return endpointURL, nil
 }
@@ -247,6 +267,85 @@ func TestStoreFailsClosedWithoutOAuthEndpointValidator(t *testing.T) {
 		SessionAbsoluteLifetime: time.Hour,
 	})
 	err := store.SaveSession(auth.WithCallbackAttempt(context.Background(), attempt), validOAuthSession(owner, state))
+	if !errors.Is(err, auth.ErrOAuthSessionEndpointInvalid) {
+		t.Fatalf("SaveSession error = %v, want endpoint metadata invalid", err)
+	}
+}
+
+func TestStorePreservesTransientOAuthEndpointValidationFailures(t *testing.T) {
+	owner := syntax.DID("did:plc:transient-endpoint-validation")
+	state := "transient-endpoint-validation-state"
+	attempt := auth.CallbackAttempt{
+		State: state, AttemptID: uuid.New(), Owner: owner,
+		OwnerGeneration: 1, AuthEpoch: 1, Purpose: auth.LoginOAuthPurpose,
+	}
+	callbackContext := auth.WithCallbackAttempt(context.Background(), attempt)
+	session := validOAuthSession(owner, state)
+	dependencyErr := errors.New("resolver dependency unavailable")
+
+	tests := []struct {
+		name string
+		err  error
+		want error
+	}{
+		{
+			name: "canceled",
+			err: &federatedhttp.Error{
+				Kind: federatedhttp.KindCanceled, Cause: context.Canceled,
+			},
+			want: context.Canceled,
+		},
+		{
+			name: "deadline",
+			err: &federatedhttp.Error{
+				Kind: federatedhttp.KindTimeout, Cause: context.DeadlineExceeded,
+			},
+			want: context.DeadlineExceeded,
+		},
+		{
+			name: "dependency failure",
+			err: &federatedhttp.Error{
+				Kind: federatedhttp.KindUpstreamFailure, Cause: dependencyErr,
+			},
+			want: dependencyErr,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			store := auth.NewPostgresAuthStore(nil, auth.StoreConfig{
+				SessionAbsoluteLifetime: time.Hour,
+				EndpointValidator:       failingOAuthEndpointValidator{err: tt.err},
+			})
+			err := store.SaveSession(callbackContext, session)
+			if !errors.Is(err, tt.want) {
+				t.Fatalf("SaveSession error = %v, want %v", err, tt.want)
+			}
+			if errors.Is(err, auth.ErrOAuthSessionEndpointInvalid) {
+				t.Fatalf("SaveSession error = %v, transient failure became terminal metadata rejection", err)
+			}
+		})
+	}
+}
+
+func TestStoreMapsOAuthEndpointPolicyRejectionToInvalidMetadata(t *testing.T) {
+	owner := syntax.DID("did:plc:policy-rejected-endpoint")
+	state := "policy-rejected-endpoint-state"
+	attempt := auth.CallbackAttempt{
+		State: state, AttemptID: uuid.New(), Owner: owner,
+		OwnerGeneration: 1, AuthEpoch: 1, Purpose: auth.LoginOAuthPurpose,
+	}
+	store := auth.NewPostgresAuthStore(nil, auth.StoreConfig{
+		SessionAbsoluteLifetime: time.Hour,
+		EndpointValidator: failingOAuthEndpointValidator{err: &federatedhttp.Error{
+			Kind: federatedhttp.KindDestinationRejected,
+		}},
+	})
+
+	err := store.SaveSession(
+		auth.WithCallbackAttempt(context.Background(), attempt),
+		validOAuthSession(owner, state),
+	)
 	if !errors.Is(err, auth.ErrOAuthSessionEndpointInvalid) {
 		t.Fatalf("SaveSession error = %v, want endpoint metadata invalid", err)
 	}

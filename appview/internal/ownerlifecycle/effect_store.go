@@ -36,12 +36,13 @@ func (store *Store) CreateEffectAttempt(ctx context.Context, request NewEffectAt
 	if err := store.exec(ctx, `
 		INSERT INTO owner_effect_attempts(
 			operation_id,owner_did,owner_generation,effect_kind,effect_action,mutation_key,deterministic_key,
-			request_fingerprint,expected_cid,remote_outcome,projection_disposition,
+			request_fingerprint,record_fingerprint,expected_cid,remote_outcome,projection_disposition,
 			repeat_forbidden,remote_deadline,created_at,updated_at
-		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,'prepared','pending',false,$10,$11,$11)
+		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'prepared','pending',false,$11,$12,$12)
 		ON CONFLICT DO NOTHING
 	`, request.OperationID, request.Owner, request.OwnerGeneration, request.Kind, request.Action,
-		request.MutationKey, request.DeterministicKey, request.RequestFingerprint[:], expectedCID, deadline, now); err != nil {
+		request.MutationKey, request.DeterministicKey, request.RequestFingerprint[:],
+		nullableFingerprint(request.RecordFingerprint), expectedCID, deadline, now); err != nil {
 		return EffectAttempt{}, fmt.Errorf("create owner effect attempt: %w", err)
 	}
 	attempt, err := store.GetEffectAttempt(ctx, request.OperationID)
@@ -64,6 +65,7 @@ func (store *Store) CreateEffectAttempt(ctx context.Context, request NewEffectAt
 		attempt.MutationKey != request.MutationKey ||
 		attempt.DeterministicKey != request.DeterministicKey ||
 		!bytes.Equal(attempt.RequestFingerprint[:], request.RequestFingerprint[:]) ||
+		!bytes.Equal(attempt.RecordFingerprint[:], request.RecordFingerprint[:]) ||
 		attempt.ExpectedCID != request.ExpectedCID {
 		return EffectAttempt{}, ErrAttemptConflict
 	}
@@ -112,7 +114,7 @@ func (store *Store) MarkAttemptDispatched(
 		WHERE operation_id=$1 AND owner_did=$2 AND owner_generation=$3
 		  AND remote_outcome='prepared' AND remote_deadline>$4
 		RETURNING operation_id,owner_did,owner_generation,effect_kind,effect_action,mutation_key,deterministic_key,
-		          request_fingerprint,expected_cid,result_cid,remote_outcome,
+		          request_fingerprint,record_fingerprint,mutation_sequence,expected_cid,result_cid,remote_outcome,
 		          projection_disposition,repeat_forbidden,remote_deadline,
 		          dispatched_at,completed_at,reconciled_at,created_at,updated_at
 	`, operationID, owner, ownerGeneration, now))
@@ -153,7 +155,7 @@ func (store *Store) CompleteEffectAttempt(
 		WHERE operation_id=$1 AND owner_did=$2 AND owner_generation=$3
 		  AND remote_outcome='dispatched'
 		RETURNING operation_id,owner_did,owner_generation,effect_kind,effect_action,mutation_key,deterministic_key,
-		          request_fingerprint,expected_cid,result_cid,remote_outcome,
+		          request_fingerprint,record_fingerprint,mutation_sequence,expected_cid,result_cid,remote_outcome,
 		          projection_disposition,repeat_forbidden,remote_deadline,
 		          dispatched_at,completed_at,reconciled_at,created_at,updated_at
 	`, operationID, owner, ownerGeneration, outcome, nullableString(resultCID), disposition, now))
@@ -206,7 +208,7 @@ func (store *Store) ReconcileEffectAttempt(
 				WHERE operation_id=$1 AND owner_did=$2
 				  AND remote_outcome IN ('dispatched','outcome_unknown_pre_transition')
 				RETURNING operation_id,owner_did,owner_generation,effect_kind,effect_action,mutation_key,deterministic_key,
-				          request_fingerprint,expected_cid,result_cid,remote_outcome,
+				          request_fingerprint,record_fingerprint,mutation_sequence,expected_cid,result_cid,remote_outcome,
 				          projection_disposition,repeat_forbidden,remote_deadline,
 				          dispatched_at,completed_at,reconciled_at,created_at,updated_at
 			`, request.OperationID, request.Owner, request.Outcome,
@@ -246,7 +248,7 @@ func (store *Store) ConfirmReconciledEffectCurrent(
 		  AND result_cid=$3
 		  AND projection_disposition='hidden_non_active'
 		RETURNING operation_id,owner_did,owner_generation,effect_kind,effect_action,mutation_key,deterministic_key,
-		          request_fingerprint,expected_cid,result_cid,remote_outcome,
+		          request_fingerprint,record_fingerprint,mutation_sequence,expected_cid,result_cid,remote_outcome,
 		          projection_disposition,repeat_forbidden,remote_deadline,
 		          dispatched_at,completed_at,reconciled_at,created_at,updated_at
 	`, operationID, owner, currentCID, now))
@@ -333,6 +335,7 @@ func validEffectRequest(request NewEffectAttempt, now time.Time) bool {
 		request.OwnerGeneration > 0 && request.Kind.valid() && request.Action.validFor(request.Kind) &&
 		validBoundedString(request.MutationKey, 512) &&
 		validBoundedString(request.DeterministicKey, 2048) &&
+		validRecordFingerprint(request) &&
 		(request.ExpectedCID == "" || strings.TrimSpace(request.ExpectedCID) != "") &&
 		request.RemoteDeadline.After(now)
 }
@@ -350,7 +353,7 @@ func nullableString(value string) any {
 
 const effectAttemptSelect = `
 	SELECT operation_id,owner_did,owner_generation,effect_kind,effect_action,mutation_key,deterministic_key,
-	       request_fingerprint,expected_cid,result_cid,remote_outcome,
+	       request_fingerprint,record_fingerprint,mutation_sequence,expected_cid,result_cid,remote_outcome,
 	       projection_disposition,repeat_forbidden,remote_deadline,
 	       dispatched_at,completed_at,reconciled_at,created_at,updated_at
 	FROM owner_effect_attempts`
@@ -361,10 +364,11 @@ type effectAttemptRowScanner interface {
 
 func scanEffectAttempt(row effectAttemptRowScanner) (EffectAttempt, error) {
 	var (
-		attempt     EffectAttempt
-		fingerprint []byte
-		expectedCID *string
-		resultCID   *string
+		attempt           EffectAttempt
+		fingerprint       []byte
+		recordFingerprint []byte
+		expectedCID       *string
+		resultCID         *string
 	)
 	err := row.Scan(
 		&attempt.OperationID,
@@ -375,6 +379,8 @@ func scanEffectAttempt(row effectAttemptRowScanner) (EffectAttempt, error) {
 		&attempt.MutationKey,
 		&attempt.DeterministicKey,
 		&fingerprint,
+		&recordFingerprint,
+		&attempt.MutationSequence,
 		&expectedCID,
 		&resultCID,
 		&attempt.Outcome,
@@ -394,6 +400,13 @@ func scanEffectAttempt(row effectAttemptRowScanner) (EffectAttempt, error) {
 		return EffectAttempt{}, errors.New("invalid stored owner effect fingerprint")
 	}
 	copy(attempt.RequestFingerprint[:], fingerprint)
+	if len(recordFingerprint) != 0 && len(recordFingerprint) != sha256.Size {
+		return EffectAttempt{}, errors.New("invalid stored owner effect record fingerprint")
+	}
+	copy(attempt.RecordFingerprint[:], recordFingerprint)
+	if attempt.MutationSequence <= 0 {
+		return EffectAttempt{}, errors.New("invalid stored owner effect mutation sequence")
+	}
 	if expectedCID != nil {
 		attempt.ExpectedCID = *expectedCID
 	}
@@ -401,4 +414,19 @@ func scanEffectAttempt(row effectAttemptRowScanner) (EffectAttempt, error) {
 		attempt.ResultCID = *resultCID
 	}
 	return attempt, nil
+}
+
+func validRecordFingerprint(request NewEffectAttempt) bool {
+	zero := [sha256.Size]byte{}
+	if request.Kind == EffectPDSRecord && request.Action == EffectActionPutRecord {
+		return request.RecordFingerprint != zero
+	}
+	return request.RecordFingerprint == zero
+}
+
+func nullableFingerprint(fingerprint [sha256.Size]byte) any {
+	if fingerprint == ([sha256.Size]byte{}) {
+		return nil
+	}
+	return fingerprint[:]
 }

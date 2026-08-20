@@ -7,7 +7,6 @@ import (
 	"reflect"
 	"testing"
 
-	"social.craftsky/appview/internal/app"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/observability"
 )
@@ -28,8 +27,8 @@ func TestV1RoutePoliciesUseExplicitAccessClasses(t *testing.T) {
 		"POST /v1/dev/moderation/ozone-events":        AccessAnonymous,
 	}
 
-	policies := V1RoutePolicies(app.EnvDev, app.Config{
-		Env:                 app.EnvDev,
+	policies := V1RoutePolicies(EnvDev, Config{
+		Env:                 EnvDev,
 		EnableDevModeration: true,
 		DevModerationToken:  "configured",
 	})

@@ -492,6 +492,21 @@ func (executor *recordingEffectExecutor) ResolveExpectedOwners(
 	return append([]ownerlifecycle.ExpectedOwner(nil), executor.expected...), nil
 }
 
+func (executor *recordingEffectExecutor) ReadRecord(
+	ctx context.Context,
+	request pdseffects.ReadRecordRequest,
+	out any,
+) (syntax.CID, error) {
+	cid, err := executor.pds.GetRecord(
+		ctx,
+		request.Owner,
+		request.Collection.String(),
+		request.Rkey.String(),
+		out,
+	)
+	return syntax.CID(cid), err
+}
+
 func (executor *recordingEffectExecutor) PutRecord(
 	ctx context.Context,
 	request pdseffects.PutRecordRequest,

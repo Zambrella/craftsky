@@ -22,14 +22,17 @@ type Executor struct {
 	now      func() time.Time
 }
 
-// EffectExecutor is the ordinary authenticated mutation capability exposed to
-// handlers. It deliberately omits raw PDS access and read-only reconciliation.
+// EffectExecutor is the ordinary authenticated PDS-effect capability exposed
+// to handlers. It deliberately omits raw PDS access and general reconciliation;
+// its narrow read exists only to obtain authoritative state for conditional
+// mutations inside the same lifecycle boundary.
 type EffectExecutor interface {
 	ResolveExpectedOwners(
 		context.Context,
 		int64,
 		[]syntax.DID,
 	) ([]ownerlifecycle.ExpectedOwner, error)
+	ReadRecord(context.Context, ReadRecordRequest, any) (syntax.CID, error)
 	PutRecord(context.Context, PutRecordRequest) (RecordResult, error)
 	DeleteRecord(context.Context, DeleteRecordRequest) (RecordResult, error)
 	UploadBlob(context.Context, UploadBlobRequest) (*auth.UploadedBlob, error)
@@ -146,6 +149,7 @@ func (executor *Executor) PutRecord(
 					Action:             ownerlifecycle.EffectActionPutRecord,
 					DeterministicKey:   uri.String(),
 					RequestFingerprint: fingerprint,
+					RecordFingerprint:  recordFingerprint,
 					ExpectedCID:        request.ExpectedCID.String(),
 					RemoteDeadline:     executor.now().UTC().Add(executor.timeout),
 				},
@@ -183,6 +187,12 @@ func (executor *Executor) PutRecord(
 				return &OutcomeAmbiguousError{
 					OperationID: request.OperationID,
 					ExactKey:    uri.String(),
+				}
+			case ownerlifecycle.OutcomeRejected:
+				return &ConflictError{
+					OperationID: request.OperationID,
+					ExactKey:    uri.String(),
+					Cause:       auth.ErrRecordSwapConflict,
 				}
 			default:
 				return ErrEffectRejected

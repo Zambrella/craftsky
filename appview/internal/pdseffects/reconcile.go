@@ -51,6 +51,16 @@ func (executor *Executor) ReconcilePutRecord(
 	if err != nil {
 		return RecordResult{}, err
 	}
+	_, recordFingerprint, err := canonicalPutBody(
+		request.Owner,
+		request.Collection,
+		request.Rkey,
+		request.Record,
+		"",
+	)
+	if err != nil {
+		return RecordResult{}, err
+	}
 	uri, err := deterministicRecordURI(request.Owner, request.Collection, request.Rkey)
 	if err != nil {
 		return RecordResult{}, err
@@ -68,6 +78,7 @@ func (executor *Executor) ReconcilePutRecord(
 		ownerlifecycle.EffectActionPutRecord,
 		uri.String(),
 		fingerprint,
+		recordFingerprint,
 		request.ExpectedCID.String(),
 	); err != nil {
 		return RecordResult{}, &ConflictError{
@@ -79,17 +90,6 @@ func (executor *Executor) ReconcilePutRecord(
 	if result, done, err := reconciledRecordResult(attempt, uri); done {
 		return result, err
 	}
-	_, recordFingerprint, err := canonicalPutBody(
-		request.Owner,
-		request.Collection,
-		request.Rkey,
-		request.Record,
-		"",
-	)
-	if err != nil {
-		return RecordResult{}, err
-	}
-
 	var current map[string]any
 	callCtx, cancel := context.WithTimeout(ctx, executor.timeout)
 	cid, readErr := reader.GetRecord(
@@ -188,6 +188,7 @@ func (executor *Executor) ReconcileDeleteRecord(
 		ownerlifecycle.EffectActionDeleteRecord,
 		uri.String(),
 		fingerprint,
+		[32]byte{},
 		request.ExpectedCID.String(),
 	); err != nil {
 		return RecordResult{}, &ConflictError{
@@ -256,12 +257,14 @@ func validateStoredAttempt(
 	action ownerlifecycle.EffectAction,
 	exactKey string,
 	fingerprint [32]byte,
+	recordFingerprint [32]byte,
 	expectedCID string,
 ) error {
 	if attempt.Owner != owner || attempt.OwnerGeneration != generation ||
 		attempt.Kind != kind || attempt.Action != action ||
 		attempt.MutationKey != mutationKey ||
 		attempt.DeterministicKey != exactKey || attempt.RequestFingerprint != fingerprint ||
+		attempt.RecordFingerprint != recordFingerprint ||
 		attempt.ExpectedCID != expectedCID {
 		return ownerlifecycle.ErrAttemptConflict
 	}

@@ -1,0 +1,9 @@
+services:
+  migrate:
+    image: "${APPVIEW_CHECK_IMAGE:?APPVIEW_CHECK_IMAGE is required}"
+    volumes:
+      - "${APPVIEW_CHECK_EMPTY_MIGRATIONS:?APPVIEW_CHECK_EMPTY_MIGRATIONS is required}:/app/migrations:ro"
+
+  appview:
+    image: "${APPVIEW_CHECK_IMAGE:?APPVIEW_CHECK_IMAGE is required}"
+    restart: "no"

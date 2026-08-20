@@ -4,10 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -24,6 +27,18 @@ var (
 type noopBlueskyBackfiller struct{}
 
 func (noopBlueskyBackfiller) Backfill(context.Context, syntax.DID) error { return nil }
+
+// NewTransactionalCraftskyProfile builds the profile projector used by the
+// durable ingestion pipeline. Repository tracking and profile backfill are
+// already committed as repository jobs during source ingestion, so this
+// projector must never perform remote work while its transaction holds locks.
+func NewTransactionalCraftskyProfile(
+	pool *pgxpool.Pool,
+	logger *slog.Logger,
+	actorDeletion notifications.ActorDeletion,
+) *CraftskyProfile {
+	return NewCraftskyProfile(pool, noopBlueskyBackfiller{}, logger, actorDeletion)
+}
 
 func (indexer *CraftskyProfile) Project(ctx context.Context, tx pgx.Tx, event tap.Event) (tap.Outcome, error) {
 	clone := *indexer

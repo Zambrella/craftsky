@@ -222,9 +222,19 @@ func (processor *TerminalPurgeProcessor) ProcessClaim(
 	if !ok {
 		return PurgeBatchResult{}, fmt.Errorf("unknown terminal purge component %s/%s", claim.Component, claim.DIDRole)
 	}
+	moderationScope, err := processor.selectModerationPurgeScope(ctx, entry, claim.Owner)
+	if err != nil {
+		return PurgeBatchResult{}, err
+	}
+	fencedOwners := []syntax.DID{claim.Owner}
+	if len(moderationScope.owners) > 0 {
+		fencedOwners = moderationScope.owners
+	}
 	var result PurgeBatchResult
-	err := processor.store.fencer.WithExclusive(ctx, []syntax.DID{claim.Owner}, func(fenceCtx context.Context) error {
-		return processor.store.beginFenced(fenceCtx, func(tx pgx.Tx) error {
+	err = processor.store.WithExclusiveOwnerStates(
+		ctx,
+		fencedOwners,
+		func(fenceCtx context.Context, tx pgx.Tx, _ map[syntax.DID]Lifecycle) error {
 			now := processor.store.now().UTC().Truncate(time.Microsecond)
 			if err := lockPurgeClaimTx(fenceCtx, tx, claim, now); err != nil {
 				return err
@@ -271,11 +281,13 @@ func (processor *TerminalPurgeProcessor) ProcessClaim(
 						)
 					} else if entry.Table == "moderation_outputs" {
 						result.RowsAffected, err = purgeModerationOutputsBatchTx(
-							fenceCtx, tx, entry, claim.Owner, processor.rowBatchSize, now,
+							fenceCtx, tx, entry, claim.Owner, moderationScope.outputIDs,
+							processor.rowBatchSize, now,
 						)
 					} else if entry.Table == "moderation_restoration_outbox" {
 						result.RowsAffected, err = purgeModerationRestorationOutboxBatchTx(
-							fenceCtx, tx, claim.Owner, processor.rowBatchSize, now,
+							fenceCtx, tx, claim.Owner, moderationScope.outputIDs,
+							processor.rowBatchSize, now,
 						)
 					} else if _, classified := terminalCascadePolicies[entry.Table]; classified {
 						result.RowsAffected, err = deleteLockedTerminalRoleBatchTx(
@@ -301,9 +313,72 @@ func (processor *TerminalPurgeProcessor) ProcessClaim(
 			return finishPurgeClaimTx(
 				fenceCtx, tx, claim, now, result.Complete, processor.retryDelay,
 			)
-		})
-	})
+		},
+	)
 	return result, err
+}
+
+type moderationPurgeScope struct {
+	outputIDs []string
+	owners    []syntax.DID
+}
+
+// selectModerationPurgeScope fixes one bounded parent/outbox batch before any
+// lifecycle fence is acquired. ProcessClaim then takes every participant fence
+// in canonical DID order and restricts deletion to these IDs, so a shifted
+// keyset cannot introduce an unfenced source or target into the transaction.
+func (processor *TerminalPurgeProcessor) selectModerationPurgeScope(
+	ctx context.Context,
+	entry TerminalDIDEntry,
+	owner syntax.DID,
+) (moderationPurgeScope, error) {
+	if entry.Table != "moderation_outputs" && entry.Table != "moderation_restoration_outbox" {
+		return moderationPurgeScope{}, nil
+	}
+	query := `
+		SELECT output.id,output.source_did,output.subject_did
+		FROM moderation_outputs AS output
+		WHERE output.` + quoteIdentifier(entry.Column) + `=$1
+		ORDER BY output.id
+		LIMIT $2
+	`
+	if entry.Table == "moderation_restoration_outbox" {
+		query = `
+			SELECT output.id,output.source_did,output.subject_did
+			FROM moderation_restoration_outbox AS outbox
+			JOIN moderation_outputs AS output ON output.id=outbox.moderation_output_id
+			WHERE outbox.target_did=$1
+			ORDER BY output.id
+			LIMIT $2
+		`
+	}
+	rows, err := processor.store.pool.Query(ctx, query, owner, processor.rowBatchSize)
+	if err != nil {
+		return moderationPurgeScope{}, fmt.Errorf("select terminal moderation fence scope: %w", err)
+	}
+	defer rows.Close()
+	scope := moderationPurgeScope{}
+	participants := []syntax.DID{owner}
+	for rows.Next() {
+		var (
+			outputID string
+			source   syntax.DID
+			subject  syntax.DID
+		)
+		if err := rows.Scan(&outputID, &source, &subject); err != nil {
+			return moderationPurgeScope{}, fmt.Errorf("scan terminal moderation fence scope: %w", err)
+		}
+		scope.outputIDs = append(scope.outputIDs, outputID)
+		participants = append(participants, source, subject)
+	}
+	if err := rows.Err(); err != nil {
+		return moderationPurgeScope{}, fmt.Errorf("iterate terminal moderation fence scope: %w", err)
+	}
+	scope.owners, err = CanonicalOwners(participants)
+	if err != nil {
+		return moderationPurgeScope{}, err
+	}
+	return scope, nil
 }
 
 func lockPurgeClaimTx(ctx context.Context, tx pgx.Tx, claim PurgeClaim, now time.Time) error {
@@ -639,17 +714,21 @@ func purgeModerationOutputsBatchTx(
 	tx pgx.Tx,
 	entry TerminalDIDEntry,
 	owner syntax.DID,
+	outputIDs []string,
 	limit int,
 	now time.Time,
 ) (int64, error) {
+	if len(outputIDs) == 0 {
+		return 0, nil
+	}
 	rows, err := tx.Query(ctx, `
 		SELECT id,subject_did
 		FROM moderation_outputs
-		WHERE `+quoteIdentifier(entry.Column)+`=$1
+		WHERE `+quoteIdentifier(entry.Column)+`=$1 AND id=ANY($3::text[])
 		ORDER BY id
 		LIMIT $2
-		FOR UPDATE SKIP LOCKED
-	`, owner, limit)
+		FOR UPDATE
+	`, owner, limit, outputIDs)
 	if err != nil {
 		return 0, fmt.Errorf("select terminal moderation outputs %s: %w", entry.Role, err)
 	}
@@ -683,6 +762,12 @@ func purgeModerationOutputsBatchTx(
 		if blocked {
 			continue
 		}
+		if _, err := tx.Exec(ctx, `
+			DELETE FROM moderation_idempotency_receipts
+			WHERE output_id=$1
+		`, target.id); err != nil {
+			return deleted, fmt.Errorf("delete terminal moderation idempotency receipt: %w", err)
+		}
 		result, err := tx.Exec(ctx, `
 			DELETE FROM moderation_outputs
 			WHERE id=$1 AND `+quoteIdentifier(entry.Column)+`=$2
@@ -695,32 +780,158 @@ func purgeModerationOutputsBatchTx(
 	return deleted, nil
 }
 
-func purgeModerationRestorationOutboxBatchTx(
+// PurgeModerationOutputsForOwnerTx applies the same role-aware child-first
+// settlement used by terminal purge to an accepted explicit deletion. A DID
+// that is the target/subject wins over its source role, so its restoration is
+// cancelled. Source-only deletion preserves or promotes target-owned work.
+// A live processing reconciliation claim is reported as blocked and left
+// untouched so the caller can roll back and retry the complete cleanup.
+func PurgeModerationOutputsForOwnerTx(
 	ctx context.Context,
 	tx pgx.Tx,
 	owner syntax.DID,
 	limit int,
 	now time.Time,
-) (int64, error) {
+) (deleted int64, blocked bool, err error) {
+	if tx == nil || owner == "" || limit < 1 || limit > maximumTerminalPurgeBatchSize {
+		return 0, false, errors.New("invalid moderation owner purge scope")
+	}
 	rows, err := tx.Query(ctx, `
-		SELECT moderation_output_id
-		FROM moderation_restoration_outbox
-		WHERE target_did=$1
-		ORDER BY moderation_output_id
+		SELECT id
+		FROM moderation_outputs
+		WHERE source_did=$1 OR subject_did=$1
+		ORDER BY id
 		LIMIT $2
-		FOR UPDATE SKIP LOCKED
 	`, owner, limit)
 	if err != nil {
-		return 0, fmt.Errorf("select terminal moderation restoration outbox: %w", err)
+		return 0, false, fmt.Errorf("select owner moderation outputs: %w", err)
 	}
 	var outputIDs []string
 	for rows.Next() {
 		var outputID string
 		if err := rows.Scan(&outputID); err != nil {
 			rows.Close()
-			return 0, fmt.Errorf("scan terminal moderation restoration outbox: %w", err)
+			return 0, false, fmt.Errorf("scan owner moderation output ID: %w", err)
 		}
 		outputIDs = append(outputIDs, outputID)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return 0, false, fmt.Errorf("iterate owner moderation output IDs: %w", err)
+	}
+	rows.Close()
+	return PurgeModerationOutputIDsForOwnerTx(ctx, tx, owner, outputIDs, now)
+}
+
+// PurgeModerationOutputIDsForOwnerTx settles only the batch whose participant
+// owner fences the caller already holds. Restricting the keyset prevents a
+// concurrent deletion from shifting an unfenced participant into this batch.
+func PurgeModerationOutputIDsForOwnerTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	owner syntax.DID,
+	outputIDs []string,
+	now time.Time,
+) (deleted int64, blocked bool, err error) {
+	if tx == nil || owner == "" || len(outputIDs) > maximumTerminalPurgeBatchSize {
+		return 0, false, errors.New("invalid moderation owner purge batch")
+	}
+	if len(outputIDs) == 0 {
+		return 0, false, nil
+	}
+	rows, err := tx.Query(ctx, `
+		SELECT id,subject_did
+		FROM moderation_outputs
+		WHERE (source_did=$1 OR subject_did=$1)
+		  AND id=ANY($2::text[])
+		ORDER BY id
+		FOR UPDATE
+	`, owner, outputIDs)
+	if err != nil {
+		return 0, false, fmt.Errorf("lock owner moderation output batch: %w", err)
+	}
+	type target struct {
+		id      string
+		subject syntax.DID
+	}
+	var targets []target
+	for rows.Next() {
+		var selected target
+		if err := rows.Scan(&selected.id, &selected.subject); err != nil {
+			rows.Close()
+			return 0, false, fmt.Errorf("scan owner moderation output: %w", err)
+		}
+		targets = append(targets, selected)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return 0, false, fmt.Errorf("iterate owner moderation outputs: %w", err)
+	}
+	rows.Close()
+
+	for _, selected := range targets {
+		processing, err := settleModerationRestorationOutboxTx(
+			ctx,
+			tx,
+			selected.id,
+			selected.subject == owner,
+			now,
+		)
+		if err != nil {
+			return deleted, blocked, err
+		}
+		if processing {
+			blocked = true
+			continue
+		}
+		if _, err := tx.Exec(ctx, `
+			DELETE FROM moderation_idempotency_receipts
+			WHERE output_id=$1
+		`, selected.id); err != nil {
+			return deleted, blocked, fmt.Errorf("delete owner moderation idempotency receipt: %w", err)
+		}
+		result, err := tx.Exec(ctx, `
+			DELETE FROM moderation_outputs
+			WHERE id=$1 AND (source_did=$2 OR subject_did=$2)
+		`, selected.id, owner)
+		if err != nil {
+			return deleted, blocked, fmt.Errorf("delete owner moderation output: %w", err)
+		}
+		deleted += result.RowsAffected()
+	}
+	return deleted, blocked, nil
+}
+
+func purgeModerationRestorationOutboxBatchTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	owner syntax.DID,
+	outputIDs []string,
+	limit int,
+	now time.Time,
+) (int64, error) {
+	if len(outputIDs) == 0 {
+		return 0, nil
+	}
+	rows, err := tx.Query(ctx, `
+		SELECT moderation_output_id
+		FROM moderation_restoration_outbox
+		WHERE target_did=$1 AND moderation_output_id=ANY($3::text[])
+		ORDER BY moderation_output_id
+		LIMIT $2
+		FOR UPDATE
+	`, owner, limit, outputIDs)
+	if err != nil {
+		return 0, fmt.Errorf("select terminal moderation restoration outbox: %w", err)
+	}
+	var selectedIDs []string
+	for rows.Next() {
+		var outputID string
+		if err := rows.Scan(&outputID); err != nil {
+			rows.Close()
+			return 0, fmt.Errorf("scan terminal moderation restoration outbox: %w", err)
+		}
+		selectedIDs = append(selectedIDs, outputID)
 	}
 	if err := rows.Err(); err != nil {
 		rows.Close()
@@ -729,7 +940,7 @@ func purgeModerationRestorationOutboxBatchTx(
 	rows.Close()
 
 	var deleted int64
-	for _, outputID := range outputIDs {
+	for _, outputID := range selectedIDs {
 		blocked, err := settleModerationRestorationOutboxTx(ctx, tx, outputID, true, now)
 		if err != nil {
 			return deleted, err
@@ -749,22 +960,44 @@ func settleModerationRestorationOutboxTx(
 	now time.Time,
 ) (bool, error) {
 	var (
-		status      string
-		jobID       *uuid.UUID
-		processedAt *time.Time
+		status          string
+		jobID           *uuid.UUID
+		processedAt     *time.Time
+		targetState     string
+		activeLinkID    *uuid.UUID
+		activeLinkOwner *syntax.DID
 	)
 	err := tx.QueryRow(ctx, `
-		SELECT status,reconciliation_job_id,processed_at
-		FROM moderation_restoration_outbox
-		WHERE moderation_output_id=$1
-		FOR UPDATE
-	`, outputID).Scan(&status, &jobID, &processedAt)
+		SELECT outbox.status,outbox.reconciliation_job_id,outbox.processed_at,
+		       COALESCE(lifecycle.state,''),link.id,link.owner_did
+		FROM moderation_restoration_outbox AS outbox
+		LEFT JOIN owner_lifecycles AS lifecycle
+		  ON lifecycle.owner_did=outbox.target_did
+		LEFT JOIN LATERAL (
+			SELECT id,owner_did
+			FROM instagram_account_links
+			WHERE owner_did=outbox.target_did
+			  AND state='active' AND discoverable AND NOT conflict_pending
+			ORDER BY updated_at DESC,id DESC
+			LIMIT 1
+		) AS link ON true
+		WHERE outbox.moderation_output_id=$1
+		FOR UPDATE OF outbox
+	`, outputID).Scan(
+		&status,
+		&jobID,
+		&processedAt,
+		&targetState,
+		&activeLinkID,
+		&activeLinkOwner,
+	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return false, nil
 	}
 	if err != nil {
 		return false, fmt.Errorf("lock terminal moderation restoration outbox: %w", err)
 	}
+	targetTerminal = targetTerminal || targetState == string(StateTerminal)
 
 	if jobID != nil {
 		var jobStatus string
@@ -778,10 +1011,11 @@ func settleModerationRestorationOutboxTx(
 			return false, fmt.Errorf("lock terminal moderation reconciliation job: %w", err)
 		}
 		if err == nil {
-			switch jobStatus {
-			case "processing":
+			if jobStatus == "processing" {
 				return true, nil
-			case "queued", "retryable":
+			}
+			switch {
+			case targetTerminal && (jobStatus == "queued" || jobStatus == "retryable"):
 				result, err := tx.Exec(ctx, `
 					UPDATE instagram_reconciliation_jobs
 					SET status='ignored',terminal_at=COALESCE(terminal_at,$2),
@@ -794,7 +1028,8 @@ func settleModerationRestorationOutboxTx(
 				if result.RowsAffected() != 1 {
 					return false, errors.New("terminal moderation reconciliation cancellation lost ownership")
 				}
-			case "completed", "ignored", "failed":
+			case jobStatus == "queued" || jobStatus == "retryable" ||
+				jobStatus == "completed" || jobStatus == "ignored" || jobStatus == "failed":
 			default:
 				return false, fmt.Errorf("unknown moderation reconciliation job state %q", jobStatus)
 			}
@@ -803,18 +1038,33 @@ func settleModerationRestorationOutboxTx(
 
 	outcome := status
 	archivedProcessedAt := processedAt
-	switch status {
-	case "pending":
-		outcome = "no_work"
-		if targetTerminal {
-			outcome = "cancelled_target_terminal"
-		}
-		archivedProcessedAt = &now
-	case "queued":
+	switch {
+	case targetTerminal:
+		outcome = "cancelled_target_terminal"
 		if archivedProcessedAt == nil {
 			archivedProcessedAt = &now
 		}
-	case "no_work", "cancelled_target_terminal":
+	case status == "pending":
+		outcome = "no_work"
+		archivedProcessedAt = &now
+		if targetState == string(StateActive) && activeLinkID != nil &&
+			activeLinkOwner != nil && *activeLinkOwner != "" {
+			jobID := uuid.New()
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO instagram_reconciliation_jobs(
+					id,owner_did,link_id,reason,status,next_attempt_at,
+					created_at,updated_at
+				) VALUES($1,$2,$3,$4,'queued',$5,$5,$5)
+			`, jobID, *activeLinkOwner, *activeLinkID, "moderationCleared:"+outputID, now); err != nil {
+				return false, fmt.Errorf("promote terminal-source moderation restoration: %w", err)
+			}
+			outcome = "queued"
+		}
+	case status == "queued":
+		if archivedProcessedAt == nil {
+			archivedProcessedAt = &now
+		}
+	case status == "no_work" || status == "cancelled_target_terminal":
 		if archivedProcessedAt == nil {
 			archivedProcessedAt = &now
 		}

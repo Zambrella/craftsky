@@ -34,6 +34,7 @@ func TestHTTPAdmissionConfigRejectsUnsafeGeometryAndTrust(t *testing.T) {
 		want     string
 	}{
 		{name: "request ceiling exceeds connections", override: "HTTP_MAX_CONNECTIONS=10\nHTTP_MAX_IN_FLIGHT_REQUESTS=11\n", want: "HTTP_MAX_IN_FLIGHT_REQUESTS"},
+		{name: "write timeout above maximum", override: "HTTP_WRITE_TIMEOUT=20m1ns\n", want: "HTTP_WRITE_TIMEOUT"},
 		{name: "write deadline cannot cover read", override: "HTTP_READ_TIMEOUT=2m\nHTTP_WRITE_TIMEOUT=2m\n", want: "HTTP_WRITE_TIMEOUT"},
 		{name: "JSON body budget exceeds read deadline", override: "HTTP_READ_TIMEOUT=5s\nHTTP_JSON_BODY_READ_TIMEOUT=6s\n", want: "HTTP_JSON_BODY_READ_TIMEOUT"},
 		{name: "upload body budget exceeds read deadline", override: "HTTP_READ_TIMEOUT=30s\nHTTP_UPLOAD_BODY_READ_TIMEOUT=31s\n", want: "HTTP_UPLOAD_BODY_READ_TIMEOUT"},
@@ -49,6 +50,36 @@ func TestHTTPAdmissionConfigRejectsUnsafeGeometryAndTrust(t *testing.T) {
 				t.Fatalf("LoadConfig error = %v, want %s", err, test.want)
 			}
 		})
+	}
+}
+
+func TestHTTPAdmissionWriteTimeoutMustCoverUploadAndMediaPut(t *testing.T) {
+	const base = "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap\n" +
+		"HTTP_READ_TIMEOUT=1m10s\n" +
+		"HTTP_UPLOAD_BODY_READ_TIMEOUT=1m\n" +
+		"SCHEDULED_MEDIA_PUT_TIMEOUT=30s\n"
+	_, err := LoadConfig(EnvDev, testConfigFile(t, base+"HTTP_WRITE_TIMEOUT=1m35s\n"))
+	if err == nil {
+		t.Fatal("LoadConfig error = nil, want unsafe write-budget rejection")
+	}
+	for _, field := range []string{
+		"HTTP_WRITE_TIMEOUT",
+		"HTTP_UPLOAD_BODY_READ_TIMEOUT",
+		"SCHEDULED_MEDIA_PUT_TIMEOUT",
+	} {
+		if !strings.Contains(err.Error(), field) {
+			t.Fatalf("LoadConfig error = %v, want %s", err, field)
+		}
+	}
+	if _, err := LoadConfig(EnvDev, testConfigFile(t, base+"HTTP_WRITE_TIMEOUT=1m35s1ns\n")); err != nil {
+		t.Fatalf("LoadConfig one nanosecond above required write budget: %v", err)
+	}
+	if _, err := LoadConfig(EnvDev, testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap\n"+
+		"HTTP_READ_TIMEOUT=5m\n"+
+		"HTTP_UPLOAD_BODY_READ_TIMEOUT=5m\n"+
+		"SCHEDULED_MEDIA_PUT_TIMEOUT=10m\n"+
+		"HTTP_WRITE_TIMEOUT=20m\n")); err != nil {
+		t.Fatalf("LoadConfig coherent duration maxima: %v", err)
 	}
 }
 

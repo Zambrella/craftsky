@@ -6,13 +6,15 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"net/url"
 	"regexp"
+	"strconv"
 )
 
 // renderErrorHTML shows a minimal HTML error page. Used by the OAuth
 // callback since it's loaded in a browser, not by a programmatic client.
 func renderErrorHTML(w http.ResponseWriter, status int, userMessage string) {
-	setCallbackSecurityHeaders(w, "")
+	setCallbackSecurityHeaders(w, "", "")
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
 	_ = errorPageTmpl.Execute(w, errorPageData{Message: userMessage})
@@ -37,17 +39,28 @@ type callbackPageData struct {
 }
 
 func renderCallbackHTML(w http.ResponseWriter, data callbackPageData) error {
+	if data.DeepLinkURL != "" && data.LoopbackURI != "" {
+		return fmt.Errorf("callback cannot use verified-link and loopback handoffs together")
+	}
+	connectSource := ""
+	if data.LoopbackURI != "" {
+		var err error
+		connectSource, err = exactLoopbackOrigin(data.LoopbackURI)
+		if err != nil {
+			return err
+		}
+	}
 	nonceBytes := make([]byte, 18)
 	if _, err := rand.Read(nonceBytes); err != nil {
 		return fmt.Errorf("generate callback CSP nonce: %w", err)
 	}
 	data.Nonce = base64.RawURLEncoding.EncodeToString(nonceBytes)
-	setCallbackSecurityHeaders(w, data.Nonce)
+	setCallbackSecurityHeaders(w, data.Nonce, connectSource)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	return callbackTmpl.Execute(w, data)
 }
 
-func setCallbackSecurityHeaders(w http.ResponseWriter, nonce string) {
+func setCallbackSecurityHeaders(w http.ResponseWriter, nonce, connectSource string) {
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Referrer-Policy", "no-referrer")
@@ -56,7 +69,25 @@ func setCallbackSecurityHeaders(w http.ResponseWriter, nonce string) {
 	if nonce != "" {
 		scriptSource = "'nonce-" + nonce + "'"
 	}
-	w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src "+scriptSource+"; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+	if connectSource == "" {
+		connectSource = "'none'"
+	}
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; script-src "+scriptSource+"; connect-src "+connectSource+"; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+}
+
+func exactLoopbackOrigin(raw string) (string, error) {
+	if !loopbackRedirectPattern.MatchString(raw) {
+		return "", fmt.Errorf("invalid loopback callback URI")
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme != "http" || parsed.Hostname() != "127.0.0.1" {
+		return "", fmt.Errorf("invalid loopback callback URI")
+	}
+	port, err := strconv.Atoi(parsed.Port())
+	if err != nil || port < 1 || port > 65535 {
+		return "", fmt.Errorf("invalid loopback callback port")
+	}
+	return parsed.Scheme + "://" + parsed.Host, nil
 }
 
 // callbackTmpl renders the post-OAuth landing page. Uses html/template's

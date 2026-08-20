@@ -3,7 +3,7 @@ package pdseffects
 import (
 	"context"
 	"errors"
-	"sync/atomic"
+	"sync"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -77,8 +77,8 @@ func (executor *Executor) WithGuardedEffects(
 				token:    &struct{}{},
 				expected: canonical,
 			}
-			scope.active.Store(true)
-			defer scope.active.Store(false)
+			scope.activate()
+			defer scope.closeAndWait()
 			callbackCtx := context.WithValue(effectCtx, guardedEffectContextKey{}, scope.token)
 			scopedExecutor := &callbackEffectExecutor{
 				executor: &Executor{
@@ -101,15 +101,65 @@ type callbackEffectBoundary struct {
 	client   auth.PDSClient
 	token    *struct{}
 	expected []ownerlifecycle.ExpectedOwner
-	active   atomic.Bool
+
+	mu       sync.Mutex
+	idle     *sync.Cond
+	active   bool
+	inFlight int
 }
 
-func (scope *callbackEffectBoundary) authorize(ctx context.Context) error {
-	if scope == nil || ctx == nil || !scope.active.Load() ||
-		ctx.Value(guardedEffectContextKey{}) != scope.token {
+func (scope *callbackEffectBoundary) activate() {
+	if scope == nil {
+		return
+	}
+	scope.mu.Lock()
+	defer scope.mu.Unlock()
+	if scope.idle == nil {
+		scope.idle = sync.NewCond(&scope.mu)
+	}
+	scope.active = true
+}
+
+func (scope *callbackEffectBoundary) enter(ctx context.Context) error {
+	if scope == nil || ctx == nil {
 		return ErrGuardedEffectScopeExpired
 	}
+	scope.mu.Lock()
+	defer scope.mu.Unlock()
+	if !scope.active || ctx.Value(guardedEffectContextKey{}) != scope.token {
+		return ErrGuardedEffectScopeExpired
+	}
+	scope.inFlight++
 	return nil
+}
+
+func (scope *callbackEffectBoundary) leave() {
+	if scope == nil {
+		return
+	}
+	scope.mu.Lock()
+	defer scope.mu.Unlock()
+	if scope.inFlight > 0 {
+		scope.inFlight--
+	}
+	if scope.inFlight == 0 && scope.idle != nil {
+		scope.idle.Broadcast()
+	}
+}
+
+func (scope *callbackEffectBoundary) closeAndWait() {
+	if scope == nil {
+		return
+	}
+	scope.mu.Lock()
+	if scope.idle == nil {
+		scope.idle = sync.NewCond(&scope.mu)
+	}
+	scope.active = false
+	for scope.inFlight > 0 {
+		scope.idle.Wait()
+	}
+	scope.mu.Unlock()
 }
 
 func (scope *callbackEffectBoundary) WithActiveEffects(
@@ -117,9 +167,10 @@ func (scope *callbackEffectBoundary) WithActiveEffects(
 	expected []ownerlifecycle.ExpectedOwner,
 	operation auth.ActiveEffectPDSOperation,
 ) error {
-	if err := scope.authorize(ctx); err != nil {
+	if err := scope.enter(ctx); err != nil {
 		return err
 	}
+	defer scope.leave()
 	canonical, err := canonicalExpectedOwners(expected)
 	if err != nil {
 		return err
@@ -143,19 +194,33 @@ func (executor *callbackEffectExecutor) ResolveExpectedOwners(
 	ownerGeneration int64,
 	targets []syntax.DID,
 ) ([]ownerlifecycle.ExpectedOwner, error) {
-	if err := executor.scope.authorize(ctx); err != nil {
+	if err := executor.scope.enter(ctx); err != nil {
 		return nil, err
 	}
+	defer executor.scope.leave()
 	return executor.executor.ResolveExpectedOwners(ctx, ownerGeneration, targets)
+}
+
+func (executor *callbackEffectExecutor) ReadRecord(
+	ctx context.Context,
+	request ReadRecordRequest,
+	out any,
+) (syntax.CID, error) {
+	if err := executor.scope.enter(ctx); err != nil {
+		return "", err
+	}
+	defer executor.scope.leave()
+	return executor.executor.ReadRecord(ctx, request, out)
 }
 
 func (executor *callbackEffectExecutor) PutRecord(
 	ctx context.Context,
 	request PutRecordRequest,
 ) (RecordResult, error) {
-	if err := executor.scope.authorize(ctx); err != nil {
+	if err := executor.scope.enter(ctx); err != nil {
 		return RecordResult{}, err
 	}
+	defer executor.scope.leave()
 	return executor.executor.PutRecord(ctx, request)
 }
 
@@ -163,9 +228,10 @@ func (executor *callbackEffectExecutor) DeleteRecord(
 	ctx context.Context,
 	request DeleteRecordRequest,
 ) (RecordResult, error) {
-	if err := executor.scope.authorize(ctx); err != nil {
+	if err := executor.scope.enter(ctx); err != nil {
 		return RecordResult{}, err
 	}
+	defer executor.scope.leave()
 	return executor.executor.DeleteRecord(ctx, request)
 }
 
@@ -173,9 +239,10 @@ func (executor *callbackEffectExecutor) UploadBlob(
 	ctx context.Context,
 	request UploadBlobRequest,
 ) (*auth.UploadedBlob, error) {
-	if err := executor.scope.authorize(ctx); err != nil {
+	if err := executor.scope.enter(ctx); err != nil {
 		return nil, err
 	}
+	defer executor.scope.leave()
 	return executor.executor.UploadBlob(ctx, request)
 }
 

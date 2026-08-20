@@ -11,7 +11,16 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const MaxRetentionBatch = 500
+const (
+	MaxRetentionBatch = 500
+
+	// ModerationLiveOutboxRetention bounds target-DID-bearing processed and
+	// cancelled restoration evidence before it is reduced to DID-free history.
+	ModerationLiveOutboxRetention = 30 * 24 * time.Hour
+	// ModerationRestorationHistoryRetention bounds the resulting DID-free
+	// diagnostic history.
+	ModerationRestorationHistoryRetention = 365 * 24 * time.Hour
+)
 
 var ErrInvalidRetentionBatch = errors.New("instagram retention batch must be between 1 and 500")
 
@@ -19,21 +28,23 @@ var ErrInvalidRetentionBatch = errors.New("instagram retention batch must be bet
 // observability because it never contains an owner, username, IGSID, digest,
 // or private graph fact.
 type RetentionStats struct {
-	AttemptsTerminalized   int
-	AttemptsSensitiveClear int
-	AttemptsPurged         int
-	WebhookTerminalized    int
-	WebhookSensitiveClear  int
-	WebhookPurged          int
-	LinksMembershipExpired int
-	LinkIdentityCleared    int
-	LinkTombstonesPurged   int
-	ClaimsPurged           int
-	ConflictsExpired       int
-	ConflictsPurged        int
-	SuggestionsPurged      int
-	RateBucketsPurged      int
-	AuditsPurged           int
+	ModerationOutboxArchived int
+	ModerationHistoryPurged  int
+	AttemptsTerminalized     int
+	AttemptsSensitiveClear   int
+	AttemptsPurged           int
+	WebhookTerminalized      int
+	WebhookSensitiveClear    int
+	WebhookPurged            int
+	LinksMembershipExpired   int
+	LinkIdentityCleared      int
+	LinkTombstonesPurged     int
+	ClaimsPurged             int
+	ConflictsExpired         int
+	ConflictsPurged          int
+	SuggestionsPurged        int
+	RateBucketsPurged        int
+	AuditsPurged             int
 }
 
 // RetentionService applies the fixed privacy maxima from the Instagram
@@ -110,6 +121,8 @@ func (s *RetentionService) Run(ctx context.Context, batch int) (RetentionStats, 
 		destination *int
 		run         func(context.Context, int, time.Time) (int, error)
 	}{
+		{&stats.ModerationOutboxArchived, s.archiveModerationRestorationOutbox},
+		{&stats.ModerationHistoryPurged, s.purgeModerationRestorationHistory},
 		{&stats.AttemptsTerminalized, s.terminalizeAttempts},
 		{&stats.AttemptsSensitiveClear, s.clearTerminalAttemptIdentity},
 		{&stats.AttemptsPurged, s.purgeTerminalAttempts},
@@ -146,6 +159,173 @@ func (s *RetentionService) Run(ctx context.Context, batch int) (RetentionStats, 
 		*step.destination = count
 	}
 	return stats, nil
+}
+
+func (s *RetentionService) archiveModerationRestorationOutbox(
+	ctx context.Context,
+	batch int,
+	now time.Time,
+) (int, error) {
+	count := 0
+	cutoff := now.Add(-ModerationLiveOutboxRetention)
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			SELECT moderation_output_id
+			FROM moderation_restoration_outbox
+			WHERE status IN ('queued','no_work','cancelled_target_terminal')
+			  AND processed_at <= $1
+			ORDER BY processed_at,moderation_output_id
+			LIMIT $2
+		`, cutoff, batch)
+		if err != nil {
+			return fmt.Errorf("select moderation restoration retention candidates: %w", err)
+		}
+		var candidateIDs []string
+		for rows.Next() {
+			var outputID string
+			if err := rows.Scan(&outputID); err != nil {
+				rows.Close()
+				return fmt.Errorf("scan moderation restoration retention candidate: %w", err)
+			}
+			candidateIDs = append(candidateIDs, outputID)
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return fmt.Errorf("iterate moderation restoration retention candidates: %w", err)
+		}
+		rows.Close()
+		if len(candidateIDs) == 0 {
+			return nil
+		}
+
+		// Lifecycle cleanup uses the same parent -> outbox -> downstream-job
+		// lock order. Locking parents canonically here prevents a retention run
+		// from deadlocking with explicit privacy deletion.
+		rows, err = tx.Query(ctx, `
+			SELECT id
+			FROM moderation_outputs
+			WHERE id=ANY($1::text[])
+			ORDER BY id
+			FOR UPDATE SKIP LOCKED
+		`, candidateIDs)
+		if err != nil {
+			return fmt.Errorf("lock moderation outputs for retention: %w", err)
+		}
+		var outputIDs []string
+		for rows.Next() {
+			var outputID string
+			if err := rows.Scan(&outputID); err != nil {
+				rows.Close()
+				return fmt.Errorf("scan moderation output for retention: %w", err)
+			}
+			outputIDs = append(outputIDs, outputID)
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return fmt.Errorf("iterate moderation outputs for retention: %w", err)
+		}
+		rows.Close()
+
+		for _, outputID := range outputIDs {
+			var (
+				status      string
+				jobID       *uuid.UUID
+				processedAt time.Time
+			)
+			err := tx.QueryRow(ctx, `
+				SELECT status,reconciliation_job_id,processed_at
+				FROM moderation_restoration_outbox
+				WHERE moderation_output_id=$1
+				  AND status IN ('queued','no_work','cancelled_target_terminal')
+				  AND processed_at <= $2
+				FOR UPDATE
+			`, outputID, cutoff).Scan(&status, &jobID, &processedAt)
+			if errors.Is(err, pgx.ErrNoRows) {
+				continue
+			}
+			if err != nil {
+				return fmt.Errorf("lock moderation restoration outbox for retention: %w", err)
+			}
+
+			if jobID != nil {
+				var jobStatus string
+				err := tx.QueryRow(ctx, `
+					SELECT status
+					FROM instagram_reconciliation_jobs
+					WHERE id=$1
+					FOR UPDATE
+				`, *jobID).Scan(&jobStatus)
+				if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+					return fmt.Errorf("lock moderation reconciliation job for retention: %w", err)
+				}
+				if err == nil && jobStatus == "processing" {
+					continue
+				}
+			}
+
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO moderation_restoration_history(
+					moderation_output_id,outcome,processed_at,archived_at
+				) VALUES($1,$2,$3,$4)
+				ON CONFLICT(moderation_output_id) DO NOTHING
+			`, outputID, status, processedAt, now); err != nil {
+				return fmt.Errorf("archive moderation restoration outbox for retention: %w", err)
+			}
+			result, err := tx.Exec(ctx, `
+				DELETE FROM moderation_restoration_outbox
+				WHERE moderation_output_id=$1
+			`, outputID)
+			if err != nil {
+				return fmt.Errorf("delete moderation restoration outbox for retention: %w", err)
+			}
+			if result.RowsAffected() != 1 {
+				return errors.New("moderation restoration retention delete lost ownership")
+			}
+			result, err = tx.Exec(ctx, `
+				DELETE FROM moderation_outputs
+				WHERE id=$1
+			`, outputID)
+			if err != nil {
+				return fmt.Errorf("delete moderation output for retention: %w", err)
+			}
+			if result.RowsAffected() != 1 {
+				return errors.New("moderation output retention delete lost ownership")
+			}
+			count++
+		}
+		return nil
+	})
+	return count, err
+}
+
+func (s *RetentionService) purgeModerationRestorationHistory(
+	ctx context.Context,
+	batch int,
+	now time.Time,
+) (int, error) {
+	count := 0
+	cutoff := now.Add(-ModerationRestorationHistoryRetention)
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, `
+			WITH candidates AS (
+				SELECT moderation_output_id
+				FROM moderation_restoration_history
+				WHERE archived_at <= $1
+				ORDER BY archived_at,moderation_output_id
+				FOR UPDATE SKIP LOCKED
+				LIMIT $2
+			)
+			DELETE FROM moderation_restoration_history AS history
+			USING candidates AS candidate
+			WHERE history.moderation_output_id=candidate.moderation_output_id
+		`, cutoff, batch)
+		if err != nil {
+			return fmt.Errorf("purge moderation restoration history: %w", err)
+		}
+		count = int(result.RowsAffected())
+		return nil
+	})
+	return count, err
 }
 
 func (s *RetentionService) validate(batch int) error {

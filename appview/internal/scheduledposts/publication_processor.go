@@ -16,8 +16,28 @@ import (
 	"social.craftsky/appview/internal/pdseffects"
 )
 
+type publicationPreparationStore interface {
+	publicationSnapshot(context.Context, PublishingClaim) (publicationSnapshot, error)
+	SaveFrozenRecord(context.Context, FrozenRecordParams) error
+}
+
+type publicationEffectStore interface {
+	AcquirePublishingEffect(context.Context, PublishingClaim) (*PublishingEffectGuard, error)
+}
+
+type publicationStateStore interface {
+	FinalizePublication(context.Context, FinalizePublicationParams) (FinalizePublicationResult, error)
+	failPublication(context.Context, PublishingClaim, FailureDecision, time.Time) (Status, error)
+}
+
+type publicationProcessorStore interface {
+	publicationPreparationStore
+	publicationEffectStore
+	publicationStateStore
+}
+
 type PublicationProcessorOptions struct {
-	Store         *Store
+	Store         publicationProcessorStore
 	Sessions      PublicationSessionSelector
 	NewEffects    pdseffects.GuardedExecutorFactory
 	Objects       PrivateObjectStore
@@ -28,7 +48,7 @@ type PublicationProcessorOptions struct {
 }
 
 type PublicationProcessor struct {
-	store         *Store
+	store         publicationProcessorStore
 	sessions      PublicationSessionSelector
 	newEffects    pdseffects.GuardedExecutorFactory
 	objects       PrivateObjectStore

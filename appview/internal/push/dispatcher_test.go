@@ -63,6 +63,17 @@ type queueObserver struct {
 
 type privacyObserver struct{ values []string }
 
+type pushOperationObservation struct {
+	stage, platform, semantics, outcome string
+	duration                            time.Duration
+	count                               int64
+}
+
+type operationObserver struct {
+	mu         sync.Mutex
+	operations []pushOperationObservation
+}
+
 type claimedDeliveryRowsStub struct {
 	remaining int
 	err       error
@@ -112,6 +123,48 @@ func (o *privacyObserver) ObservePushQueue(pending int, age time.Duration) {
 	o.values = append(o.values, fmt.Sprint(pending), age.String())
 }
 
+func (*operationObserver) ObservePushDelivery(string, string) {}
+
+func (*operationObserver) ObservePushQueue(int, time.Duration) {}
+
+func (o *operationObserver) ObservePushOperation(
+	stage string,
+	platform string,
+	semantics string,
+	outcome string,
+	duration time.Duration,
+	count int64,
+) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	o.operations = append(o.operations, pushOperationObservation{
+		stage: stage, platform: platform, semantics: semantics, outcome: outcome,
+		duration: duration, count: count,
+	})
+}
+
+func (o *operationObserver) hasOperation(stage, outcome string, count int64) bool {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	for _, operation := range o.operations {
+		if operation.stage == stage && operation.outcome == outcome && operation.count == count {
+			return true
+		}
+	}
+	return false
+}
+
+func (o *operationObserver) operation(stage string) (pushOperationObservation, bool) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+	for _, operation := range o.operations {
+		if operation.stage == stage {
+			return operation, true
+		}
+	}
+	return pushOperationObservation{}, false
+}
+
 type sentinelFailureSender struct{ sentinel string }
 
 func (s sentinelFailureSender) Send(context.Context, SendRequest) (ProviderResult, error) {
@@ -127,6 +180,16 @@ type deadlineCaptureSender struct {
 	request  SendRequest
 	deadline time.Time
 	calls    int
+}
+
+type closingSuccessSender struct{ pool *pgxpool.Pool }
+
+func (sender closingSuccessSender) Send(
+	context.Context,
+	SendRequest,
+) (ProviderResult, error) {
+	sender.pool.Close()
+	return ProviderResult{Class: ResultSuccess}, nil
 }
 
 func (s *deadlineCaptureSender) Send(
@@ -270,6 +333,308 @@ func TestDispatcherSuppressesRelationshipProtectedDeliveryBeforeProviderSend(t *
 				t.Fatalf("provider sends = %d, want 0", sender.requestCount())
 			}
 		})
+	}
+}
+
+func TestDispatcherRechecksNotificationPreferenceBeforeProviderSend(t *testing.T) {
+	tests := []struct {
+		name  string
+		scope string
+		push  bool
+	}{
+		{name: "category disabled", scope: "everyone", push: false},
+		{name: "scope narrowed without follow", scope: "peopleIFollow", push: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			pool := dispatcherPool(t)
+			seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
+			sender := &scriptedSender{}
+			dispatcher := newTestDispatcher(t, pool, sender, DispatcherOptions{})
+			items, err := dispatcher.claimOne(context.Background(), "worker")
+			if err != nil || len(items) != 1 {
+				t.Fatalf("claims=%d err=%v", len(items), err)
+			}
+			if _, err := pool.Exec(context.Background(), `
+				INSERT INTO notification_preferences(account_did,category,scope,push_enabled)
+				VALUES('did:plc:viewer','like',$1,$2)
+			`, test.scope, test.push); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := dispatcher.processClaim(context.Background(), items[0]); err != nil {
+				t.Fatal(err)
+			}
+			if sender.requestCount() != 0 {
+				t.Fatalf("provider sends=%d, want 0 after preference change", sender.requestCount())
+			}
+		})
+	}
+}
+
+func TestDispatcherRechecksPeopleIFollowRelationshipBeforeProviderSend(t *testing.T) {
+	pool := dispatcherPool(t)
+	seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO notification_preferences(account_did,category,scope,push_enabled)
+		VALUES('did:plc:viewer','like','peopleIFollow',true);
+		INSERT INTO atproto_follows(uri,did,subject_did)
+		VALUES('at://did:plc:viewer/app.bsky.graph.follow/r1','did:plc:viewer','did:plc:actor')
+	`); err != nil {
+		t.Fatal(err)
+	}
+	sender := &scriptedSender{}
+	dispatcher := newTestDispatcher(t, pool, sender, DispatcherOptions{})
+	items, err := dispatcher.claimOne(context.Background(), "worker")
+	if err != nil || len(items) != 1 {
+		t.Fatalf("claims=%d err=%v", len(items), err)
+	}
+	if _, err := pool.Exec(context.Background(), `
+		DELETE FROM atproto_follows
+		WHERE did='did:plc:viewer' AND subject_did='did:plc:actor'
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := dispatcher.processClaim(context.Background(), items[0]); err != nil {
+		t.Fatal(err)
+	}
+	if sender.requestCount() != 0 {
+		t.Fatalf("provider sends=%d, want 0 after unfollow", sender.requestCount())
+	}
+}
+
+func TestDispatcherTerminallySettlesCurrentEligibilityInvalidation(t *testing.T) {
+	tests := []struct {
+		name        string
+		beforeClaim func(*testing.T, *pgxpool.Pool)
+		invalidate  func(*testing.T, *pgxpool.Pool)
+		restore     func(*testing.T, *pgxpool.Pool)
+	}{
+		{
+			name: "category disabled",
+			invalidate: func(t *testing.T, pool *pgxpool.Pool) {
+				t.Helper()
+				if _, err := pool.Exec(context.Background(), `
+					INSERT INTO notification_preferences(account_did,category,scope,push_enabled)
+					VALUES('did:plc:viewer','like','everyone',false)
+				`); err != nil {
+					t.Fatal(err)
+				}
+			},
+			restore: func(t *testing.T, pool *pgxpool.Pool) {
+				t.Helper()
+				if _, err := pool.Exec(context.Background(), `
+					UPDATE notification_preferences SET push_enabled=true
+					WHERE account_did='did:plc:viewer' AND category='like'
+				`); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "scope narrowed without follow",
+			invalidate: func(t *testing.T, pool *pgxpool.Pool) {
+				t.Helper()
+				if _, err := pool.Exec(context.Background(), `
+					INSERT INTO notification_preferences(account_did,category,scope,push_enabled)
+					VALUES('did:plc:viewer','like','peopleIFollow',true)
+				`); err != nil {
+					t.Fatal(err)
+				}
+			},
+			restore: func(t *testing.T, pool *pgxpool.Pool) {
+				t.Helper()
+				if _, err := pool.Exec(context.Background(), `
+					UPDATE notification_preferences SET scope='everyone'
+					WHERE account_did='did:plc:viewer' AND category='like'
+				`); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "follow removed after claim",
+			beforeClaim: func(t *testing.T, pool *pgxpool.Pool) {
+				t.Helper()
+				if _, err := pool.Exec(context.Background(), `
+					INSERT INTO notification_preferences(account_did,category,scope,push_enabled)
+					VALUES('did:plc:viewer','like','peopleIFollow',true);
+					INSERT INTO atproto_follows(uri,did,subject_did)
+					VALUES('at://did:plc:viewer/app.bsky.graph.follow/r1','did:plc:viewer','did:plc:actor')
+				`); err != nil {
+					t.Fatal(err)
+				}
+			},
+			invalidate: func(t *testing.T, pool *pgxpool.Pool) {
+				t.Helper()
+				if _, err := pool.Exec(context.Background(), `
+					DELETE FROM atproto_follows
+					WHERE did='did:plc:viewer' AND subject_did='did:plc:actor'
+				`); err != nil {
+					t.Fatal(err)
+				}
+			},
+			restore: func(t *testing.T, pool *pgxpool.Pool) {
+				t.Helper()
+				if _, err := pool.Exec(context.Background(), `
+					INSERT INTO atproto_follows(uri,did,subject_did)
+					VALUES('at://did:plc:viewer/app.bsky.graph.follow/r2','did:plc:viewer','did:plc:actor')
+				`); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			pool := dispatcherPool(t)
+			base := time.Now().UTC().Add(time.Second).Truncate(time.Microsecond)
+			seedDelivery(t, pool, "pending", base.Add(6*time.Hour))
+			if test.beforeClaim != nil {
+				test.beforeClaim(t, pool)
+			}
+			now := base
+			sender := &scriptedSender{}
+			observer := &operationObserver{}
+			dispatcher := newTestDispatcher(t, pool, sender, DispatcherOptions{
+				Now: func() time.Time { return now }, BatchSize: 1,
+				LeaseDuration: time.Minute, Observer: observer,
+			})
+			items, err := dispatcher.claimOne(context.Background(), "worker")
+			if err != nil || len(items) != 1 {
+				t.Fatalf("claims=%d err=%v", len(items), err)
+			}
+			test.invalidate(t, pool)
+
+			if err := dispatcher.processClaim(context.Background(), items[0]); err != nil {
+				t.Fatal(err)
+			}
+			if sender.requestCount() != 0 {
+				t.Fatalf("provider sends=%d, want 0 after eligibility invalidation", sender.requestCount())
+			}
+			var status string
+			var leaseOwner sql.NullString
+			var leaseExpiresAt sql.NullTime
+			if err := pool.QueryRow(context.Background(), `
+				SELECT status,lease_owner,lease_expires_at FROM push_deliveries
+			`).Scan(&status, &leaseOwner, &leaseExpiresAt); err != nil {
+				t.Fatal(err)
+			}
+			if status != "cancelled" || leaseOwner.Valid || leaseExpiresAt.Valid {
+				t.Fatalf(
+					"terminal settlement status=%q owner=%v expiry=%v, want cancelled with no lease",
+					status, leaseOwner, leaseExpiresAt,
+				)
+			}
+			if !observer.hasOperation("finalization", "cancelled", 1) {
+				t.Fatalf("operations=%+v, want cancelled finalization", observer.operations)
+			}
+
+			test.restore(t, pool)
+			now = base.Add(2 * time.Minute)
+			processed, err := dispatcher.ProcessBatch(context.Background(), "later-worker")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if processed != 0 || sender.requestCount() != 0 {
+				t.Fatalf(
+					"restored eligibility processed=%d sends=%d, want terminal delivery untouched",
+					processed, sender.requestCount(),
+				)
+			}
+		})
+	}
+}
+
+func TestDispatcherEligibilityCancellationDoesNotCancelAfterTokenRotation(t *testing.T) {
+	pool := dispatcherPool(t)
+	base := time.Now().UTC().Add(time.Second).Truncate(time.Microsecond)
+	seedDelivery(t, pool, "pending", base.Add(6*time.Hour))
+	now := base
+	observer := &operationObserver{}
+	dispatcher := newTestDispatcher(t, pool, &scriptedSender{}, DispatcherOptions{
+		Now: func() time.Time { return now }, BatchSize: 1,
+		LeaseDuration: time.Minute, Observer: observer,
+	})
+	items, err := dispatcher.claimOne(context.Background(), "worker")
+	if err != nil || len(items) != 1 {
+		t.Fatalf("claims=%d err=%v", len(items), err)
+	}
+	item := items[0]
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO notification_preferences(account_did,category,scope,push_enabled)
+		VALUES('did:plc:viewer','like','everyone',false)
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	current, err := dispatcher.currentDeliveryStatus(context.Background(), item, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !current.routeOwned || current.eligible {
+		t.Fatalf("current delivery state=%+v, want owned but ineligible", current)
+	}
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE push_installations
+		SET fcm_token='rotated-token',updated_at=now()
+		WHERE id='10000000-0000-0000-0000-000000000001'
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := dispatcher.cancelEligibilityInvalid(context.Background(), item, now); err != nil {
+		t.Fatal(err)
+	}
+	var status, token string
+	var leaseOwner sql.NullString
+	var leaseExpiresAt sql.NullTime
+	if err := pool.QueryRow(context.Background(), `
+		SELECT d.status,d.lease_owner,d.lease_expires_at,i.fcm_token
+		FROM push_deliveries d
+		JOIN push_account_subscriptions s ON s.id=d.account_subscription_id
+		JOIN push_installations i ON i.id=s.installation_id
+		WHERE d.id=$1
+	`, item.id).Scan(&status, &leaseOwner, &leaseExpiresAt, &token); err != nil {
+		t.Fatal(err)
+	}
+	if status != "leased" || leaseOwner.String != item.leaseToken ||
+		!leaseExpiresAt.Time.Equal(item.leaseExpiresAt) || token != "rotated-token" {
+		t.Fatalf(
+			"rotated route status=%q owner=%q expiry=%s token=%q, want old lease untouched on rotated-token",
+			status, leaseOwner.String, leaseExpiresAt.Time, token,
+		)
+	}
+	if !observer.hasOperation("finalization", "stale", 1) {
+		t.Fatalf("operations=%+v, want stale finalization after token rotation", observer.operations)
+	}
+}
+
+func TestDispatcherAllowsPeopleIFollowWhenRelationshipIsStillCurrent(t *testing.T) {
+	pool := dispatcherPool(t)
+	seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO notification_preferences(account_did,category,scope,push_enabled)
+		VALUES('did:plc:viewer','like','peopleIFollow',true);
+		INSERT INTO atproto_follows(uri,did,subject_did)
+		VALUES('at://did:plc:viewer/app.bsky.graph.follow/r1','did:plc:viewer','did:plc:actor')
+	`); err != nil {
+		t.Fatal(err)
+	}
+	sender := &scriptedSender{}
+	dispatcher := newTestDispatcher(t, pool, sender, DispatcherOptions{})
+	items, err := dispatcher.claimOne(context.Background(), "worker")
+	if err != nil || len(items) != 1 {
+		t.Fatalf("claims=%d err=%v", len(items), err)
+	}
+	if err := dispatcher.processClaim(context.Background(), items[0]); err != nil {
+		t.Fatal(err)
+	}
+	if sender.requestCount() != 1 {
+		t.Fatalf("provider sends=%d, want 1 for a current followed actor", sender.requestCount())
 	}
 }
 
@@ -442,6 +807,30 @@ func TestDispatchersClaimOneDeliveryOnceAndRecoverExpiredLease(t *testing.T) {
 	}
 	if len(sender.requests) != 2 {
 		t.Fatalf("lease recovery sends=%d", len(sender.requests))
+	}
+}
+
+func TestDispatcherObservesRecoveredLeaseCount(t *testing.T) {
+	pool := dispatcherPool(t)
+	seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE push_deliveries
+		SET status='leased',lease_owner='crashed',
+		    lease_expires_at=now()-interval '1 minute'
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	observer := &operationObserver{}
+	dispatcher := newTestDispatcher(t, pool, &scriptedSender{}, DispatcherOptions{
+		Now: time.Now, BatchSize: 1, LeaseDuration: time.Minute,
+		Observer: observer,
+	})
+	if _, err := dispatcher.ProcessBatch(context.Background(), "recovery"); err != nil {
+		t.Fatal(err)
+	}
+	if !observer.hasOperation("lease_recovery", "reclaimed", 1) {
+		t.Fatalf("operations = %+v, want one reclaimed-lease observation", observer.operations)
 	}
 }
 
@@ -628,12 +1017,44 @@ func TestDispatcherAttemptDeadlineFitsInsidePersistedLease(t *testing.T) {
 	}
 }
 
+func TestDispatcherObservesLeaseSendAndFinalizationStages(t *testing.T) {
+	pool := dispatcherPool(t)
+	seedDelivery(t, pool, "pending", time.Now().Add(time.Hour))
+	observer := &operationObserver{}
+	dispatcher := newTestDispatcher(t, pool, &scriptedSender{}, DispatcherOptions{
+		BatchSize: 1, Concurrency: 1, LeaseDuration: time.Minute,
+		Observer: observer,
+	})
+
+	if processed, err := dispatcher.ProcessBatch(context.Background(), "worker"); err != nil || processed != 1 {
+		t.Fatalf("processed=%d err=%v", processed, err)
+	}
+	for _, expected := range []struct {
+		stage   string
+		outcome string
+	}{
+		{stage: "lease", outcome: "claimed"},
+		{stage: "send", outcome: "success"},
+		{stage: "finalization", outcome: "finalized"},
+	} {
+		operation, ok := observer.operation(expected.stage)
+		if !ok {
+			t.Fatalf("operations = %+v, missing %s stage", observer.operations, expected.stage)
+		}
+		if operation.platform != "ios" || operation.semantics != "unique_event" ||
+			operation.outcome != expected.outcome || operation.duration < 0 || operation.count != 1 {
+			t.Fatalf("%s operation = %+v", expected.stage, operation)
+		}
+	}
+}
+
 func TestDispatcherDoesNotSendWithoutLeaseFinalizationWindow(t *testing.T) {
 	pool := dispatcherPool(t)
 	base := time.Now().UTC().Add(time.Second).Truncate(time.Microsecond)
 	seedDelivery(t, pool, "pending", base.Add(time.Hour))
 	now := base
 	sender := &deadlineCaptureSender{}
+	observer := &operationObserver{}
 	dispatcher := newTestDispatcher(t, pool, sender, DispatcherOptions{
 		BatchSize:          1,
 		Concurrency:        1,
@@ -641,6 +1062,7 @@ func TestDispatcherDoesNotSendWithoutLeaseFinalizationWindow(t *testing.T) {
 		SendTimeout:        10 * time.Second,
 		FinalizationMargin: 5 * time.Second,
 		Now:                func() time.Time { return now },
+		Observer:           observer,
 	})
 	items, err := dispatcher.claimOne(context.Background(), "worker")
 	if err != nil || len(items) != 1 {
@@ -664,6 +1086,9 @@ func TestDispatcherDoesNotSendWithoutLeaseFinalizationWindow(t *testing.T) {
 	if status != "retry" || owner.Valid {
 		t.Fatalf("status=%q owner=%v, want released retry", status, owner)
 	}
+	if !observer.hasOperation("lease", "insufficient_window", 1) {
+		t.Fatalf("operations = %+v, want insufficient-window observation", observer.operations)
+	}
 }
 
 func TestDispatcherRejectsClaimWhenPersistedLeaseIdentityChanges(t *testing.T) {
@@ -683,9 +1108,17 @@ func TestDispatcherRejectsClaimWhenPersistedLeaseIdentityChanges(t *testing.T) {
 		t.Fatalf("claims=%d err=%v", len(items), err)
 	}
 	item := items[0]
+	replacementLease := "replacement-lease-token"
+	replacementExpiry := item.leaseExpiresAt.Add(time.Minute)
 	if _, err := pool.Exec(context.Background(), `
-		UPDATE push_deliveries SET lease_expires_at=$2 WHERE id=$1
-	`, item.id, item.leaseExpiresAt.Add(time.Minute)); err != nil {
+		UPDATE push_deliveries SET lease_owner=$2,lease_expires_at=$3 WHERE id=$1
+	`, item.id, replacementLease, replacementExpiry); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO notification_preferences(account_did,category,scope,push_enabled)
+		VALUES('did:plc:viewer','like','everyone',false)
+	`); err != nil {
 		t.Fatal(err)
 	}
 
@@ -694,6 +1127,19 @@ func TestDispatcherRejectsClaimWhenPersistedLeaseIdentityChanges(t *testing.T) {
 	}
 	if sender.requestCount() != 0 {
 		t.Fatalf("provider sends = %d, want stale claim rejected", sender.requestCount())
+	}
+	var status, leaseOwner string
+	var leaseExpiresAt time.Time
+	if err := pool.QueryRow(context.Background(), `
+		SELECT status,lease_owner,lease_expires_at FROM push_deliveries WHERE id=$1
+	`, item.id).Scan(&status, &leaseOwner, &leaseExpiresAt); err != nil {
+		t.Fatal(err)
+	}
+	if status != "leased" || leaseOwner != replacementLease || !leaseExpiresAt.Equal(replacementExpiry) {
+		t.Fatalf(
+			"replacement lease status=%q owner=%q expiry=%s, want exact newer lease preserved",
+			status, leaseOwner, leaseExpiresAt,
+		)
 	}
 }
 
@@ -735,7 +1181,11 @@ func TestDispatcherCannotFinalizeAfterItsLeaseExpires(t *testing.T) {
 	seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
 	now := time.Now().UTC().Add(time.Second)
 	sender := &blockingSender{started: make(chan int, 1), release: make(chan struct{}, 1)}
-	d := newTestDispatcher(t, pool, sender, DispatcherOptions{Now: func() time.Time { return now }, BatchSize: 1, LeaseDuration: time.Minute})
+	observer := &operationObserver{}
+	d := newTestDispatcher(t, pool, sender, DispatcherOptions{
+		Now: func() time.Time { return now }, BatchSize: 1,
+		LeaseDuration: time.Minute, Observer: observer,
+	})
 	done := make(chan error, 1)
 	go func() { _, err := d.ProcessBatch(context.Background(), "appview"); done <- err }()
 	<-sender.started
@@ -750,6 +1200,29 @@ func TestDispatcherCannotFinalizeAfterItsLeaseExpires(t *testing.T) {
 	}
 	if status == "succeeded" {
 		t.Fatal("provider result finalized after lease expiry")
+	}
+	if !observer.hasOperation("finalization", "accepted_unfinalized", 1) {
+		t.Fatalf("operations = %+v, want accepted-unfinalized ambiguity", observer.operations)
+	}
+}
+
+func TestDispatcherObservesProviderAcceptanceWhenDatabaseFinalizationFails(t *testing.T) {
+	pool := dispatcherPool(t)
+	seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
+	observer := &operationObserver{}
+	dispatcher := newTestDispatcher(t, pool, closingSuccessSender{pool: pool}, DispatcherOptions{
+		Now: time.Now, BatchSize: 1, LeaseDuration: time.Minute, Observer: observer,
+	})
+	items, err := dispatcher.claimOne(context.Background(), "worker")
+	if err != nil || len(items) != 1 {
+		t.Fatalf("claims=%d err=%v", len(items), err)
+	}
+
+	if err := dispatcher.processClaim(context.Background(), items[0]); err == nil {
+		t.Fatal("finalization against a closed database unexpectedly succeeded")
+	}
+	if !observer.hasOperation("finalization", "accepted_unfinalized", 1) {
+		t.Fatalf("operations = %+v, want accepted-unfinalized ambiguity", observer.operations)
 	}
 }
 
@@ -864,6 +1337,7 @@ func TestDispatcherRunRecoversFromTransientStoreFailure(t *testing.T) {
 		CREATE TABLE craftsky_posts(uri TEXT PRIMARY KEY,reply_root_uri TEXT,reply_parent_uri TEXT);
 		CREATE TABLE actor_mutes(owner_did TEXT NOT NULL, subject_did TEXT NOT NULL, PRIMARY KEY(owner_did, subject_did));
 		CREATE TABLE atproto_blocks(uri TEXT PRIMARY KEY, blocker_did TEXT NOT NULL, subject_did TEXT NOT NULL);
+		CREATE TABLE atproto_follows(uri TEXT PRIMARY KEY, did TEXT NOT NULL, subject_did TEXT NOT NULL, UNIQUE(did, subject_did));
 	`)
 	sender := &scriptedSender{}
 	d := newTestDispatcher(t, pool, sender, DispatcherOptions{Now: time.Now, BatchSize: 1, LeaseDuration: time.Minute})
@@ -950,6 +1424,7 @@ func dispatcherPool(t *testing.T) *pgxpool.Pool {
 		CREATE TABLE craftsky_posts(uri TEXT PRIMARY KEY,reply_root_uri TEXT,reply_parent_uri TEXT);
 		CREATE TABLE actor_mutes(owner_did TEXT NOT NULL, subject_did TEXT NOT NULL, PRIMARY KEY(owner_did, subject_did));
 		CREATE TABLE atproto_blocks(uri TEXT PRIMARY KEY, blocker_did TEXT NOT NULL, subject_did TEXT NOT NULL);
+		CREATE TABLE atproto_follows(uri TEXT PRIMARY KEY, did TEXT NOT NULL, subject_did TEXT NOT NULL, UNIQUE(did, subject_did));
 	`)
 	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
 	if err != nil {

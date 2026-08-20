@@ -73,6 +73,144 @@ func TestRetentionServiceEnqueuesExpiredModerationRestoration(t *testing.T) {
 	}
 }
 
+func TestRetentionServiceArchivesModerationOutboxAndBoundsDIDFreeHistory(t *testing.T) {
+	pool, now := newRetentionTest(t)
+	ctx := context.Background()
+	cutoff := now.Add(-30 * 24 * time.Hour)
+	historyCutoff := now.Add(-365 * 24 * time.Hour)
+
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO moderation_outputs(
+			id,source_did,subject_type,subject_did,value,action,created_at,indexed_at
+		) VALUES
+			('retention-no-work','did:plc:moderator','account','did:plc:no-work','hide','negate',$1,$1),
+			('retention-cancelled','did:plc:moderator','account','did:plc:cancelled','hide','negate',$1,$1),
+			('retention-completed','did:plc:moderator','account','did:plc:completed','hide','negate',$1,$1),
+			('retention-future','did:plc:moderator','account','did:plc:future','hide','negate',$1,$1),
+			('retention-pending','did:plc:moderator','account','did:plc:pending','hide','negate',$1,$1),
+			('retention-processing','did:plc:moderator','account','did:plc:processing','hide','negate',$1,$1)
+	`, cutoff.Add(-24*time.Hour)); err != nil {
+		t.Fatalf("seed moderation outputs: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO instagram_reconciliation_jobs(
+			id,owner_did,target_did,reason,status,next_attempt_at,
+			lease_token,lease_expires_at,terminal_at,created_at,updated_at
+		) VALUES
+			('50000000-0000-4000-8000-000000000001','did:plc:completed',NULL,
+			 'moderationCleared:retention-completed','completed',$1,NULL,NULL,$1,$2,$1),
+			('50000000-0000-4000-8000-000000000002','did:plc:processing',NULL,
+			 'moderationCleared:retention-processing','processing',$1,
+			 '50000000-0000-4000-8000-000000000003',$3,NULL,$2,$1)
+	`, now, cutoff.Add(-24*time.Hour), now.Add(time.Hour)); err != nil {
+		t.Fatalf("seed moderation reconciliation jobs: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO moderation_restoration_outbox(
+			moderation_output_id,target_did,status,reconciliation_job_id,
+			created_at,processed_at
+		) VALUES
+			('retention-no-work','did:plc:no-work','no_work',NULL,$1,$2),
+			('retention-cancelled','did:plc:cancelled','cancelled_target_terminal',NULL,$1,$2),
+			('retention-completed','did:plc:completed','queued',
+			 '50000000-0000-4000-8000-000000000001',$1,$2),
+			('retention-future','did:plc:future','no_work',NULL,$1,$2+interval '1 microsecond'),
+			('retention-pending','did:plc:pending','pending',NULL,$1,NULL),
+			('retention-processing','did:plc:processing','queued',
+			 '50000000-0000-4000-8000-000000000002',$1,$2)
+	`, cutoff.Add(-24*time.Hour), cutoff); err != nil {
+		t.Fatalf("seed moderation restoration outbox: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO moderation_idempotency_receipts(
+			request_key_hash,request_fingerprint,output_id,output_status,
+			created_at,expires_at
+		) VALUES (
+			decode(repeat('11',32),'hex'),decode(repeat('22',32),'hex'),
+			'retention-no-work','indexed',$1::timestamptz,$1::timestamptz+interval '24 hours'
+		)
+	`, cutoff.Add(-24*time.Hour)); err != nil {
+		t.Fatalf("seed moderation receipt: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO moderation_restoration_history(
+			moderation_output_id,outcome,processed_at,archived_at
+		) VALUES
+			('expired-history','no_work',$1::timestamptz-interval '1 day',$1::timestamptz),
+			('future-history','no_work',$1::timestamptz-interval '1 day',$1::timestamptz+interval '1 microsecond')
+	`, historyCutoff); err != nil {
+		t.Fatalf("seed moderation restoration history: %v", err)
+	}
+
+	service := NewRetentionService(pool, func() time.Time { return now }, RetentionServiceOptions{})
+	stats, err := service.Run(ctx, 500)
+	if err != nil {
+		t.Fatalf("run moderation retention: %v", err)
+	}
+	if stats.ModerationOutboxArchived != 3 || stats.ModerationHistoryPurged != 1 {
+		t.Fatalf("moderation retention stats = %+v", stats)
+	}
+
+	var archivedLive, archivedParents, receipts int
+	if err := pool.QueryRow(ctx, `
+		SELECT
+			(SELECT count(*) FROM moderation_restoration_outbox
+			 WHERE moderation_output_id=ANY($1::text[])),
+			(SELECT count(*) FROM moderation_outputs
+			 WHERE id=ANY($1::text[])),
+			(SELECT count(*) FROM moderation_idempotency_receipts
+			 WHERE output_id='retention-no-work')
+	`, []string{"retention-no-work", "retention-cancelled", "retention-completed"}).Scan(
+		&archivedLive,
+		&archivedParents,
+		&receipts,
+	); err != nil {
+		t.Fatalf("read archived moderation rows: %v", err)
+	}
+	if archivedLive != 0 || archivedParents != 0 || receipts != 1 {
+		t.Fatalf(
+			"archived live=%d parents=%d receipts=%d, want 0/0/1",
+			archivedLive,
+			archivedParents,
+			receipts,
+		)
+	}
+
+	var keptLive, keptParents, queuedHistory, expiredHistory, futureHistory int
+	if err := pool.QueryRow(ctx, `
+		SELECT
+			(SELECT count(*) FROM moderation_restoration_outbox
+			 WHERE moderation_output_id=ANY($1::text[])),
+			(SELECT count(*) FROM moderation_outputs
+			 WHERE id=ANY($1::text[])),
+			(SELECT count(*) FROM moderation_restoration_history
+			 WHERE moderation_output_id=ANY($2::text[])),
+			(SELECT count(*) FROM moderation_restoration_history
+			 WHERE moderation_output_id='expired-history'),
+			(SELECT count(*) FROM moderation_restoration_history
+			 WHERE moderation_output_id='future-history')
+	`, []string{"retention-future", "retention-pending", "retention-processing"},
+		[]string{"retention-no-work", "retention-cancelled", "retention-completed"}).Scan(
+		&keptLive,
+		&keptParents,
+		&queuedHistory,
+		&expiredHistory,
+		&futureHistory,
+	); err != nil {
+		t.Fatalf("read retained moderation rows: %v", err)
+	}
+	if keptLive != 3 || keptParents != 3 || queuedHistory != 3 || expiredHistory != 0 || futureHistory != 1 {
+		t.Fatalf(
+			"kept live=%d parents=%d history=%d expired=%d future=%d, want 3/3/3/0/1",
+			keptLive,
+			keptParents,
+			queuedHistory,
+			expiredHistory,
+			futureHistory,
+		)
+	}
+}
+
 func TestRetentionServiceExpiresAndPurgesAtExactBoundaries(t *testing.T) {
 	pool, now := newRetentionTest(t)
 	ctx := context.Background()
@@ -350,6 +488,7 @@ func newRetentionTest(t *testing.T) (*pgxpool.Pool, time.Time) {
 	t.Helper()
 	var ddl strings.Builder
 	for _, path := range []string{
+		"../../migrations/000014_moderation_flow.up.sql",
 		"../../migrations/000021_appview_notifications.up.sql",
 		"../../migrations/000022_notification_newness.up.sql",
 		"../../migrations/000025_instagram_migration.up.sql",
@@ -358,6 +497,7 @@ func newRetentionTest(t *testing.T) (*pgxpool.Pool, time.Time) {
 		"../../migrations/000030_instagram_automatic_follows.up.sql",
 		"../../migrations/000031_instagram_automatic_follow_storage_names.up.sql",
 		"../../migrations/000042_instagram_private_suggestions.up.sql",
+		"../../migrations/000044_moderation_restoration_outbox.up.sql",
 	} {
 		migration, err := os.ReadFile(path)
 		if err != nil {

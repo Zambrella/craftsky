@@ -18,6 +18,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 
+	"social.craftsky/appview/internal/federatedhttp"
 	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
@@ -56,6 +57,10 @@ type StoreConfig struct {
 	EndpointValidator            OAuthSessionEndpointValidator
 }
 
+// OAuthSessionEndpointValidator returns federatedhttp.ErrDestinationRejected
+// only for permanent URL/destination-policy violations. Cancellation, timeout,
+// and resolver/dependency failures retain their typed causes so callers can
+// retry without revoking otherwise valid credentials.
 type OAuthSessionEndpointValidator interface {
 	ValidateOrigin(context.Context, string) (*url.URL, error)
 	ValidateOAuthEndpoint(context.Context, string, string) (*url.URL, error)
@@ -359,28 +364,47 @@ func (s *PostgresAuthStore) validateSessionEndpoints(ctx context.Context, sessio
 		return ErrOAuthSessionEndpointInvalid
 	}
 	host, err := s.cfg.EndpointValidator.ValidateOrigin(ctx, session.HostURL)
-	if err != nil || host.String() != session.HostURL {
+	if err != nil {
+		return classifySessionEndpointValidationError(err)
+	}
+	if host == nil || host.String() != session.HostURL {
 		return ErrOAuthSessionEndpointInvalid
 	}
 	issuer, err := s.cfg.EndpointValidator.ValidateOrigin(ctx, session.AuthServerURL)
-	if err != nil || issuer.String() != session.AuthServerURL {
+	if err != nil {
+		return classifySessionEndpointValidationError(err)
+	}
+	if issuer == nil || issuer.String() != session.AuthServerURL {
 		return ErrOAuthSessionEndpointInvalid
 	}
 	tokenEndpoint, err := s.cfg.EndpointValidator.ValidateOAuthEndpoint(
 		ctx, session.AuthServerURL, session.AuthServerTokenEndpoint,
 	)
-	if err != nil || tokenEndpoint.String() != session.AuthServerTokenEndpoint {
+	if err != nil {
+		return classifySessionEndpointValidationError(err)
+	}
+	if tokenEndpoint == nil || tokenEndpoint.String() != session.AuthServerTokenEndpoint {
 		return ErrOAuthSessionEndpointInvalid
 	}
 	if session.AuthServerRevocationEndpoint != "" {
 		revocationEndpoint, err := s.cfg.EndpointValidator.ValidateOAuthEndpoint(
 			ctx, session.AuthServerURL, session.AuthServerRevocationEndpoint,
 		)
-		if err != nil || revocationEndpoint.String() != session.AuthServerRevocationEndpoint {
+		if err != nil {
+			return classifySessionEndpointValidationError(err)
+		}
+		if revocationEndpoint == nil || revocationEndpoint.String() != session.AuthServerRevocationEndpoint {
 			return ErrOAuthSessionEndpointInvalid
 		}
 	}
 	return nil
+}
+
+func classifySessionEndpointValidationError(err error) error {
+	if errors.Is(err, federatedhttp.ErrDestinationRejected) {
+		return ErrOAuthSessionEndpointInvalid
+	}
+	return err
 }
 
 // DeletionCredentialOperationBinder locks and updates the exact account
@@ -787,21 +811,6 @@ func (s *PostgresAuthStore) finishExchangeAttempt(
 		return ErrAuthRequestState
 	}
 	return nil
-}
-
-// cleanupSessions deletes rows older than SessionExpiry by created_at
-// or untouched for SessionInactivity by updated_at. Best-effort; errors
-// are logged at WARN and otherwise ignored so cleanup doesn't mask the
-// caller's real query.
-func (s *PostgresAuthStore) cleanupSessions(ctx context.Context) {
-	expiry := time.Now().Add(-s.cfg.SessionExpiry)
-	inactivity := time.Now().Add(-s.cfg.SessionInactivity)
-	if _, err := s.pool.Exec(ctx,
-		`DELETE FROM oauth_sessions WHERE created_at < $1 OR updated_at < $2`,
-		expiry, inactivity); err != nil {
-		s.cfg.Logger.Warn("oauth_sessions cleanup failed",
-			authLogErrorAttrs("", "oauth.sessions.cleanup", "store")...)
-	}
 }
 
 // AuthRequestSweepStats supplies the bounded queue signals needed by the

@@ -45,6 +45,14 @@ func TestNotificationNewnessAccountWideAcrossDevicesAndIsolatedByAccount(t *test
 	`); err != nil {
 		t.Fatalf("create relationship tables: %v", err)
 	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO owner_lifecycles(
+			owner_did,state,generation,auth_epoch,transition_reason,
+			transitioned_at,created_at,updated_at
+		) VALUES('did:plc:alice','active',1,1,'test',now(),now(),now())
+	`); err != nil {
+		t.Fatalf("seed Alice lifecycle: %v", err)
+	}
 
 	insert := func(id, recipient string) {
 		t.Helper()
@@ -69,6 +77,7 @@ func TestNotificationNewnessAccountWideAcrossDevicesAndIsolatedByAccount(t *test
 
 	deps := testDeps()
 	deps.DB = pool
+	deps.OwnerLifecycles = newRouteOwnerLifecycleStore(t, pool)
 	mux := http.NewServeMux()
 	AddRoutes(ctx, mux, deps)
 

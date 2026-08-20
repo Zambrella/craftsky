@@ -111,9 +111,19 @@ func (s *SearchStore) DeleteRecentSearch(ctx context.Context, viewerDID, id stri
 }
 
 func (s *SearchStore) deleteRecentSearchObserved(ctx context.Context, viewerDID, id string) error {
-	_, err := s.pool.Exec(ctx, `DELETE FROM craftsky_recent_searches WHERE viewer_did = $1 AND id = $2`, viewerDID, id)
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
+		return fmt.Errorf("begin delete recent search: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, syntax.DID(viewerDID), nil); err != nil {
+		return fmt.Errorf("authorize delete recent search: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM craftsky_recent_searches WHERE viewer_did = $1 AND id = $2`, viewerDID, id); err != nil {
 		return fmt.Errorf("delete recent search: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit delete recent search: %w", err)
 	}
 	return nil
 }

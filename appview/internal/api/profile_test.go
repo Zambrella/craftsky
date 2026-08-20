@@ -20,6 +20,8 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/pdseffects"
 )
 
 // fakeStore implements the subset of ProfileStore that handlers call.
@@ -373,35 +375,62 @@ type fakePDSForPut struct {
 	putBskyCalls []map[string]any
 }
 
-func (f *fakePDSForPut) GetRecord(_ context.Context, _ syntax.DID, collection, _ string, out any) (string, error) {
-	if collection == "app.bsky.actor.profile" {
+func (f *fakePDSForPut) ResolveExpectedOwners(
+	_ context.Context,
+	ownerGeneration int64,
+	_ []syntax.DID,
+) ([]ownerlifecycle.ExpectedOwner, error) {
+	return []ownerlifecycle.ExpectedOwner{{Owner: "did:plc:me", Generation: ownerGeneration}}, nil
+}
+
+func (f *fakePDSForPut) ReadRecord(
+	_ context.Context,
+	request pdseffects.ReadRecordRequest,
+	out any,
+) (syntax.CID, error) {
+	if request.Collection == "app.bsky.actor.profile" {
 		rec, err := f.getBsky()
 		if err != nil {
 			return "", err
 		}
 		*(out.(*map[string]any)) = rec
-		return "", nil
+		return "bafy-current-bsky", nil
 	}
-	return "", errors.New("unexpected get collection: " + collection)
+	if request.Collection == "social.craftsky.actor.profile" {
+		return "", auth.ErrRecordNotFound
+	}
+	return "", errors.New("unexpected get collection: " + request.Collection.String())
 }
-func (f *fakePDSForPut) PutRecord(_ context.Context, _ syntax.DID, collection, _ string, body any) error {
-	m, _ := body.(map[string]any)
-	switch collection {
+func (f *fakePDSForPut) PutRecord(
+	_ context.Context,
+	request pdseffects.PutRecordRequest,
+) (pdseffects.RecordResult, error) {
+	m, _ := request.Record.(map[string]any)
+	var err error
+	switch request.Collection {
 	case "app.bsky.actor.profile":
 		f.putBskyCalls = append(f.putBskyCalls, m)
-		return f.putBsky(m)
+		err = f.putBsky(m)
 	case "social.craftsky.actor.profile":
-		return f.putCraftsky(m)
+		err = f.putCraftsky(m)
+	default:
+		return pdseffects.RecordResult{}, errors.New("unexpected put collection: " + request.Collection.String())
 	}
-	return errors.New("unexpected put collection: " + collection)
+	if err != nil {
+		return pdseffects.RecordResult{}, err
+	}
+	return pdseffects.RecordResult{CID: "bafy-updated"}, nil
 }
-func (f *fakePDSForPut) CreateRecord(_ context.Context, _ syntax.DID, _ string, _ any) (syntax.ATURI, syntax.CID, error) {
-	return "", "", errors.New("CreateRecord: not implemented in fakePDSForPut")
+func (f *fakePDSForPut) DeleteRecord(
+	context.Context,
+	pdseffects.DeleteRecordRequest,
+) (pdseffects.RecordResult, error) {
+	return pdseffects.RecordResult{}, errors.New("DeleteRecord: not implemented in fakePDSForPut")
 }
-func (f *fakePDSForPut) DeleteRecord(_ context.Context, _ syntax.DID, _, _ string) error {
-	return errors.New("DeleteRecord: not implemented in fakePDSForPut")
-}
-func (f *fakePDSForPut) UploadBlob(_ context.Context, _ string, _ []byte) (*auth.UploadedBlob, error) {
+func (f *fakePDSForPut) UploadBlob(
+	context.Context,
+	pdseffects.UploadBlobRequest,
+) (*auth.UploadedBlob, error) {
 	return nil, errors.New("UploadBlob: not implemented in fakePDSForPut")
 }
 
@@ -413,15 +442,20 @@ func newPutHandler(
 	resolver fakeResolver,
 ) http.Handler {
 	t.Helper()
-	return api.PutMeProfileHandler(
+	handler := api.PutMeProfileHandler(
 		store,
 		resolver,
-		func(_ context.Context, _ syntax.DID, _ string) (auth.PDSClient, error) {
+		func(_ context.Context, _ syntax.DID, _ string) (pdseffects.EffectExecutor, error) {
 			return pds, nil
 		},
 		api.DefaultMediaLimits(),
 		nilLogger(),
 	)
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := middleware.WithOwnerGeneration(r.Context(), 1)
+		ctx = middleware.WithOAuthSessionID(ctx, "profile-test-session")
+		handler.ServeHTTP(w, r.WithContext(ctx))
+	})
 }
 
 func TestPutProfile_HappyPathMergesBlueskyExtras(t *testing.T) {

@@ -88,6 +88,9 @@ func (s *PostStore) RemoveNotificationSubscription(ctx context.Context, accountD
 		return err
 	}
 	defer tx.Rollback(ctx)
+	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, syntax.DID(accountDID), nil); err != nil {
+		return fmt.Errorf("authorize notification subscription removal: %w", err)
+	}
 	var subscriptionID uuid.UUID
 	err = tx.QueryRow(ctx, `
 		UPDATE push_account_subscriptions subscription

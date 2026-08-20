@@ -131,7 +131,6 @@ func TestModerationStore_TerminalSourceOrSubjectCannotRecreateOutput(t *testing.
 			}
 			if _, err := lifecycles.Terminalize(context.Background(), ownerlifecycle.TerminalizeRequest{
 				Owner: owner, Reason: "identityDeleted",
-				Components: []ownerlifecycle.PurgeComponent{{Component: "moderation", DIDRole: terminalRole}},
 			}); err != nil {
 				t.Fatal(err)
 			}

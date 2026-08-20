@@ -63,7 +63,7 @@ type quarantineReport struct {
 
 func writeTapIngestionBacklog(ctx context.Context, operations tapIngestionOperations, limit int, out io.Writer) error {
 	if operations == nil || out == nil {
-		return errors.New("Tap backlog operations and output are required")
+		return errors.New("tap backlog operations and output are required")
 	}
 	projection, err := operations.ListProjectionBacklog(ctx, limit)
 	if err != nil {
@@ -105,7 +105,7 @@ func writeTapIngestionBacklog(ctx context.Context, operations tapIngestionOperat
 
 func writeTapQuarantine(ctx context.Context, operations tapIngestionOperations, limit int, out io.Writer) error {
 	if operations == nil || out == nil {
-		return errors.New("Tap quarantine operations and output are required")
+		return errors.New("tap quarantine operations and output are required")
 	}
 	items, err := operations.ListQuarantine(ctx, limit)
 	if err != nil {
@@ -128,7 +128,7 @@ func writeTapQuarantine(ctx context.Context, operations tapIngestionOperations, 
 
 func requestTapQuarantineReplay(ctx context.Context, operations tapIngestionOperations, rawFingerprint string) error {
 	if operations == nil {
-		return errors.New("Tap quarantine operations are required")
+		return errors.New("tap quarantine operations are required")
 	}
 	decoded, err := hex.DecodeString(rawFingerprint)
 	if err != nil || len(decoded) != 32 {
@@ -141,7 +141,7 @@ func requestTapQuarantineReplay(ctx context.Context, operations tapIngestionOper
 
 func enqueueTapPDSReconciliation(ctx context.Context, operations tapIngestionOperations, rawDID string) error {
 	if operations == nil {
-		return errors.New("Tap reconciliation operations are required")
+		return errors.New("tap reconciliation operations are required")
 	}
 	did, err := syntax.ParseDID(rawDID)
 	if err != nil {
@@ -152,7 +152,7 @@ func enqueueTapPDSReconciliation(ctx context.Context, operations tapIngestionOpe
 
 func withTapIngestionOperations(ctx context.Context, run func(tapIngestionOperations) error) error {
 	if run == nil {
-		return errors.New("Tap ingestion operation is required")
+		return errors.New("tap ingestion operation is required")
 	}
 	env, err := parseEnvFlag()
 	if err != nil {

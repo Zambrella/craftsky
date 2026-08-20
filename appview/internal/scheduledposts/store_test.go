@@ -611,9 +611,13 @@ func newScheduledPostStoreTestPool(t *testing.T) *pgxpool.Pool {
 	ddl := scheduledPostStorePreStateDDL
 	for _, path := range []string{
 		"../../migrations/000034_scheduled_posts.up.sql",
+		"../../migrations/000039_owner_effects_terminal_purge.up.sql",
 		"../../migrations/000040_scheduled_media_durability.up.sql",
 		"../../migrations/000041_account_deletion_safety_tombstones.up.sql",
+		"../../migrations/000045_tap_ingestion_durability.up.sql",
 		"../../migrations/000048_scheduled_post_owner_generation.up.sql",
+		"../../migrations/000049_pds_effect_action.up.sql",
+		"../../migrations/000050_pds_effect_source_reconciliation.up.sql",
 	} {
 		migration, err := os.ReadFile(path)
 		if err != nil {

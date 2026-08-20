@@ -158,6 +158,48 @@ func TestInstagramPersistentRateLimitFailsClosedWhenLimiterOrIdentityUnavailable
 	}
 }
 
+func TestInstagramPersistentRateLimitDetachesUnreadBodyOnEarlyRejection(t *testing.T) {
+	rules := []InstagramRateLimitRule{{
+		Scope: instagram.RateLimitImportDID, Identity: InstagramRateIdentityGlobal,
+		Window: time.Hour, Limit: 1,
+	}}
+	tests := []struct {
+		name       string
+		limiter    InstagramPersistentLimiter
+		wantStatus int
+	}{
+		{name: "limiter unavailable", wantStatus: http.StatusServiceUnavailable},
+		{
+			name: "rate denied",
+			limiter: &recordingInstagramLimiter{decisions: map[instagram.RateLimitScope]instagram.RateLimitDecision{
+				instagram.RateLimitImportDID: {Allowed: false, RetryAfter: time.Second},
+			}},
+			wantStatus: http.StatusTooManyRequests,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			probe := &countingBodyReader{reader: strings.NewReader(`{"unread":true}`)}
+			handler := InstagramPersistentRateLimit(test.limiter, rules, nil, nil)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+				t.Fatal("rejected request reached handler")
+			}))
+			request := httptest.NewRequest(http.MethodPost, "/v1/migrations/instagram/imports", probe)
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, request)
+
+			if recorder.Code != test.wantStatus {
+				t.Fatalf("status = %d, want %d; body=%s", recorder.Code, test.wantStatus, recorder.Body.String())
+			}
+			if probe.bytesRead != 0 {
+				t.Fatalf("body bytes read = %d, want 0", probe.bytesRead)
+			}
+			if request.Body != http.NoBody || !request.Close || recorder.Header().Get("Connection") != "close" {
+				t.Fatalf("unread body was not detached: body=%T request.Close=%t headers=%v", request.Body, request.Close, recorder.Header())
+			}
+		})
+	}
+}
+
 func TestInstagramWebhookRateLimiterUsesTrustedIPThenGlobalScopes(t *testing.T) {
 	t.Parallel()
 

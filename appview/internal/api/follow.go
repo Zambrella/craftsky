@@ -3,23 +3,27 @@ package api
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
+	"github.com/bluesky-social/indigo/api/bsky"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
-	"social.craftsky/appview/internal/followwrite"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/relationships"
 )
 
-const blueskyFollowCollection = followwrite.Collection
+const blueskyFollowCollection syntax.NSID = "app.bsky.graph.follow"
 
 // FollowGraphStore is the follow-graph read/write subset handlers need.
 type FollowGraphStore interface {
@@ -31,10 +35,9 @@ func FollowProfileHandler(
 	graph FollowGraphStore,
 	profiles ProfileReader,
 	resolver HandleResolver,
-	newPDS auth.PDSClientFactory,
+	newEffects pdseffects.ExecutorFactory,
 	logger *slog.Logger,
 ) http.Handler {
-	followWriter := followwrite.NewService(newPDS)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
 		caller, ok := middleware.GetDID(r.Context())
@@ -84,12 +87,55 @@ func FollowProfileHandler(
 			return
 		}
 		if active == nil {
-			sid, _ := middleware.GetOAuthSessionID(r.Context())
-			err = followWriter.Write(r.Context(), caller, target, sid, nil, time.Now().UTC())
-			if err != nil {
-				writePDSError(w, http.StatusBadGateway,
-					"pds_write_failed", "could not write follow", runID, err)
+			executor, generation, ok := requireFollowEffectExecutor(w, r, newEffects, caller, runID)
+			if !ok {
 				return
+			}
+			expected, err := executor.ResolveExpectedOwners(r.Context(), generation, []syntax.DID{target})
+			if err != nil {
+				writePDSError(w, http.StatusConflict,
+					"pds_write_rejected", "could not authorize follow", runID, err)
+				return
+			}
+			rkey, err := deterministicFollowRecordKey(caller, target)
+			if err != nil {
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "could not allocate follow record", runID, nil)
+				return
+			}
+			var current bsky.GraphFollow
+			_, readErr := executor.ReadRecord(r.Context(), pdseffects.ReadRecordRequest{
+				Owner: caller, OwnerGeneration: generation, ExpectedOwners: expected,
+				Collection: blueskyFollowCollection, Rkey: rkey,
+			}, &current)
+			if readErr == nil {
+				if current.Subject != target.String() {
+					writePDSError(w, http.StatusConflict,
+						"pds_record_conflict", "follow record key is already in use", runID,
+						&pdseffects.ConflictError{ExactKey: rkey.String()})
+					return
+				}
+			} else if !errors.Is(readErr, auth.ErrRecordNotFound) {
+				writePDSError(w, http.StatusBadGateway,
+					"pds_read_failed", "could not read follow", runID, readErr)
+				return
+			} else {
+				operationID, mutationKey := immediateEffectIdentity(runID, "follow.put."+rkey.String())
+				_, err = executor.PutRecord(r.Context(), pdseffects.PutRecordRequest{
+					OperationID: operationID, MutationKey: mutationKey,
+					Owner: caller, OwnerGeneration: generation, ExpectedOwners: expected,
+					Collection: blueskyFollowCollection, Rkey: rkey,
+					Record: &bsky.GraphFollow{
+						LexiconTypeID: blueskyFollowCollection.String(),
+						Subject:       target.String(),
+						CreatedAt:     time.Now().UTC().Format(time.RFC3339),
+					},
+				})
+				if err != nil {
+					writePDSError(w, http.StatusBadGateway,
+						"pds_write_failed", "could not write follow", runID, err)
+					return
+				}
 			}
 		}
 
@@ -102,7 +148,7 @@ func UnfollowProfileHandler(
 	graph FollowGraphStore,
 	profiles ProfileReader,
 	resolver HandleResolver,
-	newPDS auth.PDSClientFactory,
+	newEffects pdseffects.ExecutorFactory,
 	logger *slog.Logger,
 ) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -144,25 +190,84 @@ func UnfollowProfileHandler(
 				"internal_error", "follow graph lookup failed", runID, nil)
 			return
 		}
+		executor, generation, ok := requireFollowEffectExecutor(w, r, newEffects, caller, runID)
+		if !ok {
+			return
+		}
+		expected, err := executor.ResolveExpectedOwners(r.Context(), generation, []syntax.DID{target})
+		if err != nil {
+			writePDSError(w, http.StatusConflict,
+				"pds_write_rejected", "could not authorize unfollow", runID, err)
+			return
+		}
+		known := make(map[syntax.RecordKey]syntax.CID, 2)
+		stableRkey, err := deterministicFollowRecordKey(caller, target)
+		if err != nil {
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "could not allocate follow record", runID, nil)
+			return
+		}
+		known[stableRkey] = ""
 		if active != nil {
-			sid, _ := middleware.GetOAuthSessionID(r.Context())
-			pds, err := newPDS(r.Context(), caller, sid)
-			if err != nil {
-				writePDSError(w, http.StatusBadGateway,
-					"pds_unavailable", "could not contact PDS", runID, err)
+			rkey, parseErr := syntax.ParseRecordKey(active.Rkey)
+			if parseErr != nil {
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "indexed follow record is invalid", runID, nil)
 				return
 			}
-			if err := pds.DeleteRecord(r.Context(), caller, blueskyFollowCollection, active.Rkey); err != nil {
-				if !errors.Is(err, auth.ErrRecordNotFound) {
-					writePDSError(w, http.StatusBadGateway,
-						"pds_write_failed", "could not delete follow", runID, err)
-					return
-				}
+			known[rkey] = syntax.CID(active.CID)
+		}
+		rkeys := make([]syntax.RecordKey, 0, len(known))
+		for rkey := range known {
+			rkeys = append(rkeys, rkey)
+		}
+		sort.Slice(rkeys, func(i, j int) bool { return rkeys[i].String() < rkeys[j].String() })
+		for _, rkey := range rkeys {
+			operationID, mutationKey := immediateEffectIdentity(runID, "follow.delete."+rkey.String())
+			if _, err := executor.DeleteRecord(r.Context(), pdseffects.DeleteRecordRequest{
+				OperationID: operationID, MutationKey: mutationKey,
+				Owner: caller, OwnerGeneration: generation, ExpectedOwners: expected,
+				Collection: blueskyFollowCollection, Rkey: rkey, ExpectedCID: known[rkey],
+			}); err != nil {
+				writePDSError(w, http.StatusBadGateway,
+					"pds_write_failed", "could not delete follow", runID, err)
+				return
 			}
 		}
 
 		writeFollowProfileResponse(w, r, profiles, resolver, target, followingOverride(false))
 	})
+}
+
+func requireFollowEffectExecutor(
+	w http.ResponseWriter,
+	r *http.Request,
+	factory pdseffects.ExecutorFactory,
+	owner syntax.DID,
+	runID string,
+) (pdseffects.EffectExecutor, int64, bool) {
+	generation, ok := requirePDSEffectGeneration(w, r, runID)
+	if !ok {
+		return nil, 0, false
+	}
+	sessionID, ok := middleware.GetOAuthSessionID(r.Context())
+	if !ok || strings.TrimSpace(sessionID) == "" {
+		envelope.WriteError(w, http.StatusUnauthorized,
+			"unauthorized", "authentication required", runID, nil)
+		return nil, 0, false
+	}
+	executor, err := newPDSEffectExecutor(r.Context(), factory, owner, sessionID)
+	if err != nil {
+		writePDSError(w, http.StatusBadGateway,
+			"pds_unavailable", "could not contact PDS", runID, err)
+		return nil, 0, false
+	}
+	return executor, generation, true
+}
+
+func deterministicFollowRecordKey(owner, target syntax.DID) (syntax.RecordKey, error) {
+	digest := sha256.Sum256([]byte(owner.String() + "\x00" + target.String()))
+	return syntax.ParseRecordKey(fmt.Sprintf("craftsky-%x", digest[:16]))
 }
 
 func requireFollowTargetMember(ctx context.Context, profiles ProfileReader, caller, target syntax.DID) (*ProfileRow, error) {

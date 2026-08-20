@@ -221,12 +221,14 @@ func TestReportStore_CreateReport_RejectsTerminalSubject(t *testing.T) {
 	ctx := context.Background()
 	reporter := syntax.DID("did:plc:alice")
 	subject := syntax.DID("did:plc:bob")
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'alice'),($2,'bob')`, reporter, subject); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'alice'),($2,'bob');
 		UPDATE owner_lifecycles
 		SET state='terminal', generation=2, terminal_at=now()
-		WHERE owner_did=$2
-	`, reporter, subject); err != nil {
+		WHERE owner_did=$1
+	`, subject); err != nil {
 		t.Fatal(err)
 	}
 

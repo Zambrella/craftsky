@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -129,5 +130,34 @@ func TestSearchStore_RecentSearchLifecycleDedupesPrunesAndHardDeletes(t *testing
 		if row.ID == deleteID {
 			t.Fatalf("hard-deleted row %s still listed", deleteID)
 		}
+	}
+}
+
+func TestSearchStoreDeleteRecentSearchRejectsStaleOwnerGeneration(t *testing.T) {
+	pool := testdb.WithSchema(t, recentSearchStoreDDL)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO craftsky_recent_searches(
+			id,viewer_did,search_type,display_label,normalized_payload,normalized_payload_hash
+		) VALUES('recent_stale','did:plc:alice','query','test','{"q":"test"}','hash');
+		UPDATE owner_lifecycles SET generation=2 WHERE owner_did='did:plc:alice'
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	err := api.NewSearchStore(pool, nil).DeleteRecentSearch(
+		ownerlifecycle.WithExpectedGeneration(ctx, 1),
+		"did:plc:alice",
+		"recent_stale",
+	)
+	if !errors.Is(err, ownerlifecycle.ErrGenerationChanged) {
+		t.Fatalf("DeleteRecentSearch error = %v, want ErrGenerationChanged", err)
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM craftsky_recent_searches WHERE id='recent_stale'`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("recent search rows = %d, want 1", count)
 	}
 }

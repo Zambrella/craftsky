@@ -95,10 +95,17 @@ type lifecycleBackfillerFake struct{}
 func (lifecycleBackfillerFake) Backfill(context.Context, syntax.DID) error { return nil }
 
 func TestProfileIndexerDeletionQueuesScheduledPrivateMediaCleanup(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000034_scheduled_posts.up.sql")
-	if err != nil {
-		t.Fatalf("read scheduled-post migration: %v", err)
+	readMigration := func(name string) []byte {
+		t.Helper()
+		migration, err := os.ReadFile("../../migrations/" + name)
+		if err != nil {
+			t.Fatalf("read %s: %v", name, err)
+		}
+		return migration
 	}
+	scheduledPostsMigration := readMigration("000034_scheduled_posts.up.sql")
+	scheduledMediaMigration := readMigration("000040_scheduled_media_durability.up.sql")
+	scheduledGenerationMigration := readMigration("000048_scheduled_post_owner_generation.up.sql")
 	pool := testdb.WithSchema(t, `
 		CREATE TABLE craftsky_profiles (
 			did TEXT NOT NULL PRIMARY KEY,
@@ -118,9 +125,28 @@ func TestProfileIndexerDeletionQueuesScheduledPrivateMediaCleanup(t *testing.T) 
 			record_cid TEXT NOT NULL,
 			indexed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 		);
-	`+string(migration))
+		CREATE TABLE owner_lifecycles (
+			owner_did TEXT NOT NULL PRIMARY KEY,
+			state TEXT NOT NULL,
+			generation BIGINT NOT NULL,
+			auth_epoch BIGINT NOT NULL,
+			transition_reason TEXT NOT NULL,
+			transitioned_at TIMESTAMPTZ NOT NULL,
+			terminal_at TIMESTAMPTZ,
+			purge_completed_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+		);
+	`+string(scheduledPostsMigration)+string(scheduledMediaMigration)+string(scheduledGenerationMigration))
 	ctx := context.Background()
 	owner := syntax.DID("did:plc:scheduled-profile-delete")
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO owner_lifecycles(
+			owner_did,state,generation,auth_epoch,transition_reason,transitioned_at
+		) VALUES ($1,'active',1,1,'test seed',now())
+	`, owner); err != nil {
+		t.Fatalf("seed owner lifecycle: %v", err)
+	}
 	if _, err := pool.Exec(ctx,
 		`INSERT INTO craftsky_profiles (did, crafts, record_cid) VALUES ($1, '{}', 'profile-cid')`,
 		owner); err != nil {
@@ -139,32 +165,47 @@ func TestProfileIndexerDeletionQueuesScheduledPrivateMediaCleanup(t *testing.T) 
 	requestHash := sha256.Sum256([]byte("scheduled-profile-delete"))
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO scheduled_posts (
-			id, owner_did, operation_id, request_hash, status, scheduled_at,
+			id, owner_did, owner_generation, operation_id, request_hash, status, scheduled_at,
 			next_attempt_at, payload_bytes, payload_hash
-		) VALUES ($1, $2, $3, $4, 'scheduled', $5, $5, $6, $7)
+		) VALUES ($1, $2, 1, $3, $4, 'scheduled', $5, $5, $6, $7)
 	`, scheduleID, owner,
 		uuid.MustParse("10000000-0000-4000-8000-000000000230"),
 		requestHash[:], now.Add(time.Hour), payload, payloadHash[:]); err != nil {
 		t.Fatalf("seed scheduled post: %v", err)
 	}
 	mediaID := uuid.MustParse("00000000-0000-4000-8000-000000000231")
-	objectKey := "scheduled-media/" + mediaID.String()
+	uploadAttemptID := uuid.MustParse("00000000-0000-5000-8000-000000000231")
+	objectKey := "scheduled-media/v2/1/" + uploadAttemptID.String()
 	mediaHash := sha256.Sum256([]byte("data"))
 	if _, err := pool.Exec(ctx, `
+		INSERT INTO scheduled_post_object_attempts (
+			upload_attempt_id, media_id, owner_did, owner_generation,
+			upload_generation, object_key, request_fingerprint,
+			remote_outcome, remote_started_at, remote_deadline,
+			dispatched_at, completed_at, created_at, updated_at
+		) VALUES (
+			$1,$2,$3,1,1,$4,$5,'accepted',$6,$7,$6,$6,$6,$6
+		)
+	`, uploadAttemptID, mediaID, owner, objectKey, mediaHash[:],
+		now.Add(-2*time.Minute), now.Add(-time.Minute)); err != nil {
+		t.Fatalf("seed scheduled object attempt: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
 		INSERT INTO scheduled_post_media (
-			id, owner_did, object_key, state, schedule_id, ordinal,
+			id, owner_did, owner_generation, upload_generation, upload_attempt_id,
+			object_key, state, schedule_id, ordinal,
 			mime_type, size_bytes, sha256, blob_cid, unclaimed_expires_at
-		) VALUES ($1, $2, $3, 'ready', $4, 0,
-			'image/jpeg', 4, $5, 'bafk-private-profile-delete', $6)
-	`, mediaID, owner, objectKey, scheduleID, mediaHash[:], now.Add(24*time.Hour)); err != nil {
+		) VALUES ($1, $2, 1, 1, $3, $4, 'ready', $5, 0,
+			'image/jpeg', 4, $6, 'bafk-private-profile-delete', $7)
+	`, mediaID, owner, uploadAttemptID, objectKey, scheduleID, mediaHash[:], now.Add(24*time.Hour)); err != nil {
 		t.Fatalf("seed scheduled media: %v", err)
 	}
 	tombstoneHash := sha256.Sum256([]byte("published"))
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO scheduled_post_publication_tombstones (
-			schedule_id, owner_did, operation_id, request_hash,
+			schedule_id, owner_did, owner_generation, operation_id, request_hash,
 			publication_uri, publication_cid, published_at, expires_at
-		) VALUES ($1, $2, $3, $4, $5, 'bafy-published', $6, $7)
+		) VALUES ($1, $2, 1, $3, $4, $5, 'bafy-published', $6, $7)
 	`, uuid.MustParse("00000000-0000-4000-8000-000000000232"), owner,
 		uuid.MustParse("10000000-0000-4000-8000-000000000232"),
 		tombstoneHash[:],

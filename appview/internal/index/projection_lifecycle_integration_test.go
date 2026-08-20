@@ -128,7 +128,7 @@ func TestTransactionalDispatcherRechecksActorGenerationAndState(t *testing.T) {
 	}{
 		{name: "stale active generation", actor: active, generation: 2, action: "update", wantKind: tap.OutcomeBlocked, wantReason: tap.ReasonSourceOrderUncertain},
 		{name: "departed create", actor: departed, generation: 5, action: "create", wantKind: tap.OutcomeBlocked, wantReason: tap.ReasonOwnerDeparted},
-		{name: "current departed delete cleanup", actor: departed, generation: 5, action: "delete", wantKind: tap.OutcomeApplied, wantCalled: true},
+		{name: "current departed delete cleanup", actor: departed, generation: 5, action: "delete", wantKind: tap.OutcomeApplied, wantReason: tap.ReasonNone, wantCalled: true},
 		{name: "stale departed delete", actor: departed, generation: 4, action: "delete", wantKind: tap.OutcomeBlocked, wantReason: tap.ReasonSourceOrderUncertain},
 		{name: "terminal actor", actor: terminal, generation: 8, action: "create", wantKind: tap.OutcomePermanentInvalid, wantReason: tap.ReasonOwnerTerminal},
 	}

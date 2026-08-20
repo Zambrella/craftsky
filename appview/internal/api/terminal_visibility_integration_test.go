@@ -32,7 +32,8 @@ func TestTerminalOwnerIsInvisibleAndIneffectiveBeforePhysicalPurge(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	lifecycle, err := ownerlifecycle.NewStore(pool, fencer, time.Now)
+	clock := time.Now().UTC()
+	lifecycle, err := ownerlifecycle.NewStore(pool, fencer, func() time.Time { return clock })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -372,6 +373,23 @@ func TestTerminalOwnerIsInvisibleAndIneffectiveBeforePhysicalPurge(t *testing.T)
 	if processed != len(ownerlifecycle.TerminalPurgeCatalogue()) {
 		t.Fatalf("processed components=%d, want fixed catalogue size %d", processed, len(ownerlifecycle.TerminalPurgeCatalogue()))
 	}
+	// Parent roles that own cascading children are deliberately rescheduled
+	// rather than deleting an unbounded child fan-out. Advance the deterministic
+	// worker clock and drain those bounded dependency rounds before asserting
+	// physical convergence.
+	for round := 0; round < len(ownerlifecycle.TerminalPurgeCatalogue()); round++ {
+		state, err := lifecycle.Get(ctx, terminal)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if state.PurgeCompletedAt != nil {
+			break
+		}
+		clock = clock.Add(2 * time.Second)
+		if _, err := purger.ProcessBatch(ctx); err != nil {
+			t.Fatalf("drain terminal purge dependency round %d: %v", round+1, err)
+		}
+	}
 	var remainingTerminalReferences int
 	if err := pool.QueryRow(ctx, `
 		SELECT (SELECT count(*) FROM craftsky_profiles WHERE did=$1)
@@ -389,7 +407,30 @@ func TestTerminalOwnerIsInvisibleAndIneffectiveBeforePhysicalPurge(t *testing.T)
 		t.Fatal(err)
 	}
 	if remainingTerminalReferences != 0 {
-		t.Fatalf("terminal physical references after bounded drain=%d, want 0", remainingTerminalReferences)
+		queries := map[string]string{
+			"craftsky_profiles":      `SELECT count(*) FROM craftsky_profiles WHERE did=$1`,
+			"bluesky_profiles":       `SELECT count(*) FROM bluesky_profiles WHERE did=$1`,
+			"atproto_identity_cache": `SELECT count(*) FROM atproto_identity_cache WHERE did=$1`,
+			"craftsky_posts":         `SELECT count(*) FROM craftsky_posts WHERE did=$1`,
+			"craftsky_likes":         `SELECT count(*) FROM craftsky_likes WHERE did=$1`,
+			"craftsky_reposts":       `SELECT count(*) FROM craftsky_reposts WHERE did=$1`,
+			"atproto_follows":        `SELECT count(*) FROM atproto_follows WHERE did=$1 OR subject_did=$1`,
+			"actor_mutes":            `SELECT count(*) FROM actor_mutes WHERE owner_did=$1 OR subject_did=$1`,
+			"atproto_blocks":         `SELECT count(*) FROM atproto_blocks WHERE blocker_did=$1 OR subject_did=$1`,
+			"moderation_outputs":     `SELECT count(*) FROM moderation_outputs WHERE source_did=$1 OR subject_did=$1`,
+			"notification_events":    `SELECT count(*) FROM notification_events WHERE actor_did=$1 OR recipient_did=$1`,
+		}
+		remainingByTable := make(map[string]int)
+		for table, query := range queries {
+			var count int
+			if err := pool.QueryRow(ctx, query, terminal).Scan(&count); err != nil {
+				t.Fatal(err)
+			}
+			if count > 0 {
+				remainingByTable[table] = count
+			}
+		}
+		t.Fatalf("terminal physical references after bounded drain=%d (%v), want 0", remainingTerminalReferences, remainingByTable)
 	}
 	completed, err := lifecycle.Get(ctx, terminal)
 	if err != nil {

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -264,6 +265,175 @@ func TestPermanentProjectionDefectIsQuarantinedInTheJobTransaction(t *testing.T)
 	}
 }
 
+func TestMaximumSizedSourcePermanentProjectionQuarantineCommits(t *testing.T) {
+	pool := testdb.WithSchema(t, ingestionProjectionFixtureDDL)
+	applyTapDurabilityMigration(t, pool)
+	store, err := ingestion.NewStore(pool, time.Now)
+	if err != nil {
+		t.Fatalf("new ingestion store: %v", err)
+	}
+	ctx := context.Background()
+	const sourceLimit = 1 << 20
+	prefix := []byte(`{"crafts":"not-an-array","padding":"`)
+	suffix := []byte(`"}`)
+	record := make([]byte, 0, sourceLimit)
+	record = append(record, prefix...)
+	record = append(record, bytes.Repeat([]byte("x"), sourceLimit-len(prefix)-len(suffix))...)
+	record = append(record, suffix...)
+	if len(record) != sourceLimit || !json.Valid(record) {
+		t.Fatalf("maximum source record bytes=%d valid=%t", len(record), json.Valid(record))
+	}
+
+	uri := syntax.ATURI("at://did:plc:max-quarantine/social.craftsky.actor.profile/self")
+	if _, err := store.IngestRecord(ctx, tap.Event{
+		ID: 53, URI: uri, DID: "did:plc:max-quarantine", Collection: "social.craftsky.actor.profile",
+		Rkey: "self", Rev: "3m00000000053", CID: "bafy-max-quarantine", Action: "create",
+		Record: record,
+	}); err != nil {
+		t.Fatalf("ingest maximum syntactically valid source: %v", err)
+	}
+	claim := claimOneProjection(t, store, "worker-max-quarantine")
+	if err := store.Project(ctx, claim, func(context.Context, pgx.Tx, ingestion.SourceRecord) (tap.Outcome, error) {
+		return tap.PermanentInvalid(tap.ReasonMalformedRecord), nil
+	}); err != nil {
+		t.Fatalf("commit maximum permanent projection quarantine: %v", err)
+	}
+
+	job, err := store.ProjectionJob(ctx, uri)
+	if err != nil || job.State != "permanent_denied" {
+		t.Fatalf("job=%+v err=%v", job, err)
+	}
+	var diagnosticEnvelope, replayEnvelope []byte
+	if err := pool.QueryRow(ctx, `
+		SELECT envelope,replay_envelope
+		FROM tap_quarantined_events
+		WHERE tap_event_id=53 AND reason_code='malformed_record'
+	`).Scan(&diagnosticEnvelope, &replayEnvelope); err != nil {
+		t.Fatalf("read maximum source quarantine: %v", err)
+	}
+	if len(diagnosticEnvelope) > 64<<10 {
+		t.Fatalf("diagnostic envelope bytes=%d, want at most 65536", len(diagnosticEnvelope))
+	}
+	if len(replayEnvelope) == 0 || len(replayEnvelope) > tap.MaxFrameBytes {
+		t.Fatalf("replay envelope bytes=%d, want 1..%d", len(replayEnvelope), tap.MaxFrameBytes)
+	}
+	var replay struct {
+		Source struct {
+			URI               string   `json:"URI"`
+			SourceEventID     uint64   `json:"SourceEventID"`
+			SourceFingerprint [32]byte `json:"SourceFingerprint"`
+		} `json:"source"`
+	}
+	if err := json.Unmarshal(replayEnvelope, &replay); err != nil {
+		t.Fatalf("decode maximum source replay envelope: %v", err)
+	}
+	if replay.Source.URI != uri.String() || replay.Source.SourceEventID != 53 ||
+		replay.Source.SourceFingerprint == ([32]byte{}) {
+		t.Fatalf("unexpected maximum source replay envelope identity")
+	}
+	var replayFields map[string]json.RawMessage
+	if err := json.Unmarshal(replayEnvelope, &replayFields); err != nil {
+		t.Fatalf("decode maximum source replay fields: %v", err)
+	}
+	if _, present := replayFields["record"]; present {
+		t.Fatal("maximum source replay envelope retained durable source record")
+	}
+}
+
+func TestJSONBExpandedSourcePermanentProjectionQuarantineCommits(t *testing.T) {
+	pool := testdb.WithSchema(t, ingestionProjectionFixtureDDL)
+	applyTapDurabilityMigration(t, pool)
+	store, err := ingestion.NewStore(pool, time.Now)
+	if err != nil {
+		t.Fatalf("new ingestion store: %v", err)
+	}
+	ctx := context.Background()
+
+	// PostgreSQL JSONB normalizes exponent notation into a full decimal. This
+	// tiny valid wire record expands beyond Tap's 2 MiB frame limit after the
+	// durable source row is read back, so projection replay must never embed it.
+	var record strings.Builder
+	record.WriteString(`{"crafts":"not-an-array"`)
+	for index := range 17 {
+		record.WriteString(`,"n`)
+		record.WriteString(string(rune('a' + index)))
+		record.WriteString(`":1e131071`)
+	}
+	record.WriteByte('}')
+	rawRecord := []byte(record.String())
+	if len(rawRecord) >= 1<<20 || !json.Valid(rawRecord) {
+		t.Fatalf("expanding source record bytes=%d valid=%t", len(rawRecord), json.Valid(rawRecord))
+	}
+
+	uri := syntax.ATURI("at://did:plc:jsonb-expanded-quarantine/social.craftsky.actor.profile/self")
+	if _, err := store.IngestRecord(ctx, tap.Event{
+		ID: 54, URI: uri, DID: "did:plc:jsonb-expanded-quarantine", Collection: "social.craftsky.actor.profile",
+		Rkey: "self", Rev: "3m00000000054", CID: "bafy-jsonb-expanded-quarantine", Action: "create",
+		Record: rawRecord,
+	}); err != nil {
+		t.Fatalf("ingest compact source: %v", err)
+	}
+	claim := claimOneProjection(t, store, "worker-jsonb-expanded-quarantine")
+	if err := store.Project(ctx, claim, func(context.Context, pgx.Tx, ingestion.SourceRecord) (tap.Outcome, error) {
+		return tap.PermanentInvalid(tap.ReasonMalformedRecord), nil
+	}); err != nil {
+		t.Fatalf("commit JSONB-expanded permanent projection quarantine: %v", err)
+	}
+
+	job, err := store.ProjectionJob(ctx, uri)
+	if err != nil || job.State != "permanent_denied" {
+		t.Fatalf("job=%+v err=%v", job, err)
+	}
+	var replayEnvelope []byte
+	if err := pool.QueryRow(ctx, `
+		SELECT replay_envelope
+		FROM tap_quarantined_events
+		WHERE tap_event_id=54 AND reason_code='malformed_record'
+	`).Scan(&replayEnvelope); err != nil {
+		t.Fatalf("read JSONB-expanded source quarantine: %v", err)
+	}
+	var replay map[string]json.RawMessage
+	if err := json.Unmarshal(replayEnvelope, &replay); err != nil {
+		t.Fatalf("decode JSONB-expanded source replay envelope: %v", err)
+	}
+	if _, present := replay["record"]; present {
+		t.Fatal("projection replay envelope retained JSONB source record")
+	}
+}
+
+func TestEscapedNULSourceReachesPermanentProjectionClassification(t *testing.T) {
+	pool := testdb.WithSchema(t, ingestionProjectionFixtureDDL)
+	applyTapDurabilityMigration(t, pool)
+	store, err := ingestion.NewStore(pool, time.Now)
+	if err != nil {
+		t.Fatalf("new ingestion store: %v", err)
+	}
+	ctx := context.Background()
+	rawRecord := json.RawMessage(`{"crafts":"not-an-array","unknown":"\u0000"}`)
+	if !json.Valid(rawRecord) {
+		t.Fatal("escaped-NUL source fixture is not valid JSON")
+	}
+
+	uri := syntax.ATURI("at://did:plc:escaped-nul-quarantine/social.craftsky.actor.profile/self")
+	if _, err := store.IngestRecord(ctx, tap.Event{
+		ID: 55, URI: uri, DID: "did:plc:escaped-nul-quarantine", Collection: "social.craftsky.actor.profile",
+		Rkey: "self", Rev: "3m00000000055", CID: "bafy-escaped-nul-quarantine", Action: "create",
+		Record: rawRecord,
+	}); err != nil {
+		t.Fatalf("ingest syntactically valid escaped-NUL source: %v", err)
+	}
+	claim := claimOneProjection(t, store, "worker-escaped-nul-quarantine")
+	if err := store.Project(ctx, claim, func(context.Context, pgx.Tx, ingestion.SourceRecord) (tap.Outcome, error) {
+		return tap.PermanentInvalid(tap.ReasonMalformedRecord), nil
+	}); err != nil {
+		t.Fatalf("classify escaped-NUL projection defect: %v", err)
+	}
+	job, err := store.ProjectionJob(ctx, uri)
+	if err != nil || job.State != "permanent_denied" {
+		t.Fatalf("job=%+v err=%v", job, err)
+	}
+}
+
 func TestMalformedInteractionIsPersistedBeforeProjectionClassification(t *testing.T) {
 	pool := testdb.WithSchema(t, ingestionProjectionFixtureDDL)
 	applyTapDurabilityMigration(t, pool)
@@ -336,12 +506,17 @@ func applyTapDurabilityMigration(t *testing.T, pool interface {
 	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
 }) {
 	t.Helper()
-	sql, err := os.ReadFile("../../migrations/000045_tap_ingestion_durability.up.sql")
-	if err != nil {
-		t.Fatalf("read Tap durability migration: %v", err)
-	}
-	if _, err := pool.Exec(context.Background(), string(sql)); err != nil {
-		t.Fatalf("apply Tap durability migration: %v", err)
+	for _, path := range []string{
+		"../../migrations/000045_tap_ingestion_durability.up.sql",
+		"../../migrations/000051_tap_quarantine_replay_payload.up.sql",
+	} {
+		sql, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read Tap durability migration %s: %v", path, err)
+		}
+		if _, err := pool.Exec(context.Background(), string(sql)); err != nil {
+			t.Fatalf("apply Tap durability migration %s: %v", path, err)
+		}
 	}
 }
 

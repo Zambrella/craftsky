@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for required_command in curl docker git go rg; do
+for required_command in curl docker git go just rg; do
   if ! command -v "$required_command" >/dev/null 2>&1; then
     echo "appview-check: required command is unavailable: $required_command" >&2
     exit 1
@@ -16,6 +16,7 @@ script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 check_root=$(cd "$script_dir/.." && pwd)
 appview_dir="$check_root/appview"
 compose_file="$check_root/docker-compose.yml"
+migration_failure_override="$check_root/scripts/appview-check-migration-failure.override.yml"
 artifact_dir=${APPVIEW_CHECK_ARTIFACT_DIR:-}
 if [[ -z "$artifact_dir" ]]; then
   artifact_dir=$(mktemp -d)
@@ -27,13 +28,21 @@ if [[ -e "$artifact_dir/audit-evidence" ]]; then
   echo "appview-check: artifact directory already contains audit-evidence: $artifact_dir" >&2
   exit 1
 fi
+tool_bin_dir=$(mktemp -d)
+staticcheck_bin="$tool_bin_dir/staticcheck"
+govulncheck_bin="$tool_bin_dir/govulncheck"
 
 gate_project="craftsky_appview_check_${RANDOM}_$$"
+failure_project="${gate_project}_migration_failure"
 gate_image="craftsky-appview-check:${RANDOM}-$$"
+media_image="craftsky-appview-media-check:${RANDOM}-$$"
 extract_container="${gate_project}_extract"
 smoke_container="${gate_project}_smoke"
 compose_started=false
+failure_compose_started=false
 image_built=false
+media_image_built=false
+media_containers=()
 
 cleanup() {
   local status=$?
@@ -42,6 +51,21 @@ cleanup() {
   docker logs "$smoke_container" >"$artifact_dir/appview-smoke.log" 2>&1
   docker rm -f "$smoke_container" >/dev/null 2>&1
   docker rm -f "$extract_container" >/dev/null 2>&1
+  if (( ${#media_containers[@]} > 0 )); then
+    docker rm -f "${media_containers[@]}" >/dev/null 2>&1
+  fi
+  if [[ "$failure_compose_started" == "true" ]]; then
+    docker compose \
+      -f "$compose_file" \
+      -f "$migration_failure_override" \
+      -p "$failure_project" \
+      logs --no-color >"$artifact_dir/migration-failure-compose.log" 2>&1
+    docker compose \
+      -f "$compose_file" \
+      -f "$migration_failure_override" \
+      -p "$failure_project" \
+      down --volumes --remove-orphans >/dev/null 2>&1
+  fi
   if [[ "$compose_started" == "true" ]]; then
     docker compose -f "$compose_file" -p "$gate_project" logs --no-color >"$artifact_dir/compose.log" 2>&1
     docker compose -f "$compose_file" -p "$gate_project" down --volumes --remove-orphans >/dev/null 2>&1
@@ -49,6 +73,11 @@ cleanup() {
   if [[ "$image_built" == "true" ]]; then
     docker image rm "$gate_image" >/dev/null 2>&1
   fi
+  if [[ "$media_image_built" == "true" ]]; then
+    docker image rm "$media_image" >/dev/null 2>&1
+  fi
+  rm -f "$staticcheck_bin" "$govulncheck_bin"
+  rmdir "$tool_bin_dir" >/dev/null 2>&1
   echo "appview-check artifacts: $artifact_dir"
   exit "$status"
 }
@@ -65,6 +94,14 @@ toolchain_goroot=$(go env GOROOT)
 cd "$appview_dir"
 go mod verify
 go mod tidy -diff
+
+# Regenerate the checked-in AT Protocol types with the exact Indigo version in
+# go.mod and fail if either generator inputs or outputs drift. Keep this inside
+# the release gate so CI evidence covers generated code as well as modules.
+cd "$check_root"
+just lexgen-check 2>&1 | tee "$artifact_dir/lexgen-check.log"
+cd "$appview_dir"
+
 unformatted=$("$toolchain_goroot/bin/gofmt" -l .)
 if [[ -n "$unformatted" ]]; then
   echo "appview-check: gofmt is required for:" >&2
@@ -73,12 +110,14 @@ if [[ -n "$unformatted" ]]; then
 fi
 go vet ./...
 
-staticcheck_version=$(go run honnef.co/go/tools/cmd/staticcheck@2026.1 -version)
+GOBIN="$tool_bin_dir" go install honnef.co/go/tools/cmd/staticcheck@2026.1
+GOBIN="$tool_bin_dir" go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
+staticcheck_version=$("$staticcheck_bin" -version)
 if [[ "$staticcheck_version" != "staticcheck 2026.1 (v0.7.0)" ]]; then
   echo "appview-check: unexpected Staticcheck identity: $staticcheck_version" >&2
   exit 1
 fi
-govulncheck_version=$(go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 -version)
+govulncheck_version=$("$govulncheck_bin" -version)
 if ! printf '%s\n' "$govulncheck_version" | rg -q '^Scanner: govulncheck@v1\.7\.0$'; then
   echo "appview-check: unexpected govulncheck identity" >&2
   printf '%s\n' "$govulncheck_version" >&2
@@ -98,9 +137,9 @@ fi
   docker version --format 'docker_client={{.Client.Version}} docker_server={{.Server.Version}}'
 } >"$artifact_dir/tool-identities.txt"
 
-go run honnef.co/go/tools/cmd/staticcheck@2026.1 ./...
+"$staticcheck_bin" ./...
 source_scan_clean=false
-go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 ./... 2>&1 \
+"$govulncheck_bin" ./... 2>&1 \
   | tee "$artifact_dir/govuln-source.log"
 source_scan_clean=true
 
@@ -161,6 +200,13 @@ docker build --pull --metadata-file "$artifact_dir/image-build-metadata.json" -t
 image_built=true
 docker image inspect "$gate_image" >"$artifact_dir/image-inspect.json"
 docker build \
+  --target media-decode-evidence \
+  --metadata-file "$artifact_dir/media-image-build-metadata.json" \
+  -t "$media_image" \
+  appview
+media_image_built=true
+docker image inspect "$media_image" >"$artifact_dir/media-image-inspect.json"
+docker build \
   --target audit-evidence \
   --metadata-file "$artifact_dir/evidence-build-metadata.json" \
   --output "type=local,dest=$artifact_dir/audit-evidence" \
@@ -178,6 +224,8 @@ cp "$artifact_dir/audit-evidence/cli-deps.txt" "$artifact_dir/cli-deps.txt"
 # when govulncheck/vulndb gains package-precise binary handling for
 # GO-2026-5932. It is valid only with a clean source scan, no OpenPGP
 # dependency, and zero OpenPGP symbols in the same-builder companion.
+binary_exception_expires_on="2026-09-20"
+binary_exception_review="docs/2026-appview-code-audit-plan/05-implementation-plan.md#step-1-gate-001"
 scan_release_binary() {
   local binary_name=$1
   local release_binary="$artifact_dir/$binary_name"
@@ -191,8 +239,7 @@ scan_release_binary() {
   local -a pipeline_status
 
   set +e
-  go run golang.org/x/vuln/cmd/govulncheck@v1.7.0 \
-    -mode=binary "$release_binary" 2>&1 | tee "$scan_log"
+  "$govulncheck_bin" -mode=binary "$release_binary" 2>&1 | tee "$scan_log"
   pipeline_status=("${PIPESTATUS[@]}")
   scan_status=${pipeline_status[0]}
   tee_status=${pipeline_status[1]}
@@ -206,6 +253,12 @@ scan_release_binary() {
   fi
   if [[ "$scan_status" -ne 3 ]]; then
     echo "appview-check: $binary_name binary scanner failed with exit $scan_status; only vulnerability exit 3 is eligible for the exact exception" >&2
+    exit "$scan_status"
+  fi
+  binary_exception_today=$(date -u +%F)
+  if [[ "$binary_exception_today" == "$binary_exception_expires_on" ||
+        "$binary_exception_today" > "$binary_exception_expires_on" ]]; then
+    echo "appview-check: the reviewed GO-2026-5932 binary exception expired on $binary_exception_expires_on" >&2
     exit "$scan_status"
   fi
 
@@ -231,6 +284,8 @@ scan_release_binary() {
   {
     printf 'finding=GO-2026-5932\n'
     printf 'owner=AppView maintainers\n'
+    printf 'review=%s\n' "$binary_exception_review"
+    printf 'expires_on=%s\n' "$binary_exception_expires_on"
     printf 'removal=govulncheck/vulndb gains package-precise binary handling\n'
     printf 'source_scan_clean=true\n'
     printf 'openpgp_dependency_matches=0\n'
@@ -258,6 +313,124 @@ if ! rg -q 'migration directory .* is empty' "$artifact_dir/empty-migrations.log
   echo "appview-check: empty migration bundle failed for an unexpected reason" >&2
   exit 1
 fi
+
+# Exercise the actual Compose dependency path, not just the CLI. The override
+# changes only the built image and migration mount: appview must remain in the
+# never-started state when migrate exits non-zero.
+export APPVIEW_CHECK_IMAGE="$gate_image"
+export APPVIEW_CHECK_EMPTY_MIGRATIONS="$empty_migrations"
+failure_compose_started=true
+set +e
+docker compose \
+  -f "$compose_file" \
+  -f "$migration_failure_override" \
+  -p "$failure_project" \
+  up --no-build --wait appview >"$artifact_dir/migration-failure-up.log" 2>&1
+failure_compose_status=$?
+set -e
+if [[ "$failure_compose_status" -eq 0 ]]; then
+  echo "appview-check: Compose unexpectedly started AppView after migration failure" >&2
+  exit 1
+fi
+failure_migrate_container=$(docker compose \
+  -f "$compose_file" \
+  -f "$migration_failure_override" \
+  -p "$failure_project" \
+  ps -a -q migrate)
+if [[ -z "$failure_migrate_container" ]]; then
+  echo "appview-check: Compose did not create the failing migrate service" >&2
+  exit 1
+fi
+failure_migrate_exit=$(docker inspect --format '{{.State.ExitCode}}' "$failure_migrate_container")
+if [[ "$failure_migrate_exit" -eq 0 ]]; then
+  echo "appview-check: Compose migrate service unexpectedly exited zero" >&2
+  exit 1
+fi
+failure_appview_container=$(docker compose \
+  -f "$compose_file" \
+  -f "$migration_failure_override" \
+  -p "$failure_project" \
+  ps -a -q appview)
+if [[ -n "$failure_appview_container" ]]; then
+  failure_appview_started=$(docker inspect --format '{{.State.StartedAt}}' "$failure_appview_container")
+  if [[ "$failure_appview_started" != "0001-01-01T00:00:00Z" ]]; then
+    echo "appview-check: AppView container crossed the failed migration dependency" >&2
+    exit 1
+  fi
+fi
+
+media_limit_bytes=$((512 * 1024 * 1024))
+media_safety_margin_bytes=$((128 * 1024 * 1024))
+media_probe_peak=0
+run_media_probe() {
+  local label=$1
+  shift
+  local container_name="${gate_project}_media_${label}"
+  local log_file="$artifact_dir/media-${label}.log"
+  local exit_status
+  local oom_killed
+  media_containers+=("$container_name")
+
+  docker create \
+    --name "$container_name" \
+    --memory "$media_limit_bytes" \
+    --memory-swap "$media_limit_bytes" \
+    --entrypoint /bin/sh \
+    "$media_image" \
+    -c '
+      /evidence/api.test "$@"
+      test_status=$?
+      if [ -r /sys/fs/cgroup/memory.peak ]; then
+        peak=$(cat /sys/fs/cgroup/memory.peak)
+      elif [ -r /sys/fs/cgroup/memory/memory.max_usage_in_bytes ]; then
+        peak=$(cat /sys/fs/cgroup/memory/memory.max_usage_in_bytes)
+      else
+        echo "release media probe: cgroup peak-memory metric is unavailable" >&2
+        exit 97
+      fi
+      printf "peak_bytes=%s\n" "$peak"
+      exit "$test_status"
+    ' probe "$@" >/dev/null
+  docker start "$container_name" >/dev/null
+  exit_status=$(docker wait "$container_name")
+  docker logs "$container_name" >"$log_file" 2>&1
+  oom_killed=$(docker inspect --format '{{.State.OOMKilled}}' "$container_name")
+  if [[ "$oom_killed" != "false" || "$exit_status" -ne 0 ]]; then
+    echo "appview-check: release media probe $label failed or exceeded its memory limit" >&2
+    cat "$log_file" >&2
+    exit 1
+  fi
+  media_probe_peak=$(sed -nE 's/^peak_bytes=([0-9]+)$/\1/p' "$log_file" | tail -n 1)
+  if [[ -z "$media_probe_peak" || "$media_probe_peak" -le 0 ]]; then
+    echo "appview-check: release media probe $label did not report peak memory" >&2
+    exit 1
+  fi
+}
+
+run_media_probe baseline -test.run '^$' -test.count=1
+media_test_baseline_peak=$media_probe_peak
+run_media_probe jpeg \
+  -test.run '^$' \
+  -test.bench '^BenchmarkImageValidatorWorstCase/jpeg$' \
+  -test.benchmem \
+  -test.benchtime=1x
+media_jpeg_peak=$media_probe_peak
+run_media_probe png \
+  -test.run '^$' \
+  -test.bench '^BenchmarkImageValidatorWorstCase/png$' \
+  -test.benchmem \
+  -test.benchtime=1x
+media_png_peak=$media_probe_peak
+run_media_probe webp \
+  -test.run '^$' \
+  -test.bench '^BenchmarkImageValidatorWorstCase/webp$' \
+  -test.benchmem \
+  -test.benchtime=1x
+media_webp_peak=$media_probe_peak
+run_media_probe concurrent-uploads \
+  -test.run '^TestScheduledImageReleaseConcurrentUploads$' \
+  -test.count=1
+media_concurrent_upload_peak=$media_probe_peak
 
 gate_network="${gate_project}_default"
 container_database_url="postgres://craftsky:dev@postgres:5432/craftsky_dev?sslmode=disable"
@@ -304,12 +477,15 @@ fi
 docker run -d \
   --name "$smoke_container" \
   --network "$gate_network" \
+  --memory "$media_limit_bytes" \
+  --memory-swap "$media_limit_bytes" \
   --publish 127.0.0.1::8080 \
   --env DATABASE_URL="$container_database_url" \
   --env ALLOWED_ORIGINS="*" \
   --env CRAFTSKY_DEV_DID="did:plc:jt3cxdyrhjhrkpwzdvonheax" \
   --env TAP_WS_URL="ws://tap:2480/channel" \
   --env OAUTH_CALLBACK_URL="http://127.0.0.1:18080/oauth/callback" \
+  --env OAUTH_HANDOFF_RECEIPT_KEY="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" \
   --env SCHEDULED_POSTS_S3_ENDPOINT="http://minio:9000" \
   --env SCHEDULED_POSTS_S3_REGION="us-east-1" \
   --env SCHEDULED_POSTS_S3_BUCKET="private-scheduled-media" \
@@ -334,6 +510,83 @@ for _ in $(seq 1 30); do
 done
 if [[ "$smoke_ready" != "true" ]]; then
   echo "appview-check: release image did not pass the startup health smoke" >&2
+  exit 1
+fi
+
+appview_baseline_peak=$(docker exec "$smoke_container" /bin/sh -c '
+  if [ -r /sys/fs/cgroup/memory.peak ]; then
+    cat /sys/fs/cgroup/memory.peak
+  elif [ -r /sys/fs/cgroup/memory/memory.max_usage_in_bytes ]; then
+    cat /sys/fs/cgroup/memory/memory.max_usage_in_bytes
+  else
+    exit 97
+  fi
+')
+appview_memory_limit=$(docker exec "$smoke_container" /bin/sh -c '
+  if [ -r /sys/fs/cgroup/memory.max ]; then
+    cat /sys/fs/cgroup/memory.max
+  elif [ -r /sys/fs/cgroup/memory/memory.limit_in_bytes ]; then
+    cat /sys/fs/cgroup/memory/memory.limit_in_bytes
+  else
+    exit 97
+  fi
+')
+if [[ -z "$appview_baseline_peak" || "$appview_baseline_peak" -le 0 ]]; then
+  echo "appview-check: release AppView baseline peak memory is unavailable" >&2
+  exit 1
+fi
+if [[ "$appview_memory_limit" != "$media_limit_bytes" ]]; then
+  echo "appview-check: release AppView cgroup limit is $appview_memory_limit, want $media_limit_bytes" >&2
+  exit 1
+fi
+
+media_budget_evidence="$artifact_dir/media-memory-budget.txt"
+{
+  printf 'container_limit_bytes=%d\n' "$media_limit_bytes"
+  printf 'appview_cgroup_limit_bytes=%d\n' "$appview_memory_limit"
+  printf 'safety_margin_bytes=%d\n' "$media_safety_margin_bytes"
+  printf 'appview_baseline_peak_bytes=%d\n' "$appview_baseline_peak"
+  printf 'media_test_baseline_peak_bytes=%d\n' "$media_test_baseline_peak"
+  printf 'jpeg_peak_bytes=%d\n' "$media_jpeg_peak"
+  printf 'png_peak_bytes=%d\n' "$media_png_peak"
+  printf 'webp_peak_bytes=%d\n' "$media_webp_peak"
+  printf 'concurrent_upload_peak_bytes=%d\n' "$media_concurrent_upload_peak"
+} >"$media_budget_evidence"
+
+for codec in jpeg png webp; do
+  case "$codec" in
+    jpeg) codec_peak=$media_jpeg_peak ;;
+    png) codec_peak=$media_png_peak ;;
+    webp) codec_peak=$media_webp_peak ;;
+  esac
+  decoder_increment=$((codec_peak - media_test_baseline_peak))
+  if [[ "$decoder_increment" -lt 0 ]]; then
+    decoder_increment=0
+  fi
+  budget_total=$((appview_baseline_peak + decoder_increment + media_safety_margin_bytes))
+  {
+    printf '%s_decoder_increment_bytes=%d\n' "$codec" "$decoder_increment"
+    printf '%s_budget_total_bytes=%d\n' "$codec" "$budget_total"
+  } >>"$media_budget_evidence"
+  if [[ "$budget_total" -ge "$media_limit_bytes" ]]; then
+    echo "appview-check: $codec release decoder baseline + peak + margin exceeds 512 MiB" >&2
+    cat "$media_budget_evidence" >&2
+    exit 1
+  fi
+done
+
+concurrent_upload_increment=$((media_concurrent_upload_peak - media_test_baseline_peak))
+if [[ "$concurrent_upload_increment" -lt 0 ]]; then
+  concurrent_upload_increment=0
+fi
+concurrent_upload_budget_total=$((appview_baseline_peak + concurrent_upload_increment + media_safety_margin_bytes))
+{
+  printf 'concurrent_upload_increment_bytes=%d\n' "$concurrent_upload_increment"
+  printf 'concurrent_upload_budget_total_bytes=%d\n' "$concurrent_upload_budget_total"
+} >>"$media_budget_evidence"
+if [[ "$concurrent_upload_budget_total" -ge "$media_limit_bytes" ]]; then
+  echo "appview-check: concurrent release uploads baseline + peak + margin exceed 512 MiB" >&2
+  cat "$media_budget_evidence" >&2
   exit 1
 fi
 

@@ -213,6 +213,29 @@ func TestBodyPrecheckDoesNotReadUnknownLength(t *testing.T) {
 	}
 }
 
+func TestBodyPrecheckUnsupportedMediaDetachesUnreadBody(t *testing.T) {
+	t.Parallel()
+
+	probe := &countingBodyReader{reader: strings.NewReader("plain text")}
+	handler := BodyPrecheck(BodyLimitConfig{DefaultJSONBytes: 1024}, BodyDefaultJSON, nil)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("handler called for unsupported media type")
+	}))
+	request := httptest.NewRequest(http.MethodPost, "/v1/posts", probe)
+	request.Header.Set("Content-Type", "text/plain")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusUnsupportedMediaType {
+		t.Fatalf("status = %d, want 415; body=%s", recorder.Code, recorder.Body.String())
+	}
+	if probe.bytesRead != 0 {
+		t.Fatalf("body bytes read = %d, want 0", probe.bytesRead)
+	}
+	if request.Body != http.NoBody || !request.Close || recorder.Header().Get("Connection") != "close" {
+		t.Fatalf("unread body was not detached: body=%T request.Close=%t headers=%v", request.Body, request.Close, recorder.Header())
+	}
+}
+
 type countingBodyReader struct {
 	reader    io.Reader
 	bytesRead int64

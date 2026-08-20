@@ -158,6 +158,7 @@ func InstagramPersistentRateLimit(limiter InstagramPersistentLimiter, rules []In
 					return
 				}
 				if !decision.Allowed {
+					RejectBodyWithoutDrain(w, r)
 					retrySeconds := int((decision.RetryAfter + time.Second - 1) / time.Second)
 					if retrySeconds < 1 {
 						retrySeconds = 1
@@ -205,6 +206,7 @@ func instagramRateIdentifier(r *http.Request, identity InstagramRateIdentity, tr
 }
 
 func writeInstagramLimiterUnavailable(w http.ResponseWriter, r *http.Request, logger *slog.Logger) {
+	RejectBodyWithoutDrain(w, r)
 	if logger != nil {
 		logger.Error("Instagram persistent rate limiter unavailable",
 			slog.String("run_id", GetRunID(r.Context())))

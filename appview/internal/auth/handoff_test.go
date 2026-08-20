@@ -3,7 +3,11 @@ package auth_test
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -82,6 +86,51 @@ func TestHandoffExchangeIsHashOnlyReplayableUntilConfirmation(t *testing.T) {
 	}
 	if rawCodeCount != 0 {
 		t.Fatal("raw handoff code was durably persisted")
+	}
+
+	// Drive the production callback renderer through a real loopback listener
+	// before exchanging the code. This joins the previously separate callback,
+	// CSP/listener, durable exchange, and confirmation proofs into one flow.
+	receivedCode := make(chan string, 1)
+	loopback := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		defer request.Body.Close()
+		var payload map[string]any
+		if request.Method != http.MethodPost || json.NewDecoder(request.Body).Decode(&payload) != nil ||
+			len(payload) != 1 || payload["code"] == "" {
+			http.Error(w, "invalid callback", http.StatusBadRequest)
+			return
+		}
+		if _, exists := payload["token"]; exists {
+			http.Error(w, "bearer forbidden", http.StatusBadRequest)
+			return
+		}
+		receivedCode <- payload["code"].(string)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer loopback.Close()
+	loopbackURI := loopback.URL + "/oauth/handoff"
+	callback := httptest.NewRecorder()
+	if err := auth.RenderSecureCallbackForTest(callback, code, loopbackURI); err != nil {
+		t.Fatalf("render callback: %v", err)
+	}
+	if csp := callback.Header().Get("Content-Security-Policy"); !strings.Contains(csp, "connect-src "+loopback.URL) {
+		t.Fatalf("callback CSP=%q, want exact loopback origin %q", csp, loopback.URL)
+	}
+	if strings.Contains(callback.Body.String(), `JSON.stringify({token:`) {
+		t.Fatalf("callback HTML exposed a bearer payload: %s", callback.Body.String())
+	}
+	response, err := http.Post(loopbackURI, "application/json", strings.NewReader(`{"code":"`+code+`"}`))
+	if err != nil {
+		t.Fatalf("post callback to loopback listener: %v", err)
+	}
+	response.Body.Close()
+	if response.StatusCode != http.StatusNoContent {
+		t.Fatalf("loopback callback status=%d", response.StatusCode)
+	}
+	select {
+	case code = <-receivedCode:
+	case <-time.After(time.Second):
+		t.Fatal("loopback listener did not receive handoff code")
 	}
 
 	if _, err := handoffs.Exchange(context.Background(), code, "wrong-device"); !errors.Is(err, auth.ErrHandoffInvalid) {

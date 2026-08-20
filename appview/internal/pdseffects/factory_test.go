@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime"
 	"testing"
 	"time"
 
@@ -111,6 +112,95 @@ func TestGuardedExecutorFactoryExposesOnlyCallbackScopedEffects(t *testing.T) {
 		err, ErrGuardedEffectScopeExpired,
 	) {
 		t.Fatalf("retained guarded executor error = %v, want expired scope", err)
+	}
+	var record map[string]any
+	if _, err := retained.ReadRecord(context.Background(), ReadRecordRequest{
+		Owner: owner, OwnerGeneration: 2,
+		ExpectedOwners: []ownerlifecycle.ExpectedOwner{{Owner: owner, Generation: 2}},
+		Collection:     syntax.NSID("app.bsky.actor.profile"),
+		Rkey:           syntax.RecordKey("self"),
+	}, &record); !errors.Is(err, ErrGuardedEffectScopeExpired) {
+		t.Fatalf("retained guarded read error = %v, want expired scope", err)
+	}
+}
+
+func TestGuardedEffectScopeCloseWaitsForAdmittedWorkAndRejectsNewWork(t *testing.T) {
+	owner := syntax.DID("did:plc:guarded-close-owner")
+	expected := []ownerlifecycle.ExpectedOwner{{Owner: owner, Generation: 4}}
+	token := &struct{}{}
+	scope := &callbackEffectBoundary{
+		client:   newEffectPDS(),
+		token:    token,
+		expected: expected,
+	}
+	scope.activate()
+	ctx := context.WithValue(context.Background(), guardedEffectContextKey{}, token)
+
+	entered := make(chan struct{})
+	release := make(chan struct{})
+	workDone := make(chan error, 1)
+	go func() {
+		workDone <- scope.WithActiveEffects(
+			ctx,
+			expected,
+			func(context.Context, auth.PDSClient) error {
+				close(entered)
+				<-release
+				return nil
+			},
+		)
+	}()
+	<-entered
+
+	closed := make(chan struct{})
+	closing := make(chan struct{})
+	go func() {
+		close(closing)
+		scope.closeAndWait()
+		close(closed)
+	}()
+	<-closing
+	deadline := time.After(time.Second)
+	for {
+		err := scope.WithActiveEffects(
+			ctx,
+			expected,
+			func(context.Context, auth.PDSClient) error { return nil },
+		)
+		if errors.Is(err, ErrGuardedEffectScopeExpired) {
+			break
+		}
+		if err != nil {
+			t.Fatalf("effect while guarded scope was closing = %v", err)
+		}
+		select {
+		case <-deadline:
+			t.Fatal("guarded scope did not begin closing")
+		default:
+			runtime.Gosched()
+		}
+	}
+	select {
+	case <-closed:
+		t.Fatal("guarded scope closed before admitted work completed")
+	default:
+	}
+
+	close(release)
+	if err := <-workDone; err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-closed:
+	case <-time.After(time.Second):
+		t.Fatal("guarded scope did not close after admitted work completed")
+	}
+	if err := scope.WithActiveEffects(
+		ctx,
+		expected,
+		func(context.Context, auth.PDSClient) error { return nil },
+	); !errors.Is(err, ErrGuardedEffectScopeExpired) {
+		t.Fatalf("post-close guarded effect = %v, want expired scope", err)
 	}
 }
 

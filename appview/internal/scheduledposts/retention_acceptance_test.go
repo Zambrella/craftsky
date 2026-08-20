@@ -47,9 +47,9 @@ func TestLifecycleDeadlinesRemoveOnlyEligiblePrivateContent(t *testing.T) {
 	}
 	if _, err := store.pool.Exec(ctx, `
 		INSERT INTO scheduled_post_publication_tombstones (
-			schedule_id, owner_did, operation_id, request_hash,
+			schedule_id, owner_did, owner_generation, operation_id, request_hash,
 			publication_uri, publication_cid, published_at, expires_at
-		) VALUES ($1,$2,$3,decode(repeat('04',32),'hex'),$4,'bafk-published',$5,$6)
+		) VALUES ($1,$2,1,$3,decode(repeat('04',32),'hex'),$4,'bafk-published',$5,$6)
 	`, uuid.New(), owner, uuid.New(), "at://did:plc:alice/social.craftsky.feed.post/3retained",
 		deadline.Add(-30*24*time.Hour), deadline); err != nil {
 		t.Fatal(err)

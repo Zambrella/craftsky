@@ -1,5 +1,5 @@
-import 'package:craftsky_app/notifications/services/firebase_notification_background_handler.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
+import 'package:craftsky_app/notifications/services/firebase_notification_background_handler.dart';
 import 'package:craftsky_app/notifications/services/notification_delivery_dedupe_store.dart';
 import 'package:craftsky_app/notifications/services/notification_local_presenter.dart';
 import 'package:craftsky_app/notifications/services/notification_presentation_eligibility.dart';
@@ -34,7 +34,7 @@ void main() {
   );
 
   test(
-    'IT-PUSH-016 reconstructed background handlers present a duplicate once',
+    'IT-PUSH-016 provider-accepted late retry with the same ID presents once',
     () async {
       final dedupe = _Dedupe();
       final firstGateway = _Gateway();
@@ -54,7 +54,23 @@ void main() {
       await presentBackgroundNotificationData(data, reconstructed);
 
       expect(firstGateway.presentations, 1);
-      expect(reconstructedGateway.presentations, 0);
+      expect(
+        reconstructedGateway.presentations,
+        0,
+        reason:
+            'AppView cannot retract a push already accepted by the provider; '
+            'the persisted notificationId stage suppresses its ordinary retry',
+      );
+
+      await presentBackgroundNotificationData({
+        ...data,
+        'notificationId': '00000000-0000-4000-8000-000000000031',
+      }, reconstructed);
+      expect(
+        reconstructedGateway.presentations,
+        1,
+        reason: 'dedupe must not suppress a distinct logical notification',
+      );
     },
   );
 }

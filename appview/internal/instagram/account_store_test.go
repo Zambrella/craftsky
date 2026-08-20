@@ -490,22 +490,17 @@ func TestAccountStoreRevocationDeletesPrivateSuggestionsWithoutPublicCleanup(t *
 		VerifiedAt:   now.Add(-time.Hour),
 		UpdatedAt:    now,
 	})
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO instagram_graph_imports (
-			id, owner_did, state, source_type, following_count,
-			created_at, updated_at
-		) VALUES (
-			'00000000-0000-0000-0000-000000000281',
-			$1,
-			'active','manual',1,now(),now()
-		);
-		INSERT INTO instagram_graph_handles (
+	seeds := []struct {
+		sql  string
+		args []any
+	}{
+		{`INSERT INTO instagram_graph_imports (
+			id, owner_did, state, source_type, following_count, created_at, updated_at
+		) VALUES ('00000000-0000-0000-0000-000000000281',$1,'active','manual',1,now(),now())`, []any{alice}},
+		{`INSERT INTO instagram_graph_handles (
 			import_id, username_normalized, matched, created_at
-		) VALUES (
-			'00000000-0000-0000-0000-000000000281',
-			'synthetic.revoke.target',true,now()
-		);
-		INSERT INTO instagram_private_suggestions (
+		) VALUES ('00000000-0000-0000-0000-000000000281','synthetic.revoke.target',true,now())`, nil},
+		{`INSERT INTO instagram_private_suggestions (
 			id, importer_did, target_did, importer_generation, target_generation,
 			evidence_link_id, state, reason, terminal_at, result_record_uri,
 			created_at, updated_at
@@ -515,15 +510,18 @@ func TestAccountStoreRevocationDeletesPrivateSuggestionsWithoutPublicCleanup(t *
 			'followed','verifiedInstagramFollow',now(),
 			'at://did:plc:synthetic-revoke-suggestion-alice/app.bsky.graph.follow/test',
 			now(),now()
-		);
-		INSERT INTO instagram_private_suggestion_sources (
+		)`, []any{alice, linkID}},
+		{`INSERT INTO instagram_private_suggestion_sources (
 			suggestion_id, import_id, created_at
 		) VALUES (
 			'00000000-0000-0000-0000-000000000282',
 			'00000000-0000-0000-0000-000000000281',now()
-		)
-	`, alice, linkID); err != nil {
-		t.Fatalf("seed private suggestion revocation state: %v", err)
+		)`, nil},
+	}
+	for _, seed := range seeds {
+		if _, err := pool.Exec(ctx, seed.sql, seed.args...); err != nil {
+			t.Fatalf("seed private suggestion revocation state: %v", err)
+		}
 	}
 
 	if err := store.RevokeAccount(ctx, alice); err != nil {

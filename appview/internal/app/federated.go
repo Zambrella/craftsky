@@ -30,6 +30,19 @@ func newFederatedClients(config FederatedHTTPConfig) (*federatedClients, error) 
 	if err != nil {
 		return nil, fmt.Errorf("build federated boundary: %w", err)
 	}
+	return newFederatedClientsWithBoundary(config, boundary)
+}
+
+// newFederatedClientsWithBoundary keeps deterministic network injection at
+// the composition boundary for listener-backed integration tests. Production
+// construction always enters through newFederatedClients above.
+func newFederatedClientsWithBoundary(
+	config FederatedHTTPConfig,
+	boundary *federatedhttp.Boundary,
+) (*federatedClients, error) {
+	if boundary == nil {
+		return nil, fmt.Errorf("build federated boundary: boundary is required")
+	}
 	metadata, err := boundary.OAuthMetadataClient(config.OAuthMetadata)
 	if err != nil {
 		return nil, fmt.Errorf("build OAuth metadata client: %w", err)

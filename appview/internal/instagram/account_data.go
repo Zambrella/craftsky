@@ -407,10 +407,6 @@ func lockInstagramOwner(ctx context.Context, tx pgx.Tx, owner syntax.DID) error 
 	return nil
 }
 
-func updateSuggestionState(ctx context.Context, tx pgx.Tx, query string, args ...any) ([]uuid.UUID, error) {
-	return queryUUIDs(ctx, tx, query, args...)
-}
-
 func invalidateSuggestionIDs(ctx context.Context, tx pgx.Tx, ids []uuid.UUID, now time.Time) error {
 	if len(ids) == 0 {
 		return nil

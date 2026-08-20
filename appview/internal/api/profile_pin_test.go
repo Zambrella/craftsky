@@ -16,6 +16,7 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/ctxkeys"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -167,7 +168,7 @@ func TestProfilePinStoreEnforcesNewTargetPolicyButAllowsRetainedUnpin(t *testing
 		t.Fatalf("read profile pin migration: %v", err)
 	}
 	pool := testdb.WithSchema(t, profilePinStoreTestDDL+string(migration))
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	owner := syntax.DID("did:plc:alice")
 	store := api.NewProfilePinStore(pool)
 
@@ -203,8 +204,8 @@ func TestProfilePinStoreEnforcesNewTargetPolicyButAllowsRetainedUnpin(t *testing
 		syntax.DID("did:plc:dave"),
 		syntax.DID("did:plc:dave"),
 		syntax.RecordKey("nonmember"),
-	); !errors.Is(err, api.ErrProfilePinTargetNotFound) {
-		t.Fatalf("non-member Pin() error = %v, want %v", err, api.ErrProfilePinTargetNotFound)
+	); !errors.Is(err, ownerlifecycle.ErrOwnerNotActive) {
+		t.Fatalf("non-member Pin() error = %v, want %v", err, ownerlifecycle.ErrOwnerNotActive)
 	}
 
 	for _, test := range []struct {

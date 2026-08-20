@@ -50,6 +50,7 @@ type durableIngestorSpy struct {
 	identities      []tap.IdentityEvent
 	invalid         []tap.InvalidEvent
 	recordFunc      func(context.Context, tap.Event) (tap.Outcome, error)
+	identityFunc    func(context.Context, tap.IdentityEvent) (tap.Outcome, error)
 	recordErr       error
 	identityErr     error
 	quarantineErr   error
@@ -100,16 +101,61 @@ func (s *durableIngestorSpy) IngestRecord(ctx context.Context, event tap.Event) 
 	return outcome, err
 }
 
-func (s *durableIngestorSpy) IngestIdentity(_ context.Context, event tap.IdentityEvent) (tap.Outcome, error) {
+func (s *durableIngestorSpy) IngestIdentity(ctx context.Context, event tap.IdentityEvent) (tap.Outcome, error) {
 	s.mu.Lock()
 	s.identities = append(s.identities, event)
+	fn := s.identityFunc
 	outcome := s.identityOutcome
 	err := s.identityErr
 	s.mu.Unlock()
+	if fn != nil {
+		return fn(ctx, event)
+	}
 	if outcome.Kind == "" {
 		outcome = tap.Applied()
 	}
 	return outcome, err
+}
+
+func TestWSConsumer_TerminalIdentityOverProcessingDeadlineIsNeverAcked(t *testing.T) {
+	frames := []string{
+		`{"id":910,"type":"identity","identity":{"did":"did:plc:in-budget","status":"deleted"}}`,
+		`{"id":911,"type":"identity","identity":{"did":"did:plc:over-budget","status":"deleted"}}`,
+	}
+	ft := newFakeTap(frames)
+	server := httptest.NewServer(ft.handler(t))
+	defer server.Close()
+	ingestor := &durableIngestorSpy{identityFunc: func(ctx context.Context, event tap.IdentityEvent) (tap.Outcome, error) {
+		if event.ID == 910 {
+			return tap.Applied(), nil
+		}
+		<-ctx.Done()
+		return tap.Retryable(tap.ReasonStorageUnavailable), ctx.Err()
+	}}
+	consumer := tap.NewWSConsumer(tap.WSConsumerConfig{
+		URL: strings.Replace(server.URL, "http://", "ws://", 1), Ingestor: ingestor,
+		AckTimeout: 40 * time.Millisecond, ReconnectMax: time.Second,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	go consumer.Run(ctx)
+
+	select {
+	case id := <-ft.acks:
+		if id != 910 {
+			t.Fatalf("first ACK id=%d, want in-budget identity 910", id)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("in-budget terminal identity was not acknowledged")
+	}
+	select {
+	case id := <-ft.acks:
+		t.Fatalf("over-budget terminal identity was acknowledged: id=%d", id)
+	case <-time.After(120 * time.Millisecond):
+	}
+	if got := ingestor.identityEvents(); len(got) != 2 {
+		t.Fatalf("identity attempts=%v, want both in-budget and over-budget events", got)
+	}
 }
 
 func (s *durableIngestorSpy) Quarantine(_ context.Context, event tap.InvalidEvent) (tap.Outcome, error) {

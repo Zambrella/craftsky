@@ -186,6 +186,7 @@ func admitBodyHeaders(w http.ResponseWriter, r *http.Request, cfg BodyLimitConfi
 		if contentType != "" {
 			mediaType, _, err := mime.ParseMediaType(contentType)
 			if err != nil || !strings.EqualFold(mediaType, "application/json") {
+				RejectBodyWithoutDrain(w, r)
 				envelope.WriteError(w, http.StatusUnsupportedMediaType, "unsupported_media_type", "Content-Type must be application/json", GetRunID(r.Context()), nil)
 				return false
 			}

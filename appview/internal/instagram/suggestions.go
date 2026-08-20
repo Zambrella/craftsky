@@ -14,15 +14,15 @@ import (
 	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
-var ErrSuggestionIneligible = errors.New("Instagram suggestion is no longer eligible")
+var ErrSuggestionIneligible = errors.New("instagram suggestion is no longer eligible")
 
 type SuggestionFollowRequest struct {
 	OperationID      string
+	MutationKey      string
 	Owner            syntax.DID
 	Target           syntax.DID
 	OwnerGeneration  int64
 	TargetGeneration int64
-	SessionID        string
 	Rkey             syntax.RecordKey
 	CreatedAt        time.Time
 }
@@ -42,6 +42,22 @@ type SuggestionFollowExecutor interface {
 	FollowSuggestion(context.Context, SuggestionFollowRequest) (SuggestionFollowResult, error)
 }
 
+type SuggestionEffectOperation func(context.Context, SuggestionFollowExecutor) error
+
+// SuggestionEffectCoordinator is the sole capability allowed to combine an
+// explicit suggestion acceptance with a public follow. It binds the owner,
+// participant generations, and OAuth session once, then exposes only a
+// callback-scoped follow executor.
+type SuggestionEffectCoordinator interface {
+	WithSuggestionEffects(
+		context.Context,
+		syntax.DID,
+		string,
+		[]ownerlifecycle.ExpectedOwner,
+		SuggestionEffectOperation,
+	) error
+}
+
 // SuggestionService is the sole Instagram-specific path to a public follow.
 // It receives a narrow ordinary-effect executor rather than an OAuth session
 // selector, PDS factory, or raw client.
@@ -49,20 +65,20 @@ type SuggestionService struct {
 	store      *PrivateSuggestionStore
 	lifecycles *ownerlifecycle.Store
 	policy     InstagramSuggestionEligibilityPolicy
-	follow     SuggestionFollowExecutor
+	effects    SuggestionEffectCoordinator
 }
 
 func NewSuggestionService(
 	store *PrivateSuggestionStore,
 	lifecycles *ownerlifecycle.Store,
 	policy InstagramSuggestionEligibilityPolicy,
-	follow SuggestionFollowExecutor,
+	effects SuggestionEffectCoordinator,
 ) (*SuggestionService, error) {
-	if store == nil || lifecycles == nil || policy == nil || follow == nil {
-		return nil, errors.New("Instagram suggestion service dependencies are required")
+	if store == nil || lifecycles == nil || policy == nil || effects == nil {
+		return nil, errors.New("instagram suggestion service dependencies are required")
 	}
 	return &SuggestionService{
-		store: store, lifecycles: lifecycles, policy: policy, follow: follow,
+		store: store, lifecycles: lifecycles, policy: policy, effects: effects,
 	}, nil
 }
 
@@ -101,94 +117,101 @@ func (service *SuggestionService) Accept(
 		{Owner: suggestion.TargetDID, Generation: suggestion.TargetGeneration},
 	}
 	var accepted PrivateSuggestion
-	err = service.lifecycles.WithActiveEffects(ctx, expected, func(effectCtx context.Context) error {
-		if err := service.lifecycles.WithActiveEffectTransaction(effectCtx, func(tx pgx.Tx) error {
-			var loadErr error
-			accepted, loadErr = service.store.getOwned(effectCtx, tx, importer, suggestionID, true)
-			return loadErr
-		}); err != nil {
-			return err
-		}
-		if accepted.State.Terminal() {
-			return nil
-		}
-		if err := ValidateSuggestionGenerations(
-			accepted.ImporterGeneration,
-			accepted.TargetGeneration,
-			suggestion.ImporterGeneration,
-			suggestion.TargetGeneration,
-		); err != nil {
-			return err
-		}
-
-		decision, err := service.policy.Evaluate(effectCtx, EligibilityAtAccept, SuggestionEligibilityRequest{
-			ImporterDID:      accepted.ImporterDID,
-			TargetDID:        accepted.TargetDID,
-			ImportedUsername: accepted.ImportedUsername,
-		})
-		if err != nil {
-			return err
-		}
-		if !decision.Eligible && decision.Reason != EligibilityAlreadyFollowing {
-			if invalidateErr := service.lifecycles.WithActiveEffectTransaction(effectCtx, func(tx pgx.Tx) error {
-				var updateErr error
-				accepted, updateErr = service.store.invalidate(effectCtx, tx, importer, suggestionID)
-				return updateErr
-			}); invalidateErr != nil {
-				return invalidateErr
+	err = service.effects.WithSuggestionEffects(
+		ctx,
+		importer,
+		sessionID,
+		expected,
+		func(effectCtx context.Context, follow SuggestionFollowExecutor) error {
+			if err := service.lifecycles.WithActiveEffectTransaction(effectCtx, func(tx pgx.Tx) error {
+				var loadErr error
+				accepted, loadErr = service.store.getOwned(effectCtx, tx, importer, suggestionID, true)
+				return loadErr
+			}); err != nil {
+				return err
 			}
-			return ErrSuggestionIneligible
-		}
+			if accepted.State.Terminal() {
+				return nil
+			}
+			if err := ValidateSuggestionGenerations(
+				accepted.ImporterGeneration,
+				accepted.TargetGeneration,
+				suggestion.ImporterGeneration,
+				suggestion.TargetGeneration,
+			); err != nil {
+				return err
+			}
 
-		if err := service.lifecycles.WithActiveEffectTransaction(effectCtx, func(tx pgx.Tx) error {
-			var reserveErr error
-			accepted, reserveErr = service.store.reserveAcceptance(effectCtx, tx, importer, suggestionID)
-			return reserveErr
-		}); err != nil {
-			return err
-		}
-		if accepted.State.Terminal() {
-			return nil
-		}
-		if decision.Reason == EligibilityAlreadyFollowing {
+			decision, err := service.policy.Evaluate(effectCtx, EligibilityAtAccept, SuggestionEligibilityRequest{
+				ImporterDID:      accepted.ImporterDID,
+				TargetDID:        accepted.TargetDID,
+				ImportedUsername: accepted.ImportedUsername,
+			})
+			if err != nil {
+				return err
+			}
+			if !decision.Eligible && decision.Reason != EligibilityAlreadyFollowing {
+				if invalidateErr := service.lifecycles.WithActiveEffectTransaction(effectCtx, func(tx pgx.Tx) error {
+					var updateErr error
+					accepted, updateErr = service.store.invalidate(effectCtx, tx, importer, suggestionID)
+					return updateErr
+				}); invalidateErr != nil {
+					return invalidateErr
+				}
+				return ErrSuggestionIneligible
+			}
+
+			if err := service.lifecycles.WithActiveEffectTransaction(effectCtx, func(tx pgx.Tx) error {
+				var reserveErr error
+				accepted, reserveErr = service.store.reserveAcceptance(effectCtx, tx, importer, suggestionID)
+				return reserveErr
+			}); err != nil {
+				return err
+			}
+			if accepted.State.Terminal() {
+				return nil
+			}
+			if decision.Reason == EligibilityAlreadyFollowing {
+				return service.lifecycles.WithActiveEffectTransaction(effectCtx, func(tx pgx.Tx) error {
+					var completeErr error
+					accepted, completeErr = service.store.completeAcceptance(
+						effectCtx, tx, importer, suggestionID,
+						SuggestionFollowResult{Outcome: SuggestionAlreadyFollowing},
+					)
+					return completeErr
+				})
+			}
+
+			rkey := syntax.RecordKey("3l" + strings.ReplaceAll(suggestionID.String(), "-", ""))
+			if _, err := syntax.ParseRecordKey(rkey.String()); err != nil {
+				return fmt.Errorf("derive Instagram suggestion follow key: %w", err)
+			}
+			operationID := "instagram-suggestion:" + suggestionID.String()
+			followResult, err := follow.FollowSuggestion(effectCtx, SuggestionFollowRequest{
+				OperationID:      operationID,
+				MutationKey:      operationID,
+				Owner:            accepted.ImporterDID,
+				Target:           accepted.TargetDID,
+				OwnerGeneration:  accepted.ImporterGeneration,
+				TargetGeneration: accepted.TargetGeneration,
+				Rkey:             rkey,
+				CreatedAt:        accepted.CreatedAt,
+			})
+			if err != nil {
+				// The common effect executor owns outcome uncertainty. Leaving the
+				// row accepting prevents an unsafe second operation; an explicit
+				// replay uses the same stable operation key for reconciliation.
+				return err
+			}
 			return service.lifecycles.WithActiveEffectTransaction(effectCtx, func(tx pgx.Tx) error {
 				var completeErr error
 				accepted, completeErr = service.store.completeAcceptance(
-					effectCtx, tx, importer, suggestionID,
-					SuggestionFollowResult{Outcome: SuggestionAlreadyFollowing},
+					effectCtx, tx, importer, suggestionID, followResult,
 				)
 				return completeErr
 			})
-		}
-
-		rkey := syntax.RecordKey("3l" + strings.ReplaceAll(suggestionID.String(), "-", ""))
-		if _, err := syntax.ParseRecordKey(rkey.String()); err != nil {
-			return fmt.Errorf("derive Instagram suggestion follow key: %w", err)
-		}
-		followResult, err := service.follow.FollowSuggestion(effectCtx, SuggestionFollowRequest{
-			OperationID:      "instagram-suggestion:" + suggestionID.String(),
-			Owner:            accepted.ImporterDID,
-			Target:           accepted.TargetDID,
-			OwnerGeneration:  accepted.ImporterGeneration,
-			TargetGeneration: accepted.TargetGeneration,
-			SessionID:        sessionID,
-			Rkey:             rkey,
-			CreatedAt:        accepted.CreatedAt,
-		})
-		if err != nil {
-			// The common effect executor owns outcome uncertainty. Leaving the
-			// row accepting prevents an unsafe second operation; an explicit
-			// replay uses the same stable operation key for reconciliation.
-			return err
-		}
-		return service.lifecycles.WithActiveEffectTransaction(effectCtx, func(tx pgx.Tx) error {
-			var completeErr error
-			accepted, completeErr = service.store.completeAcceptance(
-				effectCtx, tx, importer, suggestionID, followResult,
-			)
-			return completeErr
-		})
-	})
+		},
+	)
 	return accepted, err
 }
 

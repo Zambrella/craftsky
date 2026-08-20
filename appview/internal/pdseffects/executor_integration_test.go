@@ -85,6 +85,140 @@ func TestExecutorPutPersistsBeforeIOAndReadReconcilesWithoutRepeating(t *testing
 	}
 }
 
+func TestExecutorReadRecordReturnsAuthoritativeCIDInsideActiveBoundary(t *testing.T) {
+	pool, lifecycles, now := newEffectExecutorStore(t)
+	owner := syntax.DID("did:plc:profile-reader")
+	seedEffectOwner(t, pool, owner, 3, now)
+	pds := newEffectPDS()
+	pds.records[effectRecordKey(owner, "app.bsky.actor.profile", "self")] = storedEffectRecord{
+		cid: "bafy-profile-current",
+		value: map[string]any{
+			"$type":       "app.bsky.actor.profile",
+			"displayName": "Current",
+		},
+	}
+	boundary := &storeEffectBoundary{lifecycles: lifecycles, client: pds}
+	executor, err := NewExecutor(
+		lifecycles,
+		boundary,
+		owner,
+		10*time.Second,
+		func() time.Time { return now },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := ReadRecordRequest{
+		Owner:           owner,
+		OwnerGeneration: 3,
+		ExpectedOwners:  []ownerlifecycle.ExpectedOwner{{Owner: owner, Generation: 3}},
+		Collection:      syntax.NSID("app.bsky.actor.profile"),
+		Rkey:            syntax.RecordKey("self"),
+	}
+	var record map[string]any
+	cid, err := executor.ReadRecord(context.Background(), request, &record)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cid != "bafy-profile-current" || record["displayName"] != "Current" {
+		t.Fatalf("read = cid %q record %#v", cid, record)
+	}
+	if boundary.calls != 1 || pds.getCalls != 1 || pds.putCalls != 0 || pds.deleteCalls != 0 || pds.uploadCalls != 0 {
+		t.Fatalf(
+			"boundary/PDS calls = boundary %d get %d put %d delete %d upload %d",
+			boundary.calls,
+			pds.getCalls,
+			pds.putCalls,
+			pds.deleteCalls,
+			pds.uploadCalls,
+		)
+	}
+}
+
+func TestExecutorReadRecordRejectsStaleGenerationBeforePDSRead(t *testing.T) {
+	pool, lifecycles, now := newEffectExecutorStore(t)
+	owner := syntax.DID("did:plc:stale-profile-reader")
+	seedEffectOwner(t, pool, owner, 4, now)
+	pds := newEffectPDS()
+	boundary := &storeEffectBoundary{lifecycles: lifecycles, client: pds}
+	executor, err := NewExecutor(
+		lifecycles,
+		boundary,
+		owner,
+		10*time.Second,
+		func() time.Time { return now },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var record map[string]any
+	_, err = executor.ReadRecord(context.Background(), ReadRecordRequest{
+		Owner:           owner,
+		OwnerGeneration: 3,
+		ExpectedOwners:  []ownerlifecycle.ExpectedOwner{{Owner: owner, Generation: 3}},
+		Collection:      syntax.NSID("app.bsky.actor.profile"),
+		Rkey:            syntax.RecordKey("self"),
+	}, &record)
+	if !errors.Is(err, ownerlifecycle.ErrGenerationChanged) {
+		t.Fatalf("stale generation error = %v", err)
+	}
+	if pds.getCalls != 0 || pds.putCalls != 0 || pds.deleteCalls != 0 || pds.uploadCalls != 0 {
+		t.Fatalf(
+			"stale read crossed PDS boundary: get %d put %d delete %d upload %d",
+			pds.getCalls,
+			pds.putCalls,
+			pds.deleteCalls,
+			pds.uploadCalls,
+		)
+	}
+}
+
+func TestExecutorReadRecordReturnsReadFailureWithoutCreatingMutationAttempt(t *testing.T) {
+	pool, lifecycles, now := newEffectExecutorStore(t)
+	owner := syntax.DID("did:plc:failing-profile-reader")
+	seedEffectOwner(t, pool, owner, 2, now)
+	readErr := errors.New("PDS read unavailable")
+	pds := newEffectPDS()
+	pds.getError = readErr
+	executor, err := NewExecutor(
+		lifecycles,
+		&storeEffectBoundary{lifecycles: lifecycles, client: pds},
+		owner,
+		10*time.Second,
+		func() time.Time { return now },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var record map[string]any
+	_, err = executor.ReadRecord(context.Background(), ReadRecordRequest{
+		Owner:           owner,
+		OwnerGeneration: 2,
+		ExpectedOwners:  []ownerlifecycle.ExpectedOwner{{Owner: owner, Generation: 2}},
+		Collection:      syntax.NSID("social.craftsky.actor.profile"),
+		Rkey:            syntax.RecordKey("self"),
+	}, &record)
+	if !errors.Is(err, readErr) {
+		t.Fatalf("read failure = %v", err)
+	}
+	if pds.getCalls != 1 || pds.putCalls != 0 || pds.deleteCalls != 0 || pds.uploadCalls != 0 {
+		t.Fatalf(
+			"read failure PDS calls = get %d put %d delete %d upload %d",
+			pds.getCalls,
+			pds.putCalls,
+			pds.deleteCalls,
+			pds.uploadCalls,
+		)
+	}
+	var attempts int
+	if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM owner_effect_attempts`).Scan(&attempts); err != nil {
+		t.Fatal(err)
+	}
+	if attempts != 0 {
+		t.Fatalf("read created %d mutation attempts", attempts)
+	}
+}
+
 func TestExecutorReturnsTypedConflictButAllowsNewSameURIRecordVersion(t *testing.T) {
 	pool, lifecycles, now := newEffectExecutorStore(t)
 	owner := syntax.DID("did:plc:versioned-profile")
@@ -295,13 +429,27 @@ func TestExecutorConditionalPutReconcilesNewCIDWithoutRepeating(t *testing.T) {
 	}
 	var storedCID string
 	var storedFingerprint []byte
+	var storedRecordFingerprint []byte
 	if err := pool.QueryRow(context.Background(), `
-		SELECT expected_cid,request_fingerprint FROM owner_effect_attempts WHERE operation_id=$1
-	`, request.OperationID).Scan(&storedCID, &storedFingerprint); err != nil {
+		SELECT expected_cid,request_fingerprint,record_fingerprint
+		FROM owner_effect_attempts WHERE operation_id=$1
+	`, request.OperationID).Scan(&storedCID, &storedFingerprint, &storedRecordFingerprint); err != nil {
 		t.Fatal(err)
 	}
 	if storedCID != request.ExpectedCID.String() || !bytes.Equal(storedFingerprint, wantFingerprint[:]) {
 		t.Fatalf("stored conditional Put identity = %q/%x", storedCID, storedFingerprint)
+	}
+	wantRecordFingerprint, err := RecordContentFingerprint(
+		request.Owner, request.Collection, request.Rkey, request.Record,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(storedRecordFingerprint, wantRecordFingerprint[:]) {
+		t.Fatalf("stored record fingerprint = %x, want %x", storedRecordFingerprint, wantRecordFingerprint)
+	}
+	if bytes.Equal(storedRecordFingerprint, storedFingerprint) {
+		t.Fatal("record fingerprint unexpectedly includes conditional swap CID")
 	}
 }
 
@@ -853,6 +1001,12 @@ func TestExecutorReadOnlyReconcilesUnknownPutAfterDeparture(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	recordFingerprint, err := RecordContentFingerprint(
+		request.Owner, request.Collection, request.Rkey, request.Record,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
 	uri, err := deterministicRecordURI(request.Owner, request.Collection, request.Rkey)
 	if err != nil {
 		t.Fatal(err)
@@ -865,7 +1019,8 @@ func TestExecutorReadOnlyReconcilesUnknownPutAfterDeparture(t *testing.T) {
 				Owner: owner, OwnerGeneration: 6,
 				Kind: ownerlifecycle.EffectPDSRecord, Action: ownerlifecycle.EffectActionPutRecord,
 				DeterministicKey: uri.String(), RequestFingerprint: fingerprint,
-				RemoteDeadline: now.Add(time.Minute),
+				RecordFingerprint: recordFingerprint,
+				RemoteDeadline:    now.Add(time.Minute),
 			})
 			if err != nil {
 				return err
@@ -1032,7 +1187,6 @@ func TestOnboardingExecutorDurablyPutsOnlyDepartedProfileWithoutRepeating(t *tes
 	}
 	if _, err := lifecycles.Terminalize(context.Background(), ownerlifecycle.TerminalizeRequest{
 		Owner: owner, Reason: "identityDeleted",
-		Components: []ownerlifecycle.PurgeComponent{{Component: "profiles", DIDRole: "owner"}},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -1047,6 +1201,68 @@ func TestOnboardingExecutorDurablyPutsOnlyDepartedProfileWithoutRepeating(t *tes
 	)
 	if !errors.Is(err, ownerlifecycle.ErrTerminalOwner) || called || pds.putCalls != 1 {
 		t.Fatalf("terminal onboarding put error=%v called=%t puts=%d", err, called, pds.putCalls)
+	}
+}
+
+func TestOnboardingExecutorReplaysRejectedConditionalPutAsConflict(t *testing.T) {
+	_, lifecycles, now := newEffectExecutorStore(t)
+	owner := syntax.DID("did:plc:onboarding-stale-profile")
+	authority, err := lifecycles.EnsureOnboardingOwner(context.Background(), owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pds := newEffectPDS()
+	pds.records[effectRecordKey(
+		owner,
+		onboardingProfileCollection.String(),
+		onboardingProfileRkey.String(),
+	)] = storedEffectRecord{
+		cid: "bafy-current-onboarding-profile",
+		value: map[string]any{
+			"$type": "social.craftsky.actor.profile",
+		},
+	}
+	executor, err := NewOnboardingExecutor(
+		lifecycles,
+		10*time.Second,
+		func() time.Time { return now },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := OnboardingProfileRequest{
+		OperationID:     "onboarding-profile:stale:v1",
+		MutationKey:     "onboarding-profile:stale:v1",
+		Owner:           owner,
+		OwnerGeneration: authority.Generation,
+		Record: map[string]any{
+			"$type":  "social.craftsky.actor.profile",
+			"crafts": []string{},
+		},
+		ExpectedCID: syntax.CID("bafy-stale-onboarding-profile"),
+	}
+	putProfile := func() error {
+		return lifecycles.WithOnboardingAuth(
+			context.Background(),
+			owner,
+			func(authCtx context.Context, _ ownerlifecycle.Lifecycle) error {
+				_, executeErr := executor.PutProfile(authCtx, pds, request)
+				return executeErr
+			},
+		)
+	}
+	if err := putProfile(); !errors.Is(err, ErrEffectConflict) {
+		t.Fatalf("stale onboarding conditional Put = %v, want conflict", err)
+	}
+	if err := putProfile(); !errors.Is(err, ErrEffectConflict) {
+		t.Fatalf("replayed onboarding conditional Put = %v, want conflict", err)
+	}
+	if pds.conditionalPutCalls != 1 || pds.unconditionalPutCalls != 0 {
+		t.Fatalf(
+			"onboarding conditional/unconditional Put calls = %d/%d, want 1/0",
+			pds.conditionalPutCalls,
+			pds.unconditionalPutCalls,
+		)
 	}
 }
 
@@ -1284,7 +1500,9 @@ func newEffectExecutorStore(t *testing.T) (*pgxpool.Pool, *ownerlifecycle.Store,
 	for _, path := range []string{
 		"../../migrations/000038_owner_auth_lifecycle.up.sql",
 		"../../migrations/000039_owner_effects_terminal_purge.up.sql",
+		"../../migrations/000045_tap_ingestion_durability.up.sql",
 		"../../migrations/000049_pds_effect_action.up.sql",
+		"../../migrations/000050_pds_effect_source_reconciliation.up.sql",
 	} {
 		migration, err := os.ReadFile(path)
 		if err != nil {
@@ -1333,12 +1551,16 @@ func seedEffectOwnerState(
 	now time.Time,
 ) {
 	t.Helper()
+	var terminalAt any
+	if state == ownerlifecycle.StateTerminal {
+		terminalAt = now
+	}
 	if _, err := pool.Exec(context.Background(), `
 		INSERT INTO owner_lifecycles(
 			owner_did,state,generation,auth_epoch,transition_reason,
 			transitioned_at,terminal_at,created_at,updated_at
-		) VALUES($1,$2,$3,1,'test',$4,CASE WHEN $2='terminal' THEN $4 ELSE NULL END,$4,$4)
-	`, owner, state, generation, now); err != nil {
+		) VALUES($1,$2,$3,1,'test',$4,$5,$4,$4)
+	`, owner, state, generation, now, terminalAt); err != nil {
 		t.Fatal(err)
 	}
 }

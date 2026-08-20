@@ -19,11 +19,129 @@ import (
 	"social.craftsky/appview/internal/ctxkeys"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
+	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/pdseffects"
 )
+
+type observedTestEffectExecutor struct {
+	inner    pdseffects.EffectExecutor
+	recorder *observability.InMemoryMetricRecorder
+}
+
+func observedTestEffectFactory(
+	base pdseffects.ExecutorFactory,
+	recorder *observability.InMemoryMetricRecorder,
+) pdseffects.ExecutorFactory {
+	return func(ctx context.Context, owner syntax.DID, sessionID string) (pdseffects.EffectExecutor, error) {
+		started := time.Now()
+		executor, err := base(ctx, owner, sessionID)
+		result := "success"
+		if err != nil {
+			result = "error"
+		}
+		recorder.PDSOperation(ctx, "oauth.session_resume", "session_resume", result, string(observability.ClassifyPDSError(err)), time.Since(started))
+		if err != nil {
+			return nil, err
+		}
+		return &observedTestEffectExecutor{inner: executor, recorder: recorder}, nil
+	}
+}
+
+func (executor *observedTestEffectExecutor) ResolveExpectedOwners(
+	ctx context.Context,
+	generation int64,
+	targets []syntax.DID,
+) ([]ownerlifecycle.ExpectedOwner, error) {
+	return executor.inner.ResolveExpectedOwners(ctx, generation, targets)
+}
+
+func (executor *observedTestEffectExecutor) ReadRecord(
+	ctx context.Context,
+	request pdseffects.ReadRecordRequest,
+	out any,
+) (syntax.CID, error) {
+	started := time.Now()
+	cid, err := executor.inner.ReadRecord(ctx, request, out)
+	recordTestPDSOperation(ctx, executor.recorder, testPutOperation(request.Collection), err, time.Since(started))
+	return cid, err
+}
+
+func (executor *observedTestEffectExecutor) PutRecord(
+	ctx context.Context,
+	request pdseffects.PutRecordRequest,
+) (pdseffects.RecordResult, error) {
+	started := time.Now()
+	result, err := executor.inner.PutRecord(ctx, request)
+	recordTestPDSOperation(ctx, executor.recorder, testPutOperation(request.Collection), err, time.Since(started))
+	return result, err
+}
+
+func (executor *observedTestEffectExecutor) DeleteRecord(
+	ctx context.Context,
+	request pdseffects.DeleteRecordRequest,
+) (pdseffects.RecordResult, error) {
+	started := time.Now()
+	result, err := executor.inner.DeleteRecord(ctx, request)
+	recordTestPDSOperation(ctx, executor.recorder, testDeleteOperation(request.Collection), err, time.Since(started))
+	return result, err
+}
+
+func (executor *observedTestEffectExecutor) UploadBlob(
+	ctx context.Context,
+	request pdseffects.UploadBlobRequest,
+) (*auth.UploadedBlob, error) {
+	started := time.Now()
+	result, err := executor.inner.UploadBlob(ctx, request)
+	recordTestPDSOperation(ctx, executor.recorder, "blob.upload", err, time.Since(started))
+	return result, err
+}
+
+func recordTestPDSOperation(
+	ctx context.Context,
+	recorder *observability.InMemoryMetricRecorder,
+	operation string,
+	err error,
+	duration time.Duration,
+) {
+	result := "success"
+	if err != nil {
+		result = "error"
+	}
+	recorder.PDSOperation(ctx, operation, "pds_request", result, string(observability.ClassifyPDSError(err)), duration)
+}
+
+func testPutOperation(collection syntax.NSID) string {
+	switch collection.String() {
+	case "app.bsky.actor.profile":
+		return "profile.put_bsky"
+	case "social.craftsky.actor.profile":
+		return "profile.put_craftsky"
+	case "app.bsky.graph.follow":
+		return "follow.create"
+	case "social.craftsky.feed.like":
+		return "like.create"
+	case "social.craftsky.feed.repost":
+		return "repost.create"
+	default:
+		return "post.create"
+	}
+}
+
+func testDeleteOperation(collection syntax.NSID) string {
+	switch collection.String() {
+	case "app.bsky.graph.follow":
+		return "follow.delete"
+	case "social.craftsky.feed.like":
+		return "like.delete"
+	case "social.craftsky.feed.repost":
+		return "repost.delete"
+	default:
+		return "post.delete"
+	}
+}
 
 func TestPDSWriteHandlersEmitObservedOperations(t *testing.T) {
 	recorder := observability.NewInMemoryMetricRecorder()
-	observer := observability.New(observability.Config{Env: "test", MetricRecorder: recorder})
 
 	profilePDS := &fakePDSForPut{
 		getBsky:     func() (map[string]any, error) { return map[string]any{}, nil },
@@ -33,50 +151,52 @@ func TestPDSWriteHandlersEmitObservedOperations(t *testing.T) {
 	profileHandler := api.PutMeProfileHandler(
 		&fakeStore{row: &api.ProfileRow{DID: "did:plc:alice", CreatedAt: time.Now()}},
 		fakeResolver{handleFor: "alice.example"},
-		observer.WrapPDSFactory(func(context.Context, syntax.DID, string) (auth.PDSClient, error) { return profilePDS, nil }),
+		observedTestEffectFactory(func(context.Context, syntax.DID, string) (pdseffects.EffectExecutor, error) {
+			return profilePDS, nil
+		}, recorder),
 		api.DefaultMediaLimits(),
 		nilLogger(),
 	)
 	req := authedReq(http.MethodPut, "/v1/profiles/me", `{"displayName":"Alice","crafts":["sewing"]}`, "did:plc:alice")
 	serveObservedPDSRequest(t, profileHandler, withOAuthSession(req), http.StatusOK)
 
-	postPDS := &fakePDS{createURI: "at://did:plc:alice/social.craftsky.feed.post/post1", createCID: "bafyPost"}
-	createPostHandler := api.CreatePostHandler(&fakePostStore{}, observer.WrapPDSFactory(newPDSFactory(postPDS)), fakeResolver{handleFor: "alice.example"}, api.DefaultMediaLimits(), nilLogger())
+	postPDS := &fakePostEffectState{createURI: "at://did:plc:alice/social.craftsky.feed.post/post1", createCID: "bafyPost"}
+	createPostHandler := api.CreatePostHandler(&fakePostStore{}, observedTestEffectFactory(newPDSEffectsFactory(postPDS), recorder), fakeResolver{handleFor: "alice.example"}, api.DefaultMediaLimits(), nilLogger())
 	serveObservedPDSRequest(t, createPostHandler, withOAuthSession(authedReq(http.MethodPost, "/v1/posts", `{"text":"hello"}`, "did:plc:alice")), http.StatusCreated)
 
-	deletePostHandler := api.DeletePostHandler(observer.WrapPDSFactory(newPDSFactory(&fakePDS{})), nilLogger())
+	deletePostHandler := api.DeletePostHandler(observedTestEffectFactory(newPDSEffectsFactory(&fakePostEffectState{}), recorder), nilLogger())
 	deletePostReq := withOAuthSession(authedReq(http.MethodDelete, "/v1/posts/did:plc:alice/post1", "", "did:plc:alice"))
 	deletePostReq.SetPathValue("did", "did:plc:alice")
 	deletePostReq.SetPathValue("rkey", "post1")
 	serveObservedPDSRequest(t, deletePostHandler, deletePostReq, http.StatusNoContent)
 
-	blobHandler := api.ImageBlobUploadHandler(observer.WrapPDSFactory(newPDSFactory(&fakePDS{})), api.DefaultMediaLimits(), nilLogger())
+	blobHandler := api.ImageBlobUploadHandler(observedTestEffectFactory(blobEffectsFactory(&fakeBlobEffects{}), recorder), api.DefaultMediaLimits(), nilLogger())
 	blobReq := withOAuthSession(authedReq(http.MethodPost, "/v1/blobs/images", "jpeg-bytes", "did:plc:alice"))
 	blobReq.Header.Set("Content-Type", "image/jpeg")
 	serveObservedPDSRequest(t, blobHandler, blobReq, http.StatusOK)
 
 	likeStore := &fakePostStore{target: &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"}}
-	likePDS := &fakePDS{createURI: "at://did:plc:alice/social.craftsky.feed.like/like1", createCID: "bafyLike"}
-	likeHandler := api.LikePostHandler(likeStore, observer.WrapPDSFactory(newPDSFactory(likePDS)), nilLogger())
+	likePDS := &fakePostEffectState{createURI: "at://did:plc:alice/social.craftsky.feed.like/like1", createCID: "bafyLike"}
+	likeHandler := api.LikePostHandler(likeStore, observedTestEffectFactory(newPDSEffectsFactory(likePDS), recorder), nilLogger())
 	serveObservedPDSRequest(t, likeHandler, withOAuthSession(authedPostPathReq(http.MethodPost, "/v1/posts/did:plc:bob/post1/likes", "", "did:plc:alice")), http.StatusCreated)
 
 	unlikeStore := &fakePostStore{
 		target:     &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"},
 		activeLike: &api.InteractionRow{URI: "at://did:plc:alice/social.craftsky.feed.like/like1", DID: "did:plc:alice", Rkey: "like1", CID: "bafyLike", SubjectURI: "at://did:plc:bob/social.craftsky.feed.post/post1", SubjectCID: "bafyPost"},
 	}
-	unlikeHandler := api.UnlikePostHandler(unlikeStore, observer.WrapPDSFactory(newPDSFactory(&fakePDS{})), nilLogger())
+	unlikeHandler := api.UnlikePostHandler(unlikeStore, observedTestEffectFactory(newPDSEffectsFactory(&fakePostEffectState{}), recorder), nilLogger())
 	serveObservedPDSRequest(t, unlikeHandler, withOAuthSession(authedPostPathReq(http.MethodDelete, "/v1/posts/did:plc:bob/post1/likes", "", "did:plc:alice")), http.StatusNoContent)
 
 	repostStore := &fakePostStore{target: &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"}}
-	repostPDS := &fakePDS{createURI: "at://did:plc:alice/social.craftsky.feed.repost/repost1", createCID: "bafyRepost"}
-	repostHandler := api.RepostPostHandler(repostStore, observer.WrapPDSFactory(newPDSFactory(repostPDS)), nilLogger())
+	repostPDS := &fakePostEffectState{createURI: "at://did:plc:alice/social.craftsky.feed.repost/repost1", createCID: "bafyRepost"}
+	repostHandler := api.RepostPostHandler(repostStore, observedTestEffectFactory(newPDSEffectsFactory(repostPDS), recorder), nilLogger())
 	serveObservedPDSRequest(t, repostHandler, withOAuthSession(authedPostPathReq(http.MethodPost, "/v1/posts/did:plc:bob/post1/reposts", "", "did:plc:alice")), http.StatusCreated)
 
 	unrepostStore := &fakePostStore{
 		target:       &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost"},
 		activeRepost: &api.InteractionRow{URI: "at://did:plc:alice/social.craftsky.feed.repost/repost1", DID: "did:plc:alice", Rkey: "repost1", CID: "bafyRepost", SubjectURI: "at://did:plc:bob/social.craftsky.feed.post/post1", SubjectCID: "bafyPost"},
 	}
-	unrepostHandler := api.UnrepostPostHandler(unrepostStore, observer.WrapPDSFactory(newPDSFactory(&fakePDS{})), nilLogger())
+	unrepostHandler := api.UnrepostPostHandler(unrepostStore, observedTestEffectFactory(newPDSEffectsFactory(&fakePostEffectState{}), recorder), nilLogger())
 	serveObservedPDSRequest(t, unrepostHandler, withOAuthSession(authedPostPathReq(http.MethodDelete, "/v1/posts/did:plc:bob/post1/reposts", "", "did:plc:alice")), http.StatusNoContent)
 
 	followProfiles := &fakeFollowProfileStore{row: &api.ProfileRow{DID: "did:plc:bob", Crafts: []string{}, CreatedAt: time.Now(), IsCraftskyProfile: true}}
@@ -85,9 +205,9 @@ func TestPDSWriteHandlersEmitObservedOperations(t *testing.T) {
 		&fakeFollowGraphStore{},
 		followProfiles,
 		followResolver,
-		observer.WrapPDSFactory(func(context.Context, syntax.DID, string) (auth.PDSClient, error) {
-			return &fakeFollowPDS{createURI: "at://did:plc:alice/app.bsky.graph.follow/f1", createCID: "bafyFollow"}, nil
-		}),
+		observedTestEffectFactory(fakeFollowEffectsFactory(&fakeFollowPDS{
+			createURI: "at://did:plc:alice/app.bsky.graph.follow/f1", createCID: "bafyFollow",
+		}), recorder),
 		nilLogger(),
 	)
 	followReq := withOAuthSession(authedReq(http.MethodPost, "/v1/profiles/@bob.example/follows", "", "did:plc:alice"))
@@ -98,7 +218,7 @@ func TestPDSWriteHandlersEmitObservedOperations(t *testing.T) {
 		&fakeFollowGraphStore{active: &api.FollowRow{URI: "at://did:plc:alice/app.bsky.graph.follow/f1", DID: "did:plc:alice", Rkey: "f1", SubjectDID: "did:plc:bob", CreatedAt: time.Now()}},
 		followProfiles,
 		followResolver,
-		observer.WrapPDSFactory(func(context.Context, syntax.DID, string) (auth.PDSClient, error) { return &fakeFollowPDS{}, nil }),
+		observedTestEffectFactory(fakeFollowEffectsFactory(&fakeFollowPDS{}), recorder),
 		nilLogger(),
 	)
 	unfollowReq := withOAuthSession(authedReq(http.MethodDelete, "/v1/profiles/@bob.example/follows", "", "did:plc:alice"))
@@ -167,7 +287,7 @@ func TestPDSWriteHandlerLogsUseBoundedContextWithoutRawIdentitySessionOrContent(
 	profileHandler := api.PutMeProfileHandler(
 		&fakeStore{row: &api.ProfileRow{DID: "did:plc:alice", CreatedAt: time.Now()}},
 		fakeResolver{handleFor: "alice.example"},
-		func(context.Context, syntax.DID, string) (auth.PDSClient, error) { return profilePDS, nil },
+		func(context.Context, syntax.DID, string) (pdseffects.EffectExecutor, error) { return profilePDS, nil },
 		api.DefaultMediaLimits(),
 		logger,
 	)
@@ -176,25 +296,25 @@ func TestPDSWriteHandlerLogsUseBoundedContextWithoutRawIdentitySessionOrContent(
 
 	createPostHandler := api.CreatePostHandler(
 		&fakePostStore{},
-		newPDSFactory(&fakePDS{createURI: "at://did:plc:alice/social.craftsky.feed.post/post1", createCID: "bafyPost"}),
+		newPDSEffectsFactory(&fakePostEffectState{createURI: "at://did:plc:alice/social.craftsky.feed.post/post1", createCID: "bafyPost"}),
 		fakeResolver{handleFor: "alice.example"},
 		api.DefaultMediaLimits(),
 		logger,
 	)
 	serveObservedPDSRequest(t, createPostHandler, loggedWriteReq(http.MethodPost, "/v1/posts", `{"text":"secret body"}`), http.StatusCreated)
 
-	deletePostHandler := api.DeletePostHandler(newPDSFactory(&fakePDS{deleteErr: errors.New("pds down")}), logger)
+	deletePostHandler := api.DeletePostHandler(newPDSEffectsFactory(&fakePostEffectState{deleteErr: errors.New("pds down")}), logger)
 	deleteReq := loggedWriteReq(http.MethodDelete, "/v1/posts/did:plc:alice/post1", "")
 	deleteReq.SetPathValue("did", "did:plc:alice")
 	deleteReq.SetPathValue("rkey", "post1")
 	serveObservedPDSRequest(t, deletePostHandler, deleteReq, http.StatusBadGateway)
 
 	likeStore := &fakePostStore{target: &api.PostTargetRef{URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyTarget"}}
-	likeHandler := api.LikePostHandler(likeStore, newPDSFactory(&fakePDS{createErr: errors.New("pds down")}), logger)
+	likeHandler := api.LikePostHandler(likeStore, newPDSEffectsFactory(&fakePostEffectState{createErr: errors.New("pds down")}), logger)
 	serveObservedPDSRequest(t, likeHandler, loggedWritePostPathReq(http.MethodPost, "/v1/posts/did:plc:bob/post1/likes", ""), http.StatusBadGateway)
 
 	blobHandler := api.ImageBlobUploadHandler(
-		newPDSFactory(&fakePDS{uploadResp: &auth.UploadedBlob{
+		blobEffectsFactory(&fakeBlobEffects{uploadResp: &auth.UploadedBlob{
 			Raw:  map[string]any{"$type": "blob", "ref": map[string]any{"$link": "bafkBlob"}, "mimeType": "image/jpeg", "size": float64(11)},
 			CID:  "bafkBlob",
 			MIME: "image/jpeg",

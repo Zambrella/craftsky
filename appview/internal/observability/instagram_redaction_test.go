@@ -3,19 +3,16 @@ package observability
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/bluesky-social/indigo/api/bsky"
 	"github.com/getsentry/sentry-go"
 	"github.com/google/uuid"
 
-	"social.craftsky/appview/internal/auth"
-	"social.craftsky/appview/internal/followwrite"
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/integrations/instagrammeta"
 	"social.craftsky/appview/internal/notifications"
@@ -85,13 +82,11 @@ func TestInstagramCanariesStayOutOfDiagnosticsTelemetryPushPDSAndURLs(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	pds := &canaryPDS{}
-	writer := followwrite.NewService(func(context.Context, syntax.DID, string) (auth.PDSClient, error) { return pds, nil })
-	rkey := syntax.RecordKey("3ksyntheticinstagram")
-	if err := writer.Write(context.Background(), "did:plc:synthetic-owner", "did:plc:synthetic-target", "safe-session", &rkey, now); err != nil {
-		t.Fatal(err)
-	}
-	pdsRecord, err := json.Marshal(pds.record)
+	pdsRecord, err := json.Marshal(&bsky.GraphFollow{
+		LexiconTypeID: "app.bsky.graph.follow",
+		Subject:       "did:plc:synthetic-target",
+		CreatedAt:     now.Format(time.RFC3339),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,21 +109,4 @@ func TestInstagramCanariesStayOutOfDiagnosticsTelemetryPushPDSAndURLs(t *testing
 			}
 		}
 	}
-}
-
-type canaryPDS struct{ record any }
-
-func (*canaryPDS) GetRecord(context.Context, syntax.DID, string, string, any) (string, error) {
-	return "", errors.New("not implemented")
-}
-func (p *canaryPDS) PutRecord(_ context.Context, _ syntax.DID, _ string, _ string, record any) error {
-	p.record = record
-	return nil
-}
-func (*canaryPDS) CreateRecord(context.Context, syntax.DID, string, any) (syntax.ATURI, syntax.CID, error) {
-	return "", "", errors.New("not implemented")
-}
-func (*canaryPDS) DeleteRecord(context.Context, syntax.DID, string, string) error { return nil }
-func (*canaryPDS) UploadBlob(context.Context, string, []byte) (*auth.UploadedBlob, error) {
-	return nil, errors.New("not implemented")
 }

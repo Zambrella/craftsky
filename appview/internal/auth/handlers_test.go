@@ -24,29 +24,6 @@ import (
 	"social.craftsky/appview/internal/middleware"
 )
 
-// noopPDSClient satisfies auth.PDSClient without touching any real PDS.
-// Used by handlersFixture so the OAuth callback tests that don't care
-// about onboarding-on-login don't fail in InitializeProfile. GetRecord
-// returns 404 (record missing), causing InitializeProfile to emit an
-// empty-Craftsky-profile write — which also returns nil here, a no-op.
-type noopPDSClient struct{}
-
-func (noopPDSClient) GetRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) (string, error) {
-	return "", auth.ErrRecordNotFound
-}
-func (noopPDSClient) PutRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) error {
-	return nil
-}
-func (noopPDSClient) CreateRecord(_ context.Context, _ syntax.DID, _ string, _ any) (syntax.ATURI, syntax.CID, error) {
-	return "", "", nil
-}
-func (noopPDSClient) DeleteRecord(_ context.Context, _ syntax.DID, _, _ string) error {
-	return nil
-}
-func (noopPDSClient) UploadBlob(_ context.Context, _ string, _ []byte) (*auth.UploadedBlob, error) {
-	return nil, nil
-}
-
 // erroringGetPDSClient always errors on GetRecord (non-404). Used to
 // exercise InitializeProfile's error propagation.
 type erroringGetPDSClient struct{}
@@ -101,10 +78,8 @@ func handlersFixture(t *testing.T, hostname string) *auth.HTTPHandlers {
 	oauthApp := oauth.NewClientApp(&artifacts.Config, store)
 	craftsky := auth.NewCraftskySessionStore(pool, 5*time.Minute)
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	noopPDS := func(_ context.Context, _ syntax.DID, _ string) (auth.PDSClient, error) {
-		return noopPDSClient{}, nil
-	}
-	handlers := auth.NewHTTPHandlers(oauthApp, artifacts, craftsky, pool, logger, true /* devMode */, noopPDS)
+	handlers := auth.NewHTTPHandlers(oauthApp, artifacts, craftsky, pool, logger)
+	handlers.OnboardingProfile = testOnboardingProfileWriter{}
 	lifecycle, err := auth.NewSessionLifecycleService(auth.SessionLifecycleOptions{
 		Pool: pool, Owners: newAuthOwnerStore(t, pool), Sessions: craftsky, Now: time.Now,
 	})
@@ -647,8 +622,13 @@ func TestInitializeProfile_BlueskyErrorPropagates(t *testing.T) {
 	// Lightweight alternative to driving ProcessCallback end-to-end:
 	// verify the error-path wiring by invoking the function directly.
 	// The callback happy path is exercised by the existing tests that
-	// use handlersFixture's noopPDSClient.
-	err := auth.InitializeProfile(context.Background(), erroringGetPDSClient{}, syntax.DID("did:plc:me"))
+	// use handlersFixture's injected onboarding profile writer.
+	err := auth.InitializeProfile(
+		context.Background(),
+		erroringGetPDSClient{},
+		loginAttempt(syntax.DID("did:plc:me")),
+		testOnboardingProfileWriter{},
+	)
 	if !errors.Is(err, auth.ErrProfileInitFailed) {
 		t.Fatalf("want ErrProfileInitFailed; got %v", err)
 	}

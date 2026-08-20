@@ -251,6 +251,9 @@ func (s *ProfilePinStore) Unpin(
 		return ProfilePinMutationResult{}, fmt.Errorf("profile unpin begin: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, owner, nil); err != nil {
+		return ProfilePinMutationResult{}, fmt.Errorf("profile unpin authorization: %w", err)
+	}
 
 	if err := lockProfilePinOwner(ctx, tx, owner); err != nil {
 		return ProfilePinMutationResult{}, err

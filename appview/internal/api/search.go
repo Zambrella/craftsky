@@ -16,29 +16,125 @@ import (
 	"social.craftsky/appview/internal/relationships"
 )
 
-// SearchStore is the Postgres-backed search implementation. Search handlers
-// depend on this concrete store for production route wiring; focused handler
-// tests use smaller interfaces in follow-up TDD loops.
+// SearchStore is the Postgres-backed composition root for independently owned
+// search query capabilities and the narrow readers used to hydrate post-shaped
+// results. HTTP consumers depend on their capability interfaces, not this type.
 type SearchStore struct {
-	pool      *pgxpool.Pool
-	postStore *PostStore
-	observer  *observability.Observer
+	pool               *pgxpool.Pool
+	observer           *observability.Observer
+	engagementReader   searchEngagementReader
+	quoteReader        searchQuoteReader
+	relationshipReader searchRelationshipReader
+	blockedPairsReader searchBlockedPairsReader
+}
+
+// profileSearchReader is owned by the profile-search HTTP consumers. It keeps
+// their query dependency independent from the other search capabilities.
+type profileSearchReader interface {
+	SearchProfiles(context.Context, string, ProfileSearchRequest) ([]ProfileSearchRow, string, error)
+}
+
+// hashtagSearchReader is owned by hashtag discovery consumers.
+type hashtagSearchReader interface {
+	SearchHashtags(context.Context, HashtagSearchRequest, time.Time) ([]HashtagSearchResult, string, error)
+}
+
+type searchSuggestionReader interface {
+	profileSearchReader
+	hashtagSearchReader
+}
+
+// Search post response hydration is an explicit composition of the four
+// capabilities used by the canonical post response builder. Keeping these
+// seams separate prevents query consumers from depending on PostStore.
+type searchEngagementReader interface {
+	EngagementSummaries(context.Context, string, []string) (map[string]EngagementSummary, error)
+}
+
+type searchQuoteReader interface {
+	QuoteViewRows(context.Context, []ResponseStrongRef) (map[string]*QuoteViewRow, error)
+}
+
+type searchRelationshipReader interface {
+	RelationshipStates(context.Context, syntax.DID, []syntax.DID) (map[syntax.DID]relationships.State, error)
+}
+
+type searchBlockedPairsReader interface {
+	BlockedPairs(context.Context, []RelationshipPair) (map[RelationshipPair]bool, error)
+}
+
+type searchPostHydrationReader interface {
+	searchEngagementReader
+	searchQuoteReader
+	searchRelationshipReader
+	searchBlockedPairsReader
+}
+
+type postSearchReader interface {
+	SearchPostsWithLanguages(context.Context, string, []string, PostSearchRequest, time.Time) ([]SearchPostRow, string, error)
+}
+
+type postSearchHandlerStore interface {
+	postSearchReader
+	searchPostHydrationReader
+}
+
+type projectSearchReader interface {
+	SearchProjectsWithLanguages(context.Context, string, []string, ProjectSearchRequest, time.Time) ([]SearchPostRow, string, error)
+}
+
+type projectSearchHandlerStore interface {
+	projectSearchReader
+	searchPostHydrationReader
+}
+
+type hashtagPostSearchReader interface {
+	SearchHashtagPostsWithLanguages(context.Context, string, []string, string, SearchSort, int, string, time.Time) ([]SearchPostRow, string, error)
+}
+
+type hashtagPostSearchHandlerStore interface {
+	hashtagPostSearchReader
+	searchPostHydrationReader
+}
+
+type topHashtagReader interface {
+	TopHashtags(context.Context, TopHashtagsRequest, time.Time) ([]TopHashtagGroup, error)
+}
+
+type recentSearchLister interface {
+	ListRecentSearches(context.Context, string) ([]RecentSearchRow, error)
+}
+
+type recentSearchSaver interface {
+	SaveRecentSearch(context.Context, string, SaveRecentSearchRequest, time.Time) (RecentSearchRow, error)
+}
+
+type recentSearchDeleter interface {
+	DeleteRecentSearch(context.Context, string, string) error
 }
 
 func NewSearchStore(pool *pgxpool.Pool, observer *observability.Observer) *SearchStore {
-	return &SearchStore{pool: pool, postStore: NewPostStore(pool, observer), observer: observer}
+	posts := NewPostStore(pool, observer)
+	return &SearchStore{
+		pool:               pool,
+		observer:           observer,
+		engagementReader:   posts,
+		quoteReader:        posts,
+		relationshipReader: posts,
+		blockedPairsReader: posts,
+	}
 }
 
 func (s *SearchStore) RelationshipStates(ctx context.Context, viewer syntax.DID, subjects []syntax.DID) (map[syntax.DID]relationships.State, error) {
-	return s.postStore.RelationshipStates(ctx, viewer, subjects)
+	return s.relationshipReader.RelationshipStates(ctx, viewer, subjects)
 }
 
 func (s *SearchStore) BlockedPairs(ctx context.Context, pairs []RelationshipPair) (map[RelationshipPair]bool, error) {
-	return s.postStore.BlockedPairs(ctx, pairs)
+	return s.blockedPairsReader.BlockedPairs(ctx, pairs)
 }
 
 func SearchHashtagPostsHandler(
-	store *SearchStore,
+	store hashtagPostSearchHandlerStore,
 	resolver HandleResolver,
 	logger *slog.Logger,
 	preferenceReaders ...LanguagePreferenceReader,
@@ -98,7 +194,7 @@ func SearchHashtagPostsHandler(
 	})
 }
 
-func SearchProfilesHandler(store *SearchStore, logger *slog.Logger) http.Handler {
+func SearchProfilesHandler(store profileSearchReader, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		req, err := ParseProfileSearchRequest(r)
 		if err != nil {
@@ -136,7 +232,7 @@ func SearchProfilesHandler(store *SearchStore, logger *slog.Logger) http.Handler
 	})
 }
 
-func SearchHashtagsHandler(store *SearchStore, logger *slog.Logger) http.Handler {
+func SearchHashtagsHandler(store hashtagSearchReader, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		req, err := ParseHashtagSearchRequest(r)
 		if err != nil {
@@ -164,7 +260,7 @@ func SearchHashtagsHandler(store *SearchStore, logger *slog.Logger) http.Handler
 	})
 }
 
-func SearchSuggestionsHandler(store *SearchStore, logger *slog.Logger) http.Handler {
+func SearchSuggestionsHandler(store searchSuggestionReader, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		req, err := ParseSearchSuggestionsRequest(r)
 		if err != nil {
@@ -210,7 +306,7 @@ func SearchSuggestionsHandler(store *SearchStore, logger *slog.Logger) http.Hand
 }
 
 func SearchPostsHandler(
-	store *SearchStore,
+	store postSearchHandlerStore,
 	resolver HandleResolver,
 	logger *slog.Logger,
 	preferenceReaders ...LanguagePreferenceReader,
@@ -262,7 +358,7 @@ func SearchPostsHandler(
 }
 
 func SearchProjectsHandler(
-	store *SearchStore,
+	store projectSearchHandlerStore,
 	resolver HandleResolver,
 	logger *slog.Logger,
 	preferenceReaders ...LanguagePreferenceReader,
@@ -314,7 +410,7 @@ func SearchProjectsHandler(
 }
 
 func ListProjectsHandler(
-	store *SearchStore,
+	store projectSearchHandlerStore,
 	resolver HandleResolver,
 	logger *slog.Logger,
 	preferenceReaders ...LanguagePreferenceReader,
@@ -371,7 +467,7 @@ func ListProjectsHandler(
 	})
 }
 
-func TopHashtagsHandler(store *SearchStore, logger *slog.Logger) http.Handler {
+func TopHashtagsHandler(store topHashtagReader, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		req, err := ParseTopHashtagsRequest(r)
 		if err != nil {
@@ -389,7 +485,7 @@ func TopHashtagsHandler(store *SearchStore, logger *slog.Logger) http.Handler {
 	})
 }
 
-func ListRecentSearchesHandler(store *SearchStore, logger *slog.Logger) http.Handler {
+func ListRecentSearchesHandler(store recentSearchLister, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		viewerDID, ok := middleware.GetDID(r.Context())
 		if !ok {
@@ -416,7 +512,7 @@ func ListRecentSearchesHandler(store *SearchStore, logger *slog.Logger) http.Han
 	})
 }
 
-func SaveRecentSearchHandler(store *SearchStore, logger *slog.Logger) http.Handler {
+func SaveRecentSearchHandler(store recentSearchSaver, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		viewerDID, ok := middleware.GetDID(r.Context())
 		if !ok {
@@ -445,7 +541,7 @@ func SaveRecentSearchHandler(store *SearchStore, logger *slog.Logger) http.Handl
 	})
 }
 
-func DeleteRecentSearchHandler(store *SearchStore, logger *slog.Logger) http.Handler {
+func DeleteRecentSearchHandler(store recentSearchDeleter, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		viewerDID, ok := middleware.GetDID(r.Context())
 		if !ok {
@@ -462,7 +558,7 @@ func DeleteRecentSearchHandler(store *SearchStore, logger *slog.Logger) http.Han
 	})
 }
 
-func buildSearchPostResponses(ctx context.Context, rows []SearchPostRow, viewerDID string, store *SearchStore, resolver HandleResolver) ([]*PostResponse, error) {
+func buildSearchPostResponses(ctx context.Context, rows []SearchPostRow, viewerDID string, store searchPostHydrationReader, resolver HandleResolver) ([]*PostResponse, error) {
 	items := make([]*PostResponse, 0, len(rows))
 	uris := make([]string, 0, len(rows))
 	for _, row := range rows {

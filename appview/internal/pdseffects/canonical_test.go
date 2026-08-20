@@ -2,10 +2,38 @@ package pdseffects
 
 import (
 	"crypto/sha256"
+	"encoding/json"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
+
+func TestRecordContentFingerprintNormalizesTapJSON(t *testing.T) {
+	owner := syntax.DID("did:plc:canonical-tap")
+	collection := syntax.NSID("social.craftsky.feed.post")
+	rkey := syntax.RecordKey("3lcanonicaltap")
+
+	fromWriter, err := RecordContentFingerprint(owner, collection, rkey, map[string]any{
+		"$type":  "social.craftsky.feed.post",
+		"nested": map[string]any{"a": true, "z": json.Number("2")},
+		"text":   "same record",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fromTap, err := RecordContentFingerprint(
+		owner,
+		collection,
+		rkey,
+		json.RawMessage(`{ "text" : "same record", "nested" : { "z" : 2, "a" : true }, "$type" : "social.craftsky.feed.post" }`),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fromWriter != fromTap {
+		t.Fatalf("writer fingerprint %x != Tap fingerprint %x", fromWriter, fromTap)
+	}
+}
 
 func TestCanonicalPutBodyFingerprintMatchesExactJSONRequest(t *testing.T) {
 	owner := syntax.DID("did:plc:canonical-effect")

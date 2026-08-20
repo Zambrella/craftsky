@@ -45,21 +45,21 @@ release build.
 
 | Step | Test-loop ID | Findings | Initial failure or required proof | Status |
 |---:|---|---|---|---|
-| 1 | `GATE-001` | AV-012, AV-013, AV-033, AV-036 | Migration-source errors currently succeed; DB tests skip; vulnerable/unpinned build and formatting gap | In progress |
-| 2 | `CFG-001` | AV-022, AV-023, AV-024, AV-030 | Host-derived metadata, production localhost fallback, LAN dev impersonation, invalid duration geometry | Pending |
-| 3 | `NET-001` | AV-001, AV-017 | Malicious discovered destinations connect; response/deadline budgets are unbounded | Core complete; integration pending |
-| 4 | `MEDIA-001` | AV-016 | Oversized decoded geometry reaches full image decode without aggregate admission | Partial — core/client complete; release gates pending |
-| 5 | `LIFE-001` | AV-002, AV-003, AV-006, AV-007 | Ghost terminal owner, stale member authority, upload/delete orphan race, background late follow | Core complete; required-DB and remaining writer integration gates pending |
-| 6 | `AUTH-001` | AV-008, AV-018, AV-019 | Bearer crosses browser link; callback loses routing metadata; partial callback strands credentials | Core complete; aggregate/release gates pending |
-| 7 | `SESSION-001` | AV-009, AV-010, AV-011, AV-020, AV-021, AV-035 | Refresh race, non-local-first logout, 401/503 collapse, unenforced expiry, partial logout-all, growing maps | Core complete; aggregate/worker gates pending |
-| 8 | `HTTP-001` | AV-014, AV-015, AV-031, AV-032 | Pre-header exhaustion, bypassable/unbounded admission, PATCH preflight drift, text/redirect fallthrough | Core complete; shared release gate pending |
-| 9 | `TAP-001` | AV-004, AV-005 | Retry count causes ACK/loss and ordering gates discard valid source records | Core complete; startup/cutover gates pending |
+| 1 | `GATE-001` | AV-012, AV-013, AV-033, AV-036 | Migration-source errors currently succeed; DB tests skip; vulnerable/unpinned build and formatting gap | Complete |
+| 2 | `CFG-001` | AV-022, AV-023, AV-024, AV-030 | Host-derived metadata, production localhost fallback, LAN dev impersonation, invalid duration geometry | Complete; deployment proof pending |
+| 3 | `NET-001` | AV-001, AV-017 | Malicious discovered destinations connect; response/deadline budgets are unbounded | Complete; public-environment smoke pending |
+| 4 | `MEDIA-001` | AV-016 | Oversized decoded geometry reaches full image decode without aggregate admission | Automated code/client/container/concurrency proof complete; authorized legacy cleanup pending |
+| 5 | `LIFE-001` | AV-002, AV-003, AV-006, AV-007 | Ghost terminal owner, stale member authority, upload/delete orphan race, background late follow | Complete; controlled data cutover pending |
+| 6 | `AUTH-001` | AV-008, AV-018, AV-019 | Bearer crosses browser link; callback loses routing metadata; partial callback strands credentials | Complete; verified-link release gates pending |
+| 7 | `SESSION-001` | AV-009, AV-010, AV-011, AV-020, AV-021, AV-035 | Refresh race, non-local-first logout, 401/503 collapse, unenforced expiry, partial logout-all, growing maps | Complete |
+| 8 | `HTTP-001` | AV-014, AV-015, AV-031, AV-032 | Pre-header exhaustion, bypassable/unbounded admission, PATCH preflight drift, text/redirect fallthrough | Complete; deployment proxy smoke pending |
+| 9 | `TAP-001` | AV-004, AV-005 | Retry count causes ACK/loss and ordering gates discard valid source records | Complete; controlled Tap cutover pending |
 | 10 | `PGX-001` | AV-026, AV-027 | Shadowed acquisition error and prefix commits after terminal iterator error | Complete |
 | 11 | `INDEX-001` | AV-028, AV-034 | Missing FK-support paths and exact duplicate indexes | Complete |
-| 12 | `PUSH-001` | AV-025 | Serial pre-claims outlive leases; provider payload lacks honest at-least-once presentation contract | Core complete; lifecycle/config/release gates pending |
-| 13 | `MOD-001` | AV-029 | Moderation output and restoration scheduling can split or duplicate | In progress |
-| 14 | `ARCH-001` | AV-037 | Broad stores/composers obscure capability ownership after behavior is corrected | Pending |
-| 15 | `FINAL-001` | AV-001 through AV-037 | Clean rebuild, migration round trip, Tap rebootstrap/replay, full race/static/vulnerability/release smoke | Pending |
+| 12 | `PUSH-001` | AV-025 | Serial pre-claims outlive leases; provider payload lacks honest at-least-once presentation contract | Complete; physical-device release gates pending |
+| 13 | `MOD-001` | AV-029 | Moderation output and restoration scheduling can split or duplicate | Complete |
+| 14 | `ARCH-001` | AV-037 | Broad stores/composers obscure capability ownership after behavior is corrected | Complete |
+| 15 | `FINAL-001` | AV-001 through AV-037 | Clean rebuild, migration round trip, Tap rebootstrap/replay, full race/static/vulnerability/release smoke | Automated gate complete; external cutover/release gates pending |
 
 ## Execution notes
 
@@ -81,24 +81,59 @@ release build.
 - Implemented evidence: the focused migration/test-database tests pass; real
   PostgreSQL 16 tests for `internal/accountdeletion`, `internal/db`, and
   `internal/testdb` pass with `TEST_DATABASE_REQUIRED=true`; the complete
-  unit-only Go suite passes after the dependency upgrade. The full database
-  and release-equivalent gates remain pending.
+  unit-only Go suite passes after the dependency upgrade.
 - Live scanning moved the toolchain baseline beyond the audit minimum: Go
   1.26.5 still had seven reachable standard-library findings in the current
   vulnerability database, so the implementation now uses Go 1.26.6. Source
   `govulncheck` 1.7.0 is clean after also upgrading pgx, gRPC, `x/net`, and
   `x/crypto`. Binary scanning exposes a govulncheck all-symbol OpenPGP false
   positive even though neither `go list -deps` nor an unstripped binary contains
-  an OpenPGP package/symbol; the release gate must encode only that proven,
-  exact-ID exception and fail every other finding until the upstream binary
-  scanner can represent package absence.
+  an OpenPGP package/symbol. The release gate runs the pinned scanner binary
+  directly so its documented exit status is preserved, admits only that proven
+  exact-ID/dependency/symbol exception, and fails every other finding until the
+  upstream binary scanner can represent package absence.
+- Final evidence on 2026-08-20:
+  `APPVIEW_CHECK_ARTIFACT_DIR=/private/tmp/craftsky-appview-final-gate-20260820-4
+  ./scripts/appview-check` passes end to end with Go 1.26.6, Staticcheck 2026.1,
+  govulncheck 1.7.0, module/format/vet/static-analysis checks, fresh PostgreSQL
+  16 and MinIO non-race and race suites with required-test skip detection,
+  exact release binaries, migration down-to-zero/up, container builds, and
+  release-image health smoke. The gate also ran `just lexgen-check` and retained
+  its drift log in the same artifact. A live
+  source scan found reachable `GO-2026-6222` in `x/image` 0.44.0; the dependency
+  was upgraded narrowly to 0.45.0 and the final source scan reports zero
+  reachable vulnerabilities.
+- Migration inspection executes populated, empty, missing, non-directory, and
+  unreadable sources; `up`, `down`, `status`, and `redo` all reject an empty
+  bundle before a database connection. The actual Compose failure path makes
+  `migrate` exit nonzero for an empty bundle and proves AppView never starts.
+- The exact AppView/CLI binary exception admits only `GO-2026-5932` while the
+  source scan is clean and dependency/symbol evidence contains no OpenPGP.
+  AppView maintainers own the Step-1 review; it expires on 2026-09-20 and the
+  gate hard-fails after expiry or for any other finding.
 
 ### Step 2: `CFG-001`
 
-- Start with table-driven invalid-origin, missing-production-secret,
-  Host-poisoning, remote-dev, and duration relationship tests.
-- Use one typed deployment identity and one complete startup validator.
-- Coordinate every new duration from later loops through this validator.
+- Complete: one typed OAuth deployment bundle derives every public endpoint
+  from a canonical origin. Production rejects localhost, incomplete credentials,
+  legacy callback/hostname variables, mutable Host-derived metadata, and
+  malformed key material before opening the database. Discovery, JWKS, and
+  metadata are immutable and no-store; `ExpectedHost` ignores forwarded-host
+  spoofing and returns the canonical request-ID envelope.
+- Complete: disabled/local/credentialed-remote development authentication is an
+  explicit startup policy. Remote use requires the configured hashed secret;
+  production rejects the development headers. Compose publishes AppView,
+  PostgreSQL, and MinIO independently on loopback by default, validates explicit
+  remote AppView exposure, and pins database/object-store images by digest.
+- Complete: HTTP admission, OAuth/session/worker, Tap, push, scheduled-object,
+  deletion, and image-decode budgets have bounded values plus their cross-field
+  timing relationships. Scheduled image settings may only lower the compiled
+  safe ceilings, and production rejects more than one AppView replica while the
+  outer limiter remains process-local. Config/package tests and the complete
+  release gate pass.
+- Deployment proof remains external: provision the real secret values, exact
+  immediate-proxy CIDRs, and protected transport; then prove PostgreSQL/MinIO
+  and the development credential are unreachable from an untrusted network.
 
 ### Step 3: `NET-001`
 
@@ -118,13 +153,23 @@ release build.
   `GOCACHE=/private/tmp/craftsky-go-cache go test ./internal/auth -count=1` also
   passes when local test-listener access is available, and `git diff --check`
   passes.
-- Integration pending: construct one boundary at startup; inject its metadata,
-  OAuth, PDS JSON, and upload clients through every Indigo and anonymous PDS
-  path; prevalidate persisted issuer/PDS and discovered OAuth endpoints through
-  that same boundary; give handlers and workers operation-level contexts; and
-  translate/log failures through `federatedhttp.Classify` so outer URL errors do
-  not expose destinations. Instrumented real-listener integration tests and the
-  final database/race/release gate remain outstanding.
+- Actual AppView composition now injects the same boundary into protected-
+  resource and authorization-server discovery, PAR, callback/token exchange,
+  pending onboarding, persisted-session resume, PDS JSON reads/writes, blob
+  upload, anonymous profile backfill, and token revocation. Test-only resolver,
+  dialer, and CA seams exercise the production constructors without weakening
+  the production public-destination policy.
+- Live loopback traps advertised as PAR, token, revocation, or PDS endpoints are
+  rejected with typed/redacted categories before any trap or private base-dialer
+  connection. Mixed DNS and DNS-rebinding cases also make zero forbidden
+  connections. The full PostgreSQL-backed real flow proves purpose routing,
+  finite caps/timeouts, pinned public dials, connection reuse, body closure, and
+  listener-goroutine shutdown. Full `internal/federatedhttp`, `internal/auth`,
+  and `internal/app` packages, focused index backfill, ten-repeat listener/flow
+  tests, focused race tests, and vet all pass.
+- External release smoke remains: repeat a consent/callback, ordinary PDS
+  write, and revocation against an approved public-DNS/public-CA test service in
+  the deployed egress/proxy environment and inspect the bounded metric labels.
 
 ### Step 4: `MEDIA-001`
 
@@ -151,19 +196,25 @@ release build.
   accepted codec. A one-iteration Darwin/arm64 host probe measured JPEG at
   `16,042,928 B/op` / `41,172,992` peak RSS, PNG at `16,070,768 B/op` /
   `41,025,536` peak RSS, and WebP at `72,043,992 B/op` / `96,911,360` peak RSS.
-  These are development evidence only, not the required release-container
-  baseline-plus-decoder-plus-margin proof.
-- Still open before AV-016 closure: run each benchmark inside the exact release
-  container and prove AppView baseline plus worst-codec peak plus safety margin
-  fits its hard memory limit (otherwise isolate decoding in a constrained
-  worker); apply any lower-only startup settings through `CFG-001`; purge every
-  legacy private scheduled row/object through the durable cleanup lifecycle and
-  verify the queue and bucket converge; then run the container-level concurrent
-  upload and final database/race/static/vulnerability gates.
+  Those development values are retained for comparison; the exact release
+  evidence below supersedes them for deployment sizing.
+- Both upload routes now share one bounded permit acquired after authentication
+  and current-member admission but before the first body read. It admits one
+  active request and one bounded waiter, rejects further requests without
+  reading their bodies, and remains held through decode and remote-write work.
+- The final release-runtime cgroup proof used a `536,870,912`-byte limit and a
+  `134,217,728`-byte safety margin. AppView baseline was `15,474,688` bytes.
+  JPEG, PNG, and WebP peaks were `23,138,304`, `23,945,216`, and `78,979,072`
+  bytes; their conservative AppView-baseline-plus-increment-plus-margin totals
+  were `164,511,744`, `165,318,656`, and `220,352,512` bytes. The maximum-size
+  admitted upload plus concurrent unread rejection peaked at `131,141,632`
+  bytes and produced a conservative total of `272,515,072` bytes. All remain
+  below 512 MiB. Only the authorized legacy private scheduled-row/object
+  cleanup and queue/bucket convergence remain before deployment closure.
 
 ### Step 5: `LIFE-001`
 
-- Foundation partial: migrations `000038_owner_auth_lifecycle` and
+- Complete foundation: migrations `000038_owner_auth_lifecycle` and
   `000039_owner_effects_terminal_purge` add the positive generation/auth-epoch
   owner authority, irreversible terminal timestamp, finite leased component
   ledger, and deterministic pre-call effect-attempt state. Database constraints
@@ -247,13 +298,36 @@ release build.
   missing generation/version attempt seam, then passed together with the full
   scheduled-post package in the unit environment; its PostgreSQL cases skipped
   because neither required database URL was configured.
-- Honest remaining gates: rerun the latest cascade refinements, migration
-  `000046`/`000048` up/down/up, and scheduled departure/rejoin/effect barriers
-  with `TEST_DATABASE_REQUIRED=true` on PostgreSQL 16. Compose the bounded
-  departure participant into every active-to-non-active profile transition.
-  Complete the shared transaction-scoped lifecycle guard through all projector
-  actor/target writes and the reviewed private mutation entry points before
-  closing LIFE-001; a snapshot-only predicate is not sufficient.
+- Immediate profile updates and image-blob uploads now receive only a durable
+  `pdseffects.ExecutorFactory`, never a raw PDS client. A narrow `ReadRecord`
+  capability preserves the existing Bluesky profile and returns its
+  authoritative CID while holding the same owner/session lifecycle boundary;
+  it creates no mutation attempt. Profile writes read both `self` records before
+  issuing separate serial durable puts, carry each prior CID as a conditional
+  precondition, and report bounded partial results. Blob uploads persist the
+  exact owner generation and content-derived fingerprint through the durable
+  executor and do not grant the explicit-deletion worker blob authority.
+- Focused evidence on 2026-08-20: the required-PostgreSQL
+  `go test ./internal/pdseffects -count=1` and `go test -race
+  ./internal/pdseffects -count=1` passed; focused profile/blob tests passed; the
+  complete unit and race runs for `./internal/api` passed; the complete
+  required-PostgreSQL API run passed after the coordinated scheduled/terminal
+  integration settled; and `go vet ./internal/pdseffects ./internal/api
+  ./internal/scheduledposts` passed.
+- Required-PostgreSQL evidence on 2026-08-20 now covers migration `000048`,
+  bounded departure/rejoin, the real durable guarded executor, the one-boundary
+  `MaxConns=2` race, publication finalization under both locks, and the complete
+  scheduled-post package against PostgreSQL and MinIO, including its race run.
+  Focused terminal-purge checks for scheduled objects, push, moderation, and
+  the schema inventory also pass. Startup composes the bounded scheduled and
+  unresolved-PDS-attempt participants into active-to-non-active and terminal
+  transitions. The aggregate migration `000046`/`000048` round trip and full
+  repository release gate pass under `FINAL-001`.
+- Transaction-scoped lifecycle guards now cover projector actor/target writes
+  and the reviewed private mutation creators; unknown external targets remain
+  fenced while terminal targets fail closed. Exact ordinary
+  PDS-attempt/source reconciliation now closes LIFE/Tap provenance as recorded
+  in the TAP section; it is no longer a snapshot-only membership predicate.
 
 #### AV-006 scheduled-object durability loop
 
@@ -287,11 +361,12 @@ release build.
   added. PostgreSQL-backed `go test ./internal/scheduledposts -count=1`, the
   `000040`/`000041` up/down/up test, and PostgreSQL+MinIO `go test -race
   ./internal/scheduledposts -count=1` now pass.
-- Honest remaining gate: no finite S3/MinIO server-side settlement guarantee
-  was supplied or proven. Runtime wiring therefore configures no finite bound;
-  outcome-uncertain exact-key work remains reconciling indefinitely. PDS
-  reconciliation and atomic operation/OAuth/safety-row finalization remain in
-  the coordinated account-deletion lane.
+- No finite S3/MinIO server-side settlement guarantee was supplied or proven.
+  Runtime wiring therefore configures no finite bound and outcome-uncertain
+  exact-key work intentionally remains reconciling rather than falsely
+  finalizing. Ordinary PDS-effect reconciliation and the atomic
+  operation/OAuth/safety-row finalizer are implemented in the coordinated
+  lifecycle/account-deletion lanes.
 
 ### Steps 6-7: `AUTH-001`, `SESSION-001`
 
@@ -312,6 +387,14 @@ release build.
   rotating credentials with `row_version` compare-and-set, validates persisted
   PDS/issuer/token/revocation endpoints through the federated boundary, and
   surfaces indeterminate persistence rather than reporting false success.
+- A persisted endpoint that fails that boundary is no longer left active.
+  Ordinary access atomically moves the exact parent version to
+  `revocation_pending` and revokes every child; deletion-only access preserves
+  accepted-operation authority while moving it to `reauth_required`. Both
+  paths retry once on a concurrent row-version change so a corrected credential
+  is reloaded rather than terminalized from stale data, and PostgreSQL tests
+  prove the invalid endpoint reaches neither the operation callback nor the
+  network transport.
 - Account-deletion OAuth is a separate callback purpose. Its parent becomes
   childless `deletion_only` and is bound atomically to the exact operation and
   credential generation. The deletion worker uses a separate narrow
@@ -340,14 +423,14 @@ release build.
   `TEST_DATABASE_REQUIRED=true`; the full PostgreSQL-backed
   `internal/accountdeletion` and `internal/ownerlifecycle` packages pass; and
   `TestOwnerLifecycleMigrationsUpDownUp` passes.
-- Honest remaining gates: the aggregate `internal/auth` package still contains
-  pre-lifecycle fixtures/tests that directly insert parent rows without owner
-  authority or call removed raw Indigo-store paths; those fail only when real
-  PostgreSQL is required and must be migrated or deleted before `FINAL-001`.
-  Revocation/auxiliary cleanup worker runtime gates, full race/static checks,
-  and release association-file verification also remain. Production verified
-  links are still blocked on the canonical host and Android release signing
-  fingerprint identified above.
+- Final aggregate evidence: the complete required-PostgreSQL `internal/auth`,
+  `internal/accountdeletion`, and owner-lifecycle suites pass in both normal and
+  race modes; revocation, auxiliary cleanup, session expiry, callback, handoff,
+  and coordinated PDS workers are runtime-wired; the full repository release
+  gate and all 1,489 Flutter tests pass. Production verified links remain
+  externally blocked on the canonical host, association-file publication,
+  Android release signing fingerprint, Apple entitlement/provisioning setup,
+  and physical-device link/login/deletion verification.
 
 ### Step 8: `HTTP-001`
 
@@ -372,6 +455,18 @@ release build.
   accepted fixed/chunked bodies use one streaming `http.MaxBytesReader` plus a
   finite JSON/upload read deadline. Boundary errors become canonical 413/408
   responses and disable connection reuse.
+- `BodyLimit` now wraps response hydration/decorators, so
+  `http.NewResponseController` reaches the real server writer and installs the
+  deadline in the production `AddRoutes` chain. Every audited rejection that
+  occurs before body ownership—including unsupported media, inner rate limits,
+  membership failures, CORS short-circuits, and persistent Instagram limits—
+  detaches the unread body and disables connection reuse. Real socket tests
+  exercise both slow chunked input through the hydrator and an early 415.
+- Validated timeout geometry now requires `HTTP_WRITE_TIMEOUT` to exceed the
+  entire scheduled-upload path (`HTTP_UPLOAD_BODY_READ_TIMEOUT` plus
+  `SCHEDULED_MEDIA_PUT_TIMEOUT`) and a fixed five-second response margin. The
+  bounded write-timeout maximum is 20 minutes so all individually permitted
+  maxima can form a coherent configuration; defaults are unchanged.
 - Complete: migration `000038_owner_auth_lifecycle` supplies the single
   normalized, indexed `request_uri` and request-state schema. Pending OAuth
   admission serializes expiry reclamation, the global capacity check, and the
@@ -390,14 +485,12 @@ release build.
   PostgreSQL `go test -race` across those four packages, and `go vet
   ./internal/middleware ./internal/routes ./cmd/appview ./internal/auth
   ./internal/app` pass.
-- Honest remaining shared gate: the broader required-PostgreSQL race suite
-  exposes pre-existing/stale auth fixtures that do not seed the coordinated
-  owner-lifecycle rows, and one account-deletion route test exercises bare
-  `AddRoutes`/`ServeMux` instead of the server catalogue boundary. The
-  observability test package also still references the removed automatic-
-  follow/Instagram-match types. Production must remain single-replica until a
-  verified shared edge limiter is supplied, configure only the actual
-  immediate proxy CIDRs, and complete the release browser/reverse-proxy smoke.
+- Final aggregate evidence: the complete required-PostgreSQL/MinIO normal and
+  race suites, route-policy inventory, real-listener admission tests, vet,
+  Staticcheck, container build, and startup health smoke pass. Production must
+  remain single-replica until a verified shared edge limiter is supplied,
+  configure only the actual immediate-proxy CIDRs, and complete the deployed
+  browser/reverse-proxy smoke.
 
 ### Step 9: `TAP-001`
 
@@ -431,12 +524,39 @@ release build.
   irreversible lifecycle tombstone, configured auth participant, receipt, and
   finite purge-component catalogue; row-count-dependent purge remains leased
   asynchronous work.
+- Migration `000050_pds_effect_source_reconciliation` links a Tap source to at
+  most one normalized ordinary Put-record attempt using exact owner, URI,
+  action, content fingerprint, result CID, and mutation ordering. Ingestion
+  persists the operation ID, originating generation, and durable disposition;
+  projection re-locks that attempt and cannot exchange provenance across a
+  duplicate or A-to-B-to-A history.
+- A Put accepted before an AppView crash is non-repeatable and hidden after
+  departure. The existing leased `pds_reconcile` worker performs bounded,
+  anonymous, read-only PDS observations; only a unique exact still-current
+  record may become eligible on legitimate same-DID rejoin. Missing,
+  rejected, mismatch, terminal, or indistinguishably duplicated attempts stay
+  hidden/retryable and never trigger a PDS mutation. Departure and terminal
+  job-enqueue participants commit in the same owner transition transaction.
 - Exact original wire-byte accounting admits every source at or below the
-  one-megabyte boundary even when PostgreSQL JSONB's rendered form is larger.
-  An integration test commits source/job/receipt, drops the WebSocket before
-  ACK, redelivers after reconnect, and proves one durable row of each kind.
-  Another consumer test fails seven retryable deliveries and ACKs exactly once
-  only after the eighth attempt commits.
+  one-megabyte boundary. Migration `000045` stores source records as preserving
+  PostgreSQL `JSON` and enforces `octet_length(record::text) = record_bytes`, so
+  compact exponent values are not expanded by JSONB normalization and valid
+  escaped-NUL JSON is not rejected before durable classification. Boundary,
+  exponent-expansion, and escaped-NUL integration tests cover those cases. A
+  separate integration test commits source/job/receipt, drops the WebSocket
+  before ACK, redelivers after reconnect, and proves one durable row of each
+  kind. Another consumer test fails seven retryable deliveries and ACKs exactly
+  once only after the eighth attempt commits.
+- Migration `000051_tap_quarantine_replay_payload` separates the bounded
+  JSONB diagnostic/listing envelope from a private exact-byte `BYTEA` replay
+  payload constrained to Tap's shared 2 MiB frame ceiling. The exact bytes are
+  committed before an outcome becomes ACK-able, never selected by operator
+  list queries, and used only by a leased replay claim. Oversized valid,
+  oversized invalid, and malformed JSON frames survive restart and replay byte
+  for byte; duplicate redelivery idempotently backfills a legacy null payload.
+  Operator replay fails closed for a pre-`000051` row that has not been healed
+  by exact frame redelivery, because bounded JSONB evidence cannot reconstruct
+  wire framing.
 - Operator CLI surfaces now list projection/repository backlog and bounded
   quarantine evidence, queue selected quarantine replay, and enqueue read-only
   DID reconciliation. Quarantine and repository claims retain lease/restart
@@ -446,15 +566,34 @@ release build.
   passed; the migration `000045` up/down/up test passed separately; `go vet`
   passed for the same four packages; `internal/tap` passed five consecutive
   loopback-WebSocket runs; `gofmt -l` and focused whitespace checks are clean.
-- Still open: replace the deprecated startup adapter with `ingestion.Service`,
-  register/start projection, repository, and queued-quarantine replay workers,
-  remove `TAP_MAX_RETRIES` from application configuration/Compose, connect
-  bounded metrics/readiness, and execute the controlled non-production rebuild.
-  The cutover must snapshot and
-  stop ingestion, apply migrations, reset public source/projections together
+- Additional required-PostgreSQL evidence on 2026-08-20 covers migration
+  `000050`, crash/departure/rejoin, terminal and proved-not-accepted denial,
+  CID/content mismatch, onboarding linkage, repository leases, and ambiguous
+  A-to-B-to-A histories. Full owner-lifecycle/PDS-effect suites, non-database
+  ingestion suites, `go vet`, repository-wide compile-only tests, and
+  whitespace checks pass. Startup now constructs `ingestion.Service`, starts
+  projection/repository/quarantine workers, uses the reduced pre-ACK operation
+  deadline, and has no `TAP_MAX_RETRIES` surface.
+- The final quarantine regression ran the complete required-PostgreSQL race
+  suites for `internal/ingestion`, `internal/tap`, and `internal/db`; migration
+  `000051` passed up/down/up; vet and pinned Staticcheck 2026.1 passed for all
+  three packages. A real WebSocket test proves the exact replay bytes commit
+  before ACK.
+- Still open: execute the authorized controlled non-production cutover. It
+  must snapshot and stop ingestion, apply migrations, reset public
+  source/projections together
   with any Tap event-ID reset, re-register/rebootstrap repositories despite
   `TAP_NO_REPLAY`, drain/review blocked and quarantined work, then resume. It
-  must not fabricate events already ACKed and lost or write to a PDS.
+  must not fabricate events already ACKed and lost or write to a PDS. Any
+  pre-`000051` quarantine rows with a null exact payload must be reset/re-ingested
+  or healed by the same frame's redelivery before operator replay.
+- The full required-PostgreSQL ingestion package now passes. Its final cleanup
+  split a multi-command prepared lock-order fixture, derived the terminal
+  component expectation from the authoritative catalogue, and narrowed
+  projection-quarantine replay decoding to URI/event/fingerprint identity so
+  an intentionally informal CID cannot block requeue of an already-persisted
+  source. The complete race and repository release gates now pass under
+  `FINAL-001`; only the controlled Tap reset/rebootstrap/drain operation remains.
 
 ### Step 10: `PGX-001`
 
@@ -462,8 +601,11 @@ release build.
 - Ensure no dependent mutation happens before `rows.Err()` is checked.
 - Complete: both search branches return their query-acquisition error without
   using invalid rows; notification-subscription and push-claim iterators reject
-  a partial prefix on terminal error before any dependent mutation. Focused
-  `go test -race ./internal/api ./internal/push -count=1` passes.
+  a partial prefix on terminal error before any dependent mutation. The
+  transactional notification-preference patch path also checks the terminal
+  iterator error before resolving preferences, writing dependent rows, or
+  committing. Focused `go test -race ./internal/api ./internal/push -count=1`
+  passes.
 
 ### Step 11: `INDEX-001`
 
@@ -516,59 +658,171 @@ release build.
   ./internal/push -count=1`, and `go vet ./internal/push` pass; `flutter test
   test/notifications`, `dart analyze lib/notifications test/notifications
   test/bootstrap/firebase_bootstrap_test.dart`, and `flutter build apk --debug
-  --no-pub` pass. The installed Staticcheck binary cannot analyze the upgraded
-  Go 1.26 module, so pinned Go-1.26-compatible Staticcheck remains a final gate
-  rather than claimed evidence.
-- Still open: wire `PUSH_CONCURRENCY`, the finalization margin, and
-  `NewDispatcherValidated` through startup/configuration; add the recipient and
-  optional-actor owner-lifecycle effect fences; revalidate active
-  account/lifecycle eligibility before background local presentation; extend
-  the privacy-safe lease observations; connect account-removal cache clearing;
-  and run Firebase-device delayed-delivery and APNs duplicate-alert release
-  tests. The provider-accepted/database-not-
-  finalized and client-checkpoint/OS-presentation gaps remain explicitly
-  at-least-once rather than exactly-once guarantees.
+  --no-pub` pass. The developer-machine Staticcheck binary was initially too
+  old for Go 1.26; the pinned Go-1.26-compatible Staticcheck 2026.1 gate later
+  passed across the repository under `FINAL-001`.
+- Lifecycle and observability closure completed on 2026-08-20. Startup already
+  passes the validated concurrency/finalization geometry and the real lifecycle
+  store into the dispatcher. Required-PostgreSQL barriers prove recipient and
+  actor transitions wait through provider send and token-fenced finalization,
+  inverse actor/recipient pairs acquire fences without deadlock, recipient-only
+  delivery never manufactures an empty actor key, and terminal or stale-
+  generation state denies the callback. The worker's fresh fenced recheck means
+  no new provider call starts after a completed transition.
+- The same token-fenced pre-send query now reloads the current category
+  preference and, for `peopleIFollow`, the current indexed follow edge. Real
+  PostgreSQL claim-then-change barriers prove category disablement, scope
+  narrowing, and unfollow all produce zero provider calls, while a still-current
+  followed actor remains deliverable. The complete push package race suite
+  passes with these final policy gates.
+- Eligibility cancellation now applies the same active-subscription,
+  installation-ID, and unchanged-token compare-and-set guard as delivery. A
+  deterministic required-PostgreSQL regression rotates the FCM token between
+  the eligibility status read and cancellation and proves the old lease is
+  observed as stale rather than cancelling the newly routed delivery.
+- Privacy-safe, closed-label observations now cover reclaimed-lease counts,
+  insufficient processing windows, and lease/send/finalization latency and
+  outcomes with platform plus unique-event/replacement semantics. Provider
+  success followed by a database error or stale finalization is explicitly
+  classified as `accepted_unfinalized`; no token, DID, message content,
+  provider error, notification ID, delivery ID, or arbitrary replacement value
+  becomes a label or log field.
+- The retained-account presentation check and account-partition cache clearing
+  were already connected in Flutter. No network revalidation endpoint was
+  added. A provider-accepted message may still arrive after an AppView process
+  crash releases its fences and a lifecycle transition completes; AppView
+  cannot retract it, and an APNs alert already rendered by the OS cannot be
+  recalled. Persisted stage-specific `notificationId` dedupe suppresses an
+  ordinary retry with the same ID while a distinct ID remains presentable. The
+  provider/database and client-checkpoint/OS-presentation gaps therefore remain
+  explicitly at-least-once rather than exactly-once guarantees.
+- Focused evidence on 2026-08-20: required-PostgreSQL `go test` and `go test
+  -race` pass across `./internal/push ./internal/app ./internal/observability`;
+  focused `go vet` passes for the same packages; and `flutter test
+  test/notifications test/auth/providers/account_notification_cleanup_test.dart`
+  passes all 116 tests. The remaining release-only gates are physical Firebase
+  delayed-delivery/retry exercises on Android (data-only local display, stable
+  full tag, first open and duplicate-open behavior) and iOS (unique APNs alerts
+  omit collapse metadata while an ambiguous accepted retry may display twice).
 
 ### Step 13: `MOD-001`
 
-- Start with output/outbox/receipt fault injection and same-key ambiguous
-  commit replay.
-- Promotion targets a private suggestion under the approved strict AV-007
-  branch and never gains a PDS-write capability.
-- Partial evidence: migration `000044_moderation_restoration_outbox` installs
-  the live intent, DID-free history, and bounded idempotency-receipt schema,
-  including the indexed `ON DELETE SET NULL` reconciliation-job relationship.
-  Its focused up/down/up/constraint test passes. A database-only relay now
-  promotes `pending` intents to one reconciliation job or `no_work` in the same
-  transaction; rollback, two-worker `SKIP LOCKED`, job-retention `SET NULL`,
-  idempotent rerun, and race tests pass. Transactional output/receipt insertion,
-  owner-lifecycle fencing, worker wiring, retention, and handler error contracts
-  remain pending.
+- Migration `000044_moderation_restoration_outbox` installs the live intent,
+  DID-free history, and bounded idempotency-receipt schema, including indexed
+  retention and `ON DELETE SET NULL` reconciliation-job relationships. Output,
+  outbox, and idempotency receipt insertion is transactional; the relay can
+  create only strict private-suggestion reconciliation work and has no PDS-write
+  capability.
+- Source-owner terminalization now promotes and preserves qualifying restoration
+  for the target owner, while target terminalization cancels it. Both paths take
+  canonical source/target owner fences and lifecycle row locks before the
+  outbox/job transition. Processing work remains untouched and retryable.
+- Terminal and accepted-deletion cleanup share the same role-aware, bounded
+  order: write DID-free history, remove the live outbox, delete the receipt by
+  output ID, then delete the restrictive parent. This closes the prior
+  `ON DELETE RESTRICT` failure for qualifying account-deletion rows.
+- Live processed/cancelled DID-bearing outbox state is retained for 30 days;
+  DID-free restoration history is retained for 365 days. Exact-boundary tests
+  use a controlled clock, skip pending/processing work, and cover both source-
+  first and target-first transition barriers.
+- Real-PostgreSQL focused lifecycle/account-deletion tests, exact retention and
+  migration round-trip tests, deterministic fence barriers repeated five times,
+  focused race suites across owner lifecycle/account deletion/Instagram, and
+  focused `go vet` all pass. The aggregate all-package normal/race and release
+  gates also pass under `FINAL-001`.
 
 ### Step 14: `ARCH-001`
 
-- Capture route, wire, SQL, transition, and startup-cleanup characterization
-  before moves.
-- Keep the refactor behavior-, schema-, SQL-, configuration-, and timing-neutral.
+- Complete: `routes.AddRoutes` is now a composition-only registrar. Public/auth,
+  profile/notification, search/migration, and scheduled/post route groups receive
+  named capability bundles owned by `internal/routes`; the sole app-to-route
+  adapter lives in `internal/app`. Executable architecture and inventory tests
+  prohibit production route imports of `internal/app`, direct registration in
+  the composer, aggregate dependencies in registrars, and route/policy drift.
+- Complete: post handlers and stores are split by create, read, conversation,
+  interactions, author-feed, response-shape, lookup, relationship, engagement,
+  and interaction capabilities. Search handlers consume narrow profile,
+  hashtag, post, project, suggestion, and recent-search interfaces; its profile,
+  hashtag, post, and project SQL lives in focused stores. Scheduled draft/resource,
+  publication-state, and publication-effect stores expose only the operations
+  consumed by their API/service/worker callers. Characterization tests compare
+  the moved declarations and preserve SQL, ranking, cursors, envelopes,
+  transaction boundaries, and AV-026 acquisition-error behavior.
+- Complete: `newDeps` delegates feature construction to named foundation,
+  observability, owner/auth/PDS, content, Instagram, scheduled, account-deletion,
+  push, Tap, admission, and worker constructors. Feature constructors return
+  small bundles and register owned cleanup with the root's reverse-order,
+  exactly-once cleanup stack; static tests reject direct feature construction in
+  `newDeps` and direct shared-pool closure below the root. The runtime `Deps`
+  surface exposes durable/guarded PDS effects rather than a raw reusable PDS
+  client factory.
+- Complete: Tap production wiring now exposes and registers only the
+  transactional projector. The obsolete nontransactional dispatcher facade and
+  its isolated tests, legacy `Deps.Indexer` forwarding, ignored terminal-purge
+  component forwarding, and the unreachable one-shot profile-backfiller
+  injection are removed. Profile projection uses an explicitly no-remote-work
+  constructor; durable repository tracking/backfill remains owned by the
+  repository-job worker.
+- Documentation in `appview/README.md` maps route, post, search, scheduled, and
+  dependency-construction ownership and the extension rule. Required-PostgreSQL
+  API/routes/scheduled tests, their race runs, app/cmd compile tests, focused
+  architecture tests, `go vet`, formatting, and whitespace checks pass. The
+  full required-PostgreSQL and race suites are recorded under `FINAL-001`.
+- Final AV-037 cleanup evidence on 2026-08-20: required-PostgreSQL normal and
+  race suites pass for `./internal/index ./internal/app ./internal/ingestion`;
+  `go vet` passes for the same packages; and pinned Staticcheck 2026.1 reports
+  no findings.
 
 ### Step 15: `FINAL-001`
 
-- Rebuild disposable PostgreSQL/MinIO/Tap state.
-- Run migration up/down/up, Tap membership rebootstrap and public replay,
-  database-required `go test -race ./...`, formatting, vet, pinned staticcheck,
-  source and binary `govulncheck`, container build/startup smoke, Flutter tests,
-  and verified-link platform checks that have the required release credentials.
+- Complete automated evidence on 2026-08-20: `./scripts/appview-check` rebuilt
+  disposable PostgreSQL 16/MinIO state; ran every required-database package in
+  normal and race modes with skip detection; verified modules, formatting, vet,
+  Staticcheck 2026.1, and a zero-reachable-vulnerability source scan; built the
+  exact AppView/CLI release artifacts; applied the narrow, evidence-backed
+  binary-scanner exception; migrated up/down-to-zero/up; and passed the release
+  container health smoke. The authoritative artifact is
+  `/private/tmp/craftsky-appview-final-gate-20260820-4`; its tool record names
+  baseline commit `2b5d5efa7fee4fa803a2ed64e6a684efb8abad92` and correctly marks
+  the tested repository state dirty. Its release-container memory proof records
+  a 512 MiB cgroup limit, 128 MiB safety margin, 15,474,688-byte AppView
+  baseline, and maximum budget totals of 164,511,744 bytes for JPEG,
+  165,318,656 bytes for PNG, 220,352,512 bytes for WebP, and 272,515,072 bytes
+  for the maximum admitted concurrent-upload probe. The separate full Flutter
+  suite passed 1,489 tests and `dart analyze` reported no issues.
+- External/destructive gates remain deliberately unexecuted: production
+  association files/signing/provisioning and physical-device link/push checks;
+  trusted-proxy/protected-transport/LAN reachability smoke; the public-DNS/
+  public-CA federated-flow smoke; authorized legacy scheduled-media cleanup;
+  the retained-environment moderation dry-run and destructive reset before
+  migration `000044`; and the controlled Tap snapshot, reset/rebootstrap,
+  replay, queue drain, and quarantine review. These require deployment
+  credentials, infrastructure, devices, or explicit destructive-cutover
+  authorization rather than additional application code. A clean committed
+  tree must rerun the complete CI/release gate before release.
 
 ## Completion checklist
 
-- [ ] Every AV-001 through AV-037 acceptance criterion has executed evidence or
+- [x] Every AV-001 through AV-037 acceptance criterion has executed evidence or
   an explicitly recorded external release gate.
-- [ ] Every schema migration passes PostgreSQL 16 up/down/up.
-- [ ] Full tests report zero skipped real-PostgreSQL cases.
-- [ ] PostgreSQL/MinIO race suite passes.
-- [ ] Flutter unit/widget/platform contract tests pass.
-- [ ] `gofmt -l`, `go vet`, pinned staticcheck, and generated/module drift checks pass.
-- [ ] Source and exact built AppView/CLI binaries pass pinned `govulncheck`.
-- [ ] Clean-stack migration, Tap replay/reindex, worker drain, and startup smoke pass.
-- [ ] No insecure compatibility path from the audited behavior remains.
-- [ ] Implementation review is completed or explicitly skipped by the product owner.
+- [x] Every schema migration passes PostgreSQL 16 up/down/up.
+- [x] Full tests report zero skipped real-PostgreSQL cases.
+- [x] PostgreSQL/MinIO race suite passes.
+- [x] Flutter unit/widget/platform contract tests pass.
+- [x] `gofmt -l`, `go vet`, pinned Staticcheck, module drift, and
+  `just lexgen-check` pass inside `appview-check`.
+- [x] Source and exact built AppView/CLI binaries pass pinned `govulncheck` or
+  the exact evidence-backed all-symbol false-positive exception.
+- [x] Clean disposable migration and release-container startup smoke pass.
+- [x] Exact release-runtime media memory and maximum-admitted concurrent-upload
+  proof pass under the 512 MiB cgroup limit.
+- [ ] Legacy private scheduled-media cleanup awaits authorized cutover and
+  queue/bucket convergence verification.
+- [ ] Retained-environment moderation legacy dry-run/reset awaits explicit
+  authorization before migration `000044`.
+- [ ] Tap reset/rebootstrap, replay/reindex, and worker/quarantine drain await
+  the authorized controlled cutover.
+- [ ] The committed clean tree reruns the complete CI/release gate.
+- [x] No insecure compatibility path from the audited behavior remains.
+- [x] Implementation review is complete with an `Approved with notes` verdict;
+  the notes are the external/destructive and clean-commit release gates above.

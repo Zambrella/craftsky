@@ -28,6 +28,54 @@ appview/
 └── queries/                 # SQL files consumed by sqlc
 ```
 
+## Capability ownership and dependency direction
+
+`internal/app` is the composition root. Dependencies flow inward from `cmd/*` to `internal/app`, then to `internal/routes` and the feature packages. Feature packages and route registrars must not import `internal/app`; receive narrow dependencies from the composition root instead. [`routes_adapter.go`](internal/app/routes_adapter.go) is the adapter between app wiring and the route-owned dependency shape.
+
+### Route ownership
+
+[`routes.go`](internal/routes/routes.go) is the sole route composer, while [`policy.go`](internal/routes/policy.go) remains the source of truth for every `/v1/*` route's access, rate, and body policy.
+
+| Capability | Registrar owner |
+|---|---|
+| Public operations, OAuth, auth/logout, account deletion, fallback | [`routes_public_auth.go`](internal/routes/routes_public_auth.go) |
+| Search and Instagram migration | [`routes_search_migration.go`](internal/routes/routes_search_migration.go) |
+| Profiles, relationships, and notifications | [`routes_profile_notification.go`](internal/routes/routes_profile_notification.go) |
+| Scheduled posts/media and posts | [`routes_scheduled_post.go`](internal/routes/routes_scheduled_post.go) |
+
+When adding a route, put its handler in the matching API capability, register it in the matching file above, add its admission entry to `V1RoutePolicies`, and update the exact inventory tests. [`architecture_test.go`](internal/routes/architecture_test.go) protects registrar delegation and the no-`internal/app` import rule; [`inventory_test.go`](internal/routes/inventory_test.go) protects route/policy parity.
+
+### API and storage ownership
+
+| Capability | Handler/consumer owner | Store/state owner |
+|---|---|---|
+| Post creation and response construction | [`post_create.go`](internal/api/post_create.go), [`post_response_shape.go`](internal/api/post_response_shape.go) | [`post_lookup_store.go`](internal/api/post_lookup_store.go), with shared row/query support in [`post_store.go`](internal/api/post_store.go) |
+| Post reads and conversations | [`post_read.go`](internal/api/post_read.go), [`post_conversation.go`](internal/api/post_conversation.go) | [`post_lookup_store.go`](internal/api/post_lookup_store.go), [`post_conversation_store.go`](internal/api/post_conversation_store.go) |
+| Post interactions and engagement | [`post_interactions.go`](internal/api/post_interactions.go) | [`post_interactions_store.go`](internal/api/post_interactions_store.go), [`post_engagement_store.go`](internal/api/post_engagement_store.go), [`post_relationship_store.go`](internal/api/post_relationship_store.go) |
+| Author/profile feeds | [`post_author_feed.go`](internal/api/post_author_feed.go) | [`post_author_feed_store.go`](internal/api/post_author_feed_store.go) |
+| Search | Handler types and consumer-owned seams in [`search.go`](internal/api/search.go) | [`search_profile_store.go`](internal/api/search_profile_store.go), [`search_hashtag_store.go`](internal/api/search_hashtag_store.go), [`search_post_store.go`](internal/api/search_post_store.go), [`search_project_store.go`](internal/api/search_project_store.go), and [`search_recent_store.go`](internal/api/search_recent_store.go); shared construction/support stays in [`search_store.go`](internal/api/search_store.go) |
+| Scheduled draft/resource mutations | API handlers in [`scheduled_post.go`](internal/api/scheduled_post.go) | [`store_draft_resource.go`](internal/scheduledposts/store_draft_resource.go) |
+| Scheduled publication preparation and state | [`manual_publication.go`](internal/scheduledposts/manual_publication.go), [`publication_processor.go`](internal/scheduledposts/publication_processor.go) | Preparation/due claims in [`store_publication_state.go`](internal/scheduledposts/store_publication_state.go), worker claims/failure in [`publication_store.go`](internal/scheduledposts/publication_store.go), success in [`finalization.go`](internal/scheduledposts/finalization.go) |
+| Scheduled publication effect guard | [`publication_processor.go`](internal/scheduledposts/publication_processor.go) | [`store_publication_effect.go`](internal/scheduledposts/store_publication_effect.go) |
+
+Put a new query in the store file that owns its capability and define the narrow interface beside its consumer. Keep a transaction, lease, state-machine transition, or effect fence inside the file/capability that owns the invariant; do not replace one atomic operation with several handler calls. For scheduled work, [`worker.go`](internal/scheduledposts/worker.go) owns bounded batch orchestration only; add a transition to the preparation/due-claim, worker-claim/failure, finalization, or effect-guard store named above according to the invariant it changes.
+
+### Dependency construction
+
+[`deps.go`](internal/app/deps.go) owns only top-level composition and cleanup order. Construction belongs in the named sibling capability:
+
+| Owner | Constructors |
+|---|---|
+| [`deps_foundation.go`](internal/app/deps_foundation.go), [`deps_observability.go`](internal/app/deps_observability.go) | `newFoundationDependencies`, `newObservabilityDependencies` |
+| [`deps_auth.go`](internal/app/deps_auth.go), [`deps_owner.go`](internal/app/deps_owner.go), [`deps_pds.go`](internal/app/deps_pds.go) | `newAuthDependencies`, `newOwnerDependencies`, `newPDSEffectDependencies` |
+| [`deps_content.go`](internal/app/deps_content.go) | `newContentDependencies`, `newContentRuntimeDependencies` |
+| [`deps_instagram_storage.go`](internal/app/deps_instagram_storage.go), [`deps_instagram_runtime.go`](internal/app/deps_instagram_runtime.go) | `newInstagramStorageDependencies`, `newInstagramRuntimeDependencies` |
+| [`deps_scheduled.go`](internal/app/deps_scheduled.go) | `newScheduledStorageDependencies`, `newScheduledLifecycleDependencies`, `newScheduledPublicationDependencies` |
+| [`deps_account_deletion.go`](internal/app/deps_account_deletion.go), [`deps_push.go`](internal/app/deps_push.go), [`deps_tap.go`](internal/app/deps_tap.go) | `newAccountDeletionDependencies`, `newPushDependencies`, `newTapDependencies` |
+| [`deps_admission.go`](internal/app/deps_admission.go), [`deps_workers.go`](internal/app/deps_workers.go) | `newAdmissionDependencies`, `newAuthorityWorkers` |
+
+Add a new dependency constructor beside the capability it assembles, accept explicit inputs, and return a small bundle plus any cleanup owned by that capability. Call it from `newDeps`; do not introduce a service locator or let a feature package depend back on `internal/app`. [`deps_architecture_test.go`](internal/app/deps_architecture_test.go) protects this composition shape.
+
 ## Binaries
 
 ### `cmd/appview` — the HTTP server
@@ -78,15 +126,44 @@ just down     # stop (volumes preserved)
 Common recipes:
 
 ```
-just test         # go test -race ./... on the host against the compose Postgres
-just fmt          # gofmt -w . && go vet ./... on the host
-just ping         # cli ping inside the appview container
-just tap-status   # cli tap status inside the appview container
-just psql         # psql shell against the dev database
-just migrate up   # wraps golang-migrate/v4 via the CLI
+just test               # DB/MinIO-backed race tests against the current dev stack
+just appview-test-unit  # fast and explicitly incomplete: persistence tests skip
+just appview-check      # release-equivalent disposable full gate
+just fmt                # gofmt -w . && go vet ./... on the host
+just ping               # cli ping inside the appview container
+just tap-status         # cli tap status inside the appview container
+just psql               # psql shell against the dev database
+just migrate up         # wraps golang-migrate/v4 via the CLI
 ```
 
 Tests run on the **host** (the appview image has no Go toolchain), so Go must be installed locally and `just dev-d` must already be running. The `just test` recipe discovers the current checkout's published Postgres port and sets `TEST_DATABASE_URL` automatically. The primary checkout uses `localhost:5433`; linked worktrees use stable alternate ports and isolated database volumes.
+
+`just appview-test-unit` deliberately unsets PostgreSQL and MinIO settings. It
+is useful for iteration, but its green result is never release evidence.
+`just appview-check` is the local CI equivalent: it creates isolated disposable
+PostgreSQL/MinIO volumes, rejects required-test skips, runs normal and race
+suites, checks migrations up/down-to-zero/up and failed-migration Compose
+blocking, builds and scans the exact binaries/images, runs the release startup
+smoke, and records release-runtime image-decoder memory evidence. It never
+targets the current development database. Set `APPVIEW_CHECK_ARTIFACT_DIR` to
+retain its evidence at a known path.
+
+### Pinned release refreshes
+
+Toolchain, scanner, dependency, and container pins are refreshed deliberately,
+not by floating tags:
+
+1. Select fixed Go/dependency versions from their published security guidance,
+   resolve each build/runtime/service image to an immutable digest, and record
+   any temporary vulnerability exception with an owner, review reference, and
+   hard expiry.
+2. Update `go.mod`, `go.sum`, `appview/Dockerfile`, Compose service digests, and
+   the pinned analyzer/scanner identities in the release gate together.
+3. Run `just lexgen-check` and `just appview-check`; review the retained tool,
+   module, image, test, migration, memory, and vulnerability evidence.
+4. Keep the pin refresh in a coherent reviewable commit separate from product
+   behavior where practical. A newly reachable advisory, expired exception,
+   analyzer finding, or changed generated output blocks release.
 
 ### Network and configuration safety
 
@@ -144,14 +221,15 @@ one AppView replica unless a separately verified shared edge limiter enforces
 the documented limits without permitting direct access to AppView. Before
 horizontal scaling, replace the local limiter with a shared implementation or
 prove that edge contract; otherwise each replica would multiply the effective
-budget.
+budget. Startup currently enforces this boundary with
+`APPVIEW_REPLICA_COUNT=1` and rejects larger values.
 
 Operational time settings are positive and bounded. Current inclusive maxima
 are 2 minutes for `TAP_ACK_TIMEOUT`, 10 minutes for `TAP_RECONNECT_MAX`, 180
 days for both session lifetime/inactivity settings, 1 hour for
 `OAUTH_AUTH_REQUEST_EXPIRY`, 24 hours for the session activity write interval,
-1 hour for push polling and leases, and 10 minutes for push sends. The current
-shared relationships are:
+1 hour for push polling and leases, 10 minutes for push sends, and 20 minutes
+for `HTTP_WRITE_TIMEOUT`. The current shared relationships are:
 
 - `CRAFTSKY_SESSION_INACTIVITY` cannot exceed
   `OAUTH_SESSION_ABSOLUTE_LIFETIME`.
@@ -163,12 +241,17 @@ shared relationships are:
 - Tap projection and repository leases must exceed their poll intervals;
   backoff maxima must not be shorter than their minima. The repository lease
   must also cover the bounded PDS read deadline plus finalization margin.
-- `TAP_ACK_TIMEOUT` must cover owner-fence acquisition plus the fixed-size
-  tombstone/ledger transaction margin. It never covers an unbounded purge.
+- `TAP_ACK_TIMEOUT` must be longer than `OWNER_FENCE_ACQUIRE_TIMEOUT` plus
+  `TAP_TERMINAL_TRANSACTION_BUDGET` plus `TAP_ACK_SAFETY_MARGIN`. The first
+  two bound the fixed-size tombstone/auth-epoch/component-ledger commit; the
+  final margin is reserved for sending the Tap ACK. None covers an unbounded
+  physical purge.
 - `HTTP_MAX_IN_FLIGHT_REQUESTS` cannot exceed `HTTP_MAX_CONNECTIONS`.
 - `HTTP_READ_HEADER_TIMEOUT`, `HTTP_JSON_BODY_READ_TIMEOUT`, and
   `HTTP_UPLOAD_BODY_READ_TIMEOUT` cannot exceed `HTTP_READ_TIMEOUT`.
-- `HTTP_WRITE_TIMEOUT` must exceed `HTTP_READ_TIMEOUT`.
+- `HTTP_WRITE_TIMEOUT` must exceed both `HTTP_READ_TIMEOUT` and the complete
+  scheduled-upload path: `HTTP_UPLOAD_BODY_READ_TIMEOUT` plus
+  `SCHEDULED_MEDIA_PUT_TIMEOUT` plus a fixed 5-second response margin.
 - `HTTP_OUTER_CLIENT_LIMIT` cannot exceed `HTTP_OUTER_GLOBAL_LIMIT`.
 - `OAUTH_AUTH_REQUEST_SWEEP_BATCH` cannot exceed
   `OAUTH_PENDING_AUTH_REQUEST_CAPACITY`.
@@ -212,11 +295,15 @@ AppView retains the approved exact-key, non-secret cleanup tombstones and
 reconciles them until convergence.
 
 Scheduled image decode settings may only lower the compiled width, height,
-16-megapixel, aspect-ratio, single-decoder, and admission-wait ceilings.
-Compose gives AppView a 512 MiB memory limit by default. A 16-megapixel WebP
-peaked near 97 MB RSS in a host benchmark (JPEG/PNG near 41 MB), but that is not
-release-container evidence. Keep decode concurrency at one and complete the
-release-container memory benchmark before treating AV-016 as deployment-closed.
+16-megapixel, aspect-ratio, single-decoder, and admission-wait ceilings. Both
+upload routes share one pre-body-read admission permit, so no second 15 MiB
+body is retained while decode or remote-write work is in flight. Compose gives
+AppView a 512 MiB memory limit by default. `just appview-check` measures the
+exact release runtime, each accepted 16-megapixel codec, and the maximum-size
+concurrent-upload probe under that cgroup limit with a 128 MiB safety margin.
+Keep decode/upload admission at one unless that proof is rerun. Only the
+authorized cleanup of legacy private staged media remains an AV-016 release
+operation.
 
 ## Observability
 
@@ -306,68 +393,32 @@ so `just app-run-android` installs `adb reverse tcp:18080 tcp:18080` before
 launching Flutter. Keep the OAuth callback on `127.0.0.1`: atproto's localhost
 client profile does not permit `10.0.2.2` as a redirect host.
 
-### Running the OAuth flow manually (dev)
+### Running the OAuth flow in development
 
-There is no `cli login` subcommand yet (tracked as future work in the
-[OAuth spec §6](../docs/superpowers/specs/2026-04-18-appview-oauth-bff-design.md)).
-For now, the flow is driven by `curl` plus a real browser:
-
-**1. Get an authorize URL.** Replace `YOUR_HANDLE` with any atproto
-handle you have credentials for:
+There is no `cli login` subcommand yet. Use the Flutter app for the complete
+verified-link flow. The login request it sends is equivalent to:
 
 ```bash
 curl -s -X POST http://localhost:18080/v1/auth/login \
   -H 'Content-Type: application/json' \
   -H 'X-Craftsky-Device-Id: curl-dev' \
-  -d '{"handle":"YOUR_HANDLE","handoffMode":"deep_link"}' | jq -r .authUrl
+  -d '{"handle":"YOUR_HANDLE","handoffMode":"verified_link"}' | jq -r .authUrl
 ```
 
-**2. Open the printed URL in a browser.** Sign in at the PDS, approve
-the requested scopes (`atproto`, `transition:generic`).
-
-**3. The PDS redirects to `/oauth/callback`.** The appview exchanges
-the code for tokens, mints a Craftsky bearer token, and renders an HTML
-page. `window.location.replace("craftsky://...")` will silently fail
-(no app registered for the scheme) — **expected**. Because dev mode is
-on, the page also displays the token in plaintext under
-`<code id="devtok">...</code>`. Copy it.
-
-**4. Use the token:**
-
-```bash
-TOKEN='<paste-here>'
-curl -s \
-  -H "Authorization: Bearer $TOKEN" \
-  -H 'X-Craftsky-Device-Id: curl-dev' \
-  http://localhost:18080/v1/whoami | jq .
-# {"did":"did:plc:...","handle":"..."}
-```
-
-**5. Logout (single device):**
-
-```bash
-curl -is -X POST \
-  -H "Authorization: Bearer $TOKEN" \
-  -H 'X-Craftsky-Device-Id: curl-dev' \
-  http://localhost:18080/v1/auth/logout
-```
-
-**Or all devices** (revokes the underlying OAuth session, cascades
-through all bearer tokens for the DID):
-
-```bash
-curl -is -X POST \
-  -H "Authorization: Bearer $TOKEN" \
-  -H 'X-Craftsky-Device-Id: curl-dev' \
-  'http://localhost:18080/v1/auth/logout?all=true'
-```
+Open the returned URL in a browser and finish PDS authorization. AppView sends
+only a short-lived handoff code to the verified HTTPS app link. The Flutter app
+exchanges that code, durably stages the pending bearer and receipt, then
+confirms them before activating the account. Callback HTML never displays a
+CraftSky bearer. For command-line testing, use the `loopback` handoff with an
+exact `http://127.0.0.1:<port>/<path>` listener that understands the code-only
+exchange/confirm contract; do not scrape or log callback secrets.
 
 ### Inspecting OAuth state
 
 ```bash
 just psql -c 'SELECT account_did, session_id, updated_at FROM oauth_sessions;'
 just psql -c 'SELECT encode(token_hash, '\''hex'\''), account_did, oauth_session_id, last_seen_at, revoked_at FROM craftsky_sessions;'
-just psql -c "SELECT state, handoff_mode, data->>'request_uri' AS request_uri, age(now(), created_at) AS age FROM oauth_auth_requests;"
+just psql -c "SELECT state, handoff_mode, request_uri, request_state, age(now(), created_at) AS age FROM oauth_auth_requests;"
 ```
 
 ### Dev-only auth shortcut

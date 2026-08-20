@@ -107,9 +107,9 @@ func TestOAuthCallbackUsesDeletionOnlyPurposeWithoutMintingOrdinaryAccess(t *tes
 		}},
 		DeletionOAuthCallbacks: callbacks,
 		DeletionCompleteURL:    "https://craftsky.social/account-deletion/reauth-complete",
-		NewPDSClient: func(context.Context, syntax.DID, string) (PDSClient, error) {
+		NewPendingPDSClient: func(context.Context, CallbackAttempt) (PDSClient, error) {
 			pdsCreated = true
-			return nil, errors.New("ordinary PDS client must not be created")
+			return nil, errors.New("login-only pending PDS client must not be created")
 		},
 	}
 
@@ -145,7 +145,7 @@ func TestLoginOAuthCallbackFailsClosedBeforeOrdinaryAccessWhenOwnerPendingDeleti
 	handlers := &HTTPHandlers{
 		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
 		OAuthFlow: &recordingDeletionOAuthFlow{err: ErrOAuthOwnerIneligible},
-		NewPDSClient: func(context.Context, syntax.DID, string) (PDSClient, error) {
+		NewPendingPDSClient: func(context.Context, CallbackAttempt) (PDSClient, error) {
 			pdsCreated = true
 			return nil, errors.New("pending deletion must not initialize membership")
 		},

@@ -261,11 +261,13 @@ func TestSavedPostStoreRejectsStaleOwnerGeneration(t *testing.T) {
 	}
 	owner := syntax.DID("did:plc:alice")
 	postURI := syntax.ATURI("at://did:plc:bob/social.craftsky.feed.post/one")
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'alice'),('did:plc:bob','bob');
-		INSERT INTO craftsky_posts(uri,did,rkey,cid) VALUES($2,'did:plc:bob','one','post');
-		UPDATE owner_lifecycles SET generation=2 WHERE owner_did=$1
-	`, owner, postURI); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'alice'),('did:plc:bob','bob')`, owner); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_posts(uri,did,rkey,cid) VALUES($1,'did:plc:bob','one','post')`, postURI); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE owner_lifecycles SET generation=2 WHERE owner_did=$1`, owner); err != nil {
 		t.Fatal(err)
 	}
 
@@ -284,6 +286,124 @@ func TestSavedPostStoreRejectsStaleOwnerGeneration(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("saved rows = %d, want 0", count)
+	}
+}
+
+func TestSavedPostStoreRejectsTerminalPostOwner(t *testing.T) {
+	pool := testdb.WithSchema(t, savedPostStorePreStateDDL)
+	ctx := context.Background()
+	up, err := os.ReadFile("../../migrations/000024_saved_posts.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, string(up)); err != nil {
+		t.Fatal(err)
+	}
+	owner := syntax.DID("did:plc:alice")
+	target := syntax.DID("did:plc:bob")
+	postURI := syntax.ATURI("at://did:plc:bob/social.craftsky.feed.post/one")
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'alice'),($2,'bob')`, owner, target); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_posts(uri,did,rkey,cid) VALUES($1,$2,'one','post')`, postURI, target); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE owner_lifecycles SET state='terminal',generation=2,terminal_at=now() WHERE owner_did=$1`, target); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = api.NewSavedPostStore(pool).Save(
+		ownerlifecycle.WithExpectedGeneration(ctx, 1),
+		owner,
+		postURI,
+		api.FolderAssignment{},
+	)
+	if !errors.Is(err, ownerlifecycle.ErrTerminalOwner) {
+		t.Fatalf("Save error = %v, want ErrTerminalOwner", err)
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM saved_posts WHERE owner_did=$1`, owner).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("saved rows = %d, want 0", count)
+	}
+}
+
+func TestSavedPostStoreDestructiveMutationsRejectStaleOwnerGeneration(t *testing.T) {
+	for _, test := range []struct {
+		name   string
+		mutate func(context.Context, *api.SavedPostStore, syntax.DID, syntax.ATURI, string) error
+	}{
+		{
+			name: "unsave",
+			mutate: func(ctx context.Context, store *api.SavedPostStore, owner syntax.DID, postURI syntax.ATURI, _ string) error {
+				return store.Unsave(ctx, owner, postURI)
+			},
+		},
+		{
+			name: "delete folder",
+			mutate: func(ctx context.Context, store *api.SavedPostStore, owner syntax.DID, _ syntax.ATURI, folderID string) error {
+				return store.DeleteFolder(ctx, owner, folderID, api.SavedPostFolderPreserveSaves)
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			pool := testdb.WithSchema(t, savedPostStorePreStateDDL)
+			ctx := context.Background()
+			up, err := os.ReadFile("../../migrations/000024_saved_posts.up.sql")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(ctx, string(up)); err != nil {
+				t.Fatal(err)
+			}
+			owner := syntax.DID("did:plc:alice")
+			postURI := syntax.ATURI("at://did:plc:bob/social.craftsky.feed.post/one")
+			folderID := "00000000-0000-4000-8000-000000000001"
+			if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'alice'),('did:plc:bob','bob')`, owner); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(ctx, `INSERT INTO craftsky_posts(uri,did,rkey,cid) VALUES($1,'did:plc:bob','one','post')`, postURI); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(ctx, `
+				INSERT INTO saved_post_folders(id,owner_did,name,created_at,updated_at)
+				VALUES($1,$2,'Folder',now(),now())
+			`, folderID, owner); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(ctx, `
+				INSERT INTO saved_posts(owner_did,post_uri,folder_id,saved_at)
+				VALUES($1,$2,$3,now())
+			`, owner, postURI, folderID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(ctx, `UPDATE owner_lifecycles SET generation=2 WHERE owner_did=$1`, owner); err != nil {
+				t.Fatal(err)
+			}
+
+			err = test.mutate(
+				ownerlifecycle.WithExpectedGeneration(ctx, 1),
+				api.NewSavedPostStore(pool),
+				owner,
+				postURI,
+				folderID,
+			)
+			if !errors.Is(err, ownerlifecycle.ErrGenerationChanged) {
+				t.Fatalf("mutation error = %v, want ErrGenerationChanged", err)
+			}
+			var saves, folders int
+			if err := pool.QueryRow(ctx, `SELECT count(*) FROM saved_posts WHERE owner_did=$1`, owner).Scan(&saves); err != nil {
+				t.Fatal(err)
+			}
+			if err := pool.QueryRow(ctx, `SELECT count(*) FROM saved_post_folders WHERE owner_did=$1`, owner).Scan(&folders); err != nil {
+				t.Fatal(err)
+			}
+			if saves != 1 || folders != 1 {
+				t.Fatalf("rows after rejected mutation = saves %d folders %d, want 1/1", saves, folders)
+			}
+		})
 	}
 }
 

@@ -30,7 +30,10 @@ CREATE TABLE tap_source_records (
     cid                    TEXT,
     action                 TEXT        NOT NULL
         CHECK (action IN ('create', 'update', 'delete')),
-    record                 JSONB,
+    -- JSON, rather than JSONB, preserves the bounded Tap wire representation.
+    -- JSONB expands compact numeric exponents and rejects escaped NULs before
+    -- the semantic projector can classify/quarantine an otherwise valid frame.
+    record                 JSON,
     record_bytes           INTEGER     NOT NULL,
     live                   BOOLEAN     NOT NULL,
     ordering_status        TEXT        NOT NULL
@@ -61,7 +64,8 @@ CREATE TABLE tap_source_records (
     CONSTRAINT tap_source_records_content_check CHECK (
         (action IN ('create', 'update')
             AND cid IS NOT NULL AND btrim(cid) <> ''
-            AND record IS NOT NULL AND record_bytes BETWEEN 1 AND 1048576)
+            AND record IS NOT NULL AND record_bytes BETWEEN 1 AND 1048576
+            AND octet_length(record::text) = record_bytes)
         OR
         (action = 'delete' AND record IS NULL AND record_bytes = 0)
     ),

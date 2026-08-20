@@ -8,6 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/config v1.32.34
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.33
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.106.3
+	github.com/aws/smithy-go v1.27.6
 	github.com/bluesky-social/indigo v0.0.0-20260417172304-7da09df6081d
 	github.com/coder/websocket v1.8.14
 	github.com/getsentry/sentry-go v0.47.0
@@ -20,7 +21,7 @@ require (
 	github.com/multiformats/go-multihash v0.2.3
 	github.com/spf13/cobra v1.10.2
 	github.com/whyrusleeping/cbor-gen v0.2.1-0.20241030202151-b7a6831be65e
-	golang.org/x/image v0.44.0
+	golang.org/x/image v0.45.0
 	golang.org/x/text v0.41.0
 	golang.org/x/xerrors v0.0.0-20231012003039-104605ab7028
 )
@@ -53,7 +54,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sso v1.33.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.38.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.45.3 // indirect
-	github.com/aws/smithy-go v1.27.6 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cncf/xds/go v0.0.0-20260202195803-dba9d589def2 // indirect

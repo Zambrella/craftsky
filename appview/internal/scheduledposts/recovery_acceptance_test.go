@@ -185,12 +185,13 @@ func (f *publicationRecoveryFixture) stop(t *testing.T) PublishingClaim {
 	var claim PublishingClaim
 	var rkey string
 	if err := f.store.pool.QueryRow(context.Background(), `
-		SELECT id, owner_did, lease_token, payload_version,
+		SELECT id, owner_did, owner_generation, lease_token, payload_version,
 		       publication_rkey, publication_created_at
 		FROM scheduled_posts
 		WHERE owner_did=$1 AND id=$2
 	`, f.owner, f.id).Scan(
-		&claim.ID, &claim.OwnerDID, &claim.LeaseToken, &claim.PayloadVersion,
+		&claim.ID, &claim.OwnerDID, &claim.OwnerGeneration,
+		&claim.LeaseToken, &claim.PayloadVersion,
 		&rkey, &claim.CreatedAt,
 	); err != nil {
 		t.Fatalf("read stopped publication claim: %v", err)

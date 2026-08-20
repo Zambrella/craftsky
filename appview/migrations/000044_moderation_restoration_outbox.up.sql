@@ -42,6 +42,10 @@ CREATE INDEX moderation_restoration_outbox_reconciliation_job_id_idx
     ON moderation_restoration_outbox (reconciliation_job_id)
     WHERE reconciliation_job_id IS NOT NULL;
 
+CREATE INDEX moderation_restoration_outbox_retention_idx
+    ON moderation_restoration_outbox (processed_at, moderation_output_id)
+    WHERE status IN ('queued', 'no_work', 'cancelled_target_terminal');
+
 CREATE TABLE moderation_restoration_history (
     moderation_output_id  TEXT        NOT NULL PRIMARY KEY,
     outcome               TEXT        NOT NULL CHECK (outcome IN (
@@ -56,6 +60,9 @@ CREATE TABLE moderation_restoration_history (
         archived_at >= processed_at
     )
 );
+
+CREATE INDEX moderation_restoration_history_retention_idx
+    ON moderation_restoration_history (archived_at, moderation_output_id);
 
 CREATE TABLE moderation_idempotency_receipts (
     request_key_hash     BYTEA       NOT NULL PRIMARY KEY

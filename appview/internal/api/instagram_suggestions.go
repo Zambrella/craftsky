@@ -55,7 +55,7 @@ func ListInstagramSuggestionsHandler(
 	logger = instagramLogger(logger)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if service == nil || profiles == nil || resolver == nil {
-			writeInstagramSuggestionError(w, r, logger, errors.New("Instagram suggestion service unavailable"))
+			writeInstagramSuggestionError(w, r, logger, errors.New("instagram suggestion service unavailable"))
 			return
 		}
 		owner, ok := middleware.GetDID(r.Context())
@@ -119,7 +119,7 @@ func AcceptInstagramSuggestionHandler(
 	logger = instagramLogger(logger)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if service == nil {
-			writeInstagramSuggestionError(w, r, logger, errors.New("Instagram suggestion service unavailable"))
+			writeInstagramSuggestionError(w, r, logger, errors.New("instagram suggestion service unavailable"))
 			return
 		}
 		owner, ok := middleware.GetDID(r.Context())
@@ -155,7 +155,7 @@ func DismissInstagramSuggestionHandler(
 	logger = instagramLogger(logger)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if service == nil {
-			writeInstagramSuggestionError(w, r, logger, errors.New("Instagram suggestion service unavailable"))
+			writeInstagramSuggestionError(w, r, logger, errors.New("instagram suggestion service unavailable"))
 			return
 		}
 		owner, ok := middleware.GetDID(r.Context())

@@ -18,7 +18,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"social.craftsky/appview/internal/api"
-	"social.craftsky/appview/internal/app"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
@@ -70,7 +69,28 @@ INSERT INTO owner_lifecycles(
     ('did:plc:bob','active',1,1,'test',now(),now(),now());
 `
 
+type routeTimeoutBody struct{}
+
+func (routeTimeoutBody) Read([]byte) (int, error) { return 0, routeTimeoutError{} }
+func (routeTimeoutBody) Close() error             { return nil }
+
+type routeTimeoutError struct{}
+
+func (routeTimeoutError) Error() string   { return "request body timed out" }
+func (routeTimeoutError) Timeout() bool   { return true }
+func (routeTimeoutError) Temporary() bool { return true }
+
 func newRouteModerationStore(t *testing.T, pool *pgxpool.Pool) *api.ModerationStore {
+	t.Helper()
+	lifecycles := newRouteOwnerLifecycleStore(t, pool)
+	store, err := api.NewModerationStore(pool, lifecycles)
+	if err != nil {
+		t.Fatalf("moderation store: %v", err)
+	}
+	return store
+}
+
+func newRouteOwnerLifecycleStore(t *testing.T, pool *pgxpool.Pool) *ownerlifecycle.Store {
 	t.Helper()
 	fencer, err := ownerlifecycle.NewFencer(pool, time.Second)
 	if err != nil {
@@ -80,11 +100,7 @@ func newRouteModerationStore(t *testing.T, pool *pgxpool.Pool) *api.ModerationSt
 	if err != nil {
 		t.Fatalf("owner lifecycle store: %v", err)
 	}
-	store, err := api.NewModerationStore(pool, lifecycles)
-	if err != nil {
-		t.Fatalf("moderation store: %v", err)
-	}
-	return store
+	return lifecycles
 }
 
 // stubResolver is a minimal api.HandleResolver used by the routing
@@ -100,9 +116,9 @@ func (s stubResolver) ResolveDID(_ context.Context, _ syntax.Handle) (syntax.DID
 
 var _ api.HandleResolver = stubResolver{}
 
-func testDeps() *app.Deps {
-	return &app.Deps{
-		Config:         app.Config{Env: app.EnvDev, AllowedOrigins: []string{"*"}, DevDID: "did:plc:test"},
+func testDeps() *Dependencies {
+	return &Dependencies{
+		Config:         Config{Env: EnvDev, AllowedOrigins: []string{"*"}},
 		Logger:         slog.New(slog.NewTextHandler(io.Discard, nil)),
 		AuthService:    &auth.MockAuthService{DefaultDID: "did:plc:test"},
 		HandleResolver: stubResolver{handle: syntax.Handle("stub-handle.example")},
@@ -110,7 +126,7 @@ func testDeps() *app.Deps {
 }
 
 func TestV1RoutePoliciesCoverRegisteredRoutes(t *testing.T) {
-	policies := V1RoutePolicies(app.EnvDev, app.Config{Env: app.EnvDev, EnableDevModeration: true, DevModerationToken: "secret"})
+	policies := V1RoutePolicies(EnvDev, Config{Env: EnvDev, EnableDevModeration: true, DevModerationToken: "secret"})
 	if len(policies) == 0 {
 		t.Fatal("V1RoutePolicies returned no policies")
 	}
@@ -168,7 +184,7 @@ func TestV1RoutePoliciesCoverRegisteredRoutes(t *testing.T) {
 		}
 	}
 
-	prodPolicies := V1RoutePolicies(app.EnvProd, app.Config{Env: app.EnvProd, EnableDevModeration: true, DevModerationToken: "secret"})
+	prodPolicies := V1RoutePolicies(EnvProd, Config{Env: EnvProd, EnableDevModeration: true, DevModerationToken: "secret"})
 	for _, policy := range prodPolicies {
 		if policy.DevOnly {
 			t.Fatalf("prod policy includes dev-only route: %+v", policy)
@@ -191,7 +207,7 @@ func TestScheduledPostRoutesRequireAuthenticationAndUseDeclaredBodyPolicies(t *t
 		"DELETE /v1/scheduled-posts/{id}":           {RateClassWrite, BodyNoBody},
 		"POST /v1/scheduled-posts/{id}/publication": {RateClassWrite, BodyDefaultJSON},
 	}
-	for _, policy := range V1RoutePolicies(app.EnvDev, app.Config{Env: app.EnvDev}) {
+	for _, policy := range V1RoutePolicies(EnvDev, Config{Env: EnvDev}) {
 		key := policy.Method + " " + policy.PathPattern
 		expected, ok := want[key]
 		if !ok {
@@ -238,7 +254,7 @@ func TestRelationshipRoutesUseAuthenticatedNoBodyPolicies(t *testing.T) {
 		"GET /v1/profiles/me/mutes":                RateClassRead,
 		"GET /v1/profiles/me/blocks":               RateClassRead,
 	}
-	for _, policy := range V1RoutePolicies(app.EnvDev, app.Config{Env: app.EnvDev}) {
+	for _, policy := range V1RoutePolicies(EnvDev, Config{Env: EnvDev}) {
 		key := policy.Method + " " + policy.PathPattern
 		rateClass, ok := want[key]
 		if !ok {
@@ -294,7 +310,7 @@ func TestProfilePinRoutesUseAuthenticatedCurrentMemberNoBodyPolicies(t *testing.
 		"PUT /v1/posts/{did}/{rkey}/pin":    RateClassWrite,
 		"DELETE /v1/posts/{did}/{rkey}/pin": RateClassWrite,
 	}
-	for _, policy := range V1RoutePolicies(app.EnvDev, app.Config{Env: app.EnvDev}) {
+	for _, policy := range V1RoutePolicies(EnvDev, Config{Env: EnvDev}) {
 		key := policy.Method + " " + policy.PathPattern
 		rateClass, ok := want[key]
 		if !ok {
@@ -367,7 +383,7 @@ func TestSavedPostRoutesUseAuthenticatedPolicies(t *testing.T) {
 		"PATCH /v1/saved-post-folders/{folderId}":  {RateClassWrite, BodyDefaultJSON},
 		"DELETE /v1/saved-post-folders/{folderId}": {RateClassWrite, BodyNoBody},
 	}
-	for _, policy := range V1RoutePolicies(app.EnvDev, app.Config{Env: app.EnvDev}) {
+	for _, policy := range V1RoutePolicies(EnvDev, Config{Env: EnvDev}) {
 		key := policy.Method + " " + policy.PathPattern
 		expected, ok := want[key]
 		if !ok {
@@ -619,7 +635,7 @@ func TestAddRoutes_RateLimitRejectsBeforeHandlerWork(t *testing.T) {
 }
 
 func TestAddRoutes_AllV1PoliciesEnforcedThroughMux(t *testing.T) {
-	for _, policy := range V1RoutePolicies(app.EnvDev, app.Config{Env: app.EnvDev, EnableDevModeration: true, DevModerationToken: "secret-token"}) {
+	for _, policy := range V1RoutePolicies(EnvDev, Config{Env: EnvDev, EnableDevModeration: true, DevModerationToken: "secret-token"}) {
 		if policy.RateClass == RateClassDevOnly {
 			continue
 		}
@@ -1061,10 +1077,10 @@ func TestRoutes_ReportEndpointsRequireAuthenticatedDevice(t *testing.T) {
 func TestRoutes_DevModerationRouteUnavailableUnlessEnabled(t *testing.T) {
 	for _, tc := range []struct {
 		name string
-		cfg  app.Config
+		cfg  Config
 	}{
-		{name: "prod with flag", cfg: app.Config{Env: app.EnvProd, EnableDevModeration: true, DevModerationToken: "secret"}},
-		{name: "dev flag off", cfg: app.Config{Env: app.EnvDev, EnableDevModeration: false, DevModerationToken: "secret"}},
+		{name: "prod with flag", cfg: Config{Env: EnvProd, EnableDevModeration: true, DevModerationToken: "secret"}},
+		{name: "dev flag off", cfg: Config{Env: EnvDev, EnableDevModeration: false, DevModerationToken: "secret"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			deps := testDeps()
@@ -1087,7 +1103,7 @@ func TestRoutes_DevModerationRouteUnavailableUnlessEnabled(t *testing.T) {
 func TestRoutes_DevPanicRouteIsDevOnly(t *testing.T) {
 	t.Run("dev route is registered", func(t *testing.T) {
 		deps := testDeps()
-		deps.Config = app.Config{Env: app.EnvDev}
+		deps.Config = Config{Env: EnvDev}
 		mux := http.NewServeMux()
 		AddRoutes(context.Background(), mux, deps)
 
@@ -1105,7 +1121,7 @@ func TestRoutes_DevPanicRouteIsDevOnly(t *testing.T) {
 
 	t.Run("prod route is not registered", func(t *testing.T) {
 		deps := testDeps()
-		deps.Config = app.Config{Env: app.EnvProd}
+		deps.Config = Config{Env: EnvProd}
 		mux := http.NewServeMux()
 		AddRoutes(context.Background(), mux, deps)
 
@@ -1119,7 +1135,7 @@ func TestRoutes_DevPanicRouteIsDevOnly(t *testing.T) {
 
 func TestRoutes_DevModerationRouteRequiresToken(t *testing.T) {
 	deps := testDeps()
-	deps.Config = app.Config{Env: app.EnvDev, EnableDevModeration: true, DevModerationToken: "secret-token"}
+	deps.Config = Config{Env: EnvDev, EnableDevModeration: true, DevModerationToken: "secret-token"}
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, deps)
 
@@ -1148,13 +1164,76 @@ func TestRoutes_DevModerationRouteRequiresToken(t *testing.T) {
 	}
 }
 
+func TestRoutes_DevModerationRouteUsesCatalogueBodyAdmission(t *testing.T) {
+	newMux := func() *http.ServeMux {
+		deps := testDeps()
+		deps.Config = Config{
+			Env:                 EnvDev,
+			EnableDevModeration: true,
+			DevModerationToken:  "secret-token",
+			JSONBodyLimitBytes:  128,
+		}
+		mux := http.NewServeMux()
+		AddRoutes(context.Background(), mux, deps)
+		return mux
+	}
+
+	for _, tc := range []struct {
+		name       string
+		body       io.ReadCloser
+		length     int64
+		transfer   []string
+		wantStatus int
+		wantCode   string
+	}{
+		{
+			name:       "declared oversized body",
+			body:       io.NopCloser(strings.NewReader(strings.Repeat("x", 129))),
+			length:     129,
+			wantStatus: http.StatusRequestEntityTooLarge,
+			wantCode:   "request_body_too_large",
+		},
+		{
+			name:       "chunked oversized body",
+			body:       io.NopCloser(strings.NewReader(`{"padding":"` + strings.Repeat("x", 256) + `"}`)),
+			length:     -1,
+			transfer:   []string{"chunked"},
+			wantStatus: http.StatusRequestEntityTooLarge,
+			wantCode:   "request_body_too_large",
+		},
+		{
+			name:       "timed out body",
+			body:       routeTimeoutBody{},
+			length:     -1,
+			transfer:   []string{"chunked"},
+			wantStatus: http.StatusRequestTimeout,
+			wantCode:   "request_body_timeout",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/v1/dev/moderation/ozone-events", tc.body)
+			req.ContentLength = tc.length
+			req.TransferEncoding = tc.transfer
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("X-Craftsky-Dev-Moderation-Token", "secret-token")
+			req.Header.Set("Idempotency-Key", "route-body-policy-0001")
+			recorder := httptest.NewRecorder()
+			newMux().ServeHTTP(recorder, req)
+
+			if recorder.Code != tc.wantStatus || !strings.Contains(recorder.Body.String(), tc.wantCode) {
+				t.Fatalf("status/body = %d %q, want %d containing %q", recorder.Code, recorder.Body.String(), tc.wantStatus, tc.wantCode)
+			}
+		})
+	}
+}
+
 func TestRoutes_DevModerationRoutePersistsValidOutput(t *testing.T) {
 	pool := testdb.WithSchema(t, routeModerationDDL)
 	deps := testDeps()
 	deps.DB = pool
 	deps.ModerationStore = newRouteModerationStore(t, pool)
-	deps.Config = app.Config{
-		Env:                         app.EnvDev,
+	deps.Config = Config{
+		Env:                         EnvDev,
 		EnableDevModeration:         true,
 		DevModerationToken:          "secret-token",
 		DevLabelerDID:               "did:plc:labeler",
@@ -1203,8 +1282,8 @@ func TestRoutes_DevModerationRouteRejectsInvalidWithoutMutation(t *testing.T) {
 	deps := testDeps()
 	deps.DB = pool
 	deps.ModerationStore = newRouteModerationStore(t, pool)
-	deps.Config = app.Config{
-		Env:                         app.EnvDev,
+	deps.Config = Config{
+		Env:                         EnvDev,
 		EnableDevModeration:         true,
 		DevModerationToken:          "secret-token",
 		DevLabelerDID:               "did:plc:labeler",

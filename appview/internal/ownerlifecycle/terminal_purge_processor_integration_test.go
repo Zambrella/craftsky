@@ -442,11 +442,15 @@ func TestTerminalCascadeLockedChildFailsClosedWithoutParentCascade(t *testing.T)
 	likeURI := "at://did:plc:locked/social.craftsky.feed.like/1"
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO craftsky_posts(uri,did,rkey,cid,text,record,created_at)
-		VALUES($1,$2,'locked-child','post-cid','terminal row','{}',now());
+		VALUES($1,$2,'locked-child','post-cid','terminal row','{}',now())
+	`, postURI, owner); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
 		INSERT INTO craftsky_likes(
 			uri,did,rkey,cid,subject_uri,subject_cid,record,created_at
-		) VALUES($3,'did:plc:locked','1','like-cid',$1,'post-cid','{}',now())
-	`, postURI, owner, likeURI); err != nil {
+		) VALUES($2,'did:plc:locked','1','like-cid',$1,'post-cid','{}',now())
+	`, postURI, likeURI); err != nil {
 		t.Fatal(err)
 	}
 	childTx, err := pool.Begin(ctx)
@@ -517,7 +521,7 @@ func TestTerminalPurgeProcessorArchivesRestorationBeforeDeletingModerationParent
 		role        string
 		wantOutcome string
 	}{
-		{name: "terminal source", role: "source", wantOutcome: "no_work"},
+		{name: "terminal source", role: "source", wantOutcome: "queued"},
 		{name: "terminal subject", role: "subject", wantOutcome: "cancelled_target_terminal"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -527,6 +531,27 @@ func TestTerminalPurgeProcessorArchivesRestorationBeforeDeletingModerationParent
 			source, subject := owner, other
 			if test.role == "subject" {
 				source, subject = other, owner
+			}
+			if test.role == "source" {
+				if _, err := pool.Exec(ctx, `
+					INSERT INTO owner_lifecycles(
+						owner_did,state,generation,auth_epoch,transition_reason,
+						transitioned_at,created_at,updated_at
+					) VALUES($1,'active',1,1,'test',now(),now(),now())
+				`, subject); err != nil {
+					t.Fatal(err)
+				}
+				if _, err := pool.Exec(ctx, `
+					INSERT INTO instagram_account_links(
+						id,owner_did,state,igsid,igsid_digest_version,igsid_digest,
+						username,username_normalized,discoverable,conflict_pending,
+						verified_at,updated_at
+					) VALUES($2,$1,'active','terminal-source-target',1,$3,
+					         'terminal.source.target','terminal.source.target',true,false,
+					         now(),now())
+				`, subject, uuid.New(), bytes.Repeat([]byte{0x33}, 32)); err != nil {
+					t.Fatal(err)
+				}
 			}
 			outputID := "terminal-moderation-" + test.role
 			if _, err := pool.Exec(ctx, `
@@ -543,6 +568,14 @@ func TestTerminalPurgeProcessorArchivesRestorationBeforeDeletingModerationParent
 			`, outputID, subject); err != nil {
 				t.Fatal(err)
 			}
+			if _, err := pool.Exec(ctx, `
+				INSERT INTO moderation_idempotency_receipts(
+					request_key_hash,request_fingerprint,output_id,output_status,
+					created_at,expires_at
+				) VALUES($1,$2,$3,'indexed',now(),now()+interval '24 hours')
+			`, bytes.Repeat([]byte{0x11}, 32), bytes.Repeat([]byte{0x22}, 32), outputID); err != nil {
+				t.Fatal(err)
+			}
 
 			claim := claimSpecificTerminalComponent(
 				t, store, owner, generation, "moderation_outputs", test.role,
@@ -554,23 +587,33 @@ func TestTerminalPurgeProcessorArchivesRestorationBeforeDeletingModerationParent
 			if result.RowsAffected != 1 || !result.Complete {
 				t.Fatalf("moderation parent purge=%+v", result)
 			}
-			var parents, outbox int
+			var parents, outbox, receipts, jobs int
 			var outcome string
 			if err := pool.QueryRow(ctx, `
 				SELECT (SELECT count(*)::int FROM moderation_outputs WHERE id=$1),
 				       (SELECT count(*)::int FROM moderation_restoration_outbox WHERE moderation_output_id=$1),
+				       (SELECT count(*)::int FROM moderation_idempotency_receipts WHERE output_id=$1),
+				       (SELECT count(*)::int FROM instagram_reconciliation_jobs
+				         WHERE reason='moderationCleared:' || $1 AND status='queued'),
 				       (SELECT outcome FROM moderation_restoration_history WHERE moderation_output_id=$1)
-			`, outputID).Scan(&parents, &outbox, &outcome); err != nil {
+			`, outputID).Scan(&parents, &outbox, &receipts, &jobs, &outcome); err != nil {
 				t.Fatal(err)
 			}
-			if parents != 0 || outbox != 0 || outcome != test.wantOutcome {
-				t.Fatalf("parents=%d outbox=%d outcome=%q, want 0/0/%q", parents, outbox, outcome, test.wantOutcome)
+			wantJobs := 0
+			if test.role == "source" {
+				wantJobs = 1
+			}
+			if parents != 0 || outbox != 0 || receipts != 0 || jobs != wantJobs || outcome != test.wantOutcome {
+				t.Fatalf(
+					"parents=%d outbox=%d receipts=%d jobs=%d outcome=%q, want 0/0/0/%d/%q",
+					parents, outbox, receipts, jobs, outcome, wantJobs, test.wantOutcome,
+				)
 			}
 		})
 	}
 }
 
-func TestTerminalPurgeProcessorCancelsQueuedRestorationBeforeDeletingModerationSource(t *testing.T) {
+func TestTerminalPurgeProcessorPreservesQueuedRestorationBeforeDeletingModerationSource(t *testing.T) {
 	pool, store, processor, owner, generation := newTerminalPurgeProcessorTest(t, 10)
 	ctx := context.Background()
 	other := syntax.DID("did:plc:moderation-queued-target")
@@ -615,8 +658,205 @@ func TestTerminalPurgeProcessorCancelsQueuedRestorationBeforeDeletingModerationS
 	`, jobID, outputID).Scan(&jobStatus, &outcome); err != nil {
 		t.Fatal(err)
 	}
-	if jobStatus != "ignored" || outcome != "queued" {
-		t.Fatalf("job=%q history=%q, want ignored/queued", jobStatus, outcome)
+	if jobStatus != "queued" || outcome != "queued" {
+		t.Fatalf("job=%q history=%q, want queued/queued", jobStatus, outcome)
+	}
+}
+
+func TestTerminalSourcePurgeCancelsWhenTargetTerminalizesFirst(t *testing.T) {
+	pool, store, processor, source, generation := newTerminalPurgeProcessorTest(t, 10)
+	ctx := context.Background()
+	target := syntax.DID("did:plc:moderation-target-first")
+	outputID := "terminal-moderation-target-first"
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO owner_lifecycles(
+			owner_did,state,generation,auth_epoch,transition_reason,
+			transitioned_at,created_at,updated_at
+		) VALUES($1,'active',1,1,'test',now(),now(),now())
+	`, target); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO moderation_outputs(id,source_did,subject_type,subject_did,value,action)
+		VALUES($1,$2,'account',$3,'hide','negate')
+	`, outputID, source, target); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO moderation_restoration_outbox(
+			moderation_output_id,target_did,status,created_at
+		) VALUES($1,$2,'pending',now())
+	`, outputID, target); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Terminalize(ctx, TerminalizeRequest{
+		Owner: target, Reason: "identityDeleted",
+	}); err != nil {
+		t.Fatalf("terminalize restoration target first: %v", err)
+	}
+
+	claim := claimSpecificTerminalComponent(t, store, source, generation, "moderation_outputs", "source")
+	result, err := processor.ProcessClaim(ctx, claim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.RowsAffected != 1 || !result.Complete {
+		t.Fatalf("source purge after target terminal=%+v", result)
+	}
+
+	var outcome string
+	var jobs int
+	if err := pool.QueryRow(ctx, `
+		SELECT
+			(SELECT outcome FROM moderation_restoration_history
+			 WHERE moderation_output_id=$1),
+			(SELECT count(*)::int FROM instagram_reconciliation_jobs
+			 WHERE reason='moderationCleared:' || $1)
+	`, outputID).Scan(&outcome, &jobs); err != nil {
+		t.Fatal(err)
+	}
+	if outcome != "cancelled_target_terminal" || jobs != 0 {
+		t.Fatalf("target-first outcome=%q jobs=%d, want cancelled_target_terminal/0", outcome, jobs)
+	}
+}
+
+func TestTerminalSourcePurgeHoldsTargetFenceThroughRestorationPromotion(t *testing.T) {
+	pool, store, processor, source, generation := newTerminalPurgeProcessorTest(t, 10)
+	ctx := context.Background()
+	target := syntax.DID("did:plc:moderation-fenced-target")
+	outputID := "terminal-moderation-fenced-source"
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO owner_lifecycles(
+			owner_did,state,generation,auth_epoch,transition_reason,
+			transitioned_at,created_at,updated_at
+		) VALUES($1,'active',1,1,'test',now(),now(),now())
+	`, target); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO instagram_account_links(
+			id,owner_did,state,igsid,igsid_digest_version,igsid_digest,
+			username,username_normalized,discoverable,conflict_pending,
+			verified_at,updated_at
+		) VALUES($2,$1,'active','terminal-fenced-target',1,$3,
+		         'terminal.fenced.target','terminal.fenced.target',true,false,
+		         now(),now())
+	`, target, uuid.New(), bytes.Repeat([]byte{0x44}, 32)); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO moderation_outputs(id,source_did,subject_type,subject_did,value,action)
+		VALUES($1,$2,'account',$3,'hide','negate')
+	`, outputID, source, target); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO moderation_restoration_outbox(
+			moderation_output_id,target_did,status,created_at
+		) VALUES($1,$2,'pending',now())
+	`, outputID, target); err != nil {
+		t.Fatal(err)
+	}
+
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = blocker.Rollback(context.Background()) }()
+	if _, err := blocker.Exec(ctx, `
+		SELECT moderation_output_id
+		FROM moderation_restoration_outbox
+		WHERE moderation_output_id=$1
+		FOR UPDATE
+	`, outputID); err != nil {
+		t.Fatal(err)
+	}
+
+	claim := claimSpecificTerminalComponent(t, store, source, generation, "moderation_outputs", "source")
+	purged := make(chan error, 1)
+	go func() {
+		_, err := processor.ProcessClaim(ctx, claim)
+		purged <- err
+	}()
+	waitForExclusiveOwnerFence(t, pool, source)
+
+	terminalized := make(chan error, 1)
+	go func() {
+		_, err := store.Terminalize(ctx, TerminalizeRequest{
+			Owner: target, Reason: "identityDeleted",
+		})
+		terminalized <- err
+	}()
+	select {
+	case err := <-terminalized:
+		t.Fatalf("target terminal transition crossed source restoration promotion: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	if err := blocker.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-purged:
+		if err != nil {
+			t.Fatalf("source purge after barrier: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("source purge did not resume")
+	}
+	select {
+	case err := <-terminalized:
+		if err != nil {
+			t.Fatalf("target terminal transition after promotion: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("target terminal transition did not resume")
+	}
+
+	var jobs int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*)::int
+		FROM instagram_reconciliation_jobs
+		WHERE reason='moderationCleared:' || $1
+	`, outputID).Scan(&jobs); err != nil {
+		t.Fatal(err)
+	}
+	if jobs != 1 {
+		t.Fatalf("promoted restoration jobs=%d, want 1", jobs)
+	}
+}
+
+func waitForExclusiveOwnerFence(t *testing.T, pool *pgxpool.Pool, owner syntax.DID) {
+	t.Helper()
+	key, err := FenceKey(owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn, err := pool.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Release()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		var acquired bool
+		if err := conn.QueryRow(context.Background(), `SELECT pg_try_advisory_lock($1)`, key).Scan(&acquired); err != nil {
+			t.Fatal(err)
+		}
+		if !acquired {
+			return
+		}
+		var unlocked bool
+		if err := conn.QueryRow(context.Background(), `SELECT pg_advisory_unlock($1)`, key).Scan(&unlocked); err != nil {
+			t.Fatal(err)
+		}
+		if !unlocked {
+			t.Fatal("owner fence probe did not release its advisory lock")
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("terminal purge did not acquire source owner fence")
+		}
+		time.Sleep(5 * time.Millisecond)
 	}
 }
 

@@ -2,6 +2,8 @@ import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
+// A named capability keeps presenters independent of secure-storage details.
+// ignore: one_member_abstracts
 abstract interface class NotificationPresentationEligibility {
   Future<bool> allows(AccountSubscriptionId accountSubscriptionId);
 }

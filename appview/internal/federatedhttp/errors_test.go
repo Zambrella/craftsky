@@ -83,6 +83,12 @@ func TestPolicyClassifiesAndRedactsResolverFailures(t *testing.T) {
 			if got := Classify(err); got != tt.kind {
 				t.Fatalf("Classify() = %q, want %q (error %v)", got, tt.kind, err)
 			}
+			if errors.Is(err, ErrDestinationRejected) {
+				t.Fatalf("resolver failure %v was typed as a destination-policy rejection", err)
+			}
+			if !errors.Is(err, tt.err) {
+				t.Fatalf("resolver failure %v does not preserve cause %v", err, tt.err)
+			}
 			for _, secret := range []string{"pds.example", "192.0.2.1", "token=secret"} {
 				if strings.Contains(err.Error(), secret) {
 					t.Fatalf("error %q exposes %q", err, secret)

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
@@ -17,8 +18,29 @@ import (
 	"social.craftsky/appview/internal/scheduledposts"
 )
 
+type scheduledPostCreator interface {
+	Create(context.Context, scheduledposts.CreateParams) (scheduledposts.ScheduledPost, error)
+}
+
+type scheduledPostLister interface {
+	List(context.Context, syntax.DID) ([]scheduledposts.Resource, error)
+}
+
+type scheduledPostReader interface {
+	Get(context.Context, syntax.DID, uuid.UUID) (scheduledposts.Resource, error)
+}
+
+type scheduledPostUpdater interface {
+	scheduledPostReader
+	Update(context.Context, scheduledposts.UpdateParams) (scheduledposts.UpdateResult, error)
+}
+
+type scheduledPostDeleter interface {
+	Delete(context.Context, syntax.DID, uuid.UUID, time.Time) error
+}
+
 func CreateScheduledPostHandler(
-	store *scheduledposts.Store,
+	store scheduledPostCreator,
 	limits MediaLimits,
 	now func() time.Time,
 	logger *slog.Logger,
@@ -75,7 +97,7 @@ func CreateScheduledPostHandler(
 	})
 }
 
-func ListScheduledPostsHandler(store *scheduledposts.Store, logger *slog.Logger) http.Handler {
+func ListScheduledPostsHandler(store scheduledPostLister, logger *slog.Logger) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -121,7 +143,7 @@ func ListScheduledPostsHandler(store *scheduledposts.Store, logger *slog.Logger)
 	})
 }
 
-func GetScheduledPostHandler(store *scheduledposts.Store, logger *slog.Logger) http.Handler {
+func GetScheduledPostHandler(store scheduledPostReader, logger *slog.Logger) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -155,7 +177,7 @@ func GetScheduledPostHandler(store *scheduledposts.Store, logger *slog.Logger) h
 }
 
 func UpdateScheduledPostHandler(
-	store *scheduledposts.Store,
+	store scheduledPostUpdater,
 	limits MediaLimits,
 	now func() time.Time,
 	logger *slog.Logger,
@@ -219,7 +241,7 @@ func UpdateScheduledPostHandler(
 }
 
 func DeleteScheduledPostHandler(
-	store *scheduledposts.Store,
+	store scheduledPostDeleter,
 	now func() time.Time,
 	logger *slog.Logger,
 ) http.Handler {

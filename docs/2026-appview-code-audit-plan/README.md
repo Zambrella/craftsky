@@ -2,7 +2,9 @@
 
 - Audit source: [AppView code audit](../2026-08-12-appview-code-audit.md)
 - Audit snapshot: `7615d1774fef9e601e5024693573fdd93b3181d5`
-- Plan status: Drafted for implementation
+- Plan status: Core remediation implemented; automated gates pass; final
+  implementation review is Approved with notes; explicitly external/destructive
+  release gates remain
 - Scope: Grouped implementation plans covering every audit finding, AV-001 through AV-037
 
 ## How to use this directory
@@ -10,6 +12,15 @@
 Findings that share an implementation boundary are deliberately grouped into one update document. This keeps one contract, migration, replay strategy, and test matrix together instead of prescribing overlapping changes in several files. Every AV ID still has explicit traceability and acceptance criteria inside its grouped plan.
 
 A grouped plan is complete only when every included finding's acceptance criteria and test evidence are satisfied; changing code without the required replay, migration, fault test, or client update does not close the finding.
+
+The grouped documents retain their original design-time sequencing and
+acceptance matrices. The current execution record is
+[`05-implementation-plan.md`](05-implementation-plan.md), and the final
+`Approved with notes` verdict is recorded in
+[`06-implementation-review.md`](06-implementation-review.md). Where a
+design-time checkbox or status line was intentionally left as historical
+planning context, those two execution artifacts are authoritative for the
+implemented tree and its remaining release gates.
 
 The app has no production users, so these plans deliberately prefer correcting contracts and rebuilding local state over compatibility layers. That freedom does not relax correctness: migrations must still support up/down/up verification, public records remain PDS-owned, private data remains AppView-owned, and destructive PDS writes stay limited to the explicit owner-authorized CraftSky deletion boundary.
 
@@ -30,7 +41,12 @@ Before implementing a plan:
 - Keep authentication errors distinct from dependency failures across AV-010, AV-011, AV-019, AV-020, and AV-021.
 - Make AV-033 and AV-036 early enabling work even though their audit severity is lower; every other fix benefits from a required database, race, formatting, static-analysis, and vulnerability gate.
 - Prefer capability-based package boundaries from AV-037 while touching large files, but avoid mixing broad moves with behavioral fixes unless the move is required to expose a testable seam.
-- Resolve two explicit product-contract conflicts before lifecycle implementation. AV-007 strict safety requires retiring the background PDS-write capability while approved Instagram requirements require durable automatic following. AV-006/explicit-deletion crash safety may require temporary minimal deletion tombstones while approved lean deletion requirements require artifact-free terminal success. The lifecycle plan documents honest branches and the required requirements-artifact revisions; breaking compatibility does not silently choose product behavior or retention.
+- The product owner resolved both lifecycle contract conflicts before
+  implementation: AV-007 uses strict background-write removal with private
+  suggestions and explicit current-member acceptance, and AV-006 permits
+  minimal exact-key non-secret safety tombstones until uncertain effects
+  converge. The lifecycle plan and product workflow artifacts record those
+  approved branches.
 
 ## Recommended sequence
 

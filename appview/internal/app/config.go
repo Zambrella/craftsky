@@ -26,6 +26,8 @@ import (
 const (
 	defaultJSONBodyLimitBytes              int64 = 1024 * 1024
 	maxTapAckTimeout                             = 2 * time.Minute
+	maxTapTerminalTransactionBudget              = 30 * time.Second
+	maxTapAckSafetyMargin                        = 30 * time.Second
 	maxTapReconnect                              = 10 * time.Minute
 	maxTapWorkerPollInterval                     = time.Minute
 	maxTapWorkerLeaseDuration                    = 10 * time.Minute
@@ -45,7 +47,7 @@ const (
 	maxHTTPInFlightRequests                      = 10_000
 	maxHTTPReadHeaderTimeout                     = 30 * time.Second
 	maxHTTPReadTimeout                           = 5 * time.Minute
-	maxHTTPWriteTimeout                          = 10 * time.Minute
+	maxHTTPWriteTimeout                          = 20 * time.Minute
 	maxHTTPIdleTimeout                           = 5 * time.Minute
 	maxHTTPHeaderBytes                           = 1 << 20
 	maxHTTPOuterRateWindow                       = time.Hour
@@ -71,6 +73,7 @@ const (
 	maxTerminalPurgeLeaseDuration                = time.Hour
 	maxTerminalPurgeRetryDelay                   = time.Hour
 	maxTerminalPurgeBatch                        = 1000
+	httpWriteResponseSafetyMargin                = 5 * time.Second
 )
 
 // OAuthMode selects the one OAuth client shape a deployment is allowed to
@@ -209,6 +212,8 @@ type Config struct {
 
 	TapWSURL                      string
 	TapAckTimeout                 time.Duration
+	TapTerminalTransactionBudget  time.Duration
+	TapAckSafetyMargin            time.Duration
 	TapReconnectMax               time.Duration
 	TapProjectionPollInterval     time.Duration
 	TapProjectionLeaseDuration    time.Duration
@@ -329,6 +334,12 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 
 	var err error
 	if cfg.TapAckTimeout, err = boundedPositiveDurationEnv("TAP_ACK_TIMEOUT", 10*time.Second, maxTapAckTimeout); err != nil {
+		return Config{}, err
+	}
+	if cfg.TapTerminalTransactionBudget, err = boundedPositiveDurationEnv("TAP_TERMINAL_TRANSACTION_BUDGET", time.Second, maxTapTerminalTransactionBudget); err != nil {
+		return Config{}, err
+	}
+	if cfg.TapAckSafetyMargin, err = boundedPositiveDurationEnv("TAP_ACK_SAFETY_MARGIN", 500*time.Millisecond, maxTapAckSafetyMargin); err != nil {
 		return Config{}, err
 	}
 	if cfg.TapReconnectMax, err = boundedPositiveDurationEnv("TAP_RECONNECT_MAX", 30*time.Second, maxTapReconnect); err != nil {
@@ -920,6 +931,8 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 // pass rather than validating only their individual syntax.
 func (cfg Config) Validate() error {
 	switch {
+	case cfg.InstagramDeployment.ReplicaCount() > 1:
+		return fmt.Errorf("APPVIEW_REPLICA_COUNT must be 1 until a shared HTTP admission boundary is configured and verified")
 	case cfg.CraftskySessionInactivity > cfg.OAuthSessionAbsoluteLifetime:
 		return fmt.Errorf("CRAFTSKY_SESSION_INACTIVITY must not exceed OAUTH_SESSION_ABSOLUTE_LIFETIME")
 	case cfg.TapProjectionLeaseDuration <= cfg.TapProjectionPollInterval:
@@ -936,8 +949,8 @@ func (cfg Config) Validate() error {
 		return fmt.Errorf("TAP_QUARANTINE_LEASE_DURATION must exceed TAP_QUARANTINE_POLL_INTERVAL")
 	case cfg.TapQuarantineOperationTimeout >= cfg.TapQuarantineLeaseDuration:
 		return fmt.Errorf("TAP_QUARANTINE_OPERATION_TIMEOUT must be shorter than TAP_QUARANTINE_LEASE_DURATION")
-	case cfg.TapAckTimeout <= cfg.OwnerFenceAcquireTimeout+time.Second:
-		return fmt.Errorf("TAP_ACK_TIMEOUT must exceed OWNER_FENCE_ACQUIRE_TIMEOUT plus a 1s transaction margin")
+	case cfg.TapAckTimeout <= cfg.OwnerFenceAcquireTimeout+cfg.TapTerminalTransactionBudget+cfg.TapAckSafetyMargin:
+		return fmt.Errorf("OWNER_FENCE_ACQUIRE_TIMEOUT plus TAP_TERMINAL_TRANSACTION_BUDGET plus TAP_ACK_SAFETY_MARGIN must be shorter than TAP_ACK_TIMEOUT")
 	case cfg.OAuthAuthRequestExpiry >= cfg.OAuthSessionAbsoluteLifetime:
 		return fmt.Errorf("OAUTH_AUTH_REQUEST_EXPIRY must be shorter than OAUTH_SESSION_ABSOLUTE_LIFETIME")
 	case cfg.CraftskySessionActivityWriteInterval >= cfg.CraftskySessionInactivity:
@@ -956,6 +969,12 @@ func (cfg Config) Validate() error {
 		return fmt.Errorf("HTTP_JSON_BODY_READ_TIMEOUT must not exceed HTTP_READ_TIMEOUT")
 	case cfg.HTTPUploadBodyReadTimeout > cfg.HTTPReadTimeout:
 		return fmt.Errorf("HTTP_UPLOAD_BODY_READ_TIMEOUT must not exceed HTTP_READ_TIMEOUT")
+	case cfg.HTTPWriteTimeout <= cfg.HTTPUploadBodyReadTimeout ||
+		cfg.HTTPWriteTimeout-cfg.HTTPUploadBodyReadTimeout <= cfg.ScheduledMediaPutTimeout ||
+		cfg.HTTPWriteTimeout-cfg.HTTPUploadBodyReadTimeout-cfg.ScheduledMediaPutTimeout <= httpWriteResponseSafetyMargin:
+		// Compare by subtraction so a manually constructed Config cannot make a
+		// duration sum overflow before validation rejects the unsafe geometry.
+		return fmt.Errorf("HTTP_WRITE_TIMEOUT must exceed HTTP_UPLOAD_BODY_READ_TIMEOUT plus SCHEDULED_MEDIA_PUT_TIMEOUT plus a 5s response margin")
 	case cfg.HTTPOuterClientLimit > cfg.HTTPOuterGlobalLimit:
 		return fmt.Errorf("HTTP_OUTER_CLIENT_LIMIT must not exceed HTTP_OUTER_GLOBAL_LIMIT")
 	case cfg.OAuthAuthRequestSweepBatch > cfg.OAuthPendingAuthRequestCapacity:
@@ -995,6 +1014,14 @@ func (cfg Config) Validate() error {
 		}
 		return nil
 	}
+}
+
+func (cfg Config) tapIngestionTimeout() time.Duration {
+	return cfg.TapAckTimeout - cfg.TapAckSafetyMargin
+}
+
+func (cfg Config) tapTerminalCommitTimeout() time.Duration {
+	return cfg.OwnerFenceAcquireTimeout + cfg.TapTerminalTransactionBudget
 }
 
 func decodeHandoffReceiptKey(secret Secret) ([]byte, error) {

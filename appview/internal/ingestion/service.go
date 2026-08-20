@@ -13,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -22,38 +23,38 @@ var (
 )
 
 type ServiceConfig struct {
-	Store               *Store
-	Lifecycles          *ownerlifecycle.Store
-	ProfileParticipant  ownerlifecycle.TransitionParticipant
-	TerminalParticipant ownerlifecycle.TerminalParticipant
-	TerminalComponents  []ownerlifecycle.PurgeComponent
+	Store                 *Store
+	Lifecycles            *ownerlifecycle.Store
+	ProfileParticipant    ownerlifecycle.TransitionParticipant
+	TerminalParticipant   ownerlifecycle.TerminalParticipant
+	TerminalCommitTimeout time.Duration
 }
 
 // Service is the production Tap DurableIngestor. Profile and terminal identity
 // events compose durable source/receipt state into the owner lifecycle's
 // fenced transaction; ordinary records use Store's source-first transaction.
 type Service struct {
-	store               *Store
-	lifecycles          *ownerlifecycle.Store
-	profileParticipant  ownerlifecycle.TransitionParticipant
-	terminalParticipant ownerlifecycle.TerminalParticipant
-	terminalComponents  []ownerlifecycle.PurgeComponent
+	store                 *Store
+	lifecycles            *ownerlifecycle.Store
+	profileParticipant    ownerlifecycle.TransitionParticipant
+	terminalParticipant   ownerlifecycle.TerminalParticipant
+	terminalCommitTimeout time.Duration
 }
 
 var _ tap.DurableIngestor = (*Service)(nil)
 
 func NewService(config ServiceConfig) (*Service, error) {
 	if config.Store == nil || config.Lifecycles == nil || config.ProfileParticipant == nil ||
-		config.TerminalParticipant == nil || len(config.TerminalComponents) == 0 {
+		config.TerminalParticipant == nil || config.TerminalCommitTimeout <= 0 {
 		return nil, errors.New("ingestion service requires store, lifecycle store, lifecycle participants, and terminal purge catalogue")
 	}
 	config.Store.lifecycleAware = true
 	return &Service{
-		store:               config.Store,
-		lifecycles:          config.Lifecycles,
-		profileParticipant:  config.ProfileParticipant,
-		terminalParticipant: config.TerminalParticipant,
-		terminalComponents:  append([]ownerlifecycle.PurgeComponent(nil), config.TerminalComponents...),
+		store:                 config.Store,
+		lifecycles:            config.Lifecycles,
+		profileParticipant:    config.ProfileParticipant,
+		terminalParticipant:   config.TerminalParticipant,
+		terminalCommitTimeout: config.TerminalCommitTimeout,
 	}, nil
 }
 
@@ -62,7 +63,7 @@ func (service *Service) IngestRecord(ctx context.Context, event tap.Event) (tap.
 		if err := validateRecordEvent(event); err != nil {
 			return tap.Retryable(tap.ReasonMalformedRecord), err
 		}
-		lifecycle, err := service.lifecycles.EnsureOnboardingOwner(ctx, event.DID)
+		_, err := service.lifecycles.EnsureOnboardingOwner(ctx, event.DID)
 		if err != nil {
 			return tap.Retryable(tap.ReasonStorageUnavailable), err
 		}
@@ -72,27 +73,21 @@ func (service *Service) IngestRecord(ctx context.Context, event tap.Event) (tap.
 		}
 		now := service.store.now().UTC().Truncate(time.Microsecond)
 		var outcome tap.Outcome
-		if lifecycle.State == ownerlifecycle.StateTerminal {
-			err = pgx.BeginFunc(ctx, service.store.pool, func(tx pgx.Tx) error {
-				var ingestErr error
-				outcome, ingestErr = service.store.ingestRecordTx(ctx, tx, event, fingerprint, now, &sourceAuthority{
-					Generation: lifecycle.Generation, State: string(lifecycle.State),
-				})
-				return ingestErr
-			})
-		} else {
-			err = service.lifecycles.WithNonTerminalOwners(ctx, []syntax.DID{event.DID}, func(ctx context.Context, tx pgx.Tx, existing map[syntax.DID]ownerlifecycle.Lifecycle) error {
-				current, exists := existing[event.DID]
-				if !exists {
-					return ownerlifecycle.ErrOwnerNotActive
-				}
-				var ingestErr error
-				outcome, ingestErr = service.store.ingestRecordTx(ctx, tx, event, fingerprint, now, &sourceAuthority{
-					Generation: current.Generation, State: string(current.State),
-				})
-				return ingestErr
-			})
-		}
+		err = service.lifecycles.WithOwnerStates(ctx, []syntax.DID{event.DID}, func(
+			ctx context.Context,
+			tx pgx.Tx,
+			existing map[syntax.DID]ownerlifecycle.Lifecycle,
+		) error {
+			current, exists := existing[event.DID]
+			if !exists {
+				return ownerlifecycle.ErrOwnerNotActive
+			}
+			var ingestErr error
+			outcome, ingestErr = service.store.ingestRecordTx(
+				ctx, tx, event, fingerprint, now, &sourceAuthority{Lifecycle: current},
+			)
+			return ingestErr
+		})
 		if err != nil {
 			return tap.Retryable(tap.ReasonStorageUnavailable), err
 		}
@@ -106,7 +101,7 @@ func (service *Service) IngestRecord(ctx context.Context, event tap.Event) (tap.
 		return tap.Retryable(tap.ReasonStorageUnavailable), err
 	}
 	if lifecycle.State == ownerlifecycle.StateTerminal {
-		return service.store.ingestTerminalDeniedProfile(ctx, event, lifecycle.Generation)
+		return service.ingestTerminalDeniedProfile(ctx, event, lifecycle)
 	}
 
 	target, transition := profileTransition(lifecycle.State, event.Action)
@@ -118,12 +113,17 @@ func (service *Service) IngestRecord(ctx context.Context, event tap.Event) (tap.
 		}, func(ctx context.Context, tx pgx.Tx, before, after ownerlifecycle.Lifecycle) error {
 			var won bool
 			var writeErr error
-			outcome, won, writeErr = service.store.ingestProfileTx(ctx, tx, event, after.Generation, service.store.now().UTC().Truncate(time.Microsecond), true)
+			outcome, won, writeErr = service.store.ingestProfileTx(ctx, tx, event, after, service.store.now().UTC().Truncate(time.Microsecond), true)
 			if writeErr != nil {
 				return writeErr
 			}
 			if !won {
 				return errProfileSourceDidNotWin
+			}
+			if before.State != ownerlifecycle.StateActive && after.State == ownerlifecycle.StateActive {
+				if err := service.store.prepareEffectSourcesForRejoinTx(ctx, tx, after, service.store.now().UTC().Truncate(time.Microsecond)); err != nil {
+					return err
+				}
 			}
 			if service.profileParticipant != nil {
 				return service.profileParticipant(ctx, tx, before, after)
@@ -155,7 +155,7 @@ func (service *Service) ingestProfileWithoutTransition(ctx context.Context, even
 		}
 		var writeErr error
 		var won bool
-		outcome, won, writeErr = service.store.ingestProfileTx(ctx, tx, event, current.Generation, service.store.now().UTC().Truncate(time.Microsecond), true)
+		outcome, won, writeErr = service.store.ingestProfileTx(ctx, tx, event, current, service.store.now().UTC().Truncate(time.Microsecond), true)
 		if writeErr == nil && rejectWinner && won {
 			return errProfileSourceChangedDuringRetry
 		}
@@ -166,7 +166,7 @@ func (service *Service) ingestProfileWithoutTransition(ctx context.Context, even
 		if getErr != nil {
 			return tap.Retryable(tap.ReasonStorageUnavailable), getErr
 		}
-		return service.store.ingestTerminalDeniedProfile(ctx, event, current.Generation)
+		return service.ingestTerminalDeniedProfile(ctx, event, current)
 	}
 	if err != nil {
 		if errors.Is(err, errProfileSourceChangedDuringRetry) {
@@ -211,8 +211,10 @@ func (service *Service) IngestIdentity(ctx context.Context, event tap.IdentityEv
 		return tap.Retryable(tap.ReasonInvalidIdentity), err
 	}
 	now := service.store.now().UTC().Truncate(time.Microsecond)
-	_, err = service.lifecycles.TerminalizeWith(ctx, ownerlifecycle.TerminalizeRequest{
-		Owner: event.DID, Reason: "tapIdentityDeleted", Components: service.terminalComponents,
+	terminalCtx, cancel := context.WithTimeout(ctx, service.terminalCommitTimeout)
+	defer cancel()
+	_, err = service.lifecycles.TerminalizeWith(terminalCtx, ownerlifecycle.TerminalizeRequest{
+		Owner: event.DID, Reason: "tapIdentityDeleted",
 	}, func(ctx context.Context, tx pgx.Tx, before *ownerlifecycle.Lifecycle, terminal ownerlifecycle.Lifecycle) error {
 		if err := insertReceipt(ctx, tx, fingerprint, event.ID, "identity", tap.Applied(), "", tap.ReasonNone, now); err != nil {
 			return err
@@ -266,7 +268,7 @@ func (store *Store) ingestProfileTx(
 	ctx context.Context,
 	tx pgx.Tx,
 	event tap.Event,
-	generation int64,
+	lifecycle ownerlifecycle.Lifecycle,
 	now time.Time,
 	enqueueAddRepo bool,
 ) (tap.Outcome, bool, error) {
@@ -307,12 +309,80 @@ func (store *Store) ingestProfileTx(
 	} else if event.CID != "" {
 		cid = event.CID
 	}
+	outcome := tap.Applied()
+	orderingStatus := "authoritative"
+	disposition := "eligible"
+	ownerGeneration := lifecycle.Generation
+	var effectOperationID any
+	state := "pending"
+	var dependencyKind, dependencyKey, completedAt any
+	if lifecycle.State == ownerlifecycle.StateTerminal {
+		disposition = "denied_terminal"
+		state = "permanent_denied"
+		completedAt = now
+	}
+	if event.Action != "delete" {
+		recordContentFingerprint, err := pdseffects.RecordContentFingerprint(
+			event.DID, event.Collection, event.Rkey, event.Record,
+		)
+		if err != nil {
+			return tap.Outcome{}, false, err
+		}
+		resolution, err := ownerlifecycle.ResolvePDSRecordSourceTx(
+			ctx,
+			tx,
+			lifecycle,
+			ownerlifecycle.PDSRecordSourceObservation{
+				Owner: event.DID, URI: event.URI, CID: event.CID,
+				RecordFingerprint: recordContentFingerprint,
+			},
+			now,
+		)
+		if err != nil {
+			return tap.Outcome{}, false, err
+		}
+		switch resolution.Match {
+		case ownerlifecycle.EffectSourceAmbiguous:
+			orderingStatus = "uncertain"
+			disposition = "pending"
+			state = "blocked"
+			outcome = tap.Blocked(
+				tap.ReasonSourceOrderUncertain,
+				tap.Dependency{Kind: "repository_did", Key: event.DID.String()},
+			)
+			dependencyKind, dependencyKey = outcome.Dependency.Kind, outcome.Dependency.Key
+		case ownerlifecycle.EffectSourceMatched:
+			effectOperationID = resolution.Attempt.OperationID
+			ownerGeneration = resolution.Attempt.OwnerGeneration
+			switch resolution.Attempt.ProjectionDisposition {
+			case ownerlifecycle.ProjectionEligibleCurrent:
+				disposition = "eligible"
+			case ownerlifecycle.ProjectionHiddenNonActive:
+				orderingStatus = "uncertain"
+				disposition = "pending"
+				state = "blocked"
+				outcome = tap.Blocked(
+					tap.ReasonSourceOrderUncertain,
+					tap.Dependency{Kind: "repository_did", Key: event.DID.String()},
+				)
+				dependencyKind, dependencyKey = outcome.Dependency.Kind, outcome.Dependency.Key
+			case ownerlifecycle.ProjectionDeniedTerminal:
+				disposition = "denied_terminal"
+				state = "permanent_denied"
+				completedAt = now
+			case ownerlifecycle.ProjectionNotApplicable:
+				disposition = "not_accepted"
+				state = "permanent_denied"
+				completedAt = now
+			}
+		}
+	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO tap_source_records(
 			uri,did,collection,rkey,source_event_id,source_fingerprint,
 			revision,cid,action,record,record_bytes,live,ordering_status,
-			projection_disposition,owner_generation,observed_at,updated_at
-		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'authoritative','eligible',$13,$14,$14)
+			projection_disposition,owner_generation,effect_operation_id,observed_at,updated_at
+		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$17)
 		ON CONFLICT(uri) DO UPDATE SET
 			did=EXCLUDED.did,collection=EXCLUDED.collection,rkey=EXCLUDED.rkey,
 			source_event_id=EXCLUDED.source_event_id,
@@ -322,22 +392,28 @@ func (store *Store) ingestProfileTx(
 			live=EXCLUDED.live,ordering_status=EXCLUDED.ordering_status,
 			projection_disposition=EXCLUDED.projection_disposition,
 			owner_generation=EXCLUDED.owner_generation,
+			effect_operation_id=EXCLUDED.effect_operation_id,
 			observed_at=EXCLUDED.observed_at,updated_at=EXCLUDED.updated_at
 	`, event.URI, event.DID, event.Collection, event.Rkey, event.ID, fingerprint[:],
-		event.Rev, cid, event.Action, record, recordBytes, event.Live, generation, now); err != nil {
+		event.Rev, cid, event.Action, record, recordBytes, event.Live, orderingStatus,
+		disposition, ownerGeneration, effectOperationID, now); err != nil {
 		return tap.Outcome{}, false, fmt.Errorf("upsert profile Tap source: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO tap_projection_jobs(
-			source_uri,projection_kind,source_event_id,state,next_attempt_at,created_at,updated_at
-		) VALUES($1,$2,$3,'pending',$4,$4,$4)
+			source_uri,projection_kind,source_event_id,state,
+			dependency_kind,dependency_key,next_attempt_at,last_reason_code,
+			completed_at,created_at,updated_at
+		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$7,$7)
 		ON CONFLICT(source_uri,projection_kind) DO UPDATE SET
-			source_event_id=EXCLUDED.source_event_id,state='pending',
-			dependency_kind=NULL,dependency_key=NULL,attempts=0,
+			source_event_id=EXCLUDED.source_event_id,state=EXCLUDED.state,
+			dependency_kind=EXCLUDED.dependency_kind,dependency_key=EXCLUDED.dependency_key,attempts=0,
 			next_attempt_at=EXCLUDED.next_attempt_at,
 			lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,
-			last_reason_code=NULL,completed_at=NULL,updated_at=EXCLUDED.updated_at
-	`, event.URI, projectionKind(event.Collection), event.ID, now); err != nil {
+			last_reason_code=EXCLUDED.last_reason_code,completed_at=EXCLUDED.completed_at,
+			updated_at=EXCLUDED.updated_at
+	`, event.URI, projectionKind(event.Collection), event.ID, state,
+		dependencyKind, dependencyKey, now, nullableString(string(outcome.Reason)), completedAt); err != nil {
 		return tap.Outcome{}, false, fmt.Errorf("upsert profile Tap projection job: %w", err)
 	}
 	if enqueueAddRepo && event.Action != "delete" {
@@ -345,26 +421,44 @@ func (store *Store) ingestProfileTx(
 			return tap.Outcome{}, false, err
 		}
 	}
-	outcome := tap.Applied()
-	if err := insertReceipt(ctx, tx, fingerprint, event.ID, "record", outcome, event.URI, tap.ReasonNone, now); err != nil {
+	if orderingStatus == "uncertain" {
+		if err := enqueueRepositoryJob(ctx, tx, event.DID, string(RepositoryJobPDSReconcile), now); err != nil {
+			return tap.Outcome{}, false, err
+		}
+	}
+	if err := insertReceipt(ctx, tx, fingerprint, event.ID, "record", outcome, event.URI, outcome.Reason, now); err != nil {
 		return tap.Outcome{}, false, err
 	}
 	return outcome, true, nil
 }
 
-func (store *Store) ingestTerminalDeniedProfile(ctx context.Context, event tap.Event, generation int64) (tap.Outcome, error) {
-	now := store.now().UTC().Truncate(time.Microsecond)
+func (service *Service) ingestTerminalDeniedProfile(
+	ctx context.Context,
+	event tap.Event,
+	lifecycle ownerlifecycle.Lifecycle,
+) (tap.Outcome, error) {
+	now := service.store.now().UTC().Truncate(time.Microsecond)
 	outcome := tap.Applied()
-	err := pgx.BeginFunc(ctx, store.pool, func(tx pgx.Tx) error {
-		_, _, err := store.ingestProfileTx(ctx, tx, event, generation, now, false)
+	err := service.lifecycles.WithOwnerStates(ctx, []syntax.DID{event.DID}, func(
+		ctx context.Context,
+		tx pgx.Tx,
+		states map[syntax.DID]ownerlifecycle.Lifecycle,
+	) error {
+		current, exists := states[event.DID]
+		if !exists || current.State != ownerlifecycle.StateTerminal || current.Generation != lifecycle.Generation {
+			return ownerlifecycle.ErrGenerationChanged
+		}
+		_, _, err := service.store.ingestProfileTx(ctx, tx, event, current, now, false)
 		if err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE tap_source_records
-			SET projection_disposition='denied_terminal',owner_generation=$2,updated_at=$3
+			SET projection_disposition='denied_terminal',
+			    owner_generation=CASE WHEN effect_operation_id IS NULL THEN $2 ELSE owner_generation END,
+			    updated_at=$3
 			WHERE uri=$1
-		`, event.URI, generation, now); err != nil {
+		`, event.URI, current.Generation, now); err != nil {
 			return fmt.Errorf("deny terminal profile source: %w", err)
 		}
 		if _, err := tx.Exec(ctx, `

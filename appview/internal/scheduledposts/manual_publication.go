@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/google/uuid"
 )
 
 type ManualPublicationOutcome string
@@ -17,13 +20,18 @@ type ManualPublisher interface {
 	PublishManual(context.Context, UpdateParams) (ManualPublicationOutcome, error)
 }
 
+type ManualPublicationStore interface {
+	PrepareManualPublication(context.Context, UpdateParams) (WorkItem, error)
+	Get(context.Context, syntax.DID, uuid.UUID) (Resource, error)
+}
+
 type ManualPublicationService struct {
-	store     *Store
+	store     ManualPublicationStore
 	processor *PublicationProcessor
 }
 
 func NewManualPublicationService(
-	store *Store,
+	store ManualPublicationStore,
 	processor *PublicationProcessor,
 ) (*ManualPublicationService, error) {
 	if store == nil || processor == nil {

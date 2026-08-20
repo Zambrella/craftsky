@@ -1,6 +1,8 @@
 # Implementation Review: Settings Page And Lean Account Deletion
 
-> **Review reopened (2026-08-14):** Section 8 is the current verdict. IR-001–IR-004 were corrected under the earlier contract, but the newly approved exact-key safety-tombstone requirements are not implemented yet, so the amended implementation remains `Changes required`.
+> **Review completed (2026-08-20):** Section 9 is the current verdict. The
+> earlier `Changes required` sections remain as historical review snapshots;
+> IR-001–IR-007 and the approved exact-key safety correction are implemented.
 
 ## Verdict
 
@@ -110,3 +112,57 @@ The product owner has approved the narrow correction: temporary minimized exact-
 - Suggested next failing test: IT-035 — accept exact registered-collection write, crash AppView, let the first deletion scan observe empty, release delayed PDS commit, and require the retained exact-URI tombstone to prevent/fix premature success.
 - Verification to rerun: Focused account-deletion/scheduled-media PostgreSQL and MinIO-compatible suites; both crash barriers under `go test -race`; migration up/down/up; auth/route/capability/residue regressions; `go test ./... -count=1`; relevant Flutter Settings/auth/router tests; formatting/static analysis; `git diff --check`.
 - Release gates not claimed: MAN-003 and any real remote settlement-bound validation remain unrun unless later performed against disposable infrastructure.
+
+## 9. AppView Audit Exact-Key Safety Final Re-review
+
+### Verdict
+
+Status: Approved with notes
+
+Reviewer: Codex
+
+Date: 2026-08-20
+
+Risk level: Medium until destructive disposable-PDS and remote-settlement gates run
+
+### Summary
+
+IR-005–IR-007 are implemented. Ordinary registered CraftSky PDS effects and
+scheduled-object writes persist minimized, non-secret, exact-owner/generation/
+operation/key provenance before remote dispatch. Accepted-but-unconfirmed
+effects are not repeated or discarded: they remain lifecycle-fenced,
+lease-claimable reconciliation work, and no elapsed client timeout or early
+absent read is treated as settlement. Explicit deletion adopts only its narrow
+registered CraftSky URI and generation-exact private-object authority; it never
+gains follow, foreign namespace, DID, account, or direct blob deletion.
+
+Read-only authoritative PDS reconciliation links only one exact current
+URI/action/fingerprint/CID candidate. Ambiguous A→B→A candidates stay hidden
+and retryable. Scheduled-object cleanup repeatedly deletes/verifies the exact
+generation after delayed materialization. Proven convergence is required before
+the owner/job-fenced final transaction removes temporary safety work,
+operation state, and matching deletion-only OAuth authority. The approved lean
+client contract remains unchanged: there is no status/recovery credential,
+manual Retry, detailed deletion metrics, checkpoint, receipt, or audit surface.
+
+### Evidence and traceability
+
+- IT-035, UT-025, UT-026, IT-036–IT-038, AT-009, and REG-017 are recorded as
+  complete in the correction execution log.
+- Required-PostgreSQL account-deletion, owner-lifecycle, auth, PDS-effect,
+  ingestion/reconciliation, and migration tests pass, including crash,
+  departure/rejoin, terminal, stale-generation, exact-scope, and final-residue
+  barriers.
+- Required-PostgreSQL/MinIO scheduled-object tests and their race suite pass,
+  including accepted `Put`, early absence, delayed materialization, indefinite
+  no-bound reconciliation, and exact-generation cleanup.
+- The combined repository normal/race/release gate, pinned vet/Staticcheck and
+  vulnerability scans, `dart analyze`, and all 1,489 Flutter tests pass.
+
+### Remaining notes
+
+No blocking implementation finding remains under the amended contract.
+MAN-003, a disposable real-PDS deletion rehearsal, any real remote settlement-
+bound validation, and the controlled pre-production data/Tap cutover remain
+external or destructive release gates. They must not target a real member or
+shared environment.

@@ -23,7 +23,7 @@ func newTapRepositoryJobHandler(
 ) ingestion.RepositoryJobHandler {
 	return func(ctx context.Context, claim ingestion.RepositoryClaim) (string, error) {
 		if store == nil || service == nil || repositoryTracker == nil || anonymousPDS == nil {
-			return "", errors.New("Tap repository reconciliation dependencies are unavailable")
+			return "", errors.New("tap repository reconciliation dependencies are unavailable")
 		}
 		remaining := time.Until(claim.LeaseExpiresAt) - tapRepositoryLeaseMargin
 		if remaining <= 0 {
@@ -57,6 +57,15 @@ func reconcileTapRepository(
 			return "", err
 		}
 		if len(sources) == 0 {
+			remaining, err := service.ReconcileUnresolvedPDSAttempts(
+				ctx, did, anonymousPDS, 100,
+			)
+			if err != nil {
+				return "", err
+			}
+			if remaining {
+				return "", errors.New("unresolved PDS effect attempts remain")
+			}
 			return lastRevision, nil
 		}
 		for _, source := range sources {
@@ -87,7 +96,7 @@ func reconcileTapRepository(
 				return "", err
 			}
 			if !outcome.Acknowledgable() {
-				return "", fmt.Errorf("Tap source reconciliation remained retryable: %s", outcome.Reason)
+				return "", fmt.Errorf("tap source reconciliation remained retryable: %s", outcome.Reason)
 			}
 			lastRevision = observation.Revision
 		}

@@ -55,9 +55,8 @@ type PurgeComponent struct {
 }
 
 type TerminalizeRequest struct {
-	Owner      syntax.DID
-	Reason     string
-	Components []PurgeComponent
+	Owner  syntax.DID
+	Reason string
 }
 
 // TerminalParticipant composes auth/session invalidation with the terminal
@@ -183,6 +182,7 @@ type NewEffectAttempt struct {
 	MutationKey        string
 	DeterministicKey   string
 	RequestFingerprint [32]byte
+	RecordFingerprint  [32]byte
 	ExpectedCID        string
 	RemoteDeadline     time.Time
 }
@@ -196,6 +196,8 @@ type EffectAttempt struct {
 	MutationKey           string
 	DeterministicKey      string
 	RequestFingerprint    [32]byte
+	RecordFingerprint     [32]byte
+	MutationSequence      int64
 	ExpectedCID           string
 	ResultCID             string
 	Outcome               EffectOutcome

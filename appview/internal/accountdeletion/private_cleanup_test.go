@@ -1,6 +1,7 @@
 package accountdeletion
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -11,7 +12,10 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -176,6 +180,387 @@ func TestDatabasePrivateCleanupDeletesOnlyOwnerPrivateState(t *testing.T) {
 	assertPrivateCleanupCount(t, pool, "atproto_identity_cache", "did", alice, 1)
 	assertPrivateCleanupCount(t, pool, "bluesky_profiles", "did", alice, 1)
 	assertPrivateCleanupCount(t, pool, "oauth_sessions", "account_did", alice, 1)
+}
+
+func TestDatabasePrivateCleanupClassifiesModerationRestorationBeforeParentDeletion(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		ownerSource bool
+		wantOutcome string
+		wantJobs    int
+	}{
+		{name: "deleting moderator preserves target restoration", ownerSource: true, wantOutcome: "queued", wantJobs: 1},
+		{name: "deleting target cancels restoration", ownerSource: false, wantOutcome: "cancelled_target_terminal", wantJobs: 0},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			pool := testdb.WithSchema(t, "")
+			applyAllAccountDeletionTestMigrations(t, pool)
+			ctx := context.Background()
+			owner := syntax.DID("did:plc:deleting-moderation-owner")
+			other := syntax.DID("did:plc:moderation-other-owner")
+			source, subject := owner, other
+			if !test.ownerSource {
+				source, subject = other, owner
+			}
+			jobID := uuid.New()
+			outputID := "accepted-deletion-moderation-output"
+			now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
+			if _, err := pool.Exec(ctx, `
+				INSERT INTO owner_lifecycles(
+					owner_did,state,generation,auth_epoch,transition_reason,
+					transitioned_at,created_at,updated_at
+				) VALUES
+					($1,'deleting',2,2,'accountDeletionAccepted',$3,$3,$3),
+					($2,'active',1,1,'test',$3,$3,$3)
+			`, owner, other, now); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(ctx, `
+				INSERT INTO oauth_sessions(account_did,session_id,data)
+				VALUES($1,'deletion-oauth','{}')
+			`, owner); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(ctx, `
+				INSERT INTO account_deletion_operations(
+					id,owner_did,owner_generation,state,accepted_at,
+					deletion_oauth_session_id,deletion_credential_generation
+				) VALUES($1,$2,1,'active',$3,'deletion-oauth',1)
+			`, jobID, owner, now); err != nil {
+				t.Fatal(err)
+			}
+			if test.ownerSource {
+				if _, err := pool.Exec(ctx, `
+					INSERT INTO instagram_account_links(
+						id,owner_did,state,igsid,igsid_digest_version,igsid_digest,
+						username,username_normalized,discoverable,conflict_pending,
+						verified_at,updated_at
+					) VALUES($1,$2,'active','accepted-deletion-target',1,$3,
+					         'accepted.deletion.target','accepted.deletion.target',true,false,
+					         $4,$4)
+				`, uuid.New(), subject, bytes.Repeat([]byte{0x55}, 32), now); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if _, err := pool.Exec(ctx, `
+				INSERT INTO moderation_outputs(
+					id,source_did,subject_type,subject_did,value,action
+				) VALUES($1,$2,'account',$3,'hide','negate')
+			`, outputID, source, subject); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(ctx, `
+				INSERT INTO moderation_restoration_outbox(
+					moderation_output_id,target_did,status,created_at
+				) VALUES($1,$2,'pending',$3)
+			`, outputID, subject, now); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := pool.Exec(ctx, `
+				INSERT INTO moderation_idempotency_receipts(
+					request_key_hash,request_fingerprint,output_id,output_status,
+					created_at,expires_at
+				) VALUES($1,$2,$3,'indexed',$4,$4::timestamptz+interval '24 hours')
+			`, bytes.Repeat([]byte{0x66}, 32), bytes.Repeat([]byte{0x77}, 32), outputID, now); err != nil {
+				t.Fatal(err)
+			}
+
+			if err := NewDatabasePrivateCleanup(pool).Purge(ctx, owner); err != nil {
+				t.Fatalf("purge accepted deletion moderation rows: %v", err)
+			}
+
+			var parents, outbox, receipts, jobs int
+			var outcome string
+			if err := pool.QueryRow(ctx, `
+				SELECT
+					(SELECT count(*)::int FROM moderation_outputs WHERE id=$1),
+					(SELECT count(*)::int FROM moderation_restoration_outbox WHERE moderation_output_id=$1),
+					(SELECT count(*)::int FROM moderation_idempotency_receipts WHERE output_id=$1),
+					(SELECT count(*)::int FROM instagram_reconciliation_jobs
+					 WHERE reason='moderationCleared:' || $1 AND status='queued'),
+					(SELECT outcome FROM moderation_restoration_history WHERE moderation_output_id=$1)
+			`, outputID).Scan(&parents, &outbox, &receipts, &jobs, &outcome); err != nil {
+				t.Fatal(err)
+			}
+			if parents != 0 || outbox != 0 || receipts != 0 || jobs != test.wantJobs || outcome != test.wantOutcome {
+				t.Fatalf(
+					"parents=%d outbox=%d receipts=%d jobs=%d outcome=%q, want 0/0/0/%d/%q",
+					parents, outbox, receipts, jobs, outcome, test.wantJobs, test.wantOutcome,
+				)
+			}
+		})
+	}
+}
+
+func TestDatabasePrivateCleanupRetriesProcessingModerationRestoration(t *testing.T) {
+	pool := testdb.WithSchema(t, "")
+	applyAllAccountDeletionTestMigrations(t, pool)
+	ctx := context.Background()
+	owner := syntax.DID("did:plc:deleting-processing-source")
+	target := syntax.DID("did:plc:processing-target")
+	operationID := uuid.New()
+	reconciliationJobID := uuid.New()
+	leaseToken := uuid.New()
+	outputID := "accepted-deletion-processing-moderation-output"
+	now := time.Date(2026, 8, 19, 12, 30, 0, 0, time.UTC)
+
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO owner_lifecycles(
+			owner_did,state,generation,auth_epoch,transition_reason,
+			transitioned_at,created_at,updated_at
+		) VALUES
+			($1,'deleting',2,2,'accountDeletionAccepted',$3,$3,$3),
+			($2,'active',1,1,'test',$3,$3,$3)
+	`, owner, target, now); err != nil {
+		t.Fatalf("seed processing moderation lifecycles: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO oauth_sessions(account_did,session_id,data)
+		VALUES($1,'deletion-oauth','{}')
+	`, owner); err != nil {
+		t.Fatalf("seed processing moderation OAuth session: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO account_deletion_operations(
+			id,owner_did,owner_generation,state,accepted_at,
+			deletion_oauth_session_id,deletion_credential_generation
+		) VALUES($1,$2,1,'active',$3,'deletion-oauth',1)
+	`, operationID, owner, now); err != nil {
+		t.Fatalf("seed processing moderation deletion operation: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO moderation_outputs(
+			id,source_did,subject_type,subject_did,value,action
+		) VALUES($1,$2,'account',$3,'hide','negate')
+	`, outputID, owner, target); err != nil {
+		t.Fatalf("seed processing moderation output: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO instagram_reconciliation_jobs(
+			id,owner_did,reason,status,next_attempt_at,lease_token,
+			lease_expires_at,created_at,updated_at
+		) VALUES($1,$2,'moderationCleared:' || $3,'processing',$4,$5,
+		         $4::timestamptz+interval '1 minute',$4,$4)
+	`, reconciliationJobID, target, outputID, now, leaseToken); err != nil {
+		t.Fatalf("seed processing moderation reconciliation job: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO moderation_restoration_outbox(
+			moderation_output_id,target_did,status,reconciliation_job_id,
+			created_at,processed_at
+		) VALUES($1,$2,'queued',$3,$4,$4)
+	`, outputID, target, reconciliationJobID, now); err != nil {
+		t.Fatalf("seed processing moderation outbox: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO moderation_idempotency_receipts(
+			request_key_hash,request_fingerprint,output_id,output_status,
+			created_at,expires_at
+		) VALUES(
+			decode(repeat('88',32),'hex'),decode(repeat('99',32),'hex'),
+			$1,'indexed',$2,$2::timestamptz+interval '24 hours'
+		)
+	`, outputID, now); err != nil {
+		t.Fatalf("seed processing moderation receipt: %v", err)
+	}
+
+	cleanup := NewDatabasePrivateCleanup(pool)
+	if err := cleanup.Purge(ctx, owner); err == nil || !strings.Contains(err.Error(), "reconciliation work is processing") {
+		t.Fatalf("processing cleanup error = %v", err)
+	}
+	var parents, outbox, receipts, jobs, history int
+	if err := pool.QueryRow(ctx, `
+		SELECT
+			(SELECT count(*) FROM moderation_outputs WHERE id=$1),
+			(SELECT count(*) FROM moderation_restoration_outbox WHERE moderation_output_id=$1),
+			(SELECT count(*) FROM moderation_idempotency_receipts WHERE output_id=$1),
+			(SELECT count(*) FROM instagram_reconciliation_jobs WHERE id=$2 AND status='processing'),
+			(SELECT count(*) FROM moderation_restoration_history WHERE moderation_output_id=$1)
+	`, outputID, reconciliationJobID).Scan(&parents, &outbox, &receipts, &jobs, &history); err != nil {
+		t.Fatal(err)
+	}
+	if parents != 1 || outbox != 1 || receipts != 1 || jobs != 1 || history != 0 {
+		t.Fatalf(
+			"processing parent=%d outbox=%d receipt=%d job=%d history=%d, want 1/1/1/1/0",
+			parents, outbox, receipts, jobs, history,
+		)
+	}
+
+	if _, err := pool.Exec(ctx, `
+		UPDATE instagram_reconciliation_jobs
+		SET status='completed',lease_token=NULL,lease_expires_at=NULL,
+		    terminal_at=$2,updated_at=$2
+		WHERE id=$1
+	`, reconciliationJobID, now.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if err := cleanup.Purge(ctx, owner); err != nil {
+		t.Fatalf("retry cleanup after reconciliation completion: %v", err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT
+			(SELECT count(*) FROM moderation_outputs WHERE id=$1),
+			(SELECT count(*) FROM moderation_restoration_outbox WHERE moderation_output_id=$1),
+			(SELECT count(*) FROM moderation_idempotency_receipts WHERE output_id=$1),
+			(SELECT count(*) FROM instagram_reconciliation_jobs WHERE id=$2 AND status='completed'),
+			(SELECT count(*) FROM moderation_restoration_history
+			 WHERE moderation_output_id=$1 AND outcome='queued')
+	`, outputID, reconciliationJobID).Scan(&parents, &outbox, &receipts, &jobs, &history); err != nil {
+		t.Fatal(err)
+	}
+	if parents != 0 || outbox != 0 || receipts != 0 || jobs != 1 || history != 1 {
+		t.Fatalf(
+			"completed parent=%d outbox=%d receipt=%d job=%d history=%d, want 0/0/0/1/1",
+			parents, outbox, receipts, jobs, history,
+		)
+	}
+}
+
+func TestDatabasePrivateCleanupHoldsTargetFenceThroughModerationPromotion(t *testing.T) {
+	pool := testdb.WithSchema(t, "")
+	applyAllAccountDeletionTestMigrations(t, pool)
+	ctx := context.Background()
+	owner := syntax.DID("did:plc:deleting-moderation-source")
+	target := syntax.DID("did:plc:deletion-fenced-target")
+	jobID := uuid.New()
+	outputID := "accepted-deletion-fenced-moderation-output"
+	now := time.Date(2026, 8, 20, 13, 0, 0, 0, time.UTC)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO owner_lifecycles(
+			owner_did,state,generation,auth_epoch,transition_reason,
+			transitioned_at,created_at,updated_at
+		) VALUES
+			($1,'deleting',2,2,'accountDeletionAccepted',$3,$3,$3),
+			($2,'active',1,1,'test',$3,$3,$3)
+	`, owner, target, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO oauth_sessions(account_did,session_id,data)
+		VALUES($1,'deletion-oauth','{}')
+	`, owner); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO account_deletion_operations(
+			id,owner_did,owner_generation,state,accepted_at,
+			deletion_oauth_session_id,deletion_credential_generation
+		) VALUES($1,$2,1,'active',$3,'deletion-oauth',1)
+	`, jobID, owner, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO instagram_account_links(
+			id,owner_did,state,igsid,igsid_digest_version,igsid_digest,
+			username,username_normalized,discoverable,conflict_pending,
+			verified_at,updated_at
+		) VALUES($1,$2,'active','deletion-fenced-target',1,$3,
+		         'deletion.fenced.target','deletion.fenced.target',true,false,
+		         $4,$4)
+	`, uuid.New(), target, bytes.Repeat([]byte{0x31}, 32), now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO moderation_outputs(
+			id,source_did,subject_type,subject_did,value,action
+		) VALUES($1,$2,'account',$3,'hide','negate')
+	`, outputID, owner, target); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO moderation_restoration_outbox(
+			moderation_output_id,target_did,status,created_at
+		) VALUES($1,$2,'pending',$3)
+	`, outputID, target, now); err != nil {
+		t.Fatal(err)
+	}
+
+	blocker, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = blocker.Rollback(context.Background()) }()
+	if _, err := blocker.Exec(ctx, `
+		SELECT moderation_output_id
+		FROM moderation_restoration_outbox
+		WHERE moderation_output_id=$1
+		FOR UPDATE
+	`, outputID); err != nil {
+		t.Fatal(err)
+	}
+
+	cleaned := make(chan error, 1)
+	go func() {
+		cleaned <- NewDatabasePrivateCleanup(pool).Purge(ctx, owner)
+	}()
+	waitForModerationParentRowLock(t, pool, outputID)
+
+	fencer, err := ownerlifecycle.NewFencer(pool, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lifecycles, err := ownerlifecycle.NewStore(pool, fencer, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	terminalized := make(chan error, 1)
+	go func() {
+		_, err := lifecycles.Terminalize(ctx, ownerlifecycle.TerminalizeRequest{
+			Owner: target, Reason: "identityDeleted",
+		})
+		terminalized <- err
+	}()
+	select {
+	case err := <-terminalized:
+		t.Fatalf("target terminal transition crossed accepted-deletion promotion: %v", err)
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	if err := blocker.Rollback(ctx); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-cleaned:
+		if err != nil {
+			t.Fatalf("private cleanup after barrier: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("private cleanup did not resume")
+	}
+	select {
+	case err := <-terminalized:
+		if err != nil {
+			t.Fatalf("target terminal transition after promotion: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("target terminal transition did not resume")
+	}
+}
+
+func waitForModerationParentRowLock(t *testing.T, pool *pgxpool.Pool, outputID string) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		tx, err := pool.Begin(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		_, lockErr := tx.Exec(context.Background(), `
+			SELECT id FROM moderation_outputs WHERE id=$1 FOR UPDATE NOWAIT
+		`, outputID)
+		_ = tx.Rollback(context.Background())
+		var postgresError *pgconn.PgError
+		if errors.As(lockErr, &postgresError) && postgresError.Code == "55P03" {
+			return
+		}
+		if lockErr != nil {
+			t.Fatalf("probe moderation parent row lock: %v", lockErr)
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("private cleanup did not lock moderation parent")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
 }
 
 func ownerColumnForPrivateCleanupTest(table string) string {

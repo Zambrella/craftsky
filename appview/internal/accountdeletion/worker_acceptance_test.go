@@ -129,11 +129,11 @@ func TestDelayedPDSCommitCannotFinalizeDeletionAfterFirstEmptyScan(t *testing.T)
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO owner_effect_attempts(
 			operation_id,owner_did,owner_generation,effect_kind,effect_action,mutation_key,deterministic_key,
-			request_fingerprint,remote_outcome,projection_disposition,
+			request_fingerprint,record_fingerprint,remote_outcome,projection_disposition,
 			repeat_forbidden,remote_deadline,dispatched_at,created_at,updated_at
 		) VALUES(
 			'delayed-write',$1,7,'pds_record','put_record','delayed-write',$2,
-			decode(repeat('02',32),'hex'),'outcome_unknown_pre_transition',
+			decode(repeat('02',32),'hex'),decode(repeat('02',32),'hex'),'outcome_unknown_pre_transition',
 			'hidden_non_active',true,$3,$4,$4,$4
 		)
 	`, owner, delayedURI, now.Add(time.Minute), now); err != nil {

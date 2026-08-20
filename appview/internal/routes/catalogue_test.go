@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"social.craftsky/appview/internal/api/envelope"
-	"social.craftsky/appview/internal/app"
 	"social.craftsky/appview/internal/ctxkeys"
 	"social.craftsky/appview/internal/middleware"
 )
@@ -40,8 +39,8 @@ func TestV1CatalogueRejectsMissingOrInvalidAccessClass(t *testing.T) {
 }
 
 func TestV1CatalogueDrivesPreflightForEveryPolicy(t *testing.T) {
-	policies := V1RoutePolicies(app.EnvDev, app.Config{
-		Env:                 app.EnvDev,
+	policies := V1RoutePolicies(EnvDev, Config{
+		Env:                 EnvDev,
 		EnableDevModeration: true,
 		DevModerationToken:  "configured",
 	})

@@ -40,12 +40,16 @@ func NewSavedPostStore(pool *pgxpool.Pool, options ...SavedPostStoreOptions) *Sa
 }
 
 func (s *SavedPostStore) Save(ctx context.Context, owner syntax.DID, postURI syntax.ATURI, assignment FolderAssignment) (SaveMutationResult, error) {
+	target, err := savedPostTargetDID(postURI)
+	if err != nil {
+		return SaveMutationResult{}, err
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return SaveMutationResult{}, fmt.Errorf("saved post save begin: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, owner, nil); err != nil {
+	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, owner, []syntax.DID{target}); err != nil {
 		return SaveMutationResult{}, fmt.Errorf("saved post save authorization: %w", err)
 	}
 
@@ -102,11 +106,18 @@ func (s *SavedPostStore) Save(ctx context.Context, owner syntax.DID, postURI syn
 }
 
 func (s *SavedPostStore) Unsave(ctx context.Context, owner syntax.DID, postURI syntax.ATURI) error {
+	target, err := savedPostTargetDID(postURI)
+	if err != nil {
+		return err
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("saved post unsave begin: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, owner, []syntax.DID{target}); err != nil {
+		return fmt.Errorf("saved post unsave authorization: %w", err)
+	}
 	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))`, owner, postURI); err != nil {
 		return fmt.Errorf("saved post unsave lock: %w", err)
 	}
@@ -211,6 +222,9 @@ func (s *SavedPostStore) DeleteFolder(ctx context.Context, owner syntax.DID, fol
 		return fmt.Errorf("saved post folder delete begin: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, owner, nil); err != nil {
+		return fmt.Errorf("saved post folder delete authorization: %w", err)
+	}
 
 	if mode == SavedPostFolderRemoveSaves {
 		if _, err := tx.Exec(ctx, `
@@ -230,6 +244,18 @@ func (s *SavedPostStore) DeleteFolder(ctx context.Context, owner syntax.DID, fol
 		return fmt.Errorf("saved post folder delete commit: %w", err)
 	}
 	return nil
+}
+
+func savedPostTargetDID(postURI syntax.ATURI) (syntax.DID, error) {
+	parsed, err := syntax.ParseATURI(postURI.String())
+	if err != nil {
+		return "", fmt.Errorf("saved post target URI: %w", err)
+	}
+	target, err := syntax.ParseDID(parsed.Authority().String())
+	if err != nil {
+		return "", fmt.Errorf("saved post target DID: %w", err)
+	}
+	return target, nil
 }
 
 func (s *SavedPostStore) ListFolders(ctx context.Context, owner syntax.DID, limit int, cursor string) ([]SavedPostFolder, string, error) {

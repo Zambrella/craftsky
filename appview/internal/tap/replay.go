@@ -16,7 +16,7 @@ func ReplayEnvelope(ctx context.Context, raw []byte, ingestor DurableIngestor) (
 	if ingestor == nil {
 		return Retryable(ReasonDurableIngestorRequired), errors.New("tap replay: durable ingestor is required")
 	}
-	if len(raw) == 0 || len(raw) > maxTapFrameBytes {
+	if len(raw) == 0 || len(raw) > MaxFrameBytes {
 		return Retryable(ReasonInvalidEnvelope), errors.New("tap replay: envelope size is invalid")
 	}
 	var env envelope

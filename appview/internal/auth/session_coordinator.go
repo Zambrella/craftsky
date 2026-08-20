@@ -153,6 +153,15 @@ func (coordinator *OAuthSessionCoordinator) withFencedSession(
 			return err
 		}
 		if err := coordinator.store.validateSessionEndpoints(ctx, record.Data); err != nil {
+			if errors.Is(err, ErrOAuthSessionEndpointInvalid) {
+				terminalErr := coordinator.markTerminalVersion(
+					ctx, authority, sessionID, record.RowVersion,
+				)
+				if errors.Is(terminalErr, ErrSessionVersionChanged) && attempt == 0 {
+					continue
+				}
+				return errors.Join(err, terminalErr)
+			}
 			return err
 		}
 		session, persistence, err := coordinator.clientSession(
@@ -166,7 +175,7 @@ func (coordinator *OAuthSessionCoordinator) withFencedSession(
 			return err
 		}
 		operationErr := operation(ctx, session)
-		persistErr, version := persistence.result()
+		version, persistErr := persistence.result()
 		if persistErr != nil {
 			session.PersistSessionCallback = nil
 			revocationErr := session.RevokeSession(ctx)
@@ -203,6 +212,18 @@ func (coordinator *OAuthSessionCoordinator) withFencedDeletionSession(
 			return err
 		}
 		if err := coordinator.store.validateSessionEndpoints(ctx, record.Data); err != nil {
+			if errors.Is(err, ErrOAuthSessionEndpointInvalid) {
+				terminalErr := coordinator.markDeletionTerminalVersion(
+					ctx, authority, deletionAuthority, record.RowVersion,
+				)
+				if errors.Is(terminalErr, ErrSessionVersionChanged) && attempt == 0 {
+					continue
+				}
+				if terminalErr != nil {
+					return errors.Join(err, terminalErr)
+				}
+				return errors.Join(err, ErrDeletionReauthenticationRequired)
+			}
 			return err
 		}
 		session, persistence, err := coordinator.clientSession(
@@ -218,7 +239,7 @@ func (coordinator *OAuthSessionCoordinator) withFencedDeletionSession(
 			return err
 		}
 		operationErr := operation(ctx, session)
-		persistErr, version := persistence.result()
+		version, persistErr := persistence.result()
 		if persistErr != nil {
 			session.PersistSessionCallback = nil
 			revocationErr := session.RevokeSession(ctx)
@@ -286,10 +307,10 @@ type sessionVersionPersister func(
 	int64,
 ) (int64, error)
 
-func (state *sessionPersistenceState) result() (error, int64) {
+func (state *sessionPersistenceState) result() (int64, error) {
 	state.mu.Lock()
 	defer state.mu.Unlock()
-	return state.err, state.version
+	return state.version, state.err
 }
 
 func (coordinator *OAuthSessionCoordinator) clientSession(

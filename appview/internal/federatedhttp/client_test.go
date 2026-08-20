@@ -2,6 +2,8 @@ package federatedhttp
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"net/http"
 	"net/netip"
@@ -71,6 +73,11 @@ func TestBoundaryClientUsesFinitePurposeProfileAndHardenedTransport(t *testing.T
 			if transport.MaxResponseHeaderBytes <= 0 {
 				t.Fatal("transport response headers must be bounded")
 			}
+			if transport.TLSClientConfig == nil ||
+				transport.TLSClientConfig.InsecureSkipVerify ||
+				transport.TLSClientConfig.MinVersion < tls.VersionTLS12 {
+				t.Fatal("transport must verify the original TLS hostname at TLS 1.2 or newer")
+			}
 		})
 	}
 }
@@ -101,6 +108,52 @@ func TestBoundaryUsesItsSharedPolicyForPrevalidation(t *testing.T) {
 	}
 	if _, err := boundary.ValidateURL(context.Background(), "https://private.example/xrpc"); !errors.Is(err, ErrDestinationRejected) {
 		t.Fatalf("ValidateURL(private) error = %v, want destination rejection", err)
+	}
+}
+
+func TestBoundaryNetworkInjectionRetainsDestinationPolicy(t *testing.T) {
+	t.Parallel()
+
+	dialer := &recordingDialer{}
+	roots := x509.NewCertPool()
+	boundary, err := NewTestBoundary(
+		DefaultTransportProfile(),
+		TestNetworkDependencies{
+			Resolver: staticResolver{
+				"public.example":  {netip.MustParseAddr("93.184.216.34")},
+				"private.example": {netip.MustParseAddr("127.0.0.1")},
+			},
+			Dialer: dialer, TLSRootCAs: roots,
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewTestBoundary(): %v", err)
+	}
+	defer boundary.CloseIdleConnections()
+	if boundary.transport.TLSClientConfig == nil ||
+		boundary.transport.TLSClientConfig.RootCAs != roots ||
+		boundary.transport.TLSClientConfig.InsecureSkipVerify {
+		t.Fatal("test root injection weakened TLS certificate or hostname verification")
+	}
+
+	if _, err := boundary.ValidateURL(
+		context.Background(), "https://public.example/xrpc",
+	); err != nil {
+		t.Fatalf("ValidateURL(public): %v", err)
+	}
+	if _, err := boundary.ValidateURL(
+		context.Background(), "https://private.example/xrpc",
+	); !errors.Is(err, ErrDestinationRejected) {
+		t.Fatalf("ValidateURL(private) error = %v, want destination rejection", err)
+	}
+	if len(dialer.addresses) != 0 {
+		t.Fatalf("prevalidation unexpectedly dialed %v", dialer.addresses)
+	}
+
+	if _, err := NewTestBoundary(
+		DefaultTransportProfile(), TestNetworkDependencies{Resolver: staticResolver{}},
+	); err == nil {
+		t.Fatal("NewTestBoundary accepted a missing base dialer")
 	}
 }
 

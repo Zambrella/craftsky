@@ -280,16 +280,18 @@ func newScheduledPostAPITestStore(t *testing.T) (*scheduledposts.Store, *pgxpool
 		);
 		CREATE TABLE owner_lifecycles (
 			owner_did TEXT PRIMARY KEY,
-			generation BIGINT NOT NULL
+			generation BIGINT NOT NULL,
+			state TEXT NOT NULL
 		);
 		INSERT INTO craftsky_profiles (did, record_cid)
 		VALUES ('did:plc:alice', 'alice-cid'), ('did:plc:bob', 'bob-cid');
-		INSERT INTO owner_lifecycles(owner_did,generation)
-		VALUES ('did:plc:alice',1), ('did:plc:bob',1);
+		INSERT INTO owner_lifecycles(owner_did,generation,state)
+		VALUES ('did:plc:alice',1,'active'), ('did:plc:bob',1,'active');
 	`)
 	for _, path := range []string{
 		"../../migrations/000034_scheduled_posts.up.sql",
 		"../../migrations/000040_scheduled_media_durability.up.sql",
+		"../../migrations/000048_scheduled_post_owner_generation.up.sql",
 	} {
 		migration, err := os.ReadFile(path)
 		if err != nil {

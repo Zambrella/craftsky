@@ -1,5 +1,5 @@
-import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
+import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/services/notification_delivery_dedupe_store.dart';
 import 'package:craftsky_app/notifications/services/notification_delivery_envelope.dart';
 import 'package:craftsky_app/notifications/services/notification_local_presenter.dart';
@@ -13,7 +13,7 @@ void main() {
     final presenter = NotificationLocalPresenter(
       gateway: gateway,
       dedupe: dedupe,
-      eligibility: const _Eligibility(false),
+      eligibility: const _Eligibility(allowed: false),
     );
     final envelope = _envelope(
       '00000000-0000-4000-8000-000000000009',
@@ -56,7 +56,7 @@ void main() {
       final presenter = NotificationLocalPresenter(
         gateway: gateway,
         dedupe: _Dedupe(),
-        eligibility: const _Eligibility(true),
+        eligibility: const _Eligibility(allowed: true),
       );
       final envelopes = [
         for (var index = 10; index < 15; index++)
@@ -98,7 +98,7 @@ void main() {
       final presenter = NotificationLocalPresenter(
         gateway: gateway,
         dedupe: _Dedupe(),
-        eligibility: const _Eligibility(true),
+        eligibility: const _Eligibility(allowed: true),
       );
       final envelope = _envelope('00000000-0000-4000-8000-000000000012');
       await presenter.initialize();
@@ -126,12 +126,12 @@ void main() {
       final first = NotificationLocalPresenter(
         gateway: firstGateway,
         dedupe: dedupe,
-        eligibility: const _Eligibility(true),
+        eligibility: const _Eligibility(allowed: true),
       );
       final reconstructed = NotificationLocalPresenter(
         gateway: secondGateway,
         dedupe: dedupe,
-        eligibility: const _Eligibility(true),
+        eligibility: const _Eligibility(allowed: true),
       );
       final envelope = _envelope('00000000-0000-4000-8000-000000000013');
       await first.initialize();
@@ -160,7 +160,7 @@ void main() {
       final presenter = NotificationLocalPresenter(
         gateway: gateway,
         dedupe: _Dedupe(),
-        eligibility: const _Eligibility(true),
+        eligibility: const _Eligibility(allowed: true),
       );
       final envelope = _envelope('00000000-0000-4000-8000-000000000014');
 
@@ -207,7 +207,7 @@ final class _Dedupe implements NotificationDeliveryDedupeStore {
 }
 
 final class _Eligibility implements NotificationPresentationEligibility {
-  const _Eligibility(this.allowed);
+  const _Eligibility({required this.allowed});
 
   final bool allowed;
 

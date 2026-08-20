@@ -18,6 +18,7 @@ func RateLimit(limiter *LocalRateLimiter, class RateClass, logger *slog.Logger) 
 			}
 			decision := limiter.Allow(class, keys)
 			if !decision.Allowed {
+				RejectBodyWithoutDrain(w, r)
 				seconds := int(decision.RetryAfter.Seconds())
 				if seconds < 1 {
 					seconds = 1

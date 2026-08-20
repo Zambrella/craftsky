@@ -205,7 +205,7 @@ func TestSavedPostMutationIsPrivateAndAuthorSeesNoSignal(t *testing.T) {
 		t.Fatalf("move private save: %v", err)
 	}
 	if err := savedStore.DeleteFolder(
-		context.Background(),
+		mutationCtx,
 		syntax.DID("did:plc:alice"),
 		folder.ID,
 		api.SavedPostFolderRemoveSaves,

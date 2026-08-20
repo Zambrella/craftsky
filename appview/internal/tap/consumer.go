@@ -226,7 +226,6 @@ type recordPayload struct {
 
 const (
 	maxTapRecordBytes = 1 << 20
-	maxTapFrameBytes  = 2 << 20
 	maxTapRevisionLen = 128
 	maxTapCIDLen      = 512
 )
@@ -279,7 +278,7 @@ func (c *WSConsumer) runOnce(ctx context.Context) (err error) {
 	// coder/websocket defaults to only 32 KiB. AT Protocol records may be
 	// larger, while AppView's source contract intentionally caps record JSON
 	// at 1 MiB and leaves bounded room for the Tap envelope.
-	conn.SetReadLimit(maxTapFrameBytes)
+	conn.SetReadLimit(MaxFrameBytes)
 	c.setConnected(true)
 	c.logger.Info("tap consumer connected",
 		slog.String("component", "tap"),
@@ -321,7 +320,7 @@ func (c *WSConsumer) runOnce(ctx context.Context) (err error) {
 			if err := c.quarantineAndAck(ctx, conn, env, rawFrame, ReasonInvalidEnvelope); err != nil {
 				return err
 			}
-			return errors.New("Tap envelope without an acknowledgement id")
+			return errors.New("tap envelope without an acknowledgement id")
 		}
 		c.recordEvent()
 		if c.cfg.Observer != nil {

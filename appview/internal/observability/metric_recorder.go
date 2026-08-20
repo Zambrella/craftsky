@@ -43,6 +43,7 @@ type MetricRecorder interface {
 	ProfilePinOperation(ctx context.Context, operation, slot, result, errorClass string, duration time.Duration)
 	NotificationDecision(ctx context.Context, category, result string)
 	PushDelivery(ctx context.Context, platform, result string)
+	PushOperation(ctx context.Context, stage, platform, semantics, outcome string, duration time.Duration, count int64)
 	PushQueue(ctx context.Context, pending int, oldestAge time.Duration)
 	ScheduledQueue(ctx context.Context, status string, count, due, overdue int, oldestDueAge time.Duration)
 	ScheduledOperation(ctx context.Context, operation, result, errorClass string, duration time.Duration)
@@ -76,7 +77,9 @@ func (noopMetricRecorder) ProfilePinOperation(context.Context, string, string, s
 }
 func (noopMetricRecorder) NotificationDecision(context.Context, string, string) {}
 func (noopMetricRecorder) PushDelivery(context.Context, string, string)         {}
-func (noopMetricRecorder) PushQueue(context.Context, int, time.Duration)        {}
+func (noopMetricRecorder) PushOperation(context.Context, string, string, string, string, time.Duration, int64) {
+}
+func (noopMetricRecorder) PushQueue(context.Context, int, time.Duration) {}
 func (noopMetricRecorder) ScheduledQueue(context.Context, string, int, int, int, time.Duration) {
 }
 func (noopMetricRecorder) ScheduledOperation(context.Context, string, string, string, time.Duration) {
@@ -214,6 +217,29 @@ func (r *InMemoryMetricRecorder) NotificationDecision(_ context.Context, categor
 }
 func (r *InMemoryMetricRecorder) PushDelivery(_ context.Context, platform, result string) {
 	r.record(MetricCall{Name: "craftsky_appview_push_deliveries_total", Kind: MetricKindCounter, Value: 1, Attributes: map[string]string{"platform": safeMetricCategory(platform), "result": safeMetricResult(result)}})
+}
+func (r *InMemoryMetricRecorder) PushOperation(
+	_ context.Context,
+	stage string,
+	platform string,
+	semantics string,
+	outcome string,
+	duration time.Duration,
+	count int64,
+) {
+	attrs := pushOperationAttributes(stage, platform, semantics, outcome)
+	if count < 1 {
+		count = 1
+	}
+	r.record(MetricCall{
+		Name: "craftsky_appview_push_operations_total", Kind: MetricKindCounter,
+		Value: float64(count), Attributes: attrs,
+	})
+	r.record(MetricCall{
+		Name: "craftsky_appview_push_operation_duration_seconds",
+		Kind: MetricKindDistribution, Unit: "second",
+		Value: nonNegativeDuration(duration).Seconds(), Attributes: attrs,
+	})
 }
 func (r *InMemoryMetricRecorder) PushQueue(_ context.Context, pending int, age time.Duration) {
 	r.record(MetricCall{Name: "craftsky_appview_push_pending", Kind: MetricKindGauge, Value: float64(pending)})
@@ -528,6 +554,28 @@ func (r *sentryMetricRecorder) NotificationDecision(ctx context.Context, categor
 func (r *sentryMetricRecorder) PushDelivery(ctx context.Context, platform, result string) {
 	r.count(ctx, "craftsky_appview_push_deliveries_total", 1, "", map[string]string{"platform": safeMetricCategory(platform), "result": safeMetricResult(result)})
 }
+func (r *sentryMetricRecorder) PushOperation(
+	ctx context.Context,
+	stage string,
+	platform string,
+	semantics string,
+	outcome string,
+	duration time.Duration,
+	count int64,
+) {
+	attrs := pushOperationAttributes(stage, platform, semantics, outcome)
+	if count < 1 {
+		count = 1
+	}
+	r.count(ctx, "craftsky_appview_push_operations_total", count, "", attrs)
+	r.distribution(
+		ctx,
+		"craftsky_appview_push_operation_duration_seconds",
+		nonNegativeDuration(duration).Seconds(),
+		"second",
+		attrs,
+	)
+}
 func (r *sentryMetricRecorder) PushQueue(ctx context.Context, pending int, age time.Duration) {
 	r.gauge(ctx, "craftsky_appview_push_pending", float64(pending), "", nil)
 	r.gauge(ctx, "craftsky_appview_push_oldest_pending_age_seconds", age.Seconds(), "second", nil)
@@ -779,6 +827,45 @@ func safeMetricResult(result string) string {
 		return strings.TrimSpace(result)
 	default:
 		return "unknown"
+	}
+}
+
+func pushOperationAttributes(
+	stage string,
+	platform string,
+	semantics string,
+	outcome string,
+) map[string]string {
+	stage = strings.TrimSpace(stage)
+	switch stage {
+	case "lease_recovery", "lease", "send", "finalization":
+	default:
+		stage = "other"
+	}
+	platform = strings.TrimSpace(platform)
+	switch platform {
+	case "ios", "android", "none":
+	default:
+		platform = "other"
+	}
+	semantics = strings.TrimSpace(semantics)
+	switch semantics {
+	case "unique_event", "replacement", "none":
+	default:
+		semantics = "other"
+	}
+	outcome = strings.TrimSpace(outcome)
+	switch outcome {
+	case "reclaimed", "claimed", "empty", "insufficient_window",
+		"success", "retryable", "invalidToken", "permanentFailure",
+		"finalized", "stale", "accepted_unfinalized", "error",
+		"lifecycle_inactive", "cancelled", "unknown":
+	default:
+		outcome = "other"
+	}
+	return map[string]string{
+		"stage": stage, "platform": platform,
+		"semantics": semantics, "outcome": outcome,
 	}
 }
 

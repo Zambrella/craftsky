@@ -126,9 +126,9 @@ services:
       context: ./appview
       dockerfile: Dockerfile
     restart: unless-stopped
-    # One scheduled WebP decode peaked near 97 MB RSS in host benchmarks.
-    # 512 MiB leaves process/runtime headroom while decode concurrency stays 1.
-    # Release-container measurement remains a deployment gate; see README.
+    # The release gate measures the exact runtime image plus 16 MP JPEG/PNG/WebP
+    # and maximum admitted upload work under this 512 MiB cgroup limit. Keep
+    # decode/upload-body admission at one unless that proof is rerun.
     mem_limit: "${CRAFTSKY_APPVIEW_MEMORY_LIMIT:-512m}"
     depends_on:
       postgres:
@@ -153,6 +153,8 @@ services:
       DATABASE_URL: postgres://craftsky:dev@postgres:5432/craftsky_dev?sslmode=disable
       TAP_WS_URL: ws://tap:2480/channel
       TAP_ACK_TIMEOUT: "10s"
+      TAP_TERMINAL_TRANSACTION_BUDGET: "1s"
+      TAP_ACK_SAFETY_MARGIN: "500ms"
       TAP_RECONNECT_MAX: "30s"
       ALLOWED_ORIGINS: "*"
       CRAFTSKY_DEV_DID: did:plc:craftsky-dev-user

@@ -20,6 +20,41 @@ func TestOwnerEffectAndScheduledMediaConfigDefaults(t *testing.T) {
 	}
 }
 
+func TestTerminalTapAckBudgetDefaultsAndExactGeometry(t *testing.T) {
+	base := "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap\n"
+	cfg, err := LoadConfig(EnvDev, testConfigFile(t, base))
+	if err != nil {
+		t.Fatalf("LoadConfig defaults: %v", err)
+	}
+	if cfg.TapTerminalTransactionBudget != time.Second || cfg.TapAckSafetyMargin != 500*time.Millisecond {
+		t.Fatalf("terminal Tap defaults = transaction %s margin %s",
+			cfg.TapTerminalTransactionBudget, cfg.TapAckSafetyMargin)
+	}
+	if got := cfg.tapIngestionTimeout(); got != 9500*time.Millisecond {
+		t.Fatalf("Tap ingestion timeout=%s, want 9.5s with ACK margin reserved", got)
+	}
+	if got := cfg.tapTerminalCommitTimeout(); got != 6*time.Second {
+		t.Fatalf("terminal Tap commit timeout=%s, want 6s fence plus fixed transaction budget", got)
+	}
+
+	if _, err := LoadConfig(EnvDev, testConfigFile(t, base+
+		"OWNER_FENCE_ACQUIRE_TIMEOUT=5s\n"+
+		"TAP_TERMINAL_TRANSACTION_BUDGET=1s\n"+
+		"TAP_ACK_SAFETY_MARGIN=500ms\n"+
+		"TAP_ACK_TIMEOUT=6.500000001s\n")); err != nil {
+		t.Fatalf("one nanosecond of validated ACK headroom should pass: %v", err)
+	}
+	_, err = LoadConfig(EnvDev, testConfigFile(t, base+
+		"OWNER_FENCE_ACQUIRE_TIMEOUT=5s\n"+
+		"TAP_TERMINAL_TRANSACTION_BUDGET=1s\n"+
+		"TAP_ACK_SAFETY_MARGIN=500ms\n"+
+		"TAP_ACK_TIMEOUT=6.5s\n"))
+	if err == nil || !strings.Contains(err.Error(), "TAP_TERMINAL_TRANSACTION_BUDGET") ||
+		!strings.Contains(err.Error(), "TAP_ACK_SAFETY_MARGIN") || !strings.Contains(err.Error(), "TAP_ACK_TIMEOUT") {
+		t.Fatalf("exact exhausted ACK budget error = %v", err)
+	}
+}
+
 func TestOwnerEffectAndScheduledMediaDurationsFailClosed(t *testing.T) {
 	base := "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap\n"
 	for _, test := range []struct {
@@ -28,6 +63,8 @@ func TestOwnerEffectAndScheduledMediaDurationsFailClosed(t *testing.T) {
 		want     string
 	}{
 		{name: "zero owner fence", override: "OWNER_FENCE_ACQUIRE_TIMEOUT=0s\n", want: "OWNER_FENCE_ACQUIRE_TIMEOUT"},
+		{name: "zero terminal Tap transaction budget", override: "TAP_TERMINAL_TRANSACTION_BUDGET=0s\n", want: "TAP_TERMINAL_TRANSACTION_BUDGET"},
+		{name: "zero Tap ACK safety margin", override: "TAP_ACK_SAFETY_MARGIN=0s\n", want: "TAP_ACK_SAFETY_MARGIN"},
 		{name: "zero PDS effect", override: "PDS_EFFECT_TIMEOUT=0s\n", want: "PDS_EFFECT_TIMEOUT"},
 		{name: "zero media put", override: "SCHEDULED_MEDIA_PUT_TIMEOUT=0s\n", want: "SCHEDULED_MEDIA_PUT_TIMEOUT"},
 	} {

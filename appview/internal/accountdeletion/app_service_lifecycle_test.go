@@ -96,7 +96,7 @@ func TestAppServiceOwnsDeletionCredentialAcrossLifecycle(t *testing.T) {
 			account_did,session_id,data,lifecycle_state,owner_generation,auth_epoch,
 			row_version,absolute_expires_at,created_at,updated_at
 		) VALUES($1,'ordinary-parent','{}','active',1,1,1,$2,$3,$3)
-	`, owner, now.Add(24*time.Hour), now); err != nil {
+	`, owner, time.Now().UTC().Add(24*time.Hour), now); err != nil {
 		t.Fatal(err)
 	}
 	ordinaryToken, err := children.Create(ctx, owner.String(), "ordinary-parent", "device-delete")
@@ -311,7 +311,7 @@ func TestCancelDeletionIntentRestoresOrdinarySessionAndRevokesOnlyDeletionCreden
 			account_did,session_id,data,lifecycle_state,owner_generation,auth_epoch,
 			row_version,absolute_expires_at,created_at,updated_at
 		) VALUES($1,'ordinary-parent','{}','active',1,1,1,$2,$3,$3)
-	`, owner, now.Add(24*time.Hour), now); err != nil {
+	`, owner, time.Now().UTC().Add(24*time.Hour), now); err != nil {
 		t.Fatal(err)
 	}
 	ordinaryToken, err := children.Create(ctx, owner.String(), "ordinary-parent", "device-cancel")

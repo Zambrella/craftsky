@@ -75,6 +75,19 @@ func assertTapIngestionSchema(t *testing.T, pool *pgxpool.Pool) {
 			t.Errorf("index %s missing", index)
 		}
 	}
+	var recordType string
+	if err := pool.QueryRow(context.Background(), `
+		SELECT data_type
+		FROM information_schema.columns
+		WHERE table_schema=current_schema()
+		  AND table_name='tap_source_records'
+		  AND column_name='record'
+	`).Scan(&recordType); err != nil {
+		t.Fatalf("inspect tap source record type: %v", err)
+	}
+	if recordType != "json" {
+		t.Fatalf("tap source record type=%q, want preserving json", recordType)
+	}
 }
 
 func assertTapIngestionConstraints(t *testing.T, pool *pgxpool.Pool) {

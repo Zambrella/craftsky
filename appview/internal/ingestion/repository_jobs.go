@@ -115,7 +115,7 @@ func (store *Store) runRepositoryJob(ctx context.Context, claim RepositoryClaim,
 		return ErrProjectionLeaseLost
 	}
 	if retryDelay <= 0 {
-		return errors.New("Tap repository retry delay must be positive")
+		return errors.New("tap repository retry delay must be positive")
 	}
 	revision, handlerErr := handler(ctx, claim)
 	now := store.now().UTC().Truncate(time.Microsecond)

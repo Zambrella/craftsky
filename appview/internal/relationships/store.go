@@ -98,11 +98,22 @@ func (s *Store) MuteAndCancelPendingDeliveries(ctx context.Context, owner, subje
 
 // Unmute idempotently removes only the authenticated owner's actor mute.
 func (s *Store) Unmute(ctx context.Context, owner, subject syntax.DID) error {
-	if _, err := s.pool.Exec(ctx, `
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin unmute actor: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, owner, []syntax.DID{subject}); err != nil {
+		return fmt.Errorf("authorize unmute actor: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
 		DELETE FROM actor_mutes
 		WHERE owner_did = $1 AND subject_did = $2
 	`, owner, subject); err != nil {
 		return fmt.Errorf("unmute actor: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit unmute actor: %w", err)
 	}
 	return nil
 }

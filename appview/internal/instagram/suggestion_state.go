@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-var ErrSuggestionGenerationChanged = errors.New("Instagram suggestion owner generation changed")
+var ErrSuggestionGenerationChanged = errors.New("instagram suggestion owner generation changed")
 
 // SuggestionState describes only caller-private suggestion state. No state in
 // this machine grants a background component authority to cross a PDS

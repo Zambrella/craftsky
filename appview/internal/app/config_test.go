@@ -76,7 +76,7 @@ func TestParseEnv(t *testing.T) {
 func testConfigFile(t *testing.T, contents string) string {
 	t.Helper()
 	for _, k := range []string{"DATABASE_URL", "ALLOWED_ORIGINS", "CRAFTSKY_DEV_DID",
-		"TAP_WS_URL", "TAP_ACK_TIMEOUT", "TAP_RECONNECT_MAX", "TAP_MAX_RETRIES",
+		"TAP_WS_URL", "TAP_ACK_TIMEOUT", "TAP_ACK_SAFETY_MARGIN", "TAP_TERMINAL_TRANSACTION_BUDGET", "TAP_RECONNECT_MAX", "TAP_MAX_RETRIES",
 		"TAP_PROJECTION_POLL_INTERVAL", "TAP_PROJECTION_LEASE_DURATION", "TAP_PROJECTION_BATCH_SIZE",
 		"TAP_PROJECTION_BACKOFF_MIN", "TAP_PROJECTION_BACKOFF_MAX",
 		"TAP_REPOSITORY_POLL_INTERVAL", "TAP_REPOSITORY_LEASE_DURATION", "TAP_REPOSITORY_BATCH_SIZE",
@@ -203,6 +203,24 @@ func TestLoadConfig_ScheduledPostObjectStoreIsCompleteAndProductionUsesTLS(t *te
 	}
 	if cfg.ScheduledPostsS3.SecretAccessKey != "secret" {
 		t.Fatal("production object-store credentials were not loaded")
+	}
+}
+
+func TestLoadConfigRejectsMultipleAppViewReplicasWithoutSharedAdmission(t *testing.T) {
+	const production = "DATABASE_URL=postgres://prod\n" +
+		"ALLOWED_ORIGINS=https://craftsky.social\n" +
+		"TAP_WS_URL=ws://tap\n" +
+		"SCHEDULED_POSTS_S3_ENDPOINT=https://objects.example\n" +
+		"SCHEDULED_POSTS_S3_REGION=eu-west-2\n" +
+		"SCHEDULED_POSTS_S3_BUCKET=private\n" +
+		"SCHEDULED_POSTS_S3_ACCESS_KEY_ID=key\n" +
+		"SCHEDULED_POSTS_S3_SECRET_ACCESS_KEY=secret\n"
+
+	_, err := LoadConfig(EnvProd, testConfigFile(t, withProductionOAuth(production)+
+		"APPVIEW_REPLICA_COUNT=2\n"+
+		"INSTAGRAM_SHARED_RATE_LIMITS=true\n"))
+	if err == nil || !strings.Contains(err.Error(), "APPVIEW_REPLICA_COUNT") {
+		t.Fatalf("LoadConfig multi-replica AppView error = %v", err)
 	}
 }
 
@@ -626,7 +644,7 @@ func TestLoadConfig_TapFields(t *testing.T) {
 	// Clear env so file wins. godotenv.Load skips keys already set in env
 	// (including to ""), so we unset rather than set-empty.
 	for _, k := range []string{"DATABASE_URL", "ALLOWED_ORIGINS", "CRAFTSKY_DEV_DID",
-		"TAP_WS_URL", "TAP_ACK_TIMEOUT", "TAP_RECONNECT_MAX", "TAP_MAX_RETRIES",
+		"TAP_WS_URL", "TAP_ACK_TIMEOUT", "TAP_ACK_SAFETY_MARGIN", "TAP_TERMINAL_TRANSACTION_BUDGET", "TAP_RECONNECT_MAX", "TAP_MAX_RETRIES",
 		"TAP_PROJECTION_POLL_INTERVAL", "TAP_PROJECTION_LEASE_DURATION", "TAP_PROJECTION_BATCH_SIZE",
 		"TAP_PROJECTION_BACKOFF_MIN", "TAP_PROJECTION_BACKOFF_MAX",
 		"TAP_REPOSITORY_POLL_INTERVAL", "TAP_REPOSITORY_LEASE_DURATION", "TAP_REPOSITORY_BATCH_SIZE",

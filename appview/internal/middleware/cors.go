@@ -51,6 +51,9 @@ func CORS(allowedOrigins []string, catalogue CORSMethodCatalogue) func(http.Hand
 				next.ServeHTTP(w, r)
 				return
 			}
+			// Preflight is terminal at this boundary. Do not let net/http drain an
+			// attacker-controlled body merely to preserve connection reuse.
+			RejectBodyWithoutDrain(w, r)
 
 			if catalogue == nil {
 				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "internal server error", ctxkeys.GetRunID(r.Context()), nil)

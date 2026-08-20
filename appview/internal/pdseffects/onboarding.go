@@ -117,6 +117,7 @@ func (executor *OnboardingExecutor) PutProfile(
 					Action:             ownerlifecycle.EffectActionPutRecord,
 					DeterministicKey:   uri.String(),
 					RequestFingerprint: fingerprint,
+					RecordFingerprint:  recordFingerprint,
 					ExpectedCID:        request.ExpectedCID.String(),
 					RemoteDeadline:     executor.now().UTC().Add(executor.timeout),
 				},
@@ -164,6 +165,12 @@ func (executor *OnboardingExecutor) PutProfile(
 				return &OutcomeAmbiguousError{
 					OperationID: request.OperationID,
 					ExactKey:    uri.String(),
+				}
+			case ownerlifecycle.OutcomeRejected:
+				return &ConflictError{
+					OperationID: request.OperationID,
+					ExactKey:    uri.String(),
+					Cause:       auth.ErrRecordSwapConflict,
 				}
 			default:
 				return ErrEffectRejected

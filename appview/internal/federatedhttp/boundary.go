@@ -2,6 +2,7 @@ package federatedhttp
 
 import (
 	"context"
+	"crypto/x509"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -14,9 +15,43 @@ type Boundary struct {
 	transport *http.Transport
 }
 
+// TestNetworkDependencies is the deterministic-network seam used by
+// listener-backed integration tests. Production composition must use
+// NewBoundary. URL validation, public-address classification, TLS chain
+// validation, and original-hostname verification remain enabled.
+type TestNetworkDependencies struct {
+	Resolver   Resolver
+	Dialer     Dialer
+	TLSRootCAs *x509.CertPool
+}
+
 // NewBoundary constructs a shared federated HTTP boundary.
 func NewBoundary(profile TransportProfile) (*Boundary, error) {
 	return newBoundary(profile, NewPolicy(nil), nil)
+}
+
+// NewTestBoundary constructs the hardened boundary with explicit test network
+// dependencies. Missing resolver/dialer dependencies fail closed.
+func NewTestBoundary(
+	profile TransportProfile,
+	network TestNetworkDependencies,
+) (*Boundary, error) {
+	if network.Resolver == nil || network.Dialer == nil {
+		return nil, fmt.Errorf("federated http: resolver and dialer are required")
+	}
+	boundary, err := newBoundary(
+		profile,
+		NewPolicy(network.Resolver),
+		network.Dialer,
+	)
+	if err != nil {
+		return nil, err
+	}
+	if network.TLSRootCAs != nil {
+		boundary.transport.TLSClientConfig = boundary.transport.TLSClientConfig.Clone()
+		boundary.transport.TLSClientConfig.RootCAs = network.TLSRootCAs
+	}
+	return boundary, nil
 }
 
 func newBoundary(profile TransportProfile, policy *Policy, dialer Dialer) (*Boundary, error) {

@@ -12,30 +12,28 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/testdb"
 )
 
 type recordingBlockPDS struct {
-	listRecords []auth.PDSRecord
-	listCursor  string
-	listPages   map[string]recordingBlockPDSPage
-	listCursors []string
-	listErr     error
-	listCalls   int
-	createURI   syntax.ATURI
-	createCID   syntax.CID
-	createErr   error
-	createCalls int
-	createRepo  syntax.DID
-	createNSID  string
-	createValue any
-	deleteRkeys []string
-	deleteErrs  map[string]error
-}
-
-type recordingBlockPDSPage struct {
-	records []auth.PDSRecord
-	cursor  string
+	createURI    syntax.ATURI
+	createCID    syntax.CID
+	createErr    error
+	createCalls  int
+	createRepo   syntax.DID
+	createNSID   string
+	createValue  any
+	deleteRkeys  []string
+	deleteCIDs   []syntax.CID
+	deleteErrs   map[string]error
+	resolveCalls int
+	resolveErr   error
+	expected     []ownerlifecycle.ExpectedOwner
+	readRecord   *bsky.GraphBlock
+	readCID      syntax.CID
+	readErr      error
 }
 
 type recordingSafetyRestoration struct {
@@ -51,31 +49,57 @@ func (r *recordingSafetyRestoration) EnqueueRelationshipSafetyRestoration(
 	return r.err
 }
 
-func (*recordingBlockPDS) GetRecord(context.Context, syntax.DID, string, string, any) (string, error) {
-	return "", errors.New("not implemented")
+func (p *recordingBlockPDS) ResolveExpectedOwners(
+	_ context.Context,
+	ownerGeneration int64,
+	targets []syntax.DID,
+) ([]ownerlifecycle.ExpectedOwner, error) {
+	p.resolveCalls++
+	if p.resolveErr != nil {
+		return nil, p.resolveErr
+	}
+	p.expected = []ownerlifecycle.ExpectedOwner{{Owner: "did:plc:alice", Generation: ownerGeneration}}
+	for _, target := range targets {
+		p.expected = append(p.expected, ownerlifecycle.ExpectedOwner{Owner: target, Generation: 1})
+	}
+	return append([]ownerlifecycle.ExpectedOwner(nil), p.expected...), nil
 }
-func (*recordingBlockPDS) PutRecord(context.Context, syntax.DID, string, string, any) error {
-	return errors.New("not implemented")
+
+func (p *recordingBlockPDS) ReadRecord(_ context.Context, _ pdseffects.ReadRecordRequest, out any) (syntax.CID, error) {
+	if p.readErr != nil {
+		return "", p.readErr
+	}
+	if p.readRecord == nil {
+		return "", auth.ErrRecordNotFound
+	}
+	*(out.(*bsky.GraphBlock)) = *p.readRecord
+	return p.readCID, nil
 }
-func (p *recordingBlockPDS) CreateRecord(_ context.Context, repo syntax.DID, collection string, record any) (syntax.ATURI, syntax.CID, error) {
+
+func (p *recordingBlockPDS) PutRecord(_ context.Context, request pdseffects.PutRecordRequest) (pdseffects.RecordResult, error) {
 	p.createCalls++
-	p.createRepo, p.createNSID, p.createValue = repo, collection, record
-	return p.createURI, p.createCID, p.createErr
+	p.createRepo, p.createNSID, p.createValue = request.Owner, request.Collection.String(), request.Record
+	if p.createErr != nil {
+		return pdseffects.RecordResult{}, p.createErr
+	}
+	uri := syntax.ATURI("at://" + request.Owner.String() + "/" + request.Collection.String() + "/" + request.Rkey.String())
+	return pdseffects.RecordResult{URI: uri, CID: p.createCID}, nil
 }
-func (p *recordingBlockPDS) DeleteRecord(_ context.Context, _ syntax.DID, _ string, rkey string) error {
-	p.deleteRkeys = append(p.deleteRkeys, rkey)
-	return p.deleteErrs[rkey]
+
+func (p *recordingBlockPDS) DeleteRecord(_ context.Context, request pdseffects.DeleteRecordRequest) (pdseffects.RecordResult, error) {
+	p.deleteRkeys = append(p.deleteRkeys, request.Rkey.String())
+	p.deleteCIDs = append(p.deleteCIDs, request.ExpectedCID)
+	return pdseffects.RecordResult{}, p.deleteErrs[request.Rkey.String()]
 }
-func (*recordingBlockPDS) UploadBlob(context.Context, string, []byte) (*auth.UploadedBlob, error) {
+
+func (*recordingBlockPDS) UploadBlob(context.Context, pdseffects.UploadBlobRequest) (*auth.UploadedBlob, error) {
 	return nil, errors.New("not implemented")
 }
-func (p *recordingBlockPDS) ListRecords(_ context.Context, _ syntax.DID, _ string, cursor string, _ int) ([]auth.PDSRecord, string, error) {
-	p.listCalls++
-	p.listCursors = append(p.listCursors, cursor)
-	if page, ok := p.listPages[cursor]; ok {
-		return page.records, page.cursor, p.listErr
+
+func blockEffectsFactory(executor *recordingBlockPDS) pdseffects.ExecutorFactory {
+	return func(context.Context, syntax.DID, string) (pdseffects.EffectExecutor, error) {
+		return executor, nil
 	}
-	return p.listRecords, p.listCursor, p.listErr
 }
 
 func TestMutationServiceBlockWaitsForPDSAndDoesNotProjectLocally(t *testing.T) {
@@ -84,7 +108,7 @@ func TestMutationServiceBlockWaitsForPDSAndDoesNotProjectLocally(t *testing.T) {
 		t.Fatalf("read migration: %v", err)
 	}
 	pool := testdb.WithSchema(t, relationshipStorePreStateDDL)
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	if _, err := pool.Exec(ctx, string(migration)); err != nil {
 		t.Fatalf("apply migration: %v", err)
 	}
@@ -105,7 +129,7 @@ func TestMutationServiceBlockWaitsForPDSAndDoesNotProjectLocally(t *testing.T) {
 	factoryCalls := 0
 	service := NewMutationService(
 		NewStore(pool),
-		func(_ context.Context, did syntax.DID, sid string) (auth.PDSClient, error) {
+		func(_ context.Context, did syntax.DID, sid string) (pdseffects.EffectExecutor, error) {
 			factoryCalls++
 			if did != alice || sid != "session-alice" {
 				t.Fatalf("factory did/sid = %s/%s", did, sid)
@@ -120,8 +144,8 @@ func TestMutationServiceBlockWaitsForPDSAndDoesNotProjectLocally(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Block: %v", err)
 	}
-	if factoryCalls != 1 || pds.listCalls != 1 || pds.createCalls != 1 {
-		t.Fatalf("factory/list/create calls = %d/%d/%d, want 1/1/1", factoryCalls, pds.listCalls, pds.createCalls)
+	if factoryCalls != 1 || pds.resolveCalls != 1 || pds.createCalls != 1 {
+		t.Fatalf("factory/resolve/put calls = %d/%d/%d, want 1/1/1", factoryCalls, pds.resolveCalls, pds.createCalls)
 	}
 	if pds.createRepo != alice || pds.createNSID != "app.bsky.graph.block" {
 		t.Fatalf("create repo/collection = %s/%s", pds.createRepo, pds.createNSID)
@@ -133,7 +157,8 @@ func TestMutationServiceBlockWaitsForPDSAndDoesNotProjectLocally(t *testing.T) {
 	if record.Subject != bob.String() || record.CreatedAt != "2026-07-19T12:00:00Z" {
 		t.Fatalf("create record = %+v", record)
 	}
-	if !result.State.Blocking || result.State.BlockedBy || result.URI != pds.createURI || result.CID != pds.createCID || result.Rkey != syntax.RecordKey("block-1") {
+	if !result.State.Blocking || result.State.BlockedBy || result.CID != pds.createCID ||
+		result.Rkey == "" || result.URI.RecordKey() != result.Rkey {
 		t.Fatalf("result = %+v", result)
 	}
 	var projected int
@@ -160,13 +185,13 @@ func TestMutationServiceBlockWaitsForPDSAndDoesNotProjectLocally(t *testing.T) {
 	}
 }
 
-func TestMutationServiceBlockRetryAndRapidUnblockReconcilePDSRecords(t *testing.T) {
+func TestMutationServiceBlockAndRapidUnblockUseTheSameDeterministicRecordKey(t *testing.T) {
 	migration, err := os.ReadFile("../../migrations/000023_mutes_blocks.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}
 	pool := testdb.WithSchema(t, relationshipStorePreStateDDL)
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	if _, err := pool.Exec(ctx, string(migration)); err != nil {
 		t.Fatalf("apply migration: %v", err)
 	}
@@ -179,41 +204,24 @@ func TestMutationServiceBlockRetryAndRapidUnblockReconcilePDSRecords(t *testing.
 
 	alice := syntax.DID("did:plc:alice")
 	bob := syntax.DID("did:plc:bob")
-	pds := &recordingBlockPDS{
-		listPages: map[string]recordingBlockPDSPage{
-			"": {
-				records: []auth.PDSRecord{
-					{URI: "at://did:plc:alice/app.bsky.graph.block/z-last", CID: "bafy-z", Value: &bsky.GraphBlock{Subject: bob.String()}},
-					{URI: "at://did:plc:alice/app.bsky.graph.block/carol", CID: "bafy-carol", Value: &bsky.GraphBlock{Subject: "did:plc:carol"}},
-				},
-				cursor: "page-2",
-			},
-			"page-2": {
-				records: []auth.PDSRecord{
-					{URI: "at://did:plc:alice/app.bsky.graph.block/a-first", CID: "bafy-a", Value: &bsky.GraphBlock{Subject: bob.String()}},
-				},
-			},
-		},
-		deleteErrs: map[string]error{"z-last": auth.ErrRecordNotFound},
-	}
+	pds := &recordingBlockPDS{createCID: "bafy-block"}
 	service := NewMutationService(
 		NewStore(pool),
-		func(context.Context, syntax.DID, string) (auth.PDSClient, error) { return pds, nil },
+		blockEffectsFactory(pds),
 		func() time.Time { return time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC) },
 	)
 
 	blocked, err := service.Block(ctx, alice, bob, "session-alice")
 	if err != nil {
-		t.Fatalf("retry Block: %v", err)
+		t.Fatalf("Block: %v", err)
 	}
-	if pds.createCalls != 0 {
-		t.Fatalf("retry Block created %d records, want 0", pds.createCalls)
+	if pds.createCalls != 1 || blocked.Rkey == "" {
+		t.Fatalf("put calls/result = %d/%+v", pds.createCalls, blocked)
 	}
-	if !blocked.State.Blocking || blocked.Rkey != syntax.RecordKey("a-first") {
-		t.Fatalf("retry Block result = %+v, want deterministic existing record", blocked)
+	if !blocked.State.Blocking {
+		t.Fatalf("Block result = %+v", blocked)
 	}
 
-	pds.listCursors = nil
 	unblocked, err := service.Unblock(ctx, alice, bob, "session-alice")
 	if err != nil {
 		t.Fatalf("rapid Unblock: %v", err)
@@ -221,18 +229,15 @@ func TestMutationServiceBlockRetryAndRapidUnblockReconcilePDSRecords(t *testing.
 	if unblocked.State.Blocking || unblocked.State.BlockedBy {
 		t.Fatalf("rapid Unblock state = %+v", unblocked.State)
 	}
-	if got, want := pds.deleteRkeys, []string{"a-first", "z-last"}; !slices.Equal(got, want) {
+	if got, want := pds.deleteRkeys, []string{blocked.Rkey.String()}; !slices.Equal(got, want) {
 		t.Fatalf("delete rkeys = %v, want %v", got, want)
-	}
-	if got, want := pds.listCursors, []string{"", "page-2"}; !slices.Equal(got, want) {
-		t.Fatalf("list cursors = %v, want %v", got, want)
 	}
 
 	pds.deleteRkeys = nil
 	if _, err := service.Unblock(ctx, alice, bob, "session-alice"); err != nil {
 		t.Fatalf("retry Unblock: %v", err)
 	}
-	if got, want := pds.deleteRkeys, []string{"a-first", "z-last"}; !slices.Equal(got, want) {
+	if got, want := pds.deleteRkeys, []string{blocked.Rkey.String()}; !slices.Equal(got, want) {
 		t.Fatalf("retry delete rkeys = %v, want %v", got, want)
 	}
 	var projected int
@@ -250,7 +255,7 @@ func TestMutationServiceUnmuteAndUnblockEnqueueSafetyRestoration(t *testing.T) {
 		t.Fatal(err)
 	}
 	pool := testdb.WithSchema(t, relationshipStorePreStateDDL)
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	if _, err := pool.Exec(ctx, string(migration)); err != nil {
 		t.Fatal(err)
 	}
@@ -271,9 +276,7 @@ func TestMutationServiceUnmuteAndUnblockEnqueueSafetyRestoration(t *testing.T) {
 	restoration := &recordingSafetyRestoration{}
 	service := NewMutationServiceWithRestoration(
 		store,
-		func(context.Context, syntax.DID, string) (auth.PDSClient, error) {
-			return &recordingBlockPDS{}, nil
-		},
+		blockEffectsFactory(&recordingBlockPDS{}),
 		nil,
 		restoration,
 	)
@@ -290,13 +293,13 @@ func TestMutationServiceUnmuteAndUnblockEnqueueSafetyRestoration(t *testing.T) {
 	}
 }
 
-func TestMutationServiceUnblockReconcilesIndexedAndPDSOnlyDuplicates(t *testing.T) {
+func TestMutationServiceUnblockDeletesIndexedCIDAndDeterministicCleanupKey(t *testing.T) {
 	migration, err := os.ReadFile("../../migrations/000023_mutes_blocks.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}
 	pool := testdb.WithSchema(t, relationshipStorePreStateDDL)
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	if _, err := pool.Exec(ctx, string(migration)); err != nil {
 		t.Fatalf("apply migration: %v", err)
 	}
@@ -315,23 +318,20 @@ func TestMutationServiceUnblockReconcilesIndexedAndPDSOnlyDuplicates(t *testing.
 
 	alice := syntax.DID("did:plc:alice")
 	bob := syntax.DID("did:plc:bob")
-	pds := &recordingBlockPDS{listRecords: []auth.PDSRecord{
-		{URI: "at://did:plc:alice/app.bsky.graph.block/indexed-one", CID: "bafy-indexed", Value: &bsky.GraphBlock{Subject: bob.String()}},
-		{URI: "at://did:plc:alice/app.bsky.graph.block/pds-only", CID: "bafy-pds-only", Value: &bsky.GraphBlock{Subject: bob.String()}},
-	}}
+	pds := &recordingBlockPDS{}
 	service := NewMutationService(
 		NewStore(pool),
-		func(context.Context, syntax.DID, string) (auth.PDSClient, error) { return pds, nil },
+		blockEffectsFactory(pds),
 		nil,
 	)
 
 	if _, err := service.Unblock(ctx, alice, bob, "session-alice"); err != nil {
 		t.Fatalf("Unblock: %v", err)
 	}
-	if pds.listCalls != 1 {
-		t.Fatalf("PDS list calls = %d, want 1", pds.listCalls)
+	if got := pds.deleteRkeys; len(got) != 2 || got[0] == "indexed-one" || got[1] != "indexed-one" {
+		t.Fatalf("delete rkeys = %v, want deterministic key then indexed-one", got)
 	}
-	if got, want := pds.deleteRkeys, []string{"indexed-one", "pds-only"}; !slices.Equal(got, want) {
-		t.Fatalf("delete rkeys = %v, want %v", got, want)
+	if got, want := pds.deleteCIDs, []syntax.CID{"", "bafy-indexed"}; !slices.Equal(got, want) {
+		t.Fatalf("delete expected CIDs = %v, want %v", got, want)
 	}
 }

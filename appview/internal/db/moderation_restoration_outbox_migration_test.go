@@ -75,7 +75,9 @@ func assertModerationRestorationOutboxSchema(t *testing.T, pool *pgxpool.Pool) {
 	}
 	for _, indexName := range []string{
 		"moderation_restoration_outbox_pending_idx",
+		"moderation_restoration_outbox_retention_idx",
 		"moderation_restoration_outbox_reconciliation_job_id_idx",
+		"moderation_restoration_history_retention_idx",
 		"moderation_idempotency_receipts_expires_at_idx",
 		"moderation_idempotency_receipts_output_id_idx",
 	} {

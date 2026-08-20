@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
@@ -45,9 +46,20 @@ type QuarantineClaim struct {
 	LeaseOwner     string
 	LeaseToken     uuid.UUID
 	LeaseExpiresAt time.Time
+	replayEnvelope []byte
 }
 
 type QuarantineReplayHandler func(context.Context, []byte) (tap.Outcome, error)
+
+type quarantinedSourceIdentity struct {
+	URI               string   `json:"URI"`
+	SourceEventID     uint64   `json:"SourceEventID"`
+	SourceFingerprint [32]byte `json:"SourceFingerprint"`
+}
+
+type quarantinedSourceEnvelope struct {
+	Source *quarantinedSourceIdentity `json:"source"`
+}
 
 // ReplayEnvelope reclassifies either a projection-generated source quarantine
 // or an original Tap wire envelope. Projection quarantines already have a
@@ -59,12 +71,11 @@ func (store *Store) ReplayEnvelope(
 	raw []byte,
 	ingestor tap.DurableIngestor,
 ) (tap.Outcome, error) {
-	var sourceEnvelope struct {
-		Source *SourceRecord `json:"source"`
-	}
+	var sourceEnvelope quarantinedSourceEnvelope
 	if err := json.Unmarshal(raw, &sourceEnvelope); err == nil && sourceEnvelope.Source != nil {
 		source := sourceEnvelope.Source
-		if source.URI == "" || source.SourceEventID == 0 || source.SourceFingerprint == ([32]byte{}) {
+		uri, parseErr := syntax.ParseATURI(source.URI)
+		if parseErr != nil || source.SourceEventID == 0 || source.SourceFingerprint == ([32]byte{}) {
 			return tap.Retryable(tap.ReasonInvalidEnvelope), errors.New("invalid quarantined Tap source envelope")
 		}
 		now := store.now().UTC().Truncate(time.Microsecond)
@@ -76,7 +87,7 @@ func (store *Store) ReplayEnvelope(
 				FROM tap_source_records
 				WHERE uri=$1
 				FOR UPDATE
-			`, source.URI).Scan(&currentID, &currentFingerprint)
+			`, uri).Scan(&currentID, &currentFingerprint)
 			if errors.Is(err, pgx.ErrNoRows) {
 				return nil
 			}
@@ -94,7 +105,7 @@ func (store *Store) ReplayEnvelope(
 				    completed_at=NULL,updated_at=$3
 				WHERE source_uri=$1 AND source_event_id=$2
 				  AND state='permanent_denied'
-			`, source.URI, source.SourceEventID, now); err != nil {
+			`, uri, source.SourceEventID, now); err != nil {
 				return fmt.Errorf("requeue quarantined Tap source: %w", err)
 			}
 			return nil
@@ -116,10 +127,14 @@ func (store *Store) Quarantine(ctx context.Context, event tap.InvalidEvent) (tap
 	if err != nil {
 		return tap.Retryable(tap.ReasonStorageUnavailable), err
 	}
+	replayEnvelope, err := boundedReplayEnvelope(event.Envelope)
+	if err != nil {
+		return tap.Retryable(tap.ReasonStorageUnavailable), err
+	}
 	now := store.now().UTC().Truncate(time.Microsecond)
 	outcome := tap.PermanentInvalid(event.Reason)
 	err = pgx.BeginFunc(ctx, store.pool, func(tx pgx.Tx) error {
-		return persistQuarantineTx(ctx, tx, event, fingerprint, evidence, outcome, now)
+		return persistQuarantineTx(ctx, tx, event, fingerprint, evidence, replayEnvelope, outcome, now)
 	})
 	if err != nil {
 		return tap.Retryable(tap.ReasonStorageUnavailable), err
@@ -133,6 +148,7 @@ func persistQuarantineTx(
 	event tap.InvalidEvent,
 	fingerprint [32]byte,
 	evidence []byte,
+	replayEnvelope []byte,
 	outcome tap.Outcome,
 	now time.Time,
 ) error {
@@ -145,12 +161,13 @@ func persistQuarantineTx(
 	}
 	if _, err := tx.Exec(ctx, `
 			INSERT INTO tap_quarantined_events(
-				event_fingerprint,tap_event_id,event_type,reason_code,envelope,
+				event_fingerprint,tap_event_id,event_type,reason_code,envelope,replay_envelope,
 				envelope_bytes,occurrence_count,replay_state,first_seen_at,last_seen_at
-			) VALUES($1,$2,$3,$4,$5,$6,1,'quarantined',$7,$7)
+			) VALUES($1,$2,$3,$4,$5,$6,$7,1,'quarantined',$8,$8)
 			ON CONFLICT(event_fingerprint) DO UPDATE SET
 				occurrence_count=tap_quarantined_events.occurrence_count+1,
 				last_seen_at=EXCLUDED.last_seen_at,
+				replay_envelope=COALESCE(tap_quarantined_events.replay_envelope,EXCLUDED.replay_envelope),
 				replay_state=CASE
 					WHEN tap_quarantined_events.replay_state='resolved' THEN 'quarantined'
 					ELSE tap_quarantined_events.replay_state
@@ -159,19 +176,20 @@ func persistQuarantineTx(
 					WHEN tap_quarantined_events.replay_state='resolved' THEN NULL
 					ELSE tap_quarantined_events.resolved_at
 				END
-	`, fingerprint[:], event.ID, eventType, event.Reason, evidence, len(evidence), now); err != nil {
+	`, fingerprint[:], event.ID, eventType, event.Reason, evidence, replayEnvelope, len(evidence), now); err != nil {
 		return fmt.Errorf("persist quarantined Tap event: %w", err)
 	}
 	return insertReceipt(ctx, tx, fingerprint, event.ID, "quarantine", outcome, "", event.Reason, now)
 }
 
 func quarantineSourceTx(ctx context.Context, tx pgx.Tx, source SourceRecord, reason tap.ReasonCode, now time.Time) error {
-	envelope, err := json.Marshal(struct {
-		ID     uint64          `json:"id"`
-		Type   string          `json:"type"`
-		Source SourceRecord    `json:"source"`
-		Record json.RawMessage `json:"record,omitempty"`
-	}{ID: source.SourceEventID, Type: "record", Source: source, Record: source.Record})
+	envelope, err := json.Marshal(quarantinedSourceEnvelope{
+		Source: &quarantinedSourceIdentity{
+			URI:               source.URI.String(),
+			SourceEventID:     source.SourceEventID,
+			SourceFingerprint: source.SourceFingerprint,
+		},
+	})
 	if err != nil {
 		return fmt.Errorf("encode quarantined source: %w", err)
 	}
@@ -181,7 +199,11 @@ func quarantineSourceTx(ctx context.Context, tx pgx.Tx, source SourceRecord, rea
 	if err != nil {
 		return err
 	}
-	return persistQuarantineTx(ctx, tx, event, fingerprint, evidence, tap.PermanentInvalid(reason), now)
+	replayEnvelope, err := boundedReplayEnvelope(envelope)
+	if err != nil {
+		return err
+	}
+	return persistQuarantineTx(ctx, tx, event, fingerprint, evidence, replayEnvelope, tap.PermanentInvalid(reason), now)
 }
 
 func quarantineFingerprint(event tap.InvalidEvent) [32]byte {
@@ -214,6 +236,13 @@ func boundedQuarantineEnvelope(raw []byte) ([]byte, error) {
 		return nil, fmt.Errorf("encode bounded quarantine evidence: %w", err)
 	}
 	return evidence, nil
+}
+
+func boundedReplayEnvelope(raw []byte) ([]byte, error) {
+	if len(raw) == 0 || len(raw) > tap.MaxFrameBytes {
+		return nil, fmt.Errorf("tap quarantine replay envelope bytes must be between 1 and %d", tap.MaxFrameBytes)
+	}
+	return append([]byte(nil), raw...), nil
 }
 
 func validQuarantineReason(reason tap.ReasonCode) bool {
@@ -278,12 +307,13 @@ func (store *Store) RequestQuarantineReplay(ctx context.Context, fingerprint [32
 		SET replay_state='pending',lease_owner=NULL,lease_token=NULL,
 		    lease_expires_at=NULL,resolved_at=NULL,last_seen_at=GREATEST(last_seen_at,$2)
 		WHERE event_fingerprint=$1 AND replay_state <> 'processing'
+		  AND replay_envelope IS NOT NULL
 	`, fingerprint[:], now)
 	if err != nil {
 		return fmt.Errorf("request Tap quarantine replay: %w", err)
 	}
 	if result.RowsAffected() != 1 {
-		return errors.New("quarantine row missing or already processing")
+		return errors.New("quarantine row missing, already processing, or has no exact replay payload")
 	}
 	return nil
 }
@@ -299,8 +329,9 @@ func (store *Store) ClaimQuarantine(ctx context.Context, request QuarantineClaim
 		WITH candidates AS (
 			SELECT event_fingerprint
 			FROM tap_quarantined_events
-			WHERE replay_state='pending'
-			   OR (replay_state='processing' AND lease_expires_at <= $1)
+			WHERE replay_envelope IS NOT NULL
+			  AND (replay_state='pending'
+			   OR (replay_state='processing' AND lease_expires_at <= $1))
 			ORDER BY last_seen_at,event_fingerprint
 			LIMIT $2
 			FOR UPDATE SKIP LOCKED
@@ -311,7 +342,7 @@ func (store *Store) ClaimQuarantine(ctx context.Context, request QuarantineClaim
 		FROM candidates
 		WHERE event.event_fingerprint=candidates.event_fingerprint
 		RETURNING event.event_fingerprint,event.tap_event_id,event.event_type,
-		          event.reason_code,event.envelope,event.occurrence_count,
+		          event.reason_code,event.envelope,event.replay_envelope,event.occurrence_count,
 		          event.replay_state,event.first_seen_at,event.last_seen_at,
 		          event.resolved_at,event.lease_owner,event.lease_token,
 		          event.lease_expires_at
@@ -326,7 +357,7 @@ func (store *Store) ClaimQuarantine(ctx context.Context, request QuarantineClaim
 		var fingerprint []byte
 		var eventID int64
 		if err := rows.Scan(&fingerprint, &eventID, &claim.EventType, &claim.Reason,
-			&claim.Envelope, &claim.OccurrenceCount, &claim.ReplayState,
+			&claim.Envelope, &claim.replayEnvelope, &claim.OccurrenceCount, &claim.ReplayState,
 			&claim.FirstSeenAt, &claim.LastSeenAt, &claim.ResolvedAt,
 			&claim.LeaseOwner, &claim.LeaseToken, &claim.LeaseExpiresAt); err != nil {
 			return nil, fmt.Errorf("scan Tap quarantine claim: %w", err)
@@ -348,7 +379,10 @@ func (store *Store) ReplayQuarantine(ctx context.Context, claim QuarantineClaim,
 	if claim.Fingerprint == ([32]byte{}) || claim.LeaseToken == uuid.Nil || handler == nil {
 		return ErrProjectionLeaseLost
 	}
-	outcome, replayErr := handler(ctx, append([]byte(nil), claim.Envelope...))
+	if len(claim.replayEnvelope) == 0 || len(claim.replayEnvelope) > tap.MaxFrameBytes {
+		return errors.New("quarantine claim has no valid exact replay payload")
+	}
+	outcome, replayErr := handler(ctx, append([]byte(nil), claim.replayEnvelope...))
 	if replayErr != nil || !outcome.Acknowledgable() {
 		if err := store.rescheduleQuarantine(ctx, claim); err != nil {
 			return errors.Join(replayErr, err)

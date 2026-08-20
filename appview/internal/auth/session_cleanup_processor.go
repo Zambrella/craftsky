@@ -37,7 +37,7 @@ func NewIndigoOAuthCredentialRevoker(
 	store *PostgresAuthStore,
 ) (*IndigoOAuthCredentialRevoker, error) {
 	if app == nil || app.Client == nil || app.Config == nil || store == nil {
-		return nil, errors.New("Indigo OAuth credential revoker dependencies are required")
+		return nil, errors.New("credential revoker dependencies are required")
 	}
 	return &IndigoOAuthCredentialRevoker{app: app, store: store}, nil
 }
@@ -47,7 +47,7 @@ func (revoker *IndigoOAuthCredentialRevoker) RevokeSession(
 	data oauth.ClientSessionData,
 ) error {
 	if revoker == nil || revoker.app == nil || revoker.store == nil {
-		return errors.New("Indigo OAuth credential revoker is unavailable")
+		return errors.New("credential revoker is unavailable")
 	}
 	if err := revoker.store.validateSessionEndpoints(ctx, data); err != nil {
 		return err

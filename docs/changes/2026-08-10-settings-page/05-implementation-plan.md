@@ -1,6 +1,10 @@
 # TDD Implementation Plan: Lean Account Deletion Simplification
 
-> **Current status (2026-08-14):** The earlier lean simplification loops are complete, but the AppView audit exact-key safety correction in the final section is approved and pending. The implementation is not complete against amended FR-028–FR-031/NFR-007/RULE-012–RULE-013 until those loops and the reopened review pass.
+> **Current status (2026-08-20):** The lean simplification and the approved
+> AppView audit exact-key safety correction are implemented. The correction
+> execution log and checklist in the final section supersede the 2026-08-14
+> pending snapshot; external destructive/remote settlement checks remain
+> release gates.
 
 ## Inputs
 
@@ -220,12 +224,12 @@ Correction rules:
 
 | Test IDs | Red evidence | Green evidence | Status |
 |---|---|---|---|
-| IT-035 | Not run; documentation-only decision recording. | Not implemented. | Pending |
-| UT-025 | Not run; documentation-only decision recording. | Not implemented. | Pending |
+| IT-035 | An accepted ordinary CraftSky PDS write could lose its response, escape the first deletion scan, and commit after operation/OAuth removal. | Durable owner-effect attempts persist exact CraftSky URI/action/fingerprint/CID provenance before dispatch. Departure/deletion adopts unresolved registered-namespace puts into exact-URI safety work; read-only authoritative reconciliation proves the exact current version before projection/finalization, never repeats the write, and keeps ambiguous A→B→A candidates hidden/retryable. Required-PostgreSQL crash/departure/rejoin/proved-not-accepted/terminal tests pass. | Complete |
+| UT-025 | No minimized typed store represented exact URI/object uncertainty while rejecting wider deletion authority. | Migrations `000039`, `000041`, `000049`, and `000050` plus store/migration tests enforce exact owner, generation, operation, action, URI/object key, fingerprint/CID, bounded lease, and non-secret scope. Registered CraftSky collection filtering rejects follow, blob, DID, foreign namespace, malformed URI, and cross-owner adoption. | Complete |
 | UT-026, IT-036 | Migration/key/settlement tests and the accepted-`Put` crash barrier failed before durable attempts, generation keys, final-absence proof, and owner/object fencing existed. | Scheduled-object PostgreSQL tests, migration `000040`/`000041` up/down/up, and the PostgreSQL+MinIO race suite pass. The barrier retains tracking across early absence and removes delayed materialization on a repeated exact-key cleanup. | Object sub-lane complete |
-| IT-037 | The settlement decision initially allowed no durable representation of an unbounded uncertain result; cleanup remote work also outlived its lease. | No-bound cleanup remains pending after repeated absence; a separate bounded-policy test requires post-boundary absence; cleanup remote work is context-bounded by its lease. | Object half complete; PDS half pending |
-| IT-038, AT-009 | Not run; documentation-only decision recording. | Not implemented. | Pending |
-| REG-017 / broad verification | Not run for the amended behavior. | Not implemented. | Pending |
+| IT-037 | The settlement decision initially allowed no durable representation of an unbounded uncertain result; cleanup remote work also outlived its lease. | Object and PDS uncertainty remain leased/backoff reconciliation work indefinitely when no finite backend guarantee exists. Read-only PDS reconciliation and exact-key object cleanup are deadline/lease bounded; neither elapsed client time nor an early absent read fabricates success. | Complete |
+| IT-038, AT-009 | Operation completion previously lacked one owner/job-fenced final residue transaction. | Account-deletion lifecycle tests prove only the accepted deletion-only credential survives acceptance; completion requires all exact safety work settled, then atomically transitions the owner terminal, queues credential revocation, and removes operation-scoped authority/residue without restoring a status/manual-retry surface. | Complete |
+| REG-017 / broad verification | The amended behavior initially had no aggregate gate. | Required-PostgreSQL/MinIO normal and race suites, migration up/down/up, capability/residue regressions, `go vet`, pinned Staticcheck, vulnerability scanning, `dart analyze`, and all 1,489 Flutter tests pass in the combined audit gate. | Complete |
 
 #### Scheduled-object sub-lane execution (AV-006)
 
@@ -248,12 +252,12 @@ Correction rules:
 
 ### Correction completion checklist
 
-- [ ] IT-035 proves accepted-write → AppView crash → empty scan → delayed PDS commit convergence.
+- [x] IT-035 proves accepted-write → AppView crash → empty scan → delayed PDS commit convergence.
 - [x] IT-036 proves accepted `Put` → AppView crash → early absent/delete → delayed object creation convergence.
 - [x] No finite-settlement object configuration leaves tombstones reconciling rather than fabricating success; PDS coverage remains separate.
 - [x] Scheduled-object tombstone fields and typed APIs are exact-owner/job/key/generation and non-secret; PDS store coverage remains separate.
-- [ ] Only registered `social.craftsky.*` records and matching private object generations can be reconciled; follow/blob/DID/other namespace/owner remain impossible.
-- [ ] Proven convergence atomically removes tombstones, operation, and matching deletion-only OAuth authority.
-- [ ] No status/recovery/manual-Retry/receipt/component-checkpoint/audit/detailed-metrics surface is restored.
-- [ ] Focused PostgreSQL/MinIO/race, full Go/Flutter, migration, formatting/static-analysis, and diff checks are recorded truthfully.
-- [ ] `06-implementation-review.md` is re-reviewed and approved after implementation.
+- [x] Only registered `social.craftsky.*` records and matching private object generations can be reconciled; follow/blob/DID/other namespace/owner remain impossible.
+- [x] Proven convergence atomically removes tombstones, operation, and matching deletion-only OAuth authority.
+- [x] No status/recovery/manual-Retry/receipt/component-checkpoint/audit/detailed-metrics surface is restored.
+- [x] Focused PostgreSQL/MinIO/race, full Go/Flutter, migration, formatting/static-analysis, and diff checks are recorded truthfully.
+- [x] `06-implementation-review.md` is re-reviewed and approved after implementation.

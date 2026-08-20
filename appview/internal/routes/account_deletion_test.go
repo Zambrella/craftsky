@@ -12,7 +12,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/accountdeletion"
-	"social.craftsky/appview/internal/app"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -28,7 +27,7 @@ func TestAccountDeletionAcceptanceRouteIsAuthenticatedOwnerScopedAndStrict(t *te
 		"DELETE /v1/account-deletion/intents/{jobId}": {BodyNoBody, AccessAuthenticatedRecovery},
 		"POST /v1/account-deletions/{jobId}":          {BodyDefaultJSON, AccessAuthenticatedRecovery},
 	}
-	for _, policy := range V1RoutePolicies(app.EnvDev, app.Config{Env: app.EnvDev}) {
+	for _, policy := range V1RoutePolicies(EnvDev, Config{Env: EnvDev}) {
 		key := policy.Method + " " + policy.PathPattern
 		want, ok := wantPolicies[key]
 		if !ok {

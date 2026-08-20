@@ -1,8 +1,8 @@
 # Implementation Review: Instagram DM Verification And Automatic Following
 
-> **2026-08-14 status:** The 2026-07-27 approval applies only to the historical
-> automatic-follow contract. Section "AppView Audit Review Reopening" is the
-> current verdict.
+> **2026-08-20 status:** The 2026-07-27 approval and the later Changes-required
+> reopening describe the historical automatic-follow contract. Section
+> "AppView Audit Strict-Branch Final Re-review" is the current verdict.
 
 ## Verdict
 
@@ -158,3 +158,30 @@ from `02-acceptance-tests.md` Section 12. Re-review must also confirm:
 This review returns to Approved only after the correction execution log in
 `05-implementation-plan.md` is complete and the coordinated PostgreSQL/race and
 full Go/Flutter gates have actually run.
+
+## AppView Audit Strict-Branch Final Re-review (2026-08-20)
+
+Status: Approved with notes
+
+Risk level: Medium until the external Meta/device/deployment gates run
+
+The strict AV-007 correction is implemented and supersedes the 2026-08-14
+`Changes required` snapshot. Matching and reconciliation now terminate at one
+caller-private, participant-generation-bound suggestion and have no OAuth/PDS
+session selector, follow writer, or public-write capability. Only an explicit
+current-member Follow enters the common guarded owner-effect executor. Dismiss,
+evidence loss, departure, terminalization, and stale-generation paths make no
+new external call, and no cleanup path gains authority to delete
+`app.bsky.graph.follow`.
+
+Required-PostgreSQL and race tests cover initial/future/duplicate/reordered
+matching, suggestion ownership and lifecycle invalidation, explicit acceptance,
+ambiguous-response replay, and dependency capability absence. API,
+notification, push, relationship, app-wiring, migration, and focused Flutter
+Instagram suites pass. The complete repository release gate, pinned vet/static
+analysis, `dart analyze`, and all 1,489 Flutter tests also pass in the combined
+AppView audit worktree.
+
+No blocking implementation finding remains for the strict branch. Live Meta,
+physical-device, protected-edge, and accessibility checks in the Known External
+Gates remain release evidence rather than code-completion work.

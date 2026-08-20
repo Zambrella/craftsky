@@ -155,6 +155,31 @@ func TestCORS_PreflightDerivesPatchAndRejectsInvalidRequests(t *testing.T) {
 	}
 }
 
+func TestCORS_PreflightDetachesUnreadBodyBeforeShortCircuit(t *testing.T) {
+	probe := &countingBodyReader{reader: strings.NewReader("unexpected preflight body")}
+	handler := CORS(
+		[]string{"https://app.craftsky.social"},
+		testCORSMethods{"/v1/settings": {http.MethodPatch}},
+	)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("preflight reached application handler")
+	}))
+	request := httptest.NewRequest(http.MethodOptions, "/v1/settings", probe)
+	request.Header.Set("Origin", "https://evil.example")
+	request.Header.Set("Access-Control-Request-Method", http.MethodPatch)
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403; body=%s", recorder.Code, recorder.Body.String())
+	}
+	if probe.bytesRead != 0 {
+		t.Fatalf("body bytes read = %d, want 0", probe.bytesRead)
+	}
+	if request.Body != http.NoBody || !request.Close || recorder.Header().Get("Connection") != "close" {
+		t.Fatalf("unread body was not detached: body=%T request.Close=%t headers=%v", request.Body, request.Close, recorder.Header())
+	}
+}
+
 type testCORSMethods map[string][]string
 
 func (c testCORSMethods) AllowedMethods(path string) ([]string, bool) {

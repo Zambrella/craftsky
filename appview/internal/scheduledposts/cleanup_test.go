@@ -84,10 +84,10 @@ func TestStoreCleansEligiblePrivateArtifactsSafely(t *testing.T) {
 	}
 	if _, err := store.pool.Exec(ctx, `
 		INSERT INTO scheduled_post_publication_tombstones (
-			schedule_id, owner_did, operation_id, request_hash,
+			schedule_id, owner_did, owner_generation, operation_id, request_hash,
 			publication_uri, publication_cid, published_at, expires_at
 		) VALUES (
-			'00000000-0000-4000-8000-000000000201', $1,
+			'00000000-0000-4000-8000-000000000201', $1, 1,
 			'00000000-0000-4000-8000-000000000202', decode(repeat('04', 32), 'hex'),
 			'at://did:plc:alice/social.craftsky.feed.post/3expired', 'bafk-published',
 			$2, $3

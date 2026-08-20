@@ -122,12 +122,12 @@ func TestAcceptanceAtomicallyAdoptsKnownUncertainPDSAttempt(t *testing.T) {
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO owner_effect_attempts(
 			operation_id,owner_did,owner_generation,effect_kind,effect_action,mutation_key,deterministic_key,
-			request_fingerprint,remote_outcome,projection_disposition,
+			request_fingerprint,record_fingerprint,remote_outcome,projection_disposition,
 			repeat_forbidden,remote_deadline,dispatched_at,created_at,updated_at
 		) VALUES(
 			'acceptance-write',$1,1,'pds_record','put_record','acceptance-write',
 			'at://did:plc:alice/social.craftsky.feed.post/accepted',
-			decode(repeat('04',32),'hex'),'dispatched','pending',true,$2,$3,$3,$3
+			decode(repeat('04',32),'hex'),decode(repeat('04',32),'hex'),'dispatched','pending',true,$2,$3,$3,$3
 		)
 	`, owner, now.Add(time.Minute), now); err != nil {
 		t.Fatal(err)
@@ -203,12 +203,12 @@ func TestAdoptUncertainPDSAttemptsIsExactOwnerRegisteredCollectionAndGenerationS
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO owner_effect_attempts(
 			operation_id,owner_did,owner_generation,effect_kind,effect_action,mutation_key,deterministic_key,
-			request_fingerprint,remote_outcome,projection_disposition,
+			request_fingerprint,record_fingerprint,remote_outcome,projection_disposition,
 			repeat_forbidden,remote_deadline,dispatched_at,created_at,updated_at
 		) VALUES(
 			'ordinary-post',$1,7,'pds_record','put_record','ordinary-post',
 			'at://did:plc:alice/social.craftsky.feed.post/post-1',
-			decode(repeat('01',32),'hex'),'outcome_unknown_pre_transition',
+			decode(repeat('01',32),'hex'),decode(repeat('01',32),'hex'),'outcome_unknown_pre_transition',
 			'hidden_non_active',true,$2,$3,$3,$3
 		)
 	`, owner, now.Add(time.Minute), now); err != nil {
@@ -244,12 +244,12 @@ func TestAdoptUncertainPDSAttemptsIsExactOwnerRegisteredCollectionAndGenerationS
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO owner_effect_attempts(
 			operation_id,owner_did,owner_generation,effect_kind,effect_action,mutation_key,deterministic_key,
-			request_fingerprint,remote_outcome,projection_disposition,
+			request_fingerprint,record_fingerprint,remote_outcome,projection_disposition,
 			repeat_forbidden,remote_deadline,dispatched_at,created_at,updated_at
 		) VALUES(
 			'ordinary-follow',$1,7,'pds_record','put_record','ordinary-follow',
 			'at://did:plc:alice/app.bsky.graph.follow/follow-1',
-			decode(repeat('05',32),'hex'),'outcome_unknown_pre_transition',
+			decode(repeat('05',32),'hex'),decode(repeat('05',32),'hex'),'outcome_unknown_pre_transition',
 			'hidden_non_active',true,$2,$3,$3,$3
 		)
 	`, owner, now.Add(time.Minute), now); err != nil {
@@ -266,12 +266,12 @@ func TestAdoptUncertainPDSAttemptsIsExactOwnerRegisteredCollectionAndGenerationS
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO owner_effect_attempts(
 			operation_id,owner_did,owner_generation,effect_kind,effect_action,mutation_key,deterministic_key,
-			request_fingerprint,remote_outcome,projection_disposition,
+			request_fingerprint,record_fingerprint,remote_outcome,projection_disposition,
 			repeat_forbidden,remote_deadline,dispatched_at,created_at,updated_at
 		) VALUES(
 			'ordinary-delete',$1,7,'pds_record','delete_record','ordinary-delete',
 			'at://did:plc:alice/social.craftsky.feed.post/post-delete',
-			decode(repeat('06',32),'hex'),'outcome_unknown_pre_transition',
+			decode(repeat('06',32),'hex'),NULL,'outcome_unknown_pre_transition',
 			'hidden_non_active',true,$2,$3,$3,$3
 		)
 	`, owner, now.Add(time.Minute), now); err != nil {
@@ -296,11 +296,11 @@ func TestAdoptUncertainPDSAttemptsIsExactOwnerRegisteredCollectionAndGenerationS
 		if _, err := pool.Exec(ctx, `
 			INSERT INTO owner_effect_attempts(
 				operation_id,owner_did,owner_generation,effect_kind,effect_action,mutation_key,deterministic_key,
-				request_fingerprint,remote_outcome,projection_disposition,
+				request_fingerprint,record_fingerprint,remote_outcome,projection_disposition,
 				repeat_forbidden,remote_deadline,dispatched_at,created_at,updated_at
 			) VALUES(
 				'ordinary-post',$1,7,'pds_record','put_record','ordinary-post',$2,
-				decode(repeat('01',32),'hex'),'outcome_unknown_pre_transition',
+				decode(repeat('01',32),'hex'),decode(repeat('01',32),'hex'),'outcome_unknown_pre_transition',
 				'hidden_non_active',true,$3,$4,$4,$4
 			)
 		`, owner, invalidKey, now.Add(time.Minute), now); err != nil {
@@ -358,17 +358,17 @@ func TestCompleteAttemptRequiresSettledSafetyAndRemovesAllTemporaryAuthorityAtom
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO owner_effect_attempts(
 			operation_id,owner_did,owner_generation,effect_kind,effect_action,
-			mutation_key,deterministic_key,request_fingerprint,remote_outcome,
-			projection_state,repeat_forbidden,remote_deadline,dispatched_at,
+			mutation_key,deterministic_key,request_fingerprint,record_fingerprint,remote_outcome,
+			projection_disposition,repeat_forbidden,remote_deadline,dispatched_at,
 			created_at,updated_at
 		) VALUES
 			('external-put',$1,7,'pds_record','put_record','external-put',
 			 'at://did:plc:alice/app.bsky.graph.follow/external',
-			 decode(repeat('02',32),'hex'),'outcome_unknown_pre_transition',
+			 decode(repeat('02',32),'hex'),decode(repeat('02',32),'hex'),'outcome_unknown_pre_transition',
 			 'hidden_non_active',true,$2,$3,$3,$3),
 			('craftsky-delete',$1,7,'pds_record','delete_record','craftsky-delete',
 			 'at://did:plc:alice/social.craftsky.feed.post/deleted',
-			 decode(repeat('03',32),'hex'),'outcome_unknown_pre_transition',
+			 decode(repeat('03',32),'hex'),NULL,'outcome_unknown_pre_transition',
 			 'hidden_non_active',true,$2,$3,$3,$3)
 	`, owner, now.Add(time.Minute), now); err != nil {
 		t.Fatal(err)
