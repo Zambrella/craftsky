@@ -4,10 +4,9 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'pending_auth_provider.g.dart';
 
-/// Tracks the in-flight sign-in attempt. Lets
-/// `AuthController.completeFromDeepLink` reject deep links that
-/// arrive without a prior `signIn()` or later than the 10-minute
-/// staleness window.
+/// Tracks the in-flight sign-in attempt for UI state only. The server-bound
+/// code and stable device ID remain authoritative if the process restarts while
+/// the system browser is open.
 @Riverpod(keepAlive: true)
 class PendingAuth extends _$PendingAuth {
   @override

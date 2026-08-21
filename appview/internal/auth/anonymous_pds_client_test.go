@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -78,6 +79,61 @@ func helperServer(_ *testing.T, status int, body string, path *string) *httptest
 	}))
 }
 
+type testOriginValidator struct{}
+
+func (testOriginValidator) ValidateOrigin(_ context.Context, raw string) (*url.URL, error) {
+	return url.Parse(raw)
+}
+
+type rejectingOriginValidator struct{ err error }
+
+func (validator rejectingOriginValidator) ValidateOrigin(context.Context, string) (*url.URL, error) {
+	return nil, validator.err
+}
+
+func newTestAnonymousPDSClient(t *testing.T, dir identity.Directory) *auth.AnonymousPDSClient {
+	t.Helper()
+	client, err := auth.NewAnonymousPDSClient(
+		dir,
+		&http.Client{Transport: http.DefaultTransport, Timeout: 2 * time.Second},
+		testOriginValidator{},
+	)
+	if err != nil {
+		t.Fatalf("NewAnonymousPDSClient: %v", err)
+	}
+	return client
+}
+
+func TestNewAnonymousPDSClientFailsClosedWithoutBoundaryDependencies(t *testing.T) {
+	t.Parallel()
+
+	if client, err := auth.NewAnonymousPDSClient(&fakeDirectory{}, nil, nil); err == nil || client != nil {
+		t.Fatalf("client/error = %#v/%v, want fail-closed construction", client, err)
+	}
+}
+
+func TestAnonymousPDSClientRejectsUntrustedDIDServiceEndpointBeforeRequest(t *testing.T) {
+	t.Parallel()
+
+	want := errors.New("destination rejected")
+	client, err := auth.NewAnonymousPDSClient(
+		&fakeDirectory{did: syntax.DID("did:plc:abc"), endpoint: "https://127.0.0.1"},
+		&http.Client{Transport: http.DefaultTransport},
+		rejectingOriginValidator{err: want},
+	)
+	if err != nil {
+		t.Fatalf("NewAnonymousPDSClient: %v", err)
+	}
+	var out map[string]any
+	_, err = client.GetRecord(
+		context.Background(), syntax.DID("did:plc:abc"),
+		"app.bsky.actor.profile", "self", &out,
+	)
+	if !errors.Is(err, want) {
+		t.Fatalf("error = %v, want destination rejection", err)
+	}
+}
+
 func TestAnonymousPDSClient_GetRecord_HappyPath(t *testing.T) {
 	t.Parallel()
 	var gotPath string
@@ -89,7 +145,7 @@ func TestAnonymousPDSClient_GetRecord_HappyPath(t *testing.T) {
 	defer srv.Close()
 
 	dir := &fakeDirectory{did: syntax.DID("did:plc:abc"), endpoint: srv.URL}
-	cli := auth.NewAnonymousPDSClient(dir, 2*time.Second)
+	cli := newTestAnonymousPDSClient(t, dir)
 
 	var out map[string]any
 	cid, err := cli.GetRecord(context.Background(),
@@ -117,7 +173,7 @@ func TestAnonymousPDSClient_GetRecord_RecordNotFound(t *testing.T) {
 	defer srv.Close()
 
 	dir := &fakeDirectory{did: syntax.DID("did:plc:abc"), endpoint: srv.URL}
-	cli := auth.NewAnonymousPDSClient(dir, 2*time.Second)
+	cli := newTestAnonymousPDSClient(t, dir)
 
 	var out map[string]any
 	_, err := cli.GetRecord(context.Background(),
@@ -130,7 +186,7 @@ func TestAnonymousPDSClient_GetRecord_RecordNotFound(t *testing.T) {
 func TestAnonymousPDSClient_GetRecord_NoPDSEndpoint(t *testing.T) {
 	t.Parallel()
 	dir := &fakeDirectory{did: syntax.DID("did:plc:abc")} // endpoint empty
-	cli := auth.NewAnonymousPDSClient(dir, 2*time.Second)
+	cli := newTestAnonymousPDSClient(t, dir)
 
 	var out map[string]any
 	_, err := cli.GetRecord(context.Background(),
@@ -146,7 +202,7 @@ func TestAnonymousPDSClient_GetRecord_NoPDSEndpoint(t *testing.T) {
 func TestAnonymousPDSClient_GetRecord_DirectoryError(t *testing.T) {
 	t.Parallel()
 	dir := &fakeDirectory{did: syntax.DID("did:plc:abc"), err: errors.New("dns failure")}
-	cli := auth.NewAnonymousPDSClient(dir, 2*time.Second)
+	cli := newTestAnonymousPDSClient(t, dir)
 
 	var out map[string]any
 	_, err := cli.GetRecord(context.Background(),
@@ -161,7 +217,7 @@ func TestAnonymousPDSClient_GetRecord_DirectoryError(t *testing.T) {
 
 func TestAnonymousPDSClient_PutRecord_ReadOnly(t *testing.T) {
 	t.Parallel()
-	cli := auth.NewAnonymousPDSClient(&fakeDirectory{}, time.Second)
+	cli := newTestAnonymousPDSClient(t, &fakeDirectory{})
 	err := cli.PutRecord(context.Background(),
 		syntax.DID("did:plc:x"), "any.nsid", "self", map[string]any{})
 	if !errors.Is(err, auth.ErrReadOnlyPDSClient) {
@@ -179,7 +235,7 @@ func TestAnonymousPDSClient_GetRecord_EmptyCID(t *testing.T) {
 	defer srv.Close()
 
 	dir := &fakeDirectory{did: syntax.DID("did:plc:abc"), endpoint: srv.URL}
-	cli := auth.NewAnonymousPDSClient(dir, 2*time.Second)
+	cli := newTestAnonymousPDSClient(t, dir)
 
 	var out map[string]any
 	_, err := cli.GetRecord(context.Background(),
@@ -193,7 +249,7 @@ func TestAnonymousPDSClient_GetRecord_EmptyCID(t *testing.T) {
 }
 
 func TestAnonymousPDSClient_CreateRecord_ReadOnly(t *testing.T) {
-	cli := auth.NewAnonymousPDSClient(nil, time.Second)
+	cli := newTestAnonymousPDSClient(t, &fakeDirectory{})
 	_, _, err := cli.CreateRecord(context.Background(),
 		syntax.DID("did:plc:xyz"), "social.craftsky.feed.post", map[string]any{})
 	if !errors.Is(err, auth.ErrReadOnlyPDSClient) {
@@ -202,7 +258,7 @@ func TestAnonymousPDSClient_CreateRecord_ReadOnly(t *testing.T) {
 }
 
 func TestAnonymousPDSClient_DeleteRecord_ReadOnly(t *testing.T) {
-	cli := auth.NewAnonymousPDSClient(nil, time.Second)
+	cli := newTestAnonymousPDSClient(t, &fakeDirectory{})
 	err := cli.DeleteRecord(context.Background(),
 		syntax.DID("did:plc:xyz"), "social.craftsky.feed.post", "3lf2abc")
 	if !errors.Is(err, auth.ErrReadOnlyPDSClient) {

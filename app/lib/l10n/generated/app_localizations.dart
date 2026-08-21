@@ -280,10 +280,10 @@ abstract class AppLocalizations {
   /// **'Activity unavailable'**
   String get notificationUnavailableRow;
 
-  /// Notification shown after an Instagram import automatically follows a matched CraftSky account.
+  /// Notification shown when an Instagram following import matches a CraftSky account. It does not imply an automatic follow.
   ///
   /// In en, this message translates to:
-  /// **'You automatically followed {actor} from your Instagram import'**
+  /// **'You found {actor} through your Instagram following'**
   String notificationInstagramMatchActorRow(String actor);
 
   /// No description provided for @notificationSettingsAction.
@@ -361,7 +361,7 @@ abstract class AppLocalizations {
   /// No description provided for @notificationInstagramMatchPreferenceDescription.
   ///
   /// In en, this message translates to:
-  /// **'Push alerts are based on your Instagram migration eligibility. They never name matched accounts.'**
+  /// **'Push alerts are based on your private Instagram matches and never name the matched account.'**
   String get notificationInstagramMatchPreferenceDescription;
 
   /// No description provided for @notificationCategoryEverythingElse.
@@ -532,17 +532,11 @@ abstract class AppLocalizations {
   /// **'Signing in…'**
   String get authCompleteSigningIn;
 
-  /// Error shown when the OAuth completion token has expired.
+  /// Error shown when the OAuth handoff code or confirmation receipt is invalid or expired.
   ///
   /// In en, this message translates to:
   /// **'That sign-in link expired. Please sign in again.'**
   String get authCompleteTimedOutError;
-
-  /// Error shown when the OAuth callback has no matching pending sign-in.
-  ///
-  /// In en, this message translates to:
-  /// **'No sign-in is in progress. Please sign in again.'**
-  String get authCompleteNoPendingSignInError;
 
   /// Error shown when the completed OAuth session cannot be saved.
   ///
@@ -3055,7 +3049,7 @@ abstract class AppLocalizations {
   /// No description provided for @instagramVerificationRequiredForImport.
   ///
   /// In en, this message translates to:
-  /// **'Complete verification to sync the accounts you follow.'**
+  /// **'Complete verification to import the accounts you follow.'**
   String get instagramVerificationRequiredForImport;
 
   /// No description provided for @instagramVerificationStart.
@@ -3133,7 +3127,7 @@ abstract class AppLocalizations {
   /// No description provided for @instagramDiscoverableDescription.
   ///
   /// In en, this message translates to:
-  /// **'When enabled, eligible CraftSky members who imported your Instagram username will automatically follow you when CraftSky finds a match.'**
+  /// **'When enabled, eligible CraftSky members who imported your Instagram username may see a private suggestion to follow you.'**
   String get instagramDiscoverableDescription;
 
   /// No description provided for @instagramDiscoverableAllow.
@@ -3466,17 +3460,53 @@ abstract class AppLocalizations {
   /// **'Delete import'**
   String get instagramImportDelete;
 
-  /// No description provided for @instagramImportNotifications.
+  /// No description provided for @instagramImportSuggestionDisclosure.
   ///
   /// In en, this message translates to:
-  /// **'CraftSky will notify you when someone in this list joins. You can disable Instagram match push notifications in'**
-  String get instagramImportNotifications;
+  /// **'Importing creates private suggestions only. You choose whether to follow each account.'**
+  String get instagramImportSuggestionDisclosure;
 
-  /// No description provided for @instagramImportNotificationSettings.
+  /// No description provided for @instagramSuggestionsTitle.
   ///
   /// In en, this message translates to:
-  /// **'Notification settings'**
-  String get instagramImportNotificationSettings;
+  /// **'Possible CraftSky accounts'**
+  String get instagramSuggestionsTitle;
+
+  /// No description provided for @instagramSuggestionsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Your imports find possible CraftSky accounts privately. Nobody is followed until you choose Follow.'**
+  String get instagramSuggestionsDescription;
+
+  /// No description provided for @instagramSuggestionsLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'Possible CraftSky accounts didn\'t load.'**
+  String get instagramSuggestionsLoadError;
+
+  /// No description provided for @instagramSuggestionsEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'No possible CraftSky accounts yet.'**
+  String get instagramSuggestionsEmpty;
+
+  /// No description provided for @instagramSuggestionFollow.
+  ///
+  /// In en, this message translates to:
+  /// **'Follow'**
+  String get instagramSuggestionFollow;
+
+  /// No description provided for @instagramSuggestionDismiss.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss'**
+  String get instagramSuggestionDismiss;
+
+  /// No description provided for @instagramSuggestionsActionError.
+  ///
+  /// In en, this message translates to:
+  /// **'That suggestion action didn\'t complete. Try again.'**
+  String get instagramSuggestionsActionError;
 
   /// Tooltip and action label for saving a post.
   ///

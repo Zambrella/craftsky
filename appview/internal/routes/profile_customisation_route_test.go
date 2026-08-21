@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"social.craftsky/appview/internal/api"
-	"social.craftsky/appview/internal/app"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -21,15 +20,31 @@ CREATE TABLE craftsky_profiles (
 );
 INSERT INTO craftsky_profiles (did, record_cid)
 VALUES ('did:plc:test', 'test-cid');
+CREATE TABLE owner_lifecycles (
+	owner_did TEXT PRIMARY KEY,
+	state TEXT NOT NULL,
+	generation BIGINT NOT NULL,
+	auth_epoch BIGINT NOT NULL,
+	transition_reason TEXT NOT NULL,
+	transitioned_at TIMESTAMPTZ NOT NULL,
+	terminal_at TIMESTAMPTZ,
+	purge_completed_at TIMESTAMPTZ,
+	created_at TIMESTAMPTZ NOT NULL,
+	updated_at TIMESTAMPTZ NOT NULL
+);
+INSERT INTO owner_lifecycles(
+	owner_did,state,generation,auth_epoch,transition_reason,
+	transitioned_at,created_at,updated_at
+) VALUES('did:plc:test','active',1,1,'test',now(),now(),now());
 `
 
 func TestProfileCustomisationRouteUsesAuthenticatedCurrentMemberPolicy(t *testing.T) {
-	policy, ok := profileCustomisationRoutePolicy(app.EnvDev)
+	policy, ok := profileCustomisationRoutePolicy(EnvDev)
 	if !ok {
 		t.Fatal("PUT /v1/profiles/me/customisation route policy missing")
 	}
 	if policy.RateClass != RateClassWrite || policy.BodyKind != BodyDefaultJSON ||
-		!policy.AuthRequired || !policy.CurrentMemberRequired {
+		policy.AccessClass != AccessCurrentMember {
 		t.Fatalf("customisation route policy = %+v", policy)
 	}
 
@@ -40,6 +55,7 @@ func TestProfileCustomisationRouteUsesAuthenticatedCurrentMemberPolicy(t *testin
 	pool := testdb.WithSchema(t, profileCustomisationRouteTestDDL+string(migration))
 	deps := testDeps()
 	deps.DB = pool
+	deps.OwnerLifecycles = newRouteOwnerLifecycleStore(t, pool)
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, deps)
 
@@ -89,8 +105,8 @@ func TestProfileCustomisationRouteUsesAuthenticatedCurrentMemberPolicy(t *testin
 	}
 }
 
-func profileCustomisationRoutePolicy(env app.Env) (RoutePolicy, bool) {
-	for _, policy := range V1RoutePolicies(env, app.Config{Env: env}) {
+func profileCustomisationRoutePolicy(env Environment) (RoutePolicy, bool) {
+	for _, policy := range V1RoutePolicies(env, Config{Env: env}) {
 		if policy.Method == http.MethodPut && policy.PathPattern == "/v1/profiles/me/customisation" {
 			return policy, true
 		}

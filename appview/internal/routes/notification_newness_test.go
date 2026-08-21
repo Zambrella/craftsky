@@ -27,6 +27,11 @@ func TestNotificationNewnessAccountWideAcrossDevicesAndIsolatedByAccount(t *test
 		}
 	}
 	if _, err := pool.Exec(ctx, `
+		CREATE TABLE craftsky_profiles (
+			did TEXT PRIMARY KEY
+		);
+		INSERT INTO craftsky_profiles(did)
+		VALUES ('did:plc:alice'), ('did:plc:bob');
 		CREATE TABLE actor_mutes (
 			owner_did TEXT NOT NULL,
 			subject_did TEXT NOT NULL,
@@ -39,6 +44,14 @@ func TestNotificationNewnessAccountWideAcrossDevicesAndIsolatedByAccount(t *test
 		);
 	`); err != nil {
 		t.Fatalf("create relationship tables: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO owner_lifecycles(
+			owner_did,state,generation,auth_epoch,transition_reason,
+			transitioned_at,created_at,updated_at
+		) VALUES('did:plc:alice','active',1,1,'test',now(),now(),now())
+	`); err != nil {
+		t.Fatalf("seed Alice lifecycle: %v", err)
 	}
 
 	insert := func(id, recipient string) {
@@ -64,6 +77,7 @@ func TestNotificationNewnessAccountWideAcrossDevicesAndIsolatedByAccount(t *test
 
 	deps := testDeps()
 	deps.DB = pool
+	deps.OwnerLifecycles = newRouteOwnerLifecycleStore(t, pool)
 	mux := http.NewServeMux()
 	AddRoutes(ctx, mux, deps)
 

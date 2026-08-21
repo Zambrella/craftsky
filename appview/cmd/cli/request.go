@@ -20,12 +20,18 @@ type requestArgs struct {
 	Ctx     context.Context // cancellation propagated from cobra / Ctrl-C
 	Method  string
 	Path    string
-	BaseURL string    // e.g. "http://localhost:8080"
-	DevDID  string    // empty disables the X-Dev-DID header
-	Body    []byte    // nil = no body
-	Headers []string  // extra headers as "Key: Value"
-	Out     io.Writer // stdout in real runs; bytes.Buffer in tests
-	ErrOut  io.Writer // stderr in real runs; bytes.Buffer in tests
+	BaseURL string // e.g. "http://localhost:8080"
+	// RequestHost is a validated expected Host used by the in-container CLI
+	// when remote dev mode exposes AppView only through an external tunnel.
+	RequestHost string
+	DevDID      string // empty disables the X-Dev-DID header
+	// DevAuthorization comes only from validated environment/file config. It
+	// is never accepted as a CLI flag or URL value.
+	DevAuthorization string
+	Body             []byte    // nil = no body
+	Headers          []string  // extra headers as "Key: Value"
+	Out              io.Writer // stdout in real runs; bytes.Buffer in tests
+	ErrOut           io.Writer // stderr in real runs; bytes.Buffer in tests
 }
 
 // doRequest sends one HTTP request using args and writes the status line
@@ -51,17 +57,26 @@ func doRequest(args requestArgs) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("build request: %w", err)
 	}
+	if args.RequestHost != "" {
+		req.Host = args.RequestHost
+	}
 	if args.DevDID != "" {
 		req.Header.Set("Authorization", "Bearer dev")
 		req.Header.Set("X-Dev-DID", args.DevDID)
 		// The /v1/* surface enforces X-Craftsky-Device-Id. Default a
 		// stable value for dev ergonomics; can be overridden via -H.
 		req.Header.Set("X-Craftsky-Device-Id", "cli-dev")
+		if args.DevAuthorization != "" {
+			req.Header.Set("X-Craftsky-Dev-Authorization", args.DevAuthorization)
+		}
 	}
-	for _, h := range args.Headers {
+	for index, h := range args.Headers {
 		k, v, ok := strings.Cut(h, ":")
 		if !ok {
-			return 0, fmt.Errorf("bad header %q (want 'Key: Value')", h)
+			return 0, fmt.Errorf("bad header at position %d (want 'Key: Value')", index+1)
+		}
+		if strings.EqualFold(strings.TrimSpace(k), "X-Craftsky-Dev-Authorization") {
+			return 0, fmt.Errorf("X-Craftsky-Dev-Authorization is managed by validated configuration")
 		}
 		req.Header.Add(strings.TrimSpace(k), strings.TrimSpace(v))
 	}
@@ -123,6 +138,10 @@ var requestCmd = &cobra.Command{
 		if did == "" && env == devEnvMarker {
 			did = cfg.DevDID
 		}
+		requestHost := ""
+		if cfg.DevRemoteAccess {
+			requestHost = cfg.ExpectedHosts[0]
+		}
 
 		var body []byte
 		if reqBodyFlag != "" {
@@ -130,15 +149,17 @@ var requestCmd = &cobra.Command{
 		}
 
 		code, err := doRequest(requestArgs{
-			Ctx:     cmd.Context(),
-			Method:  strings.ToUpper(args[0]),
-			Path:    args[1],
-			BaseURL: base,
-			DevDID:  did,
-			Body:    body,
-			Headers: reqHeaderFlag,
-			Out:     os.Stdout,
-			ErrOut:  os.Stderr,
+			Ctx:              cmd.Context(),
+			Method:           strings.ToUpper(args[0]),
+			Path:             args[1],
+			BaseURL:          base,
+			RequestHost:      requestHost,
+			DevDID:           did,
+			DevAuthorization: cfg.DevAuthSecret.Reveal(),
+			Body:             body,
+			Headers:          reqHeaderFlag,
+			Out:              os.Stdout,
+			ErrOut:           os.Stderr,
 		})
 		if err != nil {
 			return err

@@ -1,0 +1,92 @@
+-- Terminal visibility is immediate, but physical convergence walks each DID
+-- role in bounded primary-key order. These role-leading indexes prevent a
+-- small DELETE batch from scanning or sorting an unbounded owner's history.
+
+CREATE INDEX terminal_purge_account_deletion_operations_owner_idx
+    ON account_deletion_operations(owner_did, id);
+CREATE INDEX terminal_purge_account_deletion_safety_owner_idx
+    ON account_deletion_safety_tombstones(owner_did, id);
+CREATE INDEX terminal_purge_actor_mutes_subject_idx
+    ON actor_mutes(subject_did, owner_did);
+CREATE INDEX terminal_purge_atproto_blocks_actor_idx
+    ON atproto_blocks(blocker_did, uri);
+CREATE INDEX terminal_purge_atproto_blocks_subject_idx
+    ON atproto_blocks(subject_did, uri);
+CREATE INDEX terminal_purge_atproto_follows_actor_idx
+    ON atproto_follows(did, uri);
+CREATE INDEX terminal_purge_atproto_follows_subject_idx
+    ON atproto_follows(subject_did, uri);
+CREATE INDEX terminal_purge_auth_auxiliary_cleanup_owner_idx
+    ON auth_auxiliary_cleanup_jobs(owner_did, id);
+CREATE INDEX terminal_purge_craftsky_likes_actor_idx
+    ON craftsky_likes(did, uri);
+CREATE INDEX terminal_purge_craftsky_mentions_mentioned_idx
+    ON craftsky_post_mentions(mentioned_did, post_uri);
+CREATE INDEX terminal_purge_craftsky_posts_owner_idx
+    ON craftsky_posts(did, uri);
+CREATE INDEX terminal_purge_recent_searches_viewer_idx
+    ON craftsky_recent_searches(viewer_did, id);
+CREATE INDEX terminal_purge_craftsky_reposts_actor_idx
+    ON craftsky_reposts(did, uri);
+CREATE INDEX terminal_purge_craftsky_sessions_owner_idx
+    ON craftsky_sessions(account_did, token_hash);
+CREATE INDEX terminal_purge_instagram_links_owner_idx
+    ON instagram_account_links(owner_did, id);
+CREATE INDEX terminal_purge_instagram_audit_owner_idx
+    ON instagram_audit_events(owner_did, id)
+    WHERE owner_did IS NOT NULL;
+CREATE INDEX terminal_purge_instagram_follow_importer_idx
+    ON instagram_automatic_follow_ledger(importer_did, id);
+CREATE INDEX terminal_purge_instagram_follow_target_idx
+    ON instagram_automatic_follow_ledger(target_did, id);
+CREATE INDEX terminal_purge_instagram_graph_owner_idx
+    ON instagram_graph_imports(owner_did, id);
+CREATE INDEX terminal_purge_instagram_claims_owner_idx
+    ON instagram_identity_claims(owner_did, id);
+CREATE INDEX terminal_purge_instagram_suggestions_importer_idx
+    ON instagram_private_suggestions(importer_did, id);
+CREATE INDEX terminal_purge_instagram_suggestions_target_idx
+    ON instagram_private_suggestions(target_did, id);
+CREATE INDEX terminal_purge_instagram_reconciliation_owner_idx
+    ON instagram_reconciliation_jobs(owner_did, id);
+CREATE INDEX terminal_purge_instagram_reconciliation_target_idx
+    ON instagram_reconciliation_jobs(target_did, id);
+CREATE INDEX terminal_purge_instagram_verification_owner_idx
+    ON instagram_verification_attempts(owner_did, id);
+CREATE INDEX terminal_purge_moderation_outputs_source_idx
+    ON moderation_outputs(source_did, id);
+CREATE INDEX terminal_purge_moderation_outputs_subject_idx
+    ON moderation_outputs(subject_did, id);
+CREATE INDEX terminal_purge_moderation_reports_reporter_idx
+    ON moderation_reports(reporter_did, id);
+CREATE INDEX terminal_purge_moderation_reports_subject_idx
+    ON moderation_reports(subject_did, id);
+CREATE INDEX terminal_purge_moderation_outbox_target_idx
+    ON moderation_restoration_outbox(target_did, moderation_output_id);
+CREATE INDEX terminal_purge_notification_events_actor_idx
+    ON notification_events(actor_did, id);
+CREATE INDEX terminal_purge_notification_events_recipient_idx
+    ON notification_events(recipient_did, id);
+CREATE INDEX terminal_purge_oauth_requests_deletion_owner_idx
+    ON oauth_auth_requests(account_deletion_owner_did, state)
+    WHERE account_deletion_owner_did IS NOT NULL;
+CREATE INDEX terminal_purge_oauth_requests_owner_idx
+    ON oauth_auth_requests(owner_did, state);
+CREATE INDEX terminal_purge_oauth_handoff_owner_idx
+    ON oauth_handoff_exchanges(owner_did, id);
+CREATE INDEX terminal_purge_owner_effect_attempts_owner_idx
+    ON owner_effect_attempts(owner_did, operation_id);
+CREATE INDEX terminal_purge_follow_operations_owner_idx
+    ON pds_follow_operations(owner_did, id);
+CREATE INDEX terminal_purge_follow_operations_target_idx
+    ON pds_follow_operations(target_did, id);
+CREATE INDEX terminal_purge_scheduled_cleanup_owner_idx
+    ON scheduled_post_cleanup_jobs(owner_did, id);
+CREATE INDEX terminal_purge_scheduled_attempts_owner_idx
+    ON scheduled_post_object_attempts(owner_did, upload_attempt_id);
+CREATE INDEX terminal_purge_scheduled_tombstones_owner_idx
+    ON scheduled_post_publication_tombstones(owner_did, schedule_id);
+CREATE INDEX terminal_purge_tap_jobs_owner_idx
+    ON tap_repository_jobs(did, id);
+CREATE INDEX terminal_purge_tap_source_owner_idx
+    ON tap_source_records(did, uri);

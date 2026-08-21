@@ -24,8 +24,6 @@ final class AccountDeletionFlowException implements Exception {
 
 @Riverpod(keepAlive: true)
 class AccountDeletionController extends _$AccountDeletionController {
-  final Map<String, AccountDeletionLeaseFence> _pendingFences = {};
-
   @override
   FutureOr<void> build() => null;
 
@@ -38,15 +36,34 @@ class AccountDeletionController extends _$AccountDeletionController {
       final dio = await ref.read(accountDioProvider(fence.account).future);
       final client = AccountDeletionApiClient(dio);
       final intent = await client.createIntent();
-      _pendingFences[intent.jobId] = fence;
-      final launched = await ref.read(authUrlLauncherProvider)(intent.authUrl);
-      if (!launched) {
-        _pendingFences.remove(intent.jobId);
+      try {
+        await ref
+            .read(sessionRegistryProvider.notifier)
+            .stageAccountDeletion(
+              fence.pending(
+                jobId: intent.jobId,
+                expiresAt: intent.expiresAt,
+              ),
+            );
+      } on Object {
         try {
           await client.cancelIntent(jobId: intent.jobId);
         } on Object {
           // Best effort: the short-lived unaccepted intent also expires.
         }
+        rethrow;
+      }
+      await ref.read(accountStateInvalidatorProvider)();
+      final launched = await ref.read(authUrlLauncherProvider)(intent.authUrl);
+      if (!launched) {
+        try {
+          await client.cancelIntent(jobId: intent.jobId);
+        } on Object {
+          // Best effort: the short-lived unaccepted intent also expires.
+        }
+        await ref
+            .read(sessionRegistryProvider.notifier)
+            .clearAccountDeletion(intent.jobId);
         throw const AccountDeletionFlowException('browserLaunchFailed');
       }
       jobId = intent.jobId;
@@ -55,21 +72,38 @@ class AccountDeletionController extends _$AccountDeletionController {
   }
 
   bool canComplete(String jobId) {
-    final fence = _pendingFences[jobId];
     final sessions = ref.read(sessionRegistryProvider).value;
-    return fence != null && sessions != null && fence.isCurrent(sessions);
+    final pending = sessions?.pendingAccountDeletion;
+    return pending != null &&
+        pending.jobId == jobId &&
+        pending.isCurrent(sessions?.activeLease);
   }
 
-  String? requiredHandle(String jobId) => _pendingFences[jobId]?.requiredHandle;
+  String? requiredHandle(String jobId) {
+    final pending = ref
+        .read(sessionRegistryProvider)
+        .value
+        ?.pendingAccountDeletion;
+    return pending?.jobId == jobId ? pending?.requiredHandle : null;
+  }
 
   Future<void> cancelPendingIntent(String jobId) async {
-    final fence = _pendingFences.remove(jobId);
-    if (fence == null) return;
+    final pending = ref
+        .read(sessionRegistryProvider)
+        .value
+        ?.pendingAccountDeletion;
+    if (pending == null || pending.jobId != jobId) return;
     try {
-      final dio = await ref.read(accountDioProvider(fence.account).future);
+      final dio = await ref.read(
+        accountDioProvider(pending.lease.session.account).future,
+      );
       await AccountDeletionApiClient(dio).cancelIntent(jobId: jobId);
     } on Object {
       // Best effort. The server expires and replaces abandoned intents.
+    } finally {
+      await ref
+          .read(sessionRegistryProvider.notifier)
+          .clearAccountDeletion(jobId);
     }
   }
 
@@ -81,11 +115,14 @@ class AccountDeletionController extends _$AccountDeletionController {
     var accepted = false;
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
-      final fence = _pendingFences[jobId];
       final sessions = await ref.read(sessionRegistryProvider.future);
-      if (fence == null || !fence.isCurrent(sessions)) {
+      final pending = sessions.pendingAccountDeletion;
+      if (pending == null ||
+          pending.jobId != jobId ||
+          !pending.isCurrent(sessions.activeLease)) {
         throw const AccountDeletionFlowException('staleAccountLease');
       }
+      final fence = AccountDeletionLeaseFence.fromPending(pending);
       final dio = await ref.read(accountDioProvider(fence.account).future);
       await AccountDeletionApiClient(dio).accept(
         jobId: jobId,
@@ -109,7 +146,6 @@ class AccountDeletionController extends _$AccountDeletionController {
         },
       );
       await coordinator.reconcile(fence: fence);
-      _pendingFences.remove(jobId);
       accepted = true;
     });
     return accepted;

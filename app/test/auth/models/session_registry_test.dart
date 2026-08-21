@@ -2,12 +2,101 @@ import 'dart:convert';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/models/pending_account_deletion.dart';
+import 'package:craftsky_app/auth/models/pending_handoff.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/models/stored_session.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'REG-019 pending deletion fence survives reconstruction and account '
+    'switching stays stale',
+    () {
+      var registry = SessionRegistry.empty().upsertAndActivate(
+        token: 'alice-token',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      final pending = PendingAccountDeletion.capture(
+        jobId: '10000000-0000-4000-8000-000000000001',
+        lease: registry.activeLease!,
+        handle: 'alice.test',
+        expiresAt: DateTime.utc(2027),
+      );
+
+      registry = SessionRegistry.fromJson(
+        registry.stageAccountDeletion(pending).toJson(),
+      );
+
+      expect(registry.pendingAccountDeletion?.jobId, pending.jobId);
+      expect(registry.pendingAccountDeletion?.requiredHandle, '@alice.test');
+      expect(
+        registry.pendingAccountDeletion?.isCurrent(
+          registry.activeLease,
+          now: DateTime.utc(2026, 8, 20),
+        ),
+        isTrue,
+      );
+      expect(
+        registry.pendingAccountDeletion?.protects(
+          registry.activeLease!.session,
+          now: DateTime.utc(2027),
+        ),
+        isFalse,
+      );
+      expect(
+        '$registry ${registry.pendingAccountDeletion}',
+        isNot(contains('alice.test')),
+      );
+
+      registry = registry.upsertAndActivate(
+        token: 'bob-token',
+        did: 'did:plc:bob',
+        handle: 'bob.test',
+      );
+      expect(
+        registry.pendingAccountDeletion?.isCurrent(
+          registry.activeLease,
+          now: DateTime.utc(2026, 8, 20),
+        ),
+        isFalse,
+      );
+    },
+  );
+
+  test('durably stages a pending handoff before making it active', () {
+    final pending = PendingHandoff(
+      token: 'pending-secret-token',
+      did: 'did:plc:pending',
+      handle: 'pending.test',
+      receiptId: '00000000-0000-4000-8000-000000000811',
+      confirmBy: DateTime.utc(2026, 8, 14, 12, 5),
+    );
+
+    final staged = SessionRegistry.empty().stageHandoff(pending);
+    final restored = SessionRegistry.fromJson(staged.toJson());
+
+    expect(restored.sessions, isEmpty);
+    expect(restored.activeDid, isNull);
+    expect(restored.pendingHandoff?.token, 'pending-secret-token');
+    expect(restored.pendingHandoff?.receiptId, pending.receiptId);
+    expect(restored.toString(), isNot(contains('pending-secret-token')));
+    expect(
+      restored.pendingHandoff.toString(),
+      isNot(contains('pending-secret-token')),
+    );
+
+    final confirmed = restored.confirmHandoff(pending.receiptId);
+    expect(confirmed.pendingHandoff, isNull);
+    expect(confirmed.activeDid, 'did:plc:pending');
+    expect(
+      confirmed.sessions['did:plc:pending']?.token,
+      'pending-secret-token',
+    );
+  });
+
   test('round-trips a redacted two-account registry', () {
     final registry = SessionRegistry(
       nextSessionGeneration: 12,

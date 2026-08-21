@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -21,29 +23,6 @@ import (
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
 )
-
-// noopPDSClient satisfies auth.PDSClient without touching any real PDS.
-// Used by handlersFixture so the OAuth callback tests that don't care
-// about onboarding-on-login don't fail in InitializeProfile. GetRecord
-// returns 404 (record missing), causing InitializeProfile to emit an
-// empty-Craftsky-profile write — which also returns nil here, a no-op.
-type noopPDSClient struct{}
-
-func (noopPDSClient) GetRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) (string, error) {
-	return "", auth.ErrRecordNotFound
-}
-func (noopPDSClient) PutRecord(_ context.Context, _ syntax.DID, _, _ string, _ any) error {
-	return nil
-}
-func (noopPDSClient) CreateRecord(_ context.Context, _ syntax.DID, _ string, _ any) (syntax.ATURI, syntax.CID, error) {
-	return "", "", nil
-}
-func (noopPDSClient) DeleteRecord(_ context.Context, _ syntax.DID, _, _ string) error {
-	return nil
-}
-func (noopPDSClient) UploadBlob(_ context.Context, _ string, _ []byte) (*auth.UploadedBlob, error) {
-	return nil, nil
-}
 
 // erroringGetPDSClient always errors on GetRecord (non-404). Used to
 // exercise InitializeProfile's error propagation.
@@ -65,24 +44,99 @@ func (erroringGetPDSClient) UploadBlob(_ context.Context, _ string, _ []byte) (*
 	return nil, nil
 }
 
-// handlersFixture builds a test HTTPHandlers backed by a real
-// oauth.ClientApp built from BuildClientConfig, and the Postgres
-// test-schema stores.
+// handlersFixture builds a test HTTPHandlers backed by a real oauth.ClientApp
+// and the same prevalidated discovery artifacts used by production wiring.
 func handlersFixture(t *testing.T, hostname string) *auth.HTTPHandlers {
 	t.Helper()
 	pool := withAuthSchema(t)
-	cfg, err := auth.BuildClientConfig(hostname, "", "", "", []string{"atproto", "transition:generic"})
+	input := auth.ClientConfigInput{
+		Mode:        auth.ClientModeLocalhost,
+		CallbackURL: mustURL(t, "http://127.0.0.1:18080/oauth/callback"),
+		Scopes:      []string{"atproto", "transition:generic"},
+	}
+	if hostname != "" {
+		privateKey, err := atcrypto.GeneratePrivateKeyP256()
+		if err != nil {
+			t.Fatal(err)
+		}
+		origin := "https://" + hostname
+		input = auth.ClientConfigInput{
+			Mode:            auth.ClientModeConfidential,
+			ClientID:        mustURL(t, origin+"/oauth/client-metadata.json"),
+			CallbackURL:     mustURL(t, origin+"/oauth/callback"),
+			JWKSURL:         mustURL(t, origin+"/oauth/jwks.json"),
+			ClientSecretKey: privateKey.Multibase(),
+			ClientKeyID:     "primary",
+			Scopes:          []string{"atproto", "transition:generic"},
+		}
+	}
+	artifacts, err := auth.BuildClientArtifacts(input)
 	if err != nil {
 		t.Fatal(err)
 	}
 	store := auth.NewPostgresAuthStore(pool, testStoreConfig())
-	oauthApp := oauth.NewClientApp(&cfg, store)
+	oauthApp := oauth.NewClientApp(&artifacts.Config, store)
 	craftsky := auth.NewCraftskySessionStore(pool, 5*time.Minute)
 	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelError}))
-	noopPDS := func(_ context.Context, _ syntax.DID, _ string) (auth.PDSClient, error) {
-		return noopPDSClient{}, nil
+	handlers := auth.NewHTTPHandlers(oauthApp, artifacts, craftsky, pool, logger)
+	handlers.OnboardingProfile = testOnboardingProfileWriter{}
+	lifecycle, err := auth.NewSessionLifecycleService(auth.SessionLifecycleOptions{
+		Pool: pool, Owners: newAuthOwnerStore(t, pool), Sessions: craftsky, Now: time.Now,
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
-	return auth.NewHTTPHandlers(oauthApp, craftsky, pool, logger, true /* devMode */, noopPDS)
+	handlers.SessionLifecycle = lifecycle
+	return handlers
+}
+
+func TestClientMetadataDoesNotReflectRequestHost(t *testing.T) {
+	privateKey, err := atcrypto.GeneratePrivateKeyP256()
+	if err != nil {
+		t.Fatal(err)
+	}
+	artifacts, err := auth.BuildClientArtifacts(auth.ClientConfigInput{
+		Mode:            auth.ClientModeConfidential,
+		ClientID:        mustURL(t, "https://appview.craftsky.social/oauth/client-metadata.json"),
+		CallbackURL:     mustURL(t, "https://appview.craftsky.social/oauth/callback"),
+		JWKSURL:         mustURL(t, "https://appview.craftsky.social/oauth/jwks.json"),
+		ClientSecretKey: privateKey.Multibase(),
+		ClientKeyID:     "primary",
+		Scopes:          []string{"atproto", "transition:generic"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := &auth.HTTPHandlers{
+		OAuth:          oauth.NewClientApp(&artifacts.Config, nil),
+		ClientMetadata: artifacts.Metadata,
+		PublicJWKS:     artifacts.JWKS,
+		Logger:         slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+	request := httptest.NewRequest("GET", "/oauth/client-metadata.json", nil)
+	request.Host = "attacker.invalid"
+	request.Header.Set("Forwarded", "host=forwarded-attacker.invalid")
+	request.Header.Set("X-Forwarded-Host", "proxy-attacker.invalid")
+	recorder := httptest.NewRecorder()
+
+	h.ClientMetadataHandler().ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status = %d; body=%s", recorder.Code, recorder.Body.String())
+	}
+	if recorder.Header().Get("Cache-Control") != "no-store" || recorder.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatalf("discovery security headers = %#v", recorder.Header())
+	}
+	var metadata oauth.ClientMetadata
+	if err := json.NewDecoder(recorder.Body).Decode(&metadata); err != nil {
+		t.Fatal(err)
+	}
+	if metadata.JWKSURI == nil || *metadata.JWKSURI != "https://appview.craftsky.social/oauth/jwks.json" {
+		t.Fatalf("jwks_uri = %v, want canonical origin", metadata.JWKSURI)
+	}
+	if strings.Contains(recorder.Body.String(), "attacker") {
+		t.Fatalf("metadata reflected hostile host: %s", recorder.Body.String())
+	}
 }
 
 func TestClientMetadata_Localhost(t *testing.T) {
@@ -113,6 +167,9 @@ func TestJWKS_LocalhostEmpty(t *testing.T) {
 	if rr.Code != 200 {
 		t.Fatal(rr.Code)
 	}
+	if rr.Header().Get("Cache-Control") != "no-store" || rr.Header().Get("X-Content-Type-Options") != "nosniff" {
+		t.Fatalf("JWKS security headers = %#v", rr.Header())
+	}
 	var jwks oauth.JWKS
 	if err := json.NewDecoder(rr.Body).Decode(&jwks); err != nil {
 		t.Fatal(err)
@@ -128,6 +185,7 @@ func postLogin(t *testing.T, h *auth.HTTPHandlers, body string) *httptest.Respon
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/auth/login", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req = req.WithContext(middleware.WithDeviceID(req.Context(), "device-login-test"))
 	h.LoginHandler().ServeHTTP(rr, req)
 	return rr
 }
@@ -165,13 +223,26 @@ func TestLogin_MalformedHandle(t *testing.T) {
 	// We reject this at the boundary rather than letting indigo's resolver
 	// chase a clearly-invalid identifier.
 	rr := postLogin(t, handlersFixture(t, ""),
-		`{"handle":"not a handle","handoffMode":"deep_link"}`)
+		`{"handle":"not a handle","handoffMode":"verified_link"}`)
 	expectEnvelopeError(t, rr, http.StatusBadRequest, "invalid_handle")
 }
 
 func TestLogin_InvalidHandoffMode(t *testing.T) {
 	rr := postLogin(t, handlersFixture(t, ""), `{"handle":"alice.example","handoffMode":"wat"}`)
 	expectEnvelopeError(t, rr, http.StatusBadRequest, "invalid_handoff_mode")
+}
+
+func TestLoginDevSchemeRequiresExplicitServerCapability(t *testing.T) {
+	disabled := handlersFixture(t, "")
+	rr := postLogin(t, disabled, `{"handle":"alice.example","handoffMode":"dev_scheme"}`)
+	expectEnvelopeError(t, rr, http.StatusBadRequest, "invalid_handoff_mode")
+
+	enabled := handlersFixture(t, "")
+	enabled.AllowDevScheme = true
+	rr = postLogin(t, enabled, `{"handle":"alice.example","handoffMode":"dev_scheme"}`)
+	if rr.Code != http.StatusServiceUnavailable {
+		t.Fatalf("enabled dev scheme status = %d, want 503 after reaching unavailable OAuth flow; body=%s", rr.Code, rr.Body.String())
+	}
 }
 
 func TestLogin_LoopbackMissingRedirect(t *testing.T) {
@@ -193,18 +264,17 @@ func TestLogin_LoopbackRedirectRejectsJavaScript(t *testing.T) {
 
 func TestLogin_AcceptsCamelCaseBody(t *testing.T) {
 	rr := postLogin(t, handlersFixture(t, ""),
-		`{"handle":"alice.example","handoffMode":"deep_link"}`)
-	if rr.Code != http.StatusBadGateway {
-		// We expect StartAuthFlow to fail because the test fixture has no
-		// real PDS; the important assertion is that the request decoded
-		// and validation PASSED (otherwise we'd get 400 invalid_handoff_mode).
-		t.Fatalf("got %d, want 502 (body decoded, reached StartAuthFlow)", rr.Code)
+		`{"handle":"alice.example","handoffMode":"verified_link"}`)
+	if rr.Code != http.StatusServiceUnavailable {
+		// The fixture intentionally has no OAuthFlow. Reaching the canonical
+		// availability response proves camelCase decoding and validation passed.
+		t.Fatalf("got %d, want 503 (body decoded, reached OAuth flow)", rr.Code)
 	}
 }
 
 func TestLogin_RejectsSnakeCaseBody(t *testing.T) {
 	rr := postLogin(t, handlersFixture(t, ""),
-		`{"handle":"alice.example","handoff_mode":"deep_link"}`)
+		`{"handle":"alice.example","handoff_mode":"verified_link"}`)
 	// handoffMode absent -> invalid_handoff_mode 400.
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("got %d, want 400", rr.Code)
@@ -215,11 +285,7 @@ func TestLogin_RejectsSnakeCaseBody(t *testing.T) {
 func seedSession(t *testing.T, h *auth.HTTPHandlers, did, sid string) string {
 	t.Helper()
 	ctx := context.Background()
-	if _, err := h.Pool.Exec(ctx,
-		`INSERT INTO oauth_sessions (account_did, session_id, data) VALUES ($1, $2, '{}')`,
-		did, sid); err != nil {
-		t.Fatal(err)
-	}
+	seedActiveOAuthSession(t, h.Pool, did, sid)
 	token, err := h.CraftskySessions.Create(ctx, did, sid, "")
 	if err != nil {
 		t.Fatal(err)
@@ -237,6 +303,7 @@ func TestLogout_SingleDevice_SetsRevokedAt(t *testing.T) {
 	// Logout assumes Authenticated middleware ran. Inject DID/sid into ctx directly.
 	ctx := middleware.WithDID(req.Context(), "did:plc:a")
 	ctx = middleware.WithOAuthSessionID(ctx, "s1")
+	ctx = middleware.WithDeviceID(ctx, "device-a")
 	h.LogoutHandler().ServeHTTP(rr, req.WithContext(ctx))
 
 	if rr.Code != http.StatusNoContent {
@@ -261,7 +328,7 @@ func TestLogout_SingleDevice_SetsRevokedAt(t *testing.T) {
 	}
 }
 
-func TestLogout_SharedInstallation_IsolatesAccountSessionAndSubscription(t *testing.T) {
+func TestLogout_SharedInstallation_QueuesOwnerScopedCleanup(t *testing.T) {
 	h := handlersFixture(t, "")
 	h.NotificationSubscriptions = api.NewPostStore(h.Pool)
 	tokenA := seedSession(t, h, "did:plc:a", "s1")
@@ -337,8 +404,19 @@ func TestLogout_SharedInstallation_IsolatesAccountSessionAndSubscription(t *test
 	if err := h.Pool.QueryRow(ctx, `SELECT active FROM push_account_subscriptions WHERE account_did='did:plc:b'`).Scan(&subscriptionB); err != nil {
 		t.Fatal(err)
 	}
-	if subscriptionA || !subscriptionB {
-		t.Fatalf("active subscriptions: A=%t B=%t, want A=false B=true", subscriptionA, subscriptionB)
+	if !subscriptionA || !subscriptionB {
+		t.Fatalf("inline logout changed subscriptions: A=%t B=%t, want both true until cleanup", subscriptionA, subscriptionB)
+	}
+	var cleanupJobs int
+	if err := h.Pool.QueryRow(ctx, `
+		SELECT count(*) FROM auth_auxiliary_cleanup_jobs
+		WHERE owner_did='did:plc:a' AND kind='installation_push'
+		  AND installation_id='shared-device' AND state='pending'
+	`).Scan(&cleanupJobs); err != nil {
+		t.Fatal(err)
+	}
+	if cleanupJobs != 1 {
+		t.Fatalf("Alice cleanup jobs = %d, want 1", cleanupJobs)
 	}
 }
 
@@ -351,7 +429,7 @@ func (failingNotificationCleaner) DeactivateForAccount(context.Context, string) 
 	return errors.New("cleanup failed")
 }
 
-func TestLogoutFailsClosedWhenNotificationCleanupFails(t *testing.T) {
+func TestLogoutCommitsLocalRevocationWithoutInlineNotificationCleanup(t *testing.T) {
 	h := handlersFixture(t, "")
 	h.NotificationSubscriptions = failingNotificationCleaner{}
 	token := seedSession(t, h, "did:plc:a", "s1")
@@ -362,15 +440,26 @@ func TestLogoutFailsClosedWhenNotificationCleanupFails(t *testing.T) {
 	ctx = middleware.WithDeviceID(ctx, "device-a")
 	recorder := httptest.NewRecorder()
 	h.LogoutHandler().ServeHTTP(recorder, req.WithContext(ctx))
-	if recorder.Code != http.StatusInternalServerError {
+	if recorder.Code != http.StatusNoContent {
 		t.Fatalf("status=%d", recorder.Code)
 	}
 	var revokedAt *time.Time
 	if err := h.Pool.QueryRow(context.Background(), `SELECT revoked_at FROM craftsky_sessions WHERE account_did='did:plc:a'`).Scan(&revokedAt); err != nil {
 		t.Fatal(err)
 	}
-	if revokedAt != nil {
-		t.Fatal("session revoked despite failed push cleanup")
+	if revokedAt == nil {
+		t.Fatal("session remained active while durable push cleanup was queued")
+	}
+	var cleanupJobs int
+	if err := h.Pool.QueryRow(context.Background(), `
+		SELECT count(*) FROM auth_auxiliary_cleanup_jobs
+		WHERE owner_did='did:plc:a' AND kind='installation_push'
+		  AND installation_id='device-a' AND state='pending'
+	`).Scan(&cleanupJobs); err != nil {
+		t.Fatal(err)
+	}
+	if cleanupJobs != 1 {
+		t.Fatalf("cleanup jobs = %d, want 1", cleanupJobs)
 	}
 }
 
@@ -404,10 +493,7 @@ func TestSavedPostStateSurvivesSessionDeviceAndAccountLifecycle(t *testing.T) {
 	h := handlersFixture(t, "")
 	ctx := context.Background()
 	if _, err := h.Pool.Exec(ctx, `
-		CREATE TABLE craftsky_profiles (
-			did TEXT PRIMARY KEY,
-			record_cid TEXT NOT NULL
-		);
+		ALTER TABLE craftsky_profiles ADD COLUMN record_cid TEXT;
 		CREATE TABLE craftsky_posts (
 			uri TEXT PRIMARY KEY,
 			did TEXT NOT NULL,
@@ -549,8 +635,13 @@ func TestInitializeProfile_BlueskyErrorPropagates(t *testing.T) {
 	// Lightweight alternative to driving ProcessCallback end-to-end:
 	// verify the error-path wiring by invoking the function directly.
 	// The callback happy path is exercised by the existing tests that
-	// use handlersFixture's noopPDSClient.
-	err := auth.InitializeProfile(context.Background(), erroringGetPDSClient{}, syntax.DID("did:plc:me"))
+	// use handlersFixture's injected onboarding profile writer.
+	err := auth.InitializeProfile(
+		context.Background(),
+		erroringGetPDSClient{},
+		loginAttempt(syntax.DID("did:plc:me")),
+		testOnboardingProfileWriter{},
+	)
 	if !errors.Is(err, auth.ErrProfileInitFailed) {
 		t.Fatalf("want ErrProfileInitFailed; got %v", err)
 	}

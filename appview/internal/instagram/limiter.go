@@ -15,7 +15,7 @@ import (
 
 const (
 	rateLimitKeyVersion  int16 = 1
-	rateLimitKeyMinBytes       = 32
+	rateLimitKeyMinBytes int   = 32
 )
 
 const rateLimitKeyDomain = "craftsky:instagram-rate-limit:v1\x00"
@@ -90,13 +90,13 @@ type PostgresRateLimiter struct {
 
 func NewPostgresRateLimiter(pool *pgxpool.Pool, key []byte, clock func() time.Time) (*PostgresRateLimiter, error) {
 	if pool == nil {
-		return nil, errors.New("Instagram rate-limit database is required")
+		return nil, errors.New("instagram rate-limit database is required")
 	}
 	if len(key) < rateLimitKeyMinBytes {
-		return nil, fmt.Errorf("Instagram rate-limit HMAC key must contain at least %d bytes", rateLimitKeyMinBytes)
+		return nil, fmt.Errorf("instagram rate-limit HMAC key must contain at least %d bytes", rateLimitKeyMinBytes)
 	}
 	if clock == nil {
-		return nil, errors.New("Instagram rate-limit clock is required")
+		return nil, errors.New("instagram rate-limit clock is required")
 	}
 	return &PostgresRateLimiter{pool: pool, key: append([]byte(nil), key...), clock: clock}, nil
 }
@@ -109,7 +109,7 @@ func (l *PostgresRateLimiter) Key(scope RateLimitScope, identifier []byte) (Rate
 		return RateLimitKey{}, errors.New("global Instagram rate-limit scope does not accept an identifier")
 	}
 	if scope != RateLimitWebhookGlobal && len(identifier) == 0 {
-		return RateLimitKey{}, errors.New("Instagram rate-limit identifier is required")
+		return RateLimitKey{}, errors.New("instagram rate-limit identifier is required")
 	}
 	mac := hmac.New(sha256.New, l.key)
 	_, _ = mac.Write([]byte(rateLimitKeyDomain))
@@ -126,10 +126,10 @@ func (l *PostgresRateLimiter) Allow(ctx context.Context, key RateLimitKey, windo
 		return RateLimitDecision{}, errors.New("valid Instagram rate-limit key is required")
 	}
 	if window <= 0 {
-		return RateLimitDecision{}, errors.New("Instagram rate-limit window must be positive")
+		return RateLimitDecision{}, errors.New("instagram rate-limit window must be positive")
 	}
 	if limit <= 0 || limit >= math.MaxInt32 {
-		return RateLimitDecision{}, errors.New("Instagram rate-limit limit must be positive and bounded")
+		return RateLimitDecision{}, errors.New("instagram rate-limit limit must be positive and bounded")
 	}
 
 	now := l.clock().UTC()

@@ -2,6 +2,7 @@ package push
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -19,6 +20,16 @@ const (
 )
 
 type ProviderResult struct{ Class ResultClass }
+
+type DeliverySemantics string
+
+const (
+	// DeliveryUniqueEvent means every logical event remains independently
+	// meaningful. It must not be projected into provider collapse metadata.
+	DeliveryUniqueEvent DeliverySemantics = "unique_event"
+)
+
+var ErrPushPayloadInvalid = errors.New("push provider payload is invalid")
 
 type ContentRole string
 
@@ -43,6 +54,7 @@ type SendRequest struct {
 	RoutingFacts          RoutingFacts
 	ActorDisplayName      string
 	Platform              string
+	Semantics             DeliverySemantics
 	TTL                   time.Duration
 }
 type Sender interface {

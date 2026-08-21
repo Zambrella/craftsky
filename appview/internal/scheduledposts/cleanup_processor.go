@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
 const (
@@ -19,6 +21,7 @@ type CleanupOperationStore interface {
 	AcquireCleanupEffect(context.Context, CleanupClaim) (CleanupEffectGuard, error)
 	PrepareCleanupDelete(context.Context, CleanupClaim) (bool, error)
 	CompleteCleanup(context.Context, CleanupClaim) error
+	RecordCleanupAbsence(context.Context, CleanupClaim, time.Time) (ObjectCleanupSettlement, error)
 	RetryCleanup(context.Context, CleanupClaim, time.Time, string, time.Time) error
 }
 
@@ -33,6 +36,7 @@ type lifecycleSweeper interface {
 type CleanupProcessorOptions struct {
 	Store         CleanupOperationStore
 	Objects       PrivateObjectStore
+	OwnerFence    ownerSharedFence
 	Now           func() time.Time
 	BatchSize     int
 	LeaseDuration time.Duration
@@ -40,9 +44,14 @@ type CleanupProcessorOptions struct {
 	Observer      OperationalObserver
 }
 
+type ownerSharedFence interface {
+	WithShared(context.Context, []syntax.DID, func(context.Context) error) error
+}
+
 type CleanupProcessor struct {
 	store         CleanupOperationStore
 	objects       PrivateObjectStore
+	ownerFence    ownerSharedFence
 	now           func() time.Time
 	batchSize     int
 	leaseDuration time.Duration
@@ -51,7 +60,7 @@ type CleanupProcessor struct {
 }
 
 func NewCleanupProcessor(options CleanupProcessorOptions) (*CleanupProcessor, error) {
-	if options.Store == nil || options.Objects == nil {
+	if options.Store == nil || options.Objects == nil || options.OwnerFence == nil {
 		return nil, errors.New("scheduled cleanup processor dependencies are required")
 	}
 	if options.Now == nil {
@@ -71,7 +80,8 @@ func NewCleanupProcessor(options CleanupProcessorOptions) (*CleanupProcessor, er
 		return nil, errors.New("invalid scheduled cleanup processor options")
 	}
 	return &CleanupProcessor{
-		store: options.Store, objects: options.Objects, now: options.Now,
+		store: options.Store, objects: options.Objects, ownerFence: options.OwnerFence,
+		now:       options.Now,
 		batchSize: options.BatchSize, leaseDuration: options.LeaseDuration,
 		retryDelay: options.RetryDelay,
 		observer:   options.Observer,
@@ -137,6 +147,8 @@ func (processor *CleanupProcessor) processClaim(
 	claim CleanupClaim,
 	now time.Time,
 ) (processErr error) {
+	claimCtx, cancelClaim := context.WithTimeout(ctx, processor.leaseDuration)
+	defer cancelClaim()
 	started := time.Now()
 	outcomeErrorClass := "none"
 	defer func() {
@@ -155,9 +167,26 @@ func (processor *CleanupProcessor) processClaim(
 			"cleanup", result, errorClass, time.Since(started),
 		)
 	}()
+	return processor.ownerFence.WithShared(
+		claimCtx,
+		[]syntax.DID{claim.OwnerDID},
+		func(fenceCtx context.Context) error {
+			var err error
+			outcomeErrorClass, err = processor.processClaimFenced(fenceCtx, claim, now)
+			return err
+		},
+	)
+}
+
+func (processor *CleanupProcessor) processClaimFenced(
+	ctx context.Context,
+	claim CleanupClaim,
+	now time.Time,
+) (errorClass string, processErr error) {
+	errorClass = "none"
 	guard, err := processor.store.AcquireCleanupEffect(ctx, claim)
 	if err != nil {
-		return fmt.Errorf("acquire scheduled cleanup effect: %w", err)
+		return errorClass, fmt.Errorf("acquire scheduled cleanup effect: %w", err)
 	}
 	defer func() {
 		if releaseErr := guard.Release(ctx); releaseErr != nil && processErr == nil {
@@ -167,13 +196,13 @@ func (processor *CleanupProcessor) processClaim(
 
 	unreferenced, err := processor.store.PrepareCleanupDelete(ctx, claim)
 	if err != nil {
-		return fmt.Errorf("prepare scheduled cleanup: %w", err)
+		return errorClass, fmt.Errorf("prepare scheduled cleanup: %w", err)
 	}
 	if !unreferenced {
-		return nil
+		return errorClass, nil
 	}
 	if err := processor.objects.Delete(ctx, claim.ObjectKey); err != nil {
-		outcomeErrorClass = CleanupErrorObjectDeleteFailed
+		errorClass = CleanupErrorObjectDeleteFailed
 		if retryErr := processor.store.RetryCleanup(
 			ctx,
 			claim,
@@ -181,12 +210,54 @@ func (processor *CleanupProcessor) processClaim(
 			CleanupErrorObjectDeleteFailed,
 			now,
 		); retryErr != nil {
-			return fmt.Errorf("retry scheduled cleanup: %w", retryErr)
+			return errorClass, fmt.Errorf("retry scheduled cleanup: %w", retryErr)
 		}
-		return nil
+		return errorClass, nil
+	}
+	present, err := processor.objects.Exists(ctx, claim.ObjectKey)
+	if err != nil {
+		if retryErr := processor.store.RetryCleanup(
+			ctx,
+			claim,
+			now.Add(processor.retryDelay),
+			CleanupErrorObjectDeleteFailed,
+			now,
+		); retryErr != nil {
+			return errorClass, fmt.Errorf("retry scheduled cleanup existence check: %w", retryErr)
+		}
+		return errorClass, nil
+	}
+	if present {
+		if retryErr := processor.store.RetryCleanup(
+			ctx,
+			claim,
+			now.Add(processor.retryDelay),
+			CleanupErrorObjectDeleteFailed,
+			now,
+		); retryErr != nil {
+			return errorClass, fmt.Errorf("retry scheduled cleanup present object: %w", retryErr)
+		}
+		return errorClass, nil
+	}
+	settlement, err := processor.store.RecordCleanupAbsence(ctx, claim, now)
+	if err != nil {
+		return errorClass, fmt.Errorf("record scheduled cleanup absence: %w", err)
+	}
+	if !settlement.ProvesSettlement() {
+		errorClass = CleanupErrorSettlementPending
+		if retryErr := processor.store.RetryCleanup(
+			ctx,
+			claim,
+			now.Add(processor.retryDelay),
+			CleanupErrorSettlementPending,
+			now,
+		); retryErr != nil {
+			return errorClass, fmt.Errorf("retain scheduled cleanup settlement: %w", retryErr)
+		}
+		return errorClass, nil
 	}
 	if err := processor.store.CompleteCleanup(ctx, claim); err != nil {
-		return fmt.Errorf("complete scheduled cleanup: %w", err)
+		return errorClass, fmt.Errorf("complete scheduled cleanup: %w", err)
 	}
-	return nil
+	return errorClass, nil
 }

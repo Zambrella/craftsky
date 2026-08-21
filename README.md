@@ -83,8 +83,14 @@ and multiple worktrees to run at the same time. To choose specific values, copy
 `.env.local.example` to the ignored `.env.local` and set
 `CRAFTSKY_COMPOSE_PROJECT_NAME`, `CRAFTSKY_POSTGRES_PORT`,
 `CRAFTSKY_APPVIEW_PORT`, `CRAFTSKY_MINIO_PORT`, or
-`CRAFTSKY_MINIO_CONSOLE_PORT`. The `just app-run-*` recipes discover and inject
-the matching AppView address automatically. If you invoke `flutter run`
+`CRAFTSKY_MINIO_CONSOLE_PORT`. Every published service binds to `127.0.0.1` by
+default. Separate `CRAFTSKY_APPVIEW_PUBLISH_HOST`,
+`CRAFTSKY_POSTGRES_PUBLISH_HOST`, and `CRAFTSKY_MINIO_PUBLISH_HOST` settings
+prevent an AppView-only remote override from exposing the data services. Remote
+AppView testing also requires a secret-protected external HTTPS/mTLS boundary;
+read the AppView README before changing a publish host. AppView's Compose memory
+limit defaults to 512 MiB. The `just app-run-*` recipes discover and inject the
+matching AppView address automatically. If you invoke `flutter run`
 directly, point `app/config/local.env` (or `local-android.env`) at the printed
 port.
 

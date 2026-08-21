@@ -794,7 +794,7 @@
     }
   ],
   "notificationContract": {
-    "id": "notifications.actorfulInstagramMatch",
+    "id": "notifications.currentCategories",
     "method": "GET",
     "path": "/v1/notifications?limit=20",
     "status": 200,
@@ -1154,16 +1154,16 @@
           "type": "instagramMatch",
           "actor": {
             "available": true,
-            "did": "did:plc:syntheticinstagrammatchactor",
-            "handle": "instagram-match.synthetic.invalid",
-            "displayName": "Synthetic Instagram Match",
-            "viewerIsFollowing": true,
+            "did": "did:plc:syntheticactor",
+            "handle": "actor.synthetic.invalid",
+            "displayName": "Synthetic Actor",
+            "viewerIsFollowing": false,
             "muted": false,
             "blocking": false,
             "blockedBy": false
           },
-          "createdAt": "2026-07-19T12:00:00Z",
-          "indexedAt": "2026-07-19T12:04:00Z"
+          "createdAt": "2026-07-19T12:00:14Z",
+          "indexedAt": "2026-07-19T12:00:15Z"
         }
       ],
       "cursor": "synthetic-notification-output-cursor"

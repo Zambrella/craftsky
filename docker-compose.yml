@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16
+    image: postgres:16@sha256:11a9d238fbb48bab14599c57e41123254452b1a2d93c6c8595bce96f346bd082
     restart: unless-stopped
     environment:
       POSTGRES_USER: craftsky
@@ -9,7 +9,7 @@ services:
     ports:
       # The primary checkout defaults to host 5433. scripts/compose-dev gives
       # linked worktrees stable alternate ports so their stacks can coexist.
-      - "${CRAFTSKY_POSTGRES_PORT:-5433}:5432"
+      - "${CRAFTSKY_POSTGRES_PUBLISH_HOST:-127.0.0.1}:${CRAFTSKY_POSTGRES_PORT:-5433}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -19,15 +19,15 @@ services:
       retries: 15
 
   minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: craftsky-minio
       MINIO_ROOT_PASSWORD: craftsky-minio-dev-secret
     ports:
-      - "${CRAFTSKY_MINIO_PORT:-19000}:9000"
-      - "${CRAFTSKY_MINIO_CONSOLE_PORT:-20001}:9001"
+      - "${CRAFTSKY_MINIO_PUBLISH_HOST:-127.0.0.1}:${CRAFTSKY_MINIO_PORT:-19000}:9000"
+      - "${CRAFTSKY_MINIO_PUBLISH_HOST:-127.0.0.1}:${CRAFTSKY_MINIO_CONSOLE_PORT:-20001}:9001"
     volumes:
       - miniodata:/data
     healthcheck:
@@ -37,7 +37,7 @@ services:
       retries: 15
 
   minio-bootstrap:
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+    image: minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
     depends_on:
       minio:
         condition: service_healthy
@@ -126,6 +126,10 @@ services:
       context: ./appview
       dockerfile: Dockerfile
     restart: unless-stopped
+    # The release gate measures the exact runtime image plus 16 MP JPEG/PNG/WebP
+    # and maximum admitted upload work under this 512 MiB cgroup limit. Keep
+    # decode/upload-body admission at one unless that proof is rerun.
+    mem_limit: "${CRAFTSKY_APPVIEW_MEMORY_LIMIT:-512m}"
     depends_on:
       postgres:
         condition: service_healthy
@@ -149,10 +153,16 @@ services:
       DATABASE_URL: postgres://craftsky:dev@postgres:5432/craftsky_dev?sslmode=disable
       TAP_WS_URL: ws://tap:2480/channel
       TAP_ACK_TIMEOUT: "10s"
+      TAP_TERMINAL_TRANSACTION_BUDGET: "1s"
+      TAP_ACK_SAFETY_MARGIN: "500ms"
       TAP_RECONNECT_MAX: "30s"
-      TAP_MAX_RETRIES: "5"
       ALLOWED_ORIGINS: "*"
       CRAFTSKY_DEV_DID: did:plc:craftsky-dev-user
+      APPVIEW_PUBLISH_HOST: "${CRAFTSKY_APPVIEW_PUBLISH_HOST:-127.0.0.1}"
+      APPVIEW_DEV_REMOTE_ACCESS: "${APPVIEW_DEV_REMOTE_ACCESS:-false}"
+      APPVIEW_DEV_PROTECTED_TRANSPORT: "${APPVIEW_DEV_PROTECTED_TRANSPORT:-false}"
+      APPVIEW_DEV_AUTH_SECRET: "${APPVIEW_DEV_AUTH_SECRET:-}"
+      APPVIEW_EXPECTED_HOSTS: "${APPVIEW_EXPECTED_HOSTS:-}"
       # Keep localhost OAuth and generated dev-media URLs on this checkout's
       # published AppView port.
       OAUTH_CALLBACK_URL: "http://127.0.0.1:${CRAFTSKY_APPVIEW_PORT:-18080}/oauth/callback"
@@ -161,7 +171,7 @@ services:
     ports:
       # The primary checkout defaults to host 18080. scripts/compose-dev gives
       # linked worktrees stable alternate ports so their stacks can coexist.
-      - "${CRAFTSKY_APPVIEW_PORT:-18080}:8080"
+      - "${CRAFTSKY_APPVIEW_PUBLISH_HOST:-127.0.0.1}:${CRAFTSKY_APPVIEW_PORT:-18080}:8080"
     volumes:
       - ./appview/devmedia:/app/devmedia:ro
 

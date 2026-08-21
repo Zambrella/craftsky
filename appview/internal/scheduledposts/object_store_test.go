@@ -14,7 +14,7 @@ import (
 func TestS3ObjectStoreContract(t *testing.T) {
 	const (
 		bucket    = "private-scheduled-media"
-		objectKey = "scheduled-media/00000000-0000-4000-8000-000000000501"
+		objectKey = "scheduled-media/v2/7/00000000-0000-5000-8000-000000000501"
 	)
 	wantBody := []byte("private-image-bytes")
 	var mu sync.Mutex
@@ -108,5 +108,32 @@ func TestS3ObjectStoreContract(t *testing.T) {
 	})
 	if err == nil || !strings.Contains(err.Error(), "HTTPS") {
 		t.Fatalf("production HTTP endpoint error=%v", err)
+	}
+}
+
+func TestPrivateObjectKeyValidationRequiresCanonicalGenerationIdentity(t *testing.T) {
+	t.Parallel()
+
+	for _, objectKey := range []string{
+		"scheduled-media/v2/1/00000000-0000-5000-8000-000000000501",
+		"scheduled-media/v2/9223372036854775807/00000000-0000-5000-8000-000000000501",
+	} {
+		if !validPrivateObjectKey(objectKey) {
+			t.Errorf("validPrivateObjectKey(%q) = false, want true", objectKey)
+		}
+	}
+
+	for _, objectKey := range []string{
+		"scheduled-media/00000000-0000-4000-8000-000000000501",
+		"scheduled-media/v2/0/00000000-0000-5000-8000-000000000501",
+		"scheduled-media/v2/01/00000000-0000-5000-8000-000000000501",
+		"scheduled-media/v2/1/00000000-0000-0000-0000-000000000000",
+		"scheduled-media/v2/1/00000000-0000-4000-8000-000000000501",
+		"scheduled-media/v2/1/00000000-0000-5000-8000-00000000050A",
+		"scheduled-media/v2/1/not-a-uuid",
+	} {
+		if validPrivateObjectKey(objectKey) {
+			t.Errorf("validPrivateObjectKey(%q) = true, want false", objectKey)
+		}
 	}
 }

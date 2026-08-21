@@ -43,11 +43,17 @@ type MetricRecorder interface {
 	ProfilePinOperation(ctx context.Context, operation, slot, result, errorClass string, duration time.Duration)
 	NotificationDecision(ctx context.Context, category, result string)
 	PushDelivery(ctx context.Context, platform, result string)
+	PushOperation(ctx context.Context, stage, platform, semantics, outcome string, duration time.Duration, count int64)
 	PushQueue(ctx context.Context, pending int, oldestAge time.Duration)
 	ScheduledQueue(ctx context.Context, status string, count, due, overdue int, oldestDueAge time.Duration)
 	ScheduledOperation(ctx context.Context, operation, result, errorClass string, duration time.Duration)
 	ScheduledPublication(ctx context.Context, attempt int, startLatency, duration time.Duration)
 	ScheduledCleanupQueue(ctx context.Context, pending int, oldestAge time.Duration)
+	ScheduledImageValidation(ctx context.Context, result, format string, duration time.Duration, inFlight int)
+	AuthRequestSweep(ctx context.Context, pending int64, oldestAge time.Duration, deleted int64, failed bool)
+	TerminalPurge(ctx context.Context, operation, result, errorCategory, component, didRole string, claims int, rowsAffected, remaining int64, complete bool)
+	IdentityResolution(ctx context.Context, mode, direction, result string, duration time.Duration)
+	IdentityCache(ctx context.Context, result string, age time.Duration)
 }
 
 type noopMetricRecorder struct{}
@@ -73,7 +79,9 @@ func (noopMetricRecorder) ProfilePinOperation(context.Context, string, string, s
 }
 func (noopMetricRecorder) NotificationDecision(context.Context, string, string) {}
 func (noopMetricRecorder) PushDelivery(context.Context, string, string)         {}
-func (noopMetricRecorder) PushQueue(context.Context, int, time.Duration)        {}
+func (noopMetricRecorder) PushOperation(context.Context, string, string, string, string, time.Duration, int64) {
+}
+func (noopMetricRecorder) PushQueue(context.Context, int, time.Duration) {}
 func (noopMetricRecorder) ScheduledQueue(context.Context, string, int, int, int, time.Duration) {
 }
 func (noopMetricRecorder) ScheduledOperation(context.Context, string, string, string, time.Duration) {
@@ -81,6 +89,14 @@ func (noopMetricRecorder) ScheduledOperation(context.Context, string, string, st
 func (noopMetricRecorder) ScheduledPublication(context.Context, int, time.Duration, time.Duration) {
 }
 func (noopMetricRecorder) ScheduledCleanupQueue(context.Context, int, time.Duration) {}
+func (noopMetricRecorder) ScheduledImageValidation(context.Context, string, string, time.Duration, int) {
+}
+func (noopMetricRecorder) AuthRequestSweep(context.Context, int64, time.Duration, int64, bool) {}
+func (noopMetricRecorder) TerminalPurge(context.Context, string, string, string, string, string, int, int64, int64, bool) {
+}
+func (noopMetricRecorder) IdentityResolution(context.Context, string, string, string, time.Duration) {
+}
+func (noopMetricRecorder) IdentityCache(context.Context, string, time.Duration) {}
 
 type InMemoryMetricRecorder struct {
 	mu       sync.Mutex
@@ -207,6 +223,29 @@ func (r *InMemoryMetricRecorder) NotificationDecision(_ context.Context, categor
 func (r *InMemoryMetricRecorder) PushDelivery(_ context.Context, platform, result string) {
 	r.record(MetricCall{Name: "craftsky_appview_push_deliveries_total", Kind: MetricKindCounter, Value: 1, Attributes: map[string]string{"platform": safeMetricCategory(platform), "result": safeMetricResult(result)}})
 }
+func (r *InMemoryMetricRecorder) PushOperation(
+	_ context.Context,
+	stage string,
+	platform string,
+	semantics string,
+	outcome string,
+	duration time.Duration,
+	count int64,
+) {
+	attrs := pushOperationAttributes(stage, platform, semantics, outcome)
+	if count < 1 {
+		count = 1
+	}
+	r.record(MetricCall{
+		Name: "craftsky_appview_push_operations_total", Kind: MetricKindCounter,
+		Value: float64(count), Attributes: attrs,
+	})
+	r.record(MetricCall{
+		Name: "craftsky_appview_push_operation_duration_seconds",
+		Kind: MetricKindDistribution, Unit: "second",
+		Value: nonNegativeDuration(duration).Seconds(), Attributes: attrs,
+	})
+}
 func (r *InMemoryMetricRecorder) PushQueue(_ context.Context, pending int, age time.Duration) {
 	r.record(MetricCall{Name: "craftsky_appview_push_pending", Kind: MetricKindGauge, Value: float64(pending)})
 	r.record(MetricCall{Name: "craftsky_appview_push_oldest_pending_age_seconds", Kind: MetricKindGauge, Unit: "second", Value: age.Seconds()})
@@ -260,6 +299,90 @@ func (r *InMemoryMetricRecorder) ScheduledCleanupQueue(
 ) {
 	r.record(MetricCall{Name: "craftsky_appview_scheduled_posts_cleanup_pending", Kind: MetricKindGauge, Value: float64(pending)})
 	r.record(MetricCall{Name: "craftsky_appview_scheduled_posts_cleanup_oldest_age_seconds", Kind: MetricKindGauge, Unit: "second", Value: nonNegativeDuration(oldestAge).Seconds()})
+}
+
+func (r *InMemoryMetricRecorder) ScheduledImageValidation(
+	_ context.Context,
+	result string,
+	format string,
+	duration time.Duration,
+	inFlight int,
+) {
+	if strings.TrimSpace(result) == "started" {
+		r.record(MetricCall{Name: "craftsky_appview_scheduled_image_validation_in_flight", Kind: MetricKindGauge, Value: float64(safeScheduledImageInFlight(inFlight))})
+		return
+	}
+	attrs := scheduledImageValidationAttributes(result, format)
+	r.record(MetricCall{Name: "craftsky_appview_scheduled_image_validations_total", Kind: MetricKindCounter, Value: 1, Attributes: attrs})
+	r.record(MetricCall{Name: "craftsky_appview_scheduled_image_validation_duration_seconds", Kind: MetricKindDistribution, Unit: "second", Value: nonNegativeDuration(duration).Seconds(), Attributes: attrs})
+	r.record(MetricCall{Name: "craftsky_appview_scheduled_image_validation_in_flight", Kind: MetricKindGauge, Value: float64(safeScheduledImageInFlight(inFlight))})
+}
+
+func (r *InMemoryMetricRecorder) AuthRequestSweep(
+	_ context.Context,
+	pending int64,
+	oldestAge time.Duration,
+	deleted int64,
+	failed bool,
+) {
+	if failed {
+		r.record(MetricCall{Name: "craftsky_appview_auth_request_sweep_failures_total", Kind: MetricKindCounter, Value: 1})
+		return
+	}
+	r.record(MetricCall{Name: "craftsky_appview_auth_requests_pending", Kind: MetricKindGauge, Unit: "request", Value: float64(max(pending, 0))})
+	r.record(MetricCall{Name: "craftsky_appview_auth_requests_oldest_pending_age_seconds", Kind: MetricKindGauge, Unit: "second", Value: nonNegativeDuration(oldestAge).Seconds()})
+	if deleted > 0 {
+		r.record(MetricCall{Name: "craftsky_appview_auth_request_sweep_deleted_total", Kind: MetricKindCounter, Unit: "request", Value: float64(deleted)})
+	}
+}
+
+func (r *InMemoryMetricRecorder) TerminalPurge(
+	_ context.Context,
+	operation string,
+	result string,
+	errorCategory string,
+	component string,
+	didRole string,
+	claims int,
+	rowsAffected int64,
+	remaining int64,
+	complete bool,
+) {
+	attrs := terminalPurgeAttributes(operation, result, errorCategory, component, didRole, complete)
+	r.record(MetricCall{
+		Name: "craftsky_appview_terminal_purge_operations_total", Kind: MetricKindCounter,
+		Value: 1, Attributes: attrs,
+	})
+	if claims > 0 {
+		r.record(MetricCall{
+			Name: "craftsky_appview_terminal_purge_claims", Kind: MetricKindDistribution,
+			Unit: "item", Value: float64(claims), Attributes: attrs,
+		})
+	}
+	if rowsAffected > 0 {
+		r.record(MetricCall{
+			Name: "craftsky_appview_terminal_purge_rows_affected_total", Kind: MetricKindCounter,
+			Unit: "row", Value: float64(rowsAffected), Attributes: attrs,
+		})
+	}
+	if strings.TrimSpace(operation) == "backlog" && result == "success" {
+		r.record(MetricCall{
+			Name: "craftsky_appview_terminal_purge_remaining", Kind: MetricKindGauge,
+			Unit: "item", Value: float64(max(remaining, 0)),
+		})
+	}
+}
+
+func (r *InMemoryMetricRecorder) IdentityResolution(_ context.Context, mode, direction, result string, duration time.Duration) {
+	attrs := identityResolutionAttributes(mode, direction, result)
+	r.record(MetricCall{Name: "craftsky_appview_identity_resolutions_total", Kind: MetricKindCounter, Value: 1, Attributes: attrs})
+	r.record(MetricCall{Name: "craftsky_appview_identity_resolution_duration_seconds", Kind: MetricKindDistribution, Unit: "second", Value: nonNegativeDuration(duration).Seconds(), Attributes: attrs})
+}
+
+func (r *InMemoryMetricRecorder) IdentityCache(_ context.Context, result string, age time.Duration) {
+	attrs := map[string]string{"result": safeIdentityCacheResult(result)}
+	r.record(MetricCall{Name: "craftsky_appview_identity_cache_events_total", Kind: MetricKindCounter, Value: 1, Attributes: attrs})
+	r.record(MetricCall{Name: "craftsky_appview_identity_cache_age_seconds", Kind: MetricKindDistribution, Unit: "second", Value: nonNegativeDuration(age).Seconds(), Attributes: attrs})
 }
 
 func (r *InMemoryMetricRecorder) TapIndexerRecord(_ context.Context, nsid, result, reason string, duration time.Duration) {
@@ -448,6 +571,28 @@ func (r *sentryMetricRecorder) NotificationDecision(ctx context.Context, categor
 func (r *sentryMetricRecorder) PushDelivery(ctx context.Context, platform, result string) {
 	r.count(ctx, "craftsky_appview_push_deliveries_total", 1, "", map[string]string{"platform": safeMetricCategory(platform), "result": safeMetricResult(result)})
 }
+func (r *sentryMetricRecorder) PushOperation(
+	ctx context.Context,
+	stage string,
+	platform string,
+	semantics string,
+	outcome string,
+	duration time.Duration,
+	count int64,
+) {
+	attrs := pushOperationAttributes(stage, platform, semantics, outcome)
+	if count < 1 {
+		count = 1
+	}
+	r.count(ctx, "craftsky_appview_push_operations_total", count, "", attrs)
+	r.distribution(
+		ctx,
+		"craftsky_appview_push_operation_duration_seconds",
+		nonNegativeDuration(duration).Seconds(),
+		"second",
+		attrs,
+	)
+}
 func (r *sentryMetricRecorder) PushQueue(ctx context.Context, pending int, age time.Duration) {
 	r.gauge(ctx, "craftsky_appview_push_pending", float64(pending), "", nil)
 	r.gauge(ctx, "craftsky_appview_push_oldest_pending_age_seconds", age.Seconds(), "second", nil)
@@ -475,6 +620,89 @@ func (r *sentryMetricRecorder) ScheduledPublication(ctx context.Context, attempt
 func (r *sentryMetricRecorder) ScheduledCleanupQueue(ctx context.Context, pending int, oldestAge time.Duration) {
 	r.gauge(ctx, "craftsky_appview_scheduled_posts_cleanup_pending", float64(pending), "", nil)
 	r.gauge(ctx, "craftsky_appview_scheduled_posts_cleanup_oldest_age_seconds", nonNegativeDuration(oldestAge).Seconds(), "second", nil)
+}
+func (r *sentryMetricRecorder) ScheduledImageValidation(ctx context.Context, result, format string, duration time.Duration, inFlight int) {
+	if strings.TrimSpace(result) == "started" {
+		r.gauge(ctx, "craftsky_appview_scheduled_image_validation_in_flight", float64(safeScheduledImageInFlight(inFlight)), "", nil)
+		return
+	}
+	attrs := scheduledImageValidationAttributes(result, format)
+	r.count(ctx, "craftsky_appview_scheduled_image_validations_total", 1, "", attrs)
+	r.distribution(ctx, "craftsky_appview_scheduled_image_validation_duration_seconds", nonNegativeDuration(duration).Seconds(), "second", attrs)
+	r.gauge(ctx, "craftsky_appview_scheduled_image_validation_in_flight", float64(safeScheduledImageInFlight(inFlight)), "", nil)
+}
+func (r *sentryMetricRecorder) AuthRequestSweep(ctx context.Context, pending int64, oldestAge time.Duration, deleted int64, failed bool) {
+	if failed {
+		r.count(ctx, "craftsky_appview_auth_request_sweep_failures_total", 1, "", nil)
+		return
+	}
+	r.gauge(ctx, "craftsky_appview_auth_requests_pending", float64(max(pending, 0)), "request", nil)
+	r.gauge(ctx, "craftsky_appview_auth_requests_oldest_pending_age_seconds", nonNegativeDuration(oldestAge).Seconds(), "second", nil)
+	if deleted > 0 {
+		r.count(ctx, "craftsky_appview_auth_request_sweep_deleted_total", deleted, "request", nil)
+	}
+}
+
+func (r *sentryMetricRecorder) TerminalPurge(
+	ctx context.Context,
+	operation string,
+	result string,
+	errorCategory string,
+	component string,
+	didRole string,
+	claims int,
+	rowsAffected int64,
+	remaining int64,
+	complete bool,
+) {
+	attrs := terminalPurgeAttributes(operation, result, errorCategory, component, didRole, complete)
+	r.count(ctx, "craftsky_appview_terminal_purge_operations_total", 1, "", attrs)
+	if claims > 0 {
+		r.distribution(ctx, "craftsky_appview_terminal_purge_claims", float64(claims), "item", attrs)
+	}
+	if rowsAffected > 0 {
+		r.count(ctx, "craftsky_appview_terminal_purge_rows_affected_total", rowsAffected, "row", attrs)
+	}
+	if strings.TrimSpace(operation) == "backlog" && result == "success" {
+		r.gauge(ctx, "craftsky_appview_terminal_purge_remaining", float64(max(remaining, 0)), "item", nil)
+	}
+}
+
+func (r *sentryMetricRecorder) IdentityResolution(ctx context.Context, mode, direction, result string, duration time.Duration) {
+	attrs := identityResolutionAttributes(mode, direction, result)
+	r.count(ctx, "craftsky_appview_identity_resolutions_total", 1, "", attrs)
+	r.distribution(ctx, "craftsky_appview_identity_resolution_duration_seconds", nonNegativeDuration(duration).Seconds(), "second", attrs)
+}
+
+func (r *sentryMetricRecorder) IdentityCache(ctx context.Context, result string, age time.Duration) {
+	attrs := map[string]string{"result": safeIdentityCacheResult(result)}
+	r.count(ctx, "craftsky_appview_identity_cache_events_total", 1, "", attrs)
+	r.distribution(ctx, "craftsky_appview_identity_cache_age_seconds", nonNegativeDuration(age).Seconds(), "second", attrs)
+}
+
+func identityResolutionAttributes(mode, direction, result string) map[string]string {
+	switch mode {
+	case "cached", "authoritative":
+	default:
+		mode = "other"
+	}
+	switch direction {
+	case "handle_to_did", "did_to_handle":
+	default:
+		direction = "other"
+	}
+	return map[string]string{
+		"mode": mode, "direction": direction, "result": safeMetricResult(result),
+	}
+}
+
+func safeIdentityCacheResult(result string) string {
+	switch result {
+	case "hit", "miss", "reassigned", "refresh_success", "refresh_retry":
+		return result
+	default:
+		return "other"
+	}
 }
 
 func (r *sentryMetricRecorder) count(ctx context.Context, name string, value int64, unit string, attrs map[string]string) {
@@ -656,12 +884,106 @@ func safeMetricResult(result string) string {
 	}
 }
 
+func pushOperationAttributes(
+	stage string,
+	platform string,
+	semantics string,
+	outcome string,
+) map[string]string {
+	stage = strings.TrimSpace(stage)
+	switch stage {
+	case "lease_recovery", "lease", "send", "finalization":
+	default:
+		stage = "other"
+	}
+	platform = strings.TrimSpace(platform)
+	switch platform {
+	case "ios", "android", "none":
+	default:
+		platform = "other"
+	}
+	semantics = strings.TrimSpace(semantics)
+	switch semantics {
+	case "unique_event", "replacement", "none":
+	default:
+		semantics = "other"
+	}
+	outcome = strings.TrimSpace(outcome)
+	switch outcome {
+	case "reclaimed", "claimed", "empty", "insufficient_window",
+		"success", "retryable", "invalidToken", "permanentFailure",
+		"finalized", "stale", "accepted_unfinalized", "error",
+		"lifecycle_inactive", "cancelled", "unknown":
+	default:
+		outcome = "other"
+	}
+	return map[string]string{
+		"stage": stage, "platform": platform,
+		"semantics": semantics, "outcome": outcome,
+	}
+}
+
+func terminalPurgeAttributes(
+	operation string,
+	result string,
+	errorCategory string,
+	component string,
+	didRole string,
+	complete bool,
+) map[string]string {
+	attrs := map[string]string{
+		"operation":      safeMetricOperation(operation),
+		"result":         safeTerminalPurgeResult(result),
+		"error_category": safeMetricCategory(errorCategory),
+		"component":      safeMetricCategory(component),
+		"did_role":       safeMetricCategory(didRole),
+		"complete":       strconv.FormatBool(complete),
+	}
+	return attrs
+}
+
+func safeTerminalPurgeResult(result string) string {
+	switch strings.TrimSpace(result) {
+	case "success", "failure":
+		return strings.TrimSpace(result)
+	default:
+		return "unknown"
+	}
+}
+
 func safeScheduledStatus(status string) string {
 	switch strings.TrimSpace(status) {
 	case "scheduled", "publishing", "retrying", "needs_attention":
 		return strings.TrimSpace(status)
 	default:
 		return "unknown"
+	}
+}
+
+func scheduledImageValidationAttributes(result, format string) map[string]string {
+	switch strings.TrimSpace(result) {
+	case "success", "invalid", "saturated", "cancelled":
+		result = strings.TrimSpace(result)
+	default:
+		result = "unknown"
+	}
+	switch strings.TrimSpace(format) {
+	case "jpeg", "png", "webp":
+		format = strings.TrimSpace(format)
+	default:
+		format = "unknown"
+	}
+	return map[string]string{"result": result, "format": format}
+}
+
+func safeScheduledImageInFlight(inFlight int) int {
+	switch {
+	case inFlight < 0:
+		return 0
+	case inFlight > 1:
+		return 1
+	default:
+		return inFlight
 	}
 }
 

@@ -124,11 +124,11 @@ final class NotificationOpenAttempt {
             NotificationFactFailureClass.missingOrMalformedRequiredFacts,
           ),
         },
-        NotificationCategory.instagramMatch => const ValidNotificationFacts._(
-          category: NotificationCategory.instagramMatch,
-        ),
         NotificationCategory.everythingElse => const ValidNotificationFacts._(
           category: NotificationCategory.everythingElse,
+        ),
+        NotificationCategory.instagramMatch => const ValidNotificationFacts._(
+          category: NotificationCategory.instagramMatch,
         ),
         NotificationCategory.unknown => const UnknownNotificationFacts(),
       };

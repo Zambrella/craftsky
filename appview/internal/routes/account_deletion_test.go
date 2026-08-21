@@ -12,7 +12,6 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/accountdeletion"
-	"social.craftsky/appview/internal/app"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -20,17 +19,21 @@ import (
 func TestAccountDeletionAcceptanceRouteIsAuthenticatedOwnerScopedAndStrict(t *testing.T) {
 	t.Parallel()
 
-	wantPolicies := map[string]BodyKind{
-		"POST /v1/account-deletion/intents":  BodyNoBody,
-		"POST /v1/account-deletions/{jobId}": BodyDefaultJSON,
+	wantPolicies := map[string]struct {
+		bodyKind    BodyKind
+		accessClass AccessClass
+	}{
+		"POST /v1/account-deletion/intents":           {BodyNoBody, AccessCurrentMember},
+		"DELETE /v1/account-deletion/intents/{jobId}": {BodyNoBody, AccessAuthenticatedRecovery},
+		"POST /v1/account-deletions/{jobId}":          {BodyDefaultJSON, AccessAuthenticatedRecovery},
 	}
-	for _, policy := range V1RoutePolicies(app.EnvDev, app.Config{Env: app.EnvDev}) {
+	for _, policy := range V1RoutePolicies(EnvDev, Config{Env: EnvDev}) {
 		key := policy.Method + " " + policy.PathPattern
-		bodyKind, ok := wantPolicies[key]
+		want, ok := wantPolicies[key]
 		if !ok {
 			continue
 		}
-		if !policy.AuthRequired || !policy.CurrentMemberRequired || policy.RateClass != RateClassWrite || policy.BodyKind != bodyKind {
+		if policy.AccessClass != want.accessClass || policy.RateClass != RateClassWrite || policy.BodyKind != want.bodyKind {
 			t.Fatalf("%s policy = %+v", key, policy)
 		}
 		delete(wantPolicies, key)
@@ -49,8 +52,16 @@ func TestAccountDeletionAcceptanceRouteIsAuthenticatedOwnerScopedAndStrict(t *te
 	deps.DB = pool
 	deps.AuthService = &auth.MockAuthService{DefaultDID: owner}
 	deps.AccountDeletion = service
-	mux := http.NewServeMux()
-	AddRoutes(context.Background(), mux, deps)
+	catalogue, err := NewV1Catalogue(V1RoutePolicies(deps.Config.Env, deps.Config))
+	if err != nil {
+		t.Fatal(err)
+	}
+	policyMux := NewPolicyMux(http.NewServeMux(), catalogue)
+	AddRoutes(context.Background(), policyMux, deps)
+	if err := policyMux.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	mux := catalogue.RoutingHandler(policyMux)
 
 	jobID := "10000000-0000-0000-0000-000000000001"
 	path := "/v1/account-deletions/" + jobID

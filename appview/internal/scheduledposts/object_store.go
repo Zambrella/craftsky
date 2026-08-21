@@ -5,12 +5,14 @@ import (
 	"errors"
 	"io"
 	"net/url"
+	"strconv"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/google/uuid"
 )
 
@@ -20,6 +22,7 @@ type PrivateObjectStore interface {
 	Put(context.Context, string, io.Reader, int64, string) error
 	Open(context.Context, string) (io.ReadCloser, error)
 	Delete(context.Context, string) error
+	Exists(context.Context, string) (bool, error)
 }
 
 type S3ObjectStoreConfig struct {
@@ -130,11 +133,38 @@ func (s *S3ObjectStore) Delete(ctx context.Context, objectKey string) error {
 	return nil
 }
 
+func (s *S3ObjectStore) Exists(ctx context.Context, objectKey string) (bool, error) {
+	if s == nil || s.client == nil || !validPrivateObjectKey(objectKey) {
+		return false, errors.New("invalid private object existence check")
+	}
+	if _, err := s.client.HeadObject(ctx, &s3.HeadObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(objectKey),
+	}); err != nil {
+		var responseError *smithyhttp.ResponseError
+		if errors.As(err, &responseError) && responseError.HTTPStatusCode() == 404 {
+			return false, nil
+		}
+		return false, ErrPrivateObjectStoreUnavailable
+	}
+	return true, nil
+}
+
 func validPrivateObjectKey(objectKey string) bool {
-	const prefix = "scheduled-media/"
+	const prefix = "scheduled-media/v2/"
 	if !strings.HasPrefix(objectKey, prefix) {
 		return false
 	}
-	_, err := uuid.Parse(strings.TrimPrefix(objectKey, prefix))
-	return err == nil
+	remainder := strings.TrimPrefix(objectKey, prefix)
+	parts := strings.Split(remainder, "/")
+	if len(parts) != 2 {
+		return false
+	}
+	generation, err := strconv.ParseInt(parts[0], 10, 64)
+	if err != nil || generation <= 0 || strconv.FormatInt(generation, 10) != parts[0] {
+		return false
+	}
+	parsed, err := uuid.Parse(parts[1])
+	return err == nil && parsed != uuid.Nil && parsed.String() == parts[1] &&
+		parsed.Version() == 5 && parsed.Variant() == uuid.RFC4122
 }

@@ -55,7 +55,7 @@ type ImportService struct {
 
 func NewImportService(options ImportServiceOptions) (*ImportService, error) {
 	if options.Repository == nil {
-		return nil, errors.New("Instagram import repository is required")
+		return nil, errors.New("instagram import repository is required")
 	}
 	if options.Now == nil {
 		options.Now = time.Now
@@ -113,7 +113,7 @@ func (s *ImportService) CreateImport(ctx context.Context, owner syntax.DID, sour
 	}
 	staged, ok := s.repository.(StagedImportRepository)
 	if !ok {
-		return CreateImportResult{}, errors.New("Instagram import repository does not support matching")
+		return CreateImportResult{}, errors.New("instagram import repository does not support matching")
 	}
 	created, err := staged.CreateImportForMatching(ctx, params)
 	if err != nil {
@@ -167,7 +167,7 @@ func (s *ImportService) UpdateImport(ctx context.Context, owner syntax.DID, id u
 
 func (s *ImportService) DeleteImport(ctx context.Context, owner syntax.DID, id uuid.UUID) error {
 	if s == nil || s.repository == nil {
-		return errors.New("Instagram import service is unavailable")
+		return errors.New("instagram import service is unavailable")
 	}
 	if owner == "" || id == uuid.Nil {
 		return nil

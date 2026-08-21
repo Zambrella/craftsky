@@ -47,10 +47,10 @@ func (s *PrivateDataService) InactivateMembership(ctx context.Context, owner syn
 // inactivation in the same transaction as removal of current membership.
 func (s *PrivateDataService) InactivateMembershipTx(ctx context.Context, tx pgx.Tx, owner syntax.DID, now time.Time) error {
 	if s == nil || s.pool == nil || tx == nil {
-		return errors.New("Instagram private-data service is unavailable")
+		return errors.New("instagram private-data service is unavailable")
 	}
 	if owner == "" || now.IsZero() {
-		return errors.New("Instagram membership inactivation requires an owner and time")
+		return errors.New("instagram membership inactivation requires an owner and time")
 	}
 	now = now.UTC()
 	if err := lockInstagramOwner(ctx, tx, owner); err != nil {
@@ -115,19 +115,14 @@ func (s *PrivateDataService) InactivateMembershipTx(ctx context.Context, tx pgx.
 		return fmt.Errorf("pause Instagram imports: %w", err)
 	}
 
-	suggestionIDs, err := updateSuggestionState(ctx, tx, `
-		UPDATE instagram_automatic_follow_ledger
+	if _, err := tx.Exec(ctx, `
+		UPDATE instagram_private_suggestions
 		SET state='invalidated', accepting_since=NULL,
 		    terminal_at=COALESCE(terminal_at,$2), updated_at=$2
 		WHERE (importer_did=$1 OR target_did=$1)
-		  AND state IN ('pending','writing')
-		RETURNING id
-	`, owner, now)
-	if err != nil {
+		  AND state IN ('pending','accepting')
+	`, owner, now); err != nil {
 		return fmt.Errorf("invalidate Instagram suggestions for inactive member: %w", err)
-	}
-	if err := invalidateUnwrittenFollowOperations(ctx, tx, suggestionIDs, "membershipInactive", now); err != nil {
-		return err
 	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE instagram_reconciliation_jobs
@@ -174,18 +169,14 @@ func (s *PrivateDataService) PurgeLink(ctx context.Context, owner syntax.DID, li
 		}
 
 		if !state.Terminal() {
-			suggestionIDs, err := updateSuggestionState(ctx, tx, `
-				UPDATE instagram_automatic_follow_ledger
+			if _, err := tx.Exec(ctx, `
+				UPDATE instagram_private_suggestions
 				SET state='invalidated', accepting_since=NULL,
 				    terminal_at=COALESCE(terminal_at,$2), updated_at=$2
-				WHERE target_did=$1 AND state IN ('pending','writing')
-				RETURNING id
-			`, owner, now)
-			if err != nil {
+				WHERE (evidence_link_id=$1 OR target_did=$3)
+				  AND state IN ('pending','accepting')
+			`, linkID, now, owner); err != nil {
 				return fmt.Errorf("invalidate scoped-link suggestions: %w", err)
-			}
-			if err := invalidateUnwrittenFollowOperations(ctx, tx, suggestionIDs, "linkDeleted", now); err != nil {
-				return err
 			}
 		}
 		if _, err := tx.Exec(ctx, `DELETE FROM instagram_reconciliation_jobs WHERE link_id=$1`, linkID); err != nil {
@@ -220,7 +211,7 @@ func (s *PrivateDataService) PurgeLink(ctx context.Context, owner syntax.DID, li
 }
 
 // PurgeImport permanently removes one owner-scoped source and invalidates only
-// unwritten automatic follows that no other active source supports.
+// private suggestions that no other active source supports.
 func (s *PrivateDataService) PurgeImport(ctx context.Context, owner syntax.DID, importID uuid.UUID) error {
 	if err := s.validateOwner(owner); err != nil {
 		return err
@@ -247,18 +238,18 @@ func (s *PrivateDataService) PurgeImport(ctx context.Context, owner syntax.DID, 
 		}
 		suggestionIDs, err := queryUUIDs(ctx, tx, `
 			SELECT suggestion.id
-			FROM instagram_automatic_follow_sources selected
-			JOIN instagram_automatic_follow_ledger suggestion
-			  ON suggestion.id=selected.automatic_follow_id
+			FROM instagram_private_suggestion_sources selected
+			JOIN instagram_private_suggestions suggestion
+			  ON suggestion.id=selected.suggestion_id
 			WHERE selected.import_id=$1
 			  AND suggestion.importer_did=$2
-			  AND suggestion.state IN ('pending','writing')
+			  AND suggestion.state IN ('pending','accepting')
 			  AND NOT EXISTS (
 				SELECT 1
-				FROM instagram_automatic_follow_sources other
+				FROM instagram_private_suggestion_sources other
 				JOIN instagram_graph_imports source
 				  ON source.id=other.import_id AND source.state='active'
-				WHERE other.automatic_follow_id=suggestion.id
+				WHERE other.suggestion_id=suggestion.id
 				  AND other.import_id<>$1
 			  )
 			FOR UPDATE OF suggestion
@@ -270,9 +261,6 @@ func (s *PrivateDataService) PurgeImport(ctx context.Context, owner syntax.DID, 
 			return fmt.Errorf("delete scoped Instagram import: %w", err)
 		}
 		if err := invalidateSuggestionIDs(ctx, tx, suggestionIDs, now); err != nil {
-			return err
-		}
-		if err := invalidateUnwrittenFollowOperations(ctx, tx, suggestionIDs, "importDeleted", now); err != nil {
 			return err
 		}
 		if _, err := tx.Exec(ctx, `DELETE FROM instagram_reconciliation_jobs WHERE import_id=$1`, importID); err != nil {
@@ -314,19 +302,10 @@ func (s *PrivateDataService) PurgeOwner(ctx context.Context, owner syntax.DID) e
 		if err != nil {
 			return fmt.Errorf("read terminal Instagram rate identities: %w", err)
 		}
-		// Delete the private operation ledger, not the public PDS records it
-		// described. The absence of a PDS dependency makes that boundary hard.
-		if _, err := tx.Exec(ctx, `
-			DELETE FROM pds_follow_operations
-			WHERE owner_did=$1 OR target_did=$1
-			   OR automatic_follow_id IN (
-				SELECT id FROM instagram_automatic_follow_ledger
-				WHERE importer_did=$1 OR target_did=$1
-			   )
-		`, owner); err != nil {
-			return fmt.Errorf("delete terminal Instagram follow ledger: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `DELETE FROM instagram_automatic_follow_ledger WHERE importer_did=$1 OR target_did=$1`, owner); err != nil {
+		// Suggestions are private AppView state. Public follows created by an
+		// explicit user action remain on the user's PDS and are never cleanup
+		// targets.
+		if _, err := tx.Exec(ctx, `DELETE FROM instagram_private_suggestions WHERE importer_did=$1 OR target_did=$1`, owner); err != nil {
 			return fmt.Errorf("delete terminal Instagram suggestions: %w", err)
 		}
 		if _, err := tx.Exec(ctx, `DELETE FROM instagram_reconciliation_jobs WHERE owner_did=$1 OR target_did=$1`, owner); err != nil {
@@ -380,18 +359,6 @@ func (s *PrivateDataService) PurgeOwner(ctx context.Context, owner syntax.DID) e
 			return err
 		}
 		if _, err := tx.Exec(ctx, `
-			DELETE FROM notification_preferences
-			WHERE account_did=$1 AND category='instagramMatch'
-		`, owner); err != nil {
-			return fmt.Errorf("delete terminal Instagram notification preference: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `
-			DELETE FROM notification_events
-			WHERE recipient_did=$1 AND category='instagramMatch'
-		`, owner); err != nil {
-			return fmt.Errorf("delete terminal Instagram notifications: %w", err)
-		}
-		if _, err := tx.Exec(ctx, `
 			UPDATE instagram_audit_events
 			SET owner_did=NULL, subject_id=NULL
 			WHERE owner_did=$1
@@ -407,10 +374,10 @@ func (s *PrivateDataService) PurgeOwner(ctx context.Context, owner syntax.DID) e
 
 func (s *PrivateDataService) validateOwner(owner syntax.DID) error {
 	if s == nil || s.pool == nil {
-		return errors.New("Instagram private-data service is unavailable")
+		return errors.New("instagram private-data service is unavailable")
 	}
 	if owner == "" {
-		return errors.New("Instagram private-data owner is required")
+		return errors.New("instagram private-data owner is required")
 	}
 	return nil
 }
@@ -440,41 +407,17 @@ func lockInstagramOwner(ctx context.Context, tx pgx.Tx, owner syntax.DID) error 
 	return nil
 }
 
-func updateSuggestionState(ctx context.Context, tx pgx.Tx, query string, args ...any) ([]uuid.UUID, error) {
-	return queryUUIDs(ctx, tx, query, args...)
-}
-
 func invalidateSuggestionIDs(ctx context.Context, tx pgx.Tx, ids []uuid.UUID, now time.Time) error {
 	if len(ids) == 0 {
 		return nil
 	}
 	if _, err := tx.Exec(ctx, `
-		UPDATE instagram_automatic_follow_ledger
+		UPDATE instagram_private_suggestions
 		SET state='invalidated', accepting_since=NULL,
 		    terminal_at=COALESCE(terminal_at,$2), updated_at=$2
-		WHERE id=ANY($1::uuid[]) AND state IN ('pending','writing')
+		WHERE id=ANY($1::uuid[]) AND state IN ('pending','accepting')
 	`, ids, now); err != nil {
-		return fmt.Errorf("invalidate Instagram automatic-follow ledger IDs: %w", err)
-	}
-	return nil
-}
-
-func invalidateUnwrittenFollowOperations(ctx context.Context, tx pgx.Tx, ids []uuid.UUID, code string, now time.Time) error {
-	if len(ids) == 0 {
-		return nil
-	}
-	if _, err := tx.Exec(ctx, `
-		UPDATE pds_follow_operations
-		SET status='invalidated',
-		    lease_token=NULL,
-		    lease_expires_at=NULL,
-		    last_error_code=$2,
-		    completed_at=COALESCE(completed_at,$3),
-		    updated_at=$3
-		WHERE automatic_follow_id=ANY($1::uuid[])
-		  AND status IN ('pending','writing')
-	`, ids, code, now); err != nil {
-		return fmt.Errorf("invalidate unwritten Instagram follow operations: %w", err)
+		return fmt.Errorf("invalidate private Instagram suggestion IDs: %w", err)
 	}
 	return nil
 }

@@ -1,6 +1,7 @@
 import 'package:craftsky_app/instagram_migration/data/instagram_migration_api_client.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_account.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
+import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_verification.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
@@ -282,6 +283,61 @@ void main() {
       expect(updated.state, InstagramImportState.active);
       for (final value in [created, page, detail, updated]) {
         expect(value.toString(), isNot(contains('synthetic-import-id')));
+      }
+    });
+
+    test('IT-029 uses the private suggestion review wires', () async {
+      const suggestionId = '80000000-0000-4000-8000-000000000001';
+      final dio = buildDio();
+      DioAdapter(dio: dio)
+        ..onGet(
+          '/v1/migrations/instagram/suggestions',
+          (server) => server.reply(200, {
+            'items': [
+              {
+                'suggestionId': suggestionId,
+                'target': {
+                  'did': 'did:plc:synthetic-target',
+                  'handle': 'target.synthetic.invalid',
+                  'displayName': 'Synthetic Target',
+                  'avatar': 'https://appview.synthetic.invalid/avatar',
+                },
+                'createdAt': '2026-08-14T16:00:00Z',
+              },
+            ],
+            'cursor': 'synthetic-opaque-cursor',
+          }),
+          queryParameters: {'limit': 20, 'cursor': 'synthetic-input-cursor'},
+        )
+        ..onPost(
+          '/v1/migrations/instagram/suggestions/$suggestionId/accept',
+          (server) => server.reply(200, {
+            'suggestionId': suggestionId,
+            'state': 'followed',
+          }),
+        )
+        ..onDelete(
+          '/v1/migrations/instagram/suggestions/$suggestionId',
+          (server) => server.reply(204, null),
+        );
+
+      final api = InstagramMigrationApiClient(dio);
+      final page = await api.listSuggestions(
+        limit: 20,
+        cursor: 'synthetic-input-cursor',
+      );
+      final accepted = await api.acceptSuggestion(suggestionId);
+      await api.dismissSuggestion(suggestionId);
+
+      expect(page.cursor, 'synthetic-opaque-cursor');
+      expect(page.items.single.suggestionId, suggestionId);
+      expect(page.items.single.target.did, 'did:plc:synthetic-target');
+      expect(page.items.single.target.handle, 'target.synthetic.invalid');
+      expect(page.items.single.target.displayLabel, 'Synthetic Target');
+      expect(accepted.state, InstagramSuggestionState.followed);
+      for (final value in [page, page.items.single, accepted]) {
+        expect(value.toString(), isNot(contains(suggestionId)));
+        expect(value.toString(), isNot(contains('target.synthetic.invalid')));
       }
     });
 

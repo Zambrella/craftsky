@@ -14,16 +14,42 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
 
 const scheduledPostStorePreStateDDL = `
 CREATE TABLE craftsky_profiles (
-    did        TEXT NOT NULL PRIMARY KEY,
-    record_cid TEXT NOT NULL
+	 did        TEXT NOT NULL PRIMARY KEY,
+	 record_cid TEXT NOT NULL,
+	 created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 INSERT INTO craftsky_profiles (did, record_cid)
 VALUES ('did:plc:alice', 'alice-cid'), ('did:plc:bob', 'bob-cid');
+CREATE TABLE owner_lifecycles (
+	owner_did TEXT NOT NULL PRIMARY KEY,
+	state TEXT NOT NULL,
+	generation BIGINT NOT NULL,
+	auth_epoch BIGINT NOT NULL,
+	transition_reason TEXT NOT NULL,
+	transitioned_at TIMESTAMPTZ NOT NULL,
+	terminal_at TIMESTAMPTZ,
+	purge_completed_at TIMESTAMPTZ,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+INSERT INTO owner_lifecycles(
+	owner_did,state,generation,auth_epoch,transition_reason,
+	transitioned_at,created_at,updated_at
+) VALUES
+	('did:plc:alice','active',1,1,'fixture',now(),now(),now()),
+	('did:plc:bob','active',1,1,'fixture',now(),now(),now());
+CREATE TABLE account_deletion_operations (
+	id UUID NOT NULL,
+	owner_did TEXT NOT NULL,
+	PRIMARY KEY (id),
+	UNIQUE (id,owner_did)
+);
 `
 
 func TestStoreEnforcesCapacityTransactionally(t *testing.T) {
@@ -163,13 +189,14 @@ func TestStoreEditsAreLastWriteWinsAndFenceStaleWorkers(t *testing.T) {
 	record := []byte(`{"$type":"social.craftsky.feed.post"}`)
 	recordHash := sha256.Sum256(record)
 	stale := FrozenRecordParams{
-		ID:             created.ID,
-		OwnerDID:       owner,
-		LeaseToken:     lease,
-		PayloadVersion: claimedVersion,
-		RecordBytes:    record,
-		RecordHash:     recordHash,
-		Now:            due,
+		ID:              created.ID,
+		OwnerDID:        owner,
+		OwnerGeneration: created.OwnerGeneration,
+		LeaseToken:      lease,
+		PayloadVersion:  claimedVersion,
+		RecordBytes:     record,
+		RecordHash:      recordHash,
+		Now:             due,
 	}
 	if err := store.SaveFrozenRecord(ctx, stale); !errors.Is(err, ErrStaleWorkerVersion) {
 		t.Fatalf("stale worker error=%v, want %v", err, ErrStaleWorkerVersion)
@@ -372,7 +399,8 @@ func TestStoreClaimsDueWorkWithExclusiveRecoverableLeases(t *testing.T) {
 		record := []byte(`{"$type":"social.craftsky.feed.post"}`)
 		hash := sha256.Sum256(record)
 		if err := store.SaveFrozenRecord(ctx, FrozenRecordParams{
-			ID: created.ID, OwnerDID: owner, LeaseToken: first[0].LeaseToken,
+			ID: created.ID, OwnerDID: owner, OwnerGeneration: first[0].OwnerGeneration,
+			LeaseToken:     first[0].LeaseToken,
 			PayloadVersion: first[0].PayloadVersion, RecordBytes: record,
 			RecordHash: hash, Now: now.Add(time.Minute),
 		}); !errors.Is(err, ErrWorkerLeaseLost) {
@@ -580,9 +608,148 @@ func capacityCreateParams(owner syntax.DID, suffix byte, due time.Time) CreatePa
 
 func newScheduledPostStoreTestPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	migration, err := os.ReadFile("../../migrations/000034_scheduled_posts.up.sql")
-	if err != nil {
-		t.Fatalf("read scheduled-post migration: %v", err)
+	ddl := scheduledPostStorePreStateDDL
+	for _, path := range []string{
+		"../../migrations/000034_scheduled_posts.up.sql",
+		"../../migrations/000039_owner_effects_terminal_purge.up.sql",
+		"../../migrations/000040_scheduled_media_durability.up.sql",
+		"../../migrations/000041_account_deletion_safety_tombstones.up.sql",
+		"../../migrations/000045_tap_ingestion_durability.up.sql",
+		"../../migrations/000048_scheduled_post_owner_generation.up.sql",
+		"../../migrations/000049_pds_effect_action.up.sql",
+		"../../migrations/000050_pds_effect_source_reconciliation.up.sql",
+	} {
+		migration, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read scheduled-post migration %s: %v", path, err)
+		}
+		ddl += string(migration)
 	}
-	return testdb.WithSchema(t, scheduledPostStorePreStateDDL+string(migration))
+	return testdb.WithSchema(t, ddl)
+}
+
+func newScheduledTestOwnerFencer(t *testing.T, pool *pgxpool.Pool) *ownerlifecycle.Fencer {
+	t.Helper()
+	fencer, err := ownerlifecycle.NewFencer(pool, time.Second)
+	if err != nil {
+		t.Fatalf("construct scheduled-test owner fencer: %v", err)
+	}
+	return fencer
+}
+
+func newScheduledTestMediaService(
+	t *testing.T,
+	store *Store,
+	objects PrivateObjectStore,
+) (*PrivateMediaService, *ownerlifecycle.Fencer) {
+	t.Helper()
+	fencer := newScheduledTestOwnerFencer(t, store.pool)
+	lifecycle, err := ownerlifecycle.NewStore(store.pool, fencer, time.Now)
+	if err != nil {
+		t.Fatalf("construct scheduled-test lifecycle store: %v", err)
+	}
+	return NewPrivateMediaService(store, objects, PrivateMediaServiceOptions{
+		Lifecycle: lifecycle, PutTimeout: time.Minute,
+	}), fencer
+}
+
+func insertReadyPrivateMediaFixture(
+	t *testing.T,
+	store *Store,
+	owner syntax.DID,
+	mediaID uuid.UUID,
+	scheduleID *uuid.UUID,
+	ordinal *int,
+	blobCID string,
+	expiresAt time.Time,
+) string {
+	t.Helper()
+	objectKey, attemptID, err := NewGenerationObjectKey(owner, 1, mediaID)
+	if err != nil {
+		t.Fatalf("derive media fixture key: %v", err)
+	}
+	startedAt := expiresAt.Add(-2 * time.Hour)
+	dispatchedAt := startedAt.Add(time.Second)
+	completedAt := dispatchedAt.Add(time.Second)
+	ctx := context.Background()
+	tx, err := store.pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin ready media fixture: %v", err)
+	}
+	defer tx.Rollback(ctx)
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO scheduled_post_object_attempts (
+			upload_attempt_id,media_id,owner_did,owner_generation,
+			upload_generation,object_key,request_fingerprint,remote_outcome,
+			remote_started_at,remote_deadline,dispatched_at,completed_at,
+			created_at,updated_at
+		) VALUES (
+			$1,$2,$3,1,1,$4,decode(repeat('03',32),'hex'),'accepted',
+			$5,$6,$7,$8,$5,$8
+		)
+	`, attemptID, mediaID, owner, objectKey, startedAt, startedAt.Add(time.Minute),
+		dispatchedAt, completedAt); err != nil {
+		t.Fatalf("insert ready media attempt %s: %v", mediaID, err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO scheduled_post_media (
+			id,owner_did,owner_generation,upload_generation,upload_attempt_id,
+			object_key,state,schedule_id,ordinal,mime_type,size_bytes,sha256,
+			blob_cid,unclaimed_expires_at
+		) VALUES (
+			$2,$3,1,1,$1,$4,'ready',$5,$6,'image/jpeg',4,
+			decode(repeat('03',32),'hex'),$7,$8
+		)
+	`, attemptID, mediaID, owner, objectKey, scheduleID, ordinal, blobCID, expiresAt); err != nil {
+		t.Fatalf("insert ready media fixture %s: %v", mediaID, err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit ready media fixture %s: %v", mediaID, err)
+	}
+	return objectKey
+}
+
+func insertCleanupFixture(
+	t *testing.T,
+	store *Store,
+	owner syntax.DID,
+	mediaID uuid.UUID,
+	now time.Time,
+	outcomeUncertain bool,
+) string {
+	t.Helper()
+	objectKey, attemptID, err := NewGenerationObjectKey(owner, 1, mediaID)
+	if err != nil {
+		t.Fatalf("derive cleanup fixture key: %v", err)
+	}
+	outcome := "accepted"
+	var completedAt *time.Time
+	dispatchedAt := now.Add(-time.Minute)
+	if outcomeUncertain {
+		outcome = "dispatched"
+	} else {
+		completion := dispatchedAt.Add(time.Second)
+		completedAt = &completion
+	}
+	if _, err := store.pool.Exec(context.Background(), `
+		INSERT INTO scheduled_post_object_attempts (
+			upload_attempt_id,media_id,owner_did,owner_generation,
+			upload_generation,object_key,request_fingerprint,remote_outcome,
+			remote_started_at,remote_deadline,dispatched_at,completed_at,
+			created_at,updated_at
+		) VALUES (
+			$1,$2,$3,1,1,$4,decode(repeat('05',32),'hex'),$5,
+			$6,$7,$8::timestamptz,$9::timestamptz,$6,
+			COALESCE($9::timestamptz,$8::timestamptz)
+		)
+	`, attemptID, mediaID, owner, objectKey, outcome,
+		dispatchedAt.Add(-time.Second), now.Add(time.Minute), dispatchedAt, completedAt); err != nil {
+		t.Fatalf("insert cleanup attempt fixture: %v", err)
+	}
+	if _, err := store.pool.Exec(
+		context.Background(), insertCleanupJobSQL, uuid.New(), objectKey, now,
+	); err != nil {
+		t.Fatalf("insert cleanup job fixture: %v", err)
+	}
+	return objectKey
 }

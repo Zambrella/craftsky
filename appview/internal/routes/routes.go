@@ -2,100 +2,136 @@ package routes
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
-	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/api"
-	"social.craftsky/appview/internal/app"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
+	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
 const defaultJSONBodyLimitBytes int64 = 1024 * 1024
 
+func newScheduledImageValidator(
+	limits api.ImageDecodeLimits,
+	observer api.ImageValidationObserver,
+) api.ImageValidator {
+	limits = normalizedImageDecodeLimits(limits)
+	validator, err := api.NewImageValidatorWithObserver(limits, observer)
+	if err != nil {
+		panic("invalid scheduled image decode limits")
+	}
+	return validator
+}
+
+func normalizedImageDecodeLimits(limits api.ImageDecodeLimits) api.ImageDecodeLimits {
+	if limits.MaxWidth == 0 {
+		// Route tests sometimes construct Config directly. Real startup always
+		// receives the fully validated limits from LoadConfig.
+		return api.DefaultImageDecodeLimits()
+	}
+	return limits
+}
+
 type v1Middleware struct {
-	authN     func(http.Handler) http.Handler
-	deviceID  func(http.Handler) http.Handler
-	member    func(http.Handler) http.Handler
-	bodyLimit middleware.BodyLimitConfig
-	rateLimit map[RateClass]func(http.Handler) http.Handler
-	observer  *observability.Observer
-	hydrator  *api.IdentityCustomisationHydrator
+	authCurrentMember func(http.Handler) http.Handler
+	authRecovery      func(http.Handler) http.Handler
+	deviceID          func(http.Handler) http.Handler
+	member            func(http.Handler) http.Handler
+	bodyLimit         middleware.BodyLimitConfig
+	uploadAdmission   *middleware.UploadBodyAdmission
+	rateLimit         map[RateClass]func(http.Handler) http.Handler
+	observer          *observability.Observer
+	hydrator          *api.IdentityCustomisationHydrator
 }
 
 func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handler {
+	accessClass := policy.AccessClass
+	if !accessClass.Valid() {
+		// Catalogue construction rejects invalid classes. Keep direct wrapper
+		// use fail-closed as current-member authorization too.
+		accessClass = AccessCurrentMember
+	}
 	wrapped := handler
 	if m.hydrator != nil {
 		wrapped = m.hydrator.Handler(wrapped)
 	}
-	if policy.CurrentMemberRequired {
+	// Keep BodyLimit outside response decorators so ResponseController reaches
+	// net/http's writer and can install the route-specific read deadline.
+	wrapped = middleware.BodyLimit(m.bodyLimit, middleware.BodyKind(policy.BodyKind), nil)(wrapped)
+	if policy.BodyKind == BodyUpload {
+		// Acquire the shared encoded-body permit before either upload handler can
+		// read and retain its bounded body. Holding it until handler completion
+		// also accounts for decode and remote-write work retaining those bytes.
+		wrapped = m.uploadAdmission.Handler(wrapped)
+	}
+	if accessClass == AccessCurrentMember {
 		wrapped = m.member(wrapped)
 	}
 	if rl := m.rateLimit[policy.RateClass]; rl != nil {
 		wrapped = rl(wrapped)
 	}
-	if policy.AuthRequired {
+	switch accessClass {
+	case AccessAuthenticatedRecovery:
 		wrapped = m.deviceID(wrapped)
-		wrapped = m.authN(wrapped)
-	} else if policy.RateClass == RateClassAuth {
+		wrapped = m.authRecovery(wrapped)
+	case AccessCurrentMember:
 		wrapped = m.deviceID(wrapped)
+		wrapped = m.authCurrentMember(wrapped)
+	case AccessAnonymous:
+		if policy.RateClass == RateClassAuth {
+			wrapped = m.deviceID(wrapped)
+		}
 	}
-	wrapped = middleware.BodyLimit(m.bodyLimit, middleware.BodyKind(policy.BodyKind), nil)(wrapped)
+	wrapped = middleware.BodyPrecheck(m.bodyLimit, middleware.BodyKind(policy.BodyKind), nil)(wrapped)
 	return middleware.HTTPInFlight(m.observer)(wrapped)
 }
 
-// AddRoutes registers all App View routes on mux.
-func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
-	observer := deps.Observability
-	if observer == nil {
-		observer = observability.New(observability.Config{Env: string(deps.Config.Env)})
-	}
-	inFlight := middleware.HTTPInFlight(observer)
+type Registrar interface {
+	Handle(string, http.Handler)
+}
 
-	// Public ops.
-	mux.Handle("GET /health", inFlight(api.HealthHandler(deps.DB, deps.Logger)))
-	mux.Handle("GET /healthz", inFlight(api.NewHealthHandler(deps.DB, deps.Consumer)))
-	if deps.Config.Env == app.EnvDev {
-		mux.Handle("GET /v1/dev/media/{name}", inFlight(api.DevMediaHandler()))
-		mux.Handle("GET /v1/dev/panic", inFlight(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
-			panic("synthetic appview dev panic")
-		})))
-	}
+type middlewareDependencies struct {
+	Config                    Config
+	Logger                    *slog.Logger
+	DB                        *pgxpool.Pool
+	AuthService               auth.AuthService
+	CraftskySessionStore      *auth.CraftskySessionStore
+	InstagramMembership       *instagram.MembershipStore
+	OwnerLifecycles           *ownerlifecycle.Store
+	RateLimiter               *middleware.LocalRateLimiter
+	ProfileCustomisationStore *api.ProfileCustomisationStore
+}
 
-	// OAuth discovery endpoints (contracts with the AS; not versioned).
-	oauthHandlers := auth.NewHTTPHandlers(
-		deps.OAuthApp,
-		deps.CraftskySessionStore,
-		deps.DB,
-		deps.Logger,
-		deps.Config.Env == app.EnvDev,
-		deps.NewPDSClient,
-		deps.IdentityCacheUpdater,
-	)
-	oauthHandlers.RepositoryTracker = deps.RepositoryTracker
-	oauthHandlers.DeletionOAuthCallbacks = deps.AccountDeletionOAuth
-	oauthHandlers.DeletionPendingLogin = deps.AccountDeletionPendingLogin
-	mux.Handle("GET /oauth/client-metadata.json", inFlight(oauthHandlers.ClientMetadataHandler()))
-	mux.Handle("GET /oauth/jwks.json", inFlight(oauthHandlers.JWKSHandler()))
-	mux.Handle("GET /oauth/callback", inFlight(oauthHandlers.CallbackHandler()))
-	// Meta callbacks are deliberately absent unless the complete integration
-	// was validated and wired at startup. They never share Craftsky auth/body
-	// middleware because signature verification covers the exact raw bytes.
-	if deps.InstagramWebhook != nil {
-		mux.Handle("GET /integrations/instagram/webhook", inFlight(deps.InstagramWebhook))
-		mux.Handle("POST /integrations/instagram/webhook", inFlight(deps.InstagramWebhook))
+func buildV1Middleware(deps middlewareDependencies, observer *observability.Observer) v1Middleware {
+	devAuthPolicy := middleware.DevAuthPolicy{Mode: middleware.DevAuthDisabled}
+	if deps.Config.Env == EnvDev {
+		devAuthPolicy.Mode = middleware.DevAuthLocal
+		if deps.Config.DevRemoteAccess {
+			devAuthPolicy.Mode = middleware.DevAuthRemote
+			devAuthPolicy.Secret = deps.Config.DevAuthSecret.reveal()
+		}
 	}
-
-	// Middleware stacks.
-	authN := middleware.Authenticated(deps.AuthService, deps.Logger)
+	recoveryAuthService, ok := deps.AuthService.(auth.RecoveryAuthService)
+	if !ok {
+		panic("routes: auth service does not implement recovery authentication")
+	}
+	authCurrentMember := middleware.Authenticated(deps.AuthService, deps.Logger, devAuthPolicy)
+	authRecovery := middleware.AuthenticatedRecovery(recoveryAuthService, deps.Logger, devAuthPolicy)
 	deviceID := middleware.DeviceID(deps.CraftskySessionStore, deps.Logger)
 	membership := deps.InstagramMembership
 	if membership == nil {
 		membership = instagram.NewMembershipStore(deps.DB)
 	}
 	currentMember := middleware.CurrentMember(membership, deps.Logger)
+	if deps.OwnerLifecycles != nil {
+		currentMember = middleware.CurrentMember(membership, deps.Logger, deps.OwnerLifecycles)
+	}
 	rateLimits := map[RateClass]func(http.Handler) http.Handler{}
 	if deps.RateLimiter != nil {
 		rateLimits[RateClassAuth] = middleware.RateLimit(deps.RateLimiter, middleware.RateClassAuth, deps.Logger)
@@ -105,183 +141,157 @@ func AddRoutes(ctx context.Context, mux *http.ServeMux, deps *app.Deps) {
 		rateLimits[RateClassUpload] = middleware.RateLimit(deps.RateLimiter, middleware.RateClassUpload, deps.Logger)
 	}
 	bodyLimitCfg := middleware.BodyLimitConfig{
-		DefaultJSONBytes: deps.Config.JSONBodyLimitBytes,
-		UploadBytes:      deps.Config.MaxImageUploadBytes,
+		DefaultJSONBytes:       deps.Config.JSONBodyLimitBytes,
+		UploadBytes:            deps.Config.MaxImageUploadBytes,
+		DefaultJSONReadTimeout: deps.Config.HTTPJSONBodyReadTimeout,
+		UploadReadTimeout:      deps.Config.HTTPUploadBodyReadTimeout,
 	}
 	if bodyLimitCfg.DefaultJSONBytes == 0 {
 		bodyLimitCfg.DefaultJSONBytes = defaultJSONBodyLimitBytes
+	}
+	imageLimits := normalizedImageDecodeLimits(deps.Config.ImageDecodeLimits)
+	uploadAdmission, err := middleware.NewUploadBodyAdmission(
+		imageLimits.MaxConcurrentDecodes,
+		imageLimits.AdmissionWait,
+	)
+	if err != nil {
+		panic("routes: invalid upload body admission")
 	}
 	profileCustomisationStore := deps.ProfileCustomisationStore
 	if profileCustomisationStore == nil && deps.DB != nil {
 		profileCustomisationStore = api.NewProfileCustomisationStore(deps.DB)
 	}
-	var identityCustomisationHydrator *api.IdentityCustomisationHydrator
+	var hydrator *api.IdentityCustomisationHydrator
 	if profileCustomisationStore != nil {
-		identityCustomisationHydrator = api.NewIdentityCustomisationHydrator(profileCustomisationStore)
+		hydrator = api.NewIdentityCustomisationHydrator(profileCustomisationStore)
 	}
-	v1mw := v1Middleware{
-		authN: authN, deviceID: deviceID, member: currentMember,
-		bodyLimit: bodyLimitCfg, rateLimit: rateLimits, observer: observer,
-		hydrator: identityCustomisationHydrator,
+	return v1Middleware{
+		authCurrentMember: authCurrentMember,
+		authRecovery:      authRecovery,
+		deviceID:          deviceID,
+		member:            currentMember,
+		bodyLimit:         bodyLimitCfg,
+		uploadAdmission:   uploadAdmission,
+		rateLimit:         rateLimits,
+		observer:          observer,
+		hydrator:          hydrator,
 	}
-	instagramLimit := func(handler http.Handler, rules ...middleware.InstagramRateLimitRule) http.Handler {
-		// A missing data-plane key means Instagram's rate-limited private write
-		// plane is unavailable. The middleware deliberately accepts a nil limiter
-		// so these writes fail closed while unwrapped reads and privacy deletions
-		// remain available.
-		var limiter middleware.InstagramPersistentLimiter
-		if deps.InstagramRateLimiter != nil {
-			limiter = deps.InstagramRateLimiter
-		}
-		return middleware.InstagramPersistentRateLimit(
-			limiter,
-			rules,
-			deps.Config.InstagramDeployment.TrustedProxyCIDRs(),
-			deps.Logger,
-		)(handler)
-	}
+}
 
-	// v1 — unauthenticated but device-id required.
-	mux.Handle("POST /v1/auth/login", v1mw.wrap(mustPolicy("POST", "/v1/auth/login"), oauthHandlers.LoginHandler()))
+// AddRoutes is the sole route composer. Registration stays in capability
+// functions whose bundles expose only the dependencies that capability uses.
+func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
+	observer := deps.Observability
+	if observer == nil {
+		observer = observability.New(observability.Config{Env: string(deps.Config.Env)})
+	}
+	inFlight := middleware.HTTPInFlight(observer)
 
-	// v1 — authenticated + device-id required.
+	registerPublicOperationsRoutes(publicOperationsRouteBundle{
+		mux: mux, inFlight: inFlight, env: deps.Config.Env,
+		db: deps.DB, consumer: deps.Consumer, logger: deps.Logger,
+	})
+
+	oauthHandlers := newOAuthHandlers(oauthRouteDependencies{
+		app: deps.OAuthApp, artifacts: deps.OAuthArtifacts,
+		sessionStore: deps.CraftskySessionStore, db: deps.DB, logger: deps.Logger,
+		identityCacheUpdater: deps.IdentityCacheUpdater,
+		repositoryTracker:    deps.RepositoryTracker,
+		deletionOAuth:        deps.AccountDeletionOAuth,
+		deletionPendingLogin: deps.AccountDeletionPendingLogin,
+		oauthFlow:            deps.OAuthFlow, handoffs: deps.HandoffCoordinator,
+		sessionLifecycle:    deps.SessionLifecycle,
+		newPendingPDSClient: deps.NewPendingPDSClient,
+		onboardingProfile:   deps.OnboardingProfile,
+		loginCompleteURL:    deps.LoginCompleteURL,
+		deletionCompleteURL: deps.DeletionCompleteURL,
+		allowDevScheme:      deps.Config.EnableDevOAuthScheme,
+	})
+	registerPublicOAuthRoutes(publicOAuthRouteBundle{
+		mux: mux, inFlight: inFlight, handlers: oauthHandlers,
+		instagramWebhook: deps.InstagramWebhook,
+	})
+
+	profileCustomisationStore := deps.ProfileCustomisationStore
+	if profileCustomisationStore == nil && deps.DB != nil {
+		profileCustomisationStore = api.NewProfileCustomisationStore(deps.DB)
+	}
+	v1mw := buildV1Middleware(middlewareDependencies{
+		Config: deps.Config, Logger: deps.Logger, DB: deps.DB,
+		AuthService: deps.AuthService, CraftskySessionStore: deps.CraftskySessionStore,
+		InstagramMembership: deps.InstagramMembership, OwnerLifecycles: deps.OwnerLifecycles,
+		RateLimiter: deps.RateLimiter, ProfileCustomisationStore: profileCustomisationStore,
+	}, observer)
 	mediaLimits := api.MediaLimits{
 		MaxPostImages:       deps.Config.MaxPostImages,
 		MaxImageUploadBytes: deps.Config.MaxImageUploadBytes,
 	}
-	facetStore := api.NewFacetStore(deps.DB, deps.HandleResolver)
-	searchStore := api.NewSearchStore(deps.DB, observer)
-	mux.Handle("GET /v1/whoami", v1mw.wrap(mustPolicy("GET", "/v1/whoami"), api.WhoAmIHandler(deps.HandleResolver, deps.Logger)))
-	mux.Handle("GET /v1/facets/mentions", v1mw.wrap(mustPolicy("GET", "/v1/facets/mentions"), api.ListFacetMentionSuggestionsHandler(facetStore, deps.Logger)))
-	mux.Handle("GET /v1/facets/mentions/resolve", v1mw.wrap(mustPolicy("GET", "/v1/facets/mentions/resolve"), api.ResolveFacetMentionHandler(facetStore, deps.Logger)))
-	mux.Handle("GET /v1/facets/hashtags", v1mw.wrap(mustPolicy("GET", "/v1/facets/hashtags"), api.ListFacetHashtagSuggestionsHandler(facetStore, deps.Logger)))
-	mux.Handle("GET /v1/projects", v1mw.wrap(mustPolicy("GET", "/v1/projects"), api.ListProjectsHandler(searchStore, deps.HandleResolver, deps.Logger, deps.LanguagePreferences)))
-	mux.Handle("GET /v1/search/hashtags/{tag}/posts", v1mw.wrap(mustPolicy("GET", "/v1/search/hashtags/{tag}/posts"), api.SearchHashtagPostsHandler(searchStore, deps.HandleResolver, deps.Logger, deps.LanguagePreferences)))
-	mux.Handle("GET /v1/search/suggestions", v1mw.wrap(mustPolicy("GET", "/v1/search/suggestions"), api.SearchSuggestionsHandler(searchStore, deps.Logger)))
-	mux.Handle("GET /v1/search/hashtags", v1mw.wrap(mustPolicy("GET", "/v1/search/hashtags"), api.SearchHashtagsHandler(searchStore, deps.Logger)))
-	mux.Handle("GET /v1/search/profiles", v1mw.wrap(mustPolicy("GET", "/v1/search/profiles"), api.SearchProfilesHandler(searchStore, deps.Logger)))
-	mux.Handle("GET /v1/search/posts", v1mw.wrap(mustPolicy("GET", "/v1/search/posts"), api.SearchPostsHandler(searchStore, deps.HandleResolver, deps.Logger, deps.LanguagePreferences)))
-	mux.Handle("GET /v1/search/projects", v1mw.wrap(mustPolicy("GET", "/v1/search/projects"), api.SearchProjectsHandler(searchStore, deps.HandleResolver, deps.Logger, deps.LanguagePreferences)))
-	mux.Handle("GET /v1/search/hashtags/top", v1mw.wrap(mustPolicy("GET", "/v1/search/hashtags/top"), api.TopHashtagsHandler(searchStore, deps.Logger)))
-	mux.Handle("GET /v1/search/recent", v1mw.wrap(mustPolicy("GET", "/v1/search/recent"), api.ListRecentSearchesHandler(searchStore, deps.Logger)))
-	mux.Handle("POST /v1/search/recent", v1mw.wrap(mustPolicy("POST", "/v1/search/recent"), api.SaveRecentSearchHandler(searchStore, deps.Logger)))
-	mux.Handle("DELETE /v1/search/recent/{id}", v1mw.wrap(mustPolicy("DELETE", "/v1/search/recent/{id}"), api.DeleteRecentSearchHandler(searchStore, deps.Logger)))
-	mux.Handle("POST /v1/auth/logout", v1mw.wrap(mustPolicy("POST", "/v1/auth/logout"), oauthHandlers.LogoutHandler()))
-	mux.Handle("POST /v1/account-deletion/intents", v1mw.wrap(mustPolicy("POST", "/v1/account-deletion/intents"), api.CreateAccountDeletionIntentHandler(deps.AccountDeletion)))
-	mux.Handle("DELETE /v1/account-deletion/intents/{jobId}", v1mw.wrap(mustPolicy("DELETE", "/v1/account-deletion/intents/{jobId}"), api.CancelAccountDeletionIntentHandler(deps.AccountDeletion)))
-	mux.Handle("POST /v1/account-deletions/{jobId}", v1mw.wrap(mustPolicy("POST", "/v1/account-deletions/{jobId}"), api.AcceptAccountDeletionHandler(deps.AccountDeletion)))
-	mux.Handle("POST /v1/migrations/instagram/verifications", v1mw.wrap(mustPolicy("POST", "/v1/migrations/instagram/verifications"), instagramLimit(
-		api.CreateInstagramVerificationHandler(deps.InstagramVerification, deps.Logger),
-		middleware.InstagramRateLimitRule{Scope: instagram.RateLimitChallengeDID, Identity: middleware.InstagramRateIdentityDID, Window: 15 * time.Minute, Limit: deps.Config.InstagramLimits.ChallengeDIDPer15Minutes},
-		middleware.InstagramRateLimitRule{Scope: instagram.RateLimitChallengeDevice, Identity: middleware.InstagramRateIdentityDevice, Window: 15 * time.Minute, Limit: deps.Config.InstagramLimits.ChallengeDevicePer15Minutes},
-		middleware.InstagramRateLimitRule{Scope: instagram.RateLimitChallengeIP, Identity: middleware.InstagramRateIdentityClientIP, Window: 15 * time.Minute, Limit: deps.Config.InstagramLimits.ChallengeIPPer15Minutes},
-	)))
-	mux.Handle("GET /v1/migrations/instagram/verifications/current", v1mw.wrap(mustPolicy("GET", "/v1/migrations/instagram/verifications/current"), api.GetCurrentInstagramVerificationHandler(deps.InstagramVerification, deps.Logger)))
-	mux.Handle("GET /v1/migrations/instagram/verifications/{verificationId}", v1mw.wrap(mustPolicy("GET", "/v1/migrations/instagram/verifications/{verificationId}"), api.GetInstagramVerificationHandler(deps.InstagramVerification, deps.Logger)))
-	mux.Handle("DELETE /v1/migrations/instagram/verifications/{verificationId}", v1mw.wrap(mustPolicy("DELETE", "/v1/migrations/instagram/verifications/{verificationId}"), api.DeleteInstagramVerificationHandler(deps.InstagramVerification, deps.Logger)))
-	mux.Handle("POST /v1/migrations/instagram/verifications/{verificationId}/confirm", v1mw.wrap(mustPolicy("POST", "/v1/migrations/instagram/verifications/{verificationId}/confirm"), instagramLimit(
-		api.ConfirmInstagramVerificationHandler(deps.InstagramVerification, deps.Logger),
-		middleware.InstagramRateLimitRule{Scope: instagram.RateLimitConfirmationDID, Identity: middleware.InstagramRateIdentityDID, Window: time.Hour, Limit: deps.Config.InstagramLimits.ConfirmationDIDPerHour},
-		middleware.InstagramRateLimitRule{Scope: instagram.RateLimitConfirmationDevice, Identity: middleware.InstagramRateIdentityDevice, Window: time.Hour, Limit: deps.Config.InstagramLimits.ConfirmationDevicePerHour},
-	)))
-	integrationAvailable := func() bool {
-		return deps.Config.InstagramMeta.Enabled() && deps.Config.InstagramMeta.Configured()
-	}
-	mux.Handle("GET /v1/migrations/instagram/account", v1mw.wrap(mustPolicy("GET", "/v1/migrations/instagram/account"), api.GetInstagramAccountHandler(deps.InstagramAccount, integrationAvailable, deps.Logger)))
-	mux.Handle("DELETE /v1/migrations/instagram/account", v1mw.wrap(mustPolicy("DELETE", "/v1/migrations/instagram/account"), api.DeleteInstagramAccountHandler(deps.InstagramAccount, deps.Logger)))
-	mux.Handle("PATCH /v1/migrations/instagram/settings", v1mw.wrap(mustPolicy("PATCH", "/v1/migrations/instagram/settings"), api.PatchInstagramSettingsHandler(deps.InstagramAccount, integrationAvailable, deps.Logger)))
-	mux.Handle("POST /v1/migrations/instagram/imports", v1mw.wrap(mustPolicy("POST", "/v1/migrations/instagram/imports"), instagramLimit(
-		api.CreateInstagramImportHandler(deps.InstagramImports, deps.Logger),
-		middleware.InstagramRateLimitRule{Scope: instagram.RateLimitImportDID, Identity: middleware.InstagramRateIdentityDID, Window: time.Hour, Limit: deps.Config.InstagramLimits.ImportsDIDPerHour},
-		middleware.InstagramRateLimitRule{Scope: instagram.RateLimitImportDevice, Identity: middleware.InstagramRateIdentityDevice, Window: time.Hour, Limit: deps.Config.InstagramLimits.ImportsDevicePerHour},
-	)))
-	mux.Handle("GET /v1/migrations/instagram/imports", v1mw.wrap(mustPolicy("GET", "/v1/migrations/instagram/imports"), api.ListInstagramImportsHandler(deps.InstagramImports, deps.Logger)))
-	mux.Handle("GET /v1/migrations/instagram/imports/{importId}", v1mw.wrap(mustPolicy("GET", "/v1/migrations/instagram/imports/{importId}"), api.GetInstagramImportHandler(deps.InstagramImports, deps.Logger)))
-	mux.Handle("PATCH /v1/migrations/instagram/imports/{importId}", v1mw.wrap(mustPolicy("PATCH", "/v1/migrations/instagram/imports/{importId}"), api.PatchInstagramImportHandler(deps.InstagramImports, deps.Logger)))
-	mux.Handle("DELETE /v1/migrations/instagram/imports/{importId}", v1mw.wrap(mustPolicy("DELETE", "/v1/migrations/instagram/imports/{importId}"), api.DeleteInstagramImportHandler(deps.InstagramImports, deps.Logger)))
-	mux.Handle("GET /v1/profiles/{handleOrDid}", v1mw.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}"), api.GetProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger)))
-	mux.Handle("GET /v1/profiles/me", v1mw.wrap(mustPolicy("GET", "/v1/profiles/me"), api.GetMeProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger)))
-	mux.Handle("GET /v1/profiles/me/followers", v1mw.wrap(mustPolicy("GET", "/v1/profiles/me/followers"), api.GetMeFollowersHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger)))
-	mux.Handle("GET /v1/profiles/me/following", v1mw.wrap(mustPolicy("GET", "/v1/profiles/me/following"), api.GetMeFollowingHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger)))
-	mux.Handle("PUT /v1/profiles/me", v1mw.wrap(mustPolicy("PUT", "/v1/profiles/me"), api.PutMeProfileHandler(deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, mediaLimits, deps.Logger)))
-	mux.Handle("PUT /v1/profiles/me/customisation", v1mw.wrap(
-		mustPolicy("PUT", "/v1/profiles/me/customisation"),
-		api.PutProfileCustomisationHandler(profileCustomisationStore),
-	))
-	mux.Handle("GET /v1/profiles/{handleOrDid}/mutual-followers", v1mw.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/mutual-followers"), api.GetMutualFollowersHandler(deps.ProfileStore, deps.HandleResolver, deps.Logger)))
-	mux.Handle("POST /v1/profiles/{handleOrDid}/follows", v1mw.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/follows"), api.FollowProfileHandler(deps.FollowStore, deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, deps.Logger)))
-	mux.Handle("DELETE /v1/profiles/{handleOrDid}/follows", v1mw.wrap(mustPolicy("DELETE", "/v1/profiles/{handleOrDid}/follows"), api.UnfollowProfileHandler(deps.FollowStore, deps.ProfileStore, deps.HandleResolver, deps.NewPDSClient, deps.Logger)))
-	mux.Handle("POST /v1/profiles/{handleOrDid}/mutes", v1mw.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/mutes"), api.MuteProfileHandler(deps.RelationshipMutations, deps.RelationshipStore, deps.HandleResolver, deps.Logger)))
-	mux.Handle("DELETE /v1/profiles/{handleOrDid}/mutes", v1mw.wrap(mustPolicy("DELETE", "/v1/profiles/{handleOrDid}/mutes"), api.UnmuteProfileHandler(deps.RelationshipMutations, deps.RelationshipStore, deps.HandleResolver, deps.Logger)))
-	mux.Handle("POST /v1/profiles/{handleOrDid}/blocks", v1mw.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/blocks"), api.BlockProfileHandler(deps.RelationshipMutations, deps.RelationshipStore, deps.HandleResolver, deps.Logger)))
-	mux.Handle("DELETE /v1/profiles/{handleOrDid}/blocks", v1mw.wrap(mustPolicy("DELETE", "/v1/profiles/{handleOrDid}/blocks"), api.UnblockProfileHandler(deps.RelationshipMutations, deps.RelationshipStore, deps.HandleResolver, deps.Logger)))
-	mux.Handle("GET /v1/profiles/me/mutes", v1mw.wrap(mustPolicy("GET", "/v1/profiles/me/mutes"), api.ListMutedProfilesHandler(deps.RelationshipStore, deps.HandleResolver, deps.Logger)))
-	mux.Handle("GET /v1/profiles/me/blocks", v1mw.wrap(mustPolicy("GET", "/v1/profiles/me/blocks"), api.ListBlockedProfilesHandler(deps.RelationshipStore, deps.HandleResolver, deps.Logger)))
-	mux.Handle("POST /v1/profiles/{handleOrDid}/reports", v1mw.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/reports"), api.ReportProfileHandler(api.NewProfileReportTargetResolver(deps.ProfileStore, deps.HandleResolver), deps.ReportStore, deps.ReportForwarder, deps.Logger)))
 
-	// v1 — post handlers (authenticated + device-id required).
+	registerAuthRoutes(authRouteBundle{mux: mux, middleware: v1mw, handlers: oauthHandlers})
+	scheduledImageValidator := newScheduledImageValidator(deps.Config.ImageDecodeLimits, observer)
+	registerSearchRoutes(searchRouteBundle{
+		mux: mux, middleware: v1mw,
+		facetStore:     api.NewFacetStore(deps.DB, deps.AuthoritativeHandleResolver),
+		searchStore:    api.NewSearchStore(deps.DB, observer),
+		handleResolver: deps.HandleResolver, languages: deps.LanguagePreferences,
+		logger: deps.Logger,
+	})
+	registerLogoutRoute(logoutRouteBundle{mux: mux, middleware: v1mw, handlers: oauthHandlers})
+	registerAccountDeletionRoutes(accountDeletionRouteBundle{
+		mux: mux, middleware: v1mw, service: deps.AccountDeletion,
+	})
+	registerMigrationRoutes(migrationRouteBundle{
+		mux: mux, middleware: v1mw, limits: deps.Config.InstagramLimits,
+		trustedProxyCIDRs:    deps.Config.InstagramTrustedProxyCIDRs,
+		integrationAvailable: deps.Config.InstagramIntegrationAvailable,
+		rateLimiter:          deps.InstagramRateLimiter, verification: deps.InstagramVerification,
+		account: deps.InstagramAccount, imports: deps.InstagramImports,
+		suggestions: deps.InstagramSuggestions, profileStore: deps.ProfileStore,
+		handleResolver: deps.HandleResolver, logger: deps.Logger,
+	})
+	registerProfileRelationshipRoutes(profileRelationshipRouteBundle{
+		mux: mux, middleware: v1mw, profileStore: deps.ProfileStore,
+		profileCustomisationStore: profileCustomisationStore,
+		followStore:               deps.FollowStore, relationshipStore: deps.RelationshipStore,
+		relationshipMutations: deps.RelationshipMutations,
+		handleResolver:        deps.HandleResolver,
+		authoritativeResolver: deps.AuthoritativeHandleResolver,
+		newPDSEffects:         deps.NewPDSEffects,
+		reportStore:           deps.ReportStore, reportForwarder: deps.ReportForwarder,
+		mediaLimits: mediaLimits, logger: deps.Logger,
+	})
+
 	postStore := api.NewPostStore(deps.DB, observer)
 	savedPostStore := api.NewSavedPostStore(deps.DB)
 	profilePinStore := api.NewProfilePinStore(deps.DB, api.ProfilePinStoreOptions{Observer: observer})
 	savedPostService := api.NewSavedPostService(savedPostStore, postStore, deps.HandleResolver)
 	oauthHandlers.NotificationSubscriptions = postStore
-	mux.Handle("GET /v1/feed/timeline", v1mw.wrap(mustPolicy("GET", "/v1/feed/timeline"), api.ListTimelineHandler(postStore, deps.HandleResolver, deps.Logger, deps.LanguagePreferences)))
-	mux.Handle("GET /v1/notifications", v1mw.wrap(mustPolicy("GET", "/v1/notifications"), api.ListNotificationsHandler(postStore, deps.HandleResolver, deps.Logger)))
-	mux.Handle("GET /v1/notifications/new-count", v1mw.wrap(mustPolicy("GET", "/v1/notifications/new-count"), api.NotificationNewCountHandler(postStore, deps.Logger)))
-	mux.Handle("POST /v1/notifications/seen", v1mw.wrap(mustPolicy("POST", "/v1/notifications/seen"), api.MarkNotificationsSeenHandler(postStore, deps.Logger)))
-	mux.Handle("GET /v1/notifications/preferences", v1mw.wrap(mustPolicy("GET", "/v1/notifications/preferences"), api.GetNotificationPreferencesHandler(postStore, deps.Logger)))
-	mux.Handle("PATCH /v1/notifications/preferences", v1mw.wrap(mustPolicy("PATCH", "/v1/notifications/preferences"), api.PatchNotificationPreferencesHandler(postStore, deps.Logger)))
-	mux.Handle("GET /v1/languages/preferences", v1mw.wrap(mustPolicy("GET", "/v1/languages/preferences"), api.GetLanguagePreferencesHandler(deps.LanguagePreferences)))
-	mux.Handle("PUT /v1/languages/preferences", v1mw.wrap(mustPolicy("PUT", "/v1/languages/preferences"), api.PutLanguagePreferencesHandler(deps.LanguagePreferences)))
-	mux.Handle("POST /v1/languages/preferences/initialize", v1mw.wrap(mustPolicy("POST", "/v1/languages/preferences/initialize"), api.InitializeLanguagePreferencesHandler(deps.LanguagePreferences)))
-	mux.Handle("POST /v1/notifications/devices", v1mw.wrap(mustPolicy("POST", "/v1/notifications/devices"), api.RegisterNotificationDeviceHandler(postStore, deps.Logger)))
-	mux.Handle("DELETE /v1/notifications/devices/{accountSubscriptionId}", v1mw.wrap(mustPolicy("DELETE", "/v1/notifications/devices/{accountSubscriptionId}"), api.RemoveNotificationDeviceHandler(postStore, deps.Logger)))
-	mux.Handle("POST /v1/blobs/images", v1mw.wrap(mustPolicy("POST", "/v1/blobs/images"), api.ImageBlobUploadHandler(deps.NewPDSClient, mediaLimits, deps.Logger)))
-	mux.Handle("PUT /v1/scheduled-post-media/{mediaId}", v1mw.wrap(mustPolicy("PUT", "/v1/scheduled-post-media/{mediaId}"), api.PutScheduledMediaHandler(deps.ScheduledMedia, mediaLimits, deps.Logger)))
-	mux.Handle("GET /v1/scheduled-post-media/{mediaId}", v1mw.wrap(mustPolicy("GET", "/v1/scheduled-post-media/{mediaId}"), api.GetScheduledMediaHandler(deps.ScheduledMedia, deps.Logger)))
-	mux.Handle("DELETE /v1/scheduled-post-media/{mediaId}", v1mw.wrap(mustPolicy("DELETE", "/v1/scheduled-post-media/{mediaId}"), api.DeleteScheduledMediaHandler(deps.ScheduledMedia, time.Now, deps.Logger)))
-	mux.Handle("POST /v1/scheduled-posts", v1mw.wrap(mustPolicy("POST", "/v1/scheduled-posts"), api.CreateScheduledPostHandler(deps.ScheduledPosts, mediaLimits, time.Now, deps.Logger)))
-	mux.Handle("GET /v1/scheduled-posts", v1mw.wrap(mustPolicy("GET", "/v1/scheduled-posts"), api.ListScheduledPostsHandler(deps.ScheduledPosts, deps.Logger)))
-	mux.Handle("GET /v1/scheduled-posts/{id}", v1mw.wrap(mustPolicy("GET", "/v1/scheduled-posts/{id}"), api.GetScheduledPostHandler(deps.ScheduledPosts, deps.Logger)))
-	mux.Handle("PUT /v1/scheduled-posts/{id}", v1mw.wrap(mustPolicy("PUT", "/v1/scheduled-posts/{id}"), api.UpdateScheduledPostHandler(deps.ScheduledPosts, mediaLimits, time.Now, deps.Logger)))
-	mux.Handle("DELETE /v1/scheduled-posts/{id}", v1mw.wrap(mustPolicy("DELETE", "/v1/scheduled-posts/{id}"), api.DeleteScheduledPostHandler(deps.ScheduledPosts, time.Now, deps.Logger)))
-	mux.Handle("POST /v1/scheduled-posts/{id}/publication", v1mw.wrap(mustPolicy("POST", "/v1/scheduled-posts/{id}/publication"), api.PublishScheduledPostHandler(deps.ScheduledManualPublisher, mediaLimits, time.Now, deps.Logger)))
-	mux.Handle("POST /v1/posts", v1mw.wrap(mustPolicy("POST", "/v1/posts"), api.CreatePostHandler(postStore, deps.NewPDSClient, deps.HandleResolver, mediaLimits, deps.Logger)))
-	mux.Handle("GET /v1/posts/{did}/{rkey}", v1mw.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}"), api.GetPostHandler(postStore, deps.HandleResolver, deps.Logger)))
-	mux.Handle("POST /v1/posts/{did}/{rkey}/saves", v1mw.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/saves"), api.SavePostHandler(postStore, savedPostStore)))
-	mux.Handle("DELETE /v1/posts/{did}/{rkey}/saves", v1mw.wrap(mustPolicy("DELETE", "/v1/posts/{did}/{rkey}/saves"), api.UnsavePostHandler(savedPostStore)))
-	mux.Handle("GET /v1/profiles/me/pins", v1mw.wrap(mustPolicy("GET", "/v1/profiles/me/pins"), api.GetProfilePinsHandler(profilePinStore)))
-	mux.Handle("PUT /v1/posts/{did}/{rkey}/pin", v1mw.wrap(mustPolicy("PUT", "/v1/posts/{did}/{rkey}/pin"), api.PinProfilePostHandler(profilePinStore)))
-	mux.Handle("DELETE /v1/posts/{did}/{rkey}/pin", v1mw.wrap(mustPolicy("DELETE", "/v1/posts/{did}/{rkey}/pin"), api.UnpinProfilePostHandler(profilePinStore)))
-	mux.Handle("GET /v1/saved-posts", v1mw.wrap(mustPolicy("GET", "/v1/saved-posts"), api.ListSavedPostsHandler(savedPostService)))
-	mux.Handle("GET /v1/saved-post-folders", v1mw.wrap(mustPolicy("GET", "/v1/saved-post-folders"), api.ListSavedPostFoldersHandler(savedPostStore)))
-	mux.Handle("POST /v1/saved-post-folders", v1mw.wrap(mustPolicy("POST", "/v1/saved-post-folders"), api.CreateSavedPostFolderHandler(savedPostStore)))
-	mux.Handle("PATCH /v1/saved-post-folders/{folderId}", v1mw.wrap(mustPolicy("PATCH", "/v1/saved-post-folders/{folderId}"), api.RenameSavedPostFolderHandler(savedPostStore)))
-	mux.Handle("DELETE /v1/saved-post-folders/{folderId}", v1mw.wrap(mustPolicy("DELETE", "/v1/saved-post-folders/{folderId}"), api.DeleteSavedPostFolderHandler(savedPostStore)))
-	mux.Handle("GET /v1/posts/{did}/{rkey}/replies", v1mw.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/replies"), api.ListCommentRepliesHandler(postStore, deps.HandleResolver, deps.Logger)))
-	mux.Handle("GET /v1/posts/{did}/{rkey}/comments", v1mw.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/comments"), api.GetPostCommentsHandler(postStore, deps.HandleResolver, deps.Logger)))
-	mux.Handle("POST /v1/posts/{did}/{rkey}/likes", v1mw.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/likes"), api.LikePostHandler(postStore, deps.NewPDSClient, deps.Logger)))
-	mux.Handle("DELETE /v1/posts/{did}/{rkey}/likes", v1mw.wrap(mustPolicy("DELETE", "/v1/posts/{did}/{rkey}/likes"), api.UnlikePostHandler(postStore, deps.NewPDSClient, deps.Logger)))
-	mux.Handle("POST /v1/posts/{did}/{rkey}/reposts", v1mw.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/reposts"), api.RepostPostHandler(postStore, deps.NewPDSClient, deps.Logger)))
-	mux.Handle("DELETE /v1/posts/{did}/{rkey}/reposts", v1mw.wrap(mustPolicy("DELETE", "/v1/posts/{did}/{rkey}/reposts"), api.UnrepostPostHandler(postStore, deps.NewPDSClient, deps.Logger)))
-	mux.Handle("DELETE /v1/posts/{did}/{rkey}", v1mw.wrap(mustPolicy("DELETE", "/v1/posts/{did}/{rkey}"), api.DeletePostHandler(deps.NewPDSClient, deps.Logger)))
-	mux.Handle("POST /v1/posts/{did}/{rkey}/reports", v1mw.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/reports"), api.ReportPostHandler(postStore, deps.ReportStore, deps.ReportForwarder, deps.Logger)))
-	if deps.Config.Env == app.EnvDev && deps.Config.EnableDevModeration && deps.Config.DevModerationToken != "" {
-		mux.Handle("POST /v1/dev/moderation/ozone-events",
-			inFlight(api.DevModerationOzoneEventsHandler(
-				deps.Config.DevModerationToken,
-				api.ModerationRequestConfig{
-					DefaultSourceDID:  deps.Config.DevLabelerDID,
-					TrustedSourceDIDs: deps.Config.TrustedModerationSourceDIDs,
-				},
-				deps.ModerationStore,
-				deps.Logger,
-			)))
-	}
-	mux.Handle("GET /v1/profiles/{handleOrDid}/posts", v1mw.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/posts"), api.ListPostsByAuthorHandler(postStore, deps.HandleResolver, deps.Logger, profilePinStore, deps.LanguagePreferences)))
-	mux.Handle("GET /v1/profiles/{handleOrDid}/projects", v1mw.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/projects"), api.ListProjectsByAuthorHandler(postStore, deps.HandleResolver, deps.Logger, profilePinStore, deps.LanguagePreferences)))
-	mux.Handle("GET /v1/profiles/{handleOrDid}/comments", v1mw.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/comments"), api.ListCommentsByAuthorHandler(postStore, deps.HandleResolver, deps.Logger, deps.LanguagePreferences)))
-
-	// Fallthrough.
-	mux.Handle("/", inFlight(http.NotFoundHandler()))
+	registerNotificationRoutes(notificationRouteBundle{
+		mux: mux, middleware: v1mw, postStore: postStore,
+		handleResolver: deps.HandleResolver, languages: deps.LanguagePreferences,
+		logger: deps.Logger,
+	})
+	registerScheduledPostRoutes(scheduledPostRouteBundle{
+		mux: mux, middleware: v1mw, newPDSEffects: deps.NewPDSEffects,
+		mediaLimits:    mediaLimits,
+		imageValidator: scheduledImageValidator,
+		posts:          deps.ScheduledPosts, media: deps.ScheduledMedia,
+		manualPublisher: deps.ScheduledManualPublisher, logger: deps.Logger,
+	})
+	registerPostRoutes(postRouteBundle{
+		mux: mux, middleware: v1mw,
+		moderation: devModerationRouteConfig{
+			env: deps.Config.Env, enabled: deps.Config.EnableDevModeration,
+			token:             deps.Config.DevModerationToken,
+			defaultSourceDID:  deps.Config.DevLabelerDID,
+			trustedSourceDIDs: deps.Config.TrustedModerationSourceDIDs,
+		},
+		postStore: postStore, savedPostStore: savedPostStore,
+		savedPostService: savedPostService, profilePinStore: profilePinStore,
+		handleResolver: deps.HandleResolver, newPDSEffects: deps.NewPDSEffects,
+		reportStore: deps.ReportStore, reportForwarder: deps.ReportForwarder,
+		moderationStore: deps.ModerationStore, languages: deps.LanguagePreferences,
+		mediaLimits: mediaLimits, logger: deps.Logger,
+	})
+	registerFallbackRoutes(fallbackRouteBundle{mux: mux, inFlight: inFlight})
 }

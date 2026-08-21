@@ -278,15 +278,28 @@ func newScheduledPostAPITestStore(t *testing.T) (*scheduledposts.Store, *pgxpool
 			did TEXT NOT NULL PRIMARY KEY,
 			record_cid TEXT NOT NULL
 		);
+		CREATE TABLE owner_lifecycles (
+			owner_did TEXT PRIMARY KEY,
+			generation BIGINT NOT NULL,
+			state TEXT NOT NULL
+		);
 		INSERT INTO craftsky_profiles (did, record_cid)
 		VALUES ('did:plc:alice', 'alice-cid'), ('did:plc:bob', 'bob-cid');
+		INSERT INTO owner_lifecycles(owner_did,generation,state)
+		VALUES ('did:plc:alice',1,'active'), ('did:plc:bob',1,'active');
 	`)
-	migration, err := os.ReadFile("../../migrations/000034_scheduled_posts.up.sql")
-	if err != nil {
-		t.Fatalf("read scheduled-post migration: %v", err)
-	}
-	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
-		t.Fatalf("apply scheduled-post migration: %v", err)
+	for _, path := range []string{
+		"../../migrations/000034_scheduled_posts.up.sql",
+		"../../migrations/000040_scheduled_media_durability.up.sql",
+		"../../migrations/000048_scheduled_post_owner_generation.up.sql",
+	} {
+		migration, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read scheduled-post migration %s: %v", path, err)
+		}
+		if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
+			t.Fatalf("apply scheduled-post migration %s: %v", path, err)
+		}
 	}
 	return scheduledposts.NewStore(pool), pool
 }

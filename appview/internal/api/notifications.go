@@ -164,9 +164,6 @@ func buildNotificationItem(row *NotificationRow, handles map[string]syntax.Handl
 		item.Actor.Avatar = nil
 		item.Actor.AvatarCID = nil
 	}
-	if row.Type == NotificationTypeInstagramMatch {
-		return item
-	}
 	item.Reply = row.Reply
 	item.References = &row.References
 	if row.SubjectPost != nil {

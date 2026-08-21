@@ -12,7 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets(
-    'AT-008 renders social scopes and a push-only Instagram control',
+    'UT-024 renders Instagram push preference without actor scope',
     (
       tester,
     ) async {
@@ -57,7 +57,7 @@ void main() {
       );
       expect(find.text('Instagram matches'), findsOneWidget);
       expect(
-        find.textContaining('based on your Instagram migration eligibility'),
+        find.textContaining('never name the matched account'),
         findsOneWidget,
       );
       expect(find.byType(DropdownButtonFormField), findsNothing);

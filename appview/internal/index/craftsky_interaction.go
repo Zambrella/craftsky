@@ -9,7 +9,6 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/tap"
@@ -23,14 +22,14 @@ type craftskyInteractionRecord struct {
 
 func handleCraftskyInteractionUpsert(
 	ctx context.Context,
-	pool *pgxpool.Pool,
+	database transactionalDatabase,
 	ev tap.Event,
 	table string,
 	category notifications.Category,
 	lifecycle notifications.Lifecycle,
 	decode func(json.RawMessage) (craftskyInteractionRecord, error),
 ) error {
-	isMember, err := isCraftskyMember(ctx, pool, ev.DID)
+	isMember, err := isCraftskyMember(ctx, database, ev.DID)
 	if err != nil {
 		return fmt.Errorf("membership check %s: %w", ev.DID, err)
 	}
@@ -50,7 +49,7 @@ func handleCraftskyInteractionUpsert(
 		return fmt.Errorf("parse createdAt %q on %s: %w", rec.CreatedAt, ev.URI, err)
 	}
 
-	tx, err := pool.Begin(ctx)
+	tx, err := database.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin %s: %w", ev.URI, err)
 	}
@@ -61,7 +60,8 @@ func handleCraftskyInteractionUpsert(
 	var rootCID syntax.CID
 	if err := tx.QueryRow(ctx,
 		`SELECT did, COALESCE(reply_root_uri, uri), COALESCE(reply_root_cid, cid)
-		 FROM craftsky_posts WHERE uri = $1`, rec.SubjectURI).
+		 FROM craftsky_posts
+		 WHERE uri = $1 AND NOT appview_owner_is_terminal(did)`, rec.SubjectURI).
 		Scan(&recipientDID, &rootURI, &rootCID); err != nil {
 		if err == pgx.ErrNoRows {
 			return nil
@@ -122,8 +122,8 @@ func handleCraftskyInteractionUpsert(
 	return nil
 }
 
-func handleCraftskyInteractionDelete(ctx context.Context, pool *pgxpool.Pool, ev tap.Event, table string, lifecycle notifications.Lifecycle) error {
-	tx, err := pool.Begin(ctx)
+func handleCraftskyInteractionDelete(ctx context.Context, database transactionalDatabase, ev tap.Event, table string, lifecycle notifications.Lifecycle) error {
+	tx, err := database.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin delete %s: %w", ev.URI, err)
 	}
@@ -144,10 +144,13 @@ func handleCraftskyInteractionDelete(ctx context.Context, pool *pgxpool.Pool, ev
 	return nil
 }
 
-func isCraftskyMember(ctx context.Context, pool *pgxpool.Pool, did syntax.DID) (bool, error) {
+func isCraftskyMember(ctx context.Context, database transactionalDatabase, did syntax.DID) (bool, error) {
 	var exists bool
-	err := pool.QueryRow(ctx,
-		`SELECT EXISTS (SELECT 1 FROM craftsky_profiles WHERE did = $1)`, did).
+	err := database.QueryRow(ctx,
+		`SELECT EXISTS (
+			SELECT 1 FROM craftsky_profiles
+			WHERE did = $1 AND NOT appview_owner_is_terminal(did)
+		)`, did).
 		Scan(&exists)
 	return exists, err
 }

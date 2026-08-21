@@ -11,6 +11,7 @@ import (
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/observability"
+	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -23,7 +24,7 @@ func TestProfilePinObservabilityIsBoundedAndRedacted(t *testing.T) {
 	recorder := observability.NewInMemoryMetricRecorder()
 	observer := observability.New(observability.Config{MetricRecorder: recorder})
 	store := api.NewProfilePinStore(pool, api.ProfilePinStoreOptions{Observer: observer})
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	alice := syntax.DID("did:plc:alice")
 	bob := syntax.DID("did:plc:bob")
 	uriB := syntax.ATURI("at://did:plc:alice/social.craftsky.feed.post/standard-b")

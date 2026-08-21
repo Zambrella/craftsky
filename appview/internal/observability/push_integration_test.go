@@ -22,6 +22,7 @@ import (
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/observability"
+	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/push"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -48,6 +49,16 @@ func (s *privacyIntegrationSender) Calls() []push.SendRequest {
 	return append([]push.SendRequest(nil), s.calls...)
 }
 
+type permissivePushLifecycleFence struct{}
+
+func (permissivePushLifecycleFence) WithActiveOwners(
+	ctx context.Context,
+	_ []syntax.DID,
+	callback func(context.Context) error,
+) error {
+	return callback(ctx)
+}
+
 func TestPushPrivacySentinelsAcrossRegistrationEnqueueDispatchAndTelemetry(t *testing.T) {
 	pool := testdb.WithSchema(t, `
 		CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT);
@@ -71,6 +82,24 @@ func TestPushPrivacySentinelsAcrossRegistrationEnqueueDispatchAndTelemetry(t *te
 			blocker_did TEXT NOT NULL,
 			subject_did TEXT NOT NULL
 		);
+		CREATE TABLE atproto_follows (
+			uri TEXT PRIMARY KEY,
+			did TEXT NOT NULL,
+			subject_did TEXT NOT NULL,
+			UNIQUE (did, subject_did)
+		);
+		CREATE TABLE owner_lifecycles (
+			owner_did TEXT PRIMARY KEY,
+			state TEXT NOT NULL,
+			generation BIGINT NOT NULL,
+			auth_epoch BIGINT NOT NULL,
+			transition_reason TEXT NOT NULL,
+			transitioned_at TIMESTAMPTZ NOT NULL,
+			terminal_at TIMESTAMPTZ,
+			purge_completed_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL,
+			updated_at TIMESTAMPTZ NOT NULL
+		);
 	`); err != nil {
 		t.Fatal(err)
 	}
@@ -89,6 +118,14 @@ func TestPushPrivacySentinelsAcrossRegistrationEnqueueDispatchAndTelemetry(t *te
 		payloadSentinel    = `{"fullPayload":"SENTINEL_FULL_PAYLOAD"}`
 		providerError      = "SENTINEL_PROVIDER_ERROR"
 	)
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO owner_lifecycles(
+			owner_did,state,generation,auth_epoch,transition_reason,
+			transitioned_at,created_at,updated_at
+		) VALUES($1,'active',1,1,'test',now(),now(),now())
+	`, recipientDID); err != nil {
+		t.Fatal(err)
+	}
 	forbidden := []string{tokenSentinel, credentialSentinel, recipientDID, actorDID, handleSentinel, sourceURISentinel, subjectURISentinel, textSentinel, titleSentinel, imageSentinel, payloadSentinel, "SENTINEL_FULL_PAYLOAD", providerError}
 	failureText := strings.Join(forbidden, " ")
 
@@ -105,6 +142,7 @@ func TestPushPrivacySentinelsAcrossRegistrationEnqueueDispatchAndTelemetry(t *te
 	requestBody, _ := json.Marshal(map[string]string{"platform": "ios", "token": tokenSentinel})
 	request := httptest.NewRequest(http.MethodPost, "/v1/notifications/devices", bytes.NewReader(requestBody))
 	ctx := middleware.WithDID(request.Context(), syntax.DID(recipientDID))
+	ctx = ownerlifecycle.WithExpectedGeneration(ctx, 1)
 	ctx = middleware.WithDeviceID(ctx, "privacy-device")
 	request = request.WithContext(ctx)
 	response := httptest.NewRecorder()
@@ -144,7 +182,13 @@ func TestPushPrivacySentinelsAcrossRegistrationEnqueueDispatchAndTelemetry(t *te
 
 	now := base.Add(time.Second)
 	sender := &privacyIntegrationSender{failure: failureText}
-	dispatcher := push.NewDispatcher(pool, sender, push.DispatcherOptions{Now: func() time.Time { return now }, BatchSize: 1, LeaseDuration: time.Minute, Observer: observer})
+	dispatcher, err := push.NewDispatcherValidated(pool, sender, push.DispatcherOptions{
+		Now: func() time.Time { return now }, BatchSize: 1, LeaseDuration: time.Minute,
+		Observer: observer, LifecycleFence: permissivePushLifecycleFence{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	if n, err := dispatcher.ProcessBatch(context.Background(), "appview"); err != nil || n != 1 {
 		t.Fatalf("retry batch n=%d err=%v", n, err)
 	}

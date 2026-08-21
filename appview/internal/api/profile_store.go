@@ -68,10 +68,12 @@ type ProfileAccountRow struct {
 }
 
 const profileVisibleModerationPredicate = `
+		  AND NOT appview_owner_is_terminal(cp.did)
 		  AND NOT EXISTS (
 			SELECT 1
 			FROM moderation_outputs mo
 			WHERE mo.action = 'apply'
+			  AND NOT appview_owner_is_terminal(mo.source_did)
 			  AND mo.subject_type = 'account'
 			  AND mo.subject_did = cp.did
 			  AND mo.value IN ('hide', 'takedown')
@@ -158,7 +160,10 @@ func (s *ProfileStore) ResolveAccountReportTarget(ctx context.Context, handleOrD
 func (s *ProfileStore) accountProfileExists(ctx context.Context, did string) (bool, error) {
 	var exists bool
 	if err := s.pool.QueryRow(ctx, `
-		SELECT EXISTS (SELECT 1 FROM craftsky_profiles WHERE did = $1)
+		SELECT EXISTS (
+			SELECT 1 FROM craftsky_profiles
+			WHERE did = $1 AND NOT appview_owner_is_terminal(did)
+		)
 	`, did).Scan(&exists); err != nil {
 		return false, err
 	}
@@ -177,12 +182,16 @@ func (s *ProfileStore) Read(ctx context.Context, profileDID string, viewerDID st
 				FROM atproto_follows f
 				JOIN craftsky_profiles follower_cp ON follower_cp.did = f.did
 				WHERE f.subject_did = cp.did
+				  AND NOT appview_owner_is_terminal(f.did)
+				  AND NOT appview_owner_is_terminal(f.subject_did)
 			) AS follower_count,
 			(
 				SELECT COUNT(*)
 				FROM atproto_follows f
 				JOIN craftsky_profiles target_cp ON target_cp.did = f.subject_did
 				WHERE f.did = cp.did
+				  AND NOT appview_owner_is_terminal(f.did)
+				  AND NOT appview_owner_is_terminal(f.subject_did)
 			) AS following_count,
 			CASE
 				WHEN $2 = '' OR $2 = cp.did THEN NULL
@@ -193,6 +202,10 @@ func (s *ProfileStore) Read(ctx context.Context, profileDID string, viewerDID st
 					  ON mutual_follow.did = viewer_follow.subject_did
 					WHERE viewer_follow.did = $2
 					  AND mutual_follow.subject_did = cp.did
+					  AND NOT appview_owner_is_terminal(viewer_follow.did)
+					  AND NOT appview_owner_is_terminal(viewer_follow.subject_did)
+					  AND NOT appview_owner_is_terminal(mutual_follow.did)
+					  AND NOT appview_owner_is_terminal(mutual_follow.subject_did)
 				)
 			END AS mutual_follower_count,
 			(
@@ -226,6 +239,7 @@ func (s *ProfileStore) Read(ctx context.Context, profileDID string, viewerDID st
 					SELECT 1
 					FROM moderation_outputs mo
 					WHERE mo.action = 'apply'
+					  AND NOT appview_owner_is_terminal(mo.source_did)
 					  AND mo.value IN ('hide', 'takedown')
 					  AND (mo.expires_at IS NULL OR mo.expires_at > now())
 					  AND (
@@ -252,6 +266,8 @@ func (s *ProfileStore) Read(ctx context.Context, profileDID string, viewerDID st
 					SELECT 1
 					FROM atproto_follows f
 					WHERE f.did = $2 AND f.subject_did = cp.did
+					  AND NOT appview_owner_is_terminal(f.did)
+					  AND NOT appview_owner_is_terminal(f.subject_did)
 					  AND NOT EXISTS (
 						SELECT 1 FROM atproto_blocks b
 						WHERE (b.blocker_did = $2 AND b.subject_did = cp.did)
@@ -264,6 +280,8 @@ func (s *ProfileStore) Read(ctx context.Context, profileDID string, viewerDID st
 				ELSE EXISTS (
 					SELECT 1 FROM actor_mutes m
 					WHERE m.owner_did = $2 AND m.subject_did = cp.did
+					  AND NOT appview_owner_is_terminal(m.owner_did)
+					  AND NOT appview_owner_is_terminal(m.subject_did)
 				)
 			END AS muted,
 			CASE
@@ -271,6 +289,8 @@ func (s *ProfileStore) Read(ctx context.Context, profileDID string, viewerDID st
 				ELSE EXISTS (
 					SELECT 1 FROM atproto_blocks b
 					WHERE b.blocker_did = $2 AND b.subject_did = cp.did
+					  AND NOT appview_owner_is_terminal(b.blocker_did)
+					  AND NOT appview_owner_is_terminal(b.subject_did)
 				)
 			END AS blocking,
 			CASE
@@ -278,6 +298,8 @@ func (s *ProfileStore) Read(ctx context.Context, profileDID string, viewerDID st
 				ELSE EXISTS (
 					SELECT 1 FROM atproto_blocks b
 					WHERE b.blocker_did = cp.did AND b.subject_did = $2
+					  AND NOT appview_owner_is_terminal(b.blocker_did)
+					  AND NOT appview_owner_is_terminal(b.subject_did)
 				)
 			END AS blocked_by,
 			bp.display_name, bp.description,
@@ -288,6 +310,7 @@ func (s *ProfileStore) Read(ctx context.Context, profileDID string, viewerDID st
 					SELECT 1
 					FROM moderation_outputs mo
 					WHERE mo.action = 'apply'
+					  AND NOT appview_owner_is_terminal(mo.source_did)
 					  AND mo.subject_type = 'account'
 					  AND mo.subject_did = cp.did
 					  AND mo.value = 'warn'
@@ -368,14 +391,20 @@ func (s *ProfileStore) ListMutualFollowers(ctx context.Context, viewerDID string
 		JOIN craftsky_profiles mutual_cp ON mutual_cp.did = viewer_follow.subject_did
 		WHERE viewer_follow.did = $1
 		  AND mutual_follow.subject_did = $2
+		  AND NOT appview_owner_is_terminal(viewer_follow.did)
+		  AND NOT appview_owner_is_terminal(viewer_follow.subject_did)
+		  AND NOT appview_owner_is_terminal(mutual_follow.did)
+		  AND NOT appview_owner_is_terminal(mutual_follow.subject_did)
 		  AND NOT EXISTS (
 			SELECT 1 FROM atproto_blocks b
-			WHERE (b.blocker_did = $1 AND b.subject_did = $2)
+			WHERE ((b.blocker_did = $1 AND b.subject_did = $2)
 			   OR (b.blocker_did = $2 AND b.subject_did = $1)
 			   OR (b.blocker_did = $1 AND b.subject_did = viewer_follow.subject_did)
 			   OR (b.blocker_did = viewer_follow.subject_did AND b.subject_did = $1)
 			   OR (b.blocker_did = $2 AND b.subject_did = viewer_follow.subject_did)
-			   OR (b.blocker_did = viewer_follow.subject_did AND b.subject_did = $2)
+			   OR (b.blocker_did = viewer_follow.subject_did AND b.subject_did = $2))
+			  AND NOT appview_owner_is_terminal(b.blocker_did)
+			  AND NOT appview_owner_is_terminal(b.subject_did)
 		  )
 	`, viewerDID, profileDID).Scan(&total); err != nil {
 		return nil, "", 0, fmt.Errorf("mutual follower count %s->%s: %w", viewerDID, profileDID, err)
@@ -389,9 +418,12 @@ func (s *ProfileStore) ListMutualFollowers(ctx context.Context, viewerDID string
 			bp.avatar_cid,
 			bp.avatar_mime,
 			(cp.did IS NOT NULL) AS is_craftsky_profile,
-			EXISTS (SELECT 1 FROM actor_mutes m WHERE m.owner_did = $1 AND m.subject_did = viewer_follow.subject_did),
-			EXISTS (SELECT 1 FROM atproto_blocks b WHERE b.blocker_did = $1 AND b.subject_did = viewer_follow.subject_did),
-			EXISTS (SELECT 1 FROM atproto_blocks b WHERE b.blocker_did = viewer_follow.subject_did AND b.subject_did = $1),
+			EXISTS (SELECT 1 FROM actor_mutes m WHERE m.owner_did = $1 AND m.subject_did = viewer_follow.subject_did
+			        AND NOT appview_owner_is_terminal(m.owner_did) AND NOT appview_owner_is_terminal(m.subject_did)),
+			EXISTS (SELECT 1 FROM atproto_blocks b WHERE b.blocker_did = $1 AND b.subject_did = viewer_follow.subject_did
+			        AND NOT appview_owner_is_terminal(b.blocker_did) AND NOT appview_owner_is_terminal(b.subject_did)),
+			EXISTS (SELECT 1 FROM atproto_blocks b WHERE b.blocker_did = viewer_follow.subject_did AND b.subject_did = $1
+			        AND NOT appview_owner_is_terminal(b.blocker_did) AND NOT appview_owner_is_terminal(b.subject_did)),
 			mutual_follow.created_at,
 			mutual_follow.uri
 		FROM atproto_follows viewer_follow
@@ -401,14 +433,20 @@ func (s *ProfileStore) ListMutualFollowers(ctx context.Context, viewerDID string
 		JOIN craftsky_profiles cp ON cp.did = viewer_follow.subject_did
 		WHERE viewer_follow.did = $1
 		  AND mutual_follow.subject_did = $2
+		  AND NOT appview_owner_is_terminal(viewer_follow.did)
+		  AND NOT appview_owner_is_terminal(viewer_follow.subject_did)
+		  AND NOT appview_owner_is_terminal(mutual_follow.did)
+		  AND NOT appview_owner_is_terminal(mutual_follow.subject_did)
 		  AND NOT EXISTS (
 			SELECT 1 FROM atproto_blocks b
-			WHERE (b.blocker_did = $1 AND b.subject_did = $2)
+			WHERE ((b.blocker_did = $1 AND b.subject_did = $2)
 			   OR (b.blocker_did = $2 AND b.subject_did = $1)
 			   OR (b.blocker_did = $1 AND b.subject_did = viewer_follow.subject_did)
 			   OR (b.blocker_did = viewer_follow.subject_did AND b.subject_did = $1)
 			   OR (b.blocker_did = $2 AND b.subject_did = viewer_follow.subject_did)
-			   OR (b.blocker_did = viewer_follow.subject_did AND b.subject_did = $2)
+			   OR (b.blocker_did = viewer_follow.subject_did AND b.subject_did = $2))
+			  AND NOT appview_owner_is_terminal(b.blocker_did)
+			  AND NOT appview_owner_is_terminal(b.subject_did)
 		  )
 		  AND ($3::timestamptz IS NULL
 		       OR (mutual_follow.created_at, mutual_follow.uri) < ($3::timestamptz, $4::text))
@@ -458,10 +496,14 @@ func (s *ProfileStore) listFollowAccounts(ctx context.Context, kind string, did 
 
 	queryConfig := followAccountQueryConfig(kind)
 	eligibleWhere := queryConfig.whereExpr + `
+		AND NOT appview_owner_is_terminal(f.did)
+		AND NOT appview_owner_is_terminal(f.subject_did)
 		AND NOT EXISTS (
 			SELECT 1 FROM atproto_blocks b
-			WHERE (b.blocker_did = $1 AND b.subject_did = ` + queryConfig.accountExpr + `)
-			   OR (b.blocker_did = ` + queryConfig.accountExpr + ` AND b.subject_did = $1)
+			WHERE ((b.blocker_did = $1 AND b.subject_did = ` + queryConfig.accountExpr + `)
+			   OR (b.blocker_did = ` + queryConfig.accountExpr + ` AND b.subject_did = $1))
+			  AND NOT appview_owner_is_terminal(b.blocker_did)
+			  AND NOT appview_owner_is_terminal(b.subject_did)
 		)`
 
 	var total int
@@ -477,9 +519,12 @@ func (s *ProfileStore) listFollowAccounts(ctx context.Context, kind string, did 
 			bp.avatar_cid,
 			bp.avatar_mime,
 			(cp.did IS NOT NULL) AS is_craftsky_profile,
-			EXISTS (SELECT 1 FROM actor_mutes m WHERE m.owner_did = $1 AND m.subject_did = ` + queryConfig.accountExpr + `),
-			EXISTS (SELECT 1 FROM atproto_blocks b WHERE b.blocker_did = $1 AND b.subject_did = ` + queryConfig.accountExpr + `),
-			EXISTS (SELECT 1 FROM atproto_blocks b WHERE b.blocker_did = ` + queryConfig.accountExpr + ` AND b.subject_did = $1),
+			EXISTS (SELECT 1 FROM actor_mutes m WHERE m.owner_did = $1 AND m.subject_did = ` + queryConfig.accountExpr + `
+			        AND NOT appview_owner_is_terminal(m.owner_did) AND NOT appview_owner_is_terminal(m.subject_did)),
+			EXISTS (SELECT 1 FROM atproto_blocks b WHERE b.blocker_did = $1 AND b.subject_did = ` + queryConfig.accountExpr + `
+			        AND NOT appview_owner_is_terminal(b.blocker_did) AND NOT appview_owner_is_terminal(b.subject_did)),
+			EXISTS (SELECT 1 FROM atproto_blocks b WHERE b.blocker_did = ` + queryConfig.accountExpr + ` AND b.subject_did = $1
+			        AND NOT appview_owner_is_terminal(b.blocker_did) AND NOT appview_owner_is_terminal(b.subject_did)),
 			f.created_at,
 			f.uri
 		FROM atproto_follows f

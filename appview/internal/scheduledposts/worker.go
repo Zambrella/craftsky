@@ -16,13 +16,14 @@ const (
 )
 
 type WorkItem struct {
-	ID             uuid.UUID
-	OwnerDID       syntax.DID
-	LeaseToken     uuid.UUID
-	PayloadVersion int64
-	Rkey           syntax.RecordKey
-	CreatedAt      time.Time
-	Manual         bool
+	ID              uuid.UUID
+	OwnerDID        syntax.DID
+	OwnerGeneration int64
+	LeaseToken      uuid.UUID
+	PayloadVersion  int64
+	Rkey            syntax.RecordKey
+	CreatedAt       time.Time
+	Manual          bool
 }
 
 type ClaimStore interface {

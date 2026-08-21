@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/coder/websocket"
 	"github.com/coder/websocket/wsjson"
 	"github.com/getsentry/sentry-go"
@@ -21,48 +21,169 @@ import (
 	"social.craftsky/appview/internal/tap"
 )
 
-// fakeIndexer records Handle calls and can be configured to fail.
-type fakeIndexer struct {
-	mu       sync.Mutex
-	events   []tap.Event
-	failOnce bool // if true, next Handle returns error (then resets to false)
-}
+func TestWSConsumerConfigExposesOnlyDurableIngestionBoundary(t *testing.T) {
+	t.Parallel()
 
-type identityDeletionSpy struct {
-	mu   sync.Mutex
-	dids []syntax.DID
-}
-
-func (s *identityDeletionSpy) HandleIdentityDeleted(_ context.Context, did syntax.DID) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.dids = append(s.dids, did)
-	return nil
-}
-
-func (s *identityDeletionSpy) DIDs() []syntax.DID {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return append([]syntax.DID(nil), s.dids...)
-}
-
-func (f *fakeIndexer) Handle(ctx context.Context, ev tap.Event) error {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	if f.failOnce {
-		f.failOnce = false
-		return errTest
+	configType := reflect.TypeOf(tap.WSConsumerConfig{})
+	want := map[string]bool{
+		"URL": true, "Ingestor": true, "AckTimeout": true,
+		"ReconnectMax": true, "Logger": true, "Observer": true,
 	}
-	f.events = append(f.events, ev)
-	return nil
+	if configType.NumField() != len(want) {
+		t.Fatalf("WSConsumerConfig has %d fields, want %d durable-only fields", configType.NumField(), len(want))
+	}
+	for i := range configType.NumField() {
+		field := configType.Field(i).Name
+		if !want[field] {
+			t.Fatalf("WSConsumerConfig exposes non-durable compatibility field %q", field)
+		}
+		delete(want, field)
+	}
+	if len(want) != 0 {
+		t.Fatalf("WSConsumerConfig is missing durable fields %v", want)
+	}
 }
 
-func (f *fakeIndexer) Events() []tap.Event {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	out := make([]tap.Event, len(f.events))
-	copy(out, f.events)
-	return out
+type durableIngestorSpy struct {
+	mu              sync.Mutex
+	records         []tap.Event
+	identities      []tap.IdentityEvent
+	invalid         []tap.InvalidEvent
+	recordFunc      func(context.Context, tap.Event) (tap.Outcome, error)
+	identityFunc    func(context.Context, tap.IdentityEvent) (tap.Outcome, error)
+	recordErr       error
+	identityErr     error
+	quarantineErr   error
+	recordOutcome   tap.Outcome
+	identityOutcome tap.Outcome
+}
+
+type retryThenSucceedIngestor struct {
+	remainingFailures atomic.Int32
+	calls             atomic.Int32
+}
+
+func newRetryThenSucceedIngestor(failures int32) *retryThenSucceedIngestor {
+	ingestor := &retryThenSucceedIngestor{}
+	ingestor.remainingFailures.Store(failures)
+	return ingestor
+}
+
+func (ingestor *retryThenSucceedIngestor) IngestRecord(context.Context, tap.Event) (tap.Outcome, error) {
+	ingestor.calls.Add(1)
+	if ingestor.remainingFailures.Add(-1) >= 0 {
+		return tap.Retryable(tap.ReasonStorageUnavailable), errTest
+	}
+	return tap.Applied(), nil
+}
+
+func (*retryThenSucceedIngestor) IngestIdentity(context.Context, tap.IdentityEvent) (tap.Outcome, error) {
+	return tap.Applied(), nil
+}
+
+func (*retryThenSucceedIngestor) Quarantine(context.Context, tap.InvalidEvent) (tap.Outcome, error) {
+	return tap.PermanentInvalid(tap.ReasonInvalidEnvelope), nil
+}
+
+func (s *durableIngestorSpy) IngestRecord(ctx context.Context, event tap.Event) (tap.Outcome, error) {
+	s.mu.Lock()
+	s.records = append(s.records, event)
+	fn := s.recordFunc
+	outcome := s.recordOutcome
+	err := s.recordErr
+	s.mu.Unlock()
+	if fn != nil {
+		return fn(ctx, event)
+	}
+	if outcome.Kind == "" {
+		outcome = tap.Applied()
+	}
+	return outcome, err
+}
+
+func (s *durableIngestorSpy) IngestIdentity(ctx context.Context, event tap.IdentityEvent) (tap.Outcome, error) {
+	s.mu.Lock()
+	s.identities = append(s.identities, event)
+	fn := s.identityFunc
+	outcome := s.identityOutcome
+	err := s.identityErr
+	s.mu.Unlock()
+	if fn != nil {
+		return fn(ctx, event)
+	}
+	if outcome.Kind == "" {
+		outcome = tap.Applied()
+	}
+	return outcome, err
+}
+
+func TestWSConsumer_TerminalIdentityOverProcessingDeadlineIsNeverAcked(t *testing.T) {
+	frames := []string{
+		`{"id":910,"type":"identity","identity":{"did":"did:plc:in-budget","status":"deleted"}}`,
+		`{"id":911,"type":"identity","identity":{"did":"did:plc:over-budget","status":"deleted"}}`,
+	}
+	ft := newFakeTap(frames)
+	server := httptest.NewServer(ft.handler(t))
+	defer server.Close()
+	ingestor := &durableIngestorSpy{identityFunc: func(ctx context.Context, event tap.IdentityEvent) (tap.Outcome, error) {
+		if event.ID == 910 {
+			return tap.Applied(), nil
+		}
+		<-ctx.Done()
+		return tap.Retryable(tap.ReasonStorageUnavailable), ctx.Err()
+	}}
+	consumer := tap.NewWSConsumer(tap.WSConsumerConfig{
+		URL: strings.Replace(server.URL, "http://", "ws://", 1), Ingestor: ingestor,
+		AckTimeout: 40 * time.Millisecond, ReconnectMax: time.Second,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	go consumer.Run(ctx)
+
+	select {
+	case id := <-ft.acks:
+		if id != 910 {
+			t.Fatalf("first ACK id=%d, want in-budget identity 910", id)
+		}
+	case <-time.After(250 * time.Millisecond):
+		t.Fatal("in-budget terminal identity was not acknowledged")
+	}
+	select {
+	case id := <-ft.acks:
+		t.Fatalf("over-budget terminal identity was acknowledged: id=%d", id)
+	case <-time.After(120 * time.Millisecond):
+	}
+	if got := ingestor.identityEvents(); len(got) != 2 {
+		t.Fatalf("identity attempts=%v, want both in-budget and over-budget events", got)
+	}
+}
+
+func (s *durableIngestorSpy) Quarantine(_ context.Context, event tap.InvalidEvent) (tap.Outcome, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.invalid = append(s.invalid, event)
+	if s.quarantineErr != nil {
+		return tap.Retryable(tap.ReasonStorageUnavailable), s.quarantineErr
+	}
+	return tap.PermanentInvalid(event.Reason), nil
+}
+
+func (s *durableIngestorSpy) invalidEvents() []tap.InvalidEvent {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]tap.InvalidEvent(nil), s.invalid...)
+}
+
+func (s *durableIngestorSpy) recordEvents() []tap.Event {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]tap.Event(nil), s.records...)
+}
+
+func (s *durableIngestorSpy) identityEvents() []tap.IdentityEvent {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return append([]tap.IdentityEvent(nil), s.identities...)
 }
 
 var errTest = &testErr{msg: "intentional test error"}
@@ -119,9 +240,9 @@ func TestWSConsumer_HappyPath(t *testing.T) {
 	t.Parallel()
 
 	frames := []string{
-		`{"id":1,"type":"record","record":{"live":true,"rev":"r1","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k1","action":"create","cid":"bafy1","record":{"text":"hi"}}}`,
-		`{"id":2,"type":"record","record":{"live":true,"rev":"r2","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k2","action":"create","cid":"bafy2","record":{"text":"hey"}}}`,
-		`{"id":3,"type":"record","record":{"live":false,"rev":"r3","did":"did:plc:b","collection":"app.bsky.feed.post","rkey":"k3","action":"delete","cid":"bafy3"}}`,
+		`{"id":1,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k1","action":"create","cid":"bafy1","record":{"text":"hi"}}}`,
+		`{"id":2,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa3","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k2","action":"create","cid":"bafy2","record":{"text":"hey"}}}`,
+		`{"id":3,"type":"record","record":{"live":false,"rev":"3aaaaaaaaaaa4","did":"did:plc:b","collection":"app.bsky.feed.post","rkey":"k3","action":"delete","cid":"bafy3"}}`,
 	}
 	ft := newFakeTap(frames)
 	srv := httptest.NewServer(ft.handler(t))
@@ -129,13 +250,12 @@ func TestWSConsumer_HappyPath(t *testing.T) {
 
 	wsURL := strings.Replace(srv.URL, "http://", "ws://", 1)
 
-	idx := &fakeIndexer{}
+	ingestor := &durableIngestorSpy{}
 	c := tap.NewWSConsumer(tap.WSConsumerConfig{
 		URL:          wsURL,
-		Indexer:      idx,
+		Ingestor:     ingestor,
 		AckTimeout:   5 * time.Second,
 		ReconnectMax: 1 * time.Second,
-		MaxRetries:   5,
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -144,17 +264,17 @@ func TestWSConsumer_HappyPath(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- c.Run(ctx) }()
 
-	// Wait for three events to be indexed.
+	// Wait for three events to reach the durable ingestion boundary.
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
-		if len(idx.Events()) == 3 {
+		if len(ingestor.recordEvents()) == 3 {
 			break
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	evs := idx.Events()
+	evs := ingestor.recordEvents()
 	if len(evs) != 3 {
-		t.Fatalf("indexed %d events, want 3; got %+v", len(evs), evs)
+		t.Fatalf("ingested %d events, want 3; got %+v", len(evs), evs)
 	}
 
 	// Wait for three acks on the server side.
@@ -202,7 +322,7 @@ func TestWSConsumer_HappyPath(t *testing.T) {
 	}
 }
 
-func TestWSConsumer_ForwardsOnlyTerminalIdentityDeletion(t *testing.T) {
+func TestWSConsumer_DurablyIngestsEverySupportedIdentityEventBeforeAck(t *testing.T) {
 	frames := []string{
 		`{"id":1,"type":"identity","identity":{"did":"did:plc:actor","status":"active"}}`,
 		`{"id":2,"type":"identity","identity":{"did":"did:plc:actor","status":"deactivated"}}`,
@@ -212,10 +332,11 @@ func TestWSConsumer_ForwardsOnlyTerminalIdentityDeletion(t *testing.T) {
 	ft := newFakeTap(frames)
 	srv := httptest.NewServer(ft.handler(t))
 	defer srv.Close()
-	spy := &identityDeletionSpy{}
+	ingestor := &durableIngestorSpy{}
 	c := tap.NewWSConsumer(tap.WSConsumerConfig{
-		URL: strings.Replace(srv.URL, "http://", "ws://", 1), Indexer: &fakeIndexer{},
-		AckTimeout: time.Second, ReconnectMax: time.Second, MaxRetries: 5, IdentityHandler: spy,
+		URL:        strings.Replace(srv.URL, "http://", "ws://", 1),
+		Ingestor:   ingestor,
+		AckTimeout: time.Second, ReconnectMax: time.Second,
 	})
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
@@ -227,9 +348,14 @@ func TestWSConsumer_ForwardsOnlyTerminalIdentityDeletion(t *testing.T) {
 			t.Fatal("timeout waiting for identity ack")
 		}
 	}
-	got := spy.DIDs()
-	if len(got) != 1 || got[0] != "did:plc:actor" {
-		t.Fatalf("deleted DIDs=%v", got)
+	got := ingestor.identityEvents()
+	if len(got) != len(frames) {
+		t.Fatalf("identity events=%v, want %d durable events", got, len(frames))
+	}
+	for i, wantStatus := range []string{"active", "deactivated", "takendown", "deleted"} {
+		if got[i].DID != "did:plc:actor" || got[i].Status != wantStatus {
+			t.Fatalf("identity event %d = %+v, want DID did:plc:actor and status %q", i, got[i], wantStatus)
+		}
 	}
 }
 
@@ -237,11 +363,11 @@ func isContextCanceled(err error) bool {
 	return err == context.Canceled || strings.Contains(err.Error(), "context canceled")
 }
 
-func TestWSConsumer_IndexerErrorDoesNotAck(t *testing.T) {
+func TestWSConsumer_RetryableIngestionErrorDoesNotAck(t *testing.T) {
 	t.Parallel()
 
 	frames := []string{
-		`{"id":42,"type":"record","record":{"live":true,"rev":"r","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k","action":"create","cid":"bafy","record":{"text":"x"}}}`,
+		`{"id":42,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k","action":"create","cid":"bafy","record":{"text":"x"}}}`,
 	}
 	ft := newFakeTap(frames)
 	srv := httptest.NewServer(ft.handler(t))
@@ -249,23 +375,25 @@ func TestWSConsumer_IndexerErrorDoesNotAck(t *testing.T) {
 
 	wsURL := strings.Replace(srv.URL, "http://", "ws://", 1)
 
-	idx := &fakeIndexer{failOnce: true}
+	ingestor := &durableIngestorSpy{
+		recordOutcome: tap.Retryable(tap.ReasonStorageUnavailable),
+		recordErr:     errTest,
+	}
 	c := tap.NewWSConsumer(tap.WSConsumerConfig{
 		URL:          wsURL,
-		Indexer:      idx,
+		Ingestor:     ingestor,
 		AckTimeout:   1 * time.Second,
 		ReconnectMax: 500 * time.Millisecond,
-		MaxRetries:   100, // high — we only want to see the first failure
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	go c.Run(ctx)
 
-	// We expect zero acks within 500ms (indexer failed, so no ack sent).
+	// We expect zero acks within 500ms because no durable outcome committed.
 	select {
 	case id := <-ft.acks:
-		t.Fatalf("unexpected ack for id=%d after indexer error", id)
+		t.Fatalf("unexpected ack for id=%d after retryable ingestion error", id)
 	case <-time.After(500 * time.Millisecond):
 		// good: no ack
 	}
@@ -291,10 +419,9 @@ func TestWSConsumer_ReconnectsOnWSClose(t *testing.T) {
 
 	c := tap.NewWSConsumer(tap.WSConsumerConfig{
 		URL:          wsURL,
-		Indexer:      &fakeIndexer{},
+		Ingestor:     &durableIngestorSpy{},
 		AckTimeout:   1 * time.Second,
 		ReconnectMax: 200 * time.Millisecond, // tight for fast test
-		MaxRetries:   5,
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -311,87 +438,129 @@ func TestWSConsumer_ReconnectsOnWSClose(t *testing.T) {
 	if got := atomic.LoadInt32(&connCount); got < 3 {
 		t.Fatalf("connected %d times, expected >=3 reconnects", got)
 	}
-
-	// ReconnectAttempt gets reset to 0 on every successful Dial (via
-	// setConnected); the server here accepts before closing, so the
-	// counter only reflects the most recent pre-connect attempt, not a
-	// monotonic total. Just assert it's been bumped at least once.
-	st := c.State()
-	if st.ReconnectAttempt < 1 {
-		t.Errorf("ReconnectAttempt = %d, want >=1", st.ReconnectAttempt)
-	}
 }
 
-func TestWSConsumer_PoisonPillIsDroppedAfterMaxRetries(t *testing.T) {
+func TestWSConsumer_RetryableFailureNeverBecomesTerminalAck(t *testing.T) {
 	t.Parallel()
 
-	// This is tricky: without redelivery, we only see "id=99" once.
-	// So the poison-pill path is exercised only if Tap re-sends. We
-	// emulate that by sending the same id 7 times in a row from the
-	// fake server. With MaxRetries=5, the first 5 failures are ignored
-	// (no ack), the 6th failure triggers the drop-and-ack path. We
-	// send one extra frame as a buffer to avoid relying on exact count.
-	sameFrame := `{"id":99,"type":"record","record":{"live":true,"rev":"r","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k","action":"create","cid":"bafy","record":{"text":"x"}}}`
-	frames := []string{sameFrame, sameFrame, sameFrame, sameFrame, sameFrame, sameFrame, sameFrame}
+	// Tap redelivers the same event id until AppView acks a durable outcome.
+	// Delivery count is not consumer state: even a long infrastructure outage
+	// must never turn a retryable failure into a terminal acknowledgement.
+	sameFrame := `{"id":99,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k","action":"create","cid":"bafy","record":{"text":"x"}}}`
+	frames := []string{sameFrame, sameFrame, sameFrame, sameFrame, sameFrame, sameFrame, sameFrame, sameFrame}
 	ft := newFakeTap(frames)
 	srv := httptest.NewServer(ft.handler(t))
 	defer srv.Close()
 
 	wsURL := strings.Replace(srv.URL, "http://", "ws://", 1)
 
-	idx := &alwaysFailIndexer{}
+	ingestor := &durableIngestorSpy{
+		recordOutcome: tap.Retryable(tap.ReasonStorageUnavailable),
+		recordErr:     errTest,
+	}
 	c := tap.NewWSConsumer(tap.WSConsumerConfig{
 		URL:          wsURL,
-		Indexer:      idx,
+		Ingestor:     ingestor,
 		AckTimeout:   1 * time.Second,
 		ReconnectMax: 500 * time.Millisecond,
-		MaxRetries:   5,
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	go c.Run(ctx)
 
-	// Expect exactly one ack for id=99 after the 5th-failure -> 6th-attempt drop.
+	// More than the former six-delivery threshold still produces no ack.
 	select {
 	case id := <-ft.acks:
-		if id != 99 {
-			t.Fatalf("ack id=%d, want 99", id)
+		t.Fatalf("retryable event was terminally acked after repeated delivery: id=%d", id)
+	case <-time.After(750 * time.Millisecond):
+		// Correct: Tap retains the event for a later retry.
+	}
+	if got := len(ingestor.recordEvents()); got != len(frames) {
+		t.Fatalf("durable ingestion attempts=%d, want one attempt for each of %d redeliveries", got, len(frames))
+	}
+}
+
+func TestWSConsumer_RetryableFailureBeyondFormerLimitEventuallyAcksDurableSuccess(t *testing.T) {
+	t.Parallel()
+
+	sameFrame := `{"id":100,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k","action":"create","cid":"bafy","record":{"text":"x"}}}`
+	frames := []string{sameFrame, sameFrame, sameFrame, sameFrame, sameFrame, sameFrame, sameFrame, sameFrame}
+	ft := newFakeTap(frames)
+	srv := httptest.NewServer(ft.handler(t))
+	defer srv.Close()
+
+	ingestor := newRetryThenSucceedIngestor(7)
+	consumer := tap.NewWSConsumer(tap.WSConsumerConfig{
+		URL: strings.Replace(srv.URL, "http://", "ws://", 1), Ingestor: ingestor,
+		AckTimeout: time.Second, ReconnectMax: 500 * time.Millisecond,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	go consumer.Run(ctx)
+
+	select {
+	case id := <-ft.acks:
+		if id != 100 {
+			t.Fatalf("ack id=%d, want 100", id)
 		}
-	case <-time.After(1500 * time.Millisecond):
-		t.Fatal("timeout waiting for poison-pill ack")
+	case <-time.After(time.Second):
+		t.Fatal("durable success after seven retryable failures was not acknowledged")
+	}
+	if got := ingestor.calls.Load(); got != 8 {
+		t.Fatalf("ingestion calls=%d, want seven retryable attempts plus one durable success", got)
+	}
+	select {
+	case id := <-ft.acks:
+		t.Fatalf("event was acknowledged more than once: id=%d", id)
+	case <-time.After(50 * time.Millisecond):
 	}
 }
 
-type alwaysFailIndexer struct{}
+func TestWSConsumer_ReconnectsAfterQuarantiningEnvelopeWithoutAckID(t *testing.T) {
+	var connections atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		connections.Add(1)
+		conn, err := websocket.Accept(w, r, nil)
+		if err != nil {
+			t.Errorf("accept: %v", err)
+			return
+		}
+		defer conn.CloseNow()
+		_ = conn.Write(r.Context(), websocket.MessageText, []byte(`{"id":0,"type":"unsupported"}`))
+		var ack map[string]any
+		_ = wsjson.Read(r.Context(), conn, &ack)
+	}))
+	defer srv.Close()
 
-func (alwaysFailIndexer) Handle(ctx context.Context, ev tap.Event) error { return errTest }
-
-type panicIndexer struct{}
-
-func (panicIndexer) Handle(context.Context, tap.Event) error {
-	panic("indexer panic")
-}
-
-type failOnIDIndexer struct {
-	events []tap.Event
-}
-
-func (f *failOnIDIndexer) Handle(_ context.Context, ev tap.Event) error {
-	if ev.ID == 2 {
-		return errTest
+	ingestor := &durableIngestorSpy{}
+	consumer := tap.NewWSConsumer(tap.WSConsumerConfig{
+		URL: strings.Replace(srv.URL, "http://", "ws://", 1), Ingestor: ingestor,
+		AckTimeout: time.Second, ReconnectMax: 20 * time.Millisecond,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	defer cancel()
+	go consumer.Run(ctx)
+	deadline := time.Now().Add(350 * time.Millisecond)
+	for time.Now().Before(deadline) && connections.Load() < 2 {
+		time.Sleep(10 * time.Millisecond)
 	}
-	f.events = append(f.events, ev)
-	return nil
+	if got := connections.Load(); got < 2 {
+		t.Fatalf("connections=%d, want reconnect after durable quarantine without an ack id", got)
+	}
+	invalid := ingestor.invalidEvents()
+	if len(invalid) == 0 || invalid[0].Reason != tap.ReasonInvalidEnvelope {
+		t.Fatalf("quarantined events=%+v, want invalid envelope", invalid)
+	}
 }
 
 func TestWSConsumer_EmitsTapMetricsAndCapturesIndexerErrors(t *testing.T) {
 	t.Parallel()
 
 	frames := []string{
-		`{"id":1,"type":"record","record":{"live":true,"rev":"r1","did":"did:plc:a","collection":"social.craftsky.feed.post","rkey":"k1","action":"create","cid":"bafy1","record":{"text":"hi"}}}`,
-		`{"id":2,"type":"record","record":{"live":true,"rev":"r2","did":"did:plc:a","collection":"social.craftsky.feed.like","rkey":"k2","action":"create","cid":"bafy2","record":{"subject":"x"}}}`,
-		`{"id":3,"type":"record","record":{"live":true,"rev":"r3","did":"did:plc:a","collection":"not-an-nsid!","rkey":"k3","action":"create","cid":"bafy3","record":{"text":"bad"}}}`,
+		`{"id":1,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:a","collection":"social.craftsky.feed.post","rkey":"k1","action":"create","cid":"bafy1","record":{"text":"hi"}}}`,
+		`{"id":2,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa3","did":"did:plc:a","collection":"social.craftsky.feed.like","rkey":"k2","action":"create","cid":"bafy2","record":{"subject":"x"}}}`,
+		`{"id":3,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa4","did":"did:plc:a","collection":"not-an-nsid!","rkey":"k3","action":"create","cid":"bafy3","record":{"text":"bad"}}}`,
 		`{"id":4,"type":"identity","identity":{"did":"did:plc:a"}}`,
 	}
 	ft := newFakeTap(frames)
@@ -406,13 +575,19 @@ func TestWSConsumer_EmitsTapMetricsAndCapturesIndexerErrors(t *testing.T) {
 		SentryTransport: transport,
 		MetricRecorder:  recorder,
 	})
-	idx := &failOnIDIndexer{}
+	ingestor := &durableIngestorSpy{
+		recordFunc: func(_ context.Context, event tap.Event) (tap.Outcome, error) {
+			if event.ID == 2 {
+				return tap.Retryable(tap.ReasonProjectionFailure), errTest
+			}
+			return tap.Applied(), nil
+		},
+	}
 	c := tap.NewWSConsumer(tap.WSConsumerConfig{
 		URL:          strings.Replace(srv.URL, "http://", "ws://", 1),
-		Indexer:      idx,
+		Ingestor:     ingestor,
 		AckTimeout:   1 * time.Second,
 		ReconnectMax: 500 * time.Millisecond,
-		MaxRetries:   100,
 		Observer:     observer,
 	})
 
@@ -472,7 +647,7 @@ func TestWSConsumer_ExportsSentryConsumeAndIndexerSpans(t *testing.T) {
 	t.Parallel()
 
 	frames := []string{
-		`{"id":11,"type":"record","record":{"live":true,"rev":"r1","did":"did:plc:alice","collection":"social.craftsky.feed.post","rkey":"post1","action":"create","cid":"bafyPost","record":{"text":"secret body"}}}`,
+		`{"id":11,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:alice","collection":"social.craftsky.feed.post","rkey":"post1","action":"create","cid":"bafyPost","record":{"text":"secret body"}}}`,
 	}
 	ft := newFakeTap(frames)
 	srv := httptest.NewServer(ft.handler(t))
@@ -488,13 +663,12 @@ func TestWSConsumer_ExportsSentryConsumeAndIndexerSpans(t *testing.T) {
 		TapTracingEnabled:   true,
 		TapTracesSampleRate: 1,
 	})
-	idx := &fakeIndexer{}
+	ingestor := &durableIngestorSpy{}
 	c := tap.NewWSConsumer(tap.WSConsumerConfig{
 		URL:          strings.Replace(srv.URL, "http://", "ws://", 1),
-		Indexer:      idx,
+		Ingestor:     ingestor,
 		AckTimeout:   1 * time.Second,
 		ReconnectMax: 500 * time.Millisecond,
-		MaxRetries:   5,
 		Observer:     observer,
 	})
 
@@ -572,23 +746,27 @@ func TestWSConsumer_ExportsSentryConsumeAndIndexerSpans(t *testing.T) {
 	}
 }
 
-func TestWSConsumer_IndexerPanicDoesNotCrashConsumer(t *testing.T) {
+func TestWSConsumer_IngestorPanicDoesNotCrashConsumer(t *testing.T) {
 	t.Parallel()
 
 	frames := []string{
-		`{"id":123,"type":"record","record":{"live":true,"rev":"r","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k","action":"create","cid":"bafy","record":{"text":"x"}}}`,
+		`{"id":123,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k","action":"create","cid":"bafy","record":{"text":"x"}}}`,
 	}
 	ft := newFakeTap(frames)
 	srv := httptest.NewServer(ft.handler(t))
 	defer srv.Close()
 
 	wsURL := strings.Replace(srv.URL, "http://", "ws://", 1)
+	ingestor := &durableIngestorSpy{
+		recordFunc: func(context.Context, tap.Event) (tap.Outcome, error) {
+			panic("ingestor panic")
+		},
+	}
 	c := tap.NewWSConsumer(tap.WSConsumerConfig{
 		URL:          wsURL,
-		Indexer:      panicIndexer{},
+		Ingestor:     ingestor,
 		AckTimeout:   1 * time.Second,
 		ReconnectMax: 500 * time.Millisecond,
-		MaxRetries:   100,
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -599,7 +777,7 @@ func TestWSConsumer_IndexerPanicDoesNotCrashConsumer(t *testing.T) {
 	case id := <-ft.acks:
 		t.Fatalf("unexpected ack for panicking event id=%d", id)
 	case <-time.After(500 * time.Millisecond):
-		// good: panic is treated like an indexer error, so Tap can redeliver.
+		// Correct: a panic is retryable, so Tap can redeliver.
 	}
 }
 
@@ -616,16 +794,15 @@ func tapMetricCallsContain(calls []observability.MetricCall, name string) bool {
 	return false
 }
 
-// TestWSConsumer_MalformedIdentifierAcksAndDrops covers the boundary
-// validation added when Event fields became typed via indigo syntax types.
-// A frame with an invalid NSID can never be successfully indexed, so the
-// consumer must ack-and-drop rather than letting Tap redeliver forever.
-func TestWSConsumer_MalformedIdentifierAcksAndDrops(t *testing.T) {
+// TestWSConsumer_MalformedIdentifierQuarantinesBeforeAck covers boundary
+// validation for typed atproto identifiers. A frame with an invalid NSID can
+// never be projected, so the consumer must durably quarantine it before ACK.
+func TestWSConsumer_MalformedIdentifierQuarantinesBeforeAck(t *testing.T) {
 	t.Parallel()
 
 	// "x" is a valid DID prefix but "not-an-nsid!" fails syntax.ParseNSID.
 	frames := []string{
-		`{"id":7,"type":"record","record":{"live":true,"rev":"r","did":"did:plc:a","collection":"not-an-nsid!","rkey":"k","action":"create","cid":"bafy","record":{}}}`,
+		`{"id":7,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:a","collection":"not-an-nsid!","rkey":"k","action":"create","cid":"bafy","record":{}}}`,
 	}
 	ft := newFakeTap(frames)
 	srv := httptest.NewServer(ft.handler(t))
@@ -633,20 +810,19 @@ func TestWSConsumer_MalformedIdentifierAcksAndDrops(t *testing.T) {
 
 	wsURL := strings.Replace(srv.URL, "http://", "ws://", 1)
 
-	idx := &fakeIndexer{}
+	ingestor := &durableIngestorSpy{}
 	c := tap.NewWSConsumer(tap.WSConsumerConfig{
 		URL:          wsURL,
-		Indexer:      idx,
+		Ingestor:     ingestor,
 		AckTimeout:   1 * time.Second,
 		ReconnectMax: 500 * time.Millisecond,
-		MaxRetries:   5,
 	})
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 	go c.Run(ctx)
 
-	// Expect an ack despite the indexer never being called.
+	// Expect an ack only after durable quarantine; source ingestion is skipped.
 	select {
 	case id := <-ft.acks:
 		if id != 7 {
@@ -655,7 +831,187 @@ func TestWSConsumer_MalformedIdentifierAcksAndDrops(t *testing.T) {
 	case <-time.After(1 * time.Second):
 		t.Fatal("timeout waiting for ack of malformed event")
 	}
-	if got := len(idx.Events()); got != 0 {
-		t.Errorf("indexer received %d events for malformed envelope; want 0", got)
+	if got := len(ingestor.recordEvents()); got != 0 {
+		t.Errorf("source ingestor received %d events for malformed envelope; want 0", got)
+	}
+}
+
+func TestWSConsumer_MalformedIdentifierRequiresDurableQuarantineBeforeAck(t *testing.T) {
+	frame := `{"id":71,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:a","collection":"not-an-nsid!","rkey":"k","action":"create","cid":"bafy","record":{}}}`
+
+	t.Run("quarantine committed", func(t *testing.T) {
+		ft := newFakeTap([]string{frame})
+		srv := httptest.NewServer(ft.handler(t))
+		defer srv.Close()
+		ingestor := &durableIngestorSpy{}
+		consumer := tap.NewWSConsumer(tap.WSConsumerConfig{
+			URL: strings.Replace(srv.URL, "http://", "ws://", 1), Ingestor: ingestor,
+			AckTimeout: time.Second, ReconnectMax: 500 * time.Millisecond,
+		})
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		go consumer.Run(ctx)
+
+		select {
+		case id := <-ft.acks:
+			if id != 71 {
+				t.Fatalf("ack id=%d, want 71", id)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for ack after durable quarantine")
+		}
+		invalid := ingestor.invalidEvents()
+		if len(invalid) != 1 || invalid[0].Reason != tap.ReasonInvalidCollection || invalid[0].ID != 71 {
+			t.Fatalf("quarantined events=%+v", invalid)
+		}
+	})
+
+	t.Run("quarantine storage failure", func(t *testing.T) {
+		ft := newFakeTap([]string{frame})
+		srv := httptest.NewServer(ft.handler(t))
+		defer srv.Close()
+		ingestor := &durableIngestorSpy{quarantineErr: errTest}
+		consumer := tap.NewWSConsumer(tap.WSConsumerConfig{
+			URL: strings.Replace(srv.URL, "http://", "ws://", 1), Ingestor: ingestor,
+			AckTimeout: time.Second, ReconnectMax: 500 * time.Millisecond,
+		})
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		go consumer.Run(ctx)
+
+		select {
+		case id := <-ft.acks:
+			t.Fatalf("quarantine failure was acked: id=%d", id)
+		case <-time.After(400 * time.Millisecond):
+			// Correct: Tap retains the event until quarantine can commit.
+		}
+	})
+}
+
+func TestWSConsumer_DeterministicRecordEnvelopeDefectsAreQuarantined(t *testing.T) {
+	tests := []struct {
+		name   string
+		frame  string
+		reason tap.ReasonCode
+	}{
+		{
+			name:   "missing repository revision",
+			frame:  `{"id":81,"type":"record","record":{"live":true,"did":"did:plc:a","collection":"social.craftsky.feed.post","rkey":"k","action":"create","cid":"bafy","record":{}}}`,
+			reason: tap.ReasonInvalidEnvelope,
+		},
+		{
+			name:   "non TID repository revision",
+			frame:  `{"id":83,"type":"record","record":{"live":true,"rev":"zzzzzzzzzzzzz","did":"did:plc:a","collection":"social.craftsky.feed.post","rkey":"k","action":"create","cid":"bafy","record":{}}}`,
+			reason: tap.ReasonInvalidEnvelope,
+		},
+		{
+			name:   "missing create CID",
+			frame:  `{"id":82,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:a","collection":"social.craftsky.feed.post","rkey":"k","action":"create","record":{}}}`,
+			reason: tap.ReasonMalformedRecord,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ft := newFakeTap([]string{test.frame})
+			srv := httptest.NewServer(ft.handler(t))
+			defer srv.Close()
+			ingestor := &durableIngestorSpy{}
+			consumer := tap.NewWSConsumer(tap.WSConsumerConfig{
+				URL: strings.Replace(srv.URL, "http://", "ws://", 1), Ingestor: ingestor,
+				AckTimeout: time.Second, ReconnectMax: 500 * time.Millisecond,
+			})
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			go consumer.Run(ctx)
+			select {
+			case <-ft.acks:
+			case <-time.After(time.Second):
+				t.Fatal("timeout waiting for ACK after durable quarantine")
+			}
+			invalid := ingestor.invalidEvents()
+			if len(invalid) != 1 || invalid[0].Reason != test.reason {
+				t.Fatalf("quarantined events=%+v, want reason %s", invalid, test.reason)
+			}
+			if len(ingestor.recordEvents()) != 0 {
+				t.Fatal("deterministically invalid record reached source ingestion")
+			}
+		})
+	}
+}
+
+func TestWSConsumer_AllowsBoundedRecordFramesLargerThanLibraryDefault(t *testing.T) {
+	payload := strings.Repeat("x", 40<<10)
+	frameBytes, err := json.Marshal(map[string]any{
+		"id": 91, "type": "record",
+		"record": map[string]any{
+			"live": true, "rev": "3aaaaaaaaaaa2", "did": "did:plc:a",
+			"collection": "social.craftsky.feed.post", "rkey": "large",
+			"action": "create", "cid": "bafy-large",
+			"record": map[string]any{"text": payload, "createdAt": "2026-08-14T12:00:00Z"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("encode frame: %v", err)
+	}
+	ft := newFakeTap([]string{string(frameBytes)})
+	srv := httptest.NewServer(ft.handler(t))
+	defer srv.Close()
+	ingestor := &durableIngestorSpy{}
+	consumer := tap.NewWSConsumer(tap.WSConsumerConfig{
+		URL: strings.Replace(srv.URL, "http://", "ws://", 1), Ingestor: ingestor,
+		AckTimeout: time.Second, ReconnectMax: 500 * time.Millisecond,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	go consumer.Run(ctx)
+	select {
+	case id := <-ft.acks:
+		if id != 91 {
+			t.Fatalf("ack id=%d, want 91", id)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("large but bounded Tap frame was not consumed")
+	}
+}
+
+func TestWSConsumer_QuarantinesRecordAboveDurableSourceLimit(t *testing.T) {
+	payload := strings.Repeat("x", (1<<20)+1)
+	frameBytes, err := json.Marshal(map[string]any{
+		"id": 92, "type": "record",
+		"record": map[string]any{
+			"live": true, "rev": "3aaaaaaaaaaa3", "did": "did:plc:a",
+			"collection": "social.craftsky.feed.post", "rkey": "too-large",
+			"action": "create", "cid": "bafy-too-large",
+			"record": map[string]any{"text": payload, "createdAt": "2026-08-14T12:00:00Z"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("encode frame: %v", err)
+	}
+	ft := newFakeTap([]string{string(frameBytes)})
+	srv := httptest.NewServer(ft.handler(t))
+	defer srv.Close()
+	ingestor := &durableIngestorSpy{}
+	consumer := tap.NewWSConsumer(tap.WSConsumerConfig{
+		URL: strings.Replace(srv.URL, "http://", "ws://", 1), Ingestor: ingestor,
+		AckTimeout: 2 * time.Second, ReconnectMax: 500 * time.Millisecond,
+	})
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	go consumer.Run(ctx)
+	select {
+	case id := <-ft.acks:
+		if id != 92 {
+			t.Fatalf("ack id=%d, want 92", id)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("oversized record was not ACKed after durable quarantine")
+	}
+	invalid := ingestor.invalidEvents()
+	if len(invalid) != 1 || invalid[0].Reason != tap.ReasonRecordTooLarge {
+		t.Fatalf("quarantined events=%+v", invalid)
+	}
+	if len(ingestor.recordEvents()) != 0 {
+		t.Fatal("oversized record reached durable source ingestion")
 	}
 }

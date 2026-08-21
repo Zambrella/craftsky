@@ -13,13 +13,38 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/index"
+	"social.craftsky/appview/internal/ingestion"
+	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/tap"
 	"social.craftsky/appview/internal/testdb"
 )
 
 const indexerWiringDDL = `
-CREATE TABLE craftsky_profiles (
+	CREATE TABLE owner_lifecycles (
+	    owner_did TEXT PRIMARY KEY,
+	    state TEXT NOT NULL,
+	    generation BIGINT NOT NULL,
+	    auth_epoch BIGINT NOT NULL,
+	    transition_reason TEXT NOT NULL,
+	    transitioned_at TIMESTAMPTZ NOT NULL,
+	    terminal_at TIMESTAMPTZ,
+	    purge_completed_at TIMESTAMPTZ,
+	    created_at TIMESTAMPTZ NOT NULL,
+	    updated_at TIMESTAMPTZ NOT NULL
+	);
+	CREATE FUNCTION appview_owner_is_terminal(candidate_did TEXT)
+	RETURNS BOOLEAN
+	LANGUAGE SQL
+	STABLE
+	AS $$
+	    SELECT COALESCE((
+	        SELECT state = 'terminal'
+	        FROM owner_lifecycles
+	        WHERE owner_did = candidate_did
+	    ), false)
+	$$;
+	CREATE TABLE craftsky_profiles (
     did         TEXT        NOT NULL PRIMARY KEY,
     crafts      TEXT[]      NOT NULL DEFAULT '{}',
     record_cid  TEXT        NOT NULL,
@@ -126,42 +151,55 @@ CREATE UNIQUE INDEX craftsky_reposts_did_subject_uri_active_unique
     ON craftsky_reposts (did, subject_uri) WHERE deleted_at IS NULL;
 `
 
-type noopPDSClient struct{}
-
-type recordingRepositoryTracker struct {
-	dids []syntax.DID
-}
-
-func (r *recordingRepositoryTracker) AddRepo(_ context.Context, did syntax.DID) error {
-	r.dids = append(r.dids, did)
-	return nil
-}
-
-func (noopPDSClient) GetRecord(context.Context, syntax.DID, string, string, any) (string, error) {
-	return "", nil
-}
-
-func (noopPDSClient) PutRecord(context.Context, syntax.DID, string, string, any) error {
-	return nil
-}
-
-func (noopPDSClient) CreateRecord(context.Context, syntax.DID, string, any) (syntax.ATURI, syntax.CID, error) {
-	return "", "", nil
-}
-
-func (noopPDSClient) DeleteRecord(context.Context, syntax.DID, string, string) error {
-	return nil
-}
-
-func (noopPDSClient) UploadBlob(context.Context, string, []byte) (*auth.UploadedBlob, error) {
-	return nil, nil
+func projectIndexerWiringEvent(
+	t *testing.T,
+	pool *pgxpool.Pool,
+	dispatcher *index.TransactionalDispatcher,
+	event tap.Event,
+) {
+	t.Helper()
+	ctx := context.Background()
+	generation := int64(1)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO owner_lifecycles(
+			owner_did,state,generation,auth_epoch,transition_reason,
+			transitioned_at,created_at,updated_at
+		) VALUES($1,'active',$2,1,'test',now(),now(),now())
+		ON CONFLICT (owner_did) DO NOTHING
+	`, event.DID, generation); err != nil {
+		t.Fatalf("seed projector owner lifecycle: %v", err)
+	}
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("begin projector transaction: %v", err)
+	}
+	defer func() { _ = tx.Rollback(context.Background()) }()
+	outcome, err := dispatcher.Project(ctx, tx, ingestion.SourceRecord{
+		URI: event.URI, DID: event.DID, Collection: event.Collection,
+		Rkey: event.Rkey, SourceEventID: event.ID, Revision: event.Rev,
+		CID: event.CID, Action: event.Action, Record: event.Record,
+		RecordBytes: len(event.Record), Live: event.Live,
+		ProjectionGeneration: &generation,
+	})
+	if err != nil {
+		t.Fatalf("Project through transactional dispatcher: %v", err)
+	}
+	if outcome.Kind != tap.OutcomeApplied {
+		t.Fatalf("projector outcome=%+v, want applied", outcome)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatalf("commit projector transaction: %v", err)
+	}
 }
 
 func TestNewIndexerDispatcherRegistersCraftskyInteractions(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, indexerWiringDDL)
 	seedIndexerWiringData(t, pool)
-	dispatcher := newIndexerDispatcher(pool, noopPDSClient{}, slog.Default())
+	dispatcher := newTransactionalIndexerDispatcherWithActorDeletion(
+		pool, slog.Default(), nil,
+		notifications.NoopLifecycle{}, notifications.NewActorDeletionService(pool),
+	)
 
 	for _, tc := range []struct {
 		name       string
@@ -185,9 +223,7 @@ func TestNewIndexerDispatcherRegistersCraftskyInteractions(t *testing.T) {
 					"subject": {"uri": "at://did:plc:author/social.craftsky.feed.post/post1", "cid": "subjectcid"}
 				}`),
 			}
-			if err := dispatcher.Handle(context.Background(), ev); err != nil {
-				t.Fatalf("Handle through dispatcher: %v", err)
-			}
+			projectIndexerWiringEvent(t, pool, dispatcher, ev)
 
 			var count int
 			if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM "+tc.table).Scan(&count); err != nil {
@@ -204,7 +240,10 @@ func TestNewIndexerDispatcherRegistersBlueskyFollow(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, indexerWiringDDL)
 	seedIndexerWiringData(t, pool)
-	dispatcher := newIndexerDispatcher(pool, noopPDSClient{}, slog.Default())
+	dispatcher := newTransactionalIndexerDispatcherWithActorDeletion(
+		pool, slog.Default(), nil,
+		notifications.NoopLifecycle{}, notifications.NewActorDeletionService(pool),
+	)
 
 	ev := tap.Event{
 		URI:        "at://did:plc:actor/app.bsky.graph.follow/follow1",
@@ -218,9 +257,7 @@ func TestNewIndexerDispatcherRegistersBlueskyFollow(t *testing.T) {
 			"createdAt": "2026-05-04T12:00:00Z"
 		}`),
 	}
-	if err := dispatcher.Handle(context.Background(), ev); err != nil {
-		t.Fatalf("Handle through dispatcher: %v", err)
-	}
+	projectIndexerWiringEvent(t, pool, dispatcher, ev)
 
 	var count int
 	if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM atproto_follows").Scan(&count); err != nil {
@@ -233,7 +270,11 @@ func TestNewIndexerDispatcherRegistersBlueskyFollow(t *testing.T) {
 
 func TestBlockCollectionIsDispatchedAndConfiguredExactlyOnce(t *testing.T) {
 	pool := testdb.WithSchema(t, indexerWiringDDL)
-	dispatcher := newIndexerDispatcher(pool, noopPDSClient{}, slog.Default())
+	seedIndexerWiringData(t, pool)
+	dispatcher := newTransactionalIndexerDispatcherWithActorDeletion(
+		pool, slog.Default(), nil,
+		notifications.NoopLifecycle{}, notifications.NewActorDeletionService(pool),
+	)
 
 	ev := tap.Event{
 		URI:        "at://did:plc:actor/app.bsky.graph.block/block1",
@@ -248,9 +289,7 @@ func TestBlockCollectionIsDispatchedAndConfiguredExactlyOnce(t *testing.T) {
 			"createdAt": "2026-07-19T12:00:00Z"
 		}`),
 	}
-	if err := dispatcher.Handle(context.Background(), ev); err != nil {
-		t.Fatalf("Handle block through dispatcher: %v", err)
-	}
+	projectIndexerWiringEvent(t, pool, dispatcher, ev)
 	var count int
 	if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM atproto_blocks`).Scan(&count); err != nil {
 		t.Fatalf("count blocks: %v", err)
@@ -271,10 +310,12 @@ func TestBlockCollectionIsDispatchedAndConfiguredExactlyOnce(t *testing.T) {
 	}
 }
 
-func TestIndexerDispatcherRequestsTapTrackingWhenMembershipRowIsCreated(t *testing.T) {
+func TestTransactionalIndexerDispatcherRegistersCraftskyProfile(t *testing.T) {
 	pool := testdb.WithSchema(t, indexerWiringDDL)
-	tracker := &recordingRepositoryTracker{}
-	dispatcher := newIndexerDispatcherWithTracker(pool, noopPDSClient{}, slog.Default(), tracker, nil)
+	dispatcher := newTransactionalIndexerDispatcherWithActorDeletion(
+		pool, slog.Default(), nil,
+		notifications.NoopLifecycle{}, notifications.NewActorDeletionService(pool),
+	)
 	ev := tap.Event{
 		URI:        "at://did:plc:joining/social.craftsky.actor.profile/self",
 		CID:        "bafy-joining",
@@ -284,11 +325,15 @@ func TestIndexerDispatcherRequestsTapTrackingWhenMembershipRowIsCreated(t *testi
 		Action:     "create",
 		Record:     json.RawMessage(`{"crafts":["sewing"]}`),
 	}
-	if err := dispatcher.Handle(context.Background(), ev); err != nil {
-		t.Fatalf("index joining profile: %v", err)
+	projectIndexerWiringEvent(t, pool, dispatcher, ev)
+	var count int
+	if err := pool.QueryRow(context.Background(), `
+		SELECT count(*) FROM craftsky_profiles WHERE did = $1
+	`, ev.DID).Scan(&count); err != nil {
+		t.Fatalf("count profile: %v", err)
 	}
-	if len(tracker.dids) != 1 || tracker.dids[0] != ev.DID {
-		t.Fatalf("tracking requests = %v, want %s", tracker.dids, ev.DID)
+	if count != 1 {
+		t.Fatalf("craftsky profile count = %d, want 1", count)
 	}
 }
 

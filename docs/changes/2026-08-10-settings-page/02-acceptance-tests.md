@@ -1,5 +1,19 @@
 # Acceptance Test Specification: Settings Page And Lean Account Deletion
 
+## Development reauthentication correction (2026-08-20)
+
+| Test ID | Requirement | Acceptance criterion | Observable behavior |
+|---|---|---|---|
+| REG-018 | FR-032 | AC-055 | After intent creation, an ordinary-route 401 cannot remove the exact locally protected recovery lease. |
+| REG-019 | FR-032, NFR-001 | AC-055 | The pending job, exact active-account lease, and required handle survive secure-registry reconstruction; another account cannot complete it. |
+| REG-020 | FR-016, FR-032 | AC-055 | Cancellation clears pending recovery state without deleting the retained session; successful acceptance clears it while removing only the accepted account. |
+
+AC-055: Reauthentication returns to the exact-handle confirmation after
+background ordinary requests and process reconstruction; the account is not
+removed until the user submits the exact handle and the server accepts it.
+
+> **AppView audit amendment (2026-08-14):** Section 12 is authoritative for crash-safe PDS/object convergence. The original one-table/no-checkpoint expectations are superseded only for the approved minimized exact-key safety tombstones.
+
 ## 1. Test Strategy
 
 Preserve the passing Settings/About/Account and fresh-reauth safety suites, then drive simplification through focused tests that initially expose the old schema and status/convergence contracts. Backend integration tests use disposable Postgres and faked narrow PDS clients. Flutter tests verify immediate account removal and the absence of deletion-status state/routes. Existing Tap/indexer tests remain regression coverage but no longer participate in deletion-job completion.
@@ -207,3 +221,137 @@ Scenario: Same DID signs in while deletion is active
 - Suggested implementation order: IT-029 → UT-010/IT-010 → IT-031 → IT-030/IT-027 → IT-032/IT-033 → IT-034/REG-014–REG-016 → broad regressions.
 - Commands: `go test ./internal/db ./internal/accountdeletion ./internal/auth ./internal/routes ./internal/tap ./internal/index`; focused `flutter test test/settings test/auth test/router`; `dart analyze`.
 - Blocking gaps: None. High-risk approval was explicitly granted by the product owner.
+
+## 12. AppView Audit Correction Tests: Exact-Key Safety Tombstones
+
+### 12.1 Superseded expectations
+
+- IT-029 no longer requires exactly one deletion table; it must require the operation table plus only the approved narrow safety-tombstone relation among deletion-specific persistence.
+- IT-031 continues to prohibit per-component cleanup checkpoints and replay whole private cleanup, but it no longer prohibits exact-URI/object-key safety tombstones for remote outcome uncertainty.
+- IT-032/AC-046 continue to require an artifact-free **post-convergence** terminal state; they do not authorize finalization while a known PDS/object call can still commit.
+- The deleted status/recovery/audit/receipt/metrics surfaces remain out of scope and their regression tests remain required.
+
+### 12.2 Amendment coverage matrix
+
+| Requirement IDs | Acceptance Criteria | Test IDs | Level | Automated? |
+|---|---|---|---|---|
+| FR-028, FR-029, NFR-007, RULE-012, RULE-013 | AC-049, AC-050, AC-052, AC-054 | AT-007, UT-025, IT-035, IT-037, REG-017 | Unit / Integration / Acceptance / Regression | Yes |
+| FR-028, FR-030, NFR-007, RULE-012, RULE-013 | AC-049, AC-051, AC-052, AC-054 | AT-008, UT-026, IT-036, IT-037, REG-017 | Unit / PostgreSQL + object-store integration / Acceptance / Regression | Yes |
+| FR-031, NFR-007 | AC-053 | AT-009, IT-038, REG-017 | Integration / Acceptance / Regression | Yes |
+
+### 12.3 Acceptance scenarios
+
+#### AT-007: Delayed PDS commit cannot survive accepted deletion
+
+Requirement IDs: FR-028, FR-029, RULE-012, RULE-013
+
+Acceptance Criteria: AC-049, AC-050, AC-052, AC-054
+
+Priority: Must
+
+Level: Acceptance
+
+Automation Target: `appview/internal/accountdeletion/worker_acceptance_test.go`
+
+```gherkin
+Scenario: A remotely accepted record commits after the first empty scan
+  Given an ordinary write to an exact registered CraftSky AT URI has crossed the remote acceptance boundary
+  And AppView crashes before recording its outcome
+  And the owner accepts permanent CraftSky deletion
+  When the deletion worker first scans the collection and observes no record
+  And the delayed PDS commit then makes that exact record visible
+  Then the operation remains reconciling rather than terminally successful
+  And the retained exact-URI tombstone causes the record to be deleted and absence reverified
+  And no non-CraftSky, follow, blob, DID/PDS-account, or other-owner delete is attempted
+```
+
+#### AT-008: Delayed object creation cannot escape cleanup
+
+Requirement IDs: FR-028, FR-030, RULE-012, RULE-013
+
+Acceptance Criteria: AC-049, AC-051, AC-052, AC-054
+
+Priority: Must
+
+Level: Acceptance
+
+Automation Target: `appview/internal/scheduledposts/account_deletion_race_test.go`, `appview/internal/scheduledposts/objectstore_minio_test.go`
+
+```gherkin
+Scenario: An accepted object Put materializes after an early delete
+  Given a generation-specific scheduled-object Put crossed the remote acceptance boundary
+  And AppView crashed before marking the media ready
+  And account deletion recorded the exact object key and upload generation
+  When cleanup deletes or observes the key absent before the delayed Put materializes
+  And the delayed Put then creates the object
+  Then the safety tombstone remains claimable
+  And a later reconciliation deletes and verifies absence of that exact generation-specific key
+  And deletion cannot report data-free before that convergence is proven
+```
+
+#### AT-009: Proven convergence restores the lean artifact-free end state
+
+Requirement IDs: FR-031, NFR-007
+
+Acceptance Criteria: AC-053
+
+Priority: Must
+
+Level: Acceptance
+
+Automation Target: `appview/internal/accountdeletion/worker_acceptance_test.go`, `appview/internal/accountdeletion/migrations_test.go`
+
+```gherkin
+Scenario: Finalization removes temporary safety state
+  Given private cleanup and the final registered-collection scan are complete
+  And every PDS and object safety tombstone has proven exact-key convergence
+  When the worker finalizes the deletion operation
+  Then the operation, safety tombstones, and deletion-only OAuth authority are removed atomically
+  And no audit, receipt, status, recovery, checkpoint, or detailed deletion-metric artifact remains
+```
+
+### 12.4 Unit and integration cases
+
+| ID | Requirement IDs | Acceptance Criteria | Description | Expected Result | Automation Target |
+|---|---|---|---|---|---|
+| UT-025 | FR-028, FR-029, NFR-007, RULE-012 | AC-049, AC-054 | Validate PDS tombstone construction and capability scope for owner/job/exact typed AT URI. | Registered owner URI is accepted; follow, blob, other namespace/owner/job, malformed URI, secret/payload, and over-broad selectors are unrepresentable or rejected. | `appview/internal/accountdeletion/store_test.go`, `appview/internal/accountdeletion/pds_deleter_test.go` |
+| UT-026 | FR-028, FR-030, NFR-007, RULE-012 | AC-049, AC-054 | Validate object tombstone construction, generation identity, lease fencing, and settlement decision table. | Only the matching immutable key/generation is claimable; elapsed client time without a tested backend bound cannot finalize it. | `appview/internal/scheduledposts/tombstone_test.go`, `appview/internal/scheduledposts/media_service_test.go` |
+
+| ID | Requirement IDs | Acceptance Criteria | Description | Setup | Action | Expected Result | Automation Target |
+|---|---|---|---|---|---|---|---|
+| IT-035 | FR-028, FR-029, RULE-013 | AC-050 | Reproduce accepted write → AppView crash → first empty deletion scan → delayed PDS commit. | Barrier fake accepts exact registered-collection write while withholding visibility/completion; accepted deletion has adopted its tombstone. | Run first scan, release delayed commit, then resume worker. | Job never finalizes early; exact URI is re-read/deleted and absence is reverified without repeating the write. | `appview/internal/accountdeletion/worker_acceptance_test.go`, `appview/internal/accountdeletion/pds_deleter_test.go` |
+| IT-036 | FR-028, FR-030, RULE-013 | AC-051 | Reproduce accepted object `Put` → AppView crash → early absent/delete → delayed creation. | PostgreSQL media reservation and MinIO-compatible barrier fake use an immutable generation-specific key. | Accept deletion, run early cleanup, release delayed `Put`, then reconcile again. | Tombstone survives the early absence; delayed object is removed and exact-key absence is verified before finalization. | `appview/internal/scheduledposts/account_deletion_race_test.go`, `appview/internal/scheduledposts/objectstore_minio_test.go` |
+| IT-037 | FR-029, FR-030, RULE-013 | AC-052, AC-054 | Exercise both adapters without a configured/tested finite settlement guarantee. | One unresolved PDS URI and one unresolved object key remain outcome-uncertain. | Advance client clocks and exhaust ordinary retry windows. | Rows remain bounded/lease-claimable and operation remains reconciling; no terminal/data-free outcome, membership, or user status route appears. | `appview/internal/accountdeletion/worker_failure_test.go`, `appview/internal/scheduledposts/cleanup_test.go` |
+| IT-038 | FR-031, NFR-007 | AC-053 | Finalize after every exact key has proven convergence. | Private cleanup complete, final collection scan empty, tombstones settled, matching deletion-only OAuth generation bound. | Finalize under owner/job fence; inject retry after commit ambiguity. | Operation, tombstones, and OAuth state are absent idempotently; no other deletion-specific state remains. | `appview/internal/accountdeletion/worker_acceptance_test.go`, `appview/internal/accountdeletion/migrations_test.go`, `appview/internal/accountdeletion/store_test.go` |
+
+### 12.5 Regression, fixtures, gaps, and TDD order
+
+| ID | Existing Behavior Protected | Requirement IDs | Test |
+|---|---|---|---|
+| REG-017 | Lean user-facing/no-audit boundary and narrow deletion authority | FR-031, NFR-007, RULE-012, RULE-013 | Existing removed-route, no-status Flutter, namespace/blob/follow boundary, no-audit/no-detailed-metrics, and final residue checks stay green while temporary exact-key persistence exists. |
+
+| ID | Purpose | Data | Used By |
+|---|---|---|---|
+| TD-005 | Delayed PDS commit | Owner/job/generation, deterministic registered CraftSky AT URI, durable pre-transition effect attempt, barrier-controlled remote visibility | AT-007, UT-025, IT-035, IT-037 |
+| TD-006 | Delayed object creation | Owner/job/generation, immutable object key/upload generation, upload attempt/deadline, barrier-controlled MinIO-compatible `Put` | AT-008, UT-026, IT-036, IT-037 |
+
+No additional manual-only gap is introduced. The existing disposable real-PDS gate remains MAN-003; the deterministic barriers are mandatory automated release evidence because the race is impractical to validate manually.
+
+Failure-first implementation order:
+
+1. UT-025 and the migration shape: minimized typed tombstones and scope constraints.
+2. IT-035: delayed PDS commit barrier.
+3. UT-026 and IT-036: generation-specific object identity and delayed `Put` barrier.
+4. IT-037: no invented finite settlement.
+5. IT-038 and AT-009: post-convergence artifact removal.
+6. REG-017 plus existing full Go/Flutter regressions.
+
+Recommended first failing test: IT-035 in `appview/internal/accountdeletion/worker_acceptance_test.go`. It must fail because the current worker can finalize after the initially empty scan and retains no exact-URI safety tombstone.
+
+Focused commands:
+
+- `cd appview && go test ./internal/accountdeletion -run 'Test.*Delayed.*PDS|Test.*SafetyTombstone' -count=1`
+- `cd appview && go test ./internal/scheduledposts -run 'Test.*Delayed.*Put|Test.*Tombstone' -count=1`
+- `cd appview && go test ./internal/accountdeletion ./internal/scheduledposts -count=1`
+
+Blocking gaps: None. The product owner approved the exact-key safety-tombstone branch on 2026-08-14.

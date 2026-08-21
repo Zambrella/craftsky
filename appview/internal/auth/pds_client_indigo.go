@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 
 	apiatproto "github.com/bluesky-social/indigo/api/atproto"
 	"github.com/bluesky-social/indigo/atproto/atclient"
@@ -17,12 +18,35 @@ import (
 // IndigoPDSClient adapts indigo's *atclient.APIClient to our PDSClient
 // interface.
 type IndigoPDSClient struct {
-	Client           *atclient.APIClient
-	OnSessionExpired func(context.Context)
+	client           *atclient.APIClient
+	uploadClient     *atclient.APIClient
+	onSessionExpired func(context.Context)
 }
 
 var _ PDSClient = (*IndigoPDSClient)(nil)
 var _ PDSRecordLister = (*IndigoPDSClient)(nil)
+var _ ConditionalPDSRecordPutter = (*IndigoPDSClient)(nil)
+var _ ConditionalPDSRecordDeleter = (*IndigoPDSClient)(nil)
+
+// NewIndigoPDSClient requires separate purpose-bound XRPC clients for JSON
+// requests and upload responses. Both may share the Boundary's connection
+// pool, but they must not share the purpose wrapper because their response
+// ceilings and deadlines differ.
+func NewIndigoPDSClient(
+	client *atclient.APIClient,
+	uploadClient *atclient.APIClient,
+	onSessionExpired func(context.Context),
+) (*IndigoPDSClient, error) {
+	if client == nil || uploadClient == nil || client == uploadClient ||
+		client.Client == nil || uploadClient.Client == nil ||
+		client.Client == uploadClient.Client || client.Host == "" ||
+		client.Host != uploadClient.Host {
+		return nil, errors.New("pds: JSON and upload clients must be separate hardened clients for one host")
+	}
+	return &IndigoPDSClient{
+		client: client, uploadClient: uploadClient, onSessionExpired: onSessionExpired,
+	}, nil
+}
 
 // GetRecord calls com.atproto.repo.getRecord on the user's PDS. A
 // "record missing" response is translated to ErrRecordNotFound so callers
@@ -43,7 +67,7 @@ func (i *IndigoPDSClient) GetRecord(ctx context.Context, repo syntax.DID, collec
 		"collection": collection,
 		"rkey":       rkey,
 	}
-	if err := i.Client.Get(ctx, nsid, params, &resp); err != nil {
+	if err := i.client.Get(ctx, nsid, params, &resp); err != nil {
 		return "", i.translateError(ctx, translateGetRecordError(err))
 	}
 	// Downstream callers (notably the Bluesky backfiller) write resp.CID
@@ -83,6 +107,33 @@ func translateGetRecordError(err error) error {
 
 // PutRecord calls com.atproto.repo.putRecord on the user's PDS.
 func (i *IndigoPDSClient) PutRecord(ctx context.Context, repo syntax.DID, collection, rkey string, record any) error {
+	return i.putRecord(ctx, repo, collection, rkey, record, "")
+}
+
+// PutRecordWithSwap sends swapRecord so an update cannot overwrite a newer
+// same-rkey record after the caller's version evidence becomes stale.
+func (i *IndigoPDSClient) PutRecordWithSwap(
+	ctx context.Context,
+	repo syntax.DID,
+	collection string,
+	rkey string,
+	record any,
+	expectedCID syntax.CID,
+) error {
+	if strings.TrimSpace(expectedCID.String()) == "" {
+		return errors.New("conditional Put expected CID is unavailable")
+	}
+	return i.putRecord(ctx, repo, collection, rkey, record, expectedCID)
+}
+
+func (i *IndigoPDSClient) putRecord(
+	ctx context.Context,
+	repo syntax.DID,
+	collection string,
+	rkey string,
+	record any,
+	expectedCID syntax.CID,
+) error {
 	nsid, err := syntax.ParseNSID("com.atproto.repo.putRecord")
 	if err != nil {
 		return fmt.Errorf("parse nsid: %w", err)
@@ -93,8 +144,14 @@ func (i *IndigoPDSClient) PutRecord(ctx context.Context, repo syntax.DID, collec
 		"rkey":       rkey,
 		"record":     record,
 	}
+	if expectedCID != "" {
+		body["swapRecord"] = expectedCID.String()
+	}
 	var resp any
-	return i.translateError(ctx, i.Client.Post(ctx, nsid, body, &resp))
+	if err := i.client.Post(ctx, nsid, body, &resp); err != nil {
+		return i.translateError(ctx, translateRecordMutationError(err))
+	}
+	return nil
 }
 
 // CreateRecord calls com.atproto.repo.createRecord on the user's PDS.
@@ -119,7 +176,7 @@ func (i *IndigoPDSClient) CreateRecord(
 		URI string `json:"uri"`
 		CID string `json:"cid"`
 	}
-	if err := i.Client.Post(ctx, nsid, body, &resp); err != nil {
+	if err := i.client.Post(ctx, nsid, body, &resp); err != nil {
 		return "", "", i.translateError(ctx, err)
 	}
 	if resp.URI == "" || resp.CID == "" {
@@ -137,6 +194,31 @@ func (i *IndigoPDSClient) DeleteRecord(
 	collection string,
 	rkey string,
 ) error {
+	return i.deleteRecord(ctx, repo, collection, rkey, "")
+}
+
+// DeleteRecordWithSwap sends swapRecord so a same-rkey replacement cannot be
+// deleted after the caller's ownership/version evidence becomes stale.
+func (i *IndigoPDSClient) DeleteRecordWithSwap(
+	ctx context.Context,
+	repo syntax.DID,
+	collection string,
+	rkey string,
+	expectedCID syntax.CID,
+) error {
+	if strings.TrimSpace(expectedCID.String()) == "" {
+		return errors.New("conditional delete expected CID is unavailable")
+	}
+	return i.deleteRecord(ctx, repo, collection, rkey, expectedCID)
+}
+
+func (i *IndigoPDSClient) deleteRecord(
+	ctx context.Context,
+	repo syntax.DID,
+	collection string,
+	rkey string,
+	expectedCID syntax.CID,
+) error {
 	nsid, err := syntax.ParseNSID("com.atproto.repo.deleteRecord")
 	if err != nil {
 		return fmt.Errorf("parse nsid: %w", err)
@@ -146,12 +228,34 @@ func (i *IndigoPDSClient) DeleteRecord(
 		"collection": collection,
 		"rkey":       rkey,
 	}
+	if expectedCID != "" {
+		body["swapRecord"] = expectedCID.String()
+	}
 	var resp any
-	if err := i.Client.Post(ctx, nsid, body, &resp); err != nil {
-		// translateGetRecordError also handles deleteRecord's "RecordNotFound" shape; reused deliberately.
-		return i.translateError(ctx, translateGetRecordError(err))
+	if err := i.client.Post(ctx, nsid, body, &resp); err != nil {
+		return i.translateError(ctx, translateDeleteRecordError(err))
 	}
 	return nil
+}
+
+func translateRecordMutationError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var apiErr *atclient.APIError
+	if errors.As(err, &apiErr) && apiErr.Name == "InvalidSwap" {
+		return errors.Join(ErrRecordSwapConflict, err)
+	}
+	return err
+}
+
+func translateDeleteRecordError(err error) error {
+	err = translateRecordMutationError(err)
+	if errors.Is(err, ErrRecordSwapConflict) {
+		return err
+	}
+	// deleteRecord and getRecord share the RecordNotFound error shape.
+	return translateGetRecordError(err)
 }
 
 func (i *IndigoPDSClient) ListRecords(
@@ -161,7 +265,7 @@ func (i *IndigoPDSClient) ListRecords(
 	cursor string,
 	limit int,
 ) ([]PDSRecord, string, error) {
-	out, err := apiatproto.RepoListRecords(ctx, i.Client, collection, cursor, int64(limit), repo.String(), false)
+	out, err := apiatproto.RepoListRecords(ctx, i.client, collection, cursor, int64(limit), repo.String(), false)
 	if err != nil {
 		return nil, "", i.translateError(ctx, err)
 	}
@@ -199,7 +303,7 @@ func (i *IndigoPDSClient) UploadBlob(ctx context.Context, contentType string, bo
 	req.Headers.Set("Accept", "application/json")
 	req.Headers.Set("Content-Type", contentType)
 
-	resp, err := i.Client.Do(ctx, req)
+	resp, err := i.uploadClient.Do(ctx, req)
 	if err != nil {
 		return nil, i.translateError(ctx, err)
 	}
@@ -241,8 +345,8 @@ func (i *IndigoPDSClient) UploadBlob(ctx context.Context, contentType string, bo
 
 func (i *IndigoPDSClient) translateError(ctx context.Context, err error) error {
 	translated := TranslatePDSError(err)
-	if errors.Is(translated, ErrPDSSessionExpired) && i.OnSessionExpired != nil {
-		i.OnSessionExpired(ctx)
+	if errors.Is(translated, ErrPDSSessionExpired) && i.onSessionExpired != nil {
+		i.onSessionExpired(ctx)
 	}
 	return translated
 }

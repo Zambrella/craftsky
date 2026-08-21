@@ -78,11 +78,11 @@ type WebhookHandler struct {
 
 func NewWebhookHandler(config WebhookHandlerConfig) (*WebhookHandler, error) {
 	if len(config.AppSecret) == 0 || config.VerifyToken == "" || config.Reducer == nil || config.Sink == nil {
-		return nil, errors.New("Instagram webhook handler configuration is incomplete")
+		return nil, errors.New("instagram webhook handler configuration is incomplete")
 	}
 	if config.Limiter != nil {
 		if _, ok := config.Sink.(GuardedWebhookWorkSink); !ok {
-			return nil, errors.New("Instagram webhook guarded work sink is required with rate limiting")
+			return nil, errors.New("instagram webhook guarded work sink is required with rate limiting")
 		}
 	}
 	if config.Now == nil {
@@ -92,13 +92,13 @@ func NewWebhookHandler(config WebhookHandlerConfig) (*WebhookHandler, error) {
 		config.BodyLimitBytes = MaxWebhookBodyBytes
 	}
 	if config.BodyLimitBytes < 1 || config.BodyLimitBytes > MaxWebhookBodyBytes {
-		return nil, errors.New("Instagram webhook body limit is invalid")
+		return nil, errors.New("instagram webhook body limit is invalid")
 	}
 	if config.MaxEvents == 0 {
 		config.MaxEvents = MaxSupportedEvents
 	}
 	if config.MaxEvents < 1 || config.MaxEvents > MaxSupportedEvents {
-		return nil, errors.New("Instagram webhook event limit is invalid")
+		return nil, errors.New("instagram webhook event limit is invalid")
 	}
 	return &WebhookHandler{
 		appSecret:       append([]byte(nil), config.AppSecret...),

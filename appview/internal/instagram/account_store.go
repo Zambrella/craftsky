@@ -14,8 +14,8 @@ import (
 )
 
 var (
-	ErrInstagramLinkNotFound         = errors.New("Instagram link not found")
-	ErrInstagramReactivationRequired = errors.New("Instagram link reactivation required")
+	ErrInstagramLinkNotFound         = errors.New("instagram link not found")
+	ErrInstagramReactivationRequired = errors.New("instagram link reactivation required")
 	ErrInvalidInstagramSettings      = errors.New("invalid Instagram account settings")
 )
 
@@ -38,10 +38,10 @@ func NewAccountStore(pool *pgxpool.Pool, now func() time.Time) *AccountStore {
 
 func (s *AccountStore) GetAccount(ctx context.Context, owner syntax.DID) (*AccountView, error) {
 	if s == nil || s.pool == nil {
-		return nil, errors.New("Instagram account store is unavailable")
+		return nil, errors.New("instagram account store is unavailable")
 	}
 	if owner == "" {
-		return nil, errors.New("Instagram account owner is required")
+		return nil, errors.New("instagram account owner is required")
 	}
 	account, err := scanAccountView(s.pool.QueryRow(ctx, currentAccountViewQuery, owner))
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -55,7 +55,7 @@ func (s *AccountStore) GetAccount(ctx context.Context, owner syntax.DID) (*Accou
 
 func (s *AccountStore) UpdateSettings(ctx context.Context, owner syntax.DID, patch AccountSettingsPatch) (*AccountView, error) {
 	if s == nil || s.pool == nil {
-		return nil, errors.New("Instagram account store is unavailable")
+		return nil, errors.New("instagram account store is unavailable")
 	}
 	if owner == "" || validateAccountSettingsPatch(patch) != nil {
 		return nil, ErrInvalidInstagramSettings
@@ -135,18 +135,13 @@ func (s *AccountStore) UpdateSettings(ctx context.Context, owner syntax.DID, pat
 	}
 
 	if !nextDiscoverable {
-		suggestionIDs, err := updateSuggestionState(ctx, tx, `
-			UPDATE instagram_automatic_follow_ledger
+		if _, err := tx.Exec(ctx, `
+			UPDATE instagram_private_suggestions
 			SET state = 'invalidated', accepting_since = NULL,
 			    terminal_at = COALESCE(terminal_at, $2), updated_at = $2
-			WHERE target_did = $1 AND state IN ('pending', 'writing')
-			RETURNING id
-		`, owner, now)
-		if err != nil {
+			WHERE target_did = $1 AND state IN ('pending', 'accepting')
+		`, owner, now); err != nil {
 			return nil, fmt.Errorf("invalidate Instagram account suggestions: %w", err)
-		}
-		if err := invalidateUnwrittenFollowOperations(ctx, tx, suggestionIDs, "linkDiscoveryDisabled", now); err != nil {
-			return nil, err
 		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE instagram_reconciliation_jobs
@@ -188,10 +183,10 @@ func (s *AccountStore) UpdateSettings(ctx context.Context, owner syntax.DID, pat
 // already-revoked, and purged links are the same successful no-op to callers.
 func (s *AccountStore) RevokeAccount(ctx context.Context, owner syntax.DID) error {
 	if s == nil || s.pool == nil {
-		return errors.New("Instagram account store is unavailable")
+		return errors.New("instagram account store is unavailable")
 	}
 	if owner == "" {
-		return errors.New("Instagram account owner is required")
+		return errors.New("instagram account owner is required")
 	}
 
 	tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.Serializable})
@@ -247,14 +242,13 @@ func (s *AccountStore) RevokeAccount(ctx context.Context, owner syntax.DID) erro
 	`, linkID, now); err != nil {
 		return fmt.Errorf("revoke Instagram identity claim: %w", err)
 	}
-	suggestionIDs, err := updateSuggestionState(ctx, tx, `
-		UPDATE instagram_automatic_follow_ledger
+	if _, err := tx.Exec(ctx, `
+		UPDATE instagram_private_suggestions
 		SET state = 'invalidated', accepting_since = NULL,
 		    terminal_at = COALESCE(terminal_at, $2), updated_at = $2
-		WHERE target_did = $1 AND state IN ('pending', 'writing')
-		RETURNING id
-	`, owner, now)
-	if err != nil {
+		WHERE (importer_did = $1 OR target_did = $1)
+		  AND state IN ('pending', 'accepting')
+	`, owner, now); err != nil {
 		return fmt.Errorf("invalidate revoked Instagram suggestions: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -264,19 +258,10 @@ func (s *AccountStore) RevokeAccount(ctx context.Context, owner syntax.DID) erro
 		return fmt.Errorf("delete revoked Instagram imports: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `
-		DELETE FROM pds_follow_operations
-		WHERE owner_did=$1
-	`, owner); err != nil {
-		return fmt.Errorf("delete revoked Instagram follow operations: %w", err)
-	}
-	if _, err := tx.Exec(ctx, `
-		DELETE FROM instagram_automatic_follow_ledger
+		DELETE FROM instagram_private_suggestions
 		WHERE importer_did=$1
 	`, owner); err != nil {
-		return fmt.Errorf("delete revoked Instagram follow ledger: %w", err)
-	}
-	if err := invalidateUnwrittenFollowOperations(ctx, tx, suggestionIDs, "linkRevoked", now); err != nil {
-		return err
+		return fmt.Errorf("delete revoked private Instagram suggestions: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `
 		UPDATE instagram_reconciliation_jobs

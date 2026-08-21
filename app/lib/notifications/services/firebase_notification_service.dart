@@ -1,25 +1,29 @@
 // The explicit values below document the notification presentation contract.
 // ignore_for_file: avoid_redundant_argument_values
 
+import 'dart:async';
+
 import 'package:app_settings/app_settings.dart';
 import 'package:craftsky_app/notifications/models/foreground_notification_event.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/models/notification_permission.dart';
+import 'package:craftsky_app/notifications/services/notification_delivery_envelope.dart';
 import 'package:craftsky_app/notifications/services/notification_service.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 
 final class FirebaseNotificationService implements NotificationService {
-  const FirebaseNotificationService(this._messaging);
+  FirebaseNotificationService(this._messaging);
 
   final FirebaseMessaging _messaging;
 
   @override
-  Future<void> initialize() =>
-      _messaging.setForegroundNotificationPresentationOptions(
-        alert: false,
-        badge: false,
-        sound: false,
-      );
+  Future<void> initialize() async {
+    await _messaging.setForegroundNotificationPresentationOptions(
+      alert: false,
+      badge: false,
+      sound: false,
+    );
+  }
 
   @override
   Future<void> dispose() async {}
@@ -48,25 +52,29 @@ final class FirebaseNotificationService implements NotificationService {
   @override
   Stream<ForegroundNotificationEvent> get foregroundEvents => FirebaseMessaging
       .onMessage
-      .map(_foregroundEventFromMessage)
+      .map(foregroundEventFromMessage)
       .where((event) => event != null)
       .cast<ForegroundNotificationEvent>();
 
   @override
-  Stream<NotificationOpenAttempt> get openedNotifications =>
-      FirebaseMessaging.onMessageOpenedApp.map(
-        (message) => NotificationOpenAttempt.fromProviderData(
-          message.data,
+  Stream<NotificationOpenAttempt> get openedNotifications => FirebaseMessaging
+      .onMessageOpenedApp
+      .map(
+        (message) => _providerOpenFromMessage(
+          message,
+          NotificationOpenSource.backgroundOpen,
         ),
-      );
+      )
+      .where((attempt) => attempt != null)
+      .cast<NotificationOpenAttempt>();
 
   @override
   Future<NotificationOpenAttempt?> takeInitialOpen() async {
     final message = await _messaging.getInitialMessage();
     if (message == null) return null;
-    return NotificationOpenAttempt.fromProviderData(
-      message.data,
-      source: NotificationOpenSource.initialOpen,
+    return _providerOpenFromMessage(
+      message,
+      NotificationOpenSource.initialOpen,
     );
   }
 
@@ -87,19 +95,39 @@ final class FirebaseNotificationService implements NotificationService {
           NotificationPermission.notDetermined,
       };
 
-  static ForegroundNotificationEvent? _foregroundEventFromMessage(
+  static ForegroundNotificationEvent? foregroundEventFromMessage(
     RemoteMessage message,
   ) {
-    final notification = message.notification;
-    final openAttempt = NotificationOpenAttempt.fromProviderData(
-      message.data,
+    final envelope = _envelopeFromMessage(
+      message,
       source: NotificationOpenSource.foregroundBanner,
     );
-    if (notification == null) return null;
+    if (envelope == null) return null;
     return ForegroundNotificationEvent(
-      title: notification.title ?? '',
-      body: notification.body ?? '',
-      openAttempt: openAttempt,
+      title: envelope.title,
+      body: envelope.body,
+      openAttempt: envelope.openAttempt,
     );
+  }
+
+  static NotificationOpenAttempt? _providerOpenFromMessage(
+    RemoteMessage message,
+    NotificationOpenSource source,
+  ) {
+    final envelope = _envelopeFromMessage(message, source: source);
+    return envelope?.openAttempt;
+  }
+
+  static NotificationDeliveryEnvelope? _envelopeFromMessage(
+    RemoteMessage message, {
+    required NotificationOpenSource source,
+  }) {
+    final data = <String, Object?>{...message.data};
+    final notification = message.notification;
+    if (notification != null) {
+      data['displayTitle'] ??= notification.title;
+      data['displayBody'] ??= notification.body;
+    }
+    return NotificationDeliveryEnvelope.tryParse(data, source: source);
   }
 }

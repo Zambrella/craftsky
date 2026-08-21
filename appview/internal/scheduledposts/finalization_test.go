@@ -8,7 +8,50 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+func TestPublicationCompletionReusesHeldEffectConnection(t *testing.T) {
+	base := newScheduledPostStoreTestPool(t)
+	config := base.Config().Copy()
+	config.MaxConns = 1
+	pool, err := pgxpool.NewWithConfig(context.Background(), config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(pool.Close)
+	store := NewStore(pool)
+	ctx := context.Background()
+	owner := syntax.DID("did:plc:alice")
+	now := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC)
+	created, err := store.Create(ctx, capacityCreateParams(owner, 70, now))
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err := store.ClaimDue(ctx, 1, now, time.Minute)
+	if err != nil || len(claims) != 1 {
+		t.Fatalf("claim publication: claims=%d err=%v", len(claims), err)
+	}
+	claim := claims[0]
+	guard, err := store.AcquirePublishingEffect(ctx, claim)
+	if err != nil {
+		t.Fatal(err)
+	}
+	effectCtx := guard.bind(ctx)
+	uri := syntax.ATURI("at://" + owner.String() + "/social.craftsky.feed.post/" + claim.Rkey.String())
+	if _, err := store.FinalizePublication(effectCtx, FinalizePublicationParams{
+		Claim: claim, PublicationURI: uri, PublicationCID: "bafk-one-connection",
+		PublishedAt: now.Add(time.Second),
+	}); err != nil {
+		t.Fatalf("finalize with only held effect connection: %v", err)
+	}
+	if err := guard.Release(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Get(ctx, owner, created.ID); !errors.Is(err, ErrScheduleNotFound) {
+		t.Fatalf("finalized schedule remained: %v", err)
+	}
+}
 
 func TestStoreFinalizesPublicationAtomically(t *testing.T) {
 	store := NewStore(newScheduledPostStoreTestPool(t))
@@ -25,16 +68,10 @@ func TestStoreFinalizesPublicationAtomically(t *testing.T) {
 		}
 	}
 	mediaID := uuid.MustParse("00000000-0000-4000-8000-000000000301")
-	objectKey := "scheduled-media/00000000-0000-4000-8000-000000000301"
-	if _, err := store.pool.Exec(ctx, `
-		INSERT INTO scheduled_post_media (
-			id, owner_did, object_key, state, schedule_id, ordinal,
-			mime_type, size_bytes, sha256, blob_cid, unclaimed_expires_at
-		) VALUES ($1, $2, $3, 'ready', $4, 0, 'image/jpeg', 4,
-			decode(repeat('03', 32), 'hex'), 'bafk-final', $5)
-	`, mediaID, owner, objectKey, primary.ID, now.Add(24*time.Hour)); err != nil {
-		t.Fatalf("attach private media: %v", err)
-	}
+	ordinal := 0
+	objectKey := insertReadyPrivateMediaFixture(
+		t, store, owner, mediaID, &primary.ID, &ordinal, "bafk-final", now.Add(24*time.Hour),
+	)
 	claims, err := store.ClaimDue(ctx, 1, now, time.Minute)
 	if err != nil || len(claims) != 1 {
 		t.Fatalf("claim primary schedule=%v err=%v", claims, err)

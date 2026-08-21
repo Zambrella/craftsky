@@ -1,4 +1,5 @@
 import 'dart:isolate';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:craftsky_app/feed/media/media_config.dart';
@@ -20,12 +21,26 @@ const _metadataKeysToStrip = <String>{
   'comment',
 };
 
+/// The AppView hard geometry policy for private scheduled images.
+const defaultScheduledImageLimits = ScheduledImageLimits(
+  maxWidth: 8192,
+  maxHeight: 8192,
+  maxPixels: 16000000,
+  maxAspectRatio: 20,
+);
+
 /// Coordinates image-related logic used by the composer pipeline.
 class ComposerImageMediaService {
-  const ComposerImageMediaService({this.config = mediaConfig});
+  const ComposerImageMediaService({
+    this.config = mediaConfig,
+    this.scheduledImageLimits = defaultScheduledImageLimits,
+  });
 
   /// Limits and validation settings for composer media.
   final MediaConfig config;
+
+  /// Geometry policy applied only when preparing private scheduled media.
+  final ScheduledImageLimits scheduledImageLimits;
 
   /// Maximum images accepted by a post.
   int get maxImages => config.maxImages;
@@ -131,6 +146,31 @@ class ComposerImageMediaService {
     );
   }
 
+  /// Prepares scheduled media and proportionally downsizes it to AppView's
+  /// private-media geometry policy before upload.
+  ImagePreparationJob prepareScheduledImage({
+    required Uint8List bytes,
+    required String fileName,
+    required String mimeType,
+    Map<String, String> metadata = const {},
+  }) {
+    final request = ImagePreparationRequest(
+      bytes: bytes,
+      fileName: fileName,
+      mimeType: mimeType,
+      metadata: metadata,
+    );
+    final limits = scheduledImageLimits;
+    return ImagePreparationJob._(
+      Isolate.run(
+        () => ComposerImageMediaService._prepareForUpload(
+          request,
+          scheduledLimits: limits,
+        ),
+      ),
+    );
+  }
+
   /// Reads oriented dimensions for the local preview before it is displayed.
   ImageInspectionJob inspectImage({
     required Uint8List bytes,
@@ -183,15 +223,22 @@ class ComposerImageMediaService {
   }
 
   static PreparedImagePayload _prepareForUpload(
-    ImagePreparationRequest request,
-  ) {
+    ImagePreparationRequest request, {
+    ScheduledImageLimits? scheduledLimits,
+  }) {
     final format = _resolveSupportedImageFormat(
       fileName: request.fileName,
       mimeType: request.mimeType,
       headerBytes: request.bytes,
     );
 
-    final preparedImage = _stripEmbeddedMetadata(_decodeOrientedImage(request));
+    var preparedImage = _stripEmbeddedMetadata(_decodeOrientedImage(request));
+    if (scheduledLimits != null) {
+      preparedImage = _resizeForScheduledUpload(
+        preparedImage,
+        scheduledLimits,
+      );
+    }
 
     final stripped = _stripNonEssentialMetadata(
       format: format,
@@ -252,6 +299,28 @@ class ComposerImageMediaService {
     return image;
   }
 
+  static img.Image _resizeForScheduledUpload(
+    img.Image image,
+    ScheduledImageLimits limits,
+  ) {
+    final target = limits.fit(width: image.width, height: image.height);
+    if (target.width == image.width && target.height == image.height) {
+      return image;
+    }
+    final resized = img.copyResize(
+      image,
+      width: target.width,
+      height: target.height,
+      interpolation: img.Interpolation.average,
+    );
+    if (!limits.allows(width: resized.width, height: resized.height)) {
+      throw const FormatException(
+        'Scheduled image could not be resized to the supported dimensions',
+      );
+    }
+    return resized;
+  }
+
   static ({Map<String, String> metadata, bool hasTransparency})
   _stripNonEssentialMetadata({
     required SupportedImageFormat format,
@@ -287,6 +356,80 @@ class ComposerImageMediaService {
     SupportedImageFormat.jpeg => 'image/jpeg',
     SupportedImageFormat.png => 'image/png',
   };
+}
+
+/// Scheduled-image geometry limits mirrored from AppView's non-disableable
+/// server policy. Tests may use lower limits to exercise resize behavior.
+class ScheduledImageLimits {
+  const ScheduledImageLimits({
+    required this.maxWidth,
+    required this.maxHeight,
+    required this.maxPixels,
+    required this.maxAspectRatio,
+  }) : assert(maxWidth > 0, 'maxWidth must be positive'),
+       assert(maxHeight > 0, 'maxHeight must be positive'),
+       assert(maxPixels > 0, 'maxPixels must be positive'),
+       assert(maxAspectRatio > 0, 'maxAspectRatio must be positive');
+
+  final int maxWidth;
+  final int maxHeight;
+  final int maxPixels;
+  final int maxAspectRatio;
+
+  bool allows({required int width, required int height}) {
+    if (width <= 0 ||
+        height <= 0 ||
+        width > maxWidth ||
+        height > maxHeight ||
+        width * height > maxPixels) {
+      return false;
+    }
+    final longSide = math.max(width, height);
+    final shortSide = math.min(width, height);
+    return longSide <= shortSide * maxAspectRatio;
+  }
+
+  ImageDimensions fit({required int width, required int height}) {
+    if (width <= 0 || height <= 0) {
+      throw const FormatException('Scheduled image dimensions are invalid');
+    }
+    final longSide = math.max(width, height);
+    final shortSide = math.min(width, height);
+    if (longSide > shortSide * maxAspectRatio) {
+      throw FormatException(
+        'Scheduled image aspect ratio must not exceed $maxAspectRatio:1',
+      );
+    }
+    if (allows(width: width, height: height)) {
+      return ImageDimensions(width: width, height: height);
+    }
+
+    final scale = math.min(
+      1,
+      math.min(
+        maxWidth / width,
+        math.min(maxHeight / height, math.sqrt(maxPixels / (width * height))),
+      ),
+    );
+    final target = ImageDimensions(
+      width: math.max(1, (width * scale).floor()),
+      height: math.max(1, (height * scale).floor()),
+    );
+    if (!allows(width: target.width, height: target.height)) {
+      throw const FormatException(
+        'Scheduled image could not be resized to the supported dimensions',
+      );
+    }
+    return target;
+  }
+}
+
+/// Integer dimensions selected for a proportional scheduled-image resize.
+class ImageDimensions {
+  const ImageDimensions({required this.width, required this.height});
+
+  final int width;
+  final int height;
 }
 
 /// Why a selected local image was rejected before processing.

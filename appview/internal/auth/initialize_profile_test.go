@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/auth"
 )
@@ -45,6 +46,23 @@ type getCall struct{ Collection, Rkey string }
 type putCall struct {
 	Collection, Rkey string
 	Record           any
+}
+
+type testOnboardingProfileWriter struct{}
+
+func (testOnboardingProfileWriter) PutOnboardingProfile(
+	ctx context.Context,
+	client auth.PDSClient,
+	request auth.OnboardingProfileWrite,
+) error {
+	return client.PutRecord(ctx, request.Owner, cskyNSID, "self", request.Record)
+}
+
+func loginAttempt(owner syntax.DID) auth.CallbackAttempt {
+	return auth.CallbackAttempt{
+		State: "test-oauth-parent", AttemptID: uuid.New(), Owner: owner,
+		OwnerGeneration: 1, AuthEpoch: 1, Purpose: auth.LoginOAuthPurpose,
+	}
 }
 
 func (m *mockPDS) GetRecord(_ context.Context, _ syntax.DID, collection, rkey string, out any) (string, error) {
@@ -93,7 +111,7 @@ func TestInitializeProfile_ReturningUserBothPresent(t *testing.T) {
 			return nil
 		},
 	}
-	if err := auth.InitializeProfile(context.Background(), m, syntax.DID("did:plc:a")); err != nil {
+	if err := auth.InitializeProfile(context.Background(), m, loginAttempt(syntax.DID("did:plc:a")), testOnboardingProfileWriter{}); err != nil {
 		t.Fatalf("InitializeProfile: %v", err)
 	}
 	if len(m.getCalls) != 2 {
@@ -135,7 +153,7 @@ func TestInitializeProfile_NewUserWritesEmptyCraftsky(t *testing.T) {
 			return nil
 		},
 	}
-	if err := auth.InitializeProfile(context.Background(), m, syntax.DID("did:plc:b")); err != nil {
+	if err := auth.InitializeProfile(context.Background(), m, loginAttempt(syntax.DID("did:plc:b")), testOnboardingProfileWriter{}); err != nil {
 		t.Fatalf("InitializeProfile: %v", err)
 	}
 	if len(m.putCalls) != 1 {
@@ -158,7 +176,7 @@ func TestInitializeProfileAndIdentityCacheUpsertsAfterSuccessfulInitialization(t
 	updater := &fakeIdentityCacheUpdater{}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	if err := auth.InitializeProfileAndIdentityCache(context.Background(), m, syntax.DID("did:plc:new"), updater, logger); err != nil {
+	if err := auth.InitializeProfileAndIdentityCache(context.Background(), m, loginAttempt(syntax.DID("did:plc:new")), testOnboardingProfileWriter{}, updater, logger); err != nil {
 		t.Fatalf("InitializeProfileAndIdentityCache: %v", err)
 	}
 	if len(updater.dids) != 1 || updater.dids[0].String() != "did:plc:new" {
@@ -181,7 +199,7 @@ func TestInitializeProfileAndIdentityCacheLogsAndContinuesWhenUpsertFails(t *tes
 	updater := &fakeIdentityCacheUpdater{err: errors.New("identity unavailable")}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	if err := auth.InitializeProfileAndIdentityCache(context.Background(), m, syntax.DID("did:plc:new"), updater, logger); err != nil {
+	if err := auth.InitializeProfileAndIdentityCache(context.Background(), m, loginAttempt(syntax.DID("did:plc:new")), testOnboardingProfileWriter{}, updater, logger); err != nil {
 		t.Fatalf("InitializeProfileAndIdentityCache should continue on updater failure: %v", err)
 	}
 	if len(updater.dids) != 1 {
@@ -207,7 +225,7 @@ func TestInitializeProfileAndIdentityCacheRequestsRepositoryTrackingOnEverySucce
 	did := syntax.DID("did:plc:returning")
 
 	for i := 0; i < 2; i++ {
-		if err := auth.InitializeProfileAndIdentityCache(context.Background(), m, did, nil, logger, tracker); err != nil {
+		if err := auth.InitializeProfileAndIdentityCache(context.Background(), m, loginAttempt(did), testOnboardingProfileWriter{}, nil, logger, tracker); err != nil {
 			t.Fatalf("InitializeProfileAndIdentityCache retry %d: %v", i, err)
 		}
 	}
@@ -229,7 +247,7 @@ func TestInitializeProfile_NoBlueskyProfileIsOK(t *testing.T) {
 			return nil
 		},
 	}
-	if err := auth.InitializeProfile(context.Background(), m, syntax.DID("did:plc:c")); err != nil {
+	if err := auth.InitializeProfile(context.Background(), m, loginAttempt(syntax.DID("did:plc:c")), testOnboardingProfileWriter{}); err != nil {
 		t.Fatalf("InitializeProfile: %v", err)
 	}
 }
@@ -246,7 +264,7 @@ func TestInitializeProfile_BlueskyReadErrorFails(t *testing.T) {
 		},
 		putRecord: func(_, _ string, _ any) error { return nil },
 	}
-	err := auth.InitializeProfile(context.Background(), m, syntax.DID("did:plc:d"))
+	err := auth.InitializeProfile(context.Background(), m, loginAttempt(syntax.DID("did:plc:d")), testOnboardingProfileWriter{})
 	if err == nil {
 		t.Fatal("want error; got nil")
 	}
@@ -267,7 +285,7 @@ func TestInitializeProfile_CraftskyReadErrorFails(t *testing.T) {
 		},
 		putRecord: func(_, _ string, _ any) error { return nil },
 	}
-	err := auth.InitializeProfile(context.Background(), m, syntax.DID("did:plc:e"))
+	err := auth.InitializeProfile(context.Background(), m, loginAttempt(syntax.DID("did:plc:e")), testOnboardingProfileWriter{})
 	if !errors.Is(err, auth.ErrProfileInitFailed) {
 		t.Errorf("want ErrProfileInitFailed; got %v", err)
 	}
@@ -290,7 +308,7 @@ func TestInitializeProfile_MalformedCraftskyRecord(t *testing.T) {
 		},
 		putRecord: func(_, _ string, _ any) error { return nil },
 	}
-	err := auth.InitializeProfile(context.Background(), m, syntax.DID("did:plc:f"))
+	err := auth.InitializeProfile(context.Background(), m, loginAttempt(syntax.DID("did:plc:f")), testOnboardingProfileWriter{})
 	if !errors.Is(err, auth.ErrProfileDataInvalid) {
 		t.Errorf("want ErrProfileDataInvalid; got %v", err)
 	}
@@ -308,7 +326,7 @@ func TestInitializeProfile_PutRecordFailure(t *testing.T) {
 		},
 		putRecord: func(_, _ string, _ any) error { return errors.New("pds down") },
 	}
-	err := auth.InitializeProfile(context.Background(), m, syntax.DID("did:plc:g"))
+	err := auth.InitializeProfile(context.Background(), m, loginAttempt(syntax.DID("did:plc:g")), testOnboardingProfileWriter{})
 	if !errors.Is(err, auth.ErrProfileInitFailed) {
 		t.Errorf("want ErrProfileInitFailed; got %v", err)
 	}

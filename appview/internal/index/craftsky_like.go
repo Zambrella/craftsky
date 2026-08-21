@@ -16,9 +16,10 @@ import (
 )
 
 type CraftskyLike struct {
-	pool      *pgxpool.Pool
-	logger    *slog.Logger
-	lifecycle notifications.Lifecycle
+	pool         *pgxpool.Pool
+	projectionDB transactionalDatabase
+	logger       *slog.Logger
+	lifecycle    notifications.Lifecycle
 }
 
 var _ Indexer = (*CraftskyLike)(nil)
@@ -42,12 +43,19 @@ func (c *CraftskyLike) Handle(ctx context.Context, ev tap.Event) error {
 	}
 	switch ev.Action {
 	case "create", "update":
-		return handleCraftskyInteractionUpsert(ctx, c.pool, ev, "craftsky_likes", notifications.Like, c.lifecycle, decodeCraftskyLike)
+		return handleCraftskyInteractionUpsert(ctx, c.database(), ev, "craftsky_likes", notifications.Like, c.lifecycle, decodeCraftskyLike)
 	case "delete":
-		return handleCraftskyInteractionDelete(ctx, c.pool, ev, "craftsky_likes", c.lifecycle)
+		return handleCraftskyInteractionDelete(ctx, c.database(), ev, "craftsky_likes", c.lifecycle)
 	default:
 		return fmt.Errorf("unknown action %q on %s", ev.Action, ev.URI)
 	}
+}
+
+func (c *CraftskyLike) database() transactionalDatabase {
+	if c.projectionDB != nil {
+		return c.projectionDB
+	}
+	return c.pool
 }
 
 func decodeCraftskyLike(raw json.RawMessage) (craftskyInteractionRecord, error) {

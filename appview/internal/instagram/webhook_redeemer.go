@@ -23,7 +23,7 @@ var _ WebhookRedeemer = (*VerificationWebhookRedeemer)(nil)
 
 func NewVerificationWebhookRedeemer(store *VerificationStore) (*VerificationWebhookRedeemer, error) {
 	if store == nil || store.pool == nil {
-		return nil, errors.New("Instagram verification webhook redeemer requires a store")
+		return nil, errors.New("instagram verification webhook redeemer requires a store")
 	}
 	return &VerificationWebhookRedeemer{store: store}, nil
 }
@@ -38,7 +38,7 @@ func (*VerificationWebhookRedeemer) GoString() string {
 
 func (r *VerificationWebhookRedeemer) RedeemWebhookChallenge(ctx context.Context, request WebhookRedemptionRequest) (WebhookRedemption, error) {
 	if r == nil || r.store == nil || r.store.pool == nil {
-		return WebhookRedemption{}, errors.New("Instagram verification webhook redeemer is unavailable")
+		return WebhookRedemption{}, errors.New("instagram verification webhook redeemer is unavailable")
 	}
 	if request.WorkID == uuid.Nil || request.LeaseToken == uuid.Nil || request.ChallengeDigest.Version <= 0 ||
 		request.ChallengeDigest.IsZero() || request.SenderIGSID == "" || request.Now.IsZero() {
@@ -172,7 +172,7 @@ func (r *VerificationWebhookRedeemer) RedeemWebhookChallenge(ctx context.Context
 
 func (r *VerificationWebhookRedeemer) SetWebhookCandidate(ctx context.Context, attemptID uuid.UUID, username string, now time.Time) error {
 	if r == nil || r.store == nil || r.store.pool == nil {
-		return errors.New("Instagram verification webhook redeemer is unavailable")
+		return errors.New("instagram verification webhook redeemer is unavailable")
 	}
 	if attemptID == uuid.Nil || now.IsZero() {
 		return ErrInstagramStateTransition
@@ -250,7 +250,7 @@ func (r *VerificationWebhookRedeemer) RejectWebhookAttempt(ctx context.Context, 
 
 func (r *VerificationWebhookRedeemer) rejectAttempt(ctx context.Context, attemptID uuid.UUID, expectedOwner syntax.DID, retryCode AttemptRetryCode, now time.Time) error {
 	if r == nil || r.store == nil || r.store.pool == nil {
-		return errors.New("Instagram verification webhook redeemer is unavailable")
+		return errors.New("instagram verification webhook redeemer is unavailable")
 	}
 	if attemptID == uuid.Nil || !retryCode.Valid() || now.IsZero() {
 		return ErrInstagramStateTransition

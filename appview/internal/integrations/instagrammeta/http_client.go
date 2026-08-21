@@ -64,13 +64,13 @@ func (*HTTPClient) GoString() string {
 
 func NewHTTPClient(config HTTPClientConfig) (*HTTPClient, error) {
 	if config.HTTPClient == nil {
-		return nil, errors.New("Instagram HTTP client is required")
+		return nil, errors.New("instagram HTTP client is required")
 	}
 	if !graphAPIVersionPattern.MatchString(config.APIVersion) {
-		return nil, errors.New("Instagram Graph API version is invalid")
+		return nil, errors.New("instagram Graph API version is invalid")
 	}
 	if config.AccessToken == "" {
-		return nil, errors.New("Instagram access token is required")
+		return nil, errors.New("instagram access token is required")
 	}
 	if !validProviderID(config.OfficialAccountID) {
 		return nil, errors.New("official Instagram account ID is required")
@@ -82,7 +82,7 @@ func NewHTTPClient(config HTTPClientConfig) (*HTTPClient, error) {
 	}
 	baseURL, err := url.Parse(baseURLString)
 	if err != nil || baseURL.Scheme != "https" || baseURL.Host == "" || baseURL.User != nil || baseURL.RawQuery != "" || baseURL.Fragment != "" {
-		return nil, errors.New("Instagram Graph base URL is invalid")
+		return nil, errors.New("instagram Graph base URL is invalid")
 	}
 	baseURL.Path = strings.TrimRight(baseURL.Path, "/")
 
@@ -91,21 +91,21 @@ func NewHTTPClient(config HTTPClientConfig) (*HTTPClient, error) {
 		timeout = MaxProviderTimeout
 	}
 	if timeout < 0 || timeout > MaxProviderTimeout {
-		return nil, errors.New("Instagram provider timeout exceeds the fixed maximum")
+		return nil, errors.New("instagram provider timeout exceeds the fixed maximum")
 	}
 	responseLimit := config.ResponseLimit
 	if responseLimit == 0 {
 		responseLimit = MaxProviderResponseBytes
 	}
 	if responseLimit < 0 || responseLimit > MaxProviderResponseBytes {
-		return nil, errors.New("Instagram provider response limit exceeds the fixed maximum")
+		return nil, errors.New("instagram provider response limit exceeds the fixed maximum")
 	}
 	maxConcurrent := config.MaxConcurrent
 	if maxConcurrent == 0 {
 		maxConcurrent = MaxProviderConcurrentCalls
 	}
 	if maxConcurrent < 0 || maxConcurrent > MaxProviderConcurrentCalls {
-		return nil, errors.New("Instagram provider concurrency exceeds the fixed maximum")
+		return nil, errors.New("instagram provider concurrency exceeds the fixed maximum")
 	}
 	httpClient := *config.HTTPClient
 	httpClient.CheckRedirect = func(*http.Request, []*http.Request) error {

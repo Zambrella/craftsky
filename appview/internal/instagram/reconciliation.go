@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -21,7 +20,7 @@ const (
 
 type ReconciliationWorkerOptions struct {
 	Pool                  *pgxpool.Pool
-	AutomaticFollows      *AutomaticFollowStore
+	PrivateSuggestions    *PrivateSuggestionStore
 	Policy                InstagramSuggestionEligibilityPolicy
 	Membership            WebhookMembership
 	MembershipInactivator WebhookMembershipInactivator
@@ -29,29 +28,31 @@ type ReconciliationWorkerOptions struct {
 	NewID                 func() uuid.UUID
 	LeaseDuration         time.Duration
 	MaxAttempts           int
+	ModerationRestoration *ModerationRestorationRelay
 }
 
 // ReconciliationWorker claims durable targeted jobs and replays them safely.
-// Initial import matching deliberately does not use this worker and therefore
-// never creates a system notification.
+// Its only match-persistence capability is the private suggestion store; it
+// cannot select a session or write a public record.
 type ReconciliationWorker struct {
-	pool             *pgxpool.Pool
-	automaticFollows *AutomaticFollowStore
-	policy           InstagramSuggestionEligibilityPolicy
-	membership       WebhookMembership
-	inactivator      WebhookMembershipInactivator
-	now              func() time.Time
-	newID            func() uuid.UUID
-	leaseDuration    time.Duration
-	maxAttempts      int
+	pool                  *pgxpool.Pool
+	privateSuggestions    *PrivateSuggestionStore
+	policy                InstagramSuggestionEligibilityPolicy
+	membership            WebhookMembership
+	inactivator           WebhookMembershipInactivator
+	now                   func() time.Time
+	newID                 func() uuid.UUID
+	leaseDuration         time.Duration
+	maxAttempts           int
+	moderationRestoration *ModerationRestorationRelay
 }
 
 func NewReconciliationWorker(options ReconciliationWorkerOptions) (*ReconciliationWorker, error) {
-	if options.Pool == nil || options.Policy == nil || options.AutomaticFollows == nil {
-		return nil, errors.New("Instagram reconciliation dependencies are required")
+	if options.Pool == nil || options.Policy == nil || options.PrivateSuggestions == nil {
+		return nil, errors.New("instagram reconciliation dependencies are required")
 	}
 	if (options.Membership == nil) != (options.MembershipInactivator == nil) {
-		return nil, errors.New("Instagram reconciliation membership dependencies are incomplete")
+		return nil, errors.New("instagram reconciliation membership dependencies are incomplete")
 	}
 	if options.Now == nil {
 		options.Now = time.Now
@@ -69,10 +70,11 @@ func NewReconciliationWorker(options ReconciliationWorkerOptions) (*Reconciliati
 		return nil, errors.New("invalid Instagram reconciliation limits")
 	}
 	return &ReconciliationWorker{
-		pool: options.Pool, automaticFollows: options.AutomaticFollows, policy: options.Policy,
+		pool: options.Pool, privateSuggestions: options.PrivateSuggestions, policy: options.Policy,
 		membership: options.Membership, inactivator: options.MembershipInactivator,
 		now: options.Now, newID: options.NewID,
 		leaseDuration: options.LeaseDuration, maxAttempts: options.MaxAttempts,
+		moderationRestoration: options.ModerationRestoration,
 	}, nil
 }
 
@@ -97,14 +99,20 @@ type reconciliationCandidate struct {
 // ProcessBatch claims at most limit queued/retryable jobs with SKIP LOCKED,
 // processes each independently, and returns the number claimed. A job-level
 // error is persisted as retryable/failed and also returned for observability;
-// already-created automatic-follow operations remain safe for idempotent replay.
+// already-created private suggestions remain safe for idempotent replay.
 func (w *ReconciliationWorker) ProcessBatch(ctx context.Context, limit int) (int, error) {
 	if w == nil || w.pool == nil || w.policy == nil ||
-		w.automaticFollows == nil {
-		return 0, errors.New("Instagram reconciliation worker is unavailable")
+		w.privateSuggestions == nil {
+		return 0, errors.New("instagram reconciliation worker is unavailable")
 	}
 	if limit < 1 || limit > maxReconciliationBatchSize {
 		return 0, errors.New("invalid Instagram reconciliation batch size")
+	}
+	if w.moderationRestoration != nil {
+		promotionLimit := min(limit, MaxModerationRestorationBatch)
+		if _, err := w.moderationRestoration.PromotePending(ctx, promotionLimit); err != nil {
+			return 0, fmt.Errorf("promote moderation restoration intents: %w", err)
+		}
 	}
 	now := w.now().UTC()
 	jobs, err := w.claimJobs(ctx, limit, now)
@@ -252,13 +260,13 @@ func (w *ReconciliationWorker) processJob(ctx context.Context, job reconciliatio
 			if departed {
 				return matched, nil
 			}
-			return matched, errors.New("Instagram reconciliation membership unavailable")
+			return matched, errors.New("instagram reconciliation membership unavailable")
 		}
 		if !decision.Eligible {
 			continue
 		}
 
-		committed, err := w.persistAutomaticCandidate(ctx, candidate, request, now)
+		committed, err := w.persistPrivateCandidate(ctx, candidate, request, now)
 		if err != nil {
 			return matched, err
 		}
@@ -303,7 +311,7 @@ func (w *ReconciliationWorker) inactivateDepartedMember(ctx context.Context, did
 	return true, nil
 }
 
-func (w *ReconciliationWorker) persistAutomaticCandidate(
+func (w *ReconciliationWorker) persistPrivateCandidate(
 	ctx context.Context,
 	candidate reconciliationCandidate,
 	request SuggestionEligibilityRequest,
@@ -318,16 +326,14 @@ func (w *ReconciliationWorker) persistAutomaticCandidate(
 	}
 	id := w.newID()
 	if id == uuid.Nil {
-		return false, errors.New("invalid automatic follow operation ID")
+		return false, errors.New("invalid private Instagram suggestion ID")
 	}
-	rkey := syntax.RecordKey("3l" + strings.ReplaceAll(id.String(), "-", ""))
-	result, err := w.automaticFollows.ReconcileCandidate(ctx, ReconcileAutomaticFollowParams{
+	_, err = w.privateSuggestions.ReconcileCandidate(ctx, ReconcilePrivateSuggestionParams{
 		ID:          id,
 		ImporterDID: candidate.ImporterDID,
 		TargetDID:   candidate.TargetDID,
 		ImportID:    candidate.ImportID,
 		Username:    candidate.Username,
-		Rkey:        rkey,
 		Now:         now,
 	})
 	if errors.Is(err, ErrInstagramResourceNotFound) {
@@ -336,7 +342,7 @@ func (w *ReconciliationWorker) persistAutomaticCandidate(
 	if err != nil {
 		return false, err
 	}
-	return result.Queued || result.Suppressed, nil
+	return true, nil
 }
 
 func (w *ReconciliationWorker) loadCandidates(ctx context.Context, job reconciliationJob) ([]reconciliationCandidate, error) {
@@ -433,5 +439,5 @@ func (w *ReconciliationWorker) String() string {
 	if w == nil {
 		return "Instagram ReconciliationWorker{unavailable}"
 	}
-	return "Instagram ReconciliationWorker{database:configured,policy:configured,notifications:configured,clock:configured}"
+	return "Instagram ReconciliationWorker{database:configured,private-suggestions:configured,policy:configured,clock:configured}"
 }

@@ -14,8 +14,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
-
-	"social.craftsky/appview/internal/testdb"
+	"github.com/google/uuid"
 )
 
 func TestAccountDeletionReauthenticationIsFreshOwnerBoundAndSingleUse(t *testing.T) {
@@ -98,13 +97,19 @@ func TestOAuthCallbackUsesDeletionOnlyPurposeWithoutMintingOrdinaryAccess(t *tes
 	pdsCreated := false
 	handlers := &HTTPHandlers{
 		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
-		ProcessOAuthCallback: func(context.Context, url.Values) (*oauth.ClientSessionData, error) {
-			return &oauth.ClientSessionData{AccountDID: owner, SessionID: "oauth-session-fresh"}, nil
-		},
+		OAuthFlow: &recordingDeletionOAuthFlow{result: OAuthCallbackResult{
+			Session: oauth.ClientSessionData{AccountDID: owner, SessionID: "oauth-session-fresh"},
+			Metadata: AuthRequestMetadata{
+				Purpose: AccountDeletionOAuthPurpose, Owner: owner,
+				JobID: uuid.MustParse("10000000-0000-4000-8000-000000000001"),
+			},
+			Attempt: CallbackAttempt{State: "oauth-session-fresh", Owner: owner, Purpose: AccountDeletionOAuthPurpose},
+		}},
 		DeletionOAuthCallbacks: callbacks,
-		NewPDSClient: func(context.Context, syntax.DID, string) (PDSClient, error) {
+		DeletionCompleteURL:    "https://craftsky.social/account-deletion/reauth-complete",
+		NewPendingPDSClient: func(context.Context, CallbackAttempt) (PDSClient, error) {
 			pdsCreated = true
-			return nil, errors.New("ordinary PDS client must not be created")
+			return nil, errors.New("login-only pending PDS client must not be created")
 		},
 	}
 
@@ -114,7 +119,7 @@ func TestOAuthCallbackUsesDeletionOnlyPurposeWithoutMintingOrdinaryAccess(t *tes
 	if response.Code != http.StatusOK {
 		t.Fatalf("deletion callback status = %d, body = %s", response.Code, response.Body.String())
 	}
-	if !strings.Contains(response.Body.String(), "craftsky:///account-deletion/reauth-complete") ||
+	if !strings.Contains(response.Body.String(), "https://craftsky.social/account-deletion/reauth-complete") ||
 		!strings.Contains(response.Body.String(), "job-id=job-alice") ||
 		!strings.Contains(response.Body.String(), "proof=proof-secret") {
 		t.Fatalf("deletion callback body = %s", response.Body.String())
@@ -130,37 +135,17 @@ func TestOAuthCallbackUsesDeletionOnlyPurposeWithoutMintingOrdinaryAccess(t *tes
 	request = httptest.NewRequest(http.MethodGet, "/oauth/callback?state=deletion-state&code=synthetic", nil)
 	response = httptest.NewRecorder()
 	handlers.CallbackHandler().ServeHTTP(response, request)
-	if response.Code != http.StatusBadRequest || callbacks.rejectedSession != "oauth-session-fresh" {
+	if response.Code != http.StatusBadRequest || callbacks.rejectedSession != "" {
 		t.Fatalf("cross-DID callback status = %d rejected = %q", response.Code, callbacks.rejectedSession)
 	}
 }
 
-func TestNormalOAuthCallbackReturnsCoarsePendingDeletionWithoutOrdinaryAccess(t *testing.T) {
-	owner := syntax.DID("did:plc:alice")
-	pool := testdb.WithSchema(t, `
-		CREATE TABLE oauth_auth_requests(
-			state TEXT PRIMARY KEY,
-			data JSONB NOT NULL,
-			handoff_mode TEXT NOT NULL DEFAULT 'deep_link',
-			loopback_redirect_uri TEXT,
-			device_id TEXT
-		)
-	`)
-	if _, err := pool.Exec(context.Background(), `
-		INSERT INTO oauth_auth_requests(state,data,handoff_mode)
-		VALUES('login-state','{}','deep_link')
-	`); err != nil {
-		t.Fatal(err)
-	}
-	policy := &recordingPendingLoginPolicy{}
+func TestLoginOAuthCallbackFailsClosedBeforeOrdinaryAccessWhenOwnerPendingDeletion(t *testing.T) {
 	pdsCreated := false
 	handlers := &HTTPHandlers{
-		Pool: pool, Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
-		ProcessOAuthCallback: func(context.Context, url.Values) (*oauth.ClientSessionData, error) {
-			return &oauth.ClientSessionData{AccountDID: owner, SessionID: "ordinary-oauth-must-be-deleted"}, nil
-		},
-		DeletionPendingLogin: policy,
-		NewPDSClient: func(context.Context, syntax.DID, string) (PDSClient, error) {
+		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
+		OAuthFlow: &recordingDeletionOAuthFlow{err: ErrOAuthOwnerIneligible},
+		NewPendingPDSClient: func(context.Context, CallbackAttempt) (PDSClient, error) {
 			pdsCreated = true
 			return nil, errors.New("pending deletion must not initialize membership")
 		},
@@ -170,30 +155,33 @@ func TestNormalOAuthCallbackReturnsCoarsePendingDeletionWithoutOrdinaryAccess(t 
 	response := httptest.NewRecorder()
 	handlers.CallbackHandler().ServeHTTP(response, request)
 
-	if response.Code != http.StatusOK ||
-		!strings.Contains(response.Body.String(), "craftsky:///auth/complete") ||
-		!strings.Contains(response.Body.String(), "account_deletion_pending") {
+	if response.Code != http.StatusBadRequest ||
+		!strings.Contains(response.Body.String(), "Sign-in could not be completed") {
 		t.Fatalf("pending callback status = %d body = %s", response.Code, response.Body.String())
 	}
-	if pdsCreated || policy.rejectedSession != "" || policy.sessionID != "ordinary-oauth-must-be-deleted" {
-		t.Fatalf("pending callback pdsCreated=%v rejected=%q", pdsCreated, policy.rejectedSession)
+	if pdsCreated {
+		t.Fatal("pending-deletion callback created an ordinary PDS client")
 	}
 }
 
-type recordingPendingLoginPolicy struct {
-	result          AccountDeletionPendingLogin
-	rejectedSession string
-	sessionID       string
+type recordingDeletionOAuthFlow struct {
+	result OAuthCallbackResult
+	err    error
 }
 
-func (policy *recordingPendingLoginPolicy) PendingLogin(_ context.Context, _ syntax.DID, sessionID, _ string) (AccountDeletionPendingLogin, bool, error) {
-	policy.sessionID = sessionID
-	return policy.result, true, nil
+func (*recordingDeletionOAuthFlow) StartLogin(context.Context, syntax.Handle, HandoffMode, string, string) (string, error) {
+	return "", errors.New("unexpected login start")
 }
 
-func (policy *recordingPendingLoginPolicy) Reject(_ context.Context, _ syntax.DID, sessionID string) error {
-	policy.rejectedSession = sessionID
-	return nil
+func (flow *recordingDeletionOAuthFlow) CompleteCallback(
+	ctx context.Context,
+	_ url.Values,
+	finalize OAuthCallbackFinalizer,
+) error {
+	if flow.err != nil {
+		return flow.err
+	}
+	return finalize(ctx, flow.result)
 }
 
 type recordingDeletionOAuthCallbacks struct {
@@ -215,6 +203,19 @@ func (callbacks *recordingDeletionOAuthCallbacks) Complete(_ context.Context, re
 		return AccountDeletionOAuthResult{}, ErrDeletionReauthenticationRequired
 	}
 	return AccountDeletionOAuthResult{JobID: request.JobID, Proof: "proof-secret"}, nil
+}
+
+func (callbacks *recordingDeletionOAuthCallbacks) CompleteAttempt(
+	_ context.Context,
+	request AccountDeletionAuthRequest,
+	attempt CallbackAttempt,
+) (AccountDeletionOAuthResult, error) {
+	callbacks.completedDID = attempt.Owner
+	callbacks.completedSession = attempt.State
+	if callbacks.callbackDIDMismatch || attempt.Owner != request.Owner {
+		return AccountDeletionOAuthResult{}, ErrDeletionReauthenticationRequired
+	}
+	return AccountDeletionOAuthResult{JobID: callbacks.metadata.JobID, Proof: "proof-secret"}, nil
 }
 
 func (callbacks *recordingDeletionOAuthCallbacks) Reject(_ context.Context, _ syntax.DID, sessionID string) error {

@@ -11,8 +11,6 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
-
-	"social.craftsky/appview/internal/auth"
 )
 
 func TestScheduledPublicationRecoversTheSameFrozenRecordAcrossCrashBoundaries(t *testing.T) {
@@ -92,7 +90,7 @@ func newPublicationRecoveryFixture(t *testing.T, mediaCount int) *publicationRec
 	t.Helper()
 	store := NewStore(newScheduledPostStoreTestPool(t))
 	objects := newMemoryPrivateObjectStore()
-	mediaService := NewPrivateMediaService(store, objects)
+	mediaService, _ := newScheduledTestMediaService(t, store, objects)
 	owner := syntax.DID("did:plc:alice")
 	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
 	current := now
@@ -104,7 +102,8 @@ func newPublicationRecoveryFixture(t *testing.T, mediaCount int) *publicationRec
 		id := uuid.New()
 		body := []byte{byte(index + 1), 'p', 'r', 'i', 'v', 'a', 't', 'e'}
 		staged, err := mediaService.Put(context.Background(), PutPrivateMediaParams{
-			ID: id, OwnerDID: owner, MIMEType: "image/jpeg", Bytes: body, Now: now,
+			ID: id, OwnerDID: owner, OwnerGeneration: 1,
+			MIMEType: "image/jpeg", Bytes: body, Now: now,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -134,11 +133,9 @@ func newPublicationRecoveryFixture(t *testing.T, mediaCount int) *publicationRec
 		Sessions: stubPublicationSessionSelector{
 			wantOwner: owner, sessionID: "owner-session",
 		},
-		NewPDS: func(context.Context, syntax.DID, string) (auth.PDSClient, error) {
-			return pds, nil
-		},
-		Objects: objects,
-		Now:     func() time.Time { return current },
+		NewEffects: recordingGuardedFactory(pds, nil),
+		Objects:    objects,
+		Now:        func() time.Time { return current },
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -152,14 +149,6 @@ func newPublicationRecoveryFixture(t *testing.T, mediaCount int) *publicationRec
 	return &publicationRecoveryFixture{
 		store: store, objects: objects, pds: pds, owner: owner, id: id,
 		now: now, clock: &current, media: media, bodies: bodies, worker: worker,
-	}
-}
-
-func (f *publicationRecoveryFixture) process(t *testing.T) {
-	t.Helper()
-	processed, err := f.worker.ProcessBatch(context.Background())
-	if err != nil || processed != 1 {
-		t.Fatalf("ProcessBatch = %d, %v", processed, err)
 	}
 }
 
@@ -196,12 +185,13 @@ func (f *publicationRecoveryFixture) stop(t *testing.T) PublishingClaim {
 	var claim PublishingClaim
 	var rkey string
 	if err := f.store.pool.QueryRow(context.Background(), `
-		SELECT id, owner_did, lease_token, payload_version,
+		SELECT id, owner_did, owner_generation, lease_token, payload_version,
 		       publication_rkey, publication_created_at
 		FROM scheduled_posts
 		WHERE owner_did=$1 AND id=$2
 	`, f.owner, f.id).Scan(
-		&claim.ID, &claim.OwnerDID, &claim.LeaseToken, &claim.PayloadVersion,
+		&claim.ID, &claim.OwnerDID, &claim.OwnerGeneration,
+		&claim.LeaseToken, &claim.PayloadVersion,
 		&rkey, &claim.CreatedAt,
 	); err != nil {
 		t.Fatalf("read stopped publication claim: %v", err)
@@ -238,7 +228,7 @@ func (f *publicationRecoveryFixture) recover(
 		t.Fatalf("recovery changed frozen identity or reused lease: stopped=%#v recovered=%#v", stopped, recovered)
 	}
 	if err := f.store.SaveFrozenRecord(context.Background(), FrozenRecordParams{
-		ID: stopped.ID, OwnerDID: stopped.OwnerDID,
+		ID: stopped.ID, OwnerDID: stopped.OwnerDID, OwnerGeneration: stopped.OwnerGeneration,
 		LeaseToken: stopped.LeaseToken, PayloadVersion: stopped.PayloadVersion,
 		RecordBytes: frozen, RecordHash: sha256.Sum256(frozen), Now: *f.clock,
 	}); !errors.Is(err, ErrWorkerLeaseLost) {
@@ -246,7 +236,8 @@ func (f *publicationRecoveryFixture) recover(
 	}
 	claimStore := &recordingClaimStore{items: []WorkItem{{
 		ID: recovered.ID, OwnerDID: recovered.OwnerDID,
-		LeaseToken: recovered.LeaseToken, PayloadVersion: recovered.PayloadVersion,
+		OwnerGeneration: recovered.OwnerGeneration,
+		LeaseToken:      recovered.LeaseToken, PayloadVersion: recovered.PayloadVersion,
 		Rkey: recovered.Rkey, CreatedAt: recovered.CreatedAt,
 	}}}
 	restarted, err := NewWorker(WorkerOptions{

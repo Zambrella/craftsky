@@ -4,15 +4,19 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
 type NotificationDeviceResponse struct {
@@ -32,6 +36,9 @@ func (s *PostStore) RegisterNotificationDevice(ctx context.Context, accountDID, 
 		return "", err
 	}
 	defer tx.Rollback(ctx)
+	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, syntax.DID(accountDID), nil); err != nil {
+		return "", fmt.Errorf("authorize notification device registration: %w", err)
+	}
 	var oldInstallation uuid.UUID
 	var oldDevice string
 	err = tx.QueryRow(ctx, `SELECT id, device_id FROM push_installations WHERE fcm_token = $1 AND active FOR UPDATE`, token).Scan(&oldInstallation, &oldDevice)
@@ -81,6 +88,9 @@ func (s *PostStore) RemoveNotificationSubscription(ctx context.Context, accountD
 		return err
 	}
 	defer tx.Rollback(ctx)
+	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, syntax.DID(accountDID), nil); err != nil {
+		return fmt.Errorf("authorize notification subscription removal: %w", err)
+	}
 	var subscriptionID uuid.UUID
 	err = tx.QueryRow(ctx, `
 		UPDATE push_account_subscriptions subscription
@@ -118,6 +128,38 @@ func (s *PostStore) DeactivateForAccount(ctx context.Context, accountDID string)
 	`, accountDID)
 }
 
+// DeactivateForInstallationBefore applies a durable auth-cleanup job without
+// crossing a later device registration. Registration and cleanup serialize on
+// the subscription row; updated_at is the generation fence between them.
+func (s *PostStore) DeactivateForInstallationBefore(
+	ctx context.Context,
+	accountDID string,
+	deviceID string,
+	cutoff time.Time,
+) error {
+	return s.deactivateSubscriptions(ctx, `
+		SELECT subscription.id FROM push_account_subscriptions subscription
+		JOIN push_installations installation ON installation.id=subscription.installation_id
+		WHERE subscription.account_did=$1 AND installation.device_id=$2
+		  AND subscription.active AND subscription.updated_at <= $3
+		FOR UPDATE OF subscription
+	`, accountDID, deviceID, cutoff)
+}
+
+// DeactivateForAccountBefore is the DID-wide counterpart. Rows reactivated
+// after the cleanup job was committed remain active.
+func (s *PostStore) DeactivateForAccountBefore(
+	ctx context.Context,
+	accountDID string,
+	cutoff time.Time,
+) error {
+	return s.deactivateSubscriptions(ctx, `
+		SELECT id FROM push_account_subscriptions
+		WHERE account_did=$1 AND active AND updated_at <= $2
+		FOR UPDATE
+	`, accountDID, cutoff)
+}
+
 func (s *PostStore) deactivateSubscriptions(ctx context.Context, query string, args ...any) error {
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -128,16 +170,10 @@ func (s *PostStore) deactivateSubscriptions(ctx context.Context, query string, a
 	if err != nil {
 		return err
 	}
-	var ids []uuid.UUID
-	for rows.Next() {
-		var id uuid.UUID
-		if err := rows.Scan(&id); err != nil {
-			rows.Close()
-			return err
-		}
-		ids = append(ids, id)
+	ids, err := scanNotificationSubscriptionIDs(rows)
+	if err != nil {
+		return err
 	}
-	rows.Close()
 	for _, id := range ids {
 		if _, err := tx.Exec(ctx, `UPDATE push_account_subscriptions SET active=false,deactivated_at=now(),updated_at=now() WHERE id=$1`, id); err != nil {
 			return err
@@ -147,6 +183,30 @@ func (s *PostStore) deactivateSubscriptions(ctx context.Context, query string, a
 		}
 	}
 	return tx.Commit(ctx)
+}
+
+type notificationSubscriptionRows interface {
+	Next() bool
+	Scan(...any) error
+	Err() error
+	Close()
+}
+
+func scanNotificationSubscriptionIDs(rows notificationSubscriptionRows) ([]uuid.UUID, error) {
+	defer rows.Close()
+
+	var ids []uuid.UUID
+	for rows.Next() {
+		var id uuid.UUID
+		if err := rows.Scan(&id); err != nil {
+			return nil, fmt.Errorf("scan notification subscription: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate notification subscriptions: %w", err)
+	}
+	return ids, nil
 }
 
 func RegisterNotificationDeviceHandler(store NotificationDeviceStore, logger *slog.Logger) http.Handler {

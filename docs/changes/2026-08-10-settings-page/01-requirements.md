@@ -1,5 +1,13 @@
 # Requirements: Settings Page And Lean Account Deletion
 
+> **Development reauthentication correction (2026-08-20):** FR-032 and
+> AC-055 are authoritative for the interval between creating a deletion intent
+> and explicit exact-handle acceptance. The ordinary bearer becomes
+> recovery-only on the server, but the confirming installation must retain that
+> exact captured lease long enough to render and submit the confirmation.
+
+> **AppView audit amendment (2026-08-14):** Section 24 is authoritative where the earlier lean-deletion contract conflicts with crash-safe PDS/object convergence. The product owner approved the narrow temporary safety-tombstone branch; the no-status, no-audit, no-detailed-metrics, server-only-authority, and final artifact-free boundaries remain unchanged.
+
 ## 1. Initial Request
 
 Expand Settings with identity, account switching, disclosure chevrons, Notifications, About, Account, moved image-cache clearing, version information, and error-coloured Sign out. Delete account permanently removes the member's CraftSky membership, private CraftSky data, and every record in registered `social.craftsky.*` PDS collections without deleting their DID/PDS account, other namespaces, or blobs directly.
@@ -142,6 +150,7 @@ Settings retains the requested expanded hierarchy. Delete account still requires
 | FR-025 | Functional | Must | Terminal success shall remove the operation and deletion-bound OAuth session. CraftSky shall not retain a deletion audit; ordinary redacted infrastructure logs remain subject to existing retention. | Avoids a deletion-specific retained subsystem. | User decision | AC-046 |
 | FR-026 | Functional | Must | Explicit deletion shall hard-delete account-owned Instagram migration data and release username claims, overriding ordinary migration retention. | Private deletion must include imported data. | User decision / codebase | AC-047 |
 | FR-027 | Functional | Must | The user-visible flow shall expose only pre-acceptance validation and a successful acceptance acknowledgement; it shall not expose worker phases, counts, status polling, attention, or Retry. | Defines the simplified UX. | User decision | AC-038, AC-039 |
+| FR-032 | Functional | Must | After a deletion intent is created and before it is cancelled or accepted, the confirming installation shall durably retain the exact captured account lease and handle-confirmation state. Ordinary-route 401 responses caused by the server's recovery-only lifecycle shall not remove that exact lease; cancellation, account switching, and accepted deletion remain fail-closed. | Prevents reauthentication from logging the confirming user out before the mandatory exact-handle step. | Reported dev OAuth regression | AC-055 |
 | NFR-001 | Non-functional | Must | Identity and destructive client actions shall remain fenced to the captured active-account lease. | Prevents deleting the wrong retained account. | Codebase | AC-021, AC-025 |
 | NFR-002 | Non-functional | Must | The owner-scoped operation, private cleanup, collection scanning, and finalization shall be idempotent or safely convergent across worker restarts and partial side effects. | Makes asynchronous deletion safe. | Architecture | AC-017, AC-023, AC-037, AC-041 |
 | NFR-003 | Non-functional | Must | Changed controls shall preserve semantics, accessibility, focus, and minimum target sizes. | Maintains UI quality. | Codebase | AC-022, AC-027 |
@@ -297,3 +306,61 @@ Notes: The product owner explicitly approved the lean asynchronous/no-status con
 - Must-cover: FR-013–FR-027, NFR-001, NFR-002, NFR-006, RULE-001, RULE-002, RULE-005–RULE-011 plus unchanged Settings requirements.
 - Suggested levels: Flutter widget/controller tests; AppView migration/store/worker/PDS/private-cleanup integration tests; auth/route regression tests; no receipt/status/audit tests.
 - Blocking questions: None.
+
+## 24. AppView Audit Amendment: Exact-Key Safety Tombstones
+
+### 24.1 Approved decision and superseded clauses
+
+On 2026-08-14, the product owner approved the recommended safety branch from `docs/2026-appview-code-audit-plan/AV-002_AV-003_AV-006_AV-007-account-lifecycle.md`: an accepted deletion operation may retain minimal, non-secret, exact-key PDS-record and scheduled-object safety tombstones only while remote acceptance is still uncertain. The operation and tombstones are removed after convergence is proven.
+
+This amendment narrowly supersedes Q5, NG-007, the “without per-record/checkpoint state” wording in FR-015, the “only the operation and bound OAuth session remain” wording in RULE-010/AC-042, and any reading of AC-037 or AC-046 that permits success after an initially empty scan while a known remote call can still commit. IT-029 and IT-031 in the original test specification are likewise superseded only where they require one table or forbid these exact-key safety rows. AC-046 remains the required **post-convergence final state**.
+
+Option A remains the approved lean product experience. This amendment does not restore deletion progress/status UI, a status credential, manual Retry, a user-visible recovery flow, per-component cleanup checkpoints, expected-index receipts, a deletion audit, an audit sweeper, detailed deletion metrics, or a generic PDS-delete facility.
+
+### 24.2 Additional requirements
+
+| ID | Type | Priority | Requirement | Rationale | Source | Acceptance Criteria |
+|---|---|---|---|---|---|---|
+| FR-028 | Functional | Must | When deletion is accepted, the operation shall inventory every durable outcome-uncertain ordinary write in registered `social.craftsky.*` collections and every in-flight scheduled-object `Put` for that owner generation, creating or adopting one exact-key safety tombstone for each before it can report completion. | A remote system can accept a call before AppView crashes and commit it after the deletion worker's first scan. | AppView audit / product decision | AC-049, AC-050, AC-051 |
+| FR-029 | Functional | Must | For each uncertain PDS write, the worker shall use only its job-bound `deletion_only` authority to repeatedly read/list and delete the exact authenticated-owner AT URI until remote non-acceptance or post-settlement absence is proven. An initially empty collection scan is not proof while a known call can still commit. | Prevents a delayed PDS commit from recreating CraftSky data after apparent completion. | AppView audit / product decision | AC-049, AC-050, AC-052 |
+| FR-030 | Functional | Must | For each uncertain scheduled-object write, cleanup shall repeatedly delete and verify absence of the immutable generation-specific object key. It may finalize that key only after a tested backend settlement bound plus the final delete/absence check; without such a bound it remains reconciling. | A delayed object-store `Put` can create an object after an early delete or absent check. | AppView audit / product decision | AC-051, AC-052 |
+| FR-031 | Functional | Must | After every private cleanup and exact-key uncertainty has converged, finalization shall remove all safety tombstones, the deletion operation, and its deletion-only OAuth authority, leaving no deletion audit, status, receipt, checkpoint, or recovery artifact. | Preserves the approved data-minimization end state after correctness is established. | Product decision | AC-053 |
+| NFR-007 | Non-functional | Must | A safety tombstone shall contain only owner/job identity, kind, exact AT URI or immutable object key plus upload generation, originating owner generation, bounded reconciliation state, attempts/timestamps, and lease data. It shall never contain credentials, handles, record bodies, media content/metadata, client-visible status data, or an audit narrative. | Keeps temporary safety state narrow and non-secret. | Product decision | AC-049, AC-053 |
+| RULE-012 | Business rule | Must | Safety reconciliation authority is exact-owner, exact-job, and exact-key. PDS keys must be in registered `social.craftsky.*` collections; it can never delete `app.bsky.graph.follow`, another namespace, a blob, another owner's record/object, or the DID/PDS account. | The safety exception must not widen irreversible deletion authority. | Product decision / architecture | AC-049, AC-054 |
+| RULE-013 | Business rule | Must | If AppView cannot prove remote settlement and exact-key absence, the operation remains internally reconciling and shall not claim a data-free or terminally successful outcome. The client remains signed out and no ordinary membership/session is restored. | Honest incompletion is safer than fabricating deletion success. | Product decision | AC-050, AC-051, AC-052, AC-054 |
+
+### 24.3 Additional acceptance criteria
+
+| ID | Requirement IDs | Acceptance Criterion |
+|---|---|---|
+| AC-049 | FR-028, FR-029, NFR-007, RULE-012 | Accepting deletion atomically inventories each known ambiguous registered-collection AT URI and generation-specific scheduled-object key as a minimized exact-key safety tombstone; no secret, payload, handle, audit, status capability, or unrelated key is retained. |
+| AC-050 | FR-028, FR-029, RULE-013 | Given a registered-collection write accepted remotely before an AppView crash, when the deletion worker's first scan is empty and the delayed PDS commit then appears, the retained exact-URI tombstone causes a later read/delete/scan to remove it and the operation cannot report data-free beforehand. |
+| AC-051 | FR-028, FR-030, RULE-013 | Given an object `Put` accepted before an AppView crash, when cleanup first deletes or observes absence and the delayed `Put` later creates the object, the retained generation-specific tombstone causes another delete/absence verification and prevents premature completion. |
+| AC-052 | FR-029, FR-030, RULE-013 | Without a tested finite PDS or object-store settlement guarantee, unresolved exact-key tombstones and the narrow operation remain reconciling rather than being discarded because a client timeout or elapsed duration passed. |
+| AC-053 | FR-031, NFR-007 | Once private cleanup, final collection scanning, and every exact-key reconciliation prove convergence, finalization deletes the tombstones, operation, and bound OAuth state; no deletion-specific artifact remains. |
+| AC-054 | RULE-012, RULE-013 | While reconciliation remains active, normal login/member APIs stay unavailable, no user status/recovery API is added, and no cleanup call can target a follow, blob, DID/PDS account, other namespace, owner, job, URI, object key, or generation. |
+
+### 24.4 Edge cases and persistence impact
+
+| ID | Case | Expected Behavior | Requirement IDs |
+|---|---|---|---|
+| EC-013 | PDS accepts before crash but commits after an empty deletion scan | Keep the exact URI active, re-read/re-delete it, and refuse terminal success until convergence is proven. | FR-028, FR-029, RULE-013 |
+| EC-014 | Object store accepts `Put` before crash but materializes the key after an early delete/HEAD | Keep the immutable key/generation active and repeat delete/absence verification. | FR-028, FR-030, RULE-013 |
+| EC-015 | No tested finite remote settlement bound exists | Reconcile indefinitely with bounded leases/backoff; do not invent a deadline that authorizes success. | FR-029, FR-030, RULE-013 |
+| EC-016 | Worker crashes after remote absence is proven but before finalization | Idempotently resume, revalidate the exact keys, then atomically remove the operation, OAuth authority, and tombstones. | FR-031, NFR-002 |
+
+- Add one narrow safety-tombstone relation, provisionally `account_deletion_safety_tombstones`, keyed by operation and tombstone kind plus exact key/generation. The implementation may normalize PDS/object rows only if it preserves the same field and minimization contract.
+- Add check constraints for tombstone kind/state, exact registered-collection URI or immutable object-key/generation shape, positive owner/credential generation, attempts, and lease consistency; add bounded claim/reconciliation indexes.
+- Reserve the migration number centrally with the other AppView audit lifecycle/auth migrations; use the semantic pair `<next>_account_deletion_safety_tombstones.up.sql` and `.down.sql` rather than silently rewriting the historical document contract.
+- The API remains unchanged: acceptance still returns `202` without a status capability and Flutter still removes the account locally. Reconciliation is server-only.
+- Ordinary redacted logs may report aggregate outcome categories and backlog age under the shared lifecycle observability plan, but they must not log exact URIs/object keys or introduce deletion-specific user/audit telemetry.
+
+### 24.5 Review and handoff
+
+Status: Approved
+Risk level: High
+Reviewer: Product owner
+Date: 2026-08-14
+Blocking questions: None. The temporary exact-key safety-tombstone branch is the approved product contract.
+
+The amended Must-cover set adds FR-028–FR-031, NFR-007, RULE-012, RULE-013, and AC-049–AC-054. Test design must begin with the accepted-write/AppView-crash/empty-scan/delayed-commit barriers rather than the superseded one-table assertion.

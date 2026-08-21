@@ -8,7 +8,6 @@ import (
 	"strings"
 	"testing"
 
-	"social.craftsky/appview/internal/app"
 	"social.craftsky/appview/internal/languages"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -22,14 +21,13 @@ func TestLanguagePreferenceRoutesUseExactAuthenticatedContract(t *testing.T) {
 		"PUT /v1/languages/preferences":             {RateClassWrite, BodyDefaultJSON},
 		"POST /v1/languages/preferences/initialize": {RateClassWrite, BodyDefaultJSON},
 	}
-	for _, policy := range V1RoutePolicies(app.EnvDev, app.Config{Env: app.EnvDev}) {
+	for _, policy := range V1RoutePolicies(EnvDev, Config{Env: EnvDev}) {
 		key := policy.Method + " " + policy.PathPattern
 		want, exists := wantPolicies[key]
 		if !exists {
 			continue
 		}
-		if !policy.AuthRequired ||
-			policy.CurrentMemberRequired ||
+		if policy.AccessClass != AccessCurrentMember ||
 			policy.RateClass != want.rateClass ||
 			policy.BodyKind != want.bodyKind {
 			t.Fatalf("%s policy = %+v", key, policy)
@@ -45,6 +43,26 @@ func TestLanguagePreferenceRoutesUseExactAuthenticatedContract(t *testing.T) {
 		t.Fatalf("read language migration: %v", err)
 	}
 	pool := testdb.WithSchema(t, `
+		CREATE TABLE craftsky_profiles (
+			did TEXT PRIMARY KEY
+		);
+		INSERT INTO craftsky_profiles(did) VALUES ('did:plc:alice');
+		CREATE TABLE owner_lifecycles (
+			owner_did TEXT PRIMARY KEY,
+			state TEXT NOT NULL,
+			generation BIGINT NOT NULL,
+			auth_epoch BIGINT NOT NULL,
+			transition_reason TEXT NOT NULL,
+			transitioned_at TIMESTAMPTZ NOT NULL,
+			terminal_at TIMESTAMPTZ,
+			purge_completed_at TIMESTAMPTZ,
+			created_at TIMESTAMPTZ NOT NULL,
+			updated_at TIMESTAMPTZ NOT NULL
+		);
+		INSERT INTO owner_lifecycles(
+			owner_did,state,generation,auth_epoch,transition_reason,
+			transitioned_at,created_at,updated_at
+		) VALUES('did:plc:alice','active',1,1,'test',now(),now(),now());
 		CREATE TABLE craftsky_posts (
 			uri TEXT PRIMARY KEY,
 			did TEXT NOT NULL,
@@ -60,6 +78,7 @@ func TestLanguagePreferenceRoutesUseExactAuthenticatedContract(t *testing.T) {
 
 	deps := testDeps()
 	deps.DB = pool
+	deps.OwnerLifecycles = newRouteOwnerLifecycleStore(t, pool)
 	deps.LanguagePreferences = languages.NewStore(pool)
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, deps)

@@ -1,5 +1,10 @@
 # TDD Implementation Plan: Instagram DM Ownership Verification And Automatic Following
 
+> **2026-08-20 status:** The automatic-follow execution below is historical.
+> The strict AV-007 correction in "AppView Audit Strict-Branch Correction" is
+> implemented, and its final re-review is approved with notes. External
+> Meta/device/deployment checks remain release gates.
+
 ## Inputs
 
 - Requirements: `01-requirements.md`
@@ -1030,7 +1035,8 @@ review. This pass addresses only required finding `IR-022`; the non-blocking
 - [x] Flutter operations remain fixed-account and redacted
 - [x] Existing social notification and follow behavior remains green
 - [x] Full Go and Flutter verification is complete
-- [ ] Final implementation re-review is complete
+- [x] Final implementation re-review is complete; the strict-branch final
+  re-review in `06-implementation-review.md` is authoritative
 - [x] Live Meta/export/safety/device/accessibility gates are explicitly reported
 
 ## Known External Gates
@@ -1044,3 +1050,115 @@ review. This pass addresses only required finding `IR-022`; the non-blocking
 - Final security/privacy/operator-access review before production enablement
 - Remove the temporary raw-webhook diagnostic and unset
   `INSTAGRAM_UNSAFE_LOG_WEBHOOK_BODIES` after the live Meta capability spike.
+
+## AppView Audit Strict-Branch Correction (2026-08-14)
+
+Decision: Approved. Retire the background PDS writer and implement private,
+lifecycle-bound suggestions plus explicit current-member acceptance.
+
+Execution status: Complete on 2026-08-20. The earlier Automatic Following
+Completion Checklist remains historical evidence only; the strict-branch log
+below is authoritative for AV-007 closure.
+
+### Correction Test Order
+
+1. `UT-023` / `REG-015` — prove and then remove background session/PDS/follow
+   capability from Instagram composition.
+2. `UT-021` / `UT-022` — implement the suggestion transition and ownership
+   tables with importer/target generations.
+3. `IT-026` — make initial/future matching stop after one private suggestion.
+4. `IT-027` — add the idempotent, current-member, owner-effect-fenced accept
+   operation and idempotent dismiss.
+5. `IT-028` — remove automatic `instagramMatch` notification/preference/push
+   behavior and restore the suggestion route inventory.
+6. `IT-029` — restore the fixed-account Flutter suggestion model/provider/UI
+   and explicit-action copy.
+7. Run the unaffected verification/import/privacy/ZIP/lifecycle suites, the
+   coordinated owner/session race suite, then full Go and Flutter gates.
+
+### Correction Execution Log
+
+| Step | Red evidence | Green evidence | Status |
+|---|---|---|---|
+| Capability removal | Capability tests initially found background session selection, `followwrite`, and public-write construction. | The retired `internal/followwrite` package and startup wiring are removed. Matcher/reconciliation options expose only the private suggestion store; dependency/source regressions find no background PDS writer. | Complete |
+| Suggestion schema/state | Strict suggestion types, generation binding, and invalidation stores were absent. | Migration `000042_instagram_private_suggestions` and PostgreSQL store tests enforce caller ownership, both participant generations, uniqueness, and lifecycle/evidence invalidation. | Complete |
+| Match persistence | Initial/future matching still progressed toward a public follow operation. | Required-PostgreSQL initial/future/duplicate/reordered reconciliation tests converge on one private suggestion with zero follow-operation or `instagramMatch` rows and no external-effect call. | Complete |
+| Explicit accept/dismiss | No explicit current-member owner-effect boundary existed. | Accept reserves the caller-owned suggestion, enters the guarded ordinary PDS-effect executor once with both owner generations, uses a deterministic rkey/idempotency identity, and completes atomically; dismiss is idempotent. Wrong owner, stale generation, departure, terminalization, conflict, and ambiguous-response replay tests pass. | Complete |
+| Notification/route correction | `instagramMatch` remained in notification, preference, push, wire, and Flutter surfaces. | Automatic notification/category/push branches are absent; only negative unknown-category safety remains. Authenticated suggestion list/accept/dismiss routes and exact wire tests pass. | Complete |
+| Flutter review surface | The app had no strict-branch suggestion review surface. | The fixed-account repository/provider/UI renders explicit Follow and Dismiss actions, explains that no account is followed automatically, and fences load/action/navigation/late results to the captured account. The focused Instagram suite passes. | Complete |
+| Broad verification | The strict correction had no coordinated aggregate evidence. | Required-PostgreSQL/race Instagram, API, relationship, push, notification, app wiring, lifecycle, and migration tests pass; `go vet` and pinned Staticcheck pass; the repository release gate and all 1,489 Flutter tests pass. | Complete |
+
+### Completion Conditions
+
+- [x] No Instagram matcher, reconciler, worker, or runner can obtain an OAuth
+  session, PDS client, follow writer, `PutRecord`, or `CreateRecord` capability.
+- [x] Duplicate/reordered matches create one caller-private suggestion with
+  both participant generations and no external call.
+- [x] Only explicit current-member acceptance enters the ordinary owner-effect
+  executor, and stale/departed/terminal barriers make no new call.
+- [x] `instagramMatch` automatic notification behavior is absent.
+- [x] Flutter clearly requires Follow and fences every action to the account.
+- [x] No cleanup path deletes `app.bsky.graph.follow`.
+- [x] Focused PostgreSQL/race and full Go/Flutter gates pass with recorded
+  commands and results.
+
+## Instagram Match Notification Restoration (2026-08-21)
+
+### Test Order
+
+| Step | Test ID | Requirement IDs | Expected Initial State |
+|---|---|---|---|
+| 1 | IT-030 | FR-038, NFR-012 | Fails because matching creates no notification. |
+| 2 | UT-024 | FR-039 | Fails because category, preference, and push support are retired. |
+| 3 | IT-031 | FR-040 | Fails because Flutter treats `instagramMatch` as unknown. |
+
+### Execution Log
+
+| Step | Red evidence | Green evidence | Status |
+|---|---|---|---|
+| IT-030 | The existing real-store assertions required zero `instagramMatch` rows. | Suggestion creation calls `ActivateInstagramMatch` in the same lifecycle-fenced transaction, keyed by suggestion ID; duplicate initial/future match expectations now require one event and zero PDS operations. Full Go suite passes. Real-PostgreSQL cases are present but skipped when neither database test URL is configured. | Complete |
+| UT-024 | The category registry rejected `instagramMatch`, preferences omitted it, and push treated it as invalid. | Registry, immutable-scope preference, API type, regular visible push copy, and identity-free routing-data tests pass. | Complete |
+| IT-031 | Flutter decoded `instagramMatch` as unknown and exposed no row/settings/open behavior. | Model, row, icon, Follow/Following, profile navigation, settings, account activation, provider suppression, and shared wire-contract tests pass with non-automatic wording. | Complete |
+
+### Completion Checklist
+
+- [x] One suggestion and one notification commit atomically.
+- [x] Duplicate matching creates no duplicate event or delivery.
+- [x] Matching retains no OAuth/PDS/public-write capability.
+- [x] Push payload contains no match identity or evidence.
+- [x] Flutter renders match-found copy and explicit Follow/Following.
+- [x] Relevant Go and Flutter regression suites pass.
+
+### Verification Evidence
+
+- `GOCACHE=/tmp/craftsky-go-cache go test ./... -count=1` from `appview/`: passed.
+  Database-backed cases were skipped because `TEST_DATABASE_URL` and
+  `DATABASE_URL` were unset.
+- Complete Flutter notification directory: 97 passed. The focused Instagram
+  wire-contract test also passed in the 45-test cross-feature run.
+- `flutter analyze`: no issues found.
+- `GOCACHE=/tmp/craftsky-go-cache go vet ./...`: passed.
+- `git diff --check`: passed.
+
+## IR-021 Resolution Assessment (2026-08-21)
+
+Status: Closed as superseded; no source rename required.
+
+IR-021 was raised in the 2026-07-27 automatic-follow implementation review,
+when the approved model had removed the member-facing private suggestion
+surface. The authoritative AV-007 correction in Requirements §24 subsequently
+reinstated lifecycle-bound private suggestions and explicit Follow/Dismiss, and
+the notification restoration in Requirements §25 deliberately leaves that
+suggestion model unchanged.
+
+`InstagramSuggestionEligibilityPolicy`, `SuggestionEligibilityRequest`, and
+the related current symbols therefore describe the active domain correctly.
+Renaming them to automatic-follow terminology would conflict with `BR-005`,
+`FR-033`–`FR-036`, and the no-background-writer boundary in `FR-035`. Historical
+automatic-follow requirements and execution evidence remain unchanged as
+historical records.
+
+No production code or test was changed for this resolution. The documentation
+check is the relevant verification: the current implementation retains private
+suggestion creation, listing, acceptance, dismissal, and lifecycle eligibility,
+while matching/reconciliation retain no automatic-follow writer capability.

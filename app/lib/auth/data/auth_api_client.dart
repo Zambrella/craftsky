@@ -1,3 +1,4 @@
+import 'package:craftsky_app/auth/data/oauth_handoff_mode.dart';
 import 'package:craftsky_app/shared/api/api_unwrap.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/api/models/whoami.dart';
@@ -14,11 +15,15 @@ class AuthApiClient {
 
   /// POST /v1/auth/login — starts an OAuth flow for [handle], returns
   /// the authorization URL the caller opens in the system browser.
-  /// The app-level handoff is always `deep_link` (mobile-only).
+  /// Release/profile handoff is always an HTTPS verified link. A debug build
+  /// may explicitly opt into the code-only development custom scheme.
   Future<LoginResponse> login({required String handle}) => unwrapApi(() async {
     final res = await _dio.post<Map<String, dynamic>>(
       '/v1/auth/login',
-      data: {'handle': handle, 'handoffMode': 'deep_link'},
+      data: {
+        'handle': handle,
+        'handoffMode': oauthHandoffModeForCurrentBuild(),
+      },
     );
     return LoginResponseMapper.fromMap(res.data!);
   });

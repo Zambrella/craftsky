@@ -9,6 +9,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
 type ProfileCustomisationStoreOptions struct {
@@ -27,6 +29,7 @@ const ProfileCustomisationBatchQuery = `
 	FROM craftsky_profiles p
 	LEFT JOIN profile_customisations c ON c.owner_did = p.did
 	WHERE p.did = ANY($1::text[])
+	  AND NOT appview_owner_is_terminal(p.did)
 `
 
 func NewProfileCustomisationStore(
@@ -65,8 +68,16 @@ func (s *ProfileCustomisationStore) Put(
 	value ProfileCustomisation,
 ) (ProfileCustomisation, error) {
 	now := s.now().UTC()
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return ProfileCustomisation{}, fmt.Errorf("profile customisation put begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, owner, nil); err != nil {
+		return ProfileCustomisation{}, fmt.Errorf("profile customisation put authorization: %w", err)
+	}
 	stored := ProfileCustomisation{}
-	err := s.pool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		INSERT INTO profile_customisations (
 			owner_did, colour, profile_border, profile_background, created_at, updated_at
 		) VALUES ($1, $2, $3, $4, $5, $5)
@@ -83,6 +94,9 @@ func (s *ProfileCustomisationStore) Put(
 	)
 	if err != nil {
 		return ProfileCustomisation{}, fmt.Errorf("profile customisation put: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return ProfileCustomisation{}, fmt.Errorf("profile customisation put commit: %w", err)
 	}
 	return EffectiveProfileCustomisation(stored), nil
 }

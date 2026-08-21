@@ -216,15 +216,17 @@ class _PreferenceSection extends ConsumerWidget {
               ),
             ],
           ),
-          SizedBox(height: spacing.sp4),
-          if (category == NotificationCategory.instagramMatch)
+          if (category == NotificationCategory.instagramMatch) ...[
+            SizedBox(height: spacing.sp2),
             Text(
               l10n.notificationInstagramMatchPreferenceDescription,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
-            )
-          else
+            ),
+          ],
+          SizedBox(height: spacing.sp4),
+          if (category != NotificationCategory.instagramMatch)
             CraftskySingleSelectInput<NotificationPreferenceScope>(
               label: l10n.notificationPreferenceFrom,
               keyPrefix: 'notification-${category.wireValue}-scope',

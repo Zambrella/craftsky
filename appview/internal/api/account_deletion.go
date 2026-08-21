@@ -25,7 +25,15 @@ func CreateAccountDeletionIntentHandler(service accountdeletion.Service) http.Ha
 			envelope.WriteError(w, http.StatusServiceUnavailable, "account_deletion_unavailable", "account deletion is unavailable", runID, nil)
 			return
 		}
-		result, err := service.CreateIntent(r.Context(), accountdeletion.CreateIntentParams{Owner: owner})
+		deviceID, ok := middleware.GetDeviceID(r.Context())
+		if !ok || deviceID == "" {
+			envelope.WriteError(w, http.StatusBadRequest, "invalid_request", "device identity is required", runID, nil)
+			return
+		}
+		result, err := service.CreateIntent(r.Context(), accountdeletion.CreateIntentParams{
+			Owner:    owner,
+			DeviceID: deviceID,
+		})
 		if err != nil {
 			writeAccountDeletionError(w, runID, err)
 			return
@@ -120,6 +128,8 @@ func writeAccountDeletionError(w http.ResponseWriter, runID string, err error) {
 		envelope.WriteError(w, http.StatusBadRequest, "confirmation_handle_mismatch", "confirmation handle does not match", runID, nil)
 	case errors.Is(err, accountdeletion.ErrDeletionAlreadyPending):
 		envelope.WriteError(w, http.StatusConflict, "deletion_already_pending", "account deletion is already pending", runID, nil)
+	case errors.Is(err, accountdeletion.ErrIdentityUnavailable):
+		envelope.WriteError(w, http.StatusServiceUnavailable, "identity_unavailable", "identity verification is temporarily unavailable", runID, nil)
 	case errors.Is(err, accountdeletion.ErrPointOfNoReturn):
 		envelope.WriteError(w, http.StatusConflict, "deletion_already_accepted", "account deletion has already been accepted", runID, nil)
 	default:

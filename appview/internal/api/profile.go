@@ -14,6 +14,8 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/pdseffects"
 )
 
 // ProfileReader is the read surface the profile GET handlers use. The
@@ -307,7 +309,7 @@ const (
 func PutMeProfileHandler(
 	store ProfileReader,
 	resolver HandleResolver,
-	newPDS auth.PDSClientFactory,
+	newEffects pdseffects.ExecutorFactory,
 	limits MediaLimits,
 	logger *slog.Logger,
 ) http.Handler {
@@ -319,6 +321,10 @@ func PutMeProfileHandler(
 		if !ok {
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "no did in context", runID, nil)
+			return
+		}
+		ownerGeneration, ok := requirePDSEffectGeneration(w, r, runID)
+		if !ok {
 			return
 		}
 		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
@@ -349,22 +355,60 @@ func PutMeProfileHandler(
 		logger.Debug("profile put: validated request",
 			pdsLogAttrs(runID, pdsOperationProfilePutBsky, pdsStageRequestBuild)...)
 
-		pds, err := newPDS(r.Context(), did, sessionID)
+		if newEffects == nil {
+			logger.Error("profile: durable effect factory unavailable",
+				pdsLogErrorAttrs(runID, pdsOperationProfilePutBsky, pdsStageSessionResume, errors.New("effect factory unavailable"))...)
+			envelope.WriteError(w, http.StatusServiceUnavailable,
+				"pds_unavailable", "could not contact PDS", runID, nil)
+			return
+		}
+		effects, err := newEffects(r.Context(), did, sessionID)
 		if err != nil {
-			logger.Error("profile: newPDS failed",
+			logger.Error("profile: durable effect executor unavailable",
 				pdsLogErrorAttrs(runID, pdsOperationProfilePutBsky, pdsStageSessionResume, err)...)
 			writePDSError(w, http.StatusBadGateway,
 				"pds_unavailable", "could not contact PDS", runID, err)
 			return
 		}
+		if effects == nil {
+			logger.Error("profile: durable effect executor unavailable",
+				pdsLogErrorAttrs(runID, pdsOperationProfilePutBsky, pdsStageSessionResume, errors.New("nil effect executor"))...)
+			envelope.WriteError(w, http.StatusServiceUnavailable,
+				"pds_unavailable", "could not contact PDS", runID, nil)
+			return
+		}
+		expectedOwners := []ownerlifecycle.ExpectedOwner{{
+			Owner: did, Generation: ownerGeneration,
+		}}
+		readRequest := func(collection string) pdseffects.ReadRecordRequest {
+			return pdseffects.ReadRecordRequest{
+				Owner: did, OwnerGeneration: ownerGeneration, ExpectedOwners: expectedOwners,
+				Collection: syntax.NSID(collection), Rkey: syntax.RecordKey(profileRecordKey),
+			}
+		}
 
 		// Read-before-write on Bluesky so we preserve avatar/banner.
 		var bsky map[string]any
-		if _, err := pds.GetRecord(r.Context(), did, blueskyProfileNSID, profileRecordKey, &bsky); err != nil {
+		bskyCID, err := effects.ReadRecord(r.Context(), readRequest(blueskyProfileNSID), &bsky)
+		if errors.Is(err, auth.ErrRecordNotFound) {
+			bsky = map[string]any{}
+			bskyCID = ""
+		} else if err != nil {
 			logger.Warn("profile: bluesky getRecord failed",
 				pdsLogErrorAttrs(runID, pdsOperationProfilePutBsky, pdsStagePDSRequest, err)...)
 			writePDSError(w, http.StatusBadGateway,
 				"pds_read_failed", "could not read current bluesky profile", runID, err)
+			return
+		}
+		var craftsky map[string]any
+		craftskyCID, err := effects.ReadRecord(r.Context(), readRequest(craftskyProfileNSID), &craftsky)
+		if errors.Is(err, auth.ErrRecordNotFound) {
+			craftskyCID = ""
+		} else if err != nil {
+			logger.Warn("profile: craftsky getRecord failed",
+				pdsLogErrorAttrs(runID, pdsOperationProfilePutCraftsky, pdsStagePDSRequest, err)...)
+			writePDSError(w, http.StatusBadGateway,
+				"pds_read_failed", "could not read current CraftSky profile", runID, err)
 			return
 		}
 		mergedBsky := mergeBlueskyRecord(bsky, reqBody)
@@ -375,18 +419,20 @@ func PutMeProfileHandler(
 		logger.Debug("profile put: prepared PDS records",
 			pdsLogAttrs(runID, pdsOperationProfilePutBsky, pdsStageRequestBuild)...)
 
-		// Buffered channels let each goroutine send without blocking; the
-		// receive below is what synchronises us with their completion.
-		bskyRes := make(chan error, 1)
-		cskyRes := make(chan error, 1)
-		go func() {
-			bskyRes <- pds.PutRecord(r.Context(), did, blueskyProfileNSID, profileRecordKey, mergedBsky)
-		}()
-		go func() {
-			cskyRes <- pds.PutRecord(r.Context(), did, craftskyProfileNSID, profileRecordKey, cskyBody)
-		}()
-		bskyErr := <-bskyRes
-		cskyErr := <-cskyRes
+		bskyOperationID, bskyMutationKey := immediateEffectIdentity(runID, "profile.put_bsky")
+		_, bskyErr := effects.PutRecord(r.Context(), pdseffects.PutRecordRequest{
+			OperationID: bskyOperationID, MutationKey: bskyMutationKey,
+			Owner: did, OwnerGeneration: ownerGeneration, ExpectedOwners: expectedOwners,
+			Collection: syntax.NSID(blueskyProfileNSID), Rkey: syntax.RecordKey(profileRecordKey),
+			Record: mergedBsky, ExpectedCID: bskyCID,
+		})
+		craftskyOperationID, craftskyMutationKey := immediateEffectIdentity(runID, "profile.put_craftsky")
+		_, cskyErr := effects.PutRecord(r.Context(), pdseffects.PutRecordRequest{
+			OperationID: craftskyOperationID, MutationKey: craftskyMutationKey,
+			Owner: did, OwnerGeneration: ownerGeneration, ExpectedOwners: expectedOwners,
+			Collection: syntax.NSID(craftskyProfileNSID), Rkey: syntax.RecordKey(profileRecordKey),
+			Record: cskyBody, ExpectedCID: craftskyCID,
+		})
 
 		switch {
 		case bskyErr == nil && cskyErr == nil:

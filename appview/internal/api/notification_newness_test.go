@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -28,6 +29,7 @@ func TestNotificationNewCountUsesAccountMarkerAndListVisibility(t *testing.T) {
 			t.Fatalf("apply migration %s: %v", path, err)
 		}
 	}
+	seedMember(t, pool, "did:plc:viewer")
 
 	insert := func(id, actor, state string) int64 {
 		t.Helper()
@@ -104,7 +106,7 @@ func TestNotificationNewCountUsesAccountMarkerAndListVisibility(t *testing.T) {
 
 func TestNotificationMarkSeenUsesStatementSnapshot(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	for _, path := range []string{
 		"../../migrations/000021_appview_notifications.up.sql",
 		"../../migrations/000022_notification_newness.up.sql",
@@ -117,6 +119,7 @@ func TestNotificationMarkSeenUsesStatementSnapshot(t *testing.T) {
 			t.Fatalf("apply migration %s: %v", path, err)
 		}
 	}
+	seedMember(t, pool, "did:plc:viewer")
 
 	insert := func(id string) int64 {
 		t.Helper()

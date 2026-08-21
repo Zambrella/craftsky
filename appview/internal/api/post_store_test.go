@@ -30,6 +30,29 @@ CREATE TABLE craftsky_profiles (
     indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE owner_lifecycles (
+	owner_did TEXT PRIMARY KEY,
+	state TEXT NOT NULL,
+	generation BIGINT NOT NULL,
+	auth_epoch BIGINT NOT NULL DEFAULT 1,
+	transition_reason TEXT NOT NULL DEFAULT 'test',
+	transitioned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	terminal_at TIMESTAMPTZ,
+	purge_completed_at TIMESTAMPTZ,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE FUNCTION seed_active_post_store_owner() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+	INSERT INTO owner_lifecycles(owner_did,state,generation)
+	VALUES(NEW.did,'active',1)
+	ON CONFLICT (owner_did) DO NOTHING;
+	RETURN NEW;
+END
+$$;
+CREATE TRIGGER seed_active_post_store_owner
+AFTER INSERT ON craftsky_profiles
+FOR EACH ROW EXECUTE FUNCTION seed_active_post_store_owner();
 CREATE TABLE bluesky_profiles (
     did          TEXT        NOT NULL PRIMARY KEY,
     display_name TEXT,

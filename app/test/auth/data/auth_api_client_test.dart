@@ -1,4 +1,5 @@
 import 'package:craftsky_app/auth/data/auth_api_client.dart';
+import 'package:craftsky_app/auth/data/oauth_handoff_mode.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
@@ -17,14 +18,14 @@ void main() {
   // `http_mock_adapter`'s default `FullHttpRequestMatcher` matches on
   // method + path + data + query, so POST tests must either pass `data:`
   // on the match OR use `UrlRequestMatcher`. The body the client sends
-  // for login is always `{handle, handoffMode: 'deep_link'}`.
-  const kLoginBody = {
+  // for login is selected once from the build-gated OAuth policy.
+  final kLoginBody = {
     'handle': 'alice.bsky.social',
-    'handoffMode': 'deep_link',
+    'handoffMode': oauthHandoffModeForCurrentBuild(),
   };
 
   group('AuthApiClient.login', () {
-    test('POSTs /v1/auth/login with handle + deep_link handoff', () async {
+    test('POSTs /v1/auth/login with the build-gated handoff', () async {
       final dio = buildDio();
       DioAdapter(dio: dio).onPost(
         '/v1/auth/login',

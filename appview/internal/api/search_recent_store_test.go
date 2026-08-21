@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http/httptest"
 	"testing"
 	"time"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -24,6 +26,20 @@ CREATE TABLE craftsky_recent_searches (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (viewer_did, search_type, normalized_payload_hash)
 );
+CREATE TABLE owner_lifecycles (
+	owner_did TEXT PRIMARY KEY,
+	state TEXT NOT NULL,
+	generation BIGINT NOT NULL,
+	auth_epoch BIGINT NOT NULL DEFAULT 1,
+	transition_reason TEXT NOT NULL DEFAULT 'test',
+	transitioned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	terminal_at TIMESTAMPTZ,
+	purge_completed_at TIMESTAMPTZ,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+INSERT INTO owner_lifecycles(owner_did,state,generation)
+VALUES('did:plc:alice','active',1),('did:plc:bob','active',1);
 `
 
 func recentReq(t *testing.T, body string) api.SaveRecentSearchRequest {
@@ -39,7 +55,7 @@ func recentReq(t *testing.T, body string) api.SaveRecentSearchRequest {
 func TestSearchStore_RecentSearchLifecycleDedupesPrunesAndHardDeletes(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, recentSearchStoreDDL)
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	store := api.NewSearchStore(pool, nil)
 	now := time.Date(2026, 6, 20, 12, 0, 0, 0, time.UTC)
 
@@ -114,5 +130,34 @@ func TestSearchStore_RecentSearchLifecycleDedupesPrunesAndHardDeletes(t *testing
 		if row.ID == deleteID {
 			t.Fatalf("hard-deleted row %s still listed", deleteID)
 		}
+	}
+}
+
+func TestSearchStoreDeleteRecentSearchRejectsStaleOwnerGeneration(t *testing.T) {
+	pool := testdb.WithSchema(t, recentSearchStoreDDL)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO craftsky_recent_searches(
+			id,viewer_did,search_type,display_label,normalized_payload,normalized_payload_hash
+		) VALUES('recent_stale','did:plc:alice','query','test','{"q":"test"}','hash');
+		UPDATE owner_lifecycles SET generation=2 WHERE owner_did='did:plc:alice'
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	err := api.NewSearchStore(pool, nil).DeleteRecentSearch(
+		ownerlifecycle.WithExpectedGeneration(ctx, 1),
+		"did:plc:alice",
+		"recent_stale",
+	)
+	if !errors.Is(err, ownerlifecycle.ErrGenerationChanged) {
+		t.Fatalf("DeleteRecentSearch error = %v, want ErrGenerationChanged", err)
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM craftsky_recent_searches WHERE id='recent_stale'`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("recent search rows = %d, want 1", count)
 	}
 }

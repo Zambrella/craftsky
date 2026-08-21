@@ -25,13 +25,8 @@ final class BrowserLaunchFailed extends AuthError {
   const BrowserLaunchFailed();
 }
 
-/// A deep link arrived but no sign-in is in progress.
-final class NoPendingSignIn extends AuthError {
-  const NoPendingSignIn();
-}
-
-/// A deep link arrived more than 10 minutes after the user started
-/// the sign-in.
+/// The AppView rejected an absent, expired, or already-consumed handoff code or
+/// confirmation receipt. The server clock is authoritative for expiry.
 final class SignInTimedOut extends AuthError {
   const SignInTimedOut();
 }

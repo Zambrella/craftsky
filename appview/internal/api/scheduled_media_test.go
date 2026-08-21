@@ -19,6 +19,7 @@ import (
 	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/ctxkeys"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/scheduledposts"
 )
@@ -40,15 +41,26 @@ func TestScheduledMediaHandlersKeepBytesOwnerPrivate(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	t.Run("PUT returns only safe media metadata", func(t *testing.T) {
-		handler := PutScheduledMediaHandler(service, DefaultMediaLimits(), logger)
+		handler := PutScheduledMediaHandler(
+			service, DefaultMediaLimits(), mustTestImageValidator(t), logger,
+		)
 		request := httptest.NewRequest(http.MethodPut, "/v1/scheduled-post-media/"+mediaID.String(), bytes.NewReader(service.body))
 		request.SetPathValue("mediaId", mediaID.String())
 		request.Header.Set("Content-Type", "image/jpeg")
-		request = request.WithContext(middleware.WithDID(request.Context(), alice))
+		request = request.WithContext(middleware.WithOwnerGeneration(middleware.WithDID(request.Context(), alice), 7))
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, request)
 		if response.Code != http.StatusOK {
 			t.Fatalf("PUT status=%d body=%s", response.Code, response.Body.String())
+		}
+		if !bytes.Equal(service.putParams.Bytes, validJPEG) {
+			t.Fatal("PUT did not pass the validated image to storage byte-for-byte")
+		}
+		if service.putParams.MIMEType != "image/jpeg" {
+			t.Fatalf("stored MIME type = %q, want image/jpeg", service.putParams.MIMEType)
+		}
+		if service.putParams.OwnerGeneration != 7 {
+			t.Fatalf("stored owner generation = %d, want 7", service.putParams.OwnerGeneration)
 		}
 		var body map[string]json.RawMessage
 		if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
@@ -68,7 +80,7 @@ func TestScheduledMediaHandlersKeepBytesOwnerPrivate(t *testing.T) {
 		handler := GetScheduledMediaHandler(service, logger)
 		request := httptest.NewRequest(http.MethodGet, "/v1/scheduled-post-media/"+mediaID.String(), nil)
 		request.SetPathValue("mediaId", mediaID.String())
-		request = request.WithContext(middleware.WithDID(request.Context(), alice))
+		request = request.WithContext(middleware.WithOwnerGeneration(middleware.WithDID(request.Context(), alice), 7))
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, request)
 		if response.Code != http.StatusOK || !bytes.Equal(response.Body.Bytes(), service.body) {
@@ -81,7 +93,7 @@ func TestScheduledMediaHandlersKeepBytesOwnerPrivate(t *testing.T) {
 
 		foreign := httptest.NewRequest(http.MethodGet, "/v1/scheduled-post-media/"+mediaID.String(), nil)
 		foreign.SetPathValue("mediaId", mediaID.String())
-		foreign = foreign.WithContext(middleware.WithDID(foreign.Context(), syntax.DID("did:plc:bob")))
+		foreign = foreign.WithContext(middleware.WithOwnerGeneration(middleware.WithDID(foreign.Context(), syntax.DID("did:plc:bob")), 2))
 		foreignResponse := httptest.NewRecorder()
 		handler.ServeHTTP(foreignResponse, foreign)
 		if foreignResponse.Code != http.StatusNotFound {
@@ -100,7 +112,7 @@ func TestScheduledMediaHandlersKeepBytesOwnerPrivate(t *testing.T) {
 		for attempt := 1; attempt <= 2; attempt++ {
 			request := httptest.NewRequest(http.MethodDelete, "/v1/scheduled-post-media/"+mediaID.String(), nil)
 			request.SetPathValue("mediaId", mediaID.String())
-			request = request.WithContext(middleware.WithDID(request.Context(), alice))
+			request = request.WithContext(middleware.WithOwnerGeneration(middleware.WithDID(request.Context(), alice), 7))
 			response := httptest.NewRecorder()
 			handler.ServeHTTP(response, request)
 			if response.Code != http.StatusNoContent {
@@ -149,7 +161,9 @@ func TestScheduledMediaPutRejectsInvalidImageBodies(t *testing.T) {
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			service := &fakeScheduledMediaService{owner: alice}
-			handler := PutScheduledMediaHandler(service, testCase.limits, logger)
+			handler := PutScheduledMediaHandler(
+				service, testCase.limits, mustTestImageValidator(t), logger,
+			)
 			request := httptest.NewRequest(
 				http.MethodPut,
 				"/v1/scheduled-post-media/"+mediaID.String(),
@@ -157,7 +171,7 @@ func TestScheduledMediaPutRejectsInvalidImageBodies(t *testing.T) {
 			)
 			request.SetPathValue("mediaId", mediaID.String())
 			request.Header.Set("Content-Type", testCase.contentType)
-			request = request.WithContext(middleware.WithDID(request.Context(), alice))
+			request = request.WithContext(middleware.WithOwnerGeneration(middleware.WithDID(request.Context(), alice), 7))
 			response := httptest.NewRecorder()
 
 			handler.ServeHTTP(response, request)
@@ -177,16 +191,130 @@ func TestScheduledMediaPutRejectsInvalidImageBodies(t *testing.T) {
 	}
 }
 
+func TestScheduledMediaPutRejectsOversizedGeometryBeforeStorage(t *testing.T) {
+	mediaID := uuid.MustParse("00000000-0000-4000-8000-000000000703")
+	alice := syntax.DID("did:plc:alice")
+	service := &fakeScheduledMediaService{owner: alice}
+	decoder := &recordingImageDecoder{
+		config:       image.Config{Width: HardMaxImageWidth + 1, Height: 1},
+		configFormat: "jpeg",
+	}
+	validator, err := newImageValidator(
+		DefaultImageDecodeLimits(),
+		decoder,
+		nil,
+		time.Now,
+	)
+	if err != nil {
+		t.Fatalf("construct image validator: %v", err)
+	}
+	handler := PutScheduledMediaHandler(
+		service,
+		DefaultMediaLimits(),
+		validator,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	request := httptest.NewRequest(
+		http.MethodPut,
+		"/v1/scheduled-post-media/"+mediaID.String(),
+		bytes.NewReader([]byte("compact-header")),
+	)
+	request.SetPathValue("mediaId", mediaID.String())
+	request.Header.Set("Content-Type", "image/jpeg")
+	requestContext := middleware.WithOwnerGeneration(middleware.WithDID(request.Context(), alice), 7)
+	requestContext = ctxkeys.WithRunID(requestContext, "scheduled-image-request")
+	request = request.WithContext(requestContext)
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("PUT status=%d body=%s", response.Code, response.Body.String())
+	}
+	if response.Header().Get("Content-Type") != "application/json" {
+		t.Fatalf("Content-Type = %q, want application/json", response.Header().Get("Content-Type"))
+	}
+	var errorBody envelope.Error
+	if err := json.Unmarshal(response.Body.Bytes(), &errorBody); err != nil ||
+		errorBody.Error != "scheduled_media_invalid" ||
+		errorBody.RequestID != "scheduled-image-request" {
+		t.Fatalf("PUT envelope=%+v err=%v", errorBody, err)
+	}
+	if strings.Contains(response.Body.String(), "compact-header") ||
+		strings.Contains(response.Body.String(), "8193") {
+		t.Fatalf("PUT error exposed private validation detail: %s", response.Body.String())
+	}
+	if service.putCalls != 0 {
+		t.Fatalf("service Put calls=%d, want 0", service.putCalls)
+	}
+	if decoder.decodeCalls != 0 {
+		t.Fatalf("Decode calls=%d, want 0", decoder.decodeCalls)
+	}
+}
+
+func TestScheduledMediaPutReturnsRetryableOverloadWhenDecoderIsSaturated(t *testing.T) {
+	mediaID := uuid.MustParse("00000000-0000-4000-8000-000000000704")
+	alice := syntax.DID("did:plc:alice")
+	service := &fakeScheduledMediaService{owner: alice}
+	handler := PutScheduledMediaHandler(
+		service,
+		DefaultMediaLimits(),
+		fixedImageValidator{err: ErrImageDecodeSaturated},
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
+	request := httptest.NewRequest(
+		http.MethodPut,
+		"/v1/scheduled-post-media/"+mediaID.String(),
+		bytes.NewReader(validJPEGBytes(t)),
+	)
+	request.SetPathValue("mediaId", mediaID.String())
+	request.Header.Set("Content-Type", "image/jpeg")
+	request = request.WithContext(middleware.WithOwnerGeneration(middleware.WithDID(request.Context(), alice), 7))
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusServiceUnavailable {
+		t.Fatalf("PUT status=%d body=%s", response.Code, response.Body.String())
+	}
+	if response.Header().Get("Retry-After") != "1" {
+		t.Fatalf("Retry-After = %q, want 1", response.Header().Get("Retry-After"))
+	}
+	var errorBody envelope.Error
+	if err := json.Unmarshal(response.Body.Bytes(), &errorBody); err != nil ||
+		errorBody.Error != "scheduled_media_busy" {
+		t.Fatalf("PUT envelope=%+v err=%v", errorBody, err)
+	}
+	if service.putCalls != 0 {
+		t.Fatalf("service Put calls=%d, want 0", service.putCalls)
+	}
+}
+
 type fakeScheduledMediaService struct {
 	owner       syntax.DID
 	media       scheduledposts.PrivateMedia
 	body        []byte
+	putParams   scheduledposts.PutPrivateMediaParams
 	putCalls    int
 	deleteCalls int
 }
 
+type fixedImageValidator struct {
+	validated ValidatedScheduledImage
+	err       error
+}
+
+func (validator fixedImageValidator) Validate(
+	context.Context,
+	string,
+	[]byte,
+) (ValidatedScheduledImage, error) {
+	return validator.validated, validator.err
+}
+
 func (s *fakeScheduledMediaService) Put(_ context.Context, params scheduledposts.PutPrivateMediaParams) (scheduledposts.PrivateMedia, error) {
 	s.putCalls++
+	s.putParams = params
 	if params.OwnerDID != s.owner {
 		return scheduledposts.PrivateMedia{}, scheduledposts.ErrScheduledMediaNotFound
 	}
@@ -203,9 +331,9 @@ func (s *fakeScheduledMediaService) Open(_ context.Context, owner syntax.DID, _ 
 	}, nil
 }
 
-func (s *fakeScheduledMediaService) Delete(_ context.Context, owner syntax.DID, _ uuid.UUID, _ time.Time) error {
+func (s *fakeScheduledMediaService) Delete(_ context.Context, owner syntax.DID, _ uuid.UUID, _ time.Time, generation ...int64) error {
 	s.deleteCalls++
-	if owner != s.owner {
+	if owner != s.owner || len(generation) != 1 || generation[0] <= 0 {
 		return scheduledposts.ErrScheduledMediaNotFound
 	}
 	return nil

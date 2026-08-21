@@ -2,12 +2,14 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 
 	"social.craftsky/appview/internal/api/envelope"
-	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/pdseffects"
 )
 
 type ImageBlobUploadResponse struct {
@@ -18,7 +20,7 @@ type ImageBlobUploadResponse struct {
 }
 
 // ImageBlobUploadHandler serves POST /v1/blobs/images.
-func ImageBlobUploadHandler(newPDS auth.PDSClientFactory, limits MediaLimits, logger *slog.Logger) http.Handler {
+func ImageBlobUploadHandler(newEffects pdseffects.ExecutorFactory, limits MediaLimits, logger *slog.Logger) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -29,6 +31,10 @@ func ImageBlobUploadHandler(newPDS auth.PDSClientFactory, limits MediaLimits, lo
 		if !ok {
 			envelope.WriteError(w, http.StatusInternalServerError,
 				"internal_error", "no did in context", runID, nil)
+			return
+		}
+		ownerGeneration, ok := requirePDSEffectGeneration(w, r, runID)
+		if !ok {
 			return
 		}
 		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
@@ -60,16 +66,36 @@ func ImageBlobUploadHandler(newPDS auth.PDSClientFactory, limits MediaLimits, lo
 				slog.String("content_type", uploadReq.ContentType),
 				slog.Int64("size", uploadReq.SizeBytes))...)
 
-		pds, err := newPDS(r.Context(), did, sessionID)
+		if newEffects == nil {
+			logger.Error("blob upload: durable effect factory unavailable",
+				pdsLogErrorAttrs(runID, pdsOperationBlobUpload, pdsStageSessionResume, errors.New("effect factory unavailable"))...)
+			envelope.WriteError(w, http.StatusServiceUnavailable,
+				"pds_unavailable", "could not contact PDS", runID, nil)
+			return
+		}
+		effects, err := newEffects(r.Context(), did, sessionID)
 		if err != nil {
-			logger.Error("blob upload: newPDS failed",
+			logger.Error("blob upload: durable effect executor unavailable",
 				pdsLogErrorAttrs(runID, pdsOperationBlobUpload, pdsStageSessionResume, err)...)
 			writePDSError(w, http.StatusBadGateway,
 				"pds_unavailable", "could not contact PDS", runID, err)
 			return
 		}
+		if effects == nil {
+			logger.Error("blob upload: durable effect executor unavailable",
+				pdsLogErrorAttrs(runID, pdsOperationBlobUpload, pdsStageSessionResume, errors.New("nil effect executor"))...)
+			envelope.WriteError(w, http.StatusServiceUnavailable,
+				"pds_unavailable", "could not contact PDS", runID, nil)
+			return
+		}
 
-		uploaded, err := pds.UploadBlob(r.Context(), uploadReq.ContentType, payload)
+		operationID, mutationKey := immediateEffectIdentity(runID, "blob.upload")
+		uploaded, err := effects.UploadBlob(r.Context(), pdseffects.UploadBlobRequest{
+			OperationID: operationID, MutationKey: mutationKey,
+			Owner: did, OwnerGeneration: ownerGeneration,
+			ExpectedOwners: []ownerlifecycle.ExpectedOwner{{Owner: did, Generation: ownerGeneration}},
+			MIME:           uploadReq.ContentType, Bytes: payload,
+		})
 		if err != nil {
 			logger.Warn("blob upload: UploadBlob failed",
 				append(pdsLogErrorAttrs(runID, pdsOperationBlobUpload, pdsStagePDSRequest, err),

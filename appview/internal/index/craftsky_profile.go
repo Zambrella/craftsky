@@ -27,6 +27,7 @@ import (
 // craftsky_profiles.
 type CraftskyProfile struct {
 	pool          *pgxpool.Pool
+	projectionDB  transactionalDatabase
 	backfiller    BlueskyBackfiller
 	logger        *slog.Logger
 	actorDeletion notifications.ActorDeletion
@@ -76,7 +77,7 @@ func (c *CraftskyProfile) Handle(ctx context.Context, ev tap.Event) error {
 			RETURNING xmax = 0 AS created
 		`
 		var created bool
-		err := c.pool.QueryRow(ctx, q, ev.DID, rec.Crafts, ev.CID).Scan(&created)
+		err := c.database().QueryRow(ctx, q, ev.DID, rec.Crafts, ev.CID).Scan(&created)
 		switch {
 		case errors.Is(err, pgx.ErrNoRows):
 			// Replay of an existing row: ON CONFLICT ... WHERE IS DISTINCT FROM
@@ -110,7 +111,7 @@ func (c *CraftskyProfile) Handle(ctx context.Context, ev tap.Event) error {
 // handleDelete removes the craftsky_profiles row and its bluesky_profiles
 // mirror in a single transaction. See spec §3.1.
 func (c *CraftskyProfile) handleDelete(ctx context.Context, did syntax.DID) error {
-	return pgx.BeginFunc(ctx, c.pool, func(tx pgx.Tx) error {
+	return pgx.BeginFunc(ctx, c.database(), func(tx pgx.Tx) error {
 		if err := c.actorDeletion.HardDeleteByActor(ctx, tx, did); err != nil {
 			return fmt.Errorf("delete actor notifications %s: %w", did, err)
 		}
@@ -124,4 +125,11 @@ func (c *CraftskyProfile) handleDelete(ctx context.Context, did syntax.DID) erro
 		}
 		return nil
 	})
+}
+
+func (c *CraftskyProfile) database() transactionalDatabase {
+	if c.projectionDB != nil {
+		return c.projectionDB
+	}
+	return c.pool
 }

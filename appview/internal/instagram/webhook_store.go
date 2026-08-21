@@ -26,8 +26,8 @@ const (
 
 var (
 	ErrInvalidWebhookWork   = errors.New("invalid Instagram webhook work")
-	ErrWebhookBatchTooLarge = errors.New("Instagram webhook work batch is too large")
-	ErrWebhookLeaseLost     = errors.New("Instagram webhook work lease is no longer owned")
+	ErrWebhookBatchTooLarge = errors.New("instagram webhook work batch is too large")
+	ErrWebhookLeaseLost     = errors.New("instagram webhook work lease is no longer owned")
 )
 
 type WebhookTerminalReason string
@@ -89,7 +89,7 @@ func NewWebhookStore(pool *pgxpool.Pool) *WebhookStore {
 
 func NewWebhookStoreWithOptions(pool *pgxpool.Pool, options WebhookStoreOptions) (*WebhookStore, error) {
 	if pool == nil {
-		return nil, errors.New("Instagram webhook store database is unavailable")
+		return nil, errors.New("instagram webhook store database is unavailable")
 	}
 	if options.LeaseDuration == 0 {
 		options.LeaseDuration = WebhookLeaseDuration
@@ -124,14 +124,14 @@ func (s *WebhookStore) EnqueueWebhookWork(ctx context.Context, items []instagram
 // retain no sender, official-account, or challenge fields for a worker to use.
 func (s *WebhookStore) EnqueueWebhookWorkGuarded(ctx context.Context, items []instagrammeta.WorkItem, now time.Time, limiter instagrammeta.WebhookInvalidRedemptionLimiter) (int, error) {
 	if limiter == nil {
-		return 0, errors.New("Instagram invalid-redemption source limiter is unavailable")
+		return 0, errors.New("instagram invalid-redemption source limiter is unavailable")
 	}
 	return s.enqueueWebhookWork(ctx, items, now, limiter)
 }
 
 func (s *WebhookStore) enqueueWebhookWork(ctx context.Context, items []instagrammeta.WorkItem, now time.Time, limiter instagrammeta.WebhookInvalidRedemptionLimiter) (int, error) {
 	if s == nil || s.pool == nil {
-		return 0, errors.New("Instagram webhook store is unavailable")
+		return 0, errors.New("instagram webhook store is unavailable")
 	}
 	if len(items) > instagrammeta.MaxSupportedEvents {
 		return 0, ErrWebhookBatchTooLarge
@@ -234,7 +234,7 @@ func (s *WebhookStore) enqueueWebhookWork(ctx context.Context, items []instagram
 // transaction. Expired leases are recovered before new work is selected.
 func (s *WebhookStore) ClaimWebhookWork(ctx context.Context, limit int, now time.Time) ([]WebhookWork, error) {
 	if s == nil || s.pool == nil {
-		return nil, errors.New("Instagram webhook store is unavailable")
+		return nil, errors.New("instagram webhook store is unavailable")
 	}
 	if limit <= 0 || limit > instagrammeta.MaxSupportedEvents || now.IsZero() {
 		return nil, ErrInvalidWebhookWork
@@ -354,7 +354,7 @@ func (s *WebhookStore) FailWebhookWork(ctx context.Context, id, leaseToken uuid.
 
 func (s *WebhookStore) RetryWebhookWork(ctx context.Context, id, leaseToken uuid.UUID, nextAttemptAt, now time.Time) error {
 	if s == nil || s.pool == nil {
-		return errors.New("Instagram webhook store is unavailable")
+		return errors.New("instagram webhook store is unavailable")
 	}
 	if id == uuid.Nil || leaseToken == uuid.Nil || now.IsZero() || !nextAttemptAt.After(now) {
 		return ErrInvalidWebhookWork
@@ -381,7 +381,7 @@ func (s *WebhookStore) RetryWebhookWork(ctx context.Context, id, leaseToken uuid
 
 func (s *WebhookStore) finishWebhookWork(ctx context.Context, id, leaseToken uuid.UUID, status WebhookWorkStatus, reason WebhookTerminalReason, now time.Time) error {
 	if s == nil || s.pool == nil {
-		return errors.New("Instagram webhook store is unavailable")
+		return errors.New("instagram webhook store is unavailable")
 	}
 	if id == uuid.Nil || leaseToken == uuid.Nil || now.IsZero() {
 		return ErrInvalidWebhookWork

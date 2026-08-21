@@ -7,11 +7,11 @@ import (
 )
 
 type scheduledPostResponse struct {
-	ID             string                 `json:"id"`
-	OperationID    string                 `json:"operationId"`
-	Status         scheduledposts.Status  `json:"status"`
-	ScheduledAt    time.Time              `json:"scheduledAt"`
-	Payload        scheduledposts.Payload `json:"payload"`
+	ID          string                 `json:"id"`
+	OperationID string                 `json:"operationId"`
+	Status      scheduledposts.Status  `json:"status"`
+	ScheduledAt time.Time              `json:"scheduledAt"`
+	Payload     scheduledposts.Payload `json:"payload"`
 }
 
 type scheduledPostSummaryResponse struct {

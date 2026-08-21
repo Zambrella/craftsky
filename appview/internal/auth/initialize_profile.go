@@ -18,6 +18,25 @@ type RepositoryTracker interface {
 	AddRepo(context.Context, syntax.DID) error
 }
 
+// OnboardingProfileWrite is the only PDS mutation admitted while a login
+// callback still owns departed/onboarding authority. The stable identity is
+// scoped to the owner lifecycle generation rather than to one browser callback
+// attempt, so a fresh callback cannot repeat an outcome-uncertain Put.
+type OnboardingProfileWrite struct {
+	OperationID     string
+	MutationKey     string
+	Owner           syntax.DID
+	OwnerGeneration int64
+	Record          map[string]any
+}
+
+// OnboardingProfileWriter persists the durable no-repeat attempt before it
+// crosses the PDS boundary. It is implemented by the application composition
+// layer so auth never imports the ordinary PDS-effect package.
+type OnboardingProfileWriter interface {
+	PutOnboardingProfile(context.Context, PDSClient, OnboardingProfileWrite) error
+}
+
 // ErrProfileInitFailed wraps any non-404 PDS failure during onboarding-
 // on-login. Callers surface this as a profile_init_failed error page.
 var ErrProfileInitFailed = errors.New("profile: init failed")
@@ -46,7 +65,17 @@ const (
 // docs/superpowers/specs/2026-04-23-profile-onboarding-design.md §4, on
 // any failure we fail the whole callback — the user is sent to an error
 // page, their Craftsky session is not created.
-func InitializeProfile(ctx context.Context, client PDSClient, did syntax.DID) error {
+func InitializeProfile(
+	ctx context.Context,
+	client PDSClient,
+	attempt CallbackAttempt,
+	writer OnboardingProfileWriter,
+) error {
+	if client == nil || !attempt.validFor(attempt.Owner, attempt.State) ||
+		attempt.Purpose != LoginOAuthPurpose {
+		return fmt.Errorf("%w: invalid onboarding authority", ErrProfileInitFailed)
+	}
+	did := attempt.Owner
 	// 1. Bluesky profile: presence is optional; only non-404 errors fail.
 	var bskyRecord map[string]any
 	if _, err := client.GetRecord(ctx, did, blueskyProfileNSID, profileRecordKey, &bskyRecord); err != nil {
@@ -65,11 +94,18 @@ func InitializeProfile(ctx context.Context, client PDSClient, did syntax.DID) er
 		}
 		return nil
 	case errors.Is(err, ErrRecordNotFound):
+		if writer == nil {
+			return fmt.Errorf("%w: durable onboarding writer unavailable", ErrProfileInitFailed)
+		}
 		empty := map[string]any{
 			"$type":  craftskyProfileNSID,
 			"crafts": []string{},
 		}
-		if putErr := client.PutRecord(ctx, did, craftskyProfileNSID, profileRecordKey, empty); putErr != nil {
+		identity := fmt.Sprintf("oauth-onboarding-profile:%s:%d", did, attempt.OwnerGeneration)
+		if putErr := writer.PutOnboardingProfile(ctx, client, OnboardingProfileWrite{
+			OperationID: identity, MutationKey: identity,
+			Owner: did, OwnerGeneration: attempt.OwnerGeneration, Record: empty,
+		}); putErr != nil {
 			return fmt.Errorf("%w: put %s: %v", ErrProfileInitFailed, craftskyProfileNSID, putErr)
 		}
 		return nil
@@ -81,14 +117,16 @@ func InitializeProfile(ctx context.Context, client PDSClient, did syntax.DID) er
 func InitializeProfileAndIdentityCache(
 	ctx context.Context,
 	client PDSClient,
-	did syntax.DID,
+	attempt CallbackAttempt,
+	writer OnboardingProfileWriter,
 	updater IdentityCacheUpdater,
 	logger *slog.Logger,
 	repositoryTrackers ...RepositoryTracker,
 ) error {
-	if err := InitializeProfile(ctx, client, did); err != nil {
+	if err := InitializeProfile(ctx, client, attempt, writer); err != nil {
 		return err
 	}
+	did := attempt.Owner
 	for _, tracker := range repositoryTrackers {
 		if tracker == nil {
 			continue

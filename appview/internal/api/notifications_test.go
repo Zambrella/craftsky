@@ -317,6 +317,10 @@ func TestNotificationsHandlerReturnsCompleteTypeSpecificReferenceMatrix(t *testi
 		}
 		rows = append(rows, row)
 	}
+	rows = append(rows, &api.NotificationRow{
+		ID: "id-instagram-match", Type: api.NotificationTypeInstagramMatch,
+		ActorDID: "did:plc:alice", CreatedAt: now, IndexedAt: now,
+	})
 	store := &fakeNotificationStore{rows: rows, handles: map[string]syntax.Handle{"did:plc:alice": "alice.example", "did:plc:viewer": "viewer.example"}}
 	recorder := httptest.NewRecorder()
 	api.ListNotificationsHandler(store, fakeResolver{}, nilLogger()).ServeHTTP(recorder, authedReq(http.MethodGet, "/v1/notifications", "", "did:plc:viewer"))
@@ -327,10 +331,16 @@ func TestNotificationsHandlerReturnsCompleteTypeSpecificReferenceMatrix(t *testi
 	if err := json.Unmarshal(recorder.Body.Bytes(), &page); err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Items) != 7 {
+	if len(page.Items) != 8 {
 		t.Fatalf("items=%d", len(page.Items))
 	}
 	for _, item := range page.Items {
+		if item.Type == api.NotificationTypeInstagramMatch {
+			if item.Actor == nil || !item.Actor.Available || item.URI != "" || item.CID != "" || item.Rkey != "" || item.SubjectPost != nil {
+				t.Fatalf("instagramMatch item=%+v", item)
+			}
+			continue
+		}
 		if !item.References.Source.Available || item.URI == "" || item.CID == "" || item.Rkey == "" {
 			t.Fatalf("%s source=%+v item=%+v", item.Type, item.References.Source, item)
 		}

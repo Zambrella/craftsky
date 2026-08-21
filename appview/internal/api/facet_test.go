@@ -86,4 +86,24 @@ func TestResolveFacetMentionHandlerSuccessAndMentionNotFound(t *testing.T) {
 			t.Fatalf("error = %q, want interaction_blocked", body.Error)
 		}
 	})
+
+	t.Run("temporary identity failure maps to retryable service unavailable", func(t *testing.T) {
+		t.Parallel()
+		h := api.ResolveFacetMentionHandler(fakeFacetMentionResolver{err: api.ErrMentionIdentityUnavailable}, nilLogger())
+		req := httptest.NewRequest(http.MethodGet, "/v1/facets/mentions/resolve?handle=alice.example", nil)
+		req = req.WithContext(middleware.WithDID(req.Context(), syntax.DID("did:plc:viewer")))
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+
+		if rr.Code != http.StatusServiceUnavailable {
+			t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+		}
+		var body envelope.Error
+		if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+			t.Fatalf("body JSON: %v", err)
+		}
+		if body.Error != "identity_unavailable" {
+			t.Fatalf("error = %q, want identity_unavailable", body.Error)
+		}
+	})
 }

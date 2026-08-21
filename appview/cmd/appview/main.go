@@ -28,14 +28,13 @@ import (
 )
 
 const (
-	instagramWebhookPollInterval         = 500 * time.Millisecond
-	instagramReconciliationPollInterval  = 500 * time.Millisecond
-	instagramReconciliationBatchSize     = 100
-	instagramAutomaticFollowPollInterval = 500 * time.Millisecond
-	instagramAutomaticFollowBatchSize    = instagram.AutomaticFollowBatchDefault
-	instagramRetentionInterval           = time.Hour
-	scheduledWorkerPollInterval          = 10 * time.Second
-	accountDeletionWorkerPollInterval    = 2 * time.Second
+	instagramWebhookPollInterval        = 500 * time.Millisecond
+	instagramReconciliationPollInterval = 500 * time.Millisecond
+	instagramReconciliationBatchSize    = 100
+	instagramRetentionInterval          = time.Hour
+	scheduledWorkerPollInterval         = 10 * time.Second
+	accountDeletionWorkerPollInterval   = 2 * time.Second
+	backgroundWorkerShutdownTimeout     = 10 * time.Second
 )
 
 type instagramWebhookBatchProcessor interface {
@@ -56,6 +55,29 @@ type instagramRetentionRunner interface {
 
 type accountDeletionProcessor interface {
 	ProcessOne(context.Context) (bool, error)
+}
+
+func stopBackgroundWorkers(cancel context.CancelFunc, timeout time.Duration, done ...<-chan struct{}) error {
+	if cancel == nil {
+		return errors.New("background worker cancellation is unavailable")
+	}
+	if timeout <= 0 {
+		return errors.New("background worker shutdown timeout must be positive")
+	}
+	cancel()
+	ctx, release := context.WithTimeout(context.Background(), timeout)
+	defer release()
+	for _, workerDone := range done {
+		if workerDone == nil {
+			continue
+		}
+		select {
+		case <-workerDone:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return nil
 }
 
 func main() {
@@ -104,9 +126,24 @@ func run(ctx context.Context, args []string) error {
 	}
 	defer cleanup()
 
-	httpServer := &http.Server{
-		Addr:    net.JoinHostPort("0.0.0.0", "8080"),
-		Handler: NewServer(ctx, deps),
+	handler, err := NewServerWithAdmission(ctx, deps, handlerAdmissionConfigFromApp(cfg))
+	if err != nil {
+		return fmt.Errorf("configure HTTP admission: %w", err)
+	}
+	httpAdmission := httpAdmissionConfigFromApp(cfg)
+	httpServer, err := NewHTTPServer(handler, httpAdmission)
+	if err != nil {
+		return fmt.Errorf("configure HTTP server: %w", err)
+	}
+	httpServer.Addr = net.JoinHostPort("0.0.0.0", "8080")
+	listener, err := net.Listen("tcp", httpServer.Addr)
+	if err != nil {
+		return fmt.Errorf("listen: %w", err)
+	}
+	limitedListener, err := NewConnectionLimitListener(listener, httpAdmission.MaxConnections)
+	if err != nil {
+		_ = listener.Close()
+		return fmt.Errorf("configure HTTP listener: %w", err)
 	}
 
 	// Start the Tap consumer alongside the HTTP server. It runs until
@@ -125,6 +162,45 @@ func run(ctx context.Context, args []string) error {
 				slog.String("error_category", "consumer"))
 		}
 	}()
+	tapProjectionDone := make(chan struct{})
+	if deps.TapProjectionWorker != nil {
+		go func() {
+			defer close(tapProjectionDone)
+			if err := deps.TapProjectionWorker.Run(consumerCtx); err != nil && !errors.Is(err, context.Canceled) {
+				deps.Logger.Error("tap projection worker exited",
+					slog.String("component", "tap_projection"),
+					slog.String("result", "error"))
+			}
+		}()
+	} else {
+		close(tapProjectionDone)
+	}
+	tapRepositoryDone := make(chan struct{})
+	if deps.TapRepositoryWorker != nil {
+		go func() {
+			defer close(tapRepositoryDone)
+			if err := deps.TapRepositoryWorker.Run(consumerCtx); err != nil && !errors.Is(err, context.Canceled) {
+				deps.Logger.Error("tap repository worker exited",
+					slog.String("component", "tap_repository"),
+					slog.String("result", "error"))
+			}
+		}()
+	} else {
+		close(tapRepositoryDone)
+	}
+	tapQuarantineDone := make(chan struct{})
+	if deps.TapQuarantineWorker != nil {
+		go func() {
+			defer close(tapQuarantineDone)
+			if err := deps.TapQuarantineWorker.Run(consumerCtx); err != nil && !errors.Is(err, context.Canceled) {
+				deps.Logger.Error("tap quarantine replay worker exited",
+					slog.String("component", "tap_quarantine"),
+					slog.String("result", "error"))
+			}
+		}()
+	} else {
+		close(tapQuarantineDone)
+	}
 	pushDone := make(chan struct{})
 	if deps.PushDispatcher != nil {
 		go func() {
@@ -171,21 +247,6 @@ func run(ctx context.Context, args []string) error {
 		}()
 	} else {
 		close(instagramReconciliationDone)
-	}
-	instagramAutomaticFollowDone := make(chan struct{})
-	if deps.InstagramAutomaticFollow != nil {
-		go func() {
-			defer close(instagramAutomaticFollowDone)
-			runInstagramAutomaticFollowWorker(
-				consumerCtx,
-				deps.InstagramAutomaticFollow,
-				deps.Logger,
-				instagramAutomaticFollowBatchSize,
-				instagramAutomaticFollowPollInterval,
-			)
-		}()
-	} else {
-		close(instagramAutomaticFollowDone)
 	}
 	instagramRetentionDone := make(chan struct{})
 	if deps.InstagramRetention != nil {
@@ -238,14 +299,99 @@ func run(ctx context.Context, args []string) error {
 	} else {
 		close(accountDeletionDone)
 	}
-	// listenErr receives the result of ListenAndServe. A non-nil,
+	authRequestSweepDone := make(chan struct{})
+	if deps.OAuthStore != nil {
+		go func() {
+			defer close(authRequestSweepDone)
+			runAuthRequestSweeper(
+				consumerCtx,
+				deps.OAuthStore,
+				deps.Logger,
+				deps.Observability,
+				deps.Config.OAuthAuthRequestSweepBatch,
+				deps.Config.OAuthAuthRequestSweepInterval,
+			)
+		}()
+	} else {
+		close(authRequestSweepDone)
+	}
+	oauthRevocationDone := startBatchWorker(
+		consumerCtx,
+		deps.OAuthRevocation,
+		deps.Logger,
+		deps.Config.OAuthRevocationPollInterval,
+		"oauth",
+		"credential_revocation",
+	)
+	authAuxiliaryCleanupDone := startBatchWorker(
+		consumerCtx,
+		deps.AuthAuxiliaryCleanup,
+		deps.Logger,
+		deps.Config.AuthAuxiliaryCleanupPollInterval,
+		"auth_auxiliary_cleanup",
+		"notification_subscription_cleanup",
+	)
+	sessionExpiryDone := startBatchWorker(
+		consumerCtx,
+		deps.SessionExpiry,
+		deps.Logger,
+		deps.Config.SessionExpirySweepInterval,
+		"auth_session_expiry",
+		"expire",
+	)
+	accountDeletionIntentExpiryDone := startBatchWorker(
+		consumerCtx,
+		deps.AccountDeletionIntentExpiry,
+		deps.Logger,
+		deps.Config.AccountDeletionIntentSweepInterval,
+		"account_deletion",
+		"expire_intent",
+	)
+	terminalPurgeDone := startBatchWorker(
+		consumerCtx,
+		deps.TerminalPurge,
+		deps.Logger,
+		deps.Config.TerminalPurgePollInterval,
+		"owner_lifecycle",
+		"terminal_purge",
+	)
+	identityCacheRefreshDone := startBatchWorker(
+		consumerCtx,
+		deps.IdentityCacheRefresh,
+		deps.Logger,
+		deps.Config.IdentityCacheRefreshPollInterval,
+		"identity_cache",
+		"refresh",
+	)
+	workerDone := []<-chan struct{}{
+		consumerDone,
+		tapProjectionDone,
+		tapRepositoryDone,
+		tapQuarantineDone,
+		pushDone,
+		instagramWorkersDone,
+		instagramReconciliationDone,
+		instagramRetentionDone,
+		scheduledPublicationDone,
+		scheduledCleanupDone,
+		accountDeletionDone,
+		authRequestSweepDone,
+		oauthRevocationDone,
+		authAuxiliaryCleanupDone,
+		sessionExpiryDone,
+		accountDeletionIntentExpiryDone,
+		terminalPurgeDone,
+		identityCacheRefreshDone,
+	}
+
+	// listenErr receives the result of Serve. A non-nil,
 	// non-ErrServerClosed error (e.g. port already in use) must unblock
 	// the main goroutine so run() returns the error instead of hanging
-	// on wg.Wait() forever.
+	// while background workers continue using dependencies being torn down.
 	listenErr := make(chan error, 1)
 	go func() {
 		deps.Logger.Info("listening", "addr", httpServer.Addr)
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := httpServer.Serve(limitedListener); err != nil && err != http.ErrServerClosed {
 			listenErr <- err
 			return
 		}
@@ -255,12 +401,17 @@ func run(ctx context.Context, args []string) error {
 	select {
 	case err := <-listenErr:
 		// Listener died before any signal arrived. Usually bind failure.
+		workerErr := stopBackgroundWorkers(
+			consumerCancel,
+			backgroundWorkerShutdownTimeout,
+			workerDone...,
+		)
 		if err != nil {
-			return fmt.Errorf("listen: %w", err)
+			return errors.Join(fmt.Errorf("listen: %w", err), workerErr)
 		}
 		// err == nil would mean ListenAndServe returned ErrServerClosed
 		// without any signal — unexpected but benign. Fall through.
-		return nil
+		return workerErr
 	case <-ctx.Done():
 		// Signal path: drain the listener via Shutdown then wait for
 		// the listenErr goroutine to finish.
@@ -277,21 +428,27 @@ func run(ctx context.Context, args []string) error {
 			slog.String("error_category", "shutdown"))
 	}
 	deps.Logger.Info("shutdown: http server stopped")
-	// Cancel the consumer explicitly and wait for it to exit, so the
-	// shutdown log lines report in a predictable order.
-	consumerCancel()
-	<-consumerDone
-	<-pushDone
-	<-instagramWorkersDone
-	<-instagramReconciliationDone
-	<-instagramAutomaticFollowDone
-	<-instagramRetentionDone
-	<-scheduledPublicationDone
-	<-scheduledCleanupDone
-	<-accountDeletionDone
+	// Cancel every worker and wait only for the configured shutdown budget.
+	// This happens before deferred dependency cleanup on every server-exit path.
+	if err := stopBackgroundWorkers(
+		consumerCancel,
+		backgroundWorkerShutdownTimeout,
+		workerDone...,
+	); err != nil {
+		deps.Logger.Error("background worker shutdown timed out",
+			slog.String("component", "workers"),
+			slog.String("operation", "shutdown"),
+			slog.String("result", "error"),
+			slog.String("error_category", "timeout"))
+	}
 	deps.Logger.Info("shutdown: tap consumer stopped")
-	// Drain the listener goroutine's final send.
-	<-listenErr
+	// Drain the listener goroutine's final send without creating another
+	// unbounded shutdown wait if a server implementation regresses.
+	select {
+	case <-listenErr:
+	case <-shutdownCtx.Done():
+		_ = httpServer.Close()
+	}
 	return nil
 }
 
@@ -327,6 +484,37 @@ func runAccountDeletionWorker(ctx context.Context, worker accountDeletionProcess
 }
 
 func runScheduledWorker(ctx context.Context, worker scheduledBatchProcessor, logger *slog.Logger, pollInterval time.Duration, operation string) {
+	runBatchWorker(ctx, worker, logger, pollInterval, "scheduled_posts", operation)
+}
+
+func startBatchWorker(
+	ctx context.Context,
+	worker scheduledBatchProcessor,
+	logger *slog.Logger,
+	pollInterval time.Duration,
+	component string,
+	operation string,
+) <-chan struct{} {
+	done := make(chan struct{})
+	if worker == nil {
+		close(done)
+		return done
+	}
+	go func() {
+		defer close(done)
+		runBatchWorker(ctx, worker, logger, pollInterval, component, operation)
+	}()
+	return done
+}
+
+func runBatchWorker(
+	ctx context.Context,
+	worker scheduledBatchProcessor,
+	logger *slog.Logger,
+	pollInterval time.Duration,
+	component string,
+	operation string,
+) {
 	if worker == nil || pollInterval <= 0 {
 		return
 	}
@@ -336,8 +524,8 @@ func runScheduledWorker(ctx context.Context, worker scheduledBatchProcessor, log
 			return
 		}
 		if err != nil && logger != nil {
-			logger.Error("scheduled-post worker batch failed",
-				slog.String("component", "scheduled_posts"),
+			logger.Error("background worker batch failed",
+				slog.String("component", component),
 				slog.String("operation", operation),
 				slog.String("result", "error"),
 				slog.String("error_category", "worker"))
@@ -407,43 +595,6 @@ func runInstagramReconciliationWorker(
 			logger.Error("Instagram reconciliation worker batch failed",
 				slog.String("component", "instagram_reconciliation"),
 				slog.String("operation", "instagram.reconciliation.process"),
-				slog.String("result", "error"),
-				slog.String("error_category", "worker"))
-		}
-		if err == nil && processed > 0 {
-			continue
-		}
-		timer := time.NewTimer(pollInterval)
-		select {
-		case <-ctx.Done():
-			if !timer.Stop() {
-				<-timer.C
-			}
-			return
-		case <-timer.C:
-		}
-	}
-}
-
-func runInstagramAutomaticFollowWorker(
-	ctx context.Context,
-	worker instagramReconciliationBatchProcessor,
-	logger *slog.Logger,
-	batchSize int,
-	pollInterval time.Duration,
-) {
-	if worker == nil || batchSize < 1 || batchSize > instagram.AutomaticFollowBatchMax || pollInterval <= 0 {
-		return
-	}
-	for {
-		processed, err := worker.ProcessBatch(ctx, batchSize)
-		if ctx.Err() != nil {
-			return
-		}
-		if err != nil && logger != nil {
-			logger.Error("Instagram automatic-follow worker batch failed",
-				slog.String("component", "instagram_automatic_follow"),
-				slog.String("operation", "instagram.automatic_follow.process"),
 				slog.String("result", "error"),
 				slog.String("error_category", "worker"))
 		}

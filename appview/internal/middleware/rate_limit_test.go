@@ -88,3 +88,32 @@ func TestRateLimitMiddlewareWrites429EnvelopeAndRetryAfter(t *testing.T) {
 		t.Fatalf("handler calls = %d, want 1", called)
 	}
 }
+
+func TestRateLimitMiddlewareDetachesUnreadBodyOnRejection(t *testing.T) {
+	limiter := NewLocalRateLimiter(RateLimitConfig{Classes: map[RateClass]ClassLimit{
+		RateClassWrite: {Window: time.Minute, PerDevice: 1},
+	}}, func() time.Time { return time.Unix(100, 0) })
+	handler := RateLimit(limiter, RateClassWrite, nil)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	first := httptest.NewRequest(http.MethodPost, "/v1/posts", nil)
+	first.Header.Set("X-Craftsky-Device-Id", "device-a")
+	handler.ServeHTTP(httptest.NewRecorder(), first)
+
+	probe := &countingBodyReader{reader: strings.NewReader(`{"text":"unread"}`)}
+	request := httptest.NewRequest(http.MethodPost, "/v1/posts", probe)
+	request.Header.Set("X-Craftsky-Device-Id", "device-a")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want 429; body=%s", recorder.Code, recorder.Body.String())
+	}
+	if probe.bytesRead != 0 {
+		t.Fatalf("body bytes read = %d, want 0", probe.bytesRead)
+	}
+	if request.Body != http.NoBody || !request.Close || recorder.Header().Get("Connection") != "close" {
+		t.Fatalf("unread body was not detached: body=%T request.Close=%t headers=%v", request.Body, request.Close, recorder.Header())
+	}
+}

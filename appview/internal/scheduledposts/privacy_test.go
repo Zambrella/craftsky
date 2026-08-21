@@ -5,6 +5,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 )
 
@@ -20,12 +21,16 @@ func TestPrivateMetadataIsOpaqueAndDiagnosticFieldsAreSafe(t *testing.T) {
 		"oauth-token-canary",
 	}
 	mediaID := uuid.MustParse("11111111-1111-4111-8111-111111111111")
-	objectKey, err := NewObjectKey(mediaID)
+	objectKey, attemptID, err := NewGenerationObjectKey(
+		syntax.DID("did:plc:private-owner-canary"),
+		7,
+		mediaID,
+	)
 	if err != nil {
-		t.Fatalf("NewObjectKey() error = %v", err)
+		t.Fatalf("NewGenerationObjectKey() error = %v", err)
 	}
-	if objectKey != "scheduled-media/11111111-1111-4111-8111-111111111111" {
-		t.Fatalf("NewObjectKey() = %q, want opaque media path", objectKey)
+	if objectKey != "scheduled-media/v2/7/"+attemptID.String() {
+		t.Fatalf("NewGenerationObjectKey() = %q, want opaque generation path", objectKey)
 	}
 
 	fields := SafeDiagnosticFields(DiagnosticOperationPublish, DiagnosticResultFailure, "pds_unavailable")

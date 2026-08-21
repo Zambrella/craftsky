@@ -6,7 +6,6 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -17,7 +16,7 @@ import (
 
 type loginRequest struct {
 	Handle              string `json:"handle"`
-	HandoffMode         string `json:"handoffMode"` // "deep_link" | "loopback"
+	HandoffMode         string `json:"handoffMode"` // "verified_link" | "loopback" | dev-only "dev_scheme"
 	LoopbackRedirectURI string `json:"loopbackRedirectUri,omitempty"`
 }
 
@@ -48,19 +47,21 @@ func (h *HTTPHandlers) LoginHandler() http.Handler {
 				runID, nil)
 			return
 		}
-		if _, err := syntax.ParseHandle(req.Handle); err != nil {
+		handle, err := syntax.ParseHandle(req.Handle)
+		if err != nil {
 			envelope.WriteError(w, http.StatusBadRequest, "invalid_handle",
 				"handle is malformed",
 				runID, nil)
 			return
 		}
-		if req.HandoffMode != "deep_link" && req.HandoffMode != "loopback" {
+		mode := HandoffMode(req.HandoffMode)
+		if mode != HandoffVerifiedLink && mode != HandoffLoopback && !(mode == HandoffDevScheme && h.AllowDevScheme) {
 			envelope.WriteError(w, http.StatusBadRequest, "invalid_handoff_mode",
-				"handoffMode must be deep_link or loopback",
+				"handoffMode is not available",
 				runID, nil)
 			return
 		}
-		if req.HandoffMode == "loopback" {
+		if mode == HandoffLoopback {
 			if req.LoopbackRedirectURI == "" {
 				envelope.WriteError(w, http.StatusBadRequest, "loopback_redirect_uri_required",
 					"loopbackRedirectUri is required when handoffMode is loopback",
@@ -74,11 +75,40 @@ func (h *HTTPHandlers) LoginHandler() http.Handler {
 				return
 			}
 		}
+		deviceID, ok := ctxkeys.GetDeviceID(r.Context())
+		if !ok || deviceID == "" {
+			envelope.WriteError(w, http.StatusBadRequest, "device_id_required",
+				"X-Craftsky-Device-Id is required", runID, nil)
+			return
+		}
+		if h.OAuthFlow == nil {
+			w.Header().Set("Retry-After", "5")
+			envelope.WriteError(w, http.StatusServiceUnavailable, "authentication_unavailable",
+				"authentication is temporarily unavailable", runID, nil)
+			return
+		}
 		h.Logger.Debug("login: starting OAuth flow",
 			authLogAttrs(runID, "login.start")...)
 
-		authURL, err := h.OAuth.StartAuthFlow(r.Context(), req.Handle)
+		authURL, err := h.OAuthFlow.StartLogin(
+			r.Context(), handle, mode, req.LoopbackRedirectURI, deviceID,
+		)
 		if err != nil {
+			if errors.Is(err, ErrOAuthOwnerIneligible) {
+				h.Logger.Warn("login rejected for ineligible account",
+					authLogErrorAttrs(runID, "login.start", "account_state")...)
+				envelope.WriteError(w, http.StatusConflict, "account_unavailable",
+					"this account cannot start an ordinary sign-in", runID, nil)
+				return
+			}
+			if errors.Is(err, ErrAuthRequestCapacity) {
+				h.Logger.Warn("login rejected by pending authentication capacity",
+					authLogErrorAttrs(runID, "login.start", "capacity")...)
+				w.Header().Set("Retry-After", "5")
+				envelope.WriteError(w, http.StatusServiceUnavailable, "authentication_capacity_exhausted",
+					"authentication is temporarily unavailable", runID, nil)
+				return
+			}
 			h.Logger.Warn("StartAuthFlow failed",
 				authLogErrorAttrs(runID, "login.start", "authorization_server")...)
 			envelope.WriteError(w, http.StatusBadGateway, "authorization_server_unavailable",
@@ -89,91 +119,10 @@ func (h *HTTPHandlers) LoginHandler() http.Handler {
 		h.Logger.Debug("login: OAuth flow started",
 			authLogSuccessAttrs(runID, "login.start")...)
 
-		requestURI, err := extractRequestURI(authURL)
-		if err != nil {
-			h.Logger.Error("extractRequestURI from StartAuthFlow URL",
-				authLogErrorAttrs(runID, "login.start", "internal")...)
-			envelope.WriteError(w, http.StatusInternalServerError, "internal",
-				"internal error",
-				runID, nil)
-			return
-		}
-		// Race note: StartAuthFlow already inserted the auth-request row.
-		// We update the handoff columns in a follow-up UPDATE keyed by the
-		// request_uri stored in the JSONB blob (indigo doesn't expose state
-		// in the returned URL, only in its persisted AuthRequestData). A
-		// parallel callback arriving between INSERT and UPDATE would see
-		// the default handoff_mode='deep_link'. Acceptable for v1.
-		deviceID, _ := ctxkeys.GetDeviceID(r.Context())
-		if err := h.recordHandoff(r.Context(), requestURI, req.HandoffMode, req.LoopbackRedirectURI, deviceID); err != nil {
-			h.Logger.Error("recordHandoff failed",
-				authLogErrorAttrs(runID, "login.record_handoff", "store")...)
-			// Continue: callback's loadHandoff falls back to deep_link.
-		}
-		h.Logger.Debug("login: handoff recorded",
-			append(authLogSuccessAttrs(runID, "login.record_handoff"),
-				slog.String("handoff_mode", req.HandoffMode),
-				slog.Bool("has_loopback_redirect_uri", req.LoopbackRedirectURI != ""))...)
-
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Cache-Control", "no-store")
 		_ = json.NewEncoder(w).Encode(loginResponse{AuthURL: authURL})
 	})
-}
-
-var errRequestURIMissing = errors.New("authorization URL missing request_uri parameter")
-
-// extractRequestURI pulls request_uri out of the redirect URL returned
-// by indigo's StartAuthFlow. indigo does NOT include state in that URL —
-// it's only in the persisted AuthRequestData JSONB blob. We use
-// request_uri as our row-lookup key for the handoff UPDATE.
-func extractRequestURI(authURL string) (string, error) {
-	u, err := url.Parse(authURL)
-	if err != nil {
-		return "", err
-	}
-	r := u.Query().Get("request_uri")
-	if r == "" {
-		return "", errRequestURIMissing
-	}
-	return r, nil
-}
-
-// recordHandoff persists the handoff mode + loopback URI on the
-// oauth_auth_requests row identified by request_uri (extracted from the
-// redirect URL indigo returns). Sibling-column variant per Appendix A.
-//
-// We match on data->>'request_uri' since indigo persists request_uri
-// inside the opaque JSONB blob, not as a top-level column. The UPDATE is
-// idempotent and affects at most one row (request_uri is a per-flow
-// random string).
-func (h *HTTPHandlers) recordHandoff(ctx context.Context, requestURI, mode, loopbackURI, deviceID string) error {
-	_, err := h.Pool.Exec(ctx,
-		`UPDATE oauth_auth_requests SET handoff_mode = $1, loopback_redirect_uri = $2, device_id=$3 WHERE data->>'request_uri' = $4`,
-		mode, nullableString(loopbackURI), nullableString(deviceID), requestURI)
-	return err
-}
-
-// loadHandoff is the counterpart used by CallbackHandler. Sibling-column variant.
-func (h *HTTPHandlers) loadHandoff(ctx context.Context, state string) (mode string, loopbackURI string, deviceID string, err error) {
-	var uri *string
-	var storedDeviceID *string
-	err = h.Pool.QueryRow(ctx,
-		`SELECT handoff_mode, loopback_redirect_uri, device_id FROM oauth_auth_requests WHERE state = $1`,
-		state).Scan(&mode, &uri, &storedDeviceID)
-	if uri != nil {
-		loopbackURI = *uri
-	}
-	if storedDeviceID != nil {
-		deviceID = *storedDeviceID
-	}
-	return
-}
-
-// oauthLogout is a thin wrapper around indigo's Logout. The DID has
-// already been parsed at the auth boundary, so no extra validation is
-// needed here.
-func (h *HTTPHandlers) oauthLogout(ctx context.Context, did syntax.DID, sessionID string) error {
-	return h.OAuth.Logout(ctx, did, sessionID)
 }
 
 // bearerToken extracts the Bearer token from the Authorization header.
@@ -198,17 +147,13 @@ func authInfoFromCtx(ctx context.Context) (did syntax.DID, sid string, ok bool) 
 	return did, sid, true
 }
 
-// LogoutHandler revokes the presented Craftsky session. With ?all=true,
-// revokes every session for the caller's DID and deletes the underlying
-// OAuth session (subject to AS-side revocation success).
-//
-// Invariant for ?all=true: oauth.Logout is called FIRST so the FK
-// cascade can remove craftsky_sessions rows; RevokeAll runs as a
-// defensive backstop in case AS-side revocation failed.
+// LogoutHandler commits local invalidation before returning. Provider and push
+// cleanup are durable background work and cannot retain a usable bearer or
+// turn a committed logout into an HTTP failure.
 func (h *HTTPHandlers) LogoutHandler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := ctxkeys.GetRunID(r.Context())
-		did, sid, ok := authInfoFromCtx(r.Context())
+		did, _, ok := authInfoFromCtx(r.Context())
 		if !ok {
 			// Authenticated middleware should have rejected already;
 			// a 401 here means routing bug.
@@ -217,54 +162,28 @@ func (h *HTTPHandlers) LogoutHandler() http.Handler {
 		}
 		all := r.URL.Query().Get("all") == "true"
 		token := bearerToken(r)
-		if h.NotificationSubscriptions != nil {
-			var cleanupErr error
-			if all {
-				cleanupErr = h.NotificationSubscriptions.DeactivateForAccount(r.Context(), did.String())
-			} else {
-				deviceID, _ := ctxkeys.GetDeviceID(r.Context())
-				cleanupErr = h.NotificationSubscriptions.DeactivateForInstallation(r.Context(), did.String(), deviceID)
-			}
-			if cleanupErr != nil {
-				h.Logger.Error("logout notification cleanup failed", authLogErrorAttrs(runID, "logout", "notification_store")...)
-				envelope.WriteError(w, http.StatusInternalServerError, "internal", "internal error", runID, nil)
-				return
-			}
+		if h.SessionLifecycle == nil {
+			w.Header().Set("Retry-After", "5")
+			envelope.WriteError(w, http.StatusServiceUnavailable, "logout_unavailable", "logout is temporarily unavailable", runID, nil)
+			return
 		}
 		h.Logger.Debug("logout: request started",
 			append(authLogAttrs(runID, "logout"),
 				slog.Bool("all", all),
-				slog.Bool("has_oauth_session", sid != ""),
 				slog.Bool("has_bearer_token", token != ""))...)
+		var err error
 		if all {
-			// Step 1: delete the OAuth session. Cascade removes
-			// craftsky_sessions rows on success.
-			if sid != "" {
-				if err := h.oauthLogout(r.Context(), did, sid); err != nil {
-					h.Logger.Warn("oauth.Logout failed; revoke-all will cover",
-						append(authLogErrorAttrs(runID, "logout", "oauth"),
-							slog.Bool("all", all))...)
-				}
-			}
-			// Step 2: belt-and-braces. If Logout succeeded, the cascade
-			// already deleted these rows and RevokeAll is a no-op. If
-			// Logout failed, this at least invalidates local tokens.
-			if err := h.CraftskySessions.RevokeAll(r.Context(), did.String()); err != nil {
-				h.Logger.Error("RevokeAll failed",
-					append(authLogErrorAttrs(runID, "logout", "store"),
-						slog.Bool("all", all))...)
-				envelope.WriteError(w, http.StatusInternalServerError, "internal",
-					"internal error",
-					ctxkeys.GetRunID(r.Context()), nil)
-				return
-			}
+			err = h.SessionLifecycle.RevokeAllForDID(r.Context(), did)
 		} else {
-			if err := h.CraftskySessions.Revoke(r.Context(), token); err != nil {
-				envelope.WriteError(w, http.StatusInternalServerError, "internal",
-					"internal error",
-					runID, nil)
-				return
-			}
+			deviceID, _ := ctxkeys.GetDeviceID(r.Context())
+			err = h.SessionLifecycle.RevokeOne(r.Context(), did, token, deviceID)
+		}
+		if err != nil && !errors.Is(err, ErrCraftskySessionNotFound) {
+			h.Logger.Error("logout local invalidation failed",
+				append(authLogErrorAttrs(runID, "logout", "store"), slog.Bool("all", all))...)
+			w.Header().Set("Retry-After", "5")
+			envelope.WriteError(w, http.StatusServiceUnavailable, "logout_unavailable", "logout is temporarily unavailable", runID, nil)
+			return
 		}
 		h.Logger.Debug("logout: revoked session",
 			append(authLogSuccessAttrs(runID, "logout"),

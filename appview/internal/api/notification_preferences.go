@@ -3,12 +3,16 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log/slog"
 	"net/http"
+
+	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/notifications"
+	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
 type NotificationPreferencesResponse struct {
@@ -25,17 +29,8 @@ func (s *PostStore) NotificationPreferences(ctx context.Context, did string) (ma
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-	persisted := map[notifications.Category]notifications.Preference{}
-	for rows.Next() {
-		var category notifications.Category
-		var preference notifications.Preference
-		if err := rows.Scan(&category, &preference.Scope, &preference.PushEnabled); err != nil {
-			return nil, err
-		}
-		persisted[category] = preference
-	}
-	if err := rows.Err(); err != nil {
+	persisted, err := scanNotificationPreferenceRows(rows)
+	if err != nil {
 		return nil, err
 	}
 	return notifications.ResolvePreferences(persisted, nil)
@@ -47,21 +42,17 @@ func (s *PostStore) PatchNotificationPreferences(ctx context.Context, did string
 		return nil, err
 	}
 	defer tx.Rollback(ctx)
+	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, syntax.DID(did), nil); err != nil {
+		return nil, err
+	}
 	rows, err := tx.Query(ctx, `SELECT category, scope, push_enabled FROM notification_preferences WHERE account_did = $1 FOR UPDATE`, did)
 	if err != nil {
 		return nil, err
 	}
-	persisted := map[notifications.Category]notifications.Preference{}
-	for rows.Next() {
-		var category notifications.Category
-		var preference notifications.Preference
-		if err := rows.Scan(&category, &preference.Scope, &preference.PushEnabled); err != nil {
-			rows.Close()
-			return nil, err
-		}
-		persisted[category] = preference
+	persisted, err := scanNotificationPreferenceRows(rows)
+	if err != nil {
+		return nil, err
 	}
-	rows.Close()
 	resolved, err := notifications.ResolvePreferences(persisted, patch)
 	if err != nil {
 		return nil, err
@@ -80,6 +71,31 @@ func (s *PostStore) PatchNotificationPreferences(ctx context.Context, did string
 		return nil, err
 	}
 	return resolved, nil
+}
+
+type notificationPreferenceRows interface {
+	Next() bool
+	Scan(...any) error
+	Err() error
+	Close()
+}
+
+func scanNotificationPreferenceRows(rows notificationPreferenceRows) (map[notifications.Category]notifications.Preference, error) {
+	defer rows.Close()
+
+	persisted := map[notifications.Category]notifications.Preference{}
+	for rows.Next() {
+		var category notifications.Category
+		var preference notifications.Preference
+		if err := rows.Scan(&category, &preference.Scope, &preference.PushEnabled); err != nil {
+			return nil, fmt.Errorf("scan notification preference: %w", err)
+		}
+		persisted[category] = preference
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate notification preferences: %w", err)
+	}
+	return persisted, nil
 }
 
 func GetNotificationPreferencesHandler(store NotificationPreferenceStore, logger *slog.Logger) http.Handler {

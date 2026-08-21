@@ -32,14 +32,21 @@ func (s *BackgroundSessionSelector) Select(ctx context.Context, owner syntax.DID
 	err := s.pool.QueryRow(ctx, `
 		SELECT oauth.session_id
 		FROM oauth_sessions oauth
+		JOIN owner_lifecycles owner ON owner.owner_did=oauth.account_did
 		JOIN LATERAL (
 			SELECT max(craftsky.last_seen_at) AS last_seen_at
 			FROM craftsky_sessions craftsky
 			WHERE craftsky.account_did = oauth.account_did
 			  AND craftsky.oauth_session_id = oauth.session_id
-			  AND craftsky.revoked_at IS NULL
+			  AND craftsky.lifecycle_state = 'active'
+			  AND craftsky.auth_epoch = oauth.auth_epoch
+			  AND craftsky.idle_expires_at > now()
 		) activity ON activity.last_seen_at IS NOT NULL
 		WHERE oauth.account_did = $1
+		  AND oauth.lifecycle_state = 'active'
+		  AND oauth.absolute_expires_at > now()
+		  AND owner.state = 'active'
+		  AND owner.auth_epoch = oauth.auth_epoch
 		ORDER BY activity.last_seen_at DESC,
 		         oauth.updated_at DESC,
 		         oauth.session_id ASC

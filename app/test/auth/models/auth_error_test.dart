@@ -8,7 +8,6 @@ void main() {
       const InvalidHandle(),
       const ServerUnavailable(),
       const BrowserLaunchFailed(),
-      const NoPendingSignIn(),
       const SignInTimedOut(),
       StorageFailure(Exception('oops')),
     ];
@@ -18,7 +17,6 @@ void main() {
         InvalidHandle() => 'invalid_handle',
         ServerUnavailable() => 'server_unavailable',
         BrowserLaunchFailed() => 'browser_launch_failed',
-        NoPendingSignIn() => 'no_pending',
         SignInTimedOut() => 'timed_out',
         StorageFailure() => 'storage',
       };

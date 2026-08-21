@@ -125,7 +125,7 @@ void main() {
   });
 
   test(
-    'IT-017 activates the exact retained account before Instagram navigation',
+    'IT-031 Instagram push opens notifications after exact account activation',
     () async {
       var registry = _registry();
       final operations = <String>[];
@@ -147,7 +147,7 @@ void main() {
       );
 
       final effectFuture = effects.stream.first;
-      await runtime.receiveOpen(_instagramAttempt('bob_binding'));
+      await runtime.receiveOpen(_retiredInstagramAttempt('bob_binding'));
       final effect = await effectFuture as NotificationNavigationEffect;
 
       expect(operations, ['activate:did:plc:bob']);
@@ -191,7 +191,7 @@ NotificationOpenAttempt _attempt(String? binding) =>
       'accountSubscriptionId': ?binding,
     });
 
-NotificationOpenAttempt _instagramAttempt(String? binding) =>
+NotificationOpenAttempt _retiredInstagramAttempt(String? binding) =>
     NotificationOpenAttempt.fromProviderData({
       'payloadVersion': '1',
       'type': 'instagramMatch',

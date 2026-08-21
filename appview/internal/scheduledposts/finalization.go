@@ -33,7 +33,8 @@ func (s *Store) FinalizePublication(
 	params FinalizePublicationParams,
 ) (FinalizePublicationResult, error) {
 	if s == nil || s.pool == nil || params.Claim.ID == uuid.Nil ||
-		params.Claim.OwnerDID == "" || params.Claim.LeaseToken == uuid.Nil ||
+		params.Claim.OwnerDID == "" || params.Claim.OwnerGeneration <= 0 ||
+		params.Claim.LeaseToken == uuid.Nil ||
 		params.Claim.PayloadVersion < 1 || params.PublicationURI == "" ||
 		params.PublicationCID == "" || params.PublishedAt.IsZero() {
 		return FinalizePublicationResult{}, errors.New("invalid scheduled publication finalization")
@@ -47,11 +48,19 @@ func (s *Store) FinalizePublication(
 		return FinalizePublicationResult{}, ErrPublicationConflict
 	}
 	params.PublishedAt = params.PublishedAt.UTC()
-	tx, err := s.pool.Begin(ctx)
+	tx, err := s.publicationDB(ctx).Begin(ctx)
 	if err != nil {
 		return FinalizePublicationResult{}, err
 	}
 	defer tx.Rollback(ctx)
+	var activeGeneration int64
+	if err := tx.QueryRow(ctx, lockActiveScheduledOwnerGenerationSQL, params.Claim.OwnerDID).
+		Scan(&activeGeneration); err != nil || activeGeneration != params.Claim.OwnerGeneration {
+		if err == nil || errors.Is(err, pgx.ErrNoRows) {
+			return FinalizePublicationResult{}, ErrWorkerLeaseLost
+		}
+		return FinalizePublicationResult{}, fmt.Errorf("lock finalization owner lifecycle: %w", err)
+	}
 
 	var existing FinalizePublicationResult
 	var existingURI string
@@ -61,6 +70,7 @@ func (s *Store) FinalizePublication(
 		selectPublicationTombstoneSQL,
 		params.Claim.ID,
 		params.Claim.OwnerDID,
+		params.Claim.OwnerGeneration,
 	).Scan(&existingURI, &existingCID, &existing.PublishedAt, &existing.ExpiresAt)
 	switch {
 	case err == nil:
@@ -86,6 +96,7 @@ func (s *Store) FinalizePublication(
 		selectScheduledPostForFinalizationSQL,
 		params.Claim.OwnerDID,
 		params.Claim.ID,
+		params.Claim.OwnerGeneration,
 	).Scan(&operationID, &requestHash, &status, &leaseToken, &payloadVersion)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return FinalizePublicationResult{}, ErrWorkerLeaseLost
@@ -103,6 +114,7 @@ func (s *Store) FinalizePublication(
 		selectScheduledMediaForFinalizationSQL,
 		params.Claim.OwnerDID,
 		params.Claim.ID,
+		params.Claim.OwnerGeneration,
 	)
 	if err != nil {
 		return FinalizePublicationResult{}, fmt.Errorf("select publication media cleanup: %w", err)
@@ -128,6 +140,7 @@ func (s *Store) FinalizePublication(
 		insertPublicationTombstoneSQL,
 		params.Claim.ID,
 		params.Claim.OwnerDID,
+		params.Claim.OwnerGeneration,
 		operationID,
 		requestHash,
 		params.PublicationURI,
@@ -142,6 +155,7 @@ func (s *Store) FinalizePublication(
 		deleteFinalizedScheduledPostSQL,
 		params.Claim.OwnerDID,
 		params.Claim.ID,
+		params.Claim.OwnerGeneration,
 		params.Claim.LeaseToken,
 		params.Claim.PayloadVersion,
 	)

@@ -7,28 +7,48 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
+
+	"social.craftsky/appview/internal/notifications"
 )
 
-func TestFutureMatchReconciliationQueuesOnePrivateAutomaticFollow(t *testing.T) {
-	pool := newReconciliationTestPool(t)
-	applyAutomaticFollowMigration(t, pool)
+func TestFutureMatchReconciliationPersistsOneGenerationBoundPrivateSuggestion(t *testing.T) {
+	pool := newPrivateSuggestionTestPool(t)
 	ctx := context.Background()
 	now := time.Date(2026, 7, 27, 13, 0, 0, 0, time.UTC)
 	importer := syntax.DID("did:plc:synthetic-future-importer")
 	target := syntax.DID("did:plc:synthetic-future-target")
 	importID := uuid.MustParse("00000000-0000-0000-0000-000000001201")
+	seedPrivateSuggestionLifecycle(t, pool, importer, 3, now)
+	seedPrivateSuggestionLifecycle(t, pool, target, 8, now)
 	seedSuggestionImport(t, pool, importID, importer, "synthetic.future", now)
 	seedSuggestionLink(t, pool, target, "synthetic.future", now)
 	queueLinkReconciliation(t, pool, target, now)
 	queueLinkReconciliation(t, pool, target, now)
+	store, err := NewPrivateSuggestionStore(
+		pool,
+		newPrivateSuggestionLifecycleStore(t, pool, now),
+		notifications.NewService(),
+		func() time.Time { return now },
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ids := []uuid.UUID{
+		uuid.MustParse("00000000-0000-0000-0000-000000001202"),
+		uuid.MustParse("00000000-0000-0000-0000-000000001203"),
+		uuid.MustParse("00000000-0000-0000-0000-000000001204"),
+		uuid.MustParse("00000000-0000-0000-0000-000000001205"),
+	}
 
 	worker, err := NewReconciliationWorker(ReconciliationWorkerOptions{
-		Pool:             pool,
-		AutomaticFollows: NewAutomaticFollowStore(pool),
-		Policy:           newReconciliationPolicy(),
-		Now:              func() time.Time { return now },
+		Pool:               pool,
+		PrivateSuggestions: store,
+		Policy:             newReconciliationPolicy(),
+		Now:                func() time.Time { return now },
 		NewID: func() uuid.UUID {
-			return uuid.MustParse("00000000-0000-0000-0000-000000001202")
+			id := ids[0]
+			ids = ids[1:]
+			return id
 		},
 	})
 	if err != nil {
@@ -38,42 +58,60 @@ func TestFutureMatchReconciliationQueuesOnePrivateAutomaticFollow(t *testing.T) 
 		t.Fatalf("claimed=%d err=%v", claimed, err)
 	}
 
-	var ledgers, operations, notifications int
+	var suggestions, sources, operations, notifications int
+	var importerGeneration, targetGeneration int64
 	if err := pool.QueryRow(ctx, `
 		SELECT
-			(SELECT count(*) FROM instagram_automatic_follow_ledger
+			(SELECT count(*) FROM instagram_private_suggestions
 			  WHERE importer_did=$1 AND target_did=$2),
+			(SELECT count(*) FROM instagram_private_suggestion_sources),
 			(SELECT count(*) FROM pds_follow_operations
-			  WHERE owner_did=$1 AND target_did=$2 AND status='pending'),
+			  WHERE owner_did=$1 AND target_did=$2),
 			(SELECT count(*) FROM notification_events
-			  WHERE recipient_did=$1 AND category='instagramMatch')
-	`, importer, target).Scan(&ledgers, &operations, &notifications); err != nil {
+			  WHERE recipient_did=$1 AND category='instagramMatch'),
+			(SELECT importer_generation FROM instagram_private_suggestions
+			  WHERE importer_did=$1 AND target_did=$2),
+			(SELECT target_generation FROM instagram_private_suggestions
+			  WHERE importer_did=$1 AND target_did=$2)
+	`, importer, target).Scan(
+		&suggestions,
+		&sources,
+		&operations,
+		&notifications,
+		&importerGeneration,
+		&targetGeneration,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if ledgers != 1 || operations != 1 || notifications != 0 {
+	if suggestions != 1 || sources != 1 || operations != 0 || notifications != 1 ||
+		importerGeneration != 3 || targetGeneration != 8 {
 		t.Fatalf(
-			"ledgers=%d operations=%d notifications=%d",
-			ledgers,
+			"suggestions=%d sources=%d operations=%d notifications=%d generations=%d/%d",
+			suggestions,
+			sources,
 			operations,
 			notifications,
+			importerGeneration,
+			targetGeneration,
 		)
 	}
 }
 
-func TestInitialImportMatchingQueuesOnePrivateAutomaticFollow(t *testing.T) {
+func TestInitialImportMatchingPersistsOneGenerationBoundPrivateSuggestion(t *testing.T) {
 	pool := newReconciliationTestPool(t)
-	applyAutomaticFollowMigration(t, pool)
 	ctx := context.Background()
 	now := time.Date(2026, 7, 27, 13, 30, 0, 0, time.UTC)
 	importer := syntax.DID("did:plc:synthetic-initial-auto-importer")
 	target := syntax.DID("did:plc:synthetic-initial-auto-target")
 	importID := uuid.MustParse("00000000-0000-0000-0000-000000001211")
+	seedPrivateSuggestionLifecycle(t, pool, importer, 5, now)
+	seedPrivateSuggestionLifecycle(t, pool, target, 11, now)
 	seedSuggestionImport(t, pool, importID, importer, "synthetic.initial.auto", now)
 	seedSuggestionLink(t, pool, target, "synthetic.initial.auto", now)
 
-	matcher := NewAutomaticFollowMatcher(
+	matcher := NewPrivateSuggestionMatcher(
 		pool,
-		NewAutomaticFollowStore(pool),
+		newPrivateSuggestionStoreForReconciliationTest(t, pool, func() time.Time { return now }),
 		newReconciliationPolicy(),
 		func() time.Time { return now },
 	)
@@ -82,17 +120,41 @@ func TestInitialImportMatchingQueuesOnePrivateAutomaticFollow(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	var operations, notifications int
+	var suggestions, sources, operations, notifications int
+	var importerGeneration, targetGeneration int64
 	if err := pool.QueryRow(ctx, `
 		SELECT
+			(SELECT count(*) FROM instagram_private_suggestions
+			  WHERE importer_did=$1 AND target_did=$2),
+			(SELECT count(*) FROM instagram_private_suggestion_sources),
 			(SELECT count(*) FROM pds_follow_operations
-			  WHERE owner_did=$1 AND target_did=$2 AND status='pending'),
+			  WHERE owner_did=$1 AND target_did=$2),
 			(SELECT count(*) FROM notification_events
-			  WHERE recipient_did=$1 AND category='instagramMatch')
-	`, importer, target).Scan(&operations, &notifications); err != nil {
+			  WHERE recipient_did=$1 AND category='instagramMatch'),
+			(SELECT importer_generation FROM instagram_private_suggestions
+			  WHERE importer_did=$1 AND target_did=$2),
+			(SELECT target_generation FROM instagram_private_suggestions
+			  WHERE importer_did=$1 AND target_did=$2)
+	`, importer, target).Scan(
+		&suggestions,
+		&sources,
+		&operations,
+		&notifications,
+		&importerGeneration,
+		&targetGeneration,
+	); err != nil {
 		t.Fatal(err)
 	}
-	if operations != 1 || notifications != 0 {
-		t.Fatalf("operations=%d notifications=%d", operations, notifications)
+	if suggestions != 1 || sources != 1 || operations != 0 || notifications != 1 ||
+		importerGeneration != 5 || targetGeneration != 11 {
+		t.Fatalf(
+			"suggestions=%d sources=%d operations=%d notifications=%d generations=%d/%d",
+			suggestions,
+			sources,
+			operations,
+			notifications,
+			importerGeneration,
+			targetGeneration,
+		)
 	}
 }

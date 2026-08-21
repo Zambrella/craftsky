@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"time"
+	"net/url"
 
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -24,16 +24,30 @@ import (
 // BlueskyProfile.Handle as a synthesised tap.Event.
 type AnonymousPDSClient struct {
 	dir     identity.Directory
-	timeout time.Duration
+	client  *http.Client
+	origins PDSOriginValidator
+}
+
+// PDSOriginValidator is implemented by the process-wide federated HTTP
+// boundary. A DID document is untrusted input, so its atproto_pds service URL
+// is revalidated immediately before an XRPC client is constructed.
+type PDSOriginValidator interface {
+	ValidateOrigin(context.Context, string) (*url.URL, error)
 }
 
 var _ PDSClient = (*AnonymousPDSClient)(nil)
 
-// NewAnonymousPDSClient returns a client that honours the given per-request
-// HTTP timeout. Tap's ACK timeout is ~10s; values in the 2–5s range keep
-// backfill from wedging the pipeline on a slow PDS.
-func NewAnonymousPDSClient(dir identity.Directory, timeout time.Duration) *AnonymousPDSClient {
-	return &AnonymousPDSClient{dir: dir, timeout: timeout}
+// NewAnonymousPDSClient requires the process-wide hardened PDS client and
+// destination policy. It deliberately has no default-client fallback.
+func NewAnonymousPDSClient(
+	dir identity.Directory,
+	client *http.Client,
+	origins PDSOriginValidator,
+) (*AnonymousPDSClient, error) {
+	if dir == nil || client == nil || client.Transport == nil || origins == nil {
+		return nil, errors.New("pds: anonymous client requires hardened identity, transport, and origin policy")
+	}
+	return &AnonymousPDSClient{dir: dir, client: client, origins: origins}, nil
 }
 
 // ErrReadOnlyPDSClient is returned when a caller tries to write through
@@ -53,14 +67,13 @@ func (c *AnonymousPDSClient) GetRecord(ctx context.Context, repo syntax.DID, col
 	if host == "" {
 		return "", fmt.Errorf("did %s: no atproto_pds service endpoint in DID doc", repo)
 	}
+	validatedHost, err := c.origins.ValidateOrigin(ctx, host)
+	if err != nil {
+		return "", err
+	}
 
-	api := atclient.NewAPIClient(host)
-	// NewAPIClient assigns `http.DefaultClient` to `api.Client`. Setting
-	// `api.Client.Timeout = c.timeout` (as spec §4.2 step 3 prescribes)
-	// would mutate the process-wide default. Replace the whole client
-	// with our own so the short per-request timeout applies only here.
-	// This is an intentional, narrower deviation from the spec wording.
-	api.Client = &http.Client{Timeout: c.timeout}
+	api := atclient.NewAPIClient(validatedHost.String())
+	api.Client = c.client
 
 	nsid, err := syntax.ParseNSID("com.atproto.repo.getRecord")
 	if err != nil {

@@ -17,6 +17,8 @@ func TestBackgroundSessionSelector_SelectsMostRecentlyActiveOwnerSession(t *test
 	selector := auth.NewBackgroundSessionSelector(pool)
 	alice := syntax.DID("did:plc:alice")
 	bob := syntax.DID("did:plc:bob")
+	seedActiveAuthOwner(t, pool, alice)
+	seedActiveAuthOwner(t, pool, bob)
 	now := time.Now().UTC()
 
 	for _, session := range []struct {
@@ -31,21 +33,41 @@ func TestBackgroundSessionSelector_SelectsMostRecentlyActiveOwnerSession(t *test
 		{alice, "alice-revoked", now, now, &now},
 		{bob, "bob-newer", now.Add(time.Hour), now.Add(time.Hour), nil},
 	} {
+		childState := "active"
+		if session.revokedAt != nil {
+			childState = "revoked"
+		}
 		if _, err := pool.Exec(ctx, `
 			INSERT INTO oauth_sessions (
-				account_did, session_id, data, created_at, updated_at
-			) VALUES ($1, $2, '{}', $3, $3)
+				account_did,session_id,data,lifecycle_state,owner_generation,auth_epoch,
+				created_at,updated_at
+			) VALUES ($1,$2,'{}','active',1,1,$3,$3)
 		`, session.did, session.id, session.updatedAt); err != nil {
 			t.Fatalf("insert OAuth session %s: %v", session.id, err)
 		}
 		if _, err := pool.Exec(ctx, `
 			INSERT INTO craftsky_sessions (
 				token_hash, account_did, oauth_session_id,
-				last_seen_at, revoked_at
-			) VALUES (convert_to($1, 'UTF8'), $2, $3, $4, $5)
-		`, session.id, session.did, session.id, session.lastSeen, session.revokedAt); err != nil {
+				lifecycle_state,auth_epoch,last_seen_at,revoked_at
+			) VALUES (convert_to($1, 'UTF8'),$2,$3,$4,1,$5,$6)
+		`, session.id, session.did, session.id, childState, session.lastSeen, session.revokedAt); err != nil {
 			t.Fatalf("insert CraftSky session %s: %v", session.id, err)
 		}
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO oauth_sessions(
+			account_did,session_id,data,lifecycle_state,owner_generation,auth_epoch,
+			created_at,updated_at
+		) VALUES($1,'alice-pending','{}','pending_handoff',1,1,$2,$2)
+	`, alice, now.Add(2*time.Hour)); err != nil {
+		t.Fatalf("insert pending OAuth handoff: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO craftsky_sessions(
+			token_hash,account_did,oauth_session_id,lifecycle_state,auth_epoch,last_seen_at
+		) VALUES(convert_to('alice-pending','UTF8'),$1,'alice-pending','pending_confirmation',1,$2)
+	`, alice, now.Add(2*time.Hour)); err != nil {
+		t.Fatalf("insert pending child handoff: %v", err)
 	}
 
 	sessionID, err := selector.Select(ctx, alice)
@@ -62,20 +84,22 @@ func TestBackgroundSessionSelector_UsesStableSessionIDTieBreak(t *testing.T) {
 	ctx := context.Background()
 	selector := auth.NewBackgroundSessionSelector(pool)
 	alice := syntax.DID("did:plc:alice")
+	seedActiveAuthOwner(t, pool, alice)
 	at := time.Now().UTC()
 
 	for _, sessionID := range []string{"session-z", "session-a"} {
 		if _, err := pool.Exec(ctx, `
 			INSERT INTO oauth_sessions (
-				account_did, session_id, data, created_at, updated_at
-			) VALUES ($1, $2, '{}', $3, $3)
+				account_did,session_id,data,lifecycle_state,owner_generation,auth_epoch,
+				created_at,updated_at
+			) VALUES ($1,$2,'{}','active',1,1,$3,$3)
 		`, alice, sessionID, at); err != nil {
 			t.Fatalf("insert OAuth session %s: %v", sessionID, err)
 		}
 		if _, err := pool.Exec(ctx, `
 			INSERT INTO craftsky_sessions (
-				token_hash, account_did, oauth_session_id, last_seen_at
-			) VALUES (convert_to($2, 'UTF8'), $1, $2, $3)
+				token_hash,account_did,oauth_session_id,lifecycle_state,auth_epoch,last_seen_at
+			) VALUES (convert_to($2, 'UTF8'),$1,$2,'active',1,$3)
 		`, alice, sessionID, at); err != nil {
 			t.Fatalf("insert CraftSky session %s: %v", sessionID, err)
 		}
@@ -106,12 +130,15 @@ func TestBackgroundSessionSelector_InvalidatesOnlyExactOwnerSession(t *testing.T
 	selector := auth.NewBackgroundSessionSelector(pool)
 	alice := syntax.DID("did:plc:alice")
 	bob := syntax.DID("did:plc:bob")
+	seedActiveAuthOwner(t, pool, alice)
+	seedActiveAuthOwner(t, pool, bob)
 
 	for _, did := range []syntax.DID{alice, bob} {
 		for _, sessionID := range []string{"shared", "other"} {
 			if _, err := pool.Exec(ctx, `
-				INSERT INTO oauth_sessions (account_did, session_id, data)
-				VALUES ($1, $2, '{}')
+				INSERT INTO oauth_sessions(
+					account_did,session_id,data,lifecycle_state,owner_generation,auth_epoch
+				) VALUES($1,$2,'{}','active',1,1)
 			`, did, sessionID); err != nil {
 				t.Fatalf("insert %s/%s: %v", did, sessionID, err)
 			}

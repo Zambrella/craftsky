@@ -16,7 +16,17 @@ dotenv_value() {
     value=$(sed -n "s/^${key}=//p" "$local_env" | tail -n 1)
   fi
 
-  printf '%s' "$value"
+	printf '%s' "$value"
+}
+
+configured_value() {
+  local key=$1
+
+  if printenv "$key" >/dev/null 2>&1; then
+    printf '%s' "${!key}"
+    return
+  fi
+  dotenv_value "$key"
 }
 
 sanitize_compose_name() {
@@ -33,6 +43,42 @@ validate_port() {
     printf 'Invalid %s: expected a port from 1 to 65535, got %q\n' "$name" "$value" >&2
     exit 1
   fi
+}
+
+validate_publish_host() {
+  local name=$1
+  local value=$2
+  local first second third fourth extra
+
+  IFS=. read -r first second third fourth extra <<<"$value"
+  if [[ -n "${extra:-}" || -z "${first:-}" || -z "${second:-}" || -z "${third:-}" || -z "${fourth:-}" ]]; then
+    printf 'Invalid %s: expected an IPv4 address, got %q\n' "$name" "$value" >&2
+    exit 1
+  fi
+  for octet in "$first" "$second" "$third" "$fourth"; do
+    if [[ ${#octet} -gt 3 || ! "$octet" =~ ^[0-9]+$ ]] || (( 10#$octet < 0 || 10#$octet > 255 )); then
+      printf 'Invalid %s: expected an IPv4 address, got %q\n' "$name" "$value" >&2
+      exit 1
+    fi
+  done
+}
+
+normalized_bool() {
+  local name=$1
+  local value
+  value=$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')
+  case "$value" in
+    "" | 0 | f | false)
+      printf 'false'
+      ;;
+    1 | t | true)
+      printf 'true'
+      ;;
+    *)
+      printf 'Invalid %s: expected a boolean value\n' "$name" >&2
+      exit 1
+      ;;
+  esac
 }
 
 repo_name=$(sanitize_compose_name "$(basename "$repo_root")")
@@ -79,15 +125,59 @@ minio_port=${CRAFTSKY_MINIO_PORT:-$(dotenv_value CRAFTSKY_MINIO_PORT)}
 minio_port=${minio_port:-$default_minio_port}
 minio_console_port=${CRAFTSKY_MINIO_CONSOLE_PORT:-$(dotenv_value CRAFTSKY_MINIO_CONSOLE_PORT)}
 minio_console_port=${minio_console_port:-$default_minio_console_port}
+postgres_publish_host=${CRAFTSKY_POSTGRES_PUBLISH_HOST:-$(dotenv_value CRAFTSKY_POSTGRES_PUBLISH_HOST)}
+postgres_publish_host=${postgres_publish_host:-127.0.0.1}
+appview_publish_host=${CRAFTSKY_APPVIEW_PUBLISH_HOST:-$(dotenv_value CRAFTSKY_APPVIEW_PUBLISH_HOST)}
+appview_publish_host=${appview_publish_host:-127.0.0.1}
+minio_publish_host=${CRAFTSKY_MINIO_PUBLISH_HOST:-$(dotenv_value CRAFTSKY_MINIO_PUBLISH_HOST)}
+minio_publish_host=${minio_publish_host:-127.0.0.1}
 validate_port CRAFTSKY_POSTGRES_PORT "$postgres_port"
 validate_port CRAFTSKY_APPVIEW_PORT "$appview_port"
 validate_port CRAFTSKY_MINIO_PORT "$minio_port"
 validate_port CRAFTSKY_MINIO_CONSOLE_PORT "$minio_console_port"
+validate_publish_host CRAFTSKY_POSTGRES_PUBLISH_HOST "$postgres_publish_host"
+validate_publish_host CRAFTSKY_APPVIEW_PUBLISH_HOST "$appview_publish_host"
+validate_publish_host CRAFTSKY_MINIO_PUBLISH_HOST "$minio_publish_host"
+
+dev_remote_access=$(normalized_bool APPVIEW_DEV_REMOTE_ACCESS "$(configured_value APPVIEW_DEV_REMOTE_ACCESS)")
+dev_protected_transport=$(normalized_bool APPVIEW_DEV_PROTECTED_TRANSPORT "$(configured_value APPVIEW_DEV_PROTECTED_TRANSPORT)")
+dev_auth_secret=$(configured_value APPVIEW_DEV_AUTH_SECRET)
+expected_hosts=$(configured_value APPVIEW_EXPECTED_HOSTS)
+if [[ "$appview_publish_host" == 127.* ]]; then
+  if [[ "$dev_remote_access" == true || "$dev_protected_transport" == true || -n "$dev_auth_secret" ]]; then
+    printf '%s\n' 'Remote-development authorization requires a non-loopback CRAFTSKY_APPVIEW_PUBLISH_HOST.' >&2
+    exit 1
+  fi
+else
+  if [[ "$dev_remote_access" != true ]]; then
+    printf '%s\n' 'APPVIEW_DEV_REMOTE_ACCESS=true is required for a non-loopback CRAFTSKY_APPVIEW_PUBLISH_HOST.' >&2
+    exit 1
+  fi
+  if [[ "$dev_protected_transport" != true ]]; then
+    printf '%s\n' 'APPVIEW_DEV_PROTECTED_TRANSPORT=true is required for remote development.' >&2
+    exit 1
+  fi
+  if (( ${#dev_auth_secret} < 32 )); then
+    printf '%s\n' 'APPVIEW_DEV_AUTH_SECRET must contain at least 32 bytes for remote development.' >&2
+    exit 1
+  fi
+  if [[ -z "$expected_hosts" ]]; then
+    printf '%s\n' 'APPVIEW_EXPECTED_HOSTS is required for remote development.' >&2
+    exit 1
+  fi
+fi
 
 export CRAFTSKY_POSTGRES_PORT=$postgres_port
 export CRAFTSKY_APPVIEW_PORT=$appview_port
 export CRAFTSKY_MINIO_PORT=$minio_port
 export CRAFTSKY_MINIO_CONSOLE_PORT=$minio_console_port
+export CRAFTSKY_POSTGRES_PUBLISH_HOST=$postgres_publish_host
+export CRAFTSKY_APPVIEW_PUBLISH_HOST=$appview_publish_host
+export CRAFTSKY_MINIO_PUBLISH_HOST=$minio_publish_host
+export APPVIEW_DEV_REMOTE_ACCESS=$dev_remote_access
+export APPVIEW_DEV_PROTECTED_TRANSPORT=$dev_protected_transport
+export APPVIEW_DEV_AUTH_SECRET=$dev_auth_secret
+export APPVIEW_EXPECTED_HOSTS=$expected_hosts
 
 compose=(docker compose --project-name "$project_name" -f "$repo_root/docker-compose.yml")
 adc_path=""
@@ -148,7 +238,8 @@ case "$instagram_meta_enabled" in
     ;;
 esac
 
-printf 'CraftSky stack: project=%s appview=http://localhost:%s postgres=localhost:%s minio=http://localhost:%s minio-console=http://localhost:%s\n' \
-  "$project_name" "$appview_port" "$postgres_port" "$minio_port" "$minio_console_port" >&2
+printf 'CraftSky stack: project=%s appview-listener=http://%s:%s postgres=%s:%s minio=http://%s:%s minio-console=http://%s:%s\n' \
+  "$project_name" "$appview_publish_host" "$appview_port" "$postgres_publish_host" "$postgres_port" \
+  "$minio_publish_host" "$minio_port" "$minio_publish_host" "$minio_console_port" >&2
 
 exec "${compose[@]}" "$@"

@@ -11,6 +11,9 @@
 - Correction approval: explicit `Address required changes` selection on 2026-07-15
 - Simplification input: `06-implementation-review.md` — Approved with notes, IR-007–IR-012
 - Simplification approval: explicit `Implement all those things` instruction on 2026-07-16
+- Native-presentation correction: explicit 2026-08-20 approval to restore the
+  documented combined notification-and-data contract and remove Android
+  data-only/local presentation.
 
 ## Implementation Rules
 
@@ -22,6 +25,51 @@
 - Keep Firebase types inside the approved adapter/bootstrap/background boundary.
 - Do not run physical-device delivery until automated verification is green, credential-aware startup reports push enabled, and the intended local device/account is recorded.
 - Do not commit or push during this stage unless the user explicitly asks.
+
+## Native Presentation Correction Order
+
+The audit remediation temporarily replaced the approved combined Android
+message with a data-only message, a background isolate, local notification
+presentation, and persisted delivery-stage deduplication. The user has now
+explicitly selected the original requirements contract: the operating system
+displays background and terminated notification messages; Flutter handles only
+foreground effects and authenticated open routing. These loops restore
+FR-007, FR-020, FR-023, FR-025, RULE-007, and ASM-004.
+
+| Step | Test ID | Requirement IDs | Acceptance Criteria | Expected Initial State |
+|---:|---|---|---|---|
+| N1 | SIM-001 / REG-007 | FR-023, FR-025, ASM-004 | AC-027 | Fails: Android payload is data-only |
+| N2 | SIM-002 / UT-018 | FR-007, FR-020, RULE-007 | AC-006, AC-016, AC-019 | Fails: adapter requires local presenter and suppresses duplicates |
+| N3 | SIM-003 / REG-001, REG-004, REG-005, REG-006 | FR-002, FR-020, FR-023, NFR-002, ASM-004 | AC-002, AC-015, AC-016, AC-027 | Fails: local/background/dedupe stack and dependencies remain |
+
+Guardrails: retain notification-plus-data routing facts, provider-neutral
+foreground/open streams, current-account validation before AppView resolution,
+silent foreground in-app banners, the single Android channel, and safe fallback
+navigation. Explicitly accept FCM notification-message collapsing and the same
+provider-accepted late/duplicate presentation residual already present on iOS.
+
+- N1 — SIM-001 / REG-007: changed the capturing-sender test first. RED showed
+  Android `message.Notification` was nil. The sender now uses one bounded
+  title/body notification object for Android and iOS, retains routing facts in
+  `Data`, retains Android TTL, and no longer duplicates display copy into the
+  Android data map. The focused sender test is green.
+- N2 — SIM-002 / UT-018: changed the Firebase adapter test first. RED failed to
+  compile because foreground conversion still required a local presenter. The
+  adapter now maps notification-plus-data messages directly into the existing
+  provider-neutral foreground and open events. Equal foreground callbacks are
+  both emitted as required by RULE-007; provider opens and initial opens remain
+  validated but are no longer intercepted by a local-notification stream. The
+  focused adapter test is green.
+- N3 — SIM-003 / REG-001, REG-004, REG-005, REG-006: changed the native
+  configuration/architecture test first. RED found the background callback and
+  local presenter still registered. Removed the background handler, local
+  gateway/presenter, presentation eligibility layer, SQLite stage cache and
+  account-cache cleanup; removed `flutter_local_notifications`; returned
+  `sqflite` to test-only use; and removed Android desugaring required only by
+  the deleted plugin. Android now supplies the existing monochrome drawable to
+  provider-rendered notifications through manifest metadata. The focused
+  adapter, envelope, architecture, configuration, and bootstrap tests are
+  green.
 
 ## Test Order
 
@@ -195,6 +243,15 @@ This pass changes internal layout only. It keeps the original behavior requireme
 
 ## Final Verification
 
+- Native-presentation correction (2026-08-20): `flutter test
+  test/notifications --reporter compact` passed all 97 tests. The focused
+  bootstrap/account-boundary suite passed 12 tests. Full `dart analyze` reports
+  no issues. `flutter build apk --debug --no-pub` built successfully in 37.9s,
+  and `flutter build ios --simulator --debug --no-pub` built successfully in
+  58.8s. `go test ./internal/push -count=1` and `go vet ./internal/push` passed
+  with a task-specific Go cache. `git diff --check` passed. No physical
+  Firebase delivery was claimed; foreground/background/terminated/tap and
+  delayed/ambiguous retry behavior remains the release-device gate.
 - Simplification, generated-provider, and identifier-model notification suite: `cd app && flutter test test/notifications` passed 72 behavioral/architecture tests, including direct identifier contracts, the in-flight registration race cases, and generated-provider guard.
 - Linked auth/router/observability regression suite: `cd app && flutter test test/auth test/router test/observability test/shared/errors` passed 98 tests.
 - Targeted analysis: `cd app && dart analyze lib/notifications test/notifications` passed with no issues.

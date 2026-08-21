@@ -13,6 +13,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -40,6 +41,29 @@ CREATE TABLE craftsky_profiles (
     indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE owner_lifecycles (
+	owner_did TEXT PRIMARY KEY,
+	state TEXT NOT NULL,
+	generation BIGINT NOT NULL,
+	auth_epoch BIGINT NOT NULL DEFAULT 1,
+	transition_reason TEXT NOT NULL DEFAULT 'test',
+	transitioned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	terminal_at TIMESTAMPTZ,
+	purge_completed_at TIMESTAMPTZ,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE FUNCTION seed_active_report_owner() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+	INSERT INTO owner_lifecycles(owner_did,state,generation)
+	VALUES(NEW.did,'active',1)
+	ON CONFLICT (owner_did) DO NOTHING;
+	RETURN NEW;
+END
+$$;
+CREATE TRIGGER seed_active_report_owner
+AFTER INSERT ON craftsky_profiles
+FOR EACH ROW EXECUTE FUNCTION seed_active_report_owner();
 CREATE TABLE craftsky_posts (
     uri              TEXT        NOT NULL PRIMARY KEY,
     did              TEXT        NOT NULL,
@@ -79,7 +103,7 @@ func moderationFlowMigrationDDL(t *testing.T) string {
 func TestReportStore_CreateReport_PersistsPrivatePostAndProfileReports(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, reportStoreBaseDDL+moderationFlowMigrationDDL(t))
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 
 	for _, did := range []string{"did:plc:alice", "did:plc:bob"} {
 		if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles (did, record_cid) VALUES ($1, 'seed')`, did); err != nil {
@@ -189,6 +213,45 @@ func TestReportStore_CreateReport_PersistsPrivatePostAndProfileReports(t *testin
 	}
 	if duplicate.ID == postRow.ID {
 		t.Fatal("duplicate report reused the first report ID")
+	}
+}
+
+func TestReportStore_CreateReport_RejectsTerminalSubject(t *testing.T) {
+	pool := testdb.WithSchema(t, reportStoreBaseDDL+moderationFlowMigrationDDL(t))
+	ctx := context.Background()
+	reporter := syntax.DID("did:plc:alice")
+	subject := syntax.DID("did:plc:bob")
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'alice'),($2,'bob')`, reporter, subject); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE owner_lifecycles
+		SET state='terminal', generation=2, terminal_at=now()
+		WHERE owner_did=$1
+	`, subject); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := api.NewReportStore(pool).CreateReport(
+		ownerlifecycle.WithExpectedGeneration(ctx, 1),
+		api.CreateReportInput{
+			ReporterDID:          reporter.String(),
+			SubjectType:          api.ReportSubjectAccount,
+			SubjectDID:           subject.String(),
+			ReasonType:           "spam",
+			ForwardingStatus:     "prepared_not_submitted",
+			ForwardingPreparedAt: time.Now().UTC(),
+		},
+	)
+	if !errors.Is(err, ownerlifecycle.ErrTerminalOwner) {
+		t.Fatalf("CreateReport error = %v, want ErrTerminalOwner", err)
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM moderation_reports`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("report rows = %d, want 0", count)
 	}
 }
 

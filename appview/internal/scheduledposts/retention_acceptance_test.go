@@ -36,27 +36,20 @@ func TestLifecycleDeadlinesRemoveOnlyEligiblePrivateContent(t *testing.T) {
 		id         uuid.UUID
 		scheduleID *uuid.UUID
 		ordinal    *int
-		key        string
 	}{
-		{id: liveMedia, scheduleID: &live.ID, ordinal: intPointer(0), key: "scheduled-media/" + liveMedia.String()},
-		{id: orphanMedia, key: "scheduled-media/" + orphanMedia.String()},
+		{id: liveMedia, scheduleID: &live.ID, ordinal: intPointer(0)},
+		{id: orphanMedia},
 	} {
-		if _, err := store.pool.Exec(ctx, `
-			INSERT INTO scheduled_post_media (
-				id, owner_did, object_key, state, schedule_id, ordinal,
-				mime_type, size_bytes, sha256, blob_cid, unclaimed_expires_at
-			) VALUES ($1,$2,$3,'ready',$4,$5,'image/jpeg',4,
-				decode(repeat('03',32),'hex'),$6,$7)
-		`, fixture.id, owner, fixture.key, fixture.scheduleID, fixture.ordinal,
-			"bafk-"+fixture.id.String(), deadline); err != nil {
-			t.Fatal(err)
-		}
+		insertReadyPrivateMediaFixture(
+			t, store, owner, fixture.id, fixture.scheduleID, fixture.ordinal,
+			"bafk-"+fixture.id.String(), deadline,
+		)
 	}
 	if _, err := store.pool.Exec(ctx, `
 		INSERT INTO scheduled_post_publication_tombstones (
-			schedule_id, owner_did, operation_id, request_hash,
+			schedule_id, owner_did, owner_generation, operation_id, request_hash,
 			publication_uri, publication_cid, published_at, expires_at
-		) VALUES ($1,$2,$3,decode(repeat('04',32),'hex'),$4,'bafk-published',$5,$6)
+		) VALUES ($1,$2,1,$3,decode(repeat('04',32),'hex'),$4,'bafk-published',$5,$6)
 	`, uuid.New(), owner, uuid.New(), "at://did:plc:alice/social.craftsky.feed.post/3retained",
 		deadline.Add(-30*24*time.Hour), deadline); err != nil {
 		t.Fatal(err)
@@ -77,5 +70,6 @@ func TestLifecycleDeadlinesRemoveOnlyEligiblePrivateContent(t *testing.T) {
 	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_publication_tombstones`, 0)
 	assertRowCount(t, store, `SELECT count(*) FROM scheduled_posts WHERE id=$1`, 1, live.ID)
 	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_media WHERE id=$1`, 1, liveMedia)
-	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_cleanup_jobs WHERE object_key=$1`, 1, "scheduled-media/"+orphanMedia.String())
+	orphanKey, _, _ := NewGenerationObjectKey(owner, 1, orphanMedia)
+	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_cleanup_jobs WHERE object_key=$1`, 1, orphanKey)
 }

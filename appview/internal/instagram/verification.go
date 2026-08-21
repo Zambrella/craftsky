@@ -13,8 +13,8 @@ import (
 )
 
 var (
-	ErrVerificationUnavailable = errors.New("Instagram verification unavailable")
-	ErrInstagramLinkConflict   = errors.New("Instagram link conflict")
+	ErrVerificationUnavailable = errors.New("instagram verification unavailable")
+	ErrInstagramLinkConflict   = errors.New("instagram link conflict")
 )
 
 type CreatedVerification struct {

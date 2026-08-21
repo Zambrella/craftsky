@@ -13,7 +13,7 @@ import (
 )
 
 var (
-	ErrInstagramImportInactive      = errors.New("Instagram import inactive")
+	ErrInstagramImportInactive      = errors.New("instagram import inactive")
 	ErrInvalidInstagramImportCursor = errors.New("invalid Instagram import cursor")
 )
 
@@ -89,7 +89,7 @@ func (s *ImportStore) CreateImportForMatching(ctx context.Context, params Create
 
 func (s *ImportStore) createImport(ctx context.Context, params CreateImportParams) (CreateImportResult, error) {
 	if s == nil || s.pool == nil {
-		return CreateImportResult{}, errors.New("Instagram import store is unavailable")
+		return CreateImportResult{}, errors.New("instagram import store is unavailable")
 	}
 	if params.ID == uuid.Nil || params.OwnerDID == "" || !params.SourceType.Valid() || params.Now.IsZero() {
 		return CreateImportResult{}, errors.New("invalid Instagram import parameters")
@@ -150,7 +150,7 @@ func (s *ImportStore) createImport(ctx context.Context, params CreateImportParam
 
 func (s *ImportStore) FinalizeImportMatching(ctx context.Context, owner syntax.DID, id uuid.UUID, now time.Time) error {
 	if s == nil || s.pool == nil {
-		return errors.New("Instagram import store is unavailable")
+		return errors.New("instagram import store is unavailable")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -175,7 +175,7 @@ func (s *ImportStore) FinalizeImportMatching(ctx context.Context, owner syntax.D
 
 func (s *ImportStore) GetImport(ctx context.Context, owner syntax.DID, id uuid.UUID, now time.Time) (GraphImport, error) {
 	if s == nil || s.pool == nil {
-		return GraphImport{}, errors.New("Instagram import store is unavailable")
+		return GraphImport{}, errors.New("instagram import store is unavailable")
 	}
 	graphImport, err := scanGraphImport(s.pool.QueryRow(ctx, `
 		SELECT `+graphImportColumns+`
@@ -190,7 +190,7 @@ func (s *ImportStore) GetImport(ctx context.Context, owner syntax.DID, id uuid.U
 
 func (s *ImportStore) ListImports(ctx context.Context, owner syntax.DID, limit int, after *ImportCursor, now time.Time) ([]GraphImport, *ImportCursor, error) {
 	if s == nil || s.pool == nil {
-		return nil, nil, errors.New("Instagram import store is unavailable")
+		return nil, nil, errors.New("instagram import store is unavailable")
 	}
 	if owner == "" || limit < 1 || now.IsZero() {
 		return nil, nil, errors.New("invalid Instagram import list parameters")
@@ -256,10 +256,10 @@ func (s *ImportStore) ListImports(ctx context.Context, owner syntax.DID, limit i
 
 func (s *ImportStore) UpdateImport(ctx context.Context, owner syntax.DID, id uuid.UUID, params UpdateImportParams) (GraphImport, error) {
 	if s == nil || s.pool == nil {
-		return GraphImport{}, errors.New("Instagram import store is unavailable")
+		return GraphImport{}, errors.New("instagram import store is unavailable")
 	}
 	if params.Reactivate == nil || !*params.Reactivate {
-		return GraphImport{}, errors.New("Instagram import update is empty")
+		return GraphImport{}, errors.New("instagram import update is empty")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -317,7 +317,7 @@ func (s *ImportStore) UpdateImport(ctx context.Context, owner syntax.DID, id uui
 
 func (s *ImportStore) DeleteImport(ctx context.Context, owner syntax.DID, id uuid.UUID, now time.Time) error {
 	if s == nil || s.pool == nil {
-		return errors.New("Instagram import store is unavailable")
+		return errors.New("instagram import store is unavailable")
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -331,11 +331,7 @@ func (s *ImportStore) DeleteImport(ctx context.Context, owner syntax.DID, id uui
 	if result.RowsAffected() == 0 {
 		return tx.Commit(ctx)
 	}
-	suggestionIDs, err := invalidateUnsupportedSuggestions(ctx, tx, owner, now)
-	if err != nil {
-		return err
-	}
-	if err := invalidateUnwrittenFollowOperations(ctx, tx, suggestionIDs, "importDeleted", now); err != nil {
+	if _, err := invalidateUnsupportedSuggestions(ctx, tx, owner, now); err != nil {
 		return err
 	}
 	if _, err := tx.Exec(ctx, `
@@ -351,19 +347,19 @@ func (s *ImportStore) DeleteImport(ctx context.Context, owner syntax.DID, id uui
 
 func invalidateUnsupportedSuggestions(ctx context.Context, tx pgx.Tx, owner syntax.DID, now time.Time) ([]uuid.UUID, error) {
 	return queryUUIDs(ctx, tx, `
-		UPDATE instagram_automatic_follow_ledger suggestion
+		UPDATE instagram_private_suggestions suggestion
 		SET state = 'invalidated', accepting_since = NULL,
 		    terminal_at = COALESCE(terminal_at, $2), updated_at = $2
 		WHERE suggestion.importer_did = $1
-		  AND suggestion.state IN ('pending', 'writing')
+		  AND suggestion.state IN ('pending', 'accepting')
 		  AND NOT EXISTS (
 			SELECT 1
-			FROM instagram_automatic_follow_sources source
+			FROM instagram_private_suggestion_sources source
 			JOIN instagram_graph_imports source_import
 			  ON source_import.id = source.import_id
 			 AND source_import.owner_did = suggestion.importer_did
 			 AND source_import.state = 'active'
-			WHERE source.automatic_follow_id = suggestion.id
+			WHERE source.suggestion_id = suggestion.id
 		  )
 		RETURNING suggestion.id
 	`, owner, now)

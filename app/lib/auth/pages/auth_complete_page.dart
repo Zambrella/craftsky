@@ -10,9 +10,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class AuthCompletePage extends ConsumerStatefulWidget {
-  const AuthCompletePage({this.token, this.error, super.key});
+  const AuthCompletePage({this.code, this.error, super.key});
 
-  final String? token;
+  final String? code;
   final String? error;
 
   @override
@@ -25,12 +25,14 @@ class _AuthCompletePageState extends ConsumerState<AuthCompletePage> {
     super.initState();
     if (widget.error != null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final token = widget.token;
-      if (token == null || token.isEmpty) return;
-      unawaited(
-        ref.read(authControllerProvider.notifier).completeFromDeepLink(token),
-      );
+      unawaited(_complete());
     });
+  }
+
+  Future<void> _complete() async {
+    final code = widget.code;
+    if (code == null || code.isEmpty) return;
+    await ref.read(authControllerProvider.notifier).completeFromDeepLink(code);
   }
 
   @override
@@ -56,11 +58,22 @@ class _AuthCompletePageState extends ConsumerState<AuthCompletePage> {
       );
     }
 
+    if (widget.code == null || widget.code!.isEmpty) {
+      return const Scaffold(
+        body: Center(child: _AuthCompleteError(error: SignInTimedOut())),
+      );
+    }
+
     return Scaffold(
       body: Center(
         child: switch (state) {
           AsyncError(:final error) when error is AuthError =>
-            _AuthCompleteError(error: error),
+            _AuthCompleteError(
+              error: error,
+              onRetry: error is ServerUnavailable || error is StorageFailure
+                  ? _complete
+                  : null,
+            ),
           AsyncError(:final error) => _AuthCompleteError(
             error: GenericAuthError(error),
           ),
@@ -91,9 +104,10 @@ class _AuthCompleteLoading extends StatelessWidget {
 }
 
 class _AuthCompleteError extends StatelessWidget {
-  const _AuthCompleteError({required this.error});
+  const _AuthCompleteError({required this.error, this.onRetry});
 
   final Object error;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -102,7 +116,6 @@ class _AuthCompleteError extends StatelessWidget {
         Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
     final message = switch (error) {
       SignInTimedOut() => l10n.authCompleteTimedOutError,
-      NoPendingSignIn() => l10n.authCompleteNoPendingSignInError,
       StorageFailure() => l10n.authCompleteStorageError,
       _ => l10n.authCompleteGenericError,
     };
@@ -113,6 +126,10 @@ class _AuthCompleteError extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(message, textAlign: TextAlign.center),
+          if (onRetry case final retry?) ...[
+            SizedBox(height: spacing.sp4),
+            TextButton(onPressed: retry, child: Text(l10n.retryButton)),
+          ],
         ],
       ),
     );

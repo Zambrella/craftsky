@@ -9,8 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/syntax"
-	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/testdb"
@@ -19,6 +17,20 @@ import (
 type recordingExpiredModerationRestoration struct {
 	calls int
 	limit int
+}
+
+type recordingExpiredModerationReceipts struct {
+	calls int
+	limit int
+}
+
+func (r *recordingExpiredModerationReceipts) SweepExpiredIdempotencyReceipts(
+	_ context.Context,
+	limit int,
+) (int, error) {
+	r.calls++
+	r.limit = limit
+	return 0, nil
 }
 
 func (r *recordingExpiredModerationRestoration) EnqueueExpiredModerationRestorations(
@@ -33,10 +45,14 @@ func (r *recordingExpiredModerationRestoration) EnqueueExpiredModerationRestorat
 func TestRetentionServiceEnqueuesExpiredModerationRestoration(t *testing.T) {
 	pool, now := newRetentionTest(t)
 	restoration := &recordingExpiredModerationRestoration{}
+	receipts := &recordingExpiredModerationReceipts{}
 	service := NewRetentionService(
 		pool,
 		func() time.Time { return now },
-		restoration,
+		RetentionServiceOptions{
+			Restoration:        restoration,
+			ModerationReceipts: receipts,
+		},
 	)
 	if _, err := service.Run(context.Background(), 499); err != nil {
 		t.Fatal(err)
@@ -46,6 +62,151 @@ func TestRetentionServiceEnqueuesExpiredModerationRestoration(t *testing.T) {
 			"restoration calls=%d limit=%d, want 1/499",
 			restoration.calls,
 			restoration.limit,
+		)
+	}
+	if receipts.calls != 1 || receipts.limit != 499 {
+		t.Fatalf(
+			"receipt sweep calls=%d limit=%d, want 1/499",
+			receipts.calls,
+			receipts.limit,
+		)
+	}
+}
+
+func TestRetentionServiceArchivesModerationOutboxAndBoundsDIDFreeHistory(t *testing.T) {
+	pool, now := newRetentionTest(t)
+	ctx := context.Background()
+	cutoff := now.Add(-30 * 24 * time.Hour)
+	historyCutoff := now.Add(-365 * 24 * time.Hour)
+
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO moderation_outputs(
+			id,source_did,subject_type,subject_did,value,action,created_at,indexed_at
+		) VALUES
+			('retention-no-work','did:plc:moderator','account','did:plc:no-work','hide','negate',$1,$1),
+			('retention-cancelled','did:plc:moderator','account','did:plc:cancelled','hide','negate',$1,$1),
+			('retention-completed','did:plc:moderator','account','did:plc:completed','hide','negate',$1,$1),
+			('retention-future','did:plc:moderator','account','did:plc:future','hide','negate',$1,$1),
+			('retention-pending','did:plc:moderator','account','did:plc:pending','hide','negate',$1,$1),
+			('retention-processing','did:plc:moderator','account','did:plc:processing','hide','negate',$1,$1)
+	`, cutoff.Add(-24*time.Hour)); err != nil {
+		t.Fatalf("seed moderation outputs: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO instagram_reconciliation_jobs(
+			id,owner_did,target_did,reason,status,next_attempt_at,
+			lease_token,lease_expires_at,terminal_at,created_at,updated_at
+		) VALUES
+			('50000000-0000-4000-8000-000000000001','did:plc:completed',NULL,
+			 'moderationCleared:retention-completed','completed',$1,NULL,NULL,$1,$2,$1),
+			('50000000-0000-4000-8000-000000000002','did:plc:processing',NULL,
+			 'moderationCleared:retention-processing','processing',$1,
+			 '50000000-0000-4000-8000-000000000003',$3,NULL,$2,$1)
+	`, now, cutoff.Add(-24*time.Hour), now.Add(time.Hour)); err != nil {
+		t.Fatalf("seed moderation reconciliation jobs: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO moderation_restoration_outbox(
+			moderation_output_id,target_did,status,reconciliation_job_id,
+			created_at,processed_at
+		) VALUES
+			('retention-no-work','did:plc:no-work','no_work',NULL,$1,$2),
+			('retention-cancelled','did:plc:cancelled','cancelled_target_terminal',NULL,$1,$2),
+			('retention-completed','did:plc:completed','queued',
+			 '50000000-0000-4000-8000-000000000001',$1,$2),
+			('retention-future','did:plc:future','no_work',NULL,$1,$2+interval '1 microsecond'),
+			('retention-pending','did:plc:pending','pending',NULL,$1,NULL),
+			('retention-processing','did:plc:processing','queued',
+			 '50000000-0000-4000-8000-000000000002',$1,$2)
+	`, cutoff.Add(-24*time.Hour), cutoff); err != nil {
+		t.Fatalf("seed moderation restoration outbox: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO moderation_idempotency_receipts(
+			request_key_hash,request_fingerprint,output_id,output_status,
+			created_at,expires_at
+		) VALUES (
+			decode(repeat('11',32),'hex'),decode(repeat('22',32),'hex'),
+			'retention-no-work','indexed',$1::timestamptz,$1::timestamptz+interval '24 hours'
+		)
+	`, cutoff.Add(-24*time.Hour)); err != nil {
+		t.Fatalf("seed moderation receipt: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO moderation_restoration_history(
+			moderation_output_id,outcome,processed_at,archived_at
+		) VALUES
+			('expired-history','no_work',$1::timestamptz-interval '1 day',$1::timestamptz),
+			('future-history','no_work',$1::timestamptz-interval '1 day',$1::timestamptz+interval '1 microsecond')
+	`, historyCutoff); err != nil {
+		t.Fatalf("seed moderation restoration history: %v", err)
+	}
+
+	service := NewRetentionService(pool, func() time.Time { return now }, RetentionServiceOptions{})
+	stats, err := service.Run(ctx, 500)
+	if err != nil {
+		t.Fatalf("run moderation retention: %v", err)
+	}
+	if stats.ModerationOutboxArchived != 3 || stats.ModerationHistoryPurged != 1 {
+		t.Fatalf("moderation retention stats = %+v", stats)
+	}
+
+	var archivedLive, archivedParents, receipts int
+	if err := pool.QueryRow(ctx, `
+		SELECT
+			(SELECT count(*) FROM moderation_restoration_outbox
+			 WHERE moderation_output_id=ANY($1::text[])),
+			(SELECT count(*) FROM moderation_outputs
+			 WHERE id=ANY($1::text[])),
+			(SELECT count(*) FROM moderation_idempotency_receipts
+			 WHERE output_id='retention-no-work')
+	`, []string{"retention-no-work", "retention-cancelled", "retention-completed"}).Scan(
+		&archivedLive,
+		&archivedParents,
+		&receipts,
+	); err != nil {
+		t.Fatalf("read archived moderation rows: %v", err)
+	}
+	if archivedLive != 0 || archivedParents != 0 || receipts != 1 {
+		t.Fatalf(
+			"archived live=%d parents=%d receipts=%d, want 0/0/1",
+			archivedLive,
+			archivedParents,
+			receipts,
+		)
+	}
+
+	var keptLive, keptParents, queuedHistory, expiredHistory, futureHistory int
+	if err := pool.QueryRow(ctx, `
+		SELECT
+			(SELECT count(*) FROM moderation_restoration_outbox
+			 WHERE moderation_output_id=ANY($1::text[])),
+			(SELECT count(*) FROM moderation_outputs
+			 WHERE id=ANY($1::text[])),
+			(SELECT count(*) FROM moderation_restoration_history
+			 WHERE moderation_output_id=ANY($2::text[])),
+			(SELECT count(*) FROM moderation_restoration_history
+			 WHERE moderation_output_id='expired-history'),
+			(SELECT count(*) FROM moderation_restoration_history
+			 WHERE moderation_output_id='future-history')
+	`, []string{"retention-future", "retention-pending", "retention-processing"},
+		[]string{"retention-no-work", "retention-cancelled", "retention-completed"}).Scan(
+		&keptLive,
+		&keptParents,
+		&queuedHistory,
+		&expiredHistory,
+		&futureHistory,
+	); err != nil {
+		t.Fatalf("read retained moderation rows: %v", err)
+	}
+	if keptLive != 3 || keptParents != 3 || queuedHistory != 3 || expiredHistory != 0 || futureHistory != 1 {
+		t.Fatalf(
+			"kept live=%d parents=%d history=%d expired=%d future=%d, want 3/3/3/0/1",
+			keptLive,
+			keptParents,
+			queuedHistory,
+			expiredHistory,
+			futureHistory,
 		)
 	}
 }
@@ -68,7 +229,7 @@ func TestRetentionServiceExpiresAndPurgesAtExactBoundaries(t *testing.T) {
 		t.Fatalf("seed attempts: %v", err)
 	}
 
-	service := NewRetentionService(pool, func() time.Time { return now })
+	service := NewRetentionService(pool, func() time.Time { return now }, RetentionServiceOptions{})
 	stats, err := service.Run(ctx, 500)
 	if err != nil {
 		t.Fatalf("run retention: %v", err)
@@ -136,7 +297,7 @@ func TestRetentionServiceClearsWebhookAndLinkIdentityThenPurgesTombstones(t *tes
 		t.Fatalf("seed claim retention: %v", err)
 	}
 
-	service := NewRetentionService(pool, func() time.Time { return now })
+	service := NewRetentionService(pool, func() time.Time { return now }, RetentionServiceOptions{})
 	stats, err := service.Run(ctx, 500)
 	if err != nil {
 		t.Fatalf("run retention: %v", err)
@@ -168,7 +329,7 @@ func TestRetentionServiceClearsWebhookAndLinkIdentityThenPurgesTombstones(t *tes
 	}
 
 	secondNow := now.Add(90 * 24 * time.Hour)
-	service = NewRetentionService(pool, func() time.Time { return secondNow })
+	service = NewRetentionService(pool, func() time.Time { return secondNow }, RetentionServiceOptions{})
 	if _, err := service.Run(ctx, 500); err != nil {
 		t.Fatalf("purge link tombstone: %v", err)
 	}
@@ -200,7 +361,7 @@ func TestRetentionServiceKeepsVerifiedAccountImportsUntilExplicitUnlink(t *testi
 		t.Fatalf("seed retained handle: %v", err)
 	}
 
-	service := NewRetentionService(pool, func() time.Time { return now })
+	service := NewRetentionService(pool, func() time.Time { return now }, RetentionServiceOptions{})
 	if _, err := service.Run(ctx, 500); err != nil {
 		t.Fatalf("run retention: %v", err)
 	}
@@ -223,15 +384,53 @@ func TestRetentionServicePurgesTerminalPrivateClassesAtExactBoundaries(t *testin
 	pool, now := newRetentionTest(t)
 	ctx := context.Background()
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO instagram_automatic_follow_ledger(
-			id,importer_did,target_did,state,reason,terminal_at,created_at,updated_at
-		) VALUES
-			('41000000-0000-0000-0000-000000000001','did:plc:retention-s1','did:plc:target-s1','invalidated','verifiedInstagramFollow',$1::timestamptz-interval '90 days',$1::timestamptz-interval '100 days',$1::timestamptz-interval '90 days'),
-			('41000000-0000-0000-0000-000000000002','did:plc:retention-s2','did:plc:target-s2','invalidated','verifiedInstagramFollow',$1::timestamptz-interval '90 days'+interval '1 microsecond',$1::timestamptz-interval '100 days',$1::timestamptz-interval '90 days'),
-			('41000000-0000-0000-0000-000000000003','did:plc:retention-s3','did:plc:target-s3','followed','verifiedInstagramFollow',$1::timestamptz-interval '1 year',$1::timestamptz-interval '13 months',$1::timestamptz-interval '1 year'),
-			('41000000-0000-0000-0000-000000000004','did:plc:retention-s4','did:plc:target-s4','alreadyFollowing','verifiedInstagramFollow',$1::timestamptz-interval '1 year'+interval '1 microsecond',$1::timestamptz-interval '13 months',$1::timestamptz-interval '1 year')
+		INSERT INTO instagram_account_links(
+			id,owner_did,state,igsid,igsid_digest_version,igsid_digest,
+			username,username_normalized,discoverable,conflict_pending,
+			verified_at,created_at,updated_at
+		) VALUES(
+			'40000000-0000-0000-0000-000000000001','did:plc:retention-target',
+			'active','retention-target',1,$2,
+			'retention.target','retention.target',true,false,$1,$1,$1
+		)
+	`, now, bytes.Repeat([]byte{0x40}, 32)); err != nil {
+		t.Fatalf("seed suggestion retention link: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO instagram_graph_imports(
+			id,owner_did,state,source_type,following_count,created_at,updated_at
+		) VALUES(
+			'40000000-0000-0000-0000-000000000002','did:plc:retention-s3',
+			'active','manual',1,$1,$1
+		)
 	`, now); err != nil {
-		t.Fatalf("seed suggestion retention: %v", err)
+		t.Fatalf("seed suggestion retention import: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO instagram_private_suggestions(
+			id,importer_did,target_did,importer_generation,target_generation,
+			evidence_link_id,state,reason,terminal_at,created_at,updated_at
+		) VALUES
+			('41000000-0000-0000-0000-000000000001','did:plc:retention-s1','did:plc:target-s1',1,1,
+			 '40000000-0000-0000-0000-000000000001','invalidated','verifiedInstagramFollow',
+			 $1::timestamptz-interval '90 days',$1::timestamptz-interval '100 days',$1::timestamptz-interval '90 days'),
+			('41000000-0000-0000-0000-000000000002','did:plc:retention-s2','did:plc:target-s2',1,1,
+			 '40000000-0000-0000-0000-000000000001','invalidated','verifiedInstagramFollow',
+			 $1::timestamptz-interval '90 days'+interval '1 microsecond',$1::timestamptz-interval '100 days',$1::timestamptz-interval '90 days'),
+			('41000000-0000-0000-0000-000000000003','did:plc:retention-s3','did:plc:target-s3',1,1,
+			 '40000000-0000-0000-0000-000000000001','dismissed','verifiedInstagramFollow',
+			 $1::timestamptz-interval '1 year',$1::timestamptz-interval '13 months',$1::timestamptz-interval '1 year')
+	`, now); err != nil {
+		t.Fatalf("seed suggestion retention rows: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO instagram_private_suggestion_sources(suggestion_id,import_id,created_at)
+		VALUES(
+			'41000000-0000-0000-0000-000000000003',
+			'40000000-0000-0000-0000-000000000002',$1
+		)
+	`, now); err != nil {
+		t.Fatalf("seed suggestion retention source: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO instagram_link_conflicts(
@@ -260,7 +459,7 @@ func TestRetentionServicePurgesTerminalPrivateClassesAtExactBoundaries(t *testin
 		t.Fatalf("seed audit retention: %v", err)
 	}
 
-	service := NewRetentionService(pool, func() time.Time { return now })
+	service := NewRetentionService(pool, func() time.Time { return now }, RetentionServiceOptions{})
 	stats, err := service.Run(ctx, 500)
 	if err != nil {
 		t.Fatalf("run terminal retention: %v", err)
@@ -268,10 +467,9 @@ func TestRetentionServicePurgesTerminalPrivateClassesAtExactBoundaries(t *testin
 	if stats.SuggestionsPurged != 1 || stats.ConflictsExpired != 1 || stats.ConflictsPurged != 1 || stats.RateBucketsPurged != 1 || stats.AuditsPurged != 1 {
 		t.Fatalf("terminal stats = %+v", stats)
 	}
-	assertRetentionExists(t, pool, "instagram_automatic_follow_ledger", "41000000-0000-0000-0000-000000000001", false)
-	assertRetentionExists(t, pool, "instagram_automatic_follow_ledger", "41000000-0000-0000-0000-000000000002", true)
-	assertRetentionExists(t, pool, "instagram_automatic_follow_ledger", "41000000-0000-0000-0000-000000000003", true)
-	assertRetentionExists(t, pool, "instagram_automatic_follow_ledger", "41000000-0000-0000-0000-000000000004", true)
+	assertRetentionExists(t, pool, "instagram_private_suggestions", "41000000-0000-0000-0000-000000000001", false)
+	assertRetentionExists(t, pool, "instagram_private_suggestions", "41000000-0000-0000-0000-000000000002", true)
+	assertRetentionExists(t, pool, "instagram_private_suggestions", "41000000-0000-0000-0000-000000000003", true)
 	assertRetentionExists(t, pool, "instagram_link_conflicts", "42000000-0000-0000-0000-000000000003", false)
 	var conflictState InstagramConflictState
 	var identityFields int
@@ -286,58 +484,11 @@ func TestRetentionServicePurgesTerminalPrivateClassesAtExactBoundaries(t *testin
 	}
 }
 
-func TestRetentionServicePurgesMatchEventsAndRetractedDeliveriesAtExactBoundaries(t *testing.T) {
-	pool, now := newRetentionTest(t)
-	ctx := context.Background()
-	eventAtBoundary := uuid.MustParse("43000000-0000-0000-0000-000000000001")
-	eventAfterBoundary := uuid.MustParse("43000000-0000-0000-0000-000000000002")
-	retractedAtBoundary := uuid.MustParse("43000000-0000-0000-0000-000000000003")
-	retractedAfterBoundary := uuid.MustParse("43000000-0000-0000-0000-000000000004")
-	suggestions := []uuid.UUID{
-		uuid.MustParse("43100000-0000-0000-0000-000000000001"),
-		uuid.MustParse("43100000-0000-0000-0000-000000000002"),
-		uuid.MustParse("43100000-0000-0000-0000-000000000003"),
-		uuid.MustParse("43100000-0000-0000-0000-000000000004"),
-	}
-	for i, id := range suggestions {
-		if _, err := pool.Exec(ctx, `
-			INSERT INTO instagram_automatic_follow_ledger(
-				id,importer_did,target_did,state,reason,created_at,updated_at
-			) VALUES($1,$2,$3,'pending','verifiedInstagramFollow',$4,$4)
-		`, id, fmt.Sprintf("did:plc:retention-notification-%d", i), fmt.Sprintf("did:plc:retention-notification-target-%d", i), now); err != nil {
-			t.Fatalf("seed notification suggestion %d: %v", i, err)
-		}
-	}
-	seedLifecycleNotification(t, pool, eventAtBoundary, syntax.DID("did:plc:retention-event-a"), suggestions[0], "43200000-0000-0000-0000-000000000001", "cancelled", now.Add(-90*24*time.Hour))
-	seedLifecycleNotification(t, pool, eventAfterBoundary, syntax.DID("did:plc:retention-event-b"), suggestions[1], "43200000-0000-0000-0000-000000000002", "cancelled", now.Add(-90*24*time.Hour+time.Microsecond))
-	seedLifecycleNotification(t, pool, retractedAtBoundary, syntax.DID("did:plc:retention-delivery-a"), suggestions[2], "43200000-0000-0000-0000-000000000003", "cancelled", now.Add(-7*24*time.Hour))
-	seedLifecycleNotification(t, pool, retractedAfterBoundary, syntax.DID("did:plc:retention-delivery-b"), suggestions[3], "43200000-0000-0000-0000-000000000004", "cancelled", now.Add(-7*24*time.Hour+time.Microsecond))
-	if _, err := pool.Exec(ctx, `
-		UPDATE notification_events
-		SET state='retracted',retracted_at=activity_at,retraction_reason='synthetic_retention'
-		WHERE id=ANY($1::uuid[])
-	`, []uuid.UUID{retractedAtBoundary, retractedAfterBoundary}); err != nil {
-		t.Fatalf("retract delivery events: %v", err)
-	}
-
-	service := NewRetentionService(pool, func() time.Time { return now })
-	stats, err := service.Run(ctx, 500)
-	if err != nil {
-		t.Fatalf("run notification retention: %v", err)
-	}
-	if stats.NotificationsPurged != 1 || stats.DeliveriesPurged != 1 {
-		t.Fatalf("notification retention stats=%+v", stats)
-	}
-	assertRetentionExists(t, pool, "notification_events", eventAtBoundary.String(), false)
-	assertRetentionExists(t, pool, "notification_events", eventAfterBoundary.String(), true)
-	assertRetentionExists(t, pool, "push_deliveries", "43200000-0000-0000-0000-000000000003", false)
-	assertRetentionExists(t, pool, "push_deliveries", "43200000-0000-0000-0000-000000000004", true)
-}
-
 func newRetentionTest(t *testing.T) (*pgxpool.Pool, time.Time) {
 	t.Helper()
 	var ddl strings.Builder
 	for _, path := range []string{
+		"../../migrations/000014_moderation_flow.up.sql",
 		"../../migrations/000021_appview_notifications.up.sql",
 		"../../migrations/000022_notification_newness.up.sql",
 		"../../migrations/000025_instagram_migration.up.sql",
@@ -345,6 +496,8 @@ func newRetentionTest(t *testing.T) (*pgxpool.Pool, time.Time) {
 		"../../migrations/000029_notification_client_owned_destination.up.sql",
 		"../../migrations/000030_instagram_automatic_follows.up.sql",
 		"../../migrations/000031_instagram_automatic_follow_storage_names.up.sql",
+		"../../migrations/000042_instagram_private_suggestions.up.sql",
+		"../../migrations/000044_moderation_restoration_outbox.up.sql",
 	} {
 		migration, err := os.ReadFile(path)
 		if err != nil {

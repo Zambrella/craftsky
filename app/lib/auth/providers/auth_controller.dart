@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/models/auth_error.dart';
+import 'package:craftsky_app/auth/models/pending_handoff.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/account_boundary_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_api_client_provider.dart';
@@ -48,6 +49,9 @@ final authUrlLauncherProvider = Provider<AuthUrlLauncher>(
 /// Sign-in / sign-out orchestrator.
 @Riverpod(keepAlive: true)
 class AuthController extends _$AuthController {
+  String? _confirmingReceiptId;
+  Future<void>? _confirmationOperation;
+
   @override
   FutureOr<void> build() => null;
 
@@ -85,64 +89,134 @@ class AuthController extends _$AuthController {
     });
   }
 
-  Future<void> completeFromDeepLink(String token) async {
+  Future<void> completeFromDeepLink(String code) async {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() async {
-      final pending = ref.read(pendingAuthProvider);
-      if (pending == null) throw const NoPendingSignIn();
-      if (DateTime.now().difference(pending.startedAt) >
-          const Duration(minutes: 10)) {
-        ref.read(pendingAuthProvider.notifier).clear();
-        throw const SignInTimedOut();
+      final registry = await ref.read(sessionRegistryProvider.future);
+      final storedHandoff = registry.pendingHandoff;
+      if (storedHandoff != null) {
+        await _confirmStoredHandoff(storedHandoff);
+        if (ref.mounted) ref.read(pendingAuthProvider.notifier).clear();
+        return;
       }
 
-      // Pre-resolve the device-id so the handoff provider stays sync.
-      // The server requires X-Craftsky-Device-Id on every authenticated
-      // call; the handoff Dio bakes it into BaseOptions alongside the
-      // bearer token.
-      final deviceId = await ref.read(deviceIdProvider.future);
+      // Resolve the stable installation ID before redemption. The anonymous
+      // handoff Dio attaches the same value to exchange and confirmation.
+      await ref.read(deviceIdProvider.future);
       if (!ref.mounted) return;
 
-      // One-shot client; the token + deviceId are in its
-      // BaseOptions.headers. No global provider state, no need to clear
-      // anything on exit beyond pending-auth.
-      final handoff = ref.read(
-        handoffApiClientProvider(
-          HandoffClientKey(token: token, deviceId: deviceId),
-        ),
-      );
+      final api = ref.read(handoffApiClientProvider);
+      final PendingHandoff handoff;
       try {
-        final who = await handoff.whoami();
-        if (!ref.mounted) return;
-
-        try {
-          final current = await ref.read(sessionRegistryProvider.future);
-          await ref
-              .read(sessionRegistryProvider.notifier)
-              .upsertAndActivate(
-                token: token,
-                did: who.did,
-                handle: who.handle,
-                beforePublish: current.sessions.isEmpty
-                    ? null
-                    : ref.read(accountStateInvalidatorProvider),
-              );
-        } on SessionRegistryStorageException catch (error) {
-          _log.warning('session registry write failed');
-          throw StorageFailure(error);
-        } on AccountLimitReached {
-          rethrow;
-        } on Object catch (error) {
-          _log.warning('session registry mutation failed');
-          throw StorageFailure(error);
-        }
-        if (!ref.mounted) return;
-      } finally {
-        if (ref.mounted) {
-          ref.read(pendingAuthProvider.notifier).clear();
+        handoff = await api.exchange(code: code);
+      } on ApiException catch (error) {
+        switch (error) {
+          case ApiBadRequest(code: 'invalid_handoff'):
+            ref.read(pendingAuthProvider.notifier).clear();
+            throw const SignInTimedOut();
+          case ApiNetworkError() || ApiServerError() || ApiCanceled():
+            throw const ServerUnavailable();
+          default:
+            rethrow;
         }
       }
+
+      if (!ref.mounted) return;
+      try {
+        await ref.read(sessionRegistryProvider.notifier).stageHandoff(handoff);
+      } on SessionRegistryStorageException catch (error) {
+        _log.warning('pending handoff storage failed');
+        throw StorageFailure(error);
+      } on AccountLimitReached {
+        rethrow;
+      } on Object catch (error) {
+        _log.warning('pending handoff mutation failed');
+        throw StorageFailure(error);
+      }
+      if (!ref.mounted) return;
+      ref.read(pendingAuthProvider.notifier).clear();
+      await _confirmStoredHandoff(handoff);
     });
+  }
+
+  /// Retries confirmation of an already durable receipt. A lost confirmation
+  /// response or process restart therefore cannot strand an active server
+  /// session outside the local registry.
+  Future<void> resumePendingHandoff() async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      final registry = await ref.read(sessionRegistryProvider.future);
+      final pending = registry.pendingHandoff;
+      if (pending == null) return;
+      await ref.read(deviceIdProvider.future);
+      if (!ref.mounted) return;
+      await _confirmStoredHandoff(pending);
+    });
+  }
+
+  Future<void> _confirmStoredHandoff(PendingHandoff handoff) {
+    final inFlight = _confirmationOperation;
+    if (inFlight != null && _confirmingReceiptId == handoff.receiptId) {
+      return inFlight;
+    }
+
+    final operation = _runHandoffConfirmation(handoff);
+    _confirmingReceiptId = handoff.receiptId;
+    _confirmationOperation = operation;
+    unawaited(
+      operation.then<void>(
+        (_) => _clearConfirmationOperation(operation),
+        onError: (Object _, StackTrace _) =>
+            _clearConfirmationOperation(operation),
+      ),
+    );
+    return operation;
+  }
+
+  void _clearConfirmationOperation(Future<void> operation) {
+    if (!identical(_confirmationOperation, operation)) return;
+    _confirmationOperation = null;
+    _confirmingReceiptId = null;
+  }
+
+  Future<void> _runHandoffConfirmation(PendingHandoff handoff) async {
+    final api = ref.read(handoffApiClientProvider);
+    try {
+      await api.confirm(token: handoff.token, receiptId: handoff.receiptId);
+    } on ApiException catch (error) {
+      switch (error) {
+        case ApiBadRequest(code: 'invalid_handoff') || ApiUnauthorized():
+          await ref
+              .read(sessionRegistryProvider.notifier)
+              .discardHandoff(handoff.receiptId);
+          throw const SignInTimedOut();
+        case ApiNetworkError() || ApiServerError() || ApiCanceled():
+          throw const ServerUnavailable();
+        default:
+          rethrow;
+      }
+    }
+    if (!ref.mounted) return;
+
+    try {
+      final current = ref.read(sessionRegistryProvider).requireValue;
+      await ref
+          .read(sessionRegistryProvider.notifier)
+          .confirmHandoff(
+            handoff.receiptId,
+            beforePublish: current.sessions.isEmpty
+                ? null
+                : ref.read(accountStateInvalidatorProvider),
+          );
+    } on SessionRegistryStorageException catch (error) {
+      _log.warning('confirmed handoff storage failed');
+      throw StorageFailure(error);
+    } on AccountLimitReached {
+      rethrow;
+    } on Object catch (error) {
+      _log.warning('confirmed handoff mutation failed');
+      throw StorageFailure(error);
+    }
   }
 
   Future<SignOutResult?> signOut() async {

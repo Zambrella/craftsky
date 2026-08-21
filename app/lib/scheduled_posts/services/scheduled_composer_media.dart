@@ -85,7 +85,7 @@ Future<List<Map<String, dynamic>>> materializeScheduledComposerMedia(
           throw StateError('scheduled image bytes are unavailable');
         }
         final prepared = await mediaService
-            .prepareImage(
+            .prepareScheduledImage(
               bytes: bytes,
               fileName: draft.fileName,
               mimeType: draft.mimeType,
@@ -129,18 +129,33 @@ Future<List<Map<String, dynamic>>> materializeScheduledComposerMedia(
           mediaService: mediaService,
           expectedSha256: sha256,
         );
+        final prepared = await mediaService
+            .prepareScheduledImage(
+              bytes: bytes,
+              fileName: draft.fileName,
+              mimeType: mimeType,
+            )
+            .future;
+        verifyPreparedMediaBytes(
+          bytes: prepared.bytes,
+          mimeType: prepared.mimeType,
+          width: prepared.width,
+          height: prepared.height,
+          altText: draft.altText,
+          mediaService: mediaService,
+        );
         await _stageWithBudget(
           stageMedia,
           id: draft.id,
-          bytes: bytes,
-          mimeType: mimeType,
+          bytes: prepared.bytes,
+          mimeType: prepared.mimeType,
           transferBudget: transferBudget,
         );
         media.add({
           'id': draft.id,
           'alt': draft.altText.trim(),
-          'width': width,
-          'height': height,
+          'width': prepared.width,
+          'height': prepared.height,
         });
         onStaged?.call(media.length);
       case ImageQueued() ||

@@ -557,11 +557,11 @@ func TestFacetHashtagSuggestionsUseVisibleSearchHashtagCounts(t *testing.T) {
 
 	facetGot := make([]api.HashtagSuggestionRow, 0, len(facetRows))
 	for _, row := range facetRows {
-		facetGot = append(facetGot, api.HashtagSuggestionRow{Tag: row.Tag, PostsLast28Days: row.PostsLast28Days})
+		facetGot = append(facetGot, api.HashtagSuggestionRow(row))
 	}
 	searchGot := make([]api.HashtagSuggestionRow, 0, len(searchRows))
 	for _, row := range searchRows {
-		searchGot = append(searchGot, api.HashtagSuggestionRow{Tag: row.Tag, PostsLast28Days: row.PostsLast28Days})
+		searchGot = append(searchGot, api.HashtagSuggestionRow(row))
 	}
 	want := []api.HashtagSuggestionRow{
 		{Tag: "sockkal", PostsLast28Days: 2},

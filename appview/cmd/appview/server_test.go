@@ -2,18 +2,22 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/app"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/instagram"
+	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
 )
 
@@ -62,6 +66,172 @@ func TestNewServer_HTTPMetricsUseRoutePattern(t *testing.T) {
 		return
 	}
 	t.Fatalf("missing HTTP request counter call: %#v", calls)
+}
+
+func TestNewServerRejectsUnexpectedHostBeforeRouting(t *testing.T) {
+	deps := &app.Deps{
+		Config: app.Config{
+			Env:            app.EnvProd,
+			AllowedOrigins: []string{"https://craftsky.social"},
+			ExpectedHosts:  []string{"appview.craftsky.social"},
+		},
+		Logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+		AuthService:   &auth.MockAuthService{DefaultDID: "did:plc:test"},
+		Observability: observability.New(observability.Config{Env: "test"}),
+	}
+	handler := NewServer(context.Background(), deps)
+	for _, path := range []string{"/v1", "/v1/not-a-route"} {
+		t.Run(path, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, "https://attacker.invalid"+path, nil)
+			request.Host = "attacker.invalid"
+			recorder := httptest.NewRecorder()
+
+			handler.ServeHTTP(recorder, request)
+
+			if recorder.Code != http.StatusMisdirectedRequest {
+				t.Fatalf("status = %d, want 421; body=%s", recorder.Code, recorder.Body.String())
+			}
+			if got := recorder.Header().Get("Content-Type"); got != "application/json" {
+				t.Fatalf("Content-Type = %q", got)
+			}
+			var got envelope.Error
+			if err := json.NewDecoder(recorder.Body).Decode(&got); err != nil {
+				t.Fatal(err)
+			}
+			if got.Error != "unexpected_host" || got.RequestID == "" {
+				t.Fatalf("envelope = %#v", got)
+			}
+		})
+	}
+}
+
+func TestNewServerAdmissionRunsBeforeUnexpectedHost(t *testing.T) {
+	t.Parallel()
+
+	deps := &app.Deps{
+		Config: app.Config{
+			Env:            app.EnvProd,
+			AllowedOrigins: []string{"https://craftsky.social"},
+			ExpectedHosts:  []string{"appview.craftsky.social"},
+		},
+		Logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+		AuthService:   &auth.MockAuthService{DefaultDID: "did:plc:test"},
+		Observability: observability.New(observability.Config{Env: "test"}),
+	}
+	admission := DefaultHandlerAdmissionConfig()
+	admission.OuterRateLimits.Classes[middleware.RateClassOuter] = middleware.ClassLimit{
+		Window: time.Minute,
+		Global: 1,
+	}
+	handler, err := NewServerWithAdmission(context.Background(), deps, admission)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for index := 0; index < 2; index++ {
+		request := httptest.NewRequest(http.MethodGet, "https://attacker.invalid/v1/not-a-route", nil)
+		request.Host = "attacker.invalid"
+		request.RemoteAddr = "192.0.2.1:1234"
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+
+		want := http.StatusMisdirectedRequest
+		if index == 1 {
+			want = http.StatusTooManyRequests
+		}
+		if recorder.Code != want {
+			t.Fatalf("request %d status = %d, want %d; body=%s", index, recorder.Code, want, recorder.Body.String())
+		}
+		var body envelope.Error
+		if err := json.NewDecoder(recorder.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if body.RequestID == "" {
+			t.Fatalf("request %d has empty request ID", index)
+		}
+	}
+}
+
+func TestNewServerOwnsV1FallbackMethodAndCanonicalPathContracts(t *testing.T) {
+	t.Parallel()
+
+	deps := &app.Deps{
+		Config: app.Config{
+			Env:            app.EnvDev,
+			AllowedOrigins: []string{"https://app.craftsky.social"},
+			DevDID:         "did:plc:test",
+		},
+		Logger:         slog.New(slog.NewTextHandler(io.Discard, nil)),
+		AuthService:    &auth.MockAuthService{DefaultDID: "did:plc:test"},
+		HandleResolver: serverStubResolver{handle: syntax.Handle("stub.example")},
+		Observability:  observability.New(observability.Config{Env: "test"}),
+	}
+	handler := NewServer(context.Background(), deps)
+
+	tests := []struct {
+		name      string
+		method    string
+		path      string
+		wantCode  int
+		wantError string
+		wantAllow string
+	}{
+		{name: "unknown", method: http.MethodGet, path: "/v1/not-a-route", wantCode: http.StatusNotFound, wantError: "not_found"},
+		{name: "wrong method", method: http.MethodPost, path: "/v1/whoami", wantCode: http.StatusMethodNotAllowed, wantError: "method_not_allowed", wantAllow: "GET"},
+		{name: "HEAD rejected", method: http.MethodHead, path: "/v1/whoami", wantCode: http.StatusMethodNotAllowed, wantError: "method_not_allowed", wantAllow: "GET"},
+		{name: "repeated slash", method: http.MethodGet, path: "/v1//whoami", wantCode: http.StatusNotFound, wantError: "not_found"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(tt.method, tt.path, nil)
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, req)
+			if recorder.Code != tt.wantCode {
+				t.Fatalf("status = %d, want %d; body=%s", recorder.Code, tt.wantCode, recorder.Body.String())
+			}
+			if got := recorder.Header().Get("Allow"); got != tt.wantAllow {
+				t.Fatalf("Allow = %q, want %q", got, tt.wantAllow)
+			}
+			if recorder.Header().Get("Location") != "" {
+				t.Fatalf("Location = %q, want no redirect", recorder.Header().Get("Location"))
+			}
+			var body envelope.Error
+			if err := json.NewDecoder(recorder.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			if body.Error != tt.wantError || body.RequestID == "" {
+				t.Fatalf("envelope = %#v", body)
+			}
+		})
+	}
+}
+
+func TestNewServerAllowsCatalogueDerivedPatchPreflight(t *testing.T) {
+	t.Parallel()
+
+	deps := &app.Deps{
+		Config: app.Config{
+			Env:            app.EnvDev,
+			AllowedOrigins: []string{"https://app.craftsky.social"},
+		},
+		Logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+		AuthService:   &auth.MockAuthService{DefaultDID: "did:plc:test"},
+		Observability: observability.New(observability.Config{Env: "test"}),
+	}
+	handler := NewServer(context.Background(), deps)
+	req := httptest.NewRequest(http.MethodOptions, "/v1/notifications/preferences", nil)
+	req.Header.Set("Origin", "https://app.craftsky.social")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPatch)
+	req.Header.Set("Access-Control-Request-Headers", "Authorization, Content-Type, X-Craftsky-Device-Id")
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, req)
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("status = %d, want 204; body=%s", recorder.Code, recorder.Body.String())
+	}
+	if got := recorder.Header().Get("Access-Control-Allow-Methods"); !strings.Contains(got, http.MethodPatch) {
+		t.Fatalf("Access-Control-Allow-Methods = %q, missing PATCH", got)
+	}
 }
 
 func TestInstagramWebhookWorkerLoopRetriesErrorsAndDrainsBacklogWithoutPollingDelay(t *testing.T) {
@@ -145,63 +315,6 @@ func TestInstagramReconciliationWorkerLoopUsesBoundedBatchAndDrainsBacklog(t *te
 		if limit != 100 {
 			t.Fatalf("ProcessBatch limit = %d, want 100", limit)
 		}
-	}
-}
-
-func TestInstagramAutomaticFollowWorkerLoopUsesBoundedBatchAndDrainsBacklog(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	processor := &scriptedInstagramReconciliationProcessor{
-		results: []instagramBatchResult{
-			{err: context.DeadlineExceeded},
-			{processed: 1},
-			{cancel: cancel},
-		},
-	}
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		runInstagramAutomaticFollowWorker(
-			ctx,
-			processor,
-			slog.New(slog.NewTextHandler(io.Discard, nil)),
-			instagramAutomaticFollowBatchSize,
-			time.Millisecond,
-		)
-	}()
-	select {
-	case <-done:
-	case <-time.After(time.Second):
-		t.Fatal("Instagram automatic-follow worker loop did not stop after cancellation")
-	}
-	if processor.calls != 3 {
-		t.Fatalf("ProcessBatch calls = %d, want 3", processor.calls)
-	}
-	for _, limit := range processor.limits {
-		if limit != 20 {
-			t.Fatalf("ProcessBatch limit = %d, want 20", limit)
-		}
-	}
-}
-
-func TestInstagramAutomaticFollowWorkerLoopRejectsBatchAboveMaximum(t *testing.T) {
-	t.Parallel()
-
-	ctx, cancel := context.WithCancel(context.Background())
-	cancel()
-	processor := &scriptedInstagramReconciliationProcessor{
-		results: []instagramBatchResult{{}},
-	}
-	runInstagramAutomaticFollowWorker(
-		ctx,
-		processor,
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
-		101,
-		time.Millisecond,
-	)
-	if processor.calls != 0 {
-		t.Fatalf("ProcessBatch calls = %d, want 0 above maximum", processor.calls)
 	}
 }
 

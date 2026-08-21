@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -10,14 +11,74 @@ import (
 	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
+
+func TestProfilePinStoreUnpinRejectsStaleOwnerGeneration(t *testing.T) {
+	migration, err := os.ReadFile("../../migrations/000035_profile_pins.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool := testdb.WithSchema(t, profilePinStoreTestDDL+string(migration))
+	ctx := context.Background()
+	owner := syntax.DID("did:plc:alice")
+	target := syntax.ATURI("at://did:plc:alice/social.craftsky.feed.post/standard-a")
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO profile_pins(owner_did,slot,post_uri,state_token,created_at,updated_at)
+		VALUES($1,'standard',$2,'00000000-0000-4000-8000-000000000001',now(),now())
+	`, owner, target); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE owner_lifecycles SET generation=2 WHERE owner_did=$1`, owner); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = api.NewProfilePinStore(pool).Unpin(
+		ownerlifecycle.WithExpectedGeneration(ctx, 1),
+		owner,
+		target,
+	)
+	if !errors.Is(err, ownerlifecycle.ErrGenerationChanged) {
+		t.Fatalf("Unpin error = %v, want ErrGenerationChanged", err)
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM profile_pins WHERE owner_did=$1`, owner).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("profile pins = %d, want 1", count)
+	}
+}
 
 const profilePinStoreTestDDL = `
 CREATE TABLE craftsky_profiles (
     did        TEXT NOT NULL PRIMARY KEY,
     record_cid TEXT NOT NULL
 );
+CREATE TABLE owner_lifecycles (
+	owner_did TEXT PRIMARY KEY,
+	state TEXT NOT NULL,
+	generation BIGINT NOT NULL,
+	auth_epoch BIGINT NOT NULL DEFAULT 1,
+	transition_reason TEXT NOT NULL DEFAULT 'test',
+	transitioned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	terminal_at TIMESTAMPTZ,
+	purge_completed_at TIMESTAMPTZ,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE FUNCTION seed_active_profile_pin_owner() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+	INSERT INTO owner_lifecycles(owner_did,state,generation)
+	VALUES(NEW.did,'active',1)
+	ON CONFLICT (owner_did) DO NOTHING;
+	RETURN NEW;
+END
+$$;
+CREATE TRIGGER seed_active_profile_pin_owner
+AFTER INSERT ON craftsky_profiles
+FOR EACH ROW EXECUTE FUNCTION seed_active_profile_pin_owner();
 CREATE TABLE craftsky_posts (
     uri              TEXT    NOT NULL PRIMARY KEY,
     did              TEXT    NOT NULL,
@@ -83,7 +144,7 @@ func TestProfilePinStorePersistsIndependentIdempotentAndReplacementStates(t *tes
 		t.Fatalf("read profile pin migration: %v", err)
 	}
 	pool := testdb.WithSchema(t, profilePinStoreTestDDL+string(migration))
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	owner := syntax.DID("did:plc:alice")
 
 	times := []time.Time{
@@ -213,7 +274,7 @@ func TestProfilePinStoreKeepsOwnersIsolatedAcrossReloadAndMembershipRemoval(t *t
 		t.Fatalf("read profile pin migration: %v", err)
 	}
 	pool := testdb.WithSchema(t, profilePinStoreTestDDL+string(migration))
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	alice := syntax.DID("did:plc:alice")
 	bob := syntax.DID("did:plc:bob")
 	store := api.NewProfilePinStore(pool)
@@ -266,8 +327,9 @@ func TestProfilePinStoreSerializesReplacementAndTargetSpecificUnpin(t *testing.T
 		t.Fatalf("read profile pin migration: %v", err)
 	}
 	pool := testdb.WithSchema(t, profilePinStoreTestDDL+string(migration))
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	baseCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
+	ctx := ownerlifecycle.WithExpectedGeneration(baseCtx, 1)
 	owner := syntax.DID("did:plc:alice")
 	store := api.NewProfilePinStore(pool)
 

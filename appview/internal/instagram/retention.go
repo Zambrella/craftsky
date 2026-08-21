@@ -11,31 +11,40 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const MaxRetentionBatch = 500
+const (
+	MaxRetentionBatch = 500
 
-var ErrInvalidRetentionBatch = errors.New("Instagram retention batch must be between 1 and 500")
+	// ModerationLiveOutboxRetention bounds target-DID-bearing processed and
+	// cancelled restoration evidence before it is reduced to DID-free history.
+	ModerationLiveOutboxRetention = 30 * 24 * time.Hour
+	// ModerationRestorationHistoryRetention bounds the resulting DID-free
+	// diagnostic history.
+	ModerationRestorationHistoryRetention = 365 * 24 * time.Hour
+)
+
+var ErrInvalidRetentionBatch = errors.New("instagram retention batch must be between 1 and 500")
 
 // RetentionStats contains counts only. It is safe for operator output and
 // observability because it never contains an owner, username, IGSID, digest,
 // or private graph fact.
 type RetentionStats struct {
-	AttemptsTerminalized   int
-	AttemptsSensitiveClear int
-	AttemptsPurged         int
-	WebhookTerminalized    int
-	WebhookSensitiveClear  int
-	WebhookPurged          int
-	LinksMembershipExpired int
-	LinkIdentityCleared    int
-	LinkTombstonesPurged   int
-	ClaimsPurged           int
-	ConflictsExpired       int
-	ConflictsPurged        int
-	SuggestionsPurged      int
-	DeliveriesPurged       int
-	NotificationsPurged    int
-	RateBucketsPurged      int
-	AuditsPurged           int
+	ModerationOutboxArchived int
+	ModerationHistoryPurged  int
+	AttemptsTerminalized     int
+	AttemptsSensitiveClear   int
+	AttemptsPurged           int
+	WebhookTerminalized      int
+	WebhookSensitiveClear    int
+	WebhookPurged            int
+	LinksMembershipExpired   int
+	LinkIdentityCleared      int
+	LinkTombstonesPurged     int
+	ClaimsPurged             int
+	ConflictsExpired         int
+	ConflictsPurged          int
+	SuggestionsPurged        int
+	RateBucketsPurged        int
+	AuditsPurged             int
 }
 
 // RetentionService applies the fixed privacy maxima from the Instagram
@@ -43,29 +52,37 @@ type RetentionStats struct {
 // in a transaction bounded by the caller's batch size. Cascading dependants do
 // not count against the primary-record batch.
 type RetentionService struct {
-	pool        *pgxpool.Pool
-	now         func() time.Time
-	restoration ExpiredModerationRestorationEnqueuer
+	pool               *pgxpool.Pool
+	now                func() time.Time
+	restoration        ExpiredModerationRestorationEnqueuer
+	moderationReceipts ExpiredModerationReceiptSweeper
 }
 
 type ExpiredModerationRestorationEnqueuer interface {
 	EnqueueExpiredModerationRestorations(context.Context, int) (int, error)
 }
 
+type ExpiredModerationReceiptSweeper interface {
+	SweepExpiredIdempotencyReceipts(context.Context, int) (int, error)
+}
+
+type RetentionServiceOptions struct {
+	Restoration        ExpiredModerationRestorationEnqueuer
+	ModerationReceipts ExpiredModerationReceiptSweeper
+}
+
 func NewRetentionService(
 	pool *pgxpool.Pool,
 	now func() time.Time,
-	restorations ...ExpiredModerationRestorationEnqueuer,
+	options RetentionServiceOptions,
 ) *RetentionService {
 	if now == nil {
 		now = time.Now
 	}
-	var restoration ExpiredModerationRestorationEnqueuer
-	if len(restorations) > 0 {
-		restoration = restorations[0]
-	}
 	return &RetentionService{
-		pool: pool, now: now, restoration: restoration,
+		pool: pool, now: now,
+		restoration:        options.Restoration,
+		moderationReceipts: options.ModerationReceipts,
 	}
 }
 
@@ -75,7 +92,7 @@ func (s *RetentionService) Run(ctx context.Context, batch int) (RetentionStats, 
 	}
 	now := s.now().UTC()
 	if now.IsZero() {
-		return RetentionStats{}, errors.New("Instagram retention clock returned zero time")
+		return RetentionStats{}, errors.New("instagram retention clock returned zero time")
 	}
 	if s.restoration != nil {
 		if _, err := s.restoration.EnqueueExpiredModerationRestorations(
@@ -88,11 +105,24 @@ func (s *RetentionService) Run(ctx context.Context, batch int) (RetentionStats, 
 			)
 		}
 	}
+	if s.moderationReceipts != nil {
+		if _, err := s.moderationReceipts.SweepExpiredIdempotencyReceipts(
+			ctx,
+			batch,
+		); err != nil {
+			return RetentionStats{}, fmt.Errorf(
+				"sweep expired moderation idempotency receipts: %w",
+				err,
+			)
+		}
+	}
 	stats := RetentionStats{}
 	steps := []struct {
 		destination *int
 		run         func(context.Context, int, time.Time) (int, error)
 	}{
+		{&stats.ModerationOutboxArchived, s.archiveModerationRestorationOutbox},
+		{&stats.ModerationHistoryPurged, s.purgeModerationRestorationHistory},
 		{&stats.AttemptsTerminalized, s.terminalizeAttempts},
 		{&stats.AttemptsSensitiveClear, s.clearTerminalAttemptIdentity},
 		{&stats.AttemptsPurged, s.purgeTerminalAttempts},
@@ -118,8 +148,6 @@ func (s *RetentionService) Run(ctx context.Context, batch int) (RetentionStats, 
 		run         func(context.Context, int, time.Time) (int, error)
 	}{
 		{&stats.SuggestionsPurged, s.purgeTerminalSuggestions},
-		{&stats.DeliveriesPurged, s.purgeRetractedDeliveries},
-		{&stats.NotificationsPurged, s.purgeMatchNotifications},
 		{&stats.RateBucketsPurged, s.purgeRateBuckets},
 		{&stats.AuditsPurged, s.purgeAuditEvents},
 	}
@@ -133,9 +161,176 @@ func (s *RetentionService) Run(ctx context.Context, batch int) (RetentionStats, 
 	return stats, nil
 }
 
+func (s *RetentionService) archiveModerationRestorationOutbox(
+	ctx context.Context,
+	batch int,
+	now time.Time,
+) (int, error) {
+	count := 0
+	cutoff := now.Add(-ModerationLiveOutboxRetention)
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		rows, err := tx.Query(ctx, `
+			SELECT moderation_output_id
+			FROM moderation_restoration_outbox
+			WHERE status IN ('queued','no_work','cancelled_target_terminal')
+			  AND processed_at <= $1
+			ORDER BY processed_at,moderation_output_id
+			LIMIT $2
+		`, cutoff, batch)
+		if err != nil {
+			return fmt.Errorf("select moderation restoration retention candidates: %w", err)
+		}
+		var candidateIDs []string
+		for rows.Next() {
+			var outputID string
+			if err := rows.Scan(&outputID); err != nil {
+				rows.Close()
+				return fmt.Errorf("scan moderation restoration retention candidate: %w", err)
+			}
+			candidateIDs = append(candidateIDs, outputID)
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return fmt.Errorf("iterate moderation restoration retention candidates: %w", err)
+		}
+		rows.Close()
+		if len(candidateIDs) == 0 {
+			return nil
+		}
+
+		// Lifecycle cleanup uses the same parent -> outbox -> downstream-job
+		// lock order. Locking parents canonically here prevents a retention run
+		// from deadlocking with explicit privacy deletion.
+		rows, err = tx.Query(ctx, `
+			SELECT id
+			FROM moderation_outputs
+			WHERE id=ANY($1::text[])
+			ORDER BY id
+			FOR UPDATE SKIP LOCKED
+		`, candidateIDs)
+		if err != nil {
+			return fmt.Errorf("lock moderation outputs for retention: %w", err)
+		}
+		var outputIDs []string
+		for rows.Next() {
+			var outputID string
+			if err := rows.Scan(&outputID); err != nil {
+				rows.Close()
+				return fmt.Errorf("scan moderation output for retention: %w", err)
+			}
+			outputIDs = append(outputIDs, outputID)
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return fmt.Errorf("iterate moderation outputs for retention: %w", err)
+		}
+		rows.Close()
+
+		for _, outputID := range outputIDs {
+			var (
+				status      string
+				jobID       *uuid.UUID
+				processedAt time.Time
+			)
+			err := tx.QueryRow(ctx, `
+				SELECT status,reconciliation_job_id,processed_at
+				FROM moderation_restoration_outbox
+				WHERE moderation_output_id=$1
+				  AND status IN ('queued','no_work','cancelled_target_terminal')
+				  AND processed_at <= $2
+				FOR UPDATE
+			`, outputID, cutoff).Scan(&status, &jobID, &processedAt)
+			if errors.Is(err, pgx.ErrNoRows) {
+				continue
+			}
+			if err != nil {
+				return fmt.Errorf("lock moderation restoration outbox for retention: %w", err)
+			}
+
+			if jobID != nil {
+				var jobStatus string
+				err := tx.QueryRow(ctx, `
+					SELECT status
+					FROM instagram_reconciliation_jobs
+					WHERE id=$1
+					FOR UPDATE
+				`, *jobID).Scan(&jobStatus)
+				if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+					return fmt.Errorf("lock moderation reconciliation job for retention: %w", err)
+				}
+				if err == nil && jobStatus == "processing" {
+					continue
+				}
+			}
+
+			if _, err := tx.Exec(ctx, `
+				INSERT INTO moderation_restoration_history(
+					moderation_output_id,outcome,processed_at,archived_at
+				) VALUES($1,$2,$3,$4)
+				ON CONFLICT(moderation_output_id) DO NOTHING
+			`, outputID, status, processedAt, now); err != nil {
+				return fmt.Errorf("archive moderation restoration outbox for retention: %w", err)
+			}
+			result, err := tx.Exec(ctx, `
+				DELETE FROM moderation_restoration_outbox
+				WHERE moderation_output_id=$1
+			`, outputID)
+			if err != nil {
+				return fmt.Errorf("delete moderation restoration outbox for retention: %w", err)
+			}
+			if result.RowsAffected() != 1 {
+				return errors.New("moderation restoration retention delete lost ownership")
+			}
+			result, err = tx.Exec(ctx, `
+				DELETE FROM moderation_outputs
+				WHERE id=$1
+			`, outputID)
+			if err != nil {
+				return fmt.Errorf("delete moderation output for retention: %w", err)
+			}
+			if result.RowsAffected() != 1 {
+				return errors.New("moderation output retention delete lost ownership")
+			}
+			count++
+		}
+		return nil
+	})
+	return count, err
+}
+
+func (s *RetentionService) purgeModerationRestorationHistory(
+	ctx context.Context,
+	batch int,
+	now time.Time,
+) (int, error) {
+	count := 0
+	cutoff := now.Add(-ModerationRestorationHistoryRetention)
+	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		result, err := tx.Exec(ctx, `
+			WITH candidates AS (
+				SELECT moderation_output_id
+				FROM moderation_restoration_history
+				WHERE archived_at <= $1
+				ORDER BY archived_at,moderation_output_id
+				FOR UPDATE SKIP LOCKED
+				LIMIT $2
+			)
+			DELETE FROM moderation_restoration_history AS history
+			USING candidates AS candidate
+			WHERE history.moderation_output_id=candidate.moderation_output_id
+		`, cutoff, batch)
+		if err != nil {
+			return fmt.Errorf("purge moderation restoration history: %w", err)
+		}
+		count = int(result.RowsAffected())
+		return nil
+	})
+	return count, err
+}
+
 func (s *RetentionService) validate(batch int) error {
 	if s == nil || s.pool == nil {
-		return errors.New("Instagram retention service is unavailable")
+		return errors.New("instagram retention service is unavailable")
 	}
 	if batch < 1 || batch > MaxRetentionBatch {
 		return ErrInvalidRetentionBatch
@@ -335,18 +530,13 @@ func (s *RetentionService) expireInactiveLinks(ctx context.Context, batch int, n
 		`, ids, now); err != nil {
 			return fmt.Errorf("release membership-expired Instagram claims: %w", err)
 		}
-		suggestionIDs, err := retentionUUIDs(ctx, tx, `
-			UPDATE instagram_automatic_follow_ledger
+		if _, err := tx.Exec(ctx, `
+			UPDATE instagram_private_suggestions
 			SET state='invalidated',accepting_since=NULL,
 			    terminal_at=COALESCE(terminal_at,$2),updated_at=$2
-			WHERE target_did=ANY($1::text[]) AND state IN ('pending','writing')
-			RETURNING id
-		`, owners, now)
-		if err != nil {
+			WHERE target_did=ANY($1::text[]) AND state IN ('pending','accepting')
+		`, owners, now); err != nil {
 			return fmt.Errorf("invalidate membership-expired link suggestions: %w", err)
-		}
-		if err := invalidateUnwrittenFollowOperations(ctx, tx, suggestionIDs, "linkExpired", now); err != nil {
-			return err
 		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE instagram_reconciliation_jobs
@@ -450,19 +640,21 @@ func (s *RetentionService) purgeTerminalSuggestions(ctx context.Context, batch i
 	count := 0
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		ids, err := retentionUUIDs(ctx, tx, `
-			SELECT id FROM instagram_automatic_follow_ledger
-			WHERE state='invalidated'
+			SELECT suggestion.id
+			FROM instagram_private_suggestions AS suggestion
+			WHERE suggestion.state IN ('followed','alreadyFollowing','dismissed','invalidated')
 			  AND COALESCE(terminal_at,updated_at) <= $1::timestamptz - interval '90 days'
+			  AND NOT EXISTS (
+				SELECT 1 FROM instagram_private_suggestion_sources AS source
+				WHERE source.suggestion_id=suggestion.id
+			  )
 			ORDER BY COALESCE(terminal_at,updated_at),id
 			FOR UPDATE SKIP LOCKED LIMIT $2
 		`, now, batch)
 		if err != nil || len(ids) == 0 {
 			return err
 		}
-		if _, err := tx.Exec(ctx, `DELETE FROM pds_follow_operations WHERE automatic_follow_id=ANY($1::uuid[])`, ids); err != nil {
-			return fmt.Errorf("purge retained Instagram follow ledgers: %w", err)
-		}
-		result, err := tx.Exec(ctx, `DELETE FROM instagram_automatic_follow_ledger WHERE id=ANY($1::uuid[])`, ids)
+		result, err := tx.Exec(ctx, `DELETE FROM instagram_private_suggestions WHERE id=ANY($1::uuid[])`, ids)
 		if err != nil {
 			return fmt.Errorf("purge terminal Instagram suggestions: %w", err)
 		}
@@ -470,42 +662,6 @@ func (s *RetentionService) purgeTerminalSuggestions(ctx context.Context, batch i
 		return nil
 	})
 	return count, err
-}
-
-func (s *RetentionService) purgeRetractedDeliveries(ctx context.Context, batch int, now time.Time) (int, error) {
-	count := 0
-	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		ids, err := retentionUUIDs(ctx, tx, `
-			SELECT delivery.id
-			FROM push_deliveries delivery
-			JOIN notification_events event ON event.id=delivery.notification_id
-			WHERE event.category='instagramMatch' AND event.state='retracted'
-			  AND delivery.status='cancelled'
-			  AND delivery.updated_at <= $1::timestamptz - interval '7 days'
-			ORDER BY delivery.updated_at,delivery.id
-			FOR UPDATE OF delivery SKIP LOCKED LIMIT $2
-		`, now, batch)
-		if err != nil || len(ids) == 0 {
-			return err
-		}
-		result, err := tx.Exec(ctx, `DELETE FROM push_deliveries WHERE id=ANY($1::uuid[])`, ids)
-		if err != nil {
-			return fmt.Errorf("purge retracted Instagram deliveries: %w", err)
-		}
-		count = int(result.RowsAffected())
-		return nil
-	})
-	return count, err
-}
-
-func (s *RetentionService) purgeMatchNotifications(ctx context.Context, batch int, now time.Time) (int, error) {
-	return s.deleteUUIDBatch(ctx, batch, `
-		SELECT id FROM notification_events
-		WHERE category='instagramMatch'
-		  AND activity_at <= $1::timestamptz - interval '90 days'
-		ORDER BY activity_at,id
-		FOR UPDATE SKIP LOCKED LIMIT $2
-	`, "notification_events", now, "purge Instagram match notifications")
 }
 
 func (s *RetentionService) purgeRateBuckets(ctx context.Context, batch int, now time.Time) (int, error) {

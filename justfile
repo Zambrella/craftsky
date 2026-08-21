@@ -78,7 +78,35 @@ test:
       TEST_S3_BUCKET="private-scheduled-media" \
       TEST_S3_ACCESS_KEY_ID="craftsky-minio" \
       TEST_S3_SECRET_ACCESS_KEY="craftsky-minio-dev-secret" \
+      TEST_DATABASE_REQUIRED="true" \
+      GOTOOLCHAIN="go1.26.6" \
       go test -race ./...
+
+# Fast, explicitly incomplete AppView unit path. Real PostgreSQL and MinIO
+# suites are deliberately skipped; only appview-check is release evidence.
+appview-test-unit:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "UNIT-ONLY: PostgreSQL and MinIO integration tests are intentionally skipped."
+    cd appview
+    env \
+      -u DATABASE_URL \
+      -u TEST_DATABASE_URL \
+      -u TEST_S3_ENDPOINT \
+      -u TEST_S3_REGION \
+      -u TEST_S3_BUCKET \
+      -u TEST_S3_ACCESS_KEY_ID \
+      -u TEST_S3_SECRET_ACCESS_KEY \
+      TEST_DATABASE_REQUIRED="false" \
+      GOTOOLCHAIN="go1.26.6" \
+      go test ./...
+
+# Release-equivalent, fail-closed AppView gate. It uses an isolated Compose
+# project and disposable database/MinIO volumes, so migration down-to-zero can
+# never target a developer or shared database. Set APPVIEW_CHECK_ARTIFACT_DIR
+# to retain machine-readable evidence at a known path (CI does this).
+appview-check:
+    ./scripts/appview-check
 
 # Format and vet Go code on the host.
 fmt:
@@ -136,7 +164,9 @@ app-run *ARGS: app-env-init
     APPVIEW_PORT=${APPVIEW_ADDRESS##*:}
     cd app
     flutter run --dart-define-from-file=config/local.env \
-      --dart-define="CRAFTSKY_API_BASE_URL=http://localhost:${APPVIEW_PORT}" {{ARGS}}
+      --dart-define="CRAFTSKY_API_BASE_URL=http://localhost:${APPVIEW_PORT}" \
+      --dart-define="CRAFTSKY_DEV_OAUTH_SCHEME=true" \
+      {{ARGS}}
 
 app-run-chrome: app-env-init
     #!/usr/bin/env bash

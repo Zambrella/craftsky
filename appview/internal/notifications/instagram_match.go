@@ -14,23 +14,21 @@ import (
 type InstagramMatchActivation struct {
 	RecipientDID syntax.DID
 	ActorDID     syntax.DID
-	OperationID  uuid.UUID
+	SuggestionID uuid.UUID
 	ActivityAt   time.Time
 }
 
-// ActivateInstagramMatch creates one actorful, source-less event for one
-// successfully completed automatic-follow operation. The operation ID is the
-// idempotency key; replays do not create another event or push delivery.
+// ActivateInstagramMatch records the private notification in the caller's
+// transaction. The suggestion ID is the idempotency key, so reconciliation
+// replays cannot create another event or delivery.
 func (s *Service) ActivateInstagramMatch(
 	ctx context.Context,
 	tx pgx.Tx,
 	activation InstagramMatchActivation,
 ) error {
-	if s == nil || tx == nil ||
-		activation.RecipientDID == "" ||
-		activation.ActorDID == "" ||
-		activation.RecipientDID == activation.ActorDID ||
-		activation.OperationID == uuid.Nil {
+	if s == nil || tx == nil || activation.RecipientDID == "" ||
+		activation.ActorDID == "" || activation.RecipientDID == activation.ActorDID ||
+		activation.SuggestionID == uuid.Nil {
 		return errors.New("invalid Instagram match notification activation")
 	}
 	activityAt := activation.ActivityAt.UTC()
@@ -62,12 +60,12 @@ func (s *Service) ActivateInstagramMatch(
 			indexed_at, initial_push_evaluated_at
 		) VALUES (
 			$1,$2,$3,'instagramMatch',$4,
-			'everyone',true,$5,'active',$6,$6,$7,$7
+			'everyone',false,$5,'active',$6,$6,$7,$7
 		)
 		ON CONFLICT DO NOTHING
 		RETURNING id
 	`, notificationID, activation.RecipientDID, activation.ActorDID,
-		activation.OperationID.String(), preference.PushEnabled, activityAt, indexedAt).Scan(&insertedID)
+		activation.SuggestionID.String(), preference.PushEnabled, activityAt, indexedAt).Scan(&insertedID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		if s.observer != nil {
 			s.observer.ObserveNotificationDecision(string(InstagramMatch), "duplicate")

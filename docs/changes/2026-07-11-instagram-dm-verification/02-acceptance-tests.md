@@ -1,5 +1,10 @@
 # Acceptance Test Specification: Instagram DM Ownership Verification And Automatic Following
 
+> **2026-08-14 AppView audit amendment:** Section 12 supersedes every test in
+> this document that expects an import, matcher, or background worker to write
+> a PDS follow. The approved behavior is private suggestions plus an explicit
+> current-member Follow action.
+
 ## 1. Test Strategy
 
 This high-risk change uses layered, vertical TDD. Pure tests establish the canonical challenge grammar, exact state machines, signature and minimal-work-item rules, normalization, eligibility, retry, fixed limits, account fencing, and manual-unfollow suppression. Database and HTTP integration tests prove current-membership authorization, ownership, uniqueness, durability, concurrency, additive import support, background owner-session selection, deterministic automatic PDS writes, actorful notification completion, retention, and exact wire contracts. Flutter and Go consume the same synthetic golden JSON fixtures so route/state drift is detected in both directions. Flutter tests also prove that raw exports stop at the local parser boundary and that verification/import/notification actions remain bound to the initiating account. A small set of Gherkin acceptance scenarios ties those layers into member journeys.
@@ -491,3 +496,111 @@ Feature: Private Instagram ZIP import
   block relevant production enablement/release confidence; `GAP-005` blocks
   only future repository-wide lifecycle composition. `MAN-005` remains the
   physical-device release check for ZIP memory/path behavior.
+
+## 12. AppView Audit Correction Tests
+
+Status: Approved test-design amendment on 2026-08-14.
+
+AT-004, AT-005, and AT-007 and the automatic-write expectations in IT-008,
+IT-009, IT-011–IT-017, IT-020, IT-021, IT-023–IT-025, REG-004, REG-008,
+REG-010, REG-012, and REG-014 are historical. They remain evidence for the
+pre-audit implementation but are not green expectations. The tests below trace
+to BR-005, FR-033–FR-037, NFR-011, RULE-013, and AC-057–AC-063.
+
+### AT-010: Matching Creates A Private Suggestion Without A Public Effect
+
+Requirement IDs: BR-005, FR-033, FR-035, AC-057, AC-062
+
+```gherkin
+Given Alice has an active verified Instagram import
+And Bob is an exact eligible current CraftSky member
+When initial or future reconciliation observes the match repeatedly
+Then exactly one caller-private suggestion exists for Alice and Bob
+And the suggestion records both current owner generations
+And no OAuth session is selected
+And no PDS follow writer, notification creator, or push sender is called
+And Bob cannot discover that the suggestion or import evidence exists
+```
+
+### AT-011: Explicit Acceptance Is The Only Instagram Follow Boundary
+
+Requirement IDs: BR-005, FR-034, NFR-011, AC-058–AC-060
+
+```gherkin
+Given Alice owns a pending private suggestion for Bob
+And both participants remain current at the recorded generations
+When Alice explicitly chooses Follow
+Then AppView revalidates ownership, both generations, and the full safety policy
+And the ordinary owner-effect/session coordinator requests one deterministic follow
+And replaying the same acceptance returns the same followed or already-following result
+And no instagramMatch automatic-follow notification is created
+```
+
+### AT-012: Lifecycle Transitions Retire Unwritten Suggestions
+
+Requirement IDs: FR-033, FR-035, NFR-011, RULE-013, AC-061, AC-062
+
+```gherkin
+Given matching has created a private suggestion
+When either participant departs or becomes terminal before acceptance crosses the final effect boundary
+Then the suggestion becomes invalidated and no PDS call begins
+And no background component can later select a session or write the follow
+And account or terminal cleanup never deletes an app.bsky.graph.follow record
+```
+
+### Unit And Contract Cases
+
+| ID | Requirement IDs | Test |
+|---|---|---|
+| UT-021 | FR-033, RULE-013 | Suggestion transition table rejects stale participant generations and makes terminal invalidation monotonic. |
+| UT-022 | FR-034, NFR-011 | Accept/dismiss ownership and idempotency table covers pending, followed, already-following, dismissed, invalidated, stale, and foreign IDs. |
+| UT-023 | FR-035, AC-062 | Dependency capability test proves matcher/reconciliation interfaces contain no session selector, PDS factory, follow writer, or public-write method. |
+
+### Integration And Client Cases
+
+| ID | Requirement IDs | Test |
+|---|---|---|
+| IT-026 | FR-033, FR-035, AC-057, AC-062 | Real-store duplicate/reordered matching creates one private suggestion while recording zero external-effect calls. |
+| IT-027 | FR-034, NFR-011, AC-058–AC-061 | Current-member accept uses the owner-effect boundary exactly once; wrong-owner, stale-generation, departure, and terminal barriers make no new call. |
+| IT-028 | FR-037, AC-060, AC-062 | Schema/routes/preferences/push no longer expose or create `instagramMatch`; ordinary relationship behavior remains green. |
+| IT-029 | FR-036, AC-063 | Flutter lists private suggestions, explains explicit Follow, and fences Follow/Dismiss/navigation/late results to the captured account. |
+| REG-015 | FR-035, RULE-013 | Search and dependency-wiring regression finds no automatic-follow worker startup, background session selector, follow writer, `PutRecord`, or cleanup deletion of `app.bsky.graph.follow`. |
+
+### Required Failure-First Order
+
+1. UT-023 and REG-015 demonstrate that the current worker still has the
+   forbidden capability.
+2. IT-026 demonstrates that matching currently progresses toward a public
+   operation rather than stopping at a private suggestion.
+3. IT-027 establishes the explicit lifecycle-fenced acceptance boundary.
+4. IT-028 removes the now-invalid automatic-follow notification contract.
+5. IT-029 restores the private review surface and fixed-account Flutter flow.
+6. Re-run the unaffected verification, privacy, ZIP, Meta-adapter, membership,
+   import-retention, and account-isolation tests from Sections 1–11.
+
+## 13. Instagram Match Notification Restoration Tests
+
+Status: Approved test-design amendment on 2026-08-21.
+
+### AT-013: A New Private Match Notifies Without Following
+
+Requirement IDs: FR-038–FR-040, NFR-012, AC-064–AC-067
+
+```gherkin
+Given Alice imports an Instagram following list containing Bob
+And Bob is an exact eligible current CraftSky member
+When matching creates Alice's pending private suggestion for Bob
+Then the same transaction creates one actor-backed instagramMatch notification for Alice
+And no OAuth session is selected and no PDS follow is written
+And replaying matching creates no additional notification or delivery
+And Alice can open Bob's profile and explicitly choose Follow from the notification row
+```
+
+| ID | Requirement IDs | Test |
+|---|---|---|
+| IT-030 | FR-038, NFR-012, AC-064, AC-065 | Real PostgreSQL matching creates one suggestion plus one source-less actor notification atomically and remains idempotent. |
+| UT-024 | FR-039, AC-066 | Category, fixed-scope preference, and identity-free push payload contracts include `instagramMatch`. |
+| IT-031 | FR-040, AC-067 | Flutter decodes the actor-backed row, renders non-automatic copy and Follow/Following, and opens the matched profile under the captured account. |
+
+Required order: IT-030, UT-024, IT-031, then the affected Instagram,
+notification, push, API, app-wiring, migration, and Flutter notification suites.

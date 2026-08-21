@@ -76,10 +76,6 @@ func apiLogErrorAttrs(runID, operation, category string) []any {
 		slog.String("error_category", category))
 }
 
-func apiLogInvalidAttrs(runID, operation string) []any {
-	return append(apiLogAttrs(runID, operation), slog.String("result", "invalid"))
-}
-
 func requestCanceled(ctx context.Context, err error) bool {
 	return errors.Is(err, context.Canceled) || errors.Is(ctx.Err(), context.Canceled)
 }

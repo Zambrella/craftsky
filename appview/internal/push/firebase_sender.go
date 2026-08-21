@@ -5,9 +5,12 @@ import (
 	"errors"
 	"strconv"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	firebase "firebase.google.com/go/v4"
 	"firebase.google.com/go/v4/messaging"
+	"github.com/google/uuid"
 )
 
 type firebaseClient interface {
@@ -30,10 +33,11 @@ func NewFirebaseSender(ctx context.Context, projectID string) (*FirebaseSender, 
 	return &FirebaseSender{client: client, now: time.Now}, nil
 }
 func (s *FirebaseSender) Send(ctx context.Context, request SendRequest) (ProviderResult, error) {
-	payload := BuildPayload(request.Category, request.AccountSubscriptionID, request.ActorDisplayName, request.RoutingFacts)
-	deadline := s.now().Add(request.TTL)
-	message := &messaging.Message{Token: request.Token, Notification: &messaging.Notification{Title: payload.Title, Body: payload.Body}, Data: payload.Data, Android: &messaging.AndroidConfig{TTL: &request.TTL}, APNS: &messaging.APNSConfig{Headers: map[string]string{"apns-expiration": strconv.FormatInt(deadline.Unix(), 10)}, Payload: &messaging.APNSPayload{Aps: &messaging.Aps{Sound: "default"}}}}
-	_, err := s.client.Send(ctx, message)
+	message, err := s.buildMessage(request)
+	if err != nil {
+		return ProviderResult{Class: ResultPermanentFailure}, err
+	}
+	_, err = s.client.Send(ctx, message)
 	if err == nil {
 		return ProviderResult{Class: ResultSuccess}, nil
 	}
@@ -45,4 +49,67 @@ func (s *FirebaseSender) Send(ctx context.Context, request SendRequest) (Provide
 	default:
 		return ProviderResult{Class: ResultPermanentFailure}, err
 	}
+}
+
+func (s *FirebaseSender) buildMessage(request SendRequest) (*messaging.Message, error) {
+	if s == nil || s.client == nil || s.now == nil || request.Token == "" ||
+		!request.Category.Valid() || request.TTL <= 0 ||
+		request.Semantics != DeliveryUniqueEvent {
+		return nil, ErrPushPayloadInvalid
+	}
+	if _, err := uuid.Parse(request.RoutingFacts.NotificationID); err != nil {
+		return nil, ErrPushPayloadInvalid
+	}
+	payload := BuildPayload(
+		request.Category,
+		request.AccountSubscriptionID,
+		request.ActorDisplayName,
+		request.RoutingFacts,
+	)
+	data := make(map[string]string, len(payload.Data)+3)
+	for key, value := range payload.Data {
+		data[key] = value
+	}
+	data["notificationId"] = request.RoutingFacts.NotificationID
+	message := &messaging.Message{
+		Token: request.Token,
+		Data:  data,
+		Notification: &messaging.Notification{
+			Title: safePushDisplayText(payload.Title, "CraftSky"),
+			Body: safePushDisplayText(
+				payload.Body,
+				"You have a new notification",
+			),
+		},
+	}
+	deadline := s.now().Add(request.TTL)
+
+	switch request.Platform {
+	case "android":
+		message.Android = &messaging.AndroidConfig{TTL: &request.TTL}
+	case "ios":
+		message.APNS = &messaging.APNSConfig{
+			Headers: map[string]string{
+				"apns-expiration": strconv.FormatInt(deadline.Unix(), 10),
+			},
+			Payload: &messaging.APNSPayload{
+				Aps: &messaging.Aps{Sound: "default"},
+			},
+		}
+	default:
+		return nil, ErrPushPayloadInvalid
+	}
+	return message, nil
+}
+
+func safePushDisplayText(value, fallback string) string {
+	if value == "" || len(value) > 256 || !utf8.ValidString(value) {
+		return fallback
+	}
+	for _, character := range value {
+		if unicode.IsControl(character) {
+			return fallback
+		}
+	}
+	return value
 }

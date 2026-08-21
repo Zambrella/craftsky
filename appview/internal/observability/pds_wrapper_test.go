@@ -12,6 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/getsentry/sentry-go"
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
 type fakePDSClient struct {
@@ -24,6 +25,65 @@ type fakeListPDSClient struct {
 	fakePDSClient
 	records []auth.PDSRecord
 	cursor  string
+}
+
+type fakeEffectPDSClient struct {
+	fakePDSClient
+	calls int
+}
+
+type fakeConditionalPDSClient struct {
+	fakePDSClient
+	calls       int
+	putCalls    int
+	expectedCID syntax.CID
+}
+
+func (client *fakeConditionalPDSClient) PutRecordWithSwap(
+	_ context.Context,
+	_ syntax.DID,
+	_ string,
+	_ string,
+	_ any,
+	expectedCID syntax.CID,
+) error {
+	client.putCalls++
+	client.expectedCID = expectedCID
+	return nil
+}
+
+func (client *fakeConditionalPDSClient) DeleteRecordWithSwap(
+	_ context.Context,
+	_ syntax.DID,
+	_ string,
+	_ string,
+	expectedCID syntax.CID,
+) error {
+	client.calls++
+	client.expectedCID = expectedCID
+	return nil
+}
+
+type fakeConditionalEffectPDSClient struct {
+	fakePDSClient
+	purpose *fakeConditionalPDSClient
+}
+
+func (client *fakeConditionalEffectPDSClient) WithActiveEffects(
+	ctx context.Context,
+	_ []ownerlifecycle.ExpectedOwner,
+	operation auth.ActiveEffectPDSOperation,
+) error {
+	return operation(ctx, client.purpose)
+}
+
+func (f *fakeEffectPDSClient) WithActiveEffects(
+	ctx context.Context,
+	expected []ownerlifecycle.ExpectedOwner,
+	operation auth.ActiveEffectPDSOperation,
+) error {
+	f.calls++
+	return operation(ctx, f.fakePDSClient)
 }
 
 func (f fakeListPDSClient) ListRecords(context.Context, syntax.DID, string, string, int) ([]auth.PDSRecord, string, error) {
@@ -51,6 +111,122 @@ func TestWrapPDSFactoryPreservesRecordListingCapability(t *testing.T) {
 	}
 	if len(records) != 1 || records[0].URI != want[0].URI || cursor != "next-page" {
 		t.Fatalf("records/cursor = %+v/%q, want %+v/%q", records, cursor, want, "next-page")
+	}
+}
+
+func TestWrapPDSFactoryPreservesActiveEffectCapability(t *testing.T) {
+	observer := New(Config{Env: "test", MetricRecorder: NewInMemoryMetricRecorder()})
+	inner := &fakeEffectPDSClient{}
+	wrappedFactory := observer.WrapPDSFactory(func(context.Context, syntax.DID, string) (auth.PDSClient, error) {
+		return inner, nil
+	})
+
+	client, err := wrappedFactory(context.Background(), syntax.DID("did:plc:alice"), "session")
+	if err != nil {
+		t.Fatalf("wrapped factory: %v", err)
+	}
+	boundary, ok := client.(auth.ActiveEffectPDSBoundary)
+	if !ok {
+		t.Fatal("wrapped PDS client lost ActiveEffectPDSBoundary capability")
+	}
+	var callbackClient auth.PDSClient
+	err = boundary.WithActiveEffects(
+		context.Background(),
+		[]ownerlifecycle.ExpectedOwner{{Owner: syntax.DID("did:plc:alice"), Generation: 2}},
+		func(_ context.Context, purposeClient auth.PDSClient) error {
+			callbackClient = purposeClient
+			return purposeClient.PutRecord(
+				context.Background(),
+				syntax.DID("did:plc:alice"),
+				"social.craftsky.feed.post",
+				"3lobserved",
+				map[string]any{"text": "observed"},
+			)
+		},
+	)
+	if err != nil {
+		t.Fatalf("WithActiveEffects: %v", err)
+	}
+	if inner.calls != 1 || callbackClient == nil {
+		t.Fatalf("active effect delegation calls/client = %d/%T", inner.calls, callbackClient)
+	}
+}
+
+func TestWrapPDSFactoryPreservesConditionalDeleteInsideActiveEffects(t *testing.T) {
+	observer := New(Config{Env: "test", MetricRecorder: NewInMemoryMetricRecorder()})
+	purpose := &fakeConditionalPDSClient{}
+	inner := &fakeConditionalEffectPDSClient{purpose: purpose}
+	wrapper := observer.WrapPDSFactory(func(context.Context, syntax.DID, string) (auth.PDSClient, error) {
+		return inner, nil
+	})
+	client, err := wrapper(context.Background(), syntax.DID("did:plc:alice"), "session")
+	if err != nil {
+		t.Fatal(err)
+	}
+	boundary, ok := client.(auth.ActiveEffectPDSBoundary)
+	if !ok {
+		t.Fatal("wrapped PDS client lost ActiveEffectPDSBoundary")
+	}
+	err = boundary.WithActiveEffects(
+		context.Background(),
+		[]ownerlifecycle.ExpectedOwner{{Owner: syntax.DID("did:plc:alice"), Generation: 2}},
+		func(ctx context.Context, callbackClient auth.PDSClient) error {
+			deleter, ok := callbackClient.(auth.ConditionalPDSRecordDeleter)
+			if !ok {
+				return errors.New("observed callback client lost ConditionalPDSRecordDeleter")
+			}
+			return deleter.DeleteRecordWithSwap(
+				ctx,
+				syntax.DID("did:plc:alice"),
+				"social.craftsky.feed.post",
+				"3lconditional",
+				syntax.CID("bafy-expected"),
+			)
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if purpose.calls != 1 || purpose.expectedCID != "bafy-expected" {
+		t.Fatalf("conditional delete calls/CID = %d/%q", purpose.calls, purpose.expectedCID)
+	}
+}
+
+func TestWrapPDSFactoryPreservesConditionalPutInsideActiveEffects(t *testing.T) {
+	observer := New(Config{Env: "test", MetricRecorder: NewInMemoryMetricRecorder()})
+	purpose := &fakeConditionalPDSClient{}
+	inner := &fakeConditionalEffectPDSClient{purpose: purpose}
+	wrapper := observer.WrapPDSFactory(func(context.Context, syntax.DID, string) (auth.PDSClient, error) {
+		return inner, nil
+	})
+	client, err := wrapper(context.Background(), syntax.DID("did:plc:alice"), "session")
+	if err != nil {
+		t.Fatal(err)
+	}
+	boundary := client.(auth.ActiveEffectPDSBoundary)
+	err = boundary.WithActiveEffects(
+		context.Background(),
+		[]ownerlifecycle.ExpectedOwner{{Owner: syntax.DID("did:plc:alice"), Generation: 2}},
+		func(ctx context.Context, callbackClient auth.PDSClient) error {
+			putter, ok := callbackClient.(auth.ConditionalPDSRecordPutter)
+			if !ok {
+				return errors.New("observed callback client lost ConditionalPDSRecordPutter")
+			}
+			return putter.PutRecordWithSwap(
+				ctx,
+				syntax.DID("did:plc:alice"),
+				"social.craftsky.actor.profile",
+				"self",
+				map[string]any{"displayName": "updated"},
+				syntax.CID("bafy-prior"),
+			)
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if purpose.putCalls != 1 || purpose.expectedCID != "bafy-prior" {
+		t.Fatalf("conditional Put calls/CID = %d/%q", purpose.putCalls, purpose.expectedCID)
 	}
 }
 

@@ -10,12 +10,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/api/bsky"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -56,31 +59,67 @@ type fakeFollowPDS struct {
 	deleteRepo       syntax.DID
 	deleteCollection string
 	deleteRkey       string
+	deleteCID        syntax.CID
+	resolvedOwnerGen int64
+	resolvedTargets  []syntax.DID
+	readRecord       *bsky.GraphFollow
+	readCID          syntax.CID
+	readErr          error
 }
 
-func (f *fakeFollowPDS) GetRecord(context.Context, syntax.DID, string, string, any) (string, error) {
-	return "", errors.New("not implemented")
-}
-func (f *fakeFollowPDS) PutRecord(context.Context, syntax.DID, string, string, any) error {
-	return errors.New("not implemented")
-}
-func (f *fakeFollowPDS) CreateRecord(_ context.Context, repo syntax.DID, collection string, record any) (syntax.ATURI, syntax.CID, error) {
-	f.createRepo = repo
-	f.createCollection = collection
-	f.createRecord, _ = record.(map[string]any)
-	if f.createErr != nil {
-		return "", "", f.createErr
+func (f *fakeFollowPDS) ResolveExpectedOwners(
+	_ context.Context,
+	ownerGeneration int64,
+	targets []syntax.DID,
+) ([]ownerlifecycle.ExpectedOwner, error) {
+	f.resolvedOwnerGen = ownerGeneration
+	f.resolvedTargets = append([]syntax.DID(nil), targets...)
+	expected := []ownerlifecycle.ExpectedOwner{{Owner: "did:plc:alice", Generation: ownerGeneration}}
+	for _, target := range targets {
+		expected = append(expected, ownerlifecycle.ExpectedOwner{Owner: target, Generation: 1})
 	}
-	return f.createURI, f.createCID, nil
+	return expected, nil
 }
-func (f *fakeFollowPDS) DeleteRecord(_ context.Context, repo syntax.DID, collection string, rkey string) error {
-	f.deleteRepo = repo
-	f.deleteCollection = collection
-	f.deleteRkey = rkey
-	return f.deleteErr
+
+func (f *fakeFollowPDS) ReadRecord(_ context.Context, _ pdseffects.ReadRecordRequest, out any) (syntax.CID, error) {
+	if f.readErr != nil {
+		return "", f.readErr
+	}
+	if f.readRecord == nil {
+		return "", auth.ErrRecordNotFound
+	}
+	*(out.(*bsky.GraphFollow)) = *f.readRecord
+	return f.readCID, nil
 }
-func (f *fakeFollowPDS) UploadBlob(context.Context, string, []byte) (*auth.UploadedBlob, error) {
+
+func (f *fakeFollowPDS) PutRecord(_ context.Context, request pdseffects.PutRecordRequest) (pdseffects.RecordResult, error) {
+	f.createRepo = request.Owner
+	f.createCollection = request.Collection.String()
+	encoded, _ := json.Marshal(request.Record)
+	_ = json.Unmarshal(encoded, &f.createRecord)
+	if f.createErr != nil {
+		return pdseffects.RecordResult{}, f.createErr
+	}
+	uri := syntax.ATURI("at://" + request.Owner.String() + "/" + request.Collection.String() + "/" + request.Rkey.String())
+	return pdseffects.RecordResult{URI: uri, CID: f.createCID}, nil
+}
+
+func (f *fakeFollowPDS) DeleteRecord(_ context.Context, request pdseffects.DeleteRecordRequest) (pdseffects.RecordResult, error) {
+	f.deleteRepo = request.Owner
+	f.deleteCollection = request.Collection.String()
+	f.deleteRkey = request.Rkey.String()
+	f.deleteCID = request.ExpectedCID
+	return pdseffects.RecordResult{}, f.deleteErr
+}
+
+func (f *fakeFollowPDS) UploadBlob(context.Context, pdseffects.UploadBlobRequest) (*auth.UploadedBlob, error) {
 	return nil, errors.New("not implemented")
+}
+
+func fakeFollowEffectsFactory(executor *fakeFollowPDS) pdseffects.ExecutorFactory {
+	return func(context.Context, syntax.DID, string) (pdseffects.EffectExecutor, error) {
+		return executor, nil
+	}
 }
 
 type fakeFollowProfileStore struct {
@@ -109,7 +148,7 @@ func TestFollowProfileHandler_WritesFollowRecordAndReturnsProfile(t *testing.T) 
 		graph,
 		profiles,
 		resolver,
-		func(_ context.Context, _ syntax.DID, sid string) (auth.PDSClient, error) {
+		func(_ context.Context, _ syntax.DID, sid string) (pdseffects.EffectExecutor, error) {
 			gotFactorySID = sid
 			return pds, nil
 		},
@@ -120,6 +159,7 @@ func TestFollowProfileHandler_WritesFollowRecordAndReturnsProfile(t *testing.T) 
 	req.SetPathValue("handleOrDid", "bob.craftsky.social")
 	ctx := middleware.WithDID(req.Context(), "did:plc:alice")
 	ctx = middleware.WithOAuthSessionID(ctx, "sess-alice")
+	ctx = middleware.WithOwnerGeneration(ctx, 1)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -161,7 +201,7 @@ func TestFollowProfileHandler_WritesFollowRecordAndReturnsProfile(t *testing.T) 
 func TestUnfollowProfileHandler_DeletesActiveRecordAndReturnsProfile(t *testing.T) {
 	t.Parallel()
 
-	graph := &fakeFollowGraphStore{active: &api.FollowRow{URI: "at://did:plc:alice/app.bsky.graph.follow/f1", DID: "did:plc:alice", Rkey: "f1", SubjectDID: "did:plc:bob", CreatedAt: time.Now()}}
+	graph := &fakeFollowGraphStore{active: &api.FollowRow{URI: "at://did:plc:alice/app.bsky.graph.follow/f1", DID: "did:plc:alice", Rkey: "f1", CID: "bafy-follow", SubjectDID: "did:plc:bob", CreatedAt: time.Now()}}
 	pds := &fakeFollowPDS{}
 	profiles := &fakeFollowProfileStore{row: &api.ProfileRow{DID: "did:plc:bob", Crafts: []string{}, CreatedAt: time.Now(), IsCraftskyProfile: true}}
 	resolver := fakeResolver{didFor: "did:plc:bob", handleFor: "bob.craftsky.social"}
@@ -170,7 +210,7 @@ func TestUnfollowProfileHandler_DeletesActiveRecordAndReturnsProfile(t *testing.
 		graph,
 		profiles,
 		resolver,
-		func(context.Context, syntax.DID, string) (auth.PDSClient, error) { return pds, nil },
+		fakeFollowEffectsFactory(pds),
 		nilLogger(),
 	)
 
@@ -178,6 +218,7 @@ func TestUnfollowProfileHandler_DeletesActiveRecordAndReturnsProfile(t *testing.
 	req.SetPathValue("handleOrDid", "bob.craftsky.social")
 	ctx := middleware.WithDID(req.Context(), "did:plc:alice")
 	ctx = middleware.WithOAuthSessionID(ctx, "sess-alice")
+	ctx = middleware.WithOwnerGeneration(ctx, 1)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -194,6 +235,9 @@ func TestUnfollowProfileHandler_DeletesActiveRecordAndReturnsProfile(t *testing.
 	}
 	if pds.deleteRkey != "f1" {
 		t.Fatalf("DeleteRecord rkey = %q, want f1", pds.deleteRkey)
+	}
+	if pds.deleteCID != "bafy-follow" {
+		t.Fatalf("DeleteRecord expected CID = %q, want bafy-follow", pds.deleteCID)
 	}
 	if graph.lastDelete != "" {
 		t.Fatalf("did not expect local follow graph delete; got %q", graph.lastDelete)
@@ -214,7 +258,7 @@ func TestFollowProfileHandler_InvalidIdentifier(t *testing.T) {
 		&fakeFollowGraphStore{},
 		&fakeFollowProfileStore{},
 		fakeResolver{},
-		func(context.Context, syntax.DID, string) (auth.PDSClient, error) { return &fakeFollowPDS{}, nil },
+		fakeFollowEffectsFactory(&fakeFollowPDS{}),
 		nilLogger(),
 	)
 
@@ -222,6 +266,7 @@ func TestFollowProfileHandler_InvalidIdentifier(t *testing.T) {
 	req.SetPathValue("handleOrDid", "NOT VALID")
 	ctx := middleware.WithDID(req.Context(), "did:plc:alice")
 	ctx = middleware.WithOAuthSessionID(ctx, "sess-alice")
+	ctx = middleware.WithOwnerGeneration(ctx, 1)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -244,7 +289,7 @@ func TestFollowProfileHandler_SelfRejected(t *testing.T) {
 		&fakeFollowGraphStore{},
 		&fakeFollowProfileStore{},
 		fakeResolver{didFor: "did:plc:alice"},
-		func(context.Context, syntax.DID, string) (auth.PDSClient, error) { return &fakeFollowPDS{}, nil },
+		fakeFollowEffectsFactory(&fakeFollowPDS{}),
 		nilLogger(),
 	)
 
@@ -252,6 +297,7 @@ func TestFollowProfileHandler_SelfRejected(t *testing.T) {
 	req.SetPathValue("handleOrDid", "alice.example")
 	ctx := middleware.WithDID(req.Context(), "did:plc:alice")
 	ctx = middleware.WithOAuthSessionID(ctx, "sess-alice")
+	ctx = middleware.WithOwnerGeneration(ctx, 1)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -279,7 +325,7 @@ func TestUnfollowProfileHandler_NoActiveIsIdempotent(t *testing.T) {
 		graph,
 		profiles,
 		resolver,
-		func(context.Context, syntax.DID, string) (auth.PDSClient, error) { return pds, nil },
+		fakeFollowEffectsFactory(pds),
 		nilLogger(),
 	)
 
@@ -287,6 +333,7 @@ func TestUnfollowProfileHandler_NoActiveIsIdempotent(t *testing.T) {
 	req.SetPathValue("handleOrDid", "bob.craftsky.social")
 	ctx := middleware.WithDID(req.Context(), "did:plc:alice")
 	ctx = middleware.WithOAuthSessionID(ctx, "sess-alice")
+	ctx = middleware.WithOwnerGeneration(ctx, 1)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -295,8 +342,8 @@ func TestUnfollowProfileHandler_NoActiveIsIdempotent(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
 	}
-	if pds.deleteRkey != "" {
-		t.Fatalf("expected no DeleteRecord call, got rkey=%q", pds.deleteRkey)
+	if pds.deleteRkey == "" {
+		t.Fatal("expected deterministic cleanup DeleteRecord call")
 	}
 }
 
@@ -312,7 +359,7 @@ func TestFollowProfileHandler_AlreadyFollowingIsIdempotent(t *testing.T) {
 		graph,
 		profiles,
 		resolver,
-		func(context.Context, syntax.DID, string) (auth.PDSClient, error) { return pds, nil },
+		fakeFollowEffectsFactory(pds),
 		nilLogger(),
 	)
 
@@ -320,6 +367,7 @@ func TestFollowProfileHandler_AlreadyFollowingIsIdempotent(t *testing.T) {
 	req.SetPathValue("handleOrDid", "bob.craftsky.social")
 	ctx := middleware.WithDID(req.Context(), "did:plc:alice")
 	ctx = middleware.WithOAuthSessionID(ctx, "sess-alice")
+	ctx = middleware.WithOwnerGeneration(ctx, 1)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -352,13 +400,13 @@ func TestFollowProfileHandler_AlreadyFollowingResponseDoesNotDoubleCount(t *test
 		graph,
 		profiles,
 		fakeResolver{didFor: "did:plc:bob", handleFor: "bob.craftsky.social"},
-		func(context.Context, syntax.DID, string) (auth.PDSClient, error) { return pds, nil },
+		fakeFollowEffectsFactory(pds),
 		nilLogger(),
 	)
 
 	req := httptest.NewRequest(http.MethodPost, "/v1/profiles/@bob.craftsky.social/follows", nil)
 	req.SetPathValue("handleOrDid", "bob.craftsky.social")
-	req = req.WithContext(middleware.WithOAuthSessionID(middleware.WithDID(req.Context(), "did:plc:alice"), "sess-alice"))
+	req = req.WithContext(middleware.WithOwnerGeneration(middleware.WithOAuthSessionID(middleware.WithDID(req.Context(), "did:plc:alice"), "sess-alice"), 1))
 	rr := httptest.NewRecorder()
 
 	h.ServeHTTP(rr, req)
@@ -400,13 +448,13 @@ func TestUnfollowProfileHandler_ActiveResponseSubtractsBeforeTapDelete(t *testin
 		graph,
 		profiles,
 		fakeResolver{didFor: "did:plc:bob", handleFor: "bob.craftsky.social"},
-		func(context.Context, syntax.DID, string) (auth.PDSClient, error) { return pds, nil },
+		fakeFollowEffectsFactory(pds),
 		nilLogger(),
 	)
 
 	req := httptest.NewRequest(http.MethodDelete, "/v1/profiles/@bob.craftsky.social/follows", nil)
 	req.SetPathValue("handleOrDid", "bob.craftsky.social")
-	req = req.WithContext(middleware.WithOAuthSessionID(middleware.WithDID(req.Context(), "did:plc:alice"), "sess-alice"))
+	req = req.WithContext(middleware.WithOwnerGeneration(middleware.WithOAuthSessionID(middleware.WithDID(req.Context(), "did:plc:alice"), "sess-alice"), 1))
 	rr := httptest.NewRecorder()
 
 	h.ServeHTTP(rr, req)
@@ -453,7 +501,7 @@ func TestFollowProfileHandler_RejectsNonCraftskyTargetBeforePDSWrite(t *testing.
 		graph,
 		profiles,
 		resolver,
-		func(context.Context, syntax.DID, string) (auth.PDSClient, error) { return pds, nil },
+		fakeFollowEffectsFactory(pds),
 		nilLogger(),
 	)
 
@@ -461,6 +509,7 @@ func TestFollowProfileHandler_RejectsNonCraftskyTargetBeforePDSWrite(t *testing.
 	req.SetPathValue("handleOrDid", "carol.bsky.social")
 	ctx := middleware.WithDID(req.Context(), "did:plc:alice")
 	ctx = middleware.WithOAuthSessionID(ctx, "sess-alice")
+	ctx = middleware.WithOwnerGeneration(ctx, 1)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -492,7 +541,7 @@ func TestFollowProfileHandlerRejectsEitherBlockDirectionBeforePDSWrite(t *testin
 			h := api.FollowProfileHandler(
 				&fakeFollowGraphStore{}, profiles,
 				fakeResolver{didFor: "did:plc:bob", handleFor: "bob.example"},
-				func(context.Context, syntax.DID, string) (auth.PDSClient, error) { return pds, nil },
+				fakeFollowEffectsFactory(pds),
 				nilLogger(),
 			)
 			req := httptest.NewRequest(http.MethodPost, "/v1/profiles/@bob.example/follows", nil)
@@ -519,7 +568,7 @@ func TestUnfollowProfileHandler_InvalidIdentifier(t *testing.T) {
 		&fakeFollowGraphStore{},
 		&fakeFollowProfileStore{},
 		fakeResolver{},
-		func(context.Context, syntax.DID, string) (auth.PDSClient, error) { return &fakeFollowPDS{}, nil },
+		fakeFollowEffectsFactory(&fakeFollowPDS{}),
 		nilLogger(),
 	)
 
@@ -527,6 +576,7 @@ func TestUnfollowProfileHandler_InvalidIdentifier(t *testing.T) {
 	req.SetPathValue("handleOrDid", "NOT VALID")
 	ctx := middleware.WithDID(req.Context(), "did:plc:alice")
 	ctx = middleware.WithOAuthSessionID(ctx, "sess-alice")
+	ctx = middleware.WithOwnerGeneration(ctx, 1)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 
@@ -549,7 +599,7 @@ func TestUnfollowProfileHandler_SelfRejected(t *testing.T) {
 		&fakeFollowGraphStore{},
 		&fakeFollowProfileStore{},
 		fakeResolver{didFor: "did:plc:alice"},
-		func(context.Context, syntax.DID, string) (auth.PDSClient, error) { return &fakeFollowPDS{}, nil },
+		fakeFollowEffectsFactory(&fakeFollowPDS{}),
 		nilLogger(),
 	)
 
@@ -557,6 +607,7 @@ func TestUnfollowProfileHandler_SelfRejected(t *testing.T) {
 	req.SetPathValue("handleOrDid", "alice.example")
 	ctx := middleware.WithDID(req.Context(), "did:plc:alice")
 	ctx = middleware.WithOAuthSessionID(ctx, "sess-alice")
+	ctx = middleware.WithOwnerGeneration(ctx, 1)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()
 

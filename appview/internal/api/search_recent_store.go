@@ -6,6 +6,10 @@ import (
 	"encoding/hex"
 	"fmt"
 	"time"
+
+	"github.com/bluesky-social/indigo/atproto/syntax"
+
+	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
 type RecentSearchRow struct {
@@ -63,8 +67,16 @@ func (s *SearchStore) saveRecentSearchObserved(ctx context.Context, viewerDID st
 	if err != nil {
 		return RecentSearchRow{}, err
 	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return RecentSearchRow{}, fmt.Errorf("begin save recent search: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, syntax.DID(viewerDID), nil); err != nil {
+		return RecentSearchRow{}, fmt.Errorf("authorize save recent search: %w", err)
+	}
 	var row RecentSearchRow
-	err = s.pool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 		INSERT INTO craftsky_recent_searches (id, viewer_did, search_type, display_label, normalized_payload, normalized_payload_hash, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
 		ON CONFLICT (viewer_did, search_type, normalized_payload_hash)
@@ -75,7 +87,7 @@ func (s *SearchStore) saveRecentSearchObserved(ctx context.Context, viewerDID st
 	if err != nil {
 		return RecentSearchRow{}, fmt.Errorf("save recent search: %w", err)
 	}
-	if _, err := s.pool.Exec(ctx, `
+	if _, err := tx.Exec(ctx, `
 		DELETE FROM craftsky_recent_searches
 		WHERE viewer_did = $1 AND id IN (
 			SELECT id FROM (
@@ -85,6 +97,9 @@ func (s *SearchStore) saveRecentSearchObserved(ctx context.Context, viewerDID st
 			) ranked WHERE rn > 50
 		)`, viewerDID); err != nil {
 		return RecentSearchRow{}, fmt.Errorf("prune recent searches: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return RecentSearchRow{}, fmt.Errorf("commit save recent search: %w", err)
 	}
 	return row, nil
 }
@@ -96,9 +111,19 @@ func (s *SearchStore) DeleteRecentSearch(ctx context.Context, viewerDID, id stri
 }
 
 func (s *SearchStore) deleteRecentSearchObserved(ctx context.Context, viewerDID, id string) error {
-	_, err := s.pool.Exec(ctx, `DELETE FROM craftsky_recent_searches WHERE viewer_did = $1 AND id = $2`, viewerDID, id)
+	tx, err := s.pool.Begin(ctx)
 	if err != nil {
+		return fmt.Errorf("begin delete recent search: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, syntax.DID(viewerDID), nil); err != nil {
+		return fmt.Errorf("authorize delete recent search: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM craftsky_recent_searches WHERE viewer_did = $1 AND id = $2`, viewerDID, id); err != nil {
 		return fmt.Errorf("delete recent search: %w", err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit delete recent search: %w", err)
 	}
 	return nil
 }

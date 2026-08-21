@@ -8,28 +8,16 @@ part of 'handoff_api_client_provider.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Family-keyed by a redacted credential wrapper: one instance per in-flight
-/// handoff. Not keep-alive — auto-disposes when no one watches it, so
-/// the token doesn't linger.
-///
-/// The server enforces X-Craftsky-Device-Id on every authenticated
-/// /v1/* call, so the handoff Dio bakes both Authorization and
-/// X-Craftsky-Device-Id into BaseOptions. Callers must pre-resolve
-/// `deviceIdProvider.future` and pass the value explicitly — this
-/// keeps the provider itself synchronous.
+/// Uses the anonymous client for code redemption. The pending bearer is passed
+/// directly to the one confirmation request, never retained in provider
+/// identity or diagnostics.
 
 @ProviderFor(handoffApiClient)
-final handoffApiClientProvider = HandoffApiClientFamily._();
+final handoffApiClientProvider = HandoffApiClientProvider._();
 
-/// Family-keyed by a redacted credential wrapper: one instance per in-flight
-/// handoff. Not keep-alive — auto-disposes when no one watches it, so
-/// the token doesn't linger.
-///
-/// The server enforces X-Craftsky-Device-Id on every authenticated
-/// /v1/* call, so the handoff Dio bakes both Authorization and
-/// X-Craftsky-Device-Id into BaseOptions. Callers must pre-resolve
-/// `deviceIdProvider.future` and pass the value explicitly — this
-/// keeps the provider itself synchronous.
+/// Uses the anonymous client for code redemption. The pending bearer is passed
+/// directly to the one confirmation request, never retained in provider
+/// identity or diagnostics.
 
 final class HandoffApiClientProvider
     extends
@@ -39,35 +27,22 @@ final class HandoffApiClientProvider
           HandoffApiClient
         >
     with $Provider<HandoffApiClient> {
-  /// Family-keyed by a redacted credential wrapper: one instance per in-flight
-  /// handoff. Not keep-alive — auto-disposes when no one watches it, so
-  /// the token doesn't linger.
-  ///
-  /// The server enforces X-Craftsky-Device-Id on every authenticated
-  /// /v1/* call, so the handoff Dio bakes both Authorization and
-  /// X-Craftsky-Device-Id into BaseOptions. Callers must pre-resolve
-  /// `deviceIdProvider.future` and pass the value explicitly — this
-  /// keeps the provider itself synchronous.
-  HandoffApiClientProvider._({
-    required HandoffApiClientFamily super.from,
-    required HandoffClientKey super.argument,
-  }) : super(
-         retry: null,
-         name: r'handoffApiClientProvider',
-         isAutoDispose: true,
-         dependencies: null,
-         $allTransitiveDependencies: null,
-       );
+  /// Uses the anonymous client for code redemption. The pending bearer is passed
+  /// directly to the one confirmation request, never retained in provider
+  /// identity or diagnostics.
+  HandoffApiClientProvider._()
+    : super(
+        from: null,
+        argument: null,
+        retry: null,
+        name: r'handoffApiClientProvider',
+        isAutoDispose: false,
+        dependencies: null,
+        $allTransitiveDependencies: null,
+      );
 
   @override
   String debugGetCreateSourceHash() => _$handoffApiClientHash();
-
-  @override
-  String toString() {
-    return r'handoffApiClientProvider'
-        ''
-        '($argument)';
-  }
 
   @$internal
   @override
@@ -76,8 +51,7 @@ final class HandoffApiClientProvider
 
   @override
   HandoffApiClient create(Ref ref) {
-    final argument = this.argument as HandoffClientKey;
-    return handoffApiClient(ref, argument);
+    return handoffApiClient(ref);
   }
 
   /// {@macro riverpod.override_with_value}
@@ -87,54 +61,6 @@ final class HandoffApiClientProvider
       providerOverride: $SyncValueProvider<HandoffApiClient>(value),
     );
   }
-
-  @override
-  bool operator ==(Object other) {
-    return other is HandoffApiClientProvider && other.argument == argument;
-  }
-
-  @override
-  int get hashCode {
-    return argument.hashCode;
-  }
 }
 
-String _$handoffApiClientHash() => r'cc34af0f3913c026326e22f8d5288903ada6154d';
-
-/// Family-keyed by a redacted credential wrapper: one instance per in-flight
-/// handoff. Not keep-alive — auto-disposes when no one watches it, so
-/// the token doesn't linger.
-///
-/// The server enforces X-Craftsky-Device-Id on every authenticated
-/// /v1/* call, so the handoff Dio bakes both Authorization and
-/// X-Craftsky-Device-Id into BaseOptions. Callers must pre-resolve
-/// `deviceIdProvider.future` and pass the value explicitly — this
-/// keeps the provider itself synchronous.
-
-final class HandoffApiClientFamily extends $Family
-    with $FunctionalFamilyOverride<HandoffApiClient, HandoffClientKey> {
-  HandoffApiClientFamily._()
-    : super(
-        retry: null,
-        name: r'handoffApiClientProvider',
-        dependencies: null,
-        $allTransitiveDependencies: null,
-        isAutoDispose: true,
-      );
-
-  /// Family-keyed by a redacted credential wrapper: one instance per in-flight
-  /// handoff. Not keep-alive — auto-disposes when no one watches it, so
-  /// the token doesn't linger.
-  ///
-  /// The server enforces X-Craftsky-Device-Id on every authenticated
-  /// /v1/* call, so the handoff Dio bakes both Authorization and
-  /// X-Craftsky-Device-Id into BaseOptions. Callers must pre-resolve
-  /// `deviceIdProvider.future` and pass the value explicitly — this
-  /// keeps the provider itself synchronous.
-
-  HandoffApiClientProvider call(HandoffClientKey key) =>
-      HandoffApiClientProvider._(argument: key, from: this);
-
-  @override
-  String toString() => r'handoffApiClientProvider';
-}
+String _$handoffApiClientHash() => r'f28efecf8e6aefeea5da98330db179b759ecdc2b';

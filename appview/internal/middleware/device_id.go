@@ -47,7 +47,7 @@ func WithDeviceID(ctx context.Context, id string) context.Context {
 //
 // Compose on top of Authenticated on any v1 route that requires auth:
 //
-//	h := Authenticated(svc, log)(DeviceID(store, log)(handler))
+//	h := Authenticated(svc, log, DevAuthPolicy{Mode: DevAuthDisabled})(DeviceID(store, log)(handler))
 //
 // When toucher is non-nil AND the DID + session ID are present in the
 // request context (i.e. Authenticated ran and resolved a real session),
@@ -66,6 +66,7 @@ func DeviceID(toucher DeviceIDToucher, logger *slog.Logger) func(http.Handler) h
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			id := r.Header.Get("X-Craftsky-Device-Id")
 			if id == "" {
+				RejectBodyWithoutDrain(w, r)
 				logger.Warn("device-id: missing header",
 					slog.String("run_id", GetRunID(r.Context())))
 				envelope.WriteError(w, http.StatusBadRequest,
@@ -76,6 +77,7 @@ func DeviceID(toucher DeviceIDToucher, logger *slog.Logger) func(http.Handler) h
 				return
 			}
 			if !deviceIDPattern.MatchString(id) {
+				RejectBodyWithoutDrain(w, r)
 				logger.Warn("device-id: malformed header",
 					slog.Int("len", len(id)),
 					slog.String("run_id", GetRunID(r.Context())))

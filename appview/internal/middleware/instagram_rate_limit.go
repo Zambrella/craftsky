@@ -54,7 +54,7 @@ var _ instagrammeta.WebhookInvalidRedemptionLimiter = (*instagramWebhookInvalidR
 
 func NewInstagramWebhookRateLimiter(limiter InstagramPersistentLimiter, trustedProxyCIDRs []netip.Prefix, ipPerMinute, globalPerMinute, invalidIPPerFifteenMinutes int) (*InstagramWebhookRateLimiter, error) {
 	if limiter == nil || ipPerMinute <= 0 || globalPerMinute <= 0 || invalidIPPerFifteenMinutes <= 0 {
-		return nil, errors.New("Instagram webhook rate limiter configuration is incomplete")
+		return nil, errors.New("instagram webhook rate limiter configuration is incomplete")
 	}
 	return &InstagramWebhookRateLimiter{
 		limiter:                    limiter,
@@ -158,6 +158,7 @@ func InstagramPersistentRateLimit(limiter InstagramPersistentLimiter, rules []In
 					return
 				}
 				if !decision.Allowed {
+					RejectBodyWithoutDrain(w, r)
 					retrySeconds := int((decision.RetryAfter + time.Second - 1) / time.Second)
 					if retrySeconds < 1 {
 						retrySeconds = 1
@@ -200,11 +201,12 @@ func instagramRateIdentifier(r *http.Request, identity InstagramRateIdentity, tr
 	case InstagramRateIdentityGlobal:
 		return nil, nil
 	default:
-		return nil, errors.New("Instagram rate identity unavailable")
+		return nil, errors.New("instagram rate identity unavailable")
 	}
 }
 
 func writeInstagramLimiterUnavailable(w http.ResponseWriter, r *http.Request, logger *slog.Logger) {
+	RejectBodyWithoutDrain(w, r)
 	if logger != nil {
 		logger.Error("Instagram persistent rate limiter unavailable",
 			slog.String("run_id", GetRunID(r.Context())))
@@ -276,7 +278,7 @@ func parseForwardedForChain(raw string) ([]netip.Addr, error) {
 			value = strings.TrimSpace(candidate)
 		}
 		if value == "" {
-			return nil, errors.New("Forwarded element has no for parameter")
+			return nil, errors.New("forwarded element has no for parameter")
 		}
 		if strings.HasPrefix(value, `"`) || strings.HasSuffix(value, `"`) {
 			unquoted, err := strconv.Unquote(value)
@@ -309,7 +311,7 @@ func parseXForwardedForChain(raw string) ([]netip.Addr, error) {
 
 func parseForwardedAddr(raw string) (netip.Addr, error) {
 	if raw == "" || strings.EqualFold(raw, "unknown") || strings.HasPrefix(raw, "_") {
-		return netip.Addr{}, errors.New("Forwarded address is not an IP literal")
+		return netip.Addr{}, errors.New("forwarded address is not an IP literal")
 	}
 	if addrPort, err := netip.ParseAddrPort(raw); err == nil {
 		return addrPort.Addr().Unmap(), nil
@@ -319,7 +321,7 @@ func parseForwardedAddr(raw string) (netip.Addr, error) {
 	}
 	addr, err := netip.ParseAddr(raw)
 	if err != nil {
-		return netip.Addr{}, errors.New("Forwarded address is invalid")
+		return netip.Addr{}, errors.New("forwarded address is invalid")
 	}
 	return addr.Unmap(), nil
 }

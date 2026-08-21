@@ -115,9 +115,7 @@ sealed class CraftskyNotification {
         ...map,
         'actor': actorMap,
       });
-      if (common.actor.available) {
-        return InstagramMatchNotification(common);
-      }
+      if (common.actor.available) return InstagramMatchNotification(common);
     }
     return GenericSystemNotification(
       SystemNotificationCommon.fromMap(map),

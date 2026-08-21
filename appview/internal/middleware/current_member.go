@@ -8,7 +8,20 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/ownerlifecycle"
 )
+
+type OwnerLifecycleReader interface {
+	Get(context.Context, syntax.DID) (ownerlifecycle.Lifecycle, error)
+}
+
+func WithOwnerGeneration(ctx context.Context, generation int64) context.Context {
+	return ownerlifecycle.WithExpectedGeneration(ctx, generation)
+}
+
+func GetOwnerGeneration(ctx context.Context) (int64, bool) {
+	return ownerlifecycle.ExpectedGeneration(ctx)
+}
 
 type CurrentMemberChecker interface {
 	IsCurrentMember(context.Context, syntax.DID) (bool, error)
@@ -17,7 +30,11 @@ type CurrentMemberChecker interface {
 // CurrentMember enforces the current craftsky_profiles membership boundary
 // after authentication. It deliberately maps a departed member to the same
 // public profile-not-found contract used by other membership-aware surfaces.
-func CurrentMember(checker CurrentMemberChecker, logger *slog.Logger) func(http.Handler) http.Handler {
+func CurrentMember(
+	checker CurrentMemberChecker,
+	logger *slog.Logger,
+	lifecycleReaders ...OwnerLifecycleReader,
+) func(http.Handler) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -25,6 +42,7 @@ func CurrentMember(checker CurrentMemberChecker, logger *slog.Logger) func(http.
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			did, ok := GetDID(r.Context())
 			if !ok || did == "" {
+				RejectBodyWithoutDrain(w, r)
 				logger.Error("current membership check missing authenticated DID",
 					slog.String("run_id", GetRunID(r.Context())),
 					slog.String("error_category", "internal"))
@@ -34,6 +52,7 @@ func CurrentMember(checker CurrentMemberChecker, logger *slog.Logger) func(http.
 			}
 			current, err := checker.IsCurrentMember(r.Context(), did)
 			if err != nil {
+				RejectBodyWithoutDrain(w, r)
 				logger.Error("current membership check failed",
 					slog.String("run_id", GetRunID(r.Context())),
 					slog.String("error_category", "database"))
@@ -42,9 +61,29 @@ func CurrentMember(checker CurrentMemberChecker, logger *slog.Logger) func(http.
 				return
 			}
 			if !current {
+				RejectBodyWithoutDrain(w, r)
 				envelope.WriteError(w, http.StatusNotFound,
 					"profile_not_found", "profile not found", GetRunID(r.Context()), nil)
 				return
+			}
+			if len(lifecycleReaders) == 1 && lifecycleReaders[0] != nil {
+				lifecycle, err := lifecycleReaders[0].Get(r.Context(), did)
+				if err != nil {
+					RejectBodyWithoutDrain(w, r)
+					logger.Error("owner lifecycle check failed",
+						slog.String("run_id", GetRunID(r.Context())),
+						slog.String("error_category", "database"))
+					envelope.WriteError(w, http.StatusServiceUnavailable,
+						"lifecycle_unavailable", "membership unavailable", GetRunID(r.Context()), nil)
+					return
+				}
+				if lifecycle.State != ownerlifecycle.StateActive {
+					RejectBodyWithoutDrain(w, r)
+					envelope.WriteError(w, http.StatusNotFound,
+						"profile_not_found", "profile not found", GetRunID(r.Context()), nil)
+					return
+				}
+				r = r.WithContext(WithOwnerGeneration(r.Context(), lifecycle.Generation))
 			}
 			next.ServeHTTP(w, r)
 		})

@@ -46,13 +46,8 @@ func TestScheduledLifecycleLeavesNotificationStateUnchanged(t *testing.T) {
 		t.Helper()
 		processor, err := NewPublicationProcessor(PublicationProcessorOptions{
 			Store: store, Sessions: sessions,
-			NewPDS: func(context.Context, syntax.DID, string) (auth.PDSClient, error) {
-				if pds == nil {
-					return nil, ErrAuthUnavailable
-				}
-				return pds, nil
-			},
-			Objects: newMemoryPrivateObjectStore(), Now: func() time.Time { return now },
+			NewEffects: recordingGuardedFactory(pds, nil),
+			Objects:    newMemoryPrivateObjectStore(), Now: func() time.Time { return now },
 			Validate: validate,
 		})
 		if err != nil {

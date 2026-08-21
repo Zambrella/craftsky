@@ -179,8 +179,7 @@ class NotificationRow extends ConsumerWidget {
                         seed: actor,
                         avatarUrl: actorNotification.actor.displayAvatarUrl,
                         size: ProfileAvatarSize.small,
-                        customisation:
-                            actorNotification.actor.customisation,
+                        customisation: actorNotification.actor.customisation,
                       ),
                     ),
                     const SizedBox(height: 8),
@@ -288,6 +287,7 @@ class NotificationRow extends ConsumerWidget {
     }
     switch (notification) {
       case FollowNotification(:final actor):
+      case InstagramMatchNotification(:final actor):
         unawaited(
           UserProfileRoute(handle: actor.handle.toString()).push<void>(context),
         );
@@ -300,10 +300,6 @@ class NotificationRow extends ConsumerWidget {
         break;
       case GenericSystemNotification():
         break;
-      case InstagramMatchNotification(:final actor):
-        unawaited(
-          UserProfileRoute(handle: actor.handle.toString()).push<void>(context),
-        );
       case UnavailableNotification():
         context.showWarning(
           AppLocalizations.of(context).notificationUnavailableRow,
@@ -428,11 +424,11 @@ Color _actionColor(
   ColorScheme colors,
 ) => switch (notification) {
   FollowNotification() => colors.primary,
+  InstagramMatchNotification() => colors.primary,
   LikeNotification() => colors.error,
   RepostNotification() => colors.tertiary,
   ReplyNotification() => colors.primary,
   MentionNotification() || QuoteNotification() => colors.secondary,
-  InstagramMatchNotification() => colors.primary,
   GenericNotification() => colors.outline,
   GenericSystemNotification() => colors.outline,
   UnavailableNotification() => colors.error,

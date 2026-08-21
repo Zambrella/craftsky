@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/auth"
@@ -58,8 +57,8 @@ func TestScheduledOperationsEmitBoundedContentFreeSignals(t *testing.T) {
 		Sessions: stubPublicationSessionSelector{
 			wantOwner: "did:plc:alice", err: auth.ErrNoUsableBackgroundSession,
 		},
-		NewPDS:  func(context.Context, syntax.DID, string) (auth.PDSClient, error) { return nil, ErrAuthUnavailable },
-		Objects: newMemoryPrivateObjectStore(), Now: func() time.Time { return current }, Observer: observer,
+		NewEffects: recordingGuardedFactory(nil, ErrAuthUnavailable),
+		Objects:    newMemoryPrivateObjectStore(), Now: func() time.Time { return current }, Observer: observer,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -85,7 +84,8 @@ func TestScheduledOperationsEmitBoundedContentFreeSignals(t *testing.T) {
 	stale := claims[0]
 	stale.LeaseToken = uuid.New()
 	if err := processor.Process(ctx, WorkItem{
-		ID: stale.ID, OwnerDID: stale.OwnerDID, LeaseToken: stale.LeaseToken,
+		ID: stale.ID, OwnerDID: stale.OwnerDID, OwnerGeneration: stale.OwnerGeneration,
+		LeaseToken:     stale.LeaseToken,
 		PayloadVersion: stale.PayloadVersion, Rkey: stale.Rkey, CreatedAt: stale.CreatedAt,
 	}); err != nil {
 		t.Fatal(err)
@@ -93,9 +93,10 @@ func TestScheduledOperationsEmitBoundedContentFreeSignals(t *testing.T) {
 	validRecovery := claims[0]
 	if err := processor.Process(ctx, WorkItem{
 		ID: validRecovery.ID, OwnerDID: validRecovery.OwnerDID,
-		LeaseToken:     validRecovery.LeaseToken,
-		PayloadVersion: validRecovery.PayloadVersion,
-		Rkey:           validRecovery.Rkey, CreatedAt: validRecovery.CreatedAt,
+		OwnerGeneration: validRecovery.OwnerGeneration,
+		LeaseToken:      validRecovery.LeaseToken,
+		PayloadVersion:  validRecovery.PayloadVersion,
+		Rkey:            validRecovery.Rkey, CreatedAt: validRecovery.CreatedAt,
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -120,11 +121,9 @@ func TestScheduledOperationsEmitBoundedContentFreeSignals(t *testing.T) {
 		Sessions: stubPublicationSessionSelector{
 			wantOwner: "did:plc:bob", sessionID: "private-owner-session-canary",
 		},
-		NewPDS: func(context.Context, syntax.DID, string) (auth.PDSClient, error) {
-			return pds, nil
-		},
-		Objects: newMemoryPrivateObjectStore(),
-		Now:     func() time.Time { return current }, Observer: observer,
+		NewEffects: recordingGuardedFactory(pds, nil),
+		Objects:    newMemoryPrivateObjectStore(),
+		Now:        func() time.Time { return current }, Observer: observer,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -154,11 +153,9 @@ func TestScheduledOperationsEmitBoundedContentFreeSignals(t *testing.T) {
 		Sessions: stubPublicationSessionSelector{
 			wantOwner: "did:plc:bob", err: auth.ErrNoUsableBackgroundSession,
 		},
-		NewPDS: func(context.Context, syntax.DID, string) (auth.PDSClient, error) {
-			return nil, errors.New("private-provider-response-canary")
-		},
-		Objects: newMemoryPrivateObjectStore(),
-		Now:     func() time.Time { return current }, Observer: observer,
+		NewEffects: recordingGuardedFactory(nil, errors.New("private-provider-response-canary")),
+		Objects:    newMemoryPrivateObjectStore(),
+		Now:        func() time.Time { return current }, Observer: observer,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -178,19 +175,21 @@ func TestScheduledOperationsEmitBoundedContentFreeSignals(t *testing.T) {
 	}
 
 	objects := newMemoryPrivateObjectStore()
-	mediaService := NewPrivateMediaService(store, objects)
+	mediaService, ownerFence := newScheduledTestMediaService(t, store, objects)
 	mediaID := uuid.New()
 	if _, err := mediaService.Put(ctx, PutPrivateMediaParams{
-		ID: mediaID, OwnerDID: "did:plc:alice", MIMEType: "image/jpeg",
-		Bytes: []byte("private-cleanup-canary"), Now: current,
+		ID: mediaID, OwnerDID: "did:plc:alice", OwnerGeneration: 1,
+		MIMEType: "image/jpeg",
+		Bytes:    []byte("private-cleanup-canary"), Now: current,
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := mediaService.Delete(ctx, "did:plc:alice", mediaID, current); err != nil {
+	if err := mediaService.Delete(ctx, "did:plc:alice", mediaID, current, 1); err != nil {
 		t.Fatal(err)
 	}
 	cleanup, err := NewCleanupProcessor(CleanupProcessorOptions{
-		Store: store, Objects: objects, Now: func() time.Time { return current }, Observer: observer,
+		Store: store, Objects: objects, OwnerFence: ownerFence,
+		Now: func() time.Time { return current }, Observer: observer,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -200,20 +199,21 @@ func TestScheduledOperationsEmitBoundedContentFreeSignals(t *testing.T) {
 	}
 
 	failingObjects := &flakyCleanupObjectStore{objects: map[string][]byte{}}
-	failingMedia := NewPrivateMediaService(store, failingObjects)
+	failingMedia, failingOwnerFence := newScheduledTestMediaService(t, store, failingObjects)
 	failingMediaID := uuid.New()
 	if _, err := failingMedia.Put(ctx, PutPrivateMediaParams{
-		ID: failingMediaID, OwnerDID: "did:plc:alice", MIMEType: "image/jpeg",
-		Bytes: []byte("private-cleanup-failure-canary"), Now: current,
+		ID: failingMediaID, OwnerDID: "did:plc:alice", OwnerGeneration: 1,
+		MIMEType: "image/jpeg",
+		Bytes:    []byte("private-cleanup-failure-canary"), Now: current,
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if err := failingMedia.Delete(ctx, "did:plc:alice", failingMediaID, current); err != nil {
+	if err := failingMedia.Delete(ctx, "did:plc:alice", failingMediaID, current, 1); err != nil {
 		t.Fatal(err)
 	}
 	failingObjects.failDeletes = 1
 	failingCleanup, err := NewCleanupProcessor(CleanupProcessorOptions{
-		Store: store, Objects: failingObjects,
+		Store: store, Objects: failingObjects, OwnerFence: failingOwnerFence,
 		Now: func() time.Time { return current }, Observer: observer,
 	})
 	if err != nil {

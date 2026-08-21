@@ -1,7 +1,7 @@
 # API Wire Alignment (v1) — design
 
 **Date:** 2026-04-22
-**Status:** proposed
+**Status:** implemented; OAuth handoff security contract amended 2026-08-20
 **Scope:** Align the HTTP wire protocol between the Flutter client and the AppView so the OAuth sign-in flow works end-to-end. Codifies camelCase JSON, fixes `/v1/whoami`, and resolves the `X-Craftsky-Device-Id` contract divergence.
 
 ## Summary
@@ -10,7 +10,7 @@ The Flutter client and the AppView server were specified separately ([2026-04-18
 
 1. Codifies **camelCase** as the project-wide JSON key convention and stands up `appview/internal/api/envelope/` with helpers that enforce it.
 2. Changes `/v1/whoami` to return `{did, handle}`; handle is resolved on every call via the indigo identity directory; directory failures return 502 `identity_unavailable`.
-3. Implements `X-Craftsky-Device-Id` in full — server middleware enforces the header on authenticated `/v1/*` routes (400 on missing/malformed), client generates + persists a UUID and attaches it on every call.
+3. Implements `X-Craftsky-Device-Id` in full — server middleware enforces the header on protected `/v1/*` routes and both OAuth handoff operations, while the client generates and persists one installation identifier and attaches it on every call.
 4. Defines an end-to-end smoke-test checklist that, when it passes against `just dev`, is the acceptance bar.
 
 ## Goals
@@ -82,7 +82,10 @@ All existing handlers that emit JSON under `/v1/*` switch to the envelope helper
   - `loginRequest` struct tags become `HandoffMode \`json:"handoffMode"\``, `LoopbackRedirectURI \`json:"loopbackRedirectUri"\``. `Handle` is already camelCase-equivalent (single word).
 - `appview/internal/api/whoami.go` — switches to `envelope.WriteJSON(w, 200, WhoAmIResponse{...})` (the handle-resolution change is §2).
 - OAuth HTML error page in `handlers_render.go` is untouched (it is `text/html`, not JSON).
-- `recordHandoff` / `loadHandoff` SQL is **unaffected** — the `handoff_mode` column name stays snake_case (SQL convention); only the wire JSON renames.
+- Durable handoff metadata remains snake_case in SQL (`handoff_mode`,
+  `loopback_redirect_uri`, and related lifecycle fields); only wire JSON uses
+  camelCase. The metadata is inserted atomically with the authorization request,
+  not by a post-start update.
 - `oauth_sessions.data` / `oauth_auth_requests.data` JSONB blobs are indigo-owned and opaque; no change.
 
 ### 1.4 Client-side alignment
@@ -90,7 +93,8 @@ All existing handlers that emit JSON under `/v1/*` switch to the envelope helper
 With the server emitting camelCase:
 
 - `app/lib/shared/api/models/login_response.dart` drops the `@MappableClass(caseStyle: CaseStyle.snakeCase)` override. Plain `@MappableClass()` is correct once the server emits `authUrl`.
-- `app/lib/shared/api/craftsky_api_client.dart` `login` sends `{handle, handoffMode: 'deep_link'}` (instead of `handoff_mode`).
+- `app/lib/auth/data/auth_api_client.dart` `login` sends
+  `{handle, handoffMode: 'verified_link'}`. `loopback` is reserved for the CLI.
 - `WhoAmI` model is already camelCase; no change.
 - `ApiBadRequest` in `app/lib/shared/api/api_exception.dart` continues to read `response.data['error']` — already camelCase-equivalent. The `requestId` field in the response envelope is **not** wired into `ApiException` in v1 (no subclass gains a `requestId` field; the UI does not surface it). Adding it is a trivial future change when the first support workflow needs it; leaving it unwired now keeps the `ApiException` hierarchy narrow.
 
@@ -280,24 +284,24 @@ Future<void> onRequest(RequestOptions options, RequestInterceptorHandler handler
 
 Device-ID is attached on **every** request including anonymous paths (`/v1/auth/login`). Rationale: the device-ID is an identity-of-the-app-install signal, not identity-of-the-user. Sending on anonymous calls is free and lets future rate-limiting key on `(device_id, endpoint)` without a subsequent protocol change. The server does not enforce device-ID on `/v1/auth/login` (§3.2), but sending it is harmless.
 
-**`HandoffApiClient`.** The handoff Dio bakes Bearer + device-ID into `BaseOptions.headers`. To keep the handoff provider synchronous, `AuthController.completeFromDeepLink` pre-resolves the device-ID via `await ref.read(deviceIdProvider.future)` and passes it into the provider family as a second parameter:
+**`HandoffApiClient`.** The handoff Dio is credential-free by default and gets
+the device ID from the shared interceptor. `AuthController.completeFromDeepLink`
+pre-resolves the device ID, exchanges the code, durably stages the returned
+pending handoff, and supplies its bearer only to the direct confirm request:
 
 ```dart
-@riverpod
-HandoffApiClient handoffApiClient(Ref ref, String token, String deviceId) {
-  final dio = Dio(_baseOptions().copyWith(
-    headers: {
-      ..._baseOptions().headers ?? const <String, dynamic>{},
-      'Authorization': 'Bearer $token',
-      'X-Craftsky-Device-Id': deviceId,
-    },
-  ));
-  dio.interceptors.add(_ErrorMappingInterceptor());
-  return HandoffApiClient(dio);
-}
+final handoff = ref.read(handoffApiClientProvider);
+final pending = await handoff.exchange(code: code);
+await ref.read(sessionRegistryProvider.notifier).stageHandoff(pending);
+await handoff.confirm(
+  token: pending.token,
+  receiptId: pending.receiptId,
+);
 ```
 
-The two-parameter family adds a small type-level safety property: you cannot construct a handoff client without explicitly passing a device-ID.
+The pending bearer is a method argument used only as the confirm
+`Authorization` header. It is never a provider-family key, default header,
+browser URL, or diagnostic value.
 
 **Bootstrap ordering.** `bootstrap.dart` touches `deviceIdProvider` before `runApp`, alongside the existing `dioProvider` touch. This is **correctness-critical under strict enforcement**: the first `/v1/*` call must not fire before the device-ID future resolves, or the server will 400. Eagerly awaiting the provider in bootstrap guarantees this.
 
@@ -358,11 +362,18 @@ Implementer verifies the current highest migration number before committing and 
 
 Each step has an explicit pass criterion.
 
-1. **Fresh sign-in.** Launch → `/welcome` → enter handle → "Continue" → browser PDS auth → `craftsky://auth/complete?token=...` → lands on `/onboarding` or `/feed`. **Pass:** post-auth screen, no snackbar, no crash.
+1. **Fresh sign-in.** Launch → `/welcome` → enter handle → "Continue" → browser
+   PDS auth → verified HTTPS `/auth/complete?code=...` → code exchange → durable
+   pending receipt → confirmation → `/onboarding` or `/feed`. **Pass:** the URL
+   contains no bearer, the pending session cannot access ordinary APIs, and the
+   post-auth screen loads without a snackbar or crash.
 
-2. **Server log inspection during step 1.** **Pass:** `POST /v1/auth/login` returns 200 (not 400); `GET /v1/whoami` returns 200 (not 400 or 502). Asserted by inspecting the appview container's request log lines (status + path). If the request log format does not currently include status codes, the smoke test equivalently passes if no `envelope.WriteError` callsite is logged during the sign-in flow — verify the log format at implementation time and adjust the assertion wording.
+2. **Server log inspection during step 1.** **Pass:** login, handoff exchange,
+   handoff confirm, and the first authenticated request succeed; logs contain
+   only run IDs and typed outcomes, with no code, receipt, bearer, OAuth state,
+   or callback query string.
 
-3. **JSON casing via curl.** `curl -v http://localhost:8080/v1/auth/login -H 'Content-Type: application/json' -H 'X-Craftsky-Device-Id: smoke-test' -d '{"handle":"","handoffMode":"deep_link"}'`. **Pass:** response body is exactly `{"error":"handle_required","message":"...","requestId":"..."}` with all four camelCase keys; `requestId` non-empty; Content-Type `application/json`.
+3. **JSON casing via curl.** `curl -v http://localhost:8080/v1/auth/login -H 'Content-Type: application/json' -H 'X-Craftsky-Device-Id: smoke-test' -d '{"handle":"","handoffMode":"verified_link"}'`. **Pass:** response body is exactly `{"error":"handle_required","message":"...","requestId":"..."}` with all four camelCase keys; `requestId` non-empty; Content-Type `application/json`.
 
 4. **`whoami` shape.** `curl http://localhost:8080/v1/whoami -H 'Authorization: Bearer <token-from-step-1>' -H 'X-Craftsky-Device-Id: smoke-test'`. **Pass:** 200 with `{"did":"did:plc:...","handle":"..."}`; handle matches test account's PDS handle.
 
@@ -460,11 +471,11 @@ queries/
 ```
 lib/shared/api/
 ├── models/login_response.dart      (drop snakeCase override)
-└── craftsky_api_client.dart        (handoff_mode → handoffMode)
+└── auth_api_client.dart            (verified-link handoffMode)
 
 lib/shared/api/providers/
 ├── session_auth_interceptor.dart   (attach X-Craftsky-Device-Id)
-└── api_client_provider.dart        (handoff family: (token, deviceId))
+└── handoff_api_client_provider.dart (credential-free exchange client)
 
 lib/shared/device/                  (new)
 ├── device_id_provider.dart
@@ -478,7 +489,7 @@ lib/bootstrap.dart                  (touch deviceIdProvider before runApp)
 
 test/shared/api/
 ├── craftsky_api_client_test.dart   (device-ID header assertions; camelCase body)
-├── handoff_api_client_test.dart    (device-ID baked into BaseOptions)
+├── handoff_api_client_test.dart    (exchange anonymous; confirm bearer-only)
 └── session_auth_interceptor_test.dart
 
 test/shared/device/

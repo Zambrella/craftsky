@@ -1,13 +1,9 @@
 package api
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
-	"image"
-	_ "image/jpeg"
-	_ "image/png"
 	"io"
 	"log/slog"
 	"net/http"
@@ -16,7 +12,6 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
-	_ "golang.org/x/image/webp"
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
@@ -26,7 +21,7 @@ import (
 type scheduledMediaService interface {
 	Put(context.Context, scheduledposts.PutPrivateMediaParams) (scheduledposts.PrivateMedia, error)
 	Open(context.Context, syntax.DID, uuid.UUID) (scheduledposts.OpenedPrivateMedia, error)
-	Delete(context.Context, syntax.DID, uuid.UUID, time.Time) error
+	Delete(context.Context, syntax.DID, uuid.UUID, time.Time, ...int64) error
 }
 
 type scheduledMediaResponse struct {
@@ -40,14 +35,22 @@ type scheduledMediaResponse struct {
 func PutScheduledMediaHandler(
 	service scheduledMediaService,
 	limits MediaLimits,
+	validator ImageValidator,
 	logger *slog.Logger,
 ) http.Handler {
+	if validator == nil {
+		panic("scheduled image validator is required")
+	}
 	if logger == nil {
 		logger = slog.Default()
 	}
 	limits = normalizeMediaLimits(limits)
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		ownerDID, mediaID, ok := scheduledMediaIdentity(writer, request)
+		if !ok {
+			return
+		}
+		ownerGeneration, ok := scheduledMediaOwnerGeneration(writer, request)
 		if !ok {
 			return
 		}
@@ -60,13 +63,17 @@ func PutScheduledMediaHandler(
 			writeScheduledMediaError(writer, request, err)
 			return
 		}
-		if err := validateScheduledImageContent(validated.ContentType, payload); err != nil {
+		if _, err := validator.Validate(request.Context(), validated.ContentType, payload); err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return
+			}
 			writeScheduledMediaError(writer, request, err)
 			return
 		}
 		media, err := service.Put(request.Context(), scheduledposts.PutPrivateMediaParams{
-			ID: mediaID, OwnerDID: ownerDID, MIMEType: validated.ContentType,
-			Bytes: payload, Now: time.Now().UTC(),
+			ID: mediaID, OwnerDID: ownerDID, OwnerGeneration: ownerGeneration,
+			MIMEType: validated.ContentType,
+			Bytes:    payload, Now: time.Now().UTC(),
 		})
 		if err != nil {
 			logger.Warn("scheduled media upload failed",
@@ -81,29 +88,6 @@ func PutScheduledMediaHandler(
 			SizeBytes: media.SizeBytes, BlobCID: media.BlobCID.String(),
 		})
 	})
-}
-
-func validateScheduledImageContent(contentType string, payload []byte) error {
-	fields := map[string]string{}
-	if len(payload) == 0 {
-		fields["body"] = "must contain an image"
-	} else {
-		_, format, err := image.Decode(bytes.NewReader(payload))
-		decodedContentType := map[string]string{
-			"jpeg": "image/jpeg",
-			"png":  "image/png",
-			"webp": "image/webp",
-		}[format]
-		if err != nil || decodedContentType == "" {
-			fields["body"] = "must contain a valid image"
-		} else if decodedContentType != contentType {
-			fields["body"] = "must match the declared image type"
-		}
-	}
-	if len(fields) > 0 {
-		return &FieldError{Code: "validation_failed", Fields: fields}
-	}
-	return nil
 }
 
 func GetScheduledMediaHandler(service scheduledMediaService, logger *slog.Logger) http.Handler {
@@ -148,7 +132,11 @@ func DeleteScheduledMediaHandler(
 		if !ok {
 			return
 		}
-		if err := service.Delete(request.Context(), ownerDID, mediaID, now().UTC()); err != nil {
+		ownerGeneration, ok := scheduledMediaOwnerGeneration(writer, request)
+		if !ok {
+			return
+		}
+		if err := service.Delete(request.Context(), ownerDID, mediaID, now().UTC(), ownerGeneration); err != nil {
 			logger.Warn("scheduled media delete failed",
 				slog.String("error_class", scheduledMediaErrorClass(err)))
 			writeScheduledMediaError(writer, request, err)
@@ -156,6 +144,21 @@ func DeleteScheduledMediaHandler(
 		}
 		writer.WriteHeader(http.StatusNoContent)
 	})
+}
+
+func scheduledMediaOwnerGeneration(
+	writer http.ResponseWriter,
+	request *http.Request,
+) (int64, bool) {
+	generation, ok := middleware.GetOwnerGeneration(request.Context())
+	if !ok {
+		envelope.WriteError(
+			writer, http.StatusServiceUnavailable, "lifecycle_unavailable",
+			"membership unavailable", middleware.GetRunID(request.Context()), nil,
+		)
+		return 0, false
+	}
+	return generation, true
 }
 
 func scheduledMediaIdentity(
@@ -201,6 +204,11 @@ func writeScheduledMediaError(
 		envelope.WriteError(writer, http.StatusConflict, "scheduled_media_conflict", "scheduled media conflicts with an existing upload", runID, nil)
 	case errors.Is(err, scheduledposts.ErrMediaInvalid):
 		envelope.WriteError(writer, http.StatusUnprocessableEntity, "scheduled_media_invalid", "scheduled media is invalid", runID, nil)
+	case errors.Is(err, ErrScheduledImageInvalid):
+		envelope.WriteError(writer, http.StatusUnprocessableEntity, "scheduled_media_invalid", "scheduled media is invalid", runID, nil)
+	case errors.Is(err, ErrImageDecodeSaturated):
+		writer.Header().Set("Retry-After", "1")
+		envelope.WriteError(writer, http.StatusServiceUnavailable, "scheduled_media_busy", "scheduled media validation is temporarily busy", runID, nil)
 	case errors.Is(err, scheduledposts.ErrPrivateObjectStoreUnavailable):
 		envelope.WriteError(writer, http.StatusServiceUnavailable, "scheduled_media_unavailable", "scheduled media is temporarily unavailable", runID, nil)
 	default:

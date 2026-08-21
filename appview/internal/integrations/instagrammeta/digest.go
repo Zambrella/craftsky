@@ -60,10 +60,10 @@ func (*DigestCodec) GoString() string {
 
 func NewDigestCodec(key []byte, canonicalizeChallenge ChallengeCanonicalizer) (*DigestCodec, error) {
 	if len(key) < digestKeyMinBytes {
-		return nil, errors.New("Instagram digest key must be at least 32 bytes")
+		return nil, errors.New("instagram digest key must be at least 32 bytes")
 	}
 	if canonicalizeChallenge == nil {
-		return nil, errors.New("Instagram challenge canonicalizer is required")
+		return nil, errors.New("instagram challenge canonicalizer is required")
 	}
 	return &DigestCodec{
 		key:                   append([]byte(nil), key...),

@@ -85,4 +85,27 @@ void main() {
       expect(invalidated, 1);
     },
   );
+
+  test(
+    '503 infrastructure failure preserves the captured session lease',
+    () async {
+      final lease = AccountSessionLease(
+        account: AccountKey('did:plc:alice'),
+        sessionGeneration: 3,
+      );
+      final invalidated = <AccountSessionLease>[];
+      final interceptor = SignOutOn401Interceptor.withLease(
+        lease: lease,
+        invalidate: (captured) async => invalidated.add(captured),
+      );
+      final error503 = _exWithStatus(503);
+      final handler = _CapturingHandler();
+
+      interceptor.onError(error503, handler);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(invalidated, isEmpty);
+      expect(handler.error, same(error503));
+    },
+  );
 }

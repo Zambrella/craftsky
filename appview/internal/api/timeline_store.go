@@ -87,6 +87,8 @@ func (s *PostStore) listTimelineObserved(
 			FROM atproto_follows f
 			JOIN craftsky_profiles followed_cp ON followed_cp.did = f.subject_did
 			WHERE f.did = $1
+			  AND NOT appview_owner_is_terminal(f.did)
+			  AND NOT appview_owner_is_terminal(f.subject_did)
 			  AND NOT EXISTS (
 				SELECT 1 FROM actor_mutes m
 				WHERE m.owner_did = $1 AND m.subject_did = f.subject_did
@@ -132,6 +134,7 @@ func (s *PostStore) listTimelineObserved(
 			JOIN craftsky_posts p ON p.uri = r.subject_uri
 			JOIN craftsky_profiles subject_cp ON subject_cp.did = p.did
 			WHERE r.deleted_at IS NULL
+			  AND NOT appview_owner_is_terminal(r.did)
 			  AND p.reply_root_uri IS NULL
 			  AND p.reply_parent_uri IS NULL
 			  AND NOT EXISTS (

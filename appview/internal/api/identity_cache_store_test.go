@@ -9,6 +9,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -17,6 +18,23 @@ type exactResolveFakeResolver struct {
 	handleByDID    map[string]syntax.Handle
 	errByHandle    map[string]error
 	errHandleByDID map[string]error
+}
+
+type blockingHandleResolver struct {
+	did           syntax.DID
+	handle        syntax.Handle
+	handleStarted chan struct{}
+	releaseHandle <-chan struct{}
+}
+
+func (r blockingHandleResolver) ResolveDID(context.Context, syntax.Handle) (syntax.DID, error) {
+	return r.did, nil
+}
+
+func (r blockingHandleResolver) ResolveHandle(context.Context, syntax.DID) (syntax.Handle, error) {
+	close(r.handleStarted)
+	<-r.releaseHandle
+	return r.handle, nil
 }
 
 func (f exactResolveFakeResolver) ResolveDID(_ context.Context, handle syntax.Handle) (syntax.DID, error) {
@@ -49,6 +67,39 @@ CREATE TABLE craftsky_profiles (
     indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE owner_lifecycles (
+	owner_did TEXT PRIMARY KEY,
+	state TEXT NOT NULL,
+	generation BIGINT NOT NULL,
+	auth_epoch BIGINT NOT NULL DEFAULT 1,
+	transition_reason TEXT NOT NULL DEFAULT 'test',
+	transitioned_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	terminal_at TIMESTAMPTZ,
+	purge_completed_at TIMESTAMPTZ,
+	created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE FUNCTION seed_active_facet_owner() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+	INSERT INTO owner_lifecycles(owner_did,state,generation)
+	VALUES(NEW.did,'active',1)
+	ON CONFLICT (owner_did) DO NOTHING;
+	RETURN NEW;
+END
+$$;
+CREATE TRIGGER seed_active_facet_owner
+AFTER INSERT ON craftsky_profiles
+FOR EACH ROW EXECUTE FUNCTION seed_active_facet_owner();
+CREATE FUNCTION appview_owner_is_terminal(candidate_did TEXT)
+RETURNS BOOLEAN
+LANGUAGE SQL
+STABLE
+AS $$
+	SELECT EXISTS (
+		SELECT 1 FROM owner_lifecycles
+		WHERE owner_did=candidate_did AND state='terminal'
+	)
+$$;
 CREATE TABLE bluesky_profiles (
     did          TEXT        NOT NULL PRIMARY KEY,
     display_name TEXT,
@@ -230,11 +281,12 @@ func TestFacetStoreSearchMentionSuggestionsTreatsWildcardQueryLiterally(t *testi
 func TestFacetStoreResolveMentionRefreshesCacheAndFiltersCraftskyProfiles(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, facetStoreDDL)
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	now := time.Date(2026, 6, 4, 12, 0, 0, 0, time.UTC)
 
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO craftsky_profiles (did, crafts, record_cid) VALUES
+			('did:plc:viewer', '{}', 'cid-viewer'),
 			('did:plc:alice', '{}', 'cid-alice')
 	`); err != nil {
 		t.Fatalf("seed craftsky profile: %v", err)
@@ -255,6 +307,7 @@ func TestFacetStoreResolveMentionRefreshesCacheAndFiltersCraftskyProfiles(t *tes
 			"did:plc:alice":   syntax.Handle("alice.craftsky.social"),
 			"did:plc:mallory": syntax.Handle("mallory.example"),
 		},
+		errByHandle: map[string]error{},
 	}
 	store := api.NewFacetStore(pool, resolver)
 
@@ -284,6 +337,162 @@ func TestFacetStoreResolveMentionRefreshesCacheAndFiltersCraftskyProfiles(t *tes
 	if malloryRows != 0 {
 		t.Fatalf("Mallory cache rows = %d, want 0", malloryRows)
 	}
+
+	resolver.errByHandle["transient.craftsky.test"] = errors.New("temporary DNS timeout")
+	_, err = store.ResolveMention(ctx, syntax.DID("did:plc:viewer"), syntax.Handle("transient.craftsky.test"), now)
+	if !errors.Is(err, api.ErrMentionIdentityUnavailable) {
+		t.Fatalf("transient resolution err = %v, want ErrMentionIdentityUnavailable", err)
+	}
+}
+
+func TestIdentityCacheUpsertRejectsKnownTerminalTarget(t *testing.T) {
+	pool := testdb.WithSchema(t, facetStoreDDL)
+	ctx := context.Background()
+	target := syntax.DID("did:plc:terminal-cache-target")
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO owner_lifecycles(owner_did,state,generation,terminal_at)
+		VALUES($1,'terminal',2,now())
+	`, target); err != nil {
+		t.Fatal(err)
+	}
+
+	err := api.NewIdentityCacheStore(pool).Upsert(
+		ctx,
+		target,
+		syntax.Handle("terminal.example"),
+		time.Now().UTC(),
+	)
+	if !errors.Is(err, ownerlifecycle.ErrTerminalOwner) {
+		t.Fatalf("Upsert error = %v, want ErrTerminalOwner", err)
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM atproto_identity_cache`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("identity cache rows = %d, want 0", count)
+	}
+}
+
+func TestIdentityCacheUpsertReusesPreheldOwnerFence(t *testing.T) {
+	pool := testdb.WithSchema(t, facetStoreDDL)
+	owner := syntax.DID("did:plc:fenced-cache-owner")
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO owner_lifecycles(owner_did,state,generation)
+		VALUES($1,'active',3)
+	`, owner); err != nil {
+		t.Fatal(err)
+	}
+	fencer, err := ownerlifecycle.NewFencer(pool, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lifecycles, err := ownerlifecycle.NewStore(pool, fencer, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	err = lifecycles.WithExistingAuth(ctx, owner, func(fenceCtx context.Context, _ ownerlifecycle.Lifecycle) error {
+		return api.NewIdentityCacheStore(pool).Upsert(
+			fenceCtx,
+			owner,
+			syntax.Handle("fenced-cache-owner.example"),
+			time.Now().UTC(),
+		)
+	})
+	if err != nil {
+		t.Fatalf("upsert inside pre-held owner fence: %v", err)
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM atproto_identity_cache WHERE did=$1`, owner).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 1 {
+		t.Fatalf("identity cache rows = %d, want 1", count)
+	}
+}
+
+func TestFacetStoreResolveMentionRechecksTerminalTargetAtFinalCacheWrite(t *testing.T) {
+	pool := testdb.WithSchema(t, facetStoreDDL)
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
+	viewer := syntax.DID("did:plc:viewer")
+	target := syntax.DID("did:plc:alice")
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO craftsky_profiles(did,crafts,record_cid)
+		VALUES($1,'{}','viewer'),($2,'{}','alice')
+	`, viewer, target); err != nil {
+		t.Fatal(err)
+	}
+	releaseHandle := make(chan struct{})
+	resolver := blockingHandleResolver{
+		did:           target,
+		handle:        syntax.Handle("alice.example"),
+		handleStarted: make(chan struct{}),
+		releaseHandle: releaseHandle,
+	}
+	result := make(chan error, 1)
+	go func() {
+		_, err := api.NewFacetStore(pool, resolver).ResolveMention(
+			ctx,
+			viewer,
+			syntax.Handle("alice.example"),
+			time.Now().UTC(),
+		)
+		result <- err
+	}()
+	select {
+	case <-resolver.handleStarted:
+	case <-time.After(time.Second):
+		t.Fatal("mention resolution did not reach final handle lookup")
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE owner_lifecycles
+		SET state='terminal',generation=2,terminal_at=now(),updated_at=now()
+		WHERE owner_did=$1
+	`, target); err != nil {
+		t.Fatal(err)
+	}
+	close(releaseHandle)
+	if err := <-result; !errors.Is(err, ownerlifecycle.ErrTerminalOwner) {
+		t.Fatalf("ResolveMention error = %v, want ErrTerminalOwner", err)
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM atproto_identity_cache`).Scan(&count); err != nil {
+		t.Fatal(err)
+	}
+	if count != 0 {
+		t.Fatalf("identity cache rows = %d, want 0", count)
+	}
+}
+
+func TestFacetStoreResolveMentionRejectsStaleViewerGenerationAtFinalCacheWrite(t *testing.T) {
+	pool := testdb.WithSchema(t, facetStoreDDL)
+	ctx := context.Background()
+	viewer := syntax.DID("did:plc:viewer")
+	target := syntax.DID("did:plc:alice")
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO craftsky_profiles(did,crafts,record_cid)
+		VALUES($1,'{}','viewer'),($2,'{}','alice')
+	`, viewer, target); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE owner_lifecycles SET generation=2 WHERE owner_did=$1`, viewer); err != nil {
+		t.Fatal(err)
+	}
+	resolver := exactResolveFakeResolver{
+		didByHandle: map[string]syntax.DID{"alice.example": target},
+		handleByDID: map[string]syntax.Handle{target.String(): "alice.example"},
+	}
+	_, err := api.NewFacetStore(pool, resolver).ResolveMention(
+		ownerlifecycle.WithExpectedGeneration(ctx, 1),
+		viewer,
+		syntax.Handle("alice.example"),
+		time.Now().UTC(),
+	)
+	if !errors.Is(err, ownerlifecycle.ErrGenerationChanged) {
+		t.Fatalf("ResolveMention error = %v, want ErrGenerationChanged", err)
+	}
 }
 
 func TestFacetStoreResolveMentionRejectsFreshCachedNonMember(t *testing.T) {
@@ -306,11 +515,12 @@ func TestFacetStoreResolveMentionRejectsFreshCachedNonMember(t *testing.T) {
 func TestFacetStoreResolveMentionRefreshesReassignedStaleHandle(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, facetStoreDDL)
-	ctx := context.Background()
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	now := time.Date(2026, 6, 4, 12, 0, 0, 0, time.UTC)
 
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO craftsky_profiles (did, crafts, record_cid) VALUES
+			('did:plc:viewer', '{}', 'cid-viewer'),
 			('did:plc:oldalice', '{}', 'cid-old-alice'),
 			('did:plc:newalice', '{}', 'cid-new-alice')
 	`); err != nil {
@@ -351,6 +561,59 @@ func TestFacetStoreResolveMentionRefreshesReassignedStaleHandle(t *testing.T) {
 	}
 	if count != 1 || did != "did:plc:newalice" {
 		t.Fatalf("handle owner count=%d did=%q, want count=1 did=did:plc:newalice", count, did)
+	}
+}
+
+func TestFacetStoreResolveMentionDoesNotTrustFreshLookingReassignedHandle(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, facetStoreDDL)
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
+	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
+
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO craftsky_profiles (did, crafts, record_cid) VALUES
+			('did:plc:viewer', '{}', 'cid-viewer'),
+			('did:plc:oldalice', '{}', 'cid-old-alice'),
+			('did:plc:newalice', '{}', 'cid-new-alice')
+	`); err != nil {
+		t.Fatalf("seed CraftSky profiles: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO atproto_identity_cache (did, handle, handle_lower, resolved_at) VALUES
+			('did:plc:oldalice', 'alice.craftsky.social', 'alice.craftsky.social', $1)
+	`, now); err != nil {
+		t.Fatalf("seed fresh-looking reassigned handle: %v", err)
+	}
+	resolver := exactResolveFakeResolver{
+		didByHandle: map[string]syntax.DID{
+			"alice.craftsky.social": syntax.DID("did:plc:newalice"),
+		},
+		handleByDID: map[string]syntax.Handle{
+			"did:plc:newalice": syntax.Handle("alice.craftsky.social"),
+		},
+	}
+
+	row, err := api.NewFacetStore(pool, resolver).ResolveMention(
+		ctx,
+		syntax.DID("did:plc:viewer"),
+		syntax.Handle("alice.craftsky.social"),
+		now,
+	)
+	if err != nil {
+		t.Fatalf("ResolveMention reassigned handle: %v", err)
+	}
+	if row.DID != syntax.DID("did:plc:newalice") {
+		t.Fatalf("resolved DID = %s, want authoritative did:plc:newalice", row.DID)
+	}
+	var cachedDID syntax.DID
+	if err := pool.QueryRow(ctx, `
+		SELECT did FROM atproto_identity_cache
+		WHERE handle_lower='alice.craftsky.social'
+	`).Scan(&cachedDID); err != nil {
+		t.Fatalf("read canonical cache row: %v", err)
+	}
+	if cachedDID != row.DID {
+		t.Fatalf("cached DID = %s, want %s", cachedDID, row.DID)
 	}
 }
 

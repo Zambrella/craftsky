@@ -28,9 +28,10 @@ import (
 // before its author's craftsky_profiles row is dropped permanently for now;
 // see the design spec for the post-backfiller follow-up.
 type CraftskyPost struct {
-	pool      *pgxpool.Pool
-	logger    *slog.Logger
-	lifecycle notifications.Lifecycle
+	pool         *pgxpool.Pool
+	projectionDB transactionalDatabase
+	logger       *slog.Logger
+	lifecycle    notifications.Lifecycle
 }
 
 var _ Indexer = (*CraftskyPost)(nil)
@@ -148,6 +149,7 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 	topLevelFacets := postutil.DecodeFacets(rawRecord.Facets)
 	tags := postutil.MergeTags(postutil.ExtractTagsForText(rec.Text, topLevelFacets), projectSearchTags(project))
 	mentions := postutil.MergeMentionDIDs(postutil.ExtractMentionDIDsForText(rec.Text, topLevelFacets), projectMentionDIDs(project))
+	mentions = filterTerminalProjectionMentions(ctx, mentions)
 	externalImportSource := recognizedExternalImportSource(&rec)
 	var storedExternalImportSource any
 	var profileSortAt any
@@ -163,7 +165,7 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 		projectCraftType = project.Common.CraftType
 	}
 
-	tx, err := c.pool.Begin(ctx)
+	tx, err := c.database().Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin upsert %s: %w", ev.URI, err)
 	}
@@ -307,7 +309,12 @@ func (c *CraftskyPost) activatePostNotifications(ctx context.Context, tx pgx.Tx,
 			continue
 		}
 		var recipientIsMember bool
-		if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM craftsky_profiles WHERE did=$1)`, recipient).Scan(&recipientIsMember); err != nil {
+		if err := tx.QueryRow(ctx, `
+			SELECT EXISTS(
+				SELECT 1 FROM craftsky_profiles
+				WHERE did=$1 AND NOT appview_owner_is_terminal(did)
+			)
+		`, recipient).Scan(&recipientIsMember); err != nil {
 			return fmt.Errorf("check notification recipient membership: %w", err)
 		}
 		if !recipientIsMember {
@@ -762,7 +769,7 @@ func jsonRaw(m map[string]json.RawMessage, key string) any {
 }
 
 func (c *CraftskyPost) handleDelete(ctx context.Context, ev tap.Event) error {
-	tx, err := c.pool.Begin(ctx)
+	tx, err := c.database().Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin delete %s: %w", ev.URI, err)
 	}
@@ -815,10 +822,20 @@ func (c *CraftskyPost) handleDelete(ctx context.Context, ev tap.Event) error {
 
 func (c *CraftskyPost) isMember(ctx context.Context, did syntax.DID) (bool, error) {
 	var exists bool
-	err := c.pool.QueryRow(ctx,
-		`SELECT EXISTS (SELECT 1 FROM craftsky_profiles WHERE did = $1)`, did).
+	err := c.database().QueryRow(ctx,
+		`SELECT EXISTS (
+			SELECT 1 FROM craftsky_profiles
+			WHERE did = $1 AND NOT appview_owner_is_terminal(did)
+		)`, did).
 		Scan(&exists)
 	return exists, err
+}
+
+func (c *CraftskyPost) database() transactionalDatabase {
+	if c.projectionDB != nil {
+		return c.projectionDB
+	}
+	return c.pool
 }
 
 // flattenImages turns the lexicon's [{image: LexBlob, alt?, aspectRatio?}, ...] array

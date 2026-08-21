@@ -1,0 +1,3 @@
+DROP TABLE moderation_idempotency_receipts;
+DROP TABLE moderation_restoration_history;
+DROP TABLE moderation_restoration_outbox;

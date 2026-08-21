@@ -10,7 +10,9 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
 type PDSOperation string
@@ -145,7 +147,23 @@ func (o *Observer) WrapPDSFactory(factory auth.PDSClientFactory) auth.PDSClientF
 			return client, err
 		}
 		observed := observedPDSClient{inner: client, observer: o}
-		if lister, ok := client.(auth.PDSRecordLister); ok {
+		lister, hasLister := client.(auth.PDSRecordLister)
+		boundary, hasBoundary := client.(auth.ActiveEffectPDSBoundary)
+		switch {
+		case hasLister && hasBoundary:
+			return observedPDSListEffectClient{
+				observedPDSEffectClient: observedPDSEffectClient{
+					observedPDSClient: observed,
+					boundary:          boundary,
+				},
+				lister: lister,
+			}, nil
+		case hasBoundary:
+			return observedPDSEffectClient{
+				observedPDSClient: observed,
+				boundary:          boundary,
+			}, nil
+		case hasLister:
 			return observedPDSListClient{observedPDSClient: observed, lister: lister}, nil
 		}
 		return observed, nil
@@ -162,6 +180,31 @@ type observedPDSListClient struct {
 	lister auth.PDSRecordLister
 }
 
+type observedPDSEffectClient struct {
+	observedPDSClient
+	boundary auth.ActiveEffectPDSBoundary
+}
+
+type observedConditionalPDSClient struct {
+	observedPDSClient
+	deleter auth.ConditionalPDSRecordDeleter
+}
+
+type observedConditionalPutPDSClient struct {
+	observedPDSClient
+	putter auth.ConditionalPDSRecordPutter
+}
+
+type observedConditionalPutDeletePDSClient struct {
+	observedConditionalPutPDSClient
+	deleter auth.ConditionalPDSRecordDeleter
+}
+
+type observedPDSListEffectClient struct {
+	observedPDSEffectClient
+	lister auth.PDSRecordLister
+}
+
 func (c observedPDSListClient) ListRecords(
 	ctx context.Context,
 	repo syntax.DID,
@@ -170,6 +213,129 @@ func (c observedPDSListClient) ListRecords(
 	limit int,
 ) ([]auth.PDSRecord, string, error) {
 	return c.lister.ListRecords(ctx, repo, collection, cursor, limit)
+}
+
+func (c observedPDSListEffectClient) ListRecords(
+	ctx context.Context,
+	repo syntax.DID,
+	collection string,
+	cursor string,
+	limit int,
+) ([]auth.PDSRecord, string, error) {
+	return c.lister.ListRecords(ctx, repo, collection, cursor, limit)
+}
+
+func (c observedPDSEffectClient) WithActiveEffects(
+	ctx context.Context,
+	expected []ownerlifecycle.ExpectedOwner,
+	operation auth.ActiveEffectPDSOperation,
+) error {
+	if c.boundary == nil || operation == nil {
+		return errors.New("observed PDS effect boundary is unavailable")
+	}
+	return c.boundary.WithActiveEffects(
+		ctx,
+		expected,
+		func(effectCtx context.Context, purposeClient auth.PDSClient) error {
+			if purposeClient == nil {
+				return errors.New("observed PDS effect client is unavailable")
+			}
+			observed := observedPDSClient{
+				inner: purposeClient, observer: c.observer,
+			}
+			callbackClient := auth.PDSClient(observed)
+			putter, hasPutter := purposeClient.(auth.ConditionalPDSRecordPutter)
+			deleter, hasDeleter := purposeClient.(auth.ConditionalPDSRecordDeleter)
+			switch {
+			case hasPutter && putter != nil && hasDeleter && deleter != nil:
+				callbackClient = observedConditionalPutDeletePDSClient{
+					observedConditionalPutPDSClient: observedConditionalPutPDSClient{
+						observedPDSClient: observed,
+						putter:            putter,
+					},
+					deleter: deleter,
+				}
+			case hasPutter && putter != nil:
+				callbackClient = observedConditionalPutPDSClient{
+					observedPDSClient: observed,
+					putter:            putter,
+				}
+			case hasDeleter && deleter != nil:
+				callbackClient = observedConditionalPDSClient{
+					observedPDSClient: observed,
+					deleter:           deleter,
+				}
+			}
+			return operation(effectCtx, callbackClient)
+		},
+	)
+}
+
+func (c observedConditionalPutPDSClient) PutRecordWithSwap(
+	ctx context.Context,
+	repo syntax.DID,
+	collection string,
+	rkey string,
+	record any,
+	expectedCID syntax.CID,
+) error {
+	operation := pdsPutOperation(collection)
+	operationCtx, finish := c.observer.startPDSOperation(ctx, operation)
+	started := time.Now()
+	err := c.putter.PutRecordWithSwap(
+		operationCtx, repo, collection, rkey, record, expectedCID,
+	)
+	c.observer.observePDSWrite(
+		operationCtx, operation, PDSStagePDSRequest, err, time.Since(started),
+	)
+	finish(pdsResult(err))
+	return err
+}
+
+func (c observedConditionalPutDeletePDSClient) DeleteRecordWithSwap(
+	ctx context.Context,
+	repo syntax.DID,
+	collection string,
+	rkey string,
+	expectedCID syntax.CID,
+) error {
+	return observeConditionalDelete(
+		ctx, c.observer, c.deleter, repo, collection, rkey, expectedCID,
+	)
+}
+
+func (c observedConditionalPDSClient) DeleteRecordWithSwap(
+	ctx context.Context,
+	repo syntax.DID,
+	collection string,
+	rkey string,
+	expectedCID syntax.CID,
+) error {
+	return observeConditionalDelete(
+		ctx, c.observer, c.deleter, repo, collection, rkey, expectedCID,
+	)
+}
+
+func observeConditionalDelete(
+	ctx context.Context,
+	observer *Observer,
+	deleter auth.ConditionalPDSRecordDeleter,
+	repo syntax.DID,
+	collection string,
+	rkey string,
+	expectedCID syntax.CID,
+) error {
+	operation := pdsDeleteOperation(collection)
+	operationCtx, finish := observer.startPDSOperation(ctx, operation)
+	started := time.Now()
+	err := deleter.DeleteRecordWithSwap(
+		operationCtx, repo, collection, rkey, expectedCID,
+	)
+	observer.observePDSWrite(
+		operationCtx, operation, PDSStagePDSRequest, err, time.Since(started),
+	)
+	finish(pdsResult(err))
+	return err
 }
 
 func (c observedPDSClient) GetRecord(ctx context.Context, repo syntax.DID, collection string, rkey string, out any) (string, error) {

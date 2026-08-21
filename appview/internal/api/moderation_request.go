@@ -2,7 +2,6 @@
 package api
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -36,18 +35,17 @@ type syntheticModerationSubject struct {
 // request and translates it into the store input shape. It accepts exactly one
 // output object per request; arrays/batches are rejected.
 func DecodeSyntheticModerationRequest(body io.Reader, cfg ModerationRequestConfig) (ModerationOutputInput, error) {
-	raw, err := io.ReadAll(body)
-	if err != nil {
-		return ModerationOutputInput{}, &FieldError{Code: "malformed_body", Fields: map[string]string{"_": err.Error()}}
-	}
-	trimmed := bytes.TrimSpace(raw)
-	if len(trimmed) == 0 || trimmed[0] == '[' {
-		return ModerationOutputInput{}, &FieldError{Code: "malformed_body", Fields: map[string]string{"_": "expected single object"}}
-	}
 	var req syntheticModerationRequest
-	dec := json.NewDecoder(bytes.NewReader(raw))
+	dec := json.NewDecoder(body)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&req); err != nil {
+		return ModerationOutputInput{}, &FieldError{Code: "malformed_body", Fields: map[string]string{"_": err.Error()}}
+	}
+	var trailing any
+	if err := dec.Decode(&trailing); err != io.EOF {
+		if err == nil {
+			err = fmt.Errorf("expected exactly one JSON object")
+		}
 		return ModerationOutputInput{}, &FieldError{Code: "malformed_body", Fields: map[string]string{"_": err.Error()}}
 	}
 
@@ -121,6 +119,7 @@ func DecodeSyntheticModerationRequest(body io.Reader, cfg ModerationRequestConfi
 	}
 	return ModerationOutputInput{
 		SourceDID:         sourceDID,
+		SourceAuthority:   ModerationSourceTrustedExternal,
 		SubjectType:       subjectType,
 		SubjectDID:        subjectDID.String(),
 		SubjectCollection: collection,

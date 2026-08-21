@@ -162,7 +162,7 @@ void main() {
     );
   });
 
-  test('IT-017 decodes an actorful source-less Instagram match', () {
+  test('IT-031 decodes Instagram match rows as actor notifications', () {
     final notification = CraftskyNotification.fromMap({
       'id': '00000000-0000-0000-0000-000000000321',
       'type': 'instagramMatch',
@@ -173,11 +173,12 @@ void main() {
 
     expect(notification, isA<InstagramMatchNotification>());
     expect(notification, isNot(isA<SocialNotification>()));
-    final match = notification as InstagramMatchNotification;
-    expect(match.id, '00000000-0000-0000-0000-000000000321');
-    expect(match.actor.did.toString(), 'did:plc:alice');
-    expect(match.actor.viewerIsFollowing, isTrue);
-    expect(match.type, NotificationCategory.instagramMatch);
+    expect(notification.id, '00000000-0000-0000-0000-000000000321');
+    expect(notification.type, NotificationCategory.instagramMatch);
+    expect(
+      (notification as InstagramMatchNotification).actor.did,
+      'did:plc:alice',
+    );
   });
 
   test(

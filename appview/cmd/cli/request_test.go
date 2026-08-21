@@ -56,6 +56,54 @@ func TestDoRequest_200WritesStatusThenBody(t *testing.T) {
 	}
 }
 
+func TestDoRequestRemoteDevAddsConfiguredCredential(t *testing.T) {
+	const secret = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFG"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		if got := request.Header.Get("X-Craftsky-Dev-Authorization"); got != secret {
+			t.Fatalf("dev authorization header = %q", got)
+		}
+		if request.Host != "appview-dev.example.net" {
+			t.Fatalf("Host = %q", request.Host)
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	code, err := doRequest(requestArgs{
+		Ctx:              context.Background(),
+		Method:           http.MethodGet,
+		Path:             "/v1/whoami",
+		BaseURL:          server.URL,
+		RequestHost:      "appview-dev.example.net",
+		DevDID:           "did:plc:test-caller",
+		DevAuthorization: secret,
+		Out:              io.Discard,
+		ErrOut:           io.Discard,
+	})
+	if err != nil || code != 0 {
+		t.Fatalf("doRequest code=%d err=%v", code, err)
+	}
+}
+
+func TestDoRequestRejectsDevCredentialHeaderArgumentWithoutEchoingIt(t *testing.T) {
+	const secret = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFG"
+	_, err := doRequest(requestArgs{
+		Ctx:     context.Background(),
+		Method:  http.MethodGet,
+		Path:    "/v1/whoami",
+		BaseURL: "http://127.0.0.1:1",
+		Headers: []string{"X-Craftsky-Dev-Authorization: " + secret},
+		Out:     io.Discard,
+		ErrOut:  io.Discard,
+	})
+	if err == nil || !strings.Contains(err.Error(), "validated configuration") {
+		t.Fatalf("doRequest error = %v", err)
+	}
+	if strings.Contains(err.Error(), secret) {
+		t.Fatal("doRequest error exposed the dev credential")
+	}
+}
+
 func TestDoRequest_4xxReturnsExit1(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)

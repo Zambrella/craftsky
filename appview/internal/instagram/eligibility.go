@@ -11,7 +11,6 @@ const (
 	EligibilityAtFeed                 EligibilityStage = "feed"
 	EligibilityAtOpen                 EligibilityStage = "open"
 	EligibilityAtAccept               EligibilityStage = "accept"
-	EligibilityAtAutomaticFollow      EligibilityStage = "automaticFollow"
 )
 
 var eligibilityStages = []EligibilityStage{
@@ -23,7 +22,6 @@ var eligibilityStages = []EligibilityStage{
 	EligibilityAtFeed,
 	EligibilityAtOpen,
 	EligibilityAtAccept,
-	EligibilityAtAutomaticFollow,
 }
 
 func (s EligibilityStage) Valid() bool {
