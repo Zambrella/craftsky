@@ -93,6 +93,40 @@ func TestProductionRoutesDoNotImportAppComposition(t *testing.T) {
 	}
 }
 
+func TestHandleTargetedMutationsUseAuthoritativeIdentityResolver(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile("routes_profile_notification.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(raw)
+	for _, constructor := range []string{
+		"FollowProfileHandler", "UnfollowProfileHandler",
+		"MuteProfileHandler", "UnmuteProfileHandler",
+		"BlockProfileHandler", "UnblockProfileHandler",
+		"NewProfileReportTargetResolver",
+	} {
+		needle := constructor + "("
+		start := strings.Index(source, needle)
+		if start < 0 {
+			t.Errorf("missing mutation constructor %s", constructor)
+			continue
+		}
+		end := strings.Index(source[start:], "))")
+		if end < 0 {
+			end = min(len(source)-start, 600)
+		}
+		call := source[start : start+end]
+		if !strings.Contains(call, "routes.authoritativeResolver") {
+			t.Errorf("%s is not wired to routes.authoritativeResolver", constructor)
+		}
+	}
+	if !strings.Contains(source, "GetProfileHandler(routes.profileStore, routes.handleResolver") {
+		t.Error("profile display route no longer uses the cached handle resolver")
+	}
+}
+
 func productionRouteFiles(t *testing.T) []string {
 	t.Helper()
 	entries, err := os.ReadDir(".")

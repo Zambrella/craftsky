@@ -307,6 +307,7 @@ func TestFacetStoreResolveMentionRefreshesCacheAndFiltersCraftskyProfiles(t *tes
 			"did:plc:alice":   syntax.Handle("alice.craftsky.social"),
 			"did:plc:mallory": syntax.Handle("mallory.example"),
 		},
+		errByHandle: map[string]error{},
 	}
 	store := api.NewFacetStore(pool, resolver)
 
@@ -335,6 +336,12 @@ func TestFacetStoreResolveMentionRefreshesCacheAndFiltersCraftskyProfiles(t *tes
 	}
 	if malloryRows != 0 {
 		t.Fatalf("Mallory cache rows = %d, want 0", malloryRows)
+	}
+
+	resolver.errByHandle["transient.craftsky.test"] = errors.New("temporary DNS timeout")
+	_, err = store.ResolveMention(ctx, syntax.DID("did:plc:viewer"), syntax.Handle("transient.craftsky.test"), now)
+	if !errors.Is(err, api.ErrMentionIdentityUnavailable) {
+		t.Fatalf("transient resolution err = %v, want ErrMentionIdentityUnavailable", err)
 	}
 }
 
@@ -554,6 +561,59 @@ func TestFacetStoreResolveMentionRefreshesReassignedStaleHandle(t *testing.T) {
 	}
 	if count != 1 || did != "did:plc:newalice" {
 		t.Fatalf("handle owner count=%d did=%q, want count=1 did=did:plc:newalice", count, did)
+	}
+}
+
+func TestFacetStoreResolveMentionDoesNotTrustFreshLookingReassignedHandle(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, facetStoreDDL)
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
+	now := time.Date(2026, 8, 20, 12, 0, 0, 0, time.UTC)
+
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO craftsky_profiles (did, crafts, record_cid) VALUES
+			('did:plc:viewer', '{}', 'cid-viewer'),
+			('did:plc:oldalice', '{}', 'cid-old-alice'),
+			('did:plc:newalice', '{}', 'cid-new-alice')
+	`); err != nil {
+		t.Fatalf("seed CraftSky profiles: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO atproto_identity_cache (did, handle, handle_lower, resolved_at) VALUES
+			('did:plc:oldalice', 'alice.craftsky.social', 'alice.craftsky.social', $1)
+	`, now); err != nil {
+		t.Fatalf("seed fresh-looking reassigned handle: %v", err)
+	}
+	resolver := exactResolveFakeResolver{
+		didByHandle: map[string]syntax.DID{
+			"alice.craftsky.social": syntax.DID("did:plc:newalice"),
+		},
+		handleByDID: map[string]syntax.Handle{
+			"did:plc:newalice": syntax.Handle("alice.craftsky.social"),
+		},
+	}
+
+	row, err := api.NewFacetStore(pool, resolver).ResolveMention(
+		ctx,
+		syntax.DID("did:plc:viewer"),
+		syntax.Handle("alice.craftsky.social"),
+		now,
+	)
+	if err != nil {
+		t.Fatalf("ResolveMention reassigned handle: %v", err)
+	}
+	if row.DID != syntax.DID("did:plc:newalice") {
+		t.Fatalf("resolved DID = %s, want authoritative did:plc:newalice", row.DID)
+	}
+	var cachedDID syntax.DID
+	if err := pool.QueryRow(ctx, `
+		SELECT did FROM atproto_identity_cache
+		WHERE handle_lower='alice.craftsky.social'
+	`).Scan(&cachedDID); err != nil {
+		t.Fatalf("read canonical cache row: %v", err)
+	}
+	if cachedDID != row.DID {
+		t.Fatalf("cached DID = %s, want %s", cachedDID, row.DID)
 	}
 }
 

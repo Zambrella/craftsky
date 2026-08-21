@@ -12,8 +12,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/accountdeletion"
+	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/instagram"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/scheduledposts"
 )
@@ -34,6 +36,8 @@ func newAccountDeletionDependencies(
 	instagramPrivateData *instagram.PrivateDataService,
 	scheduledAccountDeletion *scheduledposts.AccountDeletion,
 	departureParticipant ownerlifecycle.TransitionParticipant,
+	identityResolver api.HandleResolver,
+	observer *observability.Observer,
 	cfg Config,
 	logger *slog.Logger,
 ) (*accountDeletionDependencies, error) {
@@ -41,7 +45,9 @@ func newAccountDeletionDependencies(
 		Pool: pool, Store: owners.deletionStore, OAuth: authCapability.flow,
 		Owners: owners.lifecycles, Sessions: authCapability.sessionLifecycle,
 		OAuthStore: authCapability.store, DepartureParticipant: departureParticipant,
-		Now: time.Now, Random: rand.Reader, IntentTTL: cfg.AccountDeletionIntentTTL,
+		IdentityResolver: identityResolver,
+		IdentityIndex:    api.NewIdentityCacheStore(pool, observer),
+		Now:              time.Now, Random: rand.Reader, IntentTTL: cfg.AccountDeletionIntentTTL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("account deletion service: %w", err)

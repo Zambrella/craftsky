@@ -105,8 +105,9 @@ type Dependencies struct {
 	IdentityCacheUpdater auth.IdentityCacheUpdater
 	RepositoryTracker    auth.RepositoryTracker
 
-	HandleResolver api.HandleResolver
-	Consumer       tap.Consumer
+	HandleResolver              api.HandleResolver
+	AuthoritativeHandleResolver api.HandleResolver
+	Consumer                    tap.Consumer
 
 	InstagramMembership   *instagram.MembershipStore
 	InstagramRateLimiter  *instagram.PostgresRateLimiter

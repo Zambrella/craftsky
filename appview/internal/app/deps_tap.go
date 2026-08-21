@@ -38,6 +38,7 @@ func newTapDependencies(
 	instagramStorage *instagramStorageDependencies,
 	scheduledAccountDeletion *scheduledposts.AccountDeletion,
 	observer *observability.Observer,
+	identityInvalidator ingestion.IdentityInvalidator,
 	cfg Config,
 	logger *slog.Logger,
 ) (*tapDependencies, error) {
@@ -118,6 +119,7 @@ func newTapDependencies(
 		Store: store, Lifecycles: owners.lifecycles,
 		ProfileParticipant: profileParticipant, TerminalParticipant: terminalParticipant,
 		TerminalCommitTimeout: cfg.tapTerminalCommitTimeout(),
+		IdentityInvalidator:   identityInvalidator,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("tap ingestion service: %w", err)

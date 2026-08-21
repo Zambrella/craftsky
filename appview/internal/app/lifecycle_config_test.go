@@ -202,6 +202,47 @@ func TestTerminalPurgeWorkerConfigDefaults(t *testing.T) {
 	}
 }
 
+func TestIdentityCacheRefreshWorkerConfigDefaults(t *testing.T) {
+	path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap\n")
+	cfg, err := LoadConfig(EnvDev, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.IdentityCacheRefreshPollInterval != 5*time.Minute ||
+		cfg.IdentityCacheRefreshBatchSize != 100 ||
+		cfg.IdentityCacheRefreshOperationTimeout != 10*time.Second ||
+		cfg.IdentityCacheRefreshRetryDelay != 15*time.Minute {
+		t.Fatalf("unexpected identity refresh defaults: interval=%s batch=%d timeout=%s retry=%s",
+			cfg.IdentityCacheRefreshPollInterval, cfg.IdentityCacheRefreshBatchSize,
+			cfg.IdentityCacheRefreshOperationTimeout, cfg.IdentityCacheRefreshRetryDelay)
+	}
+}
+
+func TestIdentityCacheRefreshWorkerConfigFailsClosed(t *testing.T) {
+	base := "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap\n"
+	for _, test := range []struct {
+		name     string
+		override string
+		want     string
+	}{
+		{name: "zero poll", override: "IDENTITY_CACHE_REFRESH_POLL_INTERVAL=0s\n", want: "IDENTITY_CACHE_REFRESH_POLL_INTERVAL"},
+		{name: "zero batch", override: "IDENTITY_CACHE_REFRESH_BATCH_SIZE=0\n", want: "IDENTITY_CACHE_REFRESH_BATCH_SIZE"},
+		{name: "zero operation timeout", override: "IDENTITY_CACHE_REFRESH_OPERATION_TIMEOUT=0s\n", want: "IDENTITY_CACHE_REFRESH_OPERATION_TIMEOUT"},
+		{name: "zero retry delay", override: "IDENTITY_CACHE_REFRESH_RETRY_DELAY=0s\n", want: "IDENTITY_CACHE_REFRESH_RETRY_DELAY"},
+		{name: "oversized poll", override: "IDENTITY_CACHE_REFRESH_POLL_INTERVAL=1h1ns\n", want: "IDENTITY_CACHE_REFRESH_POLL_INTERVAL"},
+		{name: "oversized batch", override: "IDENTITY_CACHE_REFRESH_BATCH_SIZE=1001\n", want: "IDENTITY_CACHE_REFRESH_BATCH_SIZE"},
+		{name: "oversized operation timeout", override: "IDENTITY_CACHE_REFRESH_OPERATION_TIMEOUT=1m1ns\n", want: "IDENTITY_CACHE_REFRESH_OPERATION_TIMEOUT"},
+		{name: "oversized retry delay", override: "IDENTITY_CACHE_REFRESH_RETRY_DELAY=24h1ns\n", want: "IDENTITY_CACHE_REFRESH_RETRY_DELAY"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := LoadConfig(EnvDev, testConfigFile(t, base+test.override))
+			if err == nil || !strings.Contains(err.Error(), test.want) {
+				t.Fatalf("error = %v, want %s", err, test.want)
+			}
+		})
+	}
+}
+
 func TestTerminalPurgeWorkerConfigFailsClosed(t *testing.T) {
 	base := "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap\n"
 	for _, test := range []struct {

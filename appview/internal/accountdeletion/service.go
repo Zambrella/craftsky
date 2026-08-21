@@ -12,6 +12,7 @@ var (
 	ErrReauthenticationRequired   = errors.New("account deletion reauthentication required")
 	ErrConfirmationHandleMismatch = errors.New("account deletion confirmation handle mismatch")
 	ErrDeletionAlreadyPending     = errors.New("account deletion already pending")
+	ErrIdentityUnavailable        = errors.New("account deletion identity unavailable")
 )
 
 type CreateIntentParams struct {

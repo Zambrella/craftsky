@@ -18,6 +18,7 @@ type profileRelationshipRouteBundle struct {
 	relationshipStore         *relationships.Store
 	relationshipMutations     api.RelationshipMutationService
 	handleResolver            api.HandleResolver
+	authoritativeResolver     api.HandleResolver
 	newPDSEffects             pdseffects.ExecutorFactory
 	reportStore               *api.ReportStore
 	reportForwarder           api.ReportForwarder
@@ -36,15 +37,15 @@ func registerProfileRelationshipRoutes(routes profileRelationshipRouteBundle) {
 		api.PutProfileCustomisationHandler(routes.profileCustomisationStore),
 	))
 	routes.mux.Handle("GET /v1/profiles/{handleOrDid}/mutual-followers", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/mutual-followers"), api.GetMutualFollowersHandler(routes.profileStore, routes.handleResolver, routes.logger)))
-	routes.mux.Handle("POST /v1/profiles/{handleOrDid}/follows", routes.middleware.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/follows"), api.FollowProfileHandler(routes.followStore, routes.profileStore, routes.handleResolver, routes.newPDSEffects, routes.logger)))
-	routes.mux.Handle("DELETE /v1/profiles/{handleOrDid}/follows", routes.middleware.wrap(mustPolicy("DELETE", "/v1/profiles/{handleOrDid}/follows"), api.UnfollowProfileHandler(routes.followStore, routes.profileStore, routes.handleResolver, routes.newPDSEffects, routes.logger)))
-	routes.mux.Handle("POST /v1/profiles/{handleOrDid}/mutes", routes.middleware.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/mutes"), api.MuteProfileHandler(routes.relationshipMutations, routes.relationshipStore, routes.handleResolver, routes.logger)))
-	routes.mux.Handle("DELETE /v1/profiles/{handleOrDid}/mutes", routes.middleware.wrap(mustPolicy("DELETE", "/v1/profiles/{handleOrDid}/mutes"), api.UnmuteProfileHandler(routes.relationshipMutations, routes.relationshipStore, routes.handleResolver, routes.logger)))
-	routes.mux.Handle("POST /v1/profiles/{handleOrDid}/blocks", routes.middleware.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/blocks"), api.BlockProfileHandler(routes.relationshipMutations, routes.relationshipStore, routes.handleResolver, routes.logger)))
-	routes.mux.Handle("DELETE /v1/profiles/{handleOrDid}/blocks", routes.middleware.wrap(mustPolicy("DELETE", "/v1/profiles/{handleOrDid}/blocks"), api.UnblockProfileHandler(routes.relationshipMutations, routes.relationshipStore, routes.handleResolver, routes.logger)))
+	routes.mux.Handle("POST /v1/profiles/{handleOrDid}/follows", routes.middleware.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/follows"), api.FollowProfileHandler(routes.followStore, routes.profileStore, routes.authoritativeResolver, routes.newPDSEffects, routes.logger)))
+	routes.mux.Handle("DELETE /v1/profiles/{handleOrDid}/follows", routes.middleware.wrap(mustPolicy("DELETE", "/v1/profiles/{handleOrDid}/follows"), api.UnfollowProfileHandler(routes.followStore, routes.profileStore, routes.authoritativeResolver, routes.newPDSEffects, routes.logger)))
+	routes.mux.Handle("POST /v1/profiles/{handleOrDid}/mutes", routes.middleware.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/mutes"), api.MuteProfileHandler(routes.relationshipMutations, routes.relationshipStore, routes.authoritativeResolver, routes.logger)))
+	routes.mux.Handle("DELETE /v1/profiles/{handleOrDid}/mutes", routes.middleware.wrap(mustPolicy("DELETE", "/v1/profiles/{handleOrDid}/mutes"), api.UnmuteProfileHandler(routes.relationshipMutations, routes.relationshipStore, routes.authoritativeResolver, routes.logger)))
+	routes.mux.Handle("POST /v1/profiles/{handleOrDid}/blocks", routes.middleware.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/blocks"), api.BlockProfileHandler(routes.relationshipMutations, routes.relationshipStore, routes.authoritativeResolver, routes.logger)))
+	routes.mux.Handle("DELETE /v1/profiles/{handleOrDid}/blocks", routes.middleware.wrap(mustPolicy("DELETE", "/v1/profiles/{handleOrDid}/blocks"), api.UnblockProfileHandler(routes.relationshipMutations, routes.relationshipStore, routes.authoritativeResolver, routes.logger)))
 	routes.mux.Handle("GET /v1/profiles/me/mutes", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/me/mutes"), api.ListMutedProfilesHandler(routes.relationshipStore, routes.handleResolver, routes.logger)))
 	routes.mux.Handle("GET /v1/profiles/me/blocks", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/me/blocks"), api.ListBlockedProfilesHandler(routes.relationshipStore, routes.handleResolver, routes.logger)))
-	routes.mux.Handle("POST /v1/profiles/{handleOrDid}/reports", routes.middleware.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/reports"), api.ReportProfileHandler(api.NewProfileReportTargetResolver(routes.profileStore, routes.handleResolver), routes.reportStore, routes.reportForwarder, routes.logger)))
+	routes.mux.Handle("POST /v1/profiles/{handleOrDid}/reports", routes.middleware.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/reports"), api.ReportProfileHandler(api.NewProfileReportTargetResolver(routes.profileStore, routes.authoritativeResolver), routes.reportStore, routes.reportForwarder, routes.logger)))
 }
 
 type notificationRouteBundle struct {

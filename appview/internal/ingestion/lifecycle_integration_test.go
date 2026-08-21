@@ -243,6 +243,7 @@ func lifecycleIngestionPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	pool := testdb.WithSchema(t, ingestionProjectionFixtureDDL)
 	for _, path := range []string{
+		"../../migrations/000015_identity_handle_cache.up.sql",
 		"../../migrations/000002_oauth_tables.up.sql",
 		"../../migrations/000003_oauth_auth_requests_handoff.up.sql",
 		"../../migrations/000006_craftsky_sessions_device_id.up.sql",
@@ -252,6 +253,8 @@ func lifecycleIngestionPool(t *testing.T) *pgxpool.Pool {
 		"../../migrations/000045_tap_ingestion_durability.up.sql",
 		"../../migrations/000049_pds_effect_action.up.sql",
 		"../../migrations/000050_pds_effect_source_reconciliation.up.sql",
+		"../../migrations/000053_identity_cache_refresh.up.sql",
+		"../../migrations/000054_tap_identity_refresh_trigger.up.sql",
 	} {
 		sql, err := os.ReadFile(path)
 		if err != nil {

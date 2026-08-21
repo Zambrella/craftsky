@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -30,6 +31,7 @@ type contentDependencies struct {
 
 type contentRuntimeDependencies struct {
 	identityCache         auth.IdentityCacheUpdater
+	identityRefresh       *api.IdentityCacheRefreshProcessor
 	relationshipMutations api.RelationshipMutationService
 }
 
@@ -57,9 +59,24 @@ func newContentRuntimeDependencies(
 	pdsEffects *pdsEffectDependencies,
 	instagramStorage *instagramStorageDependencies,
 	observer *observability.Observer,
-) *contentRuntimeDependencies {
+	identityInvalidator api.IdentityInvalidator,
+	cfg Config,
+) (*contentRuntimeDependencies, error) {
+	identityStore := api.NewIdentityCacheStore(pool, observer)
+	identityRefresh, err := api.NewIdentityCacheRefreshProcessor(api.IdentityCacheRefreshProcessorOptions{
+		Store: identityStore, Resolver: handleResolver,
+		BatchSize:           cfg.IdentityCacheRefreshBatchSize,
+		OperationTimeout:    cfg.IdentityCacheRefreshOperationTimeout,
+		RetryDelay:          cfg.IdentityCacheRefreshRetryDelay,
+		Now:                 time.Now,
+		IdentityInvalidator: identityInvalidator,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("identity cache refresh processor: %w", err)
+	}
 	return &contentRuntimeDependencies{
-		identityCache: api.NewIdentityCacheService(pool, handleResolver, time.Now),
+		identityCache:   api.NewIdentityCacheService(pool, handleResolver, time.Now, observer),
+		identityRefresh: identityRefresh,
 		relationshipMutations: relationships.NewMutationServiceWithRestoration(
 			content.relationships,
 			pdsEffects.ordinary,
@@ -67,5 +84,5 @@ func newContentRuntimeDependencies(
 			instagramStorage.restoration,
 			observer,
 		),
-	}
+	}, nil
 }

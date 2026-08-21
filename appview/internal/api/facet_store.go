@@ -2,11 +2,13 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -215,19 +217,21 @@ func (s *FacetStore) ResolveMention(ctx context.Context, viewerDID syntax.DID, h
 	if s.identityCache == nil {
 		return IdentityCacheRow{}, ErrMentionNotFound
 	}
-	if cached, err := s.identityCache.FreshByHandle(ctx, handle, now); err != nil {
-		return IdentityCacheRow{}, err
-	} else if cached != nil {
-		if err := s.authorizeMention(ctx, viewerDID, cached.DID); err != nil {
-			return IdentityCacheRow{}, err
-		}
-		return *cached, nil
-	}
+	// Exact mention resolution is an authority boundary: handles can be
+	// reassigned while a search-index row is still within its presentation TTL.
+	// Suggestions use the persistent cache, but final resolution always enters
+	// the authoritative resolver and writes the verified canonical pair back.
 	if s.resolver == nil {
 		return IdentityCacheRow{}, ErrMentionNotFound
 	}
 	did, err := s.resolver.ResolveDID(ctx, handle)
-	if err != nil || did.String() == "" {
+	if err != nil {
+		if isDefinitiveHandleResolutionError(err) {
+			return IdentityCacheRow{}, ErrMentionNotFound
+		}
+		return IdentityCacheRow{}, fmt.Errorf("%w: %v", ErrMentionIdentityUnavailable, err)
+	}
+	if did.String() == "" {
 		return IdentityCacheRow{}, ErrMentionNotFound
 	}
 	isCraftsky, err := s.identityCache.IsCraftskyProfile(ctx, did)
@@ -241,13 +245,24 @@ func (s *FacetStore) ResolveMention(ctx context.Context, viewerDID syntax.DID, h
 		return IdentityCacheRow{}, err
 	}
 	canonicalHandle, err := s.resolver.ResolveHandle(ctx, did)
-	if err != nil || canonicalHandle.String() == "" {
+	if err != nil {
+		return IdentityCacheRow{}, fmt.Errorf("%w: %v", ErrMentionIdentityUnavailable, err)
+	}
+	if canonicalHandle.String() == "" {
 		return IdentityCacheRow{}, ErrMentionNotFound
 	}
 	if err := s.identityCache.upsertForViewer(ctx, viewerDID, did, canonicalHandle, now); err != nil {
 		return IdentityCacheRow{}, err
 	}
 	return IdentityCacheRow{DID: did, Handle: canonicalHandle, ResolvedAt: now}, nil
+}
+
+func isDefinitiveHandleResolutionError(err error) bool {
+	return errors.Is(err, identity.ErrHandleNotFound) ||
+		errors.Is(err, identity.ErrHandleMismatch) ||
+		errors.Is(err, identity.ErrHandleNotDeclared) ||
+		errors.Is(err, identity.ErrHandleReservedTLD) ||
+		errors.Is(err, identity.ErrInvalidHandle)
 }
 
 func (s *FacetStore) authorizeMention(ctx context.Context, viewerDID, subjectDID syntax.DID) error {

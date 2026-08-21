@@ -46,6 +46,9 @@ func (s *SearchStore) searchProfilesObserved(ctx context.Context, viewerDID stri
 	if err != nil {
 		return nil, "", err
 	}
+	// Profile search is deliberately stale-tolerant presentation. The bounded
+	// identity refresh worker repairs rows older than the authoritative 24-hour
+	// target; no durable action uses this result without a fresh lookup.
 	q := `
 		WITH ranked AS (
 		SELECT cp.did, ic.handle, ic.handle_lower, bp.display_name, bp.description, bp.avatar_cid, bp.avatar_mime, cp.crafts,

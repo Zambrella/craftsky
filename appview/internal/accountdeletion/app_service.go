@@ -35,10 +35,20 @@ type AppServiceOptions struct {
 	Owners               *ownerlifecycle.Store
 	Sessions             *auth.SessionLifecycleService
 	OAuthStore           *auth.PostgresAuthStore
+	IdentityResolver     DeletionIdentityResolver
+	IdentityIndex        DeletionIdentityIndex
 	DepartureParticipant ownerlifecycle.TransitionParticipant
 	Now                  func() time.Time
 	Random               io.Reader
 	IntentTTL            time.Duration
+}
+
+type DeletionIdentityResolver interface {
+	ResolveHandle(context.Context, syntax.DID) (syntax.Handle, error)
+}
+
+type DeletionIdentityIndex interface {
+	Upsert(context.Context, syntax.DID, syntax.Handle, time.Time) error
 }
 
 type AppService struct {
@@ -48,6 +58,8 @@ type AppService struct {
 	owners     *ownerlifecycle.Store
 	sessions   *auth.SessionLifecycleService
 	oauthStore *auth.PostgresAuthStore
+	identity   DeletionIdentityResolver
+	index      DeletionIdentityIndex
 	departure  ownerlifecycle.TransitionParticipant
 	now        func() time.Time
 	random     io.Reader
@@ -57,6 +69,7 @@ type AppService struct {
 func NewAppService(options AppServiceOptions) (*AppService, error) {
 	if options.Pool == nil || options.Store == nil || options.OAuth == nil ||
 		options.Owners == nil || options.Sessions == nil || options.OAuthStore == nil ||
+		options.IdentityResolver == nil || options.IdentityIndex == nil ||
 		options.DepartureParticipant == nil {
 		return nil, errors.New("account deletion service dependencies are unavailable")
 	}
@@ -72,6 +85,7 @@ func NewAppService(options AppServiceOptions) (*AppService, error) {
 	return &AppService{
 		pool: options.Pool, store: options.Store, oauth: options.OAuth,
 		owners: options.Owners, sessions: options.Sessions, oauthStore: options.OAuthStore,
+		identity: options.IdentityResolver, index: options.IdentityIndex,
 		departure: options.DepartureParticipant,
 		now:       options.Now, random: options.Random, intentTTL: options.IntentTTL,
 	}, nil
@@ -81,11 +95,14 @@ func (service *AppService) CreateIntent(ctx context.Context, params CreateIntent
 	if params.Owner == "" || params.DeviceID == "" {
 		return IntentResult{}, errors.New("invalid account deletion intent scope")
 	}
-	var handle syntax.Handle
-	if err := service.pool.QueryRow(ctx, `SELECT handle FROM atproto_identity_cache WHERE did=$1`, params.Owner).Scan(&handle); err != nil {
-		return IntentResult{}, fmt.Errorf("resolve account deletion handle: %w", err)
-	}
 	now := service.now().UTC()
+	handle, err := service.identity.ResolveHandle(ctx, params.Owner)
+	if err != nil || handle == "" || handle.IsInvalidHandle() {
+		return IntentResult{}, fmt.Errorf("%w: resolve canonical handle", ErrIdentityUnavailable)
+	}
+	if err := service.index.Upsert(ctx, params.Owner, handle, now); err != nil {
+		return IntentResult{}, fmt.Errorf("%w: persist canonical handle: %v", ErrIdentityUnavailable, err)
+	}
 	jobID := uuid.New()
 	expiresAt := now.Add(service.intentTTL)
 	intent := IntentRecord{

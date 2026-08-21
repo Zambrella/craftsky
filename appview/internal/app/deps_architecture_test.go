@@ -76,6 +76,29 @@ func TestNewDepsDelegatesContentRuntimeConstruction(t *testing.T) {
 	}
 }
 
+func TestNewDepsDelegatesIdentityResolutionConstruction(t *testing.T) {
+	if !functionCallsIdentifier(t, "deps.go", "newDeps", "newIdentityResolutionDependencies") {
+		t.Fatal("newDeps must delegate cached and authoritative identity resolution construction")
+	}
+}
+
+func TestOAuthCompositionUsesAuthoritativeIdentityDirectory(t *testing.T) {
+	if !functionAssignsSelectorToSelector(
+		t, "deps_auth.go", "newAuthDependencies",
+		"oauthApp", "Dir", "federated", "authoritativeDirectory",
+	) {
+		t.Fatal("OAuth composition must use the uncached authoritative identity directory")
+	}
+}
+
+func TestNewDepsWiresIdentityInvalidationIntoTapAndAuthoritativeRefresh(t *testing.T) {
+	for _, constructor := range []string{"newTapDependencies", "newContentRuntimeDependencies"} {
+		if !functionCallIncludesSelectorArgument(t, "deps.go", "newDeps", constructor, "identities", "invalidator") {
+			t.Fatalf("%s must receive the shared Indigo identity cache invalidator", constructor)
+		}
+	}
+}
+
 func TestNewDepsDelegatesAdmissionConstruction(t *testing.T) {
 	if !functionCallsIdentifier(t, "deps.go", "newDeps", "newAdmissionDependencies") {
 		t.Fatal("newDeps must delegate process admission construction to newAdmissionDependencies")
@@ -150,6 +173,109 @@ func functionCallsIdentifier(t *testing.T, filename, functionName, callee string
 			if ok && identifier.Name == callee {
 				found = true
 				return false
+			}
+			return true
+		})
+		return found
+	}
+	t.Fatalf("function %s not found in %s", functionName, filename)
+	return false
+}
+
+func functionAssignsSelectorToSelector(
+	t *testing.T,
+	filename string,
+	functionName string,
+	leftReceiver string,
+	leftField string,
+	rightReceiver string,
+	rightField string,
+) bool {
+	t.Helper()
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("locate architecture test source")
+	}
+	path := filepath.Join(filepath.Dir(currentFile), filename)
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", filename, err)
+	}
+	for _, declaration := range file.Decls {
+		function, ok := declaration.(*ast.FuncDecl)
+		if !ok || function.Name.Name != functionName || function.Body == nil {
+			continue
+		}
+		found := false
+		ast.Inspect(function.Body, func(node ast.Node) bool {
+			assignment, ok := node.(*ast.AssignStmt)
+			if !ok || len(assignment.Lhs) != 1 || len(assignment.Rhs) != 1 {
+				return true
+			}
+			left, leftOK := assignment.Lhs[0].(*ast.SelectorExpr)
+			right, rightOK := assignment.Rhs[0].(*ast.SelectorExpr)
+			if !leftOK || !rightOK {
+				return true
+			}
+			leftIdent, leftIdentOK := left.X.(*ast.Ident)
+			rightIdent, rightIdentOK := right.X.(*ast.Ident)
+			if leftIdentOK && rightIdentOK &&
+				leftIdent.Name == leftReceiver && left.Sel.Name == leftField &&
+				rightIdent.Name == rightReceiver && right.Sel.Name == rightField {
+				found = true
+				return false
+			}
+			return true
+		})
+		return found
+	}
+	t.Fatalf("function %s not found in %s", functionName, filename)
+	return false
+}
+
+func functionCallIncludesSelectorArgument(
+	t *testing.T,
+	filename string,
+	functionName string,
+	callee string,
+	receiver string,
+	field string,
+) bool {
+	t.Helper()
+	_, currentFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("locate architecture test source")
+	}
+	path := filepath.Join(filepath.Dir(currentFile), filename)
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", filename, err)
+	}
+	for _, declaration := range file.Decls {
+		function, ok := declaration.(*ast.FuncDecl)
+		if !ok || function.Name.Name != functionName || function.Body == nil {
+			continue
+		}
+		found := false
+		ast.Inspect(function.Body, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			identifier, ok := call.Fun.(*ast.Ident)
+			if !ok || identifier.Name != callee {
+				return true
+			}
+			for _, argument := range call.Args {
+				selector, ok := argument.(*ast.SelectorExpr)
+				if !ok {
+					continue
+				}
+				base, ok := selector.X.(*ast.Ident)
+				if ok && base.Name == receiver && selector.Sel.Name == field {
+					found = true
+					return false
+				}
 			}
 			return true
 		})

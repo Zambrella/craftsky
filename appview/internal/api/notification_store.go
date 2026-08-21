@@ -69,6 +69,9 @@ type NotificationRow struct {
 }
 
 func (s *PostStore) NotificationHandles(ctx context.Context, dids []string) (map[string]syntax.Handle, error) {
+	// Notification handles are presentation snapshots and may be stale until
+	// the bounded identity refresh worker runs. Notification authority and
+	// routing remain DID-based.
 	out := make(map[string]syntax.Handle)
 	if len(dids) == 0 {
 		return out, nil

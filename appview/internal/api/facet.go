@@ -14,7 +14,10 @@ import (
 	"social.craftsky/appview/internal/middleware"
 )
 
-var ErrMentionNotFound = errors.New("mention not found")
+var (
+	ErrMentionNotFound            = errors.New("mention not found")
+	ErrMentionIdentityUnavailable = errors.New("mention identity unavailable")
+)
 
 type FacetSuggestionReader interface {
 	SearchMentionSuggestions(ctx context.Context, viewerDID syntax.DID, query string, limit int, now time.Time) ([]MentionSuggestionRow, error)
@@ -75,6 +78,10 @@ func ResolveFacetMentionHandler(resolver FacetMentionResolver, logger *slog.Logg
 		}
 		if errors.Is(err, ErrInteractionBlocked) {
 			envelope.WriteError(w, http.StatusForbidden, "interaction_blocked", "interaction is not allowed across a block", middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		if errors.Is(err, ErrMentionIdentityUnavailable) {
+			envelope.WriteError(w, http.StatusServiceUnavailable, "identity_unavailable", "identity verification is temporarily unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}
 		if err != nil {

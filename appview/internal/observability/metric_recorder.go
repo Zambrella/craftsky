@@ -52,6 +52,8 @@ type MetricRecorder interface {
 	ScheduledImageValidation(ctx context.Context, result, format string, duration time.Duration, inFlight int)
 	AuthRequestSweep(ctx context.Context, pending int64, oldestAge time.Duration, deleted int64, failed bool)
 	TerminalPurge(ctx context.Context, operation, result, errorCategory, component, didRole string, claims int, rowsAffected, remaining int64, complete bool)
+	IdentityResolution(ctx context.Context, mode, direction, result string, duration time.Duration)
+	IdentityCache(ctx context.Context, result string, age time.Duration)
 }
 
 type noopMetricRecorder struct{}
@@ -92,6 +94,9 @@ func (noopMetricRecorder) ScheduledImageValidation(context.Context, string, stri
 func (noopMetricRecorder) AuthRequestSweep(context.Context, int64, time.Duration, int64, bool) {}
 func (noopMetricRecorder) TerminalPurge(context.Context, string, string, string, string, string, int, int64, int64, bool) {
 }
+func (noopMetricRecorder) IdentityResolution(context.Context, string, string, string, time.Duration) {
+}
+func (noopMetricRecorder) IdentityCache(context.Context, string, time.Duration) {}
 
 type InMemoryMetricRecorder struct {
 	mu       sync.Mutex
@@ -366,6 +371,18 @@ func (r *InMemoryMetricRecorder) TerminalPurge(
 			Unit: "item", Value: float64(max(remaining, 0)),
 		})
 	}
+}
+
+func (r *InMemoryMetricRecorder) IdentityResolution(_ context.Context, mode, direction, result string, duration time.Duration) {
+	attrs := identityResolutionAttributes(mode, direction, result)
+	r.record(MetricCall{Name: "craftsky_appview_identity_resolutions_total", Kind: MetricKindCounter, Value: 1, Attributes: attrs})
+	r.record(MetricCall{Name: "craftsky_appview_identity_resolution_duration_seconds", Kind: MetricKindDistribution, Unit: "second", Value: nonNegativeDuration(duration).Seconds(), Attributes: attrs})
+}
+
+func (r *InMemoryMetricRecorder) IdentityCache(_ context.Context, result string, age time.Duration) {
+	attrs := map[string]string{"result": safeIdentityCacheResult(result)}
+	r.record(MetricCall{Name: "craftsky_appview_identity_cache_events_total", Kind: MetricKindCounter, Value: 1, Attributes: attrs})
+	r.record(MetricCall{Name: "craftsky_appview_identity_cache_age_seconds", Kind: MetricKindDistribution, Unit: "second", Value: nonNegativeDuration(age).Seconds(), Attributes: attrs})
 }
 
 func (r *InMemoryMetricRecorder) TapIndexerRecord(_ context.Context, nsid, result, reason string, duration time.Duration) {
@@ -648,6 +665,43 @@ func (r *sentryMetricRecorder) TerminalPurge(
 	}
 	if strings.TrimSpace(operation) == "backlog" && result == "success" {
 		r.gauge(ctx, "craftsky_appview_terminal_purge_remaining", float64(max(remaining, 0)), "item", nil)
+	}
+}
+
+func (r *sentryMetricRecorder) IdentityResolution(ctx context.Context, mode, direction, result string, duration time.Duration) {
+	attrs := identityResolutionAttributes(mode, direction, result)
+	r.count(ctx, "craftsky_appview_identity_resolutions_total", 1, "", attrs)
+	r.distribution(ctx, "craftsky_appview_identity_resolution_duration_seconds", nonNegativeDuration(duration).Seconds(), "second", attrs)
+}
+
+func (r *sentryMetricRecorder) IdentityCache(ctx context.Context, result string, age time.Duration) {
+	attrs := map[string]string{"result": safeIdentityCacheResult(result)}
+	r.count(ctx, "craftsky_appview_identity_cache_events_total", 1, "", attrs)
+	r.distribution(ctx, "craftsky_appview_identity_cache_age_seconds", nonNegativeDuration(age).Seconds(), "second", attrs)
+}
+
+func identityResolutionAttributes(mode, direction, result string) map[string]string {
+	switch mode {
+	case "cached", "authoritative":
+	default:
+		mode = "other"
+	}
+	switch direction {
+	case "handle_to_did", "did_to_handle":
+	default:
+		direction = "other"
+	}
+	return map[string]string{
+		"mode": mode, "direction": direction, "result": safeMetricResult(result),
+	}
+}
+
+func safeIdentityCacheResult(result string) string {
+	switch result {
+	case "hit", "miss", "reassigned", "refresh_success", "refresh_retry":
+		return result
+	default:
+		return "other"
 	}
 }
 

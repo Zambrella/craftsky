@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 	"unicode"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
@@ -18,6 +19,44 @@ import (
 type HandleResolver interface {
 	ResolveHandle(ctx context.Context, did syntax.DID) (syntax.Handle, error)
 	ResolveDID(ctx context.Context, handle syntax.Handle) (syntax.DID, error)
+}
+
+type IdentityResolutionObserver interface {
+	ObserveIdentityResolution(mode, direction, result string, duration time.Duration)
+}
+
+type ObservedHandleResolver struct {
+	resolver HandleResolver
+	mode     string
+	observer IdentityResolutionObserver
+}
+
+func NewObservedHandleResolver(resolver HandleResolver, mode string, observer IdentityResolutionObserver) HandleResolver {
+	if resolver == nil || observer == nil {
+		return resolver
+	}
+	return &ObservedHandleResolver{resolver: resolver, mode: mode, observer: observer}
+}
+
+func (resolver *ObservedHandleResolver) ResolveHandle(ctx context.Context, did syntax.DID) (syntax.Handle, error) {
+	started := time.Now()
+	handle, err := resolver.resolver.ResolveHandle(ctx, did)
+	resolver.observer.ObserveIdentityResolution(resolver.mode, "did_to_handle", identityResolutionResult(err), time.Since(started))
+	return handle, err
+}
+
+func (resolver *ObservedHandleResolver) ResolveDID(ctx context.Context, handle syntax.Handle) (syntax.DID, error) {
+	started := time.Now()
+	did, err := resolver.resolver.ResolveDID(ctx, handle)
+	resolver.observer.ObserveIdentityResolution(resolver.mode, "handle_to_did", identityResolutionResult(err), time.Since(started))
+	return did, err
+}
+
+func identityResolutionResult(err error) string {
+	if err != nil {
+		return "error"
+	}
+	return "success"
 }
 
 // DirectoryHandleResolver is the indigo-backed implementation.
@@ -35,7 +74,7 @@ var ErrHandleUnavailable = errors.New("handle unavailable")
 func (r DirectoryHandleResolver) ResolveHandle(ctx context.Context, did syntax.DID) (syntax.Handle, error) {
 	id, err := r.Directory.LookupDID(ctx, did)
 	if err != nil {
-		return "", fmt.Errorf("%w: lookup: %v", ErrHandleUnavailable, err)
+		return "", fmt.Errorf("%w: lookup: %w", ErrHandleUnavailable, err)
 	}
 	if id.Handle == "" || id.Handle == syntax.HandleInvalid {
 		return "", fmt.Errorf("%w: empty handle for %s", ErrHandleUnavailable, did)
@@ -47,7 +86,7 @@ func (r DirectoryHandleResolver) ResolveHandle(ctx context.Context, did syntax.D
 func (r DirectoryHandleResolver) ResolveDID(ctx context.Context, handle syntax.Handle) (syntax.DID, error) {
 	id, err := r.Directory.LookupHandle(ctx, handle)
 	if err != nil {
-		return "", fmt.Errorf("%w: lookup: %v", ErrHandleUnavailable, err)
+		return "", fmt.Errorf("%w: lookup: %w", ErrHandleUnavailable, err)
 	}
 	return id.DID, nil
 }

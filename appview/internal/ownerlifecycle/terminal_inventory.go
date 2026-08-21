@@ -68,6 +68,7 @@ var terminalDIDInventory = []TerminalDIDEntry{
 	deleteDID("atproto_follows", "did", "actor", "uri"),
 	deleteDID("atproto_follows", "subject_did", "subject", "uri"),
 	deleteDID("atproto_identity_cache", "did", "owner", "did"),
+	deleteDID("atproto_identity_refresh_state", "did", "owner", "did"),
 	cleanupDID("auth_auxiliary_cleanup_jobs", "owner_did", "owner", "remote revocation cleanup remains durable after local denial", "id"),
 	deleteDID("bluesky_profiles", "did", "owner", "did"),
 	deleteDID("craftsky_likes", "did", "actor", "uri"),

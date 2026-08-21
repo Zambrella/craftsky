@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -17,6 +18,18 @@ type fakeDirectory struct {
 	didErr       error
 	handleResult *identity.Identity
 	handleErr    error
+}
+
+type identityObservation struct {
+	mode      string
+	direction string
+	result    string
+}
+
+type recordingIdentityObserver struct{ observations []identityObservation }
+
+func (observer *recordingIdentityObserver) ObserveIdentityResolution(mode, direction, result string, _ time.Duration) {
+	observer.observations = append(observer.observations, identityObservation{mode: mode, direction: direction, result: result})
 }
 
 func (f *fakeDirectory) LookupDID(_ context.Context, _ syntax.DID) (*identity.Identity, error) {
@@ -85,6 +98,21 @@ func TestHandleResolver_ResolveDID_DirectoryError(t *testing.T) {
 	_, err := r.ResolveDID(context.Background(), syntax.Handle("alice.example"))
 	if !errors.Is(err, ErrHandleUnavailable) {
 		t.Errorf("want ErrHandleUnavailable; got %v", err)
+	}
+}
+
+func TestObservedHandleResolverRecordsModeDirectionAndResult(t *testing.T) {
+	observer := &recordingIdentityObserver{}
+	resolver := NewObservedHandleResolver(DirectoryHandleResolver{Directory: &fakeDirectory{
+		handleResult: &identity.Identity{DID: syntax.DID("did:plc:xyz")},
+	}}, "authoritative", observer)
+	if _, err := resolver.ResolveDID(context.Background(), syntax.Handle("alice.example")); err != nil {
+		t.Fatal(err)
+	}
+	if len(observer.observations) != 1 || observer.observations[0] != (identityObservation{
+		mode: "authoritative", direction: "handle_to_did", result: "success",
+	}) {
+		t.Fatalf("identity observations=%+v", observer.observations)
 	}
 }
 

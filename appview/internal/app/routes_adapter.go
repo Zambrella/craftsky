@@ -61,6 +61,7 @@ func RouteDependencies(deps *Deps) *routes.Dependencies {
 		IdentityCacheUpdater:        deps.IdentityCacheUpdater,
 		RepositoryTracker:           deps.RepositoryTracker,
 		HandleResolver:              deps.HandleResolver,
+		AuthoritativeHandleResolver: deps.AuthoritativeHandleResolver,
 		Consumer:                    deps.Consumer,
 		InstagramMembership:         deps.InstagramMembership,
 		InstagramRateLimiter:        deps.InstagramRateLimiter,

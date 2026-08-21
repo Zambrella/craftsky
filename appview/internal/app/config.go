@@ -24,56 +24,60 @@ import (
 )
 
 const (
-	defaultJSONBodyLimitBytes              int64 = 1024 * 1024
-	maxTapAckTimeout                             = 2 * time.Minute
-	maxTapTerminalTransactionBudget              = 30 * time.Second
-	maxTapAckSafetyMargin                        = 30 * time.Second
-	maxTapReconnect                              = 10 * time.Minute
-	maxTapWorkerPollInterval                     = time.Minute
-	maxTapWorkerLeaseDuration                    = 10 * time.Minute
-	maxTapWorkerBackoff                          = time.Hour
-	maxOAuthSessionAbsoluteLifetime              = 180 * 24 * time.Hour
-	maxCraftskySessionInactivity                 = 180 * 24 * time.Hour
-	maxOAuthAuthRequestExpiry                    = time.Hour
-	maxCraftskyActivityWriteInterval             = 24 * time.Hour
-	maxPushPollInterval                          = time.Hour
-	maxPushLeaseDuration                         = time.Hour
-	maxPushSendTimeout                           = 10 * time.Minute
-	maxPushFinalizationMargin                    = time.Minute
-	maxOwnerFenceAcquireTimeout                  = time.Minute
-	maxPDSEffectTimeout                          = 10 * time.Minute
-	maxScheduledMediaPutTimeout                  = 10 * time.Minute
-	maxHTTPConnections                           = 10_000
-	maxHTTPInFlightRequests                      = 10_000
-	maxHTTPReadHeaderTimeout                     = 30 * time.Second
-	maxHTTPReadTimeout                           = 5 * time.Minute
-	maxHTTPWriteTimeout                          = 20 * time.Minute
-	maxHTTPIdleTimeout                           = 5 * time.Minute
-	maxHTTPHeaderBytes                           = 1 << 20
-	maxHTTPOuterRateWindow                       = time.Hour
-	maxHTTPOuterLimit                            = 1_000_000
-	maxHTTPLimiterCapacity                       = 1_000_000
-	maxHTTPLimiterIdleTTL                        = 24 * time.Hour
-	maxHTTPJSONBodyReadTimeout                   = 90 * time.Second
-	maxHTTPUploadBodyReadTimeout                 = 5 * time.Minute
-	maxOAuthPendingAuthRequestCapacity           = 1_000_000
-	maxOAuthAuthRequestTerminalRetention         = 30 * 24 * time.Hour
-	maxOAuthAuthRequestSweepInterval             = time.Hour
-	maxOAuthAuthRequestSweepBatch                = 10_000
-	maxAuthLifecycleWorkerPollInterval           = time.Hour
-	maxAuthLifecycleWorkerLeaseDuration          = time.Hour
-	maxAuthLifecycleWorkerOperationTimeout       = 10 * time.Minute
-	maxAuthLifecycleWorkerAttempts               = 100
-	maxAuthLifecycleWorkerBackoff                = 24 * time.Hour
-	maxAuthLifecycleWorkerBatch                  = 1000
-	maxAccountDeletionIntentTTL                  = time.Hour
-	maxAccountDeletionIntentSweepInterval        = time.Hour
-	maxAccountDeletionIntentSweepBatch           = 1000
-	maxTerminalPurgePollInterval                 = time.Hour
-	maxTerminalPurgeLeaseDuration                = time.Hour
-	maxTerminalPurgeRetryDelay                   = time.Hour
-	maxTerminalPurgeBatch                        = 1000
-	httpWriteResponseSafetyMargin                = 5 * time.Second
+	defaultJSONBodyLimitBytes               int64 = 1024 * 1024
+	maxTapAckTimeout                              = 2 * time.Minute
+	maxTapTerminalTransactionBudget               = 30 * time.Second
+	maxTapAckSafetyMargin                         = 30 * time.Second
+	maxTapReconnect                               = 10 * time.Minute
+	maxTapWorkerPollInterval                      = time.Minute
+	maxTapWorkerLeaseDuration                     = 10 * time.Minute
+	maxTapWorkerBackoff                           = time.Hour
+	maxOAuthSessionAbsoluteLifetime               = 180 * 24 * time.Hour
+	maxCraftskySessionInactivity                  = 180 * 24 * time.Hour
+	maxOAuthAuthRequestExpiry                     = time.Hour
+	maxCraftskyActivityWriteInterval              = 24 * time.Hour
+	maxPushPollInterval                           = time.Hour
+	maxPushLeaseDuration                          = time.Hour
+	maxPushSendTimeout                            = 10 * time.Minute
+	maxPushFinalizationMargin                     = time.Minute
+	maxOwnerFenceAcquireTimeout                   = time.Minute
+	maxPDSEffectTimeout                           = 10 * time.Minute
+	maxScheduledMediaPutTimeout                   = 10 * time.Minute
+	maxHTTPConnections                            = 10_000
+	maxHTTPInFlightRequests                       = 10_000
+	maxHTTPReadHeaderTimeout                      = 30 * time.Second
+	maxHTTPReadTimeout                            = 5 * time.Minute
+	maxHTTPWriteTimeout                           = 20 * time.Minute
+	maxHTTPIdleTimeout                            = 5 * time.Minute
+	maxHTTPHeaderBytes                            = 1 << 20
+	maxHTTPOuterRateWindow                        = time.Hour
+	maxHTTPOuterLimit                             = 1_000_000
+	maxHTTPLimiterCapacity                        = 1_000_000
+	maxHTTPLimiterIdleTTL                         = 24 * time.Hour
+	maxHTTPJSONBodyReadTimeout                    = 90 * time.Second
+	maxHTTPUploadBodyReadTimeout                  = 5 * time.Minute
+	maxOAuthPendingAuthRequestCapacity            = 1_000_000
+	maxOAuthAuthRequestTerminalRetention          = 30 * 24 * time.Hour
+	maxOAuthAuthRequestSweepInterval              = time.Hour
+	maxOAuthAuthRequestSweepBatch                 = 10_000
+	maxAuthLifecycleWorkerPollInterval            = time.Hour
+	maxAuthLifecycleWorkerLeaseDuration           = time.Hour
+	maxAuthLifecycleWorkerOperationTimeout        = 10 * time.Minute
+	maxAuthLifecycleWorkerAttempts                = 100
+	maxAuthLifecycleWorkerBackoff                 = 24 * time.Hour
+	maxAuthLifecycleWorkerBatch                   = 1000
+	maxAccountDeletionIntentTTL                   = time.Hour
+	maxAccountDeletionIntentSweepInterval         = time.Hour
+	maxAccountDeletionIntentSweepBatch            = 1000
+	maxTerminalPurgePollInterval                  = time.Hour
+	maxTerminalPurgeLeaseDuration                 = time.Hour
+	maxTerminalPurgeRetryDelay                    = time.Hour
+	maxTerminalPurgeBatch                         = 1000
+	maxIdentityCacheRefreshPollInterval           = time.Hour
+	maxIdentityCacheRefreshOperationTimeout       = time.Minute
+	maxIdentityCacheRefreshRetryDelay             = 24 * time.Hour
+	maxIdentityCacheRefreshBatch                  = 1000
+	httpWriteResponseSafetyMargin                 = 5 * time.Second
 )
 
 // OAuthMode selects the one OAuth client shape a deployment is allowed to
@@ -209,6 +213,10 @@ type Config struct {
 	TerminalPurgeRowBatchSize             int
 	TerminalPurgeLeaseDuration            time.Duration
 	TerminalPurgeRetryDelay               time.Duration
+	IdentityCacheRefreshPollInterval      time.Duration
+	IdentityCacheRefreshBatchSize         int
+	IdentityCacheRefreshOperationTimeout  time.Duration
+	IdentityCacheRefreshRetryDelay        time.Duration
 
 	TapWSURL                      string
 	TapAckTimeout                 time.Duration
@@ -744,6 +752,18 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		return Config{}, err
 	}
 	if cfg.TerminalPurgeRetryDelay, err = boundedPositiveDurationEnv("TERMINAL_PURGE_RETRY_DELAY", time.Second, maxTerminalPurgeRetryDelay); err != nil {
+		return Config{}, err
+	}
+	if cfg.IdentityCacheRefreshPollInterval, err = boundedPositiveDurationEnv("IDENTITY_CACHE_REFRESH_POLL_INTERVAL", 5*time.Minute, maxIdentityCacheRefreshPollInterval); err != nil {
+		return Config{}, err
+	}
+	if cfg.IdentityCacheRefreshBatchSize, err = boundedIntEnv("IDENTITY_CACHE_REFRESH_BATCH_SIZE", 100, 1, maxIdentityCacheRefreshBatch); err != nil {
+		return Config{}, err
+	}
+	if cfg.IdentityCacheRefreshOperationTimeout, err = boundedPositiveDurationEnv("IDENTITY_CACHE_REFRESH_OPERATION_TIMEOUT", 10*time.Second, maxIdentityCacheRefreshOperationTimeout); err != nil {
+		return Config{}, err
+	}
+	if cfg.IdentityCacheRefreshRetryDelay, err = boundedPositiveDurationEnv("IDENTITY_CACHE_REFRESH_RETRY_DELAY", 15*time.Minute, maxIdentityCacheRefreshRetryDelay); err != nil {
 		return Config{}, err
 	}
 	if cfg.FederatedHTTP, err = federatedHTTPConfigFromEnv(); err != nil {

@@ -48,7 +48,10 @@ func newAuthDependencies(
 	oauthApp := oauth.NewClientApp(&artifacts.Config, oauthStore)
 	oauthApp.Client = federated.oauth
 	oauthApp.Resolver.Client = federated.metadata
-	oauthApp.Dir = federated.directory
+	// OAuth identity routing is authoritative: a cached handle mapping must not
+	// choose the DID/PDS that receives credentials. Ordinary display reads keep
+	// using federated.directory.
+	oauthApp.Dir = federated.authoritativeDirectory
 	craftskyStore, err := auth.NewCraftskySessionStoreWithConfig(pool, auth.CraftskySessionConfig{
 		Inactivity:            cfg.CraftskySessionInactivity,
 		ActivityWriteInterval: cfg.CraftskySessionActivityWriteInterval,

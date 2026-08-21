@@ -22,7 +22,12 @@ type IdentityCacheRow struct {
 }
 
 type IdentityCacheStore struct {
-	pool *pgxpool.Pool
+	pool     *pgxpool.Pool
+	observer IdentityCacheObserver
+}
+
+type IdentityCacheObserver interface {
+	ObserveIdentityCache(result string, age time.Duration)
 }
 
 type IdentityCacheService struct {
@@ -31,15 +36,19 @@ type IdentityCacheService struct {
 	now      func() time.Time
 }
 
-func NewIdentityCacheStore(pool *pgxpool.Pool) *IdentityCacheStore {
-	return &IdentityCacheStore{pool: pool}
+func NewIdentityCacheStore(pool *pgxpool.Pool, observers ...IdentityCacheObserver) *IdentityCacheStore {
+	var observer IdentityCacheObserver
+	if len(observers) > 0 {
+		observer = observers[0]
+	}
+	return &IdentityCacheStore{pool: pool, observer: observer}
 }
 
-func NewIdentityCacheService(pool *pgxpool.Pool, resolver HandleResolver, now func() time.Time) *IdentityCacheService {
+func NewIdentityCacheService(pool *pgxpool.Pool, resolver HandleResolver, now func() time.Time, observers ...IdentityCacheObserver) *IdentityCacheService {
 	if now == nil {
 		now = time.Now
 	}
-	return &IdentityCacheService{store: NewIdentityCacheStore(pool), resolver: resolver, now: now}
+	return &IdentityCacheService{store: NewIdentityCacheStore(pool, observers...), resolver: resolver, now: now}
 }
 
 func (s *IdentityCacheService) UpsertCurrentHandle(ctx context.Context, did syntax.DID) error {
@@ -66,9 +75,15 @@ func (s *IdentityCacheStore) FreshByHandle(ctx context.Context, handle syntax.Ha
 		  AND NOT appview_owner_is_terminal(ic.did)
 	`, strings.ToLower(handle.String()), now.Add(-identityCacheFreshness)).Scan(&row.DID, &row.Handle, &row.ResolvedAt)
 	if err == nil {
+		if s.observer != nil {
+			s.observer.ObserveIdentityCache("hit", now.Sub(row.ResolvedAt))
+		}
 		return &row, nil
 	}
 	if err == pgx.ErrNoRows {
+		if s.observer != nil {
+			s.observer.ObserveIdentityCache("miss", 0)
+		}
 		return nil, nil
 	}
 	return nil, fmt.Errorf("identity cache fresh by handle: %w", err)
@@ -135,11 +150,15 @@ func (s *IdentityCacheStore) upsertAuthorizedTx(
 	resolvedAt time.Time,
 ) error {
 	handleLower := strings.ToLower(handle.String())
-	if _, err := tx.Exec(ctx, `
+	deleted, err := tx.Exec(ctx, `
 		DELETE FROM atproto_identity_cache
 		WHERE handle_lower = $2 AND did <> $1
-	`, did.String(), handleLower); err != nil {
+	`, did.String(), handleLower)
+	if err != nil {
 		return fmt.Errorf("identity cache delete stale handle owner %s: %w", did.String(), err)
+	}
+	if deleted.RowsAffected() > 0 && s.observer != nil {
+		s.observer.ObserveIdentityCache("reassigned", 0)
 	}
 
 	if _, err := tx.Exec(ctx, `
@@ -198,4 +217,176 @@ func (s *IdentityCacheStore) BackfillCandidateDIDs(ctx context.Context, limit in
 		return nil, fmt.Errorf("identity cache backfill candidate rows: %w", err)
 	}
 	return out, nil
+}
+
+type identityRefreshCandidate struct {
+	DID        syntax.DID
+	Handle     *syntax.Handle
+	ResolvedAt *time.Time
+	TapEventID *int64
+}
+
+func (s *IdentityCacheStore) refreshCandidates(ctx context.Context, limit int, now time.Time) ([]identityRefreshCandidate, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("identity cache refresh candidates begin: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	rows, err := tx.Query(ctx, `
+		SELECT cp.did,ic.handle,ic.resolved_at
+		FROM craftsky_profiles cp
+		LEFT JOIN atproto_identity_cache ic ON ic.did=cp.did
+		LEFT JOIN atproto_identity_refresh_state rs ON rs.did=cp.did
+		WHERE (rs.tap_event_id IS NOT NULL OR ic.did IS NULL OR ic.resolved_at < $1)
+		  AND (rs.did IS NULL OR rs.next_attempt_at <= $2)
+		  AND NOT appview_owner_is_terminal(cp.did)
+		ORDER BY
+		  COALESCE(rs.next_attempt_at, ic.resolved_at, '-infinity'::timestamptz) ASC,
+		  cp.did ASC
+		LIMIT $3
+	`, now.Add(-identityCacheFreshness), now, limit)
+	if err != nil {
+		return nil, fmt.Errorf("identity cache refresh candidates: %w", err)
+	}
+	defer rows.Close()
+	result := make([]identityRefreshCandidate, 0, limit)
+	for rows.Next() {
+		var candidate identityRefreshCandidate
+		if err := rows.Scan(&candidate.DID, &candidate.Handle, &candidate.ResolvedAt); err != nil {
+			return nil, fmt.Errorf("identity cache refresh candidate scan: %w", err)
+		}
+		result = append(result, candidate)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("identity cache refresh candidate rows: %w", err)
+	}
+	if len(result) == 0 {
+		if err := tx.Commit(ctx); err != nil {
+			return nil, fmt.Errorf("identity cache refresh candidates commit: %w", err)
+		}
+		return result, nil
+	}
+	dids := make([]string, 0, len(result))
+	indices := make(map[string]int, len(result))
+	for index, candidate := range result {
+		did := candidate.DID.String()
+		dids = append(dids, did)
+		indices[did] = index
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO atproto_identity_refresh_state(
+			did,next_attempt_at,attempt_count,last_result,updated_at
+		)
+		SELECT did,$2,0,'pending',$2 FROM unnest($1::text[]) AS did
+		ON CONFLICT(did) DO NOTHING
+	`, dids, now); err != nil {
+		return nil, fmt.Errorf("identity cache ensure refresh candidates: %w", err)
+	}
+	stateRows, err := tx.Query(ctx, `
+		SELECT did,tap_event_id
+		FROM atproto_identity_refresh_state
+		WHERE did=ANY($1::text[])
+	`, dids)
+	if err != nil {
+		return nil, fmt.Errorf("identity cache refresh candidate states: %w", err)
+	}
+	defer stateRows.Close()
+	for stateRows.Next() {
+		var did string
+		var tapEventID *int64
+		if err := stateRows.Scan(&did, &tapEventID); err != nil {
+			return nil, fmt.Errorf("identity cache refresh candidate state scan: %w", err)
+		}
+		index, exists := indices[did]
+		if !exists {
+			return nil, fmt.Errorf("identity cache refresh state returned unexpected DID %s", did)
+		}
+		result[index].TapEventID = tapEventID
+		delete(indices, did)
+	}
+	if err := stateRows.Err(); err != nil {
+		return nil, fmt.Errorf("identity cache refresh candidate state rows: %w", err)
+	}
+	if len(indices) != 0 {
+		return nil, fmt.Errorf("identity cache refresh candidate state missing for %d DIDs", len(indices))
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("identity cache refresh candidates commit: %w", err)
+	}
+	return result, nil
+}
+
+func (s *IdentityCacheStore) deferRefresh(
+	ctx context.Context,
+	candidate identityRefreshCandidate,
+	nextAttempt time.Time,
+	now time.Time,
+) (bool, error) {
+	result, err := s.pool.Exec(ctx, `
+		UPDATE atproto_identity_refresh_state
+		SET next_attempt_at=$2,
+			attempt_count=attempt_count+1,
+			last_result='retry',updated_at=$3
+		WHERE did=$1 AND tap_event_id IS NOT DISTINCT FROM $4
+	`, candidate.DID, nextAttempt, now, candidate.TapEventID)
+	if err != nil {
+		return false, fmt.Errorf("identity cache defer refresh %s: %w", candidate.DID, err)
+	}
+	return result.RowsAffected() == 1, nil
+}
+
+func (s *IdentityCacheStore) completeRefresh(
+	ctx context.Context,
+	candidate identityRefreshCandidate,
+	handle syntax.Handle,
+	resolvedAt time.Time,
+) (bool, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return false, fmt.Errorf("identity cache complete refresh begin %s: %w", candidate.DID, err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := ownerlifecycle.GuardNonTerminalTargetsTx(ctx, tx, []syntax.DID{candidate.DID}); err != nil {
+		return false, fmt.Errorf("identity cache complete refresh authorize %s: %w", candidate.DID, err)
+	}
+	var currentTapEventID *int64
+	err = tx.QueryRow(ctx, `
+		SELECT tap_event_id
+		FROM atproto_identity_refresh_state
+		WHERE did=$1
+		FOR UPDATE
+	`, candidate.DID).Scan(&currentTapEventID)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return false, nil
+		}
+		return false, fmt.Errorf("identity cache complete refresh state %s: %w", candidate.DID, err)
+	}
+	if !sameOptionalInt64(currentTapEventID, candidate.TapEventID) {
+		return false, nil
+	}
+	if err := s.upsertAuthorizedTx(ctx, tx, candidate.DID, handle, resolvedAt); err != nil {
+		return false, err
+	}
+	result, err := tx.Exec(ctx, `
+		DELETE FROM atproto_identity_refresh_state
+		WHERE did=$1 AND tap_event_id IS NOT DISTINCT FROM $2
+	`, candidate.DID, candidate.TapEventID)
+	if err != nil {
+		return false, fmt.Errorf("identity cache complete refresh clear %s: %w", candidate.DID, err)
+	}
+	if result.RowsAffected() != 1 {
+		return false, fmt.Errorf("identity cache complete refresh state changed for %s", candidate.DID)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return false, fmt.Errorf("identity cache complete refresh commit %s: %w", candidate.DID, err)
+	}
+	return true, nil
+}
+
+func sameOptionalInt64(left, right *int64) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
 }

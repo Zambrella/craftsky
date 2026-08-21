@@ -5,6 +5,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/bluesky-social/indigo/atproto/identity"
+
 	"social.craftsky/appview/internal/federatedhttp"
 )
 
@@ -27,6 +29,34 @@ func TestNewFederatedClientsBuildsDistinctPurposeClients(t *testing.T) {
 	if clients.metadata == clients.oauth || clients.oauth == clients.pdsJSON ||
 		clients.pdsJSON == clients.pdsBlob {
 		t.Fatal("purpose clients unexpectedly share an http.Client wrapper")
+	}
+}
+
+func TestNewFederatedClientsSeparatesCachedAndAuthoritativeIdentityDirectories(t *testing.T) {
+	t.Parallel()
+
+	config, err := defaultFederatedHTTPConfig()
+	if err != nil {
+		t.Fatalf("defaultFederatedHTTPConfig: %v", err)
+	}
+	clients, err := newFederatedClients(config)
+	if err != nil {
+		t.Fatalf("newFederatedClients: %v", err)
+	}
+	defer clients.boundary.CloseIdleConnections()
+
+	if clients.authoritativeDirectory == nil {
+		t.Fatal("authoritative identity directory is nil")
+	}
+	if clients.directory == clients.authoritativeDirectory {
+		t.Fatal("cached and authoritative identity directories unexpectedly share one object")
+	}
+	cached, ok := clients.directory.(*identity.CacheDirectory)
+	if !ok {
+		t.Fatalf("display directory type = %T, want *identity.CacheDirectory", clients.directory)
+	}
+	if cached.Inner != clients.authoritativeDirectory {
+		t.Fatal("cached directory does not wrap the authoritative hardened directory")
 	}
 }
 

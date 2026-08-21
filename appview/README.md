@@ -268,6 +268,15 @@ for `HTTP_WRITE_TIMEOUT`. The current shared relationships are:
   `TERMINAL_PURGE_LEASE_DURATION` must exceed `TERMINAL_PURGE_POLL_INTERVAL`;
   component and row limits cap each transaction while the tombstone keeps
   retained rows non-serving until the purge ledger converges.
+- The persistent AT Protocol handle search index is refreshed by a bounded
+  worker using `IDENTITY_CACHE_REFRESH_*`. Ordinary Tap identity events
+  atomically schedule an immediate authoritative refresh and invalidate the
+  affected process-local Indigo entries; the periodic scan remains a safety
+  net. Tap handles are hints and are never written to the persistent index
+  until a fresh bidirectional lookup verifies them. Cached identity data is
+  used for presentation only; OAuth, exact mentions, account-deletion
+  confirmation, and handle-targeted mutations use an uncached authoritative
+  lookup and fail retryably instead of falling back to a stale handle mapping.
 
 `TAP_MAX_RETRIES` no longer exists. Retryable storage, lifecycle, or dependency
 failures remain unacknowledged until Tap redelivers them. Valid sources and

@@ -478,17 +478,41 @@ func projectionKind(collection syntax.NSID) string {
 }
 
 func insertReceipt(ctx context.Context, tx pgx.Tx, fingerprint [32]byte, eventID uint64, eventType string, outcome tap.Outcome, sourceURI syntax.ATURI, reason tap.ReasonCode, now time.Time) error {
+	_, err := insertReceiptIfNew(ctx, tx, fingerprint, eventID, eventType, outcome, sourceURI, reason, now)
+	return err
+}
+
+func insertReceiptIfNew(ctx context.Context, tx pgx.Tx, fingerprint [32]byte, eventID uint64, eventType string, outcome tap.Outcome, sourceURI syntax.ATURI, reason tap.ReasonCode, now time.Time) (bool, error) {
 	if reason == "" {
 		reason = tap.ReasonNone
 	}
-	_, err := tx.Exec(ctx, `
+	result, err := tx.Exec(ctx, `
 		INSERT INTO tap_ingestion_receipts(
 			event_fingerprint,tap_event_id,event_type,outcome,source_uri,reason_code,received_at
 		) VALUES($1,$2,$3,$4,$5,$6,$7)
 		ON CONFLICT(event_fingerprint) DO NOTHING
 	`, fingerprint[:], eventID, eventType, outcome.Kind, nullableString(sourceURI.String()), reason, now)
 	if err != nil {
-		return fmt.Errorf("insert Tap ingestion receipt: %w", err)
+		return false, fmt.Errorf("insert Tap ingestion receipt: %w", err)
+	}
+	return result.RowsAffected() == 1, nil
+}
+
+func enqueueIdentityRefreshTx(ctx context.Context, tx pgx.Tx, did syntax.DID, eventID uint64, now time.Time) error {
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO atproto_identity_refresh_state(
+			did,next_attempt_at,attempt_count,last_result,updated_at,tap_event_id
+		) VALUES($1,$2,0,'pending',$2,$3)
+		ON CONFLICT(did) DO UPDATE SET
+			next_attempt_at=EXCLUDED.next_attempt_at,
+			attempt_count=0,
+			last_result='pending',
+			updated_at=EXCLUDED.updated_at,
+			tap_event_id=EXCLUDED.tap_event_id
+		WHERE atproto_identity_refresh_state.tap_event_id IS NULL
+		   OR atproto_identity_refresh_state.tap_event_id < EXCLUDED.tap_event_id
+	`, did, now, eventID); err != nil {
+		return fmt.Errorf("enqueue Tap identity refresh %s: %w", did, err)
 	}
 	return nil
 }

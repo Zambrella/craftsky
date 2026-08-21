@@ -51,7 +51,7 @@ func init() {
 			return identityCacheBackfillStats{}, err
 		}
 		defer cleanup()
-		return runIdentityCacheBackfill(ctx, api.NewIdentityCacheStore(deps.DB), deps.HandleResolver, limit, time.Now().UTC())
+		return runIdentityCacheBackfill(ctx, api.NewIdentityCacheStore(deps.DB), deps.AuthoritativeHandleResolver, limit, time.Now().UTC())
 	}))
 }
 

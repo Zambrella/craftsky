@@ -60,6 +60,7 @@ type Deps struct {
 	AuthAuxiliaryCleanup *auth.AuxiliaryCleanupProcessor
 	SessionExpiry        *auth.SessionExpiryProcessor
 	TerminalPurge        *ownerlifecycle.TerminalPurgeProcessor
+	IdentityCacheRefresh *api.IdentityCacheRefreshProcessor
 	CraftskySessionStore *auth.CraftskySessionStore
 	OwnerLifecycles      *ownerlifecycle.Store
 	OwnerFence           *ownerlifecycle.Fencer
@@ -72,6 +73,9 @@ type Deps struct {
 	// (not the concrete struct) so route tests can inject a stub
 	// without constructing an identity.Directory.
 	HandleResolver api.HandleResolver
+	// AuthoritativeHandleResolver bypasses Indigo's process cache and is used
+	// only where a mutable handle selects a durable/security-sensitive target.
+	AuthoritativeHandleResolver api.HandleResolver
 
 	Consumer            tap.Consumer
 	TapProjectionWorker *ingestion.ProjectionWorker
@@ -228,8 +232,10 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 
 	// Identity and every metadata/PDS request share one hardened outbound
 	// boundary. There is no process-default HTTP client fallback.
-	identityDir := federated.directory
 	observer := newObservabilityDependencies(cfg, logger, resources)
+	identities := newIdentityResolutionDependencies(
+		federated.directory, federated.authoritativeDirectory, pool, cfg.Env, observer,
+	)
 	content := newContentDependencies(pool, observer)
 	notificationStore := content.posts
 	authorityWorkers, err := newAuthorityWorkers(
@@ -268,6 +274,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		instagramStorage,
 		scheduledAccountDeletion,
 		observer,
+		identities.invalidator,
 		cfg,
 		logger,
 	)
@@ -286,61 +293,55 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	}
 
 	deps := &Deps{
-		Config:                    cfg,
-		Logger:                    logger,
-		DB:                        pool,
-		RateLimiter:               admission.rateLimiter,
-		Observability:             observer,
-		OAuthApp:                  oauthApp,
-		OAuthArtifacts:            oauthArtifacts,
-		OAuthStore:                oauthStore,
-		OAuthFlow:                 oauthFlow,
-		HandoffCoordinator:        handoffs,
-		SessionLifecycle:          sessionLifecycle,
-		OAuthRevocation:           oauthRevocation,
-		AuthAuxiliaryCleanup:      authAuxiliaryCleanup,
-		SessionExpiry:             sessionExpiry,
-		TerminalPurge:             terminalPurge,
-		CraftskySessionStore:      craftskyStore,
-		OwnerLifecycles:           ownerLifecycles,
-		OwnerFence:                ownerFence,
-		OnboardingProfile:         onboardingProfileEffectAdapter{executor: onboardingEffects},
-		NewPendingPDSClient:       pdsEffects.pending,
-		NewPDSEffects:             pdsEffects.ordinary,
-		LoginCompleteURL:          loginCompleteURL.String(),
-		DeletionCompleteURL:       deletionCompleteURL.String(),
-		RepositoryTracker:         tapCapability.repositoryTracker,
-		HandleResolver:            api.DirectoryHandleResolver{Directory: identityDir},
-		TapProjectionWorker:       tapCapability.projectionWorker,
-		TapRepositoryWorker:       tapCapability.repositoryWorker,
-		TapQuarantineWorker:       tapCapability.quarantineWorker,
-		Consumer:                  tapCapability.consumer,
-		RelationshipStore:         relationshipStore,
-		LanguagePreferences:       languagePreferences,
-		ProfileStore:              content.profiles,
-		ProfileCustomisationStore: content.profileCustomisation,
-		FollowStore:               content.follows,
-		ReportStore:               content.reports,
-		ReportForwarder:           content.reportForwarder,
-		InstagramMembership:       instagramMembership,
-		InstagramRateLimiter:      instagramRateLimiter,
-		InstagramPrivateData:      instagramPrivateData,
-		InstagramRestoration:      instagramRestoration,
-		ModerationStore:           moderationStore,
-		ScheduledPosts:            scheduledStore,
-		ScheduledMedia:            scheduledLifecycle.media,
-		ScheduledCleanup:          scheduledLifecycle.cleanup,
+		Config:                      cfg,
+		Logger:                      logger,
+		DB:                          pool,
+		RateLimiter:                 admission.rateLimiter,
+		Observability:               observer,
+		OAuthApp:                    oauthApp,
+		OAuthArtifacts:              oauthArtifacts,
+		OAuthStore:                  oauthStore,
+		OAuthFlow:                   oauthFlow,
+		HandoffCoordinator:          handoffs,
+		SessionLifecycle:            sessionLifecycle,
+		OAuthRevocation:             oauthRevocation,
+		AuthAuxiliaryCleanup:        authAuxiliaryCleanup,
+		SessionExpiry:               sessionExpiry,
+		TerminalPurge:               terminalPurge,
+		CraftskySessionStore:        craftskyStore,
+		OwnerLifecycles:             ownerLifecycles,
+		OwnerFence:                  ownerFence,
+		OnboardingProfile:           onboardingProfileEffectAdapter{executor: onboardingEffects},
+		NewPendingPDSClient:         pdsEffects.pending,
+		NewPDSEffects:               pdsEffects.ordinary,
+		LoginCompleteURL:            loginCompleteURL.String(),
+		DeletionCompleteURL:         deletionCompleteURL.String(),
+		RepositoryTracker:           tapCapability.repositoryTracker,
+		HandleResolver:              identities.cached,
+		AuthoritativeHandleResolver: identities.authoritative,
+		TapProjectionWorker:         tapCapability.projectionWorker,
+		TapRepositoryWorker:         tapCapability.repositoryWorker,
+		TapQuarantineWorker:         tapCapability.quarantineWorker,
+		Consumer:                    tapCapability.consumer,
+		RelationshipStore:           relationshipStore,
+		LanguagePreferences:         languagePreferences,
+		ProfileStore:                content.profiles,
+		ProfileCustomisationStore:   content.profileCustomisation,
+		FollowStore:                 content.follows,
+		ReportStore:                 content.reports,
+		ReportForwarder:             content.reportForwarder,
+		InstagramMembership:         instagramMembership,
+		InstagramRateLimiter:        instagramRateLimiter,
+		InstagramPrivateData:        instagramPrivateData,
+		InstagramRestoration:        instagramRestoration,
+		ModerationStore:             moderationStore,
+		ScheduledPosts:              scheduledStore,
+		ScheduledMedia:              scheduledLifecycle.media,
+		ScheduledCleanup:            scheduledLifecycle.cleanup,
 	}
 	deps.PushDispatcher, err = newPushDependencies(ctx, pool, owners, observer, cfg)
 	if err != nil {
 		return nil, nil, err
-	}
-
-	if cfg.Env == EnvDev {
-		deps.HandleResolver = api.DevHandleResolver{
-			Primary: api.DirectoryHandleResolver{Directory: identityDir},
-			Pool:    pool,
-		}
 	}
 
 	instagramRuntime, err := newInstagramRuntimeDependencies(
@@ -357,10 +358,15 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	deps.InstagramReconciliation = instagramRuntime.reconciliation
 	deps.InstagramSuggestions = instagramRuntime.suggestions
 	deps.InstagramRetention = instagramRuntime.retention
-	contentRuntime := newContentRuntimeDependencies(
-		pool, deps.HandleResolver, content, pdsEffects, instagramStorage, observer,
+	contentRuntime, err := newContentRuntimeDependencies(
+		pool, deps.AuthoritativeHandleResolver, content, pdsEffects, instagramStorage,
+		observer, identities.invalidator, cfg,
 	)
+	if err != nil {
+		return nil, nil, err
+	}
 	deps.IdentityCacheUpdater = contentRuntime.identityCache
+	deps.IdentityCacheRefresh = contentRuntime.identityRefresh
 	deps.RelationshipMutations = contentRuntime.relationshipMutations
 	deletion, err := newAccountDeletionDependencies(
 		pool,
@@ -370,6 +376,8 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		instagramPrivateData,
 		scheduledAccountDeletion,
 		scheduledDepartureParticipant,
+		deps.AuthoritativeHandleResolver,
+		observer,
 		cfg,
 		logger,
 	)

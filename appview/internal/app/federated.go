@@ -17,12 +17,13 @@ import (
 )
 
 type federatedClients struct {
-	boundary  *federatedhttp.Boundary
-	metadata  *http.Client
-	oauth     *http.Client
-	pdsJSON   *http.Client
-	pdsBlob   *http.Client
-	directory identity.Directory
+	boundary               *federatedhttp.Boundary
+	metadata               *http.Client
+	oauth                  *http.Client
+	pdsJSON                *http.Client
+	pdsBlob                *http.Client
+	directory              identity.Directory
+	authoritativeDirectory identity.Directory
 }
 
 func newFederatedClients(config FederatedHTTPConfig) (*federatedClients, error) {
@@ -78,8 +79,9 @@ func newFederatedClientsWithBoundary(
 		SkipDNSDomainSuffixes: []string{".bsky.social"},
 		UserAgent:             "craftsky-appview",
 	}
+	authoritativeDirectory := identity.Directory(baseDirectory)
 	directory := identity.NewCacheDirectory(
-		baseDirectory,
+		authoritativeDirectory,
 		250_000,
 		24*time.Hour,
 		2*time.Minute,
@@ -91,7 +93,7 @@ func newFederatedClientsWithBoundary(
 		oauth:     oauth,
 		pdsJSON:   pdsJSON,
 		pdsBlob:   pdsBlob,
-		directory: directory,
+		directory: directory, authoritativeDirectory: authoritativeDirectory,
 	}, nil
 }
 

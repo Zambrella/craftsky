@@ -231,7 +231,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 	scheduledImageValidator := newScheduledImageValidator(deps.Config.ImageDecodeLimits, observer)
 	registerSearchRoutes(searchRouteBundle{
 		mux: mux, middleware: v1mw,
-		facetStore:     api.NewFacetStore(deps.DB, deps.HandleResolver),
+		facetStore:     api.NewFacetStore(deps.DB, deps.AuthoritativeHandleResolver),
 		searchStore:    api.NewSearchStore(deps.DB, observer),
 		handleResolver: deps.HandleResolver, languages: deps.LanguagePreferences,
 		logger: deps.Logger,
@@ -254,8 +254,10 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 		profileCustomisationStore: profileCustomisationStore,
 		followStore:               deps.FollowStore, relationshipStore: deps.RelationshipStore,
 		relationshipMutations: deps.RelationshipMutations,
-		handleResolver:        deps.HandleResolver, newPDSEffects: deps.NewPDSEffects,
-		reportStore: deps.ReportStore, reportForwarder: deps.ReportForwarder,
+		handleResolver:        deps.HandleResolver,
+		authoritativeResolver: deps.AuthoritativeHandleResolver,
+		newPDSEffects:         deps.NewPDSEffects,
+		reportStore:           deps.ReportStore, reportForwarder: deps.ReportForwarder,
 		mediaLimits: mediaLimits, logger: deps.Logger,
 	})
 

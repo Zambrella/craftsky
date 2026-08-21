@@ -28,6 +28,11 @@ type ServiceConfig struct {
 	ProfileParticipant    ownerlifecycle.TransitionParticipant
 	TerminalParticipant   ownerlifecycle.TerminalParticipant
 	TerminalCommitTimeout time.Duration
+	IdentityInvalidator   IdentityInvalidator
+}
+
+type IdentityInvalidator interface {
+	InvalidateIdentity(context.Context, syntax.DID, ...syntax.Handle)
 }
 
 // Service is the production Tap DurableIngestor. Profile and terminal identity
@@ -39,6 +44,7 @@ type Service struct {
 	profileParticipant    ownerlifecycle.TransitionParticipant
 	terminalParticipant   ownerlifecycle.TerminalParticipant
 	terminalCommitTimeout time.Duration
+	identityInvalidator   IdentityInvalidator
 }
 
 var _ tap.DurableIngestor = (*Service)(nil)
@@ -55,6 +61,7 @@ func NewService(config ServiceConfig) (*Service, error) {
 		profileParticipant:    config.ProfileParticipant,
 		terminalParticipant:   config.TerminalParticipant,
 		terminalCommitTimeout: config.TerminalCommitTimeout,
+		identityInvalidator:   config.IdentityInvalidator,
 	}, nil
 }
 
@@ -204,7 +211,7 @@ func (service *Service) IngestIdentity(ctx context.Context, event tap.IdentityEv
 		return tap.Retryable(tap.ReasonInvalidIdentity), errors.New("invalid Tap identity event")
 	}
 	if event.Status != "deleted" {
-		return service.store.ingestOrdinaryIdentity(ctx, event)
+		return service.store.ingestOrdinaryIdentity(ctx, event, service.identityInvalidator)
 	}
 	fingerprint, err := identityFingerprint(event)
 	if err != nil {
@@ -234,18 +241,45 @@ func (service *Service) Quarantine(ctx context.Context, event tap.InvalidEvent) 
 	return service.store.Quarantine(ctx, event)
 }
 
-func (store *Store) ingestOrdinaryIdentity(ctx context.Context, event tap.IdentityEvent) (tap.Outcome, error) {
+func (store *Store) ingestOrdinaryIdentity(ctx context.Context, event tap.IdentityEvent, invalidator IdentityInvalidator) (tap.Outcome, error) {
 	fingerprint, err := identityFingerprint(event)
 	if err != nil {
 		return tap.Retryable(tap.ReasonInvalidIdentity), err
 	}
 	now := store.now().UTC().Truncate(time.Microsecond)
 	outcome := tap.Applied()
+	var inserted bool
+	var oldHandle syntax.Handle
 	err = pgx.BeginFunc(ctx, store.pool, func(tx pgx.Tx) error {
-		return insertReceipt(ctx, tx, fingerprint, event.ID, "identity", outcome, "", tap.ReasonNone, now)
+		var err error
+		inserted, err = insertReceiptIfNew(ctx, tx, fingerprint, event.ID, "identity", outcome, "", tap.ReasonNone, now)
+		if err != nil || !inserted {
+			return err
+		}
+		var storedHandle string
+		if err := tx.QueryRow(ctx, `
+			SELECT handle FROM atproto_identity_cache WHERE did=$1 FOR UPDATE
+		`, event.DID).Scan(&storedHandle); err == nil {
+			if parsed, parseErr := syntax.ParseHandle(storedHandle); parseErr == nil {
+				oldHandle = parsed
+			}
+		} else if !errors.Is(err, pgx.ErrNoRows) {
+			return fmt.Errorf("read Tap identity cached handle %s: %w", event.DID, err)
+		}
+		return enqueueIdentityRefreshTx(ctx, tx, event.DID, event.ID, now)
 	})
 	if err != nil {
 		return tap.Retryable(tap.ReasonStorageUnavailable), err
+	}
+	if inserted && invalidator != nil {
+		handles := make([]syntax.Handle, 0, 2)
+		if oldHandle != "" {
+			handles = append(handles, oldHandle)
+		}
+		if eventHandle, parseErr := syntax.ParseHandle(event.Handle); parseErr == nil {
+			handles = append(handles, eventHandle)
+		}
+		invalidator.InvalidateIdentity(ctx, event.DID, handles...)
 	}
 	return outcome, nil
 }

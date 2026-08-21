@@ -54,10 +54,13 @@ func TestAppServiceOwnsDeletionCredentialAcrossLifecycle(t *testing.T) {
 		EndpointValidator:       deletionTestEndpointValidator{},
 	})
 	starter := &recordingDeletionOAuthStarter{authURL: "https://auth.example/authorize"}
+	identity := &deletionIdentityResolver{handle: syntax.Handle("alice-current.example")}
+	index := &deletionIdentityIndex{}
 	departureCalled := false
 	service, err := NewAppService(AppServiceOptions{
 		Pool: pool, Store: deletionStore, OAuth: starter,
 		Owners: owners, Sessions: sessions, OAuthStore: authStore,
+		IdentityResolver: identity, IdentityIndex: index,
 		DepartureParticipant: func(
 			_ context.Context,
 			_ pgx.Tx,
@@ -104,6 +107,20 @@ func TestAppServiceOwnsDeletionCredentialAcrossLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	identity.err = errors.New("temporary PLC outage")
+	if _, err := service.CreateIntent(ctx, CreateIntentParams{Owner: owner, DeviceID: "device-delete"}); !errors.Is(err, ErrIdentityUnavailable) {
+		t.Fatalf("CreateIntent during identity outage = %v, want ErrIdentityUnavailable", err)
+	}
+	identity.err = nil
+	assertDeletionLifecycle(t, pool, owner, "active", 1, 1)
+	var operations int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM account_deletion_operations WHERE owner_did=$1`, owner).Scan(&operations); err != nil {
+		t.Fatal(err)
+	}
+	if operations != 0 || starter.jobID != uuid.Nil {
+		t.Fatalf("identity outage changed deletion state: operations=%d starter_job=%s", operations, starter.jobID)
+	}
+
 	intent, err := service.CreateIntent(ctx, CreateIntentParams{Owner: owner, DeviceID: "device-delete"})
 	if err != nil {
 		t.Fatal(err)
@@ -112,6 +129,9 @@ func TestAppServiceOwnsDeletionCredentialAcrossLifecycle(t *testing.T) {
 		t.Fatal("account deletion intent did not run bounded departure participant")
 	}
 	jobID := uuid.MustParse(intent.JobID)
+	if identity.calls != 2 || starter.handle != identity.handle || index.handle != identity.handle {
+		t.Fatalf("fresh identity calls=%d OAuth handle=%s index handle=%s, want two calls and %s", identity.calls, starter.handle, index.handle, identity.handle)
+	}
 	if starter.owner != owner || starter.jobID != jobID || starter.deviceID != "device-delete" {
 		t.Fatalf("OAuth start scope = owner %s job %s device %q", starter.owner, starter.jobID, starter.deviceID)
 	}
@@ -190,7 +210,7 @@ func TestAppServiceOwnsDeletionCredentialAcrossLifecycle(t *testing.T) {
 
 	if err := service.Accept(ctx, AcceptParams{
 		JobID: jobID.String(), Owner: owner,
-		ReauthProof: proof, ConfirmationHandle: "@alice.example",
+		ReauthProof: proof, ConfirmationHandle: "@alice-current.example",
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -280,6 +300,8 @@ func TestCancelDeletionIntentRestoresOrdinarySessionAndRevokesOnlyDeletionCreden
 		Pool: pool, Store: deletionStore,
 		OAuth:  &recordingDeletionOAuthStarter{authURL: "https://auth.example/authorize"},
 		Owners: owners, Sessions: sessions, OAuthStore: authStore,
+		IdentityResolver:     &deletionIdentityResolver{handle: syntax.Handle("cancel.example")},
+		IdentityIndex:        &deletionIdentityIndex{},
 		DepartureParticipant: noOpDeletionDepartureParticipant,
 		Now:                  func() time.Time { return now }, IntentTTL: 10 * time.Minute,
 	})
@@ -383,6 +405,7 @@ func noOpDeletionDepartureParticipant(
 type recordingDeletionOAuthStarter struct {
 	authURL  string
 	owner    syntax.DID
+	handle   syntax.Handle
 	jobID    uuid.UUID
 	deviceID string
 }
@@ -390,14 +413,45 @@ type recordingDeletionOAuthStarter struct {
 func (starter *recordingDeletionOAuthStarter) StartAccountDeletion(
 	_ context.Context,
 	owner syntax.DID,
-	_ syntax.Handle,
+	handle syntax.Handle,
 	jobID uuid.UUID,
 	deviceID string,
 ) (string, error) {
 	starter.owner = owner
+	starter.handle = handle
 	starter.jobID = jobID
 	starter.deviceID = deviceID
 	return starter.authURL, nil
+}
+
+type deletionIdentityResolver struct {
+	handle syntax.Handle
+	err    error
+	calls  int
+}
+
+func (resolver *deletionIdentityResolver) ResolveHandle(_ context.Context, _ syntax.DID) (syntax.Handle, error) {
+	resolver.calls++
+	return resolver.handle, resolver.err
+}
+
+type deletionIdentityIndex struct {
+	did        syntax.DID
+	handle     syntax.Handle
+	resolvedAt time.Time
+	err        error
+}
+
+func (index *deletionIdentityIndex) Upsert(
+	_ context.Context,
+	did syntax.DID,
+	handle syntax.Handle,
+	resolvedAt time.Time,
+) error {
+	index.did = did
+	index.handle = handle
+	index.resolvedAt = resolvedAt
+	return index.err
 }
 
 type deletionTestEndpointValidator struct{}
