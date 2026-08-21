@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -84,7 +85,7 @@ func TestInitialImportMatchingCreatesOnlyGenerationBoundPrivateSuggestion(t *tes
 	`).Scan(&suggestions, &operations, &events, &importerGeneration, &targetGeneration); err != nil {
 		t.Fatal(err)
 	}
-	if suggestions != 1 || operations != 0 || events != 0 ||
+	if suggestions != 1 || operations != 0 || events != 1 ||
 		importerGeneration != 4 || targetGeneration != 9 {
 		t.Fatalf(
 			"initial suggestions=%d operations=%d notification events=%d generations=%d/%d",
@@ -398,6 +399,7 @@ func newReconciliationTestPool(t *testing.T) *pgxpool.Pool {
 		"../../migrations/000038_owner_auth_lifecycle.up.sql",
 		"../../migrations/000039_owner_effects_terminal_purge.up.sql",
 		"../../migrations/000042_instagram_private_suggestions.up.sql",
+		"../../migrations/000055_instagram_match_notifications.up.sql",
 	} {
 		migration, err := os.ReadFile(path)
 		if err != nil {
@@ -419,6 +421,7 @@ func newPrivateSuggestionStoreForReconciliationTest(
 	store, err := NewPrivateSuggestionStore(
 		pool,
 		newPrivateSuggestionLifecycleStore(t, pool, now()),
+		notifications.NewService(),
 		now,
 	)
 	if err != nil {

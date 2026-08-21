@@ -23,6 +23,7 @@ const (
 	NotificationTypeMention        NotificationType = "mention"
 	NotificationTypeQuote          NotificationType = "quote"
 	NotificationTypeEverythingElse NotificationType = "everythingElse"
+	NotificationTypeInstagramMatch NotificationType = "instagramMatch"
 )
 
 type NotificationReplyRef struct {

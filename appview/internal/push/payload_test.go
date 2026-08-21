@@ -13,10 +13,11 @@ import (
 
 func TestBuildPayloadUT011ExactNotificationFactMatrix(t *testing.T) {
 	facts := RoutingFacts{
-		ActorDID:   syntax.DID("did:plc:actor"),
-		SubjectURI: syntax.ATURI("at://did:plc:subject/social.craftsky.feed.post/subject"),
-		RootURI:    syntax.ATURI("at://did:plc:root/social.craftsky.feed.post/root"),
-		SourceURI:  syntax.ATURI("at://did:plc:source/social.craftsky.feed.post/source"),
+		NotificationID: "00000000-0000-4000-8000-000000000024",
+		ActorDID:       syntax.DID("did:plc:actor"),
+		SubjectURI:     syntax.ATURI("at://did:plc:subject/social.craftsky.feed.post/subject"),
+		RootURI:        syntax.ATURI("at://did:plc:root/social.craftsky.feed.post/root"),
+		SourceURI:      syntax.ATURI("at://did:plc:source/social.craftsky.feed.post/source"),
 	}
 	tests := map[notifications.Category]map[string]string{
 		notifications.Follow:         {"actorDid": facts.ActorDID.String()},
@@ -26,6 +27,7 @@ func TestBuildPayloadUT011ExactNotificationFactMatrix(t *testing.T) {
 		notifications.Quote:          {"sourceUri": facts.SourceURI.String()},
 		notifications.Reply:          {"subjectUri": facts.SubjectURI.String(), "sourceUri": facts.SourceURI.String()},
 		notifications.EverythingElse: {},
+		notifications.InstagramMatch: {"notificationId": facts.NotificationID},
 	}
 
 	for category, categoryFacts := range tests {
@@ -43,10 +45,17 @@ func TestBuildPayloadUT011ExactNotificationFactMatrix(t *testing.T) {
 			if !reflect.DeepEqual(payload.Data, want) {
 				t.Fatalf("data = %#v, want %#v", payload.Data, want)
 			}
-			if payload.Title != "Alice" || payload.Body == "" {
+			wantTitle := "Alice"
+			if category == notifications.InstagramMatch {
+				wantTitle = "CraftSky"
+			}
+			if payload.Title != wantTitle || payload.Body == "" {
 				t.Fatalf("visible copy = %q / %q", payload.Title, payload.Body)
 			}
-			for _, forbidden := range []string{"notificationId", "routeKind", "route", "path", "handle", "postText", "imageUrl", "token"} {
+			for _, forbidden := range []string{"actorDid", "suggestionId", "importId", "instagramHandle", "routeKind", "route", "path", "handle", "postText", "imageUrl", "token"} {
+				if category != notifications.InstagramMatch && forbidden == "actorDid" {
+					continue
+				}
 				if _, ok := payload.Data[forbidden]; ok {
 					t.Fatalf("data contains forbidden key %q", forbidden)
 				}

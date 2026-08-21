@@ -618,3 +618,17 @@ is named `<next>_instagram_private_suggestions.up.sql` and
 7. Run `go test -race` for `internal/instagram`, `internal/app`,
    `internal/routes`, `internal/notifications`, and the shared owner/session
    packages, then the full Go/Flutter gates.
+
+## 14. Instagram Match Notification Restoration Plan
+
+1. Add migration `000055_instagram_match_notifications` to restore the
+   source-less actor event shape, suggestion-key uniqueness, and fixed-scope
+   preference category without changing the private-suggestion schema.
+2. Add a narrow transactional match-notifier capability to
+   `PrivateSuggestionStore`; invoke it only after a new suggestion row is
+   inserted and while the existing owner-lifecycle transaction remains open.
+3. Restore `notifications.InstagramMatch`, activation, API hydration, and
+   privacy-preserving push copy/data. Keep all PDS/session capabilities absent.
+4. Restore Flutter category/model/rendering/settings/routing support with
+   match-found wording and the existing account-scoped Follow control.
+5. Run IT-030, UT-024, IT-031, then focused Go and Flutter regression suites.

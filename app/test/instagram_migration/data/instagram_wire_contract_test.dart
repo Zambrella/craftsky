@@ -355,7 +355,7 @@ void main() {
     final page = NotificationPage.fromMap(body);
 
     expect(page.cursor, 'synthetic-notification-output-cursor');
-    expect(page.items, hasLength(7));
+    expect(page.items, hasLength(8));
     expect(page.items[0], isA<FollowNotification>());
     expect(page.items[1], isA<LikeNotification>());
     expect(page.items[2], isA<RepostNotification>());
@@ -363,11 +363,12 @@ void main() {
     expect(page.items[4], isA<MentionNotification>());
     expect(page.items[5], isA<QuoteNotification>());
     expect(page.items[6], isA<GenericNotification>());
+    expect(page.items[7], isA<InstagramMatchNotification>());
     expect(
       _listOfMaps(body['items']).where(
         (item) => item['type'] == 'instagramMatch',
       ),
-      isEmpty,
+      hasLength(1),
     );
   });
 

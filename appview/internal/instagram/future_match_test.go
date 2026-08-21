@@ -7,6 +7,8 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
+
+	"social.craftsky/appview/internal/notifications"
 )
 
 func TestFutureMatchReconciliationPersistsOneGenerationBoundPrivateSuggestion(t *testing.T) {
@@ -25,6 +27,7 @@ func TestFutureMatchReconciliationPersistsOneGenerationBoundPrivateSuggestion(t 
 	store, err := NewPrivateSuggestionStore(
 		pool,
 		newPrivateSuggestionLifecycleStore(t, pool, now),
+		notifications.NewService(),
 		func() time.Time { return now },
 	)
 	if err != nil {
@@ -80,7 +83,7 @@ func TestFutureMatchReconciliationPersistsOneGenerationBoundPrivateSuggestion(t 
 	); err != nil {
 		t.Fatal(err)
 	}
-	if suggestions != 1 || sources != 1 || operations != 0 || notifications != 0 ||
+	if suggestions != 1 || sources != 1 || operations != 0 || notifications != 1 ||
 		importerGeneration != 3 || targetGeneration != 8 {
 		t.Fatalf(
 			"suggestions=%d sources=%d operations=%d notifications=%d generations=%d/%d",
@@ -142,7 +145,7 @@ func TestInitialImportMatchingPersistsOneGenerationBoundPrivateSuggestion(t *tes
 	); err != nil {
 		t.Fatal(err)
 	}
-	if suggestions != 1 || sources != 1 || operations != 0 || notifications != 0 ||
+	if suggestions != 1 || sources != 1 || operations != 0 || notifications != 1 ||
 		importerGeneration != 5 || targetGeneration != 11 {
 		t.Fatalf(
 			"suggestions=%d sources=%d operations=%d notifications=%d generations=%d/%d",

@@ -125,7 +125,7 @@ void main() {
   });
 
   test(
-    'IT-028 retired Instagram push stays inert after exact account activation',
+    'IT-031 Instagram push opens notifications after exact account activation',
     () async {
       var registry = _registry();
       final operations = <String>[];

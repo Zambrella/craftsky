@@ -197,12 +197,6 @@ func TestFirebaseSenderUsesStandardNotificationsWithoutPerDeliveryCollapseMetada
 func TestFirebaseSenderRejectsUnknownPlatformOrSemanticsBeforeProvider(t *testing.T) {
 	tests := []SendRequest{
 		{
-			Token: "token", Category: notifications.Category("instagramMatch"),
-			Platform: "android", Semantics: DeliveryUniqueEvent,
-			RoutingFacts: RoutingFacts{NotificationID: "00000000-0000-4000-8000-000000000001"},
-			TTL:          time.Minute,
-		},
-		{
 			Token: "token", Platform: "web", Semantics: DeliveryUniqueEvent,
 			RoutingFacts: RoutingFacts{NotificationID: "00000000-0000-4000-8000-000000000001"},
 			TTL:          time.Minute,

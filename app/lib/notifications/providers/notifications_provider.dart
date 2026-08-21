@@ -111,7 +111,7 @@ int _suppressActor(
   final retained = value.items
       .where(
         (item) =>
-            item is! SocialNotification || item.actor.did.toString() != did,
+            item is! ActorNotification || item.actor.did.toString() != did,
       )
       .toList();
   final removed = value.items.length - retained.length;

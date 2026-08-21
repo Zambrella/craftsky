@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -30,6 +31,7 @@ func TestPrivateSuggestionMatcherStopsAtPrivatePersistence(t *testing.T) {
 	store, err := NewPrivateSuggestionStore(
 		pool,
 		newPrivateSuggestionLifecycleStore(t, pool, now),
+		notifications.NewService(),
 		func() time.Time { return now },
 	)
 	if err != nil {
@@ -62,18 +64,30 @@ func TestPrivateSuggestionMatcherStopsAtPrivatePersistence(t *testing.T) {
 	if first != 1 || second != 0 {
 		t.Fatalf("created suggestions = %d/%d, want 1/0", first, second)
 	}
-	for _, table := range []string{"pds_follow_operations", "notification_events"} {
+	for _, table := range []string{"pds_follow_operations"} {
 		var count int
 		query := "SELECT count(*)::int FROM " + table
-		if table == "notification_events" {
-			query += " WHERE category='instagramMatch'"
-		}
 		if err := pool.QueryRow(ctx, query).Scan(&count); err != nil {
 			t.Fatal(err)
 		}
 		if count != 0 {
 			t.Fatalf("forbidden effect table %s has %d rows", table, count)
 		}
+	}
+	var (
+		notifications int
+		actor         string
+		sourceURI     *string
+	)
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*)::int,min(actor_did),min(source_uri)
+		FROM notification_events
+		WHERE recipient_did=$1 AND category='instagramMatch'
+	`, importer).Scan(&notifications, &actor, &sourceURI); err != nil {
+		t.Fatal(err)
+	}
+	if notifications != 1 || actor != target.String() || sourceURI != nil {
+		t.Fatalf("instagram matches = %d actor=%q source=%v, want one source-less target event", notifications, actor, sourceURI)
 	}
 }
 
@@ -90,7 +104,7 @@ func TestPrivateSuggestionStoreReconcilesOneGenerationBoundSuggestion(t *testing
 	seedSuggestionLink(t, pool, target, "private.target", now)
 
 	lifecycles := newPrivateSuggestionLifecycleStore(t, pool, now)
-	store, err := NewPrivateSuggestionStore(pool, lifecycles, func() time.Time { return now })
+	store, err := NewPrivateSuggestionStore(pool, lifecycles, notifications.NewService(), func() time.Time { return now })
 	if err != nil {
 		t.Fatalf("NewPrivateSuggestionStore: %v", err)
 	}
@@ -138,9 +152,9 @@ func TestPrivateSuggestionStoreReconcilesOneGenerationBoundSuggestion(t *testing
 	if err := pool.QueryRow(ctx, `SELECT count(*)::int FROM notification_events WHERE category='instagramMatch'`).Scan(&notifications); err != nil {
 		t.Fatal(err)
 	}
-	if suggestions != 1 || sources != 1 || operations != 0 || notifications != 0 {
+	if suggestions != 1 || sources != 1 || operations != 0 || notifications != 1 {
 		t.Fatalf(
-			"rows suggestions/sources/operations/notifications = %d/%d/%d/%d, want 1/1/0/0",
+			"rows suggestions/sources/operations/notifications = %d/%d/%d/%d, want 1/1/0/1",
 			suggestions, sources, operations, notifications,
 		)
 	}
@@ -163,6 +177,7 @@ func TestPrivateSuggestionStoreDismissIsPrivateIdempotentAndTerminal(t *testing.
 	store, err := NewPrivateSuggestionStore(
 		pool,
 		newPrivateSuggestionLifecycleStore(t, pool, now),
+		notifications.NewService(),
 		func() time.Time { return now },
 	)
 	if err != nil {
@@ -219,6 +234,7 @@ func newPrivateSuggestionTestPool(t *testing.T) *pgxpool.Pool {
 		"../../migrations/000038_owner_auth_lifecycle.up.sql",
 		"../../migrations/000039_owner_effects_terminal_purge.up.sql",
 		"../../migrations/000042_instagram_private_suggestions.up.sql",
+		"../../migrations/000055_instagram_match_notifications.up.sql",
 	} {
 		migration, err := os.ReadFile(path)
 		if err != nil {

@@ -109,23 +109,25 @@ type instagramUnknownFixture struct {
 	Body                  json.RawMessage `json:"body"`
 }
 
-func TestInstagramWireCorpusRetiresAutomaticMatchNotifications(t *testing.T) {
+func TestInstagramWireCorpusIncludesPrivateMatchNotifications(t *testing.T) {
 	corpus := loadInstagramWireCorpus(t)
+	found := false
 	for _, item := range decodeWireMap(t, corpus.NotificationContract.Body)["items"].([]any) {
 		candidate := item.(map[string]any)
 		if candidate["type"] == "instagramMatch" {
-			t.Fatal("retired instagramMatch fixture remains in active feed")
+			found = true
+			if _, ok := candidate["actor"]; !ok {
+				t.Fatal("instagramMatch fixture omits actor")
+			}
+			for _, forbidden := range []string{"uri", "cid", "rkey", "system"} {
+				if _, ok := candidate[forbidden]; ok {
+					t.Fatalf("instagramMatch fixture contains %s", forbidden)
+				}
+			}
 		}
 	}
-	negativeFixture := false
-	for _, candidate := range corpus.NotificationContract.UnknownClientCases {
-		if strings.Contains(string(candidate.Body), `"type":"instagramMatch"`) ||
-			strings.Contains(string(candidate.Body), `"type": "instagramMatch"`) {
-			negativeFixture = true
-		}
-	}
-	if !negativeFixture {
-		t.Fatal("retired instagramMatch negative client fixture missing")
+	if !found {
+		t.Fatal("instagramMatch fixture is absent")
 	}
 }
 
@@ -448,7 +450,7 @@ func TestInstagramWireCorpusNotificationTypesAndPrivateFieldAbsence(t *testing.T
 	assertWireRoundTrip[NotificationPage](t, corpus.NotificationContract.Body)
 	page := decodeWireMap(t, corpus.NotificationContract.Body)
 	items := page["items"].([]any)
-	if len(items) != 7 {
+	if len(items) != 8 {
 		t.Fatalf("notification item count = %d", len(items))
 	}
 	socialTypes := map[string]bool{}
@@ -458,7 +460,11 @@ func TestInstagramWireCorpusNotificationTypesAndPrivateFieldAbsence(t *testing.T
 			t.Fatalf("notification %s exposes redundant kind", item["type"])
 		}
 		socialTypes[item["type"].(string)] = true
-		for _, required := range []string{"uri", "cid", "rkey", "actor", "references"} {
+		requiredFields := []string{"uri", "cid", "rkey", "actor", "references"}
+		if item["type"] == "instagramMatch" {
+			requiredFields = []string{"actor"}
+		}
+		for _, required := range requiredFields {
 			if _, ok := item[required]; !ok {
 				t.Errorf("social %s omits %s", item["type"], required)
 			}
@@ -467,7 +473,7 @@ func TestInstagramWireCorpusNotificationTypesAndPrivateFieldAbsence(t *testing.T
 			t.Errorf("social %s contains system payload", item["type"])
 		}
 	}
-	for _, value := range []string{"follow", "like", "repost", "reply", "mention", "quote", "everythingElse"} {
+	for _, value := range []string{"follow", "like", "repost", "reply", "mention", "quote", "everythingElse", "instagramMatch"} {
 		if !socialTypes[value] {
 			t.Errorf("social notification type %q is absent", value)
 		}

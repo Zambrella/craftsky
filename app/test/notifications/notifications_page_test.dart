@@ -184,6 +184,7 @@ void main() {
                 NotificationRow(notification: _reply('reply')),
                 NotificationRow(notification: _mention('mention')),
                 NotificationRow(notification: _quote('quote')),
+                NotificationRow(notification: _instagramMatch()),
                 NotificationRow(
                   notification: _generic(
                     '00000000-0000-0000-0000-000000000001',
@@ -197,8 +198,12 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byType(ProfileAvatar), findsNWidgets(7));
-      expect(find.text('Follow'), findsOneWidget);
+      expect(find.byType(ProfileAvatar), findsNWidgets(8));
+      expect(find.text('Follow'), findsNWidgets(2));
+      expect(
+        find.text('You found Alice through your Instagram following'),
+        findsOneWidget,
+      );
       expect(
         tester
             .widget<ProfileAvatar>(find.byType(ProfileAvatar).first)
@@ -212,6 +217,7 @@ void main() {
         Icons.chat_bubble_outline,
         Icons.alternate_email,
         Icons.format_quote,
+        Icons.person_search_outlined,
         Icons.notifications_none,
       ]) {
         expect(find.byIcon(icon), findsOneWidget, reason: '$icon');
@@ -236,7 +242,7 @@ void main() {
 
       final createdAt = DateTime.parse('2026-05-28T13:00:00Z');
       final elapsedDays = DateTime.now().difference(createdAt).inDays;
-      expect(find.text('${elapsedDays}d'), findsNWidgets(7));
+      expect(find.text('${elapsedDays}d'), findsNWidgets(8));
       expect(
         tester
             .widgetList<Tooltip>(find.byType(Tooltip))
@@ -756,6 +762,22 @@ FollowNotification _follow(
           'indexedAt': '2026-05-28T13:00:01Z',
         })
         as FollowNotification;
+
+InstagramMatchNotification _instagramMatch() =>
+    CraftskyNotification.fromMap({
+          'id': '00000000-0000-0000-0000-000000000031',
+          'type': 'instagramMatch',
+          'actor': {
+            'did': 'did:plc:alice',
+            'handle': 'alice.craftsky.social',
+            'displayName': 'Alice',
+            'avatar': 'https://cdn.example/avatar/alice.jpg',
+            'viewerIsFollowing': false,
+          },
+          'createdAt': '2026-05-28T13:00:00Z',
+          'indexedAt': '2026-05-28T13:00:01Z',
+        })
+        as InstagramMatchNotification;
 
 LikeNotification _like(
   String rkey, {

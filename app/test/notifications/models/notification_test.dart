@@ -162,7 +162,7 @@ void main() {
     );
   });
 
-  test('IT-028 treats retired Instagram match rows as inert unknown data', () {
+  test('IT-031 decodes Instagram match rows as actor notifications', () {
     final notification = CraftskyNotification.fromMap({
       'id': '00000000-0000-0000-0000-000000000321',
       'type': 'instagramMatch',
@@ -171,10 +171,14 @@ void main() {
       'indexedAt': '2026-07-19T12:04:00Z',
     });
 
-    expect(notification, isA<GenericSystemNotification>());
+    expect(notification, isA<InstagramMatchNotification>());
     expect(notification, isNot(isA<SocialNotification>()));
     expect(notification.id, '00000000-0000-0000-0000-000000000321');
-    expect(notification.type, NotificationCategory.unknown);
+    expect(notification.type, NotificationCategory.instagramMatch);
+    expect(
+      (notification as InstagramMatchNotification).actor.did,
+      'did:plc:alice',
+    );
   });
 
   test(

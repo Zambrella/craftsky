@@ -1163,3 +1163,26 @@ accepted request can always be cancelled by a later membership transition.
 The Meta capability spike, consented export-shape evidence, trusted-edge abuse
 configuration, and physical-device checks in §21 remain release gates. They do
 not alter the strict no-background-PDS-writer decision.
+
+## 25. Instagram Match Notification Restoration
+
+Status: Approved by the product owner on 2026-08-21.
+
+This amendment restores the first-class `instagramMatch` notification without
+restoring automatic follows. It supersedes FR-037 and the notification-absence
+clauses of AC-057, AC-060, and AC-062. The private-suggestion and explicit
+follow boundaries in section 24 remain authoritative.
+
+| ID | Type | Priority | Requirement | Acceptance Criteria |
+|---|---|---|---|---|
+| FR-038 | Functional | Must | Creating a new pending Instagram suggestion shall atomically create exactly one actor-backed, source-less `instagramMatch` notification for the importer, keyed by the suggestion ID. Duplicate or reordered reconciliation shall create neither another event nor another push delivery. | AC-064, AC-065 |
+| FR-039 | Functional | Must | `instagramMatch` shall again be a first-class notification category with fixed `scope: everyone` and configurable `pushEnabled`. Disabling push shall not suppress the in-app notification. Push payloads shall carry only the account-subscription binding, category, stable notification ID, and display copy; they shall contain no actor DID, Instagram handle, import ID, suggestion ID, or match evidence. | AC-064, AC-066 |
+| FR-040 | Functional | Must | Flutter shall render an `instagramMatch` row using the matched CraftSky actor, copy that says the actor was found through the member's Instagram following, and the existing account-scoped Follow/Following control. The row opens the matched profile. No copy or behavior may claim that CraftSky followed automatically. | AC-067 |
+| NFR-012 | Non-functional | Must | Suggestion creation and notification activation shall commit in the same PostgreSQL transaction while both participant lifecycle fences are held. Notification creation grants no OAuth, PDS-client, or public-write capability to matching or reconciliation. | AC-064, AC-065 |
+
+| ID | Acceptance criterion |
+|---|---|
+| AC-064 | A newly created eligible suggestion produces one active actor-backed `instagramMatch` row and, when enabled, one delivery per active subscribed installation; the suggestion and notification commit or roll back together. |
+| AC-065 | Replaying initial/future matching for the same suggestion lifetime keeps one suggestion, one notification, and at most one delivery per subscription, with zero OAuth or PDS follow calls. |
+| AC-066 | Notification preferences expose `instagramMatch` with immutable `everyone` scope and mutable push enablement; disabling push still permits the in-app row and the push payload leaks no match identity or evidence. |
+| AC-067 | Flutter decodes and renders the actor-backed row, opens the matched profile, offers explicit Follow/Following, and remains account-switch safe without automatic-follow wording. |

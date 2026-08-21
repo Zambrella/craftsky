@@ -1101,3 +1101,64 @@ below is authoritative for AV-007 closure.
 - [x] No cleanup path deletes `app.bsky.graph.follow`.
 - [x] Focused PostgreSQL/race and full Go/Flutter gates pass with recorded
   commands and results.
+
+## Instagram Match Notification Restoration (2026-08-21)
+
+### Test Order
+
+| Step | Test ID | Requirement IDs | Expected Initial State |
+|---|---|---|---|
+| 1 | IT-030 | FR-038, NFR-012 | Fails because matching creates no notification. |
+| 2 | UT-024 | FR-039 | Fails because category, preference, and push support are retired. |
+| 3 | IT-031 | FR-040 | Fails because Flutter treats `instagramMatch` as unknown. |
+
+### Execution Log
+
+| Step | Red evidence | Green evidence | Status |
+|---|---|---|---|
+| IT-030 | The existing real-store assertions required zero `instagramMatch` rows. | Suggestion creation calls `ActivateInstagramMatch` in the same lifecycle-fenced transaction, keyed by suggestion ID; duplicate initial/future match expectations now require one event and zero PDS operations. Full Go suite passes. Real-PostgreSQL cases are present but skipped when neither database test URL is configured. | Complete |
+| UT-024 | The category registry rejected `instagramMatch`, preferences omitted it, and push treated it as invalid. | Registry, immutable-scope preference, API type, regular visible push copy, and identity-free routing-data tests pass. | Complete |
+| IT-031 | Flutter decoded `instagramMatch` as unknown and exposed no row/settings/open behavior. | Model, row, icon, Follow/Following, profile navigation, settings, account activation, provider suppression, and shared wire-contract tests pass with non-automatic wording. | Complete |
+
+### Completion Checklist
+
+- [x] One suggestion and one notification commit atomically.
+- [x] Duplicate matching creates no duplicate event or delivery.
+- [x] Matching retains no OAuth/PDS/public-write capability.
+- [x] Push payload contains no match identity or evidence.
+- [x] Flutter renders match-found copy and explicit Follow/Following.
+- [x] Relevant Go and Flutter regression suites pass.
+
+### Verification Evidence
+
+- `GOCACHE=/tmp/craftsky-go-cache go test ./... -count=1` from `appview/`: passed.
+  Database-backed cases were skipped because `TEST_DATABASE_URL` and
+  `DATABASE_URL` were unset.
+- Complete Flutter notification directory: 97 passed. The focused Instagram
+  wire-contract test also passed in the 45-test cross-feature run.
+- `flutter analyze`: no issues found.
+- `GOCACHE=/tmp/craftsky-go-cache go vet ./...`: passed.
+- `git diff --check`: passed.
+
+## IR-021 Resolution Assessment (2026-08-21)
+
+Status: Closed as superseded; no source rename required.
+
+IR-021 was raised in the 2026-07-27 automatic-follow implementation review,
+when the approved model had removed the member-facing private suggestion
+surface. The authoritative AV-007 correction in Requirements §24 subsequently
+reinstated lifecycle-bound private suggestions and explicit Follow/Dismiss, and
+the notification restoration in Requirements §25 deliberately leaves that
+suggestion model unchanged.
+
+`InstagramSuggestionEligibilityPolicy`, `SuggestionEligibilityRequest`, and
+the related current symbols therefore describe the active domain correctly.
+Renaming them to automatic-follow terminology would conflict with `BR-005`,
+`FR-033`–`FR-036`, and the no-background-writer boundary in `FR-035`. Historical
+automatic-follow requirements and execution evidence remain unchanged as
+historical records.
+
+No production code or test was changed for this resolution. The documentation
+check is the relevant verification: the current implementation retains private
+suggestion creation, listing, acceptance, dismissal, and lifecycle eligibility,
+while matching/reconciliation retain no automatic-follow writer capability.

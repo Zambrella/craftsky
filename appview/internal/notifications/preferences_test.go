@@ -55,12 +55,19 @@ func TestResolvePreferencesRejectsInvalidPatchWithoutReturningPartialState(t *te
 	}
 }
 
-func TestRetiredInstagramMatchPreferenceIsRejected(t *testing.T) {
+func TestInstagramMatchPreferenceAllowsPushOnlyAndFixesScope(t *testing.T) {
 	pushOff := false
 	got, err := ResolvePreferences(nil, map[Category]PreferencePatch{
-		Category("instagramMatch"): {PushEnabled: &pushOff},
+		InstagramMatch: {PushEnabled: &pushOff},
+	})
+	if err != nil || got[InstagramMatch] != (Preference{Scope: Everyone, PushEnabled: false}) {
+		t.Fatalf("instagramMatch preference got=%+v err=%v", got, err)
+	}
+	people := PeopleIFollow
+	got, err = ResolvePreferences(nil, map[Category]PreferencePatch{
+		InstagramMatch: {Scope: &people},
 	})
 	if err == nil || got != nil {
-		t.Fatalf("retired category returned got=%+v err=%v", got, err)
+		t.Fatalf("instagramMatch scope mutation returned got=%+v err=%v", got, err)
 	}
 }

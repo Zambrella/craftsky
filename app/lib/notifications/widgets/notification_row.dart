@@ -87,6 +87,10 @@ class NotificationRow extends ConsumerWidget {
     final actionColor = _actionColor(actorNotification, theme.colorScheme);
     final (title, subjectPost) = switch (actorNotification) {
       FollowNotification() => (l10n.notificationFollowRow(actor), null),
+      InstagramMatchNotification() => (
+        l10n.notificationInstagramMatchActorRow(actor),
+        null,
+      ),
       LikeNotification(:final subjectPost) => (
         switch (_roleOf(subjectPost)) {
           _NotificationContentRole.post => l10n.notificationLikeRow(actor),
@@ -206,7 +210,8 @@ class NotificationRow extends ConsumerWidget {
                         padding: EdgeInsets.zero,
                       ),
                     ],
-                    if (actorNotification is FollowNotification &&
+                    if ((actorNotification is FollowNotification ||
+                            actorNotification is InstagramMatchNotification) &&
                         actorNotification.actor.available) ...[
                       const SizedBox(height: 8),
                       _NotificationFollowButton(
@@ -282,6 +287,7 @@ class NotificationRow extends ConsumerWidget {
     }
     switch (notification) {
       case FollowNotification(:final actor):
+      case InstagramMatchNotification(:final actor):
         unawaited(
           UserProfileRoute(handle: actor.handle.toString()).push<void>(context),
         );
@@ -418,6 +424,7 @@ Color _actionColor(
   ColorScheme colors,
 ) => switch (notification) {
   FollowNotification() => colors.primary,
+  InstagramMatchNotification() => colors.primary,
   LikeNotification() => colors.error,
   RepostNotification() => colors.tertiary,
   ReplyNotification() => colors.primary,

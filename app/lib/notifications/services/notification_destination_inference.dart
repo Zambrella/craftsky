@@ -21,6 +21,7 @@ abstract final class NotificationDestinationInference {
           focusUri: facts.sourceUri,
         ),
         NotificationCategory.everythingElse => const NotificationsDestination(),
+        NotificationCategory.instagramMatch => const NotificationsDestination(),
         NotificationCategory.unknown => throw StateError(
           'Unknown categories cannot be valid notification facts',
         ),

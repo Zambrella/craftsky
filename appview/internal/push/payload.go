@@ -11,6 +11,19 @@ type Payload struct {
 }
 
 func BuildPayload(category notifications.Category, routingID, actorDisplayName string, facts RoutingFacts) Payload {
+	if category == notifications.InstagramMatch {
+		data := map[string]string{
+			"payloadVersion":        "1",
+			"type":                  string(category),
+			"accountSubscriptionId": routingID,
+		}
+		addRoutingFact(data, "notificationId", facts.NotificationID)
+		return Payload{
+			Title: "CraftSky",
+			Body:  "Someone you follow on Instagram is now on CraftSky",
+			Data:  data,
+		}
+	}
 	if actorDisplayName == "" {
 		actorDisplayName = "Someone"
 	}

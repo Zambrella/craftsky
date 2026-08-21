@@ -127,6 +127,9 @@ final class NotificationOpenAttempt {
         NotificationCategory.everythingElse => const ValidNotificationFacts._(
           category: NotificationCategory.everythingElse,
         ),
+        NotificationCategory.instagramMatch => const ValidNotificationFacts._(
+          category: NotificationCategory.instagramMatch,
+        ),
         NotificationCategory.unknown => const UnknownNotificationFacts(),
       };
     }

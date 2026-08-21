@@ -10,6 +10,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 
+	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/pdseffects"
 )
@@ -27,7 +28,7 @@ func TestSuggestionAcceptanceIsExplicitGenerationFencedAndIdempotent(t *testing.
 	seedSuggestionLink(t, pool, target, "accept.target", now)
 
 	lifecycles := newPrivateSuggestionLifecycleStore(t, pool, now)
-	store, err := NewPrivateSuggestionStore(pool, lifecycles, func() time.Time { return now })
+	store, err := NewPrivateSuggestionStore(pool, lifecycles, notifications.NewService(), func() time.Time { return now })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -98,7 +99,7 @@ func TestSuggestionAcceptanceMakesNoCallAfterTargetTerminalization(t *testing.T)
 	seedSuggestionLink(t, pool, target, "stale.target", now)
 
 	lifecycles := newPrivateSuggestionLifecycleStore(t, pool, now)
-	store, err := NewPrivateSuggestionStore(pool, lifecycles, func() time.Time { return now })
+	store, err := NewPrivateSuggestionStore(pool, lifecycles, notifications.NewService(), func() time.Time { return now })
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,7 +146,7 @@ func TestSuggestionAcceptanceReplaysTheSameDurableIdentityAfterResponseLoss(t *t
 	seedSuggestionImport(t, pool, importID, importer, "replay.target", now)
 	seedSuggestionLink(t, pool, target, "replay.target", now)
 	lifecycles := newPrivateSuggestionLifecycleStore(t, pool, now)
-	store, err := NewPrivateSuggestionStore(pool, lifecycles, func() time.Time { return now })
+	store, err := NewPrivateSuggestionStore(pool, lifecycles, notifications.NewService(), func() time.Time { return now })
 	if err != nil {
 		t.Fatal(err)
 	}

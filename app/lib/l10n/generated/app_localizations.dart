@@ -280,6 +280,12 @@ abstract class AppLocalizations {
   /// **'Activity unavailable'**
   String get notificationUnavailableRow;
 
+  /// Notification shown when an Instagram following import matches a CraftSky account. It does not imply an automatic follow.
+  ///
+  /// In en, this message translates to:
+  /// **'You found {actor} through your Instagram following'**
+  String notificationInstagramMatchActorRow(String actor);
+
   /// No description provided for @notificationSettingsAction.
   ///
   /// In en, this message translates to:
@@ -345,6 +351,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reposts'**
   String get notificationCategoryReposts;
+
+  /// No description provided for @notificationCategoryInstagramMatches.
+  ///
+  /// In en, this message translates to:
+  /// **'Instagram matches'**
+  String get notificationCategoryInstagramMatches;
+
+  /// No description provided for @notificationInstagramMatchPreferenceDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Push alerts are based on your private Instagram matches and never name the matched account.'**
+  String get notificationInstagramMatchPreferenceDescription;
 
   /// No description provided for @notificationCategoryEverythingElse.
   ///

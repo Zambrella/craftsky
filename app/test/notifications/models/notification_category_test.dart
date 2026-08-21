@@ -14,11 +14,11 @@ void main() {
     expect(NotificationCategory.quote.toValue(), 'quote');
   });
 
-  test('preference categories exclude the retired Instagram category', () {
-    expect(NotificationCategory.preferenceValues, hasLength(7));
+  test('preference categories include Instagram matches', () {
+    expect(NotificationCategory.preferenceValues, hasLength(8));
     expect(
       NotificationCategory.fromWireValue('instagramMatch'),
-      NotificationCategory.unknown,
+      NotificationCategory.instagramMatch,
     );
     expect(
       NotificationCategory.preferenceValues,

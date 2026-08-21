@@ -130,6 +130,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notificationUnavailableRow => 'Activity unavailable';
 
   @override
+  String notificationInstagramMatchActorRow(String actor) {
+    return 'You found $actor through your Instagram following';
+  }
+
+  @override
   String get notificationSettingsAction => 'Notification settings';
 
   @override
@@ -164,6 +169,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get notificationCategoryReposts => 'Reposts';
+
+  @override
+  String get notificationCategoryInstagramMatches => 'Instagram matches';
+
+  @override
+  String get notificationInstagramMatchPreferenceDescription =>
+      'Push alerts are based on your private Instagram matches and never name the matched account.';
 
   @override
   String get notificationCategoryEverythingElse => 'Everything else';

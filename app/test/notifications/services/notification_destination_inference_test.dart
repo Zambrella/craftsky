@@ -152,7 +152,7 @@ void main() {
     expect(futureOutcome.feedback, isNull);
   });
 
-  test('IT-028 treats retired Instagram pushes as unknown and inert', () {
+  test('IT-031 routes Instagram match pushes to notifications', () {
     final attempt = NotificationOpenAttempt.fromProviderData({
       'payloadVersion': '1',
       'type': 'instagramMatch',
@@ -160,7 +160,7 @@ void main() {
       'notificationId': '00000000-0000-0000-0000-000000000321',
     });
 
-    expect(attempt.facts, isA<UnknownNotificationFacts>());
+    expect(attempt.facts, isA<ValidNotificationFacts>());
     expect(
       NotificationDestinationInference.forFacts(attempt.facts).destination,
       const NotificationsDestination(),

@@ -36,11 +36,11 @@ func TestNotificationPreferencesHandlersReturnDefaultsAndPatchSubset(t *testing.
 	if err := json.Unmarshal(recorder.Body.Bytes(), &defaults); err != nil {
 		t.Fatal(err)
 	}
-	if len(defaults.Preferences) != 7 || defaults.Preferences[notifications.Like].Scope != notifications.Everyone || !defaults.Preferences[notifications.Like].PushEnabled {
+	if len(defaults.Preferences) != 8 || defaults.Preferences[notifications.Like].Scope != notifications.Everyone || !defaults.Preferences[notifications.Like].PushEnabled {
 		t.Fatalf("defaults=%+v", defaults)
 	}
-	if _, present := defaults.Preferences[notifications.Category("instagramMatch")]; present {
-		t.Fatalf("retired instagramMatch preference exposed: %+v", defaults)
+	if got := defaults.Preferences[notifications.InstagramMatch]; got != (notifications.Preference{Scope: notifications.Everyone, PushEnabled: true}) {
+		t.Fatalf("instagramMatch default=%+v", got)
 	}
 
 	patch := api.PatchNotificationPreferencesHandler(store, nilLogger())
@@ -64,7 +64,7 @@ func TestNotificationPreferencesHandlersReturnDefaultsAndPatchSubset(t *testing.
 	}
 }
 
-func TestRetiredInstagramMatchPreferenceAPIRejectsPatch(t *testing.T) {
+func TestInstagramMatchPreferenceAPIRejectsScopePatch(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
 	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
 	if err != nil {
@@ -77,8 +77,8 @@ func TestRetiredInstagramMatchPreferenceAPIRejectsPatch(t *testing.T) {
 
 	patch := api.PatchNotificationPreferencesHandler(api.NewPostStore(pool), nilLogger())
 	recorder := httptest.NewRecorder()
-	patch.ServeHTTP(recorder, authedReq(http.MethodPatch, "/v1/notifications/preferences", `{"preferences":{"instagramMatch":{"pushEnabled":false}}}`, "did:plc:viewer"))
+	patch.ServeHTTP(recorder, authedReq(http.MethodPatch, "/v1/notifications/preferences", `{"preferences":{"instagramMatch":{"scope":"peopleIFollow"}}}`, "did:plc:viewer"))
 	if recorder.Code != http.StatusBadRequest {
-		t.Fatalf("retired PATCH status=%d body=%s", recorder.Code, recorder.Body.String())
+		t.Fatalf("scope PATCH status=%d body=%s", recorder.Code, recorder.Body.String())
 	}
 }

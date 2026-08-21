@@ -65,6 +65,7 @@ func newInstagramStorageDependencies(
 	privateSuggestions, err := instagram.NewPrivateSuggestionStore(
 		pool,
 		owners.lifecycles,
+		content.notificationLifecycle,
 		time.Now,
 	)
 	if err != nil {

@@ -12,7 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   testWidgets(
-    'IT-028 renders only current notification preferences',
+    'UT-024 renders Instagram push preference without actor scope',
     (
       tester,
     ) async {
@@ -35,7 +35,7 @@ void main() {
 
       expect(find.text('Notification settings'), findsOneWidget);
       expect(find.textContaining('all devices'), findsOneWidget);
-      expect(find.byType(Switch), findsNWidgets(7));
+      expect(find.byType(Switch), findsNWidgets(8));
       for (final category in NotificationCategory.preferenceValues) {
         expect(
           find.byKey(
@@ -55,7 +55,11 @@ void main() {
         find.byKey(const Key('notification-instagramMatch-scope')),
         findsNothing,
       );
-      expect(find.text('Instagram matches'), findsNothing);
+      expect(find.text('Instagram matches'), findsOneWidget);
+      expect(
+        find.textContaining('never name the matched account'),
+        findsOneWidget,
+      );
       expect(find.byType(DropdownButtonFormField), findsNothing);
       expect(find.byType(SwitchListTile), findsNothing);
       expect(find.text('Everything else'), findsOneWidget);

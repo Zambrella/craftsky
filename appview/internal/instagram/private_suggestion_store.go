@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
@@ -51,27 +52,31 @@ type ReconcilePrivateSuggestionResult struct {
 	Created    bool
 }
 
-// PrivateSuggestionStore deliberately has no OAuth, PDS, session-selection,
-// notification, or push dependency. Matching can only commit caller-private
-// state while both participants' lifecycle rows are fenced.
+// PrivateSuggestionStore deliberately has no OAuth, PDS, or session-selection
+// dependency. Its notification capability only writes caller-private AppView
+// state in the same transaction as a newly created suggestion.
 type PrivateSuggestionStore struct {
-	pool       *pgxpool.Pool
-	lifecycles *ownerlifecycle.Store
-	now        func() time.Time
+	pool          *pgxpool.Pool
+	lifecycles    *ownerlifecycle.Store
+	notifications *notifications.Service
+	now           func() time.Time
 }
 
 func NewPrivateSuggestionStore(
 	pool *pgxpool.Pool,
 	lifecycles *ownerlifecycle.Store,
+	notificationService *notifications.Service,
 	now func() time.Time,
 ) (*PrivateSuggestionStore, error) {
-	if pool == nil || lifecycles == nil {
-		return nil, errors.New("private Instagram suggestion store requires database and lifecycle stores")
+	if pool == nil || lifecycles == nil || notificationService == nil {
+		return nil, errors.New("private Instagram suggestion store requires database, lifecycle, and notification services")
 	}
 	if now == nil {
 		now = time.Now
 	}
-	return &PrivateSuggestionStore{pool: pool, lifecycles: lifecycles, now: now}, nil
+	return &PrivateSuggestionStore{
+		pool: pool, lifecycles: lifecycles, notifications: notificationService, now: now,
+	}, nil
 }
 
 func (store *PrivateSuggestionStore) ReconcileCandidate(
@@ -167,6 +172,20 @@ func (store *PrivateSuggestionStore) ReconcileCandidate(
 			}
 			if err != nil {
 				return fmt.Errorf("persist private Instagram suggestion: %w", err)
+			}
+			if result.Created {
+				if err := store.notifications.ActivateInstagramMatch(
+					fenceCtx,
+					tx,
+					notifications.InstagramMatchActivation{
+						RecipientDID: params.ImporterDID,
+						ActorDID:     params.TargetDID,
+						SuggestionID: result.Suggestion.ID,
+						ActivityAt:   params.Now,
+					},
+				); err != nil {
+					return fmt.Errorf("activate private Instagram suggestion notification: %w", err)
+				}
 			}
 			if _, err := tx.Exec(fenceCtx, `
 				INSERT INTO instagram_private_suggestion_sources(suggestion_id,import_id,created_at)

@@ -577,3 +577,30 @@ And account or terminal cleanup never deletes an app.bsky.graph.follow record
 5. IT-029 restores the private review surface and fixed-account Flutter flow.
 6. Re-run the unaffected verification, privacy, ZIP, Meta-adapter, membership,
    import-retention, and account-isolation tests from Sections 1–11.
+
+## 13. Instagram Match Notification Restoration Tests
+
+Status: Approved test-design amendment on 2026-08-21.
+
+### AT-013: A New Private Match Notifies Without Following
+
+Requirement IDs: FR-038–FR-040, NFR-012, AC-064–AC-067
+
+```gherkin
+Given Alice imports an Instagram following list containing Bob
+And Bob is an exact eligible current CraftSky member
+When matching creates Alice's pending private suggestion for Bob
+Then the same transaction creates one actor-backed instagramMatch notification for Alice
+And no OAuth session is selected and no PDS follow is written
+And replaying matching creates no additional notification or delivery
+And Alice can open Bob's profile and explicitly choose Follow from the notification row
+```
+
+| ID | Requirement IDs | Test |
+|---|---|---|
+| IT-030 | FR-038, NFR-012, AC-064, AC-065 | Real PostgreSQL matching creates one suggestion plus one source-less actor notification atomically and remains idempotent. |
+| UT-024 | FR-039, AC-066 | Category, fixed-scope preference, and identity-free push payload contracts include `instagramMatch`. |
+| IT-031 | FR-040, AC-067 | Flutter decodes the actor-backed row, renders non-automatic copy and Follow/Following, and opens the matched profile under the captured account. |
+
+Required order: IT-030, UT-024, IT-031, then the affected Instagram,
+notification, push, API, app-wiring, migration, and Flutter notification suites.
