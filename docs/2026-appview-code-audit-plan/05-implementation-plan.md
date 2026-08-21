@@ -693,6 +693,49 @@ release build.
   affected ingestion, Tap, identity API, and index packages also passed under
   `go test -race`; `gofmt` and `git diff --check` are clean.
 
+#### TAP-003 stale-generation profile reconciliation (2026-08-21)
+
+- Inputs: AV-005's durable, restart-safe Bluesky profile backfill and
+  same-DID rejoin convergence requirements.
+- Regression: a Bluesky profile received while the owner is departed is stored
+  authoritatively at the departed generation. After CraftSky membership
+  activates a newer generation, projection requests repository reconciliation,
+  but the repository worker must not ignore the source merely because its
+  ordering status was already authoritative.
+- Test order:
+
+| Step | Test ID | Requirement IDs | Acceptance criterion | Expected initial state |
+|---|---|---|---|---|
+| 1 | `TAP-003-SELECT` | AV-005 | Repository reconciliation additionally selects authoritative sources whose projection is blocked on the repository dependency. | Fails |
+| 2 | `TAP-003-RECOVER` | AV-005 | Migration recovery requeues reconciliation work for active owners with stale-generation repository-blocked projections, and reapplies safely. | Fails |
+
+- Planned focused commands: single-test required-PostgreSQL runs for the
+  ingestion selector and migration recovery, followed by the affected
+  ingestion/database/app packages and the required-database repository suite.
+- Red/green result:
+  - `TAP-003-SELECT` first returned no sources for an authoritative Bluesky
+    profile retained at generation 6 after its owner activated generation 7.
+    Repository reconciliation now selects both order-uncertain sources and the
+    exact current source versions whose projection is blocked on
+    `repository_did`.
+  - `TAP-003-RECOVER` first failed because no recovery migration existed.
+    Migration 59 requeues the DID-scoped PDS reconciliation job for active
+    owners with stale-generation repository-blocked projections, clears stale
+    lease/success fields, and is safely idempotent on reapplication. Its down
+    migration deliberately does not restore a potentially stale completed
+    state after an authoritative read may have run.
+- Live read-only verification found the reported DID's completed repository
+  job still guarding 229 stale-generation sources, including
+  `app.bsky.actor.profile/self`; migration 59 will requeue that one durable job
+  when the development stack is next migrated.
+- Verification result: both focused required-PostgreSQL regressions passed;
+  the complete affected ingestion, app, and database packages passed; affected
+  ingestion and app packages passed under the race detector; the full
+  required-PostgreSQL `go test ./... -count=1` gate and `go vet ./...` passed;
+  formatting and `git diff --check` are clean.
+- Implementation status: complete; development migration/redeployment remains
+  an explicit operational step.
+
 ### Step 10: `PGX-001`
 
 - Test both search branches and prefix-then-terminal-error row iterators.

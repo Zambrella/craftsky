@@ -182,6 +182,165 @@ func TestTapSourceProjectionGenerationMigrationBackfillsWakesAndRoundTrips(t *te
 	apply("58 up", up58)
 }
 
+func TestRepositoryReconciliationSelectsAuthoritativeSourceBlockedByStaleGeneration(t *testing.T) {
+	pool := lifecycleIngestionPool(t)
+	ctx := context.Background()
+	now := time.Date(2026, 8, 21, 12, 0, 0, 0, time.UTC)
+	owner := syntax.DID("did:plc:stale-profile-generation")
+	uri := syntax.ATURI("at://did:plc:stale-profile-generation/app.bsky.actor.profile/self")
+
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO owner_lifecycles(
+			owner_did,state,generation,auth_epoch,transition_reason,
+			transitioned_at,created_at,updated_at
+		) VALUES($1,'active',7,1,'profileActivated',$2,$2,$2)
+	`, owner, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO tap_source_records(
+			uri,did,collection,rkey,source_event_id,source_fingerprint,
+			revision,cid,action,record,record_bytes,live,ordering_status,
+			projection_disposition,projection_generation,observed_at,updated_at
+		) VALUES(
+			$3,$1,'app.bsky.actor.profile','self',1,
+			decode(repeat('44',32),'hex'),'3aaaaaaaaaaa6','bafy-profile',
+			'create','{"displayName":"Profile"}'::json,
+			octet_length('{"displayName":"Profile"}'),false,
+			'authoritative','blocked_departed',6,$2,$2
+		)
+	`, owner, now, uri); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO tap_projection_jobs(
+			source_uri,projection_kind,source_event_id,state,dependency_kind,
+			dependency_key,next_attempt_at,last_reason_code,created_at,updated_at
+		) VALUES(
+			$3,'app_bsky_actor_profile',1,'blocked','repository_did',$1,$2,
+			'source_order_uncertain',$2,$2
+		)
+	`, owner, now, uri); err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := ingestion.NewStore(pool, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	sources, err := store.RepositoryReconciliationSources(ctx, owner, 100)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sources) != 1 || sources[0].URI != uri {
+		t.Fatalf("reconciliation sources=%+v, want stale-generation profile %s", sources, uri)
+	}
+}
+
+func TestStaleGenerationRepositoryReconciliationRecoveryMigrationRequeuesAndReapplies(t *testing.T) {
+	pool := lifecycleIngestionPool(t)
+	ctx := context.Background()
+	now := time.Date(2026, 8, 21, 13, 0, 0, 0, time.UTC)
+	owner := syntax.DID("did:plc:stale-profile-recovery")
+	uri := syntax.ATURI("at://did:plc:stale-profile-recovery/app.bsky.actor.profile/self")
+
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO owner_lifecycles(
+			owner_did,state,generation,auth_epoch,transition_reason,
+			transitioned_at,created_at,updated_at
+		) VALUES($1,'active',7,1,'profileActivated',$2,$2,$2)
+	`, owner, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO tap_source_records(
+			uri,did,collection,rkey,source_event_id,source_fingerprint,
+			revision,cid,action,record,record_bytes,live,ordering_status,
+			projection_disposition,projection_generation,observed_at,updated_at
+		) VALUES(
+			$3,$1,'app.bsky.actor.profile','self',1,
+			decode(repeat('55',32),'hex'),'3aaaaaaaaaaa7','bafy-profile',
+			'create','{"displayName":"Profile"}'::json,
+			octet_length('{"displayName":"Profile"}'),false,
+			'authoritative','blocked_departed',6,$2,$2
+		)
+	`, owner, now, uri); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO tap_projection_jobs(
+			source_uri,projection_kind,source_event_id,state,dependency_kind,
+			dependency_key,next_attempt_at,last_reason_code,created_at,updated_at
+		) VALUES(
+			$3,'app_bsky_actor_profile',1,'blocked','repository_did',$1,$2,
+			'source_order_uncertain',$2,$2
+		)
+	`, owner, now, uri); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO tap_repository_jobs(
+			id,did,job_kind,state,attempts,next_attempt_at,
+			authoritative_revision,last_successful_at,created_at,updated_at
+		) VALUES(
+			'11111111-1111-4111-8111-111111111111',$1,'pds_reconcile',
+			'complete',4,$2,'3aaaaaaaaaaa7',$2,$2,$2
+		)
+	`, owner, now); err != nil {
+		t.Fatal(err)
+	}
+
+	readMigration := func(path string) []byte {
+		t.Helper()
+		migration, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return migration
+	}
+	apply := func(label string, migration []byte) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, string(migration)); err != nil {
+			t.Fatalf("apply %s: %v", label, err)
+		}
+	}
+	up := readMigration("../../migrations/000059_stale_projection_reconciliation.up.sql")
+	down := readMigration("../../migrations/000059_stale_projection_reconciliation.down.sql")
+	assertState := func(want string) {
+		t.Helper()
+		var state string
+		var leaseToken *uuid.UUID
+		var lastSuccessful *time.Time
+		if err := pool.QueryRow(ctx, `
+			SELECT state,lease_token,last_successful_at
+			FROM tap_repository_jobs
+			WHERE did=$1 AND job_kind='pds_reconcile'
+		`, owner).Scan(&state, &leaseToken, &lastSuccessful); err != nil {
+			t.Fatal(err)
+		}
+		if state != want {
+			t.Fatalf("repository job state=%s, want %s", state, want)
+		}
+		if want == "pending" && (leaseToken != nil || lastSuccessful != nil) {
+			t.Fatalf("pending recovery retained lease/success: %v/%v", leaseToken, lastSuccessful)
+		}
+	}
+
+	apply("59 up", up)
+	assertState("pending")
+	if _, err := pool.Exec(ctx, `
+		UPDATE tap_repository_jobs
+		SET state='complete',last_successful_at=$2,updated_at=$2
+		WHERE did=$1 AND job_kind='pds_reconcile'
+	`, owner, now.Add(time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	apply("59 down", down)
+	assertState("complete")
+	apply("59 second up", up)
+	assertState("pending")
+}
+
 func TestDepartedUnresolvedPutUsesLeasedReadOnlyReconciliation(t *testing.T) {
 	pool := lifecycleIngestionPool(t)
 	now := time.Date(2026, 8, 20, 9, 0, 0, 0, time.UTC)

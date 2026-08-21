@@ -32,15 +32,29 @@ type ReconciledSource struct {
 	Present             bool
 }
 
-// UncertainSources returns a bounded page for a read-only PDS reconciliation
-// handler. The handler must finish every returned source before completing its
-// leased repository job.
-func (store *Store) UncertainSources(ctx context.Context, did syntax.DID, limit int) ([]SourceRecord, error) {
+// RepositoryReconciliationSources returns a bounded page for a read-only PDS
+// reconciliation handler. It includes sources whose retained content ordering
+// is uncertain and sources whose projection requested an authoritative
+// repository read (for example after an owner-generation change). The handler
+// must finish every returned source before completing its leased repository
+// job.
+func (store *Store) RepositoryReconciliationSources(ctx context.Context, did syntax.DID, limit int) ([]SourceRecord, error) {
 	if did == "" || limit <= 0 || limit > 1000 {
-		return nil, errors.New("invalid uncertain source query")
+		return nil, errors.New("invalid repository reconciliation source query")
 	}
 	rows, err := store.pool.Query(ctx, sourceSelect+`
-		WHERE did=$1 AND ordering_status='uncertain'
+		WHERE did=$1 AND (
+			ordering_status='uncertain'
+			OR EXISTS (
+				SELECT 1
+				FROM tap_projection_jobs AS job
+				WHERE job.source_uri=tap_source_records.uri
+				  AND job.source_event_id=tap_source_records.source_event_id
+				  AND job.state='blocked'
+				  AND job.dependency_kind='repository_did'
+				  AND job.dependency_key=tap_source_records.did
+			)
+		)
 		ORDER BY uri
 		LIMIT $2
 	`, did, limit)

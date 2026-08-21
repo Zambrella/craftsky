@@ -52,7 +52,7 @@ func reconcileTapRepository(
 ) (string, error) {
 	var lastRevision string
 	for {
-		sources, err := store.UncertainSources(ctx, did, 100)
+		sources, err := store.RepositoryReconciliationSources(ctx, did, 100)
 		if err != nil {
 			return "", err
 		}

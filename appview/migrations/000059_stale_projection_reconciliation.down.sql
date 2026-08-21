@@ -1,0 +1,2 @@
+-- Data-recovery migration: requeued jobs may already have performed their
+-- authoritative PDS read, so restoring their prior completed state is unsafe.
