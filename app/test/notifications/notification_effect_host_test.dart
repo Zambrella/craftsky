@@ -2,6 +2,9 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
+    show sessionRegistryProvider;
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
@@ -34,9 +37,17 @@ import '../fakes/recording_messenger.dart';
 
 void main() {
   testWidgets(
-    'BUG-001 root effect host navigates from MaterialApp.router builder',
+    'BUG-001 notification open preserves back navigation and suppresses one '
+    'new item',
     (tester) async {
       final service = _FakeNotificationService();
+      final newness = _RecordingNewnessRepository(initialCount: 3);
+      final registry = SessionRegistry.empty().upsertAndActivate(
+        token: 'token',
+        did: 'did:plc:viewer',
+        handle: 'viewer.test',
+      );
+      final account = registry.activeLease!.session.account;
       final effects = StreamController<NotificationEffect>.broadcast();
       final runtime = _runtime(service, effects);
       final router = GoRouter(
@@ -54,15 +65,23 @@ void main() {
       final container = ProviderContainer.test(
         overrides: [
           authSessionProvider.overrideWith(SignedOutAuthSession.new),
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(registry),
+          ),
           notificationServiceProvider.overrideWithValue(service),
           notificationRuntimeProvider.overrideWithValue(runtime),
           notificationEffectStreamProvider.overrideWithValue(effects.stream),
+          accountNotificationNewnessRepositoryProvider.overrideWith(
+            (ref, account) async => newness,
+          ),
           goRouterProvider.overrideWithValue(router),
         ],
       );
       addTearDown(router.dispose);
       addTearDown(effects.close);
       addTearDown(runtime.dispose);
+      await container.read(sessionRegistryProvider.future);
+      await container.read(accountNotificationNewCountProvider(account).future);
 
       await tester.pumpWidget(
         UncontrolledProviderScope(
@@ -93,6 +112,13 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Thread did:plc:alice/root'), findsOneWidget);
+      expect(router.canPop(), isTrue);
+      expect(
+        container
+            .read(accountNotificationNewCountProvider(account))
+            .requireValue,
+        2,
+      );
     },
   );
 
@@ -328,14 +354,31 @@ final class _FakeNotificationService implements NotificationService {
 
 final class _RecordingNewnessRepository
     implements NotificationNewnessRepository {
+  _RecordingNewnessRepository({this.initialCount = 0});
+
+  final int initialCount;
   int countCalls = 0;
 
   @override
   Future<int> count() async {
     countCalls++;
-    return 0;
+    return initialCount;
   }
 
   @override
   Future<void> markSeen() async {}
+}
+
+final class _RegistryStorage implements SessionRegistryStorage {
+  _RegistryStorage(this.registry);
+
+  SessionRegistry registry;
+
+  @override
+  Future<SessionRegistry> read() async => registry;
+
+  @override
+  Future<void> write(SessionRegistry registry) async {
+    this.registry = registry;
+  }
 }

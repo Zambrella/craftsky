@@ -103,11 +103,31 @@ class _NotificationEffectHostState extends ConsumerState<NotificationEffectHost>
           'This notification belongs to an account that is no longer signed in',
         );
       case NotificationNavigationEffect(:final outcome):
+        _suppressOpenedNotificationCount();
         navigateToNotificationOutcome(
           context,
           ref.read(goRouterProvider),
           outcome,
         );
+    }
+  }
+
+  void _suppressOpenedNotificationCount() {
+    final activeAccount = ref
+        .read(sessionRegistryProvider)
+        .value
+        ?.activeLease
+        ?.session
+        .account;
+    if (activeAccount != null) {
+      final countProvider = accountNotificationNewCountProvider(activeAccount);
+      if (ref.exists(countProvider)) {
+        ref.read(countProvider.notifier).suppress(1);
+      }
+      return;
+    }
+    if (ref.exists(notificationNewCountProvider)) {
+      ref.read(notificationNewCountProvider.notifier).suppress(1);
     }
   }
 

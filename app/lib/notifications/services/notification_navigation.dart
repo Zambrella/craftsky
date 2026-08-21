@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/feed/models/post_uri.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/notification_destination.dart';
@@ -6,7 +8,7 @@ import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:flutter/widgets.dart';
 import 'package:go_router/go_router.dart';
 
-/// Uses an injected router because [context] belongs to
+/// Uses the root navigator context because [context] belongs to
 /// `MaterialApp.router.builder`, above the Router inherited widget.
 void navigateToNotificationOutcome(
   BuildContext context,
@@ -18,20 +20,28 @@ void navigateToNotificationOutcome(
       AppLocalizations.of(context).notificationUnavailableRow,
     );
   }
+  final navigationContext = router.routerDelegate.navigatorKey.currentContext;
+  if (navigationContext == null) return;
   switch (outcome.destination) {
     case InstagramMigrationDestination():
-      router.go(const InstagramMigrationRoute().location);
+      unawaited(
+        const InstagramMigrationRoute().push<void>(navigationContext),
+      );
     case NotificationsDestination():
-      router.go(const NotificationsRoute().location);
+      unawaited(const NotificationsRoute().push<void>(navigationContext));
     case ProfileDestination(:final did):
-      router.go(UserProfileRoute(handle: did.toString()).location);
+      unawaited(
+        UserProfileRoute(
+          handle: did.toString(),
+        ).push<void>(navigationContext),
+      );
     case final PostDestination destination:
       final route = postThreadRouteForNotification(destination);
       if (route == null) {
-        router.go(const NotificationsRoute().location);
+        unawaited(const NotificationsRoute().push<void>(navigationContext));
         return;
       }
-      router.go(route.location);
+      unawaited(route.push<void>(navigationContext));
   }
 }
 
