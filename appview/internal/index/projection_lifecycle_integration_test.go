@@ -205,15 +205,15 @@ func TestTransactionalDispatcherOmitsOnlyTerminalPostMentions(t *testing.T) {
 
 func projectionLifecycleSource(actor syntax.DID, generation int64, collection syntax.NSID, action string, record json.RawMessage) ingestion.SourceRecord {
 	return ingestion.SourceRecord{
-		URI:             syntax.ATURI("at://" + actor.String() + "/" + collection.String() + "/projection-test"),
-		DID:             actor,
-		Collection:      collection,
-		Rkey:            "projection-test",
-		SourceEventID:   1,
-		CID:             "bafy-projection-test",
-		Action:          action,
-		Record:          record,
-		OwnerGeneration: &generation,
+		URI:                  syntax.ATURI("at://" + actor.String() + "/" + collection.String() + "/projection-test"),
+		DID:                  actor,
+		Collection:           collection,
+		Rkey:                 "projection-test",
+		SourceEventID:        1,
+		CID:                  "bafy-projection-test",
+		Action:               action,
+		Record:               record,
+		ProjectionGeneration: &generation,
 	}
 }
 

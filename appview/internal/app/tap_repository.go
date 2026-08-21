@@ -98,7 +98,7 @@ func reconcileTapRepository(
 			if !outcome.Acknowledgable() {
 				return "", fmt.Errorf("tap source reconciliation remained retryable: %s", outcome.Reason)
 			}
-			lastRevision = observation.Revision
+			lastRevision = observation.Revision.String()
 		}
 	}
 }

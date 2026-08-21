@@ -30,7 +30,7 @@ func TestTransactionalDispatcherRejectsMalformedSupportedRecordBeforeMutation(t 
 	outcome, err := dispatcher.Project(context.Background(), nil, ingestion.SourceRecord{
 		URI: "at://did:plc:actor/social.craftsky.feed.like/one",
 		DID: "did:plc:actor", Collection: craftskyLikeNSID, Rkey: "one",
-		SourceEventID: 7, Revision: "3m7", CID: "bafy-like", Action: "create",
+		SourceEventID: 7, Revision: "3aaaaaaaaaaa2", CID: "bafy-like", Action: "create",
 		Record: json.RawMessage(`{"createdAt":"2026-08-14T10:00:00Z"}`),
 	})
 	if err != nil {
@@ -56,7 +56,7 @@ func TestTransactionalDispatcherRoutesValidatedSource(t *testing.T) {
 	outcome, err := dispatcher.Project(context.Background(), nil, ingestion.SourceRecord{
 		URI: "at://did:plc:actor/app.bsky.actor.profile/self",
 		DID: "did:plc:actor", Collection: blueskyProfileNSID, Rkey: "self",
-		SourceEventID: 8, Revision: "3m8", CID: "bafy-profile", Action: "create",
+		SourceEventID: 8, Revision: "3aaaaaaaaaaa3", CID: "bafy-profile", Action: "create",
 		Record: json.RawMessage(`{"displayName":"Actor"}`),
 	})
 	if err != nil || outcome.Kind != tap.OutcomeApplied {
@@ -69,7 +69,7 @@ func TestProjectionLifecycleReadyRequiresCleanupForTerminalRelationTarget(t *tes
 	actor := syntax.DID("did:plc:lifecycle-decision-actor")
 	target := syntax.DID("did:plc:lifecycle-decision-target")
 	outcome, ready, cleanup := projectionLifecycleReady(
-		ingestion.SourceRecord{DID: actor, Action: "update", OwnerGeneration: &generation},
+		ingestion.SourceRecord{DID: actor, Action: "update", ProjectionGeneration: &generation},
 		map[syntax.DID]projectionOwnerRole{
 			actor:  projectionActorRole,
 			target: projectionRelationTargetRole,

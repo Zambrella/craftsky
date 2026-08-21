@@ -21,6 +21,13 @@ import (
 
 func TestPDSEffectSourceReconciliationMigrationDownUp(t *testing.T) {
 	pool := lifecycleIngestionPool(t)
+	renameDown, err := os.ReadFile("../../migrations/000058_tap_projection_generation_column.down.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(context.Background(), string(renameDown)); err != nil {
+		t.Fatal(err)
+	}
 	assertRecordFingerprintColumn := func(want bool) {
 		t.Helper()
 		var exists bool
@@ -55,6 +62,124 @@ func TestPDSEffectSourceReconciliationMigrationDownUp(t *testing.T) {
 		}
 		assertRecordFingerprintColumn(step.want)
 	}
+	renameUp, err := os.ReadFile("../../migrations/000058_tap_projection_generation_column.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(context.Background(), string(renameUp)); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestTapSourceProjectionGenerationMigrationBackfillsWakesAndRoundTrips(t *testing.T) {
+	pool := lifecycleIngestionPool(t)
+	ctx := context.Background()
+	now := time.Date(2026, 8, 21, 8, 0, 0, 0, time.UTC)
+	const (
+		owner       = "did:plc:migration-projection-generation"
+		operationID = "migration-projection-generation:1"
+		uri         = "at://did:plc:migration-projection-generation/social.craftsky.feed.post/post"
+	)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO owner_lifecycles(
+			owner_did,state,generation,auth_epoch,transition_reason,
+			transitioned_at,created_at,updated_at
+		) VALUES($1,'active',2,2,'test',$2,$2,$2)
+	`, owner, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO owner_effect_attempts(
+			operation_id,owner_did,owner_generation,effect_kind,effect_action,
+			mutation_key,deterministic_key,request_fingerprint,record_fingerprint,
+			result_cid,remote_outcome,projection_disposition,repeat_forbidden,
+			remote_deadline,dispatched_at,completed_at,created_at,updated_at
+		) VALUES(
+			$3,$1,1,'pds_record','put_record',$3,$4,
+			decode(repeat('11',32),'hex'),decode(repeat('22',32),'hex'),
+			'bafy-migration','accepted','eligible_current',true,
+			$2::timestamptz+interval '1 hour',$2,$2,$2,$2
+		)
+	`, owner, now, operationID, uri); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO tap_source_records(
+			uri,did,collection,rkey,source_event_id,source_fingerprint,
+			revision,cid,action,record,record_bytes,live,ordering_status,
+			projection_disposition,projection_generation,effect_operation_id,
+			observed_at,updated_at
+		) VALUES(
+			$4,$1,'social.craftsky.feed.post','post',1,
+			decode(repeat('33',32),'hex'),'3aaaaaaaaaaa2','bafy-migration',
+			'create','{}'::json,2,false,'authoritative','eligible',2,$3,$2,$2
+		)
+	`, owner, now, operationID, uri); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO tap_projection_jobs(
+			source_uri,projection_kind,source_event_id,state,dependency_kind,
+			dependency_key,next_attempt_at,last_reason_code,created_at,updated_at
+		) VALUES(
+			$3,'social_craftsky_feed_post',1,'blocked','repository_did',$1,$2,
+			'source_order_uncertain',$2,$2
+		)
+	`, owner, now, uri); err != nil {
+		t.Fatal(err)
+	}
+
+	readMigration := func(path string) []byte {
+		t.Helper()
+		migration, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return migration
+	}
+	apply := func(label string, migration []byte) {
+		t.Helper()
+		if _, err := pool.Exec(ctx, string(migration)); err != nil {
+			t.Fatalf("apply %s: %v", label, err)
+		}
+	}
+	down58 := readMigration("../../migrations/000058_tap_projection_generation_column.down.sql")
+	up58 := readMigration("../../migrations/000058_tap_projection_generation_column.up.sql")
+	down56 := readMigration("../../migrations/000056_tap_source_projection_generation.down.sql")
+	up56 := readMigration("../../migrations/000056_tap_source_projection_generation.up.sql")
+	apply("58 down", down58)
+	apply("56 down", down56)
+
+	assertState := func(wantGeneration int64, wantJob string) {
+		t.Helper()
+		var generation int64
+		var state string
+		if err := pool.QueryRow(ctx, `SELECT owner_generation FROM tap_source_records WHERE uri=$1`, uri).Scan(&generation); err != nil {
+			t.Fatal(err)
+		}
+		if err := pool.QueryRow(ctx, `SELECT state FROM tap_projection_jobs WHERE source_uri=$1`, uri).Scan(&state); err != nil {
+			t.Fatal(err)
+		}
+		if generation != wantGeneration || state != wantJob {
+			t.Fatalf("source generation/job=%d/%s, want %d/%s", generation, state, wantGeneration, wantJob)
+		}
+	}
+	assertState(1, "blocked")
+	apply("56 up", up56)
+	assertState(2, "pending")
+	apply("56 second down", down56)
+	assertState(1, "pending")
+	if _, err := pool.Exec(ctx, `
+		UPDATE tap_projection_jobs
+		SET state='blocked',dependency_kind='repository_did',dependency_key=$2,
+		    last_reason_code='source_order_uncertain',completed_at=NULL
+		WHERE source_uri=$1
+	`, uri, owner); err != nil {
+		t.Fatal(err)
+	}
+	apply("56 second up", up56)
+	assertState(2, "pending")
+	apply("58 up", up58)
 }
 
 func TestDepartedUnresolvedPutUsesLeasedReadOnlyReconciliation(t *testing.T) {
@@ -329,7 +454,7 @@ func TestProvedNotAcceptedAndTerminalEffectSourcesNeverProject(t *testing.T) {
 
 			event := tap.Event{
 				ID: 45, URI: uri, DID: owner, Collection: collection, Rkey: rkey,
-				Rev: "3m00000000045", CID: "bafy-never-project",
+				Rev: "3aaaaaaaaaaa2", CID: "bafy-never-project",
 				Action: "create", Record: record,
 			}
 			outcome, err := service.IngestRecord(context.Background(), event)
@@ -437,7 +562,7 @@ func TestOutcomeUnknownPutStaysHiddenUntilAuthoritativeRejoinReconciliation(t *t
 
 	event := tap.Event{
 		ID: 50, URI: uri, DID: owner, Collection: collection, Rkey: rkey,
-		Rev: "3m00000000050", CID: "bafy-accepted-before-crash",
+		Rev: "3aaaaaaaaaaa3", CID: "bafy-accepted-before-crash",
 		Action: "create", Record: record,
 	}
 	outcome, err := service.IngestRecord(context.Background(), event)
@@ -448,8 +573,8 @@ func TestOutcomeUnknownPutStaysHiddenUntilAuthoritativeRejoinReconciliation(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	if source.EffectOperationID != operationID || source.OwnerGeneration == nil ||
-		*source.OwnerGeneration != active.Generation || source.ProjectionDisposition != "blocked_departed" {
+	if source.EffectOperationID != operationID || source.ProjectionGeneration == nil ||
+		*source.ProjectionGeneration != departed.Generation || source.ProjectionDisposition != "blocked_departed" {
 		t.Fatalf("departed linked source=%+v", source)
 	}
 	attempt, err := lifecycles.GetEffectAttempt(context.Background(), operationID)
@@ -466,7 +591,7 @@ func TestOutcomeUnknownPutStaysHiddenUntilAuthoritativeRejoinReconciliation(t *t
 		ID:  51,
 		URI: "at://did:plc:effect-rejoin/social.craftsky.actor.profile/self",
 		DID: owner, Collection: "social.craftsky.actor.profile", Rkey: "self",
-		Rev: "3m00000000051", CID: "bafy-rejoin-profile", Action: "create",
+		Rev: "3aaaaaaaaaaa4", CID: "bafy-rejoin-profile", Action: "create",
 		Record: json.RawMessage(`{"$type":"social.craftsky.actor.profile","displayName":"Rejoined"}`),
 	}
 	if outcome, err := service.IngestRecord(context.Background(), profile); err != nil || outcome.Kind != tap.OutcomeApplied {
@@ -600,7 +725,7 @@ func TestOutcomeUnknownOnboardingProfileSourceRetainsAttemptProvenance(t *testin
 
 	event := tap.Event{
 		ID: 60, URI: uri, DID: owner, Collection: collection, Rkey: rkey,
-		Rev: "3m00000000060", CID: "bafy-onboarding-profile",
+		Rev: "3aaaaaaaaaaa5", CID: "bafy-onboarding-profile",
 		Action: "create", Record: record,
 	}
 	if outcome, err := service.IngestRecord(context.Background(), event); err != nil ||
@@ -619,8 +744,8 @@ func TestOutcomeUnknownOnboardingProfileSourceRetainsAttemptProvenance(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	if source.EffectOperationID != operationID || source.OwnerGeneration == nil ||
-		*source.OwnerGeneration != departed.Generation || source.OrderingStatus != "uncertain" ||
+	if source.EffectOperationID != operationID || source.ProjectionGeneration == nil ||
+		*source.ProjectionGeneration != active.Generation || source.OrderingStatus != "uncertain" ||
 		source.ProjectionDisposition != "pending" || job.State != "blocked" ||
 		job.Dependency.Kind != "repository_did" {
 		t.Fatalf("read-gated onboarding source/job=%+v/%+v", source, job)
@@ -633,6 +758,28 @@ func TestOutcomeUnknownOnboardingProfileSourceRetainsAttemptProvenance(t *testin
 		attempt.ProjectionDisposition != ownerlifecycle.ProjectionHiddenNonActive ||
 		attempt.ResultCID != event.CID.String() || !attempt.RepeatForbidden {
 		t.Fatalf("onboarding source attempt=%+v", attempt)
+	}
+
+	outcome, err := service.ReconcileSource(context.Background(), ingestion.ReconciledSource{
+		URI: uri, DID: owner, ExpectedEventID: source.SourceEventID,
+		ExpectedFingerprint: source.SourceFingerprint, Revision: event.Rev,
+		CID: event.CID, Record: record, Present: true,
+	})
+	if err != nil || outcome.Kind != tap.OutcomeApplied {
+		t.Fatalf("authoritative onboarding reconciliation outcome=%+v err=%v", outcome, err)
+	}
+	source, err = store.Source(context.Background(), uri)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, err = store.ProjectionJob(context.Background(), uri)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if source.ProjectionGeneration == nil || *source.ProjectionGeneration != active.Generation ||
+		source.OrderingStatus != "authoritative" || source.ProjectionDisposition != "eligible" ||
+		job.State != "pending" {
+		t.Fatalf("authoritative onboarding source/job=%+v/%+v", source, job)
 	}
 }
 
@@ -687,7 +834,7 @@ func TestLiveCIDMismatchCannotBorrowAcceptedPutWithoutAuthoritativeRead(t *testi
 
 	event := tap.Event{
 		ID: 65, URI: uri, DID: owner, Collection: collection, Rkey: rkey,
-		Rev: "3m00000000065", CID: "bafy-current-rewrite",
+		Rev: "3aaaaaaaaaaa6", CID: "bafy-current-rewrite",
 		Action: "create", Record: record,
 	}
 	outcome, err := service.IngestRecord(context.Background(), event)
@@ -765,7 +912,7 @@ func TestAuthoritativeUserUpdateCannotExchangeAtoBtoAAttempts(t *testing.T) {
 
 	eventA := tap.Event{
 		ID: 70, URI: uri, DID: owner, Collection: collection, Rkey: rkey,
-		Rev: "3m00000000070", CID: "bafy-a", Action: "update", Record: recordA,
+		Rev: "3aaaaaaaaaaa7", CID: "bafy-a", Action: "update", Record: recordA,
 	}
 	if outcome, err := service.IngestRecord(context.Background(), eventA); err != nil ||
 		outcome.Kind != tap.OutcomeBlocked || outcome.Reason != tap.ReasonSourceOrderUncertain {
@@ -795,7 +942,7 @@ func TestAuthoritativeUserUpdateCannotExchangeAtoBtoAAttempts(t *testing.T) {
 
 	eventB := tap.Event{
 		ID: 71, URI: uri, DID: owner, Collection: collection, Rkey: rkey,
-		Rev: "3m00000000071", CID: "bafy-user-b", Action: "update", Record: recordB,
+		Rev: "3aaaaaaaaaaae", CID: "bafy-user-b", Action: "update", Record: recordB,
 	}
 	if outcome, err := service.IngestRecord(context.Background(), eventB); err != nil ||
 		outcome.Kind != tap.OutcomeBlocked || outcome.Reason != tap.ReasonSourceOrderUncertain {
@@ -822,8 +969,8 @@ func TestAuthoritativeUserUpdateCannotExchangeAtoBtoAAttempts(t *testing.T) {
 		t.Fatal(err)
 	}
 	if sourceB.EffectOperationID != "" || sourceB.ProjectionDisposition != "eligible" ||
-		sourceB.OrderingStatus != "authoritative" || sourceB.OwnerGeneration == nil ||
-		*sourceB.OwnerGeneration != active.Generation {
+		sourceB.OrderingStatus != "authoritative" || sourceB.ProjectionGeneration == nil ||
+		*sourceB.ProjectionGeneration != active.Generation {
 		t.Fatalf("authoritative user B source=%+v", sourceB)
 	}
 	for _, operationID := range []string{"aba-a1", "aba-b1", "aba-a2"} {

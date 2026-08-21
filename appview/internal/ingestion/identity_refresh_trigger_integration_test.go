@@ -119,6 +119,15 @@ func TestOrdinaryIdentityReceiptAndImmediateRefreshTriggerCommitAtomicallyAndRed
 		}
 		assertIdentityRefreshState(t, pool, owner, 701, "pending", 0, now)
 		assertIdentityReceiptCount(t, pool, 2)
+
+		reset := newer
+		reset.ID = 1
+		reset.Handle = "after-reset.example"
+		if outcome, err := service.IngestIdentity(ctx, reset); err != nil || outcome.Kind != tap.OutcomeApplied {
+			t.Fatalf("identity after Tap reset outcome=%+v err=%v", outcome, err)
+		}
+		assertIdentityRefreshState(t, pool, owner, 1, "pending", 0, now)
+		assertIdentityReceiptCount(t, pool, 3)
 	})
 }
 

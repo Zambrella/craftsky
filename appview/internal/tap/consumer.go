@@ -43,7 +43,7 @@ type Event struct {
 	Record     json.RawMessage  // opaque JSON; nil or empty on Action == "delete"
 	Live       bool             // false during backfill, true for steady-state
 	ID         uint64           // Tap's per-event "id" field from the envelope
-	Rev        string           // repo rev at time of event
+	Rev        syntax.TID       // repository commit TID at time of event
 }
 
 // Consumer is the interface the appview uses to consume events from Tap.
@@ -561,8 +561,9 @@ func (c *WSConsumer) finishTapSpan(span *observability.Span, result string, attr
 // CID well-formedness; that's the codec's job.
 func decodeRecordEvent(env envelope) (Event, ReasonCode, error) {
 	rec := env.Record
-	if rec.Rev == "" || rec.Rev != strings.TrimSpace(rec.Rev) || len(rec.Rev) > maxTapRevisionLen {
-		return Event{}, ReasonInvalidEnvelope, errors.New("repository revision is missing or invalid")
+	revision, err := syntax.ParseTID(rec.Rev)
+	if err != nil {
+		return Event{}, ReasonInvalidEnvelope, fmt.Errorf("repository revision %q: %w", rec.Rev, err)
 	}
 	did, err := syntax.ParseDID(rec.DID)
 	if err != nil {
@@ -601,7 +602,7 @@ func decodeRecordEvent(env envelope) (Event, ReasonCode, error) {
 		Record:     rec.Record,
 		Live:       rec.Live,
 		ID:         env.ID,
-		Rev:        rec.Rev,
+		Rev:        revision,
 	}, ReasonNone, nil
 }
 

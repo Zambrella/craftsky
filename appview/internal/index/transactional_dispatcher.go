@@ -125,7 +125,7 @@ func projectionLifecycleReady(
 	if actor.State == ownerlifecycle.StateTerminal {
 		return tap.PermanentInvalid(tap.ReasonOwnerTerminal), false, false
 	}
-	if source.OwnerGeneration == nil || actor.Generation != *source.OwnerGeneration {
+	if source.ProjectionGeneration == nil || actor.Generation != *source.ProjectionGeneration {
 		return tap.Blocked(tap.ReasonSourceOrderUncertain, tap.Dependency{Kind: "repository_did", Key: source.DID.String()}), false, false
 	}
 	// A current-generation delete is cleanup and remains valid after the

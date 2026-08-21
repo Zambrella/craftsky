@@ -1,4 +1,100 @@
-# Implementation Review: AppView Code-Audit Remediation
+# Implementation Review: Lifecycle Ingestion Reset Safety
+
+## Verdict
+
+Status: Changes required
+Reviewer: Codex
+Date: 2026-08-21
+Risk level: High
+
+## Summary
+
+The Tap-reset correction fixes the observed profile lifecycle failure: record
+winner selection no longer treats Tap's database-local event ID as a durable
+repository order, and eligible effect-backed sources now carry the current
+lifecycle generation. The focused ingestion, Tap, and database suites pass.
+
+The review found two remaining source-winner correctness gaps. Repository
+revisions are compared as arbitrary strings without first proving that they are
+sortable AT Protocol TIDs, and the new duplicate test ignores record bytes even
+though the incoming CID is not validated. Either condition can cause a delivery
+to be ACKed while retaining the wrong source. Identity refresh scheduling also
+still assumes Tap event IDs remain monotonic across a Tap reset. These should be
+fixed before treating reset recovery as complete.
+
+The main simplification opportunity is to stop making one
+`owner_generation` column mean both effect-attempt provenance and current
+projection authority. Effect provenance already has a stable operation ID;
+projection authority should have a separately named, consistently current
+generation. A shared source-version classifier can then replace the duplicated
+generic/profile comparison branches.
+
+## Findings
+
+| ID | Severity | Area | Finding | References | Required Action |
+|---|---|---|---|---|---|
+| IR-004 | Important | Behavior | Source ordering now depends on lexical revision comparison, but the WebSocket boundary accepts any non-blank string up to 128 bytes and `tap.Event.Rev` remains an untyped `string`. A malformed high-sorting value can become the durable winner and make all later valid TID revisions look stale. | AV-004/AV-005 source CAS contract; `appview/internal/tap/consumer.go:36-46,562-566`; `appview/internal/ingestion/store.go:128-150`; `appview/internal/ingestion/service.go:312-333` | Parse the revision with `syntax.ParseTID` at the Tap boundary, carry `syntax.TID` internally, and defensively reject invalid revisions in the durable ingestor. Add invalid-revision and valid-TID ordering tests. |
+| IR-005 | Important | Behavior | A delivery is considered the same durable source when revision, action, and CID match, even if its record bytes differ. Because CID is only a passthrough string, an upstream defect or malformed event can be ACKed as a duplicate while the retained source and projection contain different content. The existing stored fingerprint cannot close this gap because it includes Tap event ID. | AV-004 duplicate/idempotency contract; `appview/internal/ingestion/store.go:137-148,436-449`; `appview/internal/ingestion/service.go:319-330`; `appview/internal/tap/consumer.go:556-561` | Introduce a canonical repository-source fingerprint that excludes Tap event ID and includes URI, revision, action, CID, and record bytes; use it for duplicate/conflict classification. Keep a separate delivery fingerprint for receipts. Validate canonical CIDs at the network boundary or otherwise make the content fingerprint authoritative. Add same-tuple/different-body regressions for profile and ordinary records. |
+| IR-006 | Important | Behavior | Ordinary identity refresh scheduling still uses a greater-than comparison on Tap event ID. If retained state is retrying event 700 and a rebuilt Tap emits the current identity as event 1, the new delivery gets a receipt but does not move the refresh forward, so authoritative identity convergence waits for the old retry schedule. | Reset-safety rationale in `05-implementation-plan.md`; `appview/internal/ingestion/store.go:504-516`; `appview/internal/ingestion/identity_refresh_trigger_integration_test.go:69-121` | Replace Tap event ID as the identity refresh version fence with a reset-safe database-owned token or Tap-instance epoch plus event ID. Preserve the in-flight-finalization CAS using that token and add a lower-ID-after-reset regression. |
+| IR-007 | Suggestion | Code Quality | Migration 56 documents `tap_source_records.owner_generation` as current projection authority, but ingestion still stores the historical effect-attempt generation for non-eligible dispositions, and rejoin preparation relies on equality with that historical value. The column therefore remains conditionally overloaded, making future lifecycle changes easy to get wrong. | `appview/migrations/000056_tap_source_projection_generation.up.sql:10-22`; `appview/internal/ingestion/store.go:205-224,318-338`; `appview/internal/ingestion/service.go:390-405` | Rename/split the field as `projection_generation` and make it consistently represent the lifecycle generation used by projection checks. Treat `effect_operation_id` as provenance and obtain the attempt's historical generation through that relation. This also makes the new composite owner constraint easier to reassess. |
+| IR-008 | Important | Tests | Migration 56 has no dedicated data migration or up/down/up regression. The full migration suite proves that the migration files execute in sequence, but does not assert the generation backfill, FK ownership, blocked-job wake, or rollback restoration that this fix depends on. | `appview/migrations/000056_tap_source_projection_generation.{up,down}.sql`; `appview/internal/db/tap_ingestion_migration_test.go:13-43` | Add a migration-56 integration test seeded with an old-generation eligible effect source and blocked job. Assert up migration ownership/backfill/wake behavior, down restoration, and a second up. |
+| IR-009 | Suggestion | Code Quality | Generic ingestion and profile ingestion implement nearly identical source comparison, durable-source construction, effect classification, source upsert, and job upsert logic; reconciliation contains a third variant. The reset fix already had to be applied in three places, which is a strong signal that the invariant lacks one owner. | `appview/internal/ingestion/store.go:125-315`; `appview/internal/ingestion/service.go:307-470`; `appview/internal/ingestion/reconciliation.go:215-329` | Extract a pure source-version comparator and one transaction-scoped source/job installation routine. Keep only lifecycle-transition orchestration in the profile service and authoritative-read orchestration in reconciliation. |
+
+## Requirement And Test Traceability
+
+- Requirements implemented: lower Tap event IDs no longer lose against newer
+  repository revisions; lower repository revisions remain stale; equal durable
+  tuples delivered under a new Tap ID are treated idempotently; eligible
+  effect-backed sources are assigned the current lifecycle generation.
+- Tests implemented: the profile lifecycle test covers newer-revision/lower-ID,
+  same-tuple/new-ID, and older-revision/higher-ID cases; the effect reconciliation
+  test covers current-generation promotion after authoritative reconciliation.
+- Unplanned behavior: none identified.
+- Remaining gaps: revision syntax/order validation, content-sensitive durable
+  duplicate identity, reset-safe ordinary identity scheduling, and direct
+  migration-56 data/rollback coverage.
+
+## Test Evidence
+
+- Command reviewed and rerun:
+  `TEST_DATABASE_URL='postgres://craftsky:dev@127.0.0.1:15747/craftsky_dev?sslmode=disable' TEST_DATABASE_REQUIRED=true go test ./internal/ingestion ./internal/tap ./internal/db -count=1`.
+- Passing evidence: all three packages passed against the running local
+  PostgreSQL container after rerunning outside the filesystem/network sandbox.
+- Failing or skipped tests: the first sandboxed run could not connect to local
+  PostgreSQL or bind local test listeners (`operation not permitted`); this was
+  an environment restriction, and the authorized rerun passed. No full
+  repository gate was rerun for this read-only follow-up review.
+
+## Risk Review
+
+- Risk level: High.
+- Risk notes: profile lifecycle transitions are an authorization boundary, and
+  malformed winner classification can reactivate or depart an owner incorrectly.
+  The current patch fixes the concrete reset incident but does not yet validate
+  every value on which its new ordering and duplicate decisions depend.
+- Approval notes: retain the successful recovery and migration work, but address
+  IR-004 through IR-006 and IR-008 before merge or handoff. IR-007 and IR-009 are
+  the recommended simplification direction and can be combined with that pass.
+
+## UI Polish Recommendation
+
+- Recommendation: Not needed.
+- Reason: this change has no user-interface surface.
+- Suggested polish notes: None.
+
+## Handoff Back To TDD Builder
+
+- Required fixes: IR-004, IR-005, IR-006, and IR-008.
+- Suggested next failing test: first add a profile source event with a valid
+  current TID followed by an invalid lexically larger revision and prove the
+  invalid delivery cannot alter source or lifecycle; then add the same
+  revision/CID/action with different record bytes and prove it is not accepted
+  as a duplicate.
+- Verification to rerun: focused new regressions, migration-56 up/down/up,
+  `go test ./internal/ingestion ./internal/tap ./internal/db -count=1`, and the
+  full required-database repository gate.
+
+# Previous Review Snapshot: AppView Code-Audit Remediation
 
 ## Verdict
 

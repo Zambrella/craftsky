@@ -49,6 +49,7 @@ CREATE TABLE atproto_identity_refresh_state (
 	attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
 	last_result TEXT NOT NULL CHECK (last_result IN ('pending','retry')),
 	tap_event_id BIGINT CHECK (tap_event_id > 0),
+	refresh_version BIGINT NOT NULL DEFAULT 1 CHECK (refresh_version > 0),
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 `

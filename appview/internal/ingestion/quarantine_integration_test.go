@@ -79,7 +79,7 @@ func TestOversizedQuarantineReplayPreservesExactWireEnvelopeAcrossRestart(t *tes
 	applyTapDurabilityMigration(t, pool)
 	ctx := context.Background()
 
-	wireEnvelope := append([]byte(`{"id":181,"type":"record","record":{"live":true,"rev":"3m00000000181","did":"did:plc:quarantine-replay","collection":"social.craftsky.feed.post","rkey":"large","action":"create","cid":"bafy-quarantine-replay","record":{"text":"`), bytes.Repeat([]byte("x"), 70_000)...)
+	wireEnvelope := append([]byte(`{"id":181,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:quarantine-replay","collection":"social.craftsky.feed.post","rkey":"large","action":"create","cid":"bafy-quarantine-replay","record":{"text":"`), bytes.Repeat([]byte("x"), 70_000)...)
 	wireEnvelope = append(wireEnvelope, []byte(`","createdAt":"2026-08-20T12:00:00Z"}}}`)...)
 	if len(wireEnvelope) <= 64<<10 {
 		t.Fatalf("wire envelope bytes=%d, want oversized diagnostic evidence", len(wireEnvelope))
@@ -201,7 +201,7 @@ func TestOversizedInvalidQuarantineReplayPreservesExactWireEnvelope(t *testing.T
 		t.Fatalf("new ingestion store: %v", err)
 	}
 	ctx := context.Background()
-	wireEnvelope := append([]byte(`{"id":183,"type":"record","record":{"live":true,"rev":"3m00000000183","did":"did:plc:quarantine-replay","collection":"invalid collection","rkey":"large-invalid","action":"create","cid":"bafy-quarantine-invalid","record":{"text":"`), bytes.Repeat([]byte("y"), 70_000)...)
+	wireEnvelope := append([]byte(`{"id":183,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa3","did":"did:plc:quarantine-replay","collection":"invalid collection","rkey":"large-invalid","action":"create","cid":"bafy-quarantine-invalid","record":{"text":"`), bytes.Repeat([]byte("y"), 70_000)...)
 	wireEnvelope = append(wireEnvelope, []byte(`"}}}`)...)
 	if len(wireEnvelope) <= 64<<10 {
 		t.Fatalf("wire envelope bytes=%d, want oversized diagnostic evidence", len(wireEnvelope))
@@ -346,7 +346,7 @@ func TestReplayEnvelopeRequeuesCurrentPermanentlyDeniedSource(t *testing.T) {
 	if _, err := store.IngestRecord(ctx, tap.Event{
 		ID: 92, URI: "at://did:plc:replay-source/social.craftsky.actor.profile/self",
 		DID: "did:plc:replay-source", Collection: "social.craftsky.actor.profile", Rkey: "self",
-		Rev: "3mreplay-source", CID: "bafy-replay-source", Action: "create",
+		Rev: "3aaaaaaaaaaa2", CID: "bafy-replay-source", Action: "create",
 		Record: []byte(`{"crafts":["sewing"]}`),
 	}); err != nil {
 		t.Fatalf("ingest source: %v", err)

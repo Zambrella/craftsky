@@ -27,6 +27,13 @@ func TestProjectionActorFencePrecedesSourceRowLock(t *testing.T) {
 	if _, err := pool.Exec(ctx, string(migration)); err != nil {
 		t.Fatalf("apply Tap durability migration: %v", err)
 	}
+	renameMigration, err := os.ReadFile("../../migrations/000058_tap_projection_generation_column.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, string(renameMigration)); err != nil {
+		t.Fatalf("apply Tap projection generation migration: %v", err)
+	}
 	store, err := NewStore(pool, time.Now)
 	if err != nil {
 		t.Fatal(err)
@@ -35,7 +42,7 @@ func TestProjectionActorFencePrecedesSourceRowLock(t *testing.T) {
 	uri := syntax.ATURI("at://did:plc:projection-lock-order/social.craftsky.actor.profile/self")
 	if _, err := store.IngestRecord(ctx, tap.Event{
 		ID: 1, URI: uri, DID: actor, Collection: "social.craftsky.actor.profile", Rkey: "self",
-		Rev: "3m00000000001", CID: "bafy-lock-order", Action: "create",
+		Rev: "3aaaaaaaaaaa2", CID: "bafy-lock-order", Action: "create",
 		Record: json.RawMessage(`{"crafts":["sewing"]}`),
 	}); err != nil {
 		t.Fatalf("ingest source: %v", err)
@@ -49,7 +56,7 @@ func TestProjectionActorFencePrecedesSourceRowLock(t *testing.T) {
 		t.Fatalf("seed lifecycle authority: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		UPDATE tap_source_records SET owner_generation=1 WHERE uri=$1
+		UPDATE tap_source_records SET projection_generation=1 WHERE uri=$1
 	`, uri); err != nil {
 		t.Fatalf("bind source lifecycle generation: %v", err)
 	}

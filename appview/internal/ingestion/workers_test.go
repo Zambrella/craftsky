@@ -57,7 +57,7 @@ func TestProjectionWorkerCompletesDurableSourceAndServingMutation(t *testing.T) 
 	if _, err := store.IngestRecord(ctx, tap.Event{
 		ID: 101, URI: uri,
 		DID: "did:plc:worker", Collection: "social.craftsky.actor.profile", Rkey: "self",
-		Rev: "3m00000000101", CID: "bafy-worker", Action: "create",
+		Rev: "3aaaaaaaaaaa2", CID: "bafy-worker", Action: "create",
 		Record: json.RawMessage(`{"crafts":["sewing"]}`),
 	}); err != nil {
 		t.Fatalf("ingest source: %v", err)

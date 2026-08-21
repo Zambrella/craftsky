@@ -11,7 +11,7 @@ func TestReplayEnvelopeReclassifiesWithoutAcknowledgingOrRequarantining(t *testi
 	ingestor := &replayIngestor{}
 	outcome, err := tap.ReplayEnvelope(context.Background(), []byte(`{
 		"id":71,"type":"record","record":{
-			"live":true,"rev":"3mreplay","did":"did:plc:replay",
+			"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:replay",
 			"collection":"social.craftsky.feed.post","rkey":"one",
 			"action":"create","cid":"bafy-replay","record":{"text":"fixed"}
 		}
@@ -28,7 +28,7 @@ func TestReplayEnvelopeLeavesStillInvalidInputPending(t *testing.T) {
 	ingestor := &replayIngestor{}
 	outcome, err := tap.ReplayEnvelope(context.Background(), []byte(`{
 		"id":72,"type":"record","record":{
-			"live":true,"rev":"3mreplay","did":"not-a-did",
+			"live":true,"rev":"3aaaaaaaaaaa2","did":"not-a-did",
 			"collection":"social.craftsky.feed.post","rkey":"one",
 			"action":"create","cid":"bafy-replay","record":{"text":"fixed"}
 		}

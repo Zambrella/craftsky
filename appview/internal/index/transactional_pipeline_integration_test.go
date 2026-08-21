@@ -24,6 +24,13 @@ func TestTransactionalPipelineRollsBackServingMutationWhenJobCompletionFails(t *
 	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
 		t.Fatalf("apply Tap durability migration: %v", err)
 	}
+	renameMigration, err := os.ReadFile("../../migrations/000058_tap_projection_generation_column.up.sql")
+	if err != nil {
+		t.Fatalf("read Tap projection generation migration: %v", err)
+	}
+	if _, err := pool.Exec(context.Background(), string(renameMigration)); err != nil {
+		t.Fatalf("apply Tap projection generation migration: %v", err)
+	}
 	if _, err := pool.Exec(context.Background(), `
 		CREATE TABLE owner_lifecycles (
 			owner_did TEXT PRIMARY KEY,
@@ -48,7 +55,7 @@ func TestTransactionalPipelineRollsBackServingMutationWhenJobCompletionFails(t *
 	event := tap.Event{
 		ID: 70, URI: "at://did:plc:atomic/social.craftsky.actor.profile/self",
 		DID: "did:plc:atomic", Collection: "social.craftsky.actor.profile", Rkey: "self",
-		Rev: "3m00000000070", CID: "bafy-atomic", Action: "create",
+		Rev: "3aaaaaaaaaaa2", CID: "bafy-atomic", Action: "create",
 		Record: json.RawMessage(`{"crafts":["sewing"]}`),
 	}
 	if _, err := store.IngestRecord(ctx, event); err != nil {
@@ -63,7 +70,7 @@ func TestTransactionalPipelineRollsBackServingMutationWhenJobCompletionFails(t *
 		t.Fatalf("seed source lifecycle authority: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		UPDATE tap_source_records SET owner_generation=1 WHERE uri=$1
+		UPDATE tap_source_records SET projection_generation=1 WHERE uri=$1
 	`, event.URI); err != nil {
 		t.Fatalf("bind source lifecycle generation: %v", err)
 	}

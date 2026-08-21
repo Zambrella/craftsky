@@ -95,7 +95,7 @@ func TestCommitBeforeAckDisconnectRedeliveryIsIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new ingestion store: %v", err)
 	}
-	frame := `{"id":401,"type":"record","record":{"live":true,"rev":"3m00000000401","did":"did:plc:crash","collection":"social.craftsky.actor.profile","rkey":"self","action":"create","cid":"bafy-crash","record":{"crafts":["sewing"]}}}`
+	frame := `{"id":401,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:crash","collection":"social.craftsky.actor.profile","rkey":"self","action":"create","cid":"bafy-crash","record":{"crafts":["sewing"]}}}`
 	committed := make(chan struct{})
 	dropped := make(chan struct{})
 	acks := make(chan uint64, 1)
@@ -172,7 +172,7 @@ func TestOversizedInvalidEnvelopeCommitsExactReplayPayloadBeforeAck(t *testing.T
 	if err != nil {
 		t.Fatalf("new ingestion store: %v", err)
 	}
-	wireEnvelope := append([]byte(`{"id":402,"type":"record","record":{"live":true,"rev":"3m00000000402","did":"did:plc:ack-quarantine","collection":"invalid collection","rkey":"oversized","action":"create","cid":"bafy-ack-quarantine","record":{"text":"`), bytes.Repeat([]byte("z"), 70_000)...)
+	wireEnvelope := append([]byte(`{"id":402,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa3","did":"did:plc:ack-quarantine","collection":"invalid collection","rkey":"oversized","action":"create","cid":"bafy-ack-quarantine","record":{"text":"`), bytes.Repeat([]byte("z"), 70_000)...)
 	wireEnvelope = append(wireEnvelope, []byte(`"}}}`)...)
 	if len(wireEnvelope) <= 64<<10 {
 		t.Fatalf("wire envelope bytes=%d, want oversized frame", len(wireEnvelope))

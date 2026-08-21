@@ -51,7 +51,7 @@ func TestHistoricalSourcesConvergeWhenDependenciesArriveLater(t *testing.T) {
 
 	postOutcome, err := store.IngestRecord(ctx, tap.Event{
 		ID: 1, URI: postURI, DID: actor, Collection: "social.craftsky.feed.post",
-		Rkey: "post-one", Rev: "3m00000000001", CID: "bafy-post", Action: "create",
+		Rkey: "post-one", Rev: "3aaaaaaaaaaa2", CID: "bafy-post", Action: "create",
 		Record: json.RawMessage(`{"text":"post","createdAt":"2026-08-14T12:00:00Z"}`),
 	})
 	if err != nil {
@@ -63,7 +63,7 @@ func TestHistoricalSourcesConvergeWhenDependenciesArriveLater(t *testing.T) {
 	profileURI := syntax.ATURI("at://did:plc:alice/social.craftsky.actor.profile/self")
 	profileOutcome, err := store.IngestRecord(ctx, tap.Event{
 		ID: 2, URI: profileURI, DID: actor, Collection: "social.craftsky.actor.profile",
-		Rkey: "self", Rev: "3m00000000002", CID: "bafy-profile", Action: "create",
+		Rkey: "self", Rev: "3aaaaaaaaaaa3", CID: "bafy-profile", Action: "create",
 		Record: json.RawMessage(`{"crafts":["sewing"]}`),
 	})
 	if err != nil || profileOutcome.Kind != tap.OutcomeApplied {
@@ -94,7 +94,7 @@ func TestHistoricalSourcesConvergeWhenDependenciesArriveLater(t *testing.T) {
 	likeURI := syntax.ATURI("at://did:plc:alice/social.craftsky.feed.like/like-one")
 	likeOutcome, err := store.IngestRecord(ctx, tap.Event{
 		ID: 3, URI: likeURI, DID: actor, Collection: "social.craftsky.feed.like",
-		Rkey: "like-one", Rev: "3m00000000003", CID: "bafy-like", Action: "create",
+		Rkey: "like-one", Rev: "3aaaaaaaaaaa4", CID: "bafy-like", Action: "create",
 		Record: json.RawMessage(`{"subject":{"uri":"at://did:plc:bob/social.craftsky.feed.post/subject","cid":"bafy-subject"},"createdAt":"2026-08-14T12:01:00Z"}`),
 	})
 	if err != nil {
@@ -154,14 +154,13 @@ func TestConflictingSameTapIDCommitsUncertaintyAndRepositoryReconciliation(t *te
 	uri := syntax.ATURI("at://did:plc:alice/social.craftsky.feed.post/post-one")
 	first := tap.Event{
 		ID: 10, URI: uri, DID: actor, Collection: "social.craftsky.feed.post",
-		Rkey: "post-one", Rev: "3m00000000010", CID: "bafy-first", Action: "create",
+		Rkey: "post-one", Rev: "3aaaaaaaaaaa5", CID: "bafy-first", Action: "create",
 		Record: json.RawMessage(`{"text":"first","createdAt":"2026-08-14T12:00:00Z"}`),
 	}
 	if _, err := store.IngestRecord(ctx, first); err != nil {
 		t.Fatalf("ingest first source: %v", err)
 	}
 	conflict := first
-	conflict.CID = "bafy-conflict"
 	conflict.Record = json.RawMessage(`{"text":"conflict","createdAt":"2026-08-14T12:00:00Z"}`)
 	outcome, err := store.IngestRecord(ctx, conflict)
 	if err != nil {
@@ -207,7 +206,7 @@ func TestConflictingSameTapIDDoesNotAckWithoutItsProjectionJob(t *testing.T) {
 	uri := syntax.ATURI("at://did:plc:alice/social.craftsky.feed.post/missing-job")
 	first := tap.Event{
 		ID: 11, URI: uri, DID: actor, Collection: "social.craftsky.feed.post",
-		Rkey: "missing-job", Rev: "3m00000000011", CID: "bafy-first", Action: "create",
+		Rkey: "missing-job", Rev: "3aaaaaaaaaaa6", CID: "bafy-first", Action: "create",
 		Record: json.RawMessage(`{"text":"first","createdAt":"2026-08-14T12:00:00Z"}`),
 	}
 	if _, err := store.IngestRecord(ctx, first); err != nil {
@@ -241,7 +240,7 @@ func TestPermanentProjectionDefectIsQuarantinedInTheJobTransaction(t *testing.T)
 	uri := syntax.ATURI("at://did:plc:invalid/social.craftsky.actor.profile/self")
 	if _, err := store.IngestRecord(ctx, tap.Event{
 		ID: 50, URI: uri, DID: "did:plc:invalid", Collection: "social.craftsky.actor.profile",
-		Rkey: "self", Rev: "3m00000000050", CID: "bafy-invalid", Action: "create",
+		Rkey: "self", Rev: "3aaaaaaaaaaa7", CID: "bafy-invalid", Action: "create",
 		Record: json.RawMessage(`{"crafts":"not-an-array"}`),
 	}); err != nil {
 		t.Fatalf("ingest syntactically valid source: %v", err)
@@ -287,7 +286,7 @@ func TestMaximumSizedSourcePermanentProjectionQuarantineCommits(t *testing.T) {
 	uri := syntax.ATURI("at://did:plc:max-quarantine/social.craftsky.actor.profile/self")
 	if _, err := store.IngestRecord(ctx, tap.Event{
 		ID: 53, URI: uri, DID: "did:plc:max-quarantine", Collection: "social.craftsky.actor.profile",
-		Rkey: "self", Rev: "3m00000000053", CID: "bafy-max-quarantine", Action: "create",
+		Rkey: "self", Rev: "3aaaaaaaaaaab", CID: "bafy-max-quarantine", Action: "create",
 		Record: record,
 	}); err != nil {
 		t.Fatalf("ingest maximum syntactically valid source: %v", err)
@@ -368,7 +367,7 @@ func TestJSONBExpandedSourcePermanentProjectionQuarantineCommits(t *testing.T) {
 	uri := syntax.ATURI("at://did:plc:jsonb-expanded-quarantine/social.craftsky.actor.profile/self")
 	if _, err := store.IngestRecord(ctx, tap.Event{
 		ID: 54, URI: uri, DID: "did:plc:jsonb-expanded-quarantine", Collection: "social.craftsky.actor.profile",
-		Rkey: "self", Rev: "3m00000000054", CID: "bafy-jsonb-expanded-quarantine", Action: "create",
+		Rkey: "self", Rev: "3aaaaaaaaaaac", CID: "bafy-jsonb-expanded-quarantine", Action: "create",
 		Record: rawRecord,
 	}); err != nil {
 		t.Fatalf("ingest compact source: %v", err)
@@ -417,7 +416,7 @@ func TestEscapedNULSourceReachesPermanentProjectionClassification(t *testing.T) 
 	uri := syntax.ATURI("at://did:plc:escaped-nul-quarantine/social.craftsky.actor.profile/self")
 	if _, err := store.IngestRecord(ctx, tap.Event{
 		ID: 55, URI: uri, DID: "did:plc:escaped-nul-quarantine", Collection: "social.craftsky.actor.profile",
-		Rkey: "self", Rev: "3m00000000055", CID: "bafy-escaped-nul-quarantine", Action: "create",
+		Rkey: "self", Rev: "3aaaaaaaaaaad", CID: "bafy-escaped-nul-quarantine", Action: "create",
 		Record: rawRecord,
 	}); err != nil {
 		t.Fatalf("ingest syntactically valid escaped-NUL source: %v", err)
@@ -449,7 +448,7 @@ func TestMalformedInteractionIsPersistedBeforeProjectionClassification(t *testin
 	uri := syntax.ATURI("at://did:plc:alice/social.craftsky.feed.like/malformed")
 	outcome, err := store.IngestRecord(ctx, tap.Event{
 		ID: 51, URI: uri, DID: actor, Collection: "social.craftsky.feed.like",
-		Rkey: "malformed", Rev: "3m00000000051", CID: "bafy-invalid", Action: "create",
+		Rkey: "malformed", Rev: "3aaaaaaaaaaae", CID: "bafy-invalid", Action: "create",
 		Record: json.RawMessage(`{"createdAt":"2026-08-14T12:00:00Z"}`),
 	})
 	if err != nil || outcome.Kind != tap.OutcomeApplied {
@@ -495,7 +494,7 @@ func TestSourceLimitUsesWireBytesRatherThanExpandedJSONBText(t *testing.T) {
 	outcome, err := store.IngestRecord(ctx, tap.Event{
 		ID: 52, URI: "at://did:plc:json-size/social.craftsky.feed.post/large-json",
 		DID: owner, Collection: "social.craftsky.feed.post", Rkey: "large-json",
-		Rev: "3m00000000052", CID: "bafy-large-json", Action: "create", Record: record,
+		Rev: "3aaaaaaaaaaaf", CID: "bafy-large-json", Action: "create", Record: record,
 	})
 	if err != nil || outcome.Kind != tap.OutcomeApplied {
 		t.Fatalf("ingest wire-bounded expanded JSON outcome=%+v err=%v", outcome, err)
@@ -509,6 +508,7 @@ func applyTapDurabilityMigration(t *testing.T, pool interface {
 	for _, path := range []string{
 		"../../migrations/000045_tap_ingestion_durability.up.sql",
 		"../../migrations/000051_tap_quarantine_replay_payload.up.sql",
+		"../../migrations/000058_tap_projection_generation_column.up.sql",
 	} {
 		sql, err := os.ReadFile(path)
 		if err != nil {

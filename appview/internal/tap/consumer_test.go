@@ -240,9 +240,9 @@ func TestWSConsumer_HappyPath(t *testing.T) {
 	t.Parallel()
 
 	frames := []string{
-		`{"id":1,"type":"record","record":{"live":true,"rev":"r1","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k1","action":"create","cid":"bafy1","record":{"text":"hi"}}}`,
-		`{"id":2,"type":"record","record":{"live":true,"rev":"r2","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k2","action":"create","cid":"bafy2","record":{"text":"hey"}}}`,
-		`{"id":3,"type":"record","record":{"live":false,"rev":"r3","did":"did:plc:b","collection":"app.bsky.feed.post","rkey":"k3","action":"delete","cid":"bafy3"}}`,
+		`{"id":1,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k1","action":"create","cid":"bafy1","record":{"text":"hi"}}}`,
+		`{"id":2,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa3","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k2","action":"create","cid":"bafy2","record":{"text":"hey"}}}`,
+		`{"id":3,"type":"record","record":{"live":false,"rev":"3aaaaaaaaaaa4","did":"did:plc:b","collection":"app.bsky.feed.post","rkey":"k3","action":"delete","cid":"bafy3"}}`,
 	}
 	ft := newFakeTap(frames)
 	srv := httptest.NewServer(ft.handler(t))
@@ -367,7 +367,7 @@ func TestWSConsumer_RetryableIngestionErrorDoesNotAck(t *testing.T) {
 	t.Parallel()
 
 	frames := []string{
-		`{"id":42,"type":"record","record":{"live":true,"rev":"r","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k","action":"create","cid":"bafy","record":{"text":"x"}}}`,
+		`{"id":42,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k","action":"create","cid":"bafy","record":{"text":"x"}}}`,
 	}
 	ft := newFakeTap(frames)
 	srv := httptest.NewServer(ft.handler(t))
@@ -446,7 +446,7 @@ func TestWSConsumer_RetryableFailureNeverBecomesTerminalAck(t *testing.T) {
 	// Tap redelivers the same event id until AppView acks a durable outcome.
 	// Delivery count is not consumer state: even a long infrastructure outage
 	// must never turn a retryable failure into a terminal acknowledgement.
-	sameFrame := `{"id":99,"type":"record","record":{"live":true,"rev":"r","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k","action":"create","cid":"bafy","record":{"text":"x"}}}`
+	sameFrame := `{"id":99,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k","action":"create","cid":"bafy","record":{"text":"x"}}}`
 	frames := []string{sameFrame, sameFrame, sameFrame, sameFrame, sameFrame, sameFrame, sameFrame, sameFrame}
 	ft := newFakeTap(frames)
 	srv := httptest.NewServer(ft.handler(t))
@@ -484,7 +484,7 @@ func TestWSConsumer_RetryableFailureNeverBecomesTerminalAck(t *testing.T) {
 func TestWSConsumer_RetryableFailureBeyondFormerLimitEventuallyAcksDurableSuccess(t *testing.T) {
 	t.Parallel()
 
-	sameFrame := `{"id":100,"type":"record","record":{"live":true,"rev":"r","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k","action":"create","cid":"bafy","record":{"text":"x"}}}`
+	sameFrame := `{"id":100,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k","action":"create","cid":"bafy","record":{"text":"x"}}}`
 	frames := []string{sameFrame, sameFrame, sameFrame, sameFrame, sameFrame, sameFrame, sameFrame, sameFrame}
 	ft := newFakeTap(frames)
 	srv := httptest.NewServer(ft.handler(t))
@@ -558,9 +558,9 @@ func TestWSConsumer_EmitsTapMetricsAndCapturesIndexerErrors(t *testing.T) {
 	t.Parallel()
 
 	frames := []string{
-		`{"id":1,"type":"record","record":{"live":true,"rev":"r1","did":"did:plc:a","collection":"social.craftsky.feed.post","rkey":"k1","action":"create","cid":"bafy1","record":{"text":"hi"}}}`,
-		`{"id":2,"type":"record","record":{"live":true,"rev":"r2","did":"did:plc:a","collection":"social.craftsky.feed.like","rkey":"k2","action":"create","cid":"bafy2","record":{"subject":"x"}}}`,
-		`{"id":3,"type":"record","record":{"live":true,"rev":"r3","did":"did:plc:a","collection":"not-an-nsid!","rkey":"k3","action":"create","cid":"bafy3","record":{"text":"bad"}}}`,
+		`{"id":1,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:a","collection":"social.craftsky.feed.post","rkey":"k1","action":"create","cid":"bafy1","record":{"text":"hi"}}}`,
+		`{"id":2,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa3","did":"did:plc:a","collection":"social.craftsky.feed.like","rkey":"k2","action":"create","cid":"bafy2","record":{"subject":"x"}}}`,
+		`{"id":3,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa4","did":"did:plc:a","collection":"not-an-nsid!","rkey":"k3","action":"create","cid":"bafy3","record":{"text":"bad"}}}`,
 		`{"id":4,"type":"identity","identity":{"did":"did:plc:a"}}`,
 	}
 	ft := newFakeTap(frames)
@@ -647,7 +647,7 @@ func TestWSConsumer_ExportsSentryConsumeAndIndexerSpans(t *testing.T) {
 	t.Parallel()
 
 	frames := []string{
-		`{"id":11,"type":"record","record":{"live":true,"rev":"r1","did":"did:plc:alice","collection":"social.craftsky.feed.post","rkey":"post1","action":"create","cid":"bafyPost","record":{"text":"secret body"}}}`,
+		`{"id":11,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:alice","collection":"social.craftsky.feed.post","rkey":"post1","action":"create","cid":"bafyPost","record":{"text":"secret body"}}}`,
 	}
 	ft := newFakeTap(frames)
 	srv := httptest.NewServer(ft.handler(t))
@@ -750,7 +750,7 @@ func TestWSConsumer_IngestorPanicDoesNotCrashConsumer(t *testing.T) {
 	t.Parallel()
 
 	frames := []string{
-		`{"id":123,"type":"record","record":{"live":true,"rev":"r","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k","action":"create","cid":"bafy","record":{"text":"x"}}}`,
+		`{"id":123,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:a","collection":"app.bsky.feed.post","rkey":"k","action":"create","cid":"bafy","record":{"text":"x"}}}`,
 	}
 	ft := newFakeTap(frames)
 	srv := httptest.NewServer(ft.handler(t))
@@ -802,7 +802,7 @@ func TestWSConsumer_MalformedIdentifierQuarantinesBeforeAck(t *testing.T) {
 
 	// "x" is a valid DID prefix but "not-an-nsid!" fails syntax.ParseNSID.
 	frames := []string{
-		`{"id":7,"type":"record","record":{"live":true,"rev":"r","did":"did:plc:a","collection":"not-an-nsid!","rkey":"k","action":"create","cid":"bafy","record":{}}}`,
+		`{"id":7,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:a","collection":"not-an-nsid!","rkey":"k","action":"create","cid":"bafy","record":{}}}`,
 	}
 	ft := newFakeTap(frames)
 	srv := httptest.NewServer(ft.handler(t))
@@ -837,7 +837,7 @@ func TestWSConsumer_MalformedIdentifierQuarantinesBeforeAck(t *testing.T) {
 }
 
 func TestWSConsumer_MalformedIdentifierRequiresDurableQuarantineBeforeAck(t *testing.T) {
-	frame := `{"id":71,"type":"record","record":{"live":true,"rev":"3mabc","did":"did:plc:a","collection":"not-an-nsid!","rkey":"k","action":"create","cid":"bafy","record":{}}}`
+	frame := `{"id":71,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:a","collection":"not-an-nsid!","rkey":"k","action":"create","cid":"bafy","record":{}}}`
 
 	t.Run("quarantine committed", func(t *testing.T) {
 		ft := newFakeTap([]string{frame})
@@ -900,8 +900,13 @@ func TestWSConsumer_DeterministicRecordEnvelopeDefectsAreQuarantined(t *testing.
 			reason: tap.ReasonInvalidEnvelope,
 		},
 		{
+			name:   "non TID repository revision",
+			frame:  `{"id":83,"type":"record","record":{"live":true,"rev":"zzzzzzzzzzzzz","did":"did:plc:a","collection":"social.craftsky.feed.post","rkey":"k","action":"create","cid":"bafy","record":{}}}`,
+			reason: tap.ReasonInvalidEnvelope,
+		},
+		{
 			name:   "missing create CID",
-			frame:  `{"id":82,"type":"record","record":{"live":true,"rev":"3mabc","did":"did:plc:a","collection":"social.craftsky.feed.post","rkey":"k","action":"create","record":{}}}`,
+			frame:  `{"id":82,"type":"record","record":{"live":true,"rev":"3aaaaaaaaaaa2","did":"did:plc:a","collection":"social.craftsky.feed.post","rkey":"k","action":"create","record":{}}}`,
 			reason: tap.ReasonMalformedRecord,
 		},
 	}
@@ -939,7 +944,7 @@ func TestWSConsumer_AllowsBoundedRecordFramesLargerThanLibraryDefault(t *testing
 	frameBytes, err := json.Marshal(map[string]any{
 		"id": 91, "type": "record",
 		"record": map[string]any{
-			"live": true, "rev": "3mlarge", "did": "did:plc:a",
+			"live": true, "rev": "3aaaaaaaaaaa2", "did": "did:plc:a",
 			"collection": "social.craftsky.feed.post", "rkey": "large",
 			"action": "create", "cid": "bafy-large",
 			"record": map[string]any{"text": payload, "createdAt": "2026-08-14T12:00:00Z"},
@@ -974,7 +979,7 @@ func TestWSConsumer_QuarantinesRecordAboveDurableSourceLimit(t *testing.T) {
 	frameBytes, err := json.Marshal(map[string]any{
 		"id": 92, "type": "record",
 		"record": map[string]any{
-			"live": true, "rev": "3mtoo-large", "did": "did:plc:a",
+			"live": true, "rev": "3aaaaaaaaaaa3", "did": "did:plc:a",
 			"collection": "social.craftsky.feed.post", "rkey": "too-large",
 			"action": "create", "cid": "bafy-too-large",
 			"record": map[string]any{"text": payload, "createdAt": "2026-08-14T12:00:00Z"},

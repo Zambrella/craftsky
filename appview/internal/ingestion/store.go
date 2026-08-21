@@ -50,7 +50,7 @@ type SourceRecord struct {
 	Rkey                  syntax.RecordKey
 	SourceEventID         uint64
 	SourceFingerprint     [32]byte
-	Revision              string
+	Revision              syntax.TID
 	CID                   syntax.CID
 	Action                string
 	Record                json.RawMessage
@@ -58,7 +58,7 @@ type SourceRecord struct {
 	Live                  bool
 	OrderingStatus        string
 	ProjectionDisposition string
-	OwnerGeneration       *int64
+	ProjectionGeneration  *int64
 	EffectOperationID     string
 	ProjectionVersion     int
 	ObservedAt            time.Time
@@ -90,6 +90,15 @@ type ProjectionClaim struct {
 }
 
 type Projector func(context.Context, pgx.Tx, SourceRecord) (tap.Outcome, error)
+
+type sourceVersionDecision uint8
+
+const (
+	sourceVersionNewer sourceVersionDecision = iota
+	sourceVersionStale
+	sourceVersionDuplicate
+	sourceVersionConflict
+)
 
 func (store *Store) IngestRecord(ctx context.Context, event tap.Event) (tap.Outcome, error) {
 	if err := validateRecordEvent(event); err != nil {
@@ -126,28 +135,26 @@ func (store *Store) ingestRecordTx(
 	now time.Time,
 	authority *sourceAuthority,
 ) (tap.Outcome, error) {
-	var currentID int64
-	var currentFingerprint []byte
-	readErr := tx.QueryRow(ctx, `
-		SELECT source_event_id,source_fingerprint
-		FROM tap_source_records
-		WHERE uri=$1
-		FOR UPDATE
-	`, event.URI).Scan(&currentID, &currentFingerprint)
-	switch {
-	case readErr == nil && currentID > int64(event.ID):
+	sourceFingerprint, err := repositorySourceFingerprint(event)
+	if err != nil {
+		return tap.Outcome{}, err
+	}
+	decision, err := lockSourceVersionTx(ctx, tx, event)
+	if err != nil {
+		return tap.Outcome{}, err
+	}
+	switch decision {
+	case sourceVersionStale:
 		outcome := tap.Applied()
 		return outcome, insertReceipt(ctx, tx, fingerprint, event.ID, "record", outcome, event.URI, tap.ReasonStaleSource, now)
-	case readErr == nil && currentID == int64(event.ID) && bytes.Equal(currentFingerprint, fingerprint[:]):
+	case sourceVersionDuplicate:
 		outcome, err := readCurrentJobOutcome(ctx, tx, event.URI)
 		if err != nil {
 			return tap.Outcome{}, err
 		}
 		return outcome, insertReceipt(ctx, tx, fingerprint, event.ID, "record", outcome, event.URI, outcome.Reason, now)
-	case readErr == nil && currentID == int64(event.ID):
+	case sourceVersionConflict:
 		return markSourceConflictTx(ctx, tx, event, fingerprint, now)
-	case readErr != nil && !errors.Is(readErr, pgx.ErrNoRows):
-		return tap.Outcome{}, fmt.Errorf("read current Tap source: %w", readErr)
 	}
 
 	outcome, err := store.initialProjectionOutcome(ctx, tx, event)
@@ -156,10 +163,10 @@ func (store *Store) ingestRecordTx(
 	}
 	disposition := "eligible"
 	orderingStatus := "authoritative"
-	var ownerGeneration any
+	var projectionGeneration any
 	var effectOperationID any
 	if authority != nil {
-		ownerGeneration = authority.Lifecycle.Generation
+		projectionGeneration = authority.Lifecycle.Generation
 		switch authority.Lifecycle.State {
 		case "terminal":
 			disposition = "denied_terminal"
@@ -202,7 +209,6 @@ func (store *Store) ingestRecordTx(
 				)
 			case ownerlifecycle.EffectSourceMatched:
 				effectOperationID = resolution.Attempt.OperationID
-				ownerGeneration = resolution.Attempt.OwnerGeneration
 				switch resolution.Attempt.ProjectionDisposition {
 				case ownerlifecycle.ProjectionEligibleCurrent:
 					disposition = "eligible"
@@ -241,38 +247,6 @@ func (store *Store) ingestRecordTx(
 	if outcome.Kind == tap.OutcomeBlocked && disposition == "eligible" {
 		disposition = "pending"
 	}
-	record := any(nil)
-	cid := any(nil)
-	recordBytes := 0
-	if event.Action != "delete" {
-		record = event.Record
-		cid = event.CID
-		recordBytes = len(event.Record)
-	} else if event.CID != "" {
-		cid = event.CID
-	}
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO tap_source_records(
-			uri,did,collection,rkey,source_event_id,source_fingerprint,
-			revision,cid,action,record,record_bytes,live,ordering_status,
-			projection_disposition,owner_generation,effect_operation_id,observed_at,updated_at
-		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$17)
-		ON CONFLICT(uri) DO UPDATE SET
-			did=EXCLUDED.did,collection=EXCLUDED.collection,rkey=EXCLUDED.rkey,
-			source_event_id=EXCLUDED.source_event_id,
-			source_fingerprint=EXCLUDED.source_fingerprint,revision=EXCLUDED.revision,
-			cid=EXCLUDED.cid,action=EXCLUDED.action,record=EXCLUDED.record,
-			record_bytes=EXCLUDED.record_bytes,
-			live=EXCLUDED.live,ordering_status=EXCLUDED.ordering_status,
-			projection_disposition=EXCLUDED.projection_disposition,
-			owner_generation=EXCLUDED.owner_generation,
-			effect_operation_id=EXCLUDED.effect_operation_id,
-			observed_at=EXCLUDED.observed_at,updated_at=EXCLUDED.updated_at
-	`, event.URI, event.DID, event.Collection, event.Rkey, event.ID, fingerprint[:],
-		event.Rev, cid, event.Action, record, recordBytes, event.Live, orderingStatus,
-		disposition, ownerGeneration, effectOperationID, now); err != nil {
-		return tap.Outcome{}, fmt.Errorf("upsert Tap source: %w", err)
-	}
 	state := "pending"
 	var dependencyKind, dependencyKey any
 	if outcome.Kind == tap.OutcomeBlocked {
@@ -285,6 +259,98 @@ func (store *Store) ingestRecordTx(
 	var completedAt any
 	if state == "permanent_denied" {
 		completedAt = now
+	}
+	if err := installSourceProjectionTx(
+		ctx, tx, event, sourceFingerprint, orderingStatus, disposition,
+		projectionGeneration, effectOperationID, state, dependencyKind,
+		dependencyKey, completedAt, outcome.Reason, now,
+	); err != nil {
+		return tap.Outcome{}, err
+	}
+	if orderingStatus == "uncertain" {
+		if err := enqueueRepositoryJob(ctx, tx, event.DID, string(RepositoryJobPDSReconcile), now); err != nil {
+			return tap.Outcome{}, err
+		}
+	}
+	return outcome, insertReceipt(ctx, tx, fingerprint, event.ID, "record", outcome, event.URI, outcome.Reason, now)
+}
+
+func lockSourceVersionTx(ctx context.Context, tx pgx.Tx, event tap.Event) (sourceVersionDecision, error) {
+	var currentRevision syntax.TID
+	var currentCID *string
+	var currentAction string
+	var currentRecord []byte
+	err := tx.QueryRow(ctx, `
+		SELECT revision,cid,action,record
+		FROM tap_source_records
+		WHERE uri=$1
+		FOR UPDATE
+	`, event.URI).Scan(&currentRevision, &currentCID, &currentAction, &currentRecord)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return sourceVersionNewer, nil
+	}
+	if err != nil {
+		return 0, fmt.Errorf("read current Tap source: %w", err)
+	}
+	if currentRevision > event.Rev {
+		return sourceVersionStale, nil
+	}
+	if currentRevision < event.Rev {
+		return sourceVersionNewer, nil
+	}
+	if currentAction == event.Action && nullableCIDMatches(currentCID, event.CID) &&
+		bytes.Equal(currentRecord, event.Record) {
+		return sourceVersionDuplicate, nil
+	}
+	return sourceVersionConflict, nil
+}
+
+func installSourceProjectionTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	event tap.Event,
+	sourceFingerprint [32]byte,
+	orderingStatus string,
+	disposition string,
+	projectionGeneration any,
+	effectOperationID any,
+	state string,
+	dependencyKind any,
+	dependencyKey any,
+	completedAt any,
+	reason tap.ReasonCode,
+	now time.Time,
+) error {
+	var record, cid any
+	recordBytes := 0
+	if event.Action != "delete" {
+		record = event.Record
+		cid = event.CID
+		recordBytes = len(event.Record)
+	} else if event.CID != "" {
+		cid = event.CID
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO tap_source_records(
+			uri,did,collection,rkey,source_event_id,source_fingerprint,
+			revision,cid,action,record,record_bytes,live,ordering_status,
+			projection_disposition,projection_generation,effect_operation_id,observed_at,updated_at
+		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$17)
+		ON CONFLICT(uri) DO UPDATE SET
+			did=EXCLUDED.did,collection=EXCLUDED.collection,rkey=EXCLUDED.rkey,
+			source_event_id=EXCLUDED.source_event_id,
+			source_fingerprint=EXCLUDED.source_fingerprint,revision=EXCLUDED.revision,
+			cid=EXCLUDED.cid,action=EXCLUDED.action,record=EXCLUDED.record,
+			record_bytes=EXCLUDED.record_bytes,
+			live=EXCLUDED.live,ordering_status=EXCLUDED.ordering_status,
+			projection_disposition=EXCLUDED.projection_disposition,
+			projection_generation=EXCLUDED.projection_generation,
+			effect_operation_id=EXCLUDED.effect_operation_id,
+			observed_at=EXCLUDED.observed_at,updated_at=EXCLUDED.updated_at
+	`, event.URI, event.DID, event.Collection, event.Rkey, event.ID, sourceFingerprint[:],
+		event.Rev, cid, event.Action, record, recordBytes, event.Live, orderingStatus,
+		disposition, projectionGeneration, effectOperationID, now); err != nil {
+		return fmt.Errorf("upsert Tap source: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO tap_projection_jobs(
@@ -301,15 +367,10 @@ func (store *Store) ingestRecordTx(
 			last_reason_code=EXCLUDED.last_reason_code,
 			completed_at=EXCLUDED.completed_at,updated_at=EXCLUDED.updated_at
 	`, event.URI, projectionKind(event.Collection), event.ID, state,
-		dependencyKind, dependencyKey, now, nullableString(string(outcome.Reason)), completedAt); err != nil {
-		return tap.Outcome{}, fmt.Errorf("upsert Tap projection job: %w", err)
+		dependencyKind, dependencyKey, now, nullableString(string(reason)), completedAt); err != nil {
+		return fmt.Errorf("upsert Tap projection job: %w", err)
 	}
-	if orderingStatus == "uncertain" {
-		if err := enqueueRepositoryJob(ctx, tx, event.DID, string(RepositoryJobPDSReconcile), now); err != nil {
-			return tap.Outcome{}, err
-		}
-	}
-	return outcome, insertReceipt(ctx, tx, fingerprint, event.ID, "record", outcome, event.URI, outcome.Reason, now)
+	return nil
 }
 
 func (store *Store) prepareEffectSourcesForRejoinTx(
@@ -323,17 +384,17 @@ func (store *Store) prepareEffectSourcesForRejoinTx(
 	}
 	rows, err := tx.Query(ctx, `
 		UPDATE tap_source_records AS source
-		SET ordering_status='uncertain',projection_disposition='pending',updated_at=$2
+		SET ordering_status='uncertain',projection_disposition='pending',
+		    projection_generation=$3,updated_at=$2
 		FROM owner_effect_attempts AS attempt
 		WHERE source.did=$1
 		  AND source.effect_operation_id=attempt.operation_id
-		  AND source.owner_generation=attempt.owner_generation
 		  AND source.action<>'delete'
 		  AND attempt.effect_kind='pds_record'
 		  AND attempt.effect_action='put_record'
 		  AND attempt.projection_disposition='hidden_non_active'
 		RETURNING source.uri,source.source_event_id
-	`, lifecycle.Owner, now)
+	`, lifecycle.Owner, now, lifecycle.Generation)
 	if err != nil {
 		return fmt.Errorf("prepare effect sources for rejoin: %w", err)
 	}
@@ -415,8 +476,11 @@ func markSourceConflictTx(ctx context.Context, tx pgx.Tx, event tap.Event, finge
 
 func validateRecordEvent(event tap.Event) error {
 	if event.ID == 0 || event.URI == "" || event.DID == "" || event.Collection == "" ||
-		event.Rkey == "" || strings.TrimSpace(event.Rev) == "" {
+		event.Rkey == "" {
 		return errors.New("invalid Tap record envelope")
+	}
+	if _, err := syntax.ParseTID(event.Rev.String()); err != nil {
+		return fmt.Errorf("invalid Tap repository revision: %w", err)
 	}
 	switch event.Action {
 	case "create", "update":
@@ -435,13 +499,31 @@ func recordFingerprint(event tap.Event) ([32]byte, error) {
 		ID       uint64          `json:"id"`
 		URI      syntax.ATURI    `json:"uri"`
 		CID      syntax.CID      `json:"cid,omitempty"`
-		Revision string          `json:"revision"`
+		Revision syntax.TID      `json:"revision"`
 		Action   string          `json:"action"`
 		Record   json.RawMessage `json:"record,omitempty"`
 	}{event.ID, event.URI, event.CID, event.Rev, event.Action, event.Record}
 	encoded, err := json.Marshal(canonical)
 	if err != nil {
 		return [32]byte{}, fmt.Errorf("fingerprint Tap record: %w", err)
+	}
+	return sha256.Sum256(encoded), nil
+}
+
+// repositorySourceFingerprint identifies repository state independently of a
+// Tap installation's database-local delivery ID. It is safe to retain across a
+// Tap reset; recordFingerprint remains the delivery receipt identity.
+func repositorySourceFingerprint(event tap.Event) ([32]byte, error) {
+	canonical := struct {
+		URI      syntax.ATURI    `json:"uri"`
+		CID      syntax.CID      `json:"cid,omitempty"`
+		Revision syntax.TID      `json:"revision"`
+		Action   string          `json:"action"`
+		Record   json.RawMessage `json:"record,omitempty"`
+	}{event.URI, event.CID, event.Rev, event.Action, event.Record}
+	encoded, err := json.Marshal(canonical)
+	if err != nil {
+		return [32]byte{}, fmt.Errorf("fingerprint repository source: %w", err)
 	}
 	return sha256.Sum256(encoded), nil
 }
@@ -508,9 +590,8 @@ func enqueueIdentityRefreshTx(ctx context.Context, tx pgx.Tx, did syntax.DID, ev
 			attempt_count=0,
 			last_result='pending',
 			updated_at=EXCLUDED.updated_at,
-			tap_event_id=EXCLUDED.tap_event_id
-		WHERE atproto_identity_refresh_state.tap_event_id IS NULL
-		   OR atproto_identity_refresh_state.tap_event_id < EXCLUDED.tap_event_id
+			tap_event_id=EXCLUDED.tap_event_id,
+			refresh_version=atproto_identity_refresh_state.refresh_version+1
 	`, did, now, eventID); err != nil {
 		return fmt.Errorf("enqueue Tap identity refresh %s: %w", did, err)
 	}
@@ -865,7 +946,7 @@ func (store *Store) projectionEligibility(ctx context.Context, tx pgx.Tx, source
 	if state != "active" {
 		return tap.Blocked(tap.ReasonOwnerDeparted, tap.Dependency{Kind: "member_did", Key: source.DID.String()}), nil
 	}
-	if source.OwnerGeneration == nil || *source.OwnerGeneration != generation || source.OrderingStatus == "uncertain" {
+	if source.ProjectionGeneration == nil || *source.ProjectionGeneration != generation || source.OrderingStatus == "uncertain" {
 		if err := enqueueRepositoryJob(ctx, tx, source.DID, string(RepositoryJobPDSReconcile), now); err != nil {
 			return tap.Outcome{}, err
 		}
@@ -907,7 +988,7 @@ func sourceTx(ctx context.Context, tx pgx.Tx, uri syntax.ATURI) (SourceRecord, e
 const sourceSelect = `
 	SELECT uri,did,collection,rkey,source_event_id,source_fingerprint,
 	       revision,cid,action,record,record_bytes,live,ordering_status,projection_disposition,
-	       owner_generation,effect_operation_id,projection_version,observed_at,updated_at
+	       projection_generation,effect_operation_id,projection_version,observed_at,updated_at
 	FROM tap_source_records`
 
 type rowScanner interface{ Scan(...any) error }
@@ -921,7 +1002,7 @@ func sourceRow(row rowScanner) (SourceRecord, error) {
 	if err := row.Scan(&source.URI, &source.DID, &source.Collection, &source.Rkey,
 		&sourceEventID, &fingerprint, &source.Revision, &cid, &source.Action, &record,
 		&source.RecordBytes, &source.Live, &source.OrderingStatus, &source.ProjectionDisposition,
-		&source.OwnerGeneration, &effectOperationID, &source.ProjectionVersion,
+		&source.ProjectionGeneration, &effectOperationID, &source.ProjectionVersion,
 		&source.ObservedAt, &source.UpdatedAt); err != nil {
 		return SourceRecord{}, err
 	}
@@ -995,4 +1076,11 @@ func nullableString(value string) any {
 		return nil
 	}
 	return value
+}
+
+func nullableCIDMatches(current *string, incoming syntax.CID) bool {
+	if current == nil {
+		return incoming == ""
+	}
+	return *current == incoming.String()
 }

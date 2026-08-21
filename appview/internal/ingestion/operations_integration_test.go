@@ -25,7 +25,7 @@ func TestOperationalBacklogsExposeBlockedAndRetryableWork(t *testing.T) {
 	uri := syntax.ATURI("at://did:plc:operations/social.craftsky.feed.post/blocked")
 	if _, err := store.IngestRecord(ctx, tap.Event{
 		ID: 301, URI: uri, DID: owner, Collection: "social.craftsky.feed.post",
-		Rkey: "blocked", Rev: "3m00000000301", CID: "bafy-blocked", Action: "create",
+		Rkey: "blocked", Rev: "3aaaaaaaaaaa2", CID: "bafy-blocked", Action: "create",
 		Record: json.RawMessage(`{"text":"blocked","createdAt":"2026-08-14T12:00:00Z"}`),
 	}); err != nil {
 		t.Fatalf("ingest blocked source: %v", err)

@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -27,7 +26,7 @@ type ReconciledSource struct {
 	DID                 syntax.DID
 	ExpectedEventID     uint64
 	ExpectedFingerprint [32]byte
-	Revision            string
+	Revision            syntax.TID
 	CID                 syntax.CID
 	Record              json.RawMessage
 	Present             bool
@@ -68,8 +67,11 @@ func (store *Store) UncertainSources(ctx context.Context, did syntax.DID, limit 
 // Tap event wins and forces this repository job to retry from a fresh read.
 func (service *Service) ReconcileSource(ctx context.Context, reconciled ReconciledSource) (tap.Outcome, error) {
 	if reconciled.URI == "" || reconciled.DID == "" || reconciled.ExpectedEventID == 0 ||
-		reconciled.ExpectedFingerprint == ([32]byte{}) || strings.TrimSpace(reconciled.Revision) == "" {
+		reconciled.ExpectedFingerprint == ([32]byte{}) {
 		return tap.Retryable(tap.ReasonProjectionFailure), errors.New("invalid reconciled source")
+	}
+	if _, err := syntax.ParseTID(reconciled.Revision.String()); err != nil {
+		return tap.Retryable(tap.ReasonProjectionFailure), errors.New("invalid reconciled source revision")
 	}
 	if reconciled.Present && (reconciled.CID == "" || len(reconciled.Record) == 0 || !json.Valid(reconciled.Record)) {
 		return tap.Retryable(tap.ReasonProjectionFailure), errors.New("invalid authoritative PDS record")
@@ -87,7 +89,7 @@ func (service *Service) ReconcileSource(ctx context.Context, reconciled Reconcil
 	}
 	event := tap.Event{
 		URI: expected.URI, DID: expected.DID, Collection: expected.Collection, Rkey: expected.Rkey,
-		ID: expected.SourceEventID, Rev: strings.TrimSpace(reconciled.Revision), Live: expected.Live,
+		ID: expected.SourceEventID, Rev: reconciled.Revision, Live: expected.Live,
 	}
 	if reconciled.Present {
 		event.Action = "update"
@@ -96,7 +98,7 @@ func (service *Service) ReconcileSource(ctx context.Context, reconciled Reconcil
 	} else {
 		event.Action = "delete"
 	}
-	fingerprint, err := recordFingerprint(event)
+	fingerprint, err := repositorySourceFingerprint(event)
 	if err != nil {
 		return tap.Retryable(tap.ReasonProjectionFailure), err
 	}
@@ -217,7 +219,7 @@ func (store *Store) reconcileSourceTx(
 	outcome := tap.Applied()
 	disposition := "eligible"
 	orderingStatus := "authoritative"
-	ownerGeneration := authority.Lifecycle.Generation
+	projectionGeneration := authority.Lifecycle.Generation
 	var effectOperationID any
 	state := "pending"
 	var dependencyKind, dependencyKey, completedAt any
@@ -260,7 +262,6 @@ func (store *Store) reconcileSourceTx(
 		}
 		if resolution.Match == ownerlifecycle.EffectSourceMatched {
 			effectOperationID = resolution.Attempt.OperationID
-			ownerGeneration = resolution.Attempt.OwnerGeneration
 			switch resolution.Attempt.ProjectionDisposition {
 			case ownerlifecycle.ProjectionEligibleCurrent:
 				outcome = tap.Applied()
@@ -301,10 +302,10 @@ func (store *Store) reconcileSourceTx(
 		UPDATE tap_source_records
 		SET source_fingerprint=$2,revision=$3,cid=$4,action=$5,record=$6,record_bytes=$7,
 		    ordering_status=$8,projection_disposition=$9,
-		    owner_generation=$10,effect_operation_id=$11,updated_at=$12
+		    projection_generation=$10,effect_operation_id=$11,updated_at=$12
 		WHERE uri=$1
 	`, event.URI, fingerprint[:], event.Rev, cid, event.Action, record, recordBytes,
-		orderingStatus, disposition, ownerGeneration, effectOperationID, now)
+		orderingStatus, disposition, projectionGeneration, effectOperationID, now)
 	if err != nil {
 		return tap.Outcome{}, fmt.Errorf("install reconciled Tap source: %w", err)
 	}

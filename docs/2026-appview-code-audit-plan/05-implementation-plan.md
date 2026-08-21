@@ -595,6 +595,104 @@ release build.
   source. The complete race and repository release gates now pass under
   `FINAL-001`; only the controlled Tap reset/rebootstrap/drain operation remains.
 
+#### TAP-001 sequence-reset recovery (2026-08-21)
+
+- Requirement: AV-004/AV-005 source winner selection uses the repository
+  revision/CID/action contract, rather than treating Tap's database-local event
+  ID as a durable ordering token across a Tap store reset.
+- Regression test: extend the owner-lifecycle ingestion integration coverage
+  with a newer profile repository revision delivered under a lower, reset Tap
+  event ID. The newer source must win atomically and reactivate the departed
+  owner; an older revision must remain stale even when its Tap event ID is
+  higher.
+- Focused command: `go test ./internal/ingestion -run
+  '^TestProfileSourceWinnerAndLifecycleTransitionCommitAtomically$' -count=1`.
+- Recovery operation: snapshot the local database, stop AppView ingestion,
+  clear only rebuildable public source/projection state, re-register the owner
+  repository with Tap, restart the runtime, and verify the profile source and
+  owner lifecycle converge to the current PDS state. Private AppView tables and
+  PDS records remain untouched.
+- Initial state: failing. The retained profile delete has Tap event ID 14, the
+  new profile create arrived after a Tap reset with ID 1, and `ingestRecordTx`
+  incorrectly recorded the create as `stale_source` before comparing its newer
+  repository revision.
+- Final implementation: source winner selection now compares repository
+  revision, CID, and action in both generic and profile ingestion. Replaying
+  that same durable source under a different Tap event ID is a duplicate, while
+  a lower revision remains stale regardless of its event ID.
+- Lifecycle fence correction: effect-attempt generation remains historical
+  provenance, while `tap_source_records.owner_generation` tracks the current
+  serving-projection authority. Migration 56 enforces the effect operation's
+  DID ownership independently, backfills eligible active sources to the current
+  generation, and wakes projections that were blocked on the old conflated
+  generation.
+- Recovery result: a verified full database snapshot was saved at
+  `/tmp/craftsky-tap-recovery-20260821T092050Z.dump`; the affected DID's two
+  stale receipts and one retained public profile source were cleared; Tap
+  tracking was removed and re-added to force a PDS backfill. The final state is
+  owner `active` generation 7, source revision `3mtlfoa3plq2t` authoritative
+  and eligible at generation 7, projection `complete`, and the serving profile
+  row restored. Private AppView data and PDS records were not removed.
+- Verification: the two focused lifecycle/reset regressions pass, followed by
+  `go test ./internal/ingestion ./internal/tap ./internal/db -count=1` against
+  the Compose PostgreSQL database and the required-database full gate
+  `TEST_DATABASE_REQUIRED=true go test ./... -count=1`.
+
+#### TAP-002 lifecycle-ingestion review corrections (2026-08-21)
+
+- Inputs: AV-004/AV-005 requirements and the IR-004 through IR-009 findings in
+  `06-implementation-review.md`. These findings are the approved correction
+  contract for the existing TAP-001 implementation.
+- Implementation rules: add one failing regression before each behavioral
+  correction; keep Tap delivery identity separate from durable repository
+  source identity; keep effect-attempt provenance separate from current
+  projection authority; refactor shared ingestion only while focused tests are
+  green.
+- Test order:
+
+| Step | Test ID | Requirement IDs | Acceptance criterion | Expected initial state |
+|---|---|---|---|---|
+| 1 | TAP-002-REV | AV-004, IR-004 | Invalid repository revisions never enter durable winner selection; valid TIDs retain chronological lexical order. | Fails |
+| 2 | TAP-002-SOURCE | AV-004, IR-005 | A reset delivery with identical durable content is idempotent, while the same revision/CID/action with different bytes is uncertain rather than duplicate. | Fails |
+| 3 | TAP-002-IDENTITY | AV-004, IR-006 | A lower Tap ID after reset immediately supersedes retained identity refresh retry state without allowing an older in-flight resolver to finalize. | Fails |
+| 4 | TAP-002-GENERATION | AV-005, IR-007 | Projection generation always means current lifecycle authority; effect operation ID alone carries historical provenance. | Fails |
+| 5 | TAP-002-MIGRATION | AV-004, AV-005, IR-008 | Migration 56 backfills projection generation, preserves effect-owner integrity, wakes blocked work, rolls down, and reapplies. | Fails |
+| 6 | TAP-002-REFACTOR | AV-004, IR-009 | Profile and ordinary ingestion share one source comparator and source/job installer without behavior drift. | Existing behavioral tests remain green |
+
+- Planned focused commands: single-test `go test` invocations for Tap decode,
+  ingestion lifecycle/source/identity behavior, and database migration 56;
+  followed by `go test ./internal/ingestion ./internal/tap ./internal/db -count=1`.
+- Final gate: run the required-database repository suite, then `git diff --check`.
+- Red/green result:
+  - `TAP-002-REV` first failed because the WebSocket accepted
+    `zzzzzzzzzzzzz`; Tap record revisions are now parsed as `syntax.TID`, and
+    durable ingestion and authoritative reconciliation revalidate that type at
+    their boundaries.
+  - `TAP-002-SOURCE` first accepted different record bytes as a duplicate;
+    receipt fingerprints now identify one Tap delivery while repository-source
+    fingerprints exclude Tap ID, and the shared comparator includes retained
+    record bytes.
+  - `TAP-002-IDENTITY` first left retained event 701 scheduled after reset
+    event 1; refresh finalization now uses a database-owned `refresh_version`,
+    with Tap ID retained only as diagnostic metadata. Migration 57 adds and
+    round-trips that version.
+  - `TAP-002-GENERATION` first retained an effect attempt's old generation for
+    a departed source; migration 58 renames the source column to
+    `projection_generation`, and every source classification/rejoin path now
+    stores current lifecycle authority while `effect_operation_id` alone links
+    historical provenance.
+  - `TAP-002-MIGRATION` now seeds the exact migration-56 mismatch and proves
+    effect-owner integrity, current-generation backfill, blocked-job wake,
+    rollback, and second application.
+  - `TAP-002-REFACTOR` extracted one locked source-version classifier and one
+    source/projection installer shared by profile and ordinary ingestion.
+    Authoritative reconciliation retains its stricter expected-version CAS.
+- Verification result: focused red/green commands passed; the affected package
+  suite passed for ingestion, Tap, identity API, index, app wiring, and database
+  migrations; the required-database `go test ./... -count=1` gate passed; the
+  affected ingestion, Tap, identity API, and index packages also passed under
+  `go test -race`; `gofmt` and `git diff --check` are clean.
+
 ### Step 10: `PGX-001`
 
 - Test both search branches and prefix-then-terminal-error row iterators.

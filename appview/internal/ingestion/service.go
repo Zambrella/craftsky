@@ -1,7 +1,6 @@
 package ingestion
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/json"
@@ -310,43 +309,33 @@ func (store *Store) ingestProfileTx(
 	if err != nil {
 		return tap.Outcome{}, false, err
 	}
-	var currentID int64
-	var currentFingerprint []byte
-	readErr := tx.QueryRow(ctx, `
-		SELECT source_event_id,source_fingerprint
-		FROM tap_source_records WHERE uri=$1 FOR UPDATE
-	`, event.URI).Scan(&currentID, &currentFingerprint)
-	switch {
-	case readErr == nil && currentID > int64(event.ID):
+	sourceFingerprint, err := repositorySourceFingerprint(event)
+	if err != nil {
+		return tap.Outcome{}, false, err
+	}
+	decision, err := lockSourceVersionTx(ctx, tx, event)
+	if err != nil {
+		return tap.Outcome{}, false, err
+	}
+	switch decision {
+	case sourceVersionStale:
 		outcome := tap.Applied()
 		return outcome, false, insertReceipt(ctx, tx, fingerprint, event.ID, "record", outcome, event.URI, tap.ReasonStaleSource, now)
-	case readErr == nil && currentID == int64(event.ID) && bytes.Equal(currentFingerprint, fingerprint[:]):
+	case sourceVersionDuplicate:
 		outcome, err := readCurrentJobOutcome(ctx, tx, event.URI)
 		if err != nil {
 			return tap.Outcome{}, false, err
 		}
 		return outcome, false, insertReceipt(ctx, tx, fingerprint, event.ID, "record", outcome, event.URI, outcome.Reason, now)
-	case readErr == nil && currentID == int64(event.ID):
+	case sourceVersionConflict:
 		outcome, err := markSourceConflictTx(ctx, tx, event, fingerprint, now)
 		return outcome, false, err
-	case readErr != nil && !errors.Is(readErr, pgx.ErrNoRows):
-		return tap.Outcome{}, false, fmt.Errorf("read current profile Tap source: %w", readErr)
 	}
 
-	record := any(nil)
-	cid := any(nil)
-	recordBytes := 0
-	if event.Action != "delete" {
-		record = event.Record
-		cid = event.CID
-		recordBytes = len(event.Record)
-	} else if event.CID != "" {
-		cid = event.CID
-	}
 	outcome := tap.Applied()
 	orderingStatus := "authoritative"
 	disposition := "eligible"
-	ownerGeneration := lifecycle.Generation
+	projectionGeneration := lifecycle.Generation
 	var effectOperationID any
 	state := "pending"
 	var dependencyKind, dependencyKey, completedAt any
@@ -387,7 +376,6 @@ func (store *Store) ingestProfileTx(
 			dependencyKind, dependencyKey = outcome.Dependency.Kind, outcome.Dependency.Key
 		case ownerlifecycle.EffectSourceMatched:
 			effectOperationID = resolution.Attempt.OperationID
-			ownerGeneration = resolution.Attempt.OwnerGeneration
 			switch resolution.Attempt.ProjectionDisposition {
 			case ownerlifecycle.ProjectionEligibleCurrent:
 				disposition = "eligible"
@@ -411,44 +399,12 @@ func (store *Store) ingestProfileTx(
 			}
 		}
 	}
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO tap_source_records(
-			uri,did,collection,rkey,source_event_id,source_fingerprint,
-			revision,cid,action,record,record_bytes,live,ordering_status,
-			projection_disposition,owner_generation,effect_operation_id,observed_at,updated_at
-		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$17)
-		ON CONFLICT(uri) DO UPDATE SET
-			did=EXCLUDED.did,collection=EXCLUDED.collection,rkey=EXCLUDED.rkey,
-			source_event_id=EXCLUDED.source_event_id,
-			source_fingerprint=EXCLUDED.source_fingerprint,revision=EXCLUDED.revision,
-			cid=EXCLUDED.cid,action=EXCLUDED.action,record=EXCLUDED.record,
-			record_bytes=EXCLUDED.record_bytes,
-			live=EXCLUDED.live,ordering_status=EXCLUDED.ordering_status,
-			projection_disposition=EXCLUDED.projection_disposition,
-			owner_generation=EXCLUDED.owner_generation,
-			effect_operation_id=EXCLUDED.effect_operation_id,
-			observed_at=EXCLUDED.observed_at,updated_at=EXCLUDED.updated_at
-	`, event.URI, event.DID, event.Collection, event.Rkey, event.ID, fingerprint[:],
-		event.Rev, cid, event.Action, record, recordBytes, event.Live, orderingStatus,
-		disposition, ownerGeneration, effectOperationID, now); err != nil {
-		return tap.Outcome{}, false, fmt.Errorf("upsert profile Tap source: %w", err)
-	}
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO tap_projection_jobs(
-			source_uri,projection_kind,source_event_id,state,
-			dependency_kind,dependency_key,next_attempt_at,last_reason_code,
-			completed_at,created_at,updated_at
-		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$7,$7)
-		ON CONFLICT(source_uri,projection_kind) DO UPDATE SET
-			source_event_id=EXCLUDED.source_event_id,state=EXCLUDED.state,
-			dependency_kind=EXCLUDED.dependency_kind,dependency_key=EXCLUDED.dependency_key,attempts=0,
-			next_attempt_at=EXCLUDED.next_attempt_at,
-			lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,
-			last_reason_code=EXCLUDED.last_reason_code,completed_at=EXCLUDED.completed_at,
-			updated_at=EXCLUDED.updated_at
-	`, event.URI, projectionKind(event.Collection), event.ID, state,
-		dependencyKind, dependencyKey, now, nullableString(string(outcome.Reason)), completedAt); err != nil {
-		return tap.Outcome{}, false, fmt.Errorf("upsert profile Tap projection job: %w", err)
+	if err := installSourceProjectionTx(
+		ctx, tx, event, sourceFingerprint, orderingStatus, disposition,
+		projectionGeneration, effectOperationID, state, dependencyKind,
+		dependencyKey, completedAt, outcome.Reason, now,
+	); err != nil {
+		return tap.Outcome{}, false, err
 	}
 	if enqueueAddRepo && event.Action != "delete" {
 		if err := enqueueRepositoryJob(ctx, tx, event.DID, string(RepositoryJobTapAddRepo), now); err != nil {
@@ -489,7 +445,7 @@ func (service *Service) ingestTerminalDeniedProfile(
 		if _, err := tx.Exec(ctx, `
 			UPDATE tap_source_records
 			SET projection_disposition='denied_terminal',
-			    owner_generation=CASE WHEN effect_operation_id IS NULL THEN $2 ELSE owner_generation END,
+			    projection_generation=$2,
 			    updated_at=$3
 			WHERE uri=$1
 		`, event.URI, current.Generation, now); err != nil {

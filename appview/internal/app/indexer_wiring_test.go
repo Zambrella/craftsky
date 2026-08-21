@@ -179,7 +179,7 @@ func projectIndexerWiringEvent(
 		Rkey: event.Rkey, SourceEventID: event.ID, Revision: event.Rev,
 		CID: event.CID, Action: event.Action, Record: event.Record,
 		RecordBytes: len(event.Record), Live: event.Live,
-		OwnerGeneration: &generation,
+		ProjectionGeneration: &generation,
 	})
 	if err != nil {
 		t.Fatalf("Project through transactional dispatcher: %v", err)

@@ -224,6 +224,7 @@ type identityRefreshCandidate struct {
 	Handle     *syntax.Handle
 	ResolvedAt *time.Time
 	TapEventID *int64
+	Version    int64
 }
 
 func (s *IdentityCacheStore) refreshCandidates(ctx context.Context, limit int, now time.Time) ([]identityRefreshCandidate, error) {
@@ -283,7 +284,7 @@ func (s *IdentityCacheStore) refreshCandidates(ctx context.Context, limit int, n
 		return nil, fmt.Errorf("identity cache ensure refresh candidates: %w", err)
 	}
 	stateRows, err := tx.Query(ctx, `
-		SELECT did,tap_event_id
+		SELECT did,tap_event_id,refresh_version
 		FROM atproto_identity_refresh_state
 		WHERE did=ANY($1::text[])
 	`, dids)
@@ -294,7 +295,8 @@ func (s *IdentityCacheStore) refreshCandidates(ctx context.Context, limit int, n
 	for stateRows.Next() {
 		var did string
 		var tapEventID *int64
-		if err := stateRows.Scan(&did, &tapEventID); err != nil {
+		var version int64
+		if err := stateRows.Scan(&did, &tapEventID, &version); err != nil {
 			return nil, fmt.Errorf("identity cache refresh candidate state scan: %w", err)
 		}
 		index, exists := indices[did]
@@ -302,6 +304,7 @@ func (s *IdentityCacheStore) refreshCandidates(ctx context.Context, limit int, n
 			return nil, fmt.Errorf("identity cache refresh state returned unexpected DID %s", did)
 		}
 		result[index].TapEventID = tapEventID
+		result[index].Version = version
 		delete(indices, did)
 	}
 	if err := stateRows.Err(); err != nil {
@@ -327,8 +330,8 @@ func (s *IdentityCacheStore) deferRefresh(
 		SET next_attempt_at=$2,
 			attempt_count=attempt_count+1,
 			last_result='retry',updated_at=$3
-		WHERE did=$1 AND tap_event_id IS NOT DISTINCT FROM $4
-	`, candidate.DID, nextAttempt, now, candidate.TapEventID)
+		WHERE did=$1 AND refresh_version=$4
+	`, candidate.DID, nextAttempt, now, candidate.Version)
 	if err != nil {
 		return false, fmt.Errorf("identity cache defer refresh %s: %w", candidate.DID, err)
 	}
@@ -349,20 +352,20 @@ func (s *IdentityCacheStore) completeRefresh(
 	if err := ownerlifecycle.GuardNonTerminalTargetsTx(ctx, tx, []syntax.DID{candidate.DID}); err != nil {
 		return false, fmt.Errorf("identity cache complete refresh authorize %s: %w", candidate.DID, err)
 	}
-	var currentTapEventID *int64
+	var currentVersion int64
 	err = tx.QueryRow(ctx, `
-		SELECT tap_event_id
+		SELECT refresh_version
 		FROM atproto_identity_refresh_state
 		WHERE did=$1
 		FOR UPDATE
-	`, candidate.DID).Scan(&currentTapEventID)
+	`, candidate.DID).Scan(&currentVersion)
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			return false, nil
 		}
 		return false, fmt.Errorf("identity cache complete refresh state %s: %w", candidate.DID, err)
 	}
-	if !sameOptionalInt64(currentTapEventID, candidate.TapEventID) {
+	if currentVersion != candidate.Version {
 		return false, nil
 	}
 	if err := s.upsertAuthorizedTx(ctx, tx, candidate.DID, handle, resolvedAt); err != nil {
@@ -370,8 +373,8 @@ func (s *IdentityCacheStore) completeRefresh(
 	}
 	result, err := tx.Exec(ctx, `
 		DELETE FROM atproto_identity_refresh_state
-		WHERE did=$1 AND tap_event_id IS NOT DISTINCT FROM $2
-	`, candidate.DID, candidate.TapEventID)
+		WHERE did=$1 AND refresh_version=$2
+	`, candidate.DID, candidate.Version)
 	if err != nil {
 		return false, fmt.Errorf("identity cache complete refresh clear %s: %w", candidate.DID, err)
 	}
@@ -382,11 +385,4 @@ func (s *IdentityCacheStore) completeRefresh(
 		return false, fmt.Errorf("identity cache complete refresh commit %s: %w", candidate.DID, err)
 	}
 	return true, nil
-}
-
-func sameOptionalInt64(left, right *int64) bool {
-	if left == nil || right == nil {
-		return left == nil && right == nil
-	}
-	return *left == *right
 }

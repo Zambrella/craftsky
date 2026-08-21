@@ -32,7 +32,7 @@ func TestTombstoneRedeliveryAndExpiredProjectionLeaseAreIdempotent(t *testing.T)
 	uri := syntax.ATURI("at://did:plc:lease-owner/social.craftsky.feed.post/one")
 	create := tap.Event{
 		ID: 100, URI: uri, DID: owner, Collection: "social.craftsky.feed.post",
-		Rkey: "one", Rev: "3m00000000100", CID: "bafy-create", Action: "create",
+		Rkey: "one", Rev: "3aaaaaaaaaaa2", CID: "bafy-create", Action: "create",
 		Record: json.RawMessage(`{"text":"one","createdAt":"2026-08-14T15:00:00Z"}`),
 	}
 	if _, err := store.IngestRecord(ctx, create); err != nil {
@@ -40,7 +40,7 @@ func TestTombstoneRedeliveryAndExpiredProjectionLeaseAreIdempotent(t *testing.T)
 	}
 	deleted := create
 	deleted.ID = 102
-	deleted.Rev = "3m00000000102"
+	deleted.Rev = "3aaaaaaaaaaa4"
 	deleted.Action = "delete"
 	deleted.CID = ""
 	deleted.Record = nil

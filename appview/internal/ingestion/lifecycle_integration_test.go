@@ -41,7 +41,7 @@ func TestProfileSourceWinnerAndLifecycleTransitionCommitAtomically(t *testing.T)
 	profile := tap.Event{
 		ID: 20, URI: "at://did:plc:profile-owner/social.craftsky.actor.profile/self",
 		DID: owner, Collection: "social.craftsky.actor.profile", Rkey: "self",
-		Rev: "3m00000000020", CID: "bafy-profile", Action: "create",
+		Rev: "3aaaaaaaaaaa4", CID: "bafy-profile", Action: "create",
 		Record: json.RawMessage(`{"crafts":["sewing"]}`),
 	}
 
@@ -65,7 +65,7 @@ func TestProfileSourceWinnerAndLifecycleTransitionCommitAtomically(t *testing.T)
 
 	staleWhileActive := profile
 	staleWhileActive.ID = 19
-	staleWhileActive.Rev = "3m00000000019"
+	staleWhileActive.Rev = "3aaaaaaaaaaa3"
 	staleWhileActive.CID = "bafy-stale-profile"
 	if outcome, err := service.IngestRecord(context.Background(), staleWhileActive); err != nil || outcome.Kind != tap.OutcomeApplied {
 		t.Fatalf("active stale profile outcome=%+v err=%v", outcome, err)
@@ -103,7 +103,7 @@ func TestProfileSourceWinnerAndLifecycleTransitionCommitAtomically(t *testing.T)
 
 	deleted := profile
 	deleted.ID = 21
-	deleted.Rev = "3m00000000021"
+	deleted.Rev = "3aaaaaaaaaaa5"
 	deleted.CID = ""
 	deleted.Action = "delete"
 	deleted.Record = nil
@@ -147,6 +147,70 @@ func TestProfileSourceWinnerAndLifecycleTransitionCommitAtomically(t *testing.T)
 	}
 	assertLifecycleState(t, lifecycles, owner, ownerlifecycle.StateDeparted)
 	assertTapSourceAction(t, store, profile.URI, "delete")
+
+	// Tap's event ID belongs to Tap's local database and can restart from one
+	// when that store is rebuilt. The repository revision remains authoritative
+	// across that reset, so a newer profile recreation must still reactivate the
+	// owner and replace the retained tombstone.
+	recreatedAfterTapReset := profile
+	recreatedAfterTapReset.ID = 1
+	recreatedAfterTapReset.Rev = "3aaaaaaaaaaa6"
+	recreatedAfterTapReset.CID = "bafy-profile-recreated"
+	if outcome, err := service.IngestRecord(context.Background(), recreatedAfterTapReset); err != nil || outcome.Kind != tap.OutcomeApplied {
+		t.Fatalf("profile recreation after Tap reset outcome=%+v err=%v", outcome, err)
+	}
+	assertLifecycleState(t, lifecycles, owner, ownerlifecycle.StateActive)
+	assertTapSourceAction(t, store, profile.URI, "create")
+
+	// Re-delivery after a Tap reset has a different database-local event ID
+	// and therefore a different receipt fingerprint. The durable repository
+	// source tuple is unchanged, so this is a duplicate rather than a conflict.
+	replayedAfterTapReset := recreatedAfterTapReset
+	replayedAfterTapReset.ID = 2
+	if outcome, err := service.IngestRecord(context.Background(), replayedAfterTapReset); err != nil || outcome.Kind != tap.OutcomeApplied {
+		t.Fatalf("profile replay after Tap reset outcome=%+v err=%v", outcome, err)
+	}
+	assertLifecycleState(t, lifecycles, owner, ownerlifecycle.StateActive)
+	assertTapSourceAction(t, store, profile.URI, "create")
+
+	// Conversely, a larger database-local Tap ID cannot let an older repository
+	// revision replace the current profile after the reset.
+	oldDeleteAfterTapReset := deleted
+	oldDeleteAfterTapReset.ID = 100
+	if outcome, err := service.IngestRecord(context.Background(), oldDeleteAfterTapReset); err != nil || outcome.Kind != tap.OutcomeApplied {
+		t.Fatalf("old delete after Tap reset outcome=%+v err=%v", outcome, err)
+	}
+	assertLifecycleState(t, lifecycles, owner, ownerlifecycle.StateActive)
+	assertTapSourceAction(t, store, profile.URI, "create")
+
+	invalidRevision := deleted
+	invalidRevision.ID = 101
+	invalidRevision.Rev = "zzzzzzzzzzzzz"
+	if outcome, err := service.IngestRecord(context.Background(), invalidRevision); err == nil || outcome.Kind != tap.OutcomeRetryable {
+		t.Fatalf("invalid revision outcome=%+v err=%v", outcome, err)
+	}
+	assertLifecycleState(t, lifecycles, owner, ownerlifecycle.StateActive)
+	assertTapSourceAction(t, store, profile.URI, "create")
+
+	conflictingBody := recreatedAfterTapReset
+	conflictingBody.ID = 102
+	conflictingBody.Record = json.RawMessage(`{"crafts":["knitting"]}`)
+	if outcome, err := service.IngestRecord(context.Background(), conflictingBody); err != nil ||
+		outcome.Kind != tap.OutcomeBlocked || outcome.Reason != tap.ReasonSourceOrderUncertain {
+		t.Fatalf("same tuple with different body outcome=%+v err=%v", outcome, err)
+	}
+	source, err = store.Source(context.Background(), profile.URI)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, err = store.ProjectionJob(context.Background(), profile.URI)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if source.OrderingStatus != "uncertain" || job.State != "blocked" {
+		t.Fatalf("conflicting source/job=%+v/%+v", source, job)
+	}
+	assertLifecycleState(t, lifecycles, owner, ownerlifecycle.StateActive)
 }
 
 func TestTerminalIdentityReceiptAndLifecycleDenialCommitAtomically(t *testing.T) {
@@ -194,7 +258,7 @@ func TestTerminalIdentityReceiptAndLifecycleDenialCommitAtomically(t *testing.T)
 	profile := tap.Event{
 		ID: 91, URI: "at://did:plc:terminal-owner/social.craftsky.actor.profile/self",
 		DID: owner, Collection: "social.craftsky.actor.profile", Rkey: "self",
-		Rev: "3m00000000091", CID: "bafy-terminal-profile", Action: "create",
+		Rev: "3aaaaaaaaaaab", CID: "bafy-terminal-profile", Action: "create",
 		Record: json.RawMessage(`{"crafts":["sewing"]}`),
 	}
 	if outcome, err := service.IngestRecord(context.Background(), profile); err != nil || outcome.Kind != tap.OutcomeApplied {
@@ -255,6 +319,9 @@ func lifecycleIngestionPool(t *testing.T) *pgxpool.Pool {
 		"../../migrations/000050_pds_effect_source_reconciliation.up.sql",
 		"../../migrations/000053_identity_cache_refresh.up.sql",
 		"../../migrations/000054_tap_identity_refresh_trigger.up.sql",
+		"../../migrations/000056_tap_source_projection_generation.up.sql",
+		"../../migrations/000057_tap_identity_refresh_version.up.sql",
+		"../../migrations/000058_tap_projection_generation_column.up.sql",
 	} {
 		sql, err := os.ReadFile(path)
 		if err != nil {
