@@ -11,6 +11,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+
+	"social.craftsky/appview/internal/followergrowth"
 )
 
 const (
@@ -238,6 +240,11 @@ func (processor *TerminalPurgeProcessor) ProcessClaim(
 			now := processor.store.now().UTC().Truncate(time.Microsecond)
 			if err := lockPurgeClaimTx(fenceCtx, tx, claim, now); err != nil {
 				return err
+			}
+			if entry.Table == "follower_growth_snapshots" {
+				if err := followergrowth.LockCaptureTransaction(fenceCtx, tx); err != nil {
+					return err
+				}
 			}
 			var err error
 			switch entry.Action {

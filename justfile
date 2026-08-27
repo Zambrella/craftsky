@@ -53,6 +53,10 @@ seed-fake *ARGS:
 seed-demo *ARGS:
     ./scripts/compose-dev exec appview /app/cli seed demo {{ARGS}}
 
+# Populate one user's follower-growth chart with deterministic fake history.
+seed-follower-growth DID *ARGS:
+    ./scripts/compose-dev exec appview /app/cli seed follower-growth --user '{{DID}}' {{ARGS}}
+
 # Open a psql session against the dev database, or run one-off commands.
 #   just psql                 # interactive shell
 #   just psql -c '\d'         # pass -c / other args through to psql

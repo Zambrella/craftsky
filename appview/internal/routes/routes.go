@@ -251,6 +251,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 	})
 	registerProfileRelationshipRoutes(profileRelationshipRouteBundle{
 		mux: mux, middleware: v1mw, profileStore: deps.ProfileStore,
+		followerGrowth:            deps.FollowerGrowth,
 		profileCustomisationStore: profileCustomisationStore,
 		followStore:               deps.FollowStore, relationshipStore: deps.RelationshipStore,
 		relationshipMutations: deps.RelationshipMutations,

@@ -2349,6 +2349,86 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsNotifications => 'Notifications';
 
   @override
+  String get settingsGrowth => 'Growth';
+
+  @override
+  String get growthMetricLabel => 'Followers';
+
+  @override
+  String get growthTrendLabel => 'Trend';
+
+  @override
+  String get growthScopeCopy => 'Craftsky followers.';
+
+  @override
+  String get growthFreshnessCopy => 'Updated daily. Dates are UTC.';
+
+  @override
+  String get growthPeriodSevenDays => '7 days';
+
+  @override
+  String get growthPeriodThirtyDays => '30 days';
+
+  @override
+  String get growthPeriodOneYear => '1 year';
+
+  @override
+  String growthLatestCount(String count) {
+    return '$count followers';
+  }
+
+  @override
+  String growthChangeUp(String count) {
+    return 'Up $count';
+  }
+
+  @override
+  String growthChangeDown(String count) {
+    return 'Down $count';
+  }
+
+  @override
+  String get growthNoChange => 'No change';
+
+  @override
+  String get growthInsufficientHistory => 'Not enough history';
+
+  @override
+  String growthLatestSnapshot(String date) {
+    return 'Latest snapshot: $date';
+  }
+
+  @override
+  String get growthNoHistory => 'No follower history yet';
+
+  @override
+  String get growthNoObservationsInPeriod => 'No observations in this period';
+
+  @override
+  String growthHistoryAvailableSince(String date) {
+    return 'History available since $date';
+  }
+
+  @override
+  String growthChartRange(String start, String end) {
+    return 'From $start to $end';
+  }
+
+  @override
+  String growthMissingDays(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count days have no observation',
+      one: '1 day has no observation',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get growthLoadError => 'Could not load follower growth.';
+
+  @override
   String get settingsFollowers => 'Followers';
 
   @override

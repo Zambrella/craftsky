@@ -19,3 +19,11 @@ Future<ProfileRepository> accountRelationshipRepository(
 ) async => ApiProfileRepository(
   ProfileApiClient(await ref.watch(accountDioProvider(account).future)),
 );
+
+@riverpod
+Future<ProfileRepository> accountFollowerGrowthRepository(
+  Ref ref,
+  AccountKey account,
+) async => ApiProfileRepository(
+  ProfileApiClient(await ref.watch(accountDioProvider(account).future)),
+);

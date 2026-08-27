@@ -54,6 +54,7 @@ type MetricRecorder interface {
 	TerminalPurge(ctx context.Context, operation, result, errorCategory, component, didRole string, claims int, rowsAffected, remaining int64, complete bool)
 	IdentityResolution(ctx context.Context, mode, direction, result string, duration time.Duration)
 	IdentityCache(ctx context.Context, result string, age time.Duration)
+	FollowerGrowthCapture(ctx context.Context, result, errorCategory string, duration time.Duration, capturedProfileCount int64, latestSuccessfulRunAge *time.Duration)
 }
 
 type noopMetricRecorder struct{}
@@ -97,6 +98,8 @@ func (noopMetricRecorder) TerminalPurge(context.Context, string, string, string,
 func (noopMetricRecorder) IdentityResolution(context.Context, string, string, string, time.Duration) {
 }
 func (noopMetricRecorder) IdentityCache(context.Context, string, time.Duration) {}
+func (noopMetricRecorder) FollowerGrowthCapture(context.Context, string, string, time.Duration, int64, *time.Duration) {
+}
 
 type InMemoryMetricRecorder struct {
 	mu       sync.Mutex
@@ -383,6 +386,26 @@ func (r *InMemoryMetricRecorder) IdentityCache(_ context.Context, result string,
 	attrs := map[string]string{"result": safeIdentityCacheResult(result)}
 	r.record(MetricCall{Name: "craftsky_appview_identity_cache_events_total", Kind: MetricKindCounter, Value: 1, Attributes: attrs})
 	r.record(MetricCall{Name: "craftsky_appview_identity_cache_age_seconds", Kind: MetricKindDistribution, Unit: "second", Value: nonNegativeDuration(age).Seconds(), Attributes: attrs})
+}
+
+func (r *InMemoryMetricRecorder) FollowerGrowthCapture(
+	_ context.Context,
+	result string,
+	errorCategory string,
+	duration time.Duration,
+	capturedProfileCount int64,
+	latestSuccessfulRunAge *time.Duration,
+) {
+	attrs := map[string]string{
+		"result":         safeFollowerGrowthResult(result),
+		"error_category": safeFollowerGrowthErrorCategory(errorCategory),
+	}
+	r.record(MetricCall{Name: "craftsky_appview_follower_growth_captures_total", Kind: MetricKindCounter, Value: 1, Attributes: attrs})
+	r.record(MetricCall{Name: "craftsky_appview_follower_growth_capture_duration_seconds", Kind: MetricKindDistribution, Unit: "second", Value: nonNegativeDuration(duration).Seconds(), Attributes: attrs})
+	r.record(MetricCall{Name: "craftsky_appview_follower_growth_captured_profiles", Kind: MetricKindGauge, Unit: "profile", Value: float64(max(capturedProfileCount, 0))})
+	if latestSuccessfulRunAge != nil {
+		r.record(MetricCall{Name: "craftsky_appview_follower_growth_latest_success_age_seconds", Kind: MetricKindGauge, Unit: "second", Value: nonNegativeDuration(*latestSuccessfulRunAge).Seconds()})
+	}
 }
 
 func (r *InMemoryMetricRecorder) TapIndexerRecord(_ context.Context, nsid, result, reason string, duration time.Duration) {
@@ -678,6 +701,26 @@ func (r *sentryMetricRecorder) IdentityCache(ctx context.Context, result string,
 	attrs := map[string]string{"result": safeIdentityCacheResult(result)}
 	r.count(ctx, "craftsky_appview_identity_cache_events_total", 1, "", attrs)
 	r.distribution(ctx, "craftsky_appview_identity_cache_age_seconds", nonNegativeDuration(age).Seconds(), "second", attrs)
+}
+
+func (r *sentryMetricRecorder) FollowerGrowthCapture(
+	ctx context.Context,
+	result string,
+	errorCategory string,
+	duration time.Duration,
+	capturedProfileCount int64,
+	latestSuccessfulRunAge *time.Duration,
+) {
+	attrs := map[string]string{
+		"result":         safeFollowerGrowthResult(result),
+		"error_category": safeFollowerGrowthErrorCategory(errorCategory),
+	}
+	r.count(ctx, "craftsky_appview_follower_growth_captures_total", 1, "", attrs)
+	r.distribution(ctx, "craftsky_appview_follower_growth_capture_duration_seconds", nonNegativeDuration(duration).Seconds(), "second", attrs)
+	r.gauge(ctx, "craftsky_appview_follower_growth_captured_profiles", float64(max(capturedProfileCount, 0)), "profile", nil)
+	if latestSuccessfulRunAge != nil {
+		r.gauge(ctx, "craftsky_appview_follower_growth_latest_success_age_seconds", nonNegativeDuration(*latestSuccessfulRunAge).Seconds(), "second", nil)
+	}
 }
 
 func identityResolutionAttributes(mode, direction, result string) map[string]string {

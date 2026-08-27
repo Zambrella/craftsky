@@ -118,6 +118,7 @@ type Dependencies struct {
 	InstagramImports      *instagram.ImportService
 
 	ProfileStore              *api.ProfileStore
+	FollowerGrowth            api.FollowerGrowthReader
 	ProfileCustomisationStore *api.ProfileCustomisationStore
 	FollowStore               *api.FollowStore
 	RelationshipStore         *relationships.Store

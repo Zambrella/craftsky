@@ -114,6 +114,36 @@ func TestBuildProfileResponse_IncludesFollowStateAndCraftskyCounts(t *testing.T)
 	}
 }
 
+func TestPublicProfileResponseDoesNotExposeFollowerGrowth(t *testing.T) {
+	t.Parallel()
+	followerCount := 42
+	response := api.BuildProfileResponse(&api.ProfileRow{
+		DID:           "did:plc:public-profile",
+		Crafts:        []string{},
+		CreatedAt:     time.Now(),
+		FollowerCount: &followerCount,
+	}, "public-profile.example", true)
+	raw, err := json.Marshal(response)
+	if err != nil {
+		t.Fatalf("marshal public profile: %v", err)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(raw, &body); err != nil {
+		t.Fatalf("decode public profile: %v", err)
+	}
+	if body["followerCount"] != float64(42) {
+		t.Fatalf("public summary followerCount = %v, want 42", body["followerCount"])
+	}
+	for _, privateField := range []string{
+		"followerGrowth", "growth", "points", "rangeStart", "rangeEnd", "availableFrom",
+		"latestSnapshotDate", "latestCapturedAt", "latestFollowerCount", "netChange",
+	} {
+		if _, exists := body[privateField]; exists {
+			t.Errorf("public profile exposed private field %q: %s", privateField, raw)
+		}
+	}
+}
+
 func TestBuildProfileResponse_IncludesSummaryCountsWithoutMutualPreview(t *testing.T) {
 	t.Parallel()
 	followerCount := 3

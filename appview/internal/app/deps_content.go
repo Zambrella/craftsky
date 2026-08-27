@@ -8,6 +8,7 @@ import (
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/followergrowth"
 	"social.craftsky/appview/internal/languages"
 	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/observability"
@@ -27,6 +28,8 @@ type contentDependencies struct {
 	follows               *api.FollowStore
 	reports               *api.ReportStore
 	reportForwarder       api.ReportForwarder
+	followerGrowth        *followergrowth.Store
+	followerGrowthWorker  *followergrowth.Worker
 }
 
 type contentRuntimeDependencies struct {
@@ -39,6 +42,7 @@ func newContentDependencies(
 	pool *pgxpool.Pool,
 	observer *observability.Observer,
 ) *contentDependencies {
+	followerGrowth := followergrowth.NewStore(pool)
 	return &contentDependencies{
 		posts:                 api.NewPostStore(pool, observer),
 		notificationLifecycle: notifications.NewService(observer),
@@ -49,6 +53,8 @@ func newContentDependencies(
 		follows:               api.NewFollowStore(pool),
 		reports:               api.NewReportStore(pool),
 		reportForwarder:       api.NewPlaceholderReportForwarder(time.Now),
+		followerGrowth:        followerGrowth,
+		followerGrowthWorker:  followergrowth.NewWorker(followerGrowth, followergrowth.WithObserver(observer)),
 	}
 }
 

@@ -19,6 +19,7 @@ void main() {
       SettingsRowId.notifications,
     ]);
     expect(settingsSections[1].rows.map((row) => row.id), [
+      SettingsRowId.growth,
       SettingsRowId.followers,
       SettingsRowId.following,
       SettingsRowId.mutedAccounts,

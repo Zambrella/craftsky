@@ -23,6 +23,7 @@ class RouteLocations {
   static const profile = '/profile';
   static const settingsChild = 'settings';
   static const settings = '$profile/$settingsChild';
+  static const growthChild = 'growth';
   static const languagesChild = 'languages';
   static const customisationChild = 'customisation';
   static const accountChild = 'account';

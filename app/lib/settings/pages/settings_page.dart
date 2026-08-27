@@ -111,6 +111,15 @@ class SettingsPage extends ConsumerWidget {
           _SectionLabel(l10n.settingsSectionConnections),
           SettingsRowTile(
             descriptor: const SettingsRowDescriptor(
+              id: SettingsRowId.growth,
+              kind: SettingsRowKind.disclosure,
+            ),
+            label: l10n.settingsGrowth,
+            leading: Icons.show_chart,
+            onTap: () => const FollowerGrowthRoute().go(context),
+          ),
+          SettingsRowTile(
+            descriptor: const SettingsRowDescriptor(
               id: SettingsRowId.followers,
               kind: SettingsRowKind.disclosure,
             ),

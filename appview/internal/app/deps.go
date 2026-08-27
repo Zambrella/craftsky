@@ -13,6 +13,7 @@ import (
 	"social.craftsky/appview/internal/accountdeletion"
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/followergrowth"
 	"social.craftsky/appview/internal/index"
 	"social.craftsky/appview/internal/ingestion"
 	"social.craftsky/appview/internal/instagram"
@@ -77,11 +78,13 @@ type Deps struct {
 	// only where a mutable handle selects a durable/security-sensitive target.
 	AuthoritativeHandleResolver api.HandleResolver
 
-	Consumer            tap.Consumer
-	TapProjectionWorker *ingestion.ProjectionWorker
-	TapRepositoryWorker *ingestion.RepositoryWorker
-	TapQuarantineWorker *ingestion.QuarantineReplayWorker
-	PushDispatcher      *push.Dispatcher
+	Consumer             tap.Consumer
+	TapProjectionWorker  *ingestion.ProjectionWorker
+	TapRepositoryWorker  *ingestion.RepositoryWorker
+	TapQuarantineWorker  *ingestion.QuarantineReplayWorker
+	PushDispatcher       *push.Dispatcher
+	FollowerGrowthStore  *followergrowth.Store
+	FollowerGrowthWorker *followergrowth.Worker
 
 	// Instagram migration is private AppView data. Verification can remain
 	// disabled while the membership/store dependencies continue to expose
@@ -328,6 +331,8 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		ProfileStore:                content.profiles,
 		ProfileCustomisationStore:   content.profileCustomisation,
 		FollowStore:                 content.follows,
+		FollowerGrowthStore:         content.followerGrowth,
+		FollowerGrowthWorker:        content.followerGrowthWorker,
 		ReportStore:                 content.reports,
 		ReportForwarder:             content.reportForwarder,
 		InstagramMembership:         instagramMembership,
