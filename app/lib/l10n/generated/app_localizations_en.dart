@@ -2470,6 +2470,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get youtubeOpenExternally => 'Open in YouTube';
 
   @override
+  String get youtubeEnterFullscreen => 'Enter full screen';
+
+  @override
   String get youtubePlaybackUnavailable =>
       'This video can’t be played here. It may be private, unavailable, or restricted from embedded playback.';
 }

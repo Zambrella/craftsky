@@ -2152,6 +2152,10 @@
   "@youtubeOpenExternally": {
     "description": "Button that opens the original YouTube URL outside CraftSky."
   },
+  "youtubeEnterFullscreen": "Enter full screen",
+  "@youtubeEnterFullscreen": {
+    "description": "Tooltip for opening an inline YouTube video in a full-screen route."
+  },
   "youtubePlaybackUnavailable": "This video can’t be played here. It may be private, unavailable, or restricted from embedded playback.",
   "@youtubePlaybackUnavailable": {
     "description": "Stable fallback shown when the YouTube iframe reports a playback error."

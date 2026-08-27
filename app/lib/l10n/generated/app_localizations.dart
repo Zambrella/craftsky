@@ -4473,6 +4473,12 @@ abstract class AppLocalizations {
   /// **'Open in YouTube'**
   String get youtubeOpenExternally;
 
+  /// Tooltip for opening an inline YouTube video in a full-screen route.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter full screen'**
+  String get youtubeEnterFullscreen;
+
   /// Stable fallback shown when the YouTube iframe reports a playback error.
   ///
   /// In en, this message translates to:
