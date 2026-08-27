@@ -3,6 +3,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/pages/post_thread_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/feed/widgets/external_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
@@ -30,6 +31,7 @@ Post _post(
   String text, {
   int replyCount = 0,
   DateTime? createdAt,
+  PostExternal? external,
 }) => Post(
   uri: 'at://$did/social.craftsky.feed.post/$rkey',
   cid: 'bafy_$rkey',
@@ -45,6 +47,7 @@ Post _post(
   viewerHasLiked: false,
   viewerHasReposted: false,
   viewerHasSaved: false,
+  external: external,
 );
 
 InteractionWriteResponse _likeResponse(Post post) => InteractionWriteResponse(
@@ -70,6 +73,7 @@ Future<void> _pumpCommentSection(
   Post? initialCreatedPost,
   Size size = const Size(390, 1200),
   RecordingMessenger? messenger,
+  Future<bool> Function(Uri)? externalLauncher,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -86,6 +90,8 @@ Future<void> _pumpCommentSection(
           ),
         ),
         postRepositoryProvider.overrideWithValue(repo),
+        if (externalLauncher != null)
+          externalCardLauncherProvider.overrideWithValue(externalLauncher),
         accountSuggestionRepositoryProvider.overrideWithValue(
           const MockAccountSuggestionRepository(
             accounts: [
@@ -121,6 +127,87 @@ Future<void> _pumpCommentSection(
 }
 
 void main() {
+  testWidgets(
+    'IT-014 renders external cards on detail, comment, and reply surfaces',
+    (
+      tester,
+    ) async {
+      final launched = <Uri>[];
+      PostExternal external(String title) => PostExternal(
+        uri: 'https://example.com/${title.toLowerCase()}?token=final#section',
+        title: title,
+        description: '$title description',
+      );
+      final root = _post(
+        'did:plc:alice',
+        'root',
+        'root post',
+        external: external('Root pattern'),
+      );
+      final comment = _post(
+        'did:plc:bob',
+        'comment',
+        'comment',
+        external: external('Comment pattern'),
+      );
+      final reply = _post(
+        'did:plc:carol',
+        'reply',
+        'reply',
+        external: external('Reply pattern'),
+      );
+      final repo = FakePostRepository(
+        onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+            PostCommentSection(
+              post: root,
+              sort: CommentSort.oldest,
+              comments: CommentPage(
+                items: [
+                  CommentItem(
+                    post: comment,
+                    placement: CommentPlacement.normal,
+                    replies: ReplyPage(
+                      loaded: true,
+                      items: [ReplyItem(post: reply, flattened: false)],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+      );
+
+      await _pumpCommentSection(
+        tester,
+        repo: repo,
+        externalLauncher: (uri) async {
+          launched.add(uri);
+          return true;
+        },
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ExternalCard), findsNWidgets(3));
+      expect(find.text('Root pattern'), findsOneWidget);
+      expect(find.text('Comment pattern'), findsOneWidget);
+      expect(find.text('Reply pattern'), findsOneWidget);
+      expect(find.text('example.com'), findsNWidgets(3));
+      expect(tester.takeException(), isNull);
+      for (var index = 0; index < 3; index++) {
+        final card = find.byType(ExternalCard).at(index);
+        await tester.ensureVisible(card);
+        await tester.tap(card);
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Open link'));
+        await tester.pumpAndSettle();
+      }
+      expect(launched, [
+        Uri.parse('https://example.com/root%20pattern?token=final#section'),
+        Uri.parse('https://example.com/comment%20pattern?token=final#section'),
+        Uri.parse('https://example.com/reply%20pattern?token=final#section'),
+      ]);
+    },
+  );
+
   testWidgets('comment section labels are exposed through localizations', (
     tester,
   ) async {

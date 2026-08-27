@@ -6,10 +6,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/ipfs/go-cid"
+	"github.com/rivo/uniseg"
 
 	"social.craftsky/appview/internal/languages"
 )
@@ -39,7 +42,15 @@ type ReplyRef struct {
 // {uri, cid}}}; the AppView translates it to the lexicon's
 // {embed: {$type: ..#quoteEmbed, record: {uri, cid}}} before writing.
 type EmbedRequest struct {
-	Quote *StrongRef `json:"quote,omitempty"`
+	Quote    *StrongRef            `json:"quote,omitempty"`
+	External *ExternalEmbedRequest `json:"external,omitempty"`
+}
+
+type ExternalEmbedRequest struct {
+	URI         string         `json:"uri"`
+	Title       string         `json:"title"`
+	Description string         `json:"description"`
+	Thumb       map[string]any `json:"thumb,omitempty"`
 }
 
 // PostCreateRequest is the decoded body of POST /v1/posts.
@@ -142,6 +153,18 @@ func ValidatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits) err
 	if req.Embed != nil && req.Embed.Quote != nil {
 		validateStrongRef(fields, "embed.quote", *req.Embed.Quote)
 	}
+	if req.Embed != nil && req.Embed.External != nil {
+		validateExternalEmbed(fields, *req.Embed.External)
+		if req.Embed.Quote != nil {
+			fields["embed"] = "quote and external embeds are mutually exclusive"
+		}
+		if len(req.Images) > 0 {
+			fields["embed.external"] = "external embeds cannot coexist with images"
+		}
+		if req.Project != nil {
+			fields["embed.external"] = "project posts cannot contain external embeds"
+		}
+	}
 	if len(req.Images) > limits.MaxPostImages {
 		fields["images"] = fmt.Sprintf("exceeds maximum of %d entries", limits.MaxPostImages)
 	}
@@ -195,6 +218,56 @@ func ValidatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits) err
 	return nil
 }
 
+func validateExternalEmbed(fields map[string]string, external ExternalEmbedRequest) {
+	uri, err := url.Parse(external.URI)
+	if err != nil || uri.Scheme != "http" && uri.Scheme != "https" || uri.Hostname() == "" || uri.User != nil || len(external.URI) > maxLinkPreviewURLBytes {
+		fields["embed.external.uri"] = "must be an HTTP or HTTPS URL"
+	}
+	validateExternalMetadata(fields, "embed.external.title", external.Title, 200, 2_000, true)
+	validateExternalMetadata(fields, "embed.external.description", external.Description, 300, 3_000, false)
+	if external.Thumb != nil {
+		validatePostImageBlob(fields, "embed.external.thumb", external.Thumb)
+		for key := range external.Thumb {
+			if key != "$type" && key != "ref" && key != "mimeType" && key != "size" {
+				fields["embed.external.thumb."+key] = "is not allowed"
+			}
+		}
+		if blobType, ok := external.Thumb["$type"].(string); !ok || blobType != "blob" {
+			fields["embed.external.thumb.$type"] = "must be blob"
+		}
+		if ref, ok := external.Thumb["ref"].(map[string]any); ok {
+			for key := range ref {
+				if key != "$link" {
+					fields["embed.external.thumb.ref."+key] = "is not allowed"
+				}
+			}
+			if link, ok := ref["$link"].(string); ok {
+				parsed, err := cid.Parse(link)
+				if err != nil || parsed.String() != link {
+					fields["embed.external.thumb.ref.$link"] = "must be a canonical CID"
+				}
+			}
+		}
+		mimeType, _ := external.Thumb["mimeType"].(string)
+		switch mimeType {
+		case "image/jpeg", "image/png", "image/webp":
+		default:
+			fields["embed.external.thumb.mimeType"] = "must be image/jpeg, image/png, or image/webp"
+		}
+		if size, ok := positiveIntegerValue(external.Thumb["size"]); !ok || size > 1_000_000 {
+			fields["embed.external.thumb.size"] = "must be a positive integer no greater than 1000000"
+		}
+	}
+}
+
+func validateExternalMetadata(fields map[string]string, key, value string, maxGraphemes, maxBytes int, required bool) {
+	if !utf8.ValidString(value) || len(value) > maxBytes || uniseg.GraphemeClusterCount(value) > maxGraphemes {
+		fields[key] = "exceeds metadata limits"
+	} else if required && strings.TrimSpace(value) == "" {
+		fields[key] = "must not be empty"
+	}
+}
+
 func validatePostImageBlob(fields map[string]string, prefix string, blob map[string]any) {
 	refRaw, ok := blob["ref"]
 	if !ok {
@@ -221,38 +294,43 @@ func validatePostImageBlob(fields map[string]string, prefix string, blob map[str
 }
 
 func isPositiveIntegerValue(v any) bool {
+	_, ok := positiveIntegerValue(v)
+	return ok
+}
+
+func positiveIntegerValue(v any) (uint64, bool) {
 	switch n := v.(type) {
 	case int:
-		return n > 0
+		return uint64(n), n > 0
 	case int8:
-		return n > 0
+		return uint64(n), n > 0
 	case int16:
-		return n > 0
+		return uint64(n), n > 0
 	case int32:
-		return n > 0
+		return uint64(n), n > 0
 	case int64:
-		return n > 0
+		return uint64(n), n > 0
 	case uint:
-		return n > 0
+		return uint64(n), n > 0
 	case uint8:
-		return n > 0
+		return uint64(n), n > 0
 	case uint16:
-		return n > 0
+		return uint64(n), n > 0
 	case uint32:
-		return n > 0
+		return uint64(n), n > 0
 	case uint64:
-		return n > 0
+		return n, n > 0
 	case float32:
-		return n > 0 && n == float32(int64(n))
+		return uint64(n), n > 0 && n == float32(uint64(n))
 	case float64:
-		return n > 0 && n == float64(int64(n))
+		return uint64(n), n > 0 && n == float64(uint64(n))
 	case json.Number:
 		if i, err := n.Int64(); err == nil {
-			return i > 0
+			return uint64(i), i > 0
 		}
-		return false
+		return 0, false
 	default:
-		return false
+		return 0, false
 	}
 }
 

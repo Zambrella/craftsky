@@ -1,3 +1,4 @@
+import 'package:craftsky_app/feed/models/create_post_external.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
@@ -23,6 +24,7 @@ abstract interface class PostRepository {
     PostRef? quote,
     Project? project,
     List<CreatePostImage>? images,
+    CreatePostExternal? external,
     List<Map<String, dynamic>>? facets,
   });
 

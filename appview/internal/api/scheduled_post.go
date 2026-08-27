@@ -354,6 +354,8 @@ func writeScheduledPostError(writer http.ResponseWriter, request *http.Request, 
 		envelope.WriteError(writer, http.StatusConflict, "scheduled_operation_conflict", "operation conflicts with an existing request", runID, nil)
 	case errors.Is(err, scheduledposts.ErrScheduledMediaUnavailable):
 		envelope.WriteError(writer, http.StatusUnprocessableEntity, "scheduled_media_not_found", "scheduled media is unavailable", runID, nil)
+	case errors.Is(err, scheduledposts.ErrScheduledMediaInvalid):
+		envelope.WriteError(writer, http.StatusUnprocessableEntity, "scheduled_media_invalid", "scheduled media is invalid", runID, nil)
 	case errors.Is(err, scheduledposts.ErrScheduleNotFound):
 		envelope.WriteError(writer, http.StatusNotFound, "scheduled_post_not_found", "scheduled post not found", runID, nil)
 	case errors.Is(err, scheduledposts.ErrMutationLocked):
@@ -379,6 +381,8 @@ func scheduledPostErrorClass(err error) string {
 		return "operation_conflict"
 	case errors.Is(err, scheduledposts.ErrScheduledMediaUnavailable):
 		return "media_unavailable"
+	case errors.Is(err, scheduledposts.ErrScheduledMediaInvalid):
+		return "media_invalid"
 	default:
 		return "unknown"
 	}

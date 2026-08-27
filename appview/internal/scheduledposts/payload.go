@@ -8,12 +8,13 @@ import (
 )
 
 type Payload struct {
-	Kind    PostKind        `json:"kind"`
-	Text    string          `json:"text"`
-	Facets  json.RawMessage `json:"facets,omitempty"`
-	Langs   []string        `json:"langs,omitempty"`
-	Project json.RawMessage `json:"project,omitempty"`
-	Media   []PayloadMedia  `json:"media,omitempty"`
+	Kind     PostKind         `json:"kind"`
+	Text     string           `json:"text"`
+	Facets   json.RawMessage  `json:"facets,omitempty"`
+	Langs    []string         `json:"langs,omitempty"`
+	Project  json.RawMessage  `json:"project,omitempty"`
+	Media    []PayloadMedia   `json:"media,omitempty"`
+	External *PayloadExternal `json:"external,omitempty"`
 }
 
 type PayloadMedia struct {
@@ -21,6 +22,14 @@ type PayloadMedia struct {
 	Alt    string `json:"alt"`
 	Width  int    `json:"width,omitempty"`
 	Height int    `json:"height,omitempty"`
+}
+
+type PayloadExternal struct {
+	SourceURI    string `json:"sourceUri"`
+	URI          string `json:"uri"`
+	Title        string `json:"title"`
+	Description  string `json:"description"`
+	ThumbMediaID string `json:"thumbMediaId,omitempty"`
 }
 
 func EncodePayload(payload Payload) ([]byte, error) {

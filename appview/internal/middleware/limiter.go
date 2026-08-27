@@ -10,12 +10,13 @@ import (
 type RateClass string
 
 const (
-	RateClassOuter  RateClass = "outer"
-	RateClassAuth   RateClass = "auth"
-	RateClassRead   RateClass = "read"
-	RateClassWrite  RateClass = "write"
-	RateClassSearch RateClass = "expensive_search"
-	RateClassUpload RateClass = "upload"
+	RateClassOuter       RateClass = "outer"
+	RateClassAuth        RateClass = "auth"
+	RateClassRead        RateClass = "read"
+	RateClassWrite       RateClass = "write"
+	RateClassSearch      RateClass = "expensive_search"
+	RateClassUpload      RateClass = "upload"
+	RateClassLinkPreview RateClass = "link_preview"
 )
 
 type RateLimitConfig struct {

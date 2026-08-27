@@ -10,11 +10,14 @@ import 'package:craftsky_app/drafts/models/draft_media_descriptor.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/drafts/pages/drafts_page.dart';
 import 'package:craftsky_app/drafts/providers/local_post_draft_repository_provider.dart';
+import 'package:craftsky_app/feed/composer/link_preview_controller.dart';
+import 'package:craftsky_app/feed/models/link_preview.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -182,6 +185,69 @@ void main() {
       expect(find.text('Preserved description'), findsOneWidget);
     },
   );
+
+  testWidgets('AT-006 reopened draft derives a fresh preview session', (
+    tester,
+  ) async {
+    final registry = SessionRegistry.empty().upsertAndActivate(
+      token: 'alice-token',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    final lease = registry.activeLease!;
+    final repository = _MemoryRepository([
+      _draft(
+        '00000000-0000-4000-8000-000000000010',
+        lease.session.account,
+        const StandardDraftContent(
+          text: 'Resume https://source.example/pattern ',
+          languages: ['en'],
+        ),
+      ),
+    ]);
+    final previews = _DraftPreviewRepository();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(registry),
+          ),
+          activeAccountInitializationProvider.overrideWith(
+            (ref) => ActiveAccountInitialization(
+              lease: lease,
+              languagePreferences: const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+          ),
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          accountLocalPostDraftRepositoryProvider(
+            lease.session.account,
+          ).overrideWith((ref) async => repository),
+          linkPreviewRepositoryProvider.overrideWithValue(previews),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const DraftsPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('Edit draft'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Fresh preview'), findsOneWidget);
+    expect(previews.urls, ['https://source.example/pattern']);
+  });
 }
 
 final class _RegistryStorage implements SessionRegistryStorage {
@@ -218,6 +284,20 @@ final class _MemoryRepository implements LocalPostDraftRepository {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+final class _DraftPreviewRepository implements LinkPreviewRepository {
+  final urls = <String>[];
+
+  @override
+  Future<LinkPreview> fetch(Uri url, CancelToken cancelToken) async {
+    urls.add(url.toString());
+    return LinkPreview(
+      url: url,
+      title: 'Fresh preview',
+      description: 'Fresh description',
+    );
+  }
 }
 
 LocalPostDraft _draft(

@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:craftsky_app/feed/composer/composer_media_uploader.dart';
+import 'package:craftsky_app/feed/composer/link_preview_candidate.dart';
+import 'package:craftsky_app/feed/composer/link_preview_controller.dart';
+import 'package:craftsky_app/feed/models/link_preview.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:crypto/crypto.dart';
@@ -172,6 +175,72 @@ void main() {
       throwsStateError,
     );
     expect(calls, 1);
+  });
+
+  test(
+    'IT-013 materializes the synchronous selection and uploads its thumbnail',
+    () async {
+      final uploader = ComposerMediaUploader();
+      final selection = SelectedLinkPreview(
+        candidate: LinkPreviewCandidate.parse('https://example.com/a#source'),
+        preview: LinkPreview(
+          url: Uri.parse('https://final.example/a#metadata'),
+          title: 'Pattern',
+          description: 'Description',
+          thumbnail: LinkPreviewThumbnail(
+            bytes: Uint8List.fromList([1, 2, 3]),
+            mimeType: 'image/png',
+            width: 20,
+            height: 10,
+          ),
+        ),
+      );
+      var calls = 0;
+
+      final external = await uploader.materializeImmediateExternal(
+        composerId: 'composer',
+        selection: selection,
+        ownershipIsCurrent: () => true,
+        upload:
+            ({required bytes, required mimeType, required cancelToken}) async {
+              calls++;
+              expect(bytes, [1, 2, 3]);
+              expect(mimeType, 'image/png');
+              return _uploaded('cid-thumb', bytes.length);
+            },
+      );
+
+      expect(calls, 1);
+      expect(external.uri, 'https://final.example/a#metadata');
+      expect(external.title, 'Pattern');
+      expect(external.description, 'Description');
+      expect(external.thumb?.link, 'cid-thumb');
+    },
+  );
+
+  test('IT-013 metadata-only selection performs no upload', () async {
+    final uploader = ComposerMediaUploader();
+    final selection = SelectedLinkPreview(
+      candidate: LinkPreviewCandidate.parse('https://example.com/a'),
+      preview: LinkPreview(
+        url: Uri.parse('https://final.example/a'),
+        title: 'Pattern',
+        description: 'Description',
+      ),
+    );
+
+    final external = await uploader.materializeImmediateExternal(
+      composerId: 'composer',
+      selection: selection,
+      ownershipIsCurrent: () => true,
+      upload:
+          ({required bytes, required mimeType, required cancelToken}) async {
+            fail('metadata-only previews must not upload');
+          },
+    );
+
+    expect(external.uri, 'https://final.example/a');
+    expect(external.thumb, isNull);
   });
 }
 

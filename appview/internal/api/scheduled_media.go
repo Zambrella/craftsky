@@ -76,8 +76,13 @@ func PutScheduledMediaHandler(
 			Bytes:    payload, Now: time.Now().UTC(),
 		})
 		if err != nil {
-			logger.Warn("scheduled media upload failed",
-				slog.String("error_class", scheduledMediaErrorClass(err)))
+			attributes := []any{slog.String("error_class", scheduledMediaErrorClass(err))}
+			if errors.Is(err, scheduledposts.ErrScheduledMediaConflict) {
+				attributes = append(attributes, slog.String(
+					"conflict_stage", scheduledposts.ScheduledMediaConflictStage(err),
+				))
+			}
+			logger.Warn("scheduled media upload failed", attributes...)
 			writeScheduledMediaError(writer, request, err)
 			return
 		}

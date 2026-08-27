@@ -1,12 +1,17 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:craftsky_app/feed/composer/link_preview_controller.dart';
 import 'package:craftsky_app/feed/composer/prepared_media_validation.dart';
 import 'package:craftsky_app/feed/media/composer_image_media_service.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
+import 'package:craftsky_app/feed/models/link_preview.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
+import 'package:craftsky_app/scheduled_posts/models/scheduled_post.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image/image.dart' as img;
+import 'package:mime/mime.dart';
 
 typedef ScheduledMediaBytesLoader = Future<Uint8List> Function(String id);
 typedef ScheduledMediaStager =
@@ -168,6 +173,57 @@ Future<List<Map<String, dynamic>>> materializeScheduledComposerMedia(
     }
   }
   return media;
+}
+
+Future<ScheduledPostExternal> materializeScheduledExternal(
+  SelectedLinkPreview selection, {
+  required String mediaId,
+  required ScheduledMediaStager stageMedia,
+  Duration transferBudget = const Duration(minutes: 1),
+}) async {
+  final thumbnail = selection.preview.thumbnail;
+  if (thumbnail != null) {
+    await _stageWithBudget(
+      stageMedia,
+      id: mediaId,
+      bytes: thumbnail.bytes,
+      mimeType: thumbnail.mimeType,
+      transferBudget: transferBudget,
+    );
+  }
+  return ScheduledPostExternal(
+    sourceUri: selection.candidate.identity.toString(),
+    uri: selection.navigationUri.toString(),
+    title: selection.preview.title,
+    description: selection.preview.description,
+    thumbMediaId: thumbnail == null ? null : mediaId,
+  );
+}
+
+Future<LinkPreviewThumbnail> hydrateScheduledExternalThumbnail(
+  String mediaId, {
+  required ScheduledMediaBytesLoader loadBytes,
+}) async {
+  final bytes = await loadBytes(mediaId);
+  if (bytes.isEmpty || bytes.length > maxLinkPreviewThumbnailBytes) {
+    throw const FormatException('invalid scheduled external thumbnail size');
+  }
+  final mimeType = lookupMimeType('', headerBytes: bytes);
+  if (mimeType != 'image/jpeg' &&
+      mimeType != 'image/png' &&
+      mimeType != 'image/webp') {
+    throw const FormatException('invalid scheduled external thumbnail type');
+  }
+  final decoded = img.decodeImage(bytes);
+  if (decoded == null || decoded.width <= 0 || decoded.height <= 0) {
+    throw const FormatException('invalid scheduled external thumbnail');
+  }
+  return LinkPreviewThumbnail(
+    bytes: bytes,
+    mimeType: mimeType!,
+    width: decoded.width,
+    height: decoded.height,
+  );
 }
 
 Future<void> _stageWithBudget(

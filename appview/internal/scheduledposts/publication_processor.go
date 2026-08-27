@@ -14,6 +14,7 @@ import (
 
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/pdseffects"
+	"social.craftsky/appview/internal/postrecord"
 )
 
 type publicationPreparationStore interface {
@@ -119,11 +120,20 @@ func (p *PublicationProcessor) Process(ctx context.Context, item WorkItem) (proc
 	if err != nil {
 		return p.recordFailure(ctx, claim, ErrPolicyInvalid, item.Manual)
 	}
-	if len(snapshot.Media) != len(payload.Media) {
+	mediaReferences, err := decodeScheduledMediaReferences(snapshot.Payload)
+	if err != nil || len(snapshot.Media) != len(mediaReferences) {
 		return p.recordFailure(ctx, claim, ErrMediaInvalid, item.Manual)
 	}
-	for _, media := range snapshot.Media {
+	for index, media := range snapshot.Media {
+		if media.ID != mediaReferences[index].id {
+			return p.recordFailure(ctx, claim, ErrMediaInvalid, item.Manual)
+		}
 		if media.SizeBytes < 1 || media.SizeBytes > p.maxMediaBytes {
+			return p.recordFailure(ctx, claim, ErrMediaInvalid, item.Manual)
+		}
+		if err := validateScheduledMediaReference(
+			mediaReferences[index], media.MIMEType, media.SizeBytes,
+		); err != nil {
 			return p.recordFailure(ctx, claim, ErrMediaInvalid, item.Manual)
 		}
 	}
@@ -407,7 +417,11 @@ func publicationBlob(item publicationMedia) map[string]any {
 }
 
 func publicationRecord(payload Payload, blobs []map[string]any, createdAt time.Time) (map[string]any, error) {
-	if len(blobs) != len(payload.Media) {
+	expectedBlobs := len(payload.Media)
+	if payload.External != nil && payload.External.ThumbMediaID != "" {
+		expectedBlobs++
+	}
+	if len(blobs) != expectedBlobs {
 		return nil, ErrMediaInvalid
 	}
 	record := map[string]any{"$type": PostCollection, "text": payload.Text, "createdAt": createdAt.UTC().Format(time.RFC3339)}
@@ -429,8 +443,8 @@ func publicationRecord(payload Payload, blobs []map[string]any, createdAt time.T
 		record["project"] = project
 	}
 	if len(blobs) > 0 {
-		images := make([]map[string]any, 0, len(blobs))
-		for index, blob := range blobs {
+		images := make([]map[string]any, 0, len(payload.Media))
+		for index, blob := range blobs[:len(payload.Media)] {
 			image := map[string]any{"image": blob}
 			if payload.Media[index].Alt != "" {
 				image["alt"] = payload.Media[index].Alt
@@ -440,7 +454,25 @@ func publicationRecord(payload Payload, blobs []map[string]any, createdAt time.T
 			}
 			images = append(images, image)
 		}
-		record["images"] = images
+		if len(images) > 0 {
+			record["images"] = images
+		}
+	}
+	if payload.External != nil {
+		var thumb map[string]any
+		if payload.External.ThumbMediaID != "" {
+			thumb = blobs[len(payload.Media)]
+		}
+		embed, err := postrecord.ExternalEmbed(
+			payload.External.URI,
+			payload.External.Title,
+			payload.External.Description,
+			thumb,
+		)
+		if err != nil {
+			return nil, err
+		}
+		record["embed"] = embed
 	}
 	return record, nil
 }

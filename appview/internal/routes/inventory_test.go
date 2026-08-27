@@ -131,6 +131,7 @@ func TestRouteInventoryAndV1PoliciesStayExact(t *testing.T) {
 		"GET /v1/profiles/{handleOrDid}/posts",
 		"GET /v1/profiles/{handleOrDid}/projects",
 		"GET /v1/profiles/{handleOrDid}/comments",
+		"POST /v1/link-previews",
 		"/",
 	}
 	if !reflect.DeepEqual(registrar.patterns, want) {

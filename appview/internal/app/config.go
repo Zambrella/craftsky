@@ -283,6 +283,7 @@ type Config struct {
 	JSONBodyLimitBytes  int64 // default 1 MiB
 	MaxPostImages       int   // default 4, maximum 4
 	MaxImageUploadBytes int64 // default 15MB, maximum 15MB
+	LinkPreviewsEnabled bool
 	ImageDecodeLimits   api.ImageDecodeLimits
 	RateLimits          middleware.RateLimitConfig
 	ScheduledPostsS3    scheduledposts.S3ObjectStoreConfig
@@ -776,6 +777,9 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		return Config{}, err
 	}
 	if cfg.JSONBodyLimitBytes, err = boundedInt64Env("APPVIEW_JSON_BODY_LIMIT_BYTES", defaultJSONBodyLimitBytes, 1, defaultJSONBodyLimitBytes); err != nil {
+		return Config{}, err
+	}
+	if cfg.LinkPreviewsEnabled, err = boolEnv("LINK_PREVIEWS_ENABLED", env != EnvProd); err != nil {
 		return Config{}, err
 	}
 	imageDefaults := api.DefaultImageDecodeLimits()
@@ -1342,11 +1346,12 @@ func isPublicDNSName(hostname string) bool {
 
 func DefaultRateLimitConfig() middleware.RateLimitConfig {
 	return middleware.RateLimitConfig{Classes: map[middleware.RateClass]middleware.ClassLimit{
-		middleware.RateClassAuth:   {Window: time.Minute, PerDevice: 10},
-		middleware.RateClassRead:   {Window: time.Minute, PerToken: 300, PerDevice: 600},
-		middleware.RateClassWrite:  {Window: time.Minute, PerToken: 60, PerDevice: 120},
-		middleware.RateClassSearch: {Window: time.Minute, PerToken: 60, PerDevice: 120},
-		middleware.RateClassUpload: {Window: time.Hour, PerToken: 100, PerDevice: 200},
+		middleware.RateClassAuth:        {Window: time.Minute, PerDevice: 10},
+		middleware.RateClassRead:        {Window: time.Minute, PerToken: 300, PerDevice: 600},
+		middleware.RateClassWrite:       {Window: time.Minute, PerToken: 60, PerDevice: 120},
+		middleware.RateClassSearch:      {Window: time.Minute, PerToken: 60, PerDevice: 120},
+		middleware.RateClassUpload:      {Window: time.Hour, PerToken: 100, PerDevice: 200},
+		middleware.RateClassLinkPreview: {Window: time.Hour, PerToken: 60, PerDevice: 120},
 	}}
 }
 

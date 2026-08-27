@@ -290,12 +290,57 @@ func TestScheduledMediaPutReturnsRetryableOverloadWhenDecoderIsSaturated(t *test
 	}
 }
 
+func TestScheduledMediaPutLogsSafeConflictStage(t *testing.T) {
+	mediaID := uuid.MustParse("00000000-0000-4000-8000-000000000705")
+	owner := syntax.DID("did:plc:private-owner-canary")
+	service := &fakeScheduledMediaService{
+		owner: owner,
+		putErr: scheduledposts.NewScheduledMediaConflict(
+			scheduledposts.MediaConflictExistingDigest,
+		),
+	}
+	var logs bytes.Buffer
+	handler := PutScheduledMediaHandler(
+		service,
+		DefaultMediaLimits(),
+		mustTestImageValidator(t),
+		slog.New(slog.NewJSONHandler(&logs, nil)),
+	)
+	request := httptest.NewRequest(
+		http.MethodPut,
+		"/v1/scheduled-post-media/"+mediaID.String(),
+		bytes.NewReader(validJPEGBytes(t)),
+	)
+	request.SetPathValue("mediaId", mediaID.String())
+	request.Header.Set("Content-Type", "image/jpeg")
+	request = request.WithContext(
+		middleware.WithOwnerGeneration(middleware.WithDID(request.Context(), owner), 7),
+	)
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusConflict {
+		t.Fatalf("PUT status=%d body=%s", response.Code, response.Body.String())
+	}
+	captured := logs.String()
+	if !strings.Contains(captured, `"conflict_stage":"existing_digest"`) {
+		t.Fatalf("conflict stage missing from log: %s", captured)
+	}
+	for _, private := range []string{owner.String(), mediaID.String(), "private-object"} {
+		if strings.Contains(captured, private) {
+			t.Fatalf("scheduled media conflict log leaked %q: %s", private, captured)
+		}
+	}
+}
+
 type fakeScheduledMediaService struct {
 	owner       syntax.DID
 	media       scheduledposts.PrivateMedia
 	body        []byte
 	putParams   scheduledposts.PutPrivateMediaParams
 	putCalls    int
+	putErr      error
 	deleteCalls int
 }
 
@@ -315,6 +360,9 @@ func (validator fixedImageValidator) Validate(
 func (s *fakeScheduledMediaService) Put(_ context.Context, params scheduledposts.PutPrivateMediaParams) (scheduledposts.PrivateMedia, error) {
 	s.putCalls++
 	s.putParams = params
+	if s.putErr != nil {
+		return scheduledposts.PrivateMedia{}, s.putErr
+	}
 	if params.OwnerDID != s.owner {
 		return scheduledposts.PrivateMedia{}, scheduledposts.ErrScheduledMediaNotFound
 	}

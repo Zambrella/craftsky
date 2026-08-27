@@ -32,6 +32,7 @@ type PostRow struct {
 	Text                 string
 	Facets               json.RawMessage
 	Images               json.RawMessage
+	RawEmbed             json.RawMessage
 	ReplyRootURI         *string
 	ReplyRootCID         *string
 	ReplyParentURI       *string
@@ -153,7 +154,7 @@ func NewPostStore(pool *pgxpool.Pool, observer ...*observability.Observer) *Post
 }
 
 const postSelectColumns = `
-	p.uri, p.did, p.rkey, p.cid, p.text, p.facets, p.images,
+	p.uri, p.did, p.rkey, p.cid, p.text, p.facets, p.images, p.record -> 'embed',
 	p.reply_root_uri, p.reply_root_cid, p.reply_parent_uri, p.reply_parent_cid,
 	p.quote_uri, p.quote_cid, p.tags, p.langs, p.created_at, p.indexed_at,
 	p.external_import_source, p.profile_sort_at,
@@ -305,7 +306,7 @@ func scanPostRowWithExtra(scanner pgx.Row, extraDestinations ...any) (*PostRow, 
 	out := &PostRow{}
 	var rawProject *json.RawMessage
 	destinations := []any{
-		&out.URI, &out.DID, &out.Rkey, &out.CID, &out.Text, &out.Facets, &out.Images,
+		&out.URI, &out.DID, &out.Rkey, &out.CID, &out.Text, &out.Facets, &out.Images, &out.RawEmbed,
 		&out.ReplyRootURI, &out.ReplyRootCID, &out.ReplyParentURI, &out.ReplyParentCID,
 		&out.QuoteURI, &out.QuoteCID, &out.Tags, &out.Langs, &out.CreatedAt, &out.IndexedAt,
 		&out.ExternalImportSource, &out.ProfileSortAt,

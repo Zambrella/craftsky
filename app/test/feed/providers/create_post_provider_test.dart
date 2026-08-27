@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
 import 'package:craftsky_app/bootstrap.dart';
+import 'package:craftsky_app/feed/models/create_post_external.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
@@ -201,6 +202,26 @@ void main() {
 
       expect(fake.lastCreateLangs, selected);
       expect(container.read(createPostProvider).value?.langs, selected);
+    });
+
+    test('AT-003 forwards the snapshotted external embed unchanged', () async {
+      final fake = FakePostRepository(
+        onCreate: ({required text, reply, images}) async => _post(rkey: 'new'),
+      );
+      final container = ProviderContainer.test(
+        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+      );
+      const external = CreatePostExternal(
+        uri: 'https://final.example/pattern#section',
+        title: 'Pattern',
+        description: 'Description',
+      );
+
+      await container
+          .read(createPostProvider.notifier)
+          .create(text: 'Pattern link', langs: _langs, external: external);
+
+      expect(fake.lastCreateExternal, same(external));
     });
 
     test('IT-003 passes facets to the post repository', () async {

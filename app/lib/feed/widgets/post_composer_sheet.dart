@@ -16,13 +16,17 @@ import 'package:craftsky_app/drafts/providers/local_post_drafts_provider.dart';
 import 'package:craftsky_app/drafts/widgets/draft_close_dialog.dart';
 import 'package:craftsky_app/feed/composer/composer_media_uploader.dart';
 import 'package:craftsky_app/feed/composer/composer_submission_coordinator.dart';
+import 'package:craftsky_app/feed/composer/link_preview_candidate.dart';
+import 'package:craftsky_app/feed/composer/link_preview_controller.dart';
 import 'package:craftsky_app/feed/composer/submission_screen_awake.dart';
+import 'package:craftsky_app/feed/models/link_preview.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/providers/create_post_provider.dart';
 import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
+import 'package:craftsky_app/feed/widgets/composer_link_preview_carousel.dart';
 import 'package:craftsky_app/feed/widgets/submission_blocking_overlay.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
@@ -41,6 +45,8 @@ import 'package:craftsky_app/scheduled_posts/widgets/schedule_time_picker.dart';
 import 'package:craftsky_app/scheduled_posts/widgets/scheduled_post_capacity_warning.dart';
 import 'package:craftsky_app/scheduled_posts/widgets/scheduled_staging_progress.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/messaging/message_action.dart';
+import 'package:craftsky_app/shared/messaging/widgets/craftsky_snack_bar.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
@@ -51,6 +57,11 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+
+// TODO(Agent): Does this need to be a provider?
+final linkPreviewUndoDurationProvider = Provider<Duration>(
+  (_) => const Duration(seconds: 4),
+);
 
 Future<Post?> showPostComposerSheet(
   BuildContext context, {
@@ -120,6 +131,10 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
   final _controller = FacetTextEditingController();
   final _focusNode = FocusNode(debugLabel: 'postComposerText');
   late final String _composerId;
+  late final String? _existingExternalMediaId;
+  String? _replacementExternalMediaId;
+  List<int>? _replacementExternalBytes;
+  String? _replacementExternalMimeType;
   String _initialText = '';
   String _text = '';
   AccountSessionLease? _unsavedOwner;
@@ -145,12 +160,19 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
   List<String>? _initialLanguages;
   ScheduleChoice _initialScheduleChoice = ScheduleChoice.now;
   DateTime? _initialScheduledAtLocal;
+  String? _lastPreviewSyncedText;
+  AccountKey? _lastPreviewAccount;
+  var _didSeedScheduledPreview = false;
+  LinkPreviewThumbnail? _scheduledExternalThumbnail;
 
   @override
   void initState() {
     super.initState();
     _unsavedGuard = ref.read(unsavedWorkGuardProvider);
     _composerId = widget.composerId ?? const Uuid().v4();
+    _existingExternalMediaId = _existingExternalThumbMediaId(
+      widget.scheduledPost,
+    );
     _origin = DraftSubmissionOrigin(widget.draftSeed?.draft);
     _mediaUploader = ComposerMediaUploader();
     _submissionCoordinator = ComposerSubmissionCoordinator(
@@ -203,7 +225,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
         _scheduleChoice = ScheduleChoice.later;
         _scheduledAtLocal = scheduled.scheduledAt.utc.toLocal();
       }
-      if (_scheduledPayloadMedia.isNotEmpty) {
+      if (_scheduledPayloadMedia.isNotEmpty ||
+          _existingExternalMediaId != null) {
         _isLoadingScheduledMedia = true;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) unawaited(_hydrateScheduledMedia());
@@ -263,6 +286,40 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
       });
     }
     final account = activeLease?.session.account;
+    final previewProvider = account == null
+        ? null
+        : linkPreviewControllerProvider(_composerId, account);
+    final previewState = previewProvider == null
+        ? null
+        : ref.watch(previewProvider);
+    final previewController = previewProvider == null
+        ? null
+        : ref.read(previewProvider.notifier);
+    final selectedPreview = previewController?.selected;
+    final availablePreviews = previewController?.available ?? const [];
+    if (previewController != null) {
+      final shouldSyncText =
+          _lastPreviewSyncedText != _text || _lastPreviewAccount != account;
+      if (shouldSyncText) {
+        _lastPreviewSyncedText = _text;
+        _lastPreviewAccount = account;
+      }
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        if (!_didSeedScheduledPreview) {
+          _didSeedScheduledPreview = true;
+          final frozen = _scheduledExternalSelection(
+            widget.scheduledPost,
+            thumbnail: _scheduledExternalThumbnail,
+          );
+          if (frozen != null) previewController.seed(frozen);
+        }
+        if (shouldSyncText) previewController.updateText(_text);
+        previewController.setSuppressed(
+          value: imagesState.images.isNotEmpty || isQuote,
+        );
+      });
+    }
     if (account != null) {
       ref.listen(draftSaveControllerProvider(account), (_, _) {});
     }
@@ -407,8 +464,38 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                           helperText:
                               '${_text.length}/${PostComposerSheet.maxCharacters}',
                           helperAlignment: AlignmentDirectional.centerEnd,
-                          onChanged: (value) => setState(() => _text = value),
+                          onChanged: (value) {
+                            setState(() => _text = value);
+                            _lastPreviewSyncedText = value;
+                            _lastPreviewAccount = account;
+                            previewController?.updateText(value);
+                          },
                         ),
+                        if (previewController != null &&
+                            previewState != null &&
+                            !previewState.dismissed &&
+                            !previewState.suppressed) ...[
+                          SizedBox(height: spacing.sp4),
+                          ComposerLinkPreviewCarousel(
+                            selected: selectedPreview,
+                            current: selectedPreview == null
+                                ? 0
+                                : availablePreviews.indexWhere(
+                                        (item) =>
+                                            item.candidate.identity ==
+                                            selectedPreview.candidate.identity,
+                                      ) +
+                                      1,
+                            total: availablePreviews.length,
+                            loading: previewState.inFlightIdentity != null,
+                            onPrevious: previewController.selectPrevious,
+                            onNext: previewController.selectNext,
+                            onDismiss: () => _dismissLinkPreviews(
+                              previewController,
+                              l10n,
+                            ),
+                          ),
+                        ],
                         SizedBox(height: spacing.sp4),
                         PostLanguageSelector(
                           selection: _languages!,
@@ -544,6 +631,40 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
             ),
         ],
       ),
+    );
+  }
+
+  void _dismissLinkPreviews(
+    LinkPreviewController controller,
+    AppLocalizations l10n,
+  ) {
+    final dismissGeneration = controller.dismiss();
+    final messenger = ScaffoldMessenger.of(context);
+    final semantic = Theme.of(context).extension<SemanticColorsTheme>()!;
+    unawaited(
+      messenger
+          .showSnackBar(
+            SnackBar(
+              behavior: SnackBarBehavior.floating,
+              dismissDirection: DismissDirection.horizontal,
+              backgroundColor: semantic.infoSurface,
+              content: CraftskySnackBarContent(
+                severity: MessageSeverity.info,
+                message: l10n.linkPreviewHidden,
+                action: MessageAction(
+                  label: l10n.linkPreviewUndo,
+                  onPressed: () {
+                    controller.undoDismiss();
+                    messenger.hideCurrentSnackBar();
+                  },
+                ),
+              ),
+              duration: ref.read(linkPreviewUndoDurationProvider),
+              persist: false,
+            ),
+          )
+          .closed
+          .then((_) => controller.expireUndo(dismissGeneration)),
     );
   }
 
@@ -685,6 +806,29 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
 
   Future<void> _submitPost({required String trimmedText}) async {
     final imagesState = ref.read(composerImagesProvider(_composerId));
+    final activeLease = ref.read(sessionRegistryProvider).value?.activeLease;
+    SelectedLinkPreview? previewSelection;
+    var scheduledExternalDisposition = _ScheduledExternalDisposition.remove;
+    if (activeLease != null && widget.quoteTarget == null) {
+      final provider = linkPreviewControllerProvider(
+        _composerId,
+        activeLease.session.account,
+      );
+      final previewController = ref.read(provider.notifier);
+      if (imagesState.images.isEmpty && !previewController.dismissed) {
+        previewSelection = previewController.snapshotForSubmit();
+      } else if (widget.scheduledPost != null) {
+        previewController.snapshotForSubmit();
+      }
+      if (previewSelection != null) {
+        final existing = widget.scheduledPost?.payload['external'];
+        scheduledExternalDisposition =
+            existing is Map<dynamic, dynamic> &&
+                _selectionMatchesFrozenExternal(previewSelection, existing)
+            ? _ScheduledExternalDisposition.preserve
+            : _ScheduledExternalDisposition.attach;
+      }
+    }
     if (widget.replyTarget == null && imagesState.hasImagesMissingAltText) {
       final l10n = AppLocalizations.of(context);
       final shouldPost = await showCraftskyConfirmDialog(
@@ -699,13 +843,12 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
 
     final facets = await _facetsForSubmission(trimmedText);
     if (!mounted) return;
-    final submissionOwner = ref
-        .read(sessionRegistryProvider)
-        .value
-        ?.activeLease;
-    final needsUpload = imagesState.images.any(
-      (image) => image.phase is ImageReady,
-    );
+    final submissionOwner = activeLease;
+    final needsUpload =
+        imagesState.images.any(
+          (image) => image.phase is ImageReady,
+        ) ||
+        previewSelection?.preview.thumbnail != null;
     final uploadClient = needsUpload ? ref.read(postApiClientProvider) : null;
 
     await _runSubmission(submissionOwner, () async {
@@ -715,6 +858,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
           trimmedText: trimmedText,
           facets: facets,
           imagesState: imagesState,
+          previewSelection: previewSelection,
+          externalDisposition: scheduledExternalDisposition,
         );
         return;
       }
@@ -724,6 +869,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
           trimmedText: trimmedText,
           facets: facets,
           imagesState: imagesState,
+          previewSelection: previewSelection,
+          externalDisposition: scheduledExternalDisposition,
         );
         return;
       }
@@ -743,6 +890,21 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                       ),
             )
           : null;
+      final external = previewSelection == null
+          ? null
+          : await _mediaUploader.materializeImmediateExternal(
+              composerId: _composerId,
+              selection: previewSelection,
+              ownershipIsCurrent: () =>
+                  _submissionOwnershipIsCurrent(submissionOwner),
+              upload:
+                  ({required bytes, required mimeType, required cancelToken}) =>
+                      uploadClient!.uploadImage(
+                        bytes: bytes,
+                        mimeType: mimeType,
+                        cancelToken: cancelToken,
+                      ),
+            );
       final created = await ref
           .read(createPostProvider.notifier)
           .create(
@@ -751,6 +913,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
             reply: _replyFor(widget.replyTarget),
             quote: _quoteFor(widget.quoteTarget),
             images: images,
+            external: external,
             facets: facets.isEmpty ? null : facets,
             ownership: submissionOwner,
           );
@@ -922,6 +1085,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     required String trimmedText,
     required List<Map<String, dynamic>> facets,
     required ComposerImagesState imagesState,
+    required SelectedLinkPreview? previewSelection,
+    required _ScheduledExternalDisposition externalDisposition,
   }) async {
     final owner = _captureScheduledOperationOwner();
     final scheduledAt = _scheduledAtLocal;
@@ -950,12 +1115,19 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
         },
       );
       if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      final external = await _scheduledExternalForSave(
+        previewSelection,
+        disposition: externalDisposition,
+        stageMedia: repository.stageMedia,
+      );
+      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
       final payload = <String, dynamic>{
         'kind': 'standard',
         'text': trimmedText,
         'langs': _languages!.values,
         'facets': ?facets.isEmpty ? null : facets,
         'media': media,
+        'external': ?external,
       };
       if (mounted) setState(() => _isSavingSchedule = true);
       final existing = widget.scheduledPost;
@@ -1000,6 +1172,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     required String trimmedText,
     required List<Map<String, dynamic>> facets,
     required ComposerImagesState imagesState,
+    required SelectedLinkPreview? previewSelection,
+    required _ScheduledExternalDisposition externalDisposition,
   }) async {
     final existing = widget.scheduledPost;
     final owner = _captureScheduledOperationOwner();
@@ -1028,6 +1202,12 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
         },
       );
       if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
+      final external = await _scheduledExternalForSave(
+        previewSelection,
+        disposition: externalDisposition,
+        stageMedia: repository.stageMedia,
+      );
+      if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
       if (mounted) setState(() => _isSavingSchedule = true);
       await repository.publishNow(
         id: existing.id,
@@ -1037,6 +1217,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
           'langs': _languages!.values,
           'facets': ?facets.isEmpty ? null : facets,
           'media': media,
+          'external': ?external,
         },
       );
       if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
@@ -1060,11 +1241,54 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     }
   }
 
+  Future<Map<String, dynamic>?> _scheduledExternalForSave(
+    SelectedLinkPreview? selection, {
+    required _ScheduledExternalDisposition disposition,
+    required ScheduledMediaStager stageMedia,
+  }) async {
+    switch (disposition) {
+      case _ScheduledExternalDisposition.remove:
+        return null;
+      case _ScheduledExternalDisposition.preserve:
+        final existing = widget.scheduledPost?.payload['external'];
+        if (existing is! Map<dynamic, dynamic>) {
+          throw StateError('scheduled external is unavailable');
+        }
+        return Map<String, dynamic>.from(existing);
+      case _ScheduledExternalDisposition.attach:
+        if (selection == null) {
+          throw StateError('scheduled external selection is unavailable');
+        }
+        return (await materializeScheduledExternal(
+          selection,
+          mediaId: widget.scheduledPost == null
+              ? _replacementMediaIdFor(selection)
+              : const Uuid().v4(),
+          stageMedia: stageMedia,
+        )).toMap();
+    }
+  }
+
+  String _replacementMediaIdFor(SelectedLinkPreview selection) {
+    final thumbnail = selection.preview.thumbnail;
+    if (thumbnail == null) return const Uuid().v4();
+    if (_replacementExternalMediaId == null ||
+        _replacementExternalMimeType != thumbnail.mimeType ||
+        !listEquals(_replacementExternalBytes, thumbnail.bytes)) {
+      _replacementExternalMediaId = const Uuid().v4();
+      _replacementExternalBytes = List.unmodifiable(thumbnail.bytes);
+      _replacementExternalMimeType = thumbnail.mimeType;
+    }
+    return _replacementExternalMediaId!;
+  }
+
   List<dynamic> get _scheduledPayloadMedia =>
       widget.scheduledPost?.payload['media'] as List<dynamic>? ?? const [];
 
   Future<void> _hydrateScheduledMedia() async {
-    if (_scheduledPayloadMedia.isEmpty) return;
+    if (_scheduledPayloadMedia.isEmpty && _existingExternalMediaId == null) {
+      return;
+    }
     setState(() {
       _isLoadingScheduledMedia = true;
       _scheduledMediaLoadFailed = false;
@@ -1082,15 +1306,39 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
         accountScheduledPostRepositoryProvider(account).future,
       );
       if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
-      final images = await hydrateScheduledComposerMedia(
-        _scheduledPayloadMedia,
-        loadBytes: repository.mediaBytes,
-      );
+      final images = _scheduledPayloadMedia.isEmpty
+          ? const <ComposerImageDraft>[]
+          : await hydrateScheduledComposerMedia(
+              _scheduledPayloadMedia,
+              loadBytes: repository.mediaBytes,
+            );
+      final externalThumbnail = _existingExternalMediaId == null
+          ? null
+          : await hydrateScheduledExternalThumbnail(
+              _existingExternalMediaId,
+              loadBytes: repository.mediaBytes,
+            );
       if (!mounted || !_scheduledOperationIsCurrent(owner)) return;
-      ref
-          .read(composerImagesProvider(_composerId).notifier)
-          .seedScheduledImages(images);
-      setState(() => _isLoadingScheduledMedia = false);
+      if (images.isNotEmpty) {
+        ref
+            .read(composerImagesProvider(_composerId).notifier)
+            .seedScheduledImages(images);
+      }
+      setState(() {
+        _scheduledExternalThumbnail = externalThumbnail;
+        _isLoadingScheduledMedia = false;
+      });
+      final frozen = _scheduledExternalSelection(
+        widget.scheduledPost,
+        thumbnail: externalThumbnail,
+      );
+      if (frozen != null) {
+        ref
+            .read(
+              linkPreviewControllerProvider(_composerId, account).notifier,
+            )
+            .refreshSeed(frozen);
+      }
     } on Object {
       if (!mounted) return;
       setState(() {
@@ -1133,6 +1381,54 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
       if (mounted) setState(() => _isScheduling = false);
     }
   }
+}
+
+enum _ScheduledExternalDisposition { preserve, attach, remove }
+
+String? _existingExternalThumbMediaId(ScheduledPostDetail? post) {
+  final external = post?.payload['external'];
+  if (external is! Map<dynamic, dynamic>) return null;
+  final id = external['thumbMediaId'];
+  return id is String ? id : null;
+}
+
+SelectedLinkPreview? _scheduledExternalSelection(
+  ScheduledPostDetail? post, {
+  LinkPreviewThumbnail? thumbnail,
+}) {
+  final external = post?.payload['external'];
+  if (external is! Map<dynamic, dynamic>) return null;
+  try {
+    final frozen = ScheduledPostExternal.fromMap(
+      Map<String, dynamic>.from(external),
+    );
+    return SelectedLinkPreview(
+      candidate: LinkPreviewCandidate.parse(frozen.sourceUri),
+      preview: LinkPreview(
+        url: Uri.parse(frozen.uri),
+        title: frozen.title,
+        description: frozen.description,
+        thumbnail: thumbnail,
+      ),
+    );
+  } on FormatException {
+    return null;
+  }
+}
+
+bool _selectionMatchesFrozenExternal(
+  SelectedLinkPreview selection,
+  Map<dynamic, dynamic> existing,
+) {
+  final frozen = ScheduledPostExternal.fromMap(
+    Map<String, dynamic>.from(existing),
+  );
+  return frozen.sourceUri == selection.candidate.identity.toString() &&
+      frozen.uri == selection.navigationUri.toString() &&
+      frozen.title == selection.preview.title &&
+      frozen.description == selection.preview.description &&
+      ((frozen.thumbMediaId == null && selection.preview.thumbnail == null) ||
+          (frozen.thumbMediaId != null && selection.preview.thumbnail != null));
 }
 
 String _offsetLabel(Duration offset) {

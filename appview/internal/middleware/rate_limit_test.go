@@ -1,12 +1,73 @@
 package middleware
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 )
+
+// IT-006: the HTTP middleware enforces independent link-preview token/device
+// budgets and emits the standard rejection contract before handler work.
+func TestLinkPreviewRateLimitMiddlewareBudgets(t *testing.T) {
+	now := time.Unix(1_000, 0)
+	config := RateLimitConfig{Classes: map[RateClass]ClassLimit{
+		RateClassLinkPreview: {Window: time.Hour, PerToken: 60, PerDevice: 120},
+	}}
+	serve := func(limiter *LocalRateLimiter, token, device string, called *int) *httptest.ResponseRecorder {
+		handler := RateLimit(limiter, RateClassLinkPreview, nil)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			*called++
+			w.WriteHeader(http.StatusNoContent)
+		}))
+		request := httptest.NewRequest(http.MethodPost, "/v1/link-previews", nil)
+		request.Header.Set("X-Craftsky-Device-Id", device)
+		request = request.WithContext(WithOAuthSessionID(request.Context(), token))
+		recorder := httptest.NewRecorder()
+		handler.ServeHTTP(recorder, request)
+		return recorder
+	}
+
+	tokenLimiter := NewLocalRateLimiter(config, func() time.Time { return now })
+	tokenCalls := 0
+	for request := 1; request <= 61; request++ {
+		recorder := serve(tokenLimiter, "shared-token", fmt.Sprintf("device-%d", request), &tokenCalls)
+		if request <= 60 && recorder.Code != http.StatusNoContent {
+			t.Fatalf("token request %d status = %d, want 204", request, recorder.Code)
+		}
+		if request == 61 {
+			assertRateLimitedResponse(t, recorder)
+		}
+	}
+	if tokenCalls != 60 {
+		t.Fatalf("token handler calls = %d, want 60", tokenCalls)
+	}
+
+	deviceLimiter := NewLocalRateLimiter(config, func() time.Time { return now })
+	deviceCalls := 0
+	for request := 1; request <= 121; request++ {
+		recorder := serve(deviceLimiter, fmt.Sprintf("token-%d", request), "shared-device", &deviceCalls)
+		if request == 121 {
+			assertRateLimitedResponse(t, recorder)
+		}
+	}
+	if deviceCalls != 120 {
+		t.Fatalf("device handler calls = %d, want 120", deviceCalls)
+	}
+
+	now = now.Add(time.Hour)
+	if recorder := serve(tokenLimiter, "shared-token", "device-after-reset", &tokenCalls); recorder.Code != http.StatusNoContent {
+		t.Fatalf("post-reset status = %d, want 204", recorder.Code)
+	}
+}
+
+func assertRateLimitedResponse(t *testing.T, recorder *httptest.ResponseRecorder) {
+	t.Helper()
+	if recorder.Code != http.StatusTooManyRequests || recorder.Header().Get("Retry-After") == "" || !strings.Contains(recorder.Body.String(), `"error":"rate_limited"`) {
+		t.Fatalf("rate response status/headers/body = %d %v %s", recorder.Code, recorder.Header(), recorder.Body.String())
+	}
+}
 
 func TestRateLimiterRejectsExceededDeviceBucket(t *testing.T) {
 	limiter := NewLocalRateLimiter(RateLimitConfig{Classes: map[RateClass]ClassLimit{

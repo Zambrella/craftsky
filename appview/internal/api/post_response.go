@@ -54,6 +54,20 @@ type ExternalImportResponse struct {
 	Source string `json:"source"`
 }
 
+type ExternalResponse struct {
+	URI         string                 `json:"uri"`
+	Title       string                 `json:"title"`
+	Description string                 `json:"description"`
+	Thumb       *ExternalThumbResponse `json:"thumb,omitempty"`
+}
+
+type ExternalThumbResponse struct {
+	CID  string `json:"cid"`
+	MIME string `json:"mime"`
+	Size int64  `json:"size"`
+	URL  string `json:"url"`
+}
+
 // PostResponse is the canonical wire shape returned by every
 // post-shaped endpoint (POST, GET single, list items).
 type PostResponse struct {
@@ -80,6 +94,7 @@ type PostResponse struct {
 	CreatedAt           time.Time               `json:"createdAt"`
 	IndexedAt           time.Time               `json:"indexedAt"`
 	ExternalImport      *ExternalImportResponse `json:"externalImport,omitempty"`
+	External            *ExternalResponse       `json:"external,omitempty"`
 	Author              PostAuthor              `json:"author"`
 	Moderation          *ModerationMetadata     `json:"moderation,omitempty"`
 	Project             *Project                `json:"project,omitempty"`
@@ -176,6 +191,7 @@ type QuotePreviewPost struct {
 	Project        *Project                `json:"project,omitempty"`
 	CreatedAt      time.Time               `json:"createdAt"`
 	ExternalImport *ExternalImportResponse `json:"externalImport,omitempty"`
+	External       *ExternalResponse       `json:"external,omitempty"`
 }
 
 // ModerationMetadata is the safe, generic moderation response shape shared by
@@ -288,6 +304,9 @@ func BuildPostResponse(row *PostRow, handle syntax.Handle) *PostResponse {
 		},
 		Project: row.Project,
 	}
+	if len(resp.Images) == 0 {
+		resp.External = buildExternalResponse(row)
+	}
 	if avatar := synthBlobURL("avatar", row.DID, row.AuthorAvatarCID, row.AuthorAvatarMime); avatar != "" {
 		resp.Author.Avatar = &avatar
 	}
@@ -343,7 +362,44 @@ func BuildQuoteView(row *QuoteViewRow, handle syntax.Handle) *QuoteView {
 		CreatedAt:      row.Post.CreatedAt.UTC(),
 		ExternalImport: buildExternalImportResponse(row.Post.ExternalImportSource),
 	}
+	if len(view.Post.Images) == 0 {
+		view.Post.External = buildExternalResponse(row.Post)
+	}
 	return view
+}
+
+func buildExternalResponse(row *PostRow) *ExternalResponse {
+	if row == nil || len(row.RawEmbed) == 0 {
+		return nil
+	}
+	var embed struct {
+		Type     string `json:"$type"`
+		External struct {
+			URI         string `json:"uri"`
+			Title       string `json:"title"`
+			Description string `json:"description"`
+			Thumb       *struct {
+				Ref struct {
+					Link string `json:"$link"`
+				} `json:"ref"`
+				MIMEType string `json:"mimeType"`
+				Size     int64  `json:"size"`
+			} `json:"thumb"`
+		} `json:"external"`
+	}
+	if err := json.Unmarshal(row.RawEmbed, &embed); err != nil || embed.Type != "app.bsky.embed.external" || embed.External.URI == "" || embed.External.Title == "" {
+		return nil
+	}
+	response := &ExternalResponse{
+		URI: embed.External.URI, Title: embed.External.Title, Description: embed.External.Description,
+	}
+	if thumb := embed.External.Thumb; thumb != nil && thumb.Ref.Link != "" && thumb.MIMEType != "" && thumb.Size > 0 {
+		response.Thumb = &ExternalThumbResponse{
+			CID: thumb.Ref.Link, MIME: thumb.MIMEType, Size: thumb.Size,
+			URL: synthPostImageURL("feed_thumbnail", row.DID, thumb.Ref.Link, thumb.MIMEType),
+		}
+	}
+	return response
 }
 
 func buildExternalImportResponse(source *string) *ExternalImportResponse {

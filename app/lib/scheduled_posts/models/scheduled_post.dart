@@ -4,6 +4,52 @@ enum ScheduledPostKind { standard, project }
 
 enum ScheduledPostStatus { scheduled, publishing, retrying, needsAttention }
 
+final class ScheduledPostExternal {
+  const ScheduledPostExternal({
+    required this.sourceUri,
+    required this.uri,
+    required this.title,
+    required this.description,
+    this.thumbMediaId,
+  });
+
+  factory ScheduledPostExternal.fromMap(Map<String, dynamic> map) {
+    final sourceUri = map['sourceUri'];
+    final uri = map['uri'];
+    final title = map['title'];
+    final description = map['description'];
+    final thumbMediaId = map['thumbMediaId'];
+    if (sourceUri is! String ||
+        uri is! String ||
+        title is! String ||
+        description is! String ||
+        (thumbMediaId != null && thumbMediaId is! String)) {
+      throw const FormatException('invalid scheduled external');
+    }
+    return ScheduledPostExternal(
+      sourceUri: sourceUri,
+      uri: uri,
+      title: title,
+      description: description,
+      thumbMediaId: thumbMediaId as String?,
+    );
+  }
+
+  final String sourceUri;
+  final String uri;
+  final String title;
+  final String description;
+  final String? thumbMediaId;
+
+  Map<String, dynamic> toMap() => {
+    'sourceUri': sourceUri,
+    'uri': uri,
+    'title': title,
+    'description': description,
+    if (thumbMediaId != null) 'thumbMediaId': thumbMediaId,
+  };
+}
+
 ScheduledPostStatus? scheduledPostStatusFromWire(String value) {
   return switch (value) {
     'scheduled' => ScheduledPostStatus.scheduled,

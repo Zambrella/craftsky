@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/widgets/external_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
@@ -24,6 +25,7 @@ final class PostSummaryData with PostSummaryDataMappable {
     this.projectTitle,
     this.image,
     this.externalImport,
+    this.external,
     this.revealable = false,
   });
 
@@ -44,6 +46,7 @@ final class PostSummaryData with PostSummaryDataMappable {
       projectTitle: post.project?.common.title,
       images: post.images,
       externalImport: post.externalImport,
+      external: post.external,
     );
   }
 
@@ -58,6 +61,7 @@ final class PostSummaryData with PostSummaryDataMappable {
       projectTitle: post.project?.common.title,
       images: post.images,
       externalImport: post.externalImport,
+      external: post.external,
     ),
     ('muted', _) => PostSummaryData(
       state: PostSummaryState.muted,
@@ -90,6 +94,7 @@ final class PostSummaryData with PostSummaryDataMappable {
       projectTitle: post.project?.common.title,
       images: post.images,
       externalImport: post.externalImport,
+      external: post.external,
     );
   }
 
@@ -100,6 +105,7 @@ final class PostSummaryData with PostSummaryDataMappable {
     required List<PostImage>? images,
     DateTime? createdAt,
     ExternalImport? externalImport,
+    PostExternal? external,
   }) => PostSummaryData(
     state: PostSummaryState.visible,
     author: author,
@@ -111,6 +117,7 @@ final class PostSummaryData with PostSummaryDataMappable {
     },
     image: images?.firstOrNull,
     externalImport: externalImport,
+    external: images?.isNotEmpty == true ? null : external,
   );
 
   final PostSummaryState state;
@@ -120,6 +127,7 @@ final class PostSummaryData with PostSummaryDataMappable {
   final String? projectTitle;
   final PostImage? image;
   final ExternalImport? externalImport;
+  final PostExternal? external;
   final bool revealable;
 
   @override
@@ -188,10 +196,18 @@ class PostSummary extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(title, style: Theme.of(context).textTheme.titleSmall),
               ],
+              if (data.external case final external?) ...[
+                const SizedBox(height: 8),
+                ExternalCard(
+                  external: external,
+                  variant: ExternalCardVariant.compact,
+                ),
+              ],
               if (data.text case final text?) ...[
                 if (data.author != null ||
                     data.image != null ||
-                    data.projectTitle != null)
+                    data.projectTitle != null ||
+                    data.external != null)
                   const SizedBox(height: 8),
                 Text(text, maxLines: 4, overflow: TextOverflow.ellipsis),
               ],
