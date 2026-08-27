@@ -39,14 +39,14 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] How to handle different languages
 - [x] Schedule posts
 - [x] Pinned posts
-- [ ] Video posts
-- [ ] Growth metrics
-- [ ] Business profile
+- [ ] Video posts (including Instagram post importer)
+- [x] Growth metrics
+- [ ] Business profile (new lexicon(s)?)
   - [ ] Featured products
   - [ ] CTA (e.g. to shop)
   - [ ] Business info
   - [ ] Upcoming events
-- [ ] Pro and Business subscriptions
+- [ ] Pro and Business subscriptions (Revenue Cat)
 - [ ] Editing posts - possible? Only in first 15 mins? Upgrade a post to a project?
 - [ ] Make sure to handle PDS migration
 
@@ -75,9 +75,11 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Profile customisation
 - [ ] Onboarding
 - [ ] Support custom PDS instances for login
-- [ ] Link previews, YouTube video embeds
+- [x] Link previews
+- [ ] YouTube video embeds
 - [x] Tablet support
 - [ ] Dark theme
+- [ ] Update create project flow to be more streamlined
 
 ### Lexicons
 
