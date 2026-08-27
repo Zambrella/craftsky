@@ -138,7 +138,7 @@ void main() {
         overrides: [
           youtubeConsentPreferencesProvider.overrideWithValue(consent),
           youtubePlayerBuilderProvider.overrideWithValue(
-            (context, external) => Text(
+            (context, external, onPlaybackError) => Text(
               'player:${external.videoId}:${external.startSeconds}',
               key: const Key('fake-youtube-player'),
             ),
@@ -190,7 +190,7 @@ void main() {
         overrides: [
           youtubeConsentPreferencesProvider.overrideWithValue(consent),
           youtubePlayerBuilderProvider.overrideWithValue(
-            (context, external) =>
+            (context, external, onPlaybackError) =>
                 const SizedBox(key: Key('fake-youtube-player')),
           ),
         ],
@@ -219,7 +219,7 @@ void main() {
         overrides: [
           youtubeConsentPreferencesProvider.overrideWithValue(consent),
           youtubePlayerBuilderProvider.overrideWithValue(
-            (context, external) =>
+            (context, external, onPlaybackError) =>
                 const SizedBox(key: Key('fake-youtube-player')),
           ),
         ],
@@ -242,6 +242,50 @@ void main() {
 
     expect(consent.setAlwaysAllowCalls, 1);
     expect(find.byKey(const Key('fake-youtube-player')), findsOneWidget);
+  });
+
+  testWidgets('YouTube playback errors leave a stable external fallback', (
+    tester,
+  ) async {
+    final consent = _FakeYouTubeConsent(alwaysAllow: true);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          youtubeConsentPreferencesProvider.overrideWithValue(consent),
+          youtubePlayerBuilderProvider.overrideWithValue(
+            (context, external, onPlaybackError) => TextButton(
+              key: const Key('simulate-youtube-error'),
+              onPressed: onPlaybackError,
+              child: const Text('Simulate error'),
+            ),
+          ),
+        ],
+        child: _materialApp(
+          const ExternalCard(
+            external: PostExternal(
+              uri: 'https://youtu.be/pQ9NBUuwDMg',
+              title: '- YouTube',
+              description: '',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(ExternalCard));
+    await tester.pump();
+    await tester.tap(find.byKey(const Key('simulate-youtube-error')));
+    await tester.pump();
+
+    expect(find.text('Simulate error'), findsNothing);
+    expect(
+      find.text(
+        'This video can’t be played here. It may be private, unavailable, '
+        'or restricted from embedded playback.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Open in YouTube'), findsOneWidget);
   });
 
   testWidgets('compact YouTube cards remain ordinary external links', (

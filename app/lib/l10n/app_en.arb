@@ -2151,5 +2151,9 @@
   "youtubeOpenExternally": "Open in YouTube",
   "@youtubeOpenExternally": {
     "description": "Button that opens the original YouTube URL outside CraftSky."
+  },
+  "youtubePlaybackUnavailable": "This video can’t be played here. It may be private, unavailable, or restricted from embedded playback.",
+  "@youtubePlaybackUnavailable": {
+    "description": "Stable fallback shown when the YouTube iframe reports a playback error."
   }
 }

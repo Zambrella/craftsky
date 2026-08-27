@@ -37,6 +37,7 @@ class ExternalCard extends ConsumerStatefulWidget {
 
 class _ExternalCardState extends ConsumerState<ExternalCard> {
   var _isPlayingYouTube = false;
+  var _youtubePlaybackFailed = false;
 
   @override
   Widget build(BuildContext context) {
@@ -52,6 +53,8 @@ class _ExternalCardState extends ConsumerState<ExternalCard> {
     final l10n = AppLocalizations.of(context);
     final label = youtube == null
         ? l10n.externalCardOpen(host)
+        : _youtubePlaybackFailed
+        ? l10n.youtubePlaybackUnavailable
         : _isPlayingYouTube
         ? l10n.youtubeVideoPlayer(external.title)
         : l10n.youtubePlayVideo(external.title);
@@ -135,7 +138,10 @@ class _ExternalCardState extends ConsumerState<ExternalCard> {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          player(context, youtube),
+          if (_youtubePlaybackFailed)
+            const _YouTubePlaybackError()
+          else
+            player(context, youtube, _handleYouTubePlaybackError),
           Padding(padding: const EdgeInsets.all(12), child: copy),
           if (uri != null)
             Align(
@@ -224,11 +230,19 @@ class _ExternalCardState extends ConsumerState<ExternalCard> {
     setState(() => _isPlayingYouTube = true);
   }
 
+  void _handleYouTubePlaybackError() {
+    if (!mounted || _youtubePlaybackFailed) {
+      return;
+    }
+    setState(() => _youtubePlaybackFailed = true);
+  }
+
   @override
   void didUpdateWidget(covariant ExternalCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.external.uri != widget.external.uri) {
       _isPlayingYouTube = false;
+      _youtubePlaybackFailed = false;
     }
   }
 }
@@ -352,6 +366,44 @@ class _YouTubeConsentDialog extends StatelessWidget {
           child: Text(l10n.youtubeAlwaysAllow),
         ),
       ],
+    );
+  }
+}
+
+class _YouTubePlaybackError extends StatelessWidget {
+  const _YouTubePlaybackError();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return AspectRatio(
+      aspectRatio: 16 / 9,
+      child: ColoredBox(
+        color: theme.colorScheme.surfaceContainerHighest,
+        child: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.video_file_outlined,
+                  size: 40,
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  AppLocalizations.of(context).youtubePlaybackUnavailable,
+                  textAlign: TextAlign.center,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

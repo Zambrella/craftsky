@@ -108,6 +108,10 @@ func (stalledPageFetcher) FetchImage(context.Context, string) (*http.Response, *
 	return nil, nil, errors.New("image fetch must not start")
 }
 
+func (stalledPageFetcher) FetchJSON(context.Context, string) (*http.Response, *url.URL, error) {
+	return nil, nil, errors.New("JSON fetch must not start")
+}
+
 type stalledPageBody struct {
 	ctx context.Context
 }

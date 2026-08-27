@@ -4472,6 +4472,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open in YouTube'**
   String get youtubeOpenExternally;
+
+  /// Stable fallback shown when the YouTube iframe reports a playback error.
+  ///
+  /// In en, this message translates to:
+  /// **'This video can’t be played here. It may be private, unavailable, or restricted from embedded playback.'**
+  String get youtubePlaybackUnavailable;
 }
 
 class _AppLocalizationsDelegate
