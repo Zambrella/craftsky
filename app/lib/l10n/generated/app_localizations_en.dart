@@ -2522,4 +2522,37 @@ class AppLocalizationsEn extends AppLocalizations {
   String externalCardThumbnail(String title) {
     return 'Preview image for $title';
   }
+
+  @override
+  String youtubePlayVideo(String title) {
+    return 'Play YouTube video: $title';
+  }
+
+  @override
+  String youtubeVideoPlayer(String title) {
+    return 'YouTube video player: $title';
+  }
+
+  @override
+  String get youtubeConsentTitle => 'Play video from YouTube?';
+
+  @override
+  String get youtubeConsentMessage =>
+      'Playing this video connects to YouTube. YouTube may receive your IP address and device information.';
+
+  @override
+  String get youtubeAllowOnce => 'Allow once';
+
+  @override
+  String get youtubeAlwaysAllow => 'Always allow YouTube';
+
+  @override
+  String get youtubeOpenExternally => 'Open in YouTube';
+
+  @override
+  String get youtubeEnterFullscreen => 'Enter full screen';
+
+  @override
+  String get youtubePlaybackUnavailable =>
+      'This video can’t be played here. It may be private, unavailable, or restricted from embedded playback.';
 }

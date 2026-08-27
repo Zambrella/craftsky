@@ -2,6 +2,7 @@ package linkpreview
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"mime"
@@ -15,6 +16,7 @@ const (
 	pagePhaseTimeout          = 6 * time.Second
 	totalTimeout              = 10 * time.Second
 	maxConcurrentImageDecodes = 2
+	maxOEmbedBytes            = 64_000
 )
 
 var (
@@ -25,6 +27,7 @@ var (
 type ResourceFetcher interface {
 	FetchPage(context.Context, string) (*http.Response, *url.URL, error)
 	FetchImage(context.Context, string) (*http.Response, *url.URL, error)
+	FetchJSON(context.Context, string) (*http.Response, *url.URL, error)
 }
 
 type Service struct {
@@ -50,6 +53,9 @@ func NewService(fetcher ResourceFetcher) *Service {
 func (s *Service) FetchPreview(ctx context.Context, raw string) (Preview, error) {
 	ctx, cancelTotal := context.WithTimeout(ctx, totalTimeout)
 	defer cancelTotal()
+	if reference, ok := parseYouTubeURL(raw); ok {
+		return s.fetchYouTubePreview(ctx, reference)
+	}
 	pageCtx, cancelPage := context.WithTimeout(ctx, pagePhaseTimeout)
 	response, finalURL, err := s.fetcher.FetchPage(pageCtx, raw)
 	if err != nil {
@@ -92,6 +98,45 @@ func (s *Service) FetchPreview(ctx context.Context, raw string) (Preview, error)
 			preview.Thumbnail = thumbnail
 			break
 		}
+	}
+	return preview, nil
+}
+
+func (s *Service) fetchYouTubePreview(ctx context.Context, reference youtubeReference) (Preview, error) {
+	metadataCtx, cancelMetadata := context.WithTimeout(ctx, pagePhaseTimeout)
+	defer cancelMetadata()
+	response, _, err := s.fetcher.FetchJSON(metadataCtx, reference.oEmbedURL())
+	if err != nil {
+		return Preview{}, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode >= http.StatusBadRequest && response.StatusCode < http.StatusInternalServerError {
+		return Preview{}, ErrUnsupported
+	}
+	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
+		return Preview{}, ErrUpstream
+	}
+	if !isJSONContentType(response.Header.Get("Content-Type")) {
+		return Preview{}, ErrUnsupported
+	}
+	var metadata struct {
+		Title        string `json:"title"`
+		AuthorName   string `json:"author_name"`
+		ThumbnailURL string `json:"thumbnail_url"`
+	}
+	decoder := json.NewDecoder(io.LimitReader(response.Body, maxOEmbedBytes+1))
+	if err := decoder.Decode(&metadata); err != nil || strings.TrimSpace(metadata.Title) == "" {
+		return Preview{}, ErrUnsupported
+	}
+	preview := Preview{
+		URL:         reference.target,
+		Title:       ClampMetadata(metadata.Title, maxTitleGraphemes, maxTitleBytes),
+		Description: ClampMetadata(metadata.AuthorName, maxDescriptionGraphemes, maxDescriptionBytes),
+	}
+	if thumbnailURL, err := url.Parse(metadata.ThumbnailURL); err == nil &&
+		(thumbnailURL.Scheme == "http" || thumbnailURL.Scheme == "https") &&
+		thumbnailURL.Hostname() != "" && thumbnailURL.User == nil {
+		preview.Thumbnail = s.fetchThumbnail(ctx, thumbnailURL.String())
 	}
 	return preview, nil
 }
@@ -144,4 +189,9 @@ func (s *Service) fetchThumbnail(ctx context.Context, raw string) *Thumbnail {
 func isHTMLContentType(value string) bool {
 	mediaType, _, err := mime.ParseMediaType(strings.TrimSpace(value))
 	return err == nil && (mediaType == "text/html" || mediaType == "application/xhtml+xml")
+}
+
+func isJSONContentType(value string) bool {
+	mediaType, _, err := mime.ParseMediaType(strings.TrimSpace(value))
+	return err == nil && mediaType == "application/json"
 }

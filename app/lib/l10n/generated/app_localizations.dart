@@ -4550,6 +4550,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Preview image for {title}'**
   String externalCardThumbnail(String title);
+
+  /// Accessible action label for a playable YouTube external card.
+  ///
+  /// In en, this message translates to:
+  /// **'Play YouTube video: {title}'**
+  String youtubePlayVideo(String title);
+
+  /// Accessible label for an active YouTube video player.
+  ///
+  /// In en, this message translates to:
+  /// **'YouTube video player: {title}'**
+  String youtubeVideoPlayer(String title);
+
+  /// Title of the privacy disclosure shown before loading YouTube.
+  ///
+  /// In en, this message translates to:
+  /// **'Play video from YouTube?'**
+  String get youtubeConsentTitle;
+
+  /// Privacy disclosure shown before loading the third-party YouTube player.
+  ///
+  /// In en, this message translates to:
+  /// **'Playing this video connects to YouTube. YouTube may receive your IP address and device information.'**
+  String get youtubeConsentMessage;
+
+  /// Button that permits loading one YouTube player without remembering consent.
+  ///
+  /// In en, this message translates to:
+  /// **'Allow once'**
+  String get youtubeAllowOnce;
+
+  /// Button that permits YouTube players and remembers the preference on this device.
+  ///
+  /// In en, this message translates to:
+  /// **'Always allow YouTube'**
+  String get youtubeAlwaysAllow;
+
+  /// Button that opens the original YouTube URL outside CraftSky.
+  ///
+  /// In en, this message translates to:
+  /// **'Open in YouTube'**
+  String get youtubeOpenExternally;
+
+  /// Tooltip for opening an inline YouTube video in a full-screen route.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter full screen'**
+  String get youtubeEnterFullscreen;
+
+  /// Stable fallback shown when the YouTube iframe reports a playback error.
+  ///
+  /// In en, this message translates to:
+  /// **'This video can’t be played here. It may be private, unavailable, or restricted from embedded playback.'**
+  String get youtubePlaybackUnavailable;
 }
 
 class _AppLocalizationsDelegate

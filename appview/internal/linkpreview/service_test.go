@@ -63,6 +63,57 @@ func TestServiceFetchPreviewPipeline(t *testing.T) {
 		}
 	})
 
+	t.Run("YouTube uses oEmbed metadata and its thumbnail", func(t *testing.T) {
+		t.Parallel()
+		validPNG := encodeImage(t, "png", image.NewRGBA(image.Rect(0, 0, 16, 9)))
+		fetcher := &scriptedResourceFetcher{
+			json: resourceResult{response: resourceResponse(http.StatusOK, "application/json", []byte(`{
+				"title": "A knitting tutorial",
+				"author_name": "A Crafter",
+				"thumbnail_url": "https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg"
+			}`))},
+			images: map[string]resourceResult{
+				"https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg": {
+					response: resourceResponse(http.StatusOK, "image/png", validPNG),
+				},
+			},
+		}
+
+		preview, err := NewService(fetcher).FetchPreview(context.Background(), "https://youtu.be/dQw4w9WgXcQ")
+		if err != nil {
+			t.Fatalf("FetchPreview(): %v", err)
+		}
+		if preview.Title != "A knitting tutorial" || preview.Description != "A Crafter" {
+			t.Fatalf("preview metadata = %#v", preview)
+		}
+		if preview.URL.String() != "https://youtu.be/dQw4w9WgXcQ" {
+			t.Fatalf("preview URL = %q", preview.URL)
+		}
+		if preview.Thumbnail == nil || preview.Thumbnail.Width != 16 || preview.Thumbnail.Height != 9 {
+			t.Fatalf("preview thumbnail = %#v", preview.Thumbnail)
+		}
+		if len(fetcher.jsonRequests) != 1 || fetcher.pageRequests != 0 {
+			t.Fatalf("JSON requests = %v, page requests = %d", fetcher.jsonRequests, fetcher.pageRequests)
+		}
+	})
+
+	t.Run("private YouTube video is not presented as a rich preview", func(t *testing.T) {
+		t.Parallel()
+		fetcher := &scriptedResourceFetcher{
+			json:   resourceResult{response: resourceResponse(http.StatusForbidden, "application/json", nil)},
+			images: map[string]resourceResult{},
+		}
+
+		_, err := NewService(fetcher).FetchPreview(context.Background(), "https://youtu.be/pQ9NBUuwDMg")
+
+		if !errors.Is(err, ErrUnsupported) {
+			t.Fatalf("FetchPreview() error = %v, want ErrUnsupported", err)
+		}
+		if fetcher.pageRequests != 0 || len(fetcher.imageRequests) != 0 {
+			t.Fatalf("page requests = %d, image requests = %v", fetcher.pageRequests, fetcher.imageRequests)
+		}
+	})
+
 	for _, tt := range []struct {
 		name        string
 		result      resourceResult
@@ -204,6 +255,10 @@ func (fetcher staticImageFetcher) FetchImage(_ context.Context, raw string) (*ht
 	return resourceResponse(http.StatusOK, "image/png", fetcher.body), finalURL, nil
 }
 
+func (fetcher staticImageFetcher) FetchJSON(context.Context, string) (*http.Response, *url.URL, error) {
+	return nil, nil, errors.New("JSON fetch must not start")
+}
+
 type resourceResult struct {
 	response *http.Response
 	finalURL *url.URL
@@ -212,12 +267,16 @@ type resourceResult struct {
 
 type scriptedResourceFetcher struct {
 	page          resourceResult
+	json          resourceResult
 	images        map[string]resourceResult
 	imageRequests []string
+	jsonRequests  []string
+	pageRequests  int
 	pageBudget    time.Duration
 }
 
 func (f *scriptedResourceFetcher) FetchPage(ctx context.Context, raw string) (*http.Response, *url.URL, error) {
+	f.pageRequests++
 	if deadline, ok := ctx.Deadline(); ok {
 		f.pageBudget = time.Until(deadline)
 	}
@@ -227,6 +286,11 @@ func (f *scriptedResourceFetcher) FetchPage(ctx context.Context, raw string) (*h
 func (f *scriptedResourceFetcher) FetchImage(_ context.Context, raw string) (*http.Response, *url.URL, error) {
 	f.imageRequests = append(f.imageRequests, raw)
 	return completeResourceResult(f.images[raw], raw)
+}
+
+func (f *scriptedResourceFetcher) FetchJSON(_ context.Context, raw string) (*http.Response, *url.URL, error) {
+	f.jsonRequests = append(f.jsonRequests, raw)
+	return completeResourceResult(f.json, raw)
 }
 
 func completeResourceResult(result resourceResult, raw string) (*http.Response, *url.URL, error) {

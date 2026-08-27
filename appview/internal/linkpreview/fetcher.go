@@ -14,6 +14,7 @@ const (
 	userAgent   = "CraftskyLinkPreview/1.0 (+https://craftsky.social)"
 	pageAccept  = "text/html, application/xhtml+xml"
 	imageAccept = "image/jpeg, image/png, image/webp"
+	jsonAccept  = "application/json"
 )
 
 type Resolver interface {
@@ -48,6 +49,10 @@ func (f *Fetcher) FetchPage(ctx context.Context, raw string) (*http.Response, *u
 
 func (f *Fetcher) FetchImage(ctx context.Context, raw string) (*http.Response, *url.URL, error) {
 	return f.fetch(ctx, raw, imageAccept)
+}
+
+func (f *Fetcher) FetchJSON(ctx context.Context, raw string) (*http.Response, *url.URL, error) {
+	return f.fetch(ctx, raw, jsonAccept)
 }
 
 func (f *Fetcher) fetch(ctx context.Context, raw, accept string) (*http.Response, *url.URL, error) {
