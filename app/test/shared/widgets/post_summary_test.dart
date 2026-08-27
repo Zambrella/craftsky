@@ -1,5 +1,6 @@
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/widgets/external_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
@@ -8,6 +9,7 @@ import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -97,6 +99,83 @@ void main() {
     await tester.tap(find.text(post.text));
     await tester.tap(find.text('@alice.craftsky.social'));
     expect((postTaps, authorTaps), (1, 1));
+  });
+
+  testWidgets('IT-011 compact quote carries external under images-win', (
+    tester,
+  ) async {
+    Uri? launched;
+    const external = PostExternal(
+      uri: 'https://example.com/pattern?token=final#section',
+      title: 'Quoted pattern',
+      description: 'Description',
+    );
+    final quote = QuoteView(
+      state: 'visible',
+      post: QuotePreviewPost(
+        uri: 'at://did:plc:alice/social.craftsky.feed.post/quote',
+        cid: 'bafyquote',
+        text: 'Quoted text',
+        author: PostAuthor(did: 'did:plc:alice', handle: 'alice.test'),
+        createdAt: DateTime.utc(2026),
+        external: external,
+      ),
+    );
+    final data = PostSummaryData.fromQuoteView(quote);
+    expect(data.external, same(external));
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          externalCardLauncherProvider.overrideWithValue((uri) async {
+            launched = uri;
+            return true;
+          }),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(body: PostSummary(data: data)),
+        ),
+      ),
+    );
+
+    expect(find.byType(ExternalCard), findsOneWidget);
+    expect(find.text('Quoted pattern'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.byType(ExternalCard));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open link'));
+    await tester.pumpAndSettle();
+    expect(
+      launched.toString(),
+      'https://example.com/pattern?token=final#section',
+    );
+
+    final imagesWin = PostSummaryData.fromQuoteView(
+      QuoteView(
+        state: 'visible',
+        post: QuotePreviewPost(
+          uri: 'at://did:plc:alice/social.craftsky.feed.post/images',
+          cid: 'bafyimages',
+          text: 'Images',
+          author: PostAuthor(did: 'did:plc:alice', handle: 'alice.test'),
+          createdAt: DateTime.utc(2026),
+          images: [
+            PostImage(cid: 'bafyimage', mime: 'image/jpeg', size: 1, alt: ''),
+          ],
+          external: external,
+        ),
+      ),
+    );
+    expect(imagesWin.external, isNull);
+
+    for (final state in ['hidden', 'unavailable']) {
+      final hidden = PostSummaryData.fromQuoteView(QuoteView(state: state));
+      expect(hidden.state, isNot(PostSummaryState.visible));
+      expect(hidden.external, isNull);
+    }
   });
 }
 

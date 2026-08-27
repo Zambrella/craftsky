@@ -1,7 +1,10 @@
+import 'package:craftsky_app/feed/composer/link_preview_controller.dart';
+import 'package:craftsky_app/feed/models/link_preview.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/feed/widgets/composer_link_preview_carousel.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
@@ -9,6 +12,7 @@ import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,6 +21,57 @@ import '../../fakes/recording_messenger.dart';
 import '../../feed/fakes/fake_post_repository.dart';
 
 void main() {
+  testWidgets(
+    'AT-002 project composer never requests or offers link previews',
+    (
+      tester,
+    ) async {
+      final previews = _CountingPreviewRepository();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+            composerImagesProvider('link-project').overrideWithValue(
+              _readyImagesState,
+            ),
+            linkPreviewRepositoryProvider.overrideWithValue(previews),
+          ],
+          child: MessengerScope(
+            messenger: RecordingMessenger(),
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: const ProjectComposerSheet(composerId: 'link-project'),
+            ),
+          ),
+        ),
+      );
+      await _selectCraft(tester, 'Embroidery');
+      await tester.tap(
+        find.byKey(const Key('project-composer-primary-action')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('project-composer-primary-action')),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byType(TextField).first,
+        'Project https://example.com/pattern ',
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(previews.fetchCalls, 0);
+      expect(find.byType(ComposerLinkPreviewCarousel), findsNothing);
+    },
+  );
+
   testWidgets('AT-006 blocks page one next until required fields are filled', (
     tester,
   ) async {
@@ -173,6 +228,20 @@ void main() {
     expect(find.text('Complete the gauge or clear it.'), findsOneWidget);
     expect(createCalls, 0);
   });
+}
+
+final class _CountingPreviewRepository implements LinkPreviewRepository {
+  int fetchCalls = 0;
+
+  @override
+  Future<LinkPreview> fetch(Uri url, CancelToken cancelToken) async {
+    fetchCalls += 1;
+    return LinkPreview(
+      url: url,
+      title: 'Unexpected',
+      description: 'Unexpected',
+    );
+  }
 }
 
 const _readyImagesState = ComposerImagesState(

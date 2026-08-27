@@ -8,12 +8,15 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
+
+	"social.craftsky/appview/internal/observability"
 )
 
 func TestStoreCleansEligiblePrivateArtifactsSafely(t *testing.T) {
@@ -167,8 +170,7 @@ func TestStoreDeleteEnqueuesAttachedMediaCleanupAtomically(t *testing.T) {
 	objectKey := insertReadyPrivateMediaFixture(
 		t, store, owner, mediaID, nil, nil, "bafk-delete", now.Add(24*time.Hour),
 	)
-	createParams := capacityCreateParams(owner, 1, now.Add(time.Hour))
-	createParams.MediaIDs = []uuid.UUID{mediaID}
+	createParams := withPayloadMedia(capacityCreateParams(owner, 1, now.Add(time.Hour)), mediaID)
 	created, err := store.Create(ctx, createParams)
 	if err != nil {
 		t.Fatalf("create schedule with media: %v", err)
@@ -205,14 +207,16 @@ func TestStoreUpdateEnqueuesOnlyReplacedMediaCleanupAtomically(t *testing.T) {
 			"bafk-"+mediaID.String(), now.Add(24*time.Hour),
 		)
 	}
-	createParams := capacityCreateParams(owner, 1, now.Add(time.Hour))
-	createParams.MediaIDs = []uuid.UUID{oldMediaID, keptMediaID}
+	createParams := withPayloadMedia(capacityCreateParams(owner, 1, now.Add(time.Hour)), oldMediaID, keptMediaID)
 	created, err := store.Create(ctx, createParams)
 	if err != nil {
 		t.Fatalf("create schedule with media: %v", err)
 	}
 
-	payload := []byte(`{"kind":"standard","text":"replacement"}`)
+	payload, err := EncodePayload(Payload{Kind: PostKindStandard, Text: "replacement", Media: []PayloadMedia{{ID: keptMediaID.String()}, {ID: newMediaID.String()}}})
+	if err != nil {
+		t.Fatal(err)
+	}
 	payloadHash := sha256.Sum256(payload)
 	if _, err := store.Update(ctx, UpdateParams{
 		ID: created.ID, OwnerDID: owner, ScheduledAt: now.Add(2 * time.Hour),
@@ -279,14 +283,12 @@ func TestAccountDeletionRemovesPrivateSchedulesAndQueuesEveryObject(t *testing.T
 			"bafk-"+fixture.id.String(), now.Add(24*time.Hour),
 		)
 	}
-	ownerCreate := capacityCreateParams(owner, 1, now.Add(time.Hour))
-	ownerCreate.MediaIDs = []uuid.UUID{ownerAttachedID}
+	ownerCreate := withPayloadMedia(capacityCreateParams(owner, 1, now.Add(time.Hour)), ownerAttachedID)
 	ownerSchedule, err := store.Create(ctx, ownerCreate)
 	if err != nil {
 		t.Fatalf("create owner schedule: %v", err)
 	}
-	otherCreate := capacityCreateParams(otherOwner, 2, now.Add(time.Hour))
-	otherCreate.MediaIDs = []uuid.UUID{otherID}
+	otherCreate := withPayloadMedia(capacityCreateParams(otherOwner, 2, now.Add(time.Hour)), otherID)
 	otherSchedule, err := store.Create(ctx, otherCreate)
 	if err != nil {
 		t.Fatalf("create other schedule: %v", err)
@@ -327,10 +329,13 @@ func TestCleanupProcessorDeletesObjectsAndRetriesSafely(t *testing.T) {
 	owner := syntax.DID("did:plc:alice")
 	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
 	currentTime := now
+	metrics := observability.NewInMemoryMetricRecorder()
+	observer := observability.New(observability.Config{MetricRecorder: metrics})
 	processor, err := NewCleanupProcessor(CleanupProcessorOptions{
 		Store: store, Objects: objects, OwnerFence: ownerFence,
 		Now:       func() time.Time { return currentTime },
 		BatchSize: 10, LeaseDuration: time.Minute, RetryDelay: time.Minute,
+		Observer: observer,
 	})
 	if err != nil {
 		t.Fatalf("construct cleanup processor: %v", err)
@@ -338,7 +343,7 @@ func TestCleanupProcessorDeletesObjectsAndRetriesSafely(t *testing.T) {
 	mediaID := uuid.MustParse("00000000-0000-4000-8000-000000000108")
 	created, err := service.Put(ctx, PutPrivateMediaParams{
 		ID: mediaID, OwnerDID: owner, OwnerGeneration: 1, MIMEType: "image/jpeg",
-		Bytes: []byte("private-image-bytes"), Now: now,
+		Bytes: []byte("cleanup-thumbnail-byte-canary"), Now: now,
 	})
 	if err != nil {
 		t.Fatalf("stage cleanup fixture: %v", err)
@@ -370,6 +375,12 @@ func TestCleanupProcessorDeletesObjectsAndRetriesSafely(t *testing.T) {
 		t.Fatalf("successful retry state: present=%v calls=%d", objects.has(created.ObjectKey), objects.deleteCalls)
 	}
 	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_cleanup_jobs WHERE object_key=$1`, 0, created.ObjectKey)
+	captured := fmt.Sprint(metrics.Calls())
+	for _, canary := range []string{owner.String(), created.ObjectKey, "cleanup-thumbnail-byte-canary"} {
+		if strings.Contains(captured, canary) {
+			t.Fatalf("scheduled cleanup telemetry leaked %q: %s", canary, captured)
+		}
+	}
 }
 
 func TestCleanupProcessorDoesNotDeleteAConcurrentReupload(t *testing.T) {

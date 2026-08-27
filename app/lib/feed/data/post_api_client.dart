@@ -1,5 +1,7 @@
+import 'package:craftsky_app/feed/models/create_post_external.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
+import 'package:craftsky_app/feed/models/link_preview.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
@@ -22,6 +24,18 @@ class PostApiClient {
   const PostApiClient(this._dio);
 
   final Dio _dio;
+
+  Future<LinkPreview> fetchLinkPreview(
+    String url, {
+    CancelToken? cancelToken,
+  }) => unwrapApi(() async {
+    final response = await _dio.post<Map<String, dynamic>>(
+      '/v1/link-previews',
+      data: {'url': url},
+      cancelToken: cancelToken,
+    );
+    return LinkPreview.fromMap(response.data!);
+  });
 
   /// POST /v1/blobs/images — uploads prepared image bytes.
   Future<UploadedImageBlob> uploadImage({
@@ -50,6 +64,7 @@ class PostApiClient {
     PostRef? quote,
     Project? project,
     List<CreatePostImage>? images,
+    CreatePostExternal? external,
     List<Map<String, dynamic>>? facets,
   }) => unwrapApi(() async {
     assertProjectCreateIsTopLevel(project: project, reply: reply);
@@ -61,6 +76,15 @@ class PostApiClient {
       quote == null || project == null,
       'Project posts cannot be quote posts',
     );
+    assert(quote == null || external == null, 'Quote and external conflict');
+    assert(
+      project == null || external == null,
+      'Project and external conflict',
+    );
+    assert(
+      images == null || images.isEmpty || external == null,
+      'Images and external conflict',
+    );
     final res = await _dio.post<Map<String, dynamic>>(
       '/v1/posts',
       data: {
@@ -68,7 +92,11 @@ class PostApiClient {
         'langs': langs,
         'project': ?project?.toCreateMap(),
         'reply': ?reply?.toMap(),
-        'embed': ?quote == null ? null : {'quote': quote.toMap()},
+        'embed': ?switch ((quote, external)) {
+          (final quote?, _) => {'quote': quote.toMap()},
+          (_, final external?) => {'external': external.toMap()},
+          _ => null,
+        },
         'images': ?images?.map((image) => image.toMap()).toList(),
         'facets': ?facets,
       },

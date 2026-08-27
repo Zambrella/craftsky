@@ -378,6 +378,61 @@ func TestPostStore_ReadOne_HappyPath(t *testing.T) {
 	}
 }
 
+func TestPostStore_ProjectsExternalEmbedAcrossCanonicalReads(t *testing.T) {
+	pool := testdb.WithSchema(t, postStoreDDL)
+	ctx := context.Background()
+	seedMember(t, pool, "did:plc:alice")
+	rootURI := seedPost(t, pool, "did:plc:alice", "root", "root", time.Date(2026, 8, 25, 10, 0, 0, 0, time.UTC))
+	rootRecord := `{"$type":"social.craftsky.feed.post","text":"root","embed":{"$type":"app.bsky.embed.external","external":{"uri":"https://metadata.example/pattern","title":"Metadata","description":"Description"}}}`
+	if _, err := pool.Exec(ctx, `UPDATE craftsky_posts SET record=$2::jsonb WHERE uri=$1`, rootURI, rootRecord); err != nil {
+		t.Fatalf("seed root record: %v", err)
+	}
+	commentURI := "at://did:plc:alice/social.craftsky.feed.post/comment"
+	commentRecord := `{"$type":"social.craftsky.feed.post","text":"comment","embed":{"$type":"app.bsky.embed.external","external":{"uri":"https://thumb.example/pattern","title":"Thumbnail","description":"","thumb":{"ref":{"$link":"bafythumb"},"mimeType":"image/png","size":123}}}}`
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO craftsky_posts (
+			uri, did, rkey, cid, text, reply_root_uri, reply_root_cid,
+			reply_parent_uri, reply_parent_cid, record, created_at, indexed_at, profile_sort_at
+		) VALUES ($1, 'did:plc:alice', 'comment', 'bafycomment', 'comment', $2, 'bafyroot', $2, 'bafyroot', $3::jsonb, $4, $4, $4)
+	`, commentURI, rootURI, commentRecord, time.Date(2026, 8, 25, 10, 1, 0, 0, time.UTC)); err != nil {
+		t.Fatalf("seed comment: %v", err)
+	}
+
+	store := api.NewPostStore(pool)
+	detail, err := store.ReadOne(ctx, "did:plc:alice", "root")
+	if err != nil {
+		t.Fatalf("ReadOne: %v", err)
+	}
+	profile, _, err := store.ListByAuthor(ctx, "did:plc:alice", 20, "")
+	if err != nil {
+		t.Fatalf("ListByAuthor: %v", err)
+	}
+	comments, _, err := store.ListCommentsByAuthor(ctx, "did:plc:alice", 20, "")
+	if err != nil {
+		t.Fatalf("ListCommentsByAuthor: %v", err)
+	}
+	replies, _, err := store.ListRootComments(ctx, rootURI, "did:plc:viewer", "oldest", 20, "")
+	if err != nil {
+		t.Fatalf("ListRootComments: %v", err)
+	}
+
+	for surface, row := range map[string]*api.PostRow{
+		"detail":  detail,
+		"profile": profile[0],
+	} {
+		response := api.BuildPostResponse(row, "alice.example")
+		if response.External == nil || response.External.URI != "https://metadata.example/pattern" || response.External.Thumb != nil {
+			t.Fatalf("%s external = %#v", surface, response.External)
+		}
+	}
+	for surface, rows := range map[string][]*api.PostRow{"comments": comments, "replies": replies} {
+		response := api.BuildPostResponse(rows[0], "alice.example")
+		if response.External == nil || response.External.Thumb == nil || response.External.Thumb.CID != "bafythumb" {
+			t.Fatalf("%s external = %#v", surface, response.External)
+		}
+	}
+}
+
 func TestPostStore_ReadOneReturnsMaterializedLanguages(t *testing.T) {
 	pool := testdb.WithSchema(t, postStoreDDL)
 	seedMember(t, pool, "did:plc:alice")
@@ -1379,6 +1434,40 @@ func TestPostStore_QuoteViewRows_ReturnsVisibleHiddenAndUnavailableStates(t *tes
 	}
 	if got := views[missing]; got == nil || got.State != "unavailable" || got.Post != nil {
 		t.Fatalf("missing quote view = %+v", got)
+	}
+}
+
+func TestPostStore_QuoteViewRows_ProjectsExternalWithoutChangingVisibility(t *testing.T) {
+	pool := testdb.WithSchema(t, postStoreDDL)
+	ctx := context.Background()
+	seedMember(t, pool, "did:plc:carol")
+	base := time.Date(2026, 8, 25, 12, 0, 0, 0, time.UTC)
+	visible := seedPost(t, pool, "did:plc:carol", "external-visible", "visible", base)
+	hidden := seedPost(t, pool, "did:plc:carol", "external-hidden", "hidden", base.Add(time.Minute))
+	externalRecord := `{"$type":"social.craftsky.feed.post","text":"external","embed":{"$type":"app.bsky.embed.external","external":{"uri":"https://quote.example/pattern","title":"Quote card","description":"Description","thumb":{"ref":{"$link":"bafyquote"},"mimeType":"image/webp","size":456}}}}`
+	if _, err := pool.Exec(ctx, `UPDATE craftsky_posts SET record=$2::jsonb WHERE uri = ANY($1::text[])`, []string{visible, hidden}, externalRecord); err != nil {
+		t.Fatalf("seed quote external records: %v", err)
+	}
+	seedModerationOutput(t, pool, "post", "did:plc:carol", hidden, "hide", base.Add(2*time.Minute))
+	missing := "at://did:plc:carol/social.craftsky.feed.post/external-missing"
+
+	views, err := api.NewPostStore(pool).QuoteViewRows(ctx, []api.ResponseStrongRef{
+		{URI: visible, CID: "bafycid"},
+		{URI: hidden, CID: "bafycid"},
+		{URI: missing, CID: "bafymissing"},
+	})
+	if err != nil {
+		t.Fatalf("QuoteViewRows: %v", err)
+	}
+	quote := api.BuildQuoteView(views[visible], "carol.example")
+	if quote.Post == nil || quote.Post.External == nil || quote.Post.External.Thumb == nil || quote.Post.External.Thumb.CID != "bafyquote" {
+		t.Fatalf("visible quote external = %#v", quote)
+	}
+	if got := views[hidden]; got == nil || got.State != "hidden" || got.Post != nil {
+		t.Fatalf("hidden quote = %#v", got)
+	}
+	if got := views[missing]; got == nil || got.State != "unavailable" || got.Post != nil {
+		t.Fatalf("unavailable quote = %#v", got)
 	}
 }
 

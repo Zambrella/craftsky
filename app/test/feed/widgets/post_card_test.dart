@@ -10,6 +10,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/feed/widgets/external_card.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -66,6 +67,7 @@ Post _post({
   PostReply? reply,
   QuoteView? quoteView,
   ExternalImport? externalImport,
+  PostExternal? external,
   bool? authorMuted,
   bool? authorBlocking,
   bool? authorBlockedBy,
@@ -104,6 +106,7 @@ Post _post({
     project: project,
     quoteView: quoteView,
     externalImport: externalImport,
+    external: external,
   );
 }
 
@@ -155,6 +158,38 @@ Future<void> _pump(
 
 void main() {
   group('PostCard', () {
+    testWidgets('IT-014 renders full external card and applies images-win', (
+      tester,
+    ) async {
+      const external = PostExternal(
+        uri: 'https://example.com/pattern',
+        title: 'Full pattern card',
+        description: 'Description',
+      );
+      await _pump(tester, PostCard(post: _post(external: external)));
+
+      expect(find.byType(ExternalCard), findsOneWidget);
+      expect(find.text('Full pattern card'), findsOneWidget);
+
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            external: external,
+            images: [
+              PostImage(
+                cid: 'bafyimage',
+                mime: 'image/jpeg',
+                size: 1,
+                alt: '',
+              ),
+            ],
+          ),
+        ),
+      );
+      expect(find.byType(ExternalCard), findsNothing);
+    });
+
     testWidgets(
       'UT-005 exposes the authoritative pin action only on eligible owner '
       'cards',

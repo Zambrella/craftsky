@@ -103,19 +103,19 @@ func (s *PrivateMediaService) Put(
 		params.OwnerGeneration <= 0 || params.MIMEType == "" || len(params.Bytes) == 0 ||
 		params.Now.IsZero() || s.testedSettlementBound < 0 || s.settlementMargin < 0 ||
 		(s.testedSettlementBound == 0 && s.settlementMargin != 0) {
-		return PrivateMedia{}, ErrScheduledMediaConflict
+		return PrivateMedia{}, NewScheduledMediaConflict(MediaConflictInvalidRequest)
 	}
 	digest := sha256.Sum256(params.Bytes)
 	multihashValue, err := multihash.Sum(params.Bytes, multihash.SHA2_256, -1)
 	if err != nil {
-		return PrivateMedia{}, ErrScheduledMediaConflict
+		return PrivateMedia{}, NewScheduledMediaConflict(MediaConflictDigestConstruction)
 	}
 	predictedCID := syntax.CID(cid.NewCidV1(cid.Raw, multihashValue).String())
 	objectKey, uploadAttemptID, err := NewGenerationObjectKey(
 		params.OwnerDID, params.OwnerGeneration, params.ID,
 	)
 	if err != nil {
-		return PrivateMedia{}, ErrScheduledMediaConflict
+		return PrivateMedia{}, NewScheduledMediaConflict(MediaConflictObjectKeyConstruction)
 	}
 	remoteDeadline := params.Now.UTC().Add(s.putTimeout)
 	var settlementNotBefore *time.Time
@@ -155,7 +155,7 @@ func (s *PrivateMediaService) Put(
 		}
 		if media.State == "ready" {
 			if media.BlobCID != predictedCID {
-				return ErrScheduledMediaConflict
+				return NewScheduledMediaConflict(MediaConflictExistingBlob)
 			}
 			result = media
 			return nil
@@ -326,12 +326,26 @@ func (s *Store) reservePrivateMedia(
 		if media.OwnerDID != ownerDID {
 			return PrivateMedia{}, ErrScheduledMediaNotFound
 		}
-		if media.OwnerGeneration != ownerGeneration ||
-			media.UploadGeneration != ownerGeneration ||
-			media.UploadAttemptID != uploadAttemptID ||
-			media.ObjectKey != objectKey || media.MIMEType != mimeType ||
-			media.SizeBytes != sizeBytes || media.SHA256 != digest {
-			return PrivateMedia{}, ErrScheduledMediaConflict
+		if media.OwnerGeneration != ownerGeneration {
+			return PrivateMedia{}, NewScheduledMediaConflict(MediaConflictExistingOwnerGeneration)
+		}
+		if media.UploadGeneration != ownerGeneration {
+			return PrivateMedia{}, NewScheduledMediaConflict(MediaConflictExistingUploadGeneration)
+		}
+		if media.UploadAttemptID != uploadAttemptID {
+			return PrivateMedia{}, NewScheduledMediaConflict(MediaConflictExistingUploadAttempt)
+		}
+		if media.ObjectKey != objectKey {
+			return PrivateMedia{}, NewScheduledMediaConflict(MediaConflictExistingObjectKey)
+		}
+		if media.MIMEType != mimeType {
+			return PrivateMedia{}, NewScheduledMediaConflict(MediaConflictExistingMIMEType)
+		}
+		if media.SizeBytes != sizeBytes {
+			return PrivateMedia{}, NewScheduledMediaConflict(MediaConflictExistingSize)
+		}
+		if media.SHA256 != digest {
+			return PrivateMedia{}, NewScheduledMediaConflict(MediaConflictExistingDigest)
 		}
 		if media.State == "uploading" {
 			var outcome string
@@ -361,7 +375,7 @@ func (s *Store) reservePrivateMedia(
 		remoteDeadline,
 		settlementNotBefore,
 	); err != nil {
-		return PrivateMedia{}, ErrScheduledMediaConflict
+		return PrivateMedia{}, NewScheduledMediaConflict(MediaConflictObjectAttemptReservation)
 	}
 	var (
 		storedOwner      syntax.DID
@@ -380,12 +394,27 @@ func (s *Store) reservePrivateMedia(
 	); err != nil {
 		return PrivateMedia{}, ErrPrivateObjectStoreUnavailable
 	}
-	if storedOwner != ownerDID || storedGeneration != ownerGeneration ||
-		storedMediaID != id || storedObjectKey != objectKey ||
-		!bytes.Equal(attemptDigest, digest[:]) || storedOutcome != "prepared" ||
-		!storedDeadline.Equal(remoteDeadline) {
-		return PrivateMedia{}, ErrScheduledMediaConflict
+	if storedOwner != ownerDID {
+		return PrivateMedia{}, NewScheduledMediaConflict(MediaConflictAttemptOwner)
 	}
+	if storedGeneration != ownerGeneration {
+		return PrivateMedia{}, NewScheduledMediaConflict(MediaConflictAttemptGeneration)
+	}
+	if storedMediaID != id {
+		return PrivateMedia{}, NewScheduledMediaConflict(MediaConflictAttemptMedia)
+	}
+	if storedObjectKey != objectKey {
+		return PrivateMedia{}, NewScheduledMediaConflict(MediaConflictAttemptObjectKey)
+	}
+	if !bytes.Equal(attemptDigest, digest[:]) {
+		return PrivateMedia{}, NewScheduledMediaConflict(MediaConflictAttemptDigest)
+	}
+	if storedOutcome != "prepared" {
+		return PrivateMedia{}, NewScheduledMediaConflict(MediaConflictAttemptOutcome)
+	}
+	// PostgreSQL is authoritative for the attempt deadline. Comparing it with a
+	// newly computed time is invalid because timestamptz has microsecond precision.
+	remoteDeadline = storedDeadline.UTC()
 	expiresAt := UnclaimedMediaExpiresAt(now)
 	if _, err := tx.Exec(
 		ctx,
@@ -401,7 +430,7 @@ func (s *Store) reservePrivateMedia(
 		expiresAt,
 		now,
 	); err != nil {
-		return PrivateMedia{}, ErrScheduledMediaConflict
+		return PrivateMedia{}, NewScheduledMediaConflict(MediaConflictMediaReservation)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return PrivateMedia{}, ErrPrivateObjectStoreUnavailable

@@ -64,6 +64,7 @@ type Config struct {
 	JSONBodyLimitBytes            int64
 	MaxPostImages                 int
 	MaxImageUploadBytes           int64
+	LinkPreviewsEnabled           bool
 	ImageDecodeLimits             api.ImageDecodeLimits
 	HTTPJSONBodyReadTimeout       time.Duration
 	HTTPUploadBodyReadTimeout     time.Duration
@@ -86,6 +87,7 @@ type Dependencies struct {
 	AuthService   auth.AuthService
 	RateLimiter   *middleware.LocalRateLimiter
 	Observability *observability.Observer
+	LinkPreviews  api.LinkPreviewService
 
 	AccountDeletion             accountdeletion.Service
 	AccountDeletionOAuth        auth.AccountDeletionOAuthCallbacks

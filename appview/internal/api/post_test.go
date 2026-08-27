@@ -1511,6 +1511,129 @@ func TestCreatePost_QuoteEmbed_TranslatedToLexiconShape(t *testing.T) {
 	}
 }
 
+func TestCreatePost_ExternalEmbed_WritesStandardShapeAndRejectsConflicts(t *testing.T) {
+	valid := []struct {
+		name         string
+		body         string
+		wantExternal map[string]any
+	}{
+		{
+			name: "metadata only without matching facet",
+			body: `{"text":"plain text","embed":{"external":{"uri":"https://final.example/pattern","title":"Pattern","description":"A useful pattern"}}}`,
+			wantExternal: map[string]any{
+				"uri":         "https://final.example/pattern",
+				"title":       "Pattern",
+				"description": "A useful pattern",
+			},
+		},
+		{
+			name: "thumbnail",
+			body: `{"text":"link","embed":{"external":{"uri":"https://final.example/pattern","title":"Pattern","description":"","thumb":{"$type":"blob","ref":{"$link":"bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"},"mimeType":"image/webp","size":321}}}}`,
+			wantExternal: map[string]any{
+				"uri":         "https://final.example/pattern",
+				"title":       "Pattern",
+				"description": "",
+				"thumb": map[string]any{
+					"$type":    "blob",
+					"ref":      map[string]any{"$link": "bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"},
+					"mimeType": "image/webp",
+					"size":     float64(321),
+				},
+			},
+		},
+	}
+	for _, test := range valid {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			pds := &fakePostEffectState{}
+			handler := api.CreatePostHandler(&fakePostStore{}, newPDSEffectsFactory(pds), fakeResolver{handleFor: "alice.example"}, api.DefaultMediaLimits(), nilLogger())
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, authedReq(http.MethodPost, "/v1/posts", test.body, "did:plc:alice"))
+
+			if recorder.Code != http.StatusCreated {
+				t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+			}
+			record, ok := pds.lastCreateRec.(map[string]any)
+			if !ok {
+				t.Fatalf("record type = %T", pds.lastCreateRec)
+			}
+			embed, ok := record["embed"].(map[string]any)
+			if !ok || embed["$type"] != "app.bsky.embed.external" {
+				t.Fatalf("embed = %#v", record["embed"])
+			}
+			if !reflect.DeepEqual(embed["external"], test.wantExternal) {
+				t.Fatalf("external = %#v, want %#v", embed["external"], test.wantExternal)
+			}
+			var response api.PostResponse
+			if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+				t.Fatalf("response JSON: %v", err)
+			}
+			if response.External == nil || response.External.URI != test.wantExternal["uri"] || response.External.Title != test.wantExternal["title"] {
+				t.Fatalf("response external = %#v", response.External)
+			}
+		})
+	}
+
+	conflicts := []struct {
+		name string
+		body string
+	}{
+		{name: "quote", body: `{"text":"link","embed":{"quote":{"uri":"at://did:plc:bob/social.craftsky.feed.post/r1","cid":"bafyquote"},"external":{"uri":"https://final.example","title":"Pattern","description":""}}}`},
+		{name: "images", body: `{"text":"link","images":[{"image":{"ref":{"$link":"bafyimage"},"mimeType":"image/jpeg","size":1},"alt":""}],"embed":{"external":{"uri":"https://final.example","title":"Pattern","description":""}}}`},
+		{name: "project", body: `{"text":"link","project":{"common":{"craftType":"social.craftsky.feed.defs#knitting"}},"embed":{"external":{"uri":"https://final.example","title":"Pattern","description":""}}}`},
+	}
+	for _, test := range conflicts {
+		t.Run(test.name+" conflict", func(t *testing.T) {
+			t.Parallel()
+			pds := &fakePostEffectState{}
+			handler := api.CreatePostHandler(&fakePostStore{}, newPDSEffectsFactory(pds), fakeResolver{handleFor: "alice.example"}, api.DefaultMediaLimits(), nilLogger())
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, authedReq(http.MethodPost, "/v1/posts", test.body, "did:plc:alice"))
+
+			if recorder.Code != http.StatusUnprocessableEntity {
+				t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+			}
+			if pds.createCalls != 0 {
+				t.Fatalf("PDS writes = %d, want 0", pds.createCalls)
+			}
+		})
+	}
+}
+
+func TestCreatePost_ExternalThumbnailRejectsMalformedBlobBeforePDSWrite(t *testing.T) {
+	t.Parallel()
+
+	const canonicalCID = "bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"
+	tests := []struct {
+		name  string
+		thumb string
+	}{
+		{name: "missing blob type", thumb: `{"ref":{"$link":"` + canonicalCID + `"},"mimeType":"image/png","size":1}`},
+		{name: "wrong blob type", thumb: `{"$type":"not-a-blob","ref":{"$link":"` + canonicalCID + `"},"mimeType":"image/png","size":1}`},
+		{name: "malformed CID", thumb: `{"$type":"blob","ref":{"$link":"not-a-cid"},"mimeType":"image/png","size":1}`},
+		{name: "noncanonical CID", thumb: `{"$type":"blob","ref":{"$link":"BAFKREIE3W2XQ7U6RS5SZU6VLLSQ5XH7Y7UV3F6BLQL6UZ4EP6TXV6M4O6A"},"mimeType":"image/png","size":1}`},
+		{name: "unknown blob field", thumb: `{"$type":"blob","ref":{"$link":"` + canonicalCID + `"},"mimeType":"image/png","size":1,"extra":true}`},
+		{name: "unknown ref field", thumb: `{"$type":"blob","ref":{"$link":"` + canonicalCID + `","extra":true},"mimeType":"image/png","size":1}`},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			pds := &fakePostEffectState{}
+			handler := api.CreatePostHandler(&fakePostStore{}, newPDSEffectsFactory(pds), fakeResolver{handleFor: "alice.example"}, api.DefaultMediaLimits(), nilLogger())
+			body := `{"text":"link","embed":{"external":{"uri":"https://final.example/pattern","title":"Pattern","description":"","thumb":` + test.thumb + `}}}`
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice"))
+
+			if recorder.Code < 400 || recorder.Code >= 500 {
+				t.Fatalf("status = %d, want 4xx; body = %s", recorder.Code, recorder.Body.String())
+			}
+			if pds.createCalls != 0 {
+				t.Fatalf("PDS writes = %d, want 0", pds.createCalls)
+			}
+		})
+	}
+}
+
 func TestCreatePost_QuoteEmbed_UsesResolvedTargetCID(t *testing.T) {
 	t.Parallel()
 	pds := &fakePostEffectState{}

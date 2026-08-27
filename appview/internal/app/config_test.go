@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/middleware"
 )
 
 const productionOAuthTestEnv = "OAUTH_PUBLIC_ORIGIN=https://appview.craftsky.social\n" +
@@ -65,6 +66,108 @@ func TestParseEnv(t *testing.T) {
 				t.Errorf("ParseEnv(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
+	}
+}
+
+// UT-016: development enables previews by default while production requires
+// an explicit true value; malformed booleans fail configuration loading.
+func TestLoadConfigLinkPreviewEnablement(t *testing.T) {
+	const devBase = "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap\n"
+	const prodBase = "DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://craftsky.social\nTAP_WS_URL=ws://tap\n"
+	tests := []struct {
+		name    string
+		env     Env
+		value   string
+		want    bool
+		wantErr bool
+	}{
+		{name: "development default", env: EnvDev, want: true},
+		{name: "development explicit false", env: EnvDev, value: "false", want: false},
+		{name: "production default", env: EnvProd, want: false},
+		{name: "production explicit true", env: EnvProd, value: "true", want: true},
+		{name: "production explicit false", env: EnvProd, value: "false", want: false},
+		{name: "invalid", env: EnvDev, value: "yes", wantErr: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			contents := devBase
+			if tt.env == EnvProd {
+				contents = withProductionOAuth(prodBase)
+			}
+			if tt.value != "" {
+				contents += "LINK_PREVIEWS_ENABLED=" + tt.value + "\n"
+			}
+			cfg, err := LoadConfig(tt.env, testConfigFile(t, contents))
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("LoadConfig() error = %v, wantErr %t", err, tt.wantErr)
+			}
+			if err == nil && cfg.LinkPreviewsEnabled != tt.want {
+				t.Fatalf("LinkPreviewsEnabled = %t, want %t", cfg.LinkPreviewsEnabled, tt.want)
+			}
+		})
+	}
+}
+
+// UT-017: link previews have independent hourly token and device budgets with
+// exact fixed-window rollover.
+func TestDefaultRateLimitConfigLinkPreview(t *testing.T) {
+	now := time.Unix(1_000, 0)
+	limiter := middleware.NewLocalRateLimiter(DefaultRateLimitConfig(), func() time.Time { return now })
+	for request := 1; request <= 61; request++ {
+		decision := limiter.Allow(middleware.RateClassLinkPreview, middleware.RateKeys{TokenKey: "token-a", DeviceID: "device-" + fmt.Sprint(request)})
+		if decision.Allowed != (request <= 60) {
+			t.Fatalf("token request %d allowed = %t, want %t", request, decision.Allowed, request <= 60)
+		}
+		if request == 61 && decision.KeyType != "token" {
+			t.Fatalf("token overflow key type = %q, want token", decision.KeyType)
+		}
+	}
+
+	now = now.Add(time.Hour)
+	for request := 1; request <= 121; request++ {
+		decision := limiter.Allow(middleware.RateClassLinkPreview, middleware.RateKeys{TokenKey: "token-" + fmt.Sprint(request), DeviceID: "shared-device"})
+		if decision.Allowed != (request <= 120) {
+			t.Fatalf("device request %d allowed = %t, want %t", request, decision.Allowed, request <= 120)
+		}
+		if request == 121 && decision.KeyType != "device" {
+			t.Fatalf("device overflow key type = %q, want device", decision.KeyType)
+		}
+	}
+
+	now = now.Add(time.Hour)
+	if decision := limiter.Allow(middleware.RateClassLinkPreview, middleware.RateKeys{TokenKey: "token-a", DeviceID: "shared-device"}); !decision.Allowed {
+		t.Fatalf("first request after rollover rejected: %+v", decision)
+	}
+}
+
+// REG-007: preview, write, and upload counters remain independent even when
+// they use the same token and device keys in one limiter.
+func TestDefaultRateLimitsKeepLinkPreviewQuotaIndependent(t *testing.T) {
+	limiter := middleware.NewLocalRateLimiter(DefaultRateLimitConfig(), func() time.Time { return time.Unix(1_000, 0) })
+	keys := middleware.RateKeys{TokenKey: "shared-token", DeviceID: "shared-device"}
+	for request := 0; request < 60; request++ {
+		if decision := limiter.Allow(middleware.RateClassLinkPreview, keys); !decision.Allowed {
+			t.Fatalf("preview request %d rejected: %+v", request+1, decision)
+		}
+	}
+	if decision := limiter.Allow(middleware.RateClassLinkPreview, keys); decision.Allowed {
+		t.Fatal("61st preview request allowed")
+	}
+	if decision := limiter.Allow(middleware.RateClassWrite, keys); !decision.Allowed {
+		t.Fatalf("first write consumed by preview traffic: %+v", decision)
+	}
+	if decision := limiter.Allow(middleware.RateClassUpload, keys); !decision.Allowed {
+		t.Fatalf("first upload consumed by preview traffic: %+v", decision)
+	}
+
+	otherKeys := middleware.RateKeys{TokenKey: "other-token", DeviceID: "other-device"}
+	for request := 1; request < 60; request++ {
+		if decision := limiter.Allow(middleware.RateClassWrite, otherKeys); !decision.Allowed {
+			t.Fatalf("write request %d rejected: %+v", request, decision)
+		}
+	}
+	if decision := limiter.Allow(middleware.RateClassLinkPreview, otherKeys); !decision.Allowed {
+		t.Fatalf("preview consumed by write traffic: %+v", decision)
 	}
 }
 
@@ -158,7 +261,7 @@ func testConfigFile(t *testing.T, contents string) string {
 		"INSTAGRAM_WORKER_LEASE_DURATION", "INSTAGRAM_WORKER_MAX_ATTEMPTS",
 		"INSTAGRAM_WORKER_BACKOFF_INITIAL", "INSTAGRAM_WORKER_BACKOFF_MAX",
 		"INSTAGRAM_WORKER_MAX_PROCESSING_AGE", "INSTAGRAM_DM_REPLY_WINDOW",
-		"INSTAGRAM_OPERATOR_BATCH_MAX"} {
+		"INSTAGRAM_OPERATOR_BATCH_MAX", "LINK_PREVIEWS_ENABLED"} {
 		// Snapshot for restoration, then unset.
 		prior, had := os.LookupEnv(k)
 		_ = os.Unsetenv(k)

@@ -1,5 +1,6 @@
 import 'package:craftsky_app/feed/data/post_api_client.dart';
 import 'package:craftsky_app/feed/data/post_repository.dart';
+import 'package:craftsky_app/feed/models/create_post_external.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
@@ -26,6 +27,7 @@ class ApiPostRepository implements PostRepository {
     PostRef? quote,
     Project? project,
     List<CreatePostImage>? images,
+    CreatePostExternal? external,
     List<Map<String, dynamic>>? facets,
   }) {
     assert(
@@ -47,6 +49,7 @@ class ApiPostRepository implements PostRepository {
       quote: quote,
       project: project,
       images: images,
+      external: external,
       facets: facets,
     );
   }

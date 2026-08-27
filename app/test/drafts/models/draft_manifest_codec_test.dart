@@ -7,6 +7,38 @@ import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('UT-019 draft manifest excludes all preview session state', () {
+    final draft = LocalPostDraft(
+      id: '00000000-0000-4000-8000-000000000001',
+      owner: AccountKey('did:plc:alice'),
+      kind: LocalPostDraftKind.standard,
+      createdAt: DateTime.utc(2026),
+      updatedAt: DateTime.utc(2026),
+      content: const StandardDraftContent(
+        text: 'Keep https://source.example/pattern in ordinary text',
+        languages: ['en'],
+      ),
+      schedule: const DraftScheduleIntent.now(),
+      media: const [],
+    );
+
+    final encoded = DraftManifestCodec.encode(draft);
+    final map = jsonDecode(encoded) as Map<String, dynamic>;
+    final keys = _allKeys(map).toSet();
+
+    for (final forbidden in {
+      'external',
+      'preview',
+      'previewCache',
+      'selectedIdentity',
+      'dismissed',
+      'suppressed',
+    }) {
+      expect(keys, isNot(contains(forbidden)));
+    }
+    expect(encoded, contains('https://source.example/pattern'));
+  });
+
   test('round-trips every version 1 standard draft field', () {
     final draft = LocalPostDraft(
       id: '00000000-0000-4000-8000-000000000001',
@@ -225,6 +257,19 @@ void main() {
       throwsA(isA<DraftManifestException>()),
     );
   });
+}
+
+Iterable<String> _allKeys(Object? value) sync* {
+  if (value is Map<String, dynamic>) {
+    for (final entry in value.entries) {
+      yield entry.key;
+      yield* _allKeys(entry.value);
+    }
+  } else if (value is List<dynamic>) {
+    for (final item in value) {
+      yield* _allKeys(item);
+    }
+  }
 }
 
 LocalPostDraft _emptyDraft() => LocalPostDraft(

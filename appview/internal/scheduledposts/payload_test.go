@@ -3,6 +3,7 @@ package scheduledposts
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"reflect"
 	"testing"
 )
@@ -24,6 +25,13 @@ func TestPayloadRoundTrip(t *testing.T) {
 				Media: []PayloadMedia{
 					{ID: "11111111-1111-4111-8111-111111111111", Alt: "first image", Width: 1200, Height: 800},
 					{ID: "22222222-2222-4222-8222-222222222222", Alt: "second image", Width: 800, Height: 1200},
+				},
+				External: &PayloadExternal{
+					SourceURI:    "https://source.example/pattern",
+					URI:          "https://final.example/pattern#section",
+					Title:        "Frozen pattern",
+					Description:  "Frozen description",
+					ThumbMediaID: "55555555-5555-4555-8555-555555555555",
 				},
 			},
 		},
@@ -70,5 +78,16 @@ func TestPayloadRoundTrip(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestUT018ScheduledExternalEligibility(t *testing.T) {
+	t.Parallel()
+
+	if err := ValidateScheduleEligibility(PostShape{Kind: PostKindStandard, HasExternal: true}); err != nil {
+		t.Fatalf("standard external eligibility = %v", err)
+	}
+	if err := ValidateScheduleEligibility(PostShape{Kind: PostKindProject, HasExternal: true}); !errors.Is(err, ErrIneligibleScheduledPost) {
+		t.Fatalf("project external eligibility = %v, want %v", err, ErrIneligibleScheduledPost)
 	}
 }

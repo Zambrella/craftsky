@@ -28,6 +28,7 @@ class PostMapper extends ClassMapperBase<Post> {
       PostRefMapper.ensureInitialized();
       QuoteViewMapper.ensureInitialized();
       ExternalImportMapper.ensureInitialized();
+      PostExternalMapper.ensureInitialized();
       ModerationMetadataMapper.ensureInitialized();
       ProjectMapper.ensureInitialized();
       ContentRelationshipMapper.ensureInitialized();
@@ -157,6 +158,12 @@ class PostMapper extends ClassMapperBase<Post> {
     _$externalImport,
     opt: true,
   );
+  static PostExternal? _$external(Post v) => v.external;
+  static const Field<Post, PostExternal> _f$external = Field(
+    'external',
+    _$external,
+    opt: true,
+  );
   static ModerationMetadata? _$moderation(Post v) => v.moderation;
   static const Field<Post, ModerationMetadata> _f$moderation = Field(
     'moderation',
@@ -208,6 +215,7 @@ class PostMapper extends ClassMapperBase<Post> {
     #quote: _f$quote,
     #quoteView: _f$quoteView,
     #externalImport: _f$externalImport,
+    #external: _f$external,
     #moderation: _f$moderation,
     #project: _f$project,
     #availability: _f$availability,
@@ -244,6 +252,7 @@ class PostMapper extends ClassMapperBase<Post> {
       quote: data.dec(_f$quote),
       quoteView: data.dec(_f$quoteView),
       externalImport: data.dec(_f$externalImport),
+      external: data.dec(_f$external),
       moderation: data.dec(_f$moderation),
       project: data.dec(_f$project),
       availability: data.dec(_f$availability),
@@ -313,6 +322,7 @@ abstract class PostCopyWith<$R, $In extends Post, $Out>
   QuoteViewCopyWith<$R, QuoteView, QuoteView>? get quoteView;
   ExternalImportCopyWith<$R, ExternalImport, ExternalImport>?
   get externalImport;
+  PostExternalCopyWith<$R, PostExternal, PostExternal>? get external;
   ModerationMetadataCopyWith<$R, ModerationMetadata, ModerationMetadata>?
   get moderation;
   ProjectCopyWith<$R, Project, Project>? get project;
@@ -343,6 +353,7 @@ abstract class PostCopyWith<$R, $In extends Post, $Out>
     PostRef? quote,
     QuoteView? quoteView,
     ExternalImport? externalImport,
+    PostExternal? external,
     ModerationMetadata? moderation,
     Project? project,
     String? availability,
@@ -410,6 +421,9 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
   get externalImport =>
       $value.externalImport?.copyWith.$chain((v) => call(externalImport: v));
   @override
+  PostExternalCopyWith<$R, PostExternal, PostExternal>? get external =>
+      $value.external?.copyWith.$chain((v) => call(external: v));
+  @override
   ModerationMetadataCopyWith<$R, ModerationMetadata, ModerationMetadata>?
   get moderation =>
       $value.moderation?.copyWith.$chain((v) => call(moderation: v));
@@ -446,6 +460,7 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
     Object? quote = $none,
     Object? quoteView = $none,
     Object? externalImport = $none,
+    Object? external = $none,
     Object? moderation = $none,
     Object? project = $none,
     Object? availability = $none,
@@ -477,6 +492,7 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
       if (quote != $none) #quote: quote,
       if (quoteView != $none) #quoteView: quoteView,
       if (externalImport != $none) #externalImport: externalImport,
+      if (external != $none) #external: external,
       if (moderation != $none) #moderation: moderation,
       if (project != $none) #project: project,
       if (availability != $none) #availability: availability,
@@ -515,6 +531,7 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
     quote: data.get(#quote, or: $value.quote),
     quoteView: data.get(#quoteView, or: $value.quoteView),
     externalImport: data.get(#externalImport, or: $value.externalImport),
+    external: data.get(#external, or: $value.external),
     moderation: data.get(#moderation, or: $value.moderation),
     project: data.get(#project, or: $value.project),
     availability: data.get(#availability, or: $value.availability),
@@ -1501,6 +1518,7 @@ class QuotePreviewPostMapper extends ClassMapperBase<QuotePreviewPost> {
       PostImageMapper.ensureInitialized();
       ProjectMapper.ensureInitialized();
       ExternalImportMapper.ensureInitialized();
+      PostExternalMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -1550,6 +1568,12 @@ class QuotePreviewPostMapper extends ClassMapperBase<QuotePreviewPost> {
       v.externalImport;
   static const Field<QuotePreviewPost, ExternalImport> _f$externalImport =
       Field('externalImport', _$externalImport, opt: true);
+  static PostExternal? _$external(QuotePreviewPost v) => v.external;
+  static const Field<QuotePreviewPost, PostExternal> _f$external = Field(
+    'external',
+    _$external,
+    opt: true,
+  );
 
   @override
   final MappableFields<QuotePreviewPost> fields = const {
@@ -1561,6 +1585,7 @@ class QuotePreviewPostMapper extends ClassMapperBase<QuotePreviewPost> {
     #images: _f$images,
     #project: _f$project,
     #externalImport: _f$externalImport,
+    #external: _f$external,
   };
   @override
   final bool ignoreNull = true;
@@ -1575,6 +1600,7 @@ class QuotePreviewPostMapper extends ClassMapperBase<QuotePreviewPost> {
       images: data.dec(_f$images),
       project: data.dec(_f$project),
       externalImport: data.dec(_f$externalImport),
+      external: data.dec(_f$external),
     );
   }
 
@@ -1646,6 +1672,7 @@ abstract class QuotePreviewPostCopyWith<$R, $In extends QuotePreviewPost, $Out>
   ProjectCopyWith<$R, Project, Project>? get project;
   ExternalImportCopyWith<$R, ExternalImport, ExternalImport>?
   get externalImport;
+  PostExternalCopyWith<$R, PostExternal, PostExternal>? get external;
   $R call({
     String? uri,
     String? cid,
@@ -1655,6 +1682,7 @@ abstract class QuotePreviewPostCopyWith<$R, $In extends QuotePreviewPost, $Out>
     List<PostImage>? images,
     Project? project,
     ExternalImport? externalImport,
+    PostExternal? external,
   });
   QuotePreviewPostCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
@@ -1689,6 +1717,9 @@ class _QuotePreviewPostCopyWithImpl<$R, $Out>
   get externalImport =>
       $value.externalImport?.copyWith.$chain((v) => call(externalImport: v));
   @override
+  PostExternalCopyWith<$R, PostExternal, PostExternal>? get external =>
+      $value.external?.copyWith.$chain((v) => call(external: v));
+  @override
   $R call({
     String? uri,
     String? cid,
@@ -1698,6 +1729,7 @@ class _QuotePreviewPostCopyWithImpl<$R, $Out>
     Object? images = $none,
     Object? project = $none,
     Object? externalImport = $none,
+    Object? external = $none,
   }) => $apply(
     FieldCopyWithData({
       if (uri != null) #uri: uri,
@@ -1708,6 +1740,7 @@ class _QuotePreviewPostCopyWithImpl<$R, $Out>
       if (images != $none) #images: images,
       if (project != $none) #project: project,
       if (externalImport != $none) #externalImport: externalImport,
+      if (external != $none) #external: external,
     }),
   );
   @override
@@ -1720,6 +1753,7 @@ class _QuotePreviewPostCopyWithImpl<$R, $Out>
     images: data.get(#images, or: $value.images),
     project: data.get(#project, or: $value.project),
     externalImport: data.get(#externalImport, or: $value.externalImport),
+    external: data.get(#external, or: $value.external),
   );
 
   @override
@@ -1842,6 +1876,323 @@ class _ExternalImportCopyWithImpl<$R, $Out>
   ExternalImportCopyWith<$R2, ExternalImport, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   ) => _ExternalImportCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
+class PostExternalMapper extends ClassMapperBase<PostExternal> {
+  PostExternalMapper._();
+
+  static PostExternalMapper? _instance;
+  static PostExternalMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = PostExternalMapper._());
+      MapperContainer.globals.useAll([CidMapper()]);
+      PostExternalThumbMapper.ensureInitialized();
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'PostExternal';
+
+  static String _$uri(PostExternal v) => v.uri;
+  static const Field<PostExternal, String> _f$uri = Field('uri', _$uri);
+  static String _$title(PostExternal v) => v.title;
+  static const Field<PostExternal, String> _f$title = Field('title', _$title);
+  static String _$description(PostExternal v) => v.description;
+  static const Field<PostExternal, String> _f$description = Field(
+    'description',
+    _$description,
+  );
+  static PostExternalThumb? _$thumb(PostExternal v) => v.thumb;
+  static const Field<PostExternal, PostExternalThumb> _f$thumb = Field(
+    'thumb',
+    _$thumb,
+    opt: true,
+  );
+
+  @override
+  final MappableFields<PostExternal> fields = const {
+    #uri: _f$uri,
+    #title: _f$title,
+    #description: _f$description,
+    #thumb: _f$thumb,
+  };
+  @override
+  final bool ignoreNull = true;
+
+  static PostExternal _instantiate(DecodingData data) {
+    return PostExternal(
+      uri: data.dec(_f$uri),
+      title: data.dec(_f$title),
+      description: data.dec(_f$description),
+      thumb: data.dec(_f$thumb),
+    );
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static PostExternal fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<PostExternal>(map);
+  }
+
+  static PostExternal fromJson(String json) {
+    return ensureInitialized().decodeJson<PostExternal>(json);
+  }
+}
+
+mixin PostExternalMappable {
+  String toJson() {
+    return PostExternalMapper.ensureInitialized().encodeJson<PostExternal>(
+      this as PostExternal,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return PostExternalMapper.ensureInitialized().encodeMap<PostExternal>(
+      this as PostExternal,
+    );
+  }
+
+  PostExternalCopyWith<PostExternal, PostExternal, PostExternal> get copyWith =>
+      _PostExternalCopyWithImpl<PostExternal, PostExternal>(
+        this as PostExternal,
+        $identity,
+        $identity,
+      );
+  @override
+  String toString() {
+    return PostExternalMapper.ensureInitialized().stringifyValue(
+      this as PostExternal,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return PostExternalMapper.ensureInitialized().equalsValue(
+      this as PostExternal,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return PostExternalMapper.ensureInitialized().hashValue(
+      this as PostExternal,
+    );
+  }
+}
+
+extension PostExternalValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, PostExternal, $Out> {
+  PostExternalCopyWith<$R, PostExternal, $Out> get $asPostExternal =>
+      $base.as((v, t, t2) => _PostExternalCopyWithImpl<$R, $Out>(v, t, t2));
+}
+
+abstract class PostExternalCopyWith<$R, $In extends PostExternal, $Out>
+    implements ClassCopyWith<$R, $In, $Out> {
+  PostExternalThumbCopyWith<$R, PostExternalThumb, PostExternalThumb>?
+  get thumb;
+  $R call({
+    String? uri,
+    String? title,
+    String? description,
+    PostExternalThumb? thumb,
+  });
+  PostExternalCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
+}
+
+class _PostExternalCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, PostExternal, $Out>
+    implements PostExternalCopyWith<$R, PostExternal, $Out> {
+  _PostExternalCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<PostExternal> $mapper =
+      PostExternalMapper.ensureInitialized();
+  @override
+  PostExternalThumbCopyWith<$R, PostExternalThumb, PostExternalThumb>?
+  get thumb => $value.thumb?.copyWith.$chain((v) => call(thumb: v));
+  @override
+  $R call({
+    String? uri,
+    String? title,
+    String? description,
+    Object? thumb = $none,
+  }) => $apply(
+    FieldCopyWithData({
+      if (uri != null) #uri: uri,
+      if (title != null) #title: title,
+      if (description != null) #description: description,
+      if (thumb != $none) #thumb: thumb,
+    }),
+  );
+  @override
+  PostExternal $make(CopyWithData data) => PostExternal(
+    uri: data.get(#uri, or: $value.uri),
+    title: data.get(#title, or: $value.title),
+    description: data.get(#description, or: $value.description),
+    thumb: data.get(#thumb, or: $value.thumb),
+  );
+
+  @override
+  PostExternalCopyWith<$R2, PostExternal, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  ) => _PostExternalCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
+class PostExternalThumbMapper extends ClassMapperBase<PostExternalThumb> {
+  PostExternalThumbMapper._();
+
+  static PostExternalThumbMapper? _instance;
+  static PostExternalThumbMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = PostExternalThumbMapper._());
+      MapperContainer.globals.useAll([CidMapper()]);
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'PostExternalThumb';
+
+  static Cid _$cid(PostExternalThumb v) => v.cid;
+  static dynamic _arg$cid(f) => f<Cid>();
+  static const Field<PostExternalThumb, String> _f$cid = Field(
+    'cid',
+    _$cid,
+    arg: _arg$cid,
+  );
+  static String _$mime(PostExternalThumb v) => v.mime;
+  static const Field<PostExternalThumb, String> _f$mime = Field('mime', _$mime);
+  static int _$size(PostExternalThumb v) => v.size;
+  static const Field<PostExternalThumb, int> _f$size = Field('size', _$size);
+  static String _$url(PostExternalThumb v) => v.url;
+  static const Field<PostExternalThumb, String> _f$url = Field('url', _$url);
+
+  @override
+  final MappableFields<PostExternalThumb> fields = const {
+    #cid: _f$cid,
+    #mime: _f$mime,
+    #size: _f$size,
+    #url: _f$url,
+  };
+
+  static PostExternalThumb _instantiate(DecodingData data) {
+    return PostExternalThumb(
+      cid: data.dec(_f$cid),
+      mime: data.dec(_f$mime),
+      size: data.dec(_f$size),
+      url: data.dec(_f$url),
+    );
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static PostExternalThumb fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<PostExternalThumb>(map);
+  }
+
+  static PostExternalThumb fromJson(String json) {
+    return ensureInitialized().decodeJson<PostExternalThumb>(json);
+  }
+}
+
+mixin PostExternalThumbMappable {
+  String toJson() {
+    return PostExternalThumbMapper.ensureInitialized()
+        .encodeJson<PostExternalThumb>(this as PostExternalThumb);
+  }
+
+  Map<String, dynamic> toMap() {
+    return PostExternalThumbMapper.ensureInitialized()
+        .encodeMap<PostExternalThumb>(this as PostExternalThumb);
+  }
+
+  PostExternalThumbCopyWith<
+    PostExternalThumb,
+    PostExternalThumb,
+    PostExternalThumb
+  >
+  get copyWith =>
+      _PostExternalThumbCopyWithImpl<PostExternalThumb, PostExternalThumb>(
+        this as PostExternalThumb,
+        $identity,
+        $identity,
+      );
+  @override
+  String toString() {
+    return PostExternalThumbMapper.ensureInitialized().stringifyValue(
+      this as PostExternalThumb,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return PostExternalThumbMapper.ensureInitialized().equalsValue(
+      this as PostExternalThumb,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return PostExternalThumbMapper.ensureInitialized().hashValue(
+      this as PostExternalThumb,
+    );
+  }
+}
+
+extension PostExternalThumbValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, PostExternalThumb, $Out> {
+  PostExternalThumbCopyWith<$R, PostExternalThumb, $Out>
+  get $asPostExternalThumb => $base.as(
+    (v, t, t2) => _PostExternalThumbCopyWithImpl<$R, $Out>(v, t, t2),
+  );
+}
+
+abstract class PostExternalThumbCopyWith<
+  $R,
+  $In extends PostExternalThumb,
+  $Out
+>
+    implements ClassCopyWith<$R, $In, $Out> {
+  $R call({String? cid, String? mime, int? size, String? url});
+  PostExternalThumbCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  );
+}
+
+class _PostExternalThumbCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, PostExternalThumb, $Out>
+    implements PostExternalThumbCopyWith<$R, PostExternalThumb, $Out> {
+  _PostExternalThumbCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<PostExternalThumb> $mapper =
+      PostExternalThumbMapper.ensureInitialized();
+  @override
+  $R call({String? cid, String? mime, int? size, String? url}) => $apply(
+    FieldCopyWithData({
+      if (cid != null) #cid: cid,
+      if (mime != null) #mime: mime,
+      if (size != null) #size: size,
+      if (url != null) #url: url,
+    }),
+  );
+  @override
+  PostExternalThumb $make(CopyWithData data) => PostExternalThumb(
+    cid: data.get(#cid, or: $value.cid),
+    mime: data.get(#mime, or: $value.mime),
+    size: data.get(#size, or: $value.size),
+    url: data.get(#url, or: $value.url),
+  );
+
+  @override
+  PostExternalThumbCopyWith<$R2, PostExternalThumb, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  ) => _PostExternalThumbCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
 
 class ContentRelationshipMapper extends ClassMapperBase<ContentRelationship> {

@@ -18,6 +18,7 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/pdseffects"
+	"social.craftsky/appview/internal/postrecord"
 	"social.craftsky/appview/internal/postutil"
 	"social.craftsky/appview/internal/relationships"
 )
@@ -151,7 +152,14 @@ func CreatePostHandler(
 		logger.Debug("post create: validated request",
 			pdsLogAttrs(runID, pdsOperationPostCreate, pdsStageRequestBuild)...)
 
-		body := lexiconRecordBody(req)
+		body, err := lexiconRecordBody(req)
+		if err != nil {
+			logger.Error("post create: generated record construction failed",
+				pdsLogErrorAttrs(runID, pdsOperationPostCreate, pdsStageRequestBuild, err)...)
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "could not prepare post", runID, nil)
+			return
+		}
 		logger.Debug("post create: prepared PDS record",
 			pdsLogAttrs(runID, pdsOperationPostCreate, pdsStageRequestBuild)...)
 
@@ -307,7 +315,7 @@ func mentionedDIDs(req PostCreateRequest) ([]syntax.DID, error) {
 // record body that goes to the PDS. Facets are pass-through raw JSON so
 // the PDS sees exactly what the client sent (including any "$type"
 // discriminators on union variants).
-func lexiconRecordBody(req PostCreateRequest) map[string]any {
+func lexiconRecordBody(req PostCreateRequest) (map[string]any, error) {
 	body := map[string]any{
 		"$type":     craftskyPostNSID,
 		"text":      req.Text,
@@ -334,6 +342,13 @@ func lexiconRecordBody(req PostCreateRequest) map[string]any {
 			},
 		}
 	}
+	if req.Embed != nil && req.Embed.External != nil {
+		embed, err := externalEmbedRecord(*req.Embed.External)
+		if err != nil {
+			return nil, err
+		}
+		body["embed"] = embed
+	}
 	if len(req.Images) > 0 {
 		images := make([]map[string]any, 0, len(req.Images))
 		for _, img := range req.Images {
@@ -356,7 +371,13 @@ func lexiconRecordBody(req PostCreateRequest) map[string]any {
 	if req.Project != nil {
 		body["project"] = req.Project
 	}
-	return body
+	return body, nil
+}
+
+func externalEmbedRecord(external ExternalEmbedRequest) (map[string]any, error) {
+	return postrecord.ExternalEmbed(
+		external.URI, external.Title, external.Description, external.Thumb,
+	)
 }
 
 // syntheticPostRow assembles the PostRow that BuildPostResponse needs
@@ -402,6 +423,17 @@ func syntheticPostRow(
 	if req.Embed != nil && req.Embed.Quote != nil {
 		row.QuoteURI = strPtr(req.Embed.Quote.URI)
 		row.QuoteCID = strPtr(req.Embed.Quote.CID)
+	}
+	if req.Embed != nil && req.Embed.External != nil {
+		embed, err := externalEmbedRecord(*req.Embed.External)
+		if err != nil {
+			return nil, err
+		}
+		rawEmbed, err := json.Marshal(embed)
+		if err != nil {
+			return nil, err
+		}
+		row.RawEmbed = rawEmbed
 	}
 	if len(req.Images) > 0 {
 		imagesJSON, err := syntheticPostImagesJSON(req.Images)

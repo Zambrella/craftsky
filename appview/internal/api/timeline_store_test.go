@@ -105,6 +105,31 @@ func TestTimelineFiltersMuteBlockAndRepostAttributionBeforePagination(t *testing
 	}
 }
 
+func TestTimelineStore_ProjectsExternalEmbedFromAuthoritativeRecord(t *testing.T) {
+	pool := testdb.WithSchema(t, timelineStoreDDL)
+	ctx := context.Background()
+	seedMember(t, pool, "did:plc:viewer")
+	seedMember(t, pool, "did:plc:alice")
+	seedFollow(t, pool, "did:plc:viewer", "did:plc:alice", "alice")
+	uri := seedPost(t, pool, "did:plc:alice", "external", "external", time.Date(2026, 8, 25, 11, 0, 0, 0, time.UTC))
+	record := `{"$type":"social.craftsky.feed.post","text":"external","embed":{"$type":"app.bsky.embed.external","external":{"uri":"https://timeline.example/pattern","title":"Timeline","description":"Description"}}}`
+	if _, err := pool.Exec(ctx, `UPDATE craftsky_posts SET record=$2::jsonb WHERE uri=$1`, uri, record); err != nil {
+		t.Fatalf("seed external record: %v", err)
+	}
+
+	items, _, err := api.NewPostStore(pool).ListTimeline(ctx, "did:plc:viewer", 20, "")
+	if err != nil {
+		t.Fatalf("ListTimeline: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("timeline items = %d, want 1", len(items))
+	}
+	response := api.BuildPostResponse(items[0].Post, "alice.example")
+	if response.External == nil || response.External.URI != "https://timeline.example/pattern" {
+		t.Fatalf("timeline external = %#v", response.External)
+	}
+}
+
 func TestTimelineLanguageVisibilityFiltersBeforePaginationAndKeepsOwnPosts(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
 	ctx := context.Background()

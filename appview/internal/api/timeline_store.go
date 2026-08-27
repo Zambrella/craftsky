@@ -243,7 +243,7 @@ func scanTimelineFeedItemRow(scanner interface{ Scan(...any) error }) (*Timeline
 		&repostURI, &repostCID, &repostDID,
 		&repostCreatedAt, &repostIndexedAt,
 		&repostAuthorDisplayName, &repostAuthorAvatarCID, &repostAuthorAvatarMime,
-		&out.Post.URI, &out.Post.DID, &out.Post.Rkey, &out.Post.CID, &out.Post.Text, &out.Post.Facets, &out.Post.Images,
+		&out.Post.URI, &out.Post.DID, &out.Post.Rkey, &out.Post.CID, &out.Post.Text, &out.Post.Facets, &out.Post.Images, &out.Post.RawEmbed,
 		&out.Post.ReplyRootURI, &out.Post.ReplyRootCID, &out.Post.ReplyParentURI, &out.Post.ReplyParentCID,
 		&out.Post.QuoteURI, &out.Post.QuoteCID, &out.Post.Tags, &out.Post.Langs, &out.Post.CreatedAt, &out.Post.IndexedAt,
 		&out.Post.ExternalImportSource, &out.Post.ProfileSortAt,

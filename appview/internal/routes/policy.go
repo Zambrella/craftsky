@@ -3,18 +3,19 @@ package routes
 type RateClass string
 
 const (
-	RateClassAuth    RateClass = "auth"
-	RateClassRead    RateClass = "read"
-	RateClassWrite   RateClass = "write"
-	RateClassSearch  RateClass = "expensive_search"
-	RateClassUpload  RateClass = "upload"
-	RateClassExempt  RateClass = "exempt"
-	RateClassDevOnly RateClass = "dev_only_relaxed"
+	RateClassAuth        RateClass = "auth"
+	RateClassRead        RateClass = "read"
+	RateClassWrite       RateClass = "write"
+	RateClassSearch      RateClass = "expensive_search"
+	RateClassUpload      RateClass = "upload"
+	RateClassLinkPreview RateClass = "link_preview"
+	RateClassExempt      RateClass = "exempt"
+	RateClassDevOnly     RateClass = "dev_only_relaxed"
 )
 
 func (c RateClass) Valid() bool {
 	switch c {
-	case RateClassAuth, RateClassRead, RateClassWrite, RateClassSearch, RateClassUpload, RateClassExempt, RateClassDevOnly:
+	case RateClassAuth, RateClassRead, RateClassWrite, RateClassSearch, RateClassUpload, RateClassLinkPreview, RateClassExempt, RateClassDevOnly:
 		return true
 	default:
 		return false
@@ -177,6 +178,7 @@ func baseV1RoutePolicies() []RoutePolicy {
 		{Method: "DELETE", PathPattern: "/v1/scheduled-posts/{id}", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/scheduled-posts/{id}/publication", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/posts", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
+		{Method: "POST", PathPattern: "/v1/link-previews", RateClass: RateClassLinkPreview, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/posts/{did}/{rkey}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/posts/{did}/{rkey}/saves", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "DELETE", PathPattern: "/v1/posts/{did}/{rkey}/saves", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},

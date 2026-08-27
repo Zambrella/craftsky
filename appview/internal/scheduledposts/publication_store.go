@@ -7,12 +7,14 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 )
 
 const DefaultPublicationLeaseDuration = time.Minute
 
 type publicationMedia struct {
+	ID        uuid.UUID
 	ObjectKey string
 	MIMEType  string
 	SizeBytes int64
@@ -76,6 +78,7 @@ func (s *Store) publicationSnapshot(ctx context.Context, claim PublishingClaim) 
 		var media publicationMedia
 		var digest []byte
 		if err := rows.Scan(
+			&media.ID,
 			&media.ObjectKey,
 			&media.MIMEType,
 			&media.SizeBytes,

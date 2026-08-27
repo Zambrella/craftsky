@@ -43,6 +43,7 @@ type Deps struct {
 	AuthService                 auth.AuthService
 	RateLimiter                 *middleware.LocalRateLimiter
 	Observability               *observability.Observer
+	LinkPreviews                api.LinkPreviewService
 	AccountDeletion             accountdeletion.Service
 	AccountDeletionOAuth        auth.AccountDeletionOAuthCallbacks
 	AccountDeletionPendingLogin auth.AccountDeletionPendingLoginPolicy
@@ -292,12 +293,14 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		return nil, nil, err
 	}
 
+	linkPreviews := newLinkPreviewDependencies()
 	deps := &Deps{
 		Config:                      cfg,
 		Logger:                      logger,
 		DB:                          pool,
 		RateLimiter:                 admission.rateLimiter,
 		Observability:               observer,
+		LinkPreviews:                linkPreviews,
 		OAuthApp:                    oauthApp,
 		OAuthArtifacts:              oauthArtifacts,
 		OAuthStore:                  oauthStore,

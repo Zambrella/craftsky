@@ -55,6 +55,7 @@ class Post with PostMappable {
     this.quote,
     this.quoteView,
     this.externalImport,
+    this.external,
     this.moderation,
     this.project,
     this.availability,
@@ -74,6 +75,7 @@ class Post with PostMappable {
   final PostRef? quote;
   final QuoteView? quoteView;
   final ExternalImport? externalImport;
+  final PostExternal? external;
   final DateTime createdAt;
   final DateTime indexedAt;
   final PostAuthor author;
@@ -106,6 +108,36 @@ class ExternalImport with ExternalImportMappable {
   final String source;
 
   bool get isInstagram => source == 'instagram';
+}
+
+@MappableClass(ignoreNull: true, includeCustomMappers: [CidMapper()])
+class PostExternal with PostExternalMappable {
+  const PostExternal({
+    required this.uri,
+    required this.title,
+    required this.description,
+    this.thumb,
+  });
+
+  final String uri;
+  final String title;
+  final String description;
+  final PostExternalThumb? thumb;
+}
+
+@MappableClass(includeCustomMappers: [CidMapper()])
+class PostExternalThumb with PostExternalThumbMappable {
+  PostExternalThumb({
+    required String cid,
+    required this.mime,
+    required this.size,
+    required this.url,
+  }) : cid = Cid.parse(cid);
+
+  final Cid cid;
+  final String mime;
+  final int size;
+  final String url;
 }
 
 class PostWireHook extends MappingHook {
@@ -192,6 +224,7 @@ class QuotePreviewPost with QuotePreviewPostMappable {
     this.images,
     this.project,
     this.externalImport,
+    this.external,
   }) : uri = AtUri.parse(uri),
        cid = Cid.parse(cid);
 
@@ -203,6 +236,7 @@ class QuotePreviewPost with QuotePreviewPostMappable {
   final List<PostImage>? images;
   final Project? project;
   final ExternalImport? externalImport;
+  final PostExternal? external;
 }
 
 @MappableClass(ignoreNull: true, includeCustomMappers: [CidMapper()])

@@ -21,7 +21,7 @@ func TestPrivateMediaServiceIsIdempotentAndOwnerScoped(t *testing.T) {
 	alice := syntax.DID("did:plc:alice")
 	bob := syntax.DID("did:plc:bob")
 	mediaID := uuid.MustParse("00000000-0000-4000-8000-000000000601")
-	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
+	now := time.Now().UTC()
 	body := []byte("private-image-bytes")
 	params := PutPrivateMediaParams{
 		ID: mediaID, OwnerDID: alice, OwnerGeneration: 1,
@@ -35,6 +35,9 @@ func TestPrivateMediaServiceIsIdempotentAndOwnerScoped(t *testing.T) {
 	if created.State != "ready" || created.BlobCID == "" || created.SizeBytes != int64(len(body)) {
 		t.Fatalf("created media=%#v", created)
 	}
+	if created.RemoteDeadline.Nanosecond()%1_000 != 0 {
+		t.Fatalf("remote deadline=%s, want database-canonical microsecond precision", created.RemoteDeadline)
+	}
 	repeated, err := service.Put(ctx, params)
 	if err != nil {
 		t.Fatalf("repeat private media: %v", err)
@@ -46,6 +49,8 @@ func TestPrivateMediaServiceIsIdempotentAndOwnerScoped(t *testing.T) {
 	changed.Bytes = []byte("different-private-image")
 	if _, err := service.Put(ctx, changed); !errors.Is(err, ErrScheduledMediaConflict) {
 		t.Fatalf("changed retry error=%v, want %v", err, ErrScheduledMediaConflict)
+	} else if stage := ScheduledMediaConflictStage(err); stage != "existing_size" {
+		t.Fatalf("changed retry stage=%q, want existing_size", stage)
 	}
 
 	if _, err := service.Open(ctx, bob, mediaID); !errors.Is(err, ErrScheduledMediaNotFound) {
@@ -76,6 +81,13 @@ func TestPrivateMediaServiceIsIdempotentAndOwnerScoped(t *testing.T) {
 		t.Fatalf("deleted read error=%v, want %v", err, ErrScheduledMediaNotFound)
 	}
 	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_cleanup_jobs WHERE object_key=$1`, 1, created.ObjectKey)
+}
+
+func TestScheduledMediaConflictStageRejectsUnlistedValues(t *testing.T) {
+	err := NewScheduledMediaConflict(MediaConflictStage("private-value-canary"))
+	if stage := ScheduledMediaConflictStage(err); stage != "unspecified" {
+		t.Fatalf("unlisted conflict stage=%q, want unspecified", stage)
+	}
 }
 
 type memoryPrivateObjectStore struct {

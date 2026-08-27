@@ -1,4 +1,5 @@
 import 'package:craftsky_app/feed/data/post_repository.dart';
+import 'package:craftsky_app/feed/models/create_post_external.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
@@ -119,6 +120,7 @@ class FakePostRepository implements PostRepository {
   onListCommentsByAuthor;
 
   PostRef? lastCreateQuote;
+  CreatePostExternal? lastCreateExternal;
   List<String>? lastCreateLangs;
 
   @override
@@ -129,9 +131,11 @@ class FakePostRepository implements PostRepository {
     PostRef? quote,
     Project? project,
     List<CreatePostImage>? images,
+    CreatePostExternal? external,
     List<Map<String, dynamic>>? facets,
   }) {
     lastCreateQuote = quote;
+    lastCreateExternal = external;
     lastCreateLangs = List.unmodifiable(langs);
     return onCreateWithFacets?.call(
           text: text,
