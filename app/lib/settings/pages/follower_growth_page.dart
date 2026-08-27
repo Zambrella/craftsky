@@ -139,7 +139,6 @@ class _FollowerTotal extends StatelessWidget {
     if (count == null) return const SizedBox.shrink();
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final spacing = theme.extension<SpacingTheme>() ?? const SpacingTheme();
     final locale = Localizations.localeOf(context).toString();
     final formattedCount = formatFollowerCount(count, locale);
     final label = l10n.growthLatestCount(formattedCount);
