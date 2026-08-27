@@ -15,7 +15,7 @@ import (
 
 func TestScheduledPublicationRecoversTheSameFrozenRecordAcrossCrashBoundaries(t *testing.T) {
 	t.Run("before any PDS media upload", func(t *testing.T) {
-		fixture := newPublicationRecoveryFixture(t, 1)
+		fixture := newPublicationRecoveryFixture(t, 1, true)
 		fixture.pds.panicBeforeUploadAt = 1
 
 		stopped := fixture.stop(t)
@@ -31,7 +31,7 @@ func TestScheduledPublicationRecoversTheSameFrozenRecordAcrossCrashBoundaries(t 
 	})
 
 	t.Run("after a partial PDS media upload", func(t *testing.T) {
-		fixture := newPublicationRecoveryFixture(t, 2)
+		fixture := newPublicationRecoveryFixture(t, 2, true)
 		fixture.pds.panicBeforeUploadAt = 2
 
 		stopped := fixture.stop(t)
@@ -44,49 +44,66 @@ func TestScheduledPublicationRecoversTheSameFrozenRecordAcrossCrashBoundaries(t 
 	})
 
 	t.Run("after media but before the record write", func(t *testing.T) {
-		fixture := newPublicationRecoveryFixture(t, 1)
-		fixture.pds.panicBeforeGet = true
+		for _, variant := range []struct {
+			name              string
+			mediaCount        int
+			externalThumbnail bool
+		}{{"metadata only", 0, false}, {"external thumbnail", 1, true}} {
+			t.Run(variant.name, func(t *testing.T) {
+				fixture := newPublicationRecoveryFixture(t, variant.mediaCount, variant.externalThumbnail)
+				fixture.pds.panicBeforeGet = true
 
-		stopped := fixture.stop(t)
-		if fixture.pds.uploadCalls != 1 || fixture.pds.putCalls != 0 {
-			t.Fatalf("uploads=%d puts=%d, want uploads complete before interrupted lookup", fixture.pds.uploadCalls, fixture.pds.putCalls)
+				stopped := fixture.stop(t)
+				if fixture.pds.uploadCalls != variant.mediaCount || fixture.pds.putCalls != 0 {
+					t.Fatalf("uploads=%d puts=%d, want media complete before interrupted lookup", fixture.pds.uploadCalls, fixture.pds.putCalls)
+				}
+				frozen := fixture.frozenRecord(t)
+				fixture.recover(t, stopped, frozen)
+				fixture.assertFinalizedWithRecord(t, frozen)
+			})
 		}
-		frozen := fixture.frozenRecord(t)
-		fixture.recover(t, stopped, frozen)
-		fixture.assertFinalizedWithRecord(t, frozen)
 	})
 
 	t.Run("after PDS record success before local completion", func(t *testing.T) {
-		fixture := newPublicationRecoveryFixture(t, 1)
-		fixture.pds.panicAfterPut = true
+		for _, variant := range []struct {
+			name              string
+			mediaCount        int
+			externalThumbnail bool
+		}{{"metadata only", 0, false}, {"external thumbnail", 1, true}} {
+			t.Run(variant.name, func(t *testing.T) {
+				fixture := newPublicationRecoveryFixture(t, variant.mediaCount, variant.externalThumbnail)
+				fixture.pds.panicAfterPut = true
 
-		stopped := fixture.stop(t)
-		if fixture.pds.putCalls != 1 || fixture.pds.record == nil {
-			t.Fatalf("puts=%d record=%#v, want record committed before worker stop", fixture.pds.putCalls, fixture.pds.record)
+				stopped := fixture.stop(t)
+				if fixture.pds.putCalls != 1 || fixture.pds.record == nil {
+					t.Fatalf("puts=%d record=%#v, want record committed before worker stop", fixture.pds.putCalls, fixture.pds.record)
+				}
+				frozen := fixture.frozenRecord(t)
+				fixture.recover(t, stopped, frozen)
+				if fixture.pds.putCalls != 1 {
+					t.Fatalf("record writes=%d, want recovery to reconcile without a second write", fixture.pds.putCalls)
+				}
+				fixture.assertFinalizedWithRecord(t, frozen)
+			})
 		}
-		frozen := fixture.frozenRecord(t)
-		fixture.recover(t, stopped, frozen)
-		if fixture.pds.putCalls != 1 {
-			t.Fatalf("record writes=%d, want recovery to reconcile without a second write", fixture.pds.putCalls)
-		}
-		fixture.assertFinalizedWithRecord(t, frozen)
 	})
 }
 
 type publicationRecoveryFixture struct {
-	store   *Store
-	objects *memoryPrivateObjectStore
-	pds     *recordingScheduledPDS
-	owner   syntax.DID
-	id      uuid.UUID
-	now     time.Time
-	clock   *time.Time
-	media   []PrivateMedia
-	bodies  [][]byte
-	worker  *Worker
+	store             *Store
+	objects           *memoryPrivateObjectStore
+	pds               *recordingScheduledPDS
+	owner             syntax.DID
+	id                uuid.UUID
+	now               time.Time
+	clock             *time.Time
+	media             []PrivateMedia
+	bodies            [][]byte
+	worker            *Worker
+	externalThumbnail bool
 }
 
-func newPublicationRecoveryFixture(t *testing.T, mediaCount int) *publicationRecoveryFixture {
+func newPublicationRecoveryFixture(t *testing.T, mediaCount int, externalThumbnail bool) *publicationRecoveryFixture {
 	t.Helper()
 	store := NewStore(newScheduledPostStoreTestPool(t))
 	objects := newMemoryPrivateObjectStore()
@@ -98,6 +115,7 @@ func newPublicationRecoveryFixture(t *testing.T, mediaCount int) *publicationRec
 	bodies := make([][]byte, 0, mediaCount)
 	payloadMedia := make([]PayloadMedia, 0, mediaCount)
 	mediaIDs := make([]uuid.UUID, 0, mediaCount)
+	thumbMediaID := ""
 	for index := range mediaCount {
 		id := uuid.New()
 		body := []byte{byte(index + 1), 'p', 'r', 'i', 'v', 'a', 't', 'e'}
@@ -110,11 +128,19 @@ func newPublicationRecoveryFixture(t *testing.T, mediaCount int) *publicationRec
 		}
 		media = append(media, staged)
 		bodies = append(bodies, body)
-		payloadMedia = append(payloadMedia, PayloadMedia{ID: id.String(), Alt: "private"})
+		if externalThumbnail && index == mediaCount-1 {
+			thumbMediaID = id.String()
+		} else {
+			payloadMedia = append(payloadMedia, PayloadMedia{ID: id.String(), Alt: "private"})
+		}
 		mediaIDs = append(mediaIDs, id)
 	}
 	payload, err := EncodePayload(Payload{
 		Kind: PostKindStandard, Text: "recover exactly once", Media: payloadMedia,
+		External: &PayloadExternal{
+			SourceURI: "https://source.example/recovery", URI: "https://final.example/recovery",
+			Title: "Frozen recovery", Description: "Never refetched", ThumbMediaID: thumbMediaID,
+		},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -149,6 +175,7 @@ func newPublicationRecoveryFixture(t *testing.T, mediaCount int) *publicationRec
 	return &publicationRecoveryFixture{
 		store: store, objects: objects, pds: pds, owner: owner, id: id,
 		now: now, clock: &current, media: media, bodies: bodies, worker: worker,
+		externalThumbnail: externalThumbnail,
 	}
 }
 
@@ -280,6 +307,18 @@ func (f *publicationRecoveryFixture) assertFinalizedWithRecord(t *testing.T, fro
 	}
 	if f.pds.putCalls != 1 {
 		t.Fatalf("record writes = %d, want exactly one visible record write", f.pds.putCalls)
+	}
+	embed := f.pds.record["embed"].(map[string]any)
+	external := embed["external"].(map[string]any)
+	thumb, hasThumb := external["thumb"]
+	if hasThumb != f.externalThumbnail {
+		t.Fatalf("external thumb present=%t, want %t", hasThumb, f.externalThumbnail)
+	}
+	if f.externalThumbnail {
+		encodedThumb, err := json.Marshal(thumb)
+		if err != nil || !bytes.Contains(encodedThumb, []byte(f.media[len(f.media)-1].BlobCID.String())) {
+			t.Fatalf("external thumb=%#v, want media CID %q", thumb, f.media[len(f.media)-1].BlobCID)
+		}
 	}
 	for _, staged := range f.media {
 		if !bytes.Contains(frozen, []byte(staged.BlobCID.String())) {

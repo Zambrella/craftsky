@@ -585,6 +585,21 @@ func TestStoreAllocatesDistinctRkeysWhenClaimClockIDsCollide(t *testing.T) {
 	}
 }
 
+func TestStoreCreateRejectsMismatchedScheduledMediaReferences(t *testing.T) {
+	store := NewStore(newScheduledPostStoreTestPool(t))
+	now := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
+	payload := []byte(`{"kind":"standard","text":"external","external":{"sourceUri":"https://source.example/pattern","uri":"https://final.example/pattern","title":"Pattern","description":"Description","thumbMediaId":"55555555-5555-4555-8555-555555555555"}}`)
+	params := capacityCreateParams("did:plc:alice", 9, now)
+	params.PayloadBytes = payload
+	params.PayloadHash = sha256.Sum256(payload)
+	params.MediaIDs = []uuid.UUID{uuid.MustParse("66666666-6666-4666-8666-666666666666")}
+
+	_, err := store.Create(t.Context(), params)
+	if !errors.Is(err, ErrScheduledMediaInvalid) {
+		t.Fatalf("Create error=%v, want ErrScheduledMediaInvalid", err)
+	}
+}
+
 type createAttempt struct {
 	id  uuid.UUID
 	err error
@@ -604,6 +619,21 @@ func capacityCreateParams(owner syntax.DID, suffix byte, due time.Time) CreatePa
 		PayloadHash:    payloadHash,
 		PayloadVersion: 1,
 	}
+}
+
+func withPayloadMedia(params CreateParams, mediaIDs ...uuid.UUID) CreateParams {
+	media := make([]PayloadMedia, 0, len(mediaIDs))
+	for _, mediaID := range mediaIDs {
+		media = append(media, PayloadMedia{ID: mediaID.String()})
+	}
+	payload, err := EncodePayload(Payload{Kind: PostKindStandard, Text: "private", Media: media})
+	if err != nil {
+		panic(err)
+	}
+	params.PayloadBytes = payload
+	params.PayloadHash = sha256.Sum256(payload)
+	params.MediaIDs = append([]uuid.UUID(nil), mediaIDs...)
+	return params
 }
 
 func newScheduledPostStoreTestPool(t *testing.T) *pgxpool.Pool {

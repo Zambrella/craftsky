@@ -33,8 +33,7 @@ func TestClaimedGenerationCannotPublishAfterDepartureAndRejoin(t *testing.T) {
 	insertReadyPrivateMediaFixture(
 		t, store, owner, unclaimedMediaID, nil, nil, "bafk-unclaimed-generation-one", now.Add(time.Hour),
 	)
-	createParams := capacityCreateParams(owner, 90, now)
-	createParams.MediaIDs = []uuid.UUID{attachedMediaID}
+	createParams := withPayloadMedia(capacityCreateParams(owner, 90, now), attachedMediaID)
 	created, err := store.Create(ctx, createParams)
 	if err != nil {
 		t.Fatal(err)

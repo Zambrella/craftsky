@@ -72,6 +72,57 @@ func TestBuildPostResponse_MinimalPost(t *testing.T) {
 	}
 }
 
+// UT-013: full and compact responses shape standard external embeds directly
+// from authoritative raw record JSON and apply images-win.
+func TestBuildPostResponseExternalEmbed(t *testing.T) {
+	t.Parallel()
+
+	row := baseRow()
+	row.RawEmbed = json.RawMessage(`{
+		"$type":"app.bsky.embed.external",
+		"external":{
+			"uri":"https://final.example/pattern#section",
+			"title":"Pattern",
+			"description":"A knitting pattern",
+			"thumb":{"$type":"blob","ref":{"$link":"bafythumb"},"mimeType":"image/png","size":321}
+		}
+	}`)
+	response := api.BuildPostResponse(row, syntax.Handle("alice.example"))
+	if response.External == nil || response.External.URI != "https://final.example/pattern#section" || response.External.Title != "Pattern" || response.External.Description != "A knitting pattern" {
+		t.Fatalf("external = %+v", response.External)
+	}
+	if response.External.Thumb == nil || response.External.Thumb.CID != "bafythumb" || response.External.Thumb.MIME != "image/png" || response.External.Thumb.Size != 321 || response.External.Thumb.URL != "https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:alice/bafythumb@png" {
+		t.Fatalf("external thumb = %+v", response.External.Thumb)
+	}
+
+	quote := api.BuildQuoteView(&api.QuoteViewRow{State: "visible", Post: row}, syntax.Handle("alice.example"))
+	if quote.Post == nil || quote.Post.External == nil || quote.Post.External.Thumb == nil || quote.Post.External.Thumb.URL != response.External.Thumb.URL {
+		t.Fatalf("quote external = %+v", quote)
+	}
+
+	metadataOnly := baseRow()
+	metadataOnly.RawEmbed = json.RawMessage(`{"$type":"app.bsky.embed.external","external":{"uri":"https://final.example","title":"Pattern","description":""}}`)
+	if got := api.BuildPostResponse(metadataOnly, syntax.Handle("alice.example")).External; got == nil || got.Thumb != nil {
+		t.Fatalf("metadata-only external = %+v", got)
+	}
+
+	imagesWin := baseRow()
+	imagesWin.RawEmbed = row.RawEmbed
+	imagesWin.Images = json.RawMessage(`[{"cid":"bafyimage","mime":"image/jpeg","size":10,"alt":"photo"}]`)
+	imagesResponse := api.BuildPostResponse(imagesWin, syntax.Handle("alice.example"))
+	if len(imagesResponse.Images) != 1 || imagesResponse.External != nil {
+		t.Fatalf("images-win response images/external = %+v/%+v", imagesResponse.Images, imagesResponse.External)
+	}
+
+	for _, raw := range []json.RawMessage{nil, json.RawMessage(`{"$type":"social.craftsky.feed.post#quoteEmbed"}`), json.RawMessage(`{"$type":"app.bsky.embed.external","external":{"uri":42}}`)} {
+		ordinary := baseRow()
+		ordinary.RawEmbed = raw
+		if got := api.BuildPostResponse(ordinary, syntax.Handle("alice.example")).External; got != nil {
+			t.Fatalf("raw embed %s produced external %+v", raw, got)
+		}
+	}
+}
+
 // AT-009, IT-010, IT-015: canonical and quote-preview responses carry exact
 // Instagram provenance while ordinary responses omit the optional field.
 func TestBuildPostResponse_PropagatesInstagramImportToFullAndQuoteShapes(t *testing.T) {

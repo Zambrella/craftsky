@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
+import 'package:craftsky_app/feed/models/create_post_external.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
@@ -41,6 +42,7 @@ class CreatePost extends _$CreatePost {
     PostRef? quote,
     Project? project,
     List<CreatePostImage>? images,
+    CreatePostExternal? external,
     List<Map<String, dynamic>>? facets,
     ActiveAccountLease? ownership,
   }) async {
@@ -68,6 +70,7 @@ class CreatePost extends _$CreatePost {
         quote: quote,
         project: project,
         images: images,
+        external: external,
         facets: facets,
       );
       var post = created;

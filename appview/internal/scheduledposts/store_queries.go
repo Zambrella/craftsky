@@ -100,7 +100,7 @@ const selectPublicationTombstoneByOperationSQL = `
 `
 
 const selectScheduledMediaForClaimSQL = `
-	SELECT state, schedule_id
+	SELECT state, schedule_id, mime_type, size_bytes
 	FROM scheduled_post_media
 	WHERE owner_did=$1 AND id=$2 AND owner_generation=$3
 	FOR UPDATE
@@ -336,7 +336,7 @@ const selectPublicationSnapshotSQL = `
 `
 
 const selectPublicationMediaSQL = `
-	SELECT object_key, mime_type, size_bytes, sha256, blob_cid
+	SELECT id, object_key, mime_type, size_bytes, sha256, blob_cid
 	FROM scheduled_post_media
 	WHERE owner_did=$1 AND schedule_id=$2 AND owner_generation=$3 AND state='ready'
 	ORDER BY ordinal

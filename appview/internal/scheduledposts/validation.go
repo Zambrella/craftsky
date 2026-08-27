@@ -25,6 +25,7 @@ type PostShape struct {
 	Kind              PostKind
 	HasReplyReference bool
 	HasQuoteEmbed     bool
+	HasExternal       bool
 }
 
 func ValidateScheduledAt(now, scheduledAt time.Time) error {
@@ -45,6 +46,9 @@ func ValidateScheduleEligibility(shape PostShape) error {
 		return ErrIneligibleScheduledPost
 	}
 	if shape.Kind != PostKindStandard && shape.Kind != PostKindProject {
+		return ErrIneligibleScheduledPost
+	}
+	if shape.Kind == PostKindProject && shape.HasExternal {
 		return ErrIneligibleScheduledPost
 	}
 	return nil

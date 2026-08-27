@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "record",
-      "description": "A post on Craftsky. May be a general post or a craft project post; when the optional 'project' field is present the post is a project post. A post with an 'embed' containing a quoteEmbed is a quote post.",
+      "description": "A post on Craftsky. May be a general post or a craft project post; when the optional 'project' field is present the post is a project post. The optional open embed union supports quoted records and standard external cards.",
       "key": "tid",
       "record": {
         "type": "object",
@@ -44,9 +44,10 @@
           "embed": {
             "type": "union",
             "refs": [
-              "#quoteEmbed"
+              "#quoteEmbed",
+              "app.bsky.embed.external"
             ],
-            "description": "Optional embedded content. Open union; today only quote embeds are defined."
+            "description": "Optional embedded content. Open union supporting local quote embeds and standard external cards."
           },
           "reply": {
             "type": "ref",

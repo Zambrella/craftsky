@@ -68,6 +68,10 @@ func (s *Store) Create(ctx context.Context, params CreateParams) (ScheduledPost,
 	if len(params.MediaIDs) > 4 || hasDuplicateUUIDs(params.MediaIDs) {
 		return ScheduledPost{}, errors.New("invalid scheduled post media")
 	}
+	mediaReferences, err := decodeScheduledMediaReferences(params.PayloadBytes)
+	if err != nil || !referencesMatchIDs(mediaReferences, params.MediaIDs) {
+		return ScheduledPost{}, ErrScheduledMediaInvalid
+	}
 
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -172,13 +176,15 @@ func (s *Store) Create(ctx context.Context, params CreateParams) (ScheduledPost,
 	for ordinal, mediaID := range params.MediaIDs {
 		var state string
 		var scheduleID *uuid.UUID
+		var mimeType string
+		var sizeBytes int64
 		if err := tx.QueryRow(
 			ctx,
 			selectScheduledMediaForClaimSQL,
 			params.OwnerDID,
 			mediaID,
 			ownerGeneration,
-		).Scan(&state, &scheduleID); err != nil {
+		).Scan(&state, &scheduleID, &mimeType, &sizeBytes); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ScheduledPost{}, ErrScheduledMediaUnavailable
 			}
@@ -186,6 +192,9 @@ func (s *Store) Create(ctx context.Context, params CreateParams) (ScheduledPost,
 		}
 		if state != "ready" || scheduleID != nil {
 			return ScheduledPost{}, ErrScheduledMediaUnavailable
+		}
+		if err := validateScheduledMediaReference(mediaReferences[ordinal], mimeType, sizeBytes); err != nil {
+			return ScheduledPost{}, err
 		}
 		result, err := tx.Exec(
 			ctx,
@@ -292,6 +301,10 @@ func (s *Store) Update(ctx context.Context, params UpdateParams) (UpdateResult, 
 	if len(params.MediaIDs) > 4 || hasDuplicateUUIDs(params.MediaIDs) {
 		return UpdateResult{}, errors.New("invalid scheduled post media")
 	}
+	mediaReferences, err := decodeScheduledMediaReferences(params.PayloadBytes)
+	if err != nil || !referencesMatchIDs(mediaReferences, params.MediaIDs) {
+		return UpdateResult{}, ErrScheduledMediaInvalid
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return UpdateResult{}, err
@@ -348,16 +361,18 @@ func (s *Store) Update(ctx context.Context, params UpdateParams) (UpdateResult, 
 	}
 	rows.Close()
 
-	for _, mediaID := range params.MediaIDs {
+	for ordinal, mediaID := range params.MediaIDs {
 		var state string
 		var scheduleID *uuid.UUID
+		var mimeType string
+		var sizeBytes int64
 		if err := tx.QueryRow(
 			ctx,
 			selectScheduledMediaForClaimSQL,
 			params.OwnerDID,
 			mediaID,
 			ownerGeneration,
-		).Scan(&state, &scheduleID); err != nil {
+		).Scan(&state, &scheduleID, &mimeType, &sizeBytes); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return UpdateResult{}, ErrScheduledMediaUnavailable
 			}
@@ -365,6 +380,9 @@ func (s *Store) Update(ctx context.Context, params UpdateParams) (UpdateResult, 
 		}
 		if state != "ready" || (scheduleID != nil && *scheduleID != params.ID) {
 			return UpdateResult{}, ErrScheduledMediaUnavailable
+		}
+		if err := validateScheduledMediaReference(mediaReferences[ordinal], mimeType, sizeBytes); err != nil {
+			return UpdateResult{}, err
 		}
 	}
 	if _, err := tx.Exec(

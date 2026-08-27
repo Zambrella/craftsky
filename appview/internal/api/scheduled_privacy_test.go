@@ -143,6 +143,55 @@ func TestScheduledHandlerCaptureExcludesPrivateCanaries(t *testing.T) {
 	}
 }
 
+func TestIR017ScheduledSaveLifecycleExcludesCanariesFromApplicableSinks(t *testing.T) {
+	canaries := []string{
+		"scheduled-save-text-canary",
+		"did:plc:scheduledsavecanary",
+		"scheduled-save-token-canary",
+		"scheduled-save-device-canary",
+	}
+	store, pool := newScheduledPostAPITestStore(t)
+	pool.Close()
+	collector := newLifecycleTelemetryCollector()
+	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
+
+	mux := http.NewServeMux()
+	mux.Handle("POST /v1/scheduled-posts", CreateScheduledPostHandler(
+		store, DefaultMediaLimits(), func() time.Time { return now }, collector.logger,
+	))
+	handler := middleware.Logging(collector.logger)(middleware.HTTPMetrics(collector.observer)(mux))
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/v1/scheduled-posts",
+		strings.NewReader(`{"operationId":"00000000-0000-4000-8000-000000000791","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"standard","text":"`+canaries[0]+`","langs":["en"]}}`),
+	)
+	request.Header.Set("Authorization", "Bearer "+canaries[2])
+	request.Header.Set("X-Craftsky-Device-Id", canaries[3])
+	request = request.WithContext(middleware.WithDID(request.Context(), syntax.DID(canaries[1])))
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500; body=%s", response.Code, response.Body.String())
+	}
+	if !collector.observer.Flush(time.Second) {
+		t.Fatal("observer flush failed")
+	}
+
+	captured := collector.String(t)
+	for _, canary := range canaries {
+		if strings.Contains(captured, canary) {
+			t.Fatalf("scheduled-save lifecycle telemetry leaked %q:\n%s", canary, captured)
+		}
+	}
+	if collector.localLogs.Len() == 0 || len(collector.metrics.Calls()) == 0 || len(collector.transport.Events()) == 0 {
+		t.Fatalf("expected local logs, metrics, and Sentry trace/error events; captured=%s", captured)
+	}
+	collector.assertSentryErrorAndTransaction(t)
+	if len(collector.externalLogs.events) != 0 {
+		t.Fatalf("scheduled-save lifecycle unexpectedly emitted external logs: %s", collector.externalLogs.String())
+	}
+}
+
 type canaryFailingScheduledMediaService struct {
 	err error
 }

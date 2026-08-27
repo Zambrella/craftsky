@@ -4496,6 +4496,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Deleting {handle} permanently removes all your CraftSky data from your PDS and all private data held by CraftSky. It won’t delete your PDS, DID, or wider AT Protocol account.\n\nTo continue, you’ll need to authenticate with your PDS again.'**
   String deleteAccountBoundary(String handle);
+
+  /// Accessible label while the composer fetches a link preview.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading link preview'**
+  String get linkPreviewLoading;
+
+  /// Tooltip and semantics label for the previous preview action.
+  ///
+  /// In en, this message translates to:
+  /// **'Previous link preview'**
+  String get linkPreviewPrevious;
+
+  /// Tooltip and semantics label for the next preview action.
+  ///
+  /// In en, this message translates to:
+  /// **'Next link preview'**
+  String get linkPreviewNext;
+
+  /// Tooltip and semantics label for dismissing composer previews.
+  ///
+  /// In en, this message translates to:
+  /// **'Dismiss link previews'**
+  String get linkPreviewDismiss;
+
+  /// Snackbar text after previews are dismissed for the composer session.
+  ///
+  /// In en, this message translates to:
+  /// **'Link previews hidden'**
+  String get linkPreviewHidden;
+
+  /// Snackbar action restoring dismissed previews.
+  ///
+  /// In en, this message translates to:
+  /// **'Undo'**
+  String get linkPreviewUndo;
+
+  /// Position label for the composer preview carousel.
+  ///
+  /// In en, this message translates to:
+  /// **'Link preview {current} of {total}'**
+  String linkPreviewPosition(int current, int total);
+
+  /// Accessible action label for an external link card.
+  ///
+  /// In en, this message translates to:
+  /// **'Open link to {host}'**
+  String externalCardOpen(String host);
+
+  /// Accessible label for an external card thumbnail.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview image for {title}'**
+  String externalCardThumbnail(String title);
 }
 
 class _AppLocalizationsDelegate

@@ -2489,4 +2489,37 @@ class AppLocalizationsEn extends AppLocalizations {
   String deleteAccountBoundary(String handle) {
     return 'Deleting $handle permanently removes all your CraftSky data from your PDS and all private data held by CraftSky. It won’t delete your PDS, DID, or wider AT Protocol account.\n\nTo continue, you’ll need to authenticate with your PDS again.';
   }
+
+  @override
+  String get linkPreviewLoading => 'Loading link preview';
+
+  @override
+  String get linkPreviewPrevious => 'Previous link preview';
+
+  @override
+  String get linkPreviewNext => 'Next link preview';
+
+  @override
+  String get linkPreviewDismiss => 'Dismiss link previews';
+
+  @override
+  String get linkPreviewHidden => 'Link previews hidden';
+
+  @override
+  String get linkPreviewUndo => 'Undo';
+
+  @override
+  String linkPreviewPosition(int current, int total) {
+    return 'Link preview $current of $total';
+  }
+
+  @override
+  String externalCardOpen(String host) {
+    return 'Open link to $host';
+  }
+
+  @override
+  String externalCardThumbnail(String title) {
+    return 'Preview image for $title';
+  }
 }

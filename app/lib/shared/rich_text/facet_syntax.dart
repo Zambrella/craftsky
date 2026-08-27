@@ -13,7 +13,8 @@ final facetMentionPattern = RegExp(
 
 /// Detects final-text web link tokens with the visible link capture in group 2.
 final facetLinkPattern = RegExp(
-  r'(^|[\s(\[{])((?:https?://)?(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}(?:/[^\s]*)?)',
+  r'(^|[\s(\[{])((?:https?://)?(?:[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z]{2,}(?::[0-9]+)?(?:/[^\s]*)?)',
+  caseSensitive: false,
 );
 
 /// Detects final-text hashtag tokens with the tag capture in group 2.
@@ -38,6 +39,17 @@ bool hasFacetTokenBoundary(String text, int triggerIndex) {
   }
   final previous = text[triggerIndex - 1];
   return previous.trim().isEmpty || facetOpeningPunctuation.contains(previous);
+}
+
+/// Returns whether a detected link token has an explicit trailing boundary.
+bool hasFacetCompletionBoundary(String text, int tokenEnd) {
+  if (tokenEnd >= text.length) {
+    return false;
+  }
+  final next = text[tokenEnd];
+  return next.trim().isEmpty ||
+      facetTrailingSentencePunctuation.contains(next) ||
+      const {')', ']', '}'}.contains(next);
 }
 
 /// Returns whether [char] can appear in an editable mention query.

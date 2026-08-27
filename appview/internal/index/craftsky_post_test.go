@@ -12,6 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/index"
 	"social.craftsky/appview/internal/tap"
 	"social.craftsky/appview/internal/testdb"
@@ -1248,6 +1249,89 @@ func TestCraftskyPost_Create_WithQuote(t *testing.T) {
 	}
 	if quoteURI != "at://did:plc:other/social.craftsky.feed.post/orig" || quoteCID != "bafyOrig" {
 		t.Errorf("quote = (%q, %q)", quoteURI, quoteCID)
+	}
+}
+
+func TestCraftskyPost_FederatedImagesAndExternalLifecycleUsesImagesWin(t *testing.T) {
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	ctx := context.Background()
+	seedCraftskyMember(t, pool, "did:plc:external")
+	idx := index.NewCraftskyPost(pool, testLogger())
+
+	event := tap.Event{
+		URI:        "at://did:plc:external/social.craftsky.feed.post/mixed",
+		CID:        "bafyMixed1",
+		DID:        "did:plc:external",
+		Rkey:       "mixed",
+		Collection: "social.craftsky.feed.post",
+		Action:     "create",
+		Record: json.RawMessage(`{
+			"$type":"social.craftsky.feed.post",
+			"text":"mixed federated record",
+			"createdAt":"` + fixedCreatedAt + `",
+			"images":[{"image":{"$type":"blob","ref":{"$link":"bafkreigxxxkul4e5rjz4fomqgn6ieeoxbcqeztmxjbrhnbpe7r44ya4ahe"},"mimeType":"image/jpeg","size":253496},"alt":"photo"}],
+			"embed":{"$type":"app.bsky.embed.external","external":{"uri":"https://external.example/one","title":"External one","description":"Description"}}
+		}`),
+	}
+	if err := idx.Handle(ctx, event); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	var firstIndexedAt time.Time
+	if err := pool.QueryRow(ctx, `SELECT indexed_at FROM craftsky_posts WHERE uri=$1`, event.URI).Scan(&firstIndexedAt); err != nil {
+		t.Fatalf("read first indexed_at: %v", err)
+	}
+	if err := idx.Handle(ctx, event); err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	var replayIndexedAt time.Time
+	if err := pool.QueryRow(ctx, `SELECT indexed_at FROM craftsky_posts WHERE uri=$1`, event.URI).Scan(&replayIndexedAt); err != nil {
+		t.Fatalf("read replay indexed_at: %v", err)
+	}
+	if !firstIndexedAt.Equal(replayIndexedAt) {
+		t.Fatalf("indexed_at changed on replay: %s -> %s", firstIndexedAt, replayIndexedAt)
+	}
+
+	event.Action = "update"
+	event.CID = "bafyMixed2"
+	event.Record = json.RawMessage(`{
+		"$type":"social.craftsky.feed.post",
+		"text":"updated mixed federated record",
+		"createdAt":"` + fixedCreatedAt + `",
+		"images":[{"image":{"$type":"blob","ref":{"$link":"bafkreigxxxkul4e5rjz4fomqgn6ieeoxbcqeztmxjbrhnbpe7r44ya4ahe"},"mimeType":"image/jpeg","size":253496},"alt":"updated photo"}],
+		"embed":{"$type":"app.bsky.embed.external","external":{"uri":"https://external.example/two","title":"External two","description":"Updated"}}
+	}`)
+	if err := idx.Handle(ctx, event); err != nil {
+		t.Fatalf("update: %v", err)
+	}
+
+	var rawRecord, rawEmbed, images json.RawMessage
+	if err := pool.QueryRow(ctx, `SELECT record, record -> 'embed', images FROM craftsky_posts WHERE uri=$1`, event.URI).Scan(&rawRecord, &rawEmbed, &images); err != nil {
+		t.Fatalf("read updated record: %v", err)
+	}
+	var stored map[string]any
+	if err := json.Unmarshal(rawRecord, &stored); err != nil {
+		t.Fatalf("decode stored record: %v", err)
+	}
+	if stored["embed"] == nil || stored["images"] == nil {
+		t.Fatalf("stored record lost mixed union fields: %#v", stored)
+	}
+	response := api.BuildPostResponse(&api.PostRow{DID: event.DID.String(), Images: images, RawEmbed: rawEmbed}, "external.example")
+	if len(response.Images) != 1 || response.External != nil {
+		t.Fatalf("images-win response = images:%d external:%#v", len(response.Images), response.External)
+	}
+
+	event.Action = "delete"
+	event.Record = nil
+	if err := idx.Handle(ctx, event); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM craftsky_posts WHERE uri=$1`, event.URI).Scan(&count); err != nil {
+		t.Fatalf("count after delete: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("rows after delete = %d, want 0", count)
 	}
 }
 

@@ -29,8 +29,7 @@ func TestStoreExpiresOnlyTrulyUnclaimedStagingAfterCreateRetry(t *testing.T) {
 		)
 	}
 
-	params := capacityCreateParams(owner, 4, now.Add(2*time.Hour))
-	params.MediaIDs = []uuid.UUID{claimedMedia}
+	params := withPayloadMedia(capacityCreateParams(owner, 4, now.Add(2*time.Hour)), claimedMedia)
 	if _, err := store.Create(ctx, params); !errors.Is(err, ErrCapacityReached) {
 		t.Fatalf("full-capacity create error=%v, want %v", err, ErrCapacityReached)
 	}

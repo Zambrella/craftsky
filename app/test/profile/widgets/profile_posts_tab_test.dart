@@ -6,6 +6,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/feed/widgets/external_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
@@ -39,7 +40,7 @@ final class _ProfilePinRegistryStorage implements SessionRegistryStorage {
   Future<void> write(SessionRegistry registry) async => value = registry;
 }
 
-Post _post(String rkey) {
+Post _post(String rkey, {PostExternal? external}) {
   return Post(
     uri: 'at://did:plc:alice/social.craftsky.feed.post/$rkey',
     cid: 'bafy_$rkey',
@@ -52,6 +53,7 @@ Post _post(String rkey) {
     viewerHasLiked: false,
     viewerHasReposted: false,
     viewerHasSaved: false,
+    external: external,
     createdAt: DateTime.now().subtract(const Duration(minutes: 3)),
     indexedAt: DateTime.now().subtract(const Duration(minutes: 2)),
     author: PostAuthor(
@@ -105,6 +107,50 @@ Future<void> _pump(
 
 void main() {
   group('ProfilePostsTab', () {
+    testWidgets('IT-014 renders a full external card on profile posts', (
+      tester,
+    ) async {
+      Uri? launched;
+      final post = _post(
+        'external',
+        external: const PostExternal(
+          uri: 'https://example.com/profile-pattern?token=final#section',
+          title: 'Profile pattern',
+          description: 'Profile description',
+        ),
+      );
+      final repo = FakePostRepository(
+        onListByAuthor: (_, {cursor, limit}) async => PostPage(items: [post]),
+      );
+
+      await _pump(
+        tester,
+        repo: repo,
+        isOwnProfile: false,
+        overrides: [
+          externalCardLauncherProvider.overrideWithValue((uri) async {
+            launched = uri;
+            return true;
+          }),
+        ],
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byType(ExternalCard), findsOneWidget);
+      expect(find.text('Profile pattern'), findsOneWidget);
+      expect(find.text('Profile description'), findsOneWidget);
+      expect(find.text('example.com'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.byType(ExternalCard));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Open link'));
+      await tester.pumpAndSettle();
+      expect(
+        launched.toString(),
+        'https://example.com/profile-pattern?token=final#section',
+      );
+    });
+
     testWidgets('AT-001 pins an own standard post from the profile menu', (
       tester,
     ) async {

@@ -60,7 +60,7 @@ func scanPostRowWithExtraScore(scanner pgx.Row) (SearchPostRow, error) {
 	var rawProject *[]byte
 	var score float64
 	err := scanner.Scan(
-		&post.URI, &post.DID, &post.Rkey, &post.CID, &post.Text, &post.Facets, &post.Images,
+		&post.URI, &post.DID, &post.Rkey, &post.CID, &post.Text, &post.Facets, &post.Images, &post.RawEmbed,
 		&post.ReplyRootURI, &post.ReplyRootCID, &post.ReplyParentURI, &post.ReplyParentCID,
 		&post.QuoteURI, &post.QuoteCID, &post.Tags, &post.Langs, &post.CreatedAt, &post.IndexedAt,
 		&post.ExternalImportSource, &post.ProfileSortAt,

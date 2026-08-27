@@ -139,6 +139,7 @@ func buildV1Middleware(deps middlewareDependencies, observer *observability.Obse
 		rateLimits[RateClassWrite] = middleware.RateLimit(deps.RateLimiter, middleware.RateClassWrite, deps.Logger)
 		rateLimits[RateClassSearch] = middleware.RateLimit(deps.RateLimiter, middleware.RateClassSearch, deps.Logger)
 		rateLimits[RateClassUpload] = middleware.RateLimit(deps.RateLimiter, middleware.RateClassUpload, deps.Logger)
+		rateLimits[RateClassLinkPreview] = middleware.RateLimit(deps.RateLimiter, middleware.RateClassLinkPreview, deps.Logger)
 	}
 	bodyLimitCfg := middleware.BodyLimitConfig{
 		DefaultJSONBytes:       deps.Config.JSONBodyLimitBytes,
@@ -293,6 +294,10 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 		reportStore: deps.ReportStore, reportForwarder: deps.ReportForwarder,
 		moderationStore: deps.ModerationStore, languages: deps.LanguagePreferences,
 		mediaLimits: mediaLimits, logger: deps.Logger,
+	})
+	registerLinkPreviewRoute(linkPreviewRouteBundle{
+		mux: mux, middleware: v1mw, service: deps.LinkPreviews,
+		enabled: deps.Config.LinkPreviewsEnabled, observer: observer,
 	})
 	registerFallbackRoutes(fallbackRouteBundle{mux: mux, inFlight: inFlight})
 }

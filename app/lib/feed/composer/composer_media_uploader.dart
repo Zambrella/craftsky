@@ -1,10 +1,13 @@
 import 'dart:async';
 
+import 'package:craftsky_app/feed/composer/link_preview_controller.dart';
 import 'package:craftsky_app/feed/composer/prepared_media_validation.dart';
 import 'package:craftsky_app/feed/media/composer_image_media_service.dart';
+import 'package:craftsky_app/feed/models/create_post_external.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
+import 'package:crypto/crypto.dart';
 import 'package:dio/dio.dart';
 
 typedef PreparedImageUpload =
@@ -23,6 +26,8 @@ final class ComposerMediaUploader {
   final Duration transferBudget;
   final ComposerImageMediaService mediaService;
   final Map<_UploadKey, UploadedImageBlob> _successfulUploads = {};
+  final Map<_ExternalUploadKey, UploadedImageBlob> _successfulExternalUploads =
+      {};
 
   Future<List<CreatePostImage>?> materializeImmediate({
     required String composerId,
@@ -110,12 +115,71 @@ final class ComposerMediaUploader {
     return materialized;
   }
 
+  Future<CreatePostExternal> materializeImmediateExternal({
+    required String composerId,
+    required SelectedLinkPreview selection,
+    required bool Function() ownershipIsCurrent,
+    required PreparedImageUpload upload,
+  }) async {
+    _requireCurrentOwnership(ownershipIsCurrent);
+    final thumbnail = selection.preview.thumbnail;
+    UploadedImageBlob? uploaded;
+    if (thumbnail != null) {
+      final key = (
+        composerId: composerId,
+        identity: selection.candidate.identity.toString(),
+        digest: sha256.convert(thumbnail.bytes).toString(),
+      );
+      uploaded = _successfulExternalUploads[key];
+      if (uploaded == null) {
+        final cancelToken = CancelToken();
+        uploaded =
+            await upload(
+              bytes: thumbnail.bytes,
+              mimeType: thumbnail.mimeType,
+              cancelToken: cancelToken,
+            ).timeout(
+              transferBudget,
+              onTimeout: () {
+                cancelToken.cancel('preview thumbnail transfer timed out');
+                throw TimeoutException(
+                  'preview thumbnail transfer timed out',
+                  transferBudget,
+                );
+              },
+            );
+        _requireCurrentOwnership(ownershipIsCurrent);
+        _successfulExternalUploads[key] = uploaded;
+      }
+    }
+    return CreatePostExternal(
+      uri: selection.navigationUri.toString(),
+      title: selection.preview.title,
+      description: selection.preview.description,
+      thumb: uploaded == null
+          ? null
+          : CreatePostBlob(
+              ref: CreatePostBlobRef(link: uploaded.cid),
+              mimeType: uploaded.mime,
+              size: uploaded.size,
+            ),
+    );
+  }
+
   void disposeComposer(String composerId) {
     _successfulUploads.removeWhere((key, _) => key.composerId == composerId);
+    _successfulExternalUploads.removeWhere(
+      (key, _) => key.composerId == composerId,
+    );
   }
 }
 
 typedef _UploadKey = ({String composerId, String mediaId, String digest});
+typedef _ExternalUploadKey = ({
+  String composerId,
+  String identity,
+  String digest,
+});
 
 void _requireCurrentOwnership(bool Function() ownershipIsCurrent) {
   if (!ownershipIsCurrent()) throw StateError('submission ownership changed');

@@ -143,7 +143,8 @@ int _byteOffset(String text, int charIndex) {
 }
 
 String _linkUri(String visibleLink) {
-  if (visibleLink.startsWith('http://') || visibleLink.startsWith('https://')) {
+  final lower = visibleLink.toLowerCase();
+  if (lower.startsWith('http://') || lower.startsWith('https://')) {
     return visibleLink;
   }
   return 'https://$visibleLink';

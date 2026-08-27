@@ -22,6 +22,7 @@ var (
 	ErrWorkerLeaseLost           = errors.New("scheduled post worker lease lost")
 	ErrOperationConflict         = errors.New("scheduled post operation conflict")
 	ErrScheduledMediaUnavailable = errors.New("scheduled post media unavailable")
+	ErrScheduledMediaInvalid     = errors.New("scheduled post media invalid")
 )
 
 type Store struct {

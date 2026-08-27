@@ -6,6 +6,8 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,15 +17,62 @@ import (
 	"github.com/multiformats/go-multihash"
 
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/pdseffects"
 )
+
+func TestIT016PublicationRecordUsesFrozenExternalAndPredictedThumbnail(t *testing.T) {
+	t.Parallel()
+	blob := map[string]any{
+		"$type": "blob", "ref": map[string]any{"$link": "bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"},
+		"mimeType": "image/png", "size": int64(3),
+	}
+	record, err := publicationRecord(Payload{
+		Kind: PostKindStandard, Text: "pattern",
+		External: &PayloadExternal{
+			SourceURI: "https://source.example/pattern",
+			URI:       "https://final.example/pattern#section", Title: "Frozen title",
+			Description: "Frozen description", ThumbMediaID: "55555555-5555-4555-8555-555555555555",
+		},
+	}, []map[string]any{blob}, time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("publicationRecord() error = %v", err)
+	}
+	embed, ok := record["embed"].(map[string]any)
+	if !ok || embed["$type"] != "app.bsky.embed.external" {
+		t.Fatalf("embed = %#v", record["embed"])
+	}
+	external, ok := embed["external"].(map[string]any)
+	if !ok || external["uri"] != "https://final.example/pattern#section" ||
+		external["title"] != "Frozen title" || external["description"] != "Frozen description" {
+		t.Fatalf("external = %#v", embed["external"])
+	}
+	gotThumb, _ := json.Marshal(external["thumb"])
+	wantThumb, _ := json.Marshal(blob)
+	if !bytes.Equal(gotThumb, wantThumb) {
+		t.Fatalf("thumb = %s, want %s", gotThumb, wantThumb)
+	}
+	body, err := json.Marshal(record)
+	if err != nil {
+		t.Fatalf("marshal record: %v", err)
+	}
+	if bytes.Contains(body, []byte("source.example")) {
+		t.Fatalf("private source identity leaked into record: %#v", record)
+	}
+}
 
 func TestPublicationWorkerPublishesDuePostWithStablePutAndFinalizes(t *testing.T) {
 	store := NewStore(newScheduledPostStoreTestPool(t))
 	ctx := context.Background()
 	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
-	payload, _ := EncodePayload(Payload{Kind: PostKindStandard, Text: "publish me", Langs: []string{"en"}})
+	payload, _ := EncodePayload(Payload{
+		Kind: PostKindStandard, Text: "publish me", Langs: []string{"en"},
+		External: &PayloadExternal{
+			SourceURI: "https://source.example/pattern", URI: "https://final.example/pattern",
+			Title: "Frozen title", Description: "Frozen description",
+		},
+	})
 	created, err := store.Create(ctx, CreateParams{
 		ID: uuid.New(), OwnerDID: "did:plc:alice", OperationID: uuid.New(),
 		RequestHash: [32]byte{1}, ScheduledAt: now, PayloadBytes: payload,
@@ -72,6 +121,11 @@ func TestPublicationWorkerPublishesDuePostWithStablePutAndFinalizes(t *testing.T
 	if pds.putCalls != 1 || pds.rkey == "" || pds.record["createdAt"] != now.Format(time.RFC3339) {
 		t.Fatalf("PDS writes=%d rkey=%q record=%#v", pds.putCalls, pds.rkey, pds.record)
 	}
+	embed := pds.record["embed"].(map[string]any)
+	external := embed["external"].(map[string]any)
+	if external["uri"] != "https://final.example/pattern" || external["title"] != "Frozen title" {
+		t.Fatalf("published external = %#v", external)
+	}
 	if len(pds.expectedOwners) != 1 || pds.expectedOwners[0].Owner != "did:plc:alice" ||
 		pds.expectedOwners[0].Generation != created.OwnerGeneration {
 		t.Fatalf("effect generation fence=%+v, want alice generation %d", pds.expectedOwners, created.OwnerGeneration)
@@ -92,6 +146,189 @@ func TestPublicationWorkerPublishesDuePostWithStablePutAndFinalizes(t *testing.T
 	}
 	if _, err := store.Get(ctx, "did:plc:alice", created.ID); !errors.Is(err, ErrScheduleNotFound) {
 		t.Fatalf("finalized schedule get error=%v", err)
+	}
+}
+
+func TestPublicationWorkerRejectsOversizedExternalThumbnailBeforeFreeze(t *testing.T) {
+	store := NewStore(newScheduledPostStoreTestPool(t))
+	objects := newMemoryPrivateObjectStore()
+	mediaService, _ := newScheduledTestMediaService(t, store, objects)
+	ctx := context.Background()
+	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
+	mediaID := uuid.New()
+	if _, err := mediaService.Put(ctx, PutPrivateMediaParams{
+		ID: mediaID, OwnerDID: "did:plc:alice", OwnerGeneration: 1,
+		MIMEType: "image/png", Bytes: []byte("thumbnail"), Now: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	payload, _ := EncodePayload(Payload{
+		Kind: PostKindStandard, Text: "external",
+		External: &PayloadExternal{
+			SourceURI: "https://source.example/pattern",
+			URI:       "https://final.example/pattern", Title: "Pattern",
+			Description: "Description", ThumbMediaID: mediaID.String(),
+		},
+	})
+	created, err := store.Create(ctx, CreateParams{
+		ID: uuid.New(), OwnerDID: "did:plc:alice", OperationID: uuid.New(),
+		RequestHash: [32]byte{1}, ScheduledAt: now, PayloadBytes: payload,
+		PayloadHash: sha256.Sum256(payload), PayloadVersion: 1,
+		MediaIDs: []uuid.UUID{mediaID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.pool.Exec(ctx, `
+		UPDATE scheduled_post_media SET size_bytes=$1 WHERE id=$2
+	`, MaxExternalThumbnailBytes+1, mediaID); err != nil {
+		t.Fatal(err)
+	}
+	pds := &recordingScheduledPDS{}
+	processor, err := NewPublicationProcessor(PublicationProcessorOptions{
+		Store: store, Sessions: stubPublicationSessionSelector{wantOwner: "did:plc:alice", sessionID: "owner-session"},
+		NewEffects: recordingGuardedFactory(pds, nil), Objects: objects,
+		Now: func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker, err := NewWorker(WorkerOptions{Store: store, Processor: processor, Now: func() time.Time { return now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := worker.ProcessBatch(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var frozen []byte
+	if err := store.pool.QueryRow(ctx, `SELECT publication_record_bytes FROM scheduled_posts WHERE id=$1`, created.ID).Scan(&frozen); err != nil {
+		t.Fatal(err)
+	}
+	if len(frozen) != 0 || pds.putCalls != 0 {
+		t.Fatalf("frozen bytes=%d PDS puts=%d, want rejection before freeze", len(frozen), pds.putCalls)
+	}
+}
+
+func TestPublicationWorkerRejectsSameCountDifferentMediaIdentityBeforeFreeze(t *testing.T) {
+	store := NewStore(newScheduledPostStoreTestPool(t))
+	objects := newMemoryPrivateObjectStore()
+	mediaService, _ := newScheduledTestMediaService(t, store, objects)
+	ctx := context.Background()
+	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
+	mediaID := uuid.New()
+	if _, err := mediaService.Put(ctx, PutPrivateMediaParams{
+		ID: mediaID, OwnerDID: "did:plc:alice", OwnerGeneration: 1,
+		MIMEType: "image/jpeg", Bytes: []byte("private image"), Now: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	payload, _ := EncodePayload(Payload{
+		Kind: PostKindStandard, Text: "identity",
+		Media: []PayloadMedia{{ID: mediaID.String()}},
+	})
+	created, err := store.Create(ctx, CreateParams{
+		ID: uuid.New(), OwnerDID: "did:plc:alice", OperationID: uuid.New(),
+		RequestHash: [32]byte{1}, ScheduledAt: now, PayloadBytes: payload,
+		PayloadHash: sha256.Sum256(payload), PayloadVersion: 1,
+		MediaIDs: []uuid.UUID{mediaID},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tampered, _ := EncodePayload(Payload{
+		Kind: PostKindStandard, Text: "identity",
+		Media: []PayloadMedia{{ID: uuid.NewString()}},
+	})
+	tamperedHash := sha256.Sum256(tampered)
+	if _, err := store.pool.Exec(ctx, `
+		UPDATE scheduled_posts SET payload_bytes=$1, payload_hash=$2 WHERE id=$3
+	`, tampered, tamperedHash[:], created.ID); err != nil {
+		t.Fatal(err)
+	}
+	pds := &recordingScheduledPDS{}
+	processor, err := NewPublicationProcessor(PublicationProcessorOptions{
+		Store: store, Sessions: stubPublicationSessionSelector{wantOwner: "did:plc:alice", sessionID: "owner-session"},
+		NewEffects: recordingGuardedFactory(pds, nil), Objects: objects,
+		Now: func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker, _ := NewWorker(WorkerOptions{Store: store, Processor: processor, Now: func() time.Time { return now }})
+	if _, err := worker.ProcessBatch(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if pds.uploadCalls != 0 || pds.putCalls != 0 {
+		t.Fatalf("uploads=%d puts=%d, want identity rejection before effects", pds.uploadCalls, pds.putCalls)
+	}
+	var frozen []byte
+	if err := store.pool.QueryRow(ctx, `SELECT publication_record_bytes FROM scheduled_posts WHERE id=$1`, created.ID).Scan(&frozen); err != nil {
+		t.Fatal(err)
+	}
+	if len(frozen) != 0 {
+		t.Fatalf("frozen=%d, want identity rejection before freeze", len(frozen))
+	}
+}
+
+func TestIT018ScheduledPublicationRetryTelemetryExcludesPrivateCanaries(t *testing.T) {
+	store := NewStore(newScheduledPostStoreTestPool(t))
+	objects := newMemoryPrivateObjectStore()
+	mediaService, _ := newScheduledTestMediaService(t, store, objects)
+	ctx := context.Background()
+	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
+	owner := syntax.DID("did:plc:alice")
+	mediaID := uuid.New()
+	thumbnailCanary := []byte("scheduled-thumbnail-byte-canary")
+	if _, err := mediaService.Put(ctx, PutPrivateMediaParams{
+		ID: mediaID, OwnerDID: owner, OwnerGeneration: 1,
+		MIMEType: "image/png", Bytes: thumbnailCanary, Now: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	canaries := []string{
+		owner.String(), "scheduled-post-text-canary", "scheduled-source-canary.invalid",
+		"scheduled-final-canary.invalid", "scheduled-title-canary",
+		"scheduled-description-canary", string(thumbnailCanary), "scheduled-dependency-error-canary",
+	}
+	payload, _ := EncodePayload(Payload{
+		Kind: PostKindStandard, Text: canaries[1],
+		External: &PayloadExternal{
+			SourceURI: "https://" + canaries[2], URI: "https://" + canaries[3],
+			Title: canaries[4], Description: canaries[5], ThumbMediaID: mediaID.String(),
+		},
+	})
+	if _, err := store.Create(ctx, CreateParams{
+		ID: uuid.New(), OwnerDID: owner, OperationID: uuid.New(), RequestHash: [32]byte{1},
+		ScheduledAt: now, PayloadBytes: payload, PayloadHash: sha256.Sum256(payload),
+		PayloadVersion: 1, MediaIDs: []uuid.UUID{mediaID},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	metrics := observability.NewInMemoryMetricRecorder()
+	observer := observability.New(observability.Config{MetricRecorder: metrics})
+	pds := &recordingScheduledPDS{putErr: errors.New(canaries[7])}
+	processor, err := NewPublicationProcessor(PublicationProcessorOptions{
+		Store: store, Sessions: stubPublicationSessionSelector{wantOwner: owner, sessionID: "owner-session"},
+		NewEffects: recordingGuardedFactory(pds, nil), Objects: objects,
+		Now: func() time.Time { return now }, Observer: observer,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker, _ := NewWorker(WorkerOptions{
+		Store: store, Processor: processor, Now: func() time.Time { return now }, Observer: observer,
+	})
+	if _, err := worker.ProcessBatch(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if pds.uploadCalls != 1 || pds.putCalls != 1 {
+		t.Fatalf("uploads=%d puts=%d, want publication retry after both effects", pds.uploadCalls, pds.putCalls)
+	}
+	captured := fmt.Sprint(metrics.Calls())
+	for _, canary := range canaries {
+		if strings.Contains(captured, canary) {
+			t.Fatalf("scheduled publication telemetry leaked %q: %s", canary, captured)
+		}
 	}
 }
 

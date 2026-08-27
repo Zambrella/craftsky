@@ -10,6 +10,7 @@ import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/providers/author_post_cache.dart';
 import 'package:craftsky_app/feed/providers/profile_pins_provider.dart';
+import 'package:craftsky_app/feed/widgets/external_card.dart';
 import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -374,6 +375,11 @@ class PostCard extends ConsumerWidget {
                       facets: post.facets,
                       style: theme.textTheme.bodyLarge,
                     ),
+                    if (post.external case final external?
+                        when post.images?.isNotEmpty != true) ...[
+                      SizedBox(height: spacing.sp3),
+                      ExternalCard(external: external),
+                    ],
                     if (post.quoteView case final quoteView?) ...[
                       SizedBox(height: spacing.sp3),
                       _QuotePreviewCard(

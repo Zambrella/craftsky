@@ -2154,5 +2154,36 @@
     "placeholders": {
       "handle": { "type": "String", "example": "@alice.test" }
     }
+  },
+
+  "linkPreviewLoading": "Loading link preview",
+  "@linkPreviewLoading": { "description": "Accessible label while the composer fetches a link preview." },
+  "linkPreviewPrevious": "Previous link preview",
+  "@linkPreviewPrevious": { "description": "Tooltip and semantics label for the previous preview action." },
+  "linkPreviewNext": "Next link preview",
+  "@linkPreviewNext": { "description": "Tooltip and semantics label for the next preview action." },
+  "linkPreviewDismiss": "Dismiss link previews",
+  "@linkPreviewDismiss": { "description": "Tooltip and semantics label for dismissing composer previews." },
+  "linkPreviewHidden": "Link previews hidden",
+  "@linkPreviewHidden": { "description": "Snackbar text after previews are dismissed for the composer session." },
+  "linkPreviewUndo": "Undo",
+  "@linkPreviewUndo": { "description": "Snackbar action restoring dismissed previews." },
+  "linkPreviewPosition": "Link preview {current} of {total}",
+  "@linkPreviewPosition": {
+    "description": "Position label for the composer preview carousel.",
+    "placeholders": {
+      "current": { "type": "int", "example": "1" },
+      "total": { "type": "int", "example": "3" }
+    }
+  },
+  "externalCardOpen": "Open link to {host}",
+  "@externalCardOpen": {
+    "description": "Accessible action label for an external link card.",
+    "placeholders": { "host": { "type": "String", "example": "example.com" } }
+  },
+  "externalCardThumbnail": "Preview image for {title}",
+  "@externalCardThumbnail": {
+    "description": "Accessible label for an external card thumbnail.",
+    "placeholders": { "title": { "type": "String", "example": "Pattern" } }
   }
 }
