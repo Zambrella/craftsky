@@ -47,6 +47,8 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
   - [ ] Business info
   - [ ] Upcoming events
 - [ ] Pro and Business subscriptions (Revenue Cat)
+  - [ ] Webhooks
+  - [ ] Backend tracking against accounts
 - [ ] Editing posts - possible? Only in first 15 mins? Upgrade a post to a project?
 - [ ] Make sure to handle PDS migration
 
@@ -76,10 +78,14 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [ ] Onboarding
 - [ ] Support custom PDS instances for login
 - [x] Link previews
-- [ ] YouTube video embeds
+- [x] YouTube video embeds
 - [x] Tablet support
 - [ ] Dark theme
 - [ ] Update create project flow to be more streamlined
+- [ ] Pro and Business subscriptions (Revenue Cat)
+  - [ ] Front-end logic
+  - [ ] Paywall
+  - [ ] Locking content
 
 ### Lexicons
 
