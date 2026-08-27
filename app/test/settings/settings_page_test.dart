@@ -22,6 +22,7 @@ void main() {
       expect(find.text('Settings'), findsWidgets);
       expect(find.text('Languages'), findsOneWidget);
       expect(find.text('Customisation'), findsOneWidget);
+      expect(find.text('Growth'), findsOneWidget);
       expect(find.text('Followers'), findsOneWidget);
       expect(find.text('Following'), findsOneWidget);
       await tester.scrollUntilVisible(

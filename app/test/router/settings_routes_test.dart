@@ -20,6 +20,7 @@ import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/settings/pages/about_page.dart';
 import 'package:craftsky_app/settings/pages/account_page.dart';
 import 'package:craftsky_app/settings/pages/follow_list_page.dart';
+import 'package:craftsky_app/settings/pages/follower_growth_page.dart';
 import 'package:craftsky_app/settings/pages/profile_customisation_page.dart';
 import 'package:craftsky_app/settings/pages/relationship_list_page.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
@@ -40,6 +41,10 @@ void main() {
     expect(
       const ProfileCustomisationRoute().location,
       '/profile/settings/customisation',
+    );
+    expect(
+      const FollowerGrowthRoute().location,
+      '/profile/settings/growth',
     );
     expect(
       const FollowersRoute().location,
@@ -177,6 +182,77 @@ void main() {
     expect(tester.widget<ListTile>(settingsTile).selected, isFalse);
   });
 
+  for (final layout in <(String, Size, bool)>[
+    ('compact', const Size(500, 800), false),
+    ('large', const Size(1200, 800), true),
+  ]) {
+    testWidgets('Growth preserves ${layout.$1} Settings shell and back stack', (
+      tester,
+    ) async {
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = layout.$2;
+      final container = _container();
+      addTearDown(container.dispose);
+      final subscription = container.listen(
+        goRouterProvider,
+        (_, _) {},
+        fireImmediately: true,
+      );
+      addTearDown(subscription.close);
+      final router = subscription.read()..go(const SettingsRoute().location);
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(
+            routerConfig: router,
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            builder: (context, child) => MessengerScope(
+              messenger: RecordingMessenger(),
+              child: FormFactorWidget(child: child!),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.text('Growth'),
+        200,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.tap(find.text('Growth'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(
+        router.state.matchedLocation,
+        const FollowerGrowthRoute().location,
+      );
+      expect(find.byType(FollowerGrowthPage), findsOneWidget);
+      expect(
+        find.byType(NavigationRail),
+        layout.$3 ? findsOneWidget : findsNothing,
+      );
+      expect(find.byType(NavigationBar), findsNothing);
+
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+      expect(router.state.matchedLocation, const SettingsRoute().location);
+      expect(find.byType(SettingsPage), findsOneWidget);
+      if (layout.$3) {
+        expect(
+          tester
+              .widget<NavigationRail>(find.byType(NavigationRail))
+              .selectedIndex,
+          8,
+        );
+      }
+    });
+  }
+
   testWidgets('Settings shows identity, sectioned disclosures, and actions', (
     tester,
   ) async {
@@ -218,6 +294,7 @@ void main() {
       'Languages',
       'Notifications',
       'Connections',
+      'Growth',
       'Followers',
       'Following',
       'Muted accounts',
@@ -232,7 +309,7 @@ void main() {
       expect(find.text(label), findsOneWidget, reason: label);
     }
     expect(find.text('Clear image cache'), findsNothing);
-    expect(find.byIcon(Icons.chevron_right), findsNWidgets(11));
+    expect(find.byIcon(Icons.chevron_right), findsNWidgets(12));
     final signOut = tester.widget<Text>(find.text('Sign out'));
     expect(
       signOut.style?.color,
@@ -277,6 +354,8 @@ void main() {
           200,
           scrollable: find.byType(Scrollable).last,
         );
+        await tester.ensureVisible(find.text(routeCase.label));
+        await tester.pump();
         await tester.tap(find.text(routeCase.label));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 500));
@@ -366,6 +445,11 @@ const _emptyAccountPage = ProfileAccountPage(
 );
 
 final _routeCases = <_SettingsRouteCase>[
+  _SettingsRouteCase(
+    label: 'Growth',
+    location: '/profile/settings/growth',
+    matchesPage: (widget) => widget is FollowerGrowthPage,
+  ),
   _SettingsRouteCase(
     label: 'Customisation',
     location: '/profile/settings/customisation',

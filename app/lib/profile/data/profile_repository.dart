@@ -1,5 +1,6 @@
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
+import 'package:craftsky_app/profile/models/follower_growth.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
@@ -15,6 +16,8 @@ abstract interface class ProfileRepository {
 
   /// Fetches the authenticated user's profile via `/v1/profiles/me`.
   Future<Profile> fetchMe();
+
+  Future<FollowerGrowth> fetchFollowerGrowth(FollowerGrowthPeriod period);
 
   /// Replaces the authenticated user's profile.
   ///

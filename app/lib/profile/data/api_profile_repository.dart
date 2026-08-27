@@ -2,6 +2,7 @@ import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/data/profile_api_client.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
+import 'package:craftsky_app/profile/models/follower_growth.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
@@ -19,6 +20,10 @@ class ApiProfileRepository implements ProfileRepository {
 
   @override
   Future<Profile> fetchMe() => _api.getMyProfile();
+
+  @override
+  Future<FollowerGrowth> fetchFollowerGrowth(FollowerGrowthPeriod period) =>
+      _api.getFollowerGrowth(period);
 
   @override
   Future<Profile> updateMe({

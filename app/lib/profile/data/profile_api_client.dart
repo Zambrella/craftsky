@@ -1,5 +1,6 @@
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
+import 'package:craftsky_app/profile/models/follower_growth.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
@@ -34,6 +35,21 @@ class ProfileApiClient {
     final res = await _dio.get<Map<String, dynamic>>('/v1/profiles/me');
     return ProfileMapper.fromMap(res.data!);
   });
+
+  Future<FollowerGrowth> getFollowerGrowth(FollowerGrowthPeriod period) =>
+      unwrapApi(() async {
+        final res = await _dio.get<Map<String, dynamic>>(
+          '/v1/profiles/me/follower-growth',
+          queryParameters: {'period': period.wireValue},
+        );
+        final growth = FollowerGrowth.fromMap(res.data!);
+        if (growth.period != period) {
+          throw const FormatException(
+            'Follower growth response period does not match request',
+          );
+        }
+        return growth;
+      });
 
   /// PUT /v1/profiles/me — updates the authenticated user's profile.
   ///

@@ -1,6 +1,7 @@
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
+import 'package:craftsky_app/profile/models/follower_growth.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
@@ -27,6 +28,7 @@ class FakeProfileRepository implements ProfileRepository {
   FakeProfileRepository({
     this.onFetch,
     this.onFetchMe,
+    this.onFetchFollowerGrowth,
     this.onUpdateMe,
     this.onUpdateCustomisation,
     this.onFollow,
@@ -45,6 +47,8 @@ class FakeProfileRepository implements ProfileRepository {
 
   final Future<Profile> Function(String handleOrDid)? onFetch;
   final Future<Profile> Function()? onFetchMe;
+  final Future<FollowerGrowth> Function(FollowerGrowthPeriod period)?
+  onFetchFollowerGrowth;
   final Future<Profile> Function({
     String? displayName,
     String? description,
@@ -92,6 +96,13 @@ class FakeProfileRepository implements ProfileRepository {
   Future<Profile> fetchMe() =>
       onFetchMe?.call() ??
       Future<Profile>.error(UnimplementedError('fetchMe not stubbed'));
+
+  @override
+  Future<FollowerGrowth> fetchFollowerGrowth(FollowerGrowthPeriod period) =>
+      onFetchFollowerGrowth?.call(period) ??
+      Future<FollowerGrowth>.error(
+        UnimplementedError('fetchFollowerGrowth not stubbed'),
+      );
 
   @override
   Future<Profile> updateMe({

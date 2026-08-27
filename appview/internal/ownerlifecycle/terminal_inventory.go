@@ -78,6 +78,7 @@ var terminalDIDInventory = []TerminalDIDEntry{
 	deleteDID("craftsky_recent_searches", "viewer_did", "owner", "id"),
 	deleteDID("craftsky_reposts", "did", "actor", "uri"),
 	deleteDID("craftsky_sessions", "account_did", "owner", "token_hash"),
+	deleteDID("follower_growth_snapshots", "profile_did", "owner", "profile_did", "snapshot_date"),
 	deleteDID("instagram_account_links", "owner_did", "owner", "id"),
 	anonymizeDID("instagram_audit_events", "owner_did", "owner", "DID-free security history is retained without a subject identifier", "id"),
 	deleteDID("instagram_automatic_follow_ledger", "importer_did", "actor", "id"),

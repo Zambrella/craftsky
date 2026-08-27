@@ -73,6 +73,7 @@ func RouteDependencies(deps *Deps) *routes.Dependencies {
 		InstagramAccount:            deps.InstagramAccount,
 		InstagramImports:            deps.InstagramImports,
 		ProfileStore:                deps.ProfileStore,
+		FollowerGrowth:              deps.FollowerGrowthStore,
 		ProfileCustomisationStore:   deps.ProfileCustomisationStore,
 		FollowStore:                 deps.FollowStore,
 		RelationshipStore:           deps.RelationshipStore,

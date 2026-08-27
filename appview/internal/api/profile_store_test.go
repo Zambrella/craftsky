@@ -14,6 +14,11 @@ import (
 )
 
 const profileStoreDDL = `
+CREATE FUNCTION appview_owner_is_terminal(candidate_did TEXT)
+RETURNS BOOLEAN
+LANGUAGE sql
+STABLE
+AS $$ SELECT false $$;
 CREATE TABLE craftsky_profiles (
     did         TEXT        NOT NULL PRIMARY KEY,
     crafts      TEXT[]      NOT NULL DEFAULT '{}',
@@ -44,6 +49,20 @@ CREATE TABLE atproto_follows (
     UNIQUE (did, rkey),
     UNIQUE (did, subject_did)
 );
+CREATE VIEW craftsky_profile_follower_counts AS
+SELECT
+    profile.did AS profile_did,
+    COUNT(follower.did)::BIGINT AS follower_count
+FROM craftsky_profiles profile
+LEFT JOIN atproto_follows follow
+    ON follow.subject_did = profile.did
+    AND NOT appview_owner_is_terminal(follow.did)
+    AND NOT appview_owner_is_terminal(follow.subject_did)
+LEFT JOIN craftsky_profiles follower
+    ON follower.did = follow.did
+    AND NOT appview_owner_is_terminal(follower.did)
+WHERE NOT appview_owner_is_terminal(profile.did)
+GROUP BY profile.did;
 CREATE TABLE craftsky_posts (
     uri              TEXT        NOT NULL PRIMARY KEY,
     did              TEXT        NOT NULL,

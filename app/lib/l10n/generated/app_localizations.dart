@@ -4263,6 +4263,126 @@ abstract class AppLocalizations {
   /// **'Notifications'**
   String get settingsNotifications;
 
+  /// Settings row and page title for follower growth.
+  ///
+  /// In en, this message translates to:
+  /// **'Growth'**
+  String get settingsGrowth;
+
+  /// Follower growth metric heading.
+  ///
+  /// In en, this message translates to:
+  /// **'Followers'**
+  String get growthMetricLabel;
+
+  /// Follower growth chart section heading.
+  ///
+  /// In en, this message translates to:
+  /// **'Trend'**
+  String get growthTrendLabel;
+
+  /// Explains the follower metric scope.
+  ///
+  /// In en, this message translates to:
+  /// **'Craftsky followers.'**
+  String get growthScopeCopy;
+
+  /// Explains follower metric freshness and date timezone.
+  ///
+  /// In en, this message translates to:
+  /// **'Updated daily. Dates are UTC.'**
+  String get growthFreshnessCopy;
+
+  /// Seven-day follower growth period.
+  ///
+  /// In en, this message translates to:
+  /// **'7 days'**
+  String get growthPeriodSevenDays;
+
+  /// Thirty-day follower growth period.
+  ///
+  /// In en, this message translates to:
+  /// **'30 days'**
+  String get growthPeriodThirtyDays;
+
+  /// One-year follower growth period.
+  ///
+  /// In en, this message translates to:
+  /// **'1 year'**
+  String get growthPeriodOneYear;
+
+  /// Latest persisted follower count.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} followers'**
+  String growthLatestCount(String count);
+
+  /// Positive follower change.
+  ///
+  /// In en, this message translates to:
+  /// **'Up {count}'**
+  String growthChangeUp(String count);
+
+  /// Negative follower change.
+  ///
+  /// In en, this message translates to:
+  /// **'Down {count}'**
+  String growthChangeDown(String count);
+
+  /// Flat follower change.
+  ///
+  /// In en, this message translates to:
+  /// **'No change'**
+  String get growthNoChange;
+
+  /// Follower change cannot yet be calculated.
+  ///
+  /// In en, this message translates to:
+  /// **'Not enough history'**
+  String get growthInsufficientHistory;
+
+  /// Date of the latest persisted follower snapshot.
+  ///
+  /// In en, this message translates to:
+  /// **'Latest snapshot: {date}'**
+  String growthLatestSnapshot(String date);
+
+  /// No follower snapshots exist for the owner.
+  ///
+  /// In en, this message translates to:
+  /// **'No follower history yet'**
+  String get growthNoHistory;
+
+  /// Older follower history exists but the selected period is empty.
+  ///
+  /// In en, this message translates to:
+  /// **'No observations in this period'**
+  String get growthNoObservationsInPeriod;
+
+  /// Explains when trustworthy follower history begins.
+  ///
+  /// In en, this message translates to:
+  /// **'History available since {date}'**
+  String growthHistoryAvailableSince(String date);
+
+  /// Date range included in the follower growth chart summary.
+  ///
+  /// In en, this message translates to:
+  /// **'From {start} to {end}'**
+  String growthChartRange(String start, String end);
+
+  /// Explains dates with no persisted follower observation.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 day has no observation} other{{count} days have no observation}}'**
+  String growthMissingDays(int count);
+
+  /// Safe follower growth loading error.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not load follower growth.'**
+  String get growthLoadError;
+
   /// Settings row opening followers.
   ///
   /// In en, this message translates to:

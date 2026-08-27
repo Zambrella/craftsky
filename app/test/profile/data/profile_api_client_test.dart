@@ -1,6 +1,7 @@
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/data/profile_api_client.dart';
+import 'package:craftsky_app/profile/models/follower_growth.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
@@ -23,6 +24,84 @@ void main() {
     'description': 'textile person',
     'crafts': ['sewing'],
   };
+
+  Map<String, dynamic> sampleFollowerGrowth({
+    required bool populated,
+    String period = '30d',
+  }) => {
+    'period': period,
+    'rangeStart': period == '7d' ? '2026-08-19' : '2026-07-27',
+    'rangeEnd': '2026-08-25',
+    'availableFrom': populated ? '2026-07-01' : null,
+    'latestSnapshotDate': populated ? '2026-08-25' : null,
+    'latestCapturedAt': populated ? '2026-08-25T00:00:02Z' : null,
+    'latestFollowerCount': populated ? 42 : null,
+    'netChange': populated ? 5 : null,
+    'points': List.generate(period == '7d' ? 7 : 30, (index) {
+      final start = period == '7d'
+          ? DateTime.utc(2026, 8, 19)
+          : DateTime.utc(2026, 7, 27);
+      final date = start.add(Duration(days: index));
+      return {
+        'date': date.toIso8601String().substring(0, 10),
+        'count': populated
+            ? switch (index) {
+                0 => 37,
+                6 when period == '7d' => 42,
+                29 => 42,
+                _ => null,
+              }
+            : null,
+      };
+    }),
+  };
+
+  test('GET follower growth sends period and decodes history states', () async {
+    final populatedDio = buildDio();
+    DioAdapter(dio: populatedDio).onGet(
+      '/v1/profiles/me/follower-growth',
+      (server) => server.reply(200, sampleFollowerGrowth(populated: true)),
+      queryParameters: {'period': '30d'},
+    );
+
+    final populated = await ProfileApiClient(
+      populatedDio,
+    ).getFollowerGrowth(FollowerGrowthPeriod.thirtyDays);
+
+    expect(populated.latestFollowerCount, 42);
+    expect(populated.points[1].count, isNull);
+
+    final emptyDio = buildDio();
+    DioAdapter(dio: emptyDio).onGet(
+      '/v1/profiles/me/follower-growth',
+      (server) => server.reply(200, sampleFollowerGrowth(populated: false)),
+      queryParameters: {'period': '30d'},
+    );
+
+    final empty = await ProfileApiClient(
+      emptyDio,
+    ).getFollowerGrowth(FollowerGrowthPeriod.thirtyDays);
+
+    expect(empty.availableFrom, isNull);
+    expect(empty.latestFollowerCount, isNull);
+  });
+
+  test('rejects a response for a different requested period', () async {
+    final dio = buildDio();
+    DioAdapter(dio: dio).onGet(
+      '/v1/profiles/me/follower-growth',
+      (server) => server.reply(
+        200,
+        sampleFollowerGrowth(populated: true, period: '7d'),
+      ),
+      queryParameters: {'period': '30d'},
+    );
+
+    await expectLater(
+      ProfileApiClient(dio).getFollowerGrowth(FollowerGrowthPeriod.thirtyDays),
+      throwsFormatException,
+    );
+  });
 
   test(
     'serializes changed avatar and banner blobs in profile updates',

@@ -2042,6 +2042,70 @@
   "@settingsSectionGeneral": { "description": "Settings section containing Account and About." },
   "settingsNotifications": "Notifications",
   "@settingsNotifications": { "description": "Settings row opening notification settings." },
+  "settingsGrowth": "Growth",
+  "@settingsGrowth": { "description": "Settings row and page title for follower growth." },
+  "growthMetricLabel": "Followers",
+  "@growthMetricLabel": { "description": "Follower growth metric heading." },
+  "growthTrendLabel": "Trend",
+  "@growthTrendLabel": { "description": "Follower growth chart section heading." },
+  "growthScopeCopy": "Craftsky followers.",
+  "@growthScopeCopy": { "description": "Explains the follower metric scope." },
+  "growthFreshnessCopy": "Updated daily. Dates are UTC.",
+  "@growthFreshnessCopy": { "description": "Explains follower metric freshness and date timezone." },
+  "growthPeriodSevenDays": "7 days",
+  "@growthPeriodSevenDays": { "description": "Seven-day follower growth period." },
+  "growthPeriodThirtyDays": "30 days",
+  "@growthPeriodThirtyDays": { "description": "Thirty-day follower growth period." },
+  "growthPeriodOneYear": "1 year",
+  "@growthPeriodOneYear": { "description": "One-year follower growth period." },
+  "growthLatestCount": "{count} followers",
+  "@growthLatestCount": {
+    "description": "Latest persisted follower count.",
+    "placeholders": { "count": { "type": "String" } }
+  },
+  "growthChangeUp": "Up {count}",
+  "@growthChangeUp": {
+    "description": "Positive follower change.",
+    "placeholders": { "count": { "type": "String" } }
+  },
+  "growthChangeDown": "Down {count}",
+  "@growthChangeDown": {
+    "description": "Negative follower change.",
+    "placeholders": { "count": { "type": "String" } }
+  },
+  "growthNoChange": "No change",
+  "@growthNoChange": { "description": "Flat follower change." },
+  "growthInsufficientHistory": "Not enough history",
+  "@growthInsufficientHistory": { "description": "Follower change cannot yet be calculated." },
+  "growthLatestSnapshot": "Latest snapshot: {date}",
+  "@growthLatestSnapshot": {
+    "description": "Date of the latest persisted follower snapshot.",
+    "placeholders": { "date": { "type": "String" } }
+  },
+  "growthNoHistory": "No follower history yet",
+  "@growthNoHistory": { "description": "No follower snapshots exist for the owner." },
+  "growthNoObservationsInPeriod": "No observations in this period",
+  "@growthNoObservationsInPeriod": { "description": "Older follower history exists but the selected period is empty." },
+  "growthHistoryAvailableSince": "History available since {date}",
+  "@growthHistoryAvailableSince": {
+    "description": "Explains when trustworthy follower history begins.",
+    "placeholders": { "date": { "type": "String" } }
+  },
+  "growthChartRange": "From {start} to {end}",
+  "@growthChartRange": {
+    "description": "Date range included in the follower growth chart summary.",
+    "placeholders": {
+      "start": { "type": "String" },
+      "end": { "type": "String" }
+    }
+  },
+  "growthMissingDays": "{count, plural, =1{1 day has no observation} other{{count} days have no observation}}",
+  "@growthMissingDays": {
+    "description": "Explains dates with no persisted follower observation.",
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "growthLoadError": "Could not load follower growth.",
+  "@growthLoadError": { "description": "Safe follower growth loading error." },
   "settingsFollowers": "Followers",
   "@settingsFollowers": { "description": "Settings row opening followers." },
   "settingsFollowing": "Following",

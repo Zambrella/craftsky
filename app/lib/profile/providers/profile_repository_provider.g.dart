@@ -135,3 +135,83 @@ final class AccountRelationshipRepositoryFamily extends $Family
   @override
   String toString() => r'accountRelationshipRepositoryProvider';
 }
+
+@ProviderFor(accountFollowerGrowthRepository)
+final accountFollowerGrowthRepositoryProvider =
+    AccountFollowerGrowthRepositoryFamily._();
+
+final class AccountFollowerGrowthRepositoryProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<ProfileRepository>,
+          ProfileRepository,
+          FutureOr<ProfileRepository>
+        >
+    with
+        $FutureModifier<ProfileRepository>,
+        $FutureProvider<ProfileRepository> {
+  AccountFollowerGrowthRepositoryProvider._({
+    required AccountFollowerGrowthRepositoryFamily super.from,
+    required AccountKey super.argument,
+  }) : super(
+         retry: null,
+         name: r'accountFollowerGrowthRepositoryProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$accountFollowerGrowthRepositoryHash();
+
+  @override
+  String toString() {
+    return r'accountFollowerGrowthRepositoryProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<ProfileRepository> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<ProfileRepository> create(Ref ref) {
+    final argument = this.argument as AccountKey;
+    return accountFollowerGrowthRepository(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is AccountFollowerGrowthRepositoryProvider &&
+        other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$accountFollowerGrowthRepositoryHash() =>
+    r'9fe4ea45e4fd9040d169c144d716279393b2dd9d';
+
+final class AccountFollowerGrowthRepositoryFamily extends $Family
+    with $FunctionalFamilyOverride<FutureOr<ProfileRepository>, AccountKey> {
+  AccountFollowerGrowthRepositoryFamily._()
+    : super(
+        retry: null,
+        name: r'accountFollowerGrowthRepositoryProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  AccountFollowerGrowthRepositoryProvider call(AccountKey account) =>
+      AccountFollowerGrowthRepositoryProvider._(argument: account, from: this);
+
+  @override
+  String toString() => r'accountFollowerGrowthRepositoryProvider';
+}

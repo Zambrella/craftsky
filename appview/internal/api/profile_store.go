@@ -177,14 +177,11 @@ func (s *ProfileStore) Read(ctx context.Context, profileDID string, viewerDID st
 	const q = `
 		SELECT
 			cp.did, cp.crafts, cp.created_at,
-			(
-				SELECT COUNT(*)
-				FROM atproto_follows f
-				JOIN craftsky_profiles follower_cp ON follower_cp.did = f.did
-				WHERE f.subject_did = cp.did
-				  AND NOT appview_owner_is_terminal(f.did)
-				  AND NOT appview_owner_is_terminal(f.subject_did)
-			) AS follower_count,
+			COALESCE((
+				SELECT follower_count
+				FROM craftsky_profile_follower_counts
+				WHERE profile_did = cp.did
+			), 0) AS follower_count,
 			(
 				SELECT COUNT(*)
 				FROM atproto_follows f

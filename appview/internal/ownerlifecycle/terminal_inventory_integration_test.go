@@ -26,12 +26,16 @@ func TestTerminalDIDInventoryCoversMigratedSchema(t *testing.T) {
 	applyAllTerminalInventoryMigrations(t, pool)
 
 	rows, err := pool.Query(context.Background(), `
-		SELECT table_name,column_name
-		FROM information_schema.columns
-		WHERE table_schema=current_schema()
-		  AND data_type='text'
-		  AND (column_name='did' OR column_name LIKE '%\_did' ESCAPE '\')
-		ORDER BY table_name,column_name
+		SELECT columns.table_name,columns.column_name
+		FROM information_schema.columns columns
+		JOIN information_schema.tables tables
+		  ON tables.table_schema=columns.table_schema
+		 AND tables.table_name=columns.table_name
+		WHERE columns.table_schema=current_schema()
+		  AND tables.table_type='BASE TABLE'
+		  AND columns.data_type='text'
+		  AND (columns.column_name='did' OR columns.column_name LIKE '%\_did' ESCAPE '\')
+		ORDER BY columns.table_name,columns.column_name
 	`)
 	if err != nil {
 		t.Fatalf("query persisted DID roles: %v", err)

@@ -201,6 +201,11 @@ func run(ctx context.Context, args []string) error {
 	} else {
 		close(tapQuarantineDone)
 	}
+	followerGrowthDone := startFollowerGrowthWorker(
+		consumerCtx,
+		deps.FollowerGrowthWorker,
+		deps.Logger,
+	)
 	pushDone := make(chan struct{})
 	if deps.PushDispatcher != nil {
 		go func() {
@@ -368,6 +373,7 @@ func run(ctx context.Context, args []string) error {
 		tapProjectionDone,
 		tapRepositoryDone,
 		tapQuarantineDone,
+		followerGrowthDone,
 		pushDone,
 		instagramWorkersDone,
 		instagramReconciliationDone,
@@ -450,6 +456,33 @@ func run(ctx context.Context, args []string) error {
 		_ = httpServer.Close()
 	}
 	return nil
+}
+
+type followerGrowthRunner interface {
+	Run(context.Context) error
+}
+
+func startFollowerGrowthWorker(
+	ctx context.Context,
+	worker followerGrowthRunner,
+	logger *slog.Logger,
+) <-chan struct{} {
+	done := make(chan struct{})
+	if worker == nil {
+		close(done)
+		return done
+	}
+	go func() {
+		defer close(done)
+		if err := worker.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+			logger.Error("follower growth worker exited",
+				slog.String("component", "follower_growth"),
+				slog.String("operation", "capture"),
+				slog.String("result", "error"),
+				slog.String("error_category", "worker"))
+		}
+	}()
+	return done
 }
 
 func runAccountDeletionWorker(ctx context.Context, worker accountDeletionProcessor, logger *slog.Logger, pollInterval time.Duration) {
