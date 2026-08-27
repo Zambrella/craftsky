@@ -1,5 +1,7 @@
+import 'package:craftsky_app/feed/media/youtube_consent.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/external_card.dart';
+import 'package:craftsky_app/feed/widgets/youtube_inline_player.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -125,13 +127,177 @@ void main() {
       DecorationPosition.foreground,
     );
   });
+
+  testWidgets('YouTube card asks for consent then creates a lazy player', (
+    tester,
+  ) async {
+    final consent = _FakeYouTubeConsent();
+    Uri? launched;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          youtubeConsentPreferencesProvider.overrideWithValue(consent),
+          youtubePlayerBuilderProvider.overrideWithValue(
+            (context, external) => Text(
+              'player:${external.videoId}:${external.startSeconds}',
+              key: const Key('fake-youtube-player'),
+            ),
+          ),
+        ],
+        child: _materialApp(
+          ExternalCard(
+            external: const PostExternal(
+              uri: 'https://youtu.be/dQw4w9WgXcQ?t=90',
+              title: 'Knitting tutorial',
+              description: 'A tutorial',
+            ),
+            launchUrl: (uri) async {
+              launched = uri;
+              return true;
+            },
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('youtube-play-indicator')), findsOneWidget);
+    expect(find.byKey(const Key('fake-youtube-player')), findsNothing);
+
+    await tester.tap(find.byType(ExternalCard));
+    await tester.pumpAndSettle();
+    expect(find.text('Play video from YouTube?'), findsOneWidget);
+    expect(find.byKey(const Key('fake-youtube-player')), findsNothing);
+
+    await tester.tap(find.text('Allow once'));
+    await tester.pumpAndSettle();
+    expect(find.text('player:dQw4w9WgXcQ:90'), findsOneWidget);
+    expect(find.text('Open in YouTube'), findsOneWidget);
+    expect(consent.setAlwaysAllowCalls, 0);
+
+    await tester.tap(find.text('Open in YouTube'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open link'));
+    await tester.pumpAndSettle();
+    expect(launched, Uri.parse('https://youtu.be/dQw4w9WgXcQ?t=90'));
+  });
+
+  testWidgets('remembered YouTube consent skips the disclosure', (
+    tester,
+  ) async {
+    final consent = _FakeYouTubeConsent(alwaysAllow: true);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          youtubeConsentPreferencesProvider.overrideWithValue(consent),
+          youtubePlayerBuilderProvider.overrideWithValue(
+            (context, external) =>
+                const SizedBox(key: Key('fake-youtube-player')),
+          ),
+        ],
+        child: _materialApp(
+          const ExternalCard(
+            external: PostExternal(
+              uri: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+              title: 'Crochet tutorial',
+              description: '',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(ExternalCard));
+    await tester.pump();
+    expect(find.text('Play video from YouTube?'), findsNothing);
+    expect(find.byKey(const Key('fake-youtube-player')), findsOneWidget);
+  });
+
+  testWidgets('always allow persists YouTube consent', (tester) async {
+    final consent = _FakeYouTubeConsent();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          youtubeConsentPreferencesProvider.overrideWithValue(consent),
+          youtubePlayerBuilderProvider.overrideWithValue(
+            (context, external) =>
+                const SizedBox(key: Key('fake-youtube-player')),
+          ),
+        ],
+        child: _materialApp(
+          const ExternalCard(
+            external: PostExternal(
+              uri: 'https://youtube.com/shorts/dQw4w9WgXcQ',
+              title: 'Short tutorial',
+              description: '',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(ExternalCard));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Always allow YouTube'));
+    await tester.pumpAndSettle();
+
+    expect(consent.setAlwaysAllowCalls, 1);
+    expect(find.byKey(const Key('fake-youtube-player')), findsOneWidget);
+  });
+
+  testWidgets('compact YouTube cards remain ordinary external links', (
+    tester,
+  ) async {
+    Uri? launched;
+    await tester.pumpWidget(
+      _app(
+        ExternalCard(
+          external: const PostExternal(
+            uri: 'https://youtu.be/dQw4w9WgXcQ',
+            title: 'Compact tutorial',
+            description: '',
+          ),
+          variant: ExternalCardVariant.compact,
+          launchUrl: (uri) async {
+            launched = uri;
+            return true;
+          },
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('youtube-play-indicator')), findsNothing);
+    await tester.tap(find.byType(ExternalCard));
+    await tester.pumpAndSettle();
+    expect(find.text('Play video from YouTube?'), findsNothing);
+    expect(find.text('Open link?'), findsOneWidget);
+    await tester.tap(find.text('Open link'));
+    await tester.pumpAndSettle();
+    expect(launched, Uri.parse('https://youtu.be/dQw4w9WgXcQ'));
+  });
 }
 
 Widget _app(Widget child) => ProviderScope(
-  child: MaterialApp(
-    theme: AppTheme.lightThemeData,
-    localizationsDelegates: AppLocalizations.localizationsDelegates,
-    supportedLocales: AppLocalizations.supportedLocales,
-    home: Scaffold(body: child),
-  ),
+  child: _materialApp(child),
 );
+
+Widget _materialApp(Widget child) => MaterialApp(
+  theme: AppTheme.lightThemeData,
+  localizationsDelegates: AppLocalizations.localizationsDelegates,
+  supportedLocales: AppLocalizations.supportedLocales,
+  home: Scaffold(body: child),
+);
+
+final class _FakeYouTubeConsent implements YouTubeConsentPreferences {
+  _FakeYouTubeConsent({this.alwaysAllow = false});
+
+  @override
+  bool alwaysAllow;
+
+  int setAlwaysAllowCalls = 0;
+
+  @override
+  Future<void> setAlwaysAllow() async {
+    setAlwaysAllowCalls += 1;
+    alwaysAllow = true;
+  }
+}

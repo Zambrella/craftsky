@@ -2121,5 +2121,35 @@
   "@externalCardThumbnail": {
     "description": "Accessible label for an external card thumbnail.",
     "placeholders": { "title": { "type": "String", "example": "Pattern" } }
+  },
+  "youtubePlayVideo": "Play YouTube video: {title}",
+  "@youtubePlayVideo": {
+    "description": "Accessible action label for a playable YouTube external card.",
+    "placeholders": { "title": { "type": "String", "example": "Tutorial" } }
+  },
+  "youtubeVideoPlayer": "YouTube video player: {title}",
+  "@youtubeVideoPlayer": {
+    "description": "Accessible label for an active YouTube video player.",
+    "placeholders": { "title": { "type": "String", "example": "Tutorial" } }
+  },
+  "youtubeConsentTitle": "Play video from YouTube?",
+  "@youtubeConsentTitle": {
+    "description": "Title of the privacy disclosure shown before loading YouTube."
+  },
+  "youtubeConsentMessage": "Playing this video connects to YouTube. YouTube may receive your IP address and device information.",
+  "@youtubeConsentMessage": {
+    "description": "Privacy disclosure shown before loading the third-party YouTube player."
+  },
+  "youtubeAllowOnce": "Allow once",
+  "@youtubeAllowOnce": {
+    "description": "Button that permits loading one YouTube player without remembering consent."
+  },
+  "youtubeAlwaysAllow": "Always allow YouTube",
+  "@youtubeAlwaysAllow": {
+    "description": "Button that permits YouTube players and remembers the preference on this device."
+  },
+  "youtubeOpenExternally": "Open in YouTube",
+  "@youtubeOpenExternally": {
+    "description": "Button that opens the original YouTube URL outside CraftSky."
   }
 }
