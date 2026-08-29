@@ -10,6 +10,7 @@ void main() {
     WidgetTester tester, {
     required Size size,
     required Widget child,
+    ThemeMode themeMode = ThemeMode.light,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -19,6 +20,8 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         theme: AppTheme.lightThemeData,
+        darkTheme: AppTheme.darkThemeData,
+        themeMode: themeMode,
         home: Scaffold(body: Center(child: child)),
       ),
     );
@@ -57,6 +60,37 @@ void main() {
 
       expect(tapped, isTrue);
       expect(find.byType(BottomSheet), findsNothing);
+    });
+
+    testWidgets('dark compact bottom sheet has no outer border', (
+      tester,
+    ) async {
+      await pumpHarness(
+        tester,
+        size: const Size(390, 844),
+        themeMode: ThemeMode.dark,
+        child: CraftskyContextMenuButton(
+          groups: [
+            CraftskyContextMenuGroup(
+              items: [
+                CraftskyContextMenuItem(
+                  text: 'Report',
+                  icon: Icons.flag_outlined,
+                  onPressed: () {},
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+
+      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.pumpAndSettle();
+
+      final sheet = tester.widget<BottomSheet>(find.byType(BottomSheet));
+      final shape = sheet.shape! as RoundedRectangleBorder;
+
+      expect(shape.side, BorderSide.none);
     });
 
     testWidgets('opens a popup menu on wide screens', (tester) async {

@@ -30,6 +30,10 @@ class ProfileColourBundle {
     required this.foreground,
     required this.hover,
     required this.pressed,
+    required this.darkAccent,
+    required this.darkForeground,
+    required this.darkHover,
+    required this.darkPressed,
     required this.softContainer,
     required this.textureTint,
     required this.textureOpacity,
@@ -39,6 +43,10 @@ class ProfileColourBundle {
   final String foreground;
   final String hover;
   final String pressed;
+  final String darkAccent;
+  final String darkForeground;
+  final String darkHover;
+  final String darkPressed;
   final String softContainer;
   final String textureTint;
   final double textureOpacity;
@@ -51,6 +59,10 @@ class ProfileColourBundle {
           foreground == other.foreground &&
           hover == other.hover &&
           pressed == other.pressed &&
+          darkAccent == other.darkAccent &&
+          darkForeground == other.darkForeground &&
+          darkHover == other.darkHover &&
+          darkPressed == other.darkPressed &&
           softContainer == other.softContainer &&
           textureTint == other.textureTint &&
           textureOpacity == other.textureOpacity;
@@ -61,6 +73,10 @@ class ProfileColourBundle {
     foreground,
     hover,
     pressed,
+    darkAccent,
+    darkForeground,
+    darkHover,
+    darkPressed,
     softContainer,
     textureTint,
     textureOpacity,
@@ -73,6 +89,10 @@ const profileColourBundles = <String, ProfileColourBundle>{
     foreground: '#FFFFFF',
     hover: '#122EBA',
     pressed: '#0F279E',
+    darkAccent: '#7890FF',
+    darkForeground: '#171513',
+    darkHover: '#8EA0FF',
+    darkPressed: '#6A81ED',
     softContainer: '#D8DDF9',
     textureTint: '#FFFFFF',
     textureOpacity: 0.18,
@@ -82,6 +102,10 @@ const profileColourBundles = <String, ProfileColourBundle>{
     foreground: '#FFFFFF',
     hover: '#9E12BA',
     pressed: '#860F9E',
+    darkAccent: '#DF7AF4',
+    darkForeground: '#171513',
+    darkHover: '#E98CF8',
+    darkPressed: '#C966DF',
     softContainer: '#F3D8F9',
     textureTint: '#FFFFFF',
     textureOpacity: 0.18,
@@ -91,6 +115,10 @@ const profileColourBundles = <String, ProfileColourBundle>{
     foreground: '#FFFFFF',
     hover: '#BA122E',
     pressed: '#9E0F27',
+    darkAccent: '#FF7088',
+    darkForeground: '#171513',
+    darkHover: '#FF8799',
+    darkPressed: '#E85E76',
     softContainer: '#F9D8DD',
     textureTint: '#FFFFFF',
     textureOpacity: 0.18,
@@ -100,6 +128,10 @@ const profileColourBundles = <String, ProfileColourBundle>{
     foreground: '#FFFFFF',
     hover: '#655300',
     pressed: '#544500',
+    darkAccent: '#F7D46A',
+    darkForeground: '#171513',
+    darkHover: '#FFE083',
+    darkPressed: '#DDBB55',
     softContainer: '#F9F3D8',
     textureTint: '#FFFFFF',
     textureOpacity: 0.18,
@@ -109,6 +141,10 @@ const profileColourBundles = <String, ProfileColourBundle>{
     foreground: '#FFFFFF',
     hover: '#1D650C',
     pressed: '#175309',
+    darkAccent: '#8FD36F',
+    darkForeground: '#171513',
+    darkHover: '#A2DF83',
+    darkPressed: '#77BC59',
     softContainer: '#DDF9D8',
     textureTint: '#FFFFFF',
     textureOpacity: 0.18,
@@ -118,6 +154,10 @@ const profileColourBundles = <String, ProfileColourBundle>{
     foreground: '#FFFFFF',
     hover: '#006454',
     pressed: '#005146',
+    darkAccent: '#5BD0BC',
+    darkForeground: '#171513',
+    darkHover: '#73DCCB',
+    darkPressed: '#43B9A5',
     softContainer: '#D8F9F3',
     textureTint: '#FFFFFF',
     textureOpacity: 0.18,
@@ -127,6 +167,10 @@ const profileColourBundles = <String, ProfileColourBundle>{
     foreground: '#FFFFFF',
     hover: '#3E3733',
     pressed: '#0B0908',
+    darkAccent: '#F5EFE4',
+    darkForeground: '#161210',
+    darkHover: '#FFFFFF',
+    darkPressed: '#CFC6BB',
     softContainer: '#EFE7D6',
     textureTint: '#FFFFFF',
     textureOpacity: 0.18,

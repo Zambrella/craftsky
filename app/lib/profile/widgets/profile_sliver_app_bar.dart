@@ -11,10 +11,6 @@ import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
-const _transparentProfileAppBarIconStyle = ButtonStyle(
-  backgroundColor: WidgetStatePropertyAll(Colors.transparent),
-);
-
 /// Collapsing profile header styled like the compact profile card.
 ///
 /// The expanded state shows the themed illustration band, overlapping avatar,
@@ -187,7 +183,8 @@ class _ProfileLeadingAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final swatches = Theme.of(context).extension<BrandSwatchTheme>()!;
+    final theme = Theme.of(context);
+    final swatches = theme.extension<BrandSwatchTheme>()!;
     final settings = context
         .dependOnInheritedWidgetOfExactType<FlexibleSpaceBarSettings>();
     final topPadding = MediaQuery.paddingOf(context).top;
@@ -203,6 +200,7 @@ class _ProfileLeadingAction extends StatelessWidget {
         : swatches.paper3.withValues(alpha: 1 - collapsed);
     final style = ButtonStyle(
       backgroundColor: WidgetStatePropertyAll(backgroundColor),
+      foregroundColor: WidgetStatePropertyAll(theme.colorScheme.onSurface),
     );
 
     if (showDrawer) {
@@ -393,12 +391,18 @@ class _CollapsedTrailingAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final style = ButtonStyle(
+      backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
+      foregroundColor: WidgetStatePropertyAll(
+        Theme.of(context).colorScheme.onSurface,
+      ),
+    );
     return switch (actions) {
       SelfProfileActionSet(:final onSettings) => IconButton(
         tooltip: l10n.profileSettingsAction,
         icon: const Icon(Icons.settings_outlined),
         onPressed: onSettings,
-        style: _transparentProfileAppBarIconStyle,
+        style: style,
       ),
       VisitorProfileActionSet(
         :final isMuted,
@@ -417,7 +421,7 @@ class _CollapsedTrailingAction extends StatelessWidget {
                       : Icons.volume_off_outlined,
                 ),
                 onPressed: isBusy ? null : onMuteToggle,
-                style: _transparentProfileAppBarIconStyle,
+                style: style,
               )
             : const SizedBox.shrink(),
     };

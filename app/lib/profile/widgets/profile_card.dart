@@ -391,9 +391,13 @@ class _ProfileCardSurface extends StatelessWidget {
                                         context,
                                       ).closeButtonTooltip,
                                       onPressed: onClose,
-                                      style: const ButtonStyle(
-                                        backgroundColor: WidgetStatePropertyAll(
-                                          Colors.transparent,
+                                      style: ButtonStyle(
+                                        backgroundColor:
+                                            const WidgetStatePropertyAll(
+                                              Colors.transparent,
+                                            ),
+                                        foregroundColor: WidgetStatePropertyAll(
+                                          colors.onSurface,
                                         ),
                                       ),
                                       icon: const Icon(Icons.close),

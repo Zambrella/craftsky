@@ -333,7 +333,11 @@ class _ExternalCardImage extends StatelessWidget {
         imageUrl: external.thumb!.url,
         cacheManager: cacheManager,
         fit: BoxFit.cover,
-        errorWidget: (_, _, _) => const ColoredBox(color: Color(0xFFEAEAEA)),
+        errorWidget: (context, _, _) => ColoredBox(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Theme.of(context).colorScheme.surfaceContainerHighest
+              : const Color(0xFFEAEAEA),
+        ),
       ),
     ),
   );

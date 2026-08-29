@@ -6,6 +6,10 @@ void main() {
     final l10n = AppLocalizationsEn();
     final values = <String>[
       l10n.settingsTitle,
+      l10n.appearanceTitle,
+      l10n.appearanceUseDeviceSetting,
+      l10n.appearanceLight,
+      l10n.appearanceDark,
       l10n.settingsSwitchAccount,
       l10n.settingsSectionPreferences,
       l10n.settingsSectionConnections,

@@ -4,6 +4,7 @@ enum SettingsSectionId { preferences, connections, discovery, general }
 
 enum SettingsRowId {
   switchAccount,
+  appearance,
   customisation,
   languages,
   notifications,
@@ -58,6 +59,10 @@ const settingsSections = <SettingsSectionDescriptor>[
   SettingsSectionDescriptor(
     id: SettingsSectionId.preferences,
     rows: [
+      SettingsRowDescriptor(
+        id: SettingsRowId.appearance,
+        kind: SettingsRowKind.disclosure,
+      ),
       SettingsRowDescriptor(
         id: SettingsRowId.customisation,
         kind: SettingsRowKind.disclosure,

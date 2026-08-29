@@ -8,8 +8,7 @@ import 'package:google_fonts/google_fonts.dart';
 /// cobalt + electric red accents. See `docs/design/design-system.md` and
 /// `docs/design/colors_and_type.css` for the source of truth.
 ///
-/// Dark mode is a stub; the brand is paper-warm by nature and a proper dark
-/// palette hasn't been designed yet.
+/// Dark mode translates the same paper-cutout system onto warm charcoal paper.
 class AppTheme {
   AppTheme._();
 
@@ -24,6 +23,41 @@ class AppTheme {
     tertiary: BrandColors.butter,
     tertiaryContainer: BrandColors.clay,
     appBarColor: BrandColors.paper,
+    error: BrandColors.red,
+  );
+
+  static const _darkPage = Color(0xFF171513);
+  static const _darkSunken = Color(0xFF12100F);
+  static const _darkSurface = Color(0xFF24201D);
+  static const _darkSurfaceHigh = Color(0xFF2D2925);
+  static const _darkInk2 = Color(0xFFCFC6BB);
+  static const _darkInk3 = Color(0xFF968D84);
+  static const _darkInk4 = Color(0xFF6F6862);
+  static const _darkCobalt = Color(0xFF7890FF);
+
+  static const _darkSwatches = BrandSwatchTheme(
+    paper: _darkPage,
+    paper2: _darkSunken,
+    paper3: _darkSurface,
+    butter: Color(0xFF5A4815),
+    clay: Color(0xFF6A2F1A),
+    moss: Color(0xFF425626),
+    onMoss: BrandColors.paper,
+    sky: Color(0xFF274964),
+    lilac: Color(0xFF493B63),
+    wip: Color(0xFF5A4815),
+    done: Color(0xFF425626),
+    borderHair: Color(0x3DF5EFE4),
+  );
+
+  static const _darkColors = FlexSchemeColor(
+    primary: _darkCobalt,
+    primaryContainer: BrandColors.cobalt,
+    secondary: BrandColors.red,
+    secondaryContainer: Color(0xFF5A211D),
+    tertiary: BrandColors.butter,
+    tertiaryContainer: BrandColors.clay,
+    appBarColor: _darkPage,
     error: BrandColors.red,
   );
 
@@ -88,24 +122,58 @@ class AppTheme {
     );
   }
 
-  // Dark mode is intentionally minimal — brand is paper-warm and a proper
-  // dark palette has not been designed yet. Keeping a Material fallback so
-  // the system still has something to return.
   static ThemeData _buildDark() {
-    final base = FlexThemeData.dark(
-      scheme: FlexScheme.material,
+    final base0 = FlexThemeData.dark(
+      colors: _darkColors,
+      scaffoldBackground: _darkPage,
+      surface: _darkSurface,
       subThemesData: const FlexSubThemesData(
         interactionEffects: true,
         tintedDisabledControls: true,
-        defaultRadius: 8,
+        cardRadius: 14,
+        elevatedButtonRadius: 999,
+        filledButtonRadius: 999,
+        outlinedButtonRadius: 999,
+        textButtonRadius: 999,
+        inputDecoratorRadius: 14,
         inputDecoratorIsFilled: true,
+        inputDecoratorFillColor: _darkSurface,
         inputDecoratorBorderType: FlexInputBorderType.outline,
+        inputDecoratorBorderWidth: 1.5,
+        inputDecoratorFocusedBorderWidth: 2,
+        inputDecoratorBorderSchemeColor: SchemeColor.onSurface,
+        inputDecoratorUnfocusedBorderIsColored: true,
+        chipRadius: 999,
       ),
       visualDensity: FlexColorScheme.comfortablePlatformDensity,
+      textTheme: _textTheme(ink: BrandColors.paper, ink2: _darkInk2),
+    );
+    final base = base0.copyWith(
+      colorScheme: base0.colorScheme.copyWith(
+        primary: _darkCobalt,
+        onPrimary: _darkPage,
+        primaryContainer: BrandColors.cobalt,
+        onPrimaryContainer: BrandColors.paper3,
+        secondary: BrandColors.red,
+        onSecondary: _darkPage,
+        surface: _darkSurface,
+        onSurface: BrandColors.paper,
+        onSurfaceVariant: _darkInk2,
+        outline: _darkInk3,
+        outlineVariant: _darkInk4,
+        surfaceContainerLowest: _darkSunken,
+        surfaceContainerLow: _darkPage,
+        surfaceContainer: const Color(0xFF1D1A17),
+        surfaceContainerHigh: _darkSurface,
+        surfaceContainerHighest: _darkSurfaceHigh,
+      ),
     );
     return base.copyWith(
-      extensions: _extensions(base.colorScheme),
+      extensions: _extensions(base.colorScheme, dark: true),
+      appBarTheme: _appBarTheme(base),
+      navigationBarTheme: _navigationBarTheme(base),
       navigationRailTheme: _navigationRailTheme(base),
+      tabBarTheme: _tabBarTheme(base),
       segmentedButtonTheme: _segmentedButtonTheme(base.colorScheme),
       timePickerTheme: _timePickerTheme(base),
     );
@@ -123,7 +191,9 @@ class AppTheme {
   }
 
   static SegmentedButtonThemeData _segmentedButtonTheme(ColorScheme colors) {
-    const swatches = BrandSwatchTheme();
+    final swatches = colors.brightness == Brightness.dark
+        ? _darkSwatches
+        : const BrandSwatchTheme();
     return SegmentedButtonThemeData(
       style: ButtonStyle(
         backgroundColor: WidgetStateProperty.resolveWith((states) {
@@ -277,7 +347,7 @@ class AppTheme {
   /// paper-cutout boundary rather than a raised Material surface.
   static AppBarTheme _appBarTheme(ThemeData base) {
     return AppBarTheme(
-      backgroundColor: BrandColors.paper,
+      backgroundColor: base.scaffoldBackgroundColor,
       surfaceTintColor: Colors.transparent,
       foregroundColor: base.colorScheme.onSurface,
       elevation: 0,
@@ -313,7 +383,7 @@ class AppTheme {
     // `outline` carries ink3 after the ColorScheme override in _buildLight.
     final unselected = colors.outline;
     return NavigationBarThemeData(
-      backgroundColor: BrandColors.paper,
+      backgroundColor: base.scaffoldBackgroundColor,
       surfaceTintColor: Colors.transparent,
       // No pill behind the selected icon — the primary-coloured icon + label
       // carry the selected state on their own.
@@ -357,7 +427,52 @@ class AppTheme {
     );
   }
 
-  static List<ThemeExtension<dynamic>> _extensions(ColorScheme scheme) {
+  static List<ThemeExtension<dynamic>> _extensions(
+    ColorScheme scheme, {
+    bool dark = false,
+  }) {
+    if (dark) {
+      return <ThemeExtension<dynamic>>[
+        const SpacingTheme(),
+        const RadiusTheme(),
+        const DurationTheme(),
+        const BrandShadowTheme(
+          drop: [BoxShadow(color: Color(0xFF090807), offset: Offset(6, 6))],
+          dropSm: [
+            BoxShadow(color: Color(0xFF090807), offset: Offset(3, 3)),
+          ],
+          dropLg: [
+            BoxShadow(color: Color(0xFF090807), offset: Offset(10, 10)),
+          ],
+          paper1: [
+            BoxShadow(color: Color(0x52090807), offset: Offset(0, 2)),
+            BoxShadow(
+              color: Color(0x3D090807),
+              offset: Offset(0, 8),
+              blurRadius: 20,
+            ),
+          ],
+          paper2: [
+            BoxShadow(
+              color: Color(0x66090807),
+              offset: Offset(0, 20),
+              blurRadius: 40,
+            ),
+          ],
+        ),
+        _darkSwatches,
+        const SemanticColorsTheme(
+          error: BrandColors.red,
+          warning: BrandColors.butter,
+          success: Color(0xFF9EBC68),
+          info: _darkCobalt,
+          errorSurface: Color(0xFF491B18),
+          warningSurface: Color(0xFF493D19),
+          successSurface: Color(0xFF253318),
+          infoSurface: Color(0xFF18285D),
+        ),
+      ];
+    }
     return <ThemeExtension<dynamic>>[
       const SpacingTheme(),
       const RadiusTheme(),

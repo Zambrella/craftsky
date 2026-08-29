@@ -17,6 +17,7 @@ import 'package:craftsky_app/settings/models/settings_identity.dart';
 import 'package:craftsky_app/settings/models/settings_row.dart';
 import 'package:craftsky_app/settings/widgets/settings_row_tile.dart';
 import 'package:craftsky_app/settings/widgets/sign_out_tile.dart';
+import 'package:craftsky_app/theme/theme_notifier.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -33,6 +34,7 @@ class SettingsPage extends ConsumerWidget {
         : registry?.sessions[activeLease.account.did];
     final loadedIdentity = ref.watch(activeAccountIdentityProvider).value;
     final auth = ref.watch(authSessionProvider).value;
+    final themeMode = ref.watch(themeModeProvider);
 
     SettingsIdentity? identity;
     if (activeLease != null && activeSession != null) {
@@ -79,6 +81,20 @@ class SettingsPage extends ConsumerWidget {
                 : () => unawaited(_openSwitcher(context, ref, switcherState)),
           ),
           _SectionLabel(l10n.settingsSectionPreferences),
+          SettingsRowTile(
+            descriptor: const SettingsRowDescriptor(
+              id: SettingsRowId.appearance,
+              kind: SettingsRowKind.disclosure,
+            ),
+            label: l10n.appearanceTitle,
+            leading: Icons.brightness_6_outlined,
+            subtitle: switch (themeMode) {
+              ThemeMode.system => l10n.appearanceUseDeviceSetting,
+              ThemeMode.light => l10n.appearanceLight,
+              ThemeMode.dark => l10n.appearanceDark,
+            },
+            onTap: () => const AppearanceRoute().go(context),
+          ),
           SettingsRowTile(
             descriptor: const SettingsRowDescriptor(
               id: SettingsRowId.customisation,

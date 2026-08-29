@@ -302,6 +302,8 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           theme: AppTheme.lightThemeData,
+          darkTheme: AppTheme.darkThemeData,
+          themeMode: ThemeMode.dark,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: AppShellDrawerScope(
@@ -333,12 +335,19 @@ void main() {
       await tester.pump();
 
       final appBar = tester.widget<SliverAppBar>(find.byType(SliverAppBar));
-      final paper3 = AppTheme.lightThemeData.colorScheme.surface;
+      final darkScheme = AppTheme.darkThemeData.colorScheme;
       IconButton menuButton() => tester.widget<IconButton>(
         find.widgetWithIcon(IconButton, Icons.menu),
       );
 
-      expect(menuButton().style?.backgroundColor?.resolve({}), paper3);
+      expect(
+        menuButton().style?.backgroundColor?.resolve({}),
+        darkScheme.surface,
+      );
+      expect(
+        menuButton().style?.foregroundColor?.resolve({}),
+        darkScheme.onSurface,
+      );
 
       controller.jumpTo(appBar.expandedHeight! - kToolbarHeight);
       await tester.pump();
@@ -353,6 +362,10 @@ void main() {
       expect(
         settingsButton.style?.backgroundColor?.resolve({}),
         Colors.transparent,
+      );
+      expect(
+        settingsButton.style?.foregroundColor?.resolve({}),
+        darkScheme.onSurface,
       );
     });
 
