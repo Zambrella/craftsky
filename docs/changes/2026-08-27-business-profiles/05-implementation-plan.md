@@ -16,9 +16,11 @@
 - Preserve the approved high-risk controls for migrations, authentication, privacy, moderation, and permanent deletion.
 - Do not create a stage commit unless the user explicitly enables commits.
 
+Sections before **Package-Backed Catalog Simplification** preserve the original snapshot-generator implementation history. That later section and the amended requirements, tests, coding plan, and ADR define the current catalog contract.
+
 ## Test Order
 
-The order initially mirrored `04-coding-plan.md` section 9. Each unique test ID appears once at its first implementation point; the final acceptance gate reruns AT-001 through AT-014 together. During execution, UT-006 and UT-007 were deferred to immediately before IT-016 because their approved generated catalog cannot be implemented honestly until the exact official source snapshot is acquired and pinned.
+The order initially mirrored `04-coding-plan.md` section 9. Each unique test ID appears once at its first implementation point; the final acceptance gate reruns AT-001 through AT-014 together. During the original implementation, UT-006 and UT-007 were deferred until the then-required official source snapshot was acquired; the later package-backed simplification supersedes that implementation constraint.
 
 | Step | Test ID | Requirement IDs | Acceptance Criteria | Expected Initial State |
 |---|---|---|---|---|
@@ -374,12 +376,23 @@ Each completed loop is recorded below before moving to the next test ID.
 | MAN-002 | Pending until automated security evidence passed. | Manual review completed after all focused and affected suites passed. | Captured telemetry contains no prohibited authored value, full DID, or AT-URI; bounded metric calls validate. |
 | MAN-001 | Pending until schema/provenance implementation and gates passed. | Manual ADR/schema/external-CID/catalog/generated-output review completed after deterministic and release checks. | Durable evolution is additive; all inputs are pinned and offline-reproducible. |
 
+## Package-Backed Catalog Simplification
+
+After the approved implementation was checkpointed in commit `1bf5e3a0`, the user deliberately loosened FR-006, FR-010, and NFR-001 to reduce catalog maintenance.
+
+- Red: package-policy tests failed because the generated snapshot catalogs rejected CLDR exceptional region behavior and the recognized `BGN` currency.
+- Green: country validation now uses `golang.org/x/text/language.ParseRegion`, `Region.IsCountry`, and private-use rejection. Tests cover ordinary countries, the CLDR exceptional `AC` region, unknown/private regions, canonical casing, and safe independent hydration.
+- Green: currency validation now uses `golang.org/x/text/currency.ParseISO` and `currency.Standard.Rounding`. Uppercase package-recognized codes are accepted, including `BGN` and `XAU`; `XXX`, `XTS`, lowercase, and unknown codes remain rejected.
+- Removed: the `businesscataloggen` command, dated ISO/SIX source snapshots and sidecars, generated country/currency maps, provenance test, generated-file attributes, Just recipes, and release-gate drift check.
+- Documentation: requirements, acceptance tests, coding plan, and ADR 010 now make the pinned module version the maintenance boundary and explicitly accept broader CLDR/ISO package semantics.
+- Verification: focused business/API tests, `go test ./internal/business`, `go test ./internal/lexicon/craftsky`, `just test`, `go vet ./...`, `go mod tidy -diff`, `docker compose config --quiet`, `git diff --check`, and `just appview-check` passed. Release artifact: `/var/folders/zl/ymtyvzvn6510ld99pymykhy80000gn/T/tmp.yUEXehEmwm`.
+
 ## Completion Checklist
 - [x] All Must requirements covered by tests or documented gaps
 - [x] All planned Must tests passing
 - [x] Relevant regression tests passing
 - [x] No unlinked behavior implemented
-- [x] ADR, lexicons, provenance, and generated artifacts reviewed
+- [x] ADR, lexicons, external CID, package-backed catalog policy, and generated lexicon artifacts reviewed
 - [x] Telemetry configuration manually reviewed
 - [x] Docs updated and this file read back
 - [x] Implementation review completed or explicitly skipped
@@ -388,9 +401,9 @@ Each completed loop is recorded below before moving to the next test ID.
 - Commits are disabled unless the user explicitly requests one.
 - No blocking contract gaps were found at startup.
 - The worktree was clean at startup.
-- Execution order changed after UT-005: UT-006 and UT-007 are deferred to the ADR/catalog-provenance slice immediately before IT-016. The approved source requirement remains unchanged.
+- Historical note: execution originally deferred UT-006 and UT-007 to the catalog-provenance slice. The later package-backed simplification above supersedes that source-snapshot requirement.
 - ADR 010, the exact CID-pinned external address record, reviewed business lexicons, and generated packages are present.
-- The user completed the official OBP challenge in headed Chromium on 2026-08-29. The approved date-stamped snapshot filename is retained while metadata records the actual capture instant.
+- Historical note: the user completed the official OBP challenge in headed Chromium on 2026-08-29. Those captured catalog artifacts were subsequently removed by the package-backed simplification.
 - On 2026-08-29 the user resolved the declaration-create precondition ambiguity: `If-Match: *` means conditional creation only when the singleton is absent; existing-record mutation continues to require its canonical CID.
 - AT-002 is deferred from step 35 until after IT-008 because its approved scenario requires declaration-independent event serving and regular-account suppression; implementing only its profile half would not satisfy the test ID.
 - AT-004 and AT-011 are deferred until event CRUD/routes exist because both approved scenarios include event behavior in addition to declaration behavior.

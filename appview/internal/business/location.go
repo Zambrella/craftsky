@@ -3,6 +3,8 @@ package business
 import (
 	"errors"
 	"strings"
+
+	"golang.org/x/text/language"
 )
 
 var ErrInvalidLocation = errors.New("business: invalid location")
@@ -17,10 +19,11 @@ func NormalizeCountry(value string) (string, error) {
 	if len(value) != 2 {
 		return "", ErrInvalidLocation
 	}
-	if _, assigned := assignedCountryCodes[normalized]; !assigned {
+	region, err := language.ParseRegion(normalized)
+	if err != nil || !region.IsCountry() || region.IsPrivateUse() {
 		return "", ErrInvalidLocation
 	}
-	return normalized, nil
+	return region.String(), nil
 }
 
 func HydrateIndependentLocation(country string, locality *string) *Location {

@@ -3,6 +3,8 @@ package business
 import (
 	"errors"
 	"strings"
+
+	"golang.org/x/text/currency"
 )
 
 var ErrInvalidPrice = errors.New("business: invalid price")
@@ -12,9 +14,16 @@ type Price struct {
 	Currency string `json:"currency"`
 }
 
-func CurrencyMinorUnits(currency string) (int, bool) {
-	scale, ok := currencyMinorUnits[currency]
-	return scale, ok
+func CurrencyMinorUnits(code string) (int, bool) {
+	if len(code) != 3 || code != strings.ToUpper(code) || code == "XXX" || code == "XTS" {
+		return 0, false
+	}
+	unit, err := currency.ParseISO(code)
+	if err != nil {
+		return 0, false
+	}
+	scale, _ := currency.Standard.Rounding(unit)
+	return scale, true
 }
 
 func ValidatePrice(price Price) error {

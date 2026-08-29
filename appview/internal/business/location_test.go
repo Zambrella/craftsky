@@ -11,6 +11,7 @@ func TestLocationValidation(t *testing.T) {
 		"US": "US",
 		"gb": "GB",
 		"ax": "AX",
+		"ac": "AC",
 		"ZW": "ZW",
 	} {
 		got, err := NormalizeCountry(input)

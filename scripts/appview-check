@@ -100,7 +100,6 @@ go mod tidy -diff
 # the release gate so CI evidence covers generated code as well as modules.
 cd "$check_root"
 just lexgen-check 2>&1 | tee "$artifact_dir/lexgen-check.log"
-just business-cataloggen-check 2>&1 | tee "$artifact_dir/business-cataloggen-check.log"
 cd "$appview_dir"
 
 unformatted=$("$toolchain_goroot/bin/gofmt" -l .)

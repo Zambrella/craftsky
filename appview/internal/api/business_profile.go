@@ -257,7 +257,7 @@ func validateBusinessProfileRequest(request *businessProfileRequest) *FieldError
 	if request.Location != nil {
 		country, err := business.NormalizeCountry(request.Location.Country)
 		if err != nil {
-			fields["location.country"] = "must be an assigned ISO 3166-1 alpha-2 code"
+			fields["location.country"] = "must be a recognized two-letter country code"
 		} else {
 			request.Location.Country = country
 		}

@@ -11,16 +11,20 @@ func TestMoneyValidation(t *testing.T) {
 		"JPY": 0,
 		"KWD": 3,
 		"CLF": 4,
+		"BGN": 2,
 	} {
 		gotScale, ok := CurrencyMinorUnits(code)
 		if !ok || gotScale != wantScale {
 			t.Errorf("CurrencyMinorUnits(%q) = (%d, %t), want (%d, true)", code, gotScale, ok, wantScale)
 		}
 	}
-	for _, unsupported := range []string{"usd", "ZZZ", "BGN", "XAU"} {
+	for _, unsupported := range []string{"usd", "ZZZ", "XXX", "XTS"} {
 		if _, ok := CurrencyMinorUnits(unsupported); ok {
 			t.Errorf("CurrencyMinorUnits(%q) unexpectedly supported", unsupported)
 		}
+	}
+	if _, ok := CurrencyMinorUnits("XAU"); !ok {
+		t.Error("CurrencyMinorUnits(\"XAU\") should follow package recognition")
 	}
 
 	valid := []Price{
@@ -32,6 +36,7 @@ func TestMoneyValidation(t *testing.T) {
 		{Amount: "1", Currency: "JPY"},
 		{Amount: "1.234", Currency: "KWD"},
 		{Amount: "1.2345", Currency: "CLF"},
+		{Amount: "1.2", Currency: "BGN"},
 	}
 	for _, price := range valid {
 		if err := ValidatePrice(price); err != nil {
@@ -53,8 +58,8 @@ func TestMoneyValidation(t *testing.T) {
 		{Amount: "1.2345", Currency: "KWD"},
 		{Amount: "1", Currency: "usd"},
 		{Amount: "1", Currency: "ZZZ"},
-		{Amount: "1", Currency: "BGN"},
-		{Amount: "1", Currency: "XAU"},
+		{Amount: "1", Currency: "XXX"},
+		{Amount: "1", Currency: "XTS"},
 	}
 	for _, price := range invalid {
 		if err := ValidatePrice(price); !errors.Is(err, ErrInvalidPrice) {

@@ -165,14 +165,6 @@ lexgen-check:
     diff -ru "$snapshot/schema" appview/internal/lexicon/schema
     diff -ru "$snapshot/lexgen" appview/cmd/lexgen
 
-# Generate pinned ISO 3166-1 and ISO 4217 runtime catalogs from local snapshots.
-business-cataloggen:
-    cd appview && go run ./cmd/businesscataloggen
-
-# Verify source digests and generated catalog drift without writing files.
-business-cataloggen-check:
-    cd appview && go run ./cmd/businesscataloggen -check
-
 # Create ignored local Flutter config files from committed examples.
 app-env-init:
     #!/usr/bin/env bash

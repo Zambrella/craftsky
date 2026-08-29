@@ -1,9 +1,9 @@
 ## Architecture Decision Record
 
-- Status: Accepted
-- Aspect: Lexicon (atproto schemas), external schema pinning, generated catalogs
-- Date: 2026-08-28
-- Decision: Separate business declaration and event records with pinned offline inputs
+- Status: Accepted, amended 2026-08-29
+- Aspect: Lexicon (atproto schemas), external schema pinning, package-backed catalogs
+- Date: 2026-08-28; catalog policy amended 2026-08-29
+- Decision: Separate business declaration and event records with a pinned external schema and maintained Go catalog data
 - Lexicon review: Completed using the project `atproto-lexicon` checklist
 
 ### Why I needed to decide this
@@ -75,8 +75,8 @@ Keep `social.craftsky.actor.profile` unchanged. Add these schemas:
 
 The declaration's `location` references
 `community.lexicon.location.address`. Craftsky preserves the complete raw
-independent value but writes and hydrates only assigned ISO 3166-1 alpha-2
-`country` and optional bounded `locality`.
+  independent value but writes and hydrates only a two-letter non-private country
+  recognized by `golang.org/x/text/language` and optional bounded `locality`.
 
 ### External address pin
 
@@ -103,26 +103,25 @@ and multihash `sha2-256`. Generation fails unless the recomputed CID is the
 pinned CID. `just lexgen` maps this NSID only to the local CID-named file and
 does not resolve it over the network.
 
-### Catalog provenance
+### Country and currency catalogs
 
-Runtime country and currency decisions use generated Go maps, never network
-lookups or ambient operating-system data.
+Runtime country and currency decisions use the repository's pinned
+`golang.org/x/text` module, never network lookups or ambient operating-system
+data.
 
-- Countries come from the checked-in native ISO 3166-1 Online Browsing
-  Platform snapshot designated 2026-08-28 by the approved contract and
-  captured through the official rendered result on 2026-08-29. Metadata records source URL,
-  retrieval time, content type and length, validators when available, and
-  SHA-256. Only assigned alpha-2 codes are generated.
-- Currencies come from the checked-in SIX Group ISO 4217 Maintenance Agency
-  List One XML retrieved 2026-08-28. Active alphabetic entries with numeric
-  minor-unit scales are generated; `N.A.` scales and withdrawn List Three codes
-  are excluded.
-- Each snapshot has metadata and a SHA-256 sidecar. The generator verifies the
-  digest before parsing, emits deterministic sorted Go source, and supports a
-  check mode. Drift tests regenerate twice offline and require no diff.
+- `language.ParseRegion` plus `Region.IsCountry` recognizes two-letter country
+  codes. Craftsky rejects private-use regions and canonicalizes accepted input.
+- `currency.ParseISO` recognizes uppercase currency codes, and
+  `currency.Standard.Rounding` supplies their decimal scale. Craftsky rejects
+  `XXX` (no currency) and `XTS` (testing), but does not maintain a separate
+  current/withdrawn/fund/metal classification.
+- Catalog behavior changes only when the pinned module version changes through
+  an ordinary reviewed dependency update. Representative domain tests protect
+  Craftsky's casing, exclusions, and canonical decimal grammar.
 
-Updating a snapshot, digest, retrieval date, external address CID, or generated
-catalog is a reviewed source change rather than runtime configuration.
+This amendment deliberately trades first-party source provenance and exact
+List One recency semantics for less code, fewer checked-in data artifacts, and
+routine upstream maintenance.
 
 ### Compatibility and evolution
 
@@ -140,8 +139,8 @@ catalog is a reviewed source change rather than runtime configuration.
 
 ### Consequences and notes
 
-- Lexicons, the pinned address value, catalog snapshots, metadata, digests,
-  generators, and generated Go files are reviewed as one reproducible unit.
+- Lexicons, the pinned address value, generated lexicon Go files, and pinned
+  module behavior are reviewed as one reproducible unit.
 - AppView validation remains stricter than the interoperable schemas where the
   approved requirements call for recognized catalogs, lower array maxima,
   destination safety, canonical money, and event temporal policy.
