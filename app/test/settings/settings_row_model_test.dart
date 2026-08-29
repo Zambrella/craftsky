@@ -14,6 +14,7 @@ void main() {
       ],
     );
     expect(settingsSections[0].rows.map((row) => row.id), [
+      SettingsRowId.appearance,
       SettingsRowId.customisation,
       SettingsRowId.languages,
       SettingsRowId.notifications,

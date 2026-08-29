@@ -130,6 +130,8 @@ class _LoadingApp extends StatelessWidget {
       messenger: defaultAppMessenger,
       child: MaterialApp(
         scaffoldMessengerKey: appScaffoldMessengerKey,
+        theme: AppTheme.lightThemeData,
+        darkTheme: AppTheme.darkThemeData,
         debugShowCheckedModeBanner: false,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
@@ -150,6 +152,8 @@ class _ErrorApp extends ConsumerWidget {
       messenger: defaultAppMessenger,
       child: MaterialApp(
         scaffoldMessengerKey: appScaffoldMessengerKey,
+        theme: AppTheme.lightThemeData,
+        darkTheme: AppTheme.darkThemeData,
         debugShowCheckedModeBanner: false,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,

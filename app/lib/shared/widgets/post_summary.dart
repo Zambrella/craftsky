@@ -337,8 +337,14 @@ class _PostSummaryImage extends ConsumerWidget {
           label: image.alt,
           image: true,
           child: imageUrl == null
-              ? const DecoratedBox(
-                  decoration: BoxDecoration(color: Color(0xFFEAEAEA)),
+              ? DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest
+                        : const Color(0xFFEAEAEA),
+                  ),
                 )
               : CachedNetworkImage(
                   imageUrl: imageUrl,

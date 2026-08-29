@@ -118,6 +118,37 @@
   --nav-h:       64px;
 }
 
+/* Midnight Paper. Set on the document root for an explicit dark preference. */
+:root[data-theme='dark'] {
+  --paper:        #171513;
+  --paper-2:      #12100F;
+  --paper-3:      #24201D;
+
+  --ink:          #F5EFE4;
+  --ink-2:        #CFC6BB;
+  --ink-3:        #968D84;
+  --ink-4:        #6F6862;
+  --rule:         #F5EFE4;
+
+  --cobalt:       #7890FF;
+  --cobalt-deep:  #1535D6;
+  --cobalt-soft:  #18285D;
+  --red-soft:     #491B18;
+
+  --butter:       #5A4815;
+  --clay:         #6A2F1A;
+  --moss:         #425626;
+  --sky:          #274964;
+  --lilac:        #493B63;
+
+  --border-hair:  #F5EFE43D;
+  --sh-drop-sm:   3px 3px 0 #090807;
+  --sh-drop:      6px 6px 0 #090807;
+  --sh-drop-lg:   10px 10px 0 #090807;
+  --sh-paper-1:   0 2px 0 #09080752, 0 8px 20px #0908073D;
+  --sh-paper-2:   0 20px 40px #09080766;
+}
+
 /* =========================================================================
    Base
    ========================================================================= */

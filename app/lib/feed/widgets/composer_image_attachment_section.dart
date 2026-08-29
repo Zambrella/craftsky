@@ -420,7 +420,11 @@ class _DraftImagePreview extends StatelessWidget {
                   width: double.infinity,
                 ),
                 null => DecoratedBox(
-                  decoration: const BoxDecoration(color: Color(0xFFEAEAEA)),
+                  decoration: BoxDecoration(
+                    color: theme.brightness == Brightness.dark
+                        ? colors.surfaceContainerHighest
+                        : const Color(0xFFEAEAEA),
+                  ),
                   child: image.phase is ImageUnavailable
                       ? const Center(child: Icon(Icons.broken_image_outlined))
                       : null,

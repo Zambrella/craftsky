@@ -4227,6 +4227,30 @@ abstract class AppLocalizations {
   /// **'Settings'**
   String get settingsTitle;
 
+  /// Settings row and page title for choosing the app theme.
+  ///
+  /// In en, this message translates to:
+  /// **'Appearance'**
+  String get appearanceTitle;
+
+  /// Theme choice that follows the device light or dark setting.
+  ///
+  /// In en, this message translates to:
+  /// **'Use device setting'**
+  String get appearanceUseDeviceSetting;
+
+  /// Theme choice that always uses light mode.
+  ///
+  /// In en, this message translates to:
+  /// **'Light'**
+  String get appearanceLight;
+
+  /// Theme choice that always uses dark mode.
+  ///
+  /// In en, this message translates to:
+  /// **'Dark'**
+  String get appearanceDark;
+
   /// Action opening the retained-account switcher.
   ///
   /// In en, this message translates to:

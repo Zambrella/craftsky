@@ -98,7 +98,9 @@ RoundedRectangleBorder _navigationDrawerShape(ThemeData theme) {
     borderRadius: BorderRadiusDirectional.horizontal(
       end: Radius.circular(radii.r4),
     ),
-    side: BorderSide(color: theme.colorScheme.onSurface, width: 1.5),
+    side: theme.brightness == Brightness.dark
+        ? BorderSide.none
+        : BorderSide(color: theme.colorScheme.onSurface, width: 1.5),
   );
 }
 

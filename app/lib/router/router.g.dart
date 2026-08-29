@@ -130,6 +130,12 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
                   factory: $SettingsRoute._fromState,
                   routes: [
                     GoRouteData.$route(
+                      path: 'appearance',
+                      name: 'appearance',
+                      parentNavigatorKey: AppearanceRoute.$parentNavigatorKey,
+                      factory: $AppearanceRoute._fromState,
+                    ),
+                    GoRouteData.$route(
                       path: 'growth',
                       name: 'follower-growth',
                       parentNavigatorKey:
@@ -430,6 +436,27 @@ mixin $SettingsRoute on GoRouteData {
 
   @override
   String get location => GoRouteData.$location('/profile/settings');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $AppearanceRoute on GoRouteData {
+  static AppearanceRoute _fromState(GoRouterState state) =>
+      const AppearanceRoute();
+
+  @override
+  String get location => GoRouteData.$location('/profile/settings/appearance');
 
   @override
   void go(BuildContext context) => context.go(location);
