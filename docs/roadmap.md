@@ -39,18 +39,18 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] How to handle different languages
 - [x] Schedule posts
 - [x] Pinned posts
-- [ ] Video posts (including Instagram post importer)
 - [x] Growth metrics
 - [ ] Business profile (new lexicon(s)?)
   - [ ] Featured products
   - [ ] CTA (e.g. to shop)
   - [ ] Business info
   - [ ] Upcoming events
+- [ ] Video posts (including Instagram post importer)
+- [ ] Make sure to handle PDS migration
 - [ ] Pro and Business subscriptions (Revenue Cat)
   - [ ] Webhooks
   - [ ] Backend tracking against accounts
-- [ ] Editing posts - possible? Only in first 15 mins? Upgrade a post to a project?
-- [ ] Make sure to handle PDS migration
+- [ ] Moderation communication (3 strikes? Push notifications for warnings? A way to appeal decisions?)
 
 ### Flutter app
 
@@ -75,12 +75,12 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Drawer
 - [x] Profile settings screen — handle change, avatar upload, privacy controls
 - [x] Profile customisation
-- [ ] Onboarding
-- [ ] Support custom PDS instances for login
 - [x] Link previews
 - [x] YouTube video embeds
 - [x] Tablet support
-- [ ] Dark theme
+- [x] Dark theme
+- [ ] Support custom PDS instances for login
+- [ ] Onboarding
 - [ ] Update create project flow to be more streamlined
 - [ ] Pro and Business subscriptions (Revenue Cat)
   - [ ] Front-end logic
@@ -142,6 +142,7 @@ Scoped but not urgent. Ordered roughly by expected sequence, not strictly priori
 - [ ] **Client-key rotation** that survives user sessions — OAuth BFF §6.
 - [ ] **standard.site** - Add support for https://standard.site/
 - [ ] **Error tracing** - Link together Flutter and AppView error reporting.
+- [ ] **Editing posts** - possible? Only in first 15 mins? Upgrade a post to a project?
 
 ### Flutter app
 
