@@ -150,16 +150,16 @@ Declaration PUT/DELETE and event PUT/DELETE:
 
 ```text
 current-member middleware -> verify path DID equals authenticated DID where present
-  -> parse required If-Match canonical CID
-  -> EffectExecutor.ReadRecord for authoritative CID/raw source
-  -> reject mismatch as 409 pds_record_conflict
+  -> parse required If-Match (`*` for declaration create, canonical CID otherwise)
+  -> EffectExecutor.ReadRecord for authoritative presence/CID/raw source
+  -> require absence for `*`, or matching current CID otherwise; reject mismatch as 409 pds_record_conflict
   -> declaration: full-replace known fields and merge unknown top-level source fields
   -> event: build the approved event shape and preserve stored createdAt
   -> EffectExecutor.PutRecord/DeleteRecord with ExpectedCID
   -> return record view including CID without waiting for Tap
 ```
 
-Event POST allocates `newImmediateRecordKey()`, rejects any client `createdAt`, stamps `now().UTC().Truncate(time.Second).Format(time.RFC3339)`, writes with `social.craftsky.business.event`, and returns DID/rkey/URI/CID. Event update rejects `createdAt` whenever the key is present, including an identical value.
+Declaration PUT uses `If-Match: *` only for conditional creation when the singleton is absent; an existing singleton requires its canonical CID. Event POST allocates `newImmediateRecordKey()`, rejects any client `createdAt`, stamps `now().UTC().Truncate(time.Second).Format(time.RFC3339)`, writes with `social.craftsky.business.event`, and returns DID/rkey/URI/CID. Event update rejects `createdAt` whenever the key is present, including an identical value.
 
 No validator receives an HTTP client or DNS resolver. Destination validation performs syntax-only parsing and ASCII checks.
 

@@ -21,6 +21,8 @@ const (
 	ReportSubjectPost ReportSubjectType = "post"
 	// ReportSubjectAccount is a report against a profile/account DID.
 	ReportSubjectAccount ReportSubjectType = "account"
+	// ReportSubjectEvent is a report against an indexed business event.
+	ReportSubjectEvent ReportSubjectType = "event"
 )
 
 // CreateReportInput is the private AppView report row shape accepted by

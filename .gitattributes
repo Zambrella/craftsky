@@ -1,2 +1,5 @@
 appview/internal/lexicon/craftsky/*.go linguist-generated=true
 appview/internal/lexicon/craftsky/doc.go -linguist-generated
+appview/internal/lexicon/community/*.go linguist-generated=true
+appview/internal/business/countries_generated.go linguist-generated=true
+appview/internal/business/currencies_generated.go linguist-generated=true

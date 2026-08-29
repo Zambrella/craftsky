@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -19,6 +20,7 @@ import (
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/testdb"
@@ -86,6 +88,25 @@ func TestSearchProfilesOmitsBlockedAccountExceptExactHandleManagementShell(t *te
 			t.Fatalf("exact blocked shell leaked %q: %s", forbidden, raw)
 		}
 	}
+	hydratedShell, err := api.NewIdentityAccountTypeHydrator(&summaryAccountTypeReader{values: map[syntax.DID]business.AccountType{
+		"did:plc:bob": business.AccountTypeBusiness,
+	}}).HydrateJSON(ctx, raw)
+	if err != nil {
+		t.Fatalf("hydrate blocked search shell: %v", err)
+	}
+	if bytes.Contains(hydratedShell, []byte(`"accountType"`)) || bytes.Contains(hydratedShell, []byte(`"business"`)) {
+		t.Fatalf("blocked production search shell exposed business data: %s", hydratedShell)
+	}
+	searchHandler := hydrateProductionSummaries(api.SearchProfilesHandler(store, nilLogger()), map[syntax.DID]business.AccountType{
+		"did:plc:bob": business.AccountTypeBusiness,
+	})
+	searchRequest := httptest.NewRequest(http.MethodGet, "/v1/search/profiles?q=bob.example", nil)
+	searchRequest = searchRequest.WithContext(middleware.WithDID(searchRequest.Context(), syntax.DID("did:plc:viewer")))
+	searchResponse := httptest.NewRecorder()
+	searchHandler.ServeHTTP(searchResponse, searchRequest)
+	if searchResponse.Code != http.StatusOK || bytes.Contains(searchResponse.Body.Bytes(), []byte(`"accountType"`)) || bytes.Contains(searchResponse.Body.Bytes(), []byte(`"business"`)) {
+		t.Fatalf("blocked search handler response = %d %s", searchResponse.Code, searchResponse.Body.String())
+	}
 
 	carol, _, err := store.SearchProfiles(ctx, "did:plc:carol", api.ProfileSearchRequest{Query: "bob", Limit: 10})
 	if err != nil {
@@ -93,6 +114,16 @@ func TestSearchProfilesOmitsBlockedAccountExceptExactHandleManagementShell(t *te
 	}
 	if len(carol) != 1 || carol[0].Description == nil || *carol[0].Description != "blocked bio" {
 		t.Fatalf("unrelated search result = %+v", carol)
+	}
+	visibleRaw, err := json.Marshal(api.BuildProfileSearchSummary(carol[0]))
+	if err != nil {
+		t.Fatalf("marshal visible search result: %v", err)
+	}
+	visibleHydrated, err := api.NewIdentityAccountTypeHydrator(&summaryAccountTypeReader{values: map[syntax.DID]business.AccountType{
+		"did:plc:bob": business.AccountTypeBusiness,
+	}}).HydrateJSON(ctx, visibleRaw)
+	if err != nil || !bytes.Contains(visibleHydrated, []byte(`"accountType":"business"`)) {
+		t.Fatalf("visible production search accountType missing: %s, error %v", visibleHydrated, err)
 	}
 }
 

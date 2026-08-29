@@ -19,6 +19,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
@@ -116,12 +117,49 @@ func (s stubResolver) ResolveDID(_ context.Context, _ syntax.Handle) (syntax.DID
 
 var _ api.HandleResolver = stubResolver{}
 
+type routeAccountTypeReader struct{}
+
+func (routeAccountTypeReader) ReadAccountTypes(_ context.Context, dids []syntax.DID) (map[syntax.DID]business.AccountType, error) {
+	values := make(map[syntax.DID]business.AccountType, len(dids))
+	for _, did := range dids {
+		values[did] = business.AccountTypeBusiness
+	}
+	return values, nil
+}
+
 func testDeps() *Dependencies {
 	return &Dependencies{
 		Config:         Config{Env: EnvDev, AllowedOrigins: []string{"*"}},
 		Logger:         slog.New(slog.NewTextHandler(io.Discard, nil)),
 		AuthService:    &auth.MockAuthService{DefaultDID: "did:plc:test"},
 		HandleResolver: stubResolver{handle: syntax.Handle("stub-handle.example")},
+	}
+}
+
+func TestV1MiddlewareHydratesIdentityAccountType(t *testing.T) {
+	observer := observability.New(observability.Config{Env: "test"})
+	mw := v1Middleware{
+		bodyLimit:           middleware.BodyLimitConfig{DefaultJSONBytes: defaultJSONBodyLimitBytes},
+		observer:            observer,
+		accountTypeHydrator: api.NewIdentityAccountTypeHydrator(routeAccountTypeReader{}),
+	}
+	handler := mw.wrap(RoutePolicy{AccessClass: AccessAnonymous, BodyKind: BodyNoBody}, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"author":{"did":"did:plc:business","handle":"business.test"}}`))
+	}))
+
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/v1/test", nil))
+	var body struct {
+		Author struct {
+			AccountType string `json:"accountType"`
+		} `json:"author"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if body.Author.AccountType != "business" {
+		t.Fatalf("author accountType = %q, want business; body=%s", body.Author.AccountType, response.Body.String())
 	}
 }
 

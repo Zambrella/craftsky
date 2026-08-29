@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+
+	"social.craftsky/appview/internal/business"
 )
 
 // ProfileResponse is the JSON shape returned by all three profile
@@ -36,6 +38,8 @@ type ProfileResponse struct {
 	CreatedAt           *time.Time            `json:"createdAt,omitempty"`
 	Moderation          *ModerationMetadata   `json:"moderation,omitempty"`
 	Customisation       *ProfileCustomisation `json:"customisation,omitempty"`
+	AccountType         *business.AccountType `json:"accountType,omitempty"`
+	Business            *business.ProfileView `json:"business,omitempty"`
 }
 
 // MarshalJSON keeps the ordinary profile contract unchanged while enforcing

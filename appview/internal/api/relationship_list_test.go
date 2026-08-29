@@ -11,6 +11,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/relationships"
 )
@@ -62,7 +63,7 @@ func TestRelationshipListHandlersReturnOwnerScopedCurrentSummaries(t *testing.T)
 				items: []relationships.ListItem{{SubjectDID: bob, CreatedAt: createdAt}},
 				more:  true,
 			}
-			h := tt.newHandler(store)
+			h := hydrateProductionSummaries(tt.newHandler(store), map[syntax.DID]business.AccountType{bob: business.AccountTypeBusiness})
 			req := httptest.NewRequest(http.MethodGet, "/v1/profiles/me/"+tt.wantKind+"?limit=1", nil)
 			req = req.WithContext(middleware.WithDID(req.Context(), alice))
 			rr := httptest.NewRecorder()
@@ -77,11 +78,12 @@ func TestRelationshipListHandlersReturnOwnerScopedCurrentSummaries(t *testing.T)
 			}
 			var body struct {
 				Items []struct {
-					DID       string `json:"did"`
-					Handle    string `json:"handle"`
-					Muted     bool   `json:"muted"`
-					Blocking  bool   `json:"blocking"`
-					BlockedBy bool   `json:"blockedBy"`
+					DID         string `json:"did"`
+					Handle      string `json:"handle"`
+					Muted       bool   `json:"muted"`
+					Blocking    bool   `json:"blocking"`
+					BlockedBy   bool   `json:"blockedBy"`
+					AccountType string `json:"accountType"`
 				} `json:"items"`
 				Cursor string `json:"cursor"`
 			}
@@ -94,6 +96,12 @@ func TestRelationshipListHandlersReturnOwnerScopedCurrentSummaries(t *testing.T)
 			item := body.Items[0]
 			if item.DID != bob.String() || item.Handle != "bob.current.example" || item.Muted != tt.wantMuted || item.Blocking != tt.wantBlocking || item.BlockedBy {
 				t.Fatalf("item = %+v", item)
+			}
+			if tt.wantBlocking && item.AccountType != "" {
+				t.Fatalf("blocked relationship accountType = %q, want omitted", item.AccountType)
+			}
+			if !tt.wantBlocking && item.AccountType != "business" {
+				t.Fatalf("visible relationship accountType = %q, want business", item.AccountType)
 			}
 			if body.Cursor == "" {
 				t.Fatal("cursor is empty while store reports another page")

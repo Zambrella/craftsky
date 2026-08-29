@@ -100,6 +100,7 @@ go mod tidy -diff
 # the release gate so CI evidence covers generated code as well as modules.
 cd "$check_root"
 just lexgen-check 2>&1 | tee "$artifact_dir/lexgen-check.log"
+just business-cataloggen-check 2>&1 | tee "$artifact_dir/business-cataloggen-check.log"
 cd "$appview_dir"
 
 unformatted=$("$toolchain_goroot/bin/gofmt" -l .)
@@ -190,9 +191,11 @@ assert_no_required_skips() {
   fi
 }
 
-go test -count=1 -json ./... 2>&1 | tee "$artifact_dir/tests.json"
+# Real-Postgres packages each create isolated migration schemas. Serializing
+# packages prevents those schemas from exhausting PostgreSQL's shared lock table.
+go test -p 1 -count=1 -json ./... 2>&1 | tee "$artifact_dir/tests.json"
 assert_no_required_skips "$artifact_dir/tests.json"
-go test -count=1 -race -json ./... 2>&1 | tee "$artifact_dir/race-tests.json"
+go test -p 1 -count=1 -race -json ./... 2>&1 | tee "$artifact_dir/race-tests.json"
 assert_no_required_skips "$artifact_dir/race-tests.json"
 
 cd "$check_root"

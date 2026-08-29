@@ -122,7 +122,7 @@ func TestHandleTargetedMutationsUseAuthoritativeIdentityResolver(t *testing.T) {
 			t.Errorf("%s is not wired to routes.authoritativeResolver", constructor)
 		}
 	}
-	if !strings.Contains(source, "GetProfileHandler(routes.profileStore, routes.handleResolver") {
+	if !strings.Contains(source, "GetProfileHandler(routes.profileStore, routes.businessProfiles, routes.handleResolver") {
 		t.Error("profile display route no longer uses the cached handle resolver")
 	}
 }

@@ -376,6 +376,34 @@ func TestIndigoPDSClientPutRecordWithSwapSendsExpectedCID(t *testing.T) {
 	}
 }
 
+func TestIndigoPDSClientPutRecordWithSwapSendsNullForAbsentRecord(t *testing.T) {
+	client := newTestIndigoPDSClientWithTransport(t, pdsRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		value, present := body["swapRecord"]
+		if !present || value != nil {
+			t.Fatalf("create-only Put swapRecord = %#v, present = %v", value, present)
+		}
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(`{}`)),
+		}, nil
+	}))
+	if err := client.PutRecordWithSwap(
+		context.Background(),
+		syntax.DID("did:plc:xyz"),
+		"social.craftsky.business.profile",
+		"self",
+		map[string]any{"$type": "social.craftsky.business.profile"},
+		syntax.CID("*"),
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestIndigoPDSClientPutRecordWithSwapTranslatesInvalidSwap(t *testing.T) {
 	client := newTestIndigoPDSClientWithTransport(t, pdsRoundTripFunc(func(*http.Request) (*http.Response, error) {
 		return &http.Response{

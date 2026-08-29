@@ -10,6 +10,7 @@ package main
 import (
 	cbg "github.com/whyrusleeping/cbor-gen"
 
+	community "social.craftsky/appview/internal/lexicon/community"
 	craftsky "social.craftsky/appview/internal/lexicon/craftsky"
 )
 
@@ -17,9 +18,24 @@ func main() {
 	gen := cbg.Gen{MaxStringLength: 1_000_000}
 
 	if err := gen.WriteMapEncodersToFile(
+		"internal/lexicon/community/cbor_gen.go",
+		"community",
+		community.LocationAddress{},
+	); err != nil {
+		panic(err)
+	}
+
+	if err := gen.WriteMapEncodersToFile(
 		"internal/lexicon/craftsky/cbor_gen.go",
 		"craftsky",
 		craftsky.ActorProfile{},
+		craftsky.BusinessDefs_Action{},
+		craftsky.BusinessDefs_AspectRatio{},
+		craftsky.BusinessDefs_Image{},
+		craftsky.BusinessDefs_Price{},
+		craftsky.BusinessDefs_Product{},
+		craftsky.BusinessEvent{},
+		craftsky.BusinessProfile{},
 		craftsky.FeedLike{},
 		craftsky.FeedRepost{},
 		craftsky.FeedPost{},

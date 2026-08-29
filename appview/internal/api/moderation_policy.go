@@ -57,7 +57,7 @@ func sameModerationTargetAndValue(left, right ModerationOutputRow) bool {
 	if left.SourceDID != right.SourceDID || left.SubjectType != right.SubjectType || left.SubjectDID != right.SubjectDID || left.Value != right.Value {
 		return false
 	}
-	if left.SubjectType == ModerationSubjectPost {
+	if left.SubjectType == ModerationSubjectPost || left.SubjectType == ModerationSubjectEvent {
 		return stringPtrValue(left.SubjectURI) == stringPtrValue(right.SubjectURI) && stringPtrValue(left.SubjectRkey) == stringPtrValue(right.SubjectRkey)
 	}
 	return true

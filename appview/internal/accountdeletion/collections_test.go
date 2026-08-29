@@ -24,9 +24,13 @@ func TestCraftskyRecordCollections(t *testing.T) {
 		t.Fatalf("CraftskyRecordCollections() = %v, want exact Lexicon record set %v", gotSorted, want)
 	}
 
-	const membershipCollection syntax.NSID = "social.craftsky.actor.profile"
-	if len(got) == 0 || got[len(got)-1] != membershipCollection {
-		t.Fatalf("CraftskyRecordCollections() must order membership profile last, got %v", got)
+	wantTail := []syntax.NSID{
+		"social.craftsky.business.event",
+		"social.craftsky.business.profile",
+		"social.craftsky.actor.profile",
+	}
+	if len(got) < len(wantTail) || !reflect.DeepEqual(got[len(got)-len(wantTail):], wantTail) {
+		t.Fatalf("CraftskyRecordCollections() tail = %v, want events, declaration, membership", got)
 	}
 
 	seen := make(map[syntax.NSID]struct{}, len(got))

@@ -33,6 +33,7 @@ func newAccountDeletionDependencies(
 	authCapability *authDependencies,
 	owners *ownerDependencies,
 	federated *federatedClients,
+	accountTypes accountdeletion.AccountTypeDeleter,
 	instagramPrivateData *instagram.PrivateDataService,
 	scheduledAccountDeletion *scheduledposts.AccountDeletion,
 	departureParticipant ownerlifecycle.TransitionParticipant,
@@ -73,6 +74,7 @@ func newAccountDeletionDependencies(
 	lifecycle, err := accountdeletion.NewLifecycleProcessor(accountdeletion.LifecycleProcessorOptions{
 		Store: owners.deletionStore, Cleaner: cleaner,
 		AcceptedCleanup: scheduledAccountDeletion,
+		AccountTypes:    accountTypes,
 		NewPDSClient: func(
 			_ context.Context,
 			owner syntax.DID,
