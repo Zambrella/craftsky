@@ -47,6 +47,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
   - [ ] Upcoming events
 - [ ] Video posts (including Instagram post importer)
 - [ ] Make sure to handle PDS migration
+- [ ] Update to latest version of `Indigo` package
 - [ ] Pro and Business subscriptions (Revenue Cat)
   - [ ] Webhooks
   - [ ] Backend tracking against accounts
@@ -79,9 +80,10 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] YouTube video embeds
 - [x] Tablet support
 - [x] Dark theme
-- [ ] Support custom PDS instances for login
+- [ ] Registration
 - [ ] Onboarding
 - [ ] Update create project flow to be more streamlined
+- [ ] Iconography
 - [ ] Pro and Business subscriptions (Revenue Cat)
   - [ ] Front-end logic
   - [ ] Paywall
