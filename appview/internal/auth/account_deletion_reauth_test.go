@@ -173,6 +173,10 @@ func (*recordingDeletionOAuthFlow) StartLogin(context.Context, syntax.Handle, Ha
 	return "", errors.New("unexpected login start")
 }
 
+func (*recordingDeletionOAuthFlow) StartRegistration(context.Context, HandoffMode, string, string) (string, error) {
+	return "", errors.New("unexpected registration start")
+}
+
 func (flow *recordingDeletionOAuthFlow) CompleteCallback(
 	ctx context.Context,
 	_ url.Values,

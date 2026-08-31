@@ -8,21 +8,21 @@ part of 'pending_auth_provider.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Tracks the in-flight sign-in attempt for UI state only. The server-bound
-/// code and stable device ID remain authoritative if the process restarts while
-/// the system browser is open.
+/// Tracks the in-flight authentication attempt for UI state only. The
+/// server-bound code and stable device ID remain authoritative if the process
+/// restarts while the system browser is open.
 
 @ProviderFor(PendingAuth)
 final pendingAuthProvider = PendingAuthProvider._();
 
-/// Tracks the in-flight sign-in attempt for UI state only. The server-bound
-/// code and stable device ID remain authoritative if the process restarts while
-/// the system browser is open.
+/// Tracks the in-flight authentication attempt for UI state only. The
+/// server-bound code and stable device ID remain authoritative if the process
+/// restarts while the system browser is open.
 final class PendingAuthProvider
     extends $NotifierProvider<PendingAuth, model.PendingAuth?> {
-  /// Tracks the in-flight sign-in attempt for UI state only. The server-bound
-  /// code and stable device ID remain authoritative if the process restarts while
-  /// the system browser is open.
+  /// Tracks the in-flight authentication attempt for UI state only. The
+  /// server-bound code and stable device ID remain authoritative if the process
+  /// restarts while the system browser is open.
   PendingAuthProvider._()
     : super(
         from: null,
@@ -50,11 +50,11 @@ final class PendingAuthProvider
   }
 }
 
-String _$pendingAuthHash() => r'e8ae0a167e88045e997d6fc13408a4de2b609bfc';
+String _$pendingAuthHash() => r'9d8b0181647acafb52cb7641467933a83ac00ca7';
 
-/// Tracks the in-flight sign-in attempt for UI state only. The server-bound
-/// code and stable device ID remain authoritative if the process restarts while
-/// the system browser is open.
+/// Tracks the in-flight authentication attempt for UI state only. The
+/// server-bound code and stable device ID remain authoritative if the process
+/// restarts while the system browser is open.
 
 abstract class _$PendingAuth extends $Notifier<model.PendingAuth?> {
   model.PendingAuth? build();

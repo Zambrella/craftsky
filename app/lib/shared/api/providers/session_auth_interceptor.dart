@@ -3,7 +3,10 @@ import 'package:dio/dio.dart';
 /// Paths on which the Authorization header should never be attached.
 /// X-Craftsky-Device-Id is sent on ALL paths including these — the
 /// server treats device-id as install-identity, not user-identity.
-const _anonymousPaths = <String>{'/v1/auth/login'};
+const _anonymousPaths = <String>{
+  '/v1/auth/login',
+  '/v1/auth/registrations',
+};
 
 class SessionAuthInterceptor extends Interceptor {
   /// Account-bound constructor. The bearer is captured once and cannot change

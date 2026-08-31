@@ -24,6 +24,11 @@ type loginResponse struct {
 	AuthURL string `json:"authUrl"`
 }
 
+type registrationRequest struct {
+	HandoffMode         string `json:"handoffMode"`
+	LoopbackRedirectURI string `json:"loopbackRedirectUri,omitempty"`
+}
+
 // LoginHandler starts the OAuth flow and returns the authorization URL.
 // The client (Flutter/CLI) opens this URL in the user's system browser.
 func (h *HTTPHandlers) LoginHandler() http.Handler {
@@ -122,6 +127,96 @@ func (h *HTTPHandlers) LoginHandler() http.Handler {
 		w.Header().Set("Content-Type", "application/json")
 		w.Header().Set("Cache-Control", "no-store")
 		_ = json.NewEncoder(w).Encode(loginResponse{AuthURL: authURL})
+	})
+}
+
+// RegistrationHandler starts provider-first OAuth using only the provider
+// configured on the AppView. The client can select only its handoff mode.
+func (h *HTTPHandlers) RegistrationHandler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		runID := ctxkeys.GetRunID(r.Context())
+		var req registrationRequest
+		if err := decodeSingleJSON(r, &req); err != nil {
+			envelope.WriteError(w, http.StatusBadRequest, "invalid_body",
+				"request body could not be decoded", runID, nil)
+			return
+		}
+		mode := HandoffMode(req.HandoffMode)
+		if mode != HandoffVerifiedLink && mode != HandoffLoopback && !(mode == HandoffDevScheme && h.AllowDevScheme) {
+			envelope.WriteError(w, http.StatusBadRequest, "invalid_handoff_mode",
+				"handoffMode is not available", runID, nil)
+			return
+		}
+		if mode != HandoffLoopback && req.LoopbackRedirectURI != "" {
+			envelope.WriteError(w, http.StatusBadRequest, "loopback_redirect_uri_invalid",
+				"loopbackRedirectUri is available only when handoffMode is loopback", runID, nil)
+			return
+		}
+		if mode == HandoffLoopback {
+			if req.LoopbackRedirectURI == "" {
+				envelope.WriteError(w, http.StatusBadRequest, "loopback_redirect_uri_required",
+					"loopbackRedirectUri is required when handoffMode is loopback", runID, nil)
+				return
+			}
+			if !loopbackRedirectPattern.MatchString(req.LoopbackRedirectURI) {
+				envelope.WriteError(w, http.StatusBadRequest, "loopback_redirect_uri_invalid",
+					"loopbackRedirectUri must match http://127.0.0.1:<port>[/path]", runID, nil)
+				return
+			}
+		}
+		deviceID, ok := ctxkeys.GetDeviceID(r.Context())
+		if !ok || deviceID == "" {
+			envelope.WriteError(w, http.StatusBadRequest, "device_id_required",
+				"X-Craftsky-Device-Id is required", runID, nil)
+			return
+		}
+		if h.OAuthFlow == nil {
+			w.Header().Set("Retry-After", "5")
+			envelope.WriteError(w, http.StatusServiceUnavailable, "authentication_unavailable",
+				"authentication is temporarily unavailable", runID, nil)
+			return
+		}
+		authURL, err := h.OAuthFlow.StartRegistration(r.Context(), mode, req.LoopbackRedirectURI, deviceID)
+		if err != nil {
+			if errors.Is(err, ErrAuthRequestCapacity) {
+				if h.Logger != nil {
+					h.Logger.Warn("registration start rejected",
+						append(authLogErrorAttrs(runID, "registration.start", "capacity"),
+							slog.String("stage", "admission"))...)
+				}
+				w.Header().Set("Retry-After", "5")
+				envelope.WriteError(w, http.StatusServiceUnavailable, "authentication_capacity_exhausted",
+					"authentication is temporarily unavailable", runID, nil)
+				return
+			}
+			var registrationFailure *RegistrationOAuthError
+			if h.Logger != nil {
+				stage := "start"
+				category := "providerUnavailable"
+				if errors.As(err, &registrationFailure) {
+					stage = string(registrationFailure.Stage)
+					category = string(registrationFailure.Code)
+				}
+				h.Logger.Warn("registration start failed",
+					append(authLogErrorAttrs(runID, "registration.start", category),
+						slog.String("stage", stage))...)
+			}
+			if errors.As(err, &registrationFailure) && registrationFailure.Code == RegistrationOAuthIncomplete {
+				envelope.WriteError(w, http.StatusBadGateway, "registration_incomplete",
+					"registration could not be completed", runID, nil)
+				return
+			}
+			envelope.WriteError(w, http.StatusBadGateway, "registration_provider_unavailable",
+				"could not reach the registration provider", runID, nil)
+			return
+		}
+		if h.Logger != nil {
+			h.Logger.Debug("registration flow started",
+				append(authLogSuccessAttrs(runID, "registration.start"),
+					slog.String("stage", "par"))...)
+		}
+		w.Header().Set("Cache-Control", "no-store")
+		envelope.WriteJSON(w, http.StatusOK, loginResponse{AuthURL: authURL})
 	})
 }
 

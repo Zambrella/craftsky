@@ -36,7 +36,7 @@ final class AuthControllerProvider
   AuthController create() => AuthController();
 }
 
-String _$authControllerHash() => r'72bd416a0a014163c5db187cdfe8765b1a730d8e';
+String _$authControllerHash() => r'698f67e5e88f0dea2e38faa113e943a4c2eb7a30';
 
 /// Sign-in / sign-out orchestrator.
 

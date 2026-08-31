@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -278,6 +279,124 @@ func TestLogin_RejectsSnakeCaseBody(t *testing.T) {
 	// handoffMode absent -> invalid_handoff_mode 400.
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("got %d, want 400", rr.Code)
+	}
+}
+
+type registrationValidationFlow struct {
+	calls int
+	err   error
+}
+
+func (*registrationValidationFlow) StartLogin(context.Context, syntax.Handle, auth.HandoffMode, string, string) (string, error) {
+	return "", errors.New("unexpected login start")
+}
+
+func (flow *registrationValidationFlow) StartRegistration(context.Context, auth.HandoffMode, string, string) (string, error) {
+	flow.calls++
+	return "https://auth.example/authorize", flow.err
+}
+
+func TestRegistrationHandlerMapsBoundedStartFailures(t *testing.T) {
+	tests := []struct {
+		name      string
+		failure   *auth.RegistrationOAuthError
+		wantError string
+	}{
+		{
+			name: "provider unavailable",
+			failure: &auth.RegistrationOAuthError{
+				Stage: auth.RegistrationOAuthStagePAR, Code: auth.RegistrationOAuthProviderUnavailable,
+			},
+			wantError: "registration_provider_unavailable",
+		},
+		{
+			name: "registration incomplete",
+			failure: &auth.RegistrationOAuthError{
+				Stage: auth.RegistrationOAuthStageMetadata, Code: auth.RegistrationOAuthIncomplete,
+			},
+			wantError: "registration_incomplete",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			flow := &registrationValidationFlow{err: test.failure}
+			handlers := &auth.HTTPHandlers{OAuthFlow: flow, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+			request := httptest.NewRequest(http.MethodPost, "/v1/auth/registrations", strings.NewReader(`{"handoffMode":"verified_link"}`))
+			request = request.WithContext(middleware.WithDeviceID(request.Context(), "classification-device"))
+			response := httptest.NewRecorder()
+
+			handlers.RegistrationHandler().ServeHTTP(response, request)
+
+			if response.Code != http.StatusBadGateway {
+				t.Fatalf("status = %d, want 502; body=%s", response.Code, response.Body.String())
+			}
+			var problem envelope.Error
+			if err := json.Unmarshal(response.Body.Bytes(), &problem); err != nil {
+				t.Fatal(err)
+			}
+			if problem.Error != test.wantError || strings.Contains(response.Body.String(), "metadata") || strings.Contains(response.Body.String(), "par") {
+				t.Fatalf("bounded error = %+v, want %q", problem, test.wantError)
+			}
+		})
+	}
+}
+
+func (*registrationValidationFlow) CompleteCallback(context.Context, url.Values, auth.OAuthCallbackFinalizer) error {
+	return nil
+}
+
+func TestRegistrationRequestValidationDoesNotCallProvider(t *testing.T) {
+	tests := []struct {
+		name       string
+		body       string
+		deviceID   string
+		wantStatus int
+		wantError  string
+		wantCalls  int
+	}{
+		{name: "missing device", body: `{"handoffMode":"verified_link"}`, wantStatus: http.StatusBadRequest, wantError: "missing_device_id"},
+		{name: "invalid device", body: `{"handoffMode":"verified_link"}`, deviceID: "not valid", wantStatus: http.StatusBadRequest, wantError: "invalid_device_id"},
+		{name: "missing handoff", body: `{}`, deviceID: "registration-device", wantStatus: http.StatusBadRequest, wantError: "invalid_handoff_mode"},
+		{name: "invalid handoff", body: `{"handoffMode":"browser"}`, deviceID: "registration-device", wantStatus: http.StatusBadRequest, wantError: "invalid_handoff_mode"},
+		{name: "loopback URI missing", body: `{"handoffMode":"loopback"}`, deviceID: "registration-device", wantStatus: http.StatusBadRequest, wantError: "loopback_redirect_uri_required"},
+		{name: "loopback URI invalid", body: `{"handoffMode":"loopback","loopbackRedirectUri":"https://attacker.example"}`, deviceID: "registration-device", wantStatus: http.StatusBadRequest, wantError: "loopback_redirect_uri_invalid"},
+		{name: "loopback URI forbidden for verified link", body: `{"handoffMode":"verified_link","loopbackRedirectUri":"http://127.0.0.1:1234/callback"}`, deviceID: "registration-device", wantStatus: http.StatusBadRequest, wantError: "loopback_redirect_uri_invalid"},
+		{name: "unknown handle field", body: `{"handoffMode":"verified_link","handle":"alice.example"}`, deviceID: "registration-device", wantStatus: http.StatusBadRequest, wantError: "invalid_body"},
+		{name: "unknown provider field", body: `{"handoffMode":"verified_link","provider":"https://attacker.example"}`, deviceID: "registration-device", wantStatus: http.StatusBadRequest, wantError: "invalid_body"},
+		{name: "valid without handle", body: `{"handoffMode":"verified_link"}`, deviceID: "registration-device", wantStatus: http.StatusOK, wantCalls: 1},
+		{name: "valid loopback", body: `{"handoffMode":"loopback","loopbackRedirectUri":"http://127.0.0.1:1234/callback"}`, deviceID: "registration-device", wantStatus: http.StatusOK, wantCalls: 1},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			flow := &registrationValidationFlow{}
+			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+			handlers := &auth.HTTPHandlers{OAuthFlow: flow, Logger: logger}
+			handler := middleware.DeviceID(nil, logger)(handlers.RegistrationHandler())
+			request := httptest.NewRequest(http.MethodPost, "/v1/auth/registrations", strings.NewReader(test.body))
+			if test.deviceID != "" {
+				request.Header.Set("X-Craftsky-Device-Id", test.deviceID)
+			}
+			response := httptest.NewRecorder()
+
+			handler.ServeHTTP(response, request)
+
+			if response.Code != test.wantStatus {
+				t.Fatalf("status = %d, want %d; body=%s", response.Code, test.wantStatus, response.Body.String())
+			}
+			if test.wantError != "" {
+				var problem envelope.Error
+				if err := json.Unmarshal(response.Body.Bytes(), &problem); err != nil {
+					t.Fatalf("decode error envelope: %v", err)
+				}
+				if problem.Error != test.wantError {
+					t.Fatalf("error = %q, want %q", problem.Error, test.wantError)
+				}
+			}
+			if flow.calls != test.wantCalls {
+				t.Fatalf("provider calls = %d, want %d", flow.calls, test.wantCalls)
+			}
+		})
 	}
 }
 

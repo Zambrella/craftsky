@@ -8,6 +8,52 @@
 
 part of 'pending_auth.dart';
 
+class PendingAuthPurposeMapper extends EnumMapper<PendingAuthPurpose> {
+  PendingAuthPurposeMapper._();
+
+  static PendingAuthPurposeMapper? _instance;
+  static PendingAuthPurposeMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = PendingAuthPurposeMapper._());
+    }
+    return _instance!;
+  }
+
+  static PendingAuthPurpose fromValue(dynamic value) {
+    ensureInitialized();
+    return MapperContainer.globals.fromValue(value);
+  }
+
+  @override
+  PendingAuthPurpose decode(dynamic value) {
+    switch (value) {
+      case r'signIn':
+        return PendingAuthPurpose.signIn;
+      case r'registration':
+        return PendingAuthPurpose.registration;
+      default:
+        throw MapperException.unknownEnumValue(value);
+    }
+  }
+
+  @override
+  dynamic encode(PendingAuthPurpose self) {
+    switch (self) {
+      case PendingAuthPurpose.signIn:
+        return r'signIn';
+      case PendingAuthPurpose.registration:
+        return r'registration';
+    }
+  }
+}
+
+extension PendingAuthPurposeMapperExtension on PendingAuthPurpose {
+  String toValue() {
+    PendingAuthPurposeMapper.ensureInitialized();
+    return MapperContainer.globals.toValue<PendingAuthPurpose>(this) as String;
+  }
+}
+
 class PendingAuthMapper extends ClassMapperBase<PendingAuth> {
   PendingAuthMapper._();
 
@@ -16,6 +62,7 @@ class PendingAuthMapper extends ClassMapperBase<PendingAuth> {
     if (_instance == null) {
       MapperContainer.globals.use(_instance = PendingAuthMapper._());
       MapperContainer.globals.useAll([HandleMapper()]);
+      PendingAuthPurposeMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -23,7 +70,12 @@ class PendingAuthMapper extends ClassMapperBase<PendingAuth> {
   @override
   final String id = 'PendingAuth';
 
-  static Handle _$handle(PendingAuth v) => v.handle;
+  static PendingAuthPurpose _$purpose(PendingAuth v) => v.purpose;
+  static const Field<PendingAuth, PendingAuthPurpose> _f$purpose = Field(
+    'purpose',
+    _$purpose,
+  );
+  static Handle? _$handle(PendingAuth v) => v.handle;
   static dynamic _arg$handle(f) => f<Handle>();
   static const Field<PendingAuth, String> _f$handle = Field(
     'handle',
@@ -38,12 +90,14 @@ class PendingAuthMapper extends ClassMapperBase<PendingAuth> {
 
   @override
   final MappableFields<PendingAuth> fields = const {
+    #purpose: _f$purpose,
     #handle: _f$handle,
     #startedAt: _f$startedAt,
   };
 
   static PendingAuth _instantiate(DecodingData data) {
     return PendingAuth(
+      purpose: data.dec(_f$purpose),
       handle: data.dec(_f$handle),
       startedAt: data.dec(_f$startedAt),
     );
@@ -109,7 +163,7 @@ extension PendingAuthValueCopy<$R, $Out>
 
 abstract class PendingAuthCopyWith<$R, $In extends PendingAuth, $Out>
     implements ClassCopyWith<$R, $In, $Out> {
-  $R call({String? handle, DateTime? startedAt});
+  $R call({PendingAuthPurpose? purpose, String? handle, DateTime? startedAt});
   PendingAuthCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
 
@@ -122,14 +176,20 @@ class _PendingAuthCopyWithImpl<$R, $Out>
   late final ClassMapperBase<PendingAuth> $mapper =
       PendingAuthMapper.ensureInitialized();
   @override
-  $R call({String? handle, DateTime? startedAt}) => $apply(
+  $R call({
+    PendingAuthPurpose? purpose,
+    Object? handle = $none,
+    DateTime? startedAt,
+  }) => $apply(
     FieldCopyWithData({
-      if (handle != null) #handle: handle,
+      if (purpose != null) #purpose: purpose,
+      if (handle != $none) #handle: handle,
       if (startedAt != null) #startedAt: startedAt,
     }),
   );
   @override
   PendingAuth $make(CopyWithData data) => PendingAuth(
+    purpose: data.get(#purpose, or: $value.purpose),
     handle: data.get(#handle, or: $value.handle),
     startedAt: data.get(#startedAt, or: $value.startedAt),
   );

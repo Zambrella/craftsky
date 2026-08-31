@@ -23,6 +23,10 @@ func (capacityOAuthFlow) StartLogin(context.Context, syntax.Handle, auth.Handoff
 	return "", auth.ErrAuthRequestCapacity
 }
 
+func (capacityOAuthFlow) StartRegistration(context.Context, auth.HandoffMode, string, string) (string, error) {
+	return "", auth.ErrAuthRequestCapacity
+}
+
 func (capacityOAuthFlow) CompleteCallback(context.Context, url.Values, auth.OAuthCallbackFinalizer) error {
 	return nil
 }

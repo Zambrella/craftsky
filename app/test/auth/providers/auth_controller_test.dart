@@ -22,6 +22,7 @@ import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/api/models/whoami.dart';
 import 'package:craftsky_app/shared/device/device_id_provider.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -53,18 +54,27 @@ class _FakeAuthApi implements AuthApiClient {
   // the AuthSession background-validation path); future tests can stub it.
   _FakeAuthApi({
     this.onLogin,
+    this.onRegister,
     this.onLogout,
     // Reserved for future tests that want a non-default whoami.
     // ignore: unused_element_parameter
     this.onWhoami,
   });
   final Future<LoginResponse> Function(String)? onLogin;
+  final Future<LoginResponse> Function(String?, String?)? onRegister;
   final Future<void> Function()? onLogout;
   final Future<WhoAmI> Function()? onWhoami;
 
   @override
   Future<LoginResponse> login({required String handle}) =>
       onLogin?.call(handle) ?? Future.error(UnimplementedError());
+  @override
+  Future<LoginResponse> register({
+    String? handoffMode,
+    String? loopbackRedirectUri,
+  }) =>
+      onRegister?.call(handoffMode, loopbackRedirectUri) ??
+      Future.error(UnimplementedError());
   @override
   Future<WhoAmI> whoami() =>
       onWhoami?.call() ??
@@ -100,8 +110,12 @@ class _FakeHandoffApi implements HandoffApiClient {
 class _LaunchRecorder {
   final List<Uri> launched = [];
   bool nextResult = true;
+  Error? error;
+  void Function()? onLaunch;
   Future<bool> launch(Uri uri) async {
     launched.add(uri);
+    onLaunch?.call();
+    if (error case final error?) throw error;
     return nextResult;
   }
 }
@@ -227,6 +241,200 @@ void main() {
     },
   );
 
+  test(
+    'UT-006 registration launches once with pending set immediately before it',
+    () async {
+      for (final launchOutcome in ['success', 'false', 'throw']) {
+        final launch = _LaunchRecorder();
+        final registerCalls = <({String? handoffMode, String? loopback})>[];
+        final container = _container(
+          api: _FakeAuthApi(
+            onRegister: (handoffMode, loopback) async {
+              registerCalls.add((
+                handoffMode: handoffMode,
+                loopback: loopback,
+              ));
+              return const LoginResponse(
+                authUrl: 'https://provider.example/authorize',
+              );
+            },
+          ),
+          launch: launch,
+          registryStorage: _FakeRegistryStorage(SessionRegistry.empty()),
+        );
+        launch.onLaunch = () {
+          expect(
+            container.read(pendingAuthProvider)?.purpose,
+            model.PendingAuthPurpose.registration,
+          );
+        };
+        if (launchOutcome == 'false') launch.nextResult = false;
+        if (launchOutcome == 'throw') launch.error = StateError('launcher');
+
+        await container
+            .read(authControllerProvider.notifier)
+            .startRegistration();
+
+        expect(registerCalls, [(handoffMode: null, loopback: null)]);
+        expect(launch.launched, [
+          Uri.parse('https://provider.example/authorize'),
+        ]);
+        final state = container.read(authControllerProvider);
+        if (launchOutcome == 'success') {
+          expect(state, isA<AsyncData<void>>());
+          expect(
+            container.read(pendingAuthProvider)?.purpose,
+            model.PendingAuthPurpose.registration,
+          );
+        } else {
+          expect(state.error, RegistrationFailure.registrationIncomplete);
+          expect(container.read(pendingAuthProvider), isNull);
+        }
+      }
+    },
+  );
+
+  test(
+    'UT-010 registry limit remains authoritative before start and after race',
+    () async {
+      SessionRegistry registryWith(int count) {
+        var registry = SessionRegistry.empty();
+        for (var index = 0; index < count; index++) {
+          registry = registry.upsertAndActivate(
+            token: 'token-$index',
+            did: 'did:plc:a$index',
+            handle: 'a$index.test',
+          );
+        }
+        return registry;
+      }
+
+      var fullRegistryApiCalls = 0;
+      final fullRegistryLaunch = _LaunchRecorder();
+      final fullRegistryContainer = _container(
+        api: _FakeAuthApi(
+          onRegister: (_, _) async {
+            fullRegistryApiCalls++;
+            return const LoginResponse(authUrl: 'https://provider.example');
+          },
+        ),
+        launch: fullRegistryLaunch,
+        registryStorage: _FakeRegistryStorage(registryWith(5)),
+      );
+
+      await fullRegistryContainer
+          .read(authControllerProvider.notifier)
+          .startRegistration();
+
+      expect(fullRegistryApiCalls, 0);
+      expect(fullRegistryLaunch.launched, isEmpty);
+      expect(
+        fullRegistryContainer.read(authControllerProvider).error,
+        isA<AccountLimitReached>(),
+      );
+
+      for (final returnedDid in ['did:plc:a0', 'did:plc:new']) {
+        final initial = registryWith(4);
+        final storage = _FakeRegistryStorage(initial);
+        final handoff = _FakeHandoffApi(
+          onExchange: (_) async => PendingHandoff(
+            token: 'replacement-token',
+            did: returnedDid,
+            handle: returnedDid == 'did:plc:a0'
+                ? 'replacement.test'
+                : 'new.test',
+            receiptId: returnedDid == 'did:plc:a0'
+                ? '00000000-0000-4000-8000-000000000830'
+                : '00000000-0000-4000-8000-000000000831',
+            confirmBy: DateTime.utc(2026, 8, 30, 12),
+          ),
+        );
+        final container = _container(
+          api: _FakeAuthApi(
+            onRegister: (_, _) async => const LoginResponse(
+              authUrl: 'https://provider.example/authorize',
+            ),
+          ),
+          handoff: handoff,
+          registryStorage: storage,
+          invalidateAccountState: () async {},
+        );
+
+        await container
+            .read(authControllerProvider.notifier)
+            .startRegistration();
+        await container
+            .read(sessionRegistryProvider.notifier)
+            .upsertAndActivate(
+              token: 'token-final',
+              did: 'did:plc:a4',
+              handle: 'a4.test',
+            );
+        final fullSnapshot = storage.value.toJson();
+
+        await container
+            .read(authControllerProvider.notifier)
+            .completeFromDeepLink('race-code');
+
+        final registry = storage.value;
+        expect(registry.sessions, hasLength(5));
+        if (returnedDid == 'did:plc:a0') {
+          expect(registry.activeDid, 'did:plc:a0');
+          expect(
+            registry.sessions[registry.activeDid]?.token,
+            'replacement-token',
+          );
+          expect(container.read(authControllerProvider).hasError, isFalse);
+        } else {
+          expect(registry.toJson(), fullSnapshot);
+          expect(registry.sessions.containsKey(returnedDid), isFalse);
+          expect(
+            container.read(authControllerProvider).error,
+            isA<AccountLimitReached>(),
+          );
+          expect(handoff.confirmations, isEmpty);
+        }
+      }
+    },
+  );
+
+  test(
+    'AT-003 resume without callback permits an explicit fresh start',
+    () async {
+      var registerCalls = 0;
+      final launch = _LaunchRecorder();
+      final container = _container(
+        api: _FakeAuthApi(
+          onRegister: (_, _) async {
+            registerCalls++;
+            return const LoginResponse(
+              authUrl: 'https://provider.example/authorize',
+            );
+          },
+        ),
+        launch: launch,
+        registryStorage: _FakeRegistryStorage(SessionRegistry.empty()),
+      );
+
+      await container.read(authControllerProvider.notifier).startRegistration();
+      TestWidgetsFlutterBinding.ensureInitialized()
+        ..handleAppLifecycleStateChanged(AppLifecycleState.paused)
+        ..handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+
+      expect(container.read(authControllerProvider), isA<AsyncData<void>>());
+      expect(
+        container.read(pendingAuthProvider)?.purpose,
+        model.PendingAuthPurpose.registration,
+      );
+
+      await container.read(authControllerProvider.notifier).startRegistration();
+
+      expect(registerCalls, 2);
+      expect(launch.launched, hasLength(2));
+      expect(container.read(authControllerProvider), isA<AsyncData<void>>());
+    },
+  );
+
   test('process restart can exchange a device-bound code', () async {
     final storage = _FakeRegistryStorage(SessionRegistry.empty());
     final handoff = _FakeHandoffApi(
@@ -263,7 +471,7 @@ void main() {
     container
         .read(pendingAuthProvider.notifier)
         .debugSet(
-          model.PendingAuth(
+          model.PendingAuth.signIn(
             handle: 'a.bsky.social',
             startedAt: DateTime.now().subtract(const Duration(minutes: 15)),
           ),
@@ -297,7 +505,7 @@ void main() {
 
       // Seed AuthSession build so setSignedIn lands on a ready state.
       await container.read(authSessionProvider.future);
-      container.read(pendingAuthProvider.notifier).start('a.bsky.social');
+      container.read(pendingAuthProvider.notifier).startSignIn('a.bsky.social');
 
       await container
           .read(authControllerProvider.notifier)
@@ -342,7 +550,7 @@ void main() {
       );
       final container = _container(handoff: handoff, registryStorage: storage);
       await container.read(sessionRegistryProvider.future);
-      container.read(pendingAuthProvider.notifier).start('retry.test');
+      container.read(pendingAuthProvider.notifier).startSignIn('retry.test');
 
       await container
           .read(authControllerProvider.notifier)
@@ -391,7 +599,7 @@ void main() {
       );
       final container = _container(handoff: handoff, registryStorage: storage);
       await container.read(sessionRegistryProvider.future);
-      container.read(pendingAuthProvider.notifier).start('confirm.test');
+      container.read(pendingAuthProvider.notifier).startSignIn('confirm.test');
 
       await container
           .read(authControllerProvider.notifier)
@@ -572,7 +780,7 @@ void main() {
       invalidateAccountState: () async => boundaryEvents.add('invalidate'),
     );
     await container.read(sessionRegistryProvider.future);
-    container.read(pendingAuthProvider.notifier).start('bob.test');
+    container.read(pendingAuthProvider.notifier).startSignIn('bob.test');
 
     await container
         .read(authControllerProvider.notifier)
@@ -607,7 +815,7 @@ void main() {
       registryStorage: registryStorage,
     );
     await container.read(sessionRegistryProvider.future);
-    container.read(pendingAuthProvider.notifier).start('bob.test');
+    container.read(pendingAuthProvider.notifier).startSignIn('bob.test');
 
     await container
         .read(authControllerProvider.notifier)
@@ -633,7 +841,7 @@ void main() {
       );
 
       await container.read(authSessionProvider.future);
-      container.read(pendingAuthProvider.notifier).start('a.bsky.social');
+      container.read(pendingAuthProvider.notifier).startSignIn('a.bsky.social');
 
       await container
           .read(authControllerProvider.notifier)

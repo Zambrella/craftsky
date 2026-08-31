@@ -1,10 +1,14 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/data/handoff_api_client.dart';
+import 'package:craftsky_app/auth/models/auth_error.dart';
 import 'package:craftsky_app/auth/models/pending_handoff.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/pages/auth_complete_page.dart';
 import 'package:craftsky_app/auth/pages/sign_in_page.dart';
 import 'package:craftsky_app/auth/pages/welcome_page.dart';
 import 'package:craftsky_app/auth/providers/account_boundary_provider.dart';
+import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/handoff_api_client_provider.dart';
 import 'package:craftsky_app/auth/providers/pending_auth_provider.dart';
@@ -77,6 +81,31 @@ final class _ZeroCountRepository implements NotificationNewnessRepository {
 
   @override
   Future<void> markSeen() async {}
+}
+
+final class _CompletionAuthController extends AuthController {
+  _CompletionAuthController({
+    required this.onComplete,
+    required this.onStartRegistration,
+  });
+
+  final Future<void> Function(String code) onComplete;
+  final Future<void> Function() onStartRegistration;
+
+  @override
+  FutureOr<void> build() => null;
+
+  @override
+  Future<void> completeFromDeepLink(String code) async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() => onComplete(code));
+  }
+
+  @override
+  Future<void> startRegistration() async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(onStartRegistration);
+  }
 }
 
 Post _post(String did, String rkey) => Post(
@@ -170,6 +199,103 @@ void main() {
         );
         expect(find.byType(AuthCompletePage), findsOneWidget);
         expect(find.textContaining('sign-in link expired'), findsOneWidget);
+      },
+    );
+
+    const registrationFailureMessages = {
+      RegistrationFailure.canceled: 'Account creation was canceled.',
+      RegistrationFailure.providerUnavailable:
+          'Bluesky is temporarily unavailable. Please try again.',
+      RegistrationFailure.registrationIncomplete:
+          "We couldn't verify or complete account creation.",
+    };
+
+    test('AT-006 exposes exactly three bounded registration outcomes', () {
+      expect(RegistrationFailure.values, hasLength(3));
+      expect(registrationFailureMessages.keys, RegistrationFailure.values);
+    });
+
+    for (final MapEntry(key: failure, value: message)
+        in registrationFailureMessages.entries) {
+      testWidgets('AT-006 routes ${failure.name} to its safe outcome', (
+        tester,
+      ) async {
+        final exchangedCodes = <String>[];
+        var registrationStarts = 0;
+        final container = ProviderContainer.test(
+          overrides: [
+            authSessionProvider.overrideWith(SignedOutAuthSession.new),
+            authControllerProvider.overrideWith(
+              () => _CompletionAuthController(
+                onComplete: (code) async => exchangedCodes.add(code),
+                onStartRegistration: () async => registrationStarts++,
+              ),
+            ),
+          ],
+        );
+        await _pumpRouter(
+          tester,
+          container,
+          initialLocation: AuthCompleteRoute(
+            code: 'must-not-exchange',
+            error: failure.name,
+          ).location,
+        );
+
+        expect(find.byType(AuthCompletePage), findsOneWidget);
+        expect(find.text(message), findsOneWidget);
+        expect(find.textContaining('issuer'), findsNothing);
+        expect(find.textContaining('DID'), findsNothing);
+        expect(find.textContaining('token'), findsNothing);
+        expect(find.textContaining('lifecycle'), findsNothing);
+        expect(exchangedCodes, isEmpty);
+        expect(registrationStarts, 0);
+
+        await tester.tap(find.widgetWithText(TextButton, 'Retry'));
+        await tester.pumpAndSettle();
+
+        expect(registrationStarts, 1);
+        expect(exchangedCodes, isEmpty);
+        expect(find.byType(AuthCompletePage), findsOneWidget);
+        expect(find.byType(FeedPage), findsNothing);
+      });
+    }
+
+    testWidgets(
+      'AT-007 unknown Flutter callback never exchanges or navigates to Feed',
+      (tester) async {
+        final exchangedCodes = <String>[];
+        var registrationStarts = 0;
+        final container = ProviderContainer.test(
+          overrides: [
+            authSessionProvider.overrideWith(SignedOutAuthSession.new),
+            authControllerProvider.overrideWith(
+              () => _CompletionAuthController(
+                onComplete: (code) async => exchangedCodes.add(code),
+                onStartRegistration: () async => registrationStarts++,
+              ),
+            ),
+          ],
+        );
+        await _pumpRouter(
+          tester,
+          container,
+          initialLocation: const AuthCompleteRoute(
+            code: 'must-not-exchange',
+            error: 'issuer-did-token-lifecycle-detail',
+          ).location,
+        );
+
+        expect(find.byType(AuthCompletePage), findsOneWidget);
+        expect(
+          find.text("Couldn't complete sign-in. Please sign in again."),
+          findsOneWidget,
+        );
+        expect(find.textContaining('issuer-did-token-lifecycle'), findsNothing);
+        expect(find.text('Retry'), findsNothing);
+        expect(exchangedCodes, isEmpty);
+        expect(registrationStarts, 0);
+        expect(find.byType(FeedPage), findsNothing);
       },
     );
 
@@ -316,7 +442,7 @@ void main() {
           ],
         );
         await container.read(authSessionProvider.future);
-        container.read(pendingAuthProvider.notifier).start('bob.test');
+        container.read(pendingAuthProvider.notifier).startSignIn('bob.test');
 
         await _pumpRouter(
           tester,

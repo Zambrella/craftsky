@@ -28,6 +28,22 @@ class AuthApiClient {
     return LoginResponseMapper.fromMap(res.data!);
   });
 
+  /// POST /v1/auth/registrations starts provider-first OAuth without sending
+  /// identity, provider, or credential data from the device.
+  Future<LoginResponse> register({
+    String? handoffMode,
+    String? loopbackRedirectUri,
+  }) => unwrapApi(() async {
+    final res = await _dio.post<Map<String, dynamic>>(
+      '/v1/auth/registrations',
+      data: {
+        'handoffMode': handoffMode ?? oauthHandoffModeForCurrentBuild(),
+        'loopbackRedirectUri': ?loopbackRedirectUri,
+      },
+    );
+    return LoginResponseMapper.fromMap(res.data!);
+  });
+
   /// GET /v1/whoami — resolves the caller's DID + handle. Requires an
   /// authenticated request (Bearer token attached by AuthInterceptor).
   Future<WhoAmI> whoami() => unwrapApi(() async {

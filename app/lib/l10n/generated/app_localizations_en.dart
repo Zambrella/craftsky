@@ -217,7 +217,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get welcomeSignInAction => 'Sign in';
 
   @override
-  String get welcomeCreateAccountAction => 'Create account on a PDS';
+  String get welcomeCreateAccountAction => 'Create an account';
+
+  @override
+  String get registrationProviderDisclosure =>
+      'Bluesky hosts your portable account, which you can use with Craftsky.';
 
   @override
   String get signInTitle => 'Sign in';
@@ -284,6 +288,17 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get authCompleteGenericError =>
       'Couldn\'t complete sign-in. Please sign in again.';
+
+  @override
+  String get authRegistrationCanceledError => 'Account creation was canceled.';
+
+  @override
+  String get authRegistrationProviderUnavailableError =>
+      'Bluesky is temporarily unavailable. Please try again.';
+
+  @override
+  String get authRegistrationIncompleteError =>
+      'We couldn\'t verify or complete account creation.';
 
   @override
   String get dialogConfirmDefault => 'Confirm';
