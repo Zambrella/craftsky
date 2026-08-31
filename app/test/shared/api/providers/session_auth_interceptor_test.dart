@@ -33,6 +33,21 @@ void main() {
     expect(options.headers['X-Craftsky-Device-Id'], 'device-abc');
   });
 
+  test('registration stays anonymous with the stable device ID', () async {
+    final options = RequestOptions(path: '/v1/auth/registrations');
+    SessionAuthInterceptor.fixed(
+      token: 'craftsky-session-secret',
+      readDeviceId: () async => 'stable-device-abc',
+    ).onRequest(options, _CapturingHandler());
+    await _pumpEventLoop();
+
+    expect(options.headers.containsKey('Authorization'), isFalse);
+    expect(
+      options.headers['X-Craftsky-Device-Id'],
+      'stable-device-abc',
+    );
+  });
+
   test('keeps using the account token captured at construction', () async {
     final interceptor = SessionAuthInterceptor.fixed(
       token: 'token-a',

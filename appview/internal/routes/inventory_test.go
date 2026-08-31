@@ -33,6 +33,7 @@ func TestRouteInventoryAndV1PoliciesStayExact(t *testing.T) {
 		"GET /oauth/jwks.json",
 		"GET /oauth/callback",
 		"POST /v1/auth/login",
+		"POST /v1/auth/registrations",
 		"POST /v1/auth/handoffs/exchange",
 		"POST /v1/auth/handoffs/confirm",
 		"GET /v1/whoami",

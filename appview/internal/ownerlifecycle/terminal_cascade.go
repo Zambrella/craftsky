@@ -29,6 +29,7 @@ var terminalCascadePolicies = map[string]string{
 	"instagram_reconciliation_jobs":     "drain",
 	"instagram_verification_attempts":   "drain",
 	"notification_events":               "drain",
+	"oauth_auth_requests":               "fixed",
 	"oauth_handoff_exchanges":           "fixed",
 	"oauth_sessions":                    "dependency",
 	"push_account_subscriptions":        "drain",

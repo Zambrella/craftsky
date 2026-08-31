@@ -10,6 +10,7 @@ import (
 )
 
 type authRequestSweeper interface {
+	ReconcileStaleRegistrationExchanges(context.Context, int) (auth.RegistrationExchangeReconciliationStats, error)
 	SweepAuthRequests(context.Context, int) (auth.AuthRequestSweepStats, error)
 }
 
@@ -25,6 +26,21 @@ func runAuthRequestSweeper(
 		return
 	}
 	for {
+		_, err := sweeper.ReconcileStaleRegistrationExchanges(ctx, batch)
+		if ctx.Err() != nil {
+			return
+		}
+		if err != nil {
+			observer.ObserveAuthRequestSweep(0, 0, 0, true)
+			if logger != nil {
+				logger.Error("stale registration exchange reconciliation failed",
+					slog.String("component", "oauth_auth_requests"),
+					slog.String("operation", "reconcile_registration_exchanges"),
+					slog.String("result", "error"),
+					slog.String("error_category", "store"))
+			}
+		}
+
 		stats, err := sweeper.SweepAuthRequests(ctx, batch)
 		if ctx.Err() != nil {
 			return

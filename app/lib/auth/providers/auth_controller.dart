@@ -8,7 +8,8 @@ import 'package:craftsky_app/auth/providers/auth_api_client_provider.dart';
 import 'package:craftsky_app/auth/providers/handoff_api_client_provider.dart';
 import 'package:craftsky_app/auth/providers/pending_auth_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
-import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
+    hide SessionRegistry;
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/models/login_response.dart';
 import 'package:craftsky_app/shared/device/device_id_provider.dart';
@@ -77,7 +78,7 @@ class AuthController extends _$AuthController {
       }
 
       if (!ref.mounted) return;
-      ref.read(pendingAuthProvider.notifier).start(trimmed);
+      ref.read(pendingAuthProvider.notifier).startSignIn(trimmed);
 
       final launched = await ref.read(authUrlLauncherProvider)(
         Uri.parse(response.authUrl),
@@ -85,6 +86,36 @@ class AuthController extends _$AuthController {
       if (!launched) {
         if (ref.mounted) ref.read(pendingAuthProvider.notifier).clear();
         throw const BrowserLaunchFailed();
+      }
+    });
+  }
+
+  Future<void> startRegistration() async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(() async {
+      final registry = await ref.read(sessionRegistryProvider.future);
+      if (registry.sessions.length >= SessionRegistry.maxRetainedAccounts) {
+        throw const AccountLimitReached();
+      }
+
+      final LoginResponse response;
+      try {
+        response = await ref.read(authApiClientProvider).register();
+      } on Object catch (error, stackTrace) {
+        final failure = RegistrationFailure.fromStartError(error);
+        if (failure != null) throw failure;
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+      if (!ref.mounted) return;
+
+      final launcher = ref.read(authUrlLauncherProvider);
+      ref.read(pendingAuthProvider.notifier).startRegistration();
+      try {
+        final launched = await launcher(Uri.parse(response.authUrl));
+        if (!launched) throw const BrowserLaunchFailed();
+      } on Object {
+        if (ref.mounted) ref.read(pendingAuthProvider.notifier).clear();
+        throw RegistrationFailure.registrationIncomplete;
       }
     });
   }

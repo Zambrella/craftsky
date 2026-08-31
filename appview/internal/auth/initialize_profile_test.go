@@ -234,6 +234,53 @@ func TestInitializeProfileAndIdentityCacheRequestsRepositoryTrackingOnEverySucce
 	}
 }
 
+func TestOrdinaryOnboardingPreservesProfileAndAuxiliaryEffectSeverity(t *testing.T) {
+	for _, purpose := range []auth.OAuthPurpose{auth.LoginOAuthPurpose, auth.RegistrationOAuthPurpose} {
+		t.Run(string(purpose)+" profile failure is fatal", func(t *testing.T) {
+			pds := &mockPDS{
+				getRecord: func(string, string, any) (string, error) {
+					return "", errors.New("profile unavailable")
+				},
+				putRecord: func(string, string, any) error { return nil },
+			}
+			attempt := loginAttempt(syntax.DID("did:plc:severity-fatal"))
+			attempt.Purpose = purpose
+			cache := &fakeIdentityCacheUpdater{}
+			tracker := &fakeRepositoryTracker{}
+			err := auth.InitializeProfileAndIdentityCache(
+				context.Background(), pds, attempt, testOnboardingProfileWriter{}, cache,
+				slog.New(slog.NewTextHandler(io.Discard, nil)), tracker,
+			)
+			if !errors.Is(err, auth.ErrProfileInitFailed) || len(cache.dids) != 0 || len(tracker.dids) != 0 {
+				t.Fatalf("profile failure err=%v cache=%v tracker=%v", err, cache.dids, tracker.dids)
+			}
+		})
+		t.Run(string(purpose)+" cache and tracker failures warn only", func(t *testing.T) {
+			pds := &mockPDS{
+				getRecord: func(collection, _ string, out any) (string, error) {
+					if collection == bskyNSID {
+						return "", auth.ErrRecordNotFound
+					}
+					*(out.(*map[string]any)) = map[string]any{"crafts": []any{"sewing"}}
+					return "", nil
+				},
+				putRecord: func(string, string, any) error { return nil },
+			}
+			attempt := loginAttempt(syntax.DID("did:plc:severity-warning"))
+			attempt.Purpose = purpose
+			cache := &fakeIdentityCacheUpdater{err: errors.New("cache unavailable")}
+			tracker := &fakeRepositoryTracker{err: errors.New("tracker unavailable")}
+			err := auth.InitializeProfileAndIdentityCache(
+				context.Background(), pds, attempt, testOnboardingProfileWriter{}, cache,
+				slog.New(slog.NewTextHandler(io.Discard, nil)), tracker,
+			)
+			if err != nil || len(cache.dids) != 1 || len(tracker.dids) != 1 {
+				t.Fatalf("warning effects err=%v cache=%v tracker=%v", err, cache.dids, tracker.dids)
+			}
+		})
+	}
+}
+
 func TestInitializeProfile_NoBlueskyProfileIsOK(t *testing.T) {
 	t.Parallel()
 	m := &mockPDS{

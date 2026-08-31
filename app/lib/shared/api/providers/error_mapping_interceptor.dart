@@ -51,6 +51,7 @@ class ErrorMappingInterceptor extends Interceptor {
 
   ApiFailureDetails _detailsFor(DioException err) {
     final data = err.response?.data;
+    final endpointCategory = _endpointCategory(err.requestOptions.path);
     final appViewError = data is Map && data['error'] is String
         ? data['error'] as String
         : null;
@@ -63,7 +64,8 @@ class ErrorMappingInterceptor extends Interceptor {
             statusCode >= 400 &&
             statusCode < 500 &&
             data is Map &&
-            data['message'] is String
+            data['message'] is String &&
+            endpointCategory != 'appview.auth.registrations'
         ? data['message'] as String
         : null;
     return ApiFailureDetails(
@@ -71,7 +73,7 @@ class ErrorMappingInterceptor extends Interceptor {
       appViewError: appViewError,
       appViewMessage: appViewMessage,
       requestId: requestId,
-      endpointCategory: _endpointCategory(err.requestOptions.path),
+      endpointCategory: endpointCategory,
     );
   }
 
@@ -85,6 +87,7 @@ class ErrorMappingInterceptor extends Interceptor {
     if (parts.isEmpty) return 'appview.unknown';
     return switch (parts) {
       ['auth', 'login'] => 'appview.auth.login',
+      ['auth', 'registrations'] => 'appview.auth.registrations',
       ['auth', 'logout'] => 'appview.auth.logout',
       ['whoami'] => 'appview.whoami',
       ['blobs', 'images'] => 'appview.blobs.images',

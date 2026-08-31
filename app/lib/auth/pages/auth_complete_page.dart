@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/models/auth_error.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
+import 'package:craftsky_app/auth/providers/pending_auth_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -23,7 +24,14 @@ class _AuthCompletePageState extends ConsumerState<AuthCompletePage> {
   @override
   void initState() {
     super.initState();
-    if (widget.error != null) return;
+    if (widget.error != null) {
+      if (RegistrationFailure.fromCallback(widget.error) != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) ref.read(pendingAuthProvider.notifier).clear();
+        });
+      }
+      return;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_complete());
     });
@@ -35,10 +43,17 @@ class _AuthCompletePageState extends ConsumerState<AuthCompletePage> {
     await ref.read(authControllerProvider.notifier).completeFromDeepLink(code);
   }
 
+  void _startFreshRegistration() {
+    unawaited(ref.read(authControllerProvider.notifier).startRegistration());
+  }
+
   @override
   Widget build(BuildContext context) {
     ref.listen(authControllerProvider, (previous, next) {
-      if (previous case AsyncLoading() when next is AsyncData<void>) {
+      if (widget.error == null &&
+          widget.code?.isNotEmpty == true &&
+          previous is AsyncLoading<void> &&
+          next is AsyncData<void>) {
         const FeedRoute().go(context);
       }
     });
@@ -54,6 +69,26 @@ class _AuthCompletePageState extends ConsumerState<AuthCompletePage> {
               textAlign: TextAlign.center,
             ),
           ),
+        ),
+      );
+    }
+
+    final registrationFailure = RegistrationFailure.fromCallback(widget.error);
+    if (registrationFailure != null) {
+      return Scaffold(
+        body: Center(
+          child: _AuthCompleteError(
+            error: registrationFailure,
+            onRetry: _startFreshRegistration,
+          ),
+        ),
+      );
+    }
+
+    if (widget.error != null) {
+      return const Scaffold(
+        body: Center(
+          child: _AuthCompleteError(error: GenericAuthError('unknown')),
         ),
       );
     }
@@ -115,6 +150,11 @@ class _AuthCompleteError extends StatelessWidget {
     final spacing =
         Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
     final message = switch (error) {
+      RegistrationFailure.canceled => l10n.authRegistrationCanceledError,
+      RegistrationFailure.providerUnavailable =>
+        l10n.authRegistrationProviderUnavailableError,
+      RegistrationFailure.registrationIncomplete =>
+        l10n.authRegistrationIncompleteError,
       SignInTimedOut() => l10n.authCompleteTimedOutError,
       StorageFailure() => l10n.authCompleteStorageError,
       _ => l10n.authCompleteGenericError,

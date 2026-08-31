@@ -104,6 +104,7 @@ type authRouteBundle struct {
 
 func registerAuthRoutes(routes authRouteBundle) {
 	routes.mux.Handle("POST /v1/auth/login", routes.middleware.wrap(mustPolicy("POST", "/v1/auth/login"), routes.handlers.LoginHandler()))
+	routes.mux.Handle("POST /v1/auth/registrations", routes.middleware.wrap(mustPolicy("POST", "/v1/auth/registrations"), routes.handlers.RegistrationHandler()))
 	routes.mux.Handle("POST /v1/auth/handoffs/exchange", routes.middleware.wrap(mustPolicy("POST", "/v1/auth/handoffs/exchange"), routes.handlers.HandoffExchangeHandler()))
 	routes.mux.Handle("POST /v1/auth/handoffs/confirm", routes.middleware.wrap(mustPolicy("POST", "/v1/auth/handoffs/confirm"), routes.handlers.HandoffConfirmHandler()))
 }

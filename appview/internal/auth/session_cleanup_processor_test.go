@@ -110,6 +110,108 @@ func (revoker *blockingCredentialRevoker) RevokeSession(context.Context, oauth.C
 	return revoker.otherError
 }
 
+// IT-008: the existing durable revocation worker also owns cleanup-pending
+// ownerless registration credentials and converges them across restarts.
+func TestProviderRegistrationCredentialCleanupConverges(t *testing.T) {
+	pool := withAuthSchema(t)
+	now := time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC)
+	clock := &testCleanupClock{at: now}
+	store := auth.NewPostgresAuthStore(pool, testStoreConfig())
+	registrationContext := auth.WithRegistrationAuthRequest(
+		context.Background(), "https://pds.example.com", "https://auth.example.com",
+		auth.HandoffVerifiedLink, "cleanup-registration-device", "",
+	)
+	reservation, err := store.ReserveAuthRequestCapacity(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	state := "registration-cleanup-worker"
+	if err := store.SaveRegistrationAuthRequest(registrationContext, reservation.ID, oauth.AuthRequestData{
+		State: state, RequestURI: "urn:request:" + state,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	attemptID, err := store.BeginRegistrationExchange(context.Background(), state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := validOAuthSession("did:plc:registration-cleanup", state)
+	if err := store.QuarantineRegistrationCredential(context.Background(), state, attemptID, session, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.MarkRegistrationCredentialForCleanup(context.Background(), state, attemptID); err != nil {
+		t.Fatal(err)
+	}
+	futureState := "registration-cleanup-held"
+	reservation, err = store.ReserveAuthRequestCapacity(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveRegistrationAuthRequest(registrationContext, reservation.ID, oauth.AuthRequestData{
+		State: futureState, RequestURI: "urn:request:" + futureState,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	futureAttemptID, err := store.BeginRegistrationExchange(context.Background(), futureState)
+	if err != nil {
+		t.Fatal(err)
+	}
+	futureSession := validOAuthSession("did:plc:registration-cleanup-held", futureState)
+	if err := store.QuarantineRegistrationCredential(
+		context.Background(), futureState, futureAttemptID, futureSession, now.Add(time.Hour),
+	); err != nil {
+		t.Fatal(err)
+	}
+
+	revoker := &blockingCredentialRevoker{}
+	processor := newOAuthRevocationProcessor(t, pool, revoker, clock.Now, 3, time.Minute)
+	processed, err := processor.ProcessBatch(context.Background())
+	if err != nil || processed != 1 {
+		t.Fatalf("registration cleanup processed=%d err=%v", processed, err)
+	}
+	var requestState string
+	var credentials int
+	if err := pool.QueryRow(context.Background(), `
+		SELECT request_state FROM oauth_auth_requests WHERE state=$1
+	`, state).Scan(&requestState); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(context.Background(), `
+		SELECT count(*) FROM oauth_unverified_credentials WHERE request_state=$1
+	`, state).Scan(&credentials); err != nil {
+		t.Fatal(err)
+	}
+	if requestState != string(auth.AuthRequestRevoked) || credentials != 0 || revoker.calls.Load() != 1 {
+		t.Fatalf("registration cleanup state=%s credentials=%d revoke calls=%d", requestState, credentials, revoker.calls.Load())
+	}
+	var heldStatus, heldRequestState string
+	if err := pool.QueryRow(context.Background(), `
+		SELECT request.request_state,credential.status
+		FROM oauth_auth_requests request
+		JOIN oauth_unverified_credentials credential ON credential.request_state=request.state
+		WHERE request.state=$1
+	`, futureState).Scan(&heldRequestState, &heldStatus); err != nil {
+		t.Fatal(err)
+	}
+	if heldRequestState != string(auth.AuthRequestExchangeStarted) || heldStatus != "held" {
+		t.Fatalf("pre-eligibility cleanup changed held callback to %s/%s", heldRequestState, heldStatus)
+	}
+
+	clock.Set(now.Add(time.Hour))
+	restarted := newOAuthRevocationProcessor(t, pool, revoker, clock.Now, 3, time.Minute)
+	if processed, err := restarted.ProcessBatch(context.Background()); err != nil || processed != 1 {
+		t.Fatalf("restarted held cleanup processed=%d err=%v", processed, err)
+	}
+	if err := pool.QueryRow(context.Background(), `
+		SELECT request_state FROM oauth_auth_requests WHERE state=$1
+	`, futureState).Scan(&heldRequestState); err != nil {
+		t.Fatal(err)
+	}
+	if heldRequestState != string(auth.AuthRequestRevoked) || revoker.calls.Load() != 2 {
+		t.Fatalf("eligible held cleanup state=%s revoke calls=%d", heldRequestState, revoker.calls.Load())
+	}
+}
+
 func TestOAuthRevocationProcessorReclaimsExpiredLeaseAndFencesStaleWorker(t *testing.T) {
 	pool := withAuthSchema(t)
 	now := time.Date(2026, 8, 14, 12, 0, 0, 0, time.UTC)

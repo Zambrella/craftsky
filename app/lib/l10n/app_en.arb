@@ -171,8 +171,10 @@
   "welcomeSignInAction": "Sign in",
   "@welcomeSignInAction": { "description": "Primary button label on the welcome page that opens sign-in." },
 
-  "welcomeCreateAccountAction": "Create account on a PDS",
-  "@welcomeCreateAccountAction": { "description": "Secondary action on the welcome page for users who need a PDS account." },
+  "welcomeCreateAccountAction": "Create an account",
+  "@welcomeCreateAccountAction": { "description": "Action that starts provider-first account registration." },
+  "registrationProviderDisclosure": "Bluesky hosts your portable account, which you can use with Craftsky.",
+  "@registrationProviderDisclosure": { "description": "Provider disclosure shown immediately before each account-registration action." },
 
   "signInTitle": "Sign in",
   "@signInTitle": { "description": "App-bar title on the sign-in page." },
@@ -233,6 +235,15 @@
 
   "authCompleteGenericError": "Couldn't complete sign-in. Please sign in again.",
   "@authCompleteGenericError": { "description": "Fallback error shown when OAuth completion fails." },
+
+  "authRegistrationCanceledError": "Account creation was canceled.",
+  "@authRegistrationCanceledError": { "description": "Safe callback message shown when provider-first registration is canceled." },
+
+  "authRegistrationProviderUnavailableError": "Bluesky is temporarily unavailable. Please try again.",
+  "@authRegistrationProviderUnavailableError": { "description": "Safe callback message shown when the registration provider is temporarily unavailable." },
+
+  "authRegistrationIncompleteError": "We couldn't verify or complete account creation.",
+  "@authRegistrationIncompleteError": { "description": "Safe callback message shown when provider-first registration could not be verified or completed." },
 
   "dialogConfirmDefault": "Confirm",
   "@dialogConfirmDefault": { "description": "Default label for the primary action button on a CraftskyDialog confirm helper when the caller does not provide one." },

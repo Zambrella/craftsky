@@ -1,7 +1,10 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/models/auth_error.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart' as model;
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
+import 'package:craftsky_app/auth/widgets/registration_action.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
@@ -44,6 +47,15 @@ class _SignInPageState extends ConsumerState<SignInPage> {
     });
 
     final state = ref.watch(authControllerProvider);
+    final registry = widget.mode == SignInMode.addAccount
+        ? ref.watch(sessionRegistryProvider).value
+        : null;
+    final canAddAccount =
+        widget.mode != SignInMode.addAccount ||
+        registry != null &&
+            registry.sessions.length <
+                model.SessionRegistry.maxRetainedAccounts;
+    final busy = state is AsyncLoading;
     final spacing =
         Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
 
@@ -72,15 +84,24 @@ class _SignInPageState extends ConsumerState<SignInPage> {
               label: l10n.signInHandleLabel,
               hintText: 'alice.bsky.social',
               controller: _controller,
+              enabled: canAddAccount && !busy,
               onSubmitted: (_) => _submit(),
             ),
             SizedBox(height: spacing.sp5),
             ChunkyButton(
-              onPressed: state is AsyncLoading ? null : _submit,
-              child: state is AsyncLoading
+              onPressed: canAddAccount && !busy ? _submit : null,
+              child: busy
                   ? const StitchProgressIndicator(size: 18)
                   : Text(l10n.signInContinueAction),
             ),
+            if (widget.mode == SignInMode.addAccount) ...[
+              SizedBox(height: spacing.sp5),
+              RegistrationAction(
+                enabled: canAddAccount,
+                isLoading: busy,
+                onPressed: _startRegistration,
+              ),
+            ],
           ],
         ),
       ),
@@ -95,11 +116,23 @@ class _SignInPageState extends ConsumerState<SignInPage> {
     );
   }
 
+  void _startRegistration() {
+    unawaited(
+      ref.read(authControllerProvider.notifier).startRegistration(),
+    );
+  }
+
   String _messageFor(AppLocalizations l10n, Object? error) => switch (error) {
     HandleRequired() => l10n.signInHandleRequiredError,
     InvalidHandle() => l10n.signInInvalidHandleError,
     ServerUnavailable() => l10n.signInServerUnavailableError,
     BrowserLaunchFailed() => l10n.signInBrowserLaunchError,
+    RegistrationFailure.canceled => l10n.authRegistrationCanceledError,
+    RegistrationFailure.providerUnavailable =>
+      l10n.authRegistrationProviderUnavailableError,
+    RegistrationFailure.registrationIncomplete =>
+      l10n.authRegistrationIncompleteError,
+    model.AccountLimitReached() => l10n.accountSwitcherMaximum,
     _ => l10n.signInGenericError,
   };
 }

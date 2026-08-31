@@ -424,11 +424,17 @@ abstract class AppLocalizations {
   /// **'Sign in'**
   String get welcomeSignInAction;
 
-  /// Secondary action on the welcome page for users who need a PDS account.
+  /// Action that starts provider-first account registration.
   ///
   /// In en, this message translates to:
-  /// **'Create account on a PDS'**
+  /// **'Create an account'**
   String get welcomeCreateAccountAction;
+
+  /// Provider disclosure shown immediately before each account-registration action.
+  ///
+  /// In en, this message translates to:
+  /// **'Bluesky hosts your portable account, which you can use with Craftsky.'**
+  String get registrationProviderDisclosure;
 
   /// App-bar title on the sign-in page.
   ///
@@ -549,6 +555,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Couldn\'t complete sign-in. Please sign in again.'**
   String get authCompleteGenericError;
+
+  /// Safe callback message shown when provider-first registration is canceled.
+  ///
+  /// In en, this message translates to:
+  /// **'Account creation was canceled.'**
+  String get authRegistrationCanceledError;
+
+  /// Safe callback message shown when the registration provider is temporarily unavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Bluesky is temporarily unavailable. Please try again.'**
+  String get authRegistrationProviderUnavailableError;
+
+  /// Safe callback message shown when provider-first registration could not be verified or completed.
+  ///
+  /// In en, this message translates to:
+  /// **'We couldn\'t verify or complete account creation.'**
+  String get authRegistrationIncompleteError;
 
   /// Default label for the primary action button on a CraftskyDialog confirm helper when the caller does not provide one.
   ///

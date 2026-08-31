@@ -275,6 +275,7 @@ type Config struct {
 	OAuthHandoffConfirmationTTL          time.Duration // default 2m
 	OAuthHandoffReceiptKey               Secret
 	OAuthHandoffReceiptKeyVersion        int
+	OAuthRegistrationProviderOrigin      url.URL
 	VerifiedLinkOrigin                   url.URL
 	EnableDevOAuthScheme                 bool
 
@@ -512,6 +513,13 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		cfg.ExpectedHosts[0] = origin.Host
 	default:
 		return Config{}, fmt.Errorf("unknown env %q: expected %q or %q", env, EnvDev, EnvProd)
+	}
+	cfg.OAuthRegistrationProviderOrigin, err = parseCanonicalPublicOriginSetting(
+		"OAUTH_REGISTRATION_PROVIDER_ORIGIN",
+		getEnvWithDefault("OAUTH_REGISTRATION_PROVIDER_ORIGIN", "https://bsky.social"),
+	)
+	if err != nil {
+		return Config{}, err
 	}
 
 	for _, removed := range []string{
@@ -1144,12 +1152,19 @@ func parseCanonicalPublicOrigin(raw string) (url.URL, error) {
 	if raw == "" {
 		return url.URL{}, fmt.Errorf("OAUTH_PUBLIC_ORIGIN is required in prod")
 	}
+	return parseCanonicalPublicOriginSetting("OAUTH_PUBLIC_ORIGIN", raw)
+}
+
+func parseCanonicalPublicOriginSetting(key, raw string) (url.URL, error) {
+	if raw == "" {
+		return url.URL{}, fmt.Errorf("%s is required", key)
+	}
 	if raw != strings.TrimSpace(raw) || strings.ContainsAny(raw, "\\#\r\n\t") {
-		return url.URL{}, fmt.Errorf("OAUTH_PUBLIC_ORIGIN must be a canonical HTTPS origin")
+		return url.URL{}, fmt.Errorf("%s must be a canonical HTTPS origin", key)
 	}
 	parsed, err := url.Parse(raw)
 	if err != nil {
-		return url.URL{}, fmt.Errorf("OAUTH_PUBLIC_ORIGIN: %w", err)
+		return url.URL{}, fmt.Errorf("%s: %w", key, err)
 	}
 	hostname := strings.ToLower(parsed.Hostname())
 	if parsed.Scheme != "https" || parsed.Opaque != "" || parsed.User != nil ||
@@ -1157,7 +1172,7 @@ func parseCanonicalPublicOrigin(raw string) (url.URL, error) {
 		(parsed.Path != "" && parsed.Path != "/") || parsed.RawPath != "" ||
 		parsed.Port() != "" || hostname == "" || net.ParseIP(hostname) != nil ||
 		!isPublicDNSName(hostname) {
-		return url.URL{}, fmt.Errorf("OAUTH_PUBLIC_ORIGIN must be a public canonical HTTPS origin")
+		return url.URL{}, fmt.Errorf("%s must be a public canonical HTTPS origin", key)
 	}
 	parsed.Scheme = "https"
 	parsed.Host = hostname

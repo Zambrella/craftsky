@@ -4,16 +4,20 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'pending_auth_provider.g.dart';
 
-/// Tracks the in-flight sign-in attempt for UI state only. The server-bound
-/// code and stable device ID remain authoritative if the process restarts while
-/// the system browser is open.
+/// Tracks the in-flight authentication attempt for UI state only. The
+/// server-bound code and stable device ID remain authoritative if the process
+/// restarts while the system browser is open.
 @Riverpod(keepAlive: true)
 class PendingAuth extends _$PendingAuth {
   @override
   model.PendingAuth? build() => null;
 
-  void start(String handle) => state = model.PendingAuth(
+  void startSignIn(String handle) => state = model.PendingAuth.signIn(
     handle: handle,
+    startedAt: DateTime.now(),
+  );
+
+  void startRegistration() => state = model.PendingAuth.registration(
     startedAt: DateTime.now(),
   );
 

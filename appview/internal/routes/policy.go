@@ -102,6 +102,7 @@ func mustConfiguredPolicy(env Environment, cfg Config, method, pathPattern strin
 func baseV1RoutePolicies() []RoutePolicy {
 	return []RoutePolicy{
 		{Method: "POST", PathPattern: "/v1/auth/login", RateClass: RateClassAuth, BodyKind: BodyDefaultJSON, AccessClass: AccessAnonymous},
+		{Method: "POST", PathPattern: "/v1/auth/registrations", RateClass: RateClassAuth, BodyKind: BodyDefaultJSON, AccessClass: AccessAnonymous},
 		{Method: "POST", PathPattern: "/v1/auth/handoffs/exchange", RateClass: RateClassAuth, BodyKind: BodyDefaultJSON, AccessClass: AccessAnonymous},
 		{Method: "POST", PathPattern: "/v1/auth/handoffs/confirm", RateClass: RateClassAuth, BodyKind: BodyDefaultJSON, AccessClass: AccessAnonymous},
 		{Method: "GET", PathPattern: "/v1/whoami", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessAuthenticatedRecovery},
