@@ -80,7 +80,8 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] YouTube video embeds
 - [x] Tablet support
 - [x] Dark theme
-- [ ] Registration
+- [x] Registration
+- [ ] Welcome page
 - [ ] Onboarding
 - [ ] Update create project flow to be more streamlined
 - [ ] Iconography
