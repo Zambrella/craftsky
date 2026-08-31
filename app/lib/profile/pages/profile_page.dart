@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
+import 'package:craftsky_app/business/providers/profile_business_events_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
@@ -21,10 +22,13 @@ import 'package:craftsky_app/profile/widgets/profile_tab_bar.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_about_tab.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_comments_tab.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_empty_tab.dart';
+import 'package:craftsky_app/profile/widgets/profile_tabs/profile_events_tab.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_posts_tab.dart';
+import 'package:craftsky_app/profile/widgets/profile_tabs/profile_products_tab.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_projects_tab.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/errors/notification_destination_error.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
@@ -233,14 +237,13 @@ class _ProfileBody extends ConsumerWidget {
         relationship: relationship,
       );
     }
-    return DefaultTabController(
-      length: ProfileTab.values.length,
-      child: _ProfileScrollView(
-        profile: profile,
-        actions: actions,
-        isOwnProfile: isOwnProfile,
-        relationship: relationship,
-      ),
+    return _ProfileTabbedBody(
+      key: ValueKey(profile.did),
+      profile: profile,
+      actions: actions,
+      isOwnProfile: isOwnProfile,
+      relationship: relationship,
+      viewerAccount: viewerAccount,
     );
   }
 
@@ -363,6 +366,126 @@ class _ProfileBody extends ConsumerWidget {
   }
 }
 
+class _ProfileTabbedBody extends StatefulWidget {
+  const _ProfileTabbedBody({
+    required this.profile,
+    required this.actions,
+    required this.isOwnProfile,
+    required this.relationship,
+    required this.viewerAccount,
+    super.key,
+  });
+
+  final Profile profile;
+  final ProfileActionSet actions;
+  final bool isOwnProfile;
+  final ProfileRelationship relationship;
+  final AccountKey? viewerAccount;
+
+  @override
+  State<_ProfileTabbedBody> createState() => _ProfileTabbedBodyState();
+}
+
+class _ProfileTabbedBodyState extends State<_ProfileTabbedBody> {
+  ProfileTab _selected = ProfileTab.projects;
+
+  @override
+  void didUpdateWidget(covariant _ProfileTabbedBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _selected = ProfileTabPolicy.selectionAfterChange(
+      selected: _selected,
+      tabs: _tabsFor(widget.profile),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tabs = _tabsFor(widget.profile);
+    return _ProfileTabControllerBody(
+      key: ValueKey(widget.profile.accountType),
+      profile: widget.profile,
+      actions: widget.actions,
+      isOwnProfile: widget.isOwnProfile,
+      relationship: widget.relationship,
+      viewerAccount: widget.viewerAccount,
+      tabs: tabs,
+      initialSelection: _selected,
+      onSelectionChanged: (tab) => _selected = tab,
+    );
+  }
+
+  List<ProfileTab> _tabsFor(Profile profile) => ProfileTabPolicy.forProfile(
+    accountType: profile.accountType,
+    isBlocked: false,
+  );
+}
+
+class _ProfileTabControllerBody extends StatefulWidget {
+  const _ProfileTabControllerBody({
+    required this.profile,
+    required this.actions,
+    required this.isOwnProfile,
+    required this.relationship,
+    required this.viewerAccount,
+    required this.tabs,
+    required this.initialSelection,
+    required this.onSelectionChanged,
+    super.key,
+  });
+
+  final Profile profile;
+  final ProfileActionSet actions;
+  final bool isOwnProfile;
+  final ProfileRelationship relationship;
+  final AccountKey? viewerAccount;
+  final List<ProfileTab> tabs;
+  final ProfileTab initialSelection;
+  final ValueChanged<ProfileTab> onSelectionChanged;
+
+  @override
+  State<_ProfileTabControllerBody> createState() =>
+      _ProfileTabControllerBodyState();
+}
+
+class _ProfileTabControllerBodyState extends State<_ProfileTabControllerBody>
+    with SingleTickerProviderStateMixin {
+  late final TabController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TabController(
+      length: widget.tabs.length,
+      initialIndex: widget.tabs.indexOf(widget.initialSelection),
+      vsync: this,
+    )..addListener(_trackSelection);
+  }
+
+  @override
+  void dispose() {
+    _controller
+      ..removeListener(_trackSelection)
+      ..dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => _ProfileScrollView(
+    profile: widget.profile,
+    actions: widget.actions,
+    isOwnProfile: widget.isOwnProfile,
+    relationship: widget.relationship,
+    viewerAccount: widget.viewerAccount,
+    tabs: widget.tabs,
+    controller: _controller,
+  );
+
+  void _trackSelection() {
+    if (_controller.indexIsChanging) return;
+    widget.onSelectionChanged(widget.tabs[_controller.index]);
+  }
+}
+
 /// The profile screen's scroll structure. A [NestedScrollView]
 /// coordinates the outer collapsing header (illustration / avatar / meta /
 /// pinned tab bar) with each tab's own inner [CustomScrollView]. Each
@@ -376,12 +499,18 @@ class _ProfileScrollView extends StatelessWidget {
     required this.actions,
     required this.isOwnProfile,
     required this.relationship,
+    required this.tabs,
+    required this.controller,
+    required this.viewerAccount,
   });
 
   final Profile profile;
   final ProfileActionSet actions;
   final bool isOwnProfile;
   final ProfileRelationship relationship;
+  final List<ProfileTab> tabs;
+  final TabController controller;
+  final AccountKey? viewerAccount;
 
   @override
   Widget build(BuildContext context) {
@@ -422,18 +551,20 @@ class _ProfileScrollView extends StatelessWidget {
               child: _RelationshipAnnotation(relationship: relationship),
             ),
           ),
-        const SliverPersistentHeader(
+        SliverPersistentHeader(
           pinned: true,
-          delegate: ProfileTabBarDelegate(),
+          delegate: ProfileTabBarDelegate(tabs: tabs, controller: controller),
         ),
       ],
       body: TabBarView(
+        controller: controller,
         children: [
-          for (final tab in ProfileTab.values)
+          for (final tab in tabs)
             _ProfileTabScrollView(
               tab: tab,
               profile: profile,
               isOwnProfile: isOwnProfile,
+              viewerAccount: viewerAccount,
             ),
         ],
       ),
@@ -534,22 +665,25 @@ class _ProfileTabScrollView extends StatelessWidget {
     required this.tab,
     required this.profile,
     required this.isOwnProfile,
+    required this.viewerAccount,
   });
 
   final ProfileTab tab;
   final Profile profile;
   final bool isOwnProfile;
+  final AccountKey? viewerAccount;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return CustomScrollView(
-      key: PageStorageKey<String>('profile_tab_${tab.name}'),
-      slivers: [_slivertForTab(tab, profile, l10n)],
+      key: PageStorageKey<String>(tab.storageKey),
+      slivers: [_sliverForTab(context, tab, profile, l10n)],
     );
   }
 
-  Widget _slivertForTab(
+  Widget _sliverForTab(
+    BuildContext context,
     ProfileTab tab,
     Profile profile,
     AppLocalizations l10n,
@@ -568,6 +702,33 @@ class _ProfileTabScrollView extends StatelessWidget {
         isOwnProfile: isOwnProfile,
       ),
       ProfileTab.reposts => ProfileEmptyTab(message: l10n.profileEmptyReposts),
+      ProfileTab.products => ProfileProductsTab(
+        products: profile.business?.products ?? const [],
+        isOwnProfile: isOwnProfile,
+        onManage: isOwnProfile
+            ? () => const BusinessProductsRoute().go(context)
+            : null,
+      ),
+      ProfileTab.upcomingEvents => switch (viewerAccount) {
+        final account? => ProfileEventsTab(
+          target: ProfileBusinessEventsTarget(
+            account: account,
+            owner: AtIdentifier.parse(profile.did.toString()),
+          ),
+          isOwnProfile: isOwnProfile,
+          onOpen: (did, rkey) => BusinessEventRoute(
+            did: did.toString(),
+            rkey: rkey.toString(),
+          ).push<void>(context),
+          onManage: isOwnProfile
+              ? () => const BusinessEventsRoute().go(context)
+              : null,
+        ),
+        null => const SliverFillRemaining(
+          hasScrollBody: false,
+          child: Center(child: StitchProgressIndicator()),
+        ),
+      },
       ProfileTab.about => ProfileAboutTab(profile: profile),
     };
   }

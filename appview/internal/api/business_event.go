@@ -37,6 +37,56 @@ type BusinessEventPage struct {
 	Cursor string               `json:"cursor,omitempty"`
 }
 
+type businessEventResponsePage struct {
+	Items  []BusinessEventResponse `json:"items"`
+	Cursor string                  `json:"cursor,omitempty"`
+}
+
+type BusinessEventResponse struct {
+	DID                      syntax.DID           `json:"did"`
+	Rkey                     syntax.RecordKey     `json:"rkey"`
+	URI                      syntax.ATURI         `json:"uri"`
+	CID                      syntax.CID           `json:"cid"`
+	Name                     string               `json:"name"`
+	StartsAt                 string               `json:"startsAt"`
+	EndsAt                   string               `json:"endsAt"`
+	Roles                    []business.OpenValue `json:"roles"`
+	Mode                     *business.OpenValue  `json:"mode,omitempty"`
+	Status                   business.OpenValue   `json:"status"`
+	TimeZone                 string               `json:"timeZone,omitempty"`
+	IsAllDay                 bool                 `json:"isAllDay"`
+	Summary                  string               `json:"summary,omitempty"`
+	VenueName                string               `json:"venueName,omitempty"`
+	EventURI                 string               `json:"eventUri,omitempty"`
+	RegistrationURI          string               `json:"registrationUri,omitempty"`
+	Image                    *BusinessImageView   `json:"image,omitempty"`
+	CreatedAt                string               `json:"createdAt"`
+	Past                     bool                 `json:"past"`
+	PublicSuppressionReasons []string             `json:"publicSuppressionReasons"`
+	UpcomingExclusionReasons []string             `json:"upcomingExclusionReasons"`
+}
+
+func BuildBusinessEventResponse(event business.EventView) BusinessEventResponse {
+	return BusinessEventResponse{
+		DID: event.DID, Rkey: event.Rkey, URI: event.URI, CID: event.CID,
+		Name: event.Name, StartsAt: event.StartsAt, EndsAt: event.EndsAt,
+		Roles: event.Roles, Mode: event.Mode, Status: event.Status,
+		TimeZone: event.TimeZone, IsAllDay: event.IsAllDay, Summary: event.Summary,
+		VenueName: event.VenueName, EventURI: event.EventURI, RegistrationURI: event.RegistrationURI,
+		Image: buildBusinessImageView(event.DID, event.Image), CreatedAt: event.CreatedAt, Past: event.Past,
+		PublicSuppressionReasons: event.PublicSuppressionReasons,
+		UpcomingExclusionReasons: event.UpcomingExclusionReasons,
+	}
+}
+
+func buildBusinessEventResponses(events []business.EventView) []BusinessEventResponse {
+	responses := make([]BusinessEventResponse, len(events))
+	for index, event := range events {
+		responses[index] = BuildBusinessEventResponse(event)
+	}
+	return responses
+}
+
 type UpcomingBusinessEventLister interface {
 	ListUpcomingEvents(context.Context, business.UpcomingEventListInput) ([]business.EventView, error)
 }
@@ -84,7 +134,7 @@ func GetBusinessEventHandler(store BusinessEventReader, now func() time.Time) ht
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "event read failed", runID, nil)
 			return
 		}
-		envelope.WriteJSON(w, http.StatusOK, event)
+		envelope.WriteJSON(w, http.StatusOK, BuildBusinessEventResponse(event))
 	})
 }
 
@@ -99,35 +149,58 @@ func GetOwnerBusinessEventsHandler(store OwnerBusinessEventLister, cursors *Even
 			envelope.WriteError(w, http.StatusInternalServerError, "missing_authenticated_did", "authenticated DID missing", runID, nil)
 			return
 		}
-		limit, err := NormalizeEventLimit(r.URL.Query().Get("limit"), 20)
+		query := r.URL.Query()
+		limit, err := NormalizeEventLimit(query.Get("limit"), 20)
 		if err != nil {
 			envelope.WriteError(w, http.StatusBadRequest, "invalid_limit", "limit must be a positive integer", runID, nil)
 			return
 		}
+		asOf := now().UTC()
+		filter := business.OwnerEventFilter("")
+		cursorKind := EventCursorManagement
+		if values, present := query["filter"]; present {
+			if len(values) != 1 {
+				envelope.WriteError(w, http.StatusBadRequest, "invalid_filter", "filter must be upcoming or history", runID, nil)
+				return
+			}
+			switch values[0] {
+			case string(business.OwnerEventUpcoming):
+				filter = business.OwnerEventUpcoming
+				cursorKind = EventCursorOwnerUpcoming
+			case string(business.OwnerEventHistory):
+				filter = business.OwnerEventHistory
+				cursorKind = EventCursorOwnerHistory
+			default:
+				envelope.WriteError(w, http.StatusBadRequest, "invalid_filter", "filter must be upcoming or history", runID, nil)
+				return
+			}
+		}
 		var seek *business.OwnerEventSeek
-		if encoded := r.URL.Query().Get("cursor"); encoded != "" {
+		if encoded := query.Get("cursor"); encoded != "" {
 			if cursors == nil {
 				envelope.WriteError(w, http.StatusBadRequest, "invalid_cursor", "cursor could not be decoded", runID, nil)
 				return
 			}
-			cursor, err := cursors.Decode(encoded, EventCursorManagement, owner)
+			cursor, err := cursors.Decode(encoded, cursorKind, owner)
 			if err != nil {
 				envelope.WriteError(w, http.StatusBadRequest, "invalid_cursor", "cursor could not be decoded", runID, nil)
 				return
 			}
 			seek = &business.OwnerEventSeek{StartsAt: cursor.StartsAt, URI: cursor.URI}
+			if filter != "" {
+				asOf = cursor.AsOf
+			}
 		}
-		asOf := now().UTC()
 		items, err := store.ListOwnerEvents(r.Context(), business.OwnerEventListInput{
-			OwnerDID: owner, AsOf: asOf, Limit: limit, Seek: seek,
+			OwnerDID: owner, Filter: filter, AsOf: asOf, Limit: limit, Seek: seek,
 		})
 		if err != nil {
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "event list failed", runID, nil)
 			return
 		}
-		page := BusinessEventPage{Items: items}
+		page := businessEventResponsePage{Items: buildBusinessEventResponses(items)}
 		if len(items) > limit {
-			page.Items = items[:limit]
+			page.Items = page.Items[:limit]
 			last := page.Items[len(page.Items)-1]
 			startsAt, err := time.Parse(time.RFC3339Nano, last.StartsAt)
 			if err != nil {
@@ -139,7 +212,7 @@ func GetOwnerBusinessEventsHandler(store OwnerBusinessEventLister, cursors *Even
 				return
 			}
 			page.Cursor, err = cursors.Encode(EventCursor{
-				Kind: EventCursorManagement, StartsAt: startsAt, URI: last.URI,
+				Kind: cursorKind, AsOf: asOf, StartsAt: startsAt, URI: last.URI,
 			}, owner)
 			if err != nil {
 				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "event cursor could not be created", runID, nil)
@@ -208,9 +281,9 @@ func GetProfileBusinessEventsHandler(
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "event list failed", runID, nil)
 			return
 		}
-		page := BusinessEventPage{Items: items}
+		page := businessEventResponsePage{Items: buildBusinessEventResponses(items)}
 		if len(items) > limit {
-			page.Items = items[:limit]
+			page.Items = page.Items[:limit]
 			last := page.Items[len(page.Items)-1]
 			startsAt, err := time.Parse(time.RFC3339Nano, last.StartsAt)
 			if err != nil {

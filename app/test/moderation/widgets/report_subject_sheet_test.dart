@@ -33,6 +33,27 @@ Future<void> _pump(
 
 void main() {
   group('ReportSubjectSheet', () {
+    testWidgets('uses the event title without changing the shared form', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        ReportSubjectSheet(
+          subjectType: ReportSubjectType.event,
+          onSubmit: (_) {},
+        ),
+      );
+
+      expect(find.text('Report event'), findsOneWidget);
+      expect(find.text('Spam'), findsOneWidget);
+      expect(
+        tester
+            .widget<TextButton>(find.widgetWithText(TextButton, 'Submit'))
+            .onPressed,
+        isNull,
+      );
+    });
+
     testWidgets('lists approved reasons and blocks submit until valid', (
       tester,
     ) async {

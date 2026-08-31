@@ -156,6 +156,20 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
                       factory: $AboutRoute._fromState,
                     ),
                     GoRouteData.$route(
+                      path: 'products',
+                      name: 'settings-business-products',
+                      parentNavigatorKey:
+                          BusinessProductsRoute.$parentNavigatorKey,
+                      factory: $BusinessProductsRoute._fromState,
+                    ),
+                    GoRouteData.$route(
+                      path: 'events',
+                      name: 'settings-business-events',
+                      parentNavigatorKey:
+                          BusinessEventsRoute.$parentNavigatorKey,
+                      factory: $BusinessEventsRoute._fromState,
+                    ),
+                    GoRouteData.$route(
                       path: 'languages',
                       name: 'languages',
                       parentNavigatorKey: LanguagesRoute.$parentNavigatorKey,
@@ -239,6 +253,11 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
       path: '/posts/:did/:rkey',
       name: 'post-thread',
       factory: $PostThreadRoute._fromState,
+    ),
+    GoRouteData.$route(
+      path: '/events/:did/:rkey',
+      name: 'business-event',
+      factory: $BusinessEventRoute._fromState,
     ),
     GoRouteData.$route(
       path: '/profile/:handle',
@@ -528,6 +547,48 @@ mixin $AboutRoute on GoRouteData {
   void replace(BuildContext context) => context.replace(location);
 }
 
+mixin $BusinessProductsRoute on GoRouteData {
+  static BusinessProductsRoute _fromState(GoRouterState state) =>
+      const BusinessProductsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/profile/settings/products');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $BusinessEventsRoute on GoRouteData {
+  static BusinessEventsRoute _fromState(GoRouterState state) =>
+      const BusinessEventsRoute();
+
+  @override
+  String get location => GoRouteData.$location('/profile/settings/events');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
 mixin $LanguagesRoute on GoRouteData {
   static LanguagesRoute _fromState(GoRouterState state) =>
       const LanguagesRoute();
@@ -792,6 +853,34 @@ mixin $PostThreadRoute on GoRouteData {
   @override
   void replace(BuildContext context) =>
       context.replace(location, extra: _self.$extra);
+}
+
+mixin $BusinessEventRoute on GoRouteData {
+  static BusinessEventRoute _fromState(GoRouterState state) =>
+      BusinessEventRoute(
+        did: state.pathParameters['did']!,
+        rkey: state.pathParameters['rkey']!,
+      );
+
+  BusinessEventRoute get _self => this as BusinessEventRoute;
+
+  @override
+  String get location => GoRouteData.$location(
+    '/events/${Uri.encodeComponent(_self.did)}/${Uri.encodeComponent(_self.rkey)}',
+  );
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
 }
 
 mixin $UserProfileRoute on GoRouteData {

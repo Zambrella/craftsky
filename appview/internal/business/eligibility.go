@@ -2,6 +2,20 @@ package business
 
 import "time"
 
+type OwnerEventFilter string
+
+const (
+	OwnerEventUpcoming OwnerEventFilter = "upcoming"
+	OwnerEventHistory  OwnerEventFilter = "history"
+)
+
+func ClassifyOwnerEvent(status string, endsAt, cutoff time.Time) OwnerEventFilter {
+	if (status == "" || status == "scheduled") && endsAt.After(cutoff) {
+		return OwnerEventUpcoming
+	}
+	return OwnerEventHistory
+}
+
 type EventPolicyInput struct {
 	CallerIsOwner bool
 	OwnerCurrent  bool

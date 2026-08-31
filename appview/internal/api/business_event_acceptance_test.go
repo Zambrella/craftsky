@@ -52,7 +52,7 @@ func TestBusinessEventLifecycleAcceptance(t *testing.T) {
 	clock := func() time.Time { return now }
 
 	create := api.PostBusinessEventHandler(factory, clock)
-	created := serveBusinessEventAcceptanceMutation(t, create, http.MethodPost, "/v1/events", validBusinessEventBody(false), "", "", "")
+	created := serveBusinessEventAcceptanceMutation(t, create, http.MethodPost, "/v1/events", validBusinessEventBody(true), "", "", "")
 	if created.Code != http.StatusCreated {
 		t.Fatalf("create status=%d body=%s", created.Code, created.Body.String())
 	}
@@ -82,6 +82,25 @@ func TestBusinessEventLifecycleAcceptance(t *testing.T) {
 		projectedEvent.Name != "Fiber Fair" || projectedEvent.CreatedAt != "2026-09-01T12:34:56Z" {
 		t.Fatalf("projected direct event = %+v", projectedEvent)
 	}
+	var projectedBody map[string]any
+	if err := json.Unmarshal(projected.Body.Bytes(), &projectedBody); err != nil {
+		t.Fatalf("decode projected event image: %v", err)
+	}
+	wantProjectedImage := map[string]any{
+		"cid":      "bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a",
+		"mime":     "image/webp",
+		"size":     float64(1024),
+		"alt":      "Event poster",
+		"thumb":    "https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:owner/bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a@webp",
+		"fullsize": "https://cdn.bsky.app/img/feed_fullsize/plain/did:plc:owner/bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a@webp",
+		"aspectRatio": map[string]any{
+			"width":  float64(4),
+			"height": float64(3),
+		},
+	}
+	if got := projectedBody["image"]; !jsonObjectsEqual(got, wantProjectedImage) {
+		t.Errorf("direct event image = %#v, want exact normalized image %#v", got, wantProjectedImage)
+	}
 
 	putsBeforeInjection := len(effects.puts)
 	createdAtCreate := strings.TrimSuffix(validBusinessEventBody(false), "}") + `,"createdAt":"2026-09-01T12:34:56Z"}`
@@ -104,7 +123,7 @@ func TestBusinessEventLifecycleAcceptance(t *testing.T) {
 
 	updated := serveBusinessEventAcceptanceMutation(t, update, http.MethodPut,
 		"/v1/events/"+owner.String()+"/"+rkey.String(),
-		strings.Replace(validBusinessEventBody(false), "Fiber Fair", "Fiber Fair Updated", 1),
+		strings.Replace(validBusinessEventBody(true), "Fiber Fair", "Fiber Fair Updated", 1),
 		businessEventCID1, owner.String(), rkey.String())
 	if updated.Code != http.StatusOK {
 		t.Fatalf("update status=%d body=%s", updated.Code, updated.Body.String())
@@ -177,6 +196,21 @@ func TestBusinessEventLifecycleAcceptance(t *testing.T) {
 		if !wantUpcoming[event.Name] {
 			t.Errorf("upcoming included %q", event.Name)
 		}
+	}
+	var upcomingWire struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.Unmarshal(upcomingResponse.Body.Bytes(), &upcomingWire); err != nil {
+		t.Fatalf("decode upcoming image wire: %v", err)
+	}
+	var upcomingImage any
+	for _, event := range upcomingWire.Items {
+		if event["name"] == "Fiber Fair Updated" {
+			upcomingImage = event["image"]
+		}
+	}
+	if !jsonObjectsEqual(upcomingImage, wantProjectedImage) {
+		t.Errorf("upcoming event image = %#v, want exact normalized image %#v", upcomingImage, wantProjectedImage)
 	}
 
 	remove := api.DeleteBusinessEventHandler(factory)

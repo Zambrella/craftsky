@@ -81,3 +81,35 @@ func TestBusinessEventCursorAndLimits(t *testing.T) {
 		}
 	}
 }
+
+func TestOwnerBusinessEventCursorKindsFreezeCutoff(t *testing.T) {
+	codec, err := NewEventCursorCodec(bytes.Repeat([]byte{0x24}, 32))
+	if err != nil {
+		t.Fatalf("NewEventCursorCodec: %v", err)
+	}
+	scope := syntax.DID("did:plc:owner")
+	cutoff := time.Date(2026, time.August, 30, 12, 0, 0, 0, time.UTC)
+	startsAt := cutoff.Add(time.Hour)
+	uri := syntax.ATURI("at://did:plc:owner/social.craftsky.business.event/3mexample")
+
+	for _, kind := range []EventCursorKind{EventCursorOwnerUpcoming, EventCursorOwnerHistory} {
+		encoded, err := codec.Encode(EventCursor{Kind: kind, AsOf: cutoff, StartsAt: startsAt, URI: uri}, scope)
+		if err != nil {
+			t.Fatalf("Encode(%s): %v", kind, err)
+		}
+		decoded, err := codec.Decode(encoded, kind, scope)
+		if err != nil {
+			t.Fatalf("Decode(%s): %v", kind, err)
+		}
+		if !decoded.AsOf.Equal(cutoff) || !decoded.StartsAt.Equal(startsAt) || decoded.URI != uri {
+			t.Fatalf("decoded %s cursor = %+v", kind, decoded)
+		}
+		other := EventCursorOwnerUpcoming
+		if kind == EventCursorOwnerUpcoming {
+			other = EventCursorOwnerHistory
+		}
+		if _, err := codec.Decode(encoded, other, scope); !errors.Is(err, envelope.ErrInvalidCursor) {
+			t.Errorf("Decode(%s as %s) error = %v, want ErrInvalidCursor", kind, other, err)
+		}
+	}
+}

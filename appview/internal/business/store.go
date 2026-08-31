@@ -42,6 +42,7 @@ type UpcomingEventSeek struct {
 
 type OwnerEventListInput struct {
 	OwnerDID syntax.DID
+	Filter   OwnerEventFilter
 	AsOf     time.Time
 	Limit    int
 	Seek     *OwnerEventSeek
@@ -211,10 +212,10 @@ func (s *Store) ListOwnerEvents(ctx context.Context, input OwnerEventListInput) 
 		seekStartsAt = input.Seek.StartsAt
 		seekURI = input.Seek.URI
 	}
-	rows, err := s.pool.Query(ctx, `
+	query := `
 		SELECT event.raw_record, event.uri, event.rkey, event.cid,
 		       event.starts_at, event.ends_at,
-		       COALESCE(account_type.account_type, 'regular'), `+eventModeratedSQL+`
+		       COALESCE(account_type.account_type, 'regular'), ` + eventModeratedSQL + `
 		FROM craftsky_business_events event
 		JOIN craftsky_profiles membership ON membership.did = event.owner_did
 		LEFT JOIN craftsky_account_types account_type ON account_type.owner_did = event.owner_did
@@ -224,7 +225,45 @@ func (s *Store) ListOwnerEvents(ctx context.Context, input OwnerEventListInput) 
 		       (event.starts_at, event.uri) < ($2::timestamptz, $3::text))
 		ORDER BY event.starts_at DESC, event.uri DESC
 		LIMIT $4
-	`, input.OwnerDID, seekStartsAt, seekURI, input.Limit+1)
+	`
+	args := []any{input.OwnerDID, seekStartsAt, seekURI, input.Limit + 1}
+	if input.Filter == OwnerEventUpcoming {
+		query = `
+			SELECT event.raw_record, event.uri, event.rkey, event.cid,
+			       event.starts_at, event.ends_at,
+			       COALESCE(account_type.account_type, 'regular'), ` + eventModeratedSQL + `
+			FROM craftsky_business_events event
+			JOIN craftsky_profiles membership ON membership.did = event.owner_did
+			LEFT JOIN craftsky_account_types account_type ON account_type.owner_did = event.owner_did
+			WHERE event.owner_did = $1
+			  AND appview_owner_is_active(event.owner_did)
+			  AND COALESCE(event.status, 'scheduled') = 'scheduled'
+			  AND event.ends_at > $2
+			  AND ($3::timestamptz IS NULL OR
+			       (event.starts_at, event.uri) > ($3::timestamptz, $4::text))
+			ORDER BY event.starts_at ASC, event.uri ASC
+			LIMIT $5
+		`
+		args = []any{input.OwnerDID, input.AsOf, seekStartsAt, seekURI, input.Limit + 1}
+	} else if input.Filter == OwnerEventHistory {
+		query = `
+			SELECT event.raw_record, event.uri, event.rkey, event.cid,
+			       event.starts_at, event.ends_at,
+			       COALESCE(account_type.account_type, 'regular'), ` + eventModeratedSQL + `
+			FROM craftsky_business_events event
+			JOIN craftsky_profiles membership ON membership.did = event.owner_did
+			LEFT JOIN craftsky_account_types account_type ON account_type.owner_did = event.owner_did
+			WHERE event.owner_did = $1
+			  AND appview_owner_is_active(event.owner_did)
+			  AND NOT (COALESCE(event.status, 'scheduled') = 'scheduled' AND event.ends_at > $2)
+			  AND ($3::timestamptz IS NULL OR
+			       (event.starts_at, event.uri) < ($3::timestamptz, $4::text))
+			ORDER BY event.starts_at DESC, event.uri DESC
+			LIMIT $5
+		`
+		args = []any{input.OwnerDID, input.AsOf, seekStartsAt, seekURI, input.Limit + 1}
+	}
+	rows, err := s.pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("list owner business events: %w", err)
 	}
@@ -269,8 +308,9 @@ func applyEventPolicy(view *EventView, policy EventPolicyResult) {
 
 func (s *Store) ReadEligibleProfile(ctx context.Context, did syntax.DID) (*ProfileView, error) {
 	var raw json.RawMessage
+	var cid syntax.CID
 	err := s.pool.QueryRow(ctx, `
-		SELECT business_profile.raw_record
+		SELECT business_profile.raw_record, business_profile.cid
 		FROM craftsky_business_profiles AS business_profile
 		JOIN craftsky_profiles AS membership
 		  ON membership.did = business_profile.owner_did
@@ -279,7 +319,7 @@ func (s *Store) ReadEligibleProfile(ctx context.Context, did syntax.DID) (*Profi
 		 AND account_type.account_type = 'business'
 		WHERE business_profile.owner_did = $1
 		  AND appview_owner_is_active(business_profile.owner_did)
-	`, did).Scan(&raw)
+	`, did).Scan(&raw, &cid)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -290,6 +330,7 @@ func (s *Store) ReadEligibleProfile(ctx context.Context, did syntax.DID) (*Profi
 	if err != nil {
 		return nil, fmt.Errorf("hydrate eligible business profile: %w", err)
 	}
+	view.CID = cid
 	return &view, nil
 }
 

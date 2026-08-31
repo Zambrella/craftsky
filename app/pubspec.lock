@@ -869,6 +869,30 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "4.12.0"
+  l10n_countries:
+    dependency: "direct main"
+    description:
+      name: l10n_countries
+      sha256: "92d9bebace44305be030a2276678dd1b651e1475eb6c119a28b5c25b87b1d88c"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.3"
+  l10n_currencies:
+    dependency: transitive
+    description:
+      name: l10n_currencies
+      sha256: "1ddeed160a8b433ab24515bd8366688b0f6fdaa555a10f1782197744436c9682"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.3"
+  l10n_languages:
+    dependency: transitive
+    description:
+      name: l10n_languages
+      sha256: "48f5a8effe7b2818f95c5d9a7b1ea3671d1b149b76ea408c0aea76400c0ba0db"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.3"
   leak_tracker:
     dependency: transitive
     description:
@@ -1197,6 +1221,30 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.28.0"
+  sealed_countries:
+    dependency: "direct main"
+    description:
+      name: sealed_countries
+      sha256: "55ddd46495b56e716e0c0be11d95e248232571c1de0876b7adb420c0d5664cbe"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.3.0"
+  sealed_currencies:
+    dependency: transitive
+    description:
+      name: sealed_currencies
+      sha256: c39ef88a551a4a7095007f542770db5d3dba8d05fa6efbbdd86b7d0f3b6237f8
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.3.0"
+  sealed_languages:
+    dependency: transitive
+    description:
+      name: sealed_languages
+      sha256: "0f2ac56ed6bc181d103a74ae409b6c343fe472f47c403e81fa7131df161779c7"
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.3.0"
   sentry:
     dependency: transitive
     description:
@@ -1522,6 +1570,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.7.1"
+  timezone:
+    dependency: "direct main"
+    description:
+      name: timezone
+      sha256: "981d1020d6ef8fe1e7b3de5054e5b25579ae7c403d7734adc508ffc47668e9cb"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.11.1"
   type_plus:
     dependency: transitive
     description:

@@ -117,6 +117,325 @@ func TestAT006PaginateUpcomingEventsWithFrozenTimeEligibility(t *testing.T) {
 	}
 }
 
+func TestOwnerBusinessEventsUpcomingTraversalIsCompleteAtFrozenCutoff(t *testing.T) {
+	pool := testdb.WithSchema(t, businessEventStoreDDL)
+	owner := syntax.DID("did:plc:ownerupcomingtraversal")
+	cutoff := time.Date(2026, time.August, 30, 12, 0, 0, 0, time.UTC)
+	clock := cutoff
+	seedEligibleBusinessOwner(t, pool, owner)
+
+	fixtures := []eventFixture{
+		{Owner: owner, Rkey: "3msupcoming000", Name: "Ongoing", StartsAt: cutoff.Add(-time.Hour), EndsAt: cutoff.Add(30 * time.Minute)},
+		{Owner: owner, Rkey: "3msupcoming001", Name: "Tie low URI", StartsAt: cutoff.Add(time.Hour), EndsAt: cutoff.Add(2 * time.Hour)},
+		{Owner: owner, Rkey: "3msupcoming002", Name: "Tie high URI", StartsAt: cutoff.Add(time.Hour), EndsAt: cutoff.Add(2 * time.Hour)},
+		{Owner: owner, Rkey: "3msupcoming003", Name: "Third start", StartsAt: cutoff.Add(2 * time.Hour), EndsAt: cutoff.Add(3 * time.Hour)},
+		{Owner: owner, Rkey: "3msupcoming004", Name: "Fourth start", StartsAt: cutoff.Add(3 * time.Hour), EndsAt: cutoff.Add(4 * time.Hour)},
+		{Owner: owner, Rkey: "3msupcoming005", Name: "Fifth start", StartsAt: cutoff.Add(4 * time.Hour), EndsAt: cutoff.Add(5 * time.Hour)},
+		{Owner: owner, Rkey: "3msupcoming006", Name: "Sixth start", StartsAt: cutoff.Add(5 * time.Hour), EndsAt: cutoff.Add(6 * time.Hour)},
+	}
+	want := make([]string, 0, len(fixtures))
+	for _, fixture := range fixtures {
+		want = append(want, seedEventFixture(t, pool, fixture).String())
+	}
+	if _, err := pool.Exec(context.Background(), `UPDATE craftsky_business_events SET cid=$1 WHERE owner_did=$2`, businessEventCID1, owner); err != nil {
+		t.Fatalf("set canonical event CIDs: %v", err)
+	}
+
+	handler := api.GetOwnerBusinessEventsHandler(business.NewStore(pool), testEventCursorCodec(t), func() time.Time { return clock })
+	limits := []int{2, 1, 4}
+	wantPages := [][]string{
+		want[:2],
+		want[2:3],
+		want[3:],
+	}
+	var got []string
+	seen := make(map[string]bool, len(want))
+	cursor := ""
+	for pageNumber, limit := range limits {
+		target := fmt.Sprintf("/v1/events?filter=upcoming&limit=%d", limit)
+		if cursor != "" {
+			target += "&cursor=" + url.QueryEscape(cursor)
+		}
+		response := serveAT007OwnerEvents(handler, owner, target)
+		if response.Code != http.StatusOK {
+			t.Fatalf("upcoming page %d status=%d body=%s", pageNumber, response.Code, response.Body.String())
+		}
+		var page api.BusinessEventPage
+		if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
+			t.Fatalf("decode upcoming page %d: %v", pageNumber, err)
+		}
+		pageURIs := make([]string, len(page.Items))
+		for index, event := range page.Items {
+			uri := event.URI.String()
+			pageURIs[index] = uri
+			if seen[uri] {
+				t.Fatalf("upcoming page %d duplicated URI %s", pageNumber, uri)
+			}
+			seen[uri] = true
+			got = append(got, uri)
+		}
+		if !reflect.DeepEqual(pageURIs, wantPages[pageNumber]) {
+			t.Fatalf("upcoming page %d URIs = %v, want %v", pageNumber, pageURIs, wantPages[pageNumber])
+		}
+		if pageNumber == 0 {
+			clock = cutoff.Add(time.Hour)
+		}
+		if pageNumber < len(limits)-1 && page.Cursor == "" {
+			t.Fatalf("upcoming page %d omitted continuation cursor", pageNumber)
+		}
+		if pageNumber == len(limits)-1 && page.Cursor != "" {
+			t.Fatalf("final upcoming page cursor=%q, want empty", page.Cursor)
+		}
+		cursor = page.Cursor
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("upcoming traversal URIs = %v, want exact order %v", got, want)
+	}
+}
+
+func TestOwnerBusinessEventsHistoryTraversalIsCompleteAtIndependentFrozenCutoff(t *testing.T) {
+	pool := testdb.WithSchema(t, businessEventStoreDDL)
+	owner := syntax.DID("did:plc:ownerhistorytraversal")
+	historyCutoff := time.Date(2026, time.August, 30, 12, 0, 0, 0, time.UTC)
+	clock := historyCutoff.Add(-2 * time.Hour)
+	seedEligibleBusinessOwner(t, pool, owner)
+
+	fixtures := []eventFixture{
+		{Owner: owner, Rkey: "3mshistory000", Name: "Oldest ended", StartsAt: historyCutoff.Add(-time.Hour), EndsAt: historyCutoff.Add(-30 * time.Minute)},
+		{Owner: owner, Rkey: "3mshistory001", Name: "Recently ended", StartsAt: historyCutoff.Add(time.Hour), EndsAt: historyCutoff.Add(-time.Minute)},
+		{Owner: owner, Rkey: "3mshistory002", Name: "Ended at cutoff", StartsAt: historyCutoff.Add(2 * time.Hour), EndsAt: historyCutoff},
+		{Owner: owner, Rkey: "3mshistory003", Name: "Tie low URI", StartsAt: historyCutoff.Add(4 * time.Hour), EndsAt: historyCutoff.Add(5 * time.Hour), Status: "postponed"},
+		{Owner: owner, Rkey: "3mshistory004", Name: "Tie high URI", StartsAt: historyCutoff.Add(4 * time.Hour), EndsAt: historyCutoff.Add(5 * time.Hour), Status: "postponed"},
+		{Owner: owner, Rkey: "3mshistory005", Name: "Cancelled", StartsAt: historyCutoff.Add(5 * time.Hour), EndsAt: historyCutoff.Add(6 * time.Hour), Status: "cancelled"},
+		{Owner: owner, Rkey: "3mshistory006", Name: "Unknown", StartsAt: historyCutoff.Add(6 * time.Hour), EndsAt: historyCutoff.Add(7 * time.Hour), Status: "rescheduled-externally"},
+		{Owner: owner, Rkey: "3mshistory007", Name: "Crosses later clock only", StartsAt: historyCutoff.Add(3 * time.Hour), EndsAt: historyCutoff.Add(time.Hour)},
+	}
+	seeded := make(map[syntax.RecordKey]string, len(fixtures))
+	for _, fixture := range fixtures {
+		seeded[fixture.Rkey] = seedEventFixture(t, pool, fixture).String()
+	}
+	if _, err := pool.Exec(context.Background(), `UPDATE craftsky_business_events SET cid=$1 WHERE owner_did=$2`, businessEventCID1, owner); err != nil {
+		t.Fatalf("set canonical event CIDs: %v", err)
+	}
+	want := []string{
+		seeded["3mshistory006"],
+		seeded["3mshistory005"],
+		seeded["3mshistory004"],
+		seeded["3mshistory003"],
+		seeded["3mshistory002"],
+		seeded["3mshistory001"],
+		seeded["3mshistory000"],
+	}
+
+	codec := testEventCursorCodec(t)
+	handler := api.GetOwnerBusinessEventsHandler(business.NewStore(pool), codec, func() time.Time { return clock })
+	upcomingResponse := serveAT007OwnerEvents(handler, owner, "/v1/events?filter=upcoming&limit=1")
+	var upcomingPage api.BusinessEventPage
+	if upcomingResponse.Code != http.StatusOK || json.Unmarshal(upcomingResponse.Body.Bytes(), &upcomingPage) != nil || upcomingPage.Cursor == "" {
+		t.Fatalf("earlier upcoming page status=%d cursor=%q body=%s", upcomingResponse.Code, upcomingPage.Cursor, upcomingResponse.Body.String())
+	}
+	upcomingCursor, err := codec.Decode(upcomingPage.Cursor, api.EventCursorOwnerUpcoming, owner)
+	if err != nil || !upcomingCursor.AsOf.Equal(clock) {
+		t.Fatalf("upcoming cursor cutoff=%s error=%v, want %s", upcomingCursor.AsOf, err, clock)
+	}
+
+	clock = historyCutoff
+	limits := []int{3, 1, 3}
+	wantPages := [][]string{
+		want[:3],
+		want[3:4],
+		want[4:],
+	}
+	var got []string
+	seen := make(map[string]bool, len(want))
+	cursor := ""
+	for pageNumber, limit := range limits {
+		target := fmt.Sprintf("/v1/events?filter=history&limit=%d", limit)
+		if cursor != "" {
+			target += "&cursor=" + url.QueryEscape(cursor)
+		}
+		response := serveAT007OwnerEvents(handler, owner, target)
+		if response.Code != http.StatusOK {
+			t.Fatalf("history page %d status=%d body=%s", pageNumber, response.Code, response.Body.String())
+		}
+		var page api.BusinessEventPage
+		if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
+			t.Fatalf("decode history page %d: %v", pageNumber, err)
+		}
+		pageURIs := make([]string, len(page.Items))
+		for index, event := range page.Items {
+			uri := event.URI.String()
+			pageURIs[index] = uri
+			if seen[uri] {
+				t.Fatalf("history page %d duplicated URI %s", pageNumber, uri)
+			}
+			seen[uri] = true
+			got = append(got, uri)
+		}
+		if !reflect.DeepEqual(pageURIs, wantPages[pageNumber]) {
+			t.Fatalf("history page %d URIs = %v, want %v", pageNumber, pageURIs, wantPages[pageNumber])
+		}
+		if pageNumber == 0 {
+			historyCursor, err := codec.Decode(page.Cursor, api.EventCursorOwnerHistory, owner)
+			if err != nil || !historyCursor.AsOf.Equal(historyCutoff) || historyCursor.AsOf.Equal(upcomingCursor.AsOf) {
+				t.Fatalf("history cursor cutoff=%s error=%v, want independent %s", historyCursor.AsOf, err, historyCutoff)
+			}
+			clock = historyCutoff.Add(2 * time.Hour)
+		}
+		if pageNumber < len(limits)-1 && page.Cursor == "" {
+			t.Fatalf("history page %d omitted continuation cursor", pageNumber)
+		}
+		if pageNumber == len(limits)-1 && page.Cursor != "" {
+			t.Fatalf("final history page cursor=%q, want empty", page.Cursor)
+		}
+		cursor = page.Cursor
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("history traversal URIs = %v, want exact order %v", got, want)
+	}
+	if containsString(got, seeded["3mshistory007"]) {
+		t.Fatalf("history traversal admitted event that crossed the cutoff only after page one: %v", got)
+	}
+}
+
+func TestOwnerBusinessEventsUpcomingFilter(t *testing.T) {
+	pool := testdb.WithSchema(t, businessEventStoreDDL)
+	owner := syntax.DID("did:plc:ownerfilter")
+	cutoff := time.Date(2026, time.August, 30, 12, 0, 0, 0, time.UTC)
+	seedEligibleBusinessOwner(t, pool, owner)
+
+	fixtures := []eventFixture{
+		{Owner: owner, Rkey: "3msongoing001", Name: "Ongoing", StartsAt: cutoff.Add(-time.Hour), EndsAt: cutoff.Add(time.Hour)},
+		{Owner: owner, Rkey: "3msinvalid001", Name: "Suppressed invalid range", StartsAt: cutoff.Add(3 * time.Hour), EndsAt: cutoff.Add(2 * time.Hour)},
+		{Owner: owner, Rkey: "3msfuture0001", Name: "Future", StartsAt: cutoff.Add(4 * time.Hour), EndsAt: cutoff.Add(5 * time.Hour)},
+		{Owner: owner, Rkey: "3msended00001", Name: "Ended", StartsAt: cutoff.Add(-2 * time.Hour), EndsAt: cutoff},
+		{Owner: owner, Rkey: "3mscancel0001", Name: "Cancelled", StartsAt: cutoff.Add(6 * time.Hour), EndsAt: cutoff.Add(7 * time.Hour), Status: "cancelled"},
+		{Owner: owner, Rkey: "3msunknown001", Name: "Unknown", StartsAt: cutoff.Add(8 * time.Hour), EndsAt: cutoff.Add(9 * time.Hour), Status: "rescheduled-externally"},
+	}
+	for _, fixture := range fixtures {
+		seedEventFixture(t, pool, fixture)
+	}
+	if _, err := pool.Exec(context.Background(), `UPDATE craftsky_business_events SET cid=$1 WHERE owner_did=$2`, businessEventCID1, owner); err != nil {
+		t.Fatalf("set canonical event CIDs: %v", err)
+	}
+
+	clock := cutoff
+	handler := api.GetOwnerBusinessEventsHandler(business.NewStore(pool), testEventCursorCodec(t), func() time.Time { return clock })
+	response := serveAT007OwnerEvents(handler, owner, "/v1/events?filter=upcoming")
+	if response.Code != http.StatusOK {
+		t.Fatalf("upcoming filter status=%d body=%s", response.Code, response.Body.String())
+	}
+	var page api.BusinessEventPage
+	if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
+		t.Fatalf("decode upcoming owner page: %v", err)
+	}
+	got := make([]string, len(page.Items))
+	for index, event := range page.Items {
+		got[index] = event.Name
+	}
+	want := []string{"Ongoing", "Suppressed invalid range", "Future"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("upcoming owner events = %v, want %v", got, want)
+	}
+
+	response = serveAT007OwnerEvents(handler, owner, "/v1/events?filter=history")
+	if response.Code != http.StatusOK {
+		t.Fatalf("history filter status=%d body=%s", response.Code, response.Body.String())
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
+		t.Fatalf("decode history owner page: %v", err)
+	}
+	got = make([]string, len(page.Items))
+	for index, event := range page.Items {
+		got[index] = event.Name
+	}
+	want = []string{"Unknown", "Cancelled", "Ended"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("history owner events = %v, want %v", got, want)
+	}
+
+	first := serveAT007OwnerEvents(handler, owner, "/v1/events?filter=upcoming&limit=1")
+	if first.Code != http.StatusOK {
+		t.Fatalf("first filtered page status=%d body=%s", first.Code, first.Body.String())
+	}
+	if err := json.Unmarshal(first.Body.Bytes(), &page); err != nil {
+		t.Fatalf("decode first filtered page: %v", err)
+	}
+	if len(page.Items) != 1 || page.Items[0].Name != "Ongoing" || page.Cursor == "" {
+		t.Fatalf("first filtered page = %+v", page)
+	}
+	clock = cutoff.Add(2 * time.Hour)
+	second := serveAT007OwnerEvents(handler, owner, "/v1/events?filter=upcoming&limit=2&cursor="+url.QueryEscape(page.Cursor))
+	if second.Code != http.StatusOK {
+		t.Fatalf("second filtered page status=%d body=%s", second.Code, second.Body.String())
+	}
+	if err := json.Unmarshal(second.Body.Bytes(), &page); err != nil {
+		t.Fatalf("decode second filtered page: %v", err)
+	}
+	got = make([]string, len(page.Items))
+	for index, event := range page.Items {
+		got[index] = event.Name
+	}
+	want = []string{"Suppressed invalid range", "Future"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("frozen filtered continuation = %v, want %v", got, want)
+	}
+
+	for _, target := range []string{
+		"/v1/events?filter=unknown",
+		"/v1/events?filter=",
+		"/v1/events?filter=upcoming&filter=history",
+	} {
+		invalid := serveAT007OwnerEvents(handler, owner, target)
+		if invalid.Code != http.StatusBadRequest {
+			t.Errorf("GET %s status=%d body=%s, want 400 invalid_filter", target, invalid.Code, invalid.Body.String())
+			continue
+		}
+		var body envelope.Error
+		if err := json.Unmarshal(invalid.Body.Bytes(), &body); err != nil || body.Error != "invalid_filter" {
+			t.Errorf("GET %s error=%+v decode=%v, want invalid_filter", target, body, err)
+		}
+	}
+
+	clock = cutoff
+	firstCursor := func(target string) string {
+		t.Helper()
+		response := serveAT007OwnerEvents(handler, owner, target)
+		if response.Code != http.StatusOK {
+			t.Fatalf("GET %s status=%d body=%s", target, response.Code, response.Body.String())
+		}
+		var cursorPage api.BusinessEventPage
+		if err := json.Unmarshal(response.Body.Bytes(), &cursorPage); err != nil || cursorPage.Cursor == "" {
+			t.Fatalf("GET %s cursor=%q decode=%v", target, cursorPage.Cursor, err)
+		}
+		return cursorPage.Cursor
+	}
+	unfilteredCursor := firstCursor("/v1/events?limit=1")
+	upcomingCursor := firstCursor("/v1/events?filter=upcoming&limit=1")
+	historyCursor := firstCursor("/v1/events?filter=history&limit=1")
+	for _, target := range []string{
+		"/v1/events?cursor=malformed",
+		"/v1/events?filter=upcoming&cursor=" + url.QueryEscape(unfilteredCursor),
+		"/v1/events?cursor=" + url.QueryEscape(upcomingCursor),
+		"/v1/events?filter=history&cursor=" + url.QueryEscape(upcomingCursor),
+		"/v1/events?filter=upcoming&cursor=" + url.QueryEscape(historyCursor),
+	} {
+		invalid := serveAT007OwnerEvents(handler, owner, target)
+		if invalid.Code != http.StatusBadRequest {
+			t.Errorf("GET %s status=%d body=%s, want 400 invalid_cursor", target, invalid.Code, invalid.Body.String())
+			continue
+		}
+		var body envelope.Error
+		if err := json.Unmarshal(invalid.Body.Bytes(), &body); err != nil || body.Error != "invalid_cursor" {
+			t.Errorf("GET %s error=%+v decode=%v, want invalid_cursor", target, body, err)
+		}
+	}
+	ignored := serveAT007OwnerEvents(handler, owner, "/v1/events?filter=history&unknown=ignored")
+	if ignored.Code != http.StatusOK {
+		t.Errorf("unknown query parameter status=%d body=%s, want ignored", ignored.Code, ignored.Body.String())
+	}
+}
+
 func TestBusinessEventPaginationRealQuery(t *testing.T) {
 	pool := testdb.WithSchema(t, businessEventStoreDDL)
 	ctx := context.Background()

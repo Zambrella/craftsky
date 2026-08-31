@@ -3,6 +3,8 @@ package business
 import (
 	"encoding/json"
 	"errors"
+
+	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
 const businessProfileType = "social.craftsky.business.profile"
@@ -21,6 +23,7 @@ var profileKnownFields = map[string]struct{}{
 }
 
 type ProfileView struct {
+	CID           syntax.CID    `json:"cid"`
 	BusinessTypes []OpenValue   `json:"businessTypes,omitempty"`
 	Offerings     []OpenValue   `json:"offerings,omitempty"`
 	Tagline       string        `json:"tagline,omitempty"`
@@ -32,10 +35,10 @@ type ProfileView struct {
 }
 
 type ProductView struct {
-	Title string          `json:"title"`
-	URI   string          `json:"uri,omitempty"`
-	Image json.RawMessage `json:"image,omitempty"`
-	Price *Price          `json:"price,omitempty"`
+	Title string
+	URI   string
+	Image *HydratedImage
+	Price *Price
 }
 
 func MergeProfileReplacement(existingRaw, replacementKnown json.RawMessage) (json.RawMessage, error) {
@@ -118,9 +121,7 @@ func HydrateProfile(raw json.RawMessage) (ProfileView, error) {
 		if ValidateWebDestination(product.URI) == nil {
 			hydrated.URI = product.URI
 		}
-		if safeIndependentImage(product.Image) {
-			hydrated.Image = append(json.RawMessage(nil), product.Image...)
-		}
+		hydrated.Image = hydrateIndependentImage(product.Image)
 		view.Products = append(view.Products, hydrated)
 	}
 	return view, nil

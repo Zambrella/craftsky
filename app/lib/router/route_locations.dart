@@ -20,6 +20,7 @@ class RouteLocations {
   static const notifications = '/notifications';
   static const notificationSettingsChild = 'settings';
   static const postThread = '/posts/:did/:rkey';
+  static const businessEvent = '/events/:did/:rkey';
   static const profile = '/profile';
   static const settingsChild = 'settings';
   static const settings = '$profile/$settingsChild';
@@ -28,6 +29,8 @@ class RouteLocations {
   static const customisationChild = 'customisation';
   static const accountChild = 'account';
   static const aboutChild = 'about';
+  static const productsChild = 'products';
+  static const eventsChild = 'events';
   static const instagramMigrationChild = 'instagram';
   static const scheduledPostsChild = 'scheduled';
   static const draftsChild = 'drafts';

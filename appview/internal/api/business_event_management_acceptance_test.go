@@ -46,7 +46,13 @@ func TestAT007DiagnoseReportAndModerateBusinessEvent(t *testing.T) {
 	}
 
 	fixtures := []eventFixture{
-		{Owner: owner, Rkey: "3msfuture0001", Name: "Future", StartsAt: asOf.Add(8 * time.Hour), EndsAt: asOf.Add(9 * time.Hour)},
+		{
+			Owner: owner, Rkey: "3msfuture0001", Name: "Future", StartsAt: asOf.Add(8 * time.Hour), EndsAt: asOf.Add(9 * time.Hour),
+			RawFields: map[string]any{"image": map[string]any{
+				"image": map[string]any{"$type": "blob", "ref": map[string]any{"$link": "bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"}, "mimeType": "image/png", "size": 0},
+				"alt":   "Future event", "aspectRatio": map[string]any{"width": 3, "height": 2},
+			}},
+		},
 		{Owner: owner, Rkey: "3mspast000001", Name: "Past", StartsAt: asOf.Add(-2 * time.Hour), EndsAt: asOf.Add(-time.Hour)},
 		{Owner: owner, Rkey: "3mscancel0001", Name: "Cancelled", StartsAt: asOf.Add(7 * time.Hour), EndsAt: asOf.Add(8 * time.Hour), Status: "cancelled"},
 		{Owner: owner, Rkey: "3mspostpone01", Name: "Postponed", StartsAt: asOf.Add(6 * time.Hour), EndsAt: asOf.Add(7 * time.Hour), Status: "postponed"},
@@ -94,6 +100,7 @@ func TestAT007DiagnoseReportAndModerateBusinessEvent(t *testing.T) {
 	ownerList := api.GetOwnerBusinessEventsHandler(store, testEventCursorCodec(t), func() time.Time { return asOf })
 	seen := make(map[syntax.ATURI]bool)
 	var traversed []business.EventView
+	var ownerImage any
 	cursor := ""
 	for pageNumber := 0; ; pageNumber++ {
 		target := "/v1/events"
@@ -110,6 +117,17 @@ func TestAT007DiagnoseReportAndModerateBusinessEvent(t *testing.T) {
 		}
 		if len(page.Items) > 20 {
 			t.Fatalf("owner page %d has %d items, want at most 20", pageNumber, len(page.Items))
+		}
+		var pageWire struct {
+			Items []map[string]any `json:"items"`
+		}
+		if err := json.Unmarshal(response.Body.Bytes(), &pageWire); err != nil {
+			t.Fatalf("decode owner image page %d: %v", pageNumber, err)
+		}
+		for _, event := range pageWire.Items {
+			if event["name"] == "Future" {
+				ownerImage = event["image"]
+			}
 		}
 		for _, event := range page.Items {
 			if seen[event.URI] {
@@ -128,6 +146,21 @@ func TestAT007DiagnoseReportAndModerateBusinessEvent(t *testing.T) {
 	}
 	if len(traversed) != len(fixtures)+53 {
 		t.Fatalf("owner traversal returned %d events, want %d", len(traversed), len(fixtures)+53)
+	}
+	wantOwnerImage := map[string]any{
+		"cid":      "bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq",
+		"mime":     "image/png",
+		"size":     float64(0),
+		"alt":      "Future event",
+		"thumb":    "https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:event-owner/bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq@png",
+		"fullsize": "https://cdn.bsky.app/img/feed_fullsize/plain/did:plc:event-owner/bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq@png",
+		"aspectRatio": map[string]any{
+			"width":  float64(3),
+			"height": float64(2),
+		},
+	}
+	if !jsonObjectsEqual(ownerImage, wantOwnerImage) {
+		t.Errorf("owner event image = %#v, want exact normalized image %#v", ownerImage, wantOwnerImage)
 	}
 	for index := 1; index < len(traversed); index++ {
 		previous, err := time.Parse(time.RFC3339Nano, traversed[index-1].StartsAt)

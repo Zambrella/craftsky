@@ -69,7 +69,7 @@ func TestBusinessDeclarationPresentation(t *testing.T) {
 		"location":{"country":"gb","locality":"Leeds","region":"West Yorkshire","street":"Not public"},
 		"primaryAction":{"type":"shop","destination":"https://shop.example/products?from=craftsky"},
 		"products":[
-			{"title":"First skein","uri":"https://shop.example/first","image":{"image":{"$type":"blob","ref":{"$link":"bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"},"mimeType":"image/jpeg","size":101},"alt":"Rust-coloured yarn"},"price":{"amount":"12.5","currency":"GBP"}},
+			{"title":"First skein","uri":"https://shop.example/first","image":{"image":{"$type":"blob","ref":{"$link":"bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"},"mimeType":"image/jpeg","size":101},"alt":"Rust-coloured yarn","aspectRatio":{"width":4,"height":3}},"price":{"amount":"12.5","currency":"GBP"}},
 			{"title":"Second skein","uri":"https://shop.example/second","image":{"image":{"$type":"blob","ref":{"$link":"bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"},"mimeType":"image/png","size":102}}},
 			{"title":"Third skein","uri":"https://shop.example/third","image":{"image":{"$type":"blob","ref":{"$link":"bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"},"mimeType":"image/webp","size":103},"alt":"Blue yarn"}},
 			{"title":"Fourth skein","uri":"https://shop.example/fourth","image":{"image":{"$type":"blob","ref":{"$link":"bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"},"mimeType":"image/jpeg","size":104}},"price":{"amount":"20","currency":"GBP"}}
@@ -113,6 +113,9 @@ func TestBusinessDeclarationPresentation(t *testing.T) {
 	if !ok {
 		t.Fatalf("business = %#v, want object", body["business"])
 	}
+	if presentation["cid"] != "business-cid" {
+		t.Errorf("business.cid = %v, want business-cid", presentation["cid"])
+	}
 	for field, want := range map[string]string{
 		"tagline":     "Small-batch colour, made slowly.",
 		"hoursNote":   "Studio visits by appointment only.",
@@ -144,8 +147,20 @@ func TestBusinessDeclarationPresentation(t *testing.T) {
 		}
 	}
 	first := products[0].(map[string]any)
-	if first["image"].(map[string]any)["alt"] != "Rust-coloured yarn" {
-		t.Errorf("first product alt = %#v", first["image"])
+	wantImage := map[string]any{
+		"cid":      "bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq",
+		"mime":     "image/jpeg",
+		"size":     float64(101),
+		"alt":      "Rust-coloured yarn",
+		"thumb":    "https://cdn.bsky.app/img/feed_thumbnail/plain/did:plc:business/bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq@jpeg",
+		"fullsize": "https://cdn.bsky.app/img/feed_fullsize/plain/did:plc:business/bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq@jpeg",
+		"aspectRatio": map[string]any{
+			"width":  float64(4),
+			"height": float64(3),
+		},
+	}
+	if got := first["image"]; !jsonObjectsEqual(got, wantImage) {
+		t.Errorf("first product image = %#v, want exact normalized image %#v", got, wantImage)
 	}
 	price, ok := first["price"].(map[string]any)
 	if !ok || price["amount"] != "12.5" || price["currency"] != "GBP" || len(price) != 2 {
@@ -168,6 +183,12 @@ func TestBusinessDeclarationPresentation(t *testing.T) {
 	if businessProfiles.accountTypeReads != 1 || businessProfiles.profileReads != 1 {
 		t.Errorf("blocked profile performed business reads: account type %d, profile %d", businessProfiles.accountTypeReads, businessProfiles.profileReads)
 	}
+}
+
+func jsonObjectsEqual(got, want any) bool {
+	gotJSON, gotErr := json.Marshal(got)
+	wantJSON, wantErr := json.Marshal(want)
+	return gotErr == nil && wantErr == nil && string(gotJSON) == string(wantJSON)
 }
 
 func serveBusinessProfileRead(handler http.Handler, did syntax.DID) *httptest.ResponseRecorder {

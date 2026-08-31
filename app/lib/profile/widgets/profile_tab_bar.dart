@@ -1,14 +1,55 @@
+import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
-/// The five top-level profile tabs. Sealed in an enum so the page,
+/// The top-level profile tabs. Sealed in an enum so the page,
 /// the tab bar delegate, and the tab content list all reference the
 /// same source of truth and can't drift. Display labels are looked up
 /// via [ProfileTabLabel.label] on the current [AppLocalizations] —
 /// keeping the enum locale-agnostic.
-enum ProfileTab { projects, posts, comments, reposts, about }
+enum ProfileTab {
+  projects,
+  posts,
+  comments,
+  reposts,
+  products,
+  upcomingEvents,
+  about,
+}
+
+abstract final class ProfileTabPolicy {
+  static const ordinaryTabs = <ProfileTab>[
+    ProfileTab.projects,
+    ProfileTab.posts,
+    ProfileTab.comments,
+    ProfileTab.reposts,
+    ProfileTab.about,
+  ];
+
+  static const businessTabs = <ProfileTab>[
+    ProfileTab.projects,
+    ProfileTab.posts,
+    ProfileTab.comments,
+    ProfileTab.reposts,
+    ProfileTab.products,
+    ProfileTab.upcomingEvents,
+    ProfileTab.about,
+  ];
+
+  static List<ProfileTab> forProfile({
+    required AccountType? accountType,
+    required bool isBlocked,
+  }) => !isBlocked && accountType == AccountType.business
+      ? businessTabs
+      : ordinaryTabs;
+
+  static ProfileTab selectionAfterChange({
+    required ProfileTab selected,
+    required List<ProfileTab> tabs,
+  }) => tabs.contains(selected) ? selected : ProfileTab.about;
+}
 
 extension ProfileTabLabel on ProfileTab {
   /// Localised tab label for [AppLocalizations].
@@ -17,15 +58,26 @@ extension ProfileTabLabel on ProfileTab {
     ProfileTab.comments => l10n.profileTabComments,
     ProfileTab.projects => l10n.profileTabProjects,
     ProfileTab.reposts => l10n.profileTabReposts,
+    ProfileTab.products => l10n.profileTabProducts,
+    ProfileTab.upcomingEvents => l10n.profileTabUpcomingEvents,
     ProfileTab.about => l10n.profileTabAbout,
   };
+
+  String get storageKey => 'profile_tab_$name';
 }
 
 /// Sticky tab bar for the profile screen. Pinned via
 /// [SliverPersistentHeader] above the [TabBarView] body so tabs stay
 /// reachable while the post list scrolls under them.
 class ProfileTabBarDelegate extends SliverPersistentHeaderDelegate {
-  const ProfileTabBarDelegate({this.projectsCountLabel});
+  const ProfileTabBarDelegate({
+    this.tabs = ProfileTabPolicy.ordinaryTabs,
+    this.controller,
+    this.projectsCountLabel,
+  });
+
+  final List<ProfileTab> tabs;
+  final TabController? controller;
 
   /// Optional inline counts ("Projects · 15"). Mockup hints at this; real
   /// counts plug in once feed data is wired.
@@ -44,19 +96,32 @@ class ProfileTabBarDelegate extends SliverPersistentHeaderDelegate {
     BuildContext context,
     double shrinkOffset,
     bool overlapsContent,
-  ) => ProfileTabBar(projectsCountLabel: projectsCountLabel);
+  ) => ProfileTabBar(
+    tabs: tabs,
+    controller: controller,
+    projectsCountLabel: projectsCountLabel,
+  );
 
   @override
   bool shouldRebuild(covariant ProfileTabBarDelegate oldDelegate) {
-    return projectsCountLabel != oldDelegate.projectsCountLabel;
+    return tabs != oldDelegate.tabs ||
+        controller != oldDelegate.controller ||
+        projectsCountLabel != oldDelegate.projectsCountLabel;
   }
 }
 
 /// The reusable visual tab bar used by the full profile and its expanding
 /// presentation.
 class ProfileTabBar extends StatelessWidget {
-  const ProfileTabBar({this.projectsCountLabel, super.key});
+  const ProfileTabBar({
+    this.tabs = ProfileTabPolicy.ordinaryTabs,
+    this.controller,
+    this.projectsCountLabel,
+    super.key,
+  });
 
+  final List<ProfileTab> tabs;
+  final TabController? controller;
   final String? projectsCountLabel;
 
   @override
@@ -71,12 +136,12 @@ class ProfileTabBar extends StatelessWidget {
         children: [
           Expanded(
             child: TabBar(
+              controller: controller,
               isScrollable: true,
               tabAlignment: TabAlignment.start,
               padding: EdgeInsets.symmetric(horizontal: spacing.sp2),
               tabs: [
-                for (final tab in ProfileTab.values)
-                  Tab(text: _labelFor(tab, l10n)),
+                for (final tab in tabs) Tab(text: _labelFor(tab, l10n)),
               ],
             ),
           ),

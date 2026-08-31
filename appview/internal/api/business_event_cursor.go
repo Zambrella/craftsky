@@ -32,8 +32,10 @@ func NewEventCursorCodec(key []byte) (*EventCursorCodec, error) {
 type EventCursorKind string
 
 const (
-	EventCursorUpcoming   EventCursorKind = "business-event-upcoming"
-	EventCursorManagement EventCursorKind = "business-event-management"
+	EventCursorUpcoming      EventCursorKind = "business-event-upcoming"
+	EventCursorManagement    EventCursorKind = "business-event-management"
+	EventCursorOwnerUpcoming EventCursorKind = "business-event-owner-upcoming"
+	EventCursorOwnerHistory  EventCursorKind = "business-event-owner-history"
 )
 
 type EventCursor struct {
@@ -49,7 +51,7 @@ func (codec *EventCursorCodec) Encode(cursor EventCursor, scope syntax.DID) (str
 		"startsAt": cursor.StartsAt.UTC().Format(time.RFC3339Nano),
 		"uri":      string(cursor.URI),
 	}
-	if cursor.Kind == EventCursorUpcoming {
+	if eventCursorHasCutoff(cursor.Kind) {
 		payload["asOf"] = cursor.AsOf.UTC().Format(time.RFC3339Nano)
 	}
 	encoded, err := envelope.EncodeCursor(payload)
@@ -96,7 +98,7 @@ func (codec *EventCursorCodec) Decode(encoded string, expectedKind EventCursorKi
 		return EventCursor{}, envelope.ErrInvalidCursor
 	}
 	cursor := EventCursor{Kind: expectedKind, StartsAt: startsAt, URI: uri}
-	if expectedKind == EventCursorUpcoming {
+	if eventCursorHasCutoff(expectedKind) {
 		asOf, ok := parseCursorTime(payload["asOf"])
 		if !ok {
 			return EventCursor{}, envelope.ErrInvalidCursor
@@ -104,6 +106,10 @@ func (codec *EventCursorCodec) Decode(encoded string, expectedKind EventCursorKi
 		cursor.AsOf = asOf
 	}
 	return cursor, nil
+}
+
+func eventCursorHasCutoff(kind EventCursorKind) bool {
+	return kind == EventCursorUpcoming || kind == EventCursorOwnerUpcoming || kind == EventCursorOwnerHistory
 }
 
 func NormalizeEventLimit(raw string, defaultLimit int) (int, error) {

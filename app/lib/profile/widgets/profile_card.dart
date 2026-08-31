@@ -345,7 +345,9 @@ class _ProfileCardSurface extends StatelessWidget {
                                               ),
                                             ),
                                           DefaultTabController(
-                                            length: ProfileTab.values.length,
+                                            length: ProfileTabPolicy
+                                                .ordinaryTabs
+                                                .length,
                                             child: const SizedBox(
                                               height:
                                                   ProfileTabBarDelegate.height,

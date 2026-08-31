@@ -37,10 +37,10 @@ func TestBusinessProductPriceWireAndSchemaContract(t *testing.T) {
 		Handle:            syntax.Handle("seller.test"),
 		IsCraftskyProfile: true,
 		Crafts:            []string{},
-		Business: &business.ProfileView{Products: []business.ProductView{{
+		Business: api.BuildBusinessProfileResponse(syntax.DID("did:plc:seller"), &business.ProfileView{Products: []business.ProductView{{
 			Title: "Seller product",
 			Price: &business.Price{Amount: "12.34", Currency: "USD"},
-		}}},
+		}}}),
 	}
 	wire, err := json.Marshal(response)
 	if err != nil {

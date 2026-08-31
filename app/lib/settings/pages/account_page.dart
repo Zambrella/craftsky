@@ -1,5 +1,10 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/models/auth_state.dart';
+import 'package:craftsky_app/auth/providers/active_account_identity_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/business/models/business_profile.dart';
+import 'package:craftsky_app/business/providers/account_type_controller.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/settings/models/delete_account_confirmation.dart';
 import 'package:craftsky_app/settings/models/settings_row.dart';
@@ -19,10 +24,51 @@ class AccountPage extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final auth = ref.watch(authSessionProvider).value;
     final handle = auth is SignedIn ? '@${auth.handle.value}' : null;
+    final profileType = ref
+        .watch(activeAccountIdentityProvider)
+        .value
+        ?.profile
+        .accountType;
+    final accountTypeState = ref.watch(accountTypeControllerProvider);
+    final accountType = accountTypeState.value ?? profileType;
     return Scaffold(
       appBar: AppBar(title: Text(l10n.accountTitle)),
       body: ListView(
         children: [
+          if (accountType != null) ...[
+            Padding(
+              padding: const EdgeInsetsDirectional.fromSTEB(16, 20, 16, 8),
+              child: Text(
+                l10n.accountTypeTitle,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: SegmentedButton<AccountType>(
+                expandedInsets: EdgeInsets.zero,
+                segments: [
+                  ButtonSegment(
+                    value: AccountType.regular,
+                    label: Text(l10n.accountTypeRegular),
+                  ),
+                  ButtonSegment(
+                    value: AccountType.business,
+                    label: Text(l10n.accountTypeBusiness),
+                  ),
+                ],
+                selected: {accountType},
+                onSelectionChanged: accountTypeState.isLoading
+                    ? null
+                    : (selected) => unawaited(
+                        _setAccountType(context, ref, selected.single),
+                      ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           SettingsRowTile(
             descriptor: const SettingsRowDescriptor(
               id: SettingsRowId.deleteAccount,
@@ -37,6 +83,19 @@ class AccountPage extends ConsumerWidget {
     );
   }
 
+  Future<void> _setAccountType(
+    BuildContext context,
+    WidgetRef ref,
+    AccountType accountType,
+  ) async {
+    final succeeded = await ref
+        .read(accountTypeControllerProvider.notifier)
+        .setAccountType(accountType);
+    if (!succeeded && context.mounted) {
+      context.showError(AppLocalizations.of(context).errorActionFailed);
+    }
+  }
+
   Future<void> _begin(
     BuildContext context,
     WidgetRef ref,
@@ -46,6 +105,7 @@ class AccountPage extends ConsumerWidget {
     final proceed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
+        scrollable: true,
         title: Text(l10n.deleteAccountTitle),
         content: Text(l10n.deleteAccountBoundary(handle)),
         actions: [

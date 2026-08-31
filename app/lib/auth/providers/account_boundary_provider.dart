@@ -3,6 +3,15 @@ import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
+import 'package:craftsky_app/business/providers/account_type_controller.dart';
+import 'package:craftsky_app/business/providers/business_event_detail_provider.dart';
+import 'package:craftsky_app/business/providers/business_event_mutation_controller.dart';
+import 'package:craftsky_app/business/providers/business_projection_overlay_provider.dart';
+import 'package:craftsky_app/business/providers/business_repository_provider.dart';
+import 'package:craftsky_app/business/providers/owner_business_events_provider.dart';
+import 'package:craftsky_app/business/providers/products_controller.dart';
+import 'package:craftsky_app/business/providers/profile_business_events_provider.dart';
+import 'package:craftsky_app/business/providers/report_business_event_provider.dart';
 import 'package:craftsky_app/feed/providers/create_post_provider.dart';
 import 'package:craftsky_app/feed/providers/delete_post_provider.dart';
 import 'package:craftsky_app/feed/providers/post_comment_section_provider.dart';
@@ -96,6 +105,9 @@ class AccountSessionInvalidationCoordinator {
 
 final accountStateInvalidatorProvider = Provider<AccountBoundaryAction>(
   (ref) => () async {
+    ref
+        .read(businessProjectionOverlayProvider.notifier)
+        .advanceAccountBoundary();
     ref.read(savedPostAccountBoundaryProvider.notifier).advance();
     ref
       ..invalidate(postRepositoryProvider)
@@ -121,6 +133,14 @@ final accountStateInvalidatorProvider = Provider<AccountBoundaryAction>(
       ..invalidate(saveProfileProvider)
       ..invalidate(reportProfileProvider)
       ..invalidate(toggleFollowProfileProvider)
+      ..invalidate(businessRepositoryProvider)
+      ..invalidate(accountTypeControllerProvider)
+      ..invalidate(businessEventMutationControllerProvider)
+      ..invalidate(ownerBusinessEventsProvider)
+      ..invalidate(productsControllerProvider)
+      ..invalidate(profileBusinessEventsProvider)
+      ..invalidate(businessEventDetailProvider)
+      ..invalidate(reportBusinessEventProvider)
       ..invalidate(projectRepositoryProvider)
       ..invalidate(projectFeedProvider)
       ..invalidate(userProjectsProvider)

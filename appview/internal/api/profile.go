@@ -293,7 +293,7 @@ func writeProfileResponse(
 				"internal_error", "profile read failed", runID, nil)
 			return
 		}
-		resp.Business = presentation
+		resp.Business = BuildBusinessProfileResponse(did, presentation)
 	}
 	logger.Debug("profile: response ready",
 		apiLogSuccessAttrs(runID, operation)...)

@@ -172,6 +172,24 @@ abstract class AppLocalizations {
   /// **'Couldn\'t open that link.'**
   String get navigationLinkOpenError;
 
+  /// Title of the external-link confirmation dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'Open link?'**
+  String get externalLinkConfirmTitle;
+
+  /// Body of the external-link confirmation dialog.
+  ///
+  /// In en, this message translates to:
+  /// **'This will open outside CraftSky.'**
+  String get externalLinkConfirmBody;
+
+  /// Confirmation action for opening an external link.
+  ///
+  /// In en, this message translates to:
+  /// **'Open link'**
+  String get externalLinkConfirmAction;
+
   /// Title for the in-app notifications page.
   ///
   /// In en, this message translates to:
@@ -2398,6 +2416,156 @@ abstract class AppLocalizations {
   /// **'Couldn\'t save your profile.'**
   String get editProfileSaveError;
 
+  /// Snackbar identifying the business portion of a profile save as failed.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save your business details.'**
+  String get editProfileBusinessSaveError;
+
+  /// Snackbar shown when both records in a combined profile save fail.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save your profile or business details.'**
+  String get editProfileBothSaveError;
+
+  /// Snackbar shown when the business declaration CID is stale. Full reload conflict UX is implemented later.
+  ///
+  /// In en, this message translates to:
+  /// **'Your business details changed elsewhere. Reload before saving them again.'**
+  String get editProfileBusinessConflictError;
+
+  /// Heading for business-only fields in Edit Profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Business details'**
+  String get editProfileBusinessHeading;
+
+  /// Helper text for business-only profile fields.
+  ///
+  /// In en, this message translates to:
+  /// **'These details appear on your public business profile.'**
+  String get editProfileBusinessHelper;
+
+  /// Label for the business type selector.
+  ///
+  /// In en, this message translates to:
+  /// **'Business types'**
+  String get editProfileBusinessTypesLabel;
+
+  /// Limit guidance for business types.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose up to 5.'**
+  String get editProfileBusinessTypesHelper;
+
+  /// Validation error for too many business types.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose no more than 5 business types.'**
+  String get editProfileBusinessTypesLimit;
+
+  /// Label for the business offerings selector.
+  ///
+  /// In en, this message translates to:
+  /// **'Offerings'**
+  String get editProfileBusinessOfferingsLabel;
+
+  /// Limit guidance for business offerings.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose up to 10.'**
+  String get editProfileBusinessOfferingsHelper;
+
+  /// Validation error for too many offerings.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose no more than 10 offerings.'**
+  String get editProfileBusinessOfferingsLimit;
+
+  /// Label for the business tagline field.
+  ///
+  /// In en, this message translates to:
+  /// **'Tagline'**
+  String get editProfileBusinessTaglineLabel;
+
+  /// Validation error for the business tagline bounds.
+  ///
+  /// In en, this message translates to:
+  /// **'Tagline must be 100 characters or fewer.'**
+  String get editProfileBusinessTaglineTooLong;
+
+  /// Label for the free-text business hours note.
+  ///
+  /// In en, this message translates to:
+  /// **'Hours'**
+  String get editProfileBusinessHoursLabel;
+
+  /// Validation error for the business hours bounds.
+  ///
+  /// In en, this message translates to:
+  /// **'Hours must be 300 characters or fewer.'**
+  String get editProfileBusinessHoursTooLong;
+
+  /// Label for the display-only service area.
+  ///
+  /// In en, this message translates to:
+  /// **'Service area'**
+  String get editProfileBusinessServiceAreaLabel;
+
+  /// Validation error for the business service-area bounds.
+  ///
+  /// In en, this message translates to:
+  /// **'Service area must be 200 characters or fewer.'**
+  String get editProfileBusinessServiceAreaTooLong;
+
+  /// Label for the ISO alpha-2 country code field.
+  ///
+  /// In en, this message translates to:
+  /// **'Country code'**
+  String get editProfileBusinessCountryLabel;
+
+  /// Validation error for an unsupported business country.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid two-letter country code.'**
+  String get editProfileBusinessCountryInvalid;
+
+  /// Label for the optional business locality.
+  ///
+  /// In en, this message translates to:
+  /// **'Town or locality'**
+  String get editProfileBusinessLocalityLabel;
+
+  /// Validation error for the business locality bounds.
+  ///
+  /// In en, this message translates to:
+  /// **'Town or locality must be 100 characters or fewer.'**
+  String get editProfileBusinessLocalityTooLong;
+
+  /// Label for the approved business primary-action selector.
+  ///
+  /// In en, this message translates to:
+  /// **'Primary action'**
+  String get editProfileBusinessActionLabel;
+
+  /// Selector option that removes the business primary action.
+  ///
+  /// In en, this message translates to:
+  /// **'No primary action'**
+  String get editProfileBusinessActionNone;
+
+  /// Label for the business primary action HTTPS or mailto destination.
+  ///
+  /// In en, this message translates to:
+  /// **'Action destination'**
+  String get editProfileBusinessActionDestinationLabel;
+
+  /// Validation error for a malformed business action destination.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid HTTPS or email destination.'**
+  String get editProfileBusinessActionDestinationInvalid;
+
   /// Title of the confirm-discard dialog shown when leaving the profile-edit page with unsaved changes.
   ///
   /// In en, this message translates to:
@@ -4257,6 +4425,24 @@ abstract class AppLocalizations {
   /// **'General'**
   String get settingsSectionGeneral;
 
+  /// Settings section containing business owner tools.
+  ///
+  /// In en, this message translates to:
+  /// **'Business'**
+  String get settingsSectionBusiness;
+
+  /// Settings row opening business event management.
+  ///
+  /// In en, this message translates to:
+  /// **'Events'**
+  String get settingsBusinessEvents;
+
+  /// Settings row opening featured product management.
+  ///
+  /// In en, this message translates to:
+  /// **'Products'**
+  String get settingsBusinessProducts;
+
   /// Settings row opening notification settings.
   ///
   /// In en, this message translates to:
@@ -4449,6 +4635,24 @@ abstract class AppLocalizations {
   /// **'Account'**
   String get accountTitle;
 
+  /// Heading for the regular or business account type selector.
+  ///
+  /// In en, this message translates to:
+  /// **'Account type'**
+  String get accountTypeTitle;
+
+  /// Regular account type selector option.
+  ///
+  /// In en, this message translates to:
+  /// **'Regular'**
+  String get accountTypeRegular;
+
+  /// Business account type selector option.
+  ///
+  /// In en, this message translates to:
+  /// **'Business'**
+  String get accountTypeBusiness;
+
   /// First permanent CraftSky deletion dialog title.
   ///
   /// In en, this message translates to:
@@ -4604,6 +4808,1128 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This video can’t be played here. It may be private, unavailable, or restricted from embedded playback.'**
   String get youtubePlaybackUnavailable;
+
+  /// Plain self-declared business label on a full profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Business'**
+  String get businessProfileLabel;
+
+  /// Tab label for featured business products.
+  ///
+  /// In en, this message translates to:
+  /// **'Products'**
+  String get profileTabProducts;
+
+  /// Tab label for upcoming business events.
+  ///
+  /// In en, this message translates to:
+  /// **'Upcoming Events'**
+  String get profileTabUpcomingEvents;
+
+  /// About section heading for business types.
+  ///
+  /// In en, this message translates to:
+  /// **'Business types'**
+  String get businessTypesHeading;
+
+  /// About section heading for business offerings.
+  ///
+  /// In en, this message translates to:
+  /// **'Offerings'**
+  String get businessOfferingsHeading;
+
+  /// About section heading for hydrated business locality and country.
+  ///
+  /// In en, this message translates to:
+  /// **'Location'**
+  String get businessLocationHeading;
+
+  /// About section heading for authored service area text.
+  ///
+  /// In en, this message translates to:
+  /// **'Service area'**
+  String get businessServiceAreaHeading;
+
+  /// About section heading for authored hours text.
+  ///
+  /// In en, this message translates to:
+  /// **'Hours'**
+  String get businessHoursHeading;
+
+  /// Bounded readable fallback for an unknown safe federated business catalog value.
+  ///
+  /// In en, this message translates to:
+  /// **'Other: {value}'**
+  String businessUnknownValue(String value);
+
+  /// Hydrated business locality followed by localized country.
+  ///
+  /// In en, this message translates to:
+  /// **'{locality}, {country}'**
+  String businessLocationValue(String locality, String country);
+
+  /// No description provided for @businessTypeDyer.
+  ///
+  /// In en, this message translates to:
+  /// **'Dyer'**
+  String get businessTypeDyer;
+
+  /// No description provided for @businessTypeFiberProducer.
+  ///
+  /// In en, this message translates to:
+  /// **'Fiber producer'**
+  String get businessTypeFiberProducer;
+
+  /// No description provided for @businessTypeFiberProcessor.
+  ///
+  /// In en, this message translates to:
+  /// **'Fiber processor'**
+  String get businessTypeFiberProcessor;
+
+  /// No description provided for @businessTypeYarnShop.
+  ///
+  /// In en, this message translates to:
+  /// **'Yarn shop'**
+  String get businessTypeYarnShop;
+
+  /// No description provided for @businessTypeFabricShop.
+  ///
+  /// In en, this message translates to:
+  /// **'Fabric shop'**
+  String get businessTypeFabricShop;
+
+  /// No description provided for @businessTypeCraftSupplyShop.
+  ///
+  /// In en, this message translates to:
+  /// **'Craft supply shop'**
+  String get businessTypeCraftSupplyShop;
+
+  /// No description provided for @businessTypePatternDesigner.
+  ///
+  /// In en, this message translates to:
+  /// **'Pattern designer'**
+  String get businessTypePatternDesigner;
+
+  /// No description provided for @businessTypeFinishedGoodsMaker.
+  ///
+  /// In en, this message translates to:
+  /// **'Finished goods maker'**
+  String get businessTypeFinishedGoodsMaker;
+
+  /// No description provided for @businessTypeToolMaker.
+  ///
+  /// In en, this message translates to:
+  /// **'Tool maker'**
+  String get businessTypeToolMaker;
+
+  /// No description provided for @businessTypeTeacher.
+  ///
+  /// In en, this message translates to:
+  /// **'Teacher'**
+  String get businessTypeTeacher;
+
+  /// No description provided for @businessTypeCraftStudio.
+  ///
+  /// In en, this message translates to:
+  /// **'Craft studio'**
+  String get businessTypeCraftStudio;
+
+  /// No description provided for @businessTypeRepairService.
+  ///
+  /// In en, this message translates to:
+  /// **'Repair service'**
+  String get businessTypeRepairService;
+
+  /// No description provided for @businessTypeTechnicalEditor.
+  ///
+  /// In en, this message translates to:
+  /// **'Technical editor'**
+  String get businessTypeTechnicalEditor;
+
+  /// No description provided for @businessTypePhotographer.
+  ///
+  /// In en, this message translates to:
+  /// **'Photographer'**
+  String get businessTypePhotographer;
+
+  /// No description provided for @businessTypePublisher.
+  ///
+  /// In en, this message translates to:
+  /// **'Publisher'**
+  String get businessTypePublisher;
+
+  /// No description provided for @businessTypeOtherCraftBusiness.
+  ///
+  /// In en, this message translates to:
+  /// **'Other craft business'**
+  String get businessTypeOtherCraftBusiness;
+
+  /// No description provided for @businessOfferingYarn.
+  ///
+  /// In en, this message translates to:
+  /// **'Yarn'**
+  String get businessOfferingYarn;
+
+  /// No description provided for @businessOfferingFiber.
+  ///
+  /// In en, this message translates to:
+  /// **'Fiber'**
+  String get businessOfferingFiber;
+
+  /// No description provided for @businessOfferingFabric.
+  ///
+  /// In en, this message translates to:
+  /// **'Fabric'**
+  String get businessOfferingFabric;
+
+  /// No description provided for @businessOfferingPatterns.
+  ///
+  /// In en, this message translates to:
+  /// **'Patterns'**
+  String get businessOfferingPatterns;
+
+  /// No description provided for @businessOfferingKits.
+  ///
+  /// In en, this message translates to:
+  /// **'Kits'**
+  String get businessOfferingKits;
+
+  /// No description provided for @businessOfferingNotions.
+  ///
+  /// In en, this message translates to:
+  /// **'Notions'**
+  String get businessOfferingNotions;
+
+  /// No description provided for @businessOfferingTools.
+  ///
+  /// In en, this message translates to:
+  /// **'Tools'**
+  String get businessOfferingTools;
+
+  /// No description provided for @businessOfferingFinishedGoods.
+  ///
+  /// In en, this message translates to:
+  /// **'Finished goods'**
+  String get businessOfferingFinishedGoods;
+
+  /// No description provided for @businessOfferingCustomWork.
+  ///
+  /// In en, this message translates to:
+  /// **'Custom work'**
+  String get businessOfferingCustomWork;
+
+  /// No description provided for @businessOfferingRepairs.
+  ///
+  /// In en, this message translates to:
+  /// **'Repairs'**
+  String get businessOfferingRepairs;
+
+  /// No description provided for @businessOfferingClasses.
+  ///
+  /// In en, this message translates to:
+  /// **'Classes'**
+  String get businessOfferingClasses;
+
+  /// No description provided for @businessOfferingStudioHire.
+  ///
+  /// In en, this message translates to:
+  /// **'Studio hire'**
+  String get businessOfferingStudioHire;
+
+  /// No description provided for @businessOfferingWholesale.
+  ///
+  /// In en, this message translates to:
+  /// **'Wholesale'**
+  String get businessOfferingWholesale;
+
+  /// No description provided for @businessOfferingDigitalProducts.
+  ///
+  /// In en, this message translates to:
+  /// **'Digital products'**
+  String get businessOfferingDigitalProducts;
+
+  /// No description provided for @businessOfferingTechnicalEditing.
+  ///
+  /// In en, this message translates to:
+  /// **'Technical editing'**
+  String get businessOfferingTechnicalEditing;
+
+  /// No description provided for @businessOfferingPhotographyServices.
+  ///
+  /// In en, this message translates to:
+  /// **'Photography services'**
+  String get businessOfferingPhotographyServices;
+
+  /// No description provided for @businessOfferingFiberProcessing.
+  ///
+  /// In en, this message translates to:
+  /// **'Fiber processing'**
+  String get businessOfferingFiberProcessing;
+
+  /// No description provided for @businessActionShop.
+  ///
+  /// In en, this message translates to:
+  /// **'Shop'**
+  String get businessActionShop;
+
+  /// No description provided for @businessActionBrowsePatterns.
+  ///
+  /// In en, this message translates to:
+  /// **'Browse patterns'**
+  String get businessActionBrowsePatterns;
+
+  /// No description provided for @businessActionRequestCustomOrder.
+  ///
+  /// In en, this message translates to:
+  /// **'Request custom order'**
+  String get businessActionRequestCustomOrder;
+
+  /// No description provided for @businessActionBookClass.
+  ///
+  /// In en, this message translates to:
+  /// **'Book class'**
+  String get businessActionBookClass;
+
+  /// No description provided for @businessActionBookAppointment.
+  ///
+  /// In en, this message translates to:
+  /// **'Book appointment'**
+  String get businessActionBookAppointment;
+
+  /// No description provided for @businessActionViewEventCalendar.
+  ///
+  /// In en, this message translates to:
+  /// **'View event calendar'**
+  String get businessActionViewEventCalendar;
+
+  /// No description provided for @businessActionEmail.
+  ///
+  /// In en, this message translates to:
+  /// **'Email'**
+  String get businessActionEmail;
+
+  /// No description provided for @businessActionVisitWebsite.
+  ///
+  /// In en, this message translates to:
+  /// **'Visit website'**
+  String get businessActionVisitWebsite;
+
+  /// No description provided for @businessActionWholesaleEnquiries.
+  ///
+  /// In en, this message translates to:
+  /// **'Wholesale enquiries'**
+  String get businessActionWholesaleEnquiries;
+
+  /// Owner empty state in the Products profile tab.
+  ///
+  /// In en, this message translates to:
+  /// **'Add featured products to help visitors find your work.'**
+  String get businessProductsOwnerEmpty;
+
+  /// Visitor empty state in the Products profile tab.
+  ///
+  /// In en, this message translates to:
+  /// **'No featured products yet.'**
+  String get businessProductsVisitorEmpty;
+
+  /// Owner setup action in the Products profile tab.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage products'**
+  String get businessProductsManageAction;
+
+  /// Accessible label for a featured product external-link card.
+  ///
+  /// In en, this message translates to:
+  /// **'Open {title} outside CraftSky'**
+  String businessProductOpen(String title);
+
+  /// Owner placeholder empty state in Upcoming Events.
+  ///
+  /// In en, this message translates to:
+  /// **'Add an event appearance to share what’s coming up.'**
+  String get businessEventsOwnerEmpty;
+
+  /// Visitor placeholder empty state in Upcoming Events.
+  ///
+  /// In en, this message translates to:
+  /// **'No upcoming events yet.'**
+  String get businessEventsVisitorEmpty;
+
+  /// Owner placeholder setup action in Upcoming Events.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage events'**
+  String get businessEventsManageAction;
+
+  /// Initial error in the Upcoming Events profile tab.
+  ///
+  /// In en, this message translates to:
+  /// **'Upcoming events could not be loaded.'**
+  String get businessEventsLoadError;
+
+  /// Incremental pagination error in the Upcoming Events profile tab.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t load more events.'**
+  String get businessEventsLoadMoreError;
+
+  /// Refresh error shown while confirmed upcoming events remain visible.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn’t refresh upcoming events.'**
+  String get businessEventsRefreshError;
+
+  /// Action retrying an event list request.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get businessEventsRetryAction;
+
+  /// Action requesting the next public event page.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more'**
+  String get businessEventsLoadMoreAction;
+
+  /// Action refreshing public upcoming events from the first page.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh'**
+  String get businessEventsRefreshAction;
+
+  /// Public upcoming event end-of-list state.
+  ///
+  /// In en, this message translates to:
+  /// **'You’ve reached the end.'**
+  String get businessEventsEnd;
+
+  /// Compact display-only time label for an all-day event.
+  ///
+  /// In en, this message translates to:
+  /// **'All day'**
+  String get businessEventAllDayDisplay;
+
+  /// Localized time range for an event.
+  ///
+  /// In en, this message translates to:
+  /// **'{start}–{end}'**
+  String businessEventTimeRange(String start, String end);
+
+  /// Localized inclusive date range for an all-day event whose wire end is exclusive.
+  ///
+  /// In en, this message translates to:
+  /// **'{start}–{end}, {year}'**
+  String businessEventDateRange(String start, String end, int year);
+
+  /// No description provided for @businessEventRoleOrganizer.
+  ///
+  /// In en, this message translates to:
+  /// **'Organizer'**
+  String get businessEventRoleOrganizer;
+
+  /// No description provided for @businessEventRoleInstructor.
+  ///
+  /// In en, this message translates to:
+  /// **'Instructor'**
+  String get businessEventRoleInstructor;
+
+  /// No description provided for @businessEventRoleVendor.
+  ///
+  /// In en, this message translates to:
+  /// **'Vendor'**
+  String get businessEventRoleVendor;
+
+  /// No description provided for @businessEventRoleExhibitor.
+  ///
+  /// In en, this message translates to:
+  /// **'Exhibitor'**
+  String get businessEventRoleExhibitor;
+
+  /// No description provided for @businessEventRoleSpeaker.
+  ///
+  /// In en, this message translates to:
+  /// **'Speaker'**
+  String get businessEventRoleSpeaker;
+
+  /// No description provided for @businessEventRoleDemonstrator.
+  ///
+  /// In en, this message translates to:
+  /// **'Demonstrator'**
+  String get businessEventRoleDemonstrator;
+
+  /// No description provided for @businessEventModeInPerson.
+  ///
+  /// In en, this message translates to:
+  /// **'In person'**
+  String get businessEventModeInPerson;
+
+  /// No description provided for @businessEventModeOnline.
+  ///
+  /// In en, this message translates to:
+  /// **'Online'**
+  String get businessEventModeOnline;
+
+  /// No description provided for @businessEventModeHybrid.
+  ///
+  /// In en, this message translates to:
+  /// **'Hybrid'**
+  String get businessEventModeHybrid;
+
+  /// App bar title on event detail.
+  ///
+  /// In en, this message translates to:
+  /// **'Event'**
+  String get businessEventDetailTitle;
+
+  /// Safe title when an event is absent, blocked, or moderated.
+  ///
+  /// In en, this message translates to:
+  /// **'Event unavailable'**
+  String get businessEventUnavailableTitle;
+
+  /// Safe body when event detail is unavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'This event can’t be viewed.'**
+  String get businessEventUnavailableBody;
+
+  /// Title for reporting a visible business event.
+  ///
+  /// In en, this message translates to:
+  /// **'Report event'**
+  String get businessEventReportAction;
+
+  /// Action label for reporting a visible business event.
+  ///
+  /// In en, this message translates to:
+  /// **'Report'**
+  String get businessEventReportActionShort;
+
+  /// Generic retryable event detail error.
+  ///
+  /// In en, this message translates to:
+  /// **'Event details could not be loaded.'**
+  String get businessEventDetailLoadError;
+
+  /// No description provided for @businessEventStatusScheduled.
+  ///
+  /// In en, this message translates to:
+  /// **'Scheduled'**
+  String get businessEventStatusScheduled;
+
+  /// No description provided for @businessEventStatusCancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancelled'**
+  String get businessEventStatusCancelled;
+
+  /// No description provided for @businessEventStatusPostponed.
+  ///
+  /// In en, this message translates to:
+  /// **'Postponed'**
+  String get businessEventStatusPostponed;
+
+  /// No description provided for @businessEventLifecycleUpcoming.
+  ///
+  /// In en, this message translates to:
+  /// **'Upcoming'**
+  String get businessEventLifecycleUpcoming;
+
+  /// No description provided for @businessEventLifecyclePast.
+  ///
+  /// In en, this message translates to:
+  /// **'Past'**
+  String get businessEventLifecyclePast;
+
+  /// No description provided for @businessEventDateLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Date'**
+  String get businessEventDateLabel;
+
+  /// No description provided for @businessEventTimeLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Time'**
+  String get businessEventTimeLabel;
+
+  /// Business event role selector heading.
+  ///
+  /// In en, this message translates to:
+  /// **'Your role'**
+  String get businessEventRolesLabel;
+
+  /// Event attendance mode selector label.
+  ///
+  /// In en, this message translates to:
+  /// **'Attendance mode'**
+  String get businessEventModeLabel;
+
+  /// Event lifecycle status selector label.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get businessEventStatusLabel;
+
+  /// No description provided for @businessEventLifecycleLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Lifecycle'**
+  String get businessEventLifecycleLabel;
+
+  /// Explicit IANA timezone selector label.
+  ///
+  /// In en, this message translates to:
+  /// **'IANA timezone'**
+  String get businessEventTimeZoneLabel;
+
+  /// Optional event venue field label.
+  ///
+  /// In en, this message translates to:
+  /// **'Venue (optional)'**
+  String get businessEventVenueLabel;
+
+  /// No description provided for @businessEventPublishedLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Published'**
+  String get businessEventPublishedLabel;
+
+  /// External action opening hydrated event information.
+  ///
+  /// In en, this message translates to:
+  /// **'Event website'**
+  String get businessEventWebsiteAction;
+
+  /// External action opening hydrated event registration.
+  ///
+  /// In en, this message translates to:
+  /// **'Register'**
+  String get businessEventRegistrationAction;
+
+  /// Title of the business product management page.
+  ///
+  /// In en, this message translates to:
+  /// **'Products'**
+  String get businessProductsSettingsTitle;
+
+  /// Action for adding a featured product.
+  ///
+  /// In en, this message translates to:
+  /// **'Add product'**
+  String get businessProductsAdd;
+
+  /// Action for saving the complete ordered featured product list.
+  ///
+  /// In en, this message translates to:
+  /// **'Save products'**
+  String get businessProductsSave;
+
+  /// Empty state on the product management page.
+  ///
+  /// In en, this message translates to:
+  /// **'No featured products yet.'**
+  String get businessProductsEmpty;
+
+  /// Owner guard shown when a regular account reaches product management.
+  ///
+  /// In en, this message translates to:
+  /// **'Product management is available to business accounts.'**
+  String get businessProductsUnavailable;
+
+  /// Error shown when product management cannot load.
+  ///
+  /// In en, this message translates to:
+  /// **'Products could not be loaded.'**
+  String get businessProductsLoadError;
+
+  /// Action for retrying product management loading.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry'**
+  String get businessProductsRetry;
+
+  /// Conflict warning for a stale complete business declaration.
+  ///
+  /// In en, this message translates to:
+  /// **'These business details changed elsewhere. Reload the complete current profile before trying again.'**
+  String get businessProductsConflict;
+
+  /// Action that replaces a stale product draft with the complete current profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Reload current profile'**
+  String get businessProductsReload;
+
+  /// Bounded error shown after product validation or save failure.
+  ///
+  /// In en, this message translates to:
+  /// **'Products could not be saved. Check the fields and try again.'**
+  String get businessProductsSaveError;
+
+  /// Recoverable product image upload failure.
+  ///
+  /// In en, this message translates to:
+  /// **'The image could not be uploaded. Try again.'**
+  String get businessProductsUploadError;
+
+  /// Accessible busy label while a business surface loads.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading business information'**
+  String get businessLoading;
+
+  /// Accessible busy label while business changes are saved.
+  ///
+  /// In en, this message translates to:
+  /// **'Saving business information'**
+  String get businessSaving;
+
+  /// Accessible busy label while a business image uploads.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading image'**
+  String get businessImageUploading;
+
+  /// Accessible authored product count and limit.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} of {limit} products'**
+  String businessProductsCount(int count, int limit);
+
+  /// Accessible action for editing a product.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit {title}'**
+  String businessProductEdit(String title);
+
+  /// Accessible action for removing a product.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove {title}'**
+  String businessProductRemove(String title);
+
+  /// Accessible action for moving a product earlier.
+  ///
+  /// In en, this message translates to:
+  /// **'Move {title} up'**
+  String businessProductMoveUp(String title);
+
+  /// Accessible action for moving a product later.
+  ///
+  /// In en, this message translates to:
+  /// **'Move {title} down'**
+  String businessProductMoveDown(String title);
+
+  /// Heading for the new product editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Add product'**
+  String get businessProductEditorAddTitle;
+
+  /// Heading for the existing product editor.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit product'**
+  String get businessProductEditorEditTitle;
+
+  /// Product title field label.
+  ///
+  /// In en, this message translates to:
+  /// **'Title'**
+  String get businessProductTitleLabel;
+
+  /// Product HTTPS destination field label.
+  ///
+  /// In en, this message translates to:
+  /// **'Destination'**
+  String get businessProductDestinationLabel;
+
+  /// Example HTTPS destination in the product editor.
+  ///
+  /// In en, this message translates to:
+  /// **'https://example.com/product'**
+  String get businessProductDestinationHint;
+
+  /// Optional canonical product price amount field label.
+  ///
+  /// In en, this message translates to:
+  /// **'Amount'**
+  String get businessProductAmountLabel;
+
+  /// Optional ISO currency code field label.
+  ///
+  /// In en, this message translates to:
+  /// **'Currency'**
+  String get businessProductCurrencyLabel;
+
+  /// Optional product image alt text field label.
+  ///
+  /// In en, this message translates to:
+  /// **'Image description'**
+  String get businessProductAltLabel;
+
+  /// Action for selecting a required product image.
+  ///
+  /// In en, this message translates to:
+  /// **'Add image'**
+  String get businessProductAddImage;
+
+  /// Action for replacing a saved product image.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace image'**
+  String get businessProductReplaceImage;
+
+  /// Action for explicitly removing a product image draft.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove image'**
+  String get businessProductRemoveImage;
+
+  /// Action for applying one product editor draft to the manager.
+  ///
+  /// In en, this message translates to:
+  /// **'Save product'**
+  String get businessProductSave;
+
+  /// Action for closing the product editor without applying changes.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get businessProductCancel;
+
+  /// Required product title validation.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a title.'**
+  String get businessProductTitleRequired;
+
+  /// Product title limit validation.
+  ///
+  /// In en, this message translates to:
+  /// **'Use 150 characters or fewer.'**
+  String get businessProductTitleTooLong;
+
+  /// Product destination validation.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a credential-free HTTPS link.'**
+  String get businessProductDestinationInvalid;
+
+  /// Required product image validation.
+  ///
+  /// In en, this message translates to:
+  /// **'Add an image.'**
+  String get businessProductImageRequired;
+
+  /// Canonical optional product price validation.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a canonical amount and uppercase ISO currency code, or clear both.'**
+  String get businessProductPriceInvalid;
+
+  /// Title and submit action for a new business event.
+  ///
+  /// In en, this message translates to:
+  /// **'Create event'**
+  String get businessEventCreateTitle;
+
+  /// Title for editing a business event.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit event'**
+  String get businessEventEditTitle;
+
+  /// Submit action for an existing business event.
+  ///
+  /// In en, this message translates to:
+  /// **'Save event'**
+  String get businessEventSave;
+
+  /// Event name field label.
+  ///
+  /// In en, this message translates to:
+  /// **'Event name'**
+  String get businessEventNameLabel;
+
+  /// Required event name validation.
+  ///
+  /// In en, this message translates to:
+  /// **'Add an event name.'**
+  String get businessEventNameRequired;
+
+  /// Local event start field label.
+  ///
+  /// In en, this message translates to:
+  /// **'Starts (local)'**
+  String get businessEventStartLabel;
+
+  /// Local event end field label.
+  ///
+  /// In en, this message translates to:
+  /// **'Ends (local, exclusive for all-day)'**
+  String get businessEventEndLabel;
+
+  /// Hint for local event boundary input.
+  ///
+  /// In en, this message translates to:
+  /// **'YYYY-MM-DD HH:MM'**
+  String get businessEventTimeHint;
+
+  /// Invalid event boundary validation.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter a valid start and end.'**
+  String get businessEventTimeInvalid;
+
+  /// All-day event toggle label.
+  ///
+  /// In en, this message translates to:
+  /// **'All-day event'**
+  String get businessEventAllDay;
+
+  /// Required event role validation.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose at least one role.'**
+  String get businessEventRolesRequired;
+
+  /// Optional event summary field label.
+  ///
+  /// In en, this message translates to:
+  /// **'Summary (optional)'**
+  String get businessEventSummaryLabel;
+
+  /// Optional event information link field label.
+  ///
+  /// In en, this message translates to:
+  /// **'Event link (optional)'**
+  String get businessEventUriLabel;
+
+  /// Optional event registration link field label.
+  ///
+  /// In en, this message translates to:
+  /// **'Registration link (optional)'**
+  String get businessEventRegistrationUriLabel;
+
+  /// Optional event image alt text label.
+  ///
+  /// In en, this message translates to:
+  /// **'Image description'**
+  String get businessEventImageDescriptionLabel;
+
+  /// Action for adding an optional event image.
+  ///
+  /// In en, this message translates to:
+  /// **'Add image'**
+  String get businessEventAddImage;
+
+  /// Action for replacing an event image.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace image'**
+  String get businessEventReplaceImage;
+
+  /// Action for removing an event image.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove image'**
+  String get businessEventRemoveImage;
+
+  /// Recoverable event image upload failure.
+  ///
+  /// In en, this message translates to:
+  /// **'The image could not be uploaded. Try again.'**
+  String get businessEventUploadError;
+
+  /// Bounded event form validation message.
+  ///
+  /// In en, this message translates to:
+  /// **'Check the event details and try again.'**
+  String get businessEventValidationError;
+
+  /// Event mutation failure message.
+  ///
+  /// In en, this message translates to:
+  /// **'The event could not be saved. Try again.'**
+  String get businessEventSaveError;
+
+  /// Stale event conflict warning.
+  ///
+  /// In en, this message translates to:
+  /// **'This event changed elsewhere. Reload the current event before trying again.'**
+  String get businessEventConflict;
+
+  /// Action for reloading an event after conflict.
+  ///
+  /// In en, this message translates to:
+  /// **'Reload current event'**
+  String get businessEventReload;
+
+  /// Unsaved event confirmation title.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard event changes?'**
+  String get businessEventDiscardTitle;
+
+  /// Unsaved event confirmation body.
+  ///
+  /// In en, this message translates to:
+  /// **'Your unsaved event changes will be lost.'**
+  String get businessEventDiscardMessage;
+
+  /// Confirm discarding event edits.
+  ///
+  /// In en, this message translates to:
+  /// **'Discard'**
+  String get businessEventDiscard;
+
+  /// Cancel discarding event edits.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep editing'**
+  String get businessEventKeepEditing;
+
+  /// Owner explanation for an event suppressed because the account is not a business.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account is not currently presented as a business.'**
+  String get businessEventDiagnosticOwnerNotBusiness;
+
+  /// Owner explanation for an invalid event time range.
+  ///
+  /// In en, this message translates to:
+  /// **'The event’s time range is invalid.'**
+  String get businessEventDiagnosticInvalidTimeRange;
+
+  /// Owner explanation for an event exceeding the duration limit.
+  ///
+  /// In en, this message translates to:
+  /// **'The event is longer than the supported limit.'**
+  String get businessEventDiagnosticDurationExceedsLimit;
+
+  /// Owner explanation for a moderated event record.
+  ///
+  /// In en, this message translates to:
+  /// **'This event is hidden by moderation.'**
+  String get businessEventDiagnosticRecordModerated;
+
+  /// Owner explanation for an event excluded because it ended.
+  ///
+  /// In en, this message translates to:
+  /// **'This event has ended.'**
+  String get businessEventDiagnosticEnded;
+
+  /// Owner explanation for a cancelled event.
+  ///
+  /// In en, this message translates to:
+  /// **'This event is cancelled.'**
+  String get businessEventDiagnosticCancelled;
+
+  /// Owner explanation for a postponed event.
+  ///
+  /// In en, this message translates to:
+  /// **'This event is postponed.'**
+  String get businessEventDiagnosticPostponed;
+
+  /// Title of the owner event management page.
+  ///
+  /// In en, this message translates to:
+  /// **'Events'**
+  String get businessEventsSettingsTitle;
+
+  /// Owner event management upcoming tab.
+  ///
+  /// In en, this message translates to:
+  /// **'Upcoming'**
+  String get businessEventsUpcomingTab;
+
+  /// Owner event management history tab.
+  ///
+  /// In en, this message translates to:
+  /// **'History'**
+  String get businessEventsHistoryTab;
+
+  /// Owner guard shown when a regular account reaches event management.
+  ///
+  /// In en, this message translates to:
+  /// **'Event management is available to business accounts.'**
+  String get businessEventsUnavailable;
+
+  /// Initial owner event management loading error.
+  ///
+  /// In en, this message translates to:
+  /// **'Events could not be loaded.'**
+  String get businessEventsOwnerLoadError;
+
+  /// Owner event refresh error retaining confirmed rows.
+  ///
+  /// In en, this message translates to:
+  /// **'Events could not be refreshed.'**
+  String get businessEventsOwnerRefreshError;
+
+  /// Empty state for owner upcoming events.
+  ///
+  /// In en, this message translates to:
+  /// **'No upcoming events yet.'**
+  String get businessEventsUpcomingEmpty;
+
+  /// Empty state for owner event history.
+  ///
+  /// In en, this message translates to:
+  /// **'No event history yet.'**
+  String get businessEventsHistoryEmpty;
+
+  /// Accessible menu label for managing one owner event.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage {name}'**
+  String businessEventManage(String name);
+
+  /// Owner action opening event editing.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit event'**
+  String get businessEventEditAction;
+
+  /// Owner lifecycle action setting an event to cancelled.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel event'**
+  String get businessEventCancelAction;
+
+  /// Owner lifecycle action setting an event to postponed.
+  ///
+  /// In en, this message translates to:
+  /// **'Postpone event'**
+  String get businessEventPostponeAction;
+
+  /// Owner action starting destructive event deletion.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete event'**
+  String get businessEventDeleteAction;
+
+  /// Destructive event deletion confirmation title.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete this event?'**
+  String get businessEventDeleteConfirmTitle;
+
+  /// Destructive event deletion confirmation body.
+  ///
+  /// In en, this message translates to:
+  /// **'This permanently deletes the event record from your account.'**
+  String get businessEventDeleteConfirmMessage;
+
+  /// Action confirming permanent event deletion.
+  ///
+  /// In en, this message translates to:
+  /// **'Delete'**
+  String get businessEventDeleteConfirmAction;
 }
 
 class _AppLocalizationsDelegate

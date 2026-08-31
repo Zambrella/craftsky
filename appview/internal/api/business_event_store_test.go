@@ -244,7 +244,7 @@ func TestBusinessEventStoreCallerAwarePolicyMatrix(t *testing.T) {
 		t.Fatalf("read safely narrowed independent event: %v", err)
 	}
 	if unknown.URI != unsafeURI || unknown.Status != (business.OpenValue{Value: "rescheduled-externally"}) || unknown.Mode == nil || unknown.Mode.Known ||
-		unknown.EventURI != "" || unknown.RegistrationURI != "https://safe.example/register" || unknown.TimeZone != "" || len(unknown.Image) != 0 {
+		unknown.EventURI != "" || unknown.RegistrationURI != "https://safe.example/register" || unknown.TimeZone != "" || unknown.Image != nil {
 		t.Fatalf("independent hydration = %+v", unknown)
 	}
 	if len(unknown.Roles) != 2 || !unknown.Roles[0].Known || unknown.Roles[1].Known {

@@ -1,6 +1,7 @@
 package api_test
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -81,7 +82,9 @@ func (effects *businessProfileEffects) PutRecord(
 	}
 	encoded, _ := json.Marshal(request.Record)
 	effects.record = nil
-	if err := json.Unmarshal(encoded, &effects.record); err != nil {
+	decoder := json.NewDecoder(strings.NewReader(string(encoded)))
+	decoder.UseNumber()
+	if err := decoder.Decode(&effects.record); err != nil {
 		return pdseffects.RecordResult{}, err
 	}
 	if effects.cid == "" {
@@ -194,6 +197,115 @@ func TestBusinessProfileConditionalCreateReplaceAndDelete(t *testing.T) {
 		if factoryOwners[index] != "did:plc:owner" || factorySessions[index] != "oauth-owner-session" {
 			t.Fatalf("factory scope[%d] = owner %q session %q", index, factoryOwners[index], factorySessions[index])
 		}
+	}
+}
+
+func TestBusinessProfileCompleteKnownReplacementsPreserveUnknownExtension(t *testing.T) {
+	t.Parallel()
+	const productImage = `"image":{"image":{"$type":"blob","ref":{"$link":"` + businessProfileCID1 + `"},"mimeType":"image/png","size":12},"alt":"Product"}`
+	tests := []struct {
+		name             string
+		body             string
+		wantTagline      string
+		wantProductTitle string
+	}{
+		{
+			name: "detail-only",
+			body: `{"businessTypes":["teacher"],"offerings":["classes"],"tagline":"Updated details",` +
+				`"hoursNote":"Weekdays","location":{"country":"US","locality":"Portland"},` +
+				`"primaryAction":{"type":"shop","destination":"https://example.com/shop"},` +
+				`"products":[{"title":"Original product","uri":"https://example.com/original",` + productImage + `}]}`,
+			wantTagline:      "Updated details",
+			wantProductTitle: "Original product",
+		},
+		{
+			name: "product-only",
+			body: `{"businessTypes":["teacher"],"offerings":["classes"],"tagline":"Original details",` +
+				`"hoursNote":"Weekdays","location":{"country":"US","locality":"Portland"},` +
+				`"primaryAction":{"type":"shop","destination":"https://example.com/shop"},` +
+				`"products":[{"title":"Updated product","uri":"https://example.com/updated",` + productImage + `}]}`,
+			wantTagline:      "Original details",
+			wantProductTitle: "Updated product",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			effects := &businessProfileEffects{
+				cid: businessProfileCID1,
+				record: map[string]any{
+					"$type":         "social.craftsky.business.profile",
+					"businessTypes": []any{"teacher"},
+					"offerings":     []any{"classes"},
+					"tagline":       "Original details",
+					"hoursNote":     "Weekdays",
+					"serviceArea":   "Remove on replacement",
+					"location":      map[string]any{"country": "US", "locality": "Portland"},
+					"primaryAction": map[string]any{"type": "shop", "destination": "https://example.com/shop"},
+					"products":      []any{map[string]any{"title": "Original product", "uri": "https://example.com/original"}},
+					"com.example.extension": map[string]any{
+						"nested": map[string]any{"enabled": true, "sequence": json.Number("9007199254740993")},
+					},
+				},
+			}
+			handler := api.PutBusinessProfileHandler(func(context.Context, syntax.DID, string) (pdseffects.EffectExecutor, error) {
+				return effects, nil
+			})
+
+			response := serveBusinessProfileRequest(t, handler, http.MethodPut, test.body, businessProfileCID1)
+			if response.Code != http.StatusOK {
+				t.Fatalf("replace status = %d, body = %s", response.Code, response.Body.String())
+			}
+			if effects.record["tagline"] != test.wantTagline {
+				t.Errorf("tagline = %#v, want %q", effects.record["tagline"], test.wantTagline)
+			}
+			products, ok := effects.record["products"].([]any)
+			if !ok || len(products) != 1 {
+				t.Fatalf("products = %#v", effects.record["products"])
+			}
+			product, ok := products[0].(map[string]any)
+			if !ok || product["title"] != test.wantProductTitle {
+				t.Errorf("product = %#v, want title %q", products[0], test.wantProductTitle)
+			}
+			if _, ok := effects.record["serviceArea"]; ok {
+				t.Error("omitted known serviceArea survived replacement")
+			}
+			var submitted map[string]any
+			decoder := json.NewDecoder(strings.NewReader(test.body))
+			decoder.UseNumber()
+			if err := decoder.Decode(&submitted); err != nil {
+				t.Fatalf("decode submitted replacement: %v", err)
+			}
+			for field, want := range submitted {
+				gotJSON, err := json.Marshal(effects.record[field])
+				if err != nil {
+					t.Fatalf("marshal stored %s: %v", field, err)
+				}
+				wantJSON, err := json.Marshal(want)
+				if err != nil {
+					t.Fatalf("marshal submitted %s: %v", field, err)
+				}
+				if !bytes.Equal(gotJSON, wantJSON) {
+					t.Errorf("submitted known field %s = %s, want %s", field, gotJSON, wantJSON)
+				}
+			}
+			extension, ok := effects.record["com.example.extension"].(map[string]any)
+			if !ok {
+				t.Fatalf("unknown extension = %#v", effects.record["com.example.extension"])
+			}
+			nested, ok := extension["nested"].(map[string]any)
+			if !ok || nested["enabled"] != true || nested["sequence"] != json.Number("9007199254740993") {
+				t.Fatalf("unknown nested extension = %#v", extension)
+			}
+			recordJSON, err := json.Marshal(effects.puts[0].Record)
+			if err != nil {
+				t.Fatalf("marshal PDS replacement: %v", err)
+			}
+			if !strings.Contains(string(recordJSON), `"sequence":9007199254740993`) {
+				t.Fatalf("large unknown extension integer lost precision: %s", recordJSON)
+			}
+		})
 	}
 }
 

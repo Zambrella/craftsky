@@ -1,3 +1,4 @@
+import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -41,6 +42,8 @@ class Profile with ProfileMappable {
     this.projectCount,
     this.moderation,
     this.customisation = ProfileCustomisation.defaults,
+    this.accountType,
+    this.business,
   }) : did = Did.parse(did),
        handle = Handle.parse(handle);
 
@@ -65,4 +68,6 @@ class Profile with ProfileMappable {
   final int? projectCount;
   final ModerationMetadata? moderation;
   final ProfileCustomisation customisation;
+  final AccountType? accountType;
+  final BusinessProfile? business;
 }

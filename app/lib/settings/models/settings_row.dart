@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 
-enum SettingsSectionId { preferences, connections, discovery, general }
+enum SettingsSectionId {
+  preferences,
+  connections,
+  discovery,
+  business,
+  general,
+}
 
 enum SettingsRowId {
   switchAccount,
@@ -13,6 +19,8 @@ enum SettingsRowId {
   mutedAccounts,
   blockedAccounts,
   findPeopleFromInstagram,
+  businessEvents,
+  businessProducts,
   account,
   about,
   terms,
