@@ -214,6 +214,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get welcomeTitle => 'Welcome';
 
   @override
+  String get welcomeJoinTitle => 'Join CraftSky';
+
+  @override
+  String get welcomeSubtitle =>
+      'Share what you make. Find people who make what you love.';
+
+  @override
+  String get welcomeRegisterAction => 'Register';
+
+  @override
+  String get welcomeRegistrationHandoff =>
+      'You\'ll create your account with Bluesky, then return to CraftSky.';
+
+  @override
+  String get welcomeOr => 'Or';
+
+  @override
   String get welcomeSignInAction => 'Sign in';
 
   @override
@@ -222,6 +239,22 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get registrationProviderDisclosure =>
       'Bluesky hosts your portable account, which you can use with Craftsky.';
+
+  @override
+  String get welcomeAtmosphereTitle => 'What is an Atmosphere account?';
+
+  @override
+  String get welcomeAtmosphereBody =>
+      'CraftSky is built on the AT Protocol, so your account, posts and social graph are portable. You can use an existing Bluesky or compatible Atmosphere account, or register a new one.';
+
+  @override
+  String get welcomeLegalPrefix => 'By continuing, you agree to our';
+
+  @override
+  String get welcomeLegalAnd => 'and';
+
+  @override
+  String get welcomePrivacyAction => 'Privacy Policy';
 
   @override
   String get signInTitle => 'Sign in';
@@ -252,7 +285,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get accountIdentityFallback => 'Account';
 
   @override
-  String get signInHandleLabel => 'Handle';
+  String get signInHandleLabel => 'Your Atmosphere Handle';
 
   @override
   String get signInContinueAction => 'Continue';

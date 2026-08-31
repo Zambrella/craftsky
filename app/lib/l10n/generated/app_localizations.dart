@@ -412,11 +412,41 @@ abstract class AppLocalizations {
   /// **'{count, plural, =1{1 new activity} other{{count} new activities}}'**
   String notificationNewActivityCount(int count);
 
-  /// Title and main heading on the welcome page.
+  /// Legacy title for the welcome route.
   ///
   /// In en, this message translates to:
   /// **'Welcome'**
   String get welcomeTitle;
+
+  /// Main heading on the signed-out welcome page.
+  ///
+  /// In en, this message translates to:
+  /// **'Join CraftSky'**
+  String get welcomeJoinTitle;
+
+  /// Short introduction beneath the welcome heading.
+  ///
+  /// In en, this message translates to:
+  /// **'Share what you make. Find people who make what you love.'**
+  String get welcomeSubtitle;
+
+  /// Primary registration action on the welcome page.
+  ///
+  /// In en, this message translates to:
+  /// **'Register'**
+  String get welcomeRegisterAction;
+
+  /// Short note beneath Register explaining the external Bluesky account-creation handoff.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'ll create your account with Bluesky, then return to CraftSky.'**
+  String get welcomeRegistrationHandoff;
+
+  /// Divider between registration and sign-in on the welcome page.
+  ///
+  /// In en, this message translates to:
+  /// **'Or'**
+  String get welcomeOr;
 
   /// Primary button label on the welcome page that opens sign-in.
   ///
@@ -435,6 +465,36 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Bluesky hosts your portable account, which you can use with Craftsky.'**
   String get registrationProviderDisclosure;
+
+  /// Expandable explainer heading on the welcome page.
+  ///
+  /// In en, this message translates to:
+  /// **'What is an Atmosphere account?'**
+  String get welcomeAtmosphereTitle;
+
+  /// Explains account portability and compatible providers on the welcome page.
+  ///
+  /// In en, this message translates to:
+  /// **'CraftSky is built on the AT Protocol, so your account, posts and social graph are portable. You can use an existing Bluesky or compatible Atmosphere account, or register a new one.'**
+  String get welcomeAtmosphereBody;
+
+  /// Text before the Terms link on the welcome page.
+  ///
+  /// In en, this message translates to:
+  /// **'By continuing, you agree to our'**
+  String get welcomeLegalPrefix;
+
+  /// Text joining the Terms and Privacy links on the welcome page.
+  ///
+  /// In en, this message translates to:
+  /// **'and'**
+  String get welcomeLegalAnd;
+
+  /// Privacy policy link label on the welcome page.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy Policy'**
+  String get welcomePrivacyAction;
 
   /// App-bar title on the sign-in page.
   ///
@@ -493,7 +553,7 @@ abstract class AppLocalizations {
   /// Label for the handle input on the sign-in page.
   ///
   /// In en, this message translates to:
-  /// **'Handle'**
+  /// **'Your Atmosphere Handle'**
   String get signInHandleLabel;
 
   /// Primary button label on the sign-in page.
