@@ -166,7 +166,22 @@
   },
 
   "welcomeTitle": "Welcome",
-  "@welcomeTitle": { "description": "Title and main heading on the welcome page." },
+  "@welcomeTitle": { "description": "Legacy title for the welcome route." },
+
+  "welcomeJoinTitle": "Join CraftSky",
+  "@welcomeJoinTitle": { "description": "Main heading on the signed-out welcome page." },
+
+  "welcomeSubtitle": "Share what you make. Find people who make what you love.",
+  "@welcomeSubtitle": { "description": "Short introduction beneath the welcome heading." },
+
+  "welcomeRegisterAction": "Register",
+  "@welcomeRegisterAction": { "description": "Primary registration action on the welcome page." },
+
+  "welcomeRegistrationHandoff": "You'll create your account with Bluesky, then return to CraftSky.",
+  "@welcomeRegistrationHandoff": { "description": "Short note beneath Register explaining the external Bluesky account-creation handoff." },
+
+  "welcomeOr": "Or",
+  "@welcomeOr": { "description": "Divider between registration and sign-in on the welcome page." },
 
   "welcomeSignInAction": "Sign in",
   "@welcomeSignInAction": { "description": "Primary button label on the welcome page that opens sign-in." },
@@ -175,6 +190,21 @@
   "@welcomeCreateAccountAction": { "description": "Action that starts provider-first account registration." },
   "registrationProviderDisclosure": "Bluesky hosts your portable account, which you can use with Craftsky.",
   "@registrationProviderDisclosure": { "description": "Provider disclosure shown immediately before each account-registration action." },
+
+  "welcomeAtmosphereTitle": "What is an Atmosphere account?",
+  "@welcomeAtmosphereTitle": { "description": "Expandable explainer heading on the welcome page." },
+
+  "welcomeAtmosphereBody": "CraftSky is built on the AT Protocol, so your account, posts and social graph are portable. You can use an existing Bluesky or compatible Atmosphere account, or register a new one.",
+  "@welcomeAtmosphereBody": { "description": "Explains account portability and compatible providers on the welcome page." },
+
+  "welcomeLegalPrefix": "By continuing, you agree to our",
+  "@welcomeLegalPrefix": { "description": "Text before the Terms link on the welcome page." },
+
+  "welcomeLegalAnd": "and",
+  "@welcomeLegalAnd": { "description": "Text joining the Terms and Privacy links on the welcome page." },
+
+  "welcomePrivacyAction": "Privacy Policy",
+  "@welcomePrivacyAction": { "description": "Privacy policy link label on the welcome page." },
 
   "signInTitle": "Sign in",
   "@signInTitle": { "description": "App-bar title on the sign-in page." },
@@ -203,7 +233,7 @@
   "accountIdentityFallback": "Account",
   "@accountIdentityFallback": { "description": "Identity fallback when cached account metadata is unavailable." },
 
-  "signInHandleLabel": "Handle",
+  "signInHandleLabel": "Your Atmosphere Handle",
   "@signInHandleLabel": { "description": "Label for the handle input on the sign-in page." },
 
   "signInContinueAction": "Continue",
