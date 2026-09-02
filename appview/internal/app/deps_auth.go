@@ -39,6 +39,8 @@ func newAuthDependencies(
 		SessionInactivity:            cfg.CraftskySessionInactivity,
 		SessionAbsoluteLifetime:      cfg.OAuthSessionAbsoluteLifetime,
 		AuthRequestExpiry:            cfg.OAuthAuthRequestExpiry,
+		AuthRequestReservationExpiry: cfg.OAuthLoginStartTimeout + cfg.OAuthAuthRequestSweepInterval,
+		AuthRequestExchangeExpiry:    cfg.OAuthCallbackOperationTimeout + cfg.OAuthAuthRequestSweepInterval,
 		PendingAuthRequestCapacity:   cfg.OAuthPendingAuthRequestCapacity,
 		AuthRequestTerminalRetention: cfg.OAuthAuthRequestTerminalRetention,
 		OwnerLifecycles:              owners.lifecycles,
@@ -52,6 +54,10 @@ func newAuthDependencies(
 	// choose the DID/PDS that receives credentials. Ordinary display reads keep
 	// using federated.directory.
 	oauthApp.Dir = federated.authoritativeDirectory
+	registrationOAuth, err := auth.NewRegistrationOAuthAdapter(oauthApp)
+	if err != nil {
+		return nil, fmt.Errorf("registration OAuth adapter: %w", err)
+	}
 	craftskyStore, err := auth.NewCraftskySessionStoreWithConfig(pool, auth.CraftskySessionConfig{
 		Inactivity:            cfg.CraftskySessionInactivity,
 		ActivityWriteInterval: cfg.CraftskySessionActivityWriteInterval,
@@ -62,9 +68,11 @@ func newAuthDependencies(
 	}
 	oauthFlow, err := auth.NewOAuthFlowService(auth.OAuthFlowServiceOptions{
 		App: oauthApp, Store: oauthStore, Owners: owners.lifecycles,
-		StartOperationTimeout:    cfg.OAuthLoginStartTimeout,
-		CallbackOperationTimeout: cfg.OAuthCallbackOperationTimeout,
-		DeletionRequests:         owners.deletionStore,
+		StartOperationTimeout:      cfg.OAuthLoginStartTimeout,
+		CallbackOperationTimeout:   cfg.OAuthCallbackOperationTimeout,
+		DeletionRequests:           owners.deletionStore,
+		RegistrationProviderOrigin: cfg.OAuthRegistrationProviderOrigin.String(),
+		RegistrationOAuth:          registrationOAuth,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("OAuth flow service: %w", err)

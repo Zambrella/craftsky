@@ -126,7 +126,9 @@ Future<void> showCraftskyContextMenu(
       clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: radius,
-        side: BorderSide(color: theme.colorScheme.onSurface, width: 1.5),
+        side: theme.brightness == Brightness.dark
+            ? BorderSide.none
+            : BorderSide(color: theme.colorScheme.onSurface, width: 1.5),
       ),
       builder: (_) => _CraftskyContextMenuSheet(
         groups: groups,

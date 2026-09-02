@@ -11,6 +11,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -18,8 +20,10 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/business"
+	"social.craftsky/appview/internal/ctxkeys"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
@@ -127,6 +131,30 @@ func (routeAccountTypeReader) ReadAccountTypes(_ context.Context, dids []syntax.
 	return values, nil
 }
 
+type recordingRegistrationFlow struct {
+	registrationCalls int
+	mode              auth.HandoffMode
+	loopbackURI       string
+	deviceID          string
+	registrationErr   error
+}
+
+func (*recordingRegistrationFlow) StartLogin(context.Context, syntax.Handle, auth.HandoffMode, string, string) (string, error) {
+	return "", nil
+}
+
+func (flow *recordingRegistrationFlow) StartRegistration(_ context.Context, mode auth.HandoffMode, loopbackURI, deviceID string) (string, error) {
+	flow.registrationCalls++
+	flow.mode = mode
+	flow.loopbackURI = loopbackURI
+	flow.deviceID = deviceID
+	return "https://auth.example/authorize?request_uri=urn%3Aexample%3Apar", flow.registrationErr
+}
+
+func (*recordingRegistrationFlow) CompleteCallback(context.Context, url.Values, auth.OAuthCallbackFinalizer) error {
+	return nil
+}
+
 func testDeps() *Dependencies {
 	return &Dependencies{
 		Config:         Config{Env: EnvDev, AllowedOrigins: []string{"*"}},
@@ -194,6 +222,7 @@ func TestV1RoutePoliciesCoverRegisteredRoutes(t *testing.T) {
 		bodyKind  BodyKind
 	}{
 		{"POST /v1/auth/login", RateClassAuth, BodyDefaultJSON},
+		{"POST /v1/auth/registrations", RateClassAuth, BodyDefaultJSON},
 		{"GET /v1/whoami", RateClassRead, BodyNoBody},
 		{"GET /v1/search/posts", RateClassSearch, BodyNoBody},
 		{"POST /v1/posts", RateClassWrite, BodyDefaultJSON},
@@ -227,6 +256,122 @@ func TestV1RoutePoliciesCoverRegisteredRoutes(t *testing.T) {
 		if policy.DevOnly {
 			t.Fatalf("prod policy includes dev-only route: %+v", policy)
 		}
+	}
+}
+
+func TestProviderRegistrationRouteContract(t *testing.T) {
+	flow := &recordingRegistrationFlow{}
+	deps := testDeps()
+	deps.OAuthFlow = flow
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, deps)
+
+	request := httptest.NewRequest(http.MethodPost, "/v1/auth/registrations", strings.NewReader(
+		`{"handoffMode":"verified_link"}`,
+	))
+	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("X-Craftsky-Device-Id", "device-registration-route")
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", response.Code, response.Body.String())
+	}
+	if response.Header().Get("Cache-Control") != "no-store" {
+		t.Fatalf("Cache-Control = %q, want no-store", response.Header().Get("Cache-Control"))
+	}
+	var body map[string]any
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if len(body) != 1 || body["authUrl"] != "https://auth.example/authorize?request_uri=urn%3Aexample%3Apar" {
+		t.Fatalf("response = %#v, want exact authUrl body", body)
+	}
+	if flow.registrationCalls != 1 || flow.mode != auth.HandoffVerifiedLink || flow.loopbackURI != "" || flow.deviceID != "device-registration-route" {
+		t.Fatalf("registration call = count %d mode %q loopback %q device %q", flow.registrationCalls, flow.mode, flow.loopbackURI, flow.deviceID)
+	}
+
+	unversioned := httptest.NewRecorder()
+	mux.ServeHTTP(unversioned, httptest.NewRequest(http.MethodPost, "/auth/registrations", strings.NewReader(`{"handoffMode":"verified_link"}`)))
+	if unversioned.Code != http.StatusNotFound {
+		t.Fatalf("unversioned status = %d, want 404", unversioned.Code)
+	}
+
+	providerOverride := httptest.NewRequest(http.MethodPost, "/v1/auth/registrations", strings.NewReader(
+		`{"handoffMode":"verified_link","provider":"https://attacker.example"}`,
+	))
+	providerOverride.Header.Set("Content-Type", "application/json")
+	providerOverride.Header.Set("X-Craftsky-Device-Id", "device-registration-route")
+	providerOverride = providerOverride.WithContext(ctxkeys.WithRunID(providerOverride.Context(), "registration-route-request"))
+	rejected := httptest.NewRecorder()
+	mux.ServeHTTP(rejected, providerOverride)
+	if rejected.Code != http.StatusBadRequest {
+		t.Fatalf("provider override status = %d, want 400; body=%s", rejected.Code, rejected.Body.String())
+	}
+	var problem envelope.Error
+	if err := json.Unmarshal(rejected.Body.Bytes(), &problem); err != nil {
+		t.Fatalf("decode error envelope: %v", err)
+	}
+	if problem.Error != "invalid_body" || problem.Message == "" || problem.RequestID == "" {
+		t.Fatalf("error envelope = %+v, want invalid_body with message and requestId", problem)
+	}
+	if flow.registrationCalls != 1 {
+		t.Fatalf("registration calls = %d after provider override, want 1", flow.registrationCalls)
+	}
+}
+
+func TestProviderRegistrationRouteUsesAuthRateLimitAndCapacityOutcome(t *testing.T) {
+	flow := &recordingRegistrationFlow{}
+	deps := testDeps()
+	deps.OAuthFlow = flow
+	deps.RateLimiter = middleware.NewLocalRateLimiter(middleware.RateLimitConfig{Classes: map[middleware.RateClass]middleware.ClassLimit{
+		middleware.RateClassAuth: {Window: time.Minute, PerDevice: 1},
+	}}, func() time.Time { return time.Unix(100, 0) })
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, deps)
+
+	post := func(deviceID string) *httptest.ResponseRecorder {
+		t.Helper()
+		request := httptest.NewRequest(http.MethodPost, "/v1/auth/registrations", strings.NewReader(
+			`{"handoffMode":"verified_link"}`,
+		))
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("X-Craftsky-Device-Id", deviceID)
+		response := httptest.NewRecorder()
+		mux.ServeHTTP(response, request)
+		return response
+	}
+
+	if first := post("registration-limited-device"); first.Code != http.StatusOK {
+		t.Fatalf("first status = %d, want 200; body=%s", first.Code, first.Body.String())
+	}
+	limited := post("registration-limited-device")
+	if limited.Code != http.StatusTooManyRequests {
+		t.Fatalf("limited status = %d, want 429; body=%s", limited.Code, limited.Body.String())
+	}
+	retryAfter, err := strconv.Atoi(limited.Header().Get("Retry-After"))
+	if err != nil || retryAfter < 1 || retryAfter > 60 {
+		t.Fatalf("limited Retry-After = %q, want 1..60 seconds", limited.Header().Get("Retry-After"))
+	}
+	if flow.registrationCalls != 1 {
+		t.Fatalf("provider calls after rate rejection = %d, want 1", flow.registrationCalls)
+	}
+
+	flow.registrationErr = auth.ErrAuthRequestCapacity
+	capacity := post("registration-capacity-device")
+	if capacity.Code != http.StatusServiceUnavailable {
+		t.Fatalf("capacity status = %d, want 503; body=%s", capacity.Code, capacity.Body.String())
+	}
+	var problem envelope.Error
+	if err := json.Unmarshal(capacity.Body.Bytes(), &problem); err != nil {
+		t.Fatalf("decode capacity envelope: %v", err)
+	}
+	if problem.Error != "authentication_capacity_exhausted" {
+		t.Fatalf("capacity error = %q, want authentication_capacity_exhausted", problem.Error)
+	}
+	capacityRetry, err := strconv.Atoi(capacity.Header().Get("Retry-After"))
+	if err != nil || capacityRetry < 1 || capacityRetry > 60 {
+		t.Fatalf("capacity Retry-After = %q, want 1..60 seconds", capacity.Header().Get("Retry-After"))
 	}
 }
 

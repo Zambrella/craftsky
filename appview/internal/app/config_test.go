@@ -186,7 +186,7 @@ func testConfigFile(t *testing.T, contents string) string {
 		"TAP_REPOSITORY_BACKOFF_MIN", "TAP_REPOSITORY_BACKOFF_MAX",
 		"TAP_QUARANTINE_POLL_INTERVAL", "TAP_QUARANTINE_LEASE_DURATION",
 		"TAP_QUARANTINE_OPERATION_TIMEOUT", "TAP_QUARANTINE_BATCH_SIZE",
-		"OAUTH_HOSTNAME", "OAUTH_PUBLIC_ORIGIN", "OAUTH_CALLBACK_URL", "OAUTH_CLIENT_SECRET_KEY", "OAUTH_CLIENT_SECRET_KEY_ID",
+		"OAUTH_HOSTNAME", "OAUTH_PUBLIC_ORIGIN", "OAUTH_REGISTRATION_PROVIDER_ORIGIN", "OAUTH_CALLBACK_URL", "OAUTH_CLIENT_SECRET_KEY", "OAUTH_CLIENT_SECRET_KEY_ID",
 		"OAUTH_SCOPES", "OAUTH_SESSION_EXPIRY", "OAUTH_SESSION_ABSOLUTE_LIFETIME",
 		"OAUTH_SESSION_INACTIVITY", "CRAFTSKY_SESSION_INACTIVITY",
 		"OAUTH_AUTH_REQUEST_EXPIRY", "CRAFTSKY_SESSION_LAST_SEEN_THROTTLE",
@@ -943,6 +943,51 @@ func TestLoadConfig_ProductionRequiresCanonicalOAuthOrigin(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "OAUTH_PUBLIC_ORIGIN") {
 		t.Fatalf("LoadConfig error = %v, want OAUTH_PUBLIC_ORIGIN", err)
+	}
+}
+
+// UT-002: the registration provider is server-owned, defaults to Bluesky in
+// production, and accepts only canonical public HTTPS origins.
+func TestLoadConfigRegistrationProviderOrigin(t *testing.T) {
+	const base = "DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://craftsky.social\nTAP_WS_URL=ws://tap:2480/channel\n"
+	tests := []struct {
+		name    string
+		value   string
+		want    string
+		wantErr bool
+	}{
+		{name: "production default", want: "https://bsky.social"},
+		{name: "controlled public HTTPS fixture", value: "https://pds.registration.craftsky.social", want: "https://pds.registration.craftsky.social"},
+		{name: "private origin", value: "https://localhost", wantErr: true},
+		{name: "HTTP origin", value: "http://pds.registration.craftsky.social", wantErr: true},
+		{name: "path", value: "https://pds.registration.craftsky.social/xrpc", wantErr: true},
+		{name: "query", value: "https://pds.registration.craftsky.social?provider=bluesky", wantErr: true},
+		{name: "credentials", value: "https://user@pds.registration.craftsky.social", wantErr: true},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			contents := withProductionOAuth(base)
+			if test.value != "" {
+				contents += "OAUTH_REGISTRATION_PROVIDER_ORIGIN=" + test.value + "\n"
+			}
+
+			cfg, err := LoadConfig(EnvProd, testConfigFile(t, contents))
+			if test.wantErr {
+				if err == nil {
+					t.Fatal("LoadConfig error = nil, want unsafe registration provider origin rejected")
+				}
+				if !strings.Contains(err.Error(), "OAUTH_REGISTRATION_PROVIDER_ORIGIN") {
+					t.Fatalf("LoadConfig error = %v, want OAUTH_REGISTRATION_PROVIDER_ORIGIN", err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("LoadConfig: %v", err)
+			}
+			if got := cfg.OAuthRegistrationProviderOrigin.String(); got != test.want {
+				t.Fatalf("OAuthRegistrationProviderOrigin = %q, want %q", got, test.want)
+			}
+		})
 	}
 }
 

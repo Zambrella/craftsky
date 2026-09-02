@@ -83,6 +83,44 @@ void main() {
       expect(error?.message, isNot(contains('did:plc:alice')));
     });
 
+    test(
+      'registration 502 errors retain bounded codes and safe diagnostics',
+      () {
+        const providerText =
+            'provider-error auth-code par-uri access-token '
+            'refresh-token dpop-key';
+        for (final code in <String>[
+          'registration_provider_unavailable',
+          'registration_incomplete',
+        ]) {
+          handler = _CapturingHandler();
+          const ErrorMappingInterceptor().onError(
+            _ex(
+              status: 502,
+              data: <String, dynamic>{
+                'error': code,
+                'message': providerText,
+                'requestId': 'req_registration',
+              },
+              path: '/v1/auth/registrations?code=auth-code',
+            ),
+            handler,
+          );
+
+          final error = handler.error as ApiServerError?;
+          expect(error?.details.appViewError, code);
+          expect(error?.details.requestId, 'req_registration');
+          expect(
+            error?.details.endpointCategory,
+            'appview.auth.registrations',
+          );
+          expect(error?.details.appViewMessage, isNull);
+          expect(error.toString(), isNot(contains(providerText)));
+          expect(error.toString(), isNot(contains('auth-code')));
+        }
+      },
+    );
+
     test('UT-014 redacts complete language preference values', () {
       const ErrorMappingInterceptor().onError(
         _ex(

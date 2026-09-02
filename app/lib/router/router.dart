@@ -40,6 +40,7 @@ import 'package:craftsky_app/search/pages/tag_search_page.dart';
 import 'package:craftsky_app/settings/pages/about_page.dart';
 import 'package:craftsky_app/settings/pages/account_deletion_reauth_complete_page.dart';
 import 'package:craftsky_app/settings/pages/account_page.dart';
+import 'package:craftsky_app/settings/pages/appearance_page.dart';
 import 'package:craftsky_app/settings/pages/follow_list_page.dart';
 import 'package:craftsky_app/settings/pages/follower_growth_page.dart';
 import 'package:craftsky_app/settings/pages/profile_customisation_page.dart';
@@ -233,6 +234,10 @@ class AccountDeletionReauthCompleteRoute extends GoRouteData
                   path: RouteLocations.settingsChild,
                   name: 'settings',
                   routes: [
+                    TypedGoRoute<AppearanceRoute>(
+                      path: RouteLocations.appearanceChild,
+                      name: 'appearance',
+                    ),
                     TypedGoRoute<FollowerGrowthRoute>(
                       path: RouteLocations.growthChild,
                       name: 'follower-growth',
@@ -464,6 +469,17 @@ class LanguagesRoute extends GoRouteData with $LanguagesRoute {
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const LanguagesPage();
+}
+
+class AppearanceRoute extends GoRouteData with $AppearanceRoute {
+  const AppearanceRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.authenticatedShellNavigatorKey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const AppearancePage();
 }
 
 class FollowerGrowthRoute extends GoRouteData with $FollowerGrowthRoute {

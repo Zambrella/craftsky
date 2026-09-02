@@ -84,7 +84,7 @@ test:
       TEST_S3_SECRET_ACCESS_KEY="craftsky-minio-dev-secret" \
       TEST_DATABASE_REQUIRED="true" \
       GOTOOLCHAIN="go1.26.6" \
-      go test -race ./...
+      go test -p=1 -race ./...
 
 # Fast, explicitly incomplete AppView unit path. Real PostgreSQL and MinIO
 # suites are deliberately skipped; only appview-check is release evidence.
@@ -110,7 +110,7 @@ appview-test-unit:
 # never target a developer or shared database. Set APPVIEW_CHECK_ARTIFACT_DIR
 # to retain machine-readable evidence at a known path (CI does this).
 appview-check:
-    ./scripts/appview-check
+    GOFLAGS="-p=1" ./scripts/appview-check
 
 # Format and vet Go code on the host.
 fmt:

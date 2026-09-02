@@ -11,6 +11,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -142,7 +143,177 @@ func (processor *OAuthRevocationProcessor) ProcessBatch(ctx context.Context) (in
 			processingErrors = append(processingErrors, err)
 		}
 	}
+	registrationCount, registrationErr := processor.processRegistrationCredentials(ctx, now)
+	if registrationErr != nil {
+		processingErrors = append(processingErrors, registrationErr)
+	}
+	return len(claims) + registrationCount, errors.Join(processingErrors...)
+}
+
+type registrationCredentialClaim struct {
+	State      string
+	Data       []byte
+	Attempts   int
+	CreatedAt  time.Time
+	LeaseToken uuid.UUID
+}
+
+func (processor *OAuthRevocationProcessor) processRegistrationCredentials(
+	ctx context.Context,
+	now time.Time,
+) (int, error) {
+	claims, err := processor.claimRegistrationCredentials(ctx, now)
+	if err != nil {
+		return 0, err
+	}
+	var processingErrors []error
+	for _, claim := range claims {
+		var data oauth.ClientSessionData
+		if err := json.Unmarshal(claim.Data, &data); err != nil {
+			processingErrors = append(processingErrors, processor.finishRegistrationCredential(
+				ctx, claim, now, false, "invalid_credential",
+			))
+			continue
+		}
+		operationCtx, cancel := context.WithTimeout(ctx, processor.operationTimeout)
+		revokeErr := processor.revoker.RevokeSession(operationCtx, data)
+		cancel()
+		processingErrors = append(processingErrors, processor.finishRegistrationCredential(
+			ctx, claim, now, revokeErr == nil, cleanupFailureCategory(revokeErr),
+		))
+	}
 	return len(claims), errors.Join(processingErrors...)
+}
+
+func (processor *OAuthRevocationProcessor) claimRegistrationCredentials(
+	ctx context.Context,
+	now time.Time,
+) ([]registrationCredentialClaim, error) {
+	tx, err := processor.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	rows, err := tx.Query(ctx, `
+		SELECT request.state,credential.data,credential.cleanup_attempts,credential.created_at
+		FROM oauth_auth_requests request
+		JOIN oauth_unverified_credentials credential ON credential.request_state=request.state
+		WHERE request.purpose='registration'
+		  AND request.request_state IN ('exchange_started','cleanup_pending')
+		  AND credential.status IN ('held','pending')
+		  AND credential.eligible_at<=$1
+		  AND COALESCE(credential.cleanup_next_attempt_at,credential.eligible_at)<=$1
+		  AND (credential.cleanup_lease_token IS NULL OR credential.cleanup_lease_expires_at<=$1)
+		ORDER BY credential.eligible_at,request.state
+		LIMIT $2
+		FOR UPDATE OF request,credential SKIP LOCKED
+	`, now, processor.batchSize)
+	if err != nil {
+		return nil, fmt.Errorf("claim registration credentials: %w", err)
+	}
+	var claims []registrationCredentialClaim
+	for rows.Next() {
+		var claim registrationCredentialClaim
+		if err := rows.Scan(&claim.State, &claim.Data, &claim.Attempts, &claim.CreatedAt); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		claim.LeaseToken = processor.newLeaseToken()
+		if claim.LeaseToken == uuid.Nil {
+			rows.Close()
+			return nil, errors.New("registration credential lease token is invalid")
+		}
+		claims = append(claims, claim)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	rows.Close()
+	for _, claim := range claims {
+		if _, err := tx.Exec(ctx, `
+			UPDATE oauth_auth_requests
+			SET request_state='cleanup_pending',exchange_finished_at=COALESCE(exchange_finished_at,$2)
+			WHERE state=$1 AND purpose='registration'
+			  AND request_state IN ('exchange_started','cleanup_pending')
+		`, claim.State, now); err != nil {
+			return nil, err
+		}
+		command, err := tx.Exec(ctx, `
+			UPDATE oauth_unverified_credentials
+			SET status='pending',cleanup_lease_token=$2,cleanup_lease_expires_at=$3,updated_at=$4
+			WHERE request_state=$1 AND status IN ('held','pending')
+		`, claim.State, claim.LeaseToken, now.Add(processor.leaseDuration), now)
+		if err != nil {
+			return nil, err
+		}
+		if command.RowsAffected() != 1 {
+			return nil, ErrAuthRequestState
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return claims, nil
+}
+
+func (processor *OAuthRevocationProcessor) finishRegistrationCredential(
+	ctx context.Context,
+	claim registrationCredentialClaim,
+	now time.Time,
+	revoked bool,
+	category string,
+) error {
+	finalCtx, cancel := finalizationContext(ctx, processor.operationTimeout)
+	defer cancel()
+	return pgx.BeginFunc(finalCtx, processor.pool, func(tx pgx.Tx) error {
+		var requestState string
+		if err := tx.QueryRow(finalCtx, `
+			SELECT request_state FROM oauth_auth_requests WHERE state=$1 FOR UPDATE
+		`, claim.State).Scan(&requestState); err != nil {
+			return err
+		}
+		var leaseToken *uuid.UUID
+		if err := tx.QueryRow(finalCtx, `
+			SELECT cleanup_lease_token FROM oauth_unverified_credentials
+			WHERE request_state=$1 FOR UPDATE
+		`, claim.State).Scan(&leaseToken); err != nil {
+			return err
+		}
+		if requestState != string(AuthRequestCleanupPending) || leaseToken == nil || *leaseToken != claim.LeaseToken {
+			return nil
+		}
+		exhausted := claim.Attempts+1 >= processor.maxAttempts ||
+			!claim.CreatedAt.Add(processor.maxCredentialRetention).After(now)
+		if revoked || exhausted {
+			if _, err := tx.Exec(finalCtx, `
+				DELETE FROM oauth_unverified_credentials
+				WHERE request_state=$1 AND cleanup_lease_token=$2
+			`, claim.State, claim.LeaseToken); err != nil {
+				return err
+			}
+			finalState := AuthRequestRevoked
+			if !revoked {
+				finalState = AuthRequestExchangeAmbiguous
+			}
+			_, err := tx.Exec(finalCtx, `
+				UPDATE oauth_auth_requests
+				SET request_state=$2,exchange_finished_at=COALESCE(exchange_finished_at,$3)
+				WHERE state=$1 AND request_state='cleanup_pending'
+			`, claim.State, finalState, now)
+			return err
+		}
+		_, err := tx.Exec(finalCtx, `
+			UPDATE oauth_unverified_credentials
+			SET cleanup_attempts=$2,cleanup_next_attempt_at=$3,
+			    cleanup_lease_token=NULL,cleanup_lease_expires_at=NULL,
+			    cleanup_last_category=$4,updated_at=$5
+			WHERE request_state=$1 AND cleanup_lease_token=$6
+		`, claim.State, claim.Attempts+1,
+			now.Add(cleanupBackoff(processor.baseBackoff, processor.maxBackoff, claim.Attempts+1)),
+			category, now, claim.LeaseToken)
+		return err
+	})
 }
 
 func (processor *OAuthRevocationProcessor) claim(

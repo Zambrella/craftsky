@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -135,9 +136,9 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 				deletionResult, err = callbacks.CompleteAttempt(callbackCtx, request, callbackResult.Attempt)
 				deletionFlow = err == nil
 				return err
-			case LoginOAuthPurpose:
+			case LoginOAuthPurpose, RegistrationOAuthPurpose:
 				if h.NewPendingPDSClient == nil || h.OnboardingProfile == nil || h.Handoffs == nil {
-					return errors.New("login callback finalization unavailable")
+					return errors.New("onboarding callback finalization unavailable")
 				}
 				pdsClient, err := h.NewPendingPDSClient(callbackCtx, callbackResult.Attempt)
 				if err != nil {
@@ -159,6 +160,27 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 			}
 		})
 		if err != nil {
+			var trustedFailure *TrustedRegistrationFailure
+			if errors.As(err, &trustedFailure) {
+				data, renderErr := trustedRegistrationFailurePageData(
+					trustedFailure.Metadata,
+					trustedFailure.Code,
+					h.LoginCompleteURL,
+					h.AllowDevScheme,
+					r.URL.Query(),
+					time.Now(),
+				)
+				if renderErr == nil {
+					renderErr = renderCallbackHTML(w, data)
+				}
+				if renderErr == nil {
+					if h.Logger != nil {
+						h.Logger.Warn("registration callback failed",
+							authLogErrorAttrs(runID, "registration.callback", string(trustedFailure.Code))...)
+					}
+					return
+				}
+			}
 			if h.Logger != nil {
 				h.Logger.Warn("OAuth callback finalization failed",
 					authLogErrorAttrs(runID, "oauth.callback", "finalization")...)

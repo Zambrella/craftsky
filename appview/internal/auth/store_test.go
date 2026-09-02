@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/url"
 	"os"
@@ -48,7 +49,15 @@ const authSchemaDDL = `
 		device_id              TEXT,
 		purpose                TEXT NOT NULL DEFAULT 'login',
 		account_deletion_owner_did TEXT,
-		account_deletion_job_id UUID
+		account_deletion_job_id UUID,
+		CONSTRAINT oauth_auth_requests_purpose_check
+			CHECK (purpose IN ('login', 'accountDeletion')),
+		CONSTRAINT oauth_auth_requests_account_deletion_metadata_check
+			CHECK (
+				(purpose = 'login' AND account_deletion_owner_did IS NULL AND account_deletion_job_id IS NULL)
+				OR
+				(purpose = 'accountDeletion' AND account_deletion_owner_did IS NOT NULL AND account_deletion_job_id IS NOT NULL)
+			)
 	);
 	CREATE TABLE craftsky_sessions (
 		token_hash        BYTEA NOT NULL PRIMARY KEY,
@@ -97,6 +106,7 @@ func withAuthSchema(t *testing.T) *pgxpool.Pool {
 	for _, path := range []string{
 		"../../migrations/000038_owner_auth_lifecycle.up.sql",
 		"../../migrations/000052_dev_oauth_scheme.up.sql",
+		"../../migrations/000064_provider_first_registration.up.sql",
 	} {
 		migration, err := os.ReadFile(path)
 		if err != nil {
@@ -480,6 +490,232 @@ func TestStore_SaveGetAuthRequest(t *testing.T) {
 	}
 	if got.PKCEVerifier != info.PKCEVerifier {
 		t.Fatalf("PKCEVerifier: got %q want %q", got.PKCEVerifier, info.PKCEVerifier)
+	}
+}
+
+func TestStorePersistsAndReloadsOwnerlessRegistrationAuthRequest(t *testing.T) {
+	pool := withAuthSchema(t)
+	storeBeforeRestart := auth.NewPostgresAuthStore(pool, testStoreConfig())
+	ctx := auth.WithRegistrationAuthRequest(
+		context.Background(),
+		"https://bsky.social",
+		"https://auth.bsky.app",
+		auth.HandoffVerifiedLink,
+		"device-registration",
+		"",
+	)
+	info := oauth.AuthRequestData{
+		State:                   "registration-state",
+		RequestURI:              "urn:request:registration",
+		AuthServerURL:           "https://auth.bsky.app",
+		PKCEVerifier:            "registration-verifier",
+		DPoPPrivateKeyMultibase: "registration-dpop-private-key",
+	}
+	reservation, err := storeBeforeRestart.ReserveAuthRequestCapacity(context.Background())
+	if err != nil {
+		t.Fatalf("reserve ownerless registration request: %v", err)
+	}
+	if err := storeBeforeRestart.SaveRegistrationAuthRequest(ctx, reservation.ID, info); err != nil {
+		t.Fatalf("save ownerless registration request: %v", err)
+	}
+
+	storeAfterRestart := auth.NewPostgresAuthStore(pool, testStoreConfig())
+	metadata, err := storeAfterRestart.LoadAuthRequestMetadata(context.Background(), info.State)
+	if err != nil {
+		t.Fatalf("load ownerless registration metadata after restart: %v", err)
+	}
+	if metadata.Purpose != auth.RegistrationOAuthPurpose ||
+		metadata.RegistrationProviderOrigin != "https://bsky.social" ||
+		metadata.RegistrationIssuer != "https://auth.bsky.app" ||
+		metadata.Owner != "" || metadata.OwnerGeneration != 0 || metadata.AuthEpoch != 0 ||
+		metadata.HandoffMode != auth.HandoffVerifiedLink || metadata.DeviceID != "device-registration" ||
+		metadata.RequestState != auth.AuthRequestReady {
+		t.Fatalf("reloaded registration metadata = %+v", metadata)
+	}
+	reloaded, err := storeAfterRestart.GetAuthRequestInfo(context.Background(), info.State)
+	if err != nil {
+		t.Fatalf("load opaque registration request after restart: %v", err)
+	}
+	if reloaded.PKCEVerifier != info.PKCEVerifier ||
+		reloaded.DPoPPrivateKeyMultibase != info.DPoPPrivateKeyMultibase {
+		t.Fatalf("reloaded opaque registration request = %+v", reloaded)
+	}
+
+	var ownerDID, ownerGeneration, authEpoch any
+	if err := pool.QueryRow(context.Background(), `
+		SELECT owner_did,owner_generation,auth_epoch
+		FROM oauth_auth_requests WHERE state=$1
+	`, info.State).Scan(&ownerDID, &ownerGeneration, &authEpoch); err != nil {
+		t.Fatalf("inspect registration owner authority: %v", err)
+	}
+	if ownerDID != nil || ownerGeneration != nil || authEpoch != nil {
+		t.Fatalf("registration authority = %#v/%#v/%#v, want SQL NULL triple", ownerDID, ownerGeneration, authEpoch)
+	}
+}
+
+func TestStoreBindsRegistrationAuthorityAndPendingParentAtomicallyUnderLifecycleRace(t *testing.T) {
+	pool := withAuthSchema(t)
+	fencer, err := ownerlifecycle.NewFencer(pool, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owners, err := ownerlifecycle.NewStore(pool, fencer, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := testStoreConfig()
+	config.OwnerLifecycles = owners
+	store := auth.NewPostgresAuthStore(pool, config)
+	ctx := context.Background()
+	owner := syntax.DID("did:plc:registration-bind-race")
+	state := "registration-bind-race"
+	session := validOAuthSession(owner, state)
+	registrationContext := auth.WithRegistrationAuthRequest(
+		ctx, "https://bsky.social", session.AuthServerURL,
+		auth.HandoffVerifiedLink, "device-registration-bind-race", "",
+	)
+	reservation, err := store.ReserveAuthRequestCapacity(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveRegistrationAuthRequest(registrationContext, reservation.ID, oauth.AuthRequestData{
+		State: state, RequestURI: "urn:request:" + state,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	attemptID, err := store.BeginRegistrationExchange(ctx, state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	credential, err := json.Marshal(session)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO oauth_unverified_credentials(request_state,data,status,eligible_at,expires_at)
+		VALUES($1,$2,'held',now()+interval '1 hour',now()+interval '2 hours')
+	`, state, credential); err != nil {
+		t.Fatal(err)
+	}
+
+	transitionStarted := make(chan struct{})
+	transitionDone := make(chan error, 1)
+	err = owners.WithOnboardingAuth(ctx, owner, func(authCtx context.Context, lifecycle ownerlifecycle.Lifecycle) error {
+		if err := store.BindRegistrationAuthority(authCtx, auth.RegistrationAuthorityBinding{
+			State: state, AttemptID: attemptID, Owner: owner,
+			OwnerGeneration: lifecycle.Generation, AuthEpoch: lifecycle.AuthEpoch,
+			Session: session,
+		}); err != nil {
+			return err
+		}
+		go func() {
+			close(transitionStarted)
+			_, transitionErr := owners.AdvanceAuthEpoch(ctx, owner, lifecycle.Generation, "registrationRace")
+			transitionDone <- transitionErr
+		}()
+		<-transitionStarted
+		select {
+		case transitionErr := <-transitionDone:
+			return fmt.Errorf("lifecycle transition crossed registration bind fence: %w", transitionErr)
+		case <-time.After(75 * time.Millisecond):
+		}
+
+		var requestOwner *string
+		var requestGeneration, requestEpoch *int64
+		var parentGeneration, parentEpoch int64
+		var parentState string
+		if err := pool.QueryRow(authCtx, `
+			SELECT request.owner_did,request.owner_generation,request.auth_epoch,
+			       parent.owner_generation,parent.auth_epoch,parent.lifecycle_state
+			FROM oauth_auth_requests request
+			JOIN oauth_sessions parent
+			  ON parent.account_did=request.owner_did AND parent.session_id=request.state
+			WHERE request.state=$1
+		`, state).Scan(
+			&requestOwner, &requestGeneration, &requestEpoch,
+			&parentGeneration, &parentEpoch, &parentState,
+		); err != nil {
+			return err
+		}
+		if requestOwner == nil || *requestOwner != owner.String() ||
+			requestGeneration == nil || *requestGeneration != lifecycle.Generation ||
+			requestEpoch == nil || *requestEpoch != lifecycle.AuthEpoch ||
+			parentGeneration != lifecycle.Generation || parentEpoch != lifecycle.AuthEpoch ||
+			parentState != "pending_handoff" {
+			return fmt.Errorf("attached request/parent authority mismatch")
+		}
+		var quarantine int
+		if err := pool.QueryRow(authCtx, `
+			SELECT count(*) FROM oauth_unverified_credentials WHERE request_state=$1
+		`, state).Scan(&quarantine); err != nil {
+			return err
+		}
+		if quarantine != 0 {
+			return fmt.Errorf("bound registration retained %d quarantine rows", quarantine)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("bind registration authority: %v", err)
+	}
+	if err := <-transitionDone; err != nil {
+		t.Fatalf("advance lifecycle after bind fence: %v", err)
+	}
+
+	staleState := "registration-bind-stale"
+	staleSession := validOAuthSession(owner, staleState)
+	reservation, err = store.ReserveAuthRequestCapacity(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.SaveRegistrationAuthRequest(registrationContext, reservation.ID, oauth.AuthRequestData{
+		State: staleState, RequestURI: "urn:request:" + staleState,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	staleAttemptID, err := store.BeginRegistrationExchange(ctx, staleState)
+	if err != nil {
+		t.Fatal(err)
+	}
+	staleCredential, err := json.Marshal(staleSession)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO oauth_unverified_credentials(request_state,data,status,eligible_at,expires_at)
+		VALUES($1,$2,'held',now()+interval '1 hour',now()+interval '2 hours')
+	`, staleState, staleCredential); err != nil {
+		t.Fatal(err)
+	}
+	err = owners.WithExistingAuth(ctx, owner, func(authCtx context.Context, _ ownerlifecycle.Lifecycle) error {
+		return store.BindRegistrationAuthority(authCtx, auth.RegistrationAuthorityBinding{
+			State: staleState, AttemptID: staleAttemptID, Owner: owner,
+			OwnerGeneration: 1, AuthEpoch: 1, Session: staleSession,
+		})
+	})
+	if !errors.Is(err, auth.ErrCallbackAttemptInvalid) {
+		t.Fatalf("stale authority bind error=%v, want ErrCallbackAttemptInvalid", err)
+	}
+
+	var staleOwner *string
+	var staleQuarantine, staleParents int
+	if err := pool.QueryRow(ctx, `
+		SELECT owner_did FROM oauth_auth_requests WHERE state=$1
+	`, staleState).Scan(&staleOwner); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM oauth_unverified_credentials WHERE request_state=$1
+	`, staleState).Scan(&staleQuarantine); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*) FROM oauth_sessions WHERE account_did=$1 AND session_id=$2
+	`, owner, staleState).Scan(&staleParents); err != nil {
+		t.Fatal(err)
+	}
+	if staleOwner != nil || staleQuarantine != 1 || staleParents != 0 {
+		t.Fatalf("stale bind residue owner=%v quarantine=%d parents=%d, want nil/1/0", staleOwner, staleQuarantine, staleParents)
 	}
 }
 

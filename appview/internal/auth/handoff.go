@@ -93,7 +93,7 @@ func (service *HandoffService) CreateExchange(
 	deviceID string,
 ) (string, error) {
 	boundAttempt, ok := callbackAttemptFromContext(ctx)
-	if !ok || boundAttempt != attempt || attempt.Purpose != LoginOAuthPurpose ||
+	if !ok || boundAttempt != attempt || !attempt.permitsOrdinaryOnboarding() ||
 		!attempt.validFor(attempt.Owner, attempt.State) || handle == "" || deviceID == "" {
 		return "", ErrHandoffInvalid
 	}
@@ -127,7 +127,7 @@ func (service *HandoffService) CreateExchange(
 		`, attempt.State).Scan(&purpose, &requestState, &requestAttempt, &storedDevice); err != nil {
 			return err
 		}
-		if purpose != LoginOAuthPurpose || requestState != AuthRequestExchangeStarted ||
+		if purpose != attempt.Purpose || !attempt.permitsOrdinaryOnboarding() || requestState != AuthRequestExchangeStarted ||
 			requestAttempt != attempt.AttemptID || storedDevice != deviceID {
 			return ErrHandoffInvalid
 		}

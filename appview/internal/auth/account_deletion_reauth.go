@@ -23,6 +23,7 @@ type OAuthPurpose string
 const (
 	LoginOAuthPurpose           OAuthPurpose = "login"
 	AccountDeletionOAuthPurpose OAuthPurpose = "accountDeletion"
+	RegistrationOAuthPurpose    OAuthPurpose = "registration"
 )
 
 type HandoffMode string
@@ -40,21 +41,25 @@ const (
 	AuthRequestExchangeStarted   AuthRequestState = "exchange_started"
 	AuthRequestExchangeFailed    AuthRequestState = "exchange_failed"
 	AuthRequestExchangeAmbiguous AuthRequestState = "exchange_ambiguous"
+	AuthRequestCleanupPending    AuthRequestState = "cleanup_pending"
 	AuthRequestConsumed          AuthRequestState = "consumed"
 	AuthRequestRevoked           AuthRequestState = "revoked"
 )
 
 type AuthRequestMetadata struct {
-	Purpose           OAuthPurpose
-	Owner             syntax.DID
-	OwnerGeneration   int64
-	AuthEpoch         int64
-	JobID             uuid.UUID
-	HandoffMode       HandoffMode
-	LoopbackURI       string
-	DeviceID          string
-	RequestState      AuthRequestState
-	ExchangeAttemptID uuid.UUID
+	Purpose                    OAuthPurpose
+	Owner                      syntax.DID
+	OwnerGeneration            int64
+	AuthEpoch                  int64
+	JobID                      uuid.UUID
+	HandoffMode                HandoffMode
+	LoopbackURI                string
+	DeviceID                   string
+	RequestState               AuthRequestState
+	ExchangeAttemptID          uuid.UUID
+	RegistrationProviderOrigin string
+	RegistrationIssuer         string
+	ExpiresAt                  time.Time
 }
 
 type authRequestMetadataContextKey struct{}
@@ -114,14 +119,31 @@ func WithAccountDeletionAuthRequestAuthority(
 	})
 }
 
+func WithRegistrationAuthRequest(
+	ctx context.Context,
+	providerOrigin string,
+	issuer string,
+	mode HandoffMode,
+	deviceID string,
+	loopbackURI string,
+) context.Context {
+	return context.WithValue(ctx, authRequestMetadataContextKey{}, AuthRequestMetadata{
+		Purpose:                    RegistrationOAuthPurpose,
+		RegistrationProviderOrigin: providerOrigin,
+		RegistrationIssuer:         issuer,
+		HandoffMode:                mode,
+		LoopbackURI:                loopbackURI,
+		DeviceID:                   deviceID,
+	})
+}
+
 func AuthRequestMetadataFromContext(ctx context.Context) (AuthRequestMetadata, bool) {
 	metadata, ok := ctx.Value(authRequestMetadataContextKey{}).(AuthRequestMetadata)
 	return metadata, ok
 }
 
 func (metadata AuthRequestMetadata) valid() bool {
-	if metadata.Owner == "" || metadata.OwnerGeneration <= 0 || metadata.AuthEpoch <= 0 ||
-		strings.TrimSpace(metadata.DeviceID) == "" {
+	if strings.TrimSpace(metadata.DeviceID) == "" {
 		return false
 	}
 	if metadata.HandoffMode != HandoffVerifiedLink && metadata.HandoffMode != HandoffLoopback && metadata.HandoffMode != HandoffDevScheme {
@@ -132,12 +154,24 @@ func (metadata AuthRequestMetadata) valid() bool {
 	}
 	switch metadata.Purpose {
 	case LoginOAuthPurpose:
-		return metadata.JobID == uuid.Nil
+		return metadata.JobID == uuid.Nil && metadata.hasOwnerAuthority() &&
+			metadata.RegistrationProviderOrigin == "" && metadata.RegistrationIssuer == ""
 	case AccountDeletionOAuthPurpose:
-		return metadata.JobID != uuid.Nil && metadata.HandoffMode == HandoffVerifiedLink
+		return metadata.JobID != uuid.Nil && metadata.HandoffMode == HandoffVerifiedLink &&
+			metadata.hasOwnerAuthority() && metadata.RegistrationProviderOrigin == "" &&
+			metadata.RegistrationIssuer == ""
+	case RegistrationOAuthPurpose:
+		return metadata.JobID == uuid.Nil && metadata.Owner == "" &&
+			metadata.OwnerGeneration == 0 && metadata.AuthEpoch == 0 &&
+			strings.TrimSpace(metadata.RegistrationProviderOrigin) != "" &&
+			strings.TrimSpace(metadata.RegistrationIssuer) != ""
 	default:
 		return false
 	}
+}
+
+func (metadata AuthRequestMetadata) hasOwnerAuthority() bool {
+	return metadata.Owner != "" && metadata.OwnerGeneration > 0 && metadata.AuthEpoch > 0
 }
 
 type AccountDeletionAuthRequest struct {

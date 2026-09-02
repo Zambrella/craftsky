@@ -74,11 +74,17 @@ class _MarkedPageTransitionsBuilder extends CupertinoPageTransitionsBuilder {
   }
 }
 
-Widget _wrap(Widget child, {List<dynamic> overrides = const []}) {
+Widget _wrap(
+  Widget child, {
+  List<dynamic> overrides = const [],
+  ThemeMode themeMode = ThemeMode.light,
+}) {
   return ProviderScope(
     overrides: List.from(overrides),
     child: MaterialApp(
       theme: AppTheme.lightThemeData,
+      darkTheme: AppTheme.darkThemeData,
+      themeMode: themeMode,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(body: Center(child: child)),
@@ -258,6 +264,32 @@ void main() {
         Colors.transparent,
       );
       expect(closeSurface.color, AppTheme.lightThemeData.colorScheme.surface);
+    });
+
+    testWidgets('compact close button uses a light foreground in dark mode', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          ProfileCard(
+            profile: _profile(),
+            isOwnProfile: false,
+            onClose: () {},
+            onVisitProfile: () {},
+            onPrimaryAction: () {},
+          ),
+          themeMode: ThemeMode.dark,
+        ),
+      );
+
+      final closeButton = tester.widget<IconButton>(
+        find.byKey(const Key('profile-card-close')),
+      );
+
+      expect(
+        closeButton.style?.foregroundColor?.resolve({}),
+        AppTheme.darkThemeData.colorScheme.onSurface,
+      );
     });
 
     testWidgets('TDD-003 uses the public shared profile presentation widgets', (

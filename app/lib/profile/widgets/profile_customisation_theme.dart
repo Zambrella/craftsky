@@ -21,10 +21,13 @@ class ProfileCustomisationTheme extends StatelessWidget {
     final bundle =
         profileColourBundles[customisation.colour] ??
         profileColourBundles[ProfileCustomisation.defaults.colour]!;
-    final base = profileColour(bundle.base);
-    final foreground = profileColour(bundle.foreground);
-    final hover = profileColour(bundle.hover);
-    final pressed = profileColour(bundle.pressed);
+    final dark = parent.brightness == Brightness.dark;
+    final base = profileColour(dark ? bundle.darkAccent : bundle.base);
+    final foreground = profileColour(
+      dark ? bundle.darkForeground : bundle.foreground,
+    );
+    final hover = profileColour(dark ? bundle.darkHover : bundle.hover);
+    final pressed = profileColour(dark ? bundle.darkPressed : bundle.pressed);
     final soft = profileColour(bundle.softContainer);
     final ink = profileColour('#111318');
     final buttonBackground = WidgetStateProperty.resolveWith<Color?>((states) {

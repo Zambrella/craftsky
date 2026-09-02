@@ -10,8 +10,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _FakeAuthController extends AuthController {
-  _FakeAuthController({required this.onComplete});
+  _FakeAuthController({required this.onComplete, this.onStartRegistration});
   final Future<void> Function(String code) onComplete;
+  final Future<void> Function()? onStartRegistration;
 
   @override
   FutureOr<void> build() => null;
@@ -21,6 +22,10 @@ class _FakeAuthController extends AuthController {
     state = const AsyncLoading();
     state = await AsyncValue.guard(() => onComplete(code));
   }
+
+  @override
+  Future<void> startRegistration() =>
+      onStartRegistration?.call() ?? Future.value();
 }
 
 void main() {
@@ -110,6 +115,82 @@ void main() {
 
     expect(seen, ['retry-code', 'retry-code']);
   });
+
+  testWidgets(
+    'UT-008 renders bounded outcomes and retries only with fresh registration',
+    (tester) async {
+      const outcomes = {
+        'canceled': 'Account creation was canceled.',
+        'providerUnavailable': 'Bluesky is temporarily unavailable.',
+        'registrationIncomplete':
+            "We couldn't verify or complete account creation.",
+      };
+
+      for (final MapEntry(key: code, value: message) in outcomes.entries) {
+        final completedCodes = <String>[];
+        var registrationStarts = 0;
+        await tester.pumpWidget(
+          ProviderScope(
+            key: ValueKey(code),
+            overrides: [
+              authControllerProvider.overrideWith(
+                () => _FakeAuthController(
+                  onComplete: (value) async => completedCodes.add(value),
+                  onStartRegistration: () async {
+                    registrationStarts++;
+                  },
+                ),
+              ),
+            ],
+            child: MaterialApp(
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: AuthCompletePage(
+                code: 'must-not-exchange',
+                error: code,
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        expect(find.textContaining(message), findsOneWidget, reason: code);
+        expect(find.text(code), findsNothing);
+        expect(completedCodes, isEmpty);
+        expect(registrationStarts, 0);
+        expect(find.text('Retry'), findsOneWidget);
+
+        tester
+            .widget<TextButton>(find.widgetWithText(TextButton, 'Retry'))
+            .onPressed!();
+        await tester.pump();
+
+        expect(registrationStarts, 1);
+        expect(completedCodes, isEmpty);
+        expect(tester.takeException(), isNull);
+      }
+
+      const internalValue = 'issuer-token-lifecycle-secret';
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authControllerProvider.overrideWith(
+              () => _FakeAuthController(onComplete: (_) async {}),
+            ),
+          ],
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: AuthCompletePage(error: internalValue),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.textContaining(internalValue), findsNothing);
+      expect(find.text('Retry'), findsNothing);
+    },
+  );
 
   testWidgets('a callback without a code fails closed without exchanging', (
     tester,

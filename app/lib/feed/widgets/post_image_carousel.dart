@@ -84,9 +84,15 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
                         maxScale: 4,
                         child: Semantics(
                           label: image.alt,
-                          child: const DecoratedBox(
+                          child: DecoratedBox(
                             decoration: BoxDecoration(
-                              color: Color(0xFFEAEAEA),
+                              color:
+                                  Theme.of(context).brightness ==
+                                      Brightness.dark
+                                  ? Theme.of(
+                                      context,
+                                    ).colorScheme.surfaceContainerHighest
+                                  : const Color(0xFFEAEAEA),
                             ),
                           ),
                         ),

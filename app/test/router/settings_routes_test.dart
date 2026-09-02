@@ -1,3 +1,4 @@
+import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/active_account_initialization.dart';
@@ -19,6 +20,7 @@ import 'package:craftsky_app/profile/providers/profile_repository_provider.dart'
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/settings/pages/about_page.dart';
 import 'package:craftsky_app/settings/pages/account_page.dart';
+import 'package:craftsky_app/settings/pages/appearance_page.dart';
 import 'package:craftsky_app/settings/pages/follow_list_page.dart';
 import 'package:craftsky_app/settings/pages/follower_growth_page.dart';
 import 'package:craftsky_app/settings/pages/profile_customisation_page.dart';
@@ -30,14 +32,26 @@ import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../fakes/auth_session_fakes.dart';
 import '../fakes/recording_messenger.dart';
 import '../feed/fakes/fake_post_repository.dart';
 import '../profile/fakes/fake_profile_repository.dart';
 
+late SharedPreferences _preferences;
+
 void main() {
+  setUpAll(() async {
+    SharedPreferences.setMockInitialValues({});
+    _preferences = await SharedPreferences.getInstance();
+  });
+
   test('Settings list routes use canonical typed locations', () {
+    expect(
+      const AppearanceRoute().location,
+      '/profile/settings/appearance',
+    );
     expect(
       const ProfileCustomisationRoute().location,
       '/profile/settings/customisation',
@@ -290,6 +304,7 @@ void main() {
       '@test.bsky.social',
       'Switch account',
       'Preferences',
+      'Appearance',
       'Customisation',
       'Languages',
       'Notifications',
@@ -309,7 +324,7 @@ void main() {
       expect(find.text(label), findsOneWidget, reason: label);
     }
     expect(find.text('Clear image cache'), findsNothing);
-    expect(find.byIcon(Icons.chevron_right), findsNWidgets(12));
+    expect(find.byIcon(Icons.chevron_right), findsNWidgets(13));
     final signOut = tester.widget<Text>(find.text('Sign out'));
     expect(
       signOut.style?.color,
@@ -377,6 +392,7 @@ void main() {
 
 ProviderContainer _container() => ProviderContainer.test(
   overrides: [
+    sharedPreferencesProvider.overrideWithValue(_preferences),
     activeAccountInitializationProvider.overrideWith(
       (ref) => ActiveAccountInitialization(
         lease: ActiveAccountLease(
@@ -445,6 +461,11 @@ const _emptyAccountPage = ProfileAccountPage(
 );
 
 final _routeCases = <_SettingsRouteCase>[
+  _SettingsRouteCase(
+    label: 'Appearance',
+    location: '/profile/settings/appearance',
+    matchesPage: (widget) => widget is AppearancePage,
+  ),
   _SettingsRouteCase(
     label: 'Growth',
     location: '/profile/settings/growth',

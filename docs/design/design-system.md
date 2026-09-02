@@ -149,6 +149,27 @@ Two committed accents sit on warm paper. Everything else is ink-black or paper.
 
 See `colors_and_type.css` for the full token list.
 
+#### Dark mode: Midnight Paper
+
+Dark mode keeps the paper-cutout hierarchy but moves it onto warm charcoal
+paper. It is not a generic Material recolour and does not introduce a second
+blue family.
+
+- **Page** `#171513` — warm charcoal, never pure black.
+- **Sunken paper** `#12100F` — wells and recessed surfaces.
+- **Raised paper** `#24201D` — cards, sheets, drawers, and inputs.
+- **Primary ink** `#F5EFE4` — the light Paper tone becomes dark mode's ink.
+- **Secondary ink** `#CFC6BB`; **tertiary ink** `#968D84`.
+- **Foreground cobalt** `#7890FF` — links, focus, and selected states on dark
+  paper. Original Cobalt `#1535D6` remains the deep cobalt container tone.
+- Electric red and the supporting paper swatches retain their roles. Dark
+  butter `#5A4815`, clay `#6A2F1A`, moss `#425626`, sky `#274964`, and lilac
+  `#493B63` keep cream foregrounds above 7:1 contrast.
+- Hard-offset shadows use warm near-black `#090807`; rules use light ink.
+
+Normal text and meaningful small icons target at least 4.5:1 contrast. Large
+text and non-text UI boundaries target at least 3:1.
+
 ### Typography
 
 Two families, one job each.

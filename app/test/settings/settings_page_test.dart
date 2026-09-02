@@ -1,3 +1,4 @@
+import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/active_account_identity_provider.dart';
@@ -12,8 +13,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
+  late SharedPreferences preferences;
+
+  setUp(() async {
+    SharedPreferences.setMockInitialValues({});
+    preferences = await SharedPreferences.getInstance();
+  });
+
   for (final accountType in AccountType.values) {
     testWidgets(
       'REG-003 Settings rows preserve order for authoritative '
@@ -26,6 +35,7 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              sharedPreferencesProvider.overrideWithValue(preferences),
               activeAccountIdentityProvider.overrideWith(
                 (_) async => _identity(accountType),
               ),
@@ -72,8 +82,11 @@ void main() {
     'SettingsPage renders the expanded hierarchy and SignOutTile',
     (tester) async {
       await tester.pumpWidget(
-        const ProviderScope(
-          child: MaterialApp(
+        ProviderScope(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(preferences),
+          ],
+          child: const MaterialApp(
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: SettingsPage(),
@@ -127,6 +140,9 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(preferences),
+        ],
         child: MaterialApp.router(
           routerConfig: router,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -166,6 +182,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          sharedPreferencesProvider.overrideWithValue(preferences),
           activeAccountIdentityProvider.overrideWith(
             (_) async => _identity(AccountType.business),
           ),
@@ -196,6 +213,7 @@ void main() {
 
 const _regularSettingsRows = <SettingsRowId>[
   SettingsRowId.switchAccount,
+  SettingsRowId.appearance,
   SettingsRowId.customisation,
   SettingsRowId.languages,
   SettingsRowId.notifications,
@@ -212,6 +230,7 @@ const _regularSettingsRows = <SettingsRowId>[
 
 const _businessSettingsRows = <SettingsRowId>[
   SettingsRowId.switchAccount,
+  SettingsRowId.appearance,
   SettingsRowId.customisation,
   SettingsRowId.languages,
   SettingsRowId.notifications,

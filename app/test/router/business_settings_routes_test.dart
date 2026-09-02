@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/active_account_identity_provider.dart';
@@ -27,6 +28,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../fakes/auth_session_fakes.dart';
 import '../feed/fakes/fake_post_repository.dart';
@@ -204,8 +206,11 @@ Future<_RouterHarness> _pumpRouter(
     ),
     profile: profile,
   );
+  SharedPreferences.setMockInitialValues({});
+  final preferences = await SharedPreferences.getInstance();
   final container = ProviderContainer.test(
     overrides: [
+      sharedPreferencesProvider.overrideWithValue(preferences),
       authSessionProvider.overrideWith(SignedInAuthSession.new),
       onboardingStatusProvider.overrideWith2(
         (_) => CompletedOnboardingStatus(),

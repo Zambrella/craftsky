@@ -72,7 +72,7 @@ func InitializeProfile(
 	writer OnboardingProfileWriter,
 ) error {
 	if client == nil || !attempt.validFor(attempt.Owner, attempt.State) ||
-		attempt.Purpose != LoginOAuthPurpose {
+		!attempt.permitsOrdinaryOnboarding() {
 		return fmt.Errorf("%w: invalid onboarding authority", ErrProfileInitFailed)
 	}
 	did := attempt.Owner

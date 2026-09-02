@@ -1,6 +1,7 @@
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/chunky_icon_button.dart';
 import 'package:flutter/gestures.dart';
@@ -17,12 +18,18 @@ Color _paintedSurface(WidgetTester tester, Color expected) {
   return colours.firstWhere((colour) => colour == expected);
 }
 
-Widget _subject({required FocusNode focusNode}) {
+Widget _subject({
+  required FocusNode focusNode,
+  String colour = 'orchid',
+  ThemeMode themeMode = ThemeMode.light,
+}) {
   return MaterialApp(
     theme: AppTheme.lightThemeData,
+    darkTheme: AppTheme.darkThemeData,
+    themeMode: themeMode,
     home: Scaffold(
       body: ProfileCustomisationTheme(
-        customisation: const ProfileCustomisation(colour: 'orchid'),
+        customisation: ProfileCustomisation(colour: colour),
         child: Row(
           children: [
             ChunkyButton(
@@ -114,4 +121,34 @@ void main() {
       await tester.pumpAndSettle();
     },
   );
+
+  testWidgets('dark Ink keeps identity black and uses parchment interactions', (
+    tester,
+  ) async {
+    final focusNode = FocusNode();
+    addTearDown(focusNode.dispose);
+    final bundle = profileColourBundles['ink']!;
+
+    await tester.pumpWidget(
+      _subject(
+        focusNode: focusNode,
+        colour: 'ink',
+        themeMode: ThemeMode.dark,
+      ),
+    );
+
+    final context = tester.element(find.text('Primary'));
+    final theme = Theme.of(context);
+    final primary = tester.widget<ChunkyButton>(
+      find.widgetWithText(ChunkyButton, 'Primary'),
+    );
+
+    expect(theme.colorScheme.primary, profileColour(bundle.darkAccent));
+    expect(theme.colorScheme.onPrimary, profileColour(bundle.darkForeground));
+    expect(
+      primary.defaultStyleOf(context).foregroundColor?.resolve({}),
+      profileColour(bundle.darkForeground),
+    );
+    expect(profileColour(bundle.base), BrandColors.ink);
+  });
 }

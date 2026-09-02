@@ -138,6 +138,21 @@ void main() {
     );
   });
 
+  testWidgets('dark compact drawer has no outer border', (tester) async {
+    await _pumpShell(
+      tester,
+      const Size(500, 800),
+      themeMode: ThemeMode.dark,
+    );
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+
+    final drawer = tester.widget<Drawer>(find.byType(Drawer));
+    final shape = drawer.shape! as RoundedRectangleBorder;
+
+    expect(shape.side, BorderSide.none);
+  });
+
   testWidgets('UIP-002 rail is divider-free and uses a profile icon', (
     tester,
   ) async {
@@ -809,6 +824,7 @@ Future<GoRouter> _pumpShell(
   TextDirection? textDirection,
   TextScaler? textScaler,
   RecordingMessenger? messenger,
+  ThemeMode themeMode = ThemeMode.light,
 }) async {
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -885,6 +901,8 @@ Future<GoRouter> _pumpShell(
       child: MaterialApp.router(
         routerConfig: router,
         theme: AppTheme.lightThemeData,
+        darkTheme: AppTheme.darkThemeData,
+        themeMode: themeMode,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         builder: (context, child) {

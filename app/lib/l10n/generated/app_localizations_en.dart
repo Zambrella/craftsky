@@ -223,10 +223,47 @@ class AppLocalizationsEn extends AppLocalizations {
   String get welcomeTitle => 'Welcome';
 
   @override
+  String get welcomeJoinTitle => 'Join CraftSky';
+
+  @override
+  String get welcomeSubtitle =>
+      'Share what you make. Find people who make what you love.';
+
+  @override
+  String get welcomeRegisterAction => 'Register';
+
+  @override
+  String get welcomeRegistrationHandoff =>
+      'You\'ll create your account with Bluesky, then return to CraftSky.';
+
+  @override
+  String get welcomeOr => 'Or';
+
+  @override
   String get welcomeSignInAction => 'Sign in';
 
   @override
-  String get welcomeCreateAccountAction => 'Create account on a PDS';
+  String get welcomeCreateAccountAction => 'Create an account';
+
+  @override
+  String get registrationProviderDisclosure =>
+      'Bluesky hosts your portable account, which you can use with Craftsky.';
+
+  @override
+  String get welcomeAtmosphereTitle => 'What is an Atmosphere account?';
+
+  @override
+  String get welcomeAtmosphereBody =>
+      'CraftSky is built on the AT Protocol, so your account, posts and social graph are portable. You can use an existing Bluesky or compatible Atmosphere account, or register a new one.';
+
+  @override
+  String get welcomeLegalPrefix => 'By continuing, you agree to our';
+
+  @override
+  String get welcomeLegalAnd => 'and';
+
+  @override
+  String get welcomePrivacyAction => 'Privacy Policy';
 
   @override
   String get signInTitle => 'Sign in';
@@ -257,7 +294,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get accountIdentityFallback => 'Account';
 
   @override
-  String get signInHandleLabel => 'Handle';
+  String get signInHandleLabel => 'Your Atmosphere Handle';
 
   @override
   String get signInContinueAction => 'Continue';
@@ -293,6 +330,17 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get authCompleteGenericError =>
       'Couldn\'t complete sign-in. Please sign in again.';
+
+  @override
+  String get authRegistrationCanceledError => 'Account creation was canceled.';
+
+  @override
+  String get authRegistrationProviderUnavailableError =>
+      'Bluesky is temporarily unavailable. Please try again.';
+
+  @override
+  String get authRegistrationIncompleteError =>
+      'We couldn\'t verify or complete account creation.';
 
   @override
   String get dialogConfirmDefault => 'Confirm';
@@ -2425,6 +2473,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsTitle => 'Settings';
+
+  @override
+  String get appearanceTitle => 'Appearance';
+
+  @override
+  String get appearanceUseDeviceSetting => 'Use device setting';
+
+  @override
+  String get appearanceLight => 'Light';
+
+  @override
+  String get appearanceDark => 'Dark';
 
   @override
   String get settingsSwitchAccount => 'Switch account';
