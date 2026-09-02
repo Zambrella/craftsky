@@ -40,11 +40,11 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Schedule posts
 - [x] Pinned posts
 - [x] Growth metrics
-- [ ] Business profile (new lexicon(s)?)
-  - [ ] Featured products
-  - [ ] CTA (e.g. to shop)
-  - [ ] Business info
-  - [ ] Upcoming events
+- [x] Business profile (new lexicon(s)?)
+  - [x] Featured products
+  - [x] CTA (e.g. to shop)
+  - [x] Business info
+  - [x] Upcoming events
 - [ ] Video posts (including Instagram post importer)
 - [ ] Make sure to handle PDS migration
 - [ ] Update to latest version of `Indigo` package
@@ -83,7 +83,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Dark theme
 - [x] Registration
 - [x] Welcome page
-- [ ] Onboarding
+- [x] Onboarding
 - [ ] Limit/compress images to 2MB (Bluesky max CDN size)
 - [ ] Update create project flow to be more streamlined
 - [ ] Iconography
