@@ -31,7 +31,7 @@ type fakeOnboardingStatusStore struct {
 
 func TestOnboardingStatusStoreCompletesPermanentlyAndIsolatesDIDs(t *testing.T) {
 	t.Parallel()
-	migration, err := os.ReadFile("../../migrations/000062_account_onboarding_completion.up.sql")
+	migration, err := os.ReadFile("../../migrations/000065_account_onboarding_completion.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

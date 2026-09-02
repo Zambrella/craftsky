@@ -17,6 +17,27 @@ import (
 	"social.craftsky/appview/internal/testdb"
 )
 
+func TestTerminalDIDInventoryIncludesBusinessState(t *testing.T) {
+	want := map[string]TerminalDIDAction{
+		"craftsky_account_types.owner_did":              TerminalDeleteRow,
+		"craftsky_business_profiles.owner_did":          TerminalDeleteRow,
+		"craftsky_business_events.owner_did":            TerminalDeleteRow,
+		"craftsky_business_record_tombstones.owner_did": TerminalDeleteRow,
+	}
+	for _, entry := range TerminalDIDInventory() {
+		key := entry.Table + "." + entry.Column
+		if action, exists := want[key]; exists {
+			if entry.Action != action {
+				t.Fatalf("%s action = %q, want %q", key, entry.Action, action)
+			}
+			delete(want, key)
+		}
+	}
+	if len(want) != 0 {
+		t.Fatalf("terminal DID inventory is missing business state: %v", want)
+	}
+}
+
 // TestTerminalDIDInventoryCoversMigratedSchema is the fail-closed contract for
 // terminal visibility and purge work. A migration cannot add a persisted DID
 // role without declaring whether the row is purged, anonymized, or retained as

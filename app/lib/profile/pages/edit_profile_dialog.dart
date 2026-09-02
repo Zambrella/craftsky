@@ -6,10 +6,14 @@ import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
+import 'package:craftsky_app/business/models/business_drafts.dart';
+import 'package:craftsky_app/business/models/business_profile.dart';
+import 'package:craftsky_app/business/widgets/business_profile_fields.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/profile/data/profile_field_constraints.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_save_result.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/profile/providers/save_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
@@ -165,6 +169,8 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   /// build can't accidentally drop tags it doesn't recognise from a
   /// newer server.
   late final List<String> _unknownCrafts;
+  late Profile _ordinaryBaseline;
+  late BusinessDeclarationDraft _businessBaseline;
 
   _ProfileImageDraft _avatarDraft = const _ProfileImageDraft();
   _ProfileImageDraft _bannerDraft = const _ProfileImageDraft();
@@ -176,6 +182,10 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   void initState() {
     super.initState();
     _unsavedGuard = ref.read(unsavedWorkGuardProvider);
+    _ordinaryBaseline = widget.profile;
+    _businessBaseline = BusinessDeclarationDraft.fromProfile(
+      widget.profile.business,
+    );
     _displayNameController = TextEditingController(
       text: widget.profile.displayName,
     );
@@ -215,18 +225,20 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   Map<String, dynamic> get _formValues =>
       _formKey.currentState?.instantValue ?? const {};
 
-  bool get _hasChanges {
+  bool get _hasOrdinaryChanges {
     final values = _formValues;
     if (values.isEmpty) return false;
 
-    final initialDisplayName = widget.profile.displayName ?? '';
-    final initialBio = widget.profile.description ?? '';
+    final initialDisplayName = _ordinaryBaseline.displayName ?? '';
+    final initialBio = _ordinaryBaseline.description ?? '';
     if ((values[_fieldDisplayName] as String? ?? '') != initialDisplayName) {
       return true;
     }
     if ((values[_fieldBio] as String? ?? '') != initialBio) return true;
 
-    final initialIds = _initialSelectedCrafts.map((c) => c.id).toSet();
+    final initialIds = _ordinaryBaseline.crafts
+        .where((id) => Craft.fromId(id) != null)
+        .toSet();
     final currentIds = (values[_fieldCrafts] as Set<Craft>? ?? const <Craft>{})
         .map((c) => c.id)
         .toSet();
@@ -235,6 +247,19 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     if (_avatarDraft.changed || _bannerDraft.changed) return true;
     return false;
   }
+
+  bool get _hasBusinessChanges {
+    if (widget.profile.accountType != AccountType.business ||
+        !_formValues.containsKey(BusinessProfileFieldNames.types)) {
+      return false;
+    }
+    return _currentBusinessDraft != _businessBaseline;
+  }
+
+  bool get _hasChanges => _hasOrdinaryChanges || _hasBusinessChanges;
+
+  BusinessDeclarationDraft get _currentBusinessDraft =>
+      BusinessProfileFields.draftFrom(_formValues, _businessBaseline);
 
   bool get _imageUploadInFlight =>
       _avatarDraft.isUploading || _bannerDraft.isUploading;
@@ -255,6 +280,9 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     final values = form.value;
     final selectedCrafts =
         (values[_fieldCrafts] as Set<Craft>?) ?? const <Craft>{};
+    final ordinaryChanged = _hasOrdinaryChanges;
+    final businessChanged = _hasBusinessChanges;
+    final businessDraft = _currentBusinessDraft;
 
     // Re-attach the preserved unknowns so a save from this client
     // doesn't strip tags a newer server has added.
@@ -268,6 +296,10 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
       ref
           .read(saveProfileProvider.notifier)
           .save(
+            currentProfile: _ordinaryBaseline,
+            ordinaryChanged: ordinaryChanged,
+            businessChanged: businessChanged,
+            businessDraft: businessDraft,
             displayName: (values[_fieldDisplayName] as String? ?? '').trim(),
             description: description,
             crafts: craftsPayload,
@@ -338,16 +370,24 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     final saveState = ref.watch(saveProfileProvider);
     final isSaving = saveState is AsyncLoading;
 
-    // Handle the (loading -> data) and (loading -> error) transitions.
-    // Success closes the sheet; failure surfaces a snackbar and leaves
-    // the form untouched so the user can retry. Per the Riverpod rules,
-    // listeners go in build (not initState).
-    ref.listen<AsyncValue<Profile?>>(saveProfileProvider, (prev, next) {
+    // Reconcile each independently versioned record before deciding whether
+    // the dialog can close. A successful half becomes the new baseline even
+    // when the other half failed.
+    ref.listen<AsyncValue<CombinedProfileSaveResult?>>(saveProfileProvider, (
+      prev,
+      next,
+    ) {
       switch ((prev, next)) {
-        case (AsyncLoading(), AsyncData(value: final _?)):
+        case (AsyncLoading(), AsyncData(value: final result?))
+            when result.isFullSuccess:
+          _applySaveResult(result);
           if (Navigator.of(context).canPop()) {
             Navigator.of(context).pop();
           }
+        case (AsyncLoading(), AsyncData(value: final result?))
+            when result.failedPortions.isNotEmpty:
+          _applySaveResult(result);
+          context.showError(_saveFailureMessage(result, l10n));
         case (AsyncLoading(), AsyncError()):
           context.showError(l10n.editProfileSaveError);
         case _:
@@ -526,6 +566,11 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                           );
                         },
                       ),
+                      if (widget.profile.accountType == AccountType.business)
+                        BusinessProfileFields(
+                          initial: _businessBaseline,
+                          enabled: !isSaving,
+                        ),
                     ],
                   ),
                 ),
@@ -554,6 +599,34 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
         return true;
       },
     );
+  }
+
+  void _applySaveResult(CombinedProfileSaveResult result) {
+    if (result.ordinary.value case final Profile saved?) {
+      _ordinaryBaseline = saved;
+      _avatarDraft = const _ProfileImageDraft();
+      _bannerDraft = const _ProfileImageDraft();
+    }
+    if (result.business.value case final BusinessProfile saved?) {
+      _businessBaseline = BusinessDeclarationDraft.fromProfile(saved);
+      _ordinaryBaseline = _ordinaryBaseline.copyWith(business: saved);
+    }
+    if (mounted) setState(() {});
+  }
+
+  String _saveFailureMessage(
+    CombinedProfileSaveResult result,
+    AppLocalizations l10n,
+  ) {
+    if (result.failedPortions.length == 2) {
+      return l10n.editProfileBothSaveError;
+    }
+    if (result.failedPortions.contains(ProfileSavePortion.business)) {
+      return result.business.failureKind == ProfileSaveFailureKind.conflict
+          ? l10n.editProfileBusinessConflictError
+          : l10n.editProfileBusinessSaveError;
+    }
+    return l10n.editProfileSaveError;
   }
 }
 

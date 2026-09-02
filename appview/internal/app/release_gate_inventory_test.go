@@ -83,8 +83,8 @@ func TestReleaseGatesUseFixturesInsteadOfLiveBluesky(t *testing.T) {
 	}
 
 	assertFileContains(t, filepath.Join(repositoryRoot, "scripts", "appview-check"),
-		"go test -count=1 -json ./...",
-		"go test -count=1 -race -json ./...",
+		"go test -p 1 -count=1 -json ./...",
+		"go test -p 1 -count=1 -race -json ./...",
 	)
 	assertFileContains(t, filepath.Join(repositoryRoot, "justfile"),
 		"app-test *ARGS:",

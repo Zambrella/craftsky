@@ -107,7 +107,7 @@ final class LinkPreviewControllerProvider
 }
 
 String _$linkPreviewControllerHash() =>
-    r'9647a853f32f19e8917668b50e75337a7e8e72f1';
+    r'c75ed9d25ec601d7a426ef2371dbed6b816352ef';
 
 final class LinkPreviewControllerFamily extends $Family
     with

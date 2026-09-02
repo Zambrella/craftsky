@@ -106,7 +106,7 @@ func withAuthSchema(t *testing.T) *pgxpool.Pool {
 	for _, path := range []string{
 		"../../migrations/000038_owner_auth_lifecycle.up.sql",
 		"../../migrations/000052_dev_oauth_scheme.up.sql",
-		"../../migrations/000061_provider_first_registration.up.sql",
+		"../../migrations/000064_provider_first_registration.up.sql",
 	} {
 		migration, err := os.ReadFile(path)
 		if err != nil {

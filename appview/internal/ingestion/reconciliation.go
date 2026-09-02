@@ -233,7 +233,11 @@ func (store *Store) reconcileSourceTx(
 	outcome := tap.Applied()
 	disposition := "eligible"
 	orderingStatus := "authoritative"
-	projectionGeneration := authority.Lifecycle.Generation
+	var projectionGeneration any
+	independentBusiness := isIndependentBusinessCollection(event.Collection)
+	if !independentBusiness {
+		projectionGeneration = authority.Lifecycle.Generation
+	}
 	var effectOperationID any
 	state := "pending"
 	var dependencyKind, dependencyKey, completedAt any
@@ -242,14 +246,15 @@ func (store *Store) reconcileSourceTx(
 		disposition = "denied_terminal"
 		state = "permanent_denied"
 		completedAt = now
-	} else if event.Action != "delete" && authority.Lifecycle.State != ownerlifecycle.StateActive {
+	} else if event.Action != "delete" && authority.Lifecycle.State != ownerlifecycle.StateActive &&
+		(authority.Lifecycle.State != ownerlifecycle.StateDeparted || !independentBusiness) {
 		outcome = tap.Blocked(tap.ReasonOwnerDeparted, tap.Dependency{Kind: "member_did", Key: event.DID.String()})
 		disposition = "blocked_departed"
 		state = "blocked"
 		dependencyKind = outcome.Dependency.Kind
 		dependencyKey = outcome.Dependency.Key
 	}
-	if event.Action != "delete" {
+	if event.Action != "delete" && !independentBusiness {
 		recordContentFingerprint, err := pdseffects.RecordContentFingerprint(
 			event.DID, event.Collection, event.Rkey, event.Record,
 		)

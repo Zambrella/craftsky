@@ -17,6 +17,17 @@ extension type Handle._(String value) implements String {
   }
 }
 
+extension type AtIdentifier._(String value) implements String {
+  factory AtIdentifier.parse(String value) {
+    try {
+      Did.parse(value);
+    } on Object catch (_) {
+      Handle.parse(value);
+    }
+    return AtIdentifier._(value);
+  }
+}
+
 extension type Cid._(String value) implements String {
   factory Cid.parse(String value) {
     if (value.isEmpty) {
@@ -74,6 +85,16 @@ class HandleMapper extends SimpleMapper<Handle> {
 
   @override
   Object encode(Handle self) => self.value;
+}
+
+class AtIdentifierMapper extends SimpleMapper<AtIdentifier> {
+  const AtIdentifierMapper();
+
+  @override
+  AtIdentifier decode(Object value) => AtIdentifier.parse(value as String);
+
+  @override
+  Object encode(AtIdentifier self) => self.value;
 }
 
 class CidMapper extends SimpleMapper<Cid> {

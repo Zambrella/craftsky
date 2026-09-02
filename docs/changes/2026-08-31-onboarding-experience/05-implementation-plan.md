@@ -97,7 +97,7 @@
 - Write failing test: Verify migration shape/up-down behavior, Alice-only private cleanup, terminal inventory, and terminal purge.
 - Run command: `cd appview && go test ./internal/db ./internal/accountdeletion ./internal/ownerlifecycle -run 'Test.*Onboarding|TestTerminalDIDInventory'`
 - Confirmed failure: The approved schema/inventory was absent; migration and inventory coverage would fail once the new store table became part of the migrated schema.
-- Implement: Added migration 000062, explicit private cleanup, and terminal DID inventory registration.
+- Implement: Added migration 000065, explicit private cleanup, and terminal DID inventory registration.
 - Run command: `cd appview && go test ./internal/accountdeletion`; `go test ./internal/ownerlifecycle`; `go test ./internal/db -run TestMigration` (pass; database-backed cases require final release gate).
 - Refactor: None.
 - Notes: No foreign key or cascade was added; the primary key provides the role-leading unique purge key.

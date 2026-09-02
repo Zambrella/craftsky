@@ -12,7 +12,7 @@ void main() {
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: DefaultTabController(
-          length: ProfileTab.values.length,
+          length: ProfileTabPolicy.ordinaryTabs.length,
           child: const Scaffold(
             body: CustomScrollView(
               slivers: [
@@ -27,6 +27,6 @@ void main() {
     );
 
     expect(find.text('Saved'), findsNothing);
-    expect(ProfileTab.values, hasLength(5));
+    expect(ProfileTabPolicy.ordinaryTabs, hasLength(4));
   });
 }

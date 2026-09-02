@@ -18,33 +18,45 @@ import (
 type PDSOperation string
 
 const (
-	PDSOperationOAuthSessionResume PDSOperation = "oauth.session_resume"
-	PDSOperationProfilePutBsky     PDSOperation = "profile.put_bsky"
-	PDSOperationProfilePutCraftsky PDSOperation = "profile.put_craftsky"
-	PDSOperationPostCreate         PDSOperation = "post.create"
-	PDSOperationPostDelete         PDSOperation = "post.delete"
-	PDSOperationBlobUpload         PDSOperation = "blob.upload"
-	PDSOperationFollowCreate       PDSOperation = "follow.create"
-	PDSOperationFollowDelete       PDSOperation = "follow.delete"
-	PDSOperationLikeCreate         PDSOperation = "like.create"
-	PDSOperationLikeDelete         PDSOperation = "like.delete"
-	PDSOperationRepostCreate       PDSOperation = "repost.create"
-	PDSOperationRepostDelete       PDSOperation = "repost.delete"
+	PDSOperationOAuthSessionResume    PDSOperation = "oauth.session_resume"
+	PDSOperationProfilePutBsky        PDSOperation = "profile.put_bsky"
+	PDSOperationProfilePutCraftsky    PDSOperation = "profile.put_craftsky"
+	PDSOperationPostCreate            PDSOperation = "post.create"
+	PDSOperationPostDelete            PDSOperation = "post.delete"
+	PDSOperationBlobUpload            PDSOperation = "blob.upload"
+	PDSOperationFollowCreate          PDSOperation = "follow.create"
+	PDSOperationFollowDelete          PDSOperation = "follow.delete"
+	PDSOperationLikeCreate            PDSOperation = "like.create"
+	PDSOperationLikeDelete            PDSOperation = "like.delete"
+	PDSOperationRepostCreate          PDSOperation = "repost.create"
+	PDSOperationRepostDelete          PDSOperation = "repost.delete"
+	PDSOperationBusinessProfileGet    PDSOperation = "business.profile.get"
+	PDSOperationBusinessProfilePut    PDSOperation = "business.profile.put"
+	PDSOperationBusinessProfileDelete PDSOperation = "business.profile.delete"
+	PDSOperationBusinessEventGet      PDSOperation = "business.event.get"
+	PDSOperationBusinessEventPut      PDSOperation = "business.event.put"
+	PDSOperationBusinessEventDelete   PDSOperation = "business.event.delete"
 )
 
 var knownPDSOperations = map[PDSOperation]struct{}{
-	PDSOperationOAuthSessionResume: {},
-	PDSOperationProfilePutBsky:     {},
-	PDSOperationProfilePutCraftsky: {},
-	PDSOperationPostCreate:         {},
-	PDSOperationPostDelete:         {},
-	PDSOperationBlobUpload:         {},
-	PDSOperationFollowCreate:       {},
-	PDSOperationFollowDelete:       {},
-	PDSOperationLikeCreate:         {},
-	PDSOperationLikeDelete:         {},
-	PDSOperationRepostCreate:       {},
-	PDSOperationRepostDelete:       {},
+	PDSOperationOAuthSessionResume:    {},
+	PDSOperationProfilePutBsky:        {},
+	PDSOperationProfilePutCraftsky:    {},
+	PDSOperationPostCreate:            {},
+	PDSOperationPostDelete:            {},
+	PDSOperationBlobUpload:            {},
+	PDSOperationFollowCreate:          {},
+	PDSOperationFollowDelete:          {},
+	PDSOperationLikeCreate:            {},
+	PDSOperationLikeDelete:            {},
+	PDSOperationRepostCreate:          {},
+	PDSOperationRepostDelete:          {},
+	PDSOperationBusinessProfileGet:    {},
+	PDSOperationBusinessProfilePut:    {},
+	PDSOperationBusinessProfileDelete: {},
+	PDSOperationBusinessEventGet:      {},
+	PDSOperationBusinessEventPut:      {},
+	PDSOperationBusinessEventDelete:   {},
 }
 
 func KnownPDSOperation(op PDSOperation) bool {
@@ -469,6 +481,10 @@ func pdsPutOperation(collection string) PDSOperation {
 		return PDSOperationProfilePutBsky
 	case "social.craftsky.actor.profile":
 		return PDSOperationProfilePutCraftsky
+	case "social.craftsky.business.profile":
+		return PDSOperationBusinessProfilePut
+	case "social.craftsky.business.event":
+		return PDSOperationBusinessEventPut
 	default:
 		return "unknown"
 	}
@@ -480,6 +496,10 @@ func pdsGetOperation(collection string) PDSOperation {
 		return PDSOperationProfilePutBsky
 	case "social.craftsky.actor.profile":
 		return PDSOperationProfilePutCraftsky
+	case "social.craftsky.business.profile":
+		return PDSOperationBusinessProfileGet
+	case "social.craftsky.business.event":
+		return PDSOperationBusinessEventGet
 	default:
 		return "unknown"
 	}
@@ -502,6 +522,10 @@ func pdsCreateOperation(collection string) PDSOperation {
 
 func pdsDeleteOperation(collection string) PDSOperation {
 	switch collection {
+	case "social.craftsky.business.profile":
+		return PDSOperationBusinessProfileDelete
+	case "social.craftsky.business.event":
+		return PDSOperationBusinessEventDelete
 	case "social.craftsky.feed.post":
 		return PDSOperationPostDelete
 	case "app.bsky.graph.follow":

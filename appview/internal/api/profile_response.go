@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+
+	"social.craftsky/appview/internal/business"
 )
 
 // ProfileResponse is the JSON shape returned by all three profile
@@ -15,27 +17,97 @@ import (
 // syntax.DID and syntax.Handle JSON-marshal via TextMarshaler — the
 // wire shape is the same plain-string JSON it always was.
 type ProfileResponse struct {
-	DID                 syntax.DID            `json:"did"`
-	Handle              syntax.Handle         `json:"handle"`
-	ViewerIsFollowing   bool                  `json:"viewerIsFollowing"`
-	Muted               bool                  `json:"muted"`
-	Blocking            bool                  `json:"blocking"`
-	BlockedBy           bool                  `json:"blockedBy"`
-	IsCraftskyProfile   bool                  `json:"isCraftskyProfile"`
-	FollowingCount      *int                  `json:"followingCount,omitempty"`
-	FollowerCount       *int                  `json:"followerCount,omitempty"`
-	MutualFollowerCount *int                  `json:"mutualFollowerCount,omitempty"`
-	PostCount           *int                  `json:"postCount,omitempty"`
-	PostsLast7Days      *int                  `json:"postsLast7Days,omitempty"`
-	ProjectCount        *int                  `json:"projectCount,omitempty"`
-	DisplayName         *string               `json:"displayName,omitempty"`
-	Description         *string               `json:"description,omitempty"`
-	Avatar              *string               `json:"avatar,omitempty"`
-	Banner              *string               `json:"banner,omitempty"`
-	Crafts              []string              `json:"crafts"`
-	CreatedAt           *time.Time            `json:"createdAt,omitempty"`
-	Moderation          *ModerationMetadata   `json:"moderation,omitempty"`
-	Customisation       *ProfileCustomisation `json:"customisation,omitempty"`
+	DID                 syntax.DID               `json:"did"`
+	Handle              syntax.Handle            `json:"handle"`
+	ViewerIsFollowing   bool                     `json:"viewerIsFollowing"`
+	Muted               bool                     `json:"muted"`
+	Blocking            bool                     `json:"blocking"`
+	BlockedBy           bool                     `json:"blockedBy"`
+	IsCraftskyProfile   bool                     `json:"isCraftskyProfile"`
+	FollowingCount      *int                     `json:"followingCount,omitempty"`
+	FollowerCount       *int                     `json:"followerCount,omitempty"`
+	MutualFollowerCount *int                     `json:"mutualFollowerCount,omitempty"`
+	PostCount           *int                     `json:"postCount,omitempty"`
+	PostsLast7Days      *int                     `json:"postsLast7Days,omitempty"`
+	ProjectCount        *int                     `json:"projectCount,omitempty"`
+	DisplayName         *string                  `json:"displayName,omitempty"`
+	Description         *string                  `json:"description,omitempty"`
+	Avatar              *string                  `json:"avatar,omitempty"`
+	Banner              *string                  `json:"banner,omitempty"`
+	Crafts              []string                 `json:"crafts"`
+	CreatedAt           *time.Time               `json:"createdAt,omitempty"`
+	Moderation          *ModerationMetadata      `json:"moderation,omitempty"`
+	Customisation       *ProfileCustomisation    `json:"customisation,omitempty"`
+	AccountType         *business.AccountType    `json:"accountType,omitempty"`
+	Business            *BusinessProfileResponse `json:"business,omitempty"`
+	HasUpcomingEvents   bool                     `json:"hasUpcomingEvents"`
+}
+
+type BusinessProfileResponse struct {
+	CID           syntax.CID                `json:"cid"`
+	BusinessTypes []business.OpenValue      `json:"businessTypes,omitempty"`
+	Offerings     []business.OpenValue      `json:"offerings,omitempty"`
+	Tagline       string                    `json:"tagline,omitempty"`
+	HoursNote     string                    `json:"hoursNote,omitempty"`
+	ServiceArea   string                    `json:"serviceArea,omitempty"`
+	Location      *business.Location        `json:"location,omitempty"`
+	PrimaryAction *business.Action          `json:"primaryAction,omitempty"`
+	Products      []BusinessProductResponse `json:"products,omitempty"`
+}
+
+type BusinessProductResponse struct {
+	Title string             `json:"title"`
+	URI   string             `json:"uri,omitempty"`
+	Image *BusinessImageView `json:"image,omitempty"`
+	Price *business.Price    `json:"price,omitempty"`
+}
+
+type BusinessImageView struct {
+	CID         string                `json:"cid"`
+	MIME        string                `json:"mime"`
+	Size        int64                 `json:"size"`
+	Alt         string                `json:"alt"`
+	AspectRatio *PostImageAspectRatio `json:"aspectRatio,omitempty"`
+	Thumb       string                `json:"thumb"`
+	Fullsize    string                `json:"fullsize"`
+}
+
+func BuildBusinessProfileResponse(owner syntax.DID, view *business.ProfileView) *BusinessProfileResponse {
+	if view == nil {
+		return nil
+	}
+	response := &BusinessProfileResponse{
+		CID: view.CID, BusinessTypes: view.BusinessTypes, Offerings: view.Offerings,
+		Tagline: view.Tagline, HoursNote: view.HoursNote, ServiceArea: view.ServiceArea,
+		Location: view.Location, PrimaryAction: view.PrimaryAction,
+	}
+	for _, product := range view.Products {
+		response.Products = append(response.Products, BusinessProductResponse{
+			Title: product.Title, URI: product.URI,
+			Image: buildBusinessImageView(owner, product.Image), Price: product.Price,
+		})
+	}
+	return response
+}
+
+func buildBusinessImageView(owner syntax.DID, image *business.HydratedImage) *BusinessImageView {
+	if image == nil {
+		return nil
+	}
+	view := &BusinessImageView{
+		CID: image.CID.String(), MIME: image.MIME, Size: image.Size, Alt: image.Alt,
+		Thumb:    synthPostImageURL("feed_thumbnail", owner.String(), image.CID.String(), image.MIME),
+		Fullsize: synthPostImageURL("feed_fullsize", owner.String(), image.CID.String(), image.MIME),
+	}
+	if view.Thumb == "" || view.Fullsize == "" {
+		return nil
+	}
+	if image.AspectRatio != nil {
+		view.AspectRatio = &PostImageAspectRatio{
+			Width: int(image.AspectRatio.Width), Height: int(image.AspectRatio.Height),
+		}
+	}
+	return view
 }
 
 // MarshalJSON keeps the ordinary profile contract unchanged while enforcing

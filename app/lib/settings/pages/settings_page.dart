@@ -10,6 +10,8 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/auth/widgets/account_avatar.dart';
 import 'package:craftsky_app/auth/widgets/account_switcher_launcher.dart';
+import 'package:craftsky_app/business/models/business_profile.dart';
+import 'package:craftsky_app/business/providers/account_type_controller.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/router/router.dart';
@@ -33,6 +35,9 @@ class SettingsPage extends ConsumerWidget {
         ? null
         : registry?.sessions[activeLease.account.did];
     final loadedIdentity = ref.watch(activeAccountIdentityProvider).value;
+    final accountType =
+        ref.watch(accountTypeControllerProvider).value ??
+        loadedIdentity?.profile.accountType;
     final auth = ref.watch(authSessionProvider).value;
     final themeMode = ref.watch(themeModeProvider);
 
@@ -181,6 +186,27 @@ class SettingsPage extends ConsumerWidget {
             onTap: () => const InstagramMigrationRoute().go(context),
             subtitle: l10n.instagramMigrationSettingsSubtitle,
           ),
+          if (accountType == AccountType.business) ...[
+            _SectionLabel(l10n.settingsSectionBusiness),
+            SettingsRowTile(
+              descriptor: const SettingsRowDescriptor(
+                id: SettingsRowId.businessEvents,
+                kind: SettingsRowKind.disclosure,
+              ),
+              label: l10n.settingsBusinessEvents,
+              leading: Icons.event_outlined,
+              onTap: () => const BusinessEventsRoute().go(context),
+            ),
+            SettingsRowTile(
+              descriptor: const SettingsRowDescriptor(
+                id: SettingsRowId.businessProducts,
+                kind: SettingsRowKind.disclosure,
+              ),
+              label: l10n.settingsBusinessProducts,
+              leading: Icons.storefront_outlined,
+              onTap: () => const BusinessProductsRoute().go(context),
+            ),
+          ],
           _SectionLabel(l10n.settingsSectionGeneral),
           SettingsRowTile(
             descriptor: const SettingsRowDescriptor(

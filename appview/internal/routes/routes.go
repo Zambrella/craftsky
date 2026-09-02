@@ -9,6 +9,7 @@ import (
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
@@ -39,15 +40,16 @@ func normalizedImageDecodeLimits(limits api.ImageDecodeLimits) api.ImageDecodeLi
 }
 
 type v1Middleware struct {
-	authCurrentMember func(http.Handler) http.Handler
-	authRecovery      func(http.Handler) http.Handler
-	deviceID          func(http.Handler) http.Handler
-	member            func(http.Handler) http.Handler
-	bodyLimit         middleware.BodyLimitConfig
-	uploadAdmission   *middleware.UploadBodyAdmission
-	rateLimit         map[RateClass]func(http.Handler) http.Handler
-	observer          *observability.Observer
-	hydrator          *api.IdentityCustomisationHydrator
+	authCurrentMember   func(http.Handler) http.Handler
+	authRecovery        func(http.Handler) http.Handler
+	deviceID            func(http.Handler) http.Handler
+	member              func(http.Handler) http.Handler
+	bodyLimit           middleware.BodyLimitConfig
+	uploadAdmission     *middleware.UploadBodyAdmission
+	rateLimit           map[RateClass]func(http.Handler) http.Handler
+	observer            *observability.Observer
+	hydrator            *api.IdentityCustomisationHydrator
+	accountTypeHydrator *api.IdentityAccountTypeHydrator
 }
 
 func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handler {
@@ -60,6 +62,9 @@ func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handle
 	wrapped := handler
 	if m.hydrator != nil {
 		wrapped = m.hydrator.Handler(wrapped)
+	}
+	if m.accountTypeHydrator != nil {
+		wrapped = m.accountTypeHydrator.Handler(wrapped)
 	}
 	// Keep BodyLimit outside response decorators so ResponseController reaches
 	// net/http's writer and can install the route-specific read deadline.
@@ -106,6 +111,7 @@ type middlewareDependencies struct {
 	OwnerLifecycles           *ownerlifecycle.Store
 	RateLimiter               *middleware.LocalRateLimiter
 	ProfileCustomisationStore *api.ProfileCustomisationStore
+	BusinessStore             *business.Store
 }
 
 func buildV1Middleware(deps middlewareDependencies, observer *observability.Observer) v1Middleware {
@@ -166,16 +172,21 @@ func buildV1Middleware(deps middlewareDependencies, observer *observability.Obse
 	if profileCustomisationStore != nil {
 		hydrator = api.NewIdentityCustomisationHydrator(profileCustomisationStore)
 	}
+	var accountTypeHydrator *api.IdentityAccountTypeHydrator
+	if deps.BusinessStore != nil {
+		accountTypeHydrator = api.NewIdentityAccountTypeHydrator(deps.BusinessStore)
+	}
 	return v1Middleware{
-		authCurrentMember: authCurrentMember,
-		authRecovery:      authRecovery,
-		deviceID:          deviceID,
-		member:            currentMember,
-		bodyLimit:         bodyLimitCfg,
-		uploadAdmission:   uploadAdmission,
-		rateLimit:         rateLimits,
-		observer:          observer,
-		hydrator:          hydrator,
+		authCurrentMember:   authCurrentMember,
+		authRecovery:        authRecovery,
+		deviceID:            deviceID,
+		member:              currentMember,
+		bodyLimit:           bodyLimitCfg,
+		uploadAdmission:     uploadAdmission,
+		rateLimit:           rateLimits,
+		observer:            observer,
+		hydrator:            hydrator,
+		accountTypeHydrator: accountTypeHydrator,
 	}
 }
 
@@ -219,11 +230,16 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 	if profileCustomisationStore == nil && deps.DB != nil {
 		profileCustomisationStore = api.NewProfileCustomisationStore(deps.DB)
 	}
+	businessStore := deps.BusinessStore
+	if businessStore == nil && deps.DB != nil {
+		businessStore = business.NewStore(deps.DB)
+	}
 	v1mw := buildV1Middleware(middlewareDependencies{
 		Config: deps.Config, Logger: deps.Logger, DB: deps.DB,
 		AuthService: deps.AuthService, CraftskySessionStore: deps.CraftskySessionStore,
 		InstagramMembership: deps.InstagramMembership, OwnerLifecycles: deps.OwnerLifecycles,
 		RateLimiter: deps.RateLimiter, ProfileCustomisationStore: profileCustomisationStore,
+		BusinessStore: businessStore,
 	}, observer)
 	mediaLimits := api.MediaLimits{
 		MaxPostImages:       deps.Config.MaxPostImages,
@@ -257,6 +273,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 	})
 	registerProfileRelationshipRoutes(profileRelationshipRouteBundle{
 		mux: mux, middleware: v1mw, profileStore: deps.ProfileStore,
+		businessProfiles:          businessStore,
 		followerGrowth:            deps.FollowerGrowth,
 		profileCustomisationStore: profileCustomisationStore,
 		followStore:               deps.FollowStore, relationshipStore: deps.RelationshipStore,
@@ -266,6 +283,12 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 		newPDSEffects:         deps.NewPDSEffects,
 		reportStore:           deps.ReportStore, reportForwarder: deps.ReportForwarder,
 		mediaLimits: mediaLimits, logger: deps.Logger,
+	})
+	registerBusinessRoutes(businessRouteBundle{
+		mux: mux, middleware: v1mw, store: businessStore,
+		handleResolver: deps.HandleResolver, newPDSEffects: deps.NewPDSEffects,
+		reportStore: deps.ReportStore, reportForwarder: deps.ReportForwarder,
+		cursors: deps.EventCursorCodec, now: deps.Now, logger: deps.Logger,
 	})
 
 	postStore := api.NewPostStore(deps.DB, observer)

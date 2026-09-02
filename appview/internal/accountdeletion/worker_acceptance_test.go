@@ -62,6 +62,7 @@ func TestWorkerAcceptanceReplaysWholeCleanupAndFinishesWithoutIndexerState(t *te
 		store := NewStore(pool, func() time.Time { return now })
 		processor, err := NewLifecycleProcessor(LifecycleProcessorOptions{
 			Store: store, Cleaner: cleaner, AcceptedCleanup: noOpAcceptedPrivateCleanup{}, BatchSize: 1,
+			AccountTypes: accountTypeDeleterFunc(func(context.Context, syntax.DID) error { return nil }),
 			NewPDSClient: func(context.Context, syntax.DID, auth.DeletionSessionAuthority) (auth.DeletionPDSClient, error) {
 				return pds, nil
 			},
@@ -153,6 +154,7 @@ func TestDelayedPDSCommitCannotFinalizeDeletionAfterFirstEmptyScan(t *testing.T)
 	pds := &leanAcceptancePDS{owner: owner}
 	processor, err := NewLifecycleProcessor(LifecycleProcessorOptions{
 		Store: store, Cleaner: cleaner, AcceptedCleanup: noOpAcceptedPrivateCleanup{}, BatchSize: 1,
+		AccountTypes: accountTypeDeleterFunc(func(context.Context, syntax.DID) error { return nil }),
 		NewPDSClient: func(context.Context, syntax.DID, auth.DeletionSessionAuthority) (auth.DeletionPDSClient, error) {
 			return pds, nil
 		},
@@ -241,6 +243,13 @@ func TestLifecycleProcessorRunsGenerationBoundAcceptedCleanupBeforeGenericCleanu
 	store := NewStore(pool, func() time.Time { return now })
 	processor, err := NewLifecycleProcessor(LifecycleProcessorOptions{
 		Store: store, Cleaner: cleaner, AcceptedCleanup: acceptedCleanup,
+		AccountTypes: accountTypeDeleterFunc(func(_ context.Context, gotOwner syntax.DID) error {
+			if gotOwner != owner {
+				t.Fatalf("account type cleanup owner = %s", gotOwner)
+			}
+			calls = append(calls, "accountType")
+			return nil
+		}),
 		NewPDSClient: func(context.Context, syntax.DID, auth.DeletionSessionAuthority) (auth.DeletionPDSClient, error) {
 			return &leanAcceptancePDS{owner: owner}, nil
 		},
@@ -255,9 +264,15 @@ func TestLifecycleProcessorRunsGenerationBoundAcceptedCleanupBeforeGenericCleanu
 	if err := processor.Process(ctx, operation); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := calls, []string{"accepted", "generic"}; !reflect.DeepEqual(got, want) {
+	if got, want := calls, []string{"accepted", "generic", "accountType"}; !reflect.DeepEqual(got, want) {
 		t.Fatalf("cleanup order = %v, want %v", got, want)
 	}
+}
+
+type accountTypeDeleterFunc func(context.Context, syntax.DID) error
+
+func (deleter accountTypeDeleterFunc) DeleteAccountType(ctx context.Context, owner syntax.DID) error {
+	return deleter(ctx, owner)
 }
 
 type acceptedPrivateCleanupFunc func(context.Context, uuid.UUID, syntax.DID, int64) error

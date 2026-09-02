@@ -236,6 +236,53 @@ func TestNewIndexerDispatcherRegistersCraftskyInteractions(t *testing.T) {
 	}
 }
 
+func TestNewIndexerDispatcherRegistersBusinessRecordsWithoutMembership(t *testing.T) {
+	migration, err := os.ReadFile("../../migrations/000062_business_records.up.sql")
+	if err != nil {
+		t.Fatalf("read business records migration: %v", err)
+	}
+	pool := testdb.WithSchema(t, indexerWiringDDL+string(migration))
+	dispatcher := newTransactionalIndexerDispatcherWithActorDeletion(
+		pool, slog.Default(), nil,
+		notifications.NoopLifecycle{}, notifications.NewActorDeletionService(pool),
+	)
+	for _, tc := range []struct {
+		collection syntax.NSID
+		rkey       syntax.RecordKey
+		record     json.RawMessage
+		table      string
+	}{
+		{
+			collection: "social.craftsky.business.profile", rkey: "self", table: "craftsky_business_profiles",
+			record: json.RawMessage(`{"tagline":"Independent","futureExtension":true}`),
+		},
+		{
+			collection: "social.craftsky.business.event", rkey: "3meventrecord", table: "craftsky_business_events",
+			record: json.RawMessage(`{"name":"Market","startsAt":"2026-09-10T10:00:00Z","endsAt":"2026-09-10T12:00:00Z","roles":["vendor"],"createdAt":"2026-09-01T00:00:00Z","futureExtension":true}`),
+		},
+	} {
+		projectIndexerWiringEvent(t, pool, dispatcher, tap.Event{
+			URI: syntax.ATURI("at://did:plc:business-owner/" + tc.collection.String() + "/" + tc.rkey.String()),
+			CID: "bafy-business", DID: "did:plc:business-owner", Collection: tc.collection,
+			Rkey: tc.rkey, Action: "create", Rev: "3aaaaaaaaaaac", Record: tc.record,
+		})
+		var count int
+		if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM "+tc.table).Scan(&count); err != nil {
+			t.Fatalf("count %s: %v", tc.table, err)
+		}
+		if count != 1 {
+			t.Fatalf("%s count = %d, want 1", tc.table, count)
+		}
+	}
+	var memberships int
+	if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM craftsky_profiles WHERE did='did:plc:business-owner'`).Scan(&memberships); err != nil {
+		t.Fatalf("count memberships: %v", err)
+	}
+	if memberships != 0 {
+		t.Fatalf("membership count = %d, want 0", memberships)
+	}
+}
+
 func TestNewIndexerDispatcherRegistersBlueskyFollow(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, indexerWiringDDL)

@@ -14,6 +14,7 @@ import (
 	"social.craftsky/appview/internal/ingestion"
 	"social.craftsky/appview/internal/languages"
 	craftskylex "social.craftsky/appview/internal/lexicon/craftsky"
+	lexiconschema "social.craftsky/appview/internal/lexicon/schema"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/postutil"
 	"social.craftsky/appview/internal/tap"
@@ -119,6 +120,15 @@ func projectionLifecycleReady(
 	states map[syntax.DID]ownerlifecycle.Lifecycle,
 ) (tap.Outcome, bool, bool) {
 	actor, exists := states[source.DID]
+	if source.Collection == businessProfileCollection || source.Collection == businessEventCollection {
+		if exists && actor.State == ownerlifecycle.StateTerminal {
+			return tap.PermanentInvalid(tap.ReasonOwnerTerminal), false, false
+		}
+		if exists && source.ProjectionGeneration != nil && actor.Generation != *source.ProjectionGeneration {
+			return tap.Blocked(tap.ReasonSourceOrderUncertain, tap.Dependency{Kind: "repository_did", Key: source.DID.String()}), false, false
+		}
+		return tap.Outcome{}, true, false
+	}
 	if !exists {
 		return tap.Blocked(tap.ReasonMissingMember, tap.Dependency{Kind: "member_did", Key: source.DID.String()}), false, false
 	}
@@ -266,6 +276,16 @@ func filterTerminalProjectionMentions(ctx context.Context, mentionedDIDs []strin
 }
 
 func validateProjectionRecord(event tap.Event) error {
+	switch event.Collection {
+	case businessProfileCollection:
+		if event.Rkey != "self" {
+			return errors.New("business profile record key must be self")
+		}
+	case businessEventCollection:
+		if _, err := syntax.ParseTID(event.Rkey.String()); err != nil {
+			return errors.New("business event record key must be a TID")
+		}
+	}
 	switch event.Action {
 	case "delete":
 		return nil
@@ -277,6 +297,28 @@ func validateProjectionRecord(event tap.Event) error {
 		return errors.New("missing or malformed source record")
 	}
 	switch event.Collection {
+	case businessProfileCollection:
+		if err := lexiconschema.ValidateBusinessRecord(event.Record, event.Collection.String()); err != nil {
+			return err
+		}
+		var record craftskylex.BusinessProfile
+		return json.Unmarshal(event.Record, &record)
+	case businessEventCollection:
+		if err := lexiconschema.ValidateBusinessRecord(event.Record, event.Collection.String()); err != nil {
+			return err
+		}
+		var record craftskylex.BusinessEvent
+		if err := json.Unmarshal(event.Record, &record); err != nil {
+			return err
+		}
+		if _, err := time.Parse(time.RFC3339Nano, record.StartsAt); err != nil {
+			return err
+		}
+		if _, err := time.Parse(time.RFC3339Nano, record.EndsAt); err != nil {
+			return err
+		}
+		_, err := time.Parse(time.RFC3339Nano, record.CreatedAt)
+		return err
 	case craftskyProfileNSID:
 		var record craftskylex.ActorProfile
 		return json.Unmarshal(event.Record, &record)

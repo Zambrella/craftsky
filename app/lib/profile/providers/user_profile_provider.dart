@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
+import 'package:craftsky_app/business/models/business_profile.dart';
+import 'package:craftsky_app/business/providers/business_projection_overlay_provider.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
@@ -22,8 +24,37 @@ part 'user_profile_provider.g.dart';
 @riverpod
 class UserProfile extends _$UserProfile {
   @override
-  Future<Profile> build(String handleOrDid) {
-    return ref.watch(profileRepositoryProvider).fetch(handleOrDid);
+  Future<Profile> build(String handleOrDid) async {
+    final ownership = captureActiveAccountOperation(ref);
+    final lease = ownership?.session;
+    final overlay = ref.read(businessProjectionOverlayProvider.notifier);
+    final readFence = lease == null ? null : overlay.captureRead(lease);
+    late final Profile profile;
+    try {
+      profile = await ref.watch(profileRepositoryProvider).fetch(handleOrDid);
+    } on Object {
+      if (readFence != null &&
+          !overlay.isReadCurrent(readFence) &&
+          state.value != null) {
+        return state.value!;
+      }
+      rethrow;
+    }
+    if (!isActiveAccountOperationCurrent(ref, ownership)) {
+      throw StateError('Active account changed');
+    }
+    if (lease == null) return profile;
+    final key = BusinessProjectionKey.declaration(lease.account, profile.did);
+    final reconciliation = overlay.reconcile<BusinessProfile>(
+      key: key,
+      fence: readFence!,
+      authoritativeCid: profile.business?.cid,
+      authoritativeView: profile.business,
+    );
+    if (reconciliation.isStale && state.value != null) {
+      return state.value!;
+    }
+    return profile.copyWith(business: reconciliation.view);
   }
 
   /// Replaces the cached profile without refetching. Used by mutation

@@ -8,11 +8,13 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/pdseffects"
@@ -23,6 +25,12 @@ import (
 // fake.
 type ProfileReader interface {
 	Read(ctx context.Context, profileDID string, viewerDID string) (*ProfileRow, error)
+}
+
+type BusinessProfileReader interface {
+	ReadAccountType(context.Context, syntax.DID) (business.AccountType, error)
+	ReadEligibleProfile(context.Context, syntax.DID) (*business.ProfileView, error)
+	HasUpcomingEvents(context.Context, syntax.DID, time.Time) (bool, error)
 }
 
 type ProfileGraphReader interface {
@@ -37,7 +45,7 @@ type ProfileGraphReader interface {
 // routing. The mux pattern is registered as /v1/profiles/{handleOrDid}
 // (ServeMux does not support literal-prefix wildcards), so clients supply
 // the "@" prefix and this handler strips it before resolving the identity.
-func GetProfileHandler(store ProfileReader, resolver HandleResolver, logger *slog.Logger) http.Handler {
+func GetProfileHandler(store ProfileReader, businessProfiles BusinessProfileReader, resolver HandleResolver, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		raw := strings.TrimPrefix(r.PathValue("handleOrDid"), "@")
 		runID := middleware.GetRunID(r.Context())
@@ -59,12 +67,12 @@ func GetProfileHandler(store ProfileReader, resolver HandleResolver, logger *slo
 		}
 		logger.Debug("profile get: resolved identity",
 			apiLogSuccessAttrs(runID, "profile.get")...)
-		writeProfileResponse(w, r, store, resolver, did, "profile.get", logger)
+		writeProfileResponse(w, r, store, businessProfiles, resolver, did, "profile.get", logger)
 	})
 }
 
 // GetMeProfileHandler serves GET /v1/profiles/me.
-func GetMeProfileHandler(store ProfileReader, resolver HandleResolver, logger *slog.Logger) http.Handler {
+func GetMeProfileHandler(store ProfileReader, businessProfiles BusinessProfileReader, resolver HandleResolver, logger *slog.Logger) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
 		did, ok := middleware.GetDID(r.Context())
@@ -75,7 +83,7 @@ func GetMeProfileHandler(store ProfileReader, resolver HandleResolver, logger *s
 		}
 		logger.Debug("profile me: loading profile",
 			apiLogAttrs(runID, "profile.me.get")...)
-		writeProfileResponse(w, r, store, resolver, did, "profile.me.get", logger)
+		writeProfileResponse(w, r, store, businessProfiles, resolver, did, "profile.me.get", logger)
 	})
 }
 
@@ -226,6 +234,7 @@ func writeProfileResponse(
 	w http.ResponseWriter,
 	r *http.Request,
 	store ProfileReader,
+	businessProfiles BusinessProfileReader,
 	resolver HandleResolver,
 	did syntax.DID,
 	operation string,
@@ -268,6 +277,36 @@ func writeProfileResponse(
 		return
 	}
 	resp := BuildProfileResponse(row, handle, row.IsCraftskyProfile)
+	if businessProfiles != nil && !row.Blocking && !row.BlockedBy {
+		accountType, err := businessProfiles.ReadAccountType(r.Context(), did)
+		if err != nil {
+			logger.Error("profile: account type read failed",
+				apiLogErrorAttrs(runID, operation, "store")...)
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "profile read failed", runID, nil)
+			return
+		}
+		resp.AccountType = &accountType
+		presentation, err := businessProfiles.ReadEligibleProfile(r.Context(), did)
+		if err != nil {
+			logger.Error("profile: business profile read failed",
+				apiLogErrorAttrs(runID, operation, "store")...)
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "profile read failed", runID, nil)
+			return
+		}
+		resp.Business = BuildBusinessProfileResponse(did, presentation)
+		if accountType == business.AccountTypeBusiness {
+			resp.HasUpcomingEvents, err = businessProfiles.HasUpcomingEvents(r.Context(), did, time.Now().UTC())
+			if err != nil {
+				logger.Error("profile: upcoming event availability read failed",
+					apiLogErrorAttrs(runID, operation, "store")...)
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "profile read failed", runID, nil)
+				return
+			}
+		}
+	}
 	logger.Debug("profile: response ready",
 		apiLogSuccessAttrs(runID, operation)...)
 	w.Header().Set("Content-Type", "application/json")

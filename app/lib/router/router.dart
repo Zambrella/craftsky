@@ -5,9 +5,14 @@ import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/pages/auth_complete_page.dart';
 import 'package:craftsky_app/auth/pages/sign_in_page.dart';
 import 'package:craftsky_app/auth/pages/welcome_page.dart';
+import 'package:craftsky_app/auth/providers/active_account_identity_provider.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
+import 'package:craftsky_app/business/models/business_profile.dart';
+import 'package:craftsky_app/business/pages/event_detail_page.dart';
+import 'package:craftsky_app/business/pages/events_settings_page.dart';
+import 'package:craftsky_app/business/pages/products_settings_page.dart';
 import 'package:craftsky_app/design_playground/pages/design_playground_page.dart';
 import 'package:craftsky_app/drafts/pages/drafts_page.dart';
 import 'package:craftsky_app/feed/models/post.dart';
@@ -252,6 +257,14 @@ class AccountDeletionReauthCompleteRoute extends GoRouteData
                       path: RouteLocations.aboutChild,
                       name: 'settings-about',
                     ),
+                    TypedGoRoute<BusinessProductsRoute>(
+                      path: RouteLocations.productsChild,
+                      name: 'settings-business-products',
+                    ),
+                    TypedGoRoute<BusinessEventsRoute>(
+                      path: RouteLocations.eventsChild,
+                      name: 'settings-business-events',
+                    ),
                     TypedGoRoute<LanguagesRoute>(
                       path: RouteLocations.languagesChild,
                       name: 'languages',
@@ -309,6 +322,10 @@ class AccountDeletionReauthCompleteRoute extends GoRouteData
     TypedGoRoute<PostThreadRoute>(
       path: RouteLocations.postThread,
       name: 'post-thread',
+    ),
+    TypedGoRoute<BusinessEventRoute>(
+      path: RouteLocations.businessEvent,
+      name: 'business-event',
     ),
     TypedGoRoute<UserProfileRoute>(
       path: '${RouteLocations.profile}/:handle',
@@ -510,6 +527,56 @@ class AboutRoute extends GoRouteData with $AboutRoute {
 
   @override
   Widget build(BuildContext context, GoRouterState state) => const AboutPage();
+}
+
+class BusinessProductsRoute extends GoRouteData with $BusinessProductsRoute {
+  const BusinessProductsRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.authenticatedShellNavigatorKey;
+
+  @override
+  FutureOr<String?> redirect(BuildContext context, GoRouterState state) async {
+    try {
+      final identity = await ProviderScope.containerOf(
+        context,
+      ).read(activeAccountIdentityProvider.future);
+      return identity?.profile.accountType == AccountType.business
+          ? null
+          : const SettingsRoute().location;
+    } on Object {
+      return const SettingsRoute().location;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const ProductsSettingsPage();
+}
+
+class BusinessEventsRoute extends GoRouteData with $BusinessEventsRoute {
+  const BusinessEventsRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.authenticatedShellNavigatorKey;
+
+  @override
+  FutureOr<String?> redirect(BuildContext context, GoRouterState state) async {
+    try {
+      final identity = await ProviderScope.containerOf(
+        context,
+      ).read(activeAccountIdentityProvider.future);
+      return identity?.profile.accountType == AccountType.business
+          ? null
+          : const SettingsRoute().location;
+    } on Object {
+      return const SettingsRoute().location;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const EventsSettingsPage();
 }
 
 class ScheduledPostsRoute extends GoRouteData with $ScheduledPostsRoute {
@@ -744,6 +811,39 @@ class PostThreadRoute extends GoRouteData with $PostThreadRoute {
     focus: focus == null ? null : AtUri.parse(focus!),
     initialCreatedPost: $extra,
   );
+}
+
+class BusinessEventRoute extends GoRouteData with $BusinessEventRoute {
+  BusinessEventRoute({required String did, required String rkey})
+    : did = Did.parse(did).toString(),
+      rkey = _validatedEventRecordKey(rkey);
+
+  final String did;
+  final String rkey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) {
+    final auth = ProviderScope.containerOf(
+      context,
+    ).read(authSessionProvider).value;
+    if (auth is! SignedIn) {
+      return const Scaffold(body: SizedBox.shrink());
+    }
+    return EventDetailPage(
+      account: AccountKey(auth.did.toString()),
+      owner: Did.parse(did),
+      rkey: RecordKey.parse(rkey),
+    );
+  }
+}
+
+String _validatedEventRecordKey(String value) {
+  if (value == '.' ||
+      value == '..' ||
+      !RegExp(r'^[A-Za-z0-9._~:-]{1,512}$').hasMatch(value)) {
+    throw FormatException('Invalid ATProto record key', value);
+  }
+  return RecordKey.parse(value).toString();
 }
 
 class UserProfileRoute extends GoRouteData with $UserProfileRoute {

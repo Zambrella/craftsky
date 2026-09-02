@@ -22,6 +22,9 @@ class CraftskyTextInput extends StatelessWidget {
     this.maxLength,
     this.minLines,
     this.maxLines = 1,
+    this.textCapitalization = TextCapitalization.none,
+    this.required = false,
+    this.requiredLabel = 'required',
     this.onChanged,
     this.onSubmitted,
   }) : assert(
@@ -45,6 +48,9 @@ class CraftskyTextInput extends StatelessWidget {
   final int? maxLength;
   final int? minLines;
   final int? maxLines;
+  final TextCapitalization textCapitalization;
+  final bool required;
+  final String requiredLabel;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
 
@@ -67,6 +73,9 @@ class CraftskyTextInput extends StatelessWidget {
       maxLength: maxLength,
       minLines: minLines,
       maxLines: maxLines,
+      textCapitalization: textCapitalization,
+      required: required,
+      requiredLabel: requiredLabel,
       onChanged: onChanged,
       onSubmitted: onSubmitted,
     );
@@ -94,6 +103,123 @@ class CraftskyMultilineTextInput extends CraftskyTextInput {
     super.onChanged,
     super.onSubmitted,
   }) : super(keyboardType: TextInputType.multiline);
+}
+
+/// A CraftSky text input registered with an ordinary [Form].
+///
+/// Use this in forms that do not use `flutter_form_builder`; it keeps the
+/// branded field presentation while participating in [FormState.validate].
+class CraftskyTextFormField extends StatelessWidget {
+  const CraftskyTextFormField({
+    required this.label,
+    super.key,
+    this.controller,
+    this.initialValue,
+    this.focusNode,
+    this.hintText,
+    this.helperText,
+    this.textFieldKey,
+    this.enabled = true,
+    this.required = false,
+    this.requiredLabel = 'required',
+    this.validator,
+    this.keyboardType,
+    this.textInputAction,
+    this.textCapitalization = TextCapitalization.none,
+    this.inputFormatters,
+    this.autofillHints,
+    this.minLines,
+    this.maxLines = 1,
+    this.maxLength,
+    this.onChanged,
+    this.onSubmitted,
+  }) : assert(
+         controller == null || initialValue == null,
+         'Provide either controller or initialValue, not both.',
+       );
+
+  final String label;
+  final TextEditingController? controller;
+  final String? initialValue;
+  final FocusNode? focusNode;
+  final String? hintText;
+  final String? helperText;
+  final Key? textFieldKey;
+  final bool enabled;
+  final bool required;
+  final String requiredLabel;
+  final FormFieldValidator<String>? validator;
+  final TextInputType? keyboardType;
+  final TextInputAction? textInputAction;
+  final TextCapitalization textCapitalization;
+  final List<TextInputFormatter>? inputFormatters;
+  final Iterable<String>? autofillHints;
+  final int? minLines;
+  final int? maxLines;
+  final int? maxLength;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+
+  @override
+  Widget build(BuildContext context) {
+    return FormField<String>(
+      initialValue: controller?.text ?? initialValue ?? '',
+      enabled: enabled,
+      validator: validator,
+      builder: (field) => CraftskyTextInput(
+        label: label,
+        controller: controller,
+        initialValue: controller == null ? field.value : null,
+        focusNode: focusNode,
+        hintText: hintText,
+        helperText: field.errorText == null ? helperText : null,
+        errorText: field.errorText,
+        textFieldKey: textFieldKey,
+        enabled: field.widget.enabled,
+        keyboardType: keyboardType,
+        textInputAction: textInputAction,
+        textCapitalization: textCapitalization,
+        required: required,
+        requiredLabel: requiredLabel,
+        inputFormatters: inputFormatters,
+        autofillHints: autofillHints,
+        minLines: minLines,
+        maxLines: maxLines,
+        maxLength: maxLength,
+        onChanged: (value) {
+          field.didChange(value);
+          onChanged?.call(value);
+        },
+        onSubmitted: onSubmitted,
+      ),
+    );
+  }
+}
+
+class CraftskyMultilineTextFormField extends CraftskyTextFormField {
+  const CraftskyMultilineTextFormField({
+    required super.label,
+    super.key,
+    super.controller,
+    super.initialValue,
+    super.focusNode,
+    super.hintText,
+    super.helperText,
+    super.textFieldKey,
+    super.enabled,
+    super.required,
+    super.validator,
+    super.inputFormatters,
+    super.autofillHints,
+    super.minLines = 3,
+    super.maxLines = 6,
+    super.maxLength,
+    super.onChanged,
+    super.onSubmitted,
+  }) : super(
+         keyboardType: TextInputType.multiline,
+         textInputAction: TextInputAction.newline,
+       );
 }
 
 enum CraftskyNumberInputMode { integer, decimal }
@@ -254,6 +380,8 @@ class CraftskyFormTextField extends StatelessWidget {
     this.autofillHints,
     this.minLines,
     this.maxLines = 1,
+    this.maxLength,
+    this.textCapitalization = TextCapitalization.none,
     this.onChanged,
     this.onSubmitted,
     this.textFieldKey,
@@ -277,6 +405,8 @@ class CraftskyFormTextField extends StatelessWidget {
   final Iterable<String>? autofillHints;
   final int? minLines;
   final int? maxLines;
+  final int? maxLength;
+  final TextCapitalization textCapitalization;
   final ValueChanged<String?>? onChanged;
   final ValueChanged<String>? onSubmitted;
   final Key? textFieldKey;
@@ -303,6 +433,8 @@ class CraftskyFormTextField extends StatelessWidget {
           autofillHints: autofillHints,
           minLines: minLines,
           maxLines: maxLines,
+          maxLength: maxLength,
+          textCapitalization: textCapitalization,
           onChanged: onChanged,
           onSubmitted: onSubmitted,
           textFieldKey: textFieldKey,
@@ -349,6 +481,8 @@ class _CraftskyFormTextAdapter extends StatefulWidget {
     required this.autofillHints,
     required this.minLines,
     required this.maxLines,
+    required this.maxLength,
+    required this.textCapitalization,
     required this.onChanged,
     required this.onSubmitted,
     required this.textFieldKey,
@@ -366,6 +500,8 @@ class _CraftskyFormTextAdapter extends StatefulWidget {
   final Iterable<String>? autofillHints;
   final int? minLines;
   final int? maxLines;
+  final int? maxLength;
+  final TextCapitalization textCapitalization;
   final ValueChanged<String?>? onChanged;
   final ValueChanged<String>? onSubmitted;
   final Key? textFieldKey;
@@ -415,6 +551,8 @@ class _CraftskyFormTextAdapterState extends State<_CraftskyFormTextAdapter> {
       autofillHints: widget.autofillHints,
       minLines: widget.minLines,
       maxLines: widget.maxLines,
+      maxLength: widget.maxLength,
+      textCapitalization: widget.textCapitalization,
       enabled: widget.field.widget.enabled,
       textFieldKey: widget.textFieldKey,
       onChanged: (value) {

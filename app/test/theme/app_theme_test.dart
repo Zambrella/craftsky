@@ -54,6 +54,23 @@ void main() {
       expect(separatorStyle, selectorStyle);
       expect(selectorStyle.fontSize, 42);
     });
+
+    testWidgets('$name theme gives FABs the primary cutout treatment', (
+      tester,
+    ) async {
+      final theme = loadTheme();
+      final fab = theme.floatingActionButtonTheme;
+      final shape = fab.shape! as StadiumBorder;
+
+      expect(fab.backgroundColor, theme.colorScheme.primary);
+      expect(fab.foregroundColor, theme.colorScheme.onPrimary);
+      expect(fab.elevation, 3);
+      expect(fab.hoverElevation, 4);
+      expect(fab.highlightElevation, 0);
+      expect(shape.side.color, theme.colorScheme.onSurface);
+      expect(shape.side.width, 1.5);
+      expect(fab.extendedTextStyle?.fontWeight, FontWeight.w800);
+    });
   }
 
   test('dark theme uses the Midnight Paper palette', () {

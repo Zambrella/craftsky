@@ -17,6 +17,9 @@ Lexicons are JSON schemas that define the shape of records stored on user PDSes.
 | `social.craftsky.feed.repost` | A repost of a Craftsky post |
 | `social.craftsky.feed.like` | A like on a Craftsky post (distinct NSID for firehose-filter efficiency) |
 | `social.craftsky.actor.profile` | Craftsky-specific profile extension (single record, key `self`); signals active Craftsky users and stores craft preferences |
+| `social.craftsky.business.defs` | Shared action, product, price, and image objects for business records. |
+| `social.craftsky.business.profile` | Optional public business declaration (single record, key `self`) with general details and ordered featured products. |
+| `social.craftsky.business.event` | Independently addressable TID-keyed public business event appearance. |
 | `social.craftsky.project.defs` | Shared project metadata definitions used by `feed.post.project` and craft detail lexicons, including `#project`, `#projectCommon`, `#pattern`, broad project type tokens, design tags, yarn weight tokens, and the structured `#gauge` object. |
 | `social.craftsky.project.sewing` | Sewing-specific `#details` referenced from `project.defs#project.details`. Defines a referenced type only — no `main` record. |
 | `social.craftsky.project.sewing.defs` | Sewing project subtype tokens. |
@@ -35,6 +38,13 @@ Lexicons are JSON schemas that define the shape of records stored on user PDSes.
 | `app.bsky.graph.follow` | Standard follow semantics |
 | `app.bsky.graph.block` | Standard block semantics |
 | `app.bsky.richtext.facet` | Byte-range rich-text annotations (mentions/links/tags); referenced from `social.craftsky.feed.post.facets` |
+
+Business declarations also reference the complete, locally vendored
+`community.lexicon.location.address` value from
+`at://did:plc:mtr7qrqtcyseedx3jyr5o7db/com.atproto.lexicon.schema/community.lexicon.location.address`
+at CID `bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq`.
+Generation resolves this dependency offline from the CID-named file under
+`appview/cmd/lexgen/external/`; see [ADR 010](../adr/010-business-profile-event-lexicons-and-pinned-data.md).
 
 Note: comments are not a separate record type — a "comment" is a `social.craftsky.feed.post` with its `reply` field set. Quote posts are regular posts whose `embed` carries a `#quoteEmbed` wrapping a strongRef to the quoted record.
 

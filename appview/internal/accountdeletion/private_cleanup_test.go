@@ -77,6 +77,7 @@ func TestDatabasePrivateCleanupDeletesOnlyOwnerPrivateState(t *testing.T) {
 
 	seedSQL := `
 		INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'alice-profile-cid'),($2,'bob-profile-cid');
+		INSERT INTO craftsky_account_types(owner_did,account_type) VALUES($1,'business'),($2,'business');
 		INSERT INTO owner_lifecycles(
 			owner_did,state,generation,auth_epoch,transition_reason,
 			transitioned_at,created_at,updated_at
@@ -179,6 +180,8 @@ func TestDatabasePrivateCleanupDeletesOnlyOwnerPrivateState(t *testing.T) {
 	// authority survive this phase and are handled by their dedicated gates.
 	assertPrivateCleanupCount(t, pool, "craftsky_profiles", "did", alice, 1)
 	assertPrivateCleanupCount(t, pool, "craftsky_posts", "did", alice, 1)
+	assertPrivateCleanupCount(t, pool, "craftsky_account_types", "owner_did", alice, 1)
+	assertPrivateCleanupCount(t, pool, "craftsky_account_types", "owner_did", bob, 1)
 	assertPrivateCleanupCount(t, pool, "atproto_identity_cache", "did", alice, 1)
 	assertPrivateCleanupCount(t, pool, "bluesky_profiles", "did", alice, 1)
 	assertPrivateCleanupCount(t, pool, "oauth_sessions", "account_did", alice, 1)

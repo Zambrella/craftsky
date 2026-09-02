@@ -43,6 +43,7 @@ class BrandTextField extends StatefulWidget {
     this.enableSuggestions = true,
     this.keyboardType,
     this.textInputAction,
+    this.textCapitalization = TextCapitalization.none,
     this.inputFormatters,
     this.autofillHints,
     this.onChanged,
@@ -82,6 +83,7 @@ class BrandTextField extends StatefulWidget {
   final bool enableSuggestions;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
+  final TextCapitalization textCapitalization;
   final List<TextInputFormatter>? inputFormatters;
   final Iterable<String>? autofillHints;
   final ValueChanged<String>? onChanged;
@@ -199,11 +201,13 @@ class _BrandTextFieldState extends State<BrandTextField> {
         enabled: widget.enabled,
         maxLines: widget.maxLines,
         minLines: widget.minLines,
+        maxLength: widget.maxLength,
         obscureText: widget.obscureText,
         autocorrect: widget.autocorrect,
         enableSuggestions: widget.enableSuggestions,
         keyboardType: widget.keyboardType,
         textInputAction: widget.textInputAction,
+        textCapitalization: widget.textCapitalization,
         inputFormatters: [
           ...?widget.inputFormatters,
           if (widget.maxLength case final maxLength?)
@@ -221,6 +225,7 @@ class _BrandTextFieldState extends State<BrandTextField> {
           prefixText: widget.prefixText,
           suffixIcon: widget.suffixIcon,
           suffixText: widget.suffixText,
+          counterText: '',
           errorBorder: hasError
               ? OutlineInputBorder(
                   borderRadius: BorderRadius.circular(radii.r3),

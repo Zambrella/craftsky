@@ -28,6 +28,39 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('text form field participates in ordinary Form validation', (
+    tester,
+  ) async {
+    final formKey = GlobalKey<FormState>();
+    final controller = TextEditingController();
+    addTearDown(controller.dispose);
+
+    await tester.pumpWidget(
+      _Harness(
+        child: Form(
+          key: formKey,
+          child: CraftskyTextFormField(
+            label: 'Event name',
+            controller: controller,
+            maxLength: 5,
+            validator: (value) =>
+                value == null || value.isEmpty ? 'Add an event name.' : null,
+          ),
+        ),
+      ),
+    );
+
+    expect(formKey.currentState!.validate(), isFalse);
+    await tester.pump();
+    expect(find.text('Add an event name.'), findsOneWidget);
+
+    await tester.enterText(find.byType(TextField), 'Market');
+    expect(controller.text, 'Marke');
+    expect(formKey.currentState!.validate(), isTrue);
+    await tester.pump();
+    expect(find.text('5/5'), findsOneWidget);
+  });
+
   testWidgets('number form field stores typed numeric values', (tester) async {
     final formKey = GlobalKey<FormBuilderState>();
     num? changed;

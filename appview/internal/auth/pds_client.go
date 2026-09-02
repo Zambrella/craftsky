@@ -50,9 +50,9 @@ type ConditionalPDSRecordDeleter interface {
 }
 
 // ConditionalPDSRecordPutter is the compare-and-swap Put capability for
-// ordinary record effects. Implementations must send expectedCID as
-// com.atproto.repo.putRecord's swapRecord precondition and must never fall
-// back to an unconditional Put.
+// ordinary record effects. Implementations send a canonical expected CID as
+// swapRecord, or send swapRecord null when expectedCID is "*" to require
+// absence. They must never fall back to an unconditional Put.
 type ConditionalPDSRecordPutter interface {
 	PutRecordWithSwap(
 		ctx context.Context,

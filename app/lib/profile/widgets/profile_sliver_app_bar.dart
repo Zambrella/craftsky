@@ -24,6 +24,7 @@ class ProfileSliverAppBar extends StatelessWidget {
     this.displayName,
     this.avatarUrl,
     this.customisation = ProfileCustomisation.defaults,
+    this.isBusiness = false,
     this.onAvatarTap,
     super.key,
   });
@@ -34,6 +35,7 @@ class ProfileSliverAppBar extends StatelessWidget {
   final String? displayName;
   final String? avatarUrl;
   final ProfileCustomisation customisation;
+  final bool isBusiness;
   final VoidCallback? onAvatarTap;
 
   static const double backgroundHeight = 128;
@@ -68,6 +70,7 @@ class ProfileSliverAppBar extends StatelessWidget {
         displayName: displayName,
         avatarUrl: avatarUrl,
         customisation: customisation,
+        isBusiness: isBusiness,
         actions: actions,
         onAvatarTap: onAvatarTap,
         expandedHeight: layout.expandedHeight,
@@ -103,8 +106,19 @@ class ProfileSliverAppBar extends StatelessWidget {
             maxWidth: availableWidth,
           )
         : 0.0;
+    final businessLabelHeight = isBusiness
+        ? _measureTextHeight(
+            text: AppLocalizations.of(context).businessProfileLabel,
+            style: theme.textTheme.labelLarge,
+            textScaler: textScaler,
+            direction: direction,
+            maxWidth: availableWidth,
+          )
+        : 0.0;
     final measuredIdentityHeight =
-        nameHeight + (handleHeight == 0 ? 0 : 2 + handleHeight);
+        nameHeight +
+        (businessLabelHeight == 0 ? 0 : 2 + businessLabelHeight) +
+        (handleHeight == 0 ? 0 : 2 + handleHeight);
     final identityHeight = math.max(
       minimumIdentityHeight,
       measuredIdentityHeight,
@@ -229,6 +243,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
     required this.displayName,
     required this.avatarUrl,
     required this.customisation,
+    required this.isBusiness,
     required this.actions,
     required this.onAvatarTap,
     required this.expandedHeight,
@@ -241,6 +256,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
   final String? displayName;
   final String? avatarUrl;
   final ProfileCustomisation customisation;
+  final bool isBusiness;
   final ProfileActionSet actions;
   final VoidCallback? onAvatarTap;
   final double expandedHeight;
@@ -310,6 +326,9 @@ class _ProfileFlexibleSpace extends StatelessWidget {
                     child: ProfileIdentity(
                       handle: handle,
                       displayName: displayName,
+                      businessLabel: isBusiness
+                          ? AppLocalizations.of(context).businessProfileLabel
+                          : null,
                       centered: true,
                     ),
                   ),
@@ -329,13 +348,17 @@ class _ProfileFlexibleSpace extends StatelessWidget {
           ),
         ),
         Positioned(
+          key: const Key('profile-sliver-collapsed-title'),
           left: 56,
           right: 56,
           top: topPadding,
           height: kToolbarHeight,
           child: Opacity(
             opacity: collapsed,
-            child: _CollapsedTitle(handle: handle, displayName: displayName),
+            child: _CollapsedTitle(
+              handle: handle,
+              displayName: displayName,
+            ),
           ),
         ),
         Positioned(
@@ -429,7 +452,10 @@ class _CollapsedTrailingAction extends StatelessWidget {
 }
 
 class _CollapsedTitle extends StatelessWidget {
-  const _CollapsedTitle({required this.handle, required this.displayName});
+  const _CollapsedTitle({
+    required this.handle,
+    required this.displayName,
+  });
 
   final String handle;
   final String? displayName;

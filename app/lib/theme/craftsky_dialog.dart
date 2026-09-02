@@ -77,24 +77,26 @@ class CraftskyDialog extends StatelessWidget {
                       border: Border.all(color: colors.onSurface, width: 1.5),
                     ),
                     padding: EdgeInsets.all(spacing.sp5),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Text(title, style: theme.textTheme.titleLarge),
-                        SizedBox(height: spacing.sp4),
-                        DefaultTextStyle.merge(
-                          style: theme.textTheme.bodyMedium,
-                          child: body,
-                        ),
-                        SizedBox(height: spacing.sp5),
-                        Wrap(
-                          alignment: WrapAlignment.end,
-                          spacing: spacing.sp2,
-                          runSpacing: spacing.sp2,
-                          children: actions,
-                        ),
-                      ],
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(title, style: theme.textTheme.titleLarge),
+                          SizedBox(height: spacing.sp4),
+                          DefaultTextStyle.merge(
+                            style: theme.textTheme.bodyMedium,
+                            child: body,
+                          ),
+                          SizedBox(height: spacing.sp5),
+                          Wrap(
+                            alignment: WrapAlignment.end,
+                            spacing: spacing.sp2,
+                            runSpacing: spacing.sp2,
+                            children: actions,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

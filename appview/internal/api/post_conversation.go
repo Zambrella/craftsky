@@ -96,12 +96,6 @@ func ListCommentRepliesHandler(
 		items := make([]ReplyItem, 0, len(rows))
 		if len(rows) > 0 {
 			viewerDID, _ := middleware.GetDID(r.Context())
-			states, stateErr := relationshipStatesForRows(r.Context(), store, viewerDID, rows)
-			if stateErr != nil {
-				envelope.WriteError(w, http.StatusInternalServerError,
-					"internal_error", "reply relationship lookup failed", runID, nil)
-				return
-			}
 			postURIs := make([]string, 0, len(rows))
 			hydratedRows := make([]*PostRow, 0, len(rows)*2)
 			for _, row := range rows {
@@ -120,6 +114,12 @@ func ListCommentRepliesHandler(
 						hydratedRows = append(hydratedRows, parentRow)
 					}
 				}
+			}
+			states, stateErr := relationshipStatesForRows(r.Context(), store, viewerDID, hydratedRows)
+			if stateErr != nil {
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "reply relationship lookup failed", runID, nil)
+				return
 			}
 			summaries, serr := store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
 			if serr != nil {
@@ -392,6 +392,7 @@ func GetPostCommentsHandler(
 			replies := ReplyPage{Loaded: false, Items: []ReplyItem{}}
 			if focusedReplyRow != nil {
 				replies = buildReplyPage(focusedBranchRows, focusedBranchCursor, focusedCommentRow, hydratedRows, handles, summaries)
+				replies.Items = shapeReplyItems(replies.Items, focusedBranchRows, states)
 			}
 			items = append(items, CommentItem{
 				Post:      post,
@@ -409,6 +410,7 @@ func GetPostCommentsHandler(
 			replies := ReplyPage{Loaded: false, Items: []ReplyItem{}}
 			if focusedReplyRow != nil && row.URI == focusedURI {
 				replies = buildReplyPage(focusedBranchRows, focusedBranchCursor, row, hydratedRows, handles, summaries)
+				replies.Items = shapeReplyItems(replies.Items, focusedBranchRows, states)
 			}
 			items = append(items, CommentItem{
 				Post:      post,
@@ -490,6 +492,12 @@ func shapeReplyItems(items []ReplyItem, rows []*PostRow, states map[syntax.DID]r
 			ApplyPostRelationshipPolicy(item.Post, state, relationships.SurfaceThread)
 			item.ReplyingTo = nil
 			protected[row.URI] = true
+		}
+		if item.ReplyingTo != nil {
+			parentDID, _ := syntax.ParseDID(item.ReplyingTo.DID)
+			if states[parentDID].HasBlock() {
+				item.ReplyingTo = nil
+			}
 		}
 		out = append(out, item)
 	}

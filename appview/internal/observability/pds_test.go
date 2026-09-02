@@ -67,6 +67,12 @@ func TestPDSWriteOperationRegistryCoversCurrentWritePaths(t *testing.T) {
 		PDSOperationLikeDelete,
 		PDSOperationRepostCreate,
 		PDSOperationRepostDelete,
+		PDSOperationBusinessProfileGet,
+		PDSOperationBusinessProfilePut,
+		PDSOperationBusinessProfileDelete,
+		PDSOperationBusinessEventGet,
+		PDSOperationBusinessEventPut,
+		PDSOperationBusinessEventDelete,
 	} {
 		if !KnownPDSOperation(op) {
 			t.Fatalf("KnownPDSOperation(%q) = false, want true", op)

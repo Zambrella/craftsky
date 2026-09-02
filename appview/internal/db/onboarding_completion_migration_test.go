@@ -10,11 +10,11 @@ import (
 
 func TestOnboardingCompletionMigrationUpDownAndReapply(t *testing.T) {
 	t.Parallel()
-	up, err := os.ReadFile("../../migrations/000062_account_onboarding_completion.up.sql")
+	up, err := os.ReadFile("../../migrations/000065_account_onboarding_completion.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := os.ReadFile("../../migrations/000062_account_onboarding_completion.down.sql")
+	down, err := os.ReadFile("../../migrations/000065_account_onboarding_completion.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -22,7 +22,7 @@ func TestOnboardingCompletionMigrationUpDownAndReapply(t *testing.T) {
 	ctx := context.Background()
 
 	if _, err := pool.Exec(ctx, string(up)); err != nil {
-		t.Fatalf("apply migration 000062: %v", err)
+		t.Fatalf("apply migration 000065: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO account_onboarding_completions(account_did)
@@ -40,7 +40,7 @@ func TestOnboardingCompletionMigrationUpDownAndReapply(t *testing.T) {
 	}
 
 	if _, err := pool.Exec(ctx, string(down)); err != nil {
-		t.Fatalf("roll back migration 000062: %v", err)
+		t.Fatalf("roll back migration 000065: %v", err)
 	}
 	var tableAbsent bool
 	if err := pool.QueryRow(ctx, `
@@ -50,7 +50,7 @@ func TestOnboardingCompletionMigrationUpDownAndReapply(t *testing.T) {
 	}
 
 	if _, err := pool.Exec(ctx, string(up)); err != nil {
-		t.Fatalf("reapply migration 000062: %v", err)
+		t.Fatalf("reapply migration 000065: %v", err)
 	}
 	var rows int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM account_onboarding_completions`).Scan(&rows); err != nil || rows != 0 {

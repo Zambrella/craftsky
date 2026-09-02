@@ -2,9 +2,9 @@ import 'dart:async';
 
 import 'package:animated_list_plus/animated_list_plus.dart';
 import 'package:animated_list_plus/transitions.dart';
-import 'package:craftsky_app/feed/media/media_config.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/shared/image/craftsky_image_attachment_preview.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -22,6 +22,10 @@ class ComposerImageAttachmentSection extends StatelessWidget {
     this.validationErrorText,
     this.required = false,
     this.requiredLabel = 'required',
+    this.maxImages = 4,
+    this.imageUrlFor,
+    this.onReplace,
+    this.keyPrefix = 'composer',
   });
 
   static const _imageListAnimationDuration = Duration(milliseconds: 220);
@@ -36,6 +40,10 @@ class ComposerImageAttachmentSection extends StatelessWidget {
   final String? validationErrorText;
   final bool required;
   final String requiredLabel;
+  final int maxImages;
+  final String? Function(ComposerImageDraft image)? imageUrlFor;
+  final Future<void> Function(String imageId)? onReplace;
+  final String keyPrefix;
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +61,7 @@ class ComposerImageAttachmentSection extends StatelessWidget {
           describedImageCount: describedImageCount,
           required: required,
           requiredLabel: requiredLabel,
+          maxImages: maxImages,
         ),
         SizedBox(height: spacing.sp3),
         if (imagesState.images.isNotEmpty)
@@ -72,7 +81,7 @@ class ComposerImageAttachmentSection extends StatelessWidget {
             },
             itemBuilder: (context, animation, image, index) {
               return Reorderable(
-                key: ValueKey('composer-image-${image.id}'),
+                key: ValueKey('$keyPrefix-image-${image.id}'),
                 child: SizeFadeTransition(
                   animation: animation,
                   curve: Curves.easeOutCubic,
@@ -81,15 +90,20 @@ class ComposerImageAttachmentSection extends StatelessWidget {
                     image: image,
                     index: index,
                     enabled: enabled,
-                    altTextKey: Key('composer-alt-${image.id}'),
-                    removeKey: Key('composer-remove-${image.id}'),
-                    moveUpKey: Key('composer-move-up-${image.id}'),
-                    moveDownKey: Key('composer-move-down-${image.id}'),
+                    altTextKey: Key('$keyPrefix-alt-${image.id}'),
+                    removeKey: Key('$keyPrefix-remove-${image.id}'),
+                    moveUpKey: Key('$keyPrefix-move-up-${image.id}'),
+                    moveDownKey: Key('$keyPrefix-move-down-${image.id}'),
+                    previewKey: Key('$keyPrefix-preview-${image.id}'),
+                    previewUrl: imageUrlFor?.call(image),
                     canMoveUp: index > 0,
                     canMoveDown: index < imagesState.images.length - 1,
                     onAltChanged: (value) => onAltTextChanged(image.id, value),
                     onRemove: () => onRemove(image.id),
                     onReplaceUnavailable: () => onReplaceUnavailable(image.id),
+                    onReplace: onReplace == null
+                        ? null
+                        : () => onReplace!(image.id),
                     onMoveUp: () => onReorder(index, index - 1),
                     onMoveDown: () => onReorder(index, index + 1),
                   ),
@@ -98,7 +112,7 @@ class ComposerImageAttachmentSection extends StatelessWidget {
             },
             removeItemBuilder: (context, animation, image) {
               return Reorderable(
-                key: ValueKey('composer-image-${image.id}'),
+                key: ValueKey('$keyPrefix-image-${image.id}'),
                 child: SizeFadeTransition(
                   animation: animation,
                   curve: Curves.easeOutCubic,
@@ -107,15 +121,18 @@ class ComposerImageAttachmentSection extends StatelessWidget {
                     image: image,
                     index: 0,
                     enabled: false,
-                    altTextKey: Key('composer-alt-${image.id}'),
-                    removeKey: Key('composer-remove-${image.id}'),
-                    moveUpKey: Key('composer-move-up-${image.id}'),
-                    moveDownKey: Key('composer-move-down-${image.id}'),
+                    altTextKey: Key('$keyPrefix-alt-${image.id}'),
+                    removeKey: Key('$keyPrefix-remove-${image.id}'),
+                    moveUpKey: Key('$keyPrefix-move-up-${image.id}'),
+                    moveDownKey: Key('$keyPrefix-move-down-${image.id}'),
+                    previewKey: Key('$keyPrefix-preview-${image.id}'),
+                    previewUrl: imageUrlFor?.call(image),
                     canMoveUp: false,
                     canMoveDown: false,
                     onAltChanged: (_) {},
                     onRemove: () {},
                     onReplaceUnavailable: () async {},
+                    onReplace: null,
                     onMoveUp: () {},
                     onMoveDown: () {},
                   ),
@@ -123,9 +140,11 @@ class ComposerImageAttachmentSection extends StatelessWidget {
               );
             },
           ),
-        if (imagesState.images.length < mediaConfig.maxImages)
+        if (imagesState.images.length < maxImages)
           _AddPhotoCard(
-            remainingCount: mediaConfig.maxImages - imagesState.images.length,
+            remainingCount: maxImages - imagesState.images.length,
+            maxImages: maxImages,
+            addKey: Key('$keyPrefix-add-image'),
             hasImages: imagesState.images.isNotEmpty,
             onPressed: enabled && onAddImages != null
                 ? () => unawaited(onAddImages!())
@@ -151,12 +170,14 @@ class _PhotosHeader extends StatelessWidget {
     required this.describedImageCount,
     required this.required,
     required this.requiredLabel,
+    required this.maxImages,
   });
 
   final int imageCount;
   final int describedImageCount;
   final bool required;
   final String requiredLabel;
+  final int maxImages;
 
   @override
   Widget build(BuildContext context) {
@@ -178,31 +199,32 @@ class _PhotosHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(text: l10n.postComposePhotosTitle),
+              if (required)
+                TextSpan(
+                  text: '  $requiredLabel',
+                  style: requiredLabelStyle,
+                ),
+            ],
+          ),
+          style: titleStyle,
+          textAlign: TextAlign.start,
+        ),
+        SizedBox(height: spacing.sp1),
         Row(
           children: [
-            Expanded(
-              child: Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(text: l10n.postComposePhotosTitle),
-                    if (required)
-                      TextSpan(
-                        text: '  $requiredLabel',
-                        style: requiredLabelStyle,
-                      ),
-                  ],
-                ),
-                style: titleStyle,
-                textAlign: TextAlign.start,
-              ),
-            ),
             Icon(Icons.short_text_rounded, color: colors.outline, size: 22),
             SizedBox(width: spacing.sp1),
-            Text(
-              describedLabel,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: colors.outline,
-                fontWeight: FontWeight.w800,
+            Expanded(
+              child: Text(
+                describedLabel,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: colors.outline,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
             ),
           ],
@@ -210,10 +232,10 @@ class _PhotosHeader extends StatelessWidget {
         SizedBox(height: spacing.sp1),
         Text(
           imageCount == 0
-              ? l10n.postComposePhotosLimitHelper(mediaConfig.maxImages)
+              ? l10n.postComposePhotosLimitHelper(maxImages)
               : l10n.postComposePhotosReorderHelper(
                   imageCount,
-                  mediaConfig.maxImages,
+                  maxImages,
                 ),
           style: theme.textTheme.bodyMedium?.copyWith(
             color: colors.outline,
@@ -239,8 +261,11 @@ class _DraftImageTile extends StatelessWidget {
     required this.onAltChanged,
     required this.onRemove,
     required this.onReplaceUnavailable,
+    required this.onReplace,
     required this.onMoveUp,
     required this.onMoveDown,
+    required this.previewKey,
+    required this.previewUrl,
   });
 
   final ComposerImageDraft image;
@@ -255,8 +280,11 @@ class _DraftImageTile extends StatelessWidget {
   final ValueChanged<String> onAltChanged;
   final VoidCallback onRemove;
   final Future<void> Function() onReplaceUnavailable;
+  final Future<void> Function()? onReplace;
   final VoidCallback onMoveUp;
   final VoidCallback onMoveDown;
+  final Key previewKey;
+  final String? previewUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -327,7 +355,24 @@ class _DraftImageTile extends StatelessWidget {
                 ],
               ),
               SizedBox(height: spacing.sp3),
-              _DraftImagePreview(image: image),
+              _composerImagePreview(
+                context,
+                image,
+                imageKey: previewKey,
+                imageUrl: previewUrl,
+              ),
+              if (onReplace != null && image.phase is! ImageUnavailable) ...[
+                SizedBox(height: spacing.sp3),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    key: Key('composer-replace-${image.id}'),
+                    onPressed: enabled ? () => unawaited(onReplace!()) : null,
+                    icon: const Icon(Icons.image_search_rounded),
+                    label: Text(l10n.draftsReplaceImageAction),
+                  ),
+                ),
+              ],
               if (image.phase is ImageUnavailable) ...[
                 SizedBox(height: spacing.sp3),
                 _ImageStatus(image: image),
@@ -378,109 +423,6 @@ class _DraftImageTile extends StatelessWidget {
                     color: hasAltText ? semanticColors.success : colors.error,
                     fontWeight: FontWeight.w800,
                   ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _DraftImagePreview extends StatelessWidget {
-  const _DraftImagePreview({required this.image});
-
-  final ComposerImageDraft image;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.colorScheme;
-
-    return DecoratedBox(
-      position: DecorationPosition.foreground,
-      decoration: BoxDecoration(
-        border: Border.all(color: colors.onSurface),
-      ),
-      child: AnimatedSize(
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-        alignment: Alignment.topCenter,
-        child: AspectRatio(
-          aspectRatio: _previewAspectRatio(image),
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              switch (image.previewBytes) {
-                final bytes? => Image.memory(
-                  bytes,
-                  key: Key('composer-preview-${image.id}'),
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                ),
-                null => DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: theme.brightness == Brightness.dark
-                        ? colors.surfaceContainerHighest
-                        : const Color(0xFFEAEAEA),
-                  ),
-                  child: image.phase is ImageUnavailable
-                      ? const Center(child: Icon(Icons.broken_image_outlined))
-                      : null,
-                ),
-              },
-              if (_previewLoadingOverlay(context, image) case final overlay?)
-                _ImageLoadingOverlay(imageId: image.id, overlay: overlay),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ImageLoadingOverlay extends StatelessWidget {
-  const _ImageLoadingOverlay({required this.imageId, required this.overlay});
-
-  final String imageId;
-  final _PreviewLoadingOverlay overlay;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final spacing = theme.extension<SpacingTheme>()!;
-
-    return Semantics(
-      label: overlay.label,
-      liveRegion: true,
-      child: DecoratedBox(
-        key: Key('composer-preview-overlay-$imageId'),
-        decoration: const BoxDecoration(color: Color(0x99000000)),
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox.square(
-                dimension: 72,
-                child: CircularProgressIndicator(
-                  key: Key('composer-upload-progress-$imageId'),
-                  value: overlay.value,
-                  strokeWidth: 6,
-                  backgroundColor: Colors.white24,
-                  valueColor: const AlwaysStoppedAnimation<Color>(
-                    Colors.white,
-                  ),
-                ),
-              ),
-              SizedBox(height: spacing.sp3),
-              Text(
-                overlay.label,
-                key: Key('composer-upload-label-$imageId'),
-                textAlign: TextAlign.center,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
                 ),
               ),
             ],
@@ -604,11 +546,15 @@ class _AddPhotoCard extends StatelessWidget {
     required this.remainingCount,
     required this.hasImages,
     required this.onPressed,
+    required this.maxImages,
+    required this.addKey,
   });
 
   final int remainingCount;
   final bool hasImages;
   final VoidCallback? onPressed;
+  final int maxImages;
+  final Key addKey;
 
   @override
   Widget build(BuildContext context) {
@@ -623,14 +569,14 @@ class _AddPhotoCard extends StatelessWidget {
         : l10n.postComposeAddPhoto;
     final subtitle = hasImages
         ? l10n.postComposePhotosRemaining(remainingCount)
-        : l10n.postComposePhotosLimitHelper(mediaConfig.maxImages);
+        : l10n.postComposePhotosLimitHelper(maxImages);
 
     return Padding(
       padding: EdgeInsets.only(bottom: spacing.sp2),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          key: const Key('composer-add-image'),
+          key: addKey,
           borderRadius: BorderRadius.circular(24),
           onTap: onPressed,
           child: CustomPaint(
@@ -745,6 +691,27 @@ double _previewAspectRatio(ComposerImageDraft image) {
   }
 
   return 1;
+}
+
+Widget _composerImagePreview(
+  BuildContext context,
+  ComposerImageDraft image, {
+  required Key imageKey,
+  required String? imageUrl,
+}) {
+  final overlay = _previewLoadingOverlay(context, image);
+  return CraftskyImageAttachmentPreview(
+    bytes: image.previewBytes,
+    imageUrl: imageUrl,
+    aspectRatio: _previewAspectRatio(image),
+    unavailable: image.phase is ImageUnavailable,
+    busyLabel: overlay?.label,
+    busyProgress: overlay?.value,
+    imageKey: imageKey,
+    overlayKey: Key('composer-preview-overlay-${image.id}'),
+    progressKey: Key('composer-upload-progress-${image.id}'),
+    labelKey: Key('composer-upload-label-${image.id}'),
+  );
 }
 
 String _statusLabel(BuildContext context, ComposerImageDraft image) {

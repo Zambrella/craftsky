@@ -10,10 +10,8 @@ part of 'save_profile_provider.dart';
 // ignore_for_file: type=lint, type=warning
 /// Mutation notifier for the profile-edit page.
 ///
-/// Holds idle state until [save] runs, then transitions
-/// `AsyncLoading` → `AsyncData(updatedProfile)` on success or
-/// `AsyncError` on failure. Callers wire navigation/snackbars via
-/// `ref.listen` rather than try/catch — see `edit_profile_page.dart`.
+/// Holds idle state until [save] runs, then reports an explicit outcome for
+/// each independently versioned profile record.
 ///
 /// Callers should pass the **full** desired field values, not a diff.
 /// The PUT path on the AppView ultimately writes a new
@@ -33,10 +31,8 @@ final saveProfileProvider = SaveProfileProvider._();
 
 /// Mutation notifier for the profile-edit page.
 ///
-/// Holds idle state until [save] runs, then transitions
-/// `AsyncLoading` → `AsyncData(updatedProfile)` on success or
-/// `AsyncError` on failure. Callers wire navigation/snackbars via
-/// `ref.listen` rather than try/catch — see `edit_profile_page.dart`.
+/// Holds idle state until [save] runs, then reports an explicit outcome for
+/// each independently versioned profile record.
 ///
 /// Callers should pass the **full** desired field values, not a diff.
 /// The PUT path on the AppView ultimately writes a new
@@ -51,13 +47,11 @@ final saveProfileProvider = SaveProfileProvider._();
 /// refetch round-trip and any read-after-write lag, and keeps the
 /// profile page in sync the instant the edit page pops.
 final class SaveProfileProvider
-    extends $AsyncNotifierProvider<SaveProfile, Profile?> {
+    extends $AsyncNotifierProvider<SaveProfile, CombinedProfileSaveResult?> {
   /// Mutation notifier for the profile-edit page.
   ///
-  /// Holds idle state until [save] runs, then transitions
-  /// `AsyncLoading` → `AsyncData(updatedProfile)` on success or
-  /// `AsyncError` on failure. Callers wire navigation/snackbars via
-  /// `ref.listen` rather than try/catch — see `edit_profile_page.dart`.
+  /// Holds idle state until [save] runs, then reports an explicit outcome for
+  /// each independently versioned profile record.
   ///
   /// Callers should pass the **full** desired field values, not a diff.
   /// The PUT path on the AppView ultimately writes a new
@@ -90,14 +84,12 @@ final class SaveProfileProvider
   SaveProfile create() => SaveProfile();
 }
 
-String _$saveProfileHash() => r'82a4bd71e74f534692eab84a69b1f88c344ffa33';
+String _$saveProfileHash() => r'4a9553a79f568fdd570bd614dfcdeee12c510adc';
 
 /// Mutation notifier for the profile-edit page.
 ///
-/// Holds idle state until [save] runs, then transitions
-/// `AsyncLoading` → `AsyncData(updatedProfile)` on success or
-/// `AsyncError` on failure. Callers wire navigation/snackbars via
-/// `ref.listen` rather than try/catch — see `edit_profile_page.dart`.
+/// Holds idle state until [save] runs, then reports an explicit outcome for
+/// each independently versioned profile record.
 ///
 /// Callers should pass the **full** desired field values, not a diff.
 /// The PUT path on the AppView ultimately writes a new
@@ -112,17 +104,26 @@ String _$saveProfileHash() => r'82a4bd71e74f534692eab84a69b1f88c344ffa33';
 /// refetch round-trip and any read-after-write lag, and keeps the
 /// profile page in sync the instant the edit page pops.
 
-abstract class _$SaveProfile extends $AsyncNotifier<Profile?> {
-  FutureOr<Profile?> build();
+abstract class _$SaveProfile
+    extends $AsyncNotifier<CombinedProfileSaveResult?> {
+  FutureOr<CombinedProfileSaveResult?> build();
   @$mustCallSuper
   @override
   void runBuild() {
-    final ref = this.ref as $Ref<AsyncValue<Profile?>, Profile?>;
+    final ref =
+        this.ref
+            as $Ref<
+              AsyncValue<CombinedProfileSaveResult?>,
+              CombinedProfileSaveResult?
+            >;
     final element =
         ref.element
             as $ClassProviderElement<
-              AnyNotifier<AsyncValue<Profile?>, Profile?>,
-              AsyncValue<Profile?>,
+              AnyNotifier<
+                AsyncValue<CombinedProfileSaveResult?>,
+                CombinedProfileSaveResult?
+              >,
+              AsyncValue<CombinedProfileSaveResult?>,
               Object?,
               Object?
             >;

@@ -42,7 +42,6 @@ class RepostReasonTypeMapper extends EnumMapper<RepostReasonType> {
     }
   }
 }
-
 extension RepostReasonTypeMapperExtension on RepostReasonType {
   String toValue() {
     RepostReasonTypeMapper.ensureInitialized();

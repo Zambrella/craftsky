@@ -12,6 +12,7 @@ import (
 	"social.craftsky/appview/internal/accountdeletion"
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/languages"
 	"social.craftsky/appview/internal/middleware"
@@ -132,6 +133,9 @@ type Dependencies struct {
 	ModerationStore           *api.ModerationStore
 	LanguagePreferences       *languages.Store
 	NewPDSEffects             pdseffects.ExecutorFactory
+	BusinessStore             *business.Store
+	EventCursorCodec          *api.EventCursorCodec
+	Now                       func() time.Time
 
 	ScheduledPosts           *scheduledposts.Store
 	ScheduledMedia           *scheduledposts.PrivateMediaService

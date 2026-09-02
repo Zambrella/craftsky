@@ -45,7 +45,7 @@ The design keeps existing boundaries intact:
 | `appview/internal/auth/initialize_profile_test.go`, `handlers_test.go` | Change | First-failing projection branching, redaction, and ordering tests | FR-024, RULE-007 | UT-009, AT-019 |
 | `appview/internal/app/federated_real_flow_integration_test.go` | Change | Real canonical direct projection before recording handoff | FR-024, NFR-004 | IT-009 |
 | `appview/internal/index/bluesky_profile_test.go`, `bluesky_backfiller_test.go` | Change/retain | Prove same-CID replay and fallback behavior remain correct | NFR-004, RULE-007 | IT-009, REG-008 |
-| `appview/migrations/000062_account_onboarding_completion.{up,down}.sql` | Create | Add/drop private permanent completion rows | FR-018, RULE-004 | IT-001, IT-005 |
+| `appview/migrations/000065_account_onboarding_completion.{up,down}.sql` | Create | Add/drop private permanent completion rows | FR-018, RULE-004 | IT-001, IT-005 |
 | `appview/internal/api/onboarding_store.go` | Create | Lifecycle-guarded status read and idempotent complete operation | FR-018, RULE-003, RULE-004 | IT-001, IT-005 |
 | `appview/internal/api/onboarding.go` | Create | CamelCase response handlers using authenticated DID and canonical envelopes | FR-018, FR-020 | IT-001, IT-002 |
 | `appview/internal/routes/routes_onboarding.go` | Create | Register onboarding status/completion routes | FR-018 | IT-002 |

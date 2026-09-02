@@ -15,6 +15,7 @@ import (
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/business"
 )
 
 type fakeNotificationStore struct {
@@ -216,10 +217,10 @@ func TestNotificationsHandler_ReturnsCamelCaseNotificationPage(t *testing.T) {
 			Reply: &api.NotificationReplyRef{URI: "at://did:plc:alice/social.craftsky.feed.post/reply1", CID: "bafyreply", Rkey: "reply1"},
 		},
 	}, cursor: "next-cursor"}
-	handler := api.ListNotificationsHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+	handler := hydrateProductionSummaries(api.ListNotificationsHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
 		"did:plc:alice":  "alice.example",
 		"did:plc:viewer": "viewer.example",
-	}}, nilLogger())
+	}}, nilLogger()), map[syntax.DID]business.AccountType{"did:plc:alice": business.AccountTypeBusiness})
 
 	req := authedReq(http.MethodGet, "/v1/notifications", "", "did:plc:viewer")
 	rec := httptest.NewRecorder()
@@ -240,6 +241,21 @@ func TestNotificationsHandler_ReturnsCamelCaseNotificationPage(t *testing.T) {
 	}
 	if page.Cursor != "next-cursor" || len(page.Items) != 2 {
 		t.Fatalf("page = %+v, want two items and cursor", page)
+	}
+	var accountTypes struct {
+		Items []struct {
+			Actor struct {
+				AccountType string `json:"accountType"`
+			} `json:"actor"`
+			SubjectPost *struct {
+				Author struct {
+					AccountType string `json:"accountType"`
+				} `json:"author"`
+			} `json:"subjectPost"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &accountTypes); err != nil || accountTypes.Items[0].Actor.AccountType != "business" || accountTypes.Items[0].SubjectPost == nil || accountTypes.Items[0].SubjectPost.Author.AccountType != "regular" {
+		t.Fatalf("notification account types = %+v, error %v", accountTypes, err)
 	}
 	item := page.Items[0]
 	if item.Type != api.NotificationTypeLike || item.Actor.Handle != "alice.example" || item.SubjectPost == nil || item.SubjectPost.URI != subject.URI {
@@ -270,6 +286,35 @@ func TestNotificationsHandler_ReturnsCamelCaseNotificationPage(t *testing.T) {
 		if _, ok := replyRaw[key]; ok {
 			t.Fatalf("reply raw = %v, must not contain Go field key %q", replyRaw, key)
 		}
+	}
+}
+
+func TestNotificationsHandlerOmitsBusinessFieldsForUnavailableActor(t *testing.T) {
+	now := time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC)
+	store := &fakeNotificationStore{rows: []*api.NotificationRow{{
+		ID: "unavailable-actor", Type: api.NotificationTypeFollow,
+		ActorDID: "did:plc:unavailable", CreatedAt: now, IndexedAt: now,
+	}}}
+	handler := hydrateProductionSummaries(
+		api.ListNotificationsHandler(store, fakeResolver{err: errors.New("identity unavailable")}, nilLogger()),
+		map[syntax.DID]business.AccountType{"did:plc:unavailable": business.AccountTypeBusiness},
+	)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, authedReq(http.MethodGet, "/v1/notifications", "", "did:plc:viewer"))
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Items []struct {
+			Actor map[string]any `json:"actor"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil || len(body.Items) != 1 {
+		t.Fatalf("decode unavailable notification: %+v, error %v", body, err)
+	}
+	actor := body.Items[0].Actor
+	if actor["available"] != false || actor["accountType"] != nil || actor["business"] != nil {
+		t.Fatalf("unavailable production notification actor = %+v", actor)
 	}
 }
 

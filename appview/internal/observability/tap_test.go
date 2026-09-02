@@ -14,6 +14,8 @@ func TestSafeNSIDLabelUsesKnownNSIDsOrBoundedFallbacks(t *testing.T) {
 	}{
 		{name: "craftsky post", nsid: "social.craftsky.feed.post", want: "social.craftsky.feed.post"},
 		{name: "craftsky like", nsid: "social.craftsky.feed.like", want: "social.craftsky.feed.like"},
+		{name: "business profile", nsid: "social.craftsky.business.profile", want: "social.craftsky.business.profile"},
+		{name: "business event", nsid: "social.craftsky.business.event", want: "social.craftsky.business.event"},
 		{name: "bsky follow", nsid: "app.bsky.graph.follow", want: "app.bsky.graph.follow"},
 		{name: "unsupported", nsid: "com.example.raw.identifier", want: "unsupported"},
 		{name: "empty", nsid: "", want: "malformed"},

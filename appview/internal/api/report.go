@@ -8,10 +8,12 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/middleware"
 )
 
@@ -35,6 +37,10 @@ type PostReportTargetResolver interface {
 
 type AccountReportTargetResolver interface {
 	ResolveAccountReportTarget(ctx context.Context, handleOrDID string) (*AccountReportTarget, error)
+}
+
+type BusinessEventReportTargetResolver interface {
+	ReadEvent(context.Context, business.EventReadInput) (business.EventView, error)
 }
 
 type ReportCreator interface {
@@ -112,6 +118,93 @@ func ReportPostHandler(targets PostReportTargetResolver, reports ReportCreator, 
 		if err != nil {
 			logger.Error("report post: create report failed",
 				apiLogErrorAttrs(runID, "report.post.create", "store")...)
+			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "report persistence failed", runID, nil)
+			return
+		}
+		writeAcceptedReport(w, row.ID)
+	})
+}
+
+// ReportBusinessEventHandler serves POST /v1/events/{did}/{rkey}/reports.
+func ReportBusinessEventHandler(
+	targets BusinessEventReportTargetResolver,
+	reports ReportCreator,
+	forwarder ReportForwarder,
+	logger *slog.Logger,
+	now func() time.Time,
+) http.Handler {
+	logger = normalizeLogger(logger)
+	if now == nil {
+		now = time.Now
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		runID := middleware.GetRunID(r.Context())
+		reporterDID, ok := middleware.GetDID(r.Context())
+		if !ok {
+			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "no did in context", runID, nil)
+			return
+		}
+		deviceID, _ := middleware.GetDeviceID(r.Context())
+		subjectDID, err := syntax.ParseDID(r.PathValue("did"))
+		if err != nil {
+			envelope.WriteError(w, http.StatusBadRequest, "invalid_identifier", "not a valid DID", runID, nil)
+			return
+		}
+		tid, err := syntax.ParseTID(r.PathValue("rkey"))
+		if err != nil {
+			envelope.WriteError(w, http.StatusBadRequest, "invalid_identifier", "not a valid record key", runID, nil)
+			return
+		}
+		rkey := syntax.RecordKey(tid.String())
+		req, normalizedDetails, ok := decodeValidateReport(w, r, runID)
+		if !ok {
+			return
+		}
+		target, err := targets.ReadEvent(r.Context(), business.EventReadInput{
+			CallerDID: reporterDID, OwnerDID: subjectDID, Rkey: rkey, AsOf: now().UTC(),
+		})
+		if errors.Is(err, business.ErrEventNotFound) {
+			envelope.WriteError(w, http.StatusNotFound, "event_not_found", "event not found", runID, nil)
+			return
+		}
+		if err != nil {
+			logger.Error("report event: resolve target failed",
+				apiLogErrorAttrs(runID, "report.event.create", "target_lookup")...)
+			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "report target lookup failed", runID, nil)
+			return
+		}
+		if target.DID == reporterDID {
+			writeInvalidReportTarget(w, runID)
+			return
+		}
+
+		collection := businessEventNSID.String()
+		targetDID, targetRkey, targetURI, targetCID := target.DID.String(), target.Rkey.String(), target.URI.String(), target.CID.String()
+		subject := ReportSubjectSnapshot{
+			Type: ReportSubjectEvent, DID: targetDID, Collection: &collection,
+			Rkey: &targetRkey, URI: &targetURI, CIDSnapshot: &targetCID,
+		}
+		metadata, err := forwarder.Prepare(r.Context(), ReportForwardingInput{
+			ReporterDID: reporterDID.String(), Subject: subject,
+			ReasonType: req.ReasonType, Details: normalizedDetails,
+		})
+		if err != nil {
+			logger.Error("report event: prepare forwarding failed",
+				apiLogErrorAttrs(runID, "report.event.create", "forwarding")...)
+			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "report forwarding preparation failed", runID, nil)
+			return
+		}
+		row, err := reports.CreateReport(r.Context(), CreateReportInput{
+			ReporterDID: reporterDID.String(), SubjectType: ReportSubjectEvent,
+			SubjectDID: targetDID, SubjectCollection: &collection,
+			SubjectRkey: &targetRkey, SubjectURI: &targetURI, SubjectCIDSnapshot: &targetCID,
+			ReasonType: req.ReasonType, Details: normalizedDetails, DeviceID: optionalString(deviceID),
+			ForwardingStatus: metadata.Status, ForwardingSchemaVersion: metadata.SchemaVersion,
+			ForwardingPreparedAt: metadata.PreparedAt,
+		})
+		if err != nil {
+			logger.Error("report event: create report failed",
+				apiLogErrorAttrs(runID, "report.event.create", "store")...)
 			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "report persistence failed", runID, nil)
 			return
 		}
@@ -218,7 +311,7 @@ func writeAcceptedReport(w http.ResponseWriter, reportID string) {
 }
 
 func writeInvalidReportTarget(w http.ResponseWriter, runID string) {
-	envelope.WriteError(w, http.StatusUnprocessableEntity, "invalid_report_target", "You cannot report your own post or profile.", runID, nil)
+	envelope.WriteError(w, http.StatusUnprocessableEntity, "invalid_report_target", "You cannot report your own content.", runID, nil)
 }
 
 func optionalString(value string) *string {

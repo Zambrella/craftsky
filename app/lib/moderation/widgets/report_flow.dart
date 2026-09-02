@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/business/providers/report_business_event_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/report_post_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -7,6 +9,8 @@ import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/widgets/report_subject_sheet.dart';
 import 'package:craftsky_app/profile/providers/report_profile_provider.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,6 +48,29 @@ Future<void> showProfileReportSheet(
         parentContext: context,
         successMessage: successMessage,
         handleOrDid: handleOrDid,
+      ),
+    ),
+  );
+}
+
+Future<void> showBusinessEventReportSheet(
+  BuildContext context,
+  WidgetRef ref, {
+  required AccountKey account,
+  required Did owner,
+  required RecordKey rkey,
+}) {
+  final successMessage = AppLocalizations.of(context).reportSubmitSuccess;
+  ref.read(reportBusinessEventProvider(account).notifier).reset();
+  return responsiveModalNavigator(context).push<void>(
+    MaterialPageRoute<void>(
+      fullscreenDialog: true,
+      builder: (routeContext) => _BusinessEventReportRouteBody(
+        parentContext: context,
+        successMessage: successMessage,
+        account: account,
+        owner: owner,
+        rkey: rkey,
       ),
     ),
   );
@@ -135,6 +162,62 @@ class _ProfileReportRouteBody extends ConsumerWidget {
           ref
               .read(reportProfileProvider.notifier)
               .submit(handleOrDid: handleOrDid, submission: submission),
+        );
+      },
+    );
+  }
+}
+
+class _BusinessEventReportRouteBody extends ConsumerWidget {
+  const _BusinessEventReportRouteBody({
+    required this.parentContext,
+    required this.successMessage,
+    required this.account,
+    required this.owner,
+    required this.rkey,
+  });
+
+  final BuildContext parentContext;
+  final String successMessage;
+  final AccountKey account;
+  final Did owner;
+  final RecordKey rkey;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final provider = reportBusinessEventProvider(account);
+    final submitState = ref.watch(provider);
+    ref.listen<AsyncValue<ReportResult?>>(provider, (_, next) {
+      if (next case AsyncError(
+        :final error,
+      ) when error is ApiBadRequest && error.code == 'event_not_found') {
+        ref.read(provider.notifier).reset();
+        _dismissReportRoute(context);
+        return;
+      }
+      _handleAcceptedReport(
+        context: parentContext,
+        routeContext: context,
+        successMessage: successMessage,
+        reset: () => ref.read(provider.notifier).reset(),
+        state: next,
+      );
+    });
+
+    return ReportSubjectSheet(
+      subjectType: ReportSubjectType.event,
+      isSubmitting: submitState.isLoading,
+      submitError: submitState.hasError
+          ? AppLocalizations.of(context).reportSubmitError
+          : null,
+      onChanged: submitState.hasError
+          ? () => ref.read(provider.notifier).reset()
+          : null,
+      onSubmit: (submission) {
+        unawaited(
+          ref
+              .read(provider.notifier)
+              .submit(owner: owner, rkey: rkey, submission: submission),
         );
       },
     );
