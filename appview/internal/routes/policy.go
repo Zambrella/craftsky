@@ -140,6 +140,8 @@ func baseV1RoutePolicies() []RoutePolicy {
 		{Method: "GET", PathPattern: "/v1/migrations/instagram/suggestions", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/migrations/instagram/suggestions/{suggestionId}/accept", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "DELETE", PathPattern: "/v1/migrations/instagram/suggestions/{suggestionId}", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "GET", PathPattern: "/v1/onboarding/status", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "POST", PathPattern: "/v1/onboarding/completion", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/profiles/{handleOrDid}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/profiles/me", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/profiles/me/follower-growth", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},

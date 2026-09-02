@@ -1,17 +1,22 @@
 import 'package:craftsky_app/auth/models/account_deletion.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/pending_account_deletion.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/account_boundary_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
+import 'package:craftsky_app/router/router.dart' show goRouterProvider;
 import 'package:craftsky_app/settings/providers/account_deletion_controller.dart';
 import 'package:craftsky_app/settings/services/account_deletion_acceptance_coordinator.dart';
+import 'package:craftsky_app/settings/services/account_product_data_cleaner.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:http_mock_adapter/http_mock_adapter.dart';
 
 final class _DeletionRegistryStorage implements SessionRegistryStorage {
@@ -27,6 +32,63 @@ final class _DeletionRegistryStorage implements SessionRegistryStorage {
 }
 
 void main() {
+  test('accepted deletion of the last account routes to welcome', () async {
+    const jobId = '10000000-0000-4000-8000-000000000001';
+    var initial = SessionRegistry.empty().upsertAndActivate(
+      token: 'alice-token',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    initial = initial.stageAccountDeletion(
+      PendingAccountDeletion.capture(
+        jobId: jobId,
+        lease: initial.activeLease!,
+        handle: 'alice.test',
+        expiresAt: DateTime.now().toUtc().add(const Duration(minutes: 10)),
+      ),
+    );
+    final storage = _DeletionRegistryStorage(initial);
+    final dio = Dio(BaseOptions(baseUrl: 'https://appview.invalid'));
+    DioAdapter(dio: dio).onPost(
+      '/v1/account-deletions/$jobId',
+      (server) => server.reply(202, null),
+      data: {
+        'reauthProof': 'one-time-proof',
+        'confirmationHandle': '@alice.test',
+      },
+    );
+    final router = GoRouter(
+      initialLocation: '/sign-in',
+      routes: [
+        GoRoute(path: '/sign-in', builder: (_, _) => const SizedBox()),
+        GoRoute(path: '/welcome', builder: (_, _) => const SizedBox()),
+      ],
+    );
+    addTearDown(router.dispose);
+    final container = ProviderContainer.test(
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(storage),
+        accountDioProvider.overrideWith((ref, account) async => dio),
+        accountStateInvalidatorProvider.overrideWithValue(() async {}),
+        accountProductDataCleanerProvider.overrideWithValue((_) async {}),
+        goRouterProvider.overrideWithValue(router),
+      ],
+    );
+    await container.read(sessionRegistryProvider.future);
+
+    final accepted = await container
+        .read(accountDeletionControllerProvider.notifier)
+        .confirm(
+          jobId: jobId,
+          reauthProof: 'one-time-proof',
+          confirmationHandle: '@alice.test',
+        );
+
+    expect(accepted, isTrue);
+    expect(storage.value.sessions, isEmpty);
+    expect(router.routeInformationProvider.value.uri.path, '/welcome');
+  });
+
   test(
     'REG-019 controller restores exact-handle confirmation from the durable '
     'pending intent',

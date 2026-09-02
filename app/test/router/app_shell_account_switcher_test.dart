@@ -4,6 +4,7 @@ import 'dart:ui' show SemanticsAction, Tristate;
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_switcher_state.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
+import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
@@ -18,7 +19,6 @@ import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
-import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
@@ -89,8 +89,10 @@ Future<ProviderContainer> _pumpShell(
         _RegistryStorage(registry),
       ),
       sessionValidationLauncherProvider.overrideWithValue((_) async {}),
-      onboardingStatusProvider.overrideWith2(
-        (_) => CompletedOnboardingStatus(),
+      activeAccountInitializationProvider.overrideWith(
+        (_) => completedActiveAccountInitialization(
+          did: initialActive?.did.toString() ?? 'did:plc:test',
+        ),
       ),
       accountNotificationNewnessRepositoryProvider.overrideWith(
         (ref, account) async =>

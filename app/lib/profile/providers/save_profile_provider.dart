@@ -9,8 +9,8 @@ import 'package:craftsky_app/business/providers/business_projection_overlay_prov
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_save_result.dart';
+import 'package:craftsky_app/profile/providers/profile_cache_publication.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
-import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -162,14 +162,7 @@ class SaveProfile extends _$SaveProfile {
     if (accepted == null || (!ordinary.succeeded && !business.succeeded)) {
       return;
     }
-
-    // Guarding with `ref.exists` avoids instantiating a family entry whose
-    // initial fetch could race and overwrite the accepted save result.
-    for (final id in <String>{accepted.handle, accepted.did}) {
-      if (ref.exists(userProfileProvider(id))) {
-        ref.read(userProfileProvider(id).notifier).setCached(accepted);
-      }
-    }
+    publishProfileCache(ref, accepted);
   }
 
   /// Resets the notifier back to its idle state. Call after consuming a

@@ -28,6 +28,8 @@ type HTTPHandlers struct {
 	SessionLifecycle          *SessionLifecycleService
 	NewPendingPDSClient       PendingOnboardingPDSClientFactory
 	OnboardingProfile         OnboardingProfileWriter
+	BlueskyProfileProjector   BlueskyProfileProjector
+	CraftskyProfileProjector  CraftskyProfileProjector
 	LoginCompleteURL          string
 	DeletionCompleteURL       string
 	AllowDevScheme            bool
@@ -146,6 +148,7 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 				}
 				if err := InitializeProfileAndIdentityCache(
 					callbackCtx, pdsClient, callbackResult.Attempt, h.OnboardingProfile,
+					h.BlueskyProfileProjector, h.CraftskyProfileProjector,
 					h.IdentityCacheUpdater, h.Logger, h.RepositoryTracker,
 				); err != nil {
 					return err

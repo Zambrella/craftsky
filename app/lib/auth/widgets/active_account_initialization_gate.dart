@@ -16,6 +16,8 @@ import 'package:craftsky_app/initialization_loading_screen.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/providers/account_language_preferences_provider.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_repository_provider.dart';
+import 'package:craftsky_app/onboarding/providers/onboarding_repository_provider.dart';
+import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -90,7 +92,9 @@ class _ActiveAccountInitializationGateState
           ..invalidate(
             languagePreferencesRepositoryProvider(lease.session.account),
           )
-          ..invalidate(accountLanguagePreferencesProvider(lease));
+          ..invalidate(accountLanguagePreferencesProvider(lease))
+          ..invalidate(onboardingRepositoryProvider(lease.session))
+          ..invalidate(onboardingStatusProvider(lease.session));
       }
     } else {
       ref.invalidate(sessionRegistryProvider);

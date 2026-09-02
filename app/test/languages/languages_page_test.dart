@@ -79,6 +79,7 @@ void main() {
             (ref) => ActiveAccountInitialization(
               lease: _signedInRegistry.activeLease!,
               languagePreferences: repository.value,
+              onboardingComplete: true,
             ),
           ),
           authSessionProvider.overrideWith(SignedInAuthSession.new),
@@ -203,6 +204,7 @@ void main() {
             (ref) => ActiveAccountInitialization(
               lease: _signedInRegistry.activeLease!,
               languagePreferences: repository.value,
+              onboardingComplete: true,
             ),
           ),
           authSessionProvider.overrideWith(SignedInAuthSession.new),

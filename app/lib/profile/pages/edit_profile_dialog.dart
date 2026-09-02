@@ -11,6 +11,7 @@ import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/widgets/business_profile_fields.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/data/crafts_catalog.dart';
+import 'package:craftsky_app/profile/data/profile_field_constraints.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_save_result.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
@@ -41,11 +42,9 @@ const _fieldCrafts = 'crafts';
 /// Bsky's `app.bsky.actor.profile.displayName` lexicon caps display
 /// names at 64 graphemes. We approximate with code-unit length here —
 /// the server has the final say.
-const _displayNameMaxLength = 64;
 
 /// Bsky's `app.bsky.actor.profile.description` lexicon caps the bio at
-/// 256 graphemes. Same code-unit caveat as [_displayNameMaxLength].
-const _bioMaxLength = 256;
+/// 256 graphemes. Same code-unit caveat as [profileDisplayNameMaxLength].
 
 /// Opens the profile-edit screen as a full-screen Material dialog.
 ///
@@ -492,7 +491,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                         // length-cap validator (empty is a valid display
                         // name).
                         validator: FormBuilderValidators.maxLength(
-                          _displayNameMaxLength,
+                          profileDisplayNameMaxLength,
                           errorText: l10n.editProfileDisplayNameTooLong,
                           checkNullOrEmpty: false,
                         ),
@@ -513,7 +512,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                         focusNode: _bioFocusNode,
                         initialValue: widget.profile.description ?? '',
                         validator: FormBuilderValidators.maxLength(
-                          _bioMaxLength,
+                          profileBioMaxLength,
                           errorText: l10n.editProfileBioTooLong,
                           checkNullOrEmpty: false,
                         ),

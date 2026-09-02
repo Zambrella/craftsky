@@ -66,6 +66,7 @@ class _CraftChoiceChip extends StatelessWidget {
     return Semantics(
       button: true,
       selected: isSelected,
+      excludeSemantics: true,
       label: craftLabel(craft, l10n),
       child: InkWell(
         onTap: onTap,

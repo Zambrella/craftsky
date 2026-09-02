@@ -16,6 +16,7 @@ import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -41,6 +42,11 @@ class _RecordingAuthController extends AuthController {
   Future<void> signIn({required String handle}) async {
     signInCalls.add(handle);
   }
+}
+
+class _LoadingAuthController extends AuthController {
+  @override
+  Future<void> build() => Completer<void>().future;
 }
 
 final class _RegistryStorage implements SessionRegistryStorage {
@@ -216,6 +222,30 @@ void main() {
         tester.container().read(authControllerProvider.notifier)
             as _RecordingAuthController;
     expect(controller.signInCalls, ['alice.bsky.social']);
+  });
+
+  testWidgets('Welcome labels both loading actions as redirecting', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authControllerProvider.overrideWith(_LoadingAuthController.new),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const WelcomePage(),
+        ),
+      ),
+    );
+
+    expect(
+      find.widgetWithText(ChunkyButton, 'Redirecting...'),
+      findsNWidgets(2),
+    );
+    expect(find.byType(StitchProgressIndicator), findsNothing);
   });
 
   testWidgets('AT-003 resume without a callback leaves Welcome retryable', (

@@ -13,10 +13,12 @@ final class ActiveAccountInitialization
   const ActiveAccountInitialization({
     required this.lease,
     required this.languagePreferences,
+    required this.onboardingComplete,
   });
 
   final ActiveAccountLease lease;
   final LanguagePreferences languagePreferences;
+  final bool onboardingComplete;
 
   @override
   String toString() => 'ActiveAccountInitialization(<redacted>)';

@@ -34,8 +34,8 @@ func (devSchemePDSClient) UploadBlob(context.Context, string, []byte) (*Uploaded
 
 type devSchemeOnboardingWriter struct{}
 
-func (devSchemeOnboardingWriter) PutOnboardingProfile(context.Context, PDSClient, OnboardingProfileWrite) error {
-	return nil
+func (devSchemeOnboardingWriter) PutOnboardingProfile(context.Context, PDSClient, OnboardingProfileWrite) (syntax.CID, error) {
+	return "dev-scheme-profile-cid", nil
 }
 
 func TestDevelopmentSchemeCallbacksUseOnlyFixedCodeAndDeletionProofURLs(t *testing.T) {

@@ -20,9 +20,9 @@ func (writer *recordingOnboardingProfileWriter) PutOnboardingProfile(
 	_ context.Context,
 	_ auth.PDSClient,
 	request auth.OnboardingProfileWrite,
-) error {
+) (syntax.CID, error) {
 	writer.requests = append(writer.requests, request)
-	return writer.err
+	return "onboarding-profile-cid", writer.err
 }
 
 func TestInitializeProfileUsesDurableOnboardingWriterWithStableGenerationIdentity(t *testing.T) {
@@ -42,7 +42,7 @@ func TestInitializeProfileUsesDurableOnboardingWriterWithStableGenerationIdentit
 			State: "oauth-parent", AttemptID: attemptID, Owner: owner,
 			OwnerGeneration: 7, AuthEpoch: 3, Purpose: auth.LoginOAuthPurpose,
 		}
-		if err := auth.InitializeProfile(context.Background(), pds, attempt, writer); err != nil {
+		if err := initializeProfileForTest(context.Background(), pds, attempt, writer); err != nil {
 			t.Fatalf("InitializeProfile: %v", err)
 		}
 	}
@@ -77,7 +77,7 @@ func TestInitializeProfileFailsClosedWithoutDurableWriter(t *testing.T) {
 		State: "oauth-parent", AttemptID: uuid.New(), Owner: syntax.DID("did:plc:onboarding-no-writer"),
 		OwnerGeneration: 1, AuthEpoch: 1, Purpose: auth.LoginOAuthPurpose,
 	}
-	err := auth.InitializeProfile(context.Background(), pds, attempt, nil)
+	err := initializeProfileForTest(context.Background(), pds, attempt, nil)
 	if !errors.Is(err, auth.ErrProfileInitFailed) {
 		t.Fatalf("error = %v, want ErrProfileInitFailed", err)
 	}

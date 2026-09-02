@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/models/session_registry.dart';
+import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
@@ -23,7 +24,6 @@ import 'package:craftsky_app/notifications/services/notification_routing_storage
 import 'package:craftsky_app/notifications/services/notification_runtime.dart';
 import 'package:craftsky_app/notifications/services/notification_service.dart';
 import 'package:craftsky_app/notifications/widgets/notification_effect_host.dart';
-import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -179,8 +179,8 @@ void main() {
     final container = ProviderContainer.test(
       overrides: [
         authSessionProvider.overrideWith(SignedInAuthSession.new),
-        onboardingStatusProvider.overrideWith2(
-          (_) => CompletedOnboardingStatus(),
+        activeAccountInitializationProvider.overrideWith(
+          (_) => completedActiveAccountInitialization(),
         ),
         notificationServiceProvider.overrideWithValue(service),
         notificationNewnessRepositoryProvider.overrideWithValue(newness),

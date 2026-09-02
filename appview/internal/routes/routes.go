@@ -212,12 +212,14 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 		deletionOAuth:        deps.AccountDeletionOAuth,
 		deletionPendingLogin: deps.AccountDeletionPendingLogin,
 		oauthFlow:            deps.OAuthFlow, handoffs: deps.HandoffCoordinator,
-		sessionLifecycle:    deps.SessionLifecycle,
-		newPendingPDSClient: deps.NewPendingPDSClient,
-		onboardingProfile:   deps.OnboardingProfile,
-		loginCompleteURL:    deps.LoginCompleteURL,
-		deletionCompleteURL: deps.DeletionCompleteURL,
-		allowDevScheme:      deps.Config.EnableDevOAuthScheme,
+		sessionLifecycle:         deps.SessionLifecycle,
+		newPendingPDSClient:      deps.NewPendingPDSClient,
+		onboardingProfile:        deps.OnboardingProfile,
+		blueskyProfileProjector:  deps.BlueskyProfileProjector,
+		craftskyProfileProjector: deps.CraftskyProfileProjector,
+		loginCompleteURL:         deps.LoginCompleteURL,
+		deletionCompleteURL:      deps.DeletionCompleteURL,
+		allowDevScheme:           deps.Config.EnableDevOAuthScheme,
 	})
 	registerPublicOAuthRoutes(publicOAuthRouteBundle{
 		mux: mux, inFlight: inFlight, handlers: oauthHandlers,
@@ -265,6 +267,9 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 		account: deps.InstagramAccount, imports: deps.InstagramImports,
 		suggestions: deps.InstagramSuggestions, profileStore: deps.ProfileStore,
 		handleResolver: deps.HandleResolver, logger: deps.Logger,
+	})
+	registerOnboardingRoutes(onboardingRouteBundle{
+		mux: mux, middleware: v1mw, store: api.NewOnboardingStatusStore(deps.DB), logger: deps.Logger,
 	})
 	registerProfileRelationshipRoutes(profileRelationshipRouteBundle{
 		mux: mux, middleware: v1mw, profileStore: deps.ProfileStore,

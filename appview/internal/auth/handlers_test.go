@@ -755,7 +755,7 @@ func TestInitializeProfile_BlueskyErrorPropagates(t *testing.T) {
 	// verify the error-path wiring by invoking the function directly.
 	// The callback happy path is exercised by the existing tests that
 	// use handlersFixture's injected onboarding profile writer.
-	err := auth.InitializeProfile(
+	err := initializeProfileForTest(
 		context.Background(),
 		erroringGetPDSClient{},
 		loginAttempt(syntax.DID("did:plc:me")),

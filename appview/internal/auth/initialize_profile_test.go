@@ -2,10 +2,13 @@
 package auth_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
 	"log/slog"
+	"slices"
+	"strings"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -22,6 +25,64 @@ type fakeIdentityCacheUpdater struct {
 type fakeRepositoryTracker struct {
 	dids []syntax.DID
 	err  error
+}
+
+type recordingBlueskyProfileProjector struct {
+	did    syntax.DID
+	cid    syntax.CID
+	record map[string]any
+	order  *[]string
+	calls  int
+	err    error
+}
+
+type recordingCraftskyProfileProjector struct {
+	did    syntax.DID
+	cid    syntax.CID
+	record map[string]any
+	order  *[]string
+	err    error
+}
+
+func (p *recordingCraftskyProfileProjector) ProjectCraftskyProfile(
+	_ context.Context,
+	did syntax.DID,
+	cid syntax.CID,
+	record map[string]any,
+) error {
+	p.did = did
+	p.cid = cid
+	p.record = record
+	*p.order = append(*p.order, "craftsky-project")
+	return p.err
+}
+
+func (p *recordingBlueskyProfileProjector) ProjectBlueskyProfile(
+	_ context.Context,
+	did syntax.DID,
+	cid syntax.CID,
+	record map[string]any,
+) error {
+	p.calls++
+	p.did = did
+	p.cid = cid
+	p.record = record
+	*p.order = append(*p.order, "project")
+	return p.err
+}
+
+type orderedRepositoryTracker struct{ order *[]string }
+
+func (t orderedRepositoryTracker) AddRepo(context.Context, syntax.DID) error {
+	*t.order = append(*t.order, "track")
+	return nil
+}
+
+type orderedIdentityCacheUpdater struct{ order *[]string }
+
+func (u orderedIdentityCacheUpdater) UpsertCurrentHandle(context.Context, syntax.DID) error {
+	*u.order = append(*u.order, "cache")
+	return nil
 }
 
 func (f *fakeRepositoryTracker) AddRepo(_ context.Context, did syntax.DID) error {
@@ -54,8 +115,11 @@ func (testOnboardingProfileWriter) PutOnboardingProfile(
 	ctx context.Context,
 	client auth.PDSClient,
 	request auth.OnboardingProfileWrite,
-) error {
-	return client.PutRecord(ctx, request.Owner, cskyNSID, "self", request.Record)
+) (syntax.CID, error) {
+	if err := client.PutRecord(ctx, request.Owner, cskyNSID, "self", request.Record); err != nil {
+		return "", err
+	}
+	return "new-craftsky-cid", nil
 }
 
 func loginAttempt(owner syntax.DID) auth.CallbackAttempt {
@@ -63,6 +127,18 @@ func loginAttempt(owner syntax.DID) auth.CallbackAttempt {
 		State: "test-oauth-parent", AttemptID: uuid.New(), Owner: owner,
 		OwnerGeneration: 1, AuthEpoch: 1, Purpose: auth.LoginOAuthPurpose,
 	}
+}
+
+func initializeProfileForTest(
+	ctx context.Context,
+	client auth.PDSClient,
+	attempt auth.CallbackAttempt,
+	writer auth.OnboardingProfileWriter,
+) error {
+	return auth.InitializeProfileAndIdentityCache(
+		ctx, client, attempt, writer, nil, nil, nil,
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+	)
 }
 
 func (m *mockPDS) GetRecord(_ context.Context, _ syntax.DID, collection, rkey string, out any) (string, error) {
@@ -88,6 +164,74 @@ const (
 	cskyNSID = "social.craftsky.actor.profile"
 )
 
+func TestInitializeProfileAndIdentityCacheProjectsNewCraftskyProfileBeforeAuxiliaryEffects(t *testing.T) {
+	t.Parallel()
+	var order []string
+	m := &mockPDS{
+		getRecord: func(collection, _ string, _ any) (string, error) {
+			if collection == bskyNSID {
+				return "", auth.ErrRecordNotFound
+			}
+			return "", auth.ErrRecordNotFound
+		},
+		putRecord: func(string, string, any) error { return nil },
+	}
+	projector := &recordingCraftskyProfileProjector{order: &order}
+
+	err := auth.InitializeProfileAndIdentityCache(
+		context.Background(), m, loginAttempt("did:plc:new"),
+		testOnboardingProfileWriter{}, nil, projector,
+		orderedIdentityCacheUpdater{order: &order},
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		orderedRepositoryTracker{order: &order},
+	)
+	if err != nil {
+		t.Fatalf("InitializeProfileAndIdentityCache: %v", err)
+	}
+	if got, want := order, []string{"craftsky-project", "track", "cache"}; !slices.Equal(got, want) {
+		t.Fatalf("effect order = %v; want %v", got, want)
+	}
+	if projector.did != "did:plc:new" || projector.cid != "new-craftsky-cid" {
+		t.Fatalf("projected identity = (%q, %q)", projector.did, projector.cid)
+	}
+	if got := projector.record["$type"]; got != cskyNSID {
+		t.Fatalf("projected $type = %v; want %s", got, cskyNSID)
+	}
+}
+
+func TestInitializeProfileAndIdentityCacheFailsBeforeHandoffEffectsWhenCraftskyProjectionFails(t *testing.T) {
+	t.Parallel()
+	var order []string
+	m := &mockPDS{
+		getRecord: func(collection, _ string, out any) (string, error) {
+			if collection == bskyNSID {
+				return "", auth.ErrRecordNotFound
+			}
+			*(out.(*map[string]any)) = map[string]any{"crafts": []any{}}
+			return "existing-craftsky-cid", nil
+		},
+		putRecord: func(string, string, any) error { return nil },
+	}
+	projector := &recordingCraftskyProfileProjector{
+		order: &order,
+		err:   errors.New("projection unavailable"),
+	}
+
+	err := auth.InitializeProfileAndIdentityCache(
+		context.Background(), m, loginAttempt("did:plc:projection-failure"),
+		testOnboardingProfileWriter{}, nil, projector,
+		orderedIdentityCacheUpdater{order: &order},
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		orderedRepositoryTracker{order: &order},
+	)
+	if !errors.Is(err, auth.ErrProfileInitFailed) {
+		t.Fatalf("error = %v; want ErrProfileInitFailed", err)
+	}
+	if got, want := order, []string{"craftsky-project"}; !slices.Equal(got, want) {
+		t.Fatalf("effect order = %v; want %v", got, want)
+	}
+}
+
 func TestInitializeProfile_ReturningUserBothPresent(t *testing.T) {
 	t.Parallel()
 	m := &mockPDS{
@@ -111,7 +255,7 @@ func TestInitializeProfile_ReturningUserBothPresent(t *testing.T) {
 			return nil
 		},
 	}
-	if err := auth.InitializeProfile(context.Background(), m, loginAttempt(syntax.DID("did:plc:a")), testOnboardingProfileWriter{}); err != nil {
+	if err := initializeProfileForTest(context.Background(), m, loginAttempt(syntax.DID("did:plc:a")), testOnboardingProfileWriter{}); err != nil {
 		t.Fatalf("InitializeProfile: %v", err)
 	}
 	if len(m.getCalls) != 2 {
@@ -153,7 +297,7 @@ func TestInitializeProfile_NewUserWritesEmptyCraftsky(t *testing.T) {
 			return nil
 		},
 	}
-	if err := auth.InitializeProfile(context.Background(), m, loginAttempt(syntax.DID("did:plc:b")), testOnboardingProfileWriter{}); err != nil {
+	if err := initializeProfileForTest(context.Background(), m, loginAttempt(syntax.DID("did:plc:b")), testOnboardingProfileWriter{}); err != nil {
 		t.Fatalf("InitializeProfile: %v", err)
 	}
 	if len(m.putCalls) != 1 {
@@ -176,12 +320,132 @@ func TestInitializeProfileAndIdentityCacheUpsertsAfterSuccessfulInitialization(t
 	updater := &fakeIdentityCacheUpdater{}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	if err := auth.InitializeProfileAndIdentityCache(context.Background(), m, loginAttempt(syntax.DID("did:plc:new")), testOnboardingProfileWriter{}, updater, logger); err != nil {
+	if err := auth.InitializeProfileAndIdentityCache(context.Background(), m, loginAttempt(syntax.DID("did:plc:new")), testOnboardingProfileWriter{}, nil, nil, updater, logger); err != nil {
 		t.Fatalf("InitializeProfileAndIdentityCache: %v", err)
 	}
 	if len(updater.dids) != 1 || updater.dids[0].String() != "did:plc:new" {
 		t.Fatalf("upserted DIDs = %v, want did:plc:new", updater.dids)
 	}
+}
+
+func TestInitializeProfileAndIdentityCacheProjectsFetchedBlueskyProfileBeforeAuxiliaryEffects(t *testing.T) {
+	t.Parallel()
+	did := syntax.DID("did:plc:project-profile")
+	cid := syntax.CID("bafyreiprofile")
+	profile := map[string]any{"displayName": "Alice", "description": "Maker"}
+	m := &mockPDS{
+		getRecord: func(coll, _ string, out any) (string, error) {
+			switch coll {
+			case bskyNSID:
+				*(out.(*map[string]any)) = profile
+				return cid.String(), nil
+			case cskyNSID:
+				*(out.(*map[string]any)) = map[string]any{"crafts": []any{"sewing"}}
+				return "", nil
+			default:
+				t.Fatalf("unexpected collection %q", coll)
+				return "", nil
+			}
+		},
+		putRecord: func(string, string, any) error { return nil },
+	}
+	order := []string{}
+	projector := &recordingBlueskyProfileProjector{order: &order}
+
+	err := auth.InitializeProfileAndIdentityCache(
+		context.Background(), m, loginAttempt(did), testOnboardingProfileWriter{},
+		projector, nil, orderedIdentityCacheUpdater{order: &order},
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		orderedRepositoryTracker{order: &order},
+	)
+	if err != nil {
+		t.Fatalf("InitializeProfileAndIdentityCache: %v", err)
+	}
+	if projector.did != did || projector.cid != cid {
+		t.Fatalf("projected identity = (%q, %q), want (%q, %q)", projector.did, projector.cid, did, cid)
+	}
+	if projector.record["displayName"] != "Alice" || projector.record["description"] != "Maker" {
+		t.Fatalf("projected record = %#v", projector.record)
+	}
+	wantOrder := []string{"project", "track", "cache"}
+	if len(order) != len(wantOrder) {
+		t.Fatalf("effect order = %v, want %v", order, wantOrder)
+	}
+	for i := range wantOrder {
+		if order[i] != wantOrder[i] {
+			t.Fatalf("effect order = %v, want %v", order, wantOrder)
+		}
+	}
+}
+
+func TestInitializeProfileAndIdentityCacheProjectionIsOptionalAndBestEffort(t *testing.T) {
+	t.Run("missing Bluesky profile skips projection", func(t *testing.T) {
+		order := []string{}
+		projector := &recordingBlueskyProfileProjector{order: &order}
+		m := &mockPDS{
+			getRecord: func(coll, _ string, out any) (string, error) {
+				if coll == bskyNSID {
+					return "", auth.ErrRecordNotFound
+				}
+				*(out.(*map[string]any)) = map[string]any{"crafts": []any{"sewing"}}
+				return "", nil
+			},
+			putRecord: func(string, string, any) error { return nil },
+		}
+
+		err := auth.InitializeProfileAndIdentityCache(
+			context.Background(), m, loginAttempt(syntax.DID("did:plc:no-bsky-profile")),
+			testOnboardingProfileWriter{}, projector, nil, nil,
+			slog.New(slog.NewTextHandler(io.Discard, nil)),
+		)
+		if err != nil || projector.calls != 0 {
+			t.Fatalf("missing profile err=%v projector calls=%d", err, projector.calls)
+		}
+	})
+
+	t.Run("projection failure warns safely and continues", func(t *testing.T) {
+		const profileSecret = "profile-secret-sentinel"
+		const errorSecret = "projector-error-sentinel"
+		order := []string{}
+		projector := &recordingBlueskyProfileProjector{
+			order: &order,
+			err:   errors.New(errorSecret),
+		}
+		m := &mockPDS{
+			getRecord: func(coll, _ string, out any) (string, error) {
+				if coll == bskyNSID {
+					*(out.(*map[string]any)) = map[string]any{"description": profileSecret}
+					return "bafyreifailure", nil
+				}
+				*(out.(*map[string]any)) = map[string]any{"crafts": []any{"sewing"}}
+				return "", nil
+			},
+			putRecord: func(string, string, any) error { return nil },
+		}
+		var logs bytes.Buffer
+		logger := slog.New(slog.NewJSONHandler(&logs, nil))
+
+		err := auth.InitializeProfileAndIdentityCache(
+			context.Background(), m, loginAttempt(syntax.DID("did:plc:projection-failure")),
+			testOnboardingProfileWriter{}, projector, nil,
+			orderedIdentityCacheUpdater{order: &order}, logger,
+			orderedRepositoryTracker{order: &order},
+		)
+		if err != nil {
+			t.Fatalf("projection failure should not fail initialization: %v", err)
+		}
+		if got := strings.Join(order, ","); got != "project,track,cache" {
+			t.Fatalf("effect order = %q, want project,track,cache", got)
+		}
+		logged := logs.String()
+		if !strings.Contains(logged, "profile_init.bluesky_projection") {
+			t.Fatalf("projection warning missing operation: %s", logged)
+		}
+		if strings.Contains(logged, profileSecret) || strings.Contains(logged, errorSecret) ||
+			strings.Contains(logged, "did:plc:projection-failure") || strings.Contains(logged, "bafyreifailure") {
+			t.Fatalf("projection warning leaked sensitive details: %s", logged)
+		}
+	})
 }
 
 func TestInitializeProfileAndIdentityCacheLogsAndContinuesWhenUpsertFails(t *testing.T) {
@@ -199,7 +463,7 @@ func TestInitializeProfileAndIdentityCacheLogsAndContinuesWhenUpsertFails(t *tes
 	updater := &fakeIdentityCacheUpdater{err: errors.New("identity unavailable")}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
-	if err := auth.InitializeProfileAndIdentityCache(context.Background(), m, loginAttempt(syntax.DID("did:plc:new")), testOnboardingProfileWriter{}, updater, logger); err != nil {
+	if err := auth.InitializeProfileAndIdentityCache(context.Background(), m, loginAttempt(syntax.DID("did:plc:new")), testOnboardingProfileWriter{}, nil, nil, updater, logger); err != nil {
 		t.Fatalf("InitializeProfileAndIdentityCache should continue on updater failure: %v", err)
 	}
 	if len(updater.dids) != 1 {
@@ -225,7 +489,7 @@ func TestInitializeProfileAndIdentityCacheRequestsRepositoryTrackingOnEverySucce
 	did := syntax.DID("did:plc:returning")
 
 	for i := 0; i < 2; i++ {
-		if err := auth.InitializeProfileAndIdentityCache(context.Background(), m, loginAttempt(did), testOnboardingProfileWriter{}, nil, logger, tracker); err != nil {
+		if err := auth.InitializeProfileAndIdentityCache(context.Background(), m, loginAttempt(did), testOnboardingProfileWriter{}, nil, nil, nil, logger, tracker); err != nil {
 			t.Fatalf("InitializeProfileAndIdentityCache retry %d: %v", i, err)
 		}
 	}
@@ -248,7 +512,7 @@ func TestOrdinaryOnboardingPreservesProfileAndAuxiliaryEffectSeverity(t *testing
 			cache := &fakeIdentityCacheUpdater{}
 			tracker := &fakeRepositoryTracker{}
 			err := auth.InitializeProfileAndIdentityCache(
-				context.Background(), pds, attempt, testOnboardingProfileWriter{}, cache,
+				context.Background(), pds, attempt, testOnboardingProfileWriter{}, nil, nil, cache,
 				slog.New(slog.NewTextHandler(io.Discard, nil)), tracker,
 			)
 			if !errors.Is(err, auth.ErrProfileInitFailed) || len(cache.dids) != 0 || len(tracker.dids) != 0 {
@@ -271,7 +535,7 @@ func TestOrdinaryOnboardingPreservesProfileAndAuxiliaryEffectSeverity(t *testing
 			cache := &fakeIdentityCacheUpdater{err: errors.New("cache unavailable")}
 			tracker := &fakeRepositoryTracker{err: errors.New("tracker unavailable")}
 			err := auth.InitializeProfileAndIdentityCache(
-				context.Background(), pds, attempt, testOnboardingProfileWriter{}, cache,
+				context.Background(), pds, attempt, testOnboardingProfileWriter{}, nil, nil, cache,
 				slog.New(slog.NewTextHandler(io.Discard, nil)), tracker,
 			)
 			if err != nil || len(cache.dids) != 1 || len(tracker.dids) != 1 {
@@ -294,7 +558,7 @@ func TestInitializeProfile_NoBlueskyProfileIsOK(t *testing.T) {
 			return nil
 		},
 	}
-	if err := auth.InitializeProfile(context.Background(), m, loginAttempt(syntax.DID("did:plc:c")), testOnboardingProfileWriter{}); err != nil {
+	if err := initializeProfileForTest(context.Background(), m, loginAttempt(syntax.DID("did:plc:c")), testOnboardingProfileWriter{}); err != nil {
 		t.Fatalf("InitializeProfile: %v", err)
 	}
 }
@@ -311,7 +575,7 @@ func TestInitializeProfile_BlueskyReadErrorFails(t *testing.T) {
 		},
 		putRecord: func(_, _ string, _ any) error { return nil },
 	}
-	err := auth.InitializeProfile(context.Background(), m, loginAttempt(syntax.DID("did:plc:d")), testOnboardingProfileWriter{})
+	err := initializeProfileForTest(context.Background(), m, loginAttempt(syntax.DID("did:plc:d")), testOnboardingProfileWriter{})
 	if err == nil {
 		t.Fatal("want error; got nil")
 	}
@@ -332,7 +596,7 @@ func TestInitializeProfile_CraftskyReadErrorFails(t *testing.T) {
 		},
 		putRecord: func(_, _ string, _ any) error { return nil },
 	}
-	err := auth.InitializeProfile(context.Background(), m, loginAttempt(syntax.DID("did:plc:e")), testOnboardingProfileWriter{})
+	err := initializeProfileForTest(context.Background(), m, loginAttempt(syntax.DID("did:plc:e")), testOnboardingProfileWriter{})
 	if !errors.Is(err, auth.ErrProfileInitFailed) {
 		t.Errorf("want ErrProfileInitFailed; got %v", err)
 	}
@@ -355,7 +619,7 @@ func TestInitializeProfile_MalformedCraftskyRecord(t *testing.T) {
 		},
 		putRecord: func(_, _ string, _ any) error { return nil },
 	}
-	err := auth.InitializeProfile(context.Background(), m, loginAttempt(syntax.DID("did:plc:f")), testOnboardingProfileWriter{})
+	err := initializeProfileForTest(context.Background(), m, loginAttempt(syntax.DID("did:plc:f")), testOnboardingProfileWriter{})
 	if !errors.Is(err, auth.ErrProfileDataInvalid) {
 		t.Errorf("want ErrProfileDataInvalid; got %v", err)
 	}
@@ -373,7 +637,7 @@ func TestInitializeProfile_PutRecordFailure(t *testing.T) {
 		},
 		putRecord: func(_, _ string, _ any) error { return errors.New("pds down") },
 	}
-	err := auth.InitializeProfile(context.Background(), m, loginAttempt(syntax.DID("did:plc:g")), testOnboardingProfileWriter{})
+	err := initializeProfileForTest(context.Background(), m, loginAttempt(syntax.DID("did:plc:g")), testOnboardingProfileWriter{})
 	if !errors.Is(err, auth.ErrProfileInitFailed) {
 		t.Errorf("want ErrProfileInitFailed; got %v", err)
 	}

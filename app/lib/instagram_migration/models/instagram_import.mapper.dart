@@ -53,7 +53,6 @@ class InstagramImportSourceTypeMapper
     }
   }
 }
-
 extension InstagramImportSourceTypeMapperExtension
     on InstagramImportSourceType {
   String toValue() {

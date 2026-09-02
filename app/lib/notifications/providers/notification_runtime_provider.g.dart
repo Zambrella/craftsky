@@ -155,4 +155,4 @@ final class NotificationRuntimeProvider
 }
 
 String _$notificationRuntimeHash() =>
-    r'84fff713f5eba297c34e36fb1132345ba3113de5';
+    r'65d3c58928026ec76913df8e7172448da10045c0';

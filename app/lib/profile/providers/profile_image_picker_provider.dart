@@ -1,12 +1,17 @@
 import 'dart:typed_data';
 
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/feed/media/composer_image_media_service.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
+import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
 import 'package:craftsky_app/shared/media/blob_api_client.dart';
 import 'package:craftsky_app/shared/media/blob_api_client_provider.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'profile_image_picker_provider.g.dart';
 
 final profileImagePickerProvider = Provider<ProfileImagePicker>((ref) {
   return ProfileImagePicker(
@@ -15,6 +20,18 @@ final profileImagePickerProvider = Provider<ProfileImagePicker>((ref) {
     blobApi: ref.watch(blobApiClientProvider),
   );
 });
+
+@riverpod
+Future<ProfileImagePicker> accountProfileImagePicker(
+  Ref ref,
+  ActiveAccountLease lease,
+) async => ProfileImagePicker(
+  picker: ref.watch(imagePickerProvider),
+  media: ref.watch(composerImageMediaServiceProvider),
+  blobApi: BlobApiClient(
+    await ref.watch(accountDioProvider(lease.session.account).future),
+  ),
+);
 
 class ProfileImagePicker {
   const ProfileImagePicker({
