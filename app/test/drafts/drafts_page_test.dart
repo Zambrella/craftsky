@@ -153,6 +153,7 @@ void main() {
                   primaryLanguage: 'en',
                   contentLanguages: ['en'],
                 ),
+                onboardingComplete: true,
               ),
             ),
             activeLanguagePreferencesProvider.overrideWith(
@@ -219,6 +220,7 @@ void main() {
                 primaryLanguage: 'en',
                 contentLanguages: ['en'],
               ),
+              onboardingComplete: true,
             ),
           ),
           activeLanguagePreferencesProvider.overrideWith(

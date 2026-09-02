@@ -58,6 +58,8 @@ func RouteDependencies(deps *Deps) *routes.Dependencies {
 		OwnerLifecycles:             deps.OwnerLifecycles,
 		NewPendingPDSClient:         deps.NewPendingPDSClient,
 		OnboardingProfile:           deps.OnboardingProfile,
+		BlueskyProfileProjector:     deps.BlueskyProfileProjector,
+		CraftskyProfileProjector:    deps.CraftskyProfileProjector,
 		LoginCompleteURL:            deps.LoginCompleteURL,
 		DeletionCompleteURL:         deps.DeletionCompleteURL,
 		IdentityCacheUpdater:        deps.IdentityCacheUpdater,

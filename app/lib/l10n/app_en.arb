@@ -176,6 +176,8 @@
 
   "welcomeRegisterAction": "Register",
   "@welcomeRegisterAction": { "description": "Primary registration action on the welcome page." },
+  "welcomeRedirectingAction": "Redirecting...",
+  "@welcomeRedirectingAction": { "description": "Disabled welcome-page action label while the browser redirect is being prepared." },
 
   "welcomeRegistrationHandoff": "You'll create your account with Bluesky, then return to CraftSky.",
   "@welcomeRegistrationHandoff": { "description": "Short note beneath Register explaining the external Bluesky account-creation handoff." },
@@ -2272,5 +2274,27 @@
   "youtubePlaybackUnavailable": "This video can’t be played here. It may be private, unavailable, or restricted from embedded playback.",
   "@youtubePlaybackUnavailable": {
     "description": "Stable fallback shown when the YouTube iframe reports a playback error."
-  }
+  },
+  "onboardingTitle": "Set up your CraftSky profile",
+  "onboardingSkip": "Skip",
+  "onboardingNext": "Next",
+  "onboardingSaveNext": "Save & next",
+  "onboardingFinish": "Finish",
+  "onboardingStepProgress": "Step {current} of {total}",
+  "@onboardingStepProgress": {"placeholders": {"current": {"type": "int"}, "total": {"type": "int"}}},
+  "onboardingProfileTitle": "Make it yours",
+  "onboardingProfileDescription": "Add a name, bio, and photo so other crafters can recognize you.",
+  "onboardingAvatarUploading": "Uploading photo...",
+  "onboardingAvatarUploadFailed": "Photo upload failed. Try again.",
+  "onboardingHandleLabel": "Signed in as @{handle}",
+  "@onboardingHandleLabel": {"placeholders": {"handle": {"type": "String"}}},
+  "onboardingCraftsTitle": "What do you make?",
+  "onboardingCraftsDescription": "Choose as many crafts as you like. You can change these later.",
+  "onboardingInstagramTitle": "Find your crafting community",
+  "onboardingInstagramDescription": "Connecting Instagram is optional. CraftSky uses your choices only to help match accounts and import who you follow.",
+  "onboardingSaveError": "We couldn't save your profile. Your changes are still here; try again.",
+  "onboardingLoadError": "We couldn't load your profile.",
+  "onboardingRetry": "Try again",
+  "onboardingProgressSemantics": "Onboarding step {current} of {total}",
+  "@onboardingProgressSemantics": {"placeholders": {"current": {"type": "int"}, "total": {"type": "int"}}}
 }

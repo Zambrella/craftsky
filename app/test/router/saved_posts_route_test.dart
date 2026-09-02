@@ -1,11 +1,13 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart';
+import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/drafts/pages/drafts_page.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
-import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
@@ -31,6 +33,18 @@ import '../fakes/auth_session_fakes.dart';
 import '../fakes/recording_messenger.dart';
 import '../feed/fakes/fake_post_repository.dart';
 import '../profile/fakes/fake_profile_repository.dart';
+
+final class _RegistryStorage implements SessionRegistryStorage {
+  _RegistryStorage(this.value);
+
+  SessionRegistry value;
+
+  @override
+  Future<SessionRegistry> read() async => value;
+
+  @override
+  Future<void> write(SessionRegistry registry) async => value = registry;
+}
 
 void main() {
   test('UT-011 uses canonical static and redacted saved routes', () {
@@ -361,11 +375,19 @@ void main() {
 
 ProviderContainer _productionContainer({SavedPostRepository? savedRepository}) {
   final account = AccountKey('did:plc:test');
+  final registry = SessionRegistry.empty().upsertAndActivate(
+    token: 'token',
+    did: account.did.value,
+    handle: 'test.bsky.social',
+  );
   return ProviderContainer(
     overrides: [
       authSessionProvider.overrideWith(SignedInAuthSession.new),
-      onboardingStatusProvider.overrideWith2(
-        (_) => CompletedOnboardingStatus(),
+      secureSessionRegistryStorageProvider.overrideWithValue(
+        _RegistryStorage(registry),
+      ),
+      activeAccountInitializationProvider.overrideWith(
+        (_) => completedActiveAccountInitialization(),
       ),
       profileRepositoryProvider.overrideWithValue(
         FakeProfileRepository(

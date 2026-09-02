@@ -19,6 +19,7 @@ class CraftskyTextInput extends StatelessWidget {
     this.textInputAction,
     this.inputFormatters,
     this.autofillHints,
+    this.maxLength,
     this.minLines,
     this.maxLines = 1,
     this.onChanged,
@@ -41,6 +42,7 @@ class CraftskyTextInput extends StatelessWidget {
   final TextInputAction? textInputAction;
   final List<TextInputFormatter>? inputFormatters;
   final Iterable<String>? autofillHints;
+  final int? maxLength;
   final int? minLines;
   final int? maxLines;
   final ValueChanged<String>? onChanged;
@@ -62,6 +64,7 @@ class CraftskyTextInput extends StatelessWidget {
       textInputAction: textInputAction,
       inputFormatters: inputFormatters,
       autofillHints: autofillHints,
+      maxLength: maxLength,
       minLines: minLines,
       maxLines: maxLines,
       onChanged: onChanged,
@@ -84,6 +87,7 @@ class CraftskyMultilineTextInput extends CraftskyTextInput {
     super.enabled,
     super.inputFormatters,
     super.autofillHints,
+    super.maxLength,
     super.minLines = 3,
     super.maxLines = 6,
     super.textInputAction = TextInputAction.newline,

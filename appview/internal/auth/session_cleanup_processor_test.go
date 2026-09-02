@@ -114,7 +114,7 @@ func (revoker *blockingCredentialRevoker) RevokeSession(context.Context, oauth.C
 // ownerless registration credentials and converges them across restarts.
 func TestProviderRegistrationCredentialCleanupConverges(t *testing.T) {
 	pool := withAuthSchema(t)
-	now := time.Date(2026, 8, 30, 12, 0, 0, 0, time.UTC)
+	now := time.Now().UTC().Truncate(time.Second)
 	clock := &testCleanupClock{at: now}
 	store := auth.NewPostgresAuthStore(pool, testStoreConfig())
 	registrationContext := auth.WithRegistrationAuthRequest(

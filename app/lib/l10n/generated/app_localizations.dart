@@ -436,6 +436,12 @@ abstract class AppLocalizations {
   /// **'Register'**
   String get welcomeRegisterAction;
 
+  /// Disabled welcome-page action label while the browser redirect is being prepared.
+  ///
+  /// In en, this message translates to:
+  /// **'Redirecting...'**
+  String get welcomeRedirectingAction;
+
   /// Short note beneath Register explaining the external Bluesky account-creation handoff.
   ///
   /// In en, this message translates to:
@@ -4712,6 +4718,120 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This video can’t be played here. It may be private, unavailable, or restricted from embedded playback.'**
   String get youtubePlaybackUnavailable;
+
+  /// No description provided for @onboardingTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Set up your CraftSky profile'**
+  String get onboardingTitle;
+
+  /// No description provided for @onboardingSkip.
+  ///
+  /// In en, this message translates to:
+  /// **'Skip'**
+  String get onboardingSkip;
+
+  /// No description provided for @onboardingNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Next'**
+  String get onboardingNext;
+
+  /// No description provided for @onboardingSaveNext.
+  ///
+  /// In en, this message translates to:
+  /// **'Save & next'**
+  String get onboardingSaveNext;
+
+  /// No description provided for @onboardingFinish.
+  ///
+  /// In en, this message translates to:
+  /// **'Finish'**
+  String get onboardingFinish;
+
+  /// No description provided for @onboardingStepProgress.
+  ///
+  /// In en, this message translates to:
+  /// **'Step {current} of {total}'**
+  String onboardingStepProgress(int current, int total);
+
+  /// No description provided for @onboardingProfileTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Make it yours'**
+  String get onboardingProfileTitle;
+
+  /// No description provided for @onboardingProfileDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Add a name, bio, and photo so other crafters can recognize you.'**
+  String get onboardingProfileDescription;
+
+  /// No description provided for @onboardingAvatarUploading.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading photo...'**
+  String get onboardingAvatarUploading;
+
+  /// No description provided for @onboardingAvatarUploadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Photo upload failed. Try again.'**
+  String get onboardingAvatarUploadFailed;
+
+  /// No description provided for @onboardingHandleLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Signed in as @{handle}'**
+  String onboardingHandleLabel(String handle);
+
+  /// No description provided for @onboardingCraftsTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'What do you make?'**
+  String get onboardingCraftsTitle;
+
+  /// No description provided for @onboardingCraftsDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose as many crafts as you like. You can change these later.'**
+  String get onboardingCraftsDescription;
+
+  /// No description provided for @onboardingInstagramTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Find your crafting community'**
+  String get onboardingInstagramTitle;
+
+  /// No description provided for @onboardingInstagramDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting Instagram is optional. CraftSky uses your choices only to help match accounts and import who you follow.'**
+  String get onboardingInstagramDescription;
+
+  /// No description provided for @onboardingSaveError.
+  ///
+  /// In en, this message translates to:
+  /// **'We couldn\'t save your profile. Your changes are still here; try again.'**
+  String get onboardingSaveError;
+
+  /// No description provided for @onboardingLoadError.
+  ///
+  /// In en, this message translates to:
+  /// **'We couldn\'t load your profile.'**
+  String get onboardingLoadError;
+
+  /// No description provided for @onboardingRetry.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get onboardingRetry;
+
+  /// No description provided for @onboardingProgressSemantics.
+  ///
+  /// In en, this message translates to:
+  /// **'Onboarding step {current} of {total}'**
+  String onboardingProgressSemantics(int current, int total);
 }
 
 class _AppLocalizationsDelegate

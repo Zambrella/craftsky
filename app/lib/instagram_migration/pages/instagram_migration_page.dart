@@ -120,7 +120,14 @@ class _InstagramMigrationBody extends ConsumerWidget {
                               SizedBox(height: spacing.sp4),
                               _ImportsCard(lease: lease),
                               SizedBox(height: spacing.sp4),
-                              _SuggestionsCard(lease: lease),
+                              _SuggestionsCard(
+                                lease: lease,
+                                onSuggestionTap: (suggestion) => unawaited(
+                                  UserProfileRoute(
+                                    handle: suggestion.target.handle,
+                                  ).push<void>(context),
+                                ),
+                              ),
                               SizedBox(height: spacing.sp6),
                               _RevokeInstagramVerificationButton(
                                 lease: lease,
@@ -134,6 +141,42 @@ class _InstagramMigrationBody extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Shared subset used by onboarding. Settings-only history and revocation are
+/// deliberately not part of this widget.
+class InstagramOnboardingSections extends ConsumerWidget {
+  const InstagramOnboardingSections({required this.lease, super.key});
+
+  final ActiveAccountLease lease;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final account = ref.watch(instagramAccountProvider(lease));
+    final spacing = Theme.of(context).extension<SpacingTheme>()!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        account.when(
+          loading: () => const _LoadingCard(),
+          error: (_, _) => _ErrorCard(
+            onRetry: () =>
+                ref.read(instagramAccountProvider(lease).notifier).refresh(),
+          ),
+          data: (value) => _AccountAndVerificationCard(
+            lease: lease,
+            status: value,
+          ),
+        ),
+        if (account.value?.account != null) ...[
+          SizedBox(height: spacing.sp4),
+          _ImportComposerCard(lease: lease),
+          SizedBox(height: spacing.sp4),
+          _SuggestionsCard(lease: lease),
+        ],
+      ],
     );
   }
 }
@@ -548,6 +591,9 @@ class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
 
   @override
   Widget build(BuildContext context) {
+    final importsProvider = instagramImportsProvider(widget.lease);
+    final imports = ref.watch(importsProvider);
+    final ready = imports.hasValue;
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final l10n = AppLocalizations.of(context);
@@ -578,11 +624,13 @@ class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
               ),
             ],
             selected: {_kind},
-            onSelectionChanged: (value) => setState(() {
-              _kind = value.single;
-              _parseError = null;
-              _filePickerFailed = false;
-            }),
+            onSelectionChanged: ready && !_busy
+                ? (value) => setState(() {
+                    _kind = value.single;
+                    _parseError = null;
+                    _filePickerFailed = false;
+                  })
+                : null,
           ),
           SizedBox(height: spacing.sp2),
           Text(
@@ -600,19 +648,30 @@ class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
               controller: _manualController,
               label: l10n.instagramImportHandles,
               hintText: l10n.instagramImportHandlesHint,
-              enabled: !_busy,
+              enabled: ready && !_busy,
             ),
             SizedBox(height: spacing.sp2),
             FilledButton(
-              onPressed: _busy ? null : _importManual,
+              onPressed: ready && !_busy ? _importManual : null,
               child: Text(l10n.instagramImportManualAction),
             ),
           ] else
             FilledButton.icon(
-              onPressed: _busy ? null : _pickExport,
+              onPressed: ready && !_busy ? _pickExport : null,
               icon: const Icon(Icons.file_open_outlined),
               label: Text(l10n.instagramImportSelectJson),
             ),
+          if (imports.hasError) ...[
+            SizedBox(height: spacing.sp2),
+            Text(l10n.instagramImportsLoadError),
+            TextButton(
+              key: const Key('instagram-import-readiness-retry'),
+              onPressed: () => unawaited(
+                ref.read(importsProvider.notifier).refresh(),
+              ),
+              child: Text(l10n.instagramRetry),
+            ),
+          ],
           if (_parseError != null) ...[
             const SizedBox(height: 8),
             Text(_parseErrorMessage(l10n, _parseError!)),
@@ -845,9 +904,10 @@ class _ImportRow extends ConsumerWidget {
 }
 
 class _SuggestionsCard extends ConsumerWidget {
-  const _SuggestionsCard({required this.lease});
+  const _SuggestionsCard({required this.lease, this.onSuggestionTap});
 
   final ActiveAccountLease lease;
+  final ValueChanged<InstagramSuggestion>? onSuggestionTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -882,33 +942,31 @@ class _SuggestionsCard extends ConsumerWidget {
                   .read(instagramSuggestionsProvider(lease).notifier)
                   .refresh(),
             ),
-            data: (value) => value.items.isEmpty
-                ? Text(l10n.instagramSuggestionsEmpty)
-                : Column(
-                    children: [
-                      for (final suggestion in value.items)
-                        _SuggestionRow(
-                          lease: lease,
-                          suggestion: suggestion,
-                          busy: value.busyIds.contains(
-                            suggestion.suggestionId,
-                          ),
-                        ),
-                      if (value.cursor != null)
-                        TextButton(
-                          onPressed: () => ref
-                              .read(
-                                instagramSuggestionsProvider(lease).notifier,
-                              )
-                              .loadMore(),
-                          child: Text(l10n.instagramLoadMore),
-                        ),
-                      if (value.hasActionError) ...[
-                        SizedBox(height: spacing.sp2),
-                        Text(l10n.instagramSuggestionsActionError),
-                      ],
-                    ],
+            data: (value) => Column(
+              children: [
+                if (value.items.isEmpty)
+                  Text(l10n.instagramSuggestionsEmpty)
+                else
+                  for (final suggestion in value.items)
+                    _SuggestionRow(
+                      lease: lease,
+                      suggestion: suggestion,
+                      busy: value.busyIds.contains(suggestion.suggestionId),
+                      onTap: onSuggestionTap,
+                    ),
+                if (value.cursor != null)
+                  TextButton(
+                    onPressed: () => ref
+                        .read(instagramSuggestionsProvider(lease).notifier)
+                        .loadMore(),
+                    child: Text(l10n.instagramLoadMore),
                   ),
+                if (value.hasActionError) ...[
+                  SizedBox(height: spacing.sp2),
+                  Text(l10n.instagramSuggestionsActionError),
+                ],
+              ],
+            ),
           ),
         ],
       ),
@@ -921,11 +979,13 @@ class _SuggestionRow extends ConsumerWidget {
     required this.lease,
     required this.suggestion,
     required this.busy,
+    this.onTap,
   });
 
   final ActiveAccountLease lease;
   final InstagramSuggestion suggestion;
   final bool busy;
+  final ValueChanged<InstagramSuggestion>? onTap;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -941,15 +1001,11 @@ class _SuggestionRow extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           InkWell(
-            onTap: busy
+            onTap: busy || onTap == null
                 ? null
                 : () {
                     if (!_current(ref, lease)) return;
-                    unawaited(
-                      UserProfileRoute(
-                        handle: target.handle,
-                      ).push<void>(context),
-                    );
+                    onTap!(suggestion);
                   },
             child: Row(
               children: [

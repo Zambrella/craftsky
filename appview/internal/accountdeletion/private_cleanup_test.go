@@ -99,6 +99,7 @@ func TestDatabasePrivateCleanupDeletesOnlyOwnerPrivateState(t *testing.T) {
 		      ('bob-search',$2,'profile','Bob private search','{}','bob-search-hash');
 		INSERT INTO actor_mutes(owner_did,subject_did) VALUES($1,$2),($2,$1);
 		INSERT INTO account_language_preferences(account_did,primary_language) VALUES($1,'en'),($2,'en');
+		INSERT INTO account_onboarding_completions(account_did,completed_at) VALUES($1,$3),($2,$3);
 		INSERT INTO profile_customisations(owner_did,colour,profile_border,profile_background)
 		VALUES($1,'blue','none','plain'),($2,'red','none','plain');
 		INSERT INTO profile_pins(owner_did,slot,post_uri,state_token,created_at,updated_at)
@@ -159,6 +160,7 @@ func TestDatabasePrivateCleanupDeletesOnlyOwnerPrivateState(t *testing.T) {
 
 	for _, table := range []string{
 		"craftsky_recent_searches", "actor_mutes", "account_language_preferences",
+		"account_onboarding_completions",
 		"profile_customisations", "profile_pins", "saved_post_folders", "saved_posts",
 		"notification_preferences", "notification_seen_state", "push_account_subscriptions",
 	} {
@@ -567,7 +569,7 @@ func ownerColumnForPrivateCleanupTest(table string) string {
 	switch table {
 	case "craftsky_recent_searches":
 		return "viewer_did"
-	case "account_language_preferences", "notification_preferences", "notification_seen_state", "push_account_subscriptions":
+	case "account_language_preferences", "account_onboarding_completions", "notification_preferences", "notification_seen_state", "push_account_subscriptions":
 		return "account_did"
 	default:
 		return "owner_did"

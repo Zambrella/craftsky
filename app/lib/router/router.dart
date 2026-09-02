@@ -5,7 +5,9 @@ import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/pages/auth_complete_page.dart';
 import 'package:craftsky_app/auth/pages/sign_in_page.dart';
 import 'package:craftsky_app/auth/pages/welcome_page.dart';
+import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/design_playground/pages/design_playground_page.dart';
 import 'package:craftsky_app/drafts/pages/drafts_page.dart';
 import 'package:craftsky_app/feed/models/post.dart';
@@ -16,14 +18,12 @@ import 'package:craftsky_app/languages/pages/languages_page.dart';
 import 'package:craftsky_app/notifications/pages/notification_settings_page.dart';
 import 'package:craftsky_app/notifications/pages/notifications_page.dart';
 import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
-import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
 import 'package:craftsky_app/profile/widgets/profile_route_presentation.dart';
 import 'package:craftsky_app/projects/pages/projects_page.dart';
 import 'package:craftsky_app/router/app_shell.dart';
 import 'package:craftsky_app/router/error_screen.dart';
-import 'package:craftsky_app/router/onboarding_refresh_listener.dart';
 import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_folder.dart';
 import 'package:craftsky_app/saved_posts/pages/saved_post_folder_page.dart';
@@ -95,20 +95,13 @@ class _RouterRefresh extends ChangeNotifier {
 @riverpod
 GoRouter goRouter(Ref ref) {
   final refresh = _RouterRefresh();
-  final onboardingListener = OnboardingRefreshListener(
-    ref: ref,
-    onChange: refresh.fire,
-  );
+  void refreshRouter(Object? _, Object? _) => refresh.fire();
 
   ref
-    ..onDispose(() {
-      onboardingListener.close();
-      refresh.dispose();
-    })
-    ..listen(authSessionProvider, (_, next) {
-      refresh.fire();
-      onboardingListener.update(next.value);
-    });
+    ..onDispose(refresh.dispose)
+    ..listen(authSessionProvider, refreshRouter)
+    ..listen(sessionRegistryProvider, refreshRouter)
+    ..listen(activeAccountInitializationProvider, refreshRouter);
 
   return GoRouter(
     initialLocation: RouteLocations.welcome,
@@ -130,16 +123,26 @@ GoRouter goRouter(Ref ref) {
           return unauthenticatedRoutes.contains(loc)
               ? null
               : RouteLocations.welcome;
-        case SignedIn(:final did):
-          final onboarded = ref.read(onboardingStatusProvider(did));
+        case SignedIn():
           if (loc == RouteLocations.authComplete) return null;
           if (loc == RouteLocations.accountDeletionReauthComplete) {
             return null;
           }
-          if (!onboarded && loc != RouteLocations.onboarding) {
+          final initialization = ref
+              .read(activeAccountInitializationProvider)
+              .value;
+          final activeLease = ref
+              .read(sessionRegistryProvider)
+              .value
+              ?.activeLease;
+          if (initialization == null || initialization.lease != activeLease) {
+            return null;
+          }
+          if (!initialization.onboardingComplete &&
+              loc != RouteLocations.onboarding) {
             return RouteLocations.onboarding;
           }
-          if (onboarded &&
+          if (initialization.onboardingComplete &&
               (unauthenticatedRoutes.contains(loc) ||
                   loc == RouteLocations.onboarding)) {
             return RouteLocations.home;

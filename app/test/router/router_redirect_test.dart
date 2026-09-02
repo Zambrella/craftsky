@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/data/handoff_api_client.dart';
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/models/active_account_initialization.dart';
 import 'package:craftsky_app/auth/models/auth_error.dart';
 import 'package:craftsky_app/auth/models/pending_handoff.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
@@ -8,6 +11,7 @@ import 'package:craftsky_app/auth/pages/auth_complete_page.dart';
 import 'package:craftsky_app/auth/pages/sign_in_page.dart';
 import 'package:craftsky_app/auth/pages/welcome_page.dart';
 import 'package:craftsky_app/auth/providers/account_boundary_provider.dart';
+import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/handoff_api_client_provider.dart';
@@ -28,8 +32,9 @@ import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
+import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
 import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
-import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
+import 'package:craftsky_app/onboarding/providers/onboarding_flow_provider.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/router/route_locations.dart';
@@ -44,6 +49,35 @@ import 'package:flutter_test/flutter_test.dart';
 import '../fakes/auth_session_fakes.dart';
 import '../feed/fakes/fake_post_repository.dart';
 import '../profile/fakes/fake_profile_repository.dart';
+
+ActiveAccountInitialization _initialization(bool completed) =>
+    ActiveAccountInitialization(
+      lease: ActiveAccountLease(
+        session: AccountSessionLease(
+          account: AccountKey('did:plc:test'),
+          sessionGeneration: 1,
+        ),
+        activationGeneration: 1,
+      ),
+      languagePreferences: const LanguagePreferences(
+        primaryLanguage: 'en',
+        contentLanguages: ['en'],
+      ),
+      onboardingComplete: completed,
+    );
+
+SessionRegistry _activeTestRegistry() =>
+    SessionRegistry.empty().upsertAndActivate(
+      token: 'token',
+      did: 'did:plc:test',
+      handle: 'test.test',
+    );
+
+final class _LoadingOnboardingFlow extends OnboardingFlow {
+  @override
+  Future<OnboardingFlowState> build(ActiveAccountLease lease) =>
+      Completer<OnboardingFlowState>().future;
+}
 
 final class _RegistryStorage implements SessionRegistryStorage {
   _RegistryStorage(this.value);
@@ -146,7 +180,9 @@ Future<void> _pumpRouter(
   }
   // Drive the router to a specific initial location before pumping
   // the app, so deep-link-style tests can start on /auth/complete.
-  final router = container.read(goRouterProvider)..go(initialLocation);
+  final routerSubscription = container.listen(goRouterProvider, (_, _) {});
+  addTearDown(routerSubscription.close);
+  final router = routerSubscription.read()..go(initialLocation);
   await tester.pumpWidget(
     UncontrolledProviderScope(
       container: container,
@@ -303,8 +339,14 @@ void main() {
       final container = ProviderContainer.test(
         overrides: [
           authSessionProvider.overrideWith(SignedInAuthSession.new),
-          onboardingStatusProvider.overrideWith2(
-            (_) => PendingOnboardingStatus(),
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(_activeTestRegistry()),
+          ),
+          activeAccountInitializationProvider.overrideWith(
+            (ref) => _initialization(false),
+          ),
+          onboardingFlowProvider.overrideWith2(
+            (_) => _LoadingOnboardingFlow(),
           ),
         ],
       );
@@ -312,22 +354,79 @@ void main() {
         tester,
         container,
         initialLocation: RouteLocations.feed,
+        settle: false,
       );
       expect(find.byType(OnboardingPage), findsOneWidget);
+    });
+
+    testWidgets('AT-015 stale initialization cannot redirect active lease', (
+      tester,
+    ) async {
+      var registry = SessionRegistry.empty()
+          .upsertAndActivate(
+            token: 'token-a',
+            did: 'did:plc:alice',
+            handle: 'alice.test',
+          )
+          .upsertAndActivate(
+            token: 'token-b',
+            did: 'did:plc:bob',
+            handle: 'bob.test',
+          );
+      final aliceSession = registry.leaseFor(AccountKey('did:plc:alice'))!;
+      final bobSession = registry.leaseFor(AccountKey('did:plc:bob'))!;
+      registry = registry.activate(aliceSession);
+      final aliceLease = registry.activeLease!;
+      registry = registry.activate(bobSession);
+      final stale = ActiveAccountInitialization(
+        lease: aliceLease,
+        languagePreferences: const LanguagePreferences(
+          primaryLanguage: 'en',
+          contentLanguages: ['en'],
+        ),
+        onboardingComplete: false,
+      );
+      final container = ProviderContainer.test(
+        overrides: [
+          authSessionProvider.overrideWith(
+            () => SignedInAuthSession(did: 'did:plc:bob'),
+          ),
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(registry),
+          ),
+          activeAccountInitializationProvider.overrideWith((ref) => stale),
+          onboardingFlowProvider.overrideWith2(
+            (_) => _LoadingOnboardingFlow(),
+          ),
+        ],
+      );
+
+      await _pumpRouter(
+        tester,
+        container,
+        initialLocation: RouteLocations.addAccount,
+        settle: false,
+      );
+
+      expect(find.byType(SignInPage), findsOneWidget);
+      expect(find.byType(OnboardingPage), findsNothing);
     });
 
     testWidgets('SignedIn + onboarded + /welcome → FeedPage', (tester) async {
       final container = ProviderContainer.test(
         overrides: [
           authSessionProvider.overrideWith(SignedInAuthSession.new),
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(_activeTestRegistry()),
+          ),
           activeLanguagePreferencesProvider.overrideWith(
             (ref) => const LanguagePreferences(
               primaryLanguage: 'en',
               contentLanguages: ['en'],
             ),
           ),
-          onboardingStatusProvider.overrideWith2(
-            (_) => CompletedOnboardingStatus(),
+          activeAccountInitializationProvider.overrideWith(
+            (ref) => _initialization(true),
           ),
           postRepositoryProvider.overrideWithValue(
             FakePostRepository(
@@ -345,8 +444,8 @@ void main() {
       final container = ProviderContainer.test(
         overrides: [
           authSessionProvider.overrideWith(SignedInAuthSession.new),
-          onboardingStatusProvider.overrideWith2(
-            (_) => CompletedOnboardingStatus(),
+          activeAccountInitializationProvider.overrideWith(
+            (ref) => _initialization(true),
           ),
         ],
       );
@@ -373,8 +472,8 @@ void main() {
         final container = ProviderContainer.test(
           overrides: [
             authSessionProvider.overrideWith(SignedInAuthSession.new),
-            onboardingStatusProvider.overrideWith2(
-              (_) => CompletedOnboardingStatus(),
+            activeAccountInitializationProvider.overrideWith(
+              (ref) => _initialization(true),
             ),
             postRepositoryProvider.overrideWithValue(
               FakePostRepository(
@@ -415,8 +514,8 @@ void main() {
             accountNotificationNewnessRepositoryProvider.overrideWith(
               (ref, account) async => _ZeroCountRepository(),
             ),
-            onboardingStatusProvider.overrideWith2(
-              (_) => CompletedOnboardingStatus(),
+            activeAccountInitializationProvider.overrideWith(
+              (ref) => _initialization(true),
             ),
             postRepositoryProvider.overrideWithValue(
               FakePostRepository(
@@ -471,8 +570,8 @@ void main() {
       final container = ProviderContainer.test(
         overrides: [
           authSessionProvider.overrideWith(SignedInAuthSession.new),
-          onboardingStatusProvider.overrideWith2(
-            (_) => CompletedOnboardingStatus(),
+          activeAccountInitializationProvider.overrideWith(
+            (ref) => _initialization(true),
           ),
           postRepositoryProvider.overrideWithValue(repo),
         ],
@@ -497,8 +596,8 @@ void main() {
       final container = ProviderContainer.test(
         overrides: [
           authSessionProvider.overrideWith(SignedInAuthSession.new),
-          onboardingStatusProvider.overrideWith2(
-            (_) => CompletedOnboardingStatus(),
+          activeAccountInitializationProvider.overrideWith(
+            (ref) => _initialization(true),
           ),
           postRepositoryProvider.overrideWithValue(repo),
         ],
@@ -531,8 +630,8 @@ void main() {
       final container = ProviderContainer.test(
         overrides: [
           authSessionProvider.overrideWith(SignedInAuthSession.new),
-          onboardingStatusProvider.overrideWith2(
-            (_) => CompletedOnboardingStatus(),
+          activeAccountInitializationProvider.overrideWith(
+            (ref) => _initialization(true),
           ),
           postRepositoryProvider.overrideWithValue(repo),
         ],
@@ -570,8 +669,8 @@ void main() {
       final container = ProviderContainer.test(
         overrides: [
           authSessionProvider.overrideWith(SignedInAuthSession.new),
-          onboardingStatusProvider.overrideWith2(
-            (_) => CompletedOnboardingStatus(),
+          activeAccountInitializationProvider.overrideWith(
+            (ref) => _initialization(true),
           ),
           postRepositoryProvider.overrideWithValue(repo),
         ],
@@ -595,8 +694,8 @@ void main() {
       final container = ProviderContainer.test(
         overrides: [
           authSessionProvider.overrideWith(SignedInAuthSession.new),
-          onboardingStatusProvider.overrideWith2(
-            (_) => CompletedOnboardingStatus(),
+          activeAccountInitializationProvider.overrideWith(
+            (ref) => _initialization(true),
           ),
           profileRepositoryProvider.overrideWithValue(
             FakeProfileRepository(
@@ -637,8 +736,8 @@ void main() {
       final container = ProviderContainer.test(
         overrides: [
           authSessionProvider.overrideWith(SignedInAuthSession.new),
-          onboardingStatusProvider.overrideWith2(
-            (_) => CompletedOnboardingStatus(),
+          activeAccountInitializationProvider.overrideWith(
+            (ref) => _initialization(true),
           ),
           postRepositoryProvider.overrideWithValue(repo),
         ],
@@ -673,8 +772,8 @@ void main() {
         final container = ProviderContainer.test(
           overrides: [
             authSessionProvider.overrideWith(SignedInAuthSession.new),
-            onboardingStatusProvider.overrideWith2(
-              (_) => PendingOnboardingStatus(),
+            activeAccountInitializationProvider.overrideWith(
+              (ref) => _initialization(false),
             ),
           ],
         );

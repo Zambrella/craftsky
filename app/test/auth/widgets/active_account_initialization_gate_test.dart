@@ -10,6 +10,9 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/data/language_preferences_repository.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_repository_provider.dart';
+import 'package:craftsky_app/onboarding/data/onboarding_repository.dart';
+import 'package:craftsky_app/onboarding/models/onboarding_completion.dart';
+import 'package:craftsky_app/onboarding/providers/onboarding_repository_provider.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -80,11 +83,44 @@ final class _RecordingAuthController extends AuthController {
   }
 }
 
+final class _OnboardingRepository implements OnboardingRepository {
+  const _OnboardingRepository();
+  @override
+  Future<OnboardingCompletion> readStatus() async =>
+      const OnboardingCompletion(completed: false);
+  @override
+  Future<OnboardingCompletion> complete() async =>
+      const OnboardingCompletion(completed: true);
+}
+
+final class _RetryOnboardingRepository implements OnboardingRepository {
+  int readAttempts = 0;
+
+  @override
+  Future<OnboardingCompletion> readStatus() async {
+    readAttempts++;
+    if (readAttempts == 1) throw StateError('status unavailable');
+    return const OnboardingCompletion(completed: false);
+  }
+
+  @override
+  Future<OnboardingCompletion> complete() async =>
+      const OnboardingCompletion(completed: true);
+}
+
+// Inferred as Riverpod's internal override type, which is not publicly
+// exported.
+// ignore: specify_nonobvious_property_types
+final _onboardingOverride = onboardingRepositoryProvider.overrideWith(
+  (ref, lease) async => const _OnboardingRepository(),
+);
+
 void main() {
   testWidgets('signed-out content remains available', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          _onboardingOverride,
           secureSessionRegistryStorageProvider.overrideWithValue(
             _RegistryStorage(SessionRegistry.empty()),
           ),
@@ -117,6 +153,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          _onboardingOverride,
           secureSessionRegistryStorageProvider.overrideWithValue(
             _RegistryStorage(registry),
           ),
@@ -172,6 +209,7 @@ void main() {
       ProviderScope(
         retry: (_, _) => null,
         overrides: [
+          _onboardingOverride,
           secureSessionRegistryStorageProvider.overrideWithValue(
             _RegistryStorage(registry),
           ),
@@ -259,6 +297,7 @@ void main() {
       ProviderScope(
         retry: (_, _) => null,
         overrides: [
+          _onboardingOverride,
           secureSessionRegistryStorageProvider.overrideWithValue(
             _RegistryStorage(registry),
           ),
@@ -288,6 +327,55 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(loadAttempts, 2);
+    expect(find.text('signed-in-content'), findsOneWidget);
+  });
+
+  testWidgets('AT-013 onboarding status failure Retry remounts content', (
+    tester,
+  ) async {
+    const readyPreferences = LanguagePreferences(
+      primaryLanguage: 'en',
+      contentLanguages: ['en'],
+    );
+    final registry = SessionRegistry.empty().upsertAndActivate(
+      token: 'token-a',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    final onboarding = _RetryOnboardingRepository();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        retry: (_, _) => null,
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(registry),
+          ),
+          languagePreferencesRepositoryProvider.overrideWith(
+            (ref, account) async => _PreferencesRepository(
+              Future.value(readyPreferences),
+            ),
+          ),
+          onboardingRepositoryProvider.overrideWith(
+            (ref, lease) async => onboarding,
+          ),
+        ],
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: ActiveAccountInitializationGate(
+            child: Text('signed-in-content'),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('We couldn’t load this account'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, 'Retry'));
+    await tester.pumpAndSettle();
+
+    expect(onboarding.readAttempts, 2);
     expect(find.text('signed-in-content'), findsOneWidget);
   });
 }

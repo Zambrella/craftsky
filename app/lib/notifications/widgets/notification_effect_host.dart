@@ -1,7 +1,6 @@
 import 'dart:async';
 
-import 'package:craftsky_app/auth/models/auth_state.dart';
-import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/notification_effect.dart';
@@ -9,7 +8,6 @@ import 'package:craftsky_app/notifications/providers/notification_new_count_prov
 import 'package:craftsky_app/notifications/providers/notification_permission_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_runtime_provider.dart';
 import 'package:craftsky_app/notifications/services/notification_navigation.dart';
-import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
@@ -62,9 +60,9 @@ class _NotificationEffectHostState extends ConsumerState<NotificationEffectHost>
 
   @override
   Widget build(BuildContext context) {
-    final auth = ref.watch(authSessionProvider).value;
-    final did = auth is SignedIn ? auth.did : null;
-    final onboarded = did != null && ref.watch(onboardingStatusProvider(did));
+    final initialization = ref.watch(activeAccountInitializationProvider).value;
+    final did = initialization?.lease.session.account.did;
+    final onboarded = initialization?.onboardingComplete ?? false;
     _did = did;
     _onboarded = onboarded;
     unawaited(

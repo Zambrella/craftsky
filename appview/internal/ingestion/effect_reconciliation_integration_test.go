@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -942,6 +943,112 @@ func TestOutcomeUnknownOnboardingProfileSourceRetainsAttemptProvenance(t *testin
 	}
 }
 
+func TestAuthoritativeReconciliationSelectsNewestProvenAcceptedIdenticalProfile(t *testing.T) {
+	pool := lifecycleIngestionPool(t)
+	now := time.Date(2026, 8, 20, 12, 30, 0, 0, time.UTC)
+	fencer, err := ownerlifecycle.NewFencer(pool, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lifecycles, err := ownerlifecycle.NewStore(pool, fencer, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	store, err := ingestion.NewStore(pool, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := newLifecycleIngestionService(t, store, lifecycles, nil, nil)
+	owner := syntax.DID("did:plc:identical-onboarding-effects")
+	firstDeparted, err := lifecycles.EnsureOnboardingOwner(context.Background(), owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	collection := syntax.NSID("social.craftsky.actor.profile")
+	rkey := syntax.RecordKey("self")
+	uri := syntax.ATURI("at://did:plc:identical-onboarding-effects/social.craftsky.actor.profile/self")
+	record := json.RawMessage(`{"$type":"social.craftsky.actor.profile","crafts":[]}`)
+	const cid = "bafy-identical-onboarding-profile"
+	firstOperation := "oauth-onboarding-profile:did:plc:identical-onboarding-effects:1"
+	seedAcceptedOnboardingPutAttempt(
+		t, lifecycles, now, firstDeparted, uri, collection, rkey, firstOperation, record, cid,
+	)
+	firstActive, err := lifecycles.Transition(context.Background(), ownerlifecycle.TransitionRequest{
+		Owner: owner, ExpectedGeneration: firstDeparted.Generation,
+		To: ownerlifecycle.StateActive, Reason: "testFirstProfileActivation",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondDeparted, err := lifecycles.Transition(context.Background(), ownerlifecycle.TransitionRequest{
+		Owner: owner, ExpectedGeneration: firstActive.Generation,
+		To: ownerlifecycle.StateDeparted, Reason: "testProfileDeparture",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondOperation := fmt.Sprintf(
+		"oauth-onboarding-profile:%s:%d", owner, secondDeparted.Generation,
+	)
+	seedAcceptedOnboardingPutAttempt(
+		t, lifecycles, now, secondDeparted, uri, collection, rkey, secondOperation, record, cid,
+	)
+
+	event := tap.Event{
+		ID: 64, URI: uri, DID: owner, Collection: collection, Rkey: rkey,
+		Rev: "3aaaaaaaaaaaf", CID: cid, Action: "create", Record: record,
+	}
+	outcome, err := service.IngestRecord(context.Background(), event)
+	if err != nil || outcome.Kind != tap.OutcomeBlocked || outcome.Reason != tap.ReasonSourceOrderUncertain {
+		t.Fatalf("ambiguous duplicate profile ingestion outcome=%+v err=%v", outcome, err)
+	}
+	active, err := lifecycles.Get(context.Background(), owner)
+	if err != nil || active.State != ownerlifecycle.StateActive || active.Generation != secondDeparted.Generation+1 {
+		t.Fatalf("reactivated lifecycle=%+v err=%v", active, err)
+	}
+	source, err := store.Source(context.Background(), uri)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if source.EffectOperationID != "" || source.OrderingStatus != "uncertain" ||
+		source.ProjectionDisposition != "pending" {
+		t.Fatalf("pre-read duplicate profile source=%+v", source)
+	}
+
+	outcome, err = service.ReconcileSource(context.Background(), ingestion.ReconciledSource{
+		URI: uri, DID: owner, ExpectedEventID: source.SourceEventID,
+		ExpectedFingerprint: source.SourceFingerprint, Revision: source.Revision,
+		CID: event.CID, Record: record, Present: true,
+	})
+	if err != nil || outcome.Kind != tap.OutcomeApplied {
+		t.Fatalf("authoritative duplicate profile reconciliation outcome=%+v err=%v", outcome, err)
+	}
+	source, err = store.Source(context.Background(), uri)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, err := store.ProjectionJob(context.Background(), uri)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newest, err := lifecycles.GetEffectAttempt(context.Background(), secondOperation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	older, err := lifecycles.GetEffectAttempt(context.Background(), firstOperation)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if source.EffectOperationID != secondOperation || source.OrderingStatus != "authoritative" ||
+		source.ProjectionDisposition != "eligible" || source.ProjectionGeneration == nil ||
+		*source.ProjectionGeneration != active.Generation || job.State != "pending" ||
+		newest.Outcome != ownerlifecycle.OutcomeAccepted ||
+		newest.ProjectionDisposition != ownerlifecycle.ProjectionEligibleCurrent ||
+		older.Outcome != ownerlifecycle.OutcomeAccepted {
+		t.Fatalf("converged source/job/newest/older=%+v/%+v/%+v/%+v", source, job, newest, older)
+	}
+}
+
 func TestLiveCIDMismatchCannotBorrowAcceptedPutWithoutAuthoritativeRead(t *testing.T) {
 	pool := lifecycleIngestionPool(t)
 	now := time.Date(2026, 8, 20, 13, 0, 0, 0, time.UTC)
@@ -1194,6 +1301,63 @@ func seedDispatchedPutAttempt(
 			return err
 		},
 	)
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func seedAcceptedOnboardingPutAttempt(
+	t *testing.T,
+	lifecycles *ownerlifecycle.Store,
+	now time.Time,
+	authority ownerlifecycle.Lifecycle,
+	uri syntax.ATURI,
+	collection syntax.NSID,
+	rkey syntax.RecordKey,
+	operationID string,
+	record json.RawMessage,
+	cid string,
+) {
+	t.Helper()
+	fingerprint, err := pdseffects.RecordContentFingerprint(
+		authority.Owner, collection, rkey, record,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = lifecycles.WithExistingAuth(context.Background(), authority.Owner, func(
+		authCtx context.Context,
+		current ownerlifecycle.Lifecycle,
+	) error {
+		if current.Generation != authority.Generation {
+			return fmt.Errorf("onboarding authority generation changed: got %d want %d", current.Generation, authority.Generation)
+		}
+		return lifecycles.WithOnboardingEffect(
+			authCtx, authority.Owner, authority.Generation, func(effectCtx context.Context) error {
+				attempt, err := lifecycles.CreateEffectAttempt(effectCtx, ownerlifecycle.NewEffectAttempt{
+					OperationID: operationID, MutationKey: operationID,
+					Owner: authority.Owner, OwnerGeneration: authority.Generation,
+					Kind: ownerlifecycle.EffectPDSRecord, Action: ownerlifecycle.EffectActionPutRecord,
+					DeterministicKey:   uri.String(),
+					RequestFingerprint: sha256.Sum256([]byte("request:" + operationID)),
+					RecordFingerprint:  fingerprint, RemoteDeadline: now.Add(time.Minute),
+				})
+				if err != nil {
+					return err
+				}
+				if _, err = lifecycles.MarkAttemptDispatched(
+					effectCtx, attempt.OperationID, authority.Owner, authority.Generation,
+				); err != nil {
+					return err
+				}
+				_, err = lifecycles.CompleteEffectAttempt(
+					effectCtx, attempt.OperationID, authority.Owner, authority.Generation,
+					ownerlifecycle.OutcomeAccepted, cid,
+				)
+				return err
+			},
+		)
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

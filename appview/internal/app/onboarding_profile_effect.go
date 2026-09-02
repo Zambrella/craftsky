@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
+
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/pdseffects"
 )
@@ -27,16 +29,16 @@ func (adapter onboardingProfileEffectAdapter) PutOnboardingProfile(
 	ctx context.Context,
 	client auth.PDSClient,
 	request auth.OnboardingProfileWrite,
-) error {
+) (syntax.CID, error) {
 	if adapter.executor == nil {
-		return errors.New("onboarding PDS effect executor is unavailable")
+		return "", errors.New("onboarding PDS effect executor is unavailable")
 	}
-	_, err := adapter.executor.PutProfile(ctx, client, pdseffects.OnboardingProfileRequest{
+	result, err := adapter.executor.PutProfile(ctx, client, pdseffects.OnboardingProfileRequest{
 		OperationID: request.OperationID, MutationKey: request.MutationKey,
 		Owner: request.Owner, OwnerGeneration: request.OwnerGeneration,
 		Record: request.Record,
 	})
-	return err
+	return result.CID, err
 }
 
 var _ auth.OnboardingProfileWriter = onboardingProfileEffectAdapter{}

@@ -215,3 +215,86 @@ final class AccountFollowerGrowthRepositoryFamily extends $Family
   @override
   String toString() => r'accountFollowerGrowthRepositoryProvider';
 }
+
+@ProviderFor(accountProfileRepository)
+final accountProfileRepositoryProvider = AccountProfileRepositoryFamily._();
+
+final class AccountProfileRepositoryProvider
+    extends
+        $FunctionalProvider<
+          AsyncValue<ProfileRepository>,
+          ProfileRepository,
+          FutureOr<ProfileRepository>
+        >
+    with
+        $FutureModifier<ProfileRepository>,
+        $FutureProvider<ProfileRepository> {
+  AccountProfileRepositoryProvider._({
+    required AccountProfileRepositoryFamily super.from,
+    required ActiveAccountLease super.argument,
+  }) : super(
+         retry: null,
+         name: r'accountProfileRepositoryProvider',
+         isAutoDispose: true,
+         dependencies: null,
+         $allTransitiveDependencies: null,
+       );
+
+  @override
+  String debugGetCreateSourceHash() => _$accountProfileRepositoryHash();
+
+  @override
+  String toString() {
+    return r'accountProfileRepositoryProvider'
+        ''
+        '($argument)';
+  }
+
+  @$internal
+  @override
+  $FutureProviderElement<ProfileRepository> $createElement(
+    $ProviderPointer pointer,
+  ) => $FutureProviderElement(pointer);
+
+  @override
+  FutureOr<ProfileRepository> create(Ref ref) {
+    final argument = this.argument as ActiveAccountLease;
+    return accountProfileRepository(ref, argument);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is AccountProfileRepositoryProvider &&
+        other.argument == argument;
+  }
+
+  @override
+  int get hashCode {
+    return argument.hashCode;
+  }
+}
+
+String _$accountProfileRepositoryHash() =>
+    r'ad0d45b414e8a8f23308a7e12a7b62380f200574';
+
+final class AccountProfileRepositoryFamily extends $Family
+    with
+        $FunctionalFamilyOverride<
+          FutureOr<ProfileRepository>,
+          ActiveAccountLease
+        > {
+  AccountProfileRepositoryFamily._()
+    : super(
+        retry: null,
+        name: r'accountProfileRepositoryProvider',
+        dependencies: null,
+        $allTransitiveDependencies: null,
+        isAutoDispose: true,
+      );
+
+  AccountProfileRepositoryProvider call(ActiveAccountLease lease) =>
+      AccountProfileRepositoryProvider._(argument: lease, from: this);
+
+  @override
+  String toString() => r'accountProfileRepositoryProvider';
+}

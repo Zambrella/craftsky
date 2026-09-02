@@ -1,4 +1,5 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/profile/data/api_profile_repository.dart';
 import 'package:craftsky_app/profile/data/profile_api_client.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
@@ -26,4 +27,14 @@ Future<ProfileRepository> accountFollowerGrowthRepository(
   AccountKey account,
 ) async => ApiProfileRepository(
   ProfileApiClient(await ref.watch(accountDioProvider(account).future)),
+);
+
+@riverpod
+Future<ProfileRepository> accountProfileRepository(
+  Ref ref,
+  ActiveAccountLease lease,
+) async => ApiProfileRepository(
+  ProfileApiClient(
+    await ref.watch(accountDioProvider(lease.session.account).future),
+  ),
 );

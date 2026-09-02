@@ -1,6 +1,7 @@
 import 'package:craftsky_app/auth/models/active_account_initialization.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/languages/providers/account_language_preferences_provider.dart';
+import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:logging/logging.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -30,8 +31,12 @@ FutureOr<ActiveAccountInitialization?> activeAccountInitialization(Ref ref) {
       )
       .requireValue
       .preferences;
+  final onboarding = ref
+      .watch(onboardingStatusProvider(lease.session))
+      .requireValue;
   return ActiveAccountInitialization(
     lease: lease,
     languagePreferences: preferences,
+    onboardingComplete: onboarding.completed,
   );
 }

@@ -13,7 +13,6 @@ import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/pages/languages_page.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_repository_provider.dart';
 import 'package:craftsky_app/notifications/pages/notification_settings_page.dart';
-import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
@@ -403,12 +402,10 @@ ProviderContainer _container() => ProviderContainer.test(
           activationGeneration: 1,
         ),
         languagePreferences: _LanguageRepository.value,
+        onboardingComplete: true,
       ),
     ),
     authSessionProvider.overrideWith(SignedInAuthSession.new),
-    onboardingStatusProvider.overrideWith2(
-      (_) => CompletedOnboardingStatus(),
-    ),
     profileRepositoryProvider.overrideWithValue(
       FakeProfileRepository(
         onFetch: (_) async => Profile(

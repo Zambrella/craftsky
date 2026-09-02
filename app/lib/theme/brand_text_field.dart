@@ -35,6 +35,7 @@ class BrandTextField extends StatefulWidget {
     this.prefixText,
     this.suffixIcon,
     this.suffixText,
+    this.maxLength,
     this.maxLines = 1,
     this.minLines,
     this.obscureText = false,
@@ -73,6 +74,7 @@ class BrandTextField extends StatefulWidget {
   final String? prefixText;
   final Widget? suffixIcon;
   final String? suffixText;
+  final int? maxLength;
   final int? maxLines;
   final int? minLines;
   final bool obscureText;
@@ -102,6 +104,7 @@ class _BrandTextFieldState extends State<BrandTextField> {
       (_internalController ??= _createInternalController());
 
   bool _focused = false;
+  late int _currentLength;
 
   TextEditingController _createInternalController() {
     return TextEditingController(text: widget.initialValue ?? '');
@@ -110,6 +113,7 @@ class _BrandTextFieldState extends State<BrandTextField> {
   @override
   void initState() {
     super.initState();
+    _currentLength = _controller?.text.characters.length ?? 0;
     _focused = _focusNode.hasFocus;
     _focusNode.addListener(_onFocusChange);
   }
@@ -135,6 +139,7 @@ class _BrandTextFieldState extends State<BrandTextField> {
         );
       }
     }
+    _currentLength = _controller?.text.characters.length ?? 0;
   }
 
   void _onFocusChange() {
@@ -142,6 +147,13 @@ class _BrandTextFieldState extends State<BrandTextField> {
     if (hasFocus != _focused) {
       setState(() => _focused = hasFocus);
     }
+  }
+
+  void _onChanged(String value) {
+    if (widget.maxLength != null) {
+      setState(() => _currentLength = value.characters.length);
+    }
+    widget.onChanged?.call(value);
   }
 
   @override
@@ -164,6 +176,9 @@ class _BrandTextFieldState extends State<BrandTextField> {
       focusNode: _focusNode,
       helperText: widget.helperText,
       errorText: widget.errorText,
+      counterText: widget.maxLength == null
+          ? null
+          : '$_currentLength/${widget.maxLength}',
       labelLeading: widget.labelLeading,
       labelTrailing: widget.labelTrailing,
       betweenLabelAndChild: widget.betweenLabelAndField,
@@ -189,9 +204,13 @@ class _BrandTextFieldState extends State<BrandTextField> {
         enableSuggestions: widget.enableSuggestions,
         keyboardType: widget.keyboardType,
         textInputAction: widget.textInputAction,
-        inputFormatters: widget.inputFormatters,
+        inputFormatters: [
+          ...?widget.inputFormatters,
+          if (widget.maxLength case final maxLength?)
+            LengthLimitingTextInputFormatter(maxLength),
+        ],
         autofillHints: widget.autofillHints,
-        onChanged: widget.onChanged,
+        onChanged: _onChanged,
         onSubmitted: widget.onSubmitted,
         style: theme.textTheme.bodyLarge,
         decoration: InputDecoration(

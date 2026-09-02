@@ -61,6 +61,7 @@ var terminalDIDInventory = []TerminalDIDEntry{
 	deleteDID("account_deletion_operations", "owner_did", "owner", "id"),
 	cleanupDID("account_deletion_safety_tombstones", "owner_did", "owner", "exact-key cleanup authority remains until uncertainty converges", "id"),
 	deleteDID("account_language_preferences", "account_did", "owner", "account_did"),
+	deleteDID("account_onboarding_completions", "account_did", "owner", "account_did"),
 	deleteDID("actor_mutes", "owner_did", "owner", "owner_did", "subject_did"),
 	deleteDID("actor_mutes", "subject_did", "subject", "owner_did", "subject_did"),
 	deleteDID("atproto_blocks", "blocker_did", "actor", "uri"),

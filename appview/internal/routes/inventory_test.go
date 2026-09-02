@@ -71,6 +71,8 @@ func TestRouteInventoryAndV1PoliciesStayExact(t *testing.T) {
 		"GET /v1/migrations/instagram/suggestions",
 		"POST /v1/migrations/instagram/suggestions/{suggestionId}/accept",
 		"DELETE /v1/migrations/instagram/suggestions/{suggestionId}",
+		"GET /v1/onboarding/status",
+		"POST /v1/onboarding/completion",
 		"GET /v1/profiles/{handleOrDid}",
 		"GET /v1/profiles/me",
 		"GET /v1/profiles/me/follower-growth",

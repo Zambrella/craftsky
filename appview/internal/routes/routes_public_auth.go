@@ -34,23 +34,25 @@ func registerPublicOperationsRoutes(routes publicOperationsRouteBundle) {
 }
 
 type oauthRouteDependencies struct {
-	app                  *oauth.ClientApp
-	artifacts            auth.ClientArtifacts
-	sessionStore         *auth.CraftskySessionStore
-	db                   *pgxpool.Pool
-	logger               *slog.Logger
-	identityCacheUpdater auth.IdentityCacheUpdater
-	repositoryTracker    auth.RepositoryTracker
-	deletionOAuth        auth.AccountDeletionOAuthCallbacks
-	deletionPendingLogin auth.AccountDeletionPendingLoginPolicy
-	oauthFlow            auth.OAuthFlowCoordinator
-	handoffs             auth.HandoffCoordinator
-	sessionLifecycle     *auth.SessionLifecycleService
-	newPendingPDSClient  auth.PendingOnboardingPDSClientFactory
-	onboardingProfile    auth.OnboardingProfileWriter
-	loginCompleteURL     string
-	deletionCompleteURL  string
-	allowDevScheme       bool
+	app                      *oauth.ClientApp
+	artifacts                auth.ClientArtifacts
+	sessionStore             *auth.CraftskySessionStore
+	db                       *pgxpool.Pool
+	logger                   *slog.Logger
+	identityCacheUpdater     auth.IdentityCacheUpdater
+	repositoryTracker        auth.RepositoryTracker
+	deletionOAuth            auth.AccountDeletionOAuthCallbacks
+	deletionPendingLogin     auth.AccountDeletionPendingLoginPolicy
+	oauthFlow                auth.OAuthFlowCoordinator
+	handoffs                 auth.HandoffCoordinator
+	sessionLifecycle         *auth.SessionLifecycleService
+	newPendingPDSClient      auth.PendingOnboardingPDSClientFactory
+	onboardingProfile        auth.OnboardingProfileWriter
+	blueskyProfileProjector  auth.BlueskyProfileProjector
+	craftskyProfileProjector auth.CraftskyProfileProjector
+	loginCompleteURL         string
+	deletionCompleteURL      string
+	allowDevScheme           bool
 }
 
 func newOAuthHandlers(deps oauthRouteDependencies) *auth.HTTPHandlers {
@@ -70,6 +72,8 @@ func newOAuthHandlers(deps oauthRouteDependencies) *auth.HTTPHandlers {
 	handlers.SessionLifecycle = deps.sessionLifecycle
 	handlers.NewPendingPDSClient = deps.newPendingPDSClient
 	handlers.OnboardingProfile = deps.onboardingProfile
+	handlers.BlueskyProfileProjector = deps.blueskyProfileProjector
+	handlers.CraftskyProfileProjector = deps.craftskyProfileProjector
 	handlers.LoginCompleteURL = deps.loginCompleteURL
 	handlers.DeletionCompleteURL = deps.deletionCompleteURL
 	handlers.AllowDevScheme = deps.allowDevScheme

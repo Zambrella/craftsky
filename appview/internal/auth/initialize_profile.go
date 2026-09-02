@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
@@ -16,6 +17,14 @@ type IdentityCacheUpdater interface {
 
 type RepositoryTracker interface {
 	AddRepo(context.Context, syntax.DID) error
+}
+
+type BlueskyProfileProjector interface {
+	ProjectBlueskyProfile(context.Context, syntax.DID, syntax.CID, map[string]any) error
+}
+
+type CraftskyProfileProjector interface {
+	ProjectCraftskyProfile(context.Context, syntax.DID, syntax.CID, map[string]any) error
 }
 
 // OnboardingProfileWrite is the only PDS mutation admitted while a login
@@ -34,7 +43,7 @@ type OnboardingProfileWrite struct {
 // crosses the PDS boundary. It is implemented by the application composition
 // layer so auth never imports the ordinary PDS-effect package.
 type OnboardingProfileWriter interface {
-	PutOnboardingProfile(context.Context, PDSClient, OnboardingProfileWrite) error
+	PutOnboardingProfile(context.Context, PDSClient, OnboardingProfileWrite) (syntax.CID, error)
 }
 
 // ErrProfileInitFailed wraps any non-404 PDS failure during onboarding-
@@ -47,12 +56,23 @@ var ErrProfileInitFailed = errors.New("profile: init failed")
 var ErrProfileDataInvalid = errors.New("profile: data invalid")
 
 const (
-	blueskyProfileNSID  = "app.bsky.actor.profile"
-	craftskyProfileNSID = "social.craftsky.actor.profile"
-	profileRecordKey    = "self"
+	blueskyProfileNSID       = "app.bsky.actor.profile"
+	craftskyProfileNSID      = "social.craftsky.actor.profile"
+	profileRecordKey         = "self"
+	profileProjectionTimeout = 2 * time.Second
 )
 
-// InitializeProfile performs onboarding-on-login side effects against
+type fetchedProfile struct {
+	cid    syntax.CID
+	record map[string]any
+}
+
+type initializedProfiles struct {
+	bluesky  *fetchedProfile
+	craftsky fetchedProfile
+}
+
+// initializeProfile performs onboarding-on-login side effects against
 // the user's PDS:
 //
 //  1. Fetch app.bsky.actor.profile (non-404 errors fail).
@@ -65,52 +85,64 @@ const (
 // docs/superpowers/specs/2026-04-23-profile-onboarding-design.md §4, on
 // any failure we fail the whole callback — the user is sent to an error
 // page, their Craftsky session is not created.
-func InitializeProfile(
+func initializeProfile(
 	ctx context.Context,
 	client PDSClient,
 	attempt CallbackAttempt,
 	writer OnboardingProfileWriter,
-) error {
+) (*initializedProfiles, error) {
 	if client == nil || !attempt.validFor(attempt.Owner, attempt.State) ||
 		!attempt.permitsOrdinaryOnboarding() {
-		return fmt.Errorf("%w: invalid onboarding authority", ErrProfileInitFailed)
+		return nil, fmt.Errorf("%w: invalid onboarding authority", ErrProfileInitFailed)
 	}
 	did := attempt.Owner
 	// 1. Bluesky profile: presence is optional; only non-404 errors fail.
 	var bskyRecord map[string]any
-	if _, err := client.GetRecord(ctx, did, blueskyProfileNSID, profileRecordKey, &bskyRecord); err != nil {
+	bskyCID, err := client.GetRecord(ctx, did, blueskyProfileNSID, profileRecordKey, &bskyRecord)
+	if err != nil {
 		if !errors.Is(err, ErrRecordNotFound) {
-			return fmt.Errorf("%w: get %s: %v", ErrProfileInitFailed, blueskyProfileNSID, err)
+			return nil, fmt.Errorf("%w: get %s: %v", ErrProfileInitFailed, blueskyProfileNSID, err)
 		}
+	}
+	var fetchedBluesky *fetchedProfile
+	if err == nil {
+		fetchedBluesky = &fetchedProfile{cid: syntax.CID(bskyCID), record: bskyRecord}
 	}
 
 	// 2. Craftsky profile: present → validate; missing → write empty.
 	var cskyRecord map[string]any
-	_, err := client.GetRecord(ctx, did, craftskyProfileNSID, profileRecordKey, &cskyRecord)
+	cskyCID, err := client.GetRecord(ctx, did, craftskyProfileNSID, profileRecordKey, &cskyRecord)
 	switch {
 	case err == nil:
 		if vErr := validateCraftskyProfile(cskyRecord); vErr != nil {
-			return fmt.Errorf("%w: %v", ErrProfileDataInvalid, vErr)
+			return nil, fmt.Errorf("%w: %v", ErrProfileDataInvalid, vErr)
 		}
-		return nil
+		return &initializedProfiles{
+			bluesky:  fetchedBluesky,
+			craftsky: fetchedProfile{cid: syntax.CID(cskyCID), record: cskyRecord},
+		}, nil
 	case errors.Is(err, ErrRecordNotFound):
 		if writer == nil {
-			return fmt.Errorf("%w: durable onboarding writer unavailable", ErrProfileInitFailed)
+			return nil, fmt.Errorf("%w: durable onboarding writer unavailable", ErrProfileInitFailed)
 		}
 		empty := map[string]any{
 			"$type":  craftskyProfileNSID,
 			"crafts": []string{},
 		}
 		identity := fmt.Sprintf("oauth-onboarding-profile:%s:%d", did, attempt.OwnerGeneration)
-		if putErr := writer.PutOnboardingProfile(ctx, client, OnboardingProfileWrite{
+		createdCID, putErr := writer.PutOnboardingProfile(ctx, client, OnboardingProfileWrite{
 			OperationID: identity, MutationKey: identity,
 			Owner: did, OwnerGeneration: attempt.OwnerGeneration, Record: empty,
-		}); putErr != nil {
-			return fmt.Errorf("%w: put %s: %v", ErrProfileInitFailed, craftskyProfileNSID, putErr)
+		})
+		if putErr != nil {
+			return nil, fmt.Errorf("%w: put %s: %v", ErrProfileInitFailed, craftskyProfileNSID, putErr)
 		}
-		return nil
+		return &initializedProfiles{
+			bluesky:  fetchedBluesky,
+			craftsky: fetchedProfile{cid: createdCID, record: empty},
+		}, nil
 	default:
-		return fmt.Errorf("%w: get %s: %v", ErrProfileInitFailed, craftskyProfileNSID, err)
+		return nil, fmt.Errorf("%w: get %s: %v", ErrProfileInitFailed, craftskyProfileNSID, err)
 	}
 }
 
@@ -119,14 +151,38 @@ func InitializeProfileAndIdentityCache(
 	client PDSClient,
 	attempt CallbackAttempt,
 	writer OnboardingProfileWriter,
+	blueskyProjector BlueskyProfileProjector,
+	craftskyProjector CraftskyProfileProjector,
 	updater IdentityCacheUpdater,
 	logger *slog.Logger,
 	repositoryTrackers ...RepositoryTracker,
 ) error {
-	if err := InitializeProfile(ctx, client, attempt, writer); err != nil {
+	profiles, err := initializeProfile(ctx, client, attempt, writer)
+	if err != nil {
 		return err
 	}
 	did := attempt.Owner
+	if craftskyProjector != nil {
+		projectionCtx, cancel := context.WithTimeout(ctx, profileProjectionTimeout)
+		err := craftskyProjector.ProjectCraftskyProfile(
+			projectionCtx, did, profiles.craftsky.cid, profiles.craftsky.record,
+		)
+		cancel()
+		if err != nil {
+			return fmt.Errorf("%w: project %s: %v", ErrProfileInitFailed, craftskyProfileNSID, err)
+		}
+	}
+	if profiles.bluesky != nil && blueskyProjector != nil {
+		projectionCtx, cancel := context.WithTimeout(ctx, profileProjectionTimeout)
+		err := blueskyProjector.ProjectBlueskyProfile(
+			projectionCtx, did, profiles.bluesky.cid, profiles.bluesky.record,
+		)
+		cancel()
+		if err != nil && logger != nil {
+			logger.Warn("Bluesky profile projection after profile initialization failed",
+				authLogErrorAttrs("", "profile_init.bluesky_projection", "store")...)
+		}
+	}
 	for _, tracker := range repositoryTrackers {
 		if tracker == nil {
 			continue

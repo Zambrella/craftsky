@@ -224,6 +224,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get welcomeRegisterAction => 'Register';
 
   @override
+  String get welcomeRedirectingAction => 'Redirecting...';
+
+  @override
   String get welcomeRegistrationHandoff =>
       'You\'ll create your account with Bluesky, then return to CraftSky.';
 
@@ -2615,4 +2618,71 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get youtubePlaybackUnavailable =>
       'This video can’t be played here. It may be private, unavailable, or restricted from embedded playback.';
+
+  @override
+  String get onboardingTitle => 'Set up your CraftSky profile';
+
+  @override
+  String get onboardingSkip => 'Skip';
+
+  @override
+  String get onboardingNext => 'Next';
+
+  @override
+  String get onboardingSaveNext => 'Save & next';
+
+  @override
+  String get onboardingFinish => 'Finish';
+
+  @override
+  String onboardingStepProgress(int current, int total) {
+    return 'Step $current of $total';
+  }
+
+  @override
+  String get onboardingProfileTitle => 'Make it yours';
+
+  @override
+  String get onboardingProfileDescription =>
+      'Add a name, bio, and photo so other crafters can recognize you.';
+
+  @override
+  String get onboardingAvatarUploading => 'Uploading photo...';
+
+  @override
+  String get onboardingAvatarUploadFailed => 'Photo upload failed. Try again.';
+
+  @override
+  String onboardingHandleLabel(String handle) {
+    return 'Signed in as @$handle';
+  }
+
+  @override
+  String get onboardingCraftsTitle => 'What do you make?';
+
+  @override
+  String get onboardingCraftsDescription =>
+      'Choose as many crafts as you like. You can change these later.';
+
+  @override
+  String get onboardingInstagramTitle => 'Find your crafting community';
+
+  @override
+  String get onboardingInstagramDescription =>
+      'Connecting Instagram is optional. CraftSky uses your choices only to help match accounts and import who you follow.';
+
+  @override
+  String get onboardingSaveError =>
+      'We couldn\'t save your profile. Your changes are still here; try again.';
+
+  @override
+  String get onboardingLoadError => 'We couldn\'t load your profile.';
+
+  @override
+  String get onboardingRetry => 'Try again';
+
+  @override
+  String onboardingProgressSemantics(int current, int total) {
+    return 'Onboarding step $current of $total';
+  }
 }

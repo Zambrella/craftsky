@@ -9,7 +9,6 @@ import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
-import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -101,7 +100,7 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
                       ChunkyButton(
                         onPressed: busy ? null : _startRegistration,
                         child: busy
-                            ? const StitchProgressIndicator(size: 18)
+                            ? Text(l10n.welcomeRedirectingAction)
                             : Text(l10n.welcomeRegisterAction),
                       ),
                       SizedBox(height: spacing.sp2),
@@ -130,7 +129,11 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
                       ChunkyButton(
                         variant: ChunkyButtonVariant.secondary,
                         onPressed: busy ? null : _signIn,
-                        child: Text(l10n.welcomeSignInAction),
+                        child: Text(
+                          busy
+                              ? l10n.welcomeRedirectingAction
+                              : l10n.welcomeSignInAction,
+                        ),
                       ),
                       SizedBox(height: spacing.sp5),
                       _AtmosphereExplainer(l10n: l10n),

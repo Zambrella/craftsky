@@ -141,7 +141,7 @@ class AccountDeletionController extends _$AccountDeletionController {
           if (hasFallback) {
             await ref.read(accountHomeResetProvider)();
           } else {
-            ref.read(goRouterProvider).go('/sign-in');
+            ref.read(goRouterProvider).go(const WelcomeRoute().location);
           }
         },
       );

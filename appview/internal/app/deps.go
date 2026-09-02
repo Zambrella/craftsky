@@ -52,24 +52,26 @@ type Deps struct {
 	AccountDeletionIntentExpiry *accountdeletion.IntentExpiryProcessor
 
 	// OAuth subsystem.
-	OAuthApp             *oauth.ClientApp
-	OAuthArtifacts       auth.ClientArtifacts
-	OAuthStore           *auth.PostgresAuthStore
-	OAuthFlow            auth.OAuthFlowCoordinator
-	HandoffCoordinator   auth.HandoffCoordinator
-	SessionLifecycle     *auth.SessionLifecycleService
-	OAuthRevocation      *auth.OAuthRevocationProcessor
-	AuthAuxiliaryCleanup *auth.AuxiliaryCleanupProcessor
-	SessionExpiry        *auth.SessionExpiryProcessor
-	TerminalPurge        *ownerlifecycle.TerminalPurgeProcessor
-	IdentityCacheRefresh *api.IdentityCacheRefreshProcessor
-	CraftskySessionStore *auth.CraftskySessionStore
-	OwnerLifecycles      *ownerlifecycle.Store
-	OwnerFence           *ownerlifecycle.Fencer
-	NewPendingPDSClient  auth.PendingOnboardingPDSClientFactory
-	OnboardingProfile    auth.OnboardingProfileWriter
-	LoginCompleteURL     string
-	DeletionCompleteURL  string
+	OAuthApp                 *oauth.ClientApp
+	OAuthArtifacts           auth.ClientArtifacts
+	OAuthStore               *auth.PostgresAuthStore
+	OAuthFlow                auth.OAuthFlowCoordinator
+	HandoffCoordinator       auth.HandoffCoordinator
+	SessionLifecycle         *auth.SessionLifecycleService
+	OAuthRevocation          *auth.OAuthRevocationProcessor
+	AuthAuxiliaryCleanup     *auth.AuxiliaryCleanupProcessor
+	SessionExpiry            *auth.SessionExpiryProcessor
+	TerminalPurge            *ownerlifecycle.TerminalPurgeProcessor
+	IdentityCacheRefresh     *api.IdentityCacheRefreshProcessor
+	CraftskySessionStore     *auth.CraftskySessionStore
+	OwnerLifecycles          *ownerlifecycle.Store
+	OwnerFence               *ownerlifecycle.Fencer
+	NewPendingPDSClient      auth.PendingOnboardingPDSClientFactory
+	OnboardingProfile        auth.OnboardingProfileWriter
+	BlueskyProfileProjector  auth.BlueskyProfileProjector
+	CraftskyProfileProjector auth.CraftskyProfileProjector
+	LoginCompleteURL         string
+	DeletionCompleteURL      string
 
 	// Identity resolution for /v1/whoami. Typed as the interface
 	// (not the concrete struct) so route tests can inject a stub
@@ -318,6 +320,8 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		OwnerLifecycles:             ownerLifecycles,
 		OwnerFence:                  ownerFence,
 		OnboardingProfile:           onboardingProfileEffectAdapter{executor: onboardingEffects},
+		BlueskyProfileProjector:     tapCapability.profileProjector,
+		CraftskyProfileProjector:    tapCapability.craftskyProfileProjector,
 		NewPendingPDSClient:         pdsEffects.pending,
 		NewPDSEffects:               pdsEffects.ordinary,
 		LoginCompleteURL:            loginCompleteURL.String(),

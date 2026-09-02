@@ -11,6 +11,9 @@ import 'package:craftsky_app/languages/data/language_preferences_repository.dart
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_repository_provider.dart';
+import 'package:craftsky_app/onboarding/data/onboarding_repository.dart';
+import 'package:craftsky_app/onboarding/models/onboarding_completion.dart';
+import 'package:craftsky_app/onboarding/providers/onboarding_repository_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -66,6 +69,23 @@ final class _SequencedPreferencesRepository
   ) async => preferences;
 }
 
+final class _OnboardingRepository implements OnboardingRepository {
+  const _OnboardingRepository();
+  @override
+  Future<OnboardingCompletion> readStatus() async =>
+      const OnboardingCompletion(completed: false);
+  @override
+  Future<OnboardingCompletion> complete() async =>
+      const OnboardingCompletion(completed: true);
+}
+
+// Inferred as Riverpod's internal override type, which is not publicly
+// exported.
+// ignore: specify_nonobvious_property_types
+final _onboardingOverride = onboardingRepositoryProvider.overrideWith(
+  (ref, lease) async => const _OnboardingRepository(),
+);
+
 void main() {
   test('initialization result has value equality and copyWith', () {
     final registry = SessionRegistry.empty().upsertAndActivate(
@@ -80,6 +100,7 @@ void main() {
     final initialization = ActiveAccountInitialization(
       lease: registry.activeLease!,
       languagePreferences: preferences,
+      onboardingComplete: false,
     );
 
     expect(initialization.copyWith(), initialization);
@@ -104,6 +125,7 @@ void main() {
       var repositoryBuilds = 0;
       final container = ProviderContainer.test(
         overrides: [
+          _onboardingOverride,
           secureSessionRegistryStorageProvider.overrideWithValue(
             _RegistryStorage(SessionRegistry.empty()),
           ),
@@ -154,6 +176,7 @@ void main() {
       final container = ProviderContainer.test(
         retry: (_, _) => null,
         overrides: [
+          _onboardingOverride,
           secureSessionRegistryStorageProvider.overrideWithValue(storage),
           languagePreferencesRepositoryProvider.overrideWith(
             (ref, account) async => _PreferencesRepository(
@@ -225,6 +248,7 @@ void main() {
       );
       final container = ProviderContainer.test(
         overrides: [
+          _onboardingOverride,
           secureSessionRegistryStorageProvider.overrideWithValue(storage),
           languagePreferencesRepositoryProvider.overrideWith(
             (ref, account) async => _PreferencesRepository(
@@ -298,6 +322,7 @@ void main() {
     );
     final container = ProviderContainer.test(
       overrides: [
+        _onboardingOverride,
         secureSessionRegistryStorageProvider.overrideWithValue(storage),
         languagePreferencesRepositoryProvider.overrideWith(
           (ref, account) async => repository,

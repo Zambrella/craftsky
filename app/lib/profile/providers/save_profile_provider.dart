@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/providers/profile_cache_publication.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
-import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -62,11 +62,7 @@ class SaveProfile extends _$SaveProfile {
       // with `ref.exists` so we don't accidentally instantiate a new
       // family entry, which would race a fresh `repo.fetch` against
       // our setCached and overwrite it.
-      for (final id in <String>{updated.handle, updated.did}) {
-        if (ref.exists(userProfileProvider(id))) {
-          ref.read(userProfileProvider(id).notifier).setCached(updated);
-        }
-      }
+      publishProfileCache(ref, updated);
 
       return updated;
     });

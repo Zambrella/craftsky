@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/index"
 	"social.craftsky/appview/internal/ingestion"
 	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/observability"
@@ -22,11 +23,13 @@ import (
 // tapDependencies is the complete durable ingestion pipeline. The anonymous
 // PDS client is retained only inside the repository-reconciliation handler.
 type tapDependencies struct {
-	repositoryTracker *tap.AdminClient
-	projectionWorker  *ingestion.ProjectionWorker
-	repositoryWorker  *ingestion.RepositoryWorker
-	quarantineWorker  *ingestion.QuarantineReplayWorker
-	consumer          tap.Consumer
+	repositoryTracker        *tap.AdminClient
+	profileProjector         auth.BlueskyProfileProjector
+	craftskyProfileProjector auth.CraftskyProfileProjector
+	projectionWorker         *ingestion.ProjectionWorker
+	repositoryWorker         *ingestion.RepositoryWorker
+	quarantineWorker         *ingestion.QuarantineReplayWorker
+	consumer                 tap.Consumer
 }
 
 func newTapDependencies(
@@ -165,9 +168,15 @@ func newTapDependencies(
 	})
 	return &tapDependencies{
 		repositoryTracker: repositoryTracker,
-		projectionWorker:  projectionWorker,
-		repositoryWorker:  repositoryWorker,
-		quarantineWorker:  quarantineWorker,
-		consumer:          consumer,
+		profileProjector: oauthBlueskyProfileProjection{
+			handler: index.NewBlueskyProfile(pool),
+		},
+		craftskyProfileProjector: oauthCraftskyProfileProjection{
+			handler: index.NewTransactionalCraftskyProfile(pool, logger, profileDeletion),
+		},
+		projectionWorker: projectionWorker,
+		repositoryWorker: repositoryWorker,
+		quarantineWorker: quarantineWorker,
+		consumer:         consumer,
 	}, nil
 }

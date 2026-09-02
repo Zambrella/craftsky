@@ -35,7 +35,9 @@ import (
 	"social.craftsky/appview/internal/ctxkeys"
 	"social.craftsky/appview/internal/federatedhttp"
 	"social.craftsky/appview/internal/index"
+	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/tap"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -2029,6 +2031,25 @@ func TestProviderRegistrationCallbackPublishesAtomicBoundAuthority(t *testing.T)
 // neither the OAuth parent nor Craftsky child activates before confirmation.
 func TestProviderRegistrationCompletesSharedOnboardingAndConfirmedHandoff(t *testing.T) {
 	pool := withRealFlowAuthSchema(t)
+	if _, err := pool.Exec(context.Background(), `
+		ALTER TABLE craftsky_profiles
+			ADD COLUMN crafts TEXT[] NOT NULL DEFAULT '{}',
+			ADD COLUMN record_cid TEXT,
+			ADD COLUMN indexed_at TIMESTAMPTZ NOT NULL DEFAULT now();
+		CREATE TABLE bluesky_profiles (
+			did TEXT PRIMARY KEY,
+			display_name TEXT,
+			description TEXT,
+			avatar_cid TEXT,
+			avatar_mime TEXT,
+			banner_cid TEXT,
+			banner_mime TEXT,
+			record_cid TEXT NOT NULL,
+			indexed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+		)
+	`); err != nil {
+		t.Fatal(err)
+	}
 	owner := syntax.DID("did:plc:registrationonboarding")
 	upstream := newRealFlowServer(t, owner)
 	clients, _, _ := newRealFlowClients(t, upstream)
@@ -2059,9 +2080,27 @@ func TestProviderRegistrationCompletesSharedOnboardingAndConfirmedHandoff(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	pds := &registrationOnboardingPDS{}
+	profileCID := syntax.CID("bafyreiregistrationonboarding")
+	profileRecord := map[string]any{
+		"displayName": "Registration Alice",
+		"description": "Textile maker",
+		"avatar": map[string]any{
+			"ref": map[string]any{"$link": "bafkregistrationavatar"}, "mimeType": "image/jpeg",
+		},
+		"banner": map[string]any{
+			"ref": map[string]any{"$link": "bafkregistrationbanner"}, "mimeType": "image/png",
+		},
+	}
+	pds := &registrationOnboardingPDS{blueskyCID: profileCID, blueskyRecord: profileRecord}
 	cache := &registrationOnboardingEffects{}
 	tracker := &registrationOnboardingEffects{}
+	profileHandler := index.NewBlueskyProfile(pool)
+	profileProjector := oauthBlueskyProfileProjection{handler: profileHandler}
+	craftskyProjector := oauthCraftskyProfileProjection{
+		handler: index.NewTransactionalCraftskyProfile(
+			pool, slog.Default(), notifications.NoopActorDeletion{},
+		),
+	}
 	if _, err := flow.StartRegistration(context.Background(), auth.HandoffVerifiedLink, "", "onboarding-device"); err != nil {
 		t.Fatal(err)
 	}
@@ -2077,10 +2116,31 @@ func TestProviderRegistrationCompletesSharedOnboardingAndConfirmedHandoff(t *tes
 			return err
 		}
 		if err := auth.InitializeProfileAndIdentityCache(
-			callbackCtx, pds, result.Attempt, registrationOnboardingWriter{}, cache,
+			callbackCtx, pds, result.Attempt, registrationOnboardingWriter{},
+			profileProjector, craftskyProjector, cache,
 			slog.New(slog.NewTextHandler(io.Discard, nil)), tracker,
 		); err != nil {
 			return err
+		}
+		var displayName, description, avatarCID, bannerCID, recordCID string
+		if err := pool.QueryRow(callbackCtx, `
+			SELECT display_name,description,avatar_cid,banner_cid,record_cid
+			FROM bluesky_profiles WHERE did=$1
+		`, owner).Scan(&displayName, &description, &avatarCID, &bannerCID, &recordCID); err != nil {
+			return fmt.Errorf("profile was not projected before handoff: %w", err)
+		}
+		if displayName != "Registration Alice" || description != "Textile maker" ||
+			avatarCID != "bafkregistrationavatar" || bannerCID != "bafkregistrationbanner" ||
+			recordCID != profileCID.String() {
+			return fmt.Errorf("unexpected pre-handoff projection %q/%q/%q/%q/%q",
+				displayName, description, avatarCID, bannerCID, recordCID)
+		}
+		var memberRows int
+		if err := pool.QueryRow(callbackCtx, `
+			SELECT count(*) FROM craftsky_profiles
+			WHERE did=$1 AND record_cid='bafyregistrationcraftskyprofile'
+		`, owner).Scan(&memberRows); err != nil || memberRows != 1 {
+			return fmt.Errorf("Craftsky membership was not projected before handoff: rows=%d err=%v", memberRows, err)
 		}
 		var err error
 		code, err = handoffs.CreateExchange(
@@ -2096,6 +2156,23 @@ func TestProviderRegistrationCompletesSharedOnboardingAndConfirmedHandoff(t *tes
 	}
 	if pds.blueskyReads != 1 || pds.craftskyReads != 1 {
 		t.Fatalf("profile reads bluesky=%d craftsky=%d", pds.blueskyReads, pds.craftskyReads)
+	}
+	rawProfile, err := json.Marshal(profileRecord)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := profileHandler.Handle(context.Background(), tap.Event{
+		URI: syntax.ATURI("at://" + owner.String() + "/app.bsky.actor.profile/self"),
+		CID: profileCID, DID: owner, Collection: "app.bsky.actor.profile", Rkey: "self",
+		Action: "create", Record: rawProfile,
+	}); err != nil {
+		t.Fatalf("Tap profile replay: %v", err)
+	}
+	var projectedRows int
+	if err := pool.QueryRow(context.Background(), `
+		SELECT count(*) FROM bluesky_profiles WHERE did=$1 AND record_cid=$2
+	`, owner, profileCID).Scan(&projectedRows); err != nil || projectedRows != 1 {
+		t.Fatalf("replayed profile rows = %d, %v", projectedRows, err)
 	}
 	exchange, err := handoffs.Exchange(context.Background(), code, "onboarding-device")
 	if err != nil {
@@ -2430,7 +2507,7 @@ func TestProviderRegistrationLifecycleAndHandoffAreNeutralAcrossConfiguredOrigin
 					return err
 				}
 				if err := auth.InitializeProfileAndIdentityCache(
-					callbackCtx, pds, result.Attempt, registrationOnboardingWriter{}, cache,
+					callbackCtx, pds, result.Attempt, registrationOnboardingWriter{}, nil, nil, cache,
 					slog.New(slog.NewTextHandler(io.Discard, nil)), tracker,
 				); err != nil {
 					return err
@@ -2681,14 +2758,24 @@ type registrationOnboardingPDS struct {
 	blueskyReads   int
 	craftskyReads  int
 	craftskyWrites int
+	blueskyCID     syntax.CID
+	blueskyRecord  map[string]any
 }
 
 func (pds *registrationOnboardingPDS) GetRecord(
-	_ context.Context, _ syntax.DID, collection, _ string, _ any,
+	_ context.Context, _ syntax.DID, collection, _ string, result any,
 ) (string, error) {
 	switch collection {
 	case "app.bsky.actor.profile":
 		pds.blueskyReads++
+		if pds.blueskyRecord != nil {
+			profile, ok := result.(*map[string]any)
+			if !ok {
+				return "", errors.New("unexpected Bluesky profile result")
+			}
+			*profile = pds.blueskyRecord
+			return pds.blueskyCID.String(), nil
+		}
 		return "", auth.ErrRecordNotFound
 	case "social.craftsky.actor.profile":
 		pds.craftskyReads++
@@ -2724,8 +2811,11 @@ type registrationOnboardingWriter struct{}
 
 func (registrationOnboardingWriter) PutOnboardingProfile(
 	ctx context.Context, client auth.PDSClient, request auth.OnboardingProfileWrite,
-) error {
-	return client.PutRecord(ctx, request.Owner, "social.craftsky.actor.profile", "self", request.Record)
+) (syntax.CID, error) {
+	if err := client.PutRecord(ctx, request.Owner, "social.craftsky.actor.profile", "self", request.Record); err != nil {
+		return "", err
+	}
+	return "bafyregistrationcraftskyprofile", nil
 }
 
 type registrationOnboardingEffects struct{ calls int }

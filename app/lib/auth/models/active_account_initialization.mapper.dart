@@ -33,17 +33,23 @@ class ActiveAccountInitializationMapper
   ) => v.languagePreferences;
   static const Field<ActiveAccountInitialization, LanguagePreferences>
   _f$languagePreferences = Field('languagePreferences', _$languagePreferences);
+  static bool _$onboardingComplete(ActiveAccountInitialization v) =>
+      v.onboardingComplete;
+  static const Field<ActiveAccountInitialization, bool> _f$onboardingComplete =
+      Field('onboardingComplete', _$onboardingComplete);
 
   @override
   final MappableFields<ActiveAccountInitialization> fields = const {
     #lease: _f$lease,
     #languagePreferences: _f$languagePreferences,
+    #onboardingComplete: _f$onboardingComplete,
   };
 
   static ActiveAccountInitialization _instantiate(DecodingData data) {
     return ActiveAccountInitialization(
       lease: data.dec(_f$lease),
       languagePreferences: data.dec(_f$languagePreferences),
+      onboardingComplete: data.dec(_f$onboardingComplete),
     );
   }
 
@@ -95,6 +101,7 @@ abstract class ActiveAccountInitializationCopyWith<
   $R call({
     ActiveAccountLease? lease,
     LanguagePreferences? languagePreferences,
+    bool? onboardingComplete,
   });
   ActiveAccountInitializationCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
@@ -122,11 +129,13 @@ class _ActiveAccountInitializationCopyWithImpl<$R, $Out>
   $R call({
     ActiveAccountLease? lease,
     LanguagePreferences? languagePreferences,
+    bool? onboardingComplete,
   }) => $apply(
     FieldCopyWithData({
       if (lease != null) #lease: lease,
       if (languagePreferences != null)
         #languagePreferences: languagePreferences,
+      if (onboardingComplete != null) #onboardingComplete: onboardingComplete,
     }),
   );
   @override
@@ -136,6 +145,10 @@ class _ActiveAccountInitializationCopyWithImpl<$R, $Out>
         languagePreferences: data.get(
           #languagePreferences,
           or: $value.languagePreferences,
+        ),
+        onboardingComplete: data.get(
+          #onboardingComplete,
+          or: $value.onboardingComplete,
         ),
       );
 

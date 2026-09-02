@@ -93,19 +93,21 @@ type Dependencies struct {
 	AccountDeletionOAuth        auth.AccountDeletionOAuthCallbacks
 	AccountDeletionPendingLogin auth.AccountDeletionPendingLoginPolicy
 
-	OAuthApp             *oauth.ClientApp
-	OAuthArtifacts       auth.ClientArtifacts
-	OAuthFlow            auth.OAuthFlowCoordinator
-	HandoffCoordinator   auth.HandoffCoordinator
-	SessionLifecycle     *auth.SessionLifecycleService
-	CraftskySessionStore *auth.CraftskySessionStore
-	OwnerLifecycles      *ownerlifecycle.Store
-	NewPendingPDSClient  auth.PendingOnboardingPDSClientFactory
-	OnboardingProfile    auth.OnboardingProfileWriter
-	LoginCompleteURL     string
-	DeletionCompleteURL  string
-	IdentityCacheUpdater auth.IdentityCacheUpdater
-	RepositoryTracker    auth.RepositoryTracker
+	OAuthApp                 *oauth.ClientApp
+	OAuthArtifacts           auth.ClientArtifacts
+	OAuthFlow                auth.OAuthFlowCoordinator
+	HandoffCoordinator       auth.HandoffCoordinator
+	SessionLifecycle         *auth.SessionLifecycleService
+	CraftskySessionStore     *auth.CraftskySessionStore
+	OwnerLifecycles          *ownerlifecycle.Store
+	NewPendingPDSClient      auth.PendingOnboardingPDSClientFactory
+	OnboardingProfile        auth.OnboardingProfileWriter
+	BlueskyProfileProjector  auth.BlueskyProfileProjector
+	CraftskyProfileProjector auth.CraftskyProfileProjector
+	LoginCompleteURL         string
+	DeletionCompleteURL      string
+	IdentityCacheUpdater     auth.IdentityCacheUpdater
+	RepositoryTracker        auth.RepositoryTracker
 
 	HandleResolver              api.HandleResolver
 	AuthoritativeHandleResolver api.HandleResolver

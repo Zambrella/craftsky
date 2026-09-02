@@ -167,11 +167,14 @@ func ResolvePDSRecordSourceTx(
 		return EffectSourceResolution{Match: EffectSourceAmbiguous}, nil
 	}
 	if len(candidates) > 1 {
-		// Identical record content (and therefore often an identical CID) is
-		// insufficient to distinguish A-to-B-to-A or duplicate Put attempts.
-		// Even an authoritative current read must not assign one attempt's
-		// lifecycle disposition to another attempt.
-		return EffectSourceResolution{Match: EffectSourceAmbiguous}, nil
+		// A successful response with the exact authoritative CID proves the
+		// newest attempt independently. Unknown outcomes remain ambiguous because
+		// identical content cannot distinguish duplicate or A-to-B-to-A writes.
+		newest := candidates[0]
+		if !observation.Authoritative || newest.Outcome != OutcomeAccepted ||
+			newest.ResultCID == "" || newest.ResultCID != observation.CID.String() {
+			return EffectSourceResolution{Match: EffectSourceAmbiguous}, nil
+		}
 	}
 	resolution, err := reconcileMatchedEffectSourceTx(
 		ctx, tx, candidates[0], lifecycle, observation, now,

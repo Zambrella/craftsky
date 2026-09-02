@@ -13,6 +13,7 @@ import (
 
 type recordingOnboardingProfilePutter struct {
 	request pdseffects.OnboardingProfileRequest
+	result  pdseffects.RecordResult
 	err     error
 }
 
@@ -22,7 +23,25 @@ func (putter *recordingOnboardingProfilePutter) PutProfile(
 	request pdseffects.OnboardingProfileRequest,
 ) (pdseffects.RecordResult, error) {
 	putter.request = request
-	return pdseffects.RecordResult{}, putter.err
+	return putter.result, putter.err
+}
+
+func TestOnboardingProfileEffectAdapterReturnsAuthoritativeCID(t *testing.T) {
+	putter := &recordingOnboardingProfilePutter{
+		result: pdseffects.RecordResult{CID: "bafyonboardingprofile"},
+	}
+	adapter := onboardingProfileEffectAdapter{executor: putter}
+
+	cid, err := adapter.PutOnboardingProfile(
+		context.Background(), nil, auth.OnboardingProfileWrite{
+			OperationID: "onboarding:cid", MutationKey: "generation:cid",
+			Owner: "did:plc:onboarding-cid", OwnerGeneration: 1,
+			Record: map[string]any{"crafts": []string{}},
+		},
+	)
+	if err != nil || cid != "bafyonboardingprofile" {
+		t.Fatalf("PutOnboardingProfile CID/error = %q/%v", cid, err)
+	}
 }
 
 func TestOnboardingProfileEffectAdapterMapsOnlyTheNarrowProfileRequest(t *testing.T) {
@@ -30,7 +49,7 @@ func TestOnboardingProfileEffectAdapterMapsOnlyTheNarrowProfileRequest(t *testin
 	putter := &recordingOnboardingProfilePutter{err: wantErr}
 	adapter := onboardingProfileEffectAdapter{executor: putter}
 	record := map[string]any{"$type": "social.craftsky.actor.profile", "crafts": []string{}}
-	err := adapter.PutOnboardingProfile(context.Background(), nil, auth.OnboardingProfileWrite{
+	_, err := adapter.PutOnboardingProfile(context.Background(), nil, auth.OnboardingProfileWrite{
 		OperationID: "onboarding:one", MutationKey: "generation:one",
 		Owner: syntax.DID("did:plc:onboarding"), OwnerGeneration: 7, Record: record,
 	})

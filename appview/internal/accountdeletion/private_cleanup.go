@@ -67,6 +67,7 @@ func (cleanup *DatabasePrivateCleanup) Purge(ctx context.Context, owner syntax.D
 			{"recent searches", `DELETE FROM craftsky_recent_searches WHERE viewer_did=$1`},
 			{"mutes", `DELETE FROM actor_mutes WHERE owner_did=$1`},
 			{"language preferences", `DELETE FROM account_language_preferences WHERE account_did=$1`},
+			{"onboarding completion", `DELETE FROM account_onboarding_completions WHERE account_did=$1`},
 			{"notification events", `DELETE FROM notification_events WHERE recipient_did=$1`},
 			{"notification preferences", `DELETE FROM notification_preferences WHERE account_did=$1`},
 			{"notification seen state", `DELETE FROM notification_seen_state WHERE account_did=$1`},
