@@ -1,3 +1,4 @@
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/profile_bio.dart';
 import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
@@ -19,6 +20,8 @@ void main() {
           ProviderScope(
             child: MaterialApp(
               theme: AppTheme.lightThemeData,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
               home: const Scaffold(
                 body: ProfileBio(
                   description:
@@ -63,6 +66,8 @@ void main() {
         ProviderScope(
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
             home: const Scaffold(
               body: ProfileCustomisationTheme(
                 customisation: ProfileCustomisation(colour: 'ink'),
@@ -97,6 +102,8 @@ void main() {
         ProviderScope(
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
             home: const Scaffold(
               body: ProfileBio(
                 description:
@@ -137,6 +144,8 @@ void main() {
           ],
           child: MaterialApp(
             theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
             home: const Scaffold(
               body: ProfileBio(
                 description: 'https://craftsky.social/#lace',

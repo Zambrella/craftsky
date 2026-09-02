@@ -118,6 +118,7 @@ class AppTheme {
       navigationRailTheme: _navigationRailTheme(base),
       tabBarTheme: _tabBarTheme(base),
       segmentedButtonTheme: _segmentedButtonTheme(base.colorScheme),
+      floatingActionButtonTheme: _floatingActionButtonTheme(base),
       timePickerTheme: _timePickerTheme(base),
     );
   }
@@ -175,6 +176,7 @@ class AppTheme {
       navigationRailTheme: _navigationRailTheme(base),
       tabBarTheme: _tabBarTheme(base),
       segmentedButtonTheme: _segmentedButtonTheme(base.colorScheme),
+      floatingActionButtonTheme: _floatingActionButtonTheme(base),
       timePickerTheme: _timePickerTheme(base),
     );
   }
@@ -187,6 +189,28 @@ class AppTheme {
     return base.timePickerTheme.copyWith(
       hourMinuteTextStyle: selectorStyle,
       timeSelectorSeparatorTextStyle: WidgetStatePropertyAll(selectorStyle),
+    );
+  }
+
+  static FloatingActionButtonThemeData _floatingActionButtonTheme(
+    ThemeData base,
+  ) {
+    final colors = base.colorScheme;
+    return FloatingActionButtonThemeData(
+      backgroundColor: colors.primary,
+      foregroundColor: colors.onPrimary,
+      elevation: 3,
+      focusElevation: 3,
+      hoverElevation: 4,
+      highlightElevation: 0,
+      shape: StadiumBorder(
+        side: BorderSide(color: colors.onSurface, width: 1.5),
+      ),
+      extendedTextStyle: base.textTheme.labelLarge?.copyWith(
+        color: colors.onPrimary,
+        fontWeight: FontWeight.w800,
+        letterSpacing: 0.2,
+      ),
     );
   }
 

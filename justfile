@@ -139,14 +139,31 @@ lexgen:
       --external-lexicons "$INDIGO_DIR/lexicons/app/bsky/embed/external.json" \
       --external-lexicons "$INDIGO_DIR/lexicons/app/bsky/richtext/facet.json" \
       --external-lexicons "$INDIGO_DIR/lexicons/com/atproto/repo/strongRef.json" \
-      ../lexicon/social/craftsky
+      ../lexicon/social/craftsky \
+      cmd/lexgen/external/community.lexicon.location.address.bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq.json
     go run ./cmd/lexgen/cborgen
-    gofmt -w internal/lexicon/craftsky
+    cp ../lexicon/social/craftsky/business/defs.json internal/lexicon/schema/business/defs.json
+    cp ../lexicon/social/craftsky/business/profile.json internal/lexicon/schema/business/profile.json
+    cp ../lexicon/social/craftsky/business/event.json internal/lexicon/schema/business/event.json
+    cp cmd/lexgen/external/community.lexicon.location.address.bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq.json internal/lexicon/schema/business/address.json
+    gofmt -w internal/lexicon/craftsky internal/lexicon/community
 
-# Drift guard: regenerate and fail if the working tree changes.
-# Wire into CI when CI exists.
-lexgen-check: lexgen
-    git diff --exit-code appview/internal/lexicon/craftsky appview/cmd/lexgen
+# Drift guard: snapshot generated outputs, regenerate, and fail on any change.
+# This works before commit as well as in CI, unlike comparing with Git's baseline.
+lexgen-check:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    snapshot=$(mktemp -d)
+    trap 'rm -rf "$snapshot"' EXIT
+    cp -R appview/internal/lexicon/craftsky "$snapshot/craftsky"
+    cp -R appview/internal/lexicon/community "$snapshot/community"
+    cp -R appview/internal/lexicon/schema "$snapshot/schema"
+    cp -R appview/cmd/lexgen "$snapshot/lexgen"
+    just lexgen
+    diff -ru "$snapshot/craftsky" appview/internal/lexicon/craftsky
+    diff -ru "$snapshot/community" appview/internal/lexicon/community
+    diff -ru "$snapshot/schema" appview/internal/lexicon/schema
+    diff -ru "$snapshot/lexgen" appview/cmd/lexgen
 
 # Create ignored local Flutter config files from committed examples.
 app-env-init:

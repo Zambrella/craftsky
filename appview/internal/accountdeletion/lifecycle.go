@@ -23,6 +23,7 @@ type LifecycleProcessorOptions struct {
 	Store           *Store
 	Cleaner         *PrivateCleaner
 	AcceptedCleanup AcceptedPrivateCleanup
+	AccountTypes    AccountTypeDeleter
 	NewPDSClient    DeletionPDSClientFactory
 	BatchSize       int
 }
@@ -31,12 +32,13 @@ type LifecycleProcessor struct {
 	store           *Store
 	cleaner         *PrivateCleaner
 	acceptedCleanup AcceptedPrivateCleanup
+	accountTypes    AccountTypeDeleter
 	newPDSClient    DeletionPDSClientFactory
 	batchSize       int
 }
 
 func NewLifecycleProcessor(options LifecycleProcessorOptions) (*LifecycleProcessor, error) {
-	if options.Store == nil || options.Cleaner == nil || options.AcceptedCleanup == nil ||
+	if options.Store == nil || options.Cleaner == nil || options.AcceptedCleanup == nil || options.AccountTypes == nil ||
 		options.NewPDSClient == nil {
 		return nil, errors.New("account deletion lifecycle dependencies are unavailable")
 	}
@@ -45,7 +47,7 @@ func NewLifecycleProcessor(options LifecycleProcessorOptions) (*LifecycleProcess
 	}
 	return &LifecycleProcessor{
 		store: options.Store, cleaner: options.Cleaner, acceptedCleanup: options.AcceptedCleanup,
-		newPDSClient: options.NewPDSClient, batchSize: options.BatchSize,
+		accountTypes: options.AccountTypes, newPDSClient: options.NewPDSClient, batchSize: options.BatchSize,
 	}, nil
 }
 
@@ -90,7 +92,7 @@ func (processor *LifecycleProcessor) Process(ctx context.Context, operation Clai
 			return NewDeletionFailure(ErrorCategoryPDS, err)
 		}
 	}
-	if _, err := deleter.DeleteAll(ctx, operation.Owner); err != nil {
+	if _, err := deleter.DeleteAllWithAccountType(ctx, operation.Owner, processor.accountTypes); err != nil {
 		return NewDeletionFailure(ErrorCategoryPDS, err)
 	}
 	converged, err := processor.store.SafetyConverged(ctx, operation)

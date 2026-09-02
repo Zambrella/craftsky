@@ -3,6 +3,9 @@ import 'dart:async';
 import 'package:craftsky_app/app.dart';
 import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/auth/models/pending_auth.dart';
+import 'package:craftsky_app/business/models/business_event.dart';
+import 'package:craftsky_app/business/models/business_profile.dart';
+import 'package:craftsky_app/business/services/business_time_zone_service.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
@@ -201,12 +204,17 @@ Future<void> bootstrap(
   // Web: path URL strategy (no `#` in URLs).
   usePathUrlStrategy();
 
+  final businessTimeZones = BusinessTimeZoneService.initialized();
+
   if (kIsWeb) {
     _log.fine('web detected, skipping native init');
     runApp(
       ProviderScope(
         observers: [ProviderLogger(reporter: reporter)],
         retry: appProviderRetry,
+        overrides: [
+          businessTimeZoneServiceProvider.overrideWithValue(businessTimeZones),
+        ],
         child: const App(),
       ),
     );
@@ -266,6 +274,7 @@ Future<void> bootstrap(
       retry: appProviderRetry,
       overrides: [
         notificationServiceProvider.overrideWithValue(notificationService),
+        businessTimeZoneServiceProvider.overrideWithValue(businessTimeZones),
       ],
       child: const App(),
     ),
@@ -303,6 +312,10 @@ void initializeMappers() {
   ProjectBrowseFiltersMapper.ensureInitialized();
   UserProjectsStateMapper.ensureInitialized();
   ProfileMapper.ensureInitialized();
+  BusinessProfileMapper.ensureInitialized();
+  BusinessEventMapper.ensureInitialized();
+  BusinessEventPageMapper.ensureInitialized();
+  RecordMutationResultMapper.ensureInitialized();
   ProfileAccountSummaryMapper.ensureInitialized();
   ProfileAccountPageMapper.ensureInitialized();
   ProfileRelationshipMapper.ensureInitialized();

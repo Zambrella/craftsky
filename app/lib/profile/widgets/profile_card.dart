@@ -1,6 +1,8 @@
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:craftsky_app/business/models/business_profile.dart';
+import 'package:craftsky_app/business/widgets/business_profile_summary.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
@@ -119,6 +121,17 @@ class _ProfileCardSurface extends StatelessWidget {
       curve: Curves.easeInOut,
     ).transform(timeline);
     final topPadding = MediaQuery.paddingOf(context).top;
+    final isBusiness = profile.accountType == AccountType.business;
+    final profileTabs = ProfileTabPolicy.forProfile(
+      accountType: profile.accountType,
+      isBlocked: false,
+      isOwnProfile: isOwnProfile,
+      hasProducts: profile.business?.products.isNotEmpty ?? false,
+      hasUpcomingEvents: profile.hasUpcomingEvents,
+    );
+    final hasExpandedBusinessSummary = BusinessProfileSummary.hasContent(
+      profile.business,
+    );
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -177,6 +190,9 @@ class _ProfileCardSurface extends StatelessWidget {
           spacing.sp4,
           progress,
         )!;
+        final summaryToActions = isBusiness && !hasExpandedBusinessSummary
+            ? 0.0
+            : statsToActions;
         final actionsToExpandedContent = ui.lerpDouble(
           spacing.sp5,
           spacing.sp3,
@@ -279,6 +295,11 @@ class _ProfileCardSurface extends StatelessWidget {
                                             child: ProfileIdentity(
                                               handle: profile.handle.toString(),
                                               displayName: profile.displayName,
+                                              businessLabel: isBusiness
+                                                  ? AppLocalizations.of(
+                                                      context,
+                                                    ).businessProfileLabel
+                                                  : null,
                                               centered: true,
                                             ),
                                           ),
@@ -293,8 +314,16 @@ class _ProfileCardSurface extends StatelessWidget {
                                           ),
                                         ],
                                         SizedBox(height: spacing.sp4),
-                                        ProfileStats(profile: profile),
-                                        SizedBox(height: statsToActions),
+                                        if (isBusiness)
+                                          BusinessProfileSummary(
+                                            key: const Key(
+                                              'profile-card-business-details',
+                                            ),
+                                            business: profile.business,
+                                          )
+                                        else
+                                          ProfileStats(profile: profile),
+                                        SizedBox(height: summaryToActions),
                                         ConstrainedBox(
                                           key: const Key(
                                             'profile-card-action-section',
@@ -345,11 +374,13 @@ class _ProfileCardSurface extends StatelessWidget {
                                               ),
                                             ),
                                           DefaultTabController(
-                                            length: ProfileTab.values.length,
-                                            child: const SizedBox(
+                                            length: profileTabs.length,
+                                            child: SizedBox(
                                               height:
                                                   ProfileTabBarDelegate.height,
-                                              child: ProfileTabBar(),
+                                              child: ProfileTabBar(
+                                                tabs: profileTabs,
+                                              ),
                                             ),
                                           ),
                                         ],

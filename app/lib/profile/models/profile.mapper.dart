@@ -21,6 +21,8 @@ class ProfileMapper extends ClassMapperBase<Profile> {
         ProfileCustomisationMapper(),
       ]);
       ModerationMetadataMapper.ensureInitialized();
+      AccountTypeMapper.ensureInitialized();
+      BusinessProfileMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -161,6 +163,25 @@ class ProfileMapper extends ClassMapperBase<Profile> {
     opt: true,
     def: ProfileCustomisation.defaults,
   );
+  static AccountType? _$accountType(Profile v) => v.accountType;
+  static const Field<Profile, AccountType> _f$accountType = Field(
+    'accountType',
+    _$accountType,
+    opt: true,
+  );
+  static BusinessProfile? _$business(Profile v) => v.business;
+  static const Field<Profile, BusinessProfile> _f$business = Field(
+    'business',
+    _$business,
+    opt: true,
+  );
+  static bool _$hasUpcomingEvents(Profile v) => v.hasUpcomingEvents;
+  static const Field<Profile, bool> _f$hasUpcomingEvents = Field(
+    'hasUpcomingEvents',
+    _$hasUpcomingEvents,
+    opt: true,
+    def: false,
+  );
 
   @override
   final MappableFields<Profile> fields = const {
@@ -185,6 +206,9 @@ class ProfileMapper extends ClassMapperBase<Profile> {
     #projectCount: _f$projectCount,
     #moderation: _f$moderation,
     #customisation: _f$customisation,
+    #accountType: _f$accountType,
+    #business: _f$business,
+    #hasUpcomingEvents: _f$hasUpcomingEvents,
   };
 
   static Profile _instantiate(DecodingData data) {
@@ -210,6 +234,9 @@ class ProfileMapper extends ClassMapperBase<Profile> {
       projectCount: data.dec(_f$projectCount),
       moderation: data.dec(_f$moderation),
       customisation: data.dec(_f$customisation),
+      accountType: data.dec(_f$accountType),
+      business: data.dec(_f$business),
+      hasUpcomingEvents: data.dec(_f$hasUpcomingEvents),
     );
   }
 
@@ -273,6 +300,7 @@ abstract class ProfileCopyWith<$R, $In extends Profile, $Out>
   ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get crafts;
   ModerationMetadataCopyWith<$R, ModerationMetadata, ModerationMetadata>?
   get moderation;
+  BusinessProfileCopyWith<$R, BusinessProfile, BusinessProfile>? get business;
   $R call({
     String? did,
     String? handle,
@@ -295,6 +323,9 @@ abstract class ProfileCopyWith<$R, $In extends Profile, $Out>
     int? projectCount,
     ModerationMetadata? moderation,
     ProfileCustomisation? customisation,
+    AccountType? accountType,
+    BusinessProfile? business,
+    bool? hasUpcomingEvents,
   });
   ProfileCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
@@ -319,6 +350,9 @@ class _ProfileCopyWithImpl<$R, $Out>
   get moderation =>
       $value.moderation?.copyWith.$chain((v) => call(moderation: v));
   @override
+  BusinessProfileCopyWith<$R, BusinessProfile, BusinessProfile>? get business =>
+      $value.business?.copyWith.$chain((v) => call(business: v));
+  @override
   $R call({
     String? did,
     String? handle,
@@ -341,6 +375,9 @@ class _ProfileCopyWithImpl<$R, $Out>
     Object? projectCount = $none,
     Object? moderation = $none,
     ProfileCustomisation? customisation,
+    Object? accountType = $none,
+    Object? business = $none,
+    bool? hasUpcomingEvents,
   }) => $apply(
     FieldCopyWithData({
       if (did != null) #did: did,
@@ -365,6 +402,9 @@ class _ProfileCopyWithImpl<$R, $Out>
       if (projectCount != $none) #projectCount: projectCount,
       if (moderation != $none) #moderation: moderation,
       if (customisation != null) #customisation: customisation,
+      if (accountType != $none) #accountType: accountType,
+      if (business != $none) #business: business,
+      if (hasUpcomingEvents != null) #hasUpcomingEvents: hasUpcomingEvents,
     }),
   );
   @override
@@ -399,6 +439,12 @@ class _ProfileCopyWithImpl<$R, $Out>
     projectCount: data.get(#projectCount, or: $value.projectCount),
     moderation: data.get(#moderation, or: $value.moderation),
     customisation: data.get(#customisation, or: $value.customisation),
+    accountType: data.get(#accountType, or: $value.accountType),
+    business: data.get(#business, or: $value.business),
+    hasUpcomingEvents: data.get(
+      #hasUpcomingEvents,
+      or: $value.hasUpcomingEvents,
+    ),
   );
 
   @override

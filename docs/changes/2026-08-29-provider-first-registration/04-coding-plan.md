@@ -37,7 +37,7 @@ Flutter will extend `AuthController`, `AuthApiClient`, and `PendingAuth`; reuse 
 ## 4. Files And Modules
 | Path / Module | Create / Change | Purpose | Requirement IDs | Test IDs |
 |---|---|---|---|---|
-| `appview/migrations/000061_provider_first_registration.{up,down}.sql` | Create | Add registration purpose, nullable authority, admission reservations, and unverified credential quarantine | FR-004, FR-005, FR-011, RULE-004 | IT-005, IT-008 |
+| `appview/migrations/000064_provider_first_registration.{up,down}.sql` | Create | Add registration purpose, nullable authority, admission reservations, and unverified credential quarantine | FR-004, FR-005, FR-011, RULE-004 | IT-005, IT-008 |
 | `appview/internal/db/provider_registration_migration_test.go` | Create | Verify up/down/up and every valid/invalid purpose shape | FR-004 | IT-005 |
 | `appview/internal/auth/account_deletion_reauth.go` | Change | Add `RegistrationOAuthPurpose`, provider/issuer metadata, and purpose-aware validation helpers | FR-004, FR-009 | IT-004, IT-021 |
 | `appview/internal/auth/store.go` | Change | Reserve capacity, save ownerless requests, enforce expiry, quarantine tokens, atomically bind authority/session | FR-004, FR-005, FR-009, FR-011 | IT-004, IT-008 through IT-010, IT-016, IT-021, IT-022 |

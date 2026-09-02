@@ -58,9 +58,9 @@ func (i *IndigoPDSClient) GetRecord(ctx context.Context, repo syntax.DID, collec
 		return "", fmt.Errorf("parse nsid: %w", err)
 	}
 	var resp struct {
-		URI   string `json:"uri"`
-		CID   string `json:"cid"`
-		Value any    `json:"value"`
+		URI   string          `json:"uri"`
+		CID   string          `json:"cid"`
+		Value json.RawMessage `json:"value"`
 	}
 	params := map[string]any{
 		"repo":       repo.String(),
@@ -76,12 +76,15 @@ func (i *IndigoPDSClient) GetRecord(ctx context.Context, repo syntax.DID, collec
 	if resp.CID == "" {
 		return "", fmt.Errorf("getRecord: PDS returned empty cid for %s/%s", collection, rkey)
 	}
-	if m, ok := out.(*map[string]any); ok {
-		if v, ok := resp.Value.(map[string]any); ok {
-			*m = v
-			return resp.CID, nil
+	switch target := out.(type) {
+	case *json.RawMessage:
+		*target = append((*target)[:0], resp.Value...)
+		return resp.CID, nil
+	case *map[string]any:
+		if err := json.Unmarshal(resp.Value, target); err != nil {
+			return "", fmt.Errorf("decode getRecord value: %w", err)
 		}
-		return "", fmt.Errorf("getRecord value has unexpected type %T", resp.Value)
+		return resp.CID, nil
 	}
 	return "", fmt.Errorf("unsupported out type %T", out)
 }
@@ -110,8 +113,8 @@ func (i *IndigoPDSClient) PutRecord(ctx context.Context, repo syntax.DID, collec
 	return i.putRecord(ctx, repo, collection, rkey, record, "")
 }
 
-// PutRecordWithSwap sends swapRecord so an update cannot overwrite a newer
-// same-rkey record after the caller's version evidence becomes stale.
+// PutRecordWithSwap sends swapRecord so a create requires absence or an update
+// cannot overwrite a newer same-rkey record.
 func (i *IndigoPDSClient) PutRecordWithSwap(
 	ctx context.Context,
 	repo syntax.DID,
@@ -144,7 +147,9 @@ func (i *IndigoPDSClient) putRecord(
 		"rkey":       rkey,
 		"record":     record,
 	}
-	if expectedCID != "" {
+	if expectedCID == "*" {
+		body["swapRecord"] = nil
+	} else if expectedCID != "" {
 		body["swapRecord"] = expectedCID.String()
 	}
 	var resp any

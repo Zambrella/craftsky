@@ -52,6 +52,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navigationLinkOpenError => 'Couldn\'t open that link.';
 
   @override
+  String get externalLinkConfirmTitle => 'Open link?';
+
+  @override
+  String get externalLinkConfirmBody => 'This will open outside CraftSky.';
+
+  @override
+  String get externalLinkConfirmAction => 'Open link';
+
+  @override
   String get notificationsTitle => 'Notifications';
 
   @override
@@ -1333,6 +1342,93 @@ class AppLocalizationsEn extends AppLocalizations {
   String get editProfileSaveError => 'Couldn\'t save your profile.';
 
   @override
+  String get editProfileBusinessSaveError =>
+      'Couldn\'t save your business details.';
+
+  @override
+  String get editProfileBothSaveError =>
+      'Couldn\'t save your profile or business details.';
+
+  @override
+  String get editProfileBusinessConflictError =>
+      'Your business details changed elsewhere. Reload before saving them again.';
+
+  @override
+  String get editProfileBusinessHeading => 'Business details';
+
+  @override
+  String get editProfileBusinessHelper =>
+      'These details appear on your public business profile.';
+
+  @override
+  String get editProfileBusinessTypesLabel => 'Business types';
+
+  @override
+  String get editProfileBusinessTypesHelper => 'Choose up to 5.';
+
+  @override
+  String get editProfileBusinessTypesLimit =>
+      'Choose no more than 5 business types.';
+
+  @override
+  String get editProfileBusinessOfferingsLabel => 'Offerings';
+
+  @override
+  String get editProfileBusinessOfferingsHelper => 'Choose up to 10.';
+
+  @override
+  String get editProfileBusinessOfferingsLimit =>
+      'Choose no more than 10 offerings.';
+
+  @override
+  String get editProfileBusinessTaglineLabel => 'Tagline';
+
+  @override
+  String get editProfileBusinessTaglineTooLong =>
+      'Tagline must be 100 characters or fewer.';
+
+  @override
+  String get editProfileBusinessHoursLabel => 'Hours';
+
+  @override
+  String get editProfileBusinessHoursTooLong =>
+      'Hours must be 300 characters or fewer.';
+
+  @override
+  String get editProfileBusinessServiceAreaLabel => 'Service area';
+
+  @override
+  String get editProfileBusinessServiceAreaTooLong =>
+      'Service area must be 200 characters or fewer.';
+
+  @override
+  String get editProfileBusinessCountryLabel => 'Country code';
+
+  @override
+  String get editProfileBusinessCountryInvalid =>
+      'Enter a valid two-letter country code.';
+
+  @override
+  String get editProfileBusinessLocalityLabel => 'Town or locality';
+
+  @override
+  String get editProfileBusinessLocalityTooLong =>
+      'Town or locality must be 100 characters or fewer.';
+
+  @override
+  String get editProfileBusinessActionLabel => 'Primary action';
+
+  @override
+  String get editProfileBusinessActionNone => 'No primary action';
+
+  @override
+  String get editProfileBusinessActionDestinationLabel => 'Action destination';
+
+  @override
+  String get editProfileBusinessActionDestinationInvalid =>
+      'Enter a valid HTTPS or email destination.';
+
+  @override
   String get editProfileDiscardTitle => 'Discard changes?';
 
   @override
@@ -2406,6 +2502,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsSectionGeneral => 'General';
 
   @override
+  String get settingsSectionBusiness => 'Business';
+
+  @override
+  String get settingsBusinessEvents => 'Events';
+
+  @override
+  String get settingsBusinessProducts => 'Products';
+
+  @override
   String get settingsNotifications => 'Notifications';
 
   @override
@@ -2522,6 +2627,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get accountTitle => 'Account';
 
   @override
+  String get accountTypeTitle => 'Account type';
+
+  @override
+  String get accountTypeRegular => 'Regular';
+
+  @override
+  String get accountTypeBusiness => 'Business';
+
+  @override
   String get deleteAccountTitle => 'Delete CraftSky account?';
 
   @override
@@ -2615,4 +2729,635 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get youtubePlaybackUnavailable =>
       'This video can’t be played here. It may be private, unavailable, or restricted from embedded playback.';
+
+  @override
+  String get businessProfileLabel => 'Business';
+
+  @override
+  String get profileTabProducts => 'Products';
+
+  @override
+  String get profileTabUpcomingEvents => 'Upcoming Events';
+
+  @override
+  String get businessTypesHeading => 'Business types';
+
+  @override
+  String get businessOfferingsHeading => 'Offerings';
+
+  @override
+  String get businessLocationHeading => 'Location';
+
+  @override
+  String get businessServiceAreaHeading => 'Service area';
+
+  @override
+  String get businessHoursHeading => 'Hours';
+
+  @override
+  String businessUnknownValue(String value) {
+    return 'Other: $value';
+  }
+
+  @override
+  String businessLocationValue(String locality, String country) {
+    return '$locality, $country';
+  }
+
+  @override
+  String get businessTypeDyer => 'Dyer';
+
+  @override
+  String get businessTypeFiberProducer => 'Fiber producer';
+
+  @override
+  String get businessTypeFiberProcessor => 'Fiber processor';
+
+  @override
+  String get businessTypeYarnShop => 'Yarn shop';
+
+  @override
+  String get businessTypeFabricShop => 'Fabric shop';
+
+  @override
+  String get businessTypeCraftSupplyShop => 'Craft supply shop';
+
+  @override
+  String get businessTypePatternDesigner => 'Pattern designer';
+
+  @override
+  String get businessTypeFinishedGoodsMaker => 'Finished goods maker';
+
+  @override
+  String get businessTypeToolMaker => 'Tool maker';
+
+  @override
+  String get businessTypeTeacher => 'Teacher';
+
+  @override
+  String get businessTypeCraftStudio => 'Craft studio';
+
+  @override
+  String get businessTypeRepairService => 'Repair service';
+
+  @override
+  String get businessTypeTechnicalEditor => 'Technical editor';
+
+  @override
+  String get businessTypePhotographer => 'Photographer';
+
+  @override
+  String get businessTypePublisher => 'Publisher';
+
+  @override
+  String get businessTypeOtherCraftBusiness => 'Other craft business';
+
+  @override
+  String get businessOfferingYarn => 'Yarn';
+
+  @override
+  String get businessOfferingFiber => 'Fiber';
+
+  @override
+  String get businessOfferingFabric => 'Fabric';
+
+  @override
+  String get businessOfferingPatterns => 'Patterns';
+
+  @override
+  String get businessOfferingKits => 'Kits';
+
+  @override
+  String get businessOfferingNotions => 'Notions';
+
+  @override
+  String get businessOfferingTools => 'Tools';
+
+  @override
+  String get businessOfferingFinishedGoods => 'Finished goods';
+
+  @override
+  String get businessOfferingCustomWork => 'Custom work';
+
+  @override
+  String get businessOfferingRepairs => 'Repairs';
+
+  @override
+  String get businessOfferingClasses => 'Classes';
+
+  @override
+  String get businessOfferingStudioHire => 'Studio hire';
+
+  @override
+  String get businessOfferingWholesale => 'Wholesale';
+
+  @override
+  String get businessOfferingDigitalProducts => 'Digital products';
+
+  @override
+  String get businessOfferingTechnicalEditing => 'Technical editing';
+
+  @override
+  String get businessOfferingPhotographyServices => 'Photography services';
+
+  @override
+  String get businessOfferingFiberProcessing => 'Fiber processing';
+
+  @override
+  String get businessActionShop => 'Shop';
+
+  @override
+  String get businessActionBrowsePatterns => 'Browse patterns';
+
+  @override
+  String get businessActionRequestCustomOrder => 'Request custom order';
+
+  @override
+  String get businessActionBookClass => 'Book class';
+
+  @override
+  String get businessActionBookAppointment => 'Book appointment';
+
+  @override
+  String get businessActionViewEventCalendar => 'View event calendar';
+
+  @override
+  String get businessActionEmail => 'Email';
+
+  @override
+  String get businessActionVisitWebsite => 'Visit website';
+
+  @override
+  String get businessActionWholesaleEnquiries => 'Wholesale enquiries';
+
+  @override
+  String get businessProductsOwnerEmpty =>
+      'Add featured products to help visitors find your work.';
+
+  @override
+  String get businessProductsVisitorEmpty => 'No featured products yet.';
+
+  @override
+  String get businessProductsManageAction => 'Manage products';
+
+  @override
+  String businessProductOpen(String title) {
+    return 'Open $title outside CraftSky';
+  }
+
+  @override
+  String get businessEventsOwnerEmpty =>
+      'Add an event appearance to share what’s coming up.';
+
+  @override
+  String get businessEventsVisitorEmpty => 'No upcoming events yet.';
+
+  @override
+  String get businessEventsManageAction => 'Manage events';
+
+  @override
+  String get businessEventsLoadError => 'Upcoming events could not be loaded.';
+
+  @override
+  String get businessEventsLoadMoreError => 'Couldn’t load more events.';
+
+  @override
+  String get businessEventsRefreshError => 'Couldn’t refresh upcoming events.';
+
+  @override
+  String get businessEventsRetryAction => 'Retry';
+
+  @override
+  String get businessEventsLoadMoreAction => 'Load more';
+
+  @override
+  String get businessEventsRefreshAction => 'Refresh';
+
+  @override
+  String get businessEventsEnd => 'You’ve reached the end.';
+
+  @override
+  String get businessEventAllDayDisplay => 'All day';
+
+  @override
+  String businessEventTimeRange(String start, String end) {
+    return '$start–$end';
+  }
+
+  @override
+  String businessEventDateRange(String start, String end, int year) {
+    return '$start–$end, $year';
+  }
+
+  @override
+  String get businessEventRoleOrganizer => 'Organizer';
+
+  @override
+  String get businessEventRoleInstructor => 'Instructor';
+
+  @override
+  String get businessEventRoleVendor => 'Vendor';
+
+  @override
+  String get businessEventRoleExhibitor => 'Exhibitor';
+
+  @override
+  String get businessEventRoleSpeaker => 'Speaker';
+
+  @override
+  String get businessEventRoleDemonstrator => 'Demonstrator';
+
+  @override
+  String get businessEventModeInPerson => 'In person';
+
+  @override
+  String get businessEventModeOnline => 'Online';
+
+  @override
+  String get businessEventModeHybrid => 'Hybrid';
+
+  @override
+  String get businessEventDetailTitle => 'Event';
+
+  @override
+  String get businessEventUnavailableTitle => 'Event unavailable';
+
+  @override
+  String get businessEventUnavailableBody => 'This event can’t be viewed.';
+
+  @override
+  String get businessEventReportAction => 'Report event';
+
+  @override
+  String get businessEventReportActionShort => 'Report';
+
+  @override
+  String get businessEventDetailLoadError =>
+      'Event details could not be loaded.';
+
+  @override
+  String get businessEventStatusScheduled => 'Scheduled';
+
+  @override
+  String get businessEventStatusCancelled => 'Cancelled';
+
+  @override
+  String get businessEventStatusPostponed => 'Postponed';
+
+  @override
+  String get businessEventLifecycleUpcoming => 'Upcoming';
+
+  @override
+  String get businessEventLifecyclePast => 'Past';
+
+  @override
+  String get businessEventDateLabel => 'Date';
+
+  @override
+  String get businessEventTimeLabel => 'Time';
+
+  @override
+  String get businessEventRolesLabel => 'Your role';
+
+  @override
+  String get businessEventModeLabel => 'Attendance mode';
+
+  @override
+  String get businessEventStatusLabel => 'Status';
+
+  @override
+  String get businessEventLifecycleLabel => 'Lifecycle';
+
+  @override
+  String get businessEventTimeZoneLabel => 'Timezone';
+
+  @override
+  String get businessEventVenueLabel => 'Venue (optional)';
+
+  @override
+  String get businessEventPublishedLabel => 'Published';
+
+  @override
+  String businessEventPublishedOn(String date) {
+    return 'Published $date';
+  }
+
+  @override
+  String get businessEventWebsiteAction => 'Event website';
+
+  @override
+  String get businessEventRegistrationAction => 'Register';
+
+  @override
+  String get businessProductsSettingsTitle => 'Products';
+
+  @override
+  String get businessProductsAdd => 'Add product';
+
+  @override
+  String get businessProductsEmpty => 'No featured products yet.';
+
+  @override
+  String get businessProductsUnavailable =>
+      'Product management is available to business accounts.';
+
+  @override
+  String get businessProductsLoadError => 'Products could not be loaded.';
+
+  @override
+  String get businessProductsRetry => 'Retry';
+
+  @override
+  String get businessProductsConflict =>
+      'These business details changed elsewhere. Reload the complete current profile before trying again.';
+
+  @override
+  String get businessProductsReload => 'Reload current profile';
+
+  @override
+  String get businessProductsSaveError =>
+      'Products could not be saved. Check the fields and try again.';
+
+  @override
+  String get businessProductsUploadError =>
+      'The image could not be uploaded. Try again.';
+
+  @override
+  String get businessLoading => 'Loading business information';
+
+  @override
+  String get businessSaving => 'Saving business information';
+
+  @override
+  String get businessImageUploading => 'Uploading image';
+
+  @override
+  String businessProductsCount(int count, int limit) {
+    return '$count of $limit products';
+  }
+
+  @override
+  String businessProductEdit(String title) {
+    return 'Edit $title';
+  }
+
+  @override
+  String businessProductRemove(String title) {
+    return 'Remove $title';
+  }
+
+  @override
+  String get businessProductRemoveConfirmTitle => 'Remove product?';
+
+  @override
+  String businessProductRemoveConfirmMessage(String title) {
+    return 'Remove $title from your featured products? This change is saved immediately.';
+  }
+
+  @override
+  String get businessProductRemoveConfirm => 'Remove';
+
+  @override
+  String get businessProductRemoveCancel => 'Keep product';
+
+  @override
+  String businessProductMoveUp(String title) {
+    return 'Move $title up';
+  }
+
+  @override
+  String businessProductMoveDown(String title) {
+    return 'Move $title down';
+  }
+
+  @override
+  String get businessProductEditorAddTitle => 'Add product';
+
+  @override
+  String get businessProductEditorEditTitle => 'Edit product';
+
+  @override
+  String get businessProductTitleLabel => 'Title';
+
+  @override
+  String get businessProductDestinationLabel => 'Destination';
+
+  @override
+  String get businessProductDestinationHint => 'https://example.com/product';
+
+  @override
+  String get businessProductAmountLabel => 'Amount';
+
+  @override
+  String get businessProductCurrencyLabel => 'Currency';
+
+  @override
+  String get businessProductAltLabel => 'Image description';
+
+  @override
+  String get businessProductAddImage => 'Add image';
+
+  @override
+  String get businessProductReplaceImage => 'Replace image';
+
+  @override
+  String get businessProductRemoveImage => 'Remove image';
+
+  @override
+  String get businessProductSave => 'Save product';
+
+  @override
+  String get businessProductCancel => 'Cancel';
+
+  @override
+  String get businessProductTitleRequired => 'Add a title.';
+
+  @override
+  String get businessProductTitleTooLong => 'Use 150 characters or fewer.';
+
+  @override
+  String get businessProductDestinationInvalid =>
+      'Enter a credential-free HTTPS link.';
+
+  @override
+  String get businessProductDestinationDuplicate =>
+      'Use a different destination. Each product must link to a unique page.';
+
+  @override
+  String get businessProductImageRequired => 'Add an image.';
+
+  @override
+  String get businessProductPriceInvalid =>
+      'Enter a canonical amount and uppercase ISO currency code, or clear both.';
+
+  @override
+  String get businessEventCreateTitle => 'Create event';
+
+  @override
+  String get businessEventEditTitle => 'Edit event';
+
+  @override
+  String get businessEventSave => 'Save event';
+
+  @override
+  String get businessEventNameLabel => 'Event name';
+
+  @override
+  String get businessEventNameRequired => 'Add an event name.';
+
+  @override
+  String get businessEventStartLabel => 'Start';
+
+  @override
+  String get businessEventEndLabel => 'End';
+
+  @override
+  String get businessEventDateTimeHint => 'Select date and time';
+
+  @override
+  String get businessEventTimeHint => 'YYYY-MM-DD HH:MM';
+
+  @override
+  String get businessEventTimeInvalid => 'Enter a valid start and end.';
+
+  @override
+  String get businessEventEndAfterStart => 'End must be after start.';
+
+  @override
+  String get businessEventAllDay => 'All-day event';
+
+  @override
+  String get businessEventRolesRequired => 'Choose at least one role.';
+
+  @override
+  String get businessEventSummaryLabel => 'Summary (optional)';
+
+  @override
+  String get businessEventUriLabel => 'Event link (optional)';
+
+  @override
+  String get businessEventRegistrationUriLabel =>
+      'Registration link (optional)';
+
+  @override
+  String get businessEventImageDescriptionLabel => 'Image description';
+
+  @override
+  String get businessEventAddImage => 'Add image';
+
+  @override
+  String get businessEventReplaceImage => 'Replace image';
+
+  @override
+  String get businessEventRemoveImage => 'Remove image';
+
+  @override
+  String get businessEventUploadError =>
+      'The image could not be uploaded. Try again.';
+
+  @override
+  String get businessEventValidationError =>
+      'Check the event details and try again.';
+
+  @override
+  String get businessEventSaveError =>
+      'The event could not be saved. Try again.';
+
+  @override
+  String get businessEventConflict =>
+      'This event changed elsewhere. Reload the current event before trying again.';
+
+  @override
+  String get businessEventReload => 'Reload current event';
+
+  @override
+  String get businessEventDiscardTitle => 'Discard event changes?';
+
+  @override
+  String get businessEventDiscardMessage =>
+      'Your unsaved event changes will be lost.';
+
+  @override
+  String get businessEventDiscard => 'Discard';
+
+  @override
+  String get businessEventKeepEditing => 'Keep editing';
+
+  @override
+  String get businessEventDiagnosticOwnerNotBusiness =>
+      'Your account is not currently presented as a business.';
+
+  @override
+  String get businessEventDiagnosticInvalidTimeRange =>
+      'The event’s time range is invalid.';
+
+  @override
+  String get businessEventDiagnosticDurationExceedsLimit =>
+      'The event is longer than the supported limit.';
+
+  @override
+  String get businessEventDiagnosticRecordModerated =>
+      'This event is hidden by moderation.';
+
+  @override
+  String get businessEventDiagnosticEnded => 'This event has ended.';
+
+  @override
+  String get businessEventDiagnosticCancelled => 'This event is cancelled.';
+
+  @override
+  String get businessEventDiagnosticPostponed => 'This event is postponed.';
+
+  @override
+  String get businessEventsSettingsTitle => 'Events';
+
+  @override
+  String get businessEventsUpcomingTab => 'Upcoming';
+
+  @override
+  String get businessEventsHistoryTab => 'History';
+
+  @override
+  String get businessEventsUnavailable =>
+      'Event management is available to business accounts.';
+
+  @override
+  String get businessEventsOwnerLoadError => 'Events could not be loaded.';
+
+  @override
+  String get businessEventsOwnerRefreshError =>
+      'Events could not be refreshed.';
+
+  @override
+  String get businessEventsUpcomingEmpty => 'No upcoming events yet.';
+
+  @override
+  String get businessEventsHistoryEmpty => 'No event history yet.';
+
+  @override
+  String businessEventManage(String name) {
+    return 'Manage $name';
+  }
+
+  @override
+  String get businessEventEditAction => 'Edit event';
+
+  @override
+  String get businessEventCancelAction => 'Cancel event';
+
+  @override
+  String get businessEventPostponeAction => 'Postpone event';
+
+  @override
+  String get businessEventDeleteAction => 'Delete event';
+
+  @override
+  String get businessEventDeleteConfirmTitle => 'Delete this event?';
+
+  @override
+  String get businessEventDeleteConfirmMessage =>
+      'This permanently deletes the event record from your account.';
+
+  @override
+  String get businessEventDeleteConfirmAction => 'Delete';
 }

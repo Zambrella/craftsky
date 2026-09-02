@@ -76,6 +76,14 @@ func TestCanonicalPutBodyFingerprintMatchesExactJSONRequest(t *testing.T) {
 	if string(casBody) != wantCASBody || casFingerprint != sha256.Sum256([]byte(wantCASBody)) {
 		t.Fatalf("canonical CAS Put body/fingerprint = %s/%x", casBody, casFingerprint)
 	}
+	createBody, createFingerprint, err := canonicalPutBody(owner, collection, rkey, recordA, "*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantCreateBody := `{"collection":"social.craftsky.feed.post","record":{"nested":{"a":true,"z":2},"text":"hello \u003ccraft\u003e"},"repo":"did:plc:canonical-effect","rkey":"3lcanonical","swapRecord":null}`
+	if string(createBody) != wantCreateBody || createFingerprint != sha256.Sum256([]byte(wantCreateBody)) {
+		t.Fatalf("canonical create-only Put body/fingerprint = %s/%x", createBody, createFingerprint)
+	}
 }
 
 func TestCanonicalDeleteBodyAndDeterministicURI(t *testing.T) {

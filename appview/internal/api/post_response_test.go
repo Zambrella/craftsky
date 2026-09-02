@@ -459,6 +459,41 @@ func TestBuildPostResponse_ImageURLsKnownAndUnknownMIME(t *testing.T) {
 	}
 }
 
+func TestBuildPostResponse_IncompleteAndUnsupportedImagesPreserveWireOmissions(t *testing.T) {
+	t.Parallel()
+	row := baseRow()
+	row.Images = json.RawMessage(`[
+		{"alt":"incomplete"},
+		{"cid":"bafktiff","mime":"image/tiff","size":456,"alt":"unsupported"}
+	]`)
+
+	wire, err := json.Marshal(api.BuildPostResponse(row, syntax.Handle("alice.example")))
+	if err != nil {
+		t.Fatalf("marshal post response: %v", err)
+	}
+	var response struct {
+		Images []map[string]any `json:"images"`
+	}
+	if err := json.Unmarshal(wire, &response); err != nil {
+		t.Fatalf("decode post response: %v", err)
+	}
+	if len(response.Images) != 2 {
+		t.Fatalf("images = %d, want 2", len(response.Images))
+	}
+	for index, image := range response.Images {
+		for _, key := range []string{"thumb", "fullsize"} {
+			if _, exists := image[key]; exists {
+				t.Errorf("images[%d].%s present in unsupported/incomplete image: %#v", index, key, image)
+			}
+		}
+	}
+	for _, key := range []string{"cid", "mime", "size"} {
+		if _, exists := response.Images[0][key]; exists {
+			t.Errorf("images[0].%s present with zero value: %#v", key, response.Images[0])
+		}
+	}
+}
+
 func TestBuildPostResponse_ImageMetadataIncludesAspectRatioAndSize(t *testing.T) {
 	t.Parallel()
 	row := baseRow()

@@ -8,6 +8,7 @@ import (
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/followergrowth"
 	"social.craftsky/appview/internal/languages"
 	"social.craftsky/appview/internal/notifications"
@@ -30,12 +31,21 @@ type contentDependencies struct {
 	reportForwarder       api.ReportForwarder
 	followerGrowth        *followergrowth.Store
 	followerGrowthWorker  *followergrowth.Worker
+	business              *business.Store
 }
 
 type contentRuntimeDependencies struct {
 	identityCache         auth.IdentityCacheUpdater
 	identityRefresh       *api.IdentityCacheRefreshProcessor
 	relationshipMutations api.RelationshipMutationService
+}
+
+func newBusinessEventCursorCodec(key []byte) (*api.EventCursorCodec, error) {
+	codec, err := api.NewEventCursorCodec(key)
+	if err != nil {
+		return nil, fmt.Errorf("business event cursor codec: %w", err)
+	}
+	return codec, nil
 }
 
 func newContentDependencies(
@@ -55,6 +65,7 @@ func newContentDependencies(
 		reportForwarder:       api.NewPlaceholderReportForwarder(time.Now),
 		followerGrowth:        followerGrowth,
 		followerGrowthWorker:  followergrowth.NewWorker(followerGrowth, followergrowth.WithObserver(observer)),
+		business:              business.NewStore(pool),
 	}
 }
 

@@ -165,19 +165,27 @@ func (store *Store) ingestRecordTx(
 	orderingStatus := "authoritative"
 	var projectionGeneration any
 	var effectOperationID any
+	independentBusiness := isIndependentBusinessCollection(event.Collection)
 	if authority != nil {
-		projectionGeneration = authority.Lifecycle.Generation
+		if !independentBusiness {
+			projectionGeneration = authority.Lifecycle.Generation
+		}
 		switch authority.Lifecycle.State {
 		case "terminal":
 			disposition = "denied_terminal"
 			outcome = tap.PermanentInvalid(tap.ReasonOwnerTerminal)
-		case "departed", "deletion_pending", "deleting":
+		case "departed":
+			if event.Action != "delete" && !independentBusiness {
+				disposition = "blocked_departed"
+				outcome = tap.Blocked(tap.ReasonOwnerDeparted, tap.Dependency{Kind: "member_did", Key: event.DID.String()})
+			}
+		case "deletion_pending", "deleting":
 			if event.Action != "delete" {
 				disposition = "blocked_departed"
 				outcome = tap.Blocked(tap.ReasonOwnerDeparted, tap.Dependency{Kind: "member_did", Key: event.DID.String()})
 			}
 		}
-		if event.Action != "delete" {
+		if event.Action != "delete" && !independentBusiness {
 			recordContentFingerprint, err := pdseffects.RecordContentFingerprint(
 				event.DID, event.Collection, event.Rkey, event.Record,
 			)
@@ -532,6 +540,10 @@ func (store *Store) initialProjectionOutcome(ctx context.Context, tx pgx.Tx, eve
 	switch event.Collection {
 	case "social.craftsky.actor.profile":
 		return tap.Applied(), nil
+	case "social.craftsky.business.profile", "social.craftsky.business.event":
+		// Public business records are independent source data. Membership and
+		// private account type affect serving, never durable ingestion.
+		return tap.Applied(), nil
 	case "social.craftsky.feed.post", "social.craftsky.feed.like", "social.craftsky.feed.repost",
 		"app.bsky.actor.profile", "app.bsky.graph.follow", "app.bsky.graph.block":
 	default:
@@ -553,6 +565,10 @@ func (store *Store) initialProjectionOutcome(ctx context.Context, tx pgx.Tx, eve
 	// an interaction whose subject arrives later can become explicitly blocked
 	// without losing the original event.
 	return tap.Applied(), nil
+}
+
+func isIndependentBusinessCollection(collection syntax.NSID) bool {
+	return collection == "social.craftsky.business.profile" || collection == "social.craftsky.business.event"
 }
 
 func projectionKind(collection syntax.NSID) string {
@@ -853,6 +869,12 @@ func (store *Store) projectionEligibility(ctx context.Context, tx pgx.Tx, source
 	}
 	if state == "terminal" || source.ProjectionDisposition == "denied_terminal" {
 		return tap.PermanentInvalid(tap.ReasonOwnerTerminal), nil
+	}
+	if isIndependentBusinessCollection(source.Collection) {
+		if source.Action != "delete" && (state == "deletion_pending" || state == "deleting") {
+			return tap.Blocked(tap.ReasonOwnerDeparted, tap.Dependency{Kind: "member_did", Key: source.DID.String()}), nil
+		}
+		return tap.Outcome{}, nil
 	}
 	if source.EffectOperationID != "" && source.Action != "delete" {
 		recordContentFingerprint, err := pdseffects.RecordContentFingerprint(

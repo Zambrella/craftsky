@@ -14,6 +14,7 @@ type profileRelationshipRouteBundle struct {
 	mux                       Registrar
 	middleware                v1Middleware
 	profileStore              *api.ProfileStore
+	businessProfiles          api.BusinessProfileReader
 	followerGrowth            api.FollowerGrowthReader
 	profileCustomisationStore *api.ProfileCustomisationStore
 	followStore               *api.FollowStore
@@ -29,8 +30,8 @@ type profileRelationshipRouteBundle struct {
 }
 
 func registerProfileRelationshipRoutes(routes profileRelationshipRouteBundle) {
-	routes.mux.Handle("GET /v1/profiles/{handleOrDid}", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}"), api.GetProfileHandler(routes.profileStore, routes.handleResolver, routes.logger)))
-	routes.mux.Handle("GET /v1/profiles/me", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/me"), api.GetMeProfileHandler(routes.profileStore, routes.handleResolver, routes.logger)))
+	routes.mux.Handle("GET /v1/profiles/{handleOrDid}", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}"), api.GetProfileHandler(routes.profileStore, routes.businessProfiles, routes.handleResolver, routes.logger)))
+	routes.mux.Handle("GET /v1/profiles/me", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/me"), api.GetMeProfileHandler(routes.profileStore, routes.businessProfiles, routes.handleResolver, routes.logger)))
 	routes.mux.Handle("GET /v1/profiles/me/follower-growth", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/me/follower-growth"), api.GetFollowerGrowthHandler(routes.followerGrowth, time.Now)))
 	routes.mux.Handle("GET /v1/profiles/me/followers", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/me/followers"), api.GetMeFollowersHandler(routes.profileStore, routes.handleResolver, routes.logger)))
 	routes.mux.Handle("GET /v1/profiles/me/following", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/me/following"), api.GetMeFollowingHandler(routes.profileStore, routes.handleResolver, routes.logger)))

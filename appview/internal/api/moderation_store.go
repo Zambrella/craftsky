@@ -35,6 +35,7 @@ type ModerationSourceAuthority string
 const (
 	ModerationSubjectPost    ModerationSubjectType = "post"
 	ModerationSubjectAccount ModerationSubjectType = "account"
+	ModerationSubjectEvent   ModerationSubjectType = "event"
 
 	ModerationValueHide     ModerationValue = "hide"
 	ModerationValueTakedown ModerationValue = "takedown"

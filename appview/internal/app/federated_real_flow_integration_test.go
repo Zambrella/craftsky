@@ -120,7 +120,7 @@ func withRealFlowAuthSchema(t *testing.T) *pgxpool.Pool {
 	pool := testdb.WithSchema(t, realFlowAuthSchemaDDL)
 	for _, name := range []string{
 		"000038_owner_auth_lifecycle.up.sql",
-		"000061_provider_first_registration.up.sql",
+		"000064_provider_first_registration.up.sql",
 	} {
 		migration, err := os.ReadFile("../../migrations/" + name)
 		if err != nil {

@@ -22,6 +22,7 @@ import (
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/languages"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/ownerlifecycle"
@@ -498,7 +499,10 @@ func TestGetPostBlockedPairReturnsGenericPayloadWithoutHydration(t *testing.T) {
 			"did:plc:bob": {BlockedBy: true},
 		},
 	}
-	h := api.GetPostHandler(store, fakeResolver{handleFor: "bob.example"}, nilLogger())
+	h := hydrateProductionSummaries(
+		api.GetPostHandler(store, fakeResolver{handleFor: "bob.example"}, nilLogger()),
+		map[syntax.DID]business.AccountType{"did:plc:bob": business.AccountTypeBusiness},
+	)
 	req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:bob/post1", "", "did:plc:alice")
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -513,6 +517,9 @@ func TestGetPostBlockedPairReturnsGenericPayloadWithoutHydration(t *testing.T) {
 	_ = json.Unmarshal(rr.Body.Bytes(), &body)
 	if body["availability"] != "blocked" || body["text"] != nil || body["author"] != nil || body["uri"] != nil {
 		t.Fatalf("body = %+v", body)
+	}
+	if strings.Contains(rr.Body.String(), "accountType") || strings.Contains(rr.Body.String(), "business") {
+		t.Fatalf("blocked production post exposed business fields: %s", rr.Body.String())
 	}
 }
 
@@ -533,9 +540,12 @@ func TestGetPostThirdPartyQuoteCannotBridgeBlockedAuthors(t *testing.T) {
 			{First: "did:plc:carol", Second: "did:plc:bob"}: true,
 		},
 	}
-	h := api.GetPostHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+	h := hydrateProductionSummaries(api.GetPostHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
 		"did:plc:carol": "carol.example", "did:plc:bob": "bob.example",
-	}}, nilLogger())
+	}}, nilLogger()), map[syntax.DID]business.AccountType{
+		"did:plc:carol": business.AccountTypeRegular,
+		"did:plc:bob":   business.AccountTypeBusiness,
+	})
 	req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:carol/quote", "", "did:plc:alice")
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -548,6 +558,12 @@ func TestGetPostThirdPartyQuoteCannotBridgeBlockedAuthors(t *testing.T) {
 	quoteView := body["quoteView"].(map[string]any)
 	if quoteView["state"] != "blocked" || quoteView["post"] != nil {
 		t.Fatalf("quoteView = %+v", quoteView)
+	}
+	if _, exists := quoteView["accountType"]; exists {
+		t.Fatalf("blocked quote exposed accountType: %+v", quoteView)
+	}
+	if _, exists := quoteView["business"]; exists {
+		t.Fatalf("blocked quote exposed business data: %+v", quoteView)
 	}
 }
 
@@ -576,15 +592,20 @@ func TestListCommentRepliesShapesMutedBranchAndOmitsBlockedBranch(t *testing.T) 
 					"did:plc:bob": test.state,
 				},
 			}
-			h := api.ListCommentRepliesHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+			h := hydrateProductionSummaries(api.ListCommentRepliesHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
 				"did:plc:bob": "bob.example", "did:plc:carol": "carol.example",
-			}}, nilLogger())
+			}}, nilLogger()), map[syntax.DID]business.AccountType{
+				"did:plc:bob": business.AccountTypeBusiness, "did:plc:carol": business.AccountTypeBusiness,
+			})
 			req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:commenter/comment/replies", "", "did:plc:alice")
 			rr := httptest.NewRecorder()
 			h.ServeHTTP(rr, req)
 
 			if rr.Code != http.StatusOK {
 				t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+			}
+			if test.state.Blocking && (strings.Contains(rr.Body.String(), "accountType") || strings.Contains(rr.Body.String(), "business")) {
+				t.Fatalf("blocked production reply branch exposed business fields: %s", rr.Body.String())
 			}
 			var body map[string]any
 			_ = json.Unmarshal(rr.Body.Bytes(), &body)
@@ -1980,7 +2001,10 @@ func TestGetPost_HappyPath(t *testing.T) {
 			row.URI: {LikeCount: 3, RepostCount: 1, ReplyCount: 2, ViewerHasLiked: true, ViewerHasReposted: false, ViewerHasReplied: true, ViewerHasSaved: true, ViewerSavedFolderID: &savedFolderID},
 		},
 	}
-	h := api.GetPostHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
+	h := hydrateProductionSummaries(
+		api.GetPostHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger()),
+		map[syntax.DID]business.AccountType{"did:plc:alice": business.AccountTypeBusiness},
+	)
 	req := authedReq(http.MethodGet, "/v1/posts/did:plc:alice/rk1", "", "did:plc:viewer")
 	req.SetPathValue("did", "did:plc:alice")
 	req.SetPathValue("rkey", "rk1")
@@ -1989,8 +2013,16 @@ func TestGetPost_HappyPath(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
 	}
+	var rawBody struct {
+		Author struct {
+			AccountType string `json:"accountType"`
+		} `json:"author"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &rawBody); err != nil || rawBody.Author.AccountType != "business" {
+		t.Fatalf("post author accountType = %q, error %v", rawBody.Author.AccountType, err)
+	}
 	var resp api.PostResponse
-	_ = json.NewDecoder(rr.Body).Decode(&resp)
+	_ = json.Unmarshal(rr.Body.Bytes(), &resp)
 	if resp.Text != "hi" || resp.Author.Handle != "alice.example" {
 		t.Errorf("resp = %+v", resp)
 	}
@@ -2102,10 +2134,10 @@ func TestGetPost_WithQuote_AttachesCompactQuoteView(t *testing.T) {
 			quoteURI: {State: "visible", Post: quoted},
 		},
 	}
-	h := api.GetPostHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+	h := hydrateProductionSummaries(api.GetPostHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
 		"did:plc:alice": "alice.example",
 		"did:plc:carol": "carol.example",
-	}}, nilLogger())
+	}}, nilLogger()), map[syntax.DID]business.AccountType{"did:plc:alice": business.AccountTypeRegular, "did:plc:carol": business.AccountTypeBusiness})
 	req := authedReq(http.MethodGet, "/v1/posts/did:plc:alice/rk1", "", "did:plc:alice")
 	req.SetPathValue("did", "did:plc:alice")
 	req.SetPathValue("rkey", "rk1")
@@ -2114,8 +2146,23 @@ func TestGetPost_WithQuote_AttachesCompactQuoteView(t *testing.T) {
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
 	}
+	var rawBody struct {
+		Author struct {
+			AccountType string `json:"accountType"`
+		} `json:"author"`
+		QuoteView struct {
+			Post struct {
+				Author struct {
+					AccountType string `json:"accountType"`
+				} `json:"author"`
+			} `json:"post"`
+		} `json:"quoteView"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &rawBody); err != nil || rawBody.Author.AccountType != "regular" || rawBody.QuoteView.Post.Author.AccountType != "business" {
+		t.Fatalf("quote account types = %+v, error %v", rawBody, err)
+	}
 	var resp api.PostResponse
-	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 	if len(store.lastQuoteViewRefs) != 1 || store.lastQuoteViewRefs[0].URI != quoteURI || store.lastQuoteViewRefs[0].CID != quoteCID {
@@ -2189,10 +2236,10 @@ func TestListCommentReplies_HappyPath_PaginatesEngagementAndAuthorHandles(t *tes
 			replies[1].URI: {LikeCount: 1, RepostCount: 0, ReplyCount: 0, ViewerHasReposted: true},
 		},
 	}
-	h := api.ListCommentRepliesHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+	h := hydrateProductionSummaries(api.ListCommentRepliesHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
 		"did:plc:bob":   "bob.example",
 		"did:plc:carol": "carol.example",
-	}}, nilLogger())
+	}}, nilLogger()), map[syntax.DID]business.AccountType{"did:plc:bob": business.AccountTypeBusiness})
 	req := authedReq(http.MethodGet, "/v1/posts/did:plc:alice/comment/replies?limit=2&cursor=opaque", "", "did:plc:viewer")
 	req.SetPathValue("did", "did:plc:alice")
 	req.SetPathValue("rkey", "comment")
@@ -2201,8 +2248,20 @@ func TestListCommentReplies_HappyPath_PaginatesEngagementAndAuthorHandles(t *tes
 	if rr.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
 	}
+	var rawBody struct {
+		Items []struct {
+			Post struct {
+				Author struct {
+					AccountType string `json:"accountType"`
+				} `json:"author"`
+			} `json:"post"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(rr.Body.Bytes(), &rawBody); err != nil || len(rawBody.Items) != 2 || rawBody.Items[0].Post.Author.AccountType != "business" || rawBody.Items[1].Post.Author.AccountType != "regular" {
+		t.Fatalf("reply author account types = %+v, error %v", rawBody, err)
+	}
 	var resp api.ReplyPage
-	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("decode: %v", err)
 	}
 	if store.lastDID != "did:plc:alice" || store.lastRkey != "comment" {
@@ -2280,6 +2339,63 @@ func TestListCommentReplies_NestedBranchReplyIncludesFlattenedMetadata(t *testin
 	}
 	if nested.ReplyingTo.DisplayName == nil || *nested.ReplyingTo.DisplayName != "Carol" {
 		t.Fatalf("displayName = %+v", nested.ReplyingTo.DisplayName)
+	}
+}
+
+func TestListCommentReplies_OmitsBlockedParentOutsidePage(t *testing.T) {
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := testPostRow("did:plc:root", "root", "root", base)
+	comment := testReplyRow("did:plc:commenter", "comment", "comment", root.URI, root.URI, base.Add(time.Minute))
+	parent := testReplyRow("did:plc:parent", "parent", "parent", root.URI, comment.URI, base.Add(2*time.Minute))
+	child := testReplyRow("did:plc:child", "child", "child", root.URI, parent.URI, base.Add(3*time.Minute))
+
+	for _, test := range []struct {
+		name  string
+		state relationships.State
+	}{
+		{name: "viewer blocks parent", state: relationships.State{Blocking: true}},
+		{name: "parent blocks viewer", state: relationships.State{BlockedBy: true}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			store := &fakePostStore{
+				one:                comment,
+				replyRows:          []*api.PostRow{child},
+				postsByURI:         map[string]*api.PostRow{parent.URI: parent},
+				relationshipStates: map[syntax.DID]relationships.State{"did:plc:parent": test.state},
+			}
+			handler := hydrateProductionSummaries(
+				api.ListCommentRepliesHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+					"did:plc:child": "child.example", "did:plc:parent": "parent.example",
+				}}, nilLogger()),
+				map[syntax.DID]business.AccountType{
+					"did:plc:child": business.AccountTypeBusiness, "did:plc:parent": business.AccountTypeBusiness,
+				},
+			)
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:commenter/comment/replies", "", "did:plc:viewer"))
+			if response.Code != http.StatusOK {
+				t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+			}
+			var page struct {
+				Items []struct {
+					Post struct {
+						Author struct {
+							AccountType string `json:"accountType"`
+						} `json:"author"`
+					} `json:"post"`
+					ReplyingTo map[string]any `json:"replyingTo"`
+				} `json:"items"`
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil || len(page.Items) != 1 {
+				t.Fatalf("decode page = %+v, error %v; body=%s", page, err, response.Body.String())
+			}
+			if page.Items[0].Post.Author.AccountType != "business" {
+				t.Fatalf("visible child accountType = %q", page.Items[0].Post.Author.AccountType)
+			}
+			if page.Items[0].ReplyingTo != nil {
+				t.Fatalf("blocked parent leaked through replyingTo: %+v", page.Items[0].ReplyingTo)
+			}
+		})
 	}
 }
 
@@ -2895,6 +3011,75 @@ func TestGetPostComments_DeeperFocusedReplyIncludesFlattenedMetadata(t *testing.
 	}
 	if got.ReplyingTo.DisplayName == nil || *got.ReplyingTo.DisplayName != "Dave" {
 		t.Fatalf("replyingTo displayName = %+v", got.ReplyingTo.DisplayName)
+	}
+}
+
+func TestGetPostComments_OmitsBlockedParentOutsideFocusedPage(t *testing.T) {
+	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
+	root := testPostRow("did:plc:root", "root", "root", base)
+	comment := testReplyRow("did:plc:commenter", "comment", "comment", root.URI, root.URI, base.Add(time.Minute))
+	parent := testReplyRow("did:plc:parent", "parent", "parent", root.URI, comment.URI, base.Add(2*time.Minute))
+	child := testReplyRow("did:plc:child", "child", "child", root.URI, parent.URI, base.Add(3*time.Minute))
+
+	for _, test := range []struct {
+		name  string
+		state relationships.State
+	}{
+		{name: "viewer blocks parent", state: relationships.State{Blocking: true}},
+		{name: "parent blocks viewer", state: relationships.State{BlockedBy: true}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			store := &fakePostStore{
+				one:                root,
+				commentRows:        []*api.PostRow{},
+				replyRows:          []*api.PostRow{},
+				aroundReplyRows:    []*api.PostRow{child},
+				postsByURI:         map[string]*api.PostRow{child.URI: child, parent.URI: parent, comment.URI: comment},
+				relationshipStates: map[syntax.DID]relationships.State{"did:plc:parent": test.state},
+			}
+			handler := hydrateProductionSummaries(
+				api.GetPostCommentsHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+					"did:plc:root": "root.example", "did:plc:commenter": "commenter.example",
+					"did:plc:child": "child.example", "did:plc:parent": "parent.example",
+				}}, nilLogger()),
+				map[syntax.DID]business.AccountType{
+					"did:plc:root": business.AccountTypeRegular, "did:plc:commenter": business.AccountTypeRegular,
+					"did:plc:child": business.AccountTypeBusiness, "did:plc:parent": business.AccountTypeBusiness,
+				},
+			)
+			path := "/v1/posts/did:plc:root/root/comments?focus=" + url.QueryEscape(child.URI)
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, authedPostPathReq(http.MethodGet, path, "", "did:plc:viewer"))
+			if response.Code != http.StatusOK {
+				t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+			}
+			var page struct {
+				Comments struct {
+					Items []struct {
+						Replies struct {
+							Items []struct {
+								Post struct {
+									Author struct {
+										AccountType string `json:"accountType"`
+									} `json:"author"`
+								} `json:"post"`
+								ReplyingTo map[string]any `json:"replyingTo"`
+							} `json:"items"`
+						} `json:"replies"`
+					} `json:"items"`
+				} `json:"comments"`
+			}
+			if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil || len(page.Comments.Items) != 1 || len(page.Comments.Items[0].Replies.Items) != 1 {
+				t.Fatalf("decode focused page = %+v, error %v; body=%s", page, err, response.Body.String())
+			}
+			item := page.Comments.Items[0].Replies.Items[0]
+			if item.Post.Author.AccountType != "business" {
+				t.Fatalf("visible focused child accountType = %q", item.Post.Author.AccountType)
+			}
+			if item.ReplyingTo != nil {
+				t.Fatalf("blocked focused parent leaked through replyingTo: %+v", item.ReplyingTo)
+			}
+		})
 	}
 }
 

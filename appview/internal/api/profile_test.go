@@ -98,6 +98,7 @@ func TestGetProfile_ByDIDHappyPath(t *testing.T) {
 	}
 	h := api.GetProfileHandler(
 		&fakeStore{row: row},
+		nil,
 		fakeResolver{handleFor: "alice.example"},
 		nilLogger(),
 	)
@@ -123,7 +124,7 @@ func TestGetProfile_ByHandleHappyPath(t *testing.T) {
 		didFor:    syntax.DID("did:plc:xyz"),
 		handleFor: syntax.Handle("alice.example"),
 	}
-	h := api.GetProfileHandler(&fakeStore{row: row}, resolver, nilLogger())
+	h := api.GetProfileHandler(&fakeStore{row: row}, nil, resolver, nilLogger())
 	req := httptest.NewRequest(http.MethodGet, "/v1/profiles/@alice.example", nil)
 	req.SetPathValue("handleOrDid", "alice.example")
 	rr := httptest.NewRecorder()
@@ -135,7 +136,7 @@ func TestGetProfile_ByHandleHappyPath(t *testing.T) {
 
 func TestGetProfile_InvalidIdentifier(t *testing.T) {
 	t.Parallel()
-	h := api.GetProfileHandler(&fakeStore{}, fakeResolver{}, nilLogger())
+	h := api.GetProfileHandler(&fakeStore{}, nil, fakeResolver{}, nilLogger())
 	req := httptest.NewRequest(http.MethodGet, "/v1/profiles/@NOT%20VALID", nil)
 	req.SetPathValue("handleOrDid", "NOT VALID")
 	rr := httptest.NewRecorder()
@@ -154,6 +155,7 @@ func TestGetProfile_NonMember(t *testing.T) {
 	t.Parallel()
 	h := api.GetProfileHandler(
 		&fakeStore{err: api.ErrProfileNotFound},
+		nil,
 		fakeResolver{},
 		nilLogger(),
 	)
@@ -175,6 +177,7 @@ func TestGetProfile_ResolveDIDError(t *testing.T) {
 	t.Parallel()
 	h := api.GetProfileHandler(
 		&fakeStore{},
+		nil,
 		fakeResolver{err: errors.New("plc down")},
 		nilLogger(),
 	)
@@ -196,6 +199,7 @@ func TestGetProfile_CountsUnavailable(t *testing.T) {
 	t.Parallel()
 	h := api.GetProfileHandler(
 		&fakeStore{err: api.ErrProfileCountsUnavailable},
+		nil,
 		fakeResolver{didFor: "did:plc:xyz"},
 		nilLogger(),
 	)
@@ -219,6 +223,7 @@ func TestGetProfile_ClientCancellationDoesNotBecomeServerError(t *testing.T) {
 	logger := slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	handler := api.GetProfileHandler(
 		&fakeStore{err: context.Canceled},
+		nil,
 		fakeResolver{},
 		logger,
 	)
@@ -244,6 +249,7 @@ func TestGetMeProfile_HappyPath(t *testing.T) {
 	row := &api.ProfileRow{DID: "did:plc:me", Crafts: []string{}, CreatedAt: time.Now()}
 	h := api.GetMeProfileHandler(
 		&fakeStore{row: row},
+		nil,
 		fakeResolver{handleFor: "alice.example"},
 		nilLogger(),
 	)
@@ -258,7 +264,7 @@ func TestGetMeProfile_HappyPath(t *testing.T) {
 
 func TestGetMeProfile_NoDIDInContext(t *testing.T) {
 	t.Parallel()
-	h := api.GetMeProfileHandler(&fakeStore{}, fakeResolver{}, nilLogger())
+	h := api.GetMeProfileHandler(&fakeStore{}, nil, fakeResolver{}, nilLogger())
 	req := httptest.NewRequest(http.MethodGet, "/v1/profiles/me", nil)
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)

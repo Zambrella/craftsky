@@ -1,3 +1,5 @@
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -53,6 +55,7 @@ Future<bool> launchExternalLink(Uri uri) {
 /// Shows the standard CraftSky external-link confirmation dialog.
 Future<bool> showOpenLinkDialog(BuildContext context, Uri uri) async {
   final theme = Theme.of(context);
+  final l10n = AppLocalizations.of(context);
   final spacing = theme.extension<SpacingTheme>()!;
   final durations = theme.extension<DurationTheme>()!;
   final result = await showGeneralDialog<bool>(
@@ -62,12 +65,12 @@ Future<bool> showOpenLinkDialog(BuildContext context, Uri uri) async {
     barrierColor: Colors.black54,
     transitionDuration: durations.modal,
     pageBuilder: (dialogContext, _, _) => CraftskyDialog(
-      title: 'Open link?',
+      title: l10n.externalLinkConfirmTitle,
       body: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('This will open outside CraftSky.'),
+          Text(l10n.externalLinkConfirmBody),
           SizedBox(height: spacing.sp3),
           SelectableText(
             uri.toString(),
@@ -80,11 +83,11 @@ Future<bool> showOpenLinkDialog(BuildContext context, Uri uri) async {
       actions: [
         TextButton(
           onPressed: () => Navigator.of(dialogContext).pop(false),
-          child: const Text('Cancel'),
+          child: Text(l10n.actionCancel),
         ),
         ChunkyButton(
           onPressed: () => Navigator.of(dialogContext).pop(true),
-          child: const Text('Open link'),
+          child: Text(l10n.externalLinkConfirmAction),
         ),
       ],
     ),
@@ -112,7 +115,55 @@ Future<void> confirmAndLaunchExternalLink(
   required ExternalLinkLauncher launchUrl,
   ExternalLinkConfirmer confirmOpenLink = showOpenLinkDialog,
 }) async {
-  final confirmed = await confirmOpenLink(context, uri);
-  if (!confirmed) return;
-  await launchUrl(uri);
+  try {
+    final confirmed = await confirmOpenLink(context, uri);
+    if (!confirmed) return;
+    final launched = await launchUrl(uri);
+    if (!launched && context.mounted) _showExternalLinkFailure(context);
+  } on Object {
+    if (context.mounted) _showExternalLinkFailure(context);
+  }
+}
+
+/// Accepts an AppView-hydrated destination without trimming or rewriting it.
+Uri? hydratedExternalActionUri(String? value, {bool allowMailto = false}) {
+  if (value == null || value.isEmpty) return null;
+  final uri = Uri.tryParse(value);
+  if (uri == null) return null;
+  if (uri.scheme == 'https' && uri.host.isNotEmpty) return uri;
+  if (allowMailto && uri.scheme == 'mailto' && uri.path.isNotEmpty) return uri;
+  return null;
+}
+
+/// Confirms and launches an already validated hydrated action with safe,
+/// localized failure feedback.
+Future<void> confirmAndLaunchExternalAction(
+  BuildContext context, {
+  required Uri uri,
+  required ExternalLinkLauncher launchUrl,
+  ExternalLinkConfirmer confirmOpenLink = showOpenLinkDialog,
+}) async {
+  final hydrated = hydratedExternalActionUri(
+    uri.toString(),
+    allowMailto: true,
+  );
+  if (hydrated != uri) return;
+  try {
+    final confirmed = await confirmOpenLink(context, uri);
+    if (!confirmed) return;
+    final launched = await launchUrl(uri);
+    if (!launched && context.mounted) {
+      _showExternalLinkFailure(context);
+    }
+  } on Object {
+    if (context.mounted) _showExternalLinkFailure(context);
+  }
+}
+
+void _showExternalLinkFailure(BuildContext context) {
+  try {
+    context.showError(AppLocalizations.of(context).navigationLinkOpenError);
+  } on Object {
+    // Isolated widget hosts may not install the app-level messenger.
+  }
 }

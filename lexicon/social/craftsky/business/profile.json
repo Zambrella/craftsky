@@ -1,0 +1,108 @@
+{
+  "lexicon": 1,
+  "id": "social.craftsky.business.profile",
+  "defs": {
+    "main": {
+      "type": "record",
+      "description": "An optional public Craftsky business declaration. It does not classify or activate the account and uses record key 'self'.",
+      "key": "literal:self",
+      "record": {
+        "type": "object",
+        "properties": {
+          "businessTypes": {
+            "type": "array",
+            "maxLength": 20,
+            "description": "Open, unordered business-type values.",
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "knownValues": [
+                "dyer",
+                "fiber-producer",
+                "fiber-processor",
+                "yarn-shop",
+                "fabric-shop",
+                "craft-supply-shop",
+                "pattern-designer",
+                "finished-goods-maker",
+                "tool-maker",
+                "teacher",
+                "craft-studio",
+                "repair-service",
+                "technical-editor",
+                "photographer",
+                "publisher",
+                "other-craft-business"
+              ]
+            }
+          },
+          "offerings": {
+            "type": "array",
+            "maxLength": 20,
+            "description": "Open, unordered offering values.",
+            "items": {
+              "type": "string",
+              "maxLength": 64,
+              "knownValues": [
+                "yarn",
+                "fiber",
+                "fabric",
+                "patterns",
+                "kits",
+                "notions",
+                "tools",
+                "finished-goods",
+                "custom-work",
+                "repairs",
+                "classes",
+                "studio-hire",
+                "wholesale",
+                "digital-products",
+                "technical-editing",
+                "photography-services",
+                "fiber-processing"
+              ]
+            }
+          },
+          "tagline": {
+            "type": "string",
+            "maxLength": 1000,
+            "maxGraphemes": 100,
+            "description": "Short public business description."
+          },
+          "hoursNote": {
+            "type": "string",
+            "maxLength": 3000,
+            "maxGraphemes": 300,
+            "description": "Display-only free-text hours note."
+          },
+          "serviceArea": {
+            "type": "string",
+            "maxLength": 2000,
+            "maxGraphemes": 200,
+            "description": "Display-only uninterpreted service-area text."
+          },
+          "location": {
+            "type": "ref",
+            "ref": "community.lexicon.location.address",
+            "description": "General business location using the CID-pinned community address definition."
+          },
+          "primaryAction": {
+            "type": "ref",
+            "ref": "social.craftsky.business.defs#action",
+            "description": "Optional primary external action."
+          },
+          "products": {
+            "type": "array",
+            "maxLength": 20,
+            "description": "Featured external products in authored order.",
+            "items": {
+              "type": "ref",
+              "ref": "social.craftsky.business.defs#product"
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -20,7 +20,7 @@ Implement the feature as four deliberately separate authorities that converge th
 
 Use two migrations so the first TDD slice can add only account-type persistence before record projection and moderation schema are introduced. Use hand-written pgx stores, matching the current repository; `appview/queries/` contains no sqlc queries.
 
-Before any lexicon file is created, add ADR 010 and verify the address record and catalog provenance described by Q14, Q15, and Q17. Durable schema work then uses one shared non-record definitions lexicon plus the two public record lexicons. `just lexgen` and catalog generation remain offline and deterministic.
+Before any lexicon file is created, add ADR 010 and verify the address record described by Q17 and the package-backed validation decision described by Q14 and Q15. Durable schema work then uses one shared non-record definitions lexicon plus the two public record lexicons. `just lexgen` remains offline and deterministic.
 
 ## 3. Affected Areas
 
@@ -29,7 +29,7 @@ Before any lexicon file is created, add ADR 010 and verify the address record an
 | Domain policy | Feature-local Go packages with table-driven validators | Add `internal/business` for account types, catalogs, validation, hydration, eligibility, diagnostics, and store contracts | FR-001–FR-020, FR-023–FR-026, RULE-001–RULE-011 | UT-001–UT-023 |
 | Private classification | AppView-private pgx tables guarded by current-member middleware | Add durable `craftsky_account_types`; absent row reads `regular`; no membership FK/cascade | FR-001, FR-002, FR-022 | AT-001, IT-001, IT-002, IT-014, IT-015 |
 | Public schemas | JSON lexicons plus generated Go/CBOR types | Add shared business defs, singleton declaration, TID event, and exact external address pin | FR-003–FR-015, NFR-001, NFR-005 | AT-013, IT-016, REG-001 |
-| Catalog provenance | Checked-in generated language data and generation drift gates | Add pinned ISO 3166-1/4217 source snapshots, metadata, SHA-256 sidecars, generator, and generated Go catalogs | FR-006, FR-010, NFR-001 | UT-006, UT-012, IT-016, MAN-001 |
+| Country and currency policy | Maintained, pinned Go module data | Use `golang.org/x/text/language` for countries and `golang.org/x/text/currency` for codes and standard rounding scales | FR-006, FR-010, NFR-001 | UT-006, UT-012, IT-016, MAN-001 |
 | Projection storage | Transactional pgx projectors with durable Tap source rows | Add raw declaration/event projections plus revision-bearing delete tombstones and query indexes | FR-021, FR-026, NFR-002 | AT-009, IT-004–IT-006 |
 | Projection lifecycle | `TransactionalDispatcher` enforces owner lifecycle before projectors | Add an explicit collection policy allowing business source preservation before/after membership while retaining generation and terminal fences | FR-021, FR-022 | IT-005, IT-006, IT-014 |
 | Tap wiring | Explicit dispatcher registrations and Compose collection filters | Register both NSIDs and forward them from Tap | FR-021, NFR-002 | IT-006 |
@@ -46,7 +46,7 @@ Before any lexicon file is created, add ADR 010 and verify the address record an
 
 | Path / Module | Create / Change | Purpose | Requirement IDs | Test IDs |
 |---|---|---|---|---|
-| `adr/010-business-profile-event-lexicons-and-pinned-data.md` | Create | Record durable schema shapes, shared defs, external CID verification, source provenance, maxima/evolution, and unchanged actor profile | NFR-001 | AT-013, IT-016, MAN-001 |
+| `adr/010-business-profile-event-lexicons-and-pinned-data.md` | Create | Record durable schema shapes, shared defs, external CID verification, package-backed catalog policy, maxima/evolution, and unchanged actor profile | NFR-001 | AT-013, IT-016, MAN-001 |
 | `lexicon/social/craftsky/business/defs.json` | Create | Shared image/aspect-ratio, price, action, and product definitions; open `knownValues` where required | FR-004, FR-007–FR-010, NFR-005 | UT-002–UT-013, IT-016 |
 | `lexicon/social/craftsky/business/profile.json` | Create | Optional singleton declaration referencing shared defs and pinned community address | FR-003–FR-010 | AT-003, IT-003, IT-004, IT-016 |
 | `lexicon/social/craftsky/business/event.json` | Create | TID-keyed event with exact required/optional fields and shared image ref | FR-011–FR-015 | AT-005, IT-005, IT-016 |
@@ -57,11 +57,7 @@ Before any lexicon file is created, add ADR 010 and verify the address record an
 | `appview/internal/lexicon/community/*.go` | Create/generated | Local generated type and CBOR methods for the pinned address definition | FR-006, NFR-001 | IT-016 |
 | `appview/internal/lexicon/craftsky/business*.go`, `cbor_gen.go` | Create/change/generated | Generated shared defs, profile, event, and CBOR methods | NFR-001 | IT-016 |
 | `appview/internal/lexicon/craftsky/business_contract_test.go` | Create | Schema, CID, generated-type, maxima, forbidden-field, and actor-profile regression contract | FR-003–FR-015, NFR-001, NFR-005 | AT-013, IT-016, REG-001 |
-| `appview/internal/business/catalogdata/iso-3166-1-obp-2026-08-28.{html,metadata.json,sha256}` | Create | Native checked-in assigned-country snapshot and provenance | FR-006, NFR-001 | UT-006, IT-016 |
-| `appview/internal/business/catalogdata/iso-4217-list-one-2026-08-28.{xml,metadata.json,sha256}` | Create | Native checked-in SIX List One snapshot and provenance | FR-010, NFR-001 | UT-012, IT-016 |
-| `appview/cmd/businesscataloggen/main.go` | Create | Offline parser/digest verifier and deterministic country/currency Go generator with check mode | FR-006, FR-010, NFR-001 | IT-016 |
-| `appview/internal/business/countries_generated.go`, `currencies_generated.go` | Create/generated | Runtime assigned-country and active numeric-scale currency catalogs | FR-006, FR-010 | UT-006, UT-012, UT-013 |
-| `appview/internal/business/account_type.go`, `catalog.go`, `validation.go`, `destination.go`, `money.go`, `event_time.go`, `eligibility.go`, `models.go` | Create | Domain types, constants, validation, safe hydration, canonical order, and eligibility/diagnostic policy | FR-001–FR-020, FR-025, FR-026 | UT-001–UT-020, UT-023 |
+| `appview/internal/business/account_type.go`, `catalog.go`, `validation.go`, `destination.go`, `location.go`, `money.go`, `event_time.go`, `eligibility.go`, `models.go` | Create | Domain types, constants, package-backed country/currency validation, safe hydration, canonical order, and eligibility/diagnostic policy | FR-001–FR-020, FR-025, FR-026 | UT-001–UT-020, UT-023 |
 | `appview/internal/business/store.go` | Create | Account-type persistence, raw projection operations, batch identity lookup, profile hydration, event direct/list queries | FR-001, FR-003, FR-016–FR-022 | IT-001, IT-004, IT-008–IT-011, IT-014 |
 | `appview/internal/business/*_test.go` | Create | Unit and real-store tests named by the acceptance specification | FR-001–FR-026 | UT-001–UT-020, UT-023, IT-001, IT-004, IT-008, IT-013, IT-014, IT-016, IT-021 |
 | `appview/migrations/000061_business_account_types.{up,down}.sql` | Create | Private no-cascade scalar table with exact check constraint | FR-001, FR-022 | IT-001, IT-014, IT-015 |
@@ -82,7 +78,7 @@ Before any lexicon file is created, add ADR 010 and verify the address record an
 | `appview/internal/api/report.go`, `report_store.go`, `moderation_*.go` | Change | Add closed `event` record subject support and exact event URI visibility/moderation behavior | FR-019, NFR-004 | AT-007, IT-010 |
 | `appview/internal/accountdeletion/collections.go`, `pds_deleter.go`, `lifecycle.go`, `private_cleanup.go` | Change | Enforce observable events → declaration → account type → membership stages with retry safety | FR-022, RULE-006 | AT-010, IT-015, REG-007 |
 | `appview/internal/ownerlifecycle/terminal_inventory.go` | Change | Register every DID role in account type, projection, and tombstone tables | FR-022, NFR-002 | IT-015 |
-| `.gitattributes`, `justfile`, `scripts/appview-check` | Change | Mark generated files and add `business-cataloggen[-check]` plus release-gate drift checks | NFR-001 | AT-013, IT-016 |
+| `appview/go.mod`, `scripts/appview-check` | Change | Pin module-backed catalog behavior and retain module/lexgen release checks without a feature-specific generator | NFR-001 | AT-013, IT-016 |
 
 ## 5. Services, Interfaces, And Data Flow
 
@@ -150,16 +146,16 @@ Declaration PUT/DELETE and event PUT/DELETE:
 
 ```text
 current-member middleware -> verify path DID equals authenticated DID where present
-  -> parse required If-Match canonical CID
-  -> EffectExecutor.ReadRecord for authoritative CID/raw source
-  -> reject mismatch as 409 pds_record_conflict
+  -> parse required If-Match (`*` for declaration create, canonical CID otherwise)
+  -> EffectExecutor.ReadRecord for authoritative presence/CID/raw source
+  -> require absence for `*`, or matching current CID otherwise; reject mismatch as 409 pds_record_conflict
   -> declaration: full-replace known fields and merge unknown top-level source fields
   -> event: build the approved event shape and preserve stored createdAt
   -> EffectExecutor.PutRecord/DeleteRecord with ExpectedCID
   -> return record view including CID without waiting for Tap
 ```
 
-Event POST allocates `newImmediateRecordKey()`, rejects any client `createdAt`, stamps `now().UTC().Truncate(time.Second).Format(time.RFC3339)`, writes with `social.craftsky.business.event`, and returns DID/rkey/URI/CID. Event update rejects `createdAt` whenever the key is present, including an identical value.
+Declaration PUT uses `If-Match: *` only for conditional creation when the singleton is absent; an existing singleton requires its canonical CID. Event POST allocates `newImmediateRecordKey()`, rejects any client `createdAt`, stamps `now().UTC().Truncate(time.Second).Format(time.RFC3339)`, writes with `social.craftsky.business.event`, and returns DID/rkey/URI/CID. Event update rejects `createdAt` whenever the key is present, including an identical value.
 
 No validator receives an HTTP client or DNS resolver. Destination validation performs syntax-only parsing and ASCII checks.
 
@@ -277,15 +273,15 @@ There are no client-side loading states in this implementation slice.
 | 1 | UT-001 | `internal/business/account_type_test.go` | Missing/exact/invalid scalar table | Domain type/default does not exist |
 | 2 | IT-001 | `internal/db/business_profiles_migration_test.go`, `internal/business/store_test.go` | Real Postgres through migration 000061 | Table, constraint, and store do not exist |
 | 3 | UT-002, UT-003, UT-004 | `internal/business/catalog_test.go` | TD-002 exact and unknown catalogs | Catalog validation/order policy absent |
-| 4 | UT-005, UT-006, UT-007 | `internal/business/text_validation_test.go`, `location_test.go` | TD-003/TD-005 plus generated country catalog | Bounds and safe location projection absent |
+| 4 | UT-005, UT-006, UT-007 | `internal/business/text_validation_test.go`, `location_test.go` | TD-003/TD-005 plus pinned `x/text/language` | Bounds and safe location projection absent |
 | 5 | UT-008, UT-009 | `internal/business/action_test.go`, `destination_test.go` | TD-004 destination corpus and no-network sentinels | Action/destination grammar absent |
 | 6 | UT-010, UT-011 | `internal/business/product_test.go` | TD-006/TD-011 product and image corpus | Product/image/count/order rules absent |
-| 7 | UT-012, UT-013 | `internal/business/money_test.go` | TD-007 and pinned SIX catalog | Canonical money validator/hydrator absent |
+| 7 | UT-012, UT-013 | `internal/business/money_test.go` | TD-007 and pinned `x/text/currency` | Canonical money validator/hydrator absent |
 | 8 | UT-014, UT-015, UT-016, UT-017, UT-018 | `internal/business/event_validation_test.go`, `event_time_test.go` | TD-008/TD-011 fixed clock and timezone corpus | Event validation/default/time/image policy absent |
 | 9 | UT-019 | `internal/business/eligibility_test.go` | Full actor/block/lifecycle/moderation/time matrix | Central eligibility and diagnostics absent |
 | 10 | UT-020 | `internal/business/profile_merge_test.go` | Raw extension and unsafe subordinate fixtures | Extension-preserving replacement absent |
 | 11 | UT-021, UT-022, UT-023 | `internal/api/business_event_cursor_test.go`, `business_record_request_test.go`, `internal/business/event_authoring_test.go` | Fixed clock, cursor tuples, CID and createdAt cases | API parsing/authoring helpers absent |
-| 12 | IT-016, AT-013, REG-001 | Lexicon/business contract tests and `just lexgen-check` | ADR, pinned address, TD-015, catalog snapshots, clean generated baseline | Schemas/generated/provenance artifacts absent |
+| 12 | IT-016, AT-013, REG-001 | Lexicon/business contract tests and `just lexgen-check` | ADR, pinned address, TD-015, pinned module, clean generated baseline | Schemas/generated/package contracts absent |
 | 13 | IT-004, IT-005, IT-006, AT-009 | Index/business store and ingestion tests | Migration 000062, real Postgres, R1–R4 revisions, TD-010 | Raw projections, tombstones, registrations absent |
 | 14 | IT-002, AT-001 | `internal/api/business_account_type_test.go` and acceptance test | Current/departed/unauthenticated actors, PDS call recorder | Account-type route/handler absent |
 | 15 | IT-003, AT-002, AT-003, AT-004, AT-011 | Business profile/eligibility/ownership/routes tests | Fake PDS with extension-bearing singleton and CIDs | Declaration APIs and profile hydration absent |
@@ -302,7 +298,7 @@ There are no client-side loading states in this implementation slice.
 | 26 | IT-020, REG-008 | Product wire/schema contract tests | Reflection/schema enumeration | Forbidden commerce semantics not guarded |
 | 27 | IT-021 | `internal/business/no_fetch_test.go` | Fail-fast HTTP transport/DNS resolver around all paths | No-fetch property not demonstrated |
 | 28 | AT-001–AT-014 | Acceptance targets named in `02-acceptance-tests.md` | Compose Postgres, deterministic fakes, fixed clocks | Cross-layer approved scenarios not yet proven together |
-| 29 | MAN-001 | ADR/schema/provenance review | ADR 010, generated diff, digest/CID evidence | Human durable-schema approval not recorded |
+| 29 | MAN-001 | ADR/schema/package-policy review | ADR 010, generated diff, CID evidence, pinned module behavior | Human durable-schema approval not recorded |
 | 30 | Full gate | Existing and new suites | Dev stack and isolated release check | Integration/regression drift may remain |
 
 Focused commands by slice:
@@ -311,7 +307,6 @@ Focused commands by slice:
 go test ./internal/business -run TestAccountType
 just appview-test-unit
 just test
-just business-cataloggen-check
 just lexgen-check
 just appview-check
 just fmt
@@ -323,7 +318,7 @@ Run `go test` from `appview/`. `just test` requires the Compose Postgres describ
 
 - First TDD step: Add failing UT-001 for exact `regular`/`business`, invalid values, and missing-row default; implement only the domain scalar/default needed to pass.
 - Second TDD step: Add failing IT-001; create migration 000061 and the minimal account-type store/upsert needed to pass.
-- Dependencies between work items: Domain catalogs/validators precede API decoders. ADR 010 and provenance verification precede any lexicon edit. Lexicons and generated types precede projectors. Migration 000062 precedes projector/store integration. Projection precedes read APIs. Eligibility precedes all event read handlers. CID/request helpers precede mutation handlers. Staged deletion lands only after both collections and account-type persistence exist.
+- Dependencies between work items: Domain catalogs/validators precede API decoders. ADR 010 and external-address verification precede any lexicon edit. Lexicons and generated types precede projectors. Migration 000062 precedes projector/store integration. Projection precedes read APIs. Eligibility precedes all event read handlers. CID/request helpers precede mutation handlers. Staged deletion lands only after both collections and account-type persistence exist.
 - Lexgen bootstrap: Generate JSON types first; add temporary local CBOR method stubs only as described by the existing codegen design; run cborgen for Craftsky and community packages; delete all temporary stubs before the slice is considered green.
 - Guardrail: Account type remains private AppView state and never appears in a PDS record or lexicon.
 - Guardrail: Business projection bypasses only active-membership presence, not terminal-owner or repository-generation safety.
@@ -336,14 +331,14 @@ Run `go test` from `appview/`. `just test` requires the Compose Postgres describ
 - Guardrail: Logs/metrics/traces use bounded operation/result/reason constants and never raw authored values.
 - Guardrail: Account type is not added to ordinary departure cleanup. Only the approved permanent deletion stages remove it.
 - Guardrail: Do not add account type/taxonomy/business joins to feed ordering, search ranking/filtering, permissions, or moderation priority.
-- Out of scope: All Flutter work; subscriptions/verification; native commerce; search/filter/ranking changes; structured event location; recurrence; global event discovery; booking/registration; secondary links; `onlineUri`; runtime catalog updates; real destination checks; generic PDS deletion.
+- Out of scope: All Flutter work; subscriptions/verification; native commerce; search/filter/ranking changes; structured event location; recurrence; global event discovery; booking/registration; secondary links; `onlineUri`; runtime network catalog updates; real destination checks; generic PDS deletion.
 
 ## 11. Risks And Open Questions
 
 | ID | Type | Description | Impact | Resolution |
 |---|---|---|---|---|
 | CPQ-001 | Resolved | The earlier `Changes required` verdict needed reconciliation after the revised contract was approved. | Workflow history could appear inconsistent. | `03-document-review.md` now records the approved re-review outcome while preserving prior findings as history. |
-| CPQ-002 | Non-blocking | The official ISO 3166-1 OBP snapshot's native media type must match the checked-in file extension. | A converted file would weaken provenance. | Save the exact retrieved bytes under the planned date-stamped native extension; if not HTML, adjust only the extension and metadata together before generating data. Never silently convert it. |
+| CPQ-002 | Resolved | Country and currency snapshots added substantial maintenance overhead for small validation lookups. | Source capture and generator drift made routine catalog updates costly. | Delegate recognition and scale data to the pinned `golang.org/x/text` module and review behavior through ordinary dependency upgrades. |
 | CPQ-003 | Non-blocking | Shared business defs add a third schema file even though there are only two public record types. | Generated names/imports differ from embedding defs in the profile schema. | Use `social.craftsky.business.defs`; it is not a record and follows the lexicon shared-definition convention. ADR 010 records this choice. |
 | CPQ-004 | Non-blocking | Current deletion performs broad private cleanup before PDS collection deletion. | Adding account type to current cleanup would violate required ordering. | Keep account type out of generic private cleanup; have `LifecycleProcessor` replay the fixed idempotent collection/account-type sequence on every retry. |
 | CPQ-005 | Non-blocking | Generic JSON response decoration can accidentally label blocked identity shells. | Privacy leak across many summary shapes. | Skip maps with block flags/reduced shape, retain explicit blocked marshaling, and require the one-versus-fifty query-count/redaction contract tests before route rollout. |
@@ -360,4 +355,4 @@ No blocking implementation question remains.
 - Start with test: `UT-001` in `appview/internal/business/account_type_test.go`
 - First focused command: `go test ./internal/business -run TestAccountType`
 - Follow with: `IT-001` using real Postgres, migration `000061_business_account_types`, and `internal/business/store_test.go`.
-- Notes: Invoke `implement-tdd` to create/update `05-implementation-plan.md` and execute strict red-green-refactor slices. Invoke `atproto-lexicon` again before the lexicon slice, create ADR 010 before editing `lexicon/`, and preserve all generated artifacts with their source schemas/snapshots.
+- Notes: Invoke `implement-tdd` to create/update `05-implementation-plan.md` and execute strict red-green-refactor slices. Invoke `atproto-lexicon` again before the lexicon slice, create ADR 010 before editing `lexicon/`, and preserve all generated lexicon artifacts with their source schemas.

@@ -6,6 +6,8 @@ var craftskyRecordCollections = [...]syntax.NSID{
 	"social.craftsky.feed.post",
 	"social.craftsky.feed.like",
 	"social.craftsky.feed.repost",
+	"social.craftsky.business.event",
+	"social.craftsky.business.profile",
 	"social.craftsky.actor.profile",
 }
 

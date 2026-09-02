@@ -417,6 +417,7 @@ func TestReadHandlerLogsUseBoundedContextWithoutRawIdentityOrContent(t *testing.
 			DisplayName: strPtr("secret body"),
 			CreatedAt:   base,
 		}},
+		nil,
 		fakeResolver{didFor: "did:plc:alice", handleFor: "alice.example"},
 		debugLogger,
 	)
@@ -433,6 +434,7 @@ func TestReadHandlerLogsUseBoundedContextWithoutRawIdentityOrContent(t *testing.
 
 	prodProfile := api.GetProfileHandler(
 		&fakeStore{},
+		nil,
 		fakeResolver{err: errors.New("resolver failed for alice.example did:plc:alice secret body")},
 		prodLogger,
 	)

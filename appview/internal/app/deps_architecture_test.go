@@ -40,6 +40,14 @@ func TestNewDepsDelegatesAccountDeletionConstruction(t *testing.T) {
 	}
 }
 
+func TestNewDepsInjectsBusinessStoreIntoAccountDeletion(t *testing.T) {
+	if !functionCallIncludesSelectorArgument(
+		t, "deps.go", "newDeps", "newAccountDeletionDependencies", "content", "business",
+	) {
+		t.Fatal("account deletion must receive the narrow business account-type deletion capability")
+	}
+}
+
 func TestNewDepsDelegatesInstagramStorageConstruction(t *testing.T) {
 	if !functionCallsIdentifier(t, "deps.go", "newDeps", "newInstagramStorageDependencies") {
 		t.Fatal("newDeps must delegate private Instagram storage and policy construction to newInstagramStorageDependencies")

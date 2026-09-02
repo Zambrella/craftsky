@@ -6,6 +6,12 @@
     "import": "social.craftsky/appview/internal/lexicon/craftsky"
   },
   {
+    "package": "community",
+    "prefix": "community.lexicon",
+    "outdir": "internal/lexicon/community",
+    "import": "social.craftsky/appview/internal/lexicon/community"
+  },
+  {
     "package": "bsky",
     "prefix": "app.bsky",
     "outdir": "_external_bsky_unused",

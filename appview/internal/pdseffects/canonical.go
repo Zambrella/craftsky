@@ -54,7 +54,9 @@ func canonicalPutBody(
 		"rkey":       rkey.String(),
 		"record":     normalizedRecord,
 	}
-	if expectedCID != "" {
+	if expectedCID == "*" {
+		request["swapRecord"] = nil
+	} else if expectedCID != "" {
 		request["swapRecord"] = expectedCID.String()
 	}
 	body, err := json.Marshal(request)

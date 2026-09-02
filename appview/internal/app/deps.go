@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -13,6 +14,7 @@ import (
 	"social.craftsky/appview/internal/accountdeletion"
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/followergrowth"
 	"social.craftsky/appview/internal/index"
 	"social.craftsky/appview/internal/ingestion"
@@ -129,6 +131,11 @@ type Deps struct {
 	// capability exposed to request and background-work handlers. It persists
 	// deterministic effect intent before crossing the remote boundary.
 	NewPDSEffects pdseffects.ExecutorFactory
+	// BusinessStore owns account-type, declaration, and event read models.
+	BusinessStore    *business.Store
+	EventCursorCodec *api.EventCursorCodec
+	// Now is the process clock used by request-time business event policy.
+	Now func() time.Time
 
 	// Scheduled posts and their private staged media are AppView-owned data.
 	ScheduledPosts           *scheduledposts.Store
@@ -296,6 +303,10 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		return nil, nil, err
 	}
 
+	eventCursorCodec, err := newBusinessEventCursorCodec(handoffReceiptKey)
+	if err != nil {
+		return nil, nil, err
+	}
 	linkPreviews := newLinkPreviewDependencies()
 	deps := &Deps{
 		Config:                      cfg,
@@ -331,6 +342,9 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		Consumer:                    tapCapability.consumer,
 		RelationshipStore:           relationshipStore,
 		LanguagePreferences:         languagePreferences,
+		BusinessStore:               content.business,
+		EventCursorCodec:            eventCursorCodec,
+		Now:                         time.Now,
 		ProfileStore:                content.profiles,
 		ProfileCustomisationStore:   content.profileCustomisation,
 		FollowStore:                 content.follows,
@@ -381,6 +395,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		authCapability,
 		owners,
 		federated,
+		content.business,
 		instagramPrivateData,
 		scheduledAccountDeletion,
 		scheduledDepartureParticipant,
@@ -456,6 +471,8 @@ func newTransactionalIndexerDispatcherWithActorDeletion(
 	repost := index.NewCraftskyRepost(pool, logger, lifecycle)
 	follow := index.NewBlueskyFollow(pool, lifecycle)
 	block := index.NewBlueskyBlock(pool, observer)
+	businessProfile := index.NewCraftskyBusinessProfile()
+	businessEvent := index.NewCraftskyBusinessEvent()
 	registrations := []struct {
 		collection syntax.NSID
 		indexer    index.TransactionalIndexer
@@ -464,6 +481,8 @@ func newTransactionalIndexerDispatcherWithActorDeletion(
 		{collection: "social.craftsky.feed.post", indexer: post},
 		{collection: "social.craftsky.feed.like", indexer: like},
 		{collection: "social.craftsky.feed.repost", indexer: repost},
+		{collection: "social.craftsky.business.profile", indexer: businessProfile},
+		{collection: "social.craftsky.business.event", indexer: businessEvent},
 		{collection: "app.bsky.actor.profile", indexer: blueskyIdx},
 		{collection: "app.bsky.graph.follow", indexer: follow},
 		{collection: "app.bsky.graph.block", indexer: block},

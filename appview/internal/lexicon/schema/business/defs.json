@@ -1,0 +1,137 @@
+{
+  "lexicon": 1,
+  "id": "social.craftsky.business.defs",
+  "description": "Shared objects used by Craftsky business declarations and events.",
+  "defs": {
+    "aspectRatio": {
+      "type": "object",
+      "description": "Image aspect ratio metadata used for layout hints.",
+      "required": [
+        "width",
+        "height"
+      ],
+      "properties": {
+        "width": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "image": {
+      "type": "object",
+      "description": "A business product or event image with optional accessibility and layout metadata.",
+      "required": [
+        "image"
+      ],
+      "properties": {
+        "image": {
+          "type": "blob",
+          "accept": [
+            "image/jpeg",
+            "image/png",
+            "image/webp"
+          ],
+          "maxSize": 15728640
+        },
+        "alt": {
+          "type": "string",
+          "maxLength": 1000,
+          "maxGraphemes": 1000,
+          "description": "Optional alt text describing the image."
+        },
+        "aspectRatio": {
+          "type": "ref",
+          "ref": "#aspectRatio",
+          "description": "Optional aspect ratio metadata for rendering."
+        }
+      }
+    },
+    "price": {
+      "type": "object",
+      "description": "Seller-authored display price amount and ISO 4217 currency code.",
+      "required": [
+        "amount",
+        "currency"
+      ],
+      "properties": {
+        "amount": {
+          "type": "string",
+          "maxLength": 17,
+          "description": "Nonnegative decimal amount interpreted according to the currency minor-unit scale."
+        },
+        "currency": {
+          "type": "string",
+          "minLength": 3,
+          "maxLength": 3,
+          "description": "Uppercase ISO 4217 alphabetic currency code."
+        }
+      }
+    },
+    "action": {
+      "type": "object",
+      "description": "The declaration's primary external action.",
+      "required": [
+        "type",
+        "destination"
+      ],
+      "properties": {
+        "type": {
+          "type": "string",
+          "maxLength": 64,
+          "knownValues": [
+            "shop",
+            "browse-patterns",
+            "request-custom-order",
+            "book-class",
+            "book-appointment",
+            "view-event-calendar",
+            "email",
+            "visit-website",
+            "wholesale-enquiries"
+          ],
+          "description": "Open action type; clients apply behavior only to values they recognize."
+        },
+        "destination": {
+          "type": "string",
+          "format": "uri",
+          "description": "External web or email destination selected by the author."
+        }
+      }
+    },
+    "product": {
+      "type": "object",
+      "description": "An external product card in authored display order.",
+      "required": [
+        "title",
+        "uri"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 1500,
+          "maxGraphemes": 150,
+          "description": "Seller-authored product title."
+        },
+        "uri": {
+          "type": "string",
+          "format": "uri",
+          "description": "External product destination."
+        },
+        "image": {
+          "type": "ref",
+          "ref": "#image",
+          "description": "Optional product image for interoperable records; Craftsky writes require it."
+        },
+        "price": {
+          "type": "ref",
+          "ref": "#price",
+          "description": "Optional seller-authored display price."
+        }
+      }
+    }
+  }
+}
