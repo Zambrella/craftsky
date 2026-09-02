@@ -10,6 +10,10 @@ import 'package:craftsky_app/business/providers/owner_business_events_provider.d
 import 'package:craftsky_app/business/providers/profile_business_events_provider.dart';
 import 'package:craftsky_app/business/widgets/event_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/theme/craftsky_context_menu.dart';
+import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -41,7 +45,7 @@ class EventsSettingsPage extends ConsumerWidget {
       ),
       floatingActionButton:
           identity.value?.profile.accountType == AccountType.business
-          ? FloatingActionButton.extended(
+          ? CraftskyFloatingActionButton.extended(
               onPressed: () => _openEditor(context),
               icon: const Icon(Icons.add),
               label: Text(l10n.businessEventCreateTitle),
@@ -230,58 +234,88 @@ class _OwnerEventCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    final spacing = Theme.of(context).extension<SpacingTheme>()!;
     final diagnostics = EventDiagnostics.localized(
       [...event.publicSuppressionReasons, ...event.upcomingExclusionReasons],
       l10n,
     );
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.only(bottom: spacing.sp4),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          EventCard(event: event, onTap: () => _openEditor(context, event)),
-          Wrap(
-            spacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Chip(label: Text(_statusLabel(event.status.value, l10n))),
-              PopupMenuButton<_EventAction>(
-                tooltip: l10n.businessEventManage(event.name),
-                onSelected: (action) => _performAction(
-                  context,
-                  ref,
-                  event,
-                  action,
+          EventCard(
+            event: event,
+            onTap: () => _openEditor(context, event),
+            trailing: CraftskyContextMenuButton(
+              tooltip: l10n.businessEventManage(event.name),
+              groups: [
+                CraftskyContextMenuGroup(
+                  items: [
+                    CraftskyContextMenuItem(
+                      text: l10n.businessEventEditAction,
+                      icon: Icons.edit_outlined,
+                      onPressed: () => _performAction(
+                        context,
+                        ref,
+                        event,
+                        _EventAction.edit,
+                      ),
+                    ),
+                  ],
                 ),
-                itemBuilder: (context) => [
-                  PopupMenuItem(
-                    value: _EventAction.edit,
-                    child: Text(l10n.businessEventEditAction),
-                  ),
-                  PopupMenuItem(
-                    value: _EventAction.cancel,
-                    child: Text(l10n.businessEventCancelAction),
-                  ),
-                  PopupMenuItem(
-                    value: _EventAction.postpone,
-                    child: Text(l10n.businessEventPostponeAction),
-                  ),
-                  PopupMenuItem(
-                    value: _EventAction.delete,
-                    child: Text(l10n.businessEventDeleteAction),
-                  ),
-                ],
-              ),
-            ],
+                CraftskyContextMenuGroup(
+                  items: [
+                    if (event.status.value != 'cancelled')
+                      CraftskyContextMenuItem(
+                        text: l10n.businessEventCancelAction,
+                        icon: Icons.event_busy_outlined,
+                        onPressed: () => _performAction(
+                          context,
+                          ref,
+                          event,
+                          _EventAction.cancel,
+                        ),
+                      ),
+                    if (event.status.value != 'postponed')
+                      CraftskyContextMenuItem(
+                        text: l10n.businessEventPostponeAction,
+                        icon: Icons.schedule_outlined,
+                        onPressed: () => _performAction(
+                          context,
+                          ref,
+                          event,
+                          _EventAction.postpone,
+                        ),
+                      ),
+                  ],
+                ),
+                CraftskyContextMenuGroup(
+                  items: [
+                    CraftskyContextMenuItem(
+                      text: l10n.businessEventDeleteAction,
+                      icon: Icons.delete_outline,
+                      style: CraftskyContextMenuItemStyle.destructive,
+                      onPressed: () => _performAction(
+                        context,
+                        ref,
+                        event,
+                        _EventAction.delete,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
           for (final diagnostic in diagnostics)
             Padding(
-              padding: const EdgeInsets.only(top: 4),
+              padding: EdgeInsets.only(top: spacing.sp2),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Icon(Icons.info_outline, size: 18),
-                  const SizedBox(width: 8),
+                  SizedBox(width: spacing.sp2),
                   Expanded(child: Text(diagnostic)),
                 ],
               ),
@@ -316,42 +350,18 @@ Future<void> _performAction(
 }
 
 Future<void> _openEditor(BuildContext context, [BusinessEvent? event]) =>
-    showDialog<void>(
-      context: context,
-      useSafeArea: false,
-      builder: (context) => Dialog.fullscreen(
-        child: EventEditorDialog(event: event),
-      ),
-    );
+    showEventEditorSheet(context, event: event);
 
 Future<bool> _confirmDelete(BuildContext context) async {
   final l10n = AppLocalizations.of(context);
-  return await showDialog<bool>(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(l10n.businessEventDeleteConfirmTitle),
-          content: Text(l10n.businessEventDeleteConfirmMessage),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: Text(l10n.businessProductCancel),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.pop(context, true),
-              child: Text(l10n.businessEventDeleteConfirmAction),
-            ),
-          ],
-        ),
-      ) ??
-      false;
+  return showCraftskyDestructiveConfirmDialog(
+    context,
+    title: l10n.businessEventDeleteConfirmTitle,
+    message: l10n.businessEventDeleteConfirmMessage,
+    confirmLabel: l10n.businessEventDeleteConfirmAction,
+    cancelLabel: l10n.businessProductCancel,
+  );
 }
-
-String _statusLabel(String status, AppLocalizations l10n) => switch (status) {
-  'scheduled' => l10n.businessEventStatusScheduled,
-  'cancelled' => l10n.businessEventStatusCancelled,
-  'postponed' => l10n.businessEventStatusPostponed,
-  _ => status.replaceAll('-', ' '),
-};
 
 class _InitialError extends StatelessWidget {
   const _InitialError({required this.onRetry});

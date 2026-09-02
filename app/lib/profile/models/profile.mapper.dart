@@ -175,6 +175,13 @@ class ProfileMapper extends ClassMapperBase<Profile> {
     _$business,
     opt: true,
   );
+  static bool _$hasUpcomingEvents(Profile v) => v.hasUpcomingEvents;
+  static const Field<Profile, bool> _f$hasUpcomingEvents = Field(
+    'hasUpcomingEvents',
+    _$hasUpcomingEvents,
+    opt: true,
+    def: false,
+  );
 
   @override
   final MappableFields<Profile> fields = const {
@@ -201,6 +208,7 @@ class ProfileMapper extends ClassMapperBase<Profile> {
     #customisation: _f$customisation,
     #accountType: _f$accountType,
     #business: _f$business,
+    #hasUpcomingEvents: _f$hasUpcomingEvents,
   };
 
   static Profile _instantiate(DecodingData data) {
@@ -228,6 +236,7 @@ class ProfileMapper extends ClassMapperBase<Profile> {
       customisation: data.dec(_f$customisation),
       accountType: data.dec(_f$accountType),
       business: data.dec(_f$business),
+      hasUpcomingEvents: data.dec(_f$hasUpcomingEvents),
     );
   }
 
@@ -316,6 +325,7 @@ abstract class ProfileCopyWith<$R, $In extends Profile, $Out>
     ProfileCustomisation? customisation,
     AccountType? accountType,
     BusinessProfile? business,
+    bool? hasUpcomingEvents,
   });
   ProfileCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
@@ -367,6 +377,7 @@ class _ProfileCopyWithImpl<$R, $Out>
     ProfileCustomisation? customisation,
     Object? accountType = $none,
     Object? business = $none,
+    bool? hasUpcomingEvents,
   }) => $apply(
     FieldCopyWithData({
       if (did != null) #did: did,
@@ -393,6 +404,7 @@ class _ProfileCopyWithImpl<$R, $Out>
       if (customisation != null) #customisation: customisation,
       if (accountType != $none) #accountType: accountType,
       if (business != $none) #business: business,
+      if (hasUpcomingEvents != null) #hasUpcomingEvents: hasUpcomingEvents,
     }),
   );
   @override
@@ -429,6 +441,10 @@ class _ProfileCopyWithImpl<$R, $Out>
     customisation: data.get(#customisation, or: $value.customisation),
     accountType: data.get(#accountType, or: $value.accountType),
     business: data.get(#business, or: $value.business),
+    hasUpcomingEvents: data.get(
+      #hasUpcomingEvents,
+      or: $value.hasUpcomingEvents,
+    ),
   );
 
   @override

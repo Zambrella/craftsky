@@ -41,7 +41,6 @@ class ProductsState {
     this.status = ProductsStatus.ready,
     this.validationErrors = const {},
     this.imageErrorProductId,
-    this.dirty = false,
   });
 
   final BusinessDeclarationDraft declaration;
@@ -49,7 +48,6 @@ class ProductsState {
   final ProductsStatus status;
   final Set<ProductDraftError> validationErrors;
   final String? imageErrorProductId;
-  final bool dirty;
 
   ProductsState copyWith({
     BusinessDeclarationDraft? declaration,
@@ -57,7 +55,6 @@ class ProductsState {
     ProductsStatus? status,
     Set<ProductDraftError>? validationErrors,
     Object? imageErrorProductId = _unset,
-    bool? dirty,
   }) => ProductsState(
     declaration: declaration ?? this.declaration,
     products: products ?? this.products,
@@ -66,7 +63,6 @@ class ProductsState {
     imageErrorProductId: identical(imageErrorProductId, _unset)
         ? this.imageErrorProductId
         : imageErrorProductId as String?,
-    dirty: dirty ?? this.dirty,
   );
 }
 
@@ -104,63 +100,75 @@ class ProductsController extends _$ProductsController {
     );
   }
 
-  void replaceProducts(List<ProductDraft> products) => _edit(products);
+  Future<bool> replaceProducts(List<ProductDraft> products) =>
+      _persist(products);
 
-  bool add(ProductDraft product) {
+  Future<bool> add(ProductDraft product) {
     final current = state.value;
     if (current == null || current.products.length >= businessProductLimit) {
-      return false;
+      return Future.value(false);
     }
-    _edit([...current.products, product]);
-    return true;
+    return _persist([...current.products, product]);
   }
 
-  void editProduct(ProductDraft product) {
+  Future<bool> editProduct(ProductDraft product) {
     final current = state.value;
-    if (current == null) return;
-    _edit([
+    if (current == null ||
+        !current.products.any((existing) => existing.id == product.id)) {
+      return Future.value(false);
+    }
+    return _persist([
       for (final existing in current.products)
         if (existing.id == product.id) product else existing,
     ]);
   }
 
-  void remove(String id) {
+  Future<bool> remove(String id) {
     final current = state.value;
-    if (current == null) return;
-    _edit(current.products.where((product) => product.id != id).toList());
+    if (current == null ||
+        !current.products.any((product) => product.id == id)) {
+      return Future.value(false);
+    }
+    return _persist(
+      current.products.where((product) => product.id != id).toList(),
+    );
   }
 
-  void reorder(int oldIndex, int newIndex) {
+  Future<bool> reorder(int oldIndex, int newIndex) {
     final current = state.value;
     if (current == null ||
         oldIndex < 0 ||
         oldIndex >= current.products.length) {
-      return;
+      return Future.value(false);
     }
     final products = [...current.products];
-    if (newIndex < 0 || newIndex >= products.length) return;
+    if (newIndex < 0 || newIndex >= products.length) {
+      return Future.value(false);
+    }
     final product = products.removeAt(oldIndex);
     products.insert(newIndex, product);
-    _edit(products);
+    return _persist(products);
   }
 
-  void move(String id, int delta) {
+  Future<bool> move(String id, int delta) {
     final current = state.value;
-    if (current == null) return;
+    if (current == null) return Future.value(false);
     final from = current.products.indexWhere((product) => product.id == id);
     final to = from + delta;
-    if (from < 0 || to < 0 || to >= current.products.length) return;
+    if (from < 0 || to < 0 || to >= current.products.length) {
+      return Future.value(false);
+    }
     final products = [...current.products];
     final product = products.removeAt(from);
     products.insert(to, product);
-    _edit(products);
+    return _persist(products);
   }
 
-  void replaceImage(String id, BusinessImageDraft image) {
+  Future<bool> replaceImage(String id, BusinessImageDraft image) {
     final current = state.value;
-    if (current == null) return;
+    if (current == null) return Future.value(false);
     final product = current.products.firstWhere((value) => value.id == id);
-    editProduct(
+    return editProduct(
       ProductDraft(
         id: product.id,
         title: product.title,
@@ -176,14 +184,14 @@ class ProductsController extends _$ProductsController {
 
   void imageUploadCancelled(String id) => _retainImageAfterUpload(id);
 
-  Future<bool> save() async {
+  Future<bool> _persist(List<ProductDraft> products) async {
     final current = state.value;
     if (current == null ||
         current.status == ProductsStatus.saving ||
         current.status == ProductsStatus.conflict) {
       return false;
     }
-    final errors = validateProductDrafts(current.products);
+    final errors = validateProductDrafts(products);
     if (errors.isNotEmpty) {
       state = AsyncData(
         current.copyWith(
@@ -215,14 +223,14 @@ class ProductsController extends _$ProductsController {
       final result = await ref
           .read(businessRepositoryProvider)
           .putBusinessProfile(
-            current.declaration.toJson(productDrafts: current.products),
+            current.declaration.toJson(productDrafts: products),
             expectedCid: current.declaration.expectedCid,
           );
       if (!isActiveAccountOperationCurrent(ref, ownership)) return false;
       final declaration = current.declaration.withExpectedCid(result.cid);
       final accepted = _acceptedProfile(
         declaration,
-        current.products,
+        products,
         current.declaration.products,
       );
       if (!ref
@@ -240,12 +248,12 @@ class ProductsController extends _$ProductsController {
       state = AsyncData(
         current.copyWith(
           declaration: declaration,
+          products: List.unmodifiable(products),
           status: ProductsStatus.ready,
-          dirty: false,
           imageErrorProductId: null,
         ),
       );
-      _invalidateProfileAliases();
+      _cacheAcceptedProfile(accepted);
       return true;
     } on ApiBadRequest catch (error) {
       if (!isActiveAccountOperationCurrent(ref, ownership)) return false;
@@ -266,12 +274,14 @@ class ProductsController extends _$ProductsController {
     }
   }
 
-  void _invalidateProfileAliases() {
+  void _cacheAcceptedProfile(BusinessProfile business) {
     final profile = ref.read(activeAccountIdentityProvider).value?.profile;
     if (profile == null) return;
+    final accepted = profile.copyWith(business: business);
     for (final id in <String>{profile.handle.value, profile.did.value}) {
-      final provider = userProfileProvider(id);
-      if (ref.exists(provider)) ref.invalidate(provider);
+      if (ref.exists(userProfileProvider(id))) {
+        ref.read(userProfileProvider(id).notifier).setCached(accepted);
+      }
     }
   }
 
@@ -289,20 +299,6 @@ class ProductsController extends _$ProductsController {
     } on Object catch (error, stackTrace) {
       state = AsyncError(error, stackTrace);
     }
-  }
-
-  void _edit(List<ProductDraft> products) {
-    final current = state.value;
-    if (current == null || current.status == ProductsStatus.saving) return;
-    state = AsyncData(
-      current.copyWith(
-        products: List.unmodifiable(products),
-        status: ProductsStatus.ready,
-        validationErrors: const {},
-        imageErrorProductId: null,
-        dirty: true,
-      ),
-    );
   }
 
   void _retainImageAfterUpload(String id) {

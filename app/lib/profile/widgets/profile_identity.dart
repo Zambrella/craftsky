@@ -9,6 +9,7 @@ class ProfileIdentity extends StatelessWidget {
     required this.handle,
     this.displayName,
     this.pronouns,
+    this.businessLabel,
     this.centered = false,
     super.key,
   });
@@ -16,6 +17,7 @@ class ProfileIdentity extends StatelessWidget {
   final String handle;
   final String? displayName;
   final String? pronouns;
+  final String? businessLabel;
   final bool centered;
 
   @override
@@ -59,6 +61,17 @@ class ProfileIdentity extends StatelessWidget {
             ],
           ],
         ),
+        if (businessLabel != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            businessLabel!,
+            textAlign: centered ? TextAlign.center : TextAlign.start,
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.primary,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
         if (displayName?.isNotEmpty ?? false) ...[
           const SizedBox(height: 2),
           Text(

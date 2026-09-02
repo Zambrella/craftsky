@@ -25,6 +25,21 @@ void main() {
     'crafts': ['sewing'],
   };
 
+  test('decodes upcoming event availability from a profile response', () async {
+    final dio = buildDio();
+    DioAdapter(dio: dio).onGet(
+      '/v1/profiles/@maker.test',
+      (server) => server.reply(200, {
+        ...sampleProfile(),
+        'hasUpcomingEvents': true,
+      }),
+    );
+
+    final profile = await ProfileApiClient(dio).getProfile('maker.test');
+
+    expect(profile.hasUpcomingEvents, isTrue);
+  });
+
   Map<String, dynamic> sampleFollowerGrowth({
     required bool populated,
     String period = '30d',

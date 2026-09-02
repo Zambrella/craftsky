@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -29,6 +30,7 @@ type ProfileReader interface {
 type BusinessProfileReader interface {
 	ReadAccountType(context.Context, syntax.DID) (business.AccountType, error)
 	ReadEligibleProfile(context.Context, syntax.DID) (*business.ProfileView, error)
+	HasUpcomingEvents(context.Context, syntax.DID, time.Time) (bool, error)
 }
 
 type ProfileGraphReader interface {
@@ -294,6 +296,16 @@ func writeProfileResponse(
 			return
 		}
 		resp.Business = BuildBusinessProfileResponse(did, presentation)
+		if accountType == business.AccountTypeBusiness {
+			resp.HasUpcomingEvents, err = businessProfiles.HasUpcomingEvents(r.Context(), did, time.Now().UTC())
+			if err != nil {
+				logger.Error("profile: upcoming event availability read failed",
+					apiLogErrorAttrs(runID, operation, "store")...)
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "profile read failed", runID, nil)
+				return
+			}
+		}
 	}
 	logger.Debug("profile: response ready",
 		apiLogSuccessAttrs(runID, operation)...)

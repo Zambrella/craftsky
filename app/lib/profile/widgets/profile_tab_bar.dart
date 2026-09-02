@@ -25,30 +25,42 @@ abstract final class ProfileTabPolicy {
     ProfileTab.posts,
     ProfileTab.comments,
     ProfileTab.reposts,
-    ProfileTab.about,
   ];
 
   static const businessTabs = <ProfileTab>[
+    ProfileTab.products,
+    ProfileTab.upcomingEvents,
+    ProfileTab.about,
     ProfileTab.projects,
     ProfileTab.posts,
     ProfileTab.comments,
     ProfileTab.reposts,
-    ProfileTab.products,
-    ProfileTab.upcomingEvents,
-    ProfileTab.about,
   ];
 
   static List<ProfileTab> forProfile({
     required AccountType? accountType,
     required bool isBlocked,
-  }) => !isBlocked && accountType == AccountType.business
-      ? businessTabs
-      : ordinaryTabs;
+    bool isOwnProfile = false,
+    bool hasProducts = false,
+    bool hasUpcomingEvents = false,
+  }) {
+    if (isBlocked || accountType != AccountType.business) {
+      return ordinaryTabs;
+    }
+    return [
+      for (final tab in businessTabs)
+        if (tab != ProfileTab.products || isOwnProfile || hasProducts)
+          if (tab != ProfileTab.upcomingEvents ||
+              isOwnProfile ||
+              hasUpcomingEvents)
+            tab,
+    ];
+  }
 
   static ProfileTab selectionAfterChange({
     required ProfileTab selected,
     required List<ProfileTab> tabs,
-  }) => tabs.contains(selected) ? selected : ProfileTab.about;
+  }) => tabs.contains(selected) ? selected : tabs.first;
 }
 
 extension ProfileTabLabel on ProfileTab {

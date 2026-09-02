@@ -2969,13 +2969,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get businessEventLifecycleLabel => 'Lifecycle';
 
   @override
-  String get businessEventTimeZoneLabel => 'IANA timezone';
+  String get businessEventTimeZoneLabel => 'Timezone';
 
   @override
   String get businessEventVenueLabel => 'Venue (optional)';
 
   @override
   String get businessEventPublishedLabel => 'Published';
+
+  @override
+  String businessEventPublishedOn(String date) {
+    return 'Published $date';
+  }
 
   @override
   String get businessEventWebsiteAction => 'Event website';
@@ -2988,9 +2993,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get businessProductsAdd => 'Add product';
-
-  @override
-  String get businessProductsSave => 'Save products';
 
   @override
   String get businessProductsEmpty => 'No featured products yet.';
@@ -3043,6 +3045,20 @@ class AppLocalizationsEn extends AppLocalizations {
   String businessProductRemove(String title) {
     return 'Remove $title';
   }
+
+  @override
+  String get businessProductRemoveConfirmTitle => 'Remove product?';
+
+  @override
+  String businessProductRemoveConfirmMessage(String title) {
+    return 'Remove $title from your featured products? This change is saved immediately.';
+  }
+
+  @override
+  String get businessProductRemoveConfirm => 'Remove';
+
+  @override
+  String get businessProductRemoveCancel => 'Keep product';
 
   @override
   String businessProductMoveUp(String title) {
@@ -3104,6 +3120,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Enter a credential-free HTTPS link.';
 
   @override
+  String get businessProductDestinationDuplicate =>
+      'Use a different destination. Each product must link to a unique page.';
+
+  @override
   String get businessProductImageRequired => 'Add an image.';
 
   @override
@@ -3126,16 +3146,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get businessEventNameRequired => 'Add an event name.';
 
   @override
-  String get businessEventStartLabel => 'Starts (local)';
+  String get businessEventStartLabel => 'Start';
 
   @override
-  String get businessEventEndLabel => 'Ends (local, exclusive for all-day)';
+  String get businessEventEndLabel => 'End';
+
+  @override
+  String get businessEventDateTimeHint => 'Select date and time';
 
   @override
   String get businessEventTimeHint => 'YYYY-MM-DD HH:MM';
 
   @override
   String get businessEventTimeInvalid => 'Enter a valid start and end.';
+
+  @override
+  String get businessEventEndAfterStart => 'End must be after start.';
 
   @override
   String get businessEventAllDay => 'All-day event';

@@ -244,6 +244,58 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('collapsed business app bar omits the business label', (
+      tester,
+    ) async {
+      final controller = ScrollController();
+      addTearDown(controller.dispose);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: CustomScrollView(
+              controller: controller,
+              slivers: [
+                ProfileSliverAppBar(
+                  handle: 'craftsky.social',
+                  displayName: 'Craftsky',
+                  isBusiness: true,
+                  actions: VisitorProfileActionSet(
+                    isFollowing: true,
+                    isBusy: false,
+                    onFollowToggle: () {},
+                    onShare: () {},
+                    onReport: () {},
+                    onMuteToggle: () {},
+                    onBlockToggle: () {},
+                  ),
+                ),
+                const SliverToBoxAdapter(child: SizedBox(height: 1200)),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final collapsedTitle = find.byKey(
+        const Key('profile-sliver-collapsed-title'),
+      );
+      expect(
+        find.descendant(of: collapsedTitle, matching: find.text('Business')),
+        findsNothing,
+      );
+      expect(find.text('Business'), findsOneWidget);
+
+      final appBar = tester.widget<SliverAppBar>(find.byType(SliverAppBar));
+      controller.jumpTo(appBar.expandedHeight! - kToolbarHeight);
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('profile divider fades in as the header collapses', (
       tester,
     ) async {

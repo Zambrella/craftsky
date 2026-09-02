@@ -334,6 +334,31 @@ func (s *Store) ReadEligibleProfile(ctx context.Context, did syntax.DID) (*Profi
 	return &view, nil
 }
 
+func (s *Store) HasUpcomingEvents(ctx context.Context, owner syntax.DID, asOf time.Time) (bool, error) {
+	var exists bool
+	err := s.pool.QueryRow(ctx, `
+		SELECT EXISTS (
+			SELECT 1
+			FROM craftsky_business_events event
+			JOIN craftsky_profiles membership ON membership.did = event.owner_did
+			JOIN craftsky_account_types account_type
+			  ON account_type.owner_did = event.owner_did
+			 AND account_type.account_type = 'business'
+			WHERE event.owner_did = $1
+			  AND appview_owner_is_active(event.owner_did)
+			  AND event.ends_at > $2
+			  AND event.ends_at > event.starts_at
+			  AND event.ends_at - event.starts_at <= interval '31 days'
+			  AND COALESCE(event.status, 'scheduled') NOT IN ('cancelled', 'postponed')
+			  AND NOT `+eventModeratedSQL+`
+		)
+	`, owner, asOf).Scan(&exists)
+	if err != nil {
+		return false, fmt.Errorf("read upcoming business event availability: %w", err)
+	}
+	return exists, nil
+}
+
 func NewStore(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool}
 }

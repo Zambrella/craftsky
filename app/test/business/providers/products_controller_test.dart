@@ -35,8 +35,7 @@ void main() {
       final initial = await container.read(productsControllerProvider.future);
       final reordered = initial.products.reversed.toList();
 
-      controller.replaceProducts(reordered);
-      expect(await controller.save(), isTrue);
+      expect(await controller.replaceProducts(reordered), isTrue);
 
       expect(repository.expectedCids.single.toString(), 'bafy-current');
       expect(repository.bodies.single, {
@@ -85,12 +84,13 @@ void main() {
     final controller = container.read(productsControllerProvider.notifier);
     await container.read(productsControllerProvider.future);
 
-    expect(await controller.save(), isFalse);
+    final currentProducts = controller.state.requireValue.products;
+    expect(await controller.replaceProducts(currentProducts), isFalse);
     expect(
       container.read(productsControllerProvider).requireValue.status,
       ProductsStatus.conflict,
     );
-    expect(await controller.save(), isFalse);
+    expect(await controller.replaceProducts(currentProducts), isFalse);
     expect(repository.bodies, hasLength(1));
 
     await controller.reloadAfterConflict();
@@ -101,7 +101,12 @@ void main() {
     expect(state.products.map((product) => product.title), ['One', 'Two']);
 
     repository.error = null;
-    expect(await controller.save(), isTrue);
+    expect(
+      await controller.replaceProducts(
+        controller.state.requireValue.products,
+      ),
+      isTrue,
+    );
     expect(repository.expectedCids.last.toString(), 'bafy-new');
   });
 
@@ -140,25 +145,25 @@ void main() {
       final initial = await container.read(productsControllerProvider.future);
       final product = initial.products.first;
       final previewBytes = Uint8List.fromList([1, 2, 3, 4]);
-      container.read(productsControllerProvider.notifier).replaceProducts([
-        ProductDraft(
-          id: product.id,
-          title: product.title,
-          destination: product.destination,
-          image: UploadedBusinessImageDraft(
-            cid: 'bafy-replacement',
-            mime: 'image/png',
-            size: 4,
-            alt: 'Replacement image',
-            localPreviewBytes: previewBytes,
-          ),
-          amount: product.amount,
-          currency: product.currency,
-        ),
-      ]);
-
       expect(
-        await container.read(productsControllerProvider.notifier).save(),
+        await container
+            .read(productsControllerProvider.notifier)
+            .replaceProducts([
+              ProductDraft(
+                id: product.id,
+                title: product.title,
+                destination: product.destination,
+                image: UploadedBusinessImageDraft(
+                  cid: 'bafy-replacement',
+                  mime: 'image/png',
+                  size: 4,
+                  alt: 'Replacement image',
+                  localPreviewBytes: previewBytes,
+                ),
+                amount: product.amount,
+                currency: product.currency,
+              ),
+            ]),
         isTrue,
       );
 
@@ -194,12 +199,7 @@ void main() {
     () async {
       final oldProfile = _profile('bafy-current');
       final laggingRead = Completer<Profile>();
-      final currentRead = Completer<Profile>();
-      final profileRepository = _ProfileRepository(
-        oldProfile,
-        laggingRead,
-        currentRead,
-      );
+      final profileRepository = _ProfileRepository(oldProfile, laggingRead);
       final container = ProviderContainer.test(
         overrides: [
           secureSessionRegistryStorageProvider.overrideWithValue(
@@ -227,7 +227,7 @@ void main() {
       final initial = await container.read(productsControllerProvider.future);
       final first = initial.products.first;
       final previewBytes = Uint8List.fromList([5, 6, 7]);
-      container.read(productsControllerProvider.notifier).replaceProducts([
+      final replacement = [
         ProductDraft(
           id: first.id,
           title: 'Accepted product',
@@ -242,7 +242,7 @@ void main() {
           amount: first.amount,
           currency: first.currency,
         ),
-      ]);
+      ];
       container.invalidate(userProfileProvider('owner.test'));
       final staleProfileRead = container.read(
         userProfileProvider('owner.test').future,
@@ -251,13 +251,14 @@ void main() {
       expect(profileRepository.fetches, 2);
 
       expect(
-        await container.read(productsControllerProvider.notifier).save(),
+        await container
+            .read(productsControllerProvider.notifier)
+            .replaceProducts(replacement),
         isTrue,
       );
       await Future<void>.delayed(Duration.zero);
-      expect(profileRepository.fetches, 3);
+      expect(profileRepository.fetches, 2);
 
-      currentRead.complete(oldProfile);
       final reconciled = await container.read(
         userProfileProvider('owner.test').future,
       );
@@ -356,11 +357,10 @@ final class _Repository extends Fake implements BusinessRepository {
 }
 
 final class _ProfileRepository extends Fake implements ProfileRepository {
-  _ProfileRepository(this.initial, this.laggingRead, [this.currentRead]);
+  _ProfileRepository(this.initial, this.laggingRead);
 
   final Profile initial;
   final Completer<Profile> laggingRead;
-  final Completer<Profile>? currentRead;
   int fetches = 0;
 
   @override
@@ -368,8 +368,7 @@ final class _ProfileRepository extends Fake implements ProfileRepository {
     fetches++;
     return switch (fetches) {
       1 => Future.value(initial),
-      2 => laggingRead.future,
-      _ => currentRead?.future ?? laggingRead.future,
+      _ => laggingRead.future,
     };
   }
 }

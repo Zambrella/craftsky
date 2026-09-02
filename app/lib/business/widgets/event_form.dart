@@ -6,15 +6,34 @@ import 'package:craftsky_app/business/models/business_drafts.dart';
 import 'package:craftsky_app/business/models/business_labels.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/services/business_time_zone_service.dart';
+import 'package:craftsky_app/feed/models/create_post_image.dart';
+import 'package:craftsky_app/feed/providers/composer_image_state.dart';
+import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
+import 'package:craftsky_app/theme/craftsky_field_scaffold.dart';
+import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
+import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 typedef EventImagePicker =
-    Future<ProfileImagePickResult?> Function(
+    Future<PreparedProfileImage?> Function(
       void Function(Uint8List bytes) onPreviewReady,
     );
+
+class EventFormSubmission {
+  const EventFormSubmission({
+    required this.draft,
+    required this.pendingImage,
+    required this.imageAlt,
+  });
+
+  final BusinessEventDraft draft;
+  final PreparedProfileImage? pendingImage;
+  final String imageAlt;
+}
 
 class EventForm extends ConsumerStatefulWidget {
   const EventForm({
@@ -26,7 +45,7 @@ class EventForm extends ConsumerStatefulWidget {
   });
 
   final BusinessEventDraft? initial;
-  final ValueChanged<BusinessEventDraft> onChanged;
+  final VoidCallback onChanged;
   final EventImagePicker? pickImage;
   final bool enabled;
 
@@ -37,8 +56,8 @@ class EventForm extends ConsumerStatefulWidget {
 class EventFormState extends ConsumerState<EventForm> {
   final _formKey = GlobalKey<FormState>();
   late final TextEditingController _name;
-  late final TextEditingController _start;
-  late final TextEditingController _end;
+  late final FocusNode _startFocus;
+  late final FocusNode _endFocus;
   late final TextEditingController _summary;
   late final TextEditingController _venue;
   late final TextEditingController _eventUri;
@@ -48,20 +67,25 @@ class EventFormState extends ConsumerState<EventForm> {
   late String _mode;
   late String _status;
   late String _timeZone;
-  late bool _isAllDay;
+  late final bool _isAllDay;
+  DateTime? _start;
+  DateTime? _end;
   late BusinessImageDraft _image;
+  PreparedProfileImage? _pendingImage;
   Uint8List? _preview;
   String? _draftError;
   String? _uploadError;
-  bool _uploading = false;
+  bool _preparingImage = false;
 
   @override
   void initState() {
     super.initState();
     final initial = widget.initial;
     _name = TextEditingController(text: initial?.name);
-    _start = TextEditingController(text: _formatLocal(initial?.startsAt));
-    _end = TextEditingController(text: _formatLocal(initial?.endsAt));
+    _startFocus = FocusNode();
+    _endFocus = FocusNode();
+    _start = initial?.startsAt;
+    _end = initial?.endsAt;
     _summary = TextEditingController(text: initial?.summary);
     _venue = TextEditingController(text: initial?.venueName);
     _eventUri = TextEditingController(text: initial?.eventUri);
@@ -79,8 +103,6 @@ class EventFormState extends ConsumerState<EventForm> {
   void dispose() {
     for (final controller in [
       _name,
-      _start,
-      _end,
       _summary,
       _venue,
       _eventUri,
@@ -89,10 +111,12 @@ class EventFormState extends ConsumerState<EventForm> {
     ]) {
       controller.dispose();
     }
+    _startFocus.dispose();
+    _endFocus.dispose();
     super.dispose();
   }
 
-  BusinessEventDraft? submit() {
+  EventFormSubmission? submit() {
     final formValid = _formKey.currentState?.validate() ?? false;
     final draft = _buildDraft();
     final errors = draft?.validate(ref.read(businessTimeZoneServiceProvider));
@@ -101,15 +125,40 @@ class EventFormState extends ConsumerState<EventForm> {
           ? AppLocalizations.of(context).businessEventValidationError
           : null;
     });
-    if (!formValid || draft == null || errors!.isNotEmpty || _uploading) {
+    if (!formValid || draft == null || errors!.isNotEmpty || _preparingImage) {
       return null;
     }
-    return draft;
+    return EventFormSubmission(
+      draft: draft,
+      pendingImage: _pendingImage,
+      imageAlt: _alt.text,
+    );
+  }
+
+  void acceptUploadedImage(
+    PreparedProfileImage pending,
+    UploadedBusinessImageDraft uploaded,
+  ) {
+    if (!identical(_pendingImage, pending)) return;
+    setState(() {
+      _image = uploaded;
+      _pendingImage = null;
+      _preview = pending.bytes;
+      _uploadError = null;
+    });
+  }
+
+  void showImageUploadError() {
+    if (!mounted) return;
+    setState(() {
+      _uploadError = AppLocalizations.of(context).businessEventUploadError;
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final spacing = Theme.of(context).extension<SpacingTheme>()!;
     return Form(
       key: _formKey,
       onChanged: _notifyChanged,
@@ -117,123 +166,114 @@ class EventFormState extends ConsumerState<EventForm> {
         builder: (context, constraints) {
           final wide = constraints.maxWidth >= 720;
           return SingleChildScrollView(
-            padding: const EdgeInsets.all(20),
+            padding: EdgeInsets.all(spacing.sp4),
             child: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 880),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    TextFormField(
-                      key: const ValueKey('event-name'),
+                    CraftskyTextFormField(
+                      textFieldKey: const ValueKey('event-name'),
                       controller: _name,
                       enabled: widget.enabled,
                       maxLength: businessEventNameLimit,
-                      decoration: InputDecoration(
-                        labelText: l10n.businessEventNameLabel,
-                      ),
+                      label: l10n.businessEventNameLabel,
+                      required: true,
                       validator: (value) =>
                           value == null || value.trim().isEmpty
                           ? l10n.businessEventNameRequired
                           : null,
                     ),
-                    const SizedBox(height: 8),
+                    SizedBox(height: spacing.sp5),
                     _responsivePair(
                       wide,
                       _boundaryField(
                         key: const ValueKey('event-start'),
-                        controller: _start,
+                        value: _start,
+                        focusNode: _startFocus,
                         label: l10n.businessEventStartLabel,
+                        onSelected: (value) => _start = value,
                       ),
                       _boundaryField(
                         key: const ValueKey('event-end'),
-                        controller: _end,
+                        value: _end,
+                        pickerInitialValue: _end ?? _start,
+                        mustBeAfter: _start,
+                        focusNode: _endFocus,
                         label: l10n.businessEventEndLabel,
+                        onSelected: (value) => _end = value,
                       ),
                     ),
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(l10n.businessEventAllDay),
-                      value: _isAllDay,
-                      onChanged: widget.enabled
-                          ? (value) => setState(() {
-                              _isAllDay = value;
-                              _notifyChanged();
-                            })
-                          : null,
-                    ),
-                    DropdownButtonFormField<String>(
+                    SizedBox(height: spacing.sp5),
+                    CraftskySingleSelectInput<String>(
                       key: const ValueKey('event-time-zone'),
-                      isExpanded: true,
-                      initialValue: _timeZone,
-                      decoration: InputDecoration(
-                        labelText: l10n.businessEventTimeZoneLabel,
-                      ),
-                      items: ref
+                      label: l10n.businessEventTimeZoneLabel,
+                      value: _timeZone,
+                      enabled: widget.enabled,
+                      options: ref
                           .read(businessTimeZoneServiceProvider)
                           .names
                           .map(
-                            (zone) => DropdownMenuItem(
+                            (zone) => CraftskySelectOption(
                               value: zone,
-                              child: Text(
-                                zone,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
+                              label: zone,
                             ),
                           )
                           .toList(),
                       onChanged: widget.enabled
                           ? (value) => setState(() {
-                              _timeZone = value!;
+                              if (value == null) return;
+                              _timeZone = value;
                               _notifyChanged();
                             })
                           : null,
                     ),
-                    const SizedBox(height: 18),
-                    Text(
-                      l10n.businessEventRolesLabel,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        for (final role in {
-                          ...businessEventRoles,
-                          ..._roles.where(
-                            (role) => !businessEventRoles.contains(role),
-                          ),
-                        })
-                          FilterChip(
-                            label: Text(
-                              BusinessLabels.eventRole(
-                                BusinessOpenValue(
-                                  value: role,
-                                  known: businessEventRoles.contains(role),
-                                ),
-                                l10n,
+                    SizedBox(height: spacing.sp5),
+                    CraftskyFieldScaffold(
+                      label: l10n.businessEventRolesLabel,
+                      required: true,
+                      enabled: widget.enabled,
+                      errorText: _roles.isEmpty
+                          ? l10n.businessEventRolesRequired
+                          : null,
+                      child: InputDecorator(
+                        decoration: const InputDecoration(),
+                        child: Wrap(
+                          spacing: spacing.sp2,
+                          runSpacing: spacing.sp2,
+                          children: [
+                            for (final role in {
+                              ...businessEventRoles,
+                              ..._roles.where(
+                                (role) => !businessEventRoles.contains(role),
                               ),
-                            ),
-                            selected: _roles.contains(role),
-                            onSelected: widget.enabled
-                                ? (selected) => setState(() {
-                                    selected
-                                        ? _roles.add(role)
-                                        : _roles.remove(role);
-                                    _notifyChanged();
-                                  })
-                                : null,
-                          ),
-                      ],
-                    ),
-                    if (_roles.isEmpty)
-                      Text(
-                        l10n.businessEventRolesRequired,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
+                            })
+                              FilterChip(
+                                label: Text(
+                                  BusinessLabels.eventRole(
+                                    BusinessOpenValue(
+                                      value: role,
+                                      known: businessEventRoles.contains(role),
+                                    ),
+                                    l10n,
+                                  ),
+                                ),
+                                selected: _roles.contains(role),
+                                onSelected: widget.enabled
+                                    ? (selected) => setState(() {
+                                        selected
+                                            ? _roles.add(role)
+                                            : _roles.remove(role);
+                                        _notifyChanged();
+                                      })
+                                    : null,
+                              ),
+                          ],
                         ),
                       ),
-                    const SizedBox(height: 12),
+                    ),
+                    SizedBox(height: spacing.sp5),
                     _responsivePair(
                       wide,
                       _catalogField(
@@ -265,102 +305,59 @@ class EventFormState extends ConsumerState<EventForm> {
                         onChanged: (value) => _status = value,
                       ),
                     ),
-                    TextFormField(
-                      key: const ValueKey('event-summary'),
+                    SizedBox(height: spacing.sp5),
+                    CraftskyMultilineTextFormField(
+                      textFieldKey: const ValueKey('event-summary'),
                       controller: _summary,
                       enabled: widget.enabled,
                       maxLength: businessEventSummaryLimit,
                       maxLines: 4,
-                      decoration: InputDecoration(
-                        labelText: l10n.businessEventSummaryLabel,
-                      ),
+                      label: l10n.businessEventSummaryLabel,
                     ),
-                    TextFormField(
-                      key: const ValueKey('event-venue'),
+                    SizedBox(height: spacing.sp5),
+                    CraftskyTextFormField(
+                      textFieldKey: const ValueKey('event-venue'),
                       controller: _venue,
                       enabled: widget.enabled,
                       maxLength: businessEventVenueLimit,
-                      decoration: InputDecoration(
-                        labelText: l10n.businessEventVenueLabel,
-                      ),
+                      label: l10n.businessEventVenueLabel,
                     ),
-                    TextFormField(
-                      key: const ValueKey('event-uri'),
+                    SizedBox(height: spacing.sp5),
+                    CraftskyTextFormField(
+                      textFieldKey: const ValueKey('event-uri'),
                       controller: _eventUri,
                       enabled: widget.enabled,
                       keyboardType: TextInputType.url,
-                      decoration: InputDecoration(
-                        labelText: l10n.businessEventUriLabel,
-                      ),
+                      label: l10n.businessEventUriLabel,
                     ),
-                    TextFormField(
-                      key: const ValueKey('event-registration-uri'),
+                    SizedBox(height: spacing.sp5),
+                    CraftskyTextFormField(
+                      textFieldKey: const ValueKey('event-registration-uri'),
                       controller: _registrationUri,
                       enabled: widget.enabled,
                       keyboardType: TextInputType.url,
-                      decoration: InputDecoration(
-                        labelText: l10n.businessEventRegistrationUriLabel,
-                      ),
+                      label: l10n.businessEventRegistrationUriLabel,
                     ),
-                    if (_preview != null)
-                      SizedBox(
-                        height: 180,
-                        child: Image.memory(_preview!, fit: BoxFit.cover),
-                      )
-                    else if (_image.hasImage)
-                      const SizedBox(
-                        height: 96,
-                        child: Icon(Icons.image_outlined, size: 56),
+                    SizedBox(height: spacing.sp5),
+                    ComposerImageAttachmentSection(
+                      imagesState: ComposerImagesState(
+                        images: [?_attachmentDraft],
                       ),
-                    if (_uploading)
-                      LinearProgressIndicator(
-                        semanticsLabel: l10n.businessImageUploading,
-                      ),
-                    Wrap(
-                      spacing: 8,
-                      children: [
-                        TextButton.icon(
-                          onPressed: widget.enabled && !_uploading
-                              ? _pickImage
-                              : null,
-                          icon: const Icon(Icons.add_photo_alternate_outlined),
-                          label: Text(
-                            _image.hasImage
-                                ? l10n.businessEventReplaceImage
-                                : l10n.businessEventAddImage,
-                          ),
-                        ),
-                        if (_image.hasImage)
-                          TextButton.icon(
-                            onPressed: widget.enabled && !_uploading
-                                ? () => setState(() {
-                                    _image = const RemovedBusinessImageDraft();
-                                    _preview = null;
-                                    _notifyChanged();
-                                  })
-                                : null,
-                            icon: const Icon(Icons.delete_outline),
-                            label: Text(l10n.businessEventRemoveImage),
-                          ),
-                      ],
+                      enabled: widget.enabled && !_preparingImage,
+                      maxImages: 1,
+                      keyPrefix: 'event',
+                      imageUrlFor: (_) => _image.previewUrl,
+                      onAddImages: _pickImage,
+                      onAltTextChanged: (_, value) {
+                        setState(() => _alt.text = value);
+                        _notifyChanged();
+                      },
+                      onRemove: (_) => _removeImage(),
+                      onReplace: (_) => _pickImage(),
+                      onReplaceUnavailable: (_) => _pickImage(),
+                      onReorder: (_, _) {},
+                      validationErrorText: _uploadError,
                     ),
-                    TextField(
-                      key: const ValueKey('event-image-alt'),
-                      controller: _alt,
-                      enabled: widget.enabled && _image.hasImage,
-                      maxLength: businessImageAltLimit,
-                      decoration: InputDecoration(
-                        labelText: l10n.businessEventImageDescriptionLabel,
-                      ),
-                      onChanged: (_) => _notifyChanged(),
-                    ),
-                    if (_uploadError != null)
-                      Text(
-                        _uploadError!,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      ),
                     if (_draftError != null)
                       Text(
                         _draftError!,
@@ -368,7 +365,11 @@ class EventFormState extends ConsumerState<EventForm> {
                           color: Theme.of(context).colorScheme.error,
                         ),
                       ),
-                    const SizedBox(height: 32),
+                    SizedBox(
+                      key: const Key('event-editor-bottom-safe-space'),
+                      height:
+                          spacing.sp9 + MediaQuery.paddingOf(context).bottom,
+                    ),
                   ],
                 ),
               ),
@@ -381,22 +382,96 @@ class EventFormState extends ConsumerState<EventForm> {
 
   Widget _boundaryField({
     required Key key,
-    required TextEditingController controller,
+    required DateTime? value,
+    required FocusNode focusNode,
     required String label,
+    required ValueChanged<DateTime> onSelected,
+    DateTime? pickerInitialValue,
+    DateTime? mustBeAfter,
   }) {
     final l10n = AppLocalizations.of(context);
-    return TextFormField(
-      key: key,
-      controller: controller,
+    final spacing = Theme.of(context).extension<SpacingTheme>()!;
+    final formatted = _formatDateTime(context, value);
+    return FormField<DateTime>(
+      initialValue: value,
       enabled: widget.enabled,
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: l10n.businessEventTimeHint,
+      validator: (selected) {
+        if (selected == null) return l10n.businessEventTimeInvalid;
+        if (mustBeAfter != null && !selected.isAfter(mustBeAfter)) {
+          return l10n.businessEventEndAfterStart;
+        }
+        return null;
+      },
+      builder: (field) => CraftskyFieldScaffold(
+        label: label,
+        focusNode: focusNode,
+        enabled: widget.enabled,
+        required: true,
+        errorText: field.errorText,
+        semanticValue: formatted,
+        semanticHint: l10n.businessEventDateTimeHint,
+        child: InkWell(
+          key: key,
+          focusNode: focusNode,
+          canRequestFocus: widget.enabled,
+          onTap: widget.enabled
+              ? () async {
+                  final selected = await _pickDateTime(
+                    pickerInitialValue ?? value,
+                  );
+                  if (selected == null || !field.mounted) return;
+                  setState(() => onSelected(selected));
+                  field.didChange(selected);
+                }
+              : null,
+          child: InputDecorator(
+            isFocused: focusNode.hasFocus,
+            decoration: InputDecoration(
+              enabled: widget.enabled,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: spacing.sp3,
+                vertical: spacing.sp3,
+              ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    formatted ?? l10n.businessEventDateTimeHint,
+                    style: formatted == null
+                        ? Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          )
+                        : Theme.of(context).textTheme.bodyLarge,
+                  ),
+                ),
+                const Icon(Icons.calendar_month_outlined),
+              ],
+            ),
+          ),
+        ),
       ),
-      validator: (value) => _parseLocal(value ?? '') == null
-          ? l10n.businessEventTimeInvalid
-          : null,
     );
+  }
+
+  Future<DateTime?> _pickDateTime(DateTime? current) async {
+    final now = DateTime.now();
+    final initial = current ?? DateTime(now.year, now.month, now.day, now.hour);
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(initial.year - 100),
+      lastDate: DateTime(initial.year + 100),
+    );
+    if (date == null || !mounted) return null;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+    );
+    if (time == null || !mounted) return null;
+    return DateTime(date.year, date.month, date.day, time.hour, time.minute);
   }
 
   Widget _catalogField({
@@ -408,44 +483,52 @@ class EventFormState extends ConsumerState<EventForm> {
     required ValueChanged<String> onChanged,
   }) {
     final items = {...values, if (!values.contains(value)) value};
-    return DropdownButtonFormField<String>(
+    return CraftskySingleSelectInput<String>(
       key: key,
-      isExpanded: true,
-      initialValue: value,
-      decoration: InputDecoration(labelText: label),
-      items: items
+      label: label,
+      value: value,
+      enabled: widget.enabled,
+      options: items
           .map(
-            (item) => DropdownMenuItem(
+            (item) => CraftskySelectOption(
               value: item,
-              child: Text(itemLabel(item)),
+              label: itemLabel(item),
             ),
           )
           .toList(),
       onChanged: widget.enabled
           ? (next) => setState(() {
-              onChanged(next!);
+              if (next == null) return;
+              onChanged(next);
               _notifyChanged();
             })
           : null,
     );
   }
 
-  Widget _responsivePair(bool wide, Widget first, Widget second) => wide
-      ? Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: first),
-            const SizedBox(width: 16),
-            Expanded(child: second),
-          ],
-        )
-      : Column(
-          children: [first, const SizedBox(height: 12), second],
-        );
+  Widget _responsivePair(bool wide, Widget first, Widget second) {
+    final spacing = Theme.of(context).extension<SpacingTheme>()!;
+    return wide
+        ? Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: first),
+              SizedBox(width: spacing.sp4),
+              Expanded(child: second),
+            ],
+          )
+        : Column(
+            children: [
+              first,
+              SizedBox(height: spacing.sp5),
+              second,
+            ],
+          );
+  }
 
   BusinessEventDraft? _buildDraft() {
-    final start = _parseLocal(_start.text);
-    final end = _parseLocal(_end.text);
+    final start = _start;
+    final end = _end;
     if (start == null || end == null) return null;
     final image = switch (_image) {
       final ExistingBusinessImageDraft value => value.withAlt(_alt.text),
@@ -469,17 +552,80 @@ class EventFormState extends ConsumerState<EventForm> {
     );
   }
 
+  ComposerImageDraft? get _attachmentDraft {
+    final pending = _pendingImage;
+    final bytes = _preview ?? _image.previewBytes;
+    if (pending == null && !_image.hasImage && bytes == null) return null;
+
+    final businessRatio = switch (_image) {
+      ExistingBusinessImageDraft(:final aspectRatio) => aspectRatio,
+      UploadedBusinessImageDraft(:final aspectRatio) => aspectRatio,
+      _ => null,
+    };
+    final ratio = pending == null
+        ? businessRatio == null
+              ? null
+              : CreatePostImageAspectRatio(
+                  width: businessRatio.width,
+                  height: businessRatio.height,
+                )
+        : CreatePostImageAspectRatio(
+            width: pending.width,
+            height: pending.height,
+          );
+    final phase = pending != null
+        ? ImageReady(
+            bytes: pending.bytes,
+            mimeType: pending.mimeType,
+            width: pending.width,
+            height: pending.height,
+            sha256: '',
+          )
+        : _preparingImage
+        ? const ImagePreparing()
+        : ImageUploaded(
+            UploadedDraftImage(
+              cid: switch (_image) {
+                ExistingBusinessImageDraft(:final cid) => cid,
+                UploadedBusinessImageDraft(:final cid) => cid,
+                _ => '',
+              },
+              mime: switch (_image) {
+                ExistingBusinessImageDraft(:final mime) => mime,
+                UploadedBusinessImageDraft(:final mime) => mime,
+                _ => 'image/jpeg',
+              },
+              size: switch (_image) {
+                ExistingBusinessImageDraft(:final size) => size,
+                UploadedBusinessImageDraft(:final size) => size,
+                _ => bytes?.length ?? 0,
+              },
+              aspectRatio: ratio,
+            ),
+          );
+    return ComposerImageDraft(
+      id: 'image',
+      fileName: 'event-image',
+      mimeType: pending?.mimeType ?? 'image/jpeg',
+      altText: _alt.text,
+      phase: phase,
+      previewBytes: bytes,
+      previewAspectRatio: ratio,
+    );
+  }
+
   Future<void> _pickImage() async {
     final ownership = _captureOwnership();
+    final previousPending = _pendingImage;
+    final previousPreview = _preview;
     final picker =
         widget.pickImage ??
         (onPreviewReady) => ref
             .read(profileImagePickerProvider)
-            .pickAndUpload(onPreviewReady: onPreviewReady);
+            .pickAndPrepare(onPreviewReady: onPreviewReady);
     setState(() {
-      _uploading = true;
+      _preparingImage = true;
       _uploadError = null;
-      _preview = null;
     });
     try {
       final result = await picker((bytes) {
@@ -488,29 +634,35 @@ class EventFormState extends ConsumerState<EventForm> {
       if (!_isCurrent(ownership)) return;
       if (result != null) {
         setState(() {
-          _image = UploadedBusinessImageDraft.fromUpload(
-            result.uploaded,
-            alt: _alt.text,
-            previewBytes: result.previewBytes,
-          );
-          _preview = result.previewBytes;
+          _pendingImage = result;
+          _preview = result.bytes;
           _notifyChanged();
         });
       }
     } on Object {
       if (!_isCurrent(ownership)) return;
       setState(() {
-        _preview = null;
+        _pendingImage = previousPending;
+        _preview = previousPreview;
         _uploadError = AppLocalizations.of(context).businessEventUploadError;
       });
     } finally {
       if (mounted) {
         setState(() {
-          _uploading = false;
+          _preparingImage = false;
           if (!_isCurrent(ownership)) _preview = null;
         });
       }
     }
+  }
+
+  void _removeImage() {
+    setState(() {
+      _pendingImage = null;
+      _image = const RemovedBusinessImageDraft();
+      _preview = null;
+      _notifyChanged();
+    });
   }
 
   bool _isCurrent(ActiveAccountLease? ownership) {
@@ -525,18 +677,19 @@ class EventFormState extends ConsumerState<EventForm> {
   }
 
   void _notifyChanged() {
-    final draft = _buildDraft();
-    if (draft != null) widget.onChanged(draft);
+    widget.onChanged();
   }
 }
 
-DateTime? _parseLocal(String value) => DateTime.tryParse(value.trim());
-
-String _formatLocal(DateTime? value) {
-  if (value == null) return '';
-  String two(int part) => part.toString().padLeft(2, '0');
-  return '${value.year.toString().padLeft(4, '0')}-${two(value.month)}-'
-      '${two(value.day)} ${two(value.hour)}:${two(value.minute)}';
+String? _formatDateTime(BuildContext context, DateTime? value) {
+  if (value == null) return null;
+  final material = MaterialLocalizations.of(context);
+  final date = material.formatMediumDate(value);
+  final time = material.formatTimeOfDay(
+    TimeOfDay.fromDateTime(value),
+    alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
+  );
+  return '$date, $time';
 }
 
 String? _optional(String value) => value.trim().isEmpty ? null : value.trim();

@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
+import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/providers/profile_business_events_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -387,7 +388,13 @@ class _ProfileTabbedBody extends StatefulWidget {
 }
 
 class _ProfileTabbedBodyState extends State<_ProfileTabbedBody> {
-  ProfileTab _selected = ProfileTab.projects;
+  late ProfileTab _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = _tabsFor(widget.profile).first;
+  }
 
   @override
   void didUpdateWidget(covariant _ProfileTabbedBody oldWidget) {
@@ -401,8 +408,9 @@ class _ProfileTabbedBodyState extends State<_ProfileTabbedBody> {
   @override
   Widget build(BuildContext context) {
     final tabs = _tabsFor(widget.profile);
+    final tabNames = tabs.map((tab) => tab.name).join(',');
     return _ProfileTabControllerBody(
-      key: ValueKey(widget.profile.accountType),
+      key: ValueKey('${widget.profile.accountType}:$tabNames'),
       profile: widget.profile,
       actions: widget.actions,
       isOwnProfile: widget.isOwnProfile,
@@ -417,6 +425,9 @@ class _ProfileTabbedBodyState extends State<_ProfileTabbedBody> {
   List<ProfileTab> _tabsFor(Profile profile) => ProfileTabPolicy.forProfile(
     accountType: profile.accountType,
     isBlocked: false,
+    isOwnProfile: widget.isOwnProfile,
+    hasProducts: profile.business?.products.isNotEmpty ?? false,
+    hasUpcomingEvents: profile.hasUpcomingEvents,
   );
 }
 
@@ -481,7 +492,6 @@ class _ProfileTabControllerBodyState extends State<_ProfileTabControllerBody>
   );
 
   void _trackSelection() {
-    if (_controller.indexIsChanging) return;
     widget.onSelectionChanged(widget.tabs[_controller.index]);
   }
 }
@@ -523,6 +533,7 @@ class _ProfileScrollView extends StatelessWidget {
             crafts: profile.crafts,
             displayName: profile.displayName,
             avatarUrl: profile.avatar,
+            isBusiness: profile.accountType == AccountType.business,
             customisation: profile.customisation,
             actions: actions,
             onAvatarTap: profile.avatar == null

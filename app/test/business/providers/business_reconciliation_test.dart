@@ -204,6 +204,61 @@ void main() {
     expect(container.read(businessProjectionOverlayProvider), isEmpty);
   });
 
+  test('IT-013 chained upserts retain the newest view across lagging CIDs', () {
+    final container = ProviderContainer();
+    addTearDown(container.dispose);
+    final controller = container.read(
+      businessProjectionOverlayProvider.notifier,
+    );
+    final key = _eventKey();
+    final lease = _lease();
+
+    final first = controller.beginMutation(key, lease);
+    expect(
+      controller.acceptUpsert(
+        key: key,
+        lease: lease,
+        requestGeneration: first,
+        preWriteCid: Cid.parse('bafy-before'),
+        acceptedCid: Cid.parse('bafy-first'),
+        acceptedView: 'first',
+      ),
+      isTrue,
+    );
+    final second = controller.beginMutation(key, lease);
+    expect(
+      controller.acceptUpsert(
+        key: key,
+        lease: lease,
+        requestGeneration: second,
+        preWriteCid: Cid.parse('bafy-first'),
+        acceptedCid: Cid.parse('bafy-second'),
+        acceptedView: 'second',
+      ),
+      isTrue,
+    );
+
+    for (final laggingCid in ['bafy-before', 'bafy-first']) {
+      final result = controller.reconcile<String>(
+        key: key,
+        fence: controller.captureRead(lease),
+        authoritativeCid: Cid.parse(laggingCid),
+        authoritativeView: 'lagging',
+      );
+      expect(result.view, 'second');
+      expect(result.overlay, isNotNull);
+    }
+
+    final settled = controller.reconcile<String>(
+      key: key,
+      fence: controller.captureRead(lease),
+      authoritativeCid: Cid.parse('bafy-second'),
+      authoritativeView: 'settled',
+    );
+    expect(settled.view, 'settled');
+    expect(settled.overlay, isNull);
+  });
+
   test('UT-015 ignores a read from the wrong session lease', () {
     final container = ProviderContainer();
     addTearDown(container.dispose);

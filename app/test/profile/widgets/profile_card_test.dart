@@ -1,10 +1,13 @@
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/business/models/business_profile.dart';
+import 'package:craftsky_app/business/widgets/business_profile_summary.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_bio.dart';
 import 'package:craftsky_app/profile/widgets/profile_card.dart';
@@ -342,6 +345,59 @@ void main() {
         expect(unfollowButton.foregroundColor, isNull);
       },
     );
+
+    testWidgets('business card replaces stats with business details', (
+      tester,
+    ) async {
+      final profile = _profile().copyWith(
+        accountType: AccountType.business,
+        business: BusinessProfile(
+          cid: 'bafybusiness',
+          tagline: 'Small-batch colour for adventurous knitters',
+          businessTypes: const [
+            BusinessOpenValue(value: 'dyer', known: true),
+          ],
+          location: const BusinessLocation(
+            country: 'GB',
+            locality: 'Bristol',
+          ),
+          primaryAction: const BusinessAction(
+            type: 'shop',
+            destination: 'https://shop.example',
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(
+        _wrap(
+          ProfileCard(
+            profile: profile,
+            isOwnProfile: false,
+            onClose: () {},
+            onVisitProfile: () {},
+            onPrimaryAction: () {},
+          ),
+        ),
+      );
+
+      expect(find.text('Business'), findsOneWidget);
+      expect(find.byType(ProfileStats), findsNothing);
+      expect(
+        find.byKey(const Key('profile-card-business-details')),
+        findsOneWidget,
+      );
+      expect(
+        find.text('Small-batch colour for adventurous knitters'),
+        findsOneWidget,
+      );
+      expect(find.text('Dyer'), findsNothing);
+      expect(find.text('Bristol, United Kingdom'), findsOneWidget);
+      expect(find.widgetWithText(OutlinedButton, 'Shop'), findsOneWidget);
+      expect(
+        tester.getCenter(find.text('Business')).dx,
+        closeTo(tester.getCenter(find.text('Alice')).dx, 0.5),
+      );
+    });
 
     testWidgets('TDD-006 remains scrollable on a short viewport', (
       tester,
@@ -831,6 +887,100 @@ void main() {
     expect(find.byKey(const Key('profile-route-expanded')), findsOneWidget);
     expect(find.byType(ProfileCard), findsNothing);
   });
+
+  testWidgets(
+    'business expansion settles into the full summary before handoff',
+    (
+      tester,
+    ) async {
+      final profile = _profile().copyWith(
+        accountType: AccountType.business,
+        business: BusinessProfile(
+          cid: 'bafybusiness',
+          tagline: 'Small-batch colour for adventurous knitters',
+          businessTypes: const [
+            BusinessOpenValue(value: 'dyer', known: true),
+          ],
+          location: const BusinessLocation(
+            country: 'GB',
+            locality: 'Bristol',
+          ),
+          primaryAction: const BusinessAction(
+            type: 'shop',
+            destination: 'https://shop.example',
+          ),
+        ),
+      );
+      final repository = FakeProfileRepository(onFetch: (_) async => profile);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            profileRepositoryProvider.overrideWithValue(repository),
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProfileRoutePresentation(
+              handle: 'alice.craftsky.social',
+              startsCompact: true,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('profile-card-business-details')),
+        findsOneWidget,
+      );
+      expect(find.byType(BusinessProfileSummary), findsOneWidget);
+      expect(find.widgetWithText(OutlinedButton, 'Shop'), findsOneWidget);
+
+      await tester.ensureVisible(find.text('Visit profile'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Visit profile'));
+      await tester.pump();
+      await tester.pump(
+        ProfileRoutePresentation.expansionDuration -
+            const Duration(milliseconds: 1),
+      );
+
+      expect(
+        find.byKey(const Key('profile-card-business-details')),
+        findsOneWidget,
+      );
+      expect(find.byType(BusinessProfileSummary), findsOneWidget);
+      expect(find.widgetWithText(OutlinedButton, 'Shop'), findsOneWidget);
+      expect(find.text('Dyer'), findsNothing);
+      expect(find.text('Bristol, United Kingdom'), findsOneWidget);
+      final transitionSummary = tester.getRect(
+        find.byType(BusinessProfileSummary),
+      );
+      final transitionActions = tester.getRect(
+        find.byKey(const Key('profile-card-action-section')),
+      );
+      final transitionGap = transitionActions.top - transitionSummary.bottom;
+
+      await tester.pump(const Duration(milliseconds: 2));
+      await tester.pump();
+
+      expect(find.byType(ProfileCard), findsNothing);
+      expect(find.byType(BusinessProfileSummary), findsOneWidget);
+      expect(find.widgetWithText(OutlinedButton, 'Shop'), findsOneWidget);
+      expect(find.text('Dyer'), findsNothing);
+      expect(find.text('Bristol, United Kingdom'), findsOneWidget);
+      final fullSummary = tester.getRect(find.byType(BusinessProfileSummary));
+      final fullActions = tester.getRect(find.byType(ProfileActionSection));
+      expect(
+        fullActions.top - fullSummary.bottom,
+        moreOrLessEquals(transitionGap, epsilon: 1),
+      );
+    },
+  );
 
   testWidgets('TDD-005D final handoff spacing scales with larger text', (
     tester,

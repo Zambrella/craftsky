@@ -878,7 +878,7 @@ packages:
     source: hosted
     version: "2.0.3"
   l10n_currencies:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: l10n_currencies
       sha256: "1ddeed160a8b433ab24515bd8366688b0f6fdaa555a10f1782197744436c9682"

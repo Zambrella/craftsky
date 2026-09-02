@@ -30,6 +30,22 @@ class ProfileImagePicker {
   Future<ProfileImagePickResult?> pickAndUpload({
     required void Function(Uint8List bytes) onPreviewReady,
   }) async {
+    final prepared = await pickAndPrepare(onPreviewReady: onPreviewReady);
+    if (prepared == null) return null;
+
+    final uploaded = await _blobApi.uploadImage(
+      bytes: prepared.bytes,
+      mimeType: prepared.mimeType,
+    );
+    return ProfileImagePickResult(
+      previewBytes: prepared.bytes,
+      uploaded: uploaded,
+    );
+  }
+
+  Future<PreparedProfileImage?> pickAndPrepare({
+    required void Function(Uint8List bytes) onPreviewReady,
+  }) async {
     final file = await _picker.pickImage(source: ImageSource.gallery);
     if (file == null) return null;
 
@@ -60,13 +76,11 @@ class ProfileImagePicker {
       throw const ProfileImagePickException();
     }
 
-    final uploaded = await _blobApi.uploadImage(
+    return PreparedProfileImage(
       bytes: prepared.bytes,
       mimeType: prepared.mimeType,
-    );
-    return ProfileImagePickResult(
-      previewBytes: prepared.bytes,
-      uploaded: uploaded,
+      width: prepared.width,
+      height: prepared.height,
     );
   }
 
@@ -80,6 +94,20 @@ class ProfileImagePicker {
       header.length <= 16 ? header : header.sublist(0, 16),
     );
   }
+}
+
+class PreparedProfileImage {
+  const PreparedProfileImage({
+    required this.bytes,
+    required this.mimeType,
+    required this.width,
+    required this.height,
+  });
+
+  final Uint8List bytes;
+  final String mimeType;
+  final int width;
+  final int height;
 }
 
 class ProfileImagePickResult {

@@ -1,19 +1,24 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
-import 'package:craftsky_app/auth/models/session_registry.dart';
-import 'package:craftsky_app/auth/providers/account_activation_coordinator.dart';
 import 'package:craftsky_app/auth/providers/active_account_identity_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/business/data/business_repository.dart';
+import 'package:craftsky_app/business/models/business_drafts.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/pages/products_settings_page.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
 import 'package:craftsky_app/business/providers/products_controller.dart';
+import 'package:craftsky_app/business/widgets/product_editor.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/craftsky_card.dart';
+import 'package:craftsky_app/theme/craftsky_context_menu.dart';
+import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -37,18 +42,10 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(find.text('One'), findsOneWidget);
+        expect(find.byType(CraftskyCard), findsNWidgets(2));
+        expect(find.byType(CraftskyContextMenuButton), findsNWidgets(2));
         expect(
-          tester
-              .getSemantics(
-                find.widgetWithIcon(IconButton, Icons.delete_outline).first,
-              )
-              .label,
-          contains('Remove One'),
-        );
-        expect(
-          tester
-              .getSize(find.widgetWithText(OutlinedButton, 'Add product'))
-              .height,
+          tester.getSize(find.byType(CraftskyFloatingActionButton)).height,
           greaterThanOrEqualTo(48),
         );
         await expectKeyboardFocus(tester);
@@ -61,49 +58,56 @@ void main() {
   testWidgets('AT-005 manager shows loading then authored products', (
     tester,
   ) async {
-    await tester.pumpWidget(_app(_identity(_profile(withProducts: true))));
+    await tester.pumpWidget(
+      _app(_identity(_profile(withProducts: true)), repository: _Repository()),
+    );
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
     await tester.pumpAndSettle();
 
     expect(find.text('One'), findsOneWidget);
     expect(find.text('Two'), findsOneWidget);
-    expect(find.byTooltip('Move One down'), findsOneWidget);
-    expect(find.byTooltip('Move Two up'), findsOneWidget);
-
-    await tester.tap(find.byTooltip('Move One down'));
+    await tester.tap(find.byTooltip('Edit One'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Move One down'));
     await tester.pump();
     expect(
       tester.getTopLeft(find.text('Two')).dy,
       lessThan(tester.getTopLeft(find.text('One')).dy),
     );
 
-    await tester.tap(find.byTooltip('Remove Two'));
-    await tester.pump();
+    await tester.tap(find.byTooltip('Edit Two'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Remove Two'));
+    await tester.pumpAndSettle();
+    expect(find.text('Remove product?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Remove'));
+    await tester.pumpAndSettle();
     expect(find.text('Two'), findsNothing);
   });
 
   testWidgets('R12 AT-012 Products controls follow order and activate', (
     tester,
   ) async {
-    await tester.pumpWidget(_app(_identity(_profile(withProducts: true))));
+    await tester.pumpWidget(
+      _app(_identity(_profile(withProducts: true)), repository: _Repository()),
+    );
     await tester.pumpAndSettle();
 
-    final moveDown = find.byTooltip('Move One down');
-    final remove = find.byTooltip('Remove One');
-    final moveDownIcon = find.descendant(
-      of: moveDown,
-      matching: find.byIcon(Icons.arrow_downward),
+    final manage = find.byTooltip('Edit One');
+    final manageIcon = find.descendant(
+      of: manage,
+      matching: find.byIcon(Icons.more_horiz),
     );
-    final removeIcon = find.descendant(
-      of: remove,
-      matching: find.byIcon(Icons.delete_outline),
-    );
-    requestKeyboardFocus(tester, moveDownIcon);
+    requestKeyboardFocus(tester, manageIcon);
     await tester.pump();
-    expectKeyboardFocusOn(moveDownIcon);
-    await pressTabAndExpectFocus(tester, removeIcon);
+    expectKeyboardFocusOn(manageIcon);
     await tester.sendKeyEvent(LogicalKeyboardKey.space);
-    await tester.pump();
+    await tester.pumpAndSettle();
+    expect(find.text('Remove One'), findsOneWidget);
+    await tester.tap(find.text('Remove One'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Remove'));
+    await tester.pumpAndSettle();
 
     expect(find.text('One'), findsNothing);
     expect(find.text('Two'), findsOneWidget);
@@ -120,6 +124,17 @@ void main() {
     await tester.tap(find.text('Add product'));
     await tester.pumpAndSettle();
     expect(find.text('Save product'), findsOneWidget);
+    final route = ModalRoute.of(tester.element(find.byType(ProductEditor)));
+    expect(route, isA<MaterialPageRoute<ProductDraft>>());
+    expect(
+      (route! as MaterialPageRoute<ProductDraft>).fullscreenDialog,
+      isTrue,
+    );
+    expect(find.byKey(const ValueKey('product-submit')), findsOneWidget);
+    expect(
+      find.byKey(const Key('product-editor-bottom-safe-space')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('AT-005 manager disables add at the four-card cap', (
@@ -128,8 +143,8 @@ void main() {
     await tester.pumpWidget(_app(_identity(_profile(productCount: 4))));
     await tester.pumpAndSettle();
 
-    final button = tester.widget<OutlinedButton>(
-      find.widgetWithText(OutlinedButton, 'Add product'),
+    final button = tester.widget<CraftskyFloatingActionButton>(
+      find.byType(CraftskyFloatingActionButton),
     );
     expect(button.onPressed, isNull);
     expect(find.text('4 of 4 products'), findsOneWidget);
@@ -187,8 +202,10 @@ void main() {
   });
 
   testWidgets(
-    'AT-011 IT-010 REG-008 guards dirty products and clears after save/dispose',
-    (tester) async {
+    'AT-011 product reordering persists immediately without a guard',
+    (
+      tester,
+    ) async {
       final repository = _Repository();
       final identity = _identity(_profile(withProducts: true));
       await tester.pumpWidget(_app(identity, repository: repository));
@@ -196,54 +213,34 @@ void main() {
       final container = ProviderScope.containerOf(
         tester.element(find.byType(ProductsSettingsPage)),
       );
-      final guard = container.read(unsavedWorkGuardProvider);
       final controller = container.read(productsControllerProvider.notifier);
-      controller.move(controller.state.requireValue.products.first.id, 1);
-      await tester.pump();
 
-      var registry = SessionRegistry.empty()
-          .upsertAndActivate(
-            token: 'owner-token',
-            did: 'did:plc:owner',
-            handle: 'owner.test',
-          )
-          .upsertAndActivate(
-            token: 'bob-token',
-            did: 'did:plc:bob',
-            handle: 'bob.test',
-          );
-      registry = registry.activate(identity.lease);
-      final target = registry.leaseFor(AccountKey('did:plc:bob'))!;
-      var activations = 0;
-      final activation = AccountActivationCoordinator(
-        readRegistry: () => registry,
-        commitActivation: (lease) async {
-          activations++;
-          registry = registry.activate(lease);
-        },
-        invalidateAccountState: () async {},
-        resetToHome: () async {},
-        confirmLeave: guard.confirmLeave,
-      ).activate(target);
+      expect(
+        await controller.move(
+          controller.state.requireValue.products.first.id,
+          1,
+        ),
+        isTrue,
+      );
       await tester.pumpAndSettle();
-      expect(find.text('Discard changes?'), findsOneWidget);
-      await tester.tap(find.text('Keep editing'));
-      await tester.pumpAndSettle();
-      expect(await activation, AccountActivationResult.cancelled);
-      expect(activations, 0);
 
-      await tester.tap(find.text('Save products'));
-      await tester.pumpAndSettle();
       expect(repository.saves, 1);
-      expect(await guard.confirmLeave(identity.lease), isTrue);
-      expect(find.text('Discard changes?'), findsNothing);
-
-      controller.move(controller.state.requireValue.products.first.id, 1);
-      await tester.pump();
-      await tester.pumpWidget(const SizedBox.shrink());
-      await tester.pumpAndSettle();
-      expect(await guard.confirmLeave(identity.lease), isTrue);
-      expect(find.text('Discard changes?'), findsNothing);
+      expect(find.text('Save products'), findsNothing);
+      expect(
+        container
+            .read(productsControllerProvider)
+            .requireValue
+            .products
+            .map((product) => product.title),
+        ['Two', 'One'],
+      );
+      expect(
+        await container
+            .read(unsavedWorkGuardProvider)
+            .confirmLeave(identity.lease),
+        isTrue,
+      );
+      expect(find.byType(CraftskyDialog), findsNothing);
     },
   );
 }

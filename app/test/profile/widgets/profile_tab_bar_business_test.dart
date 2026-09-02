@@ -68,7 +68,7 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
-      expect(_tabLabels(tester), hasLength(5));
+      expect(_tabLabels(tester), hasLength(4));
       await tester.tap(find.text('Comments'));
       await tester.pumpAndSettle();
 
@@ -77,7 +77,11 @@ void main() {
         handle: 'maker.test',
         crafts: const [],
         accountType: AccountType.business,
-        business: BusinessProfile(cid: _cid),
+        business: BusinessProfile(
+          cid: _cid,
+          products: const [BusinessProductView(title: 'Pattern')],
+        ),
+        hasUpcomingEvents: true,
       );
       container.invalidate(userProfileProvider('maker.test'));
       await tester.pumpAndSettle();
@@ -85,6 +89,8 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(_tabLabels(tester), hasLength(7));
       expect(_selectedTab(tester), 'Comments');
+      await tester.ensureVisible(find.text('Products'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Products'));
       await tester.pumpAndSettle();
 
@@ -96,13 +102,13 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
-      expect(_tabLabels(tester), hasLength(5));
-      expect(_selectedTab(tester), 'About');
+      expect(_tabLabels(tester), hasLength(4));
+      expect(_selectedTab(tester), 'Projects');
       semantics.dispose();
     },
   );
 
-  testWidgets('AT-003 profile uses exact business tabs and visitor empties', (
+  testWidgets('AT-003 visitor hides empty product and event tabs', (
     tester,
   ) async {
     await _pumpProfile(
@@ -117,24 +123,84 @@ void main() {
     );
 
     expect(_tabLabels(tester), [
+      'About',
       'Projects',
       'Posts',
       'Comments',
       'Reposts',
+    ]);
+    expect(_selectedTab(tester), 'About');
+    expect(find.text('Products'), findsNothing);
+    expect(find.text('Upcoming Events'), findsNothing);
+  });
+
+  testWidgets('AT-003 visitor defaults to events when products are absent', (
+    tester,
+  ) async {
+    await _pumpProfile(
+      tester,
+      Profile(
+        did: 'did:plc:maker',
+        handle: 'maker.test',
+        crafts: const [],
+        accountType: AccountType.business,
+        business: BusinessProfile(cid: _cid),
+        hasUpcomingEvents: true,
+      ),
+    );
+
+    expect(_tabLabels(tester), [
+      'Upcoming Events',
+      'About',
+      'Projects',
+      'Posts',
+      'Comments',
+      'Reposts',
+    ]);
+    expect(_selectedTab(tester), 'Upcoming Events');
+  });
+
+  testWidgets('AT-003 owner always sees product and event tabs', (
+    tester,
+  ) async {
+    await _pumpProfile(
+      tester,
+      Profile(
+        did: 'did:plc:test',
+        handle: 'test.bsky.social',
+        crafts: const [],
+        accountType: AccountType.business,
+        business: BusinessProfile(cid: _cid),
+      ),
+      isOwnProfile: true,
+    );
+
+    expect(_tabLabels(tester), [
       'Products',
       'Upcoming Events',
       'About',
+      'Projects',
+      'Posts',
+      'Comments',
+      'Reposts',
     ]);
+    expect(_selectedTab(tester), 'Products');
 
     await tester.tap(find.text('Products'));
     await tester.pumpAndSettle();
-    expect(find.text('No featured products yet.'), findsOneWidget);
-    expect(find.text('Manage products'), findsNothing);
+    expect(
+      find.text('Add featured products to help visitors find your work.'),
+      findsOneWidget,
+    );
+    expect(find.text('Manage products'), findsOneWidget);
 
     await tester.tap(find.text('Upcoming Events'));
     await tester.pumpAndSettle();
-    expect(find.text('No upcoming events yet.'), findsOneWidget);
-    expect(find.text('Manage events'), findsNothing);
+    expect(
+      find.text('Add an event appearance to share what’s coming up.'),
+      findsOneWidget,
+    );
+    expect(find.text('Manage events'), findsOneWidget);
   });
 
   testWidgets('REG-004 blocked business profile stays a reduced shell', (
@@ -174,7 +240,7 @@ void main() {
     expect(repository.profileEventListCalls, 0);
   });
 
-  testWidgets('REG-001 regular profile keeps exactly five ordinary tabs', (
+  testWidgets('REG-001 regular profile omits the About tab', (
     tester,
   ) async {
     await _pumpProfile(
@@ -192,8 +258,8 @@ void main() {
       'Posts',
       'Comments',
       'Reposts',
-      'About',
     ]);
+    expect(find.text('About'), findsNothing);
     expect(find.text('Products'), findsNothing);
     expect(find.text('Upcoming Events'), findsNothing);
   });
@@ -209,7 +275,11 @@ void main() {
         crafts: const [],
         accountType: AccountType.business,
         customisation: const ProfileCustomisation(colour: 'orchid'),
-        business: BusinessProfile(cid: _cid),
+        business: BusinessProfile(
+          cid: _cid,
+          products: const [BusinessProductView(title: 'Pattern')],
+        ),
+        hasUpcomingEvents: true,
       ),
     );
 
@@ -253,6 +323,7 @@ Future<void> _pumpProfile(
   WidgetTester tester,
   Profile profile, {
   BusinessRepository? businessRepository,
+  bool isOwnProfile = false,
 }) async {
   final posts = FakePostRepository(
     onListByAuthor: (_, {cursor, limit}) async => const PostPage(items: []),
@@ -275,7 +346,7 @@ Future<void> _pumpProfile(
         theme: AppTheme.lightThemeData,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: const ProfilePage(handle: 'maker.test'),
+        home: ProfilePage(handle: isOwnProfile ? null : 'maker.test'),
       ),
     ),
   );

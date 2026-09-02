@@ -1,14 +1,17 @@
 import 'dart:async';
 
-import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/active_account_identity_provider.dart';
-import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/business/models/business_drafts.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/providers/products_controller.dart';
 import 'package:craftsky_app/business/widgets/product_editor.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/shared/image/craftsky_image_attachment_preview.dart';
+import 'package:craftsky_app/theme/craftsky_card.dart';
+import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -38,104 +41,31 @@ class ProductsSettingsPage extends ConsumerWidget {
           return const _ProductsManager();
         },
       ),
+      floatingActionButton:
+          identity.value?.profile.accountType == AccountType.business
+          ? const _ProductActions()
+          : null,
     );
   }
 }
 
-class _ProductsManager extends ConsumerStatefulWidget {
+class _ProductsManager extends ConsumerWidget {
   const _ProductsManager();
 
   @override
-  ConsumerState<_ProductsManager> createState() => _ProductsManagerState();
-}
-
-class _ProductsManagerState extends ConsumerState<_ProductsManager> {
-  late final UnsavedWorkGuard _unsavedGuard;
-  UnsavedWorkRegistration? _unsavedRegistration;
-  AccountSessionLease? _unsavedOwner;
-  bool _allowPop = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _unsavedGuard = ref.read(unsavedWorkGuardProvider);
-  }
-
-  @override
-  void dispose() {
-    _clearUnsavedRegistration();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final products = ref.watch(productsControllerProvider);
-    _syncUnsavedRegistration(products.value);
-    return PopScope<Object?>(
-      canPop: _allowPop || products.value?.dirty != true,
-      onPopInvokedWithResult: (didPop, _) async {
-        if (didPop) return;
-        final owner = _unsavedOwner;
-        if (owner != null) await _unsavedGuard.confirmLeave(owner);
-      },
-      child: products.when(
-        loading: () => Center(
-          child: CircularProgressIndicator(
-            semanticsLabel: AppLocalizations.of(context).businessLoading,
-          ),
+    return products.when(
+      loading: () => Center(
+        child: CircularProgressIndicator(
+          semanticsLabel: AppLocalizations.of(context).businessLoading,
         ),
-        error: (_, _) => _LoadError(
-          onRetry: () => ref.invalidate(productsControllerProvider),
-        ),
-        data: (state) => _ProductsContent(state: state),
       ),
+      error: (_, _) => _LoadError(
+        onRetry: () => ref.invalidate(productsControllerProvider),
+      ),
+      data: (state) => _ProductsContent(state: state),
     );
-  }
-
-  void _syncUnsavedRegistration(ProductsState? products) {
-    final owner = ref.read(activeAccountIdentityProvider).value?.lease;
-    if (products?.dirty != true || owner == null) {
-      _clearUnsavedRegistration();
-      return;
-    }
-    if (owner == _unsavedOwner && _unsavedRegistration != null) return;
-    _unsavedOwner = owner;
-    _unsavedRegistration = _unsavedGuard.replace(
-      _unsavedRegistration,
-      owner: owner,
-      isDirty: () =>
-          mounted &&
-          ref.read(activeAccountIdentityProvider).value?.lease == owner &&
-          ref.read(productsControllerProvider).value?.dirty == true,
-      confirmAndClose: () => _confirmAndClose(owner),
-    );
-  }
-
-  void _clearUnsavedRegistration() {
-    _unsavedGuard.unregister(_unsavedRegistration);
-    _unsavedRegistration = null;
-    _unsavedOwner = null;
-  }
-
-  Future<bool> _confirmAndClose(AccountSessionLease owner) async {
-    if (!mounted ||
-        ref.read(activeAccountIdentityProvider).value?.lease != owner) {
-      return true;
-    }
-    final l10n = AppLocalizations.of(context);
-    final discard = await showCraftskyConfirmDialog(
-      context,
-      title: l10n.editProfileDiscardTitle,
-      message: l10n.editProfileDiscardMessage,
-      confirmLabel: l10n.editProfileDiscardConfirm,
-      cancelLabel: l10n.editProfileDiscardCancel,
-    );
-    if (!discard || !mounted) return false;
-    _clearUnsavedRegistration();
-    setState(() => _allowPop = true);
-    await WidgetsBinding.instance.endOfFrame;
-    if (mounted && Navigator.of(context).canPop()) Navigator.of(context).pop();
-    return true;
   }
 }
 
@@ -149,12 +79,13 @@ class _ProductsContent extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final controller = ref.read(productsControllerProvider.notifier);
     final busy = state.status == ProductsStatus.saving;
+    final spacing = Theme.of(context).extension<SpacingTheme>()!;
     return SafeArea(
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 760),
           child: Padding(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.all(spacing.sp4),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
@@ -202,24 +133,23 @@ class _ProductsContent extends ConsumerWidget {
                       color: Theme.of(context).colorScheme.error,
                     ),
                   ),
-                const SizedBox(height: 12),
+                SizedBox(height: spacing.sp3),
                 Expanded(
                   child: state.products.isEmpty
                       ? Center(child: Text(l10n.businessProductsEmpty))
                       : ReorderableListView.builder(
                           itemCount: state.products.length,
-                          onReorderItem: controller.reorder,
+                          onReorderItem: (oldIndex, newIndex) => unawaited(
+                            controller.reorder(oldIndex, newIndex),
+                          ),
                           itemBuilder: (context, index) {
                             final product = state.products[index];
-                            return Card(
+                            final editLabel =
+                                l10n.businessProductEditorEditTitle;
+                            return CraftskyCard(
                               key: ValueKey(product.id),
-                              child: ListTile(
-                                title: Text(product.title),
-                                subtitle: Text(
-                                  product.destination,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                              margin: EdgeInsets.only(bottom: spacing.sp3),
+                              child: InkWell(
                                 onTap: busy
                                     ? null
                                     : () => _openEditor(
@@ -227,103 +157,138 @@ class _ProductsContent extends ConsumerWidget {
                                         controller,
                                         product,
                                       ),
-                                trailing: Wrap(
-                                  children: [
-                                    Semantics(
-                                      button: true,
-                                      label: l10n.businessProductMoveUp(
-                                        product.title,
-                                      ),
-                                      excludeSemantics: true,
-                                      child: IconButton(
-                                        tooltip: l10n.businessProductMoveUp(
-                                          product.title,
+                                child: Padding(
+                                  padding: EdgeInsets.all(spacing.sp3),
+                                  child: Row(
+                                    children: [
+                                      SizedBox.square(
+                                        dimension: 88,
+                                        child: CraftskyImageAttachmentPreview(
+                                          aspectRatio: 1,
+                                          bytes: product.image.previewBytes,
+                                          imageUrl: product.image.previewUrl,
+                                          placeholderIcon: Icons.image_outlined,
                                         ),
-                                        onPressed: busy || index == 0
-                                            ? null
-                                            : () => controller.move(
-                                                product.id,
-                                                -1,
+                                      ),
+                                      SizedBox(width: spacing.sp3),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              product.title,
+                                              style: Theme.of(
+                                                context,
+                                              ).textTheme.titleMedium,
+                                            ),
+                                            SizedBox(height: spacing.sp1),
+                                            Text(
+                                              product.destination,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: Theme.of(
+                                                context,
+                                              ).textTheme.bodySmall,
+                                            ),
+                                            if (product.amount.isNotEmpty &&
+                                                product
+                                                    .currency
+                                                    .isNotEmpty) ...[
+                                              SizedBox(height: spacing.sp1),
+                                              Text(
+                                                '${product.amount} '
+                                                '${product.currency}',
+                                                style: Theme.of(
+                                                  context,
+                                                ).textTheme.labelMedium,
                                               ),
-                                        icon: const Icon(Icons.arrow_upward),
+                                            ],
+                                          ],
+                                        ),
                                       ),
-                                    ),
-                                    Semantics(
-                                      button: true,
-                                      label: l10n.businessProductMoveDown(
-                                        product.title,
-                                      ),
-                                      excludeSemantics: true,
-                                      child: IconButton(
-                                        tooltip: l10n.businessProductMoveDown(
+                                      CraftskyContextMenuButton(
+                                        tooltip: l10n.businessProductEdit(
                                           product.title,
                                         ),
-                                        onPressed:
-                                            busy ||
-                                                index ==
-                                                    state.products.length - 1
-                                            ? null
-                                            : () => controller.move(
-                                                product.id,
-                                                1,
+                                        enabled: !busy,
+                                        groups: [
+                                          CraftskyContextMenuGroup(
+                                            items: [
+                                              CraftskyContextMenuItem(
+                                                text: editLabel,
+                                                icon: Icons.edit_outlined,
+                                                onPressed: () => _openEditor(
+                                                  context,
+                                                  controller,
+                                                  product,
+                                                ),
                                               ),
-                                        icon: const Icon(Icons.arrow_downward),
+                                              if (index > 0)
+                                                CraftskyContextMenuItem(
+                                                  text: l10n
+                                                      .businessProductMoveUp(
+                                                        product.title,
+                                                      ),
+                                                  icon: Icons.arrow_upward,
+                                                  onPressed: () => unawaited(
+                                                    controller.move(
+                                                      product.id,
+                                                      -1,
+                                                    ),
+                                                  ),
+                                                ),
+                                              if (index <
+                                                  state.products.length - 1)
+                                                CraftskyContextMenuItem(
+                                                  text: l10n
+                                                      .businessProductMoveDown(
+                                                        product.title,
+                                                      ),
+                                                  icon: Icons.arrow_downward,
+                                                  onPressed: () => unawaited(
+                                                    controller.move(
+                                                      product.id,
+                                                      1,
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                          CraftskyContextMenuGroup(
+                                            items: [
+                                              CraftskyContextMenuItem(
+                                                text: l10n
+                                                    .businessProductRemove(
+                                                      product.title,
+                                                    ),
+                                                icon: Icons.delete_outline,
+                                                style:
+                                                    CraftskyContextMenuItemStyle
+                                                        .destructive,
+                                                onPressed: () => unawaited(
+                                                  _removeProduct(
+                                                    context,
+                                                    controller,
+                                                    product,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
                                       ),
-                                    ),
-                                    Semantics(
-                                      button: true,
-                                      label: l10n.businessProductRemove(
-                                        product.title,
-                                      ),
-                                      excludeSemantics: true,
-                                      child: IconButton(
-                                        tooltip: l10n.businessProductRemove(
-                                          product.title,
-                                        ),
-                                        onPressed: busy
-                                            ? null
-                                            : () =>
-                                                  controller.remove(product.id),
-                                        icon: const Icon(Icons.delete_outline),
-                                      ),
-                                    ),
-                                  ],
+                                    ],
+                                  ),
                                 ),
                               ),
                             );
                           },
                         ),
                 ),
-                const SizedBox(height: 12),
-                Wrap(
-                  alignment: WrapAlignment.end,
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed:
-                          busy || state.products.length >= businessProductLimit
-                          ? null
-                          : () => _openEditor(context, controller, null),
-                      icon: const Icon(Icons.add),
-                      label: Text(l10n.businessProductsAdd),
-                    ),
-                    FilledButton.icon(
-                      onPressed: busy || !state.dirty
-                          ? null
-                          : () => unawaited(controller.save()),
-                      icon: busy
-                          ? SizedBox.square(
-                              dimension: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                semanticsLabel: l10n.businessSaving,
-                              ),
-                            )
-                          : const Icon(Icons.save_outlined),
-                      label: Text(l10n.businessProductsSave),
-                    ),
-                  ],
+                SizedBox(
+                  key: const Key('products-manager-bottom-safe-space'),
+                  height: spacing.sp9,
                 ),
               ],
             ),
@@ -338,24 +303,63 @@ class _ProductsContent extends ConsumerWidget {
     ProductsController controller,
     ProductDraft? initial,
   ) async {
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => Dialog(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 560),
-          child: ProductEditor(
-            initial: initial,
-            onCancel: () => Navigator.pop(dialogContext),
-            onSave: (product) {
-              if (initial == null) {
-                controller.add(product);
-              } else {
-                controller.editProduct(product);
-              }
-              Navigator.pop(dialogContext);
-            },
-          ),
-        ),
+    await showProductEditorSheet(
+      context,
+      initial: initial,
+      persist: initial == null ? controller.add : controller.editProduct,
+      destinationExists: (destination) => state.products.any(
+        (product) =>
+            product.id != initial?.id && product.destination == destination,
+      ),
+    );
+  }
+
+  Future<void> _removeProduct(
+    BuildContext context,
+    ProductsController controller,
+    ProductDraft product,
+  ) async {
+    final l10n = AppLocalizations.of(context);
+    final remove = await showCraftskyDestructiveConfirmDialog(
+      context,
+      title: l10n.businessProductRemoveConfirmTitle,
+      message: l10n.businessProductRemoveConfirmMessage(product.title),
+      confirmLabel: l10n.businessProductRemoveConfirm,
+      cancelLabel: l10n.businessProductRemoveCancel,
+    );
+    if (remove) await controller.remove(product.id);
+  }
+}
+
+class _ProductActions extends ConsumerWidget {
+  const _ProductActions();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(productsControllerProvider).value;
+    if (state == null) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context);
+    final controller = ref.read(productsControllerProvider.notifier);
+    final busy = state.status == ProductsStatus.saving;
+    return CraftskyFloatingActionButton.extended(
+      onPressed: busy || state.products.length >= businessProductLimit
+          ? null
+          : () => _openNewProduct(context, controller, state.products),
+      icon: const Icon(Icons.add),
+      label: Text(l10n.businessProductsAdd),
+    );
+  }
+
+  Future<void> _openNewProduct(
+    BuildContext context,
+    ProductsController controller,
+    List<ProductDraft> products,
+  ) async {
+    await showProductEditorSheet(
+      context,
+      persist: controller.add,
+      destinationExists: (destination) => products.any(
+        (product) => product.destination == destination,
       ),
     );
   }

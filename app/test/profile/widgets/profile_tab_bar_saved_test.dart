@@ -27,6 +27,6 @@ void main() {
     );
 
     expect(find.text('Saved'), findsNothing);
-    expect(ProfileTabPolicy.ordinaryTabs, hasLength(5));
+    expect(ProfileTabPolicy.ordinaryTabs, hasLength(4));
   });
 }

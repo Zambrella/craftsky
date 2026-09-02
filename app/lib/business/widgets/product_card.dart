@@ -5,6 +5,7 @@ import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/widgets/business_image.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
+import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -24,7 +25,6 @@ class ProductCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
-    final radii = theme.extension<RadiusTheme>()!;
     final l10n = AppLocalizations.of(context);
     final destination = hydratedExternalActionUri(product.uri);
     final price = BusinessFormatters.money(product.price, l10n.localeName);
@@ -34,10 +34,7 @@ class ProductCard extends StatelessWidget {
       label: destination == null
           ? product.title
           : l10n.businessProductOpen(product.title),
-      child: Material(
-        color: theme.colorScheme.surfaceContainerLow,
-        clipBehavior: Clip.antiAlias,
-        borderRadius: BorderRadius.circular(radii.r2),
+      child: CraftskyCard(
         child: InkWell(
           onTap: destination == null
               ? null
@@ -49,49 +46,43 @@ class ProductCard extends StatelessWidget {
                     confirmOpenLink: confirmExternal,
                   ),
                 ),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              border: Border.all(color: theme.colorScheme.outlineVariant),
-              borderRadius: BorderRadius.circular(radii.r2),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (product.image case final image?)
-                  Semantics(
-                    image: true,
-                    label: image.alt,
-                    child: SizedBox.square(
-                      dimension: 112,
-                      child: BusinessImage(
-                        image: image,
-                        networkUrl: image.thumb,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.all(spacing.sp3),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(product.title, style: theme.textTheme.titleMedium),
-                        if (price != null) ...[
-                          SizedBox(height: spacing.sp1),
-                          Text(price, style: theme.textTheme.bodyMedium),
-                        ],
-                      ],
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (product.image case final image?)
+                Semantics(
+                  image: true,
+                  label: image.alt,
+                  child: SizedBox.square(
+                    dimension: 112,
+                    child: BusinessImage(
+                      image: image,
+                      networkUrl: image.thumb,
+                      fit: BoxFit.cover,
                     ),
                   ),
                 ),
-                if (destination != null)
-                  Padding(
-                    padding: EdgeInsets.all(spacing.sp2),
-                    child: const Icon(Icons.open_in_new),
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.all(spacing.sp3),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(product.title, style: theme.textTheme.titleMedium),
+                      if (price != null) ...[
+                        SizedBox(height: spacing.sp1),
+                        Text(price, style: theme.textTheme.bodyMedium),
+                      ],
+                    ],
                   ),
-              ],
-            ),
+                ),
+              ),
+              if (destination != null)
+                Padding(
+                  padding: EdgeInsets.all(spacing.sp2),
+                  child: const Icon(Icons.open_in_new),
+                ),
+            ],
           ),
         ),
       ),

@@ -9,7 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 const _cid = 'bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq';
 
 void main() {
-  testWidgets('AT-002 About renders every hydrated business detail', (
+  testWidgets('AT-002 About renders supplementary business detail', (
     tester,
   ) async {
     await _pumpAbout(
@@ -36,8 +36,8 @@ void main() {
     expect(find.text('Offerings'), findsOneWidget);
     expect(find.text('Yarn'), findsOneWidget);
     expect(find.text('Fiber processing'), findsOneWidget);
-    expect(find.text('Location'), findsOneWidget);
-    expect(find.text('Bristol, United Kingdom'), findsOneWidget);
+    expect(find.text('Location'), findsNothing);
+    expect(find.text('Bristol, United Kingdom'), findsNothing);
     expect(find.text('Service area'), findsOneWidget);
     expect(find.text('Ships across the UK'), findsOneWidget);
     expect(find.text('Hours'), findsOneWidget);
@@ -53,12 +53,28 @@ void main() {
     expect(find.text('Service area'), findsNothing);
     expect(find.text('Hours'), findsNothing);
   });
+
+  testWidgets('About does not repeat profile bio or crafts', (tester) async {
+    await _pumpAbout(
+      tester,
+      BusinessProfile(cid: _cid),
+      description: 'A maker bio.',
+      crafts: const ['knitting'],
+    );
+
+    expect(find.text('A maker bio.'), findsNothing);
+    expect(find.text('Crafts'), findsNothing);
+    expect(find.text('Knitting'), findsNothing);
+    expect(find.text('Nothing here yet.'), findsNothing);
+  });
 }
 
 Future<void> _pumpAbout(
   WidgetTester tester,
-  BusinessProfile business,
-) => tester.pumpWidget(
+  BusinessProfile business, {
+  String? description,
+  List<String> crafts = const [],
+}) => tester.pumpWidget(
   MaterialApp(
     theme: AppTheme.lightThemeData,
     localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -70,7 +86,8 @@ Future<void> _pumpAbout(
             profile: Profile(
               did: 'did:plc:maker',
               handle: 'maker.test',
-              crafts: const [],
+              description: description,
+              crafts: crafts,
               accountType: AccountType.business,
               business: business,
             ),

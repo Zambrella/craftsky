@@ -19,6 +19,8 @@ type countingBusinessProfileReader struct {
 	store            *business.Store
 	accountTypeReads int
 	profileReads     int
+	eventStateReads  int
+	hasUpcomingEvent bool
 }
 
 func (reader *countingBusinessProfileReader) ReadAccountType(ctx context.Context, did syntax.DID) (business.AccountType, error) {
@@ -29,6 +31,11 @@ func (reader *countingBusinessProfileReader) ReadAccountType(ctx context.Context
 func (reader *countingBusinessProfileReader) ReadEligibleProfile(ctx context.Context, did syntax.DID) (*business.ProfileView, error) {
 	reader.profileReads++
 	return reader.store.ReadEligibleProfile(ctx, did)
+}
+
+func (reader *countingBusinessProfileReader) HasUpcomingEvents(context.Context, syntax.DID, time.Time) (bool, error) {
+	reader.eventStateReads++
+	return reader.hasUpcomingEvent, nil
 }
 
 func TestBusinessDeclarationPresentation(t *testing.T) {
@@ -84,7 +91,9 @@ func TestBusinessDeclarationPresentation(t *testing.T) {
 		CreatedAt:         time.Date(2026, 8, 29, 12, 0, 0, 0, time.UTC),
 		IsCraftskyProfile: true,
 	}}
-	businessProfiles := &countingBusinessProfileReader{store: business.NewStore(pool)}
+	businessProfiles := &countingBusinessProfileReader{
+		store: business.NewStore(pool), hasUpcomingEvent: true,
+	}
 	handler := api.GetProfileHandler(
 		profileStore,
 		businessProfiles,
@@ -103,11 +112,14 @@ func TestBusinessDeclarationPresentation(t *testing.T) {
 	if body["accountType"] != "business" {
 		t.Fatalf("accountType = %v, want business", body["accountType"])
 	}
+	if body["hasUpcomingEvents"] != true {
+		t.Fatalf("hasUpcomingEvents = %v, want true", body["hasUpcomingEvents"])
+	}
 	if _, exists := body["events"]; exists {
 		t.Fatalf("REG-003: main profile response embedded events: %s", response.Body.String())
 	}
-	if businessProfiles.accountTypeReads != 1 || businessProfiles.profileReads != 1 {
-		t.Fatalf("eligible business reads = account type %d, profile %d, want 1 each", businessProfiles.accountTypeReads, businessProfiles.profileReads)
+	if businessProfiles.accountTypeReads != 1 || businessProfiles.profileReads != 1 || businessProfiles.eventStateReads != 1 {
+		t.Fatalf("eligible business reads = account type %d, profile %d, event state %d, want 1 each", businessProfiles.accountTypeReads, businessProfiles.profileReads, businessProfiles.eventStateReads)
 	}
 	presentation, ok := body["business"].(map[string]any)
 	if !ok {
@@ -180,8 +192,8 @@ func TestBusinessDeclarationPresentation(t *testing.T) {
 	if _, exists := blockedBody["business"]; exists {
 		t.Errorf("blocked profile exposed business: %s", blocked.Body.String())
 	}
-	if businessProfiles.accountTypeReads != 1 || businessProfiles.profileReads != 1 {
-		t.Errorf("blocked profile performed business reads: account type %d, profile %d", businessProfiles.accountTypeReads, businessProfiles.profileReads)
+	if businessProfiles.accountTypeReads != 1 || businessProfiles.profileReads != 1 || businessProfiles.eventStateReads != 1 {
+		t.Errorf("blocked profile performed business reads: account type %d, profile %d, event state %d", businessProfiles.accountTypeReads, businessProfiles.profileReads, businessProfiles.eventStateReads)
 	}
 }
 

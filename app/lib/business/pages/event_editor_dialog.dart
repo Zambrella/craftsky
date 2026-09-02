@@ -5,14 +5,36 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/business/models/business_drafts.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
+import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/providers/business_event_mutation_controller.dart';
 import 'package:craftsky_app/business/services/business_time_zone_service.dart';
 import 'package:craftsky_app/business/widgets/event_form.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
+import 'package:craftsky_app/router/responsive_modal_navigation.dart';
+import 'package:craftsky_app/shared/media/blob_api_client_provider.dart';
+import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 typedef EventDraftSubmit = Future<bool> Function(BusinessEventDraft draft);
+typedef EventImageUpload =
+    Future<UploadedImageBlob> Function(PreparedProfileImage image);
+
+Future<void> showEventEditorSheet(
+  BuildContext context, {
+  BusinessEvent? event,
+}) {
+  return responsiveModalNavigator(context).push<void>(
+    MaterialPageRoute<void>(
+      fullscreenDialog: true,
+      builder: (_) => EventEditorDialog(event: event),
+    ),
+  );
+}
 
 class EventEditorDialog extends ConsumerStatefulWidget {
   const EventEditorDialog({
@@ -20,6 +42,7 @@ class EventEditorDialog extends ConsumerStatefulWidget {
     this.initialDraft,
     this.onSubmit,
     this.pickImage,
+    this.uploadImage,
     this.confirmDiscard,
     super.key,
   }) : assert(
@@ -31,6 +54,7 @@ class EventEditorDialog extends ConsumerStatefulWidget {
   final BusinessEventDraft? initialDraft;
   final EventDraftSubmit? onSubmit;
   final EventImagePicker? pickImage;
+  final EventImageUpload? uploadImage;
   final Future<bool> Function()? confirmDiscard;
 
   @override
@@ -77,6 +101,9 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+    final swatches = theme.extension<BrandSwatchTheme>()!;
     final mutation = ref.watch(businessEventMutationControllerProvider);
     final conflict = mutation.status == EventMutationStatus.conflict;
     final submitLabel = _event == null
@@ -91,6 +118,7 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
         }
       },
       child: Scaffold(
+        backgroundColor: swatches.paper,
         appBar: AppBar(
           leading: CloseButton(onPressed: _requestClose),
           title: Text(
@@ -98,25 +126,6 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
                 ? l10n.businessEventCreateTitle
                 : l10n.businessEventEditTitle,
           ),
-          actions: [
-            Padding(
-              padding: const EdgeInsets.only(right: 12),
-              child: IconButton.filled(
-                key: const ValueKey('event-submit'),
-                tooltip: submitLabel,
-                onPressed: _saving || conflict ? null : _submit,
-                icon: _saving
-                    ? SizedBox.square(
-                        dimension: 18,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          semanticsLabel: l10n.businessSaving,
-                        ),
-                      )
-                    : Icon(_event == null ? Icons.add : Icons.save_outlined),
-              ),
-            ),
-          ],
         ),
         body: Column(
           children: [
@@ -137,14 +146,45 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
                 actions: const [SizedBox.shrink()],
               ),
             Expanded(
-              child: EventForm(
-                key: _formKey,
-                initial: _initial,
-                pickImage: widget.pickImage,
-                enabled: !_saving && !conflict,
-                onChanged: (_) {
-                  if (!_dirty) setState(() => _dirty = true);
-                },
+              child: Stack(
+                children: [
+                  EventForm(
+                    key: _formKey,
+                    initial: _initial,
+                    pickImage: widget.pickImage,
+                    enabled: !_saving && !conflict,
+                    onChanged: () {
+                      if (!_dirty) setState(() => _dirty = true);
+                    },
+                  ),
+                  PositionedDirectional(
+                    start: spacing.sp4,
+                    end: spacing.sp4,
+                    bottom: 0,
+                    child: SafeArea(
+                      top: false,
+                      minimum: EdgeInsets.only(bottom: spacing.sp4),
+                      child: ChunkyButton(
+                        key: const ValueKey('event-submit'),
+                        onPressed: _saving || conflict ? null : _submit,
+                        style: ButtonStyle(
+                          minimumSize: WidgetStatePropertyAll(
+                            Size.fromHeight(spacing.sp7),
+                          ),
+                        ),
+                        child: _saving
+                            ? SizedBox.square(
+                                dimension: spacing.sp5,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  semanticsLabel: l10n.businessSaving,
+                                ),
+                              )
+                            : Text(submitLabel),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -154,9 +194,43 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
   }
 
   Future<void> _submit() async {
-    final draft = _formKey.currentState?.submit();
-    if (draft == null) return;
+    final submission = _formKey.currentState?.submit();
+    if (submission == null) return;
     setState(() => _saving = true);
+    var draft = submission.draft;
+    final pendingImage = submission.pendingImage;
+    if (pendingImage != null) {
+      final ownership = ref.read(sessionRegistryProvider).value?.activeLease;
+      try {
+        final uploaded =
+            await (widget.uploadImage?.call(pendingImage) ??
+                ref
+                    .read(blobApiClientProvider)
+                    .uploadImage(
+                      bytes: pendingImage.bytes,
+                      mimeType: pendingImage.mimeType,
+                    ));
+        if (!_isCurrent(ownership)) {
+          if (mounted) setState(() => _saving = false);
+          return;
+        }
+        final image = UploadedBusinessImageDraft.fromUpload(
+          uploaded,
+          alt: submission.imageAlt,
+          aspectRatio: BusinessImageAspectRatio(
+            width: pendingImage.width,
+            height: pendingImage.height,
+          ),
+          previewBytes: pendingImage.bytes,
+        );
+        _formKey.currentState?.acceptUploadedImage(pendingImage, image);
+        draft = draft.copyWith(image: image);
+      } on Object {
+        _formKey.currentState?.showImageUploadError();
+        if (mounted) setState(() => _saving = false);
+        return;
+      }
+    }
     final success = await (widget.onSubmit?.call(draft) ?? _mutate(draft));
     if (!mounted) return;
     setState(() {
@@ -166,6 +240,13 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
     if (success && Navigator.of(context).canPop()) {
       Navigator.of(context).pop();
     }
+  }
+
+  bool _isCurrent(ActiveAccountLease? ownership) {
+    if (!mounted) return false;
+    if (ownership == null) return true;
+    return ref.read(sessionRegistryProvider).value?.isCurrent(ownership) ??
+        false;
   }
 
   Future<void> _requestClose() async {
@@ -207,24 +288,13 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
     final injected = widget.confirmDiscard;
     if (injected != null) return injected();
     final l10n = AppLocalizations.of(context);
-    return await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text(l10n.businessEventDiscardTitle),
-            content: Text(l10n.businessEventDiscardMessage),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: Text(l10n.businessEventKeepEditing),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: Text(l10n.businessEventDiscard),
-              ),
-            ],
-          ),
-        ) ??
-        false;
+    return showCraftskyConfirmDialog(
+      context,
+      title: l10n.businessEventDiscardTitle,
+      message: l10n.businessEventDiscardMessage,
+      confirmLabel: l10n.businessEventDiscard,
+      cancelLabel: l10n.businessEventKeepEditing,
+    );
   }
 
   void _ensureUnsavedRegistration() {

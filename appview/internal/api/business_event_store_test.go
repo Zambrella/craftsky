@@ -123,6 +123,14 @@ func TestBusinessEventStoreServesEligibleVisitorDirectAndUpcoming(t *testing.T) 
 	if len(upcoming) != 1 || upcoming[0].URI != uri {
 		t.Fatalf("upcoming = %+v", upcoming)
 	}
+	hasUpcoming, err := store.HasUpcomingEvents(ctx, owner, asOf)
+	if err != nil || !hasUpcoming {
+		t.Fatalf("has upcoming events = %v, error %v", hasUpcoming, err)
+	}
+	hasUpcoming, err = store.HasUpcomingEvents(ctx, owner, asOf.Add(25*time.Hour))
+	if err != nil || hasUpcoming {
+		t.Fatalf("has upcoming events after end = %v, error %v", hasUpcoming, err)
+	}
 }
 
 func TestBusinessEventStoreCallerAwarePolicyMatrix(t *testing.T) {

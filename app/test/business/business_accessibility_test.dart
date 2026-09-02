@@ -6,9 +6,11 @@ import 'package:craftsky_app/business/widgets/business_profile_summary.dart';
 import 'package:craftsky_app/business/widgets/product_editor.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/widgets/profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_tab_bar.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_about_tab.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,6 +31,13 @@ void main() {
             length: ProfileTabPolicy.businessTabs.length,
             child: CustomScrollView(
               slivers: [
+                const SliverToBoxAdapter(
+                  child: ProfileIdentity(
+                    handle: 'quality.test',
+                    displayName: 'Quality Yarns',
+                    businessLabel: 'Business',
+                  ),
+                ),
                 SliverToBoxAdapter(
                   child: BusinessProfileSummary(
                     business: BusinessProfile(
@@ -85,7 +94,7 @@ void main() {
         expect(find.text('Products'), findsOneWidget);
         expect(find.text('Upcoming Events'), findsOneWidget);
         expect(
-          tester.getSemantics(find.text('Projects')).flagsCollection.isSelected,
+          tester.getSemantics(find.text('Products')).flagsCollection.isSelected,
           Tristate.isTrue,
         );
         await tester.sendKeyEvent(LogicalKeyboardKey.tab);
@@ -113,7 +122,7 @@ void main() {
         expect(tester.takeException(), isNull);
         expect(find.text('Edit product'), findsOneWidget);
         final saveSize = tester.getSize(
-          find.widgetWithText(FilledButton, 'Save product'),
+          find.widgetWithText(ChunkyButton, 'Save product'),
         );
         expect(saveSize.height, greaterThanOrEqualTo(48));
       },
@@ -153,7 +162,7 @@ void main() {
     );
     expect(
       tester
-          .getSemantics(find.widgetWithText(FilledButton, 'Save product'))
+          .getSemantics(find.widgetWithText(ChunkyButton, 'Save product'))
           .label,
       contains('Save product'),
     );

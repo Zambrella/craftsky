@@ -52,7 +52,7 @@ final class OwnerBusinessEventsProvider
 }
 
 String _$ownerBusinessEventsHash() =>
-    r'988ba3612c226e0a1506d3d2f3a27f4f286e71d1';
+    r'dcef688ed75dd5025d9780506899e3a901b1b441';
 
 final class OwnerBusinessEventsFamily extends $Family
     with

@@ -37,11 +37,13 @@ class BrandTextField extends StatefulWidget {
     this.suffixText,
     this.maxLines = 1,
     this.minLines,
+    this.maxLength,
     this.obscureText = false,
     this.autocorrect = true,
     this.enableSuggestions = true,
     this.keyboardType,
     this.textInputAction,
+    this.textCapitalization = TextCapitalization.none,
     this.inputFormatters,
     this.autofillHints,
     this.onChanged,
@@ -75,11 +77,13 @@ class BrandTextField extends StatefulWidget {
   final String? suffixText;
   final int? maxLines;
   final int? minLines;
+  final int? maxLength;
   final bool obscureText;
   final bool autocorrect;
   final bool enableSuggestions;
   final TextInputType? keyboardType;
   final TextInputAction? textInputAction;
+  final TextCapitalization textCapitalization;
   final List<TextInputFormatter>? inputFormatters;
   final Iterable<String>? autofillHints;
   final ValueChanged<String>? onChanged;
@@ -176,6 +180,9 @@ class _BrandTextFieldState extends State<BrandTextField> {
       requiredLabel: widget.requiredLabel,
       semanticHint: widget.hintText,
       semanticValue: _controller?.text,
+      counterText: widget.maxLength == null
+          ? null
+          : '${_controller?.text.characters.length ?? 0}/${widget.maxLength}',
       textFieldSemantics: true,
       child: TextField(
         key: widget.textFieldKey,
@@ -184,11 +191,13 @@ class _BrandTextFieldState extends State<BrandTextField> {
         enabled: widget.enabled,
         maxLines: widget.maxLines,
         minLines: widget.minLines,
+        maxLength: widget.maxLength,
         obscureText: widget.obscureText,
         autocorrect: widget.autocorrect,
         enableSuggestions: widget.enableSuggestions,
         keyboardType: widget.keyboardType,
         textInputAction: widget.textInputAction,
+        textCapitalization: widget.textCapitalization,
         inputFormatters: widget.inputFormatters,
         autofillHints: widget.autofillHints,
         onChanged: widget.onChanged,
@@ -202,6 +211,7 @@ class _BrandTextFieldState extends State<BrandTextField> {
           prefixText: widget.prefixText,
           suffixIcon: widget.suffixIcon,
           suffixText: widget.suffixText,
+          counterText: '',
           errorBorder: hasError
               ? OutlineInputBorder(
                   borderRadius: BorderRadius.circular(radii.r3),

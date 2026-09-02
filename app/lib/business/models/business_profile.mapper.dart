@@ -778,6 +778,12 @@ class BusinessImageViewMapper extends ClassMapperBase<BusinessImageView> {
       v.aspectRatio;
   static const Field<BusinessImageView, BusinessImageAspectRatio>
   _f$aspectRatio = Field('aspectRatio', _$aspectRatio, opt: true);
+  static Uint8List? _$previewBytes(BusinessImageView v) => v.previewBytes;
+  static const Field<BusinessImageView, Uint8List> _f$previewBytes = Field(
+    'previewBytes',
+    _$previewBytes,
+    mode: FieldMode.member,
+  );
 
   @override
   final MappableFields<BusinessImageView> fields = const {
@@ -788,6 +794,7 @@ class BusinessImageViewMapper extends ClassMapperBase<BusinessImageView> {
     #thumb: _f$thumb,
     #fullsize: _f$fullsize,
     #aspectRatio: _f$aspectRatio,
+    #previewBytes: _f$previewBytes,
   };
 
   static BusinessImageView _instantiate(DecodingData data) {

@@ -5,6 +5,7 @@ import 'package:craftsky_app/business/models/business_labels.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
+import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
@@ -338,14 +339,14 @@ class _TextField extends StatelessWidget {
   final TextCapitalization textCapitalization;
 
   @override
-  Widget build(BuildContext context) => FormBuilderTextField(
+  Widget build(BuildContext context) => CraftskyFormTextField(
     name: name,
+    label: label,
     initialValue: initialValue ?? '',
     enabled: enabled,
     validator: validator,
     maxLines: maxLines,
     keyboardType: keyboardType,
     textCapitalization: textCapitalization,
-    decoration: InputDecoration(labelText: label),
   );
 }

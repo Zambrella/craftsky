@@ -127,7 +127,7 @@ void main() {
   }
 
   testWidgets(
-    'IT-010 REG-008 system Back guards dirty Products and clean Products pops',
+    'IT-010 REG-008 system Back leaves immediately persisted Products',
     (tester) async {
       final harness = await _pumpRouter(
         tester,
@@ -143,25 +143,16 @@ void main() {
       final controller = harness.container.read(
         productsControllerProvider.notifier,
       );
-      controller.move(controller.state.requireValue.products.first.id, 1);
-      await tester.pump();
-
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
-      expect(find.text('Discard changes?'), findsOneWidget);
-      await tester.tap(find.text('Keep editing'));
-      await tester.pumpAndSettle();
-
-      expect(harness.router.state.matchedLocation, productsLocation);
-      expect(controller.state.requireValue.dirty, isTrue);
       expect(
-        controller.state.requireValue.products.first.title,
-        _secondProduct.title,
+        await controller.move(
+          controller.state.requireValue.products.first.id,
+          1,
+        ),
+        isTrue,
       );
+      await tester.pumpAndSettle();
 
       await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Discard'));
       await tester.pumpAndSettle();
 
       expect(
@@ -176,22 +167,10 @@ void main() {
         isTrue,
       );
       expect(find.text('Discard changes?'), findsNothing);
-
-      harness.container.invalidate(productsControllerProvider);
-      unawaited(harness.router.push(productsLocation));
-      await tester.pumpAndSettle();
       expect(
-        harness.container.read(productsControllerProvider).requireValue.dirty,
-        isFalse,
+        controller.state.requireValue.products.first.title,
+        _secondProduct.title,
       );
-      await tester.binding.handlePopRoute();
-      await tester.pumpAndSettle();
-
-      expect(
-        harness.router.state.matchedLocation,
-        const SettingsRoute().location,
-      );
-      expect(find.text('Discard changes?'), findsNothing);
     },
   );
 }
@@ -318,6 +297,12 @@ final _secondProduct = BusinessProductView(
 );
 
 final class _BusinessRepository extends Fake implements BusinessRepository {
+  @override
+  Future<RecordMutationResult> putBusinessProfile(
+    Map<String, dynamic> body, {
+    required Cid? expectedCid,
+  }) async => RecordMutationResult(cid: 'bafy-products-accepted');
+
   @override
   Future<BusinessEventPage> listProfileEvents(
     AtIdentifier owner, {

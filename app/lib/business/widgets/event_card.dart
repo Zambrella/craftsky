@@ -3,20 +3,26 @@ import 'package:craftsky_app/business/models/business_formatters.dart';
 import 'package:craftsky_app/business/models/business_labels.dart';
 import 'package:craftsky_app/business/widgets/business_image.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
 class EventCard extends StatelessWidget {
-  const EventCard({required this.event, required this.onTap, super.key});
+  const EventCard({
+    required this.event,
+    required this.onTap,
+    this.trailing,
+    super.key,
+  });
 
   final BusinessEvent event;
   final VoidCallback onTap;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
-    final radii = theme.extension<RadiusTheme>()!;
     final l10n = AppLocalizations.of(context);
     final display = BusinessFormatters.event(event, l10n);
     final roles = event.roles
@@ -25,60 +31,109 @@ class EventCard extends StatelessWidget {
 
     return Semantics(
       button: true,
-      child: Material(
-        color: theme.colorScheme.surfaceContainerLow,
-        clipBehavior: Clip.antiAlias,
-        borderRadius: BorderRadius.circular(radii.r2),
+      child: CraftskyCard(
         child: InkWell(
           onTap: onTap,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              border: Border.all(color: theme.colorScheme.outlineVariant),
-              borderRadius: BorderRadius.circular(radii.r2),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (event.image case final image?)
-                  Semantics(
-                    image: true,
-                    label: image.alt,
-                    child: SizedBox.square(
-                      dimension: 112,
-                      child: BusinessImage(
-                        image: image,
-                        networkUrl: image.thumb,
-                        fit: BoxFit.cover,
-                      ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (event.image case final image?)
+                Semantics(
+                  image: true,
+                  label: image.alt,
+                  child: AspectRatio(
+                    key: const Key('event-card-image'),
+                    aspectRatio: 16 / 9,
+                    child: BusinessImage(
+                      image: image,
+                      networkUrl: image.thumb,
+                      fit: BoxFit.cover,
                     ),
                   ),
-                Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.all(spacing.sp3),
-                    child: Column(
+                ),
+              Padding(
+                padding: EdgeInsets.all(spacing.sp3),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(event.name, style: theme.textTheme.titleMedium),
-                        SizedBox(height: spacing.sp1),
-                        Text(display.date),
-                        Text(display.time),
-                        if (roles.isNotEmpty) Text(roles),
-                        if (event.mode case final mode?)
-                          Text(BusinessLabels.eventMode(mode, l10n)),
-                        if (event.venueName case final venue?) Text(venue),
+                        Expanded(
+                          child: Text(
+                            event.name,
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        if (trailing case final action?)
+                          SizedBox.square(
+                            dimension: spacing.sp6,
+                            child: action,
+                          )
+                        else
+                          const Icon(Icons.chevron_right),
                       ],
                     ),
-                  ),
+                    SizedBox(height: spacing.sp2),
+                    _EventCardLine(
+                      icon: Icons.calendar_today_outlined,
+                      text: display.date,
+                    ),
+                    SizedBox(height: spacing.sp1),
+                    _EventCardLine(
+                      icon: Icons.schedule_outlined,
+                      text: display.time,
+                    ),
+                    if (event.venueName case final venue?) ...[
+                      SizedBox(height: spacing.sp1),
+                      _EventCardLine(
+                        icon: Icons.location_on_outlined,
+                        text: venue,
+                      ),
+                    ],
+                    if (event.mode case final mode?) ...[
+                      SizedBox(height: spacing.sp1),
+                      _EventCardLine(
+                        icon: Icons.people_outline,
+                        text: BusinessLabels.eventMode(mode, l10n),
+                      ),
+                    ],
+                    if (roles.isNotEmpty) ...[
+                      SizedBox(height: spacing.sp1),
+                      _EventCardLine(
+                        icon: Icons.badge_outlined,
+                        text: roles,
+                      ),
+                    ],
+                  ],
                 ),
-                Padding(
-                  padding: EdgeInsets.all(spacing.sp2),
-                  child: const Icon(Icons.chevron_right),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
+    );
+  }
+}
+
+class _EventCardLine extends StatelessWidget {
+  const _EventCardLine({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final spacing = Theme.of(context).extension<SpacingTheme>()!;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 18),
+        SizedBox(width: spacing.sp2),
+        Expanded(child: Text(text)),
+      ],
     );
   }
 }

@@ -40,6 +40,7 @@ type ProfileResponse struct {
 	Customisation       *ProfileCustomisation    `json:"customisation,omitempty"`
 	AccountType         *business.AccountType    `json:"accountType,omitempty"`
 	Business            *BusinessProfileResponse `json:"business,omitempty"`
+	HasUpcomingEvents   bool                     `json:"hasUpcomingEvents"`
 }
 
 type BusinessProfileResponse struct {

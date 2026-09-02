@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
@@ -16,7 +15,10 @@ import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_card.dart';
+import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -50,11 +52,7 @@ void main() {
           tester.getSemantics(find.byType(CachedNetworkImage)).label,
           contains('Summer fibre fair poster'),
         );
-        final report = find.widgetWithText(OutlinedButton, 'Report');
-        await tester.scrollUntilVisible(report, 250);
-        expect(tester.getSemantics(report).label, contains('Report'));
-        await tester.tap(report);
-        await tester.pumpAndSettle();
+        await _openReportMenu(tester);
 
         expect(find.text('Report event'), findsOneWidget);
         expect(
@@ -91,6 +89,40 @@ void main() {
     expect(tester.widget<Image>(find.byType(Image)).image, isA<MemoryImage>());
   });
 
+  testWidgets('event app bar changes contrast when collapsed', (tester) async {
+    await tester.binding.setSurfaceSize(const Size(390, 350));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    await _pump(
+      tester,
+      repository: _Repository(_event()),
+      page: EventDetailPage(
+        account: AccountKey('did:plc:viewer'),
+        owner: Did.parse('did:plc:business'),
+        rkey: RecordKey.parse('3m4event'),
+      ),
+    );
+    await tester.pump();
+
+    final expanded = tester.widget<SliverAppBar>(
+      find.byKey(const Key('event-detail-app-bar')),
+    );
+    expect(expanded.foregroundColor, Colors.white);
+    expect(expanded.systemOverlayStyle, SystemUiOverlayStyle.light);
+
+    final scrollable = tester.state<ScrollableState>(
+      find.byType(Scrollable).first,
+    );
+    scrollable.position.jumpTo(scrollable.position.maxScrollExtent);
+    await tester.pump();
+
+    final collapsed = tester.widget<SliverAppBar>(
+      find.byKey(const Key('event-detail-app-bar')),
+    );
+    final theme = Theme.of(tester.element(find.byType(EventDetailPage)));
+    expect(collapsed.foregroundColor, theme.colorScheme.onSurface);
+    expect(collapsed.systemOverlayStyle, SystemUiOverlayStyle.dark);
+  });
+
   testWidgets('AT-010 visitor reports a visible event with existing reasons', (
     tester,
   ) async {
@@ -106,10 +138,7 @@ void main() {
     );
     await tester.pump();
 
-    final reportAction = find.widgetWithText(OutlinedButton, 'Report');
-    await tester.scrollUntilVisible(reportAction, 300);
-    await tester.tap(reportAction);
-    await tester.pumpAndSettle();
+    await _openReportMenu(tester);
 
     expect(find.text('Report event'), findsOneWidget);
     expect(find.text('Spam'), findsOneWidget);
@@ -156,10 +185,7 @@ void main() {
       );
       await tester.pump();
 
-      final reportAction = find.widgetWithText(OutlinedButton, 'Report');
-      await tester.scrollUntilVisible(reportAction, 300);
-      await tester.tap(reportAction);
-      await tester.pumpAndSettle();
+      await _openReportMenu(tester);
       await tester.tap(find.text('Spam'));
       await tester.pump();
       await tester.tap(find.widgetWithText(TextButton, 'Submit'));
@@ -194,7 +220,8 @@ void main() {
     await tester.pump();
 
     expect(find.text('Summer fibre fair'), findsOneWidget);
-    expect(find.widgetWithText(OutlinedButton, 'Report'), findsNothing);
+    expect(find.byTooltip('Report event'), findsNothing);
+    expect(find.textContaining('Published'), findsOneWidget);
   });
 
   testWidgets('IT-009 event report keeps established pending and failure UX', (
@@ -213,10 +240,7 @@ void main() {
     );
     await tester.pump();
 
-    final reportAction = find.widgetWithText(OutlinedButton, 'Report');
-    await tester.scrollUntilVisible(reportAction, 300);
-    await tester.tap(reportAction);
-    await tester.pumpAndSettle();
+    await _openReportMenu(tester);
     await tester.tap(find.text('Spam'));
     await tester.pump();
     await tester.tap(find.widgetWithText(TextButton, 'Submit'));
@@ -312,20 +336,47 @@ void main() {
     expect(find.text('Summer fibre fair'), findsOneWidget);
     expect(find.text('A celebration of local fibre and yarn.'), findsOneWidget);
     expect(find.text('Town Hall'), findsOneWidget);
-    expect(find.text('Vendor'), findsOneWidget);
+    expect(find.text('Vendor'), findsNothing);
+    expect(find.textContaining('Published'), findsNothing);
     expect(find.text('In person'), findsOneWidget);
     expect(find.text('Scheduled'), findsOneWidget);
     expect(find.text('Europe/London'), findsOneWidget);
     expect(find.text('Upcoming'), findsOneWidget);
+    expect(find.byType(CraftskyCard), findsWidgets);
+    expect(
+      tester
+          .widgetList<CraftskyCard>(find.byType(CraftskyCard))
+          .last
+          .clipBehavior,
+      Clip.none,
+    );
+    expect(find.byIcon(Icons.calendar_today_outlined), findsOneWidget);
+    expect(find.byIcon(Icons.schedule_outlined), findsOneWidget);
     expect(
       tester
           .widget<CachedNetworkImage>(find.byType(CachedNetworkImage))
           .imageUrl,
       'https://cdn.example/event-full.jpg',
     );
+    final appBar = tester.widget<SliverAppBar>(
+      find.byKey(const Key('event-detail-app-bar')),
+    );
+    final detailWidth = tester.getSize(find.byType(EventDetailPage)).width;
+    expect(appBar.pinned, isTrue);
+    expect(appBar.expandedHeight, closeTo(detailWidth * 9 / 16, 0.01));
+    expect(appBar.foregroundColor, Colors.white);
+    expect(appBar.systemOverlayStyle, SystemUiOverlayStyle.light);
+    expect(
+      find.descendant(
+        of: find.byType(FlexibleSpaceBar),
+        matching: find.byType(CachedNetworkImage),
+      ),
+      findsOneWidget,
+    );
 
     final eventAction = find.widgetWithText(OutlinedButton, 'Event website');
-    await tester.scrollUntilVisible(eventAction, 300);
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -800));
+    await tester.pump();
     await tester.tap(eventAction);
     await tester.pump();
     final registrationAction = find.widgetWithText(OutlinedButton, 'Register');
@@ -351,7 +402,7 @@ void main() {
 
     expect(find.text('Event website'), findsNothing);
     expect(find.text('Register'), findsNothing);
-    expect(find.widgetWithText(OutlinedButton, 'Report'), findsOneWidget);
+    expect(find.byTooltip('Report event'), findsOneWidget);
   });
 
   testWidgets('IT-009 event_not_found renders no stale event or actions', (
@@ -377,6 +428,16 @@ void main() {
     expect(find.text('Summer fibre fair'), findsNothing);
     expect(find.byType(OutlinedButton), findsNothing);
   });
+}
+
+Future<void> _openReportMenu(WidgetTester tester) async {
+  final menuButton = find.byTooltip('Report event');
+  expect(menuButton, findsOneWidget);
+  expect(find.byType(CraftskyContextMenuButton), findsOneWidget);
+  await tester.tap(menuButton);
+  await tester.pumpAndSettle();
+  await tester.tap(find.text('Report event'));
+  await tester.pumpAndSettle();
 }
 
 BusinessEvent _event({

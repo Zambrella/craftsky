@@ -480,6 +480,7 @@ sealed class BusinessImageDraft {
   bool get hasImage;
   bool get isValid;
   Uint8List? get previewBytes => null;
+  String? get previewUrl => null;
 
   Map<String, dynamic>? toJson();
 }
@@ -522,7 +523,8 @@ final class ExistingBusinessImageDraft extends BusinessImageDraft {
       mime = image.mime,
       size = image.size,
       alt = alt ?? image.alt,
-      aspectRatio = image.aspectRatio;
+      aspectRatio = image.aspectRatio,
+      previewUrl = image.thumb;
 
   const ExistingBusinessImageDraft._({
     required this.cid,
@@ -530,6 +532,7 @@ final class ExistingBusinessImageDraft extends BusinessImageDraft {
     required this.size,
     required this.alt,
     required this.aspectRatio,
+    required this.previewUrl,
   });
 
   final String cid;
@@ -538,6 +541,8 @@ final class ExistingBusinessImageDraft extends BusinessImageDraft {
   @override
   final String alt;
   final BusinessImageAspectRatio? aspectRatio;
+  @override
+  final String previewUrl;
 
   @override
   bool get hasImage => true;
@@ -552,6 +557,7 @@ final class ExistingBusinessImageDraft extends BusinessImageDraft {
         size: size,
         alt: value,
         aspectRatio: aspectRatio,
+        previewUrl: previewUrl,
       );
 
   @override
@@ -734,8 +740,7 @@ bool _validImage(
     (aspectRatio == null || (aspectRatio.width > 0 && aspectRatio.height > 0));
 
 bool _validPrice(String amount, String currency) {
-  if (!_isoCurrencies.contains(currency) ||
-      const {'XXX', 'XTS'}.contains(currency)) {
+  if (!businessProductCurrencies.contains(currency)) {
     return false;
   }
   final parts = amount.split('.');
@@ -745,7 +750,7 @@ bool _validPrice(String amount, String currency) {
   }
   if (parts.length == 1) return true;
   final fraction = parts[1];
-  final scale = _currencyScale(currency);
+  final scale = businessCurrencyScale(currency);
   return scale > 0 &&
       fraction.isNotEmpty &&
       fraction.length <= scale &&
@@ -753,15 +758,15 @@ bool _validPrice(String amount, String currency) {
       RegExp(r'^[0-9]+$').hasMatch(fraction);
 }
 
-int _currencyScale(String currency) {
+int businessCurrencyScale(String currency) {
   if (_zeroMinorUnitCurrencies.contains(currency)) return 0;
   if (currency == 'CLF') return 4;
   if (_threeMinorUnitCurrencies.contains(currency)) return 3;
   return 2;
 }
 
-final Set<String> _isoCurrencies =
-    '''
+final Set<String> businessProductCurrencies = Set.unmodifiable(
+  '''
 AED AFN ALL AMD ANG AOA ARS AUD AWG AZN BAM BBD BDT BGN BHD BIF BMD BND BOB
 BOV BRL BSD BTN BWP BYN BZD CAD CDF CHE CHF CHW CLF CLP CNY COP COU CRC CUC
 CUP CVE CZK DJF DKK DOP DZD EGP ERN ETB EUR FJD FKP GBP GEL GHS GIP GMD GNF
@@ -773,9 +778,9 @@ SLL SOS SRD SSP STN SVC SYP SZL THB TJS TMT TND TOP TRY TTD TWD TZS UAH
 UGX USD USN UYI UYU UYW UZS VED VES VND VUV WST XAF XAG XAU XBA XBB XBC
 XBD XCD XCG XDR XOF XPD XPF XPT XSU XTS XUA XXX YER ZAR ZMW ZWG
 '''
-        .split(RegExp(r'\s+'))
-        .where((value) => value.isNotEmpty)
-        .toSet();
+      .split(RegExp(r'\s+'))
+      .where((value) => value.isNotEmpty && value != 'XXX' && value != 'XTS'),
+);
 
 const _zeroMinorUnitCurrencies = {
   'BIF',

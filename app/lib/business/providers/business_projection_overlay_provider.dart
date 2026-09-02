@@ -92,6 +92,7 @@ final class BusinessProjectionOverlay<T> {
     required this.acceptedCid,
     required this.acceptedView,
     required this.isDelete,
+    this.predecessorCids = const {},
     this.retryMetadata,
   });
 
@@ -101,6 +102,7 @@ final class BusinessProjectionOverlay<T> {
     required Cid? preWriteCid,
     required Cid acceptedCid,
     required T acceptedView,
+    Set<Cid?> predecessorCids = const {},
   }) : this._(
          lease: lease,
          requestGeneration: requestGeneration,
@@ -108,6 +110,7 @@ final class BusinessProjectionOverlay<T> {
          acceptedCid: acceptedCid,
          acceptedView: acceptedView,
          isDelete: false,
+         predecessorCids: predecessorCids,
        );
 
   const BusinessProjectionOverlay.delete({
@@ -130,6 +133,7 @@ final class BusinessProjectionOverlay<T> {
   final Cid acceptedCid;
   final T? acceptedView;
   final bool isDelete;
+  final Set<Cid?> predecessorCids;
   final BusinessProjectionRetryMetadata? retryMetadata;
 
   BusinessProjectionReconciliation<T> reconcile({
@@ -147,7 +151,8 @@ final class BusinessProjectionOverlay<T> {
         view: authoritativeView,
       );
     }
-    if (authoritativeCid == preWriteCid) {
+    if (authoritativeCid == preWriteCid ||
+        predecessorCids.contains(authoritativeCid)) {
       return BusinessProjectionReconciliation.applied(
         view: acceptedView,
         overlay: this,
@@ -164,6 +169,7 @@ final class BusinessProjectionOverlay<T> {
         acceptedCid: acceptedCid,
         acceptedView: acceptedView,
         isDelete: isDelete,
+        predecessorCids: predecessorCids,
         retryMetadata: BusinessProjectionRetryMetadata(
           failureCount: (retryMetadata?.failureCount ?? 0) + 1,
           error: error,
@@ -177,6 +183,7 @@ final class BusinessProjectionOverlay<T> {
     acceptedCid: acceptedCid,
     acceptedView: acceptedView as R?,
     isDelete: isDelete,
+    predecessorCids: predecessorCids,
     retryMetadata: retryMetadata,
   );
 }
@@ -249,6 +256,16 @@ final class BusinessProjectionOverlayController
     required T acceptedView,
   }) {
     if (!_isCurrent(key, lease, requestGeneration)) return false;
+    final previous = state[key];
+    final predecessorCids = <Cid?>{};
+    if (previous != null &&
+        !previous.isDelete &&
+        previous.lease == lease &&
+        previous.acceptedCid == preWriteCid) {
+      predecessorCids
+        ..add(previous.preWriteCid)
+        ..addAll(previous.predecessorCids);
+    }
     state = {
       ...state,
       key: BusinessProjectionOverlay<Object>.upsert(
@@ -257,6 +274,7 @@ final class BusinessProjectionOverlayController
         preWriteCid: preWriteCid,
         acceptedCid: acceptedCid,
         acceptedView: acceptedView as Object,
+        predecessorCids: Set.unmodifiable(predecessorCids),
       ),
     };
     return true;

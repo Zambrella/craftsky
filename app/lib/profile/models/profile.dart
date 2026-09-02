@@ -44,6 +44,7 @@ class Profile with ProfileMappable {
     this.customisation = ProfileCustomisation.defaults,
     this.accountType,
     this.business,
+    this.hasUpcomingEvents = false,
   }) : did = Did.parse(did),
        handle = Handle.parse(handle);
 
@@ -70,4 +71,5 @@ class Profile with ProfileMappable {
   final ProfileCustomisation customisation;
   final AccountType? accountType;
   final BusinessProfile? business;
+  final bool hasUpcomingEvents;
 }

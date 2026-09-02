@@ -14,6 +14,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_events_tab.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -166,11 +167,31 @@ void main() {
           .imageUrl,
       'https://cdn.example/first-thumb.jpg',
     );
+    expect(
+      tester
+          .widget<AspectRatio>(
+            find.byKey(const Key('event-card-image')).first,
+          )
+          .aspectRatio,
+      16 / 9,
+    );
+    expect(
+      tester.getTopLeft(find.byKey(const Key('event-card-image')).first).dy,
+      lessThan(tester.getTopLeft(find.text('Fibre Fair')).dy),
+    );
+    expect(find.byType(CraftskyCard), findsWidgets);
+    expect(find.byIcon(Icons.calendar_today_outlined), findsWidgets);
 
     await tester.tap(find.byType(EventCard));
     expect(opened, ['did:plc:business/first']);
 
-    await tester.tap(find.widgetWithText(TextButton, 'Load more'));
+    final loadMore = find.widgetWithText(TextButton, 'Load more');
+    await tester.scrollUntilVisible(
+      loadMore,
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(loadMore);
     await tester.pump();
     expect(
       tester
@@ -178,6 +199,11 @@ void main() {
           .map((card) => card.event.name),
       ['Fibre Fair', 'Yarn Market'],
     );
+    await tester.drag(
+      find.byType(CustomScrollView),
+      const Offset(0, -800),
+    );
+    await tester.pump();
     expect(find.text('You’ve reached the end.'), findsOneWidget);
     expect(repository.cursors, [null, 'opaque:next']);
   });
@@ -202,7 +228,13 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.tap(find.widgetWithText(TextButton, 'Load more'));
+    final loadMore = find.widgetWithText(TextButton, 'Load more');
+    await tester.scrollUntilVisible(
+      loadMore,
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(loadMore);
     await tester.pump();
 
     expect(find.text('Confirmed event'), findsOneWidget);
@@ -227,7 +259,13 @@ void main() {
       ),
     );
     await tester.pump();
-    await tester.tap(find.widgetWithText(TextButton, 'Refresh'));
+    final refresh = find.widgetWithText(TextButton, 'Refresh');
+    await tester.scrollUntilVisible(
+      refresh,
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(refresh);
     await tester.pump();
 
     expect(find.text('Confirmed event'), findsOneWidget);

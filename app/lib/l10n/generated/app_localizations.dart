@@ -5379,10 +5379,10 @@ abstract class AppLocalizations {
   /// **'Lifecycle'**
   String get businessEventLifecycleLabel;
 
-  /// Explicit IANA timezone selector label.
+  /// Event timezone selector label.
   ///
   /// In en, this message translates to:
-  /// **'IANA timezone'**
+  /// **'Timezone'**
   String get businessEventTimeZoneLabel;
 
   /// Optional event venue field label.
@@ -5396,6 +5396,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Published'**
   String get businessEventPublishedLabel;
+
+  /// Friendly event publication date copy.
+  ///
+  /// In en, this message translates to:
+  /// **'Published {date}'**
+  String businessEventPublishedOn(String date);
 
   /// External action opening hydrated event information.
   ///
@@ -5420,12 +5426,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Add product'**
   String get businessProductsAdd;
-
-  /// Action for saving the complete ordered featured product list.
-  ///
-  /// In en, this message translates to:
-  /// **'Save products'**
-  String get businessProductsSave;
 
   /// Empty state on the product management page.
   ///
@@ -5510,6 +5510,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Remove {title}'**
   String businessProductRemove(String title);
+
+  /// Title for confirming immediate product removal.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove product?'**
+  String get businessProductRemoveConfirmTitle;
+
+  /// Message for confirming immediate product removal.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove {title} from your featured products? This change is saved immediately.'**
+  String businessProductRemoveConfirmMessage(String title);
+
+  /// Destructive confirmation action for removing a product.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove'**
+  String get businessProductRemoveConfirm;
+
+  /// Cancellation action for retaining a product.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep product'**
+  String get businessProductRemoveCancel;
 
   /// Accessible action for moving a product earlier.
   ///
@@ -5619,6 +5643,12 @@ abstract class AppLocalizations {
   /// **'Enter a credential-free HTTPS link.'**
   String get businessProductDestinationInvalid;
 
+  /// Validation shown when another featured product already uses this destination.
+  ///
+  /// In en, this message translates to:
+  /// **'Use a different destination. Each product must link to a unique page.'**
+  String get businessProductDestinationDuplicate;
+
   /// Required product image validation.
   ///
   /// In en, this message translates to:
@@ -5661,17 +5691,23 @@ abstract class AppLocalizations {
   /// **'Add an event name.'**
   String get businessEventNameRequired;
 
-  /// Local event start field label.
+  /// Event start date and time field label.
   ///
   /// In en, this message translates to:
-  /// **'Starts (local)'**
+  /// **'Start'**
   String get businessEventStartLabel;
 
-  /// Local event end field label.
+  /// Event end date and time field label.
   ///
   /// In en, this message translates to:
-  /// **'Ends (local, exclusive for all-day)'**
+  /// **'End'**
   String get businessEventEndLabel;
+
+  /// Placeholder for an event date and time picker.
+  ///
+  /// In en, this message translates to:
+  /// **'Select date and time'**
+  String get businessEventDateTimeHint;
 
   /// Hint for local event boundary input.
   ///
@@ -5684,6 +5720,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Enter a valid start and end.'**
   String get businessEventTimeInvalid;
+
+  /// Validation shown when an event end is not after its start.
+  ///
+  /// In en, this message translates to:
+  /// **'End must be after start.'**
+  String get businessEventEndAfterStart;
 
   /// All-day event toggle label.
   ///

@@ -17,6 +17,10 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/craftsky_context_menu.dart';
+import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,6 +30,29 @@ import '../accessibility_test_helpers.dart';
 
 void main() {
   setUpAll(initializeMappers);
+
+  testWidgets('Events manager uses the hard-shadow CraftSky FAB', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(
+        _Repository(
+          pages: const {
+            OwnerEventFilter.upcoming: [BusinessEventPage(items: [])],
+            OwnerEventFilter.history: [BusinessEventPage(items: [])],
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final fab = find.byType(CraftskyFloatingActionButton);
+    expect(fab, findsOneWidget);
+    expect(
+      find.descendant(of: fab, matching: find.byType(ChunkyButton)),
+      findsOneWidget,
+    );
+  });
 
   for (final constraint in businessAccessibilityMatrix) {
     testWidgets(
@@ -75,19 +102,19 @@ void main() {
 
         await tester.tap(find.text('History'));
         await tester.pumpAndSettle();
-        await tester.drag(
-          find.byKey(const PageStorageKey(OwnerEventFilter.history)),
-          const Offset(0, -300),
-        );
+        final manageHistory = find.byTooltip('Manage Event history');
+        await tester.ensureVisible(manageHistory);
         await tester.pump();
-        await tester.tap(find.byTooltip('Manage Event history'));
+        await tester.tap(manageHistory);
         await tester.pumpAndSettle();
+        expect(find.byType(CraftskyContextMenuButton), findsWidgets);
         await tester.tap(find.text('Delete event'));
         await tester.pumpAndSettle();
         expect(find.text('Delete this event?'), findsOneWidget);
+        expect(find.byType(CraftskyDialog), findsOneWidget);
         expect(
           tester
-              .getSemantics(find.widgetWithText(FilledButton, 'Delete'))
+              .getSemantics(find.widgetWithText(ChunkyButton, 'Delete'))
               .label,
           contains('Delete'),
         );
@@ -235,6 +262,16 @@ void main() {
     await tester.tap(find.text('Event history'));
     await tester.pumpAndSettle();
     expect(find.byType(EventEditorDialog), findsOneWidget);
+    final route = ModalRoute.of(
+      tester.element(find.byType(EventEditorDialog)),
+    );
+    expect(route, isA<MaterialPageRoute<void>>());
+    expect((route! as MaterialPageRoute<void>).fullscreenDialog, isTrue);
+    expect(find.byKey(const ValueKey('event-submit')), findsOneWidget);
+    expect(
+      find.byKey(const Key('event-editor-bottom-safe-space')),
+      findsOneWidget,
+    );
     await tester.tap(find.byType(CloseButton));
     await tester.pumpAndSettle();
 
@@ -267,6 +304,8 @@ void main() {
 
       await tester.tap(find.byTooltip('Manage Event managed'));
       await tester.pumpAndSettle();
+      expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.delete_outline), findsOneWidget);
       await tester.tap(find.text('Cancel event'));
       await tester.pumpAndSettle();
       expect(repository.updates.single.draft.status, 'cancelled');
@@ -280,7 +319,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Delete this event?'), findsOneWidget);
       expect(repository.deletes, isEmpty);
-      await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Delete'));
       await tester.pumpAndSettle();
       expect(repository.deletes, hasLength(1));
       expect(repository.deletes.single.toString(), 'bafy-updated');

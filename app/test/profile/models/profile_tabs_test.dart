@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   group('UT-002 profile tab policy', () {
-    test('keeps the ordinary five tabs and stable identities', () {
+    test('keeps the ordinary tabs and stable identities', () {
       final tabs = ProfileTabPolicy.forProfile(
         accountType: AccountType.regular,
         isBlocked: false,
@@ -15,7 +15,6 @@ void main() {
         ProfileTab.posts,
         ProfileTab.comments,
         ProfileTab.reposts,
-        ProfileTab.about,
       ]);
       expect(
         tabs.map((tab) => tab.storageKey),
@@ -24,7 +23,6 @@ void main() {
           'profile_tab_posts',
           'profile_tab_comments',
           'profile_tab_reposts',
-          'profile_tab_about',
         ],
       );
     });
@@ -33,33 +31,69 @@ void main() {
       final tabs = ProfileTabPolicy.forProfile(
         accountType: AccountType.business,
         isBlocked: false,
+        isOwnProfile: true,
       );
 
       expect(tabs, const [
+        ProfileTab.products,
+        ProfileTab.upcomingEvents,
+        ProfileTab.about,
         ProfileTab.projects,
         ProfileTab.posts,
         ProfileTab.comments,
         ProfileTab.reposts,
-        ProfileTab.products,
-        ProfileTab.upcomingEvents,
-        ProfileTab.about,
       ]);
     });
 
-    test('does not derive business tabs from product or event state', () {
-      final emptyOrLoading = ProfileTabPolicy.forProfile(
+    test('visitor business tabs reflect product and upcoming event state', () {
+      final empty = ProfileTabPolicy.forProfile(
         accountType: AccountType.business,
         isBlocked: false,
       );
       final hydrated = ProfileTabPolicy.forProfile(
         accountType: AccountType.business,
         isBlocked: false,
+        hasProducts: true,
+        hasUpcomingEvents: true,
       );
 
-      expect(hydrated, same(emptyOrLoading));
+      expect(empty, const [
+        ProfileTab.about,
+        ProfileTab.projects,
+        ProfileTab.posts,
+        ProfileTab.comments,
+        ProfileTab.reposts,
+      ]);
+      expect(hydrated, ProfileTabPolicy.businessTabs);
       expect(
-        hydrated.map((tab) => tab.storageKey),
-        emptyOrLoading.map((tab) => tab.storageKey),
+        ProfileTabPolicy.forProfile(
+          accountType: AccountType.business,
+          isBlocked: false,
+          hasProducts: true,
+        ),
+        const [
+          ProfileTab.products,
+          ProfileTab.about,
+          ProfileTab.projects,
+          ProfileTab.posts,
+          ProfileTab.comments,
+          ProfileTab.reposts,
+        ],
+      );
+      expect(
+        ProfileTabPolicy.forProfile(
+          accountType: AccountType.business,
+          isBlocked: false,
+          hasUpcomingEvents: true,
+        ),
+        const [
+          ProfileTab.upcomingEvents,
+          ProfileTab.about,
+          ProfileTab.projects,
+          ProfileTab.posts,
+          ProfileTab.comments,
+          ProfileTab.reposts,
+        ],
       );
     });
 
@@ -74,7 +108,7 @@ void main() {
     });
 
     test(
-      'retains logical selection or remaps removed business tabs to About',
+      'retains logical selection or remaps removed tabs to the first tab',
       () {
         expect(
           ProfileTabPolicy.selectionAfterChange(
@@ -88,14 +122,14 @@ void main() {
             selected: ProfileTab.products,
             tabs: ProfileTabPolicy.ordinaryTabs,
           ),
-          ProfileTab.about,
+          ProfileTab.projects,
         );
         expect(
           ProfileTabPolicy.selectionAfterChange(
             selected: ProfileTab.upcomingEvents,
             tabs: ProfileTabPolicy.ordinaryTabs,
           ),
-          ProfileTab.about,
+          ProfileTab.projects,
         );
       },
     );

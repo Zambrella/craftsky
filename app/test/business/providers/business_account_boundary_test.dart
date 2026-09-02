@@ -38,6 +38,7 @@ import 'package:craftsky_app/profile/providers/save_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
+import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -269,7 +270,7 @@ void main() {
   );
 
   test(
-    'IT-010 Alice drafts CIDs mutations and reports cannot become Bob state',
+    'IT-010 Alice CIDs mutations and reports cannot become Bob state',
     () async {
       final repository = _MutationBusinessRepository();
       final storage = _RegistryStorage(_registry());
@@ -339,9 +340,6 @@ void main() {
         destination: 'https://alice.example/unsaved',
         image: initialProducts.products.single.image,
       );
-      container.read(productsControllerProvider.notifier).replaceProducts([
-        editedProduct,
-      ]);
       final aliceEvent = _event(
         'alice-mutation',
         owner: 'did:plc:alice',
@@ -351,7 +349,7 @@ void main() {
           .setAccountType(AccountType.regular);
       final productOperation = container
           .read(productsControllerProvider.notifier)
-          .save();
+          .replaceProducts([editedProduct]);
       final eventOperation = container
           .read(businessEventMutationControllerProvider.notifier)
           .update(aliceEvent, _eventDraft('Alice unsaved event'));
@@ -382,22 +380,12 @@ void main() {
           );
       await Future<void>.delayed(Duration.zero);
 
-      var unsavedDecisionChecked = false;
       var homeResets = 0;
       await _switch(
         container,
         AccountKey('did:plc:bob'),
-        confirmLeave: (owner) async {
-          final draft = container.read(productsControllerProvider).requireValue;
-          expect(owner.account.did.value, 'did:plc:alice');
-          expect(draft.dirty, isTrue);
-          expect(draft.products.single.title, 'Alice unsaved product');
-          unsavedDecisionChecked = true;
-          return true;
-        },
         resetToHome: () async => homeResets++,
       );
-      expect(unsavedDecisionChecked, isTrue);
       final bobProducts = await container.read(
         productsControllerProvider.future,
       );
@@ -475,7 +463,7 @@ void main() {
         aliceAuthoritative.declaration.expectedCid.toString(),
         'bafy-alice-profile',
       );
-      expect(aliceAuthoritative.dirty, isFalse);
+      expect(aliceAuthoritative.status, ProductsStatus.ready);
     },
   );
 
@@ -496,6 +484,7 @@ void main() {
         UncontrolledProviderScope(
           container: container,
           child: MaterialApp(
+            theme: AppTheme.lightThemeData,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
             home: Scaffold(
