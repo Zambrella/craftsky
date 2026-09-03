@@ -23,8 +23,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('When'), findsOneWidget);
-    await tester.tap(find.text('When'));
+    final when = find.text('When');
+    expect(when, findsOneWidget);
+    await tester.ensureVisible(when);
+    await tester.pumpAndSettle();
+    await tester.tap(when);
     await tester.pumpAndSettle();
     expect(find.byType(SimpleDialog), findsNothing);
     expect(find.byType(BottomSheet), findsOneWidget);
@@ -60,9 +63,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await _advanceProjectComposer(tester);
-    expect(find.text('When'), findsOneWidget);
-    await tester.tap(find.text('When'));
+    final when = find.text('When');
+    expect(when, findsOneWidget);
+    await tester.ensureVisible(when);
+    await tester.pumpAndSettle();
+    await tester.tap(when);
     await tester.pumpAndSettle();
     expect(find.byType(SimpleDialog), findsNothing);
     expect(find.byType(BottomSheet), findsOneWidget);
@@ -126,20 +131,6 @@ const _readyProjectImage = ComposerImagesState(
     ),
   ],
 );
-
-Future<void> _advanceProjectComposer(WidgetTester tester) async {
-  final craftType = find.byKey(const Key('craftType-select-button'));
-  await tester.ensureVisible(craftType);
-  await tester.pumpAndSettle();
-  await tester.tap(craftType);
-  await tester.pumpAndSettle();
-  await tester.tap(find.text('Embroidery').last);
-  await tester.pumpAndSettle();
-  await tester.tap(find.byKey(const Key('project-composer-primary-action')));
-  await tester.pumpAndSettle();
-  await tester.tap(find.byKey(const Key('project-composer-primary-action')));
-  await tester.pumpAndSettle();
-}
 
 Post _post() => Post(
   uri: 'at://did:plc:alice/social.craftsky.feed.post/parent',

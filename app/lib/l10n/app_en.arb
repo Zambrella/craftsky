@@ -772,6 +772,45 @@
   "projectComposerMoreDetailsLabel": "More project details",
   "@projectComposerMoreDetailsLabel": { "description": "Disclosure label for optional craft-specific project detail fields." },
 
+  "projectComposerMoreDetailsHeading": "Add more details",
+  "@projectComposerMoreDetailsHeading": { "description": "Heading above the optional detail actions in the project composer." },
+
+  "projectComposerMoreDetailsPrompt": "Optional details help other crafters discover and understand your project.",
+  "@projectComposerMoreDetailsPrompt": { "description": "Helper text above the optional detail actions in the project composer." },
+
+  "projectComposerPatternDetailsTitle": "Pattern details",
+  "@projectComposerPatternDetailsTitle": { "description": "Title of the optional pattern details action and page." },
+
+  "projectComposerPatternDetailsDescription": "Add designer, publisher, link and difficulty",
+  "@projectComposerPatternDetailsDescription": { "description": "Description shown when no optional pattern details have been added." },
+
+  "projectComposerCommonDetailsTitle": "Materials and style",
+  "@projectComposerCommonDetailsTitle": { "description": "Title of the common optional project metadata action and page." },
+
+  "projectComposerCommonDetailsDescription": "Help others discover projects like yours",
+  "@projectComposerCommonDetailsDescription": { "description": "Description shown when no materials or style details have been added." },
+
+  "projectComposerCraftDetailsTitle": "{craft} details",
+  "@projectComposerCraftDetailsTitle": {
+    "description": "Title of the selected craft's optional detail action and page.",
+    "placeholders": { "craft": { "type": "String", "example": "Knitting" } }
+  },
+
+  "projectComposerCraftDetailsDescription": "Add project type and craft-specific details",
+  "@projectComposerCraftDetailsDescription": { "description": "Description shown when no craft-specific details have been added." },
+
+  "projectComposerDetailsAdded": "{count, plural, =1{1 detail added} other{{count} details added}}",
+  "@projectComposerDetailsAdded": {
+    "description": "Summary count for a populated optional project detail group.",
+    "placeholders": { "count": { "type": "int", "example": "3" } }
+  },
+
+  "projectComposerCraftCleared": "Craft details cleared.",
+  "@projectComposerCraftCleared": { "description": "Notice shown after changing craft type clears populated craft-specific details." },
+
+  "projectComposerPatternCleared": "Pattern details cleared.",
+  "@projectComposerPatternCleared": { "description": "Notice shown after removing a pattern name clears populated pattern details." },
+
   "projectComposerSelectCraftTypeEmptyState": "Select Craft Type",
   "@projectComposerSelectCraftTypeEmptyState": { "description": "Empty-state text shown in the craft-specific project details section before a craft type is selected." },
 

@@ -854,6 +854,53 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerMoreDetailsLabel => 'More project details';
 
   @override
+  String get projectComposerMoreDetailsHeading => 'Add more details';
+
+  @override
+  String get projectComposerMoreDetailsPrompt =>
+      'Optional details help other crafters discover and understand your project.';
+
+  @override
+  String get projectComposerPatternDetailsTitle => 'Pattern details';
+
+  @override
+  String get projectComposerPatternDetailsDescription =>
+      'Add designer, publisher, link and difficulty';
+
+  @override
+  String get projectComposerCommonDetailsTitle => 'Materials and style';
+
+  @override
+  String get projectComposerCommonDetailsDescription =>
+      'Help others discover projects like yours';
+
+  @override
+  String projectComposerCraftDetailsTitle(String craft) {
+    return '$craft details';
+  }
+
+  @override
+  String get projectComposerCraftDetailsDescription =>
+      'Add project type and craft-specific details';
+
+  @override
+  String projectComposerDetailsAdded(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count details added',
+      one: '1 detail added',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get projectComposerCraftCleared => 'Craft details cleared.';
+
+  @override
+  String get projectComposerPatternCleared => 'Pattern details cleared.';
+
+  @override
   String get projectComposerSelectCraftTypeEmptyState => 'Select Craft Type';
 
   @override
