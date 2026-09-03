@@ -52,8 +52,11 @@ func TestValidateImageBlobUpload_RejectsEmptyMIMEType(t *testing.T) {
 	}
 }
 
-func TestDecodeImageBlobUpload_AllowsBodyAt15MBLimit(t *testing.T) {
+func TestDecodeImageBlobUpload_AllowsBodyAtTwoMillionByteLimit(t *testing.T) {
 	t.Parallel()
+	if api.MaxImageUploadBytes != 2_000_000 {
+		t.Fatalf("MaxImageUploadBytes = %d, want 2000000", api.MaxImageUploadBytes)
+	}
 	body := bytes.Repeat([]byte("a"), int(api.MaxImageUploadBytes))
 	req, payload, err := api.DecodeImageBlobUpload("image/jpeg", bytes.NewReader(body))
 	if err != nil {
@@ -67,7 +70,7 @@ func TestDecodeImageBlobUpload_AllowsBodyAt15MBLimit(t *testing.T) {
 	}
 }
 
-func TestDecodeImageBlobUpload_RejectsBodyOver15MBLimit(t *testing.T) {
+func TestDecodeImageBlobUpload_RejectsBodyOverTwoMillionByteLimit(t *testing.T) {
 	t.Parallel()
 	body := bytes.Repeat([]byte("a"), int(api.MaxImageUploadBytes+1))
 	_, _, err := api.DecodeImageBlobUpload("image/jpeg", bytes.NewReader(body))

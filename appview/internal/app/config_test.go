@@ -1433,7 +1433,7 @@ func TestLoadConfigScheduledImageDecodeLimits(t *testing.T) {
 		wantKey  string
 	}{
 		{name: "zero width", override: "SCHEDULED_IMAGE_MAX_WIDTH=0\n", wantKey: "SCHEDULED_IMAGE_MAX_WIDTH"},
-		{name: "width above ceiling", override: "SCHEDULED_IMAGE_MAX_WIDTH=8193\n", wantKey: "SCHEDULED_IMAGE_MAX_WIDTH"},
+		{name: "width above ceiling", override: "SCHEDULED_IMAGE_MAX_WIDTH=4001\n", wantKey: "SCHEDULED_IMAGE_MAX_WIDTH"},
 		{name: "pixels above ceiling", override: "SCHEDULED_IMAGE_MAX_PIXELS=16000001\n", wantKey: "SCHEDULED_IMAGE_MAX_PIXELS"},
 		{name: "concurrency above ceiling", override: "SCHEDULED_IMAGE_MAX_CONCURRENT_DECODES=2\n", wantKey: "SCHEDULED_IMAGE_MAX_CONCURRENT_DECODES"},
 		{name: "zero admission wait", override: "SCHEDULED_IMAGE_ADMISSION_WAIT=0s\n", wantKey: "SCHEDULED_IMAGE_ADMISSION_WAIT"},

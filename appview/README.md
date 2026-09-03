@@ -303,9 +303,9 @@ accepted request. In the absence of a tested server-side settlement guarantee,
 AppView retains the approved exact-key, non-secret cleanup tombstones and
 reconciles them until convergence.
 
-Scheduled image decode settings may only lower the compiled width, height,
+Image decode settings may only lower the compiled width, height,
 16-megapixel, aspect-ratio, single-decoder, and admission-wait ceilings. Both
-upload routes share one pre-body-read admission permit, so no second 15 MiB
+upload routes share one pre-body-read admission permit, so no second 2 MB
 body is retained while decode or remote-write work is in flight. Compose gives
 AppView a 512 MiB memory limit by default. `just appview-check` measures the
 exact release runtime, each accepted 16-megapixel codec, and the maximum-size

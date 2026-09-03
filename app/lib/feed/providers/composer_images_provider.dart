@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:craftsky_app/drafts/composer/draft_composer_hydrator.dart';
+import 'package:craftsky_app/feed/media/bounded_image_file_reader.dart';
 import 'package:craftsky_app/feed/media/composer_image_media_service.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
@@ -9,10 +10,13 @@ import 'package:craftsky_app/shared/pipeline/item_pipeline.dart';
 import 'package:crypto/crypto.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:logging/logging.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:uuid/uuid.dart';
 
 part 'composer_images_provider.g.dart';
+
+final _log = Logger('ComposerImages');
 
 final imagePickerProvider = Provider<ImagePicker>((ref) => ImagePicker());
 
@@ -23,6 +27,7 @@ final composerImageMediaServiceProvider = Provider<ComposerImageMediaService>(
 @riverpod
 class ComposerImages extends _$ComposerImages {
   final _operations = <String, _ImageOperation>{};
+  Future<void> _pipelineTail = Future<void>.value();
   var _noticeId = 0;
 
   late ComposerImageMediaService _media;
@@ -53,7 +58,10 @@ class ComposerImages extends _$ComposerImages {
 
     final List<XFile> files;
     try {
-      files = await _picker.pickMultiImage();
+      files = await _picker.pickMultiImage(
+        maxWidth: _media.config.maxImageWidth.toDouble(),
+        maxHeight: _media.config.maxImageHeight.toDouble(),
+      );
     } on Object {
       _setNotice(ImagePickerFailedNotice(id: _nextNoticeId()));
       return;
@@ -130,7 +138,11 @@ class ComposerImages extends _$ComposerImages {
 
     final XFile? file;
     try {
-      file = await _picker.pickImage(source: ImageSource.gallery);
+      file = await _picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: _media.config.maxImageWidth.toDouble(),
+        maxHeight: _media.config.maxImageHeight.toDouble(),
+      );
     } on Object {
       _setNotice(ImagePickerFailedNotice(id: _nextNoticeId()));
       return;
@@ -257,7 +269,9 @@ class ComposerImages extends _$ComposerImages {
 
   void retry(String imageId) {
     final image = state.images.firstWhere((image) => image.id == imageId);
-    if (image.phase case ImageFailed(:final failure) when failure.canRetry) {
+    if (image.phase case ImageFailed(
+      :final failure,
+    ) when failure.canRetry && image.previewBytes != null) {
       final operation = _ImageOperation();
       _operations[image.id] = operation;
       _updateImage(
@@ -282,15 +296,17 @@ class ComposerImages extends _$ComposerImages {
   }
 
   void _startPipeline(List<_ComposerImagePipelineItem> jobs) {
-    unawaited(
-      _consumePipeline(
+    _pipelineTail = _pipelineTail.then((_) async {
+      if (!ref.mounted) return;
+      await _consumePipeline(
         runPipeline<_ComposerImagePipelineItem>(
           items: jobs,
           steps: _imagePipelineSteps(),
-          concurrency: _media.maxImages,
+          concurrency: 1,
         ),
-      ),
-    );
+      );
+    });
+    unawaited(_pipelineTail);
   }
 
   List<PipelineStep<_ComposerImagePipelineItem>> _imagePipelineSteps() {
@@ -328,8 +344,8 @@ class ComposerImages extends _$ComposerImages {
         break;
       case StepCompleted(:final stepName, :final result):
         _handleStepCompleted(event.item.id, stepName, result);
-      case StepFailed(:final stepName, :final error):
-        _handleStepFailed(event.item.id, stepName, error);
+      case StepFailed(:final stepName, :final error, :final stackTrace):
+        _handleStepFailed(event.item.id, stepName, error, stackTrace);
       case ItemCompleted(:final result):
         _handleItemCompleted(result);
     }
@@ -358,7 +374,7 @@ class ComposerImages extends _$ComposerImages {
         _updateImage(
           imageId,
           (draft) => draft.copyWith(
-            previewBytes: Uint8List.fromList(bytes),
+            previewBytes: bytes,
             previewAspectRatio: result.previewAspectRatio,
           ),
         );
@@ -379,19 +395,71 @@ class ComposerImages extends _$ComposerImages {
     }
   }
 
-  void _handleStepFailed(String imageId, String stepName, Object error) {
-    if (error is _OriginalImageTooLarge || error is _PreparedImageTooLarge) {
+  void _handleStepFailed(
+    String imageId,
+    String stepName,
+    Object error,
+    StackTrace stackTrace,
+  ) {
+    if (error case ImageSourceDimensionsTooLargeException(
+      :final width,
+      :final height,
+      :final maxSide,
+      :final maxPixels,
+    )) {
+      _log.fine(
+        'composer image rejected: '
+        'step=$stepName, classification=source_dimensions_too_large, '
+        'width=$width, height=$height, maxSide=$maxSide, '
+        'maxPixels=$maxPixels',
+      );
+      _fail(imageId, const ImageSourceDimensionsTooLarge());
+      return;
+    }
+    if (error is _OriginalImageTooLarge ||
+        error is ImageSourceTooLargeException) {
+      _log.fine(
+        'composer image rejected: '
+        'step=$stepName, classification=source_bytes_too_large',
+      );
+      _fail(
+        imageId,
+        ImageTooLarge(_media.config.maxSourceImageBytes, source: true),
+      );
+      return;
+    }
+    if (error is _PreparedImageTooLarge) {
+      _log.fine(
+        'composer image rejected: '
+        'step=$stepName, classification=prepared_image_too_large',
+      );
       _fail(imageId, ImageTooLarge(_media.maxImageBytes));
       return;
     }
     if (error is _UnsupportedOriginalImage) {
+      _log.fine(
+        'composer image rejected: '
+        'step=$stepName, classification=unsupported_image_type',
+      );
       _fail(imageId, const UnsupportedImageType());
       return;
     }
 
+    _log.warning(
+      'composer image pipeline failed: '
+      'step=$stepName, errorType=${error.runtimeType}',
+      null,
+      stackTrace,
+    );
+
     switch (stepName) {
-      case _ImagePipelineStepNames.read || _ImagePipelineStepNames.prepare:
+      case _ImagePipelineStepNames.read:
         _fail(imageId, const ImagePreparationFailed());
+      case _ImagePipelineStepNames.prepare:
+        _fail(
+          imageId,
+          const ImagePreparationFailed(retryable: true),
+        );
       case _ImagePipelineStepNames.validatePrepared:
         _fail(imageId, ImageTooLarge(_media.maxImageBytes));
     }
@@ -405,13 +473,13 @@ class ComposerImages extends _$ComposerImages {
     _updateImage(
       result.id,
       (draft) => draft.copyWith(
-        previewBytes: Uint8List.fromList(prepared.bytes),
+        previewBytes: prepared.bytes,
         previewAspectRatio: _media.aspectRatioFor(
           width: prepared.width,
           height: prepared.height,
         ),
         phase: ImageReady(
-          bytes: Uint8List.fromList(prepared.bytes),
+          bytes: prepared.bytes,
           mimeType: prepared.mimeType,
           width: prepared.width,
           height: prepared.height,
@@ -434,7 +502,7 @@ class ComposerImages extends _$ComposerImages {
       );
     }
     final job = _media.inspectImage(
-      bytes: Uint8List.fromList(bytes),
+      bytes: bytes,
       fileName: item.fileName,
       mimeType: item.mimeType,
     );
@@ -442,7 +510,7 @@ class ComposerImages extends _$ComposerImages {
     final inspected = await job.future;
     item.operation.inspectionJob = null;
     return item.copyWith(
-      originalBytes: Uint8List.fromList(bytes),
+      originalBytes: bytes,
       previewAspectRatio: _media.aspectRatioFor(
         width: inspected.width,
         height: inspected.height,
@@ -468,7 +536,10 @@ class ComposerImages extends _$ComposerImages {
       headerBytes: headerBytes,
     );
 
-    final bytes = await file.readAsBytes();
+    final bytes = await readBoundedImageFile(
+      file,
+      maxBytes: _media.config.maxSourceImageBytes,
+    );
     _throwIfInvalidOriginal(
       item: item,
       sizeBytes: bytes.length,
@@ -525,7 +596,7 @@ class ComposerImages extends _$ComposerImages {
   ) async {
     final bytes = item.originalBytes!;
     final job = _media.prepareImage(
-      bytes: Uint8List.fromList(bytes),
+      bytes: bytes,
       fileName: item.fileName,
       mimeType: item.mimeType,
     );
@@ -542,6 +613,8 @@ class ComposerImages extends _$ComposerImages {
     final sizeCheck = _media.validatePreparedUploadBytes(
       originalBytes: item.originalBytes!.length,
       preparedBytes: item.prepared!.bytes.length,
+      width: item.prepared!.width,
+      height: item.prepared!.height,
     );
     if (!sizeCheck.canUpload) throw const _PreparedImageTooLarge();
     return item;

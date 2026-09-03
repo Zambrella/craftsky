@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/feed/media/bounded_image_file_reader.dart';
 import 'package:craftsky_app/feed/media/composer_image_media_service.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
@@ -79,7 +80,10 @@ class ProfileImagePicker {
       throw const ProfileImagePickException();
     }
 
-    final bytes = await file.readAsBytes();
+    final bytes = await readBoundedImageFile(
+      file,
+      maxBytes: _media.config.maxSourceImageBytes,
+    );
     onPreviewReady(bytes);
 
     final prepared = await _media
@@ -88,6 +92,8 @@ class ProfileImagePicker {
     final preparedCheck = _media.validatePreparedUploadBytes(
       originalBytes: bytes.length,
       preparedBytes: prepared.bytes.length,
+      width: prepared.width,
+      height: prepared.height,
     );
     if (!preparedCheck.canUpload) {
       throw const ProfileImagePickException();

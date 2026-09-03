@@ -16,6 +16,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
+import 'package:logging/logging.dart';
 
 void main() {
   test('seeds locally saved ready and unavailable draft images', () async {
@@ -150,6 +151,11 @@ void main() {
       expect(ready.width, 2);
       expect(ready.height, 1);
       expect(ready.storedOrigin, isNull);
+      expect(picker.lastSingleMaxWidth, mediaConfig.maxImageWidth.toDouble());
+      expect(
+        picker.lastSingleMaxHeight,
+        mediaConfig.maxImageHeight.toDouble(),
+      );
     },
   );
   group('ComposerImages', () {
@@ -168,6 +174,21 @@ void main() {
       final state = container.read(composerImagesProvider('composer'));
       expect(state.images, isEmpty);
       expect(state.notice, isA<ImagePickerFailedNotice>());
+    });
+
+    test('requests bounded images from the multi-image picker', () async {
+      final picker = _FakeImagePicker(() async => const []);
+      final container = _containerWithPicker(picker);
+      addTearDown(container.dispose);
+      final sub = _listenComposer(container);
+      addTearDown(sub.close);
+
+      await container
+          .read(composerImagesProvider('composer').notifier)
+          .addImages();
+
+      expect(picker.lastMultiMaxWidth, mediaConfig.maxImageWidth.toDouble());
+      expect(picker.lastMultiMaxHeight, mediaConfig.maxImageHeight.toDouble());
     });
 
     test('rejects WebP selections before adding draft images', () async {
@@ -216,7 +237,7 @@ void main() {
               Uint8List.fromList(List<int>.filled(16, 0xff)),
               name: 'large.jpg',
               mimeType: 'image/jpeg',
-              length: mediaConfig.maxImageBytes + 1,
+              length: mediaConfig.maxSourceImageBytes + 1,
             ),
           ],
         ),
@@ -237,7 +258,10 @@ void main() {
 
       final phase = state.images.single.phase;
       expect(phase, isA<ImageFailed>());
-      expect((phase as ImageFailed).failure, isA<ImageTooLarge>());
+      final failure = (phase as ImageFailed).failure;
+      expect(failure, isA<ImageTooLarge>());
+      expect((failure as ImageTooLarge).source, isTrue);
+      expect(failure.message, contains('too large to process'));
     });
 
     test(
@@ -278,12 +302,67 @@ void main() {
 
         final ready = image.phase as ImageReady;
         expect(ready.bytes, image.previewBytes);
+        expect(identical(ready.bytes, image.previewBytes), isTrue);
         expect(ready.mimeType, 'image/jpeg');
         expect(ready.width, 3);
         expect(ready.height, 2);
         expect(ready.sha256, isNotEmpty);
       },
     );
+
+    test('prepares at most one selected image at a time', () async {
+      final bytes = _pngBytes(width: 256, height: 256);
+      var batch = 0;
+      final container = _containerWithPicker(
+        _FakeImagePicker(
+          () async {
+            final offset = batch * 2;
+            batch += 1;
+            return List.generate(
+              2,
+              (index) => XFile.fromData(
+                bytes,
+                name: 'project-${offset + index}.png',
+                mimeType: 'image/png',
+              ),
+            );
+          },
+        ),
+      );
+      addTearDown(container.dispose);
+      var maxPreparing = 0;
+      final sub = container.listen(
+        composerImagesProvider('composer'),
+        (_, state) {
+          final preparing = state.images
+              .where((image) => image.phase is ImagePreparing)
+              .length;
+          if (preparing > maxPreparing) maxPreparing = preparing;
+        },
+        fireImmediately: true,
+      );
+      addTearDown(sub.close);
+
+      await container
+          .read(composerImagesProvider('composer').notifier)
+          .addImages();
+      await _waitForState(
+        container,
+        (state) => state.images.any((image) => image.phase is ImagePreparing),
+      );
+      await container
+          .read(composerImagesProvider('composer').notifier)
+          .addImages();
+      final state = await _waitForState(
+        container,
+        (state) =>
+            state.images.length == mediaConfig.maxImages &&
+            state.images.every((image) => image.phase is ImageReady),
+      );
+
+      expect(state.images, hasLength(mediaConfig.maxImages));
+      expect(maxPreparing, 1);
+    });
 
     test('maps unsupported original headers to image failure', () async {
       final container = _containerWithPicker(
@@ -315,6 +394,9 @@ void main() {
     });
 
     test('maps corrupt accepted bytes to preparation failure', () async {
+      final logRecords = <LogRecord>[];
+      final logSubscription = Logger.root.onRecord.listen(logRecords.add);
+      addTearDown(logSubscription.cancel);
       final container = _containerWithPicker(
         _FakeImagePicker(
           () async => [
@@ -340,6 +422,76 @@ void main() {
 
       final phase = state.images.single.phase;
       expect((phase as ImageFailed).failure, isA<ImagePreparationFailed>());
+      expect(phase.failure.canRetry, isFalse);
+      final messages = logRecords.map((record) => record.message).join('\n');
+      expect(messages, contains('step=read, errorType='));
+      expect(messages, isNot(contains('corrupt.jpg')));
+    });
+
+    test(
+      'allows retry when preparation fails after bytes are retained',
+      () async {
+        final container = _containerWithPicker(
+          _FakeImagePicker(
+            () async => [
+              XFile.fromData(
+                _jpegHeader(width: 1, height: 1),
+                name: 'incomplete.jpg',
+                mimeType: 'image/jpeg',
+              ),
+            ],
+          ),
+        );
+        addTearDown(container.dispose);
+        final sub = _listenComposer(container);
+        addTearDown(sub.close);
+
+        await container
+            .read(composerImagesProvider('composer').notifier)
+            .addImages();
+        final state = await _waitForState(
+          container,
+          (state) => state.images.singleOrNull?.phase is ImageFailed,
+        );
+        final phase = state.images.single.phase as ImageFailed;
+
+        expect(phase.failure, isA<ImagePreparationFailed>());
+        expect(phase.failure.canRetry, isTrue);
+        expect(state.images.single.previewBytes, isNotNull);
+      },
+    );
+
+    test('maps oversized source geometry to a non-retryable failure', () async {
+      final container = _containerWithPicker(
+        _FakeImagePicker(
+          () async => [
+            XFile.fromData(
+              _jpegHeader(width: 4284, height: 5712),
+              name: 'large-dimensions.jpg',
+              mimeType: 'image/jpeg',
+            ),
+          ],
+        ),
+      );
+      addTearDown(container.dispose);
+      final sub = _listenComposer(container);
+      addTearDown(sub.close);
+      final notifier = container.read(
+        composerImagesProvider('composer').notifier,
+      );
+
+      await notifier.addImages();
+      final failed = await _waitForState(
+        container,
+        (state) => state.images.singleOrNull?.phase is ImageFailed,
+      );
+      final phase = failed.images.single.phase as ImageFailed;
+
+      expect(phase.failure, isA<ImageSourceDimensionsTooLarge>());
+      expect(phase.failure.canRetry, isFalse);
+      notifier.retry(failed.images.single.id);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(container.read(composerImagesProvider('composer')), failed);
     });
 
     test('maps prepared size failures before upload starts', () async {
@@ -459,6 +611,10 @@ class _FakeImagePicker extends ImagePicker {
   final Future<List<XFile>> Function() _pick;
   final Future<XFile?> Function()? pickSingle;
   int pickCount = 0;
+  double? lastMultiMaxWidth;
+  double? lastMultiMaxHeight;
+  double? lastSingleMaxWidth;
+  double? lastSingleMaxHeight;
 
   @override
   Future<List<XFile>> pickMultiImage({
@@ -469,6 +625,8 @@ class _FakeImagePicker extends ImagePicker {
     bool requestFullMetadata = true,
   }) {
     pickCount += 1;
+    lastMultiMaxWidth = maxWidth;
+    lastMultiMaxHeight = maxHeight;
     return _pick();
   }
 
@@ -480,7 +638,11 @@ class _FakeImagePicker extends ImagePicker {
     int? imageQuality,
     CameraDevice preferredCameraDevice = CameraDevice.rear,
     bool requestFullMetadata = true,
-  }) => pickSingle?.call() ?? Future<XFile?>.value();
+  }) {
+    lastSingleMaxWidth = maxWidth;
+    lastSingleMaxHeight = maxHeight;
+    return pickSingle?.call() ?? Future<XFile?>.value();
+  }
 }
 
 class _FakePostApiClient extends PostApiClient {
@@ -537,6 +699,8 @@ class _PreparedTooLargeMediaService extends ComposerImageMediaService {
   PreparedUploadValidationResult validatePreparedUploadBytes({
     required int originalBytes,
     required int preparedBytes,
+    required int width,
+    required int height,
   }) {
     return const PreparedUploadValidationResult(
       canUpload: false,
@@ -593,6 +757,34 @@ Uint8List _jpegBytes({required int width, required int height}) {
   return Uint8List.fromList(
     img.encodeJpg(img.Image(width: width, height: height)),
   );
+}
+
+Uint8List _jpegHeader({required int width, required int height}) {
+  return Uint8List.fromList([
+    0xff,
+    0xd8,
+    0xff,
+    0xc0,
+    0x00,
+    0x11,
+    0x08,
+    height >> 8,
+    height & 0xff,
+    width >> 8,
+    width & 0xff,
+    0x03,
+    0x01,
+    0x11,
+    0x00,
+    0x02,
+    0x11,
+    0x00,
+    0x03,
+    0x11,
+    0x00,
+    0xff,
+    0xd9,
+  ]);
 }
 
 Uint8List _pngBytes({required int width, required int height}) {

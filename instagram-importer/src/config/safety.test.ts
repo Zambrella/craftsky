@@ -18,9 +18,11 @@ describe('instagram-import-v1 safety policy (UT-001)', () => {
       maxSourceImageBytes: 64 * 1024 * 1024,
       maxDecodedPixels: 25_000_000,
       maxDimension: 12_000,
+      maxFinalImageWidth: 4_000,
+      maxFinalImageHeight: 4_000,
       maxCompressionRatio: 200,
       maxConcurrentImageTransforms: 1,
-      maxFinalBlobBytes: 15 * 1024 * 1024,
+      maxFinalBlobBytes: 2_000_000,
     })
     expect(IMPORT_SAFETY_POLICY).not.toHaveProperty('maxArchiveBytes')
   })
@@ -33,20 +35,13 @@ describe('instagram-import-v1 safety policy (UT-001)', () => {
 
   it.each(
     Object.entries(IMPORT_SAFETY_POLICY).filter(
-      (
-        entry,
-      ): entry is [string, number] => typeof entry[1] === 'number',
+      (entry): entry is [string, number] => typeof entry[1] === 'number',
     ),
-  )(
-    'checks one below, at, and above %s',
-    (_name, limit) => {
-      expect(withinInclusiveLimit(Math.max(0, limit - 1), limit)).toBe(
-        true,
-      )
-      expect(withinInclusiveLimit(limit, limit)).toBe(true)
-      expect(withinInclusiveLimit(limit + 1, limit)).toBe(false)
-    },
-  )
+  )('checks one below, at, and above %s', (_name, limit) => {
+    expect(withinInclusiveLimit(Math.max(0, limit - 1), limit)).toBe(true)
+    expect(withinInclusiveLimit(limit, limit)).toBe(true)
+    expect(withinInclusiveLimit(limit + 1, limit)).toBe(false)
+  })
 
   it('rejects zero-byte and over-limit compressed representations', () => {
     expect(withinCompressionRatio(199, 1, 200)).toBe(true)

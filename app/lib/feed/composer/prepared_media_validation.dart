@@ -16,6 +16,8 @@ String verifyPreparedMediaBytes({
   final sizeValidation = mediaService.validatePreparedUploadBytes(
     originalBytes: bytes.length,
     preparedBytes: bytes.length,
+    width: width,
+    height: height,
   );
   if (!sizeValidation.canUpload ||
       bytes.isEmpty ||

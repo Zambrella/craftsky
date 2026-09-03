@@ -7,7 +7,6 @@ import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
 import 'package:craftsky_app/feed/composer/link_preview_controller.dart';
-import 'package:craftsky_app/feed/media/composer_image_media_service.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
 import 'package:craftsky_app/feed/models/link_preview.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
@@ -116,15 +115,7 @@ void main() {
     expect(stageCalls, 0);
   });
 
-  test('scheduled ready media is resized before private staging', () async {
-    const mediaService = ComposerImageMediaService(
-      scheduledImageLimits: ScheduledImageLimits(
-        maxWidth: 20,
-        maxHeight: 20,
-        maxPixels: 100,
-        maxAspectRatio: 20,
-      ),
-    );
+  test('scheduled ready media reuses canonical prepared bytes', () async {
     final bytes = _pngBytes(width: 20, height: 10);
     final image = ComposerImageDraft(
       id: 'large-ready',
@@ -143,7 +134,6 @@ void main() {
 
     final media = await materializeScheduledComposerMedia(
       [image],
-      mediaService: mediaService,
       stageMedia:
           ({
             required id,
@@ -159,13 +149,11 @@ void main() {
       {
         'id': 'large-ready',
         'alt': 'project detail',
-        'width': 14,
-        'height': 7,
+        'width': 20,
+        'height': 10,
       },
     ]);
-    final decoded = img.decodePng(stagedBytes!);
-    expect(decoded, isNotNull);
-    expect((decoded!.width, decoded.height), (14, 7));
+    expect(stagedBytes, bytes);
   });
 
   test(

@@ -170,7 +170,7 @@ func TestPDSWriteHandlersEmitObservedOperations(t *testing.T) {
 	deletePostReq.SetPathValue("rkey", "post1")
 	serveObservedPDSRequest(t, deletePostHandler, deletePostReq, http.StatusNoContent)
 
-	blobHandler := api.ImageBlobUploadHandler(observedTestEffectFactory(blobEffectsFactory(&fakeBlobEffects{}), recorder), api.DefaultMediaLimits(), nilLogger())
+	blobHandler := api.ImageBlobUploadHandler(observedTestEffectFactory(blobEffectsFactory(&fakeBlobEffects{}), recorder), api.DefaultMediaLimits(), acceptingImageValidator, nilLogger())
 	blobReq := withOAuthSession(authedReq(http.MethodPost, "/v1/blobs/images", "jpeg-bytes", "did:plc:alice"))
 	blobReq.Header.Set("Content-Type", "image/jpeg")
 	serveObservedPDSRequest(t, blobHandler, blobReq, http.StatusOK)
@@ -321,6 +321,7 @@ func TestPDSWriteHandlerLogsUseBoundedContextWithoutRawIdentitySessionOrContent(
 			Size: 11,
 		}}),
 		api.DefaultMediaLimits(),
+		acceptingImageValidator,
 		logger,
 	)
 	blobReq := loggedWriteReq(http.MethodPost, "/v1/blobs/images", "")

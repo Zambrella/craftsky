@@ -201,8 +201,9 @@ Production limits are centralized in `src/config/safety.ts`. The initial
 envelope allows at most 100,000 ZIP entries, a 64 MiB central directory, 32 MiB
 per candidate post JSON file, 128 MiB combined candidate metadata, 25,000
 normalized posts, 64 MiB per selected source image, 25 decoded megapixels,
-12,000 pixels per dimension, a 200:1 selected-entry decompression ratio, one
-concurrent image decode/re-encode, and a 15 MiB final image blob.
+12,000 pixels per source dimension, a 200:1 selected-entry decompression ratio,
+one concurrent image decode/re-encode, 4,000 pixels per final image dimension,
+and exactly 2,000,000 bytes per final image blob.
 
 There is intentionally no overall ZIP-size or cumulative selected-media limit.
 Archive metadata overflows stop locally with Posts-only export guidance; media

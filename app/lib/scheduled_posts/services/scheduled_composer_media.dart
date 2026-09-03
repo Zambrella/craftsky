@@ -84,38 +84,35 @@ Future<List<Map<String, dynamic>>> materializeScheduledComposerMedia(
           'width': width,
           'height': height,
         });
-      case ImageUploaded():
+      case ImageUploaded(:final uploaded):
         final bytes = draft.previewBytes;
         if (bytes == null) {
           throw StateError('scheduled image bytes are unavailable');
         }
-        final prepared = await mediaService
-            .prepareScheduledImage(
-              bytes: bytes,
-              fileName: draft.fileName,
-              mimeType: draft.mimeType,
-            )
-            .future;
+        final aspectRatio = uploaded.aspectRatio;
+        if (aspectRatio == null) {
+          throw StateError('scheduled image dimensions are unavailable');
+        }
         verifyPreparedMediaBytes(
-          bytes: prepared.bytes,
-          mimeType: prepared.mimeType,
-          width: prepared.width,
-          height: prepared.height,
+          bytes: bytes,
+          mimeType: uploaded.mime,
+          width: aspectRatio.width,
+          height: aspectRatio.height,
           altText: draft.altText,
           mediaService: mediaService,
         );
         await _stageWithBudget(
           stageMedia,
           id: draft.id,
-          bytes: prepared.bytes,
-          mimeType: prepared.mimeType,
+          bytes: bytes,
+          mimeType: uploaded.mime,
           transferBudget: transferBudget,
         );
         media.add({
           'id': draft.id,
           'alt': draft.altText.trim(),
-          'width': prepared.width,
-          'height': prepared.height,
+          'width': aspectRatio.width,
+          'height': aspectRatio.height,
         });
         onStaged?.call(media.length);
       case ImageReady(
@@ -134,33 +131,18 @@ Future<List<Map<String, dynamic>>> materializeScheduledComposerMedia(
           mediaService: mediaService,
           expectedSha256: sha256,
         );
-        final prepared = await mediaService
-            .prepareScheduledImage(
-              bytes: bytes,
-              fileName: draft.fileName,
-              mimeType: mimeType,
-            )
-            .future;
-        verifyPreparedMediaBytes(
-          bytes: prepared.bytes,
-          mimeType: prepared.mimeType,
-          width: prepared.width,
-          height: prepared.height,
-          altText: draft.altText,
-          mediaService: mediaService,
-        );
         await _stageWithBudget(
           stageMedia,
           id: draft.id,
-          bytes: prepared.bytes,
-          mimeType: prepared.mimeType,
+          bytes: bytes,
+          mimeType: mimeType,
           transferBudget: transferBudget,
         );
         media.add({
           'id': draft.id,
           'alt': draft.altText.trim(),
-          'width': prepared.width,
-          'height': prepared.height,
+          'width': width,
+          'height': height,
         });
         onStaged?.call(media.length);
       case ImageQueued() ||

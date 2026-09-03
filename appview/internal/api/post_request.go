@@ -174,6 +174,7 @@ func ValidatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits) err
 			fields[prefix+".image"] = "must not be empty"
 		} else {
 			validatePostImageBlob(fields, prefix+".image", img.Image)
+			validateImageBlobPolicy(fields, prefix+".image", img.Image, limits.MaxImageUploadBytes)
 		}
 		if img.AspectRatio != nil {
 			if img.AspectRatio.Width <= 0 {
@@ -290,6 +291,16 @@ func validatePostImageBlob(fields map[string]string, prefix string, blob map[str
 	}
 	if !isPositiveIntegerValue(blob["size"]) {
 		fields[prefix+".size"] = "must be a positive integer"
+	}
+}
+
+func validateImageBlobPolicy(fields map[string]string, prefix string, blob map[string]any, maxBytes int64) {
+	mimeType, _ := blob["mimeType"].(string)
+	if _, ok := allowedImageUploadMIMETypes[canonicalContentType(mimeType)]; !ok {
+		fields[prefix+".mimeType"] = "must be image/jpeg, image/png, or image/webp"
+	}
+	if size, ok := positiveIntegerValue(blob["size"]); ok && size > uint64(maxBytes) {
+		fields[prefix+".size"] = "must be no greater than " + formatInt64(maxBytes)
 	}
 }
 

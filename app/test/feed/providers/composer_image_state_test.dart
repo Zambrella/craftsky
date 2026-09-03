@@ -119,4 +119,25 @@ void main() {
       expect(failed.canSaveDraftMedia(), isFalse);
     });
   });
+
+  group('Composer image failures', () {
+    test('source geometry failures are non-retryable and round-trip', () {
+      const failure = ImageSourceDimensionsTooLarge();
+
+      expect(failure.canRetry, isFalse);
+      expect(failure.message, 'This image is too large to process');
+      expect(
+        ImageSourceDimensionsTooLargeMapper.fromJson(failure.toJson()),
+        failure,
+      );
+    });
+
+    test('preparation failures expose explicit retry eligibility', () {
+      expect(const ImagePreparationFailed().canRetry, isFalse);
+      expect(
+        const ImagePreparationFailed(retryable: true).canRetry,
+        isTrue,
+      );
+    });
+  });
 }
