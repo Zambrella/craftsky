@@ -23,7 +23,7 @@ type scheduledPostRouteBundle struct {
 }
 
 func registerScheduledPostRoutes(routes scheduledPostRouteBundle) {
-	routes.mux.Handle("POST /v1/blobs/images", routes.middleware.wrap(mustPolicy("POST", "/v1/blobs/images"), api.ImageBlobUploadHandler(routes.newPDSEffects, routes.mediaLimits, routes.logger)))
+	routes.mux.Handle("POST /v1/blobs/images", routes.middleware.wrap(mustPolicy("POST", "/v1/blobs/images"), api.ImageBlobUploadHandler(routes.newPDSEffects, routes.mediaLimits, routes.imageValidator, routes.logger)))
 	routes.mux.Handle("PUT /v1/scheduled-post-media/{mediaId}", routes.middleware.wrap(mustPolicy("PUT", "/v1/scheduled-post-media/{mediaId}"), api.PutScheduledMediaHandler(routes.media, routes.mediaLimits, routes.imageValidator, routes.logger)))
 	routes.mux.Handle("GET /v1/scheduled-post-media/{mediaId}", routes.middleware.wrap(mustPolicy("GET", "/v1/scheduled-post-media/{mediaId}"), api.GetScheduledMediaHandler(routes.media, routes.logger)))
 	routes.mux.Handle("DELETE /v1/scheduled-post-media/{mediaId}", routes.middleware.wrap(mustPolicy("DELETE", "/v1/scheduled-post-media/{mediaId}"), api.DeleteScheduledMediaHandler(routes.media, time.Now, routes.logger)))

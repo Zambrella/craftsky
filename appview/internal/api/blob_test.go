@@ -31,6 +31,16 @@ type fakeBlobEffects struct {
 	factorySession string
 }
 
+type stubImageValidator struct {
+	err error
+}
+
+func (validator stubImageValidator) Validate(context.Context, string, []byte) (api.ValidatedScheduledImage, error) {
+	return api.ValidatedScheduledImage{Format: "jpeg", Width: 1, Height: 1}, validator.err
+}
+
+var acceptingImageValidator = stubImageValidator{}
+
 func (*fakeBlobEffects) ResolveExpectedOwners(
 	context.Context,
 	int64,
@@ -99,7 +109,7 @@ func TestImageBlobUpload_HappyPath_ForwardsToPDSAndReturnsMetadata(t *testing.T)
 			Size: 253496,
 		},
 	}
-	h := api.ImageBlobUploadHandler(blobEffectsFactory(effects), api.DefaultMediaLimits(), nilLogger())
+	h := api.ImageBlobUploadHandler(blobEffectsFactory(effects), api.DefaultMediaLimits(), acceptingImageValidator, nilLogger())
 	body := []byte("fake-jpeg-bytes")
 	req := authedReq(http.MethodPost, "/v1/blobs/images", "", "did:plc:alice")
 	req.Body = ioNopCloser{Reader: bytes.NewReader(body)}
@@ -147,7 +157,7 @@ func TestImageBlobUpload_HappyPath_ForwardsToPDSAndReturnsMetadata(t *testing.T)
 func TestImageBlobUpload_UnsupportedMIME_RejectsWithoutCallingPDS(t *testing.T) {
 	t.Parallel()
 	effects := &fakeBlobEffects{}
-	h := api.ImageBlobUploadHandler(blobEffectsFactory(effects), api.DefaultMediaLimits(), nilLogger())
+	h := api.ImageBlobUploadHandler(blobEffectsFactory(effects), api.DefaultMediaLimits(), acceptingImageValidator, nilLogger())
 	req := authedReq(http.MethodPost, "/v1/blobs/images", "", "did:plc:alice")
 	req.Body = ioNopCloser{Reader: bytes.NewReader([]byte("gif-bytes"))}
 	req.Header.Set("Content-Type", "image/gif")
@@ -167,10 +177,40 @@ func TestImageBlobUpload_UnsupportedMIME_RejectsWithoutCallingPDS(t *testing.T) 
 	}
 }
 
+func TestImageBlobUpload_InvalidImage_RejectsBeforeCreatingPDSEffects(t *testing.T) {
+	t.Parallel()
+	factoryCalls := 0
+	h := api.ImageBlobUploadHandler(
+		func(context.Context, syntax.DID, string) (pdseffects.EffectExecutor, error) {
+			factoryCalls++
+			return &fakeBlobEffects{}, nil
+		},
+		api.DefaultMediaLimits(),
+		stubImageValidator{err: api.ErrScheduledImageInvalid},
+		nilLogger(),
+	)
+	req := withOAuthSession(authedReq(http.MethodPost, "/v1/blobs/images", "not-an-image", "did:plc:alice"))
+	req.Header.Set("Content-Type", "image/jpeg")
+	recorder := httptest.NewRecorder()
+
+	h.ServeHTTP(recorder, req)
+
+	if recorder.Code != http.StatusUnprocessableEntity || factoryCalls != 0 {
+		t.Fatalf("status/factory calls = %d/%d, body = %s", recorder.Code, factoryCalls, recorder.Body.String())
+	}
+	var response envelope.Error
+	if err := json.NewDecoder(recorder.Body).Decode(&response); err != nil {
+		t.Fatalf("decode error response: %v", err)
+	}
+	if response.Error != "validation_failed" || response.Fields["image"] == "" {
+		t.Fatalf("response = %#v", response)
+	}
+}
+
 func TestImageBlobUpload_OversizedBody_RejectsWithoutCallingPDS(t *testing.T) {
 	t.Parallel()
 	effects := &fakeBlobEffects{}
-	h := api.ImageBlobUploadHandler(blobEffectsFactory(effects), api.DefaultMediaLimits(), nilLogger())
+	h := api.ImageBlobUploadHandler(blobEffectsFactory(effects), api.DefaultMediaLimits(), acceptingImageValidator, nilLogger())
 	over := bytes.Repeat([]byte("a"), int(api.MaxImageUploadBytes+1))
 	req := authedReq(http.MethodPost, "/v1/blobs/images", "", "did:plc:alice")
 	req.Body = ioNopCloser{Reader: bytes.NewReader(over)}
@@ -196,7 +236,7 @@ func TestImageBlobUpload_FailureLogsExcludeImageBytesAndToken(t *testing.T) {
 	var logs bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logs, nil))
 	effects := &fakeBlobEffects{uploadErr: errors.New("pds down")}
-	h := api.ImageBlobUploadHandler(blobEffectsFactory(effects), api.DefaultMediaLimits(), logger)
+	h := api.ImageBlobUploadHandler(blobEffectsFactory(effects), api.DefaultMediaLimits(), acceptingImageValidator, logger)
 
 	const sentinelBytes = "SENSITIVE_IMAGE_BYTES"
 	const sentinelToken = "SENSITIVE_TOKEN"
@@ -222,7 +262,7 @@ func TestImageBlobUpload_FailureLogsExcludeImageBytesAndToken(t *testing.T) {
 func TestImageBlobUpload_PDSSessionExpiredReturns401(t *testing.T) {
 	t.Parallel()
 	effects := &fakeBlobEffects{uploadErr: auth.ErrPDSSessionExpired}
-	h := api.ImageBlobUploadHandler(blobEffectsFactory(effects), api.DefaultMediaLimits(), nilLogger())
+	h := api.ImageBlobUploadHandler(blobEffectsFactory(effects), api.DefaultMediaLimits(), acceptingImageValidator, nilLogger())
 	req := authedReq(http.MethodPost, "/v1/blobs/images", "", "did:plc:alice")
 	req.Body = io.NopCloser(strings.NewReader("jpeg-bytes"))
 	req.Header.Set("Content-Type", "image/jpeg")
@@ -248,6 +288,7 @@ func TestImageBlobUploadMissingGenerationFailsBeforeEffectFactory(t *testing.T) 
 			return nil, errors.New("must not be called")
 		},
 		api.DefaultMediaLimits(),
+		acceptingImageValidator,
 		nilLogger(),
 	)
 	req := httptest.NewRequest(http.MethodPost, "/v1/blobs/images", strings.NewReader("jpeg-bytes"))
@@ -273,6 +314,7 @@ func TestImageBlobUploadFactoryFailureOccursBeforeDurableUpload(t *testing.T) {
 			return nil, errors.New("session resume failed")
 		},
 		api.DefaultMediaLimits(),
+		acceptingImageValidator,
 		nilLogger(),
 	)
 	req := withOAuthSession(authedReq(http.MethodPost, "/v1/blobs/images", "jpeg-bytes", "did:plc:alice"))
@@ -309,7 +351,7 @@ func TestImageBlobUploadDurableAmbiguityAndConflictFailSafely(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 			effects := &fakeBlobEffects{uploadErr: test.err}
-			h := api.ImageBlobUploadHandler(blobEffectsFactory(effects), api.DefaultMediaLimits(), nilLogger())
+			h := api.ImageBlobUploadHandler(blobEffectsFactory(effects), api.DefaultMediaLimits(), acceptingImageValidator, nilLogger())
 			req := withOAuthSession(authedReq(http.MethodPost, "/v1/blobs/images", "jpeg-bytes", "did:plc:alice"))
 			req.Header.Set("Content-Type", "image/jpeg")
 			recorder := httptest.NewRecorder()

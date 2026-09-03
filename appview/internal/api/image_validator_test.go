@@ -231,6 +231,9 @@ func TestImageGeometryAllowed(t *testing.T) {
 
 func TestImageDecodeLimitsFailClosed(t *testing.T) {
 	valid := DefaultImageDecodeLimits()
+	if valid.MaxWidth != 4_000 || valid.MaxHeight != 4_000 {
+		t.Fatalf("default dimensions = %dx%d, want 4000x4000", valid.MaxWidth, valid.MaxHeight)
+	}
 	tests := []struct {
 		name   string
 		mutate func(*ImageDecodeLimits)

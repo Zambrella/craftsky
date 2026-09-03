@@ -1,8 +1,5 @@
 import { IMPORT_SAFETY_POLICY } from '../config/safety'
-import {
-  inspectImageHeader,
-  type SupportedImageMime,
-} from './inspect'
+import { inspectImageHeader, type SupportedImageMime } from './inspect'
 
 export interface SanitizedImage {
   readonly buffer: ArrayBuffer
@@ -37,13 +34,17 @@ export async function sanitizeImage(
       bitmap.height < 1 ||
       bitmap.width > IMPORT_SAFETY_POLICY.maxDimension ||
       bitmap.height > IMPORT_SAFETY_POLICY.maxDimension ||
-      bitmap.width * bitmap.height >
-        IMPORT_SAFETY_POLICY.maxDecodedPixels
+      bitmap.width * bitmap.height > IMPORT_SAFETY_POLICY.maxDecodedPixels
     ) {
       throw new Error('decodedImageLimit')
     }
-    let width = bitmap.width
-    let height = bitmap.height
+    const initialScale = Math.min(
+      1,
+      IMPORT_SAFETY_POLICY.maxFinalImageWidth / bitmap.width,
+      IMPORT_SAFETY_POLICY.maxFinalImageHeight / bitmap.height,
+    )
+    let width = Math.max(1, Math.floor(bitmap.width * initialScale))
+    let height = Math.max(1, Math.floor(bitmap.height * initialScale))
     for (let attempt = 0; attempt < 8; attempt += 1) {
       signal?.throwIfAborted()
       const canvas = new OffscreenCanvas(width, height)
@@ -61,6 +62,12 @@ export async function sanitizeImage(
         const outputHeader = inspectImageHeader(new Uint8Array(buffer))
         if (outputHeader.mime !== header.mime) {
           throw new Error('mediaEncodingMismatch')
+        }
+        if (
+          outputHeader.width > IMPORT_SAFETY_POLICY.maxFinalImageWidth ||
+          outputHeader.height > IMPORT_SAFETY_POLICY.maxFinalImageHeight
+        ) {
+          throw new Error('finalImageDimensionLimit')
         }
         return {
           buffer,

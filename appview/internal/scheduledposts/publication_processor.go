@@ -70,7 +70,7 @@ func NewPublicationProcessor(options PublicationProcessorOptions) (*PublicationP
 		options.Validate = func(context.Context, syntax.DID, Payload) error { return nil }
 	}
 	if options.MaxMediaBytes == 0 {
-		options.MaxMediaBytes = 15 * 1024 * 1024
+		options.MaxMediaBytes = 2_000_000
 	}
 	if options.MaxMediaBytes < 1 {
 		return nil, errors.New("scheduled publication media limit is invalid")

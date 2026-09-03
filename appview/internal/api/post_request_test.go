@@ -4,6 +4,7 @@ package api_test
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -434,6 +435,35 @@ func TestValidatePostCreate_UsesConfiguredImageCountLimit(t *testing.T) {
 	}
 	if got := fe.Fields["images"]; got != "exceeds maximum of 1 entries" {
 		t.Fatalf("images error = %q", got)
+	}
+}
+
+func TestValidatePostCreate_RejectsImageBlobOutsideUploadPolicy(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name     string
+		mimeType string
+		size     int
+		field    string
+	}{
+		{name: "unsupported MIME", mimeType: "image/gif", size: 1, field: "images[0].image.mimeType"},
+		{name: "oversized", mimeType: "image/jpeg", size: 2_000_001, field: "images[0].image.size"},
+	} {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			req, err := api.DecodePostCreate(strings.NewReader(fmt.Sprintf(`{
+				"text":"hi",
+				"images":[{"image":{"$type":"blob","ref":{"$link":"bafkimage"},"mimeType":%q,"size":%d}}]
+			}`, test.mimeType, test.size)))
+			if err != nil {
+				t.Fatalf("DecodePostCreate: %v", err)
+			}
+			err = api.ValidatePostCreate(req)
+			var fieldErr *api.FieldError
+			if !errors.As(err, &fieldErr) || fieldErr.Fields[test.field] == "" {
+				t.Fatalf("error = %#v, want field %q", err, test.field)
+			}
+		})
 	}
 }
 

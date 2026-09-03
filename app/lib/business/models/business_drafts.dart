@@ -734,7 +734,7 @@ bool _validImage(
 ) =>
     const {'image/jpeg', 'image/png', 'image/webp'}.contains(mime) &&
     size >= 0 &&
-    size <= 15 * 1024 * 1024 &&
+    size <= 2000000 &&
     alt.runes.length <= businessImageAltLimit &&
     utf8.encode(alt).length <= businessImageAltLimit &&
     (aspectRatio == null || (aspectRatio.width > 0 && aspectRatio.height > 0));

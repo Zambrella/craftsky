@@ -281,26 +281,44 @@ final class UnsupportedImageType extends ComposerImageFailure
 @MappableClass()
 final class ImagePreparationFailed extends ComposerImageFailure
     with ImagePreparationFailedMappable {
-  const ImagePreparationFailed();
+  const ImagePreparationFailed({this.retryable = false});
+
+  final bool retryable;
 
   @override
   String get message => 'Could not prepare image';
 
   @override
-  bool get canRetry => true;
+  bool get canRetry => retryable;
+}
+
+/// The selected source exceeds safe local pixel-processing limits.
+@MappableClass()
+final class ImageSourceDimensionsTooLarge extends ComposerImageFailure
+    with ImageSourceDimensionsTooLargeMappable {
+  const ImageSourceDimensionsTooLarge();
+
+  @override
+  String get message => 'This image is too large to process';
 }
 
 /// Prepared bytes exceeded the AppView image upload limit.
 @MappableClass()
 final class ImageTooLarge extends ComposerImageFailure
     with ImageTooLargeMappable {
-  const ImageTooLarge(this.maxBytes);
+  const ImageTooLarge(this.maxBytes, {this.source = false});
 
   /// Maximum allowed prepared image size in bytes.
   final int maxBytes;
 
+  /// Whether the selected source was rejected before image processing.
+  final bool source;
+
   @override
-  String get message => 'Image exceeds ${maxBytes ~/ (1024 * 1024)} MB limit';
+  String get message => source
+      ? 'This image is too large to process. Choose one under '
+            '${(maxBytes / 1000000).ceil()} MB.'
+      : 'Image exceeds ${(maxBytes / 1000000).ceil()} MB upload limit';
 }
 
 /// Upload failed after local preparation succeeded.

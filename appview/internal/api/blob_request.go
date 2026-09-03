@@ -41,7 +41,7 @@ func ValidateImageBlobUploadWithLimits(req ImageBlobUploadRequest, limits MediaL
 }
 
 // DecodeImageBlobUpload reads and bounds an upload request body.
-// It reads at most 15MB + 1 byte so oversized uploads can be detected
+// It reads at most 2,000,000 bytes + 1 so oversized uploads can be detected
 // deterministically and rejected before downstream forwarding.
 func DecodeImageBlobUpload(contentType string, body io.Reader) (ImageBlobUploadRequest, []byte, error) {
 	return DecodeImageBlobUploadWithLimits(contentType, body, DefaultMediaLimits())

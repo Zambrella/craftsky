@@ -283,7 +283,7 @@ type Config struct {
 	// env overrides may lower but not raise these ceilings.
 	JSONBodyLimitBytes  int64 // default 1 MiB
 	MaxPostImages       int   // default 4, maximum 4
-	MaxImageUploadBytes int64 // default 15MB, maximum 15MB
+	MaxImageUploadBytes int64 // default 2,000,000 bytes, maximum 2,000,000 bytes
 	LinkPreviewsEnabled bool
 	ImageDecodeLimits   api.ImageDecodeLimits
 	RateLimits          middleware.RateLimitConfig

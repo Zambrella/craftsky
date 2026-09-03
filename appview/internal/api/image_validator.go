@@ -14,8 +14,8 @@ import (
 )
 
 const (
-	HardMaxImageWidth                    = 8_192
-	HardMaxImageHeight                   = 8_192
+	HardMaxImageWidth                    = 4_000
+	HardMaxImageHeight                   = 4_000
 	HardMaxImagePixels            uint64 = 16_000_000
 	HardMaxImageAspectRatio              = 20
 	HardMaxConcurrentImageDecodes        = 1

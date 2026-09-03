@@ -10,9 +10,11 @@ export const IMPORT_SAFETY_POLICY = Object.freeze({
   maxSourceImageBytes: 64 * MEBIBYTE,
   maxDecodedPixels: 25_000_000,
   maxDimension: 12_000,
+  maxFinalImageWidth: 4_000,
+  maxFinalImageHeight: 4_000,
   maxCompressionRatio: 200,
   maxConcurrentImageTransforms: 1,
-  maxFinalBlobBytes: 15 * MEBIBYTE,
+  maxFinalBlobBytes: 2_000_000,
 })
 
 export function withinInclusiveLimit(value: number, limit: number): boolean {
@@ -35,8 +37,5 @@ export function withinCompressionRatio(
     return false
   }
   if (uncompressedSize === 0) return true
-  return (
-    compressedSize > 0 &&
-    uncompressedSize / compressedSize <= maxRatio
-  )
+  return compressedSize > 0 && uncompressedSize / compressedSize <= maxRatio
 }

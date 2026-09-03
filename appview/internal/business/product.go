@@ -8,7 +8,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
-const MaxImageBytes int64 = 15 * 1024 * 1024
+const MaxImageBytes int64 = 2_000_000
 
 var (
 	ErrInvalidImage         = errors.New("business: invalid image")

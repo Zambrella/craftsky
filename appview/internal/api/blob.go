@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -20,7 +21,15 @@ type ImageBlobUploadResponse struct {
 }
 
 // ImageBlobUploadHandler serves POST /v1/blobs/images.
-func ImageBlobUploadHandler(newEffects pdseffects.ExecutorFactory, limits MediaLimits, logger *slog.Logger) http.Handler {
+func ImageBlobUploadHandler(
+	newEffects pdseffects.ExecutorFactory,
+	limits MediaLimits,
+	validator ImageValidator,
+	logger *slog.Logger,
+) http.Handler {
+	if validator == nil {
+		panic("image validator is required")
+	}
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -65,6 +74,21 @@ func ImageBlobUploadHandler(newEffects pdseffects.ExecutorFactory, limits MediaL
 			append(pdsLogAttrs(runID, pdsOperationBlobUpload, pdsStageRequestBuild),
 				slog.String("content_type", uploadReq.ContentType),
 				slog.Int64("size", uploadReq.SizeBytes))...)
+		if _, err := validator.Validate(r.Context(), uploadReq.ContentType, payload); err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return
+			}
+			if errors.Is(err, ErrImageDecodeSaturated) {
+				w.Header().Set("Retry-After", "1")
+				envelope.WriteError(w, http.StatusServiceUnavailable,
+					"upload_capacity_unavailable", "image validation capacity unavailable", runID, nil)
+				return
+			}
+			envelope.WriteError(w, http.StatusUnprocessableEntity,
+				"validation_failed", "validation failed", runID,
+				map[string]string{"image": "must be a valid image within 4000 x 4000 pixels"})
+			return
+		}
 
 		if newEffects == nil {
 			logger.Error("blob upload: durable effect factory unavailable",

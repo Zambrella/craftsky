@@ -107,7 +107,7 @@
             "image/png",
             "image/webp"
           ],
-          "maxSize": 15728640
+          "maxSize": 2000000
         },
         "alt": {
           "type": "string",

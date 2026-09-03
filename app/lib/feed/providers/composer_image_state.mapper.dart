@@ -2184,6 +2184,7 @@ class ComposerImageFailureMapper extends ClassMapperBase<ComposerImageFailure> {
       MapperContainer.globals.use(_instance = ComposerImageFailureMapper._());
       UnsupportedImageTypeMapper.ensureInitialized();
       ImagePreparationFailedMapper.ensureInitialized();
+      ImageSourceDimensionsTooLargeMapper.ensureInitialized();
       ImageTooLargeMapper.ensureInitialized();
       ImageUploadFailedMapper.ensureInitialized();
     }
@@ -2382,8 +2383,18 @@ class ImagePreparationFailedMapper
   @override
   final String id = 'ImagePreparationFailed';
 
+  static bool _$retryable(ImagePreparationFailed v) => v.retryable;
+  static const Field<ImagePreparationFailed, bool> _f$retryable = Field(
+    'retryable',
+    _$retryable,
+    opt: true,
+    def: false,
+  );
+
   @override
-  final MappableFields<ImagePreparationFailed> fields = const {};
+  final MappableFields<ImagePreparationFailed> fields = const {
+    #retryable: _f$retryable,
+  };
 
   @override
   final String discriminatorKey = 'type';
@@ -2394,7 +2405,7 @@ class ImagePreparationFailedMapper
       ComposerImageFailureMapper.ensureInitialized();
 
   static ImagePreparationFailed _instantiate(DecodingData data) {
-    return ImagePreparationFailed();
+    return ImagePreparationFailed(retryable: data.dec(_f$retryable));
   }
 
   @override
@@ -2468,7 +2479,7 @@ abstract class ImagePreparationFailedCopyWith<
 >
     implements ComposerImageFailureCopyWith<$R, $In, $Out> {
   @override
-  $R call();
+  $R call({bool? retryable});
   ImagePreparationFailedCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   );
@@ -2484,14 +2495,164 @@ class _ImagePreparationFailedCopyWithImpl<$R, $Out>
   late final ClassMapperBase<ImagePreparationFailed> $mapper =
       ImagePreparationFailedMapper.ensureInitialized();
   @override
-  $R call() => $apply(FieldCopyWithData({}));
+  $R call({bool? retryable}) =>
+      $apply(FieldCopyWithData({if (retryable != null) #retryable: retryable}));
   @override
-  ImagePreparationFailed $make(CopyWithData data) => ImagePreparationFailed();
+  ImagePreparationFailed $make(CopyWithData data) => ImagePreparationFailed(
+    retryable: data.get(#retryable, or: $value.retryable),
+  );
 
   @override
   ImagePreparationFailedCopyWith<$R2, ImagePreparationFailed, $Out2>
   $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
       _ImagePreparationFailedCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
+class ImageSourceDimensionsTooLargeMapper
+    extends SubClassMapperBase<ImageSourceDimensionsTooLarge> {
+  ImageSourceDimensionsTooLargeMapper._();
+
+  static ImageSourceDimensionsTooLargeMapper? _instance;
+  static ImageSourceDimensionsTooLargeMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(
+        _instance = ImageSourceDimensionsTooLargeMapper._(),
+      );
+      ComposerImageFailureMapper.ensureInitialized().addSubMapper(_instance!);
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'ImageSourceDimensionsTooLarge';
+
+  @override
+  final MappableFields<ImageSourceDimensionsTooLarge> fields = const {};
+
+  @override
+  final String discriminatorKey = 'type';
+  @override
+  final dynamic discriminatorValue = 'ImageSourceDimensionsTooLarge';
+  @override
+  late final ClassMapperBase superMapper =
+      ComposerImageFailureMapper.ensureInitialized();
+
+  static ImageSourceDimensionsTooLarge _instantiate(DecodingData data) {
+    return ImageSourceDimensionsTooLarge();
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static ImageSourceDimensionsTooLarge fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<ImageSourceDimensionsTooLarge>(map);
+  }
+
+  static ImageSourceDimensionsTooLarge fromJson(String json) {
+    return ensureInitialized().decodeJson<ImageSourceDimensionsTooLarge>(json);
+  }
+}
+
+mixin ImageSourceDimensionsTooLargeMappable {
+  String toJson() {
+    return ImageSourceDimensionsTooLargeMapper.ensureInitialized()
+        .encodeJson<ImageSourceDimensionsTooLarge>(
+          this as ImageSourceDimensionsTooLarge,
+        );
+  }
+
+  Map<String, dynamic> toMap() {
+    return ImageSourceDimensionsTooLargeMapper.ensureInitialized()
+        .encodeMap<ImageSourceDimensionsTooLarge>(
+          this as ImageSourceDimensionsTooLarge,
+        );
+  }
+
+  ImageSourceDimensionsTooLargeCopyWith<
+    ImageSourceDimensionsTooLarge,
+    ImageSourceDimensionsTooLarge,
+    ImageSourceDimensionsTooLarge
+  >
+  get copyWith =>
+      _ImageSourceDimensionsTooLargeCopyWithImpl<
+        ImageSourceDimensionsTooLarge,
+        ImageSourceDimensionsTooLarge
+      >(this as ImageSourceDimensionsTooLarge, $identity, $identity);
+  @override
+  String toString() {
+    return ImageSourceDimensionsTooLargeMapper.ensureInitialized()
+        .stringifyValue(this as ImageSourceDimensionsTooLarge);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return ImageSourceDimensionsTooLargeMapper.ensureInitialized().equalsValue(
+      this as ImageSourceDimensionsTooLarge,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return ImageSourceDimensionsTooLargeMapper.ensureInitialized().hashValue(
+      this as ImageSourceDimensionsTooLarge,
+    );
+  }
+}
+
+extension ImageSourceDimensionsTooLargeValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, ImageSourceDimensionsTooLarge, $Out> {
+  ImageSourceDimensionsTooLargeCopyWith<$R, ImageSourceDimensionsTooLarge, $Out>
+  get $asImageSourceDimensionsTooLarge => $base.as(
+    (v, t, t2) =>
+        _ImageSourceDimensionsTooLargeCopyWithImpl<$R, $Out>(v, t, t2),
+  );
+}
+
+abstract class ImageSourceDimensionsTooLargeCopyWith<
+  $R,
+  $In extends ImageSourceDimensionsTooLarge,
+  $Out
+>
+    implements ComposerImageFailureCopyWith<$R, $In, $Out> {
+  @override
+  $R call();
+  ImageSourceDimensionsTooLargeCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  );
+}
+
+class _ImageSourceDimensionsTooLargeCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, ImageSourceDimensionsTooLarge, $Out>
+    implements
+        ImageSourceDimensionsTooLargeCopyWith<
+          $R,
+          ImageSourceDimensionsTooLarge,
+          $Out
+        > {
+  _ImageSourceDimensionsTooLargeCopyWithImpl(
+    super.value,
+    super.then,
+    super.then2,
+  );
+
+  @override
+  late final ClassMapperBase<ImageSourceDimensionsTooLarge> $mapper =
+      ImageSourceDimensionsTooLargeMapper.ensureInitialized();
+  @override
+  $R call() => $apply(FieldCopyWithData({}));
+  @override
+  ImageSourceDimensionsTooLarge $make(CopyWithData data) =>
+      ImageSourceDimensionsTooLarge();
+
+  @override
+  ImageSourceDimensionsTooLargeCopyWith<
+    $R2,
+    ImageSourceDimensionsTooLarge,
+    $Out2
+  >
+  $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
+      _ImageSourceDimensionsTooLargeCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
 
 class ImageTooLargeMapper extends SubClassMapperBase<ImageTooLarge> {
@@ -2514,9 +2675,19 @@ class ImageTooLargeMapper extends SubClassMapperBase<ImageTooLarge> {
     'maxBytes',
     _$maxBytes,
   );
+  static bool _$source(ImageTooLarge v) => v.source;
+  static const Field<ImageTooLarge, bool> _f$source = Field(
+    'source',
+    _$source,
+    opt: true,
+    def: false,
+  );
 
   @override
-  final MappableFields<ImageTooLarge> fields = const {#maxBytes: _f$maxBytes};
+  final MappableFields<ImageTooLarge> fields = const {
+    #maxBytes: _f$maxBytes,
+    #source: _f$source,
+  };
 
   @override
   final String discriminatorKey = 'type';
@@ -2527,7 +2698,7 @@ class ImageTooLargeMapper extends SubClassMapperBase<ImageTooLarge> {
       ComposerImageFailureMapper.ensureInitialized();
 
   static ImageTooLarge _instantiate(DecodingData data) {
-    return ImageTooLarge(data.dec(_f$maxBytes));
+    return ImageTooLarge(data.dec(_f$maxBytes), source: data.dec(_f$source));
   }
 
   @override
@@ -2593,7 +2764,7 @@ extension ImageTooLargeValueCopy<$R, $Out>
 abstract class ImageTooLargeCopyWith<$R, $In extends ImageTooLarge, $Out>
     implements ComposerImageFailureCopyWith<$R, $In, $Out> {
   @override
-  $R call({int? maxBytes});
+  $R call({int? maxBytes, bool? source});
   ImageTooLargeCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
 }
 
@@ -2606,11 +2777,17 @@ class _ImageTooLargeCopyWithImpl<$R, $Out>
   late final ClassMapperBase<ImageTooLarge> $mapper =
       ImageTooLargeMapper.ensureInitialized();
   @override
-  $R call({int? maxBytes}) =>
-      $apply(FieldCopyWithData({if (maxBytes != null) #maxBytes: maxBytes}));
+  $R call({int? maxBytes, bool? source}) => $apply(
+    FieldCopyWithData({
+      if (maxBytes != null) #maxBytes: maxBytes,
+      if (source != null) #source: source,
+    }),
+  );
   @override
-  ImageTooLarge $make(CopyWithData data) =>
-      ImageTooLarge(data.get(#maxBytes, or: $value.maxBytes));
+  ImageTooLarge $make(CopyWithData data) => ImageTooLarge(
+    data.get(#maxBytes, or: $value.maxBytes),
+    source: data.get(#source, or: $value.source),
+  );
 
   @override
   ImageTooLargeCopyWith<$R2, ImageTooLarge, $Out2> $chain<$R2, $Out2>(
