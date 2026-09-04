@@ -387,7 +387,9 @@ Future<void> _selectEmbroidery(WidgetTester tester) async {
 }
 
 Future<void> _goNext(WidgetTester tester) async {
-  await tester.tap(find.byKey(const Key('project-composer-primary-action')));
+  await tester.ensureVisible(
+    find.byKey(const Key('project-composer-body-editor')),
+  );
   await tester.pumpAndSettle();
 }
 

@@ -13,43 +13,41 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../fakes/recording_messenger.dart';
 
 void main() {
-  testWidgets(
-    'AT-005 blocks before details until page one required fields pass',
-    (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            activeLanguagePreferencesProvider.overrideWith(
-              (ref) => const LanguagePreferences(
-                primaryLanguage: 'en',
-                contentLanguages: ['en'],
-              ),
-            ),
-          ],
-          child: MessengerScope(
-            messenger: RecordingMessenger(),
-            child: MaterialApp(
-              theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              supportedLocales: AppLocalizations.supportedLocales,
-              home: const ProjectComposerSheet(),
+  testWidgets('AT-005 optional details do not gate the primary form', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
             ),
           ),
+        ],
+        child: MessengerScope(
+          messenger: RecordingMessenger(),
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProjectComposerSheet(),
+          ),
         ),
-      );
+      ),
+    );
 
-      await tester.tap(
-        find.byKey(const Key('project-composer-primary-action')),
-      );
-      await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('project-composer-primary-action')),
+    );
+    await tester.pumpAndSettle();
 
-      expect(find.text('Choose a craft type.'), findsOneWidget);
-      expect(find.text('Add at least one photo.'), findsOneWidget);
-      expect(find.text('Project type'), findsNothing);
-    },
-  );
+    expect(find.text('Choose a craft type.'), findsOneWidget);
+    expect(find.text('Add at least one photo.'), findsOneWidget);
+    expect(find.text('Materials and style'), findsOneWidget);
+    expect(find.text('Project type'), findsNothing);
+  });
 
   testWidgets('AT-005 shows sewing detail fields for sewing projects', (
     tester,
@@ -190,16 +188,10 @@ void main() {
 
     await _returnToFirstPage(tester);
     await _selectCraft(tester, 'Knitting');
-    await tester.tap(
-      find.byKey(const Key('project-composer-primary-action')),
-    );
-    await tester.pumpAndSettle();
+    await _openCraftDetails(tester);
     await _returnToFirstPage(tester);
     await _selectCraft(tester, 'Sewing');
-    await tester.tap(
-      find.byKey(const Key('project-composer-primary-action')),
-    );
-    await tester.pumpAndSettle();
+    await _openCraftDetails(tester);
 
     expect(find.text('Garment'), findsNothing);
   });
@@ -234,6 +226,16 @@ Future<void> _openOptions(
 
 Future<void> _returnToFirstPage(WidgetTester tester) async {
   await tester.tap(find.byTooltip('Back'));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _openCraftDetails(WidgetTester tester) async {
+  final action = find.byKey(
+    const Key('project-composer-craft-details-action'),
+  );
+  await tester.ensureVisible(action);
+  await tester.pumpAndSettle();
+  await tester.tap(action);
   await tester.pumpAndSettle();
 }
 
@@ -273,8 +275,7 @@ Future<void> _openDetailsForCraft(WidgetTester tester, String craft) async {
   );
 
   await _selectCraft(tester, craft);
-  await tester.tap(find.byKey(const Key('project-composer-primary-action')));
-  await tester.pumpAndSettle();
+  if (craft != 'Embroidery') await _openCraftDetails(tester);
 }
 
 const _readyImagesState = ComposerImagesState(

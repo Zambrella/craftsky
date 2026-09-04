@@ -53,16 +53,8 @@ void main() {
         ),
       );
       await _selectCraft(tester, 'Embroidery');
-      await tester.tap(
-        find.byKey(const Key('project-composer-primary-action')),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(
-        find.byKey(const Key('project-composer-primary-action')),
-      );
-      await tester.pumpAndSettle();
       await tester.enterText(
-        find.byType(TextField).first,
+        _bodyTextField(),
         'Project https://example.com/pattern ',
       );
       await tester.pump(const Duration(milliseconds: 100));
@@ -72,7 +64,7 @@ void main() {
     },
   );
 
-  testWidgets('AT-006 blocks page one next until required fields are filled', (
+  testWidgets('AT-006 shows all required errors on the primary page', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -104,7 +96,7 @@ void main() {
 
     expect(find.text('Choose a craft type.'), findsOneWidget);
     expect(find.text('Add at least one photo.'), findsOneWidget);
-    expect(find.text('Materials'), findsNothing);
+    expect(find.text('Materials and style'), findsOneWidget);
   });
 
   testWidgets('AT-006 blocks final submission without caption text', (
@@ -138,14 +130,6 @@ void main() {
     );
 
     await _selectCraft(tester, 'Embroidery');
-    await tester.tap(
-      find.byKey(const Key('project-composer-primary-action')),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const Key('project-composer-primary-action')),
-    );
-    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
     await tester.pumpAndSettle();
 
@@ -205,9 +189,12 @@ void main() {
     );
 
     await _selectCraft(tester, 'Knitting');
-    await tester.tap(
-      find.byKey(const Key('project-composer-primary-action')),
+    final craftDetails = find.byKey(
+      const Key('project-composer-craft-details-action'),
     );
+    await tester.ensureVisible(craftDetails);
+    await tester.pumpAndSettle();
+    await tester.tap(craftDetails);
     await tester.pumpAndSettle();
     await tester.ensureVisible(
       find.byKey(const Key('knitting-gauge-stitches-input')),
@@ -216,9 +203,7 @@ void main() {
       find.byKey(const Key('knitting-gauge-stitches-input')),
       '20',
     );
-    await tester.tap(
-      find.byKey(const Key('project-composer-primary-action')),
-    );
+    await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
     await tester.enterText(_bodyTextField(), 'Finished swatch');
     await _pumpUntilPostEnabled(tester);

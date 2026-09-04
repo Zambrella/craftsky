@@ -1588,6 +1588,72 @@ abstract class AppLocalizations {
   /// **'More project details'**
   String get projectComposerMoreDetailsLabel;
 
+  /// Heading above the optional detail actions in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Add more details'**
+  String get projectComposerMoreDetailsHeading;
+
+  /// Helper text above the optional detail actions in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Optional details help other crafters discover and understand your project.'**
+  String get projectComposerMoreDetailsPrompt;
+
+  /// Title of the optional pattern details action and page.
+  ///
+  /// In en, this message translates to:
+  /// **'Pattern details'**
+  String get projectComposerPatternDetailsTitle;
+
+  /// Description shown when no optional pattern details have been added.
+  ///
+  /// In en, this message translates to:
+  /// **'Add designer, publisher, link and difficulty'**
+  String get projectComposerPatternDetailsDescription;
+
+  /// Title of the common optional project metadata action and page.
+  ///
+  /// In en, this message translates to:
+  /// **'Materials and style'**
+  String get projectComposerCommonDetailsTitle;
+
+  /// Description shown when no materials or style details have been added.
+  ///
+  /// In en, this message translates to:
+  /// **'Help others discover projects like yours'**
+  String get projectComposerCommonDetailsDescription;
+
+  /// Title of the selected craft's optional detail action and page.
+  ///
+  /// In en, this message translates to:
+  /// **'{craft} details'**
+  String projectComposerCraftDetailsTitle(String craft);
+
+  /// Description shown when no craft-specific details have been added.
+  ///
+  /// In en, this message translates to:
+  /// **'Add project type and craft-specific details'**
+  String get projectComposerCraftDetailsDescription;
+
+  /// Summary count for a populated optional project detail group.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 detail added} other{{count} details added}}'**
+  String projectComposerDetailsAdded(int count);
+
+  /// Notice shown after changing craft type clears populated craft-specific details.
+  ///
+  /// In en, this message translates to:
+  /// **'Craft details cleared.'**
+  String get projectComposerCraftCleared;
+
+  /// Notice shown after removing a pattern name clears populated pattern details.
+  ///
+  /// In en, this message translates to:
+  /// **'Pattern details cleared.'**
+  String get projectComposerPatternCleared;
+
   /// Empty-state text shown in the craft-specific project details section before a craft type is selected.
   ///
   /// In en, this message translates to:

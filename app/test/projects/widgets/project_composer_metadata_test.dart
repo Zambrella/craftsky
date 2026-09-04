@@ -60,7 +60,10 @@ void main() {
     );
 
     expect(field.controller?.text, '#SockKAL');
-    expect(find.text('Pattern info'), findsOneWidget);
+    expect(
+      find.byKey(const Key('project-composer-pattern-details-action')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('opening a draft mounts JSON-decoded lists on page two', (
@@ -94,8 +97,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(
-      find.byKey(const Key('project-composer-primary-action')),
+    await _openDetail(
+      tester,
+      const Key('project-composer-common-details-action'),
     );
     await tester.pumpAndSettle();
 
@@ -138,7 +142,7 @@ void main() {
       );
 
       expect(find.text('Pattern tag or name'), findsOneWidget);
-      expect(find.text('Pattern info'), findsNothing);
+      expect(find.text('Pattern details'), findsNothing);
       expect(find.text('Link'), findsNothing);
       expect(find.text('Difficulty'), findsNothing);
       expect(find.text('Designer'), findsNothing);
@@ -153,7 +157,14 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Pattern info'), findsOneWidget);
+      expect(find.text('Pattern details'), findsOneWidget);
+      expect(find.text('Designer'), findsNothing);
+
+      await _openDetail(
+        tester,
+        const Key('project-composer-pattern-details-action'),
+      );
+
       expect(find.text('Designer'), findsOneWidget);
       expect(find.text('Publisher'), findsOneWidget);
       expect(find.text('Link'), findsOneWidget);
@@ -192,10 +203,10 @@ void main() {
     );
 
     await _selectCraft(tester, 'Embroidery');
-    await tester.tap(
-      find.byKey(const Key('project-composer-primary-action')),
+    await _openDetail(
+      tester,
+      const Key('project-composer-common-details-action'),
     );
-    await tester.pumpAndSettle();
 
     final firstTen = ProjectOptionCatalogs.colours.take(10).toList();
     final eleventh = ProjectOptionCatalogs.colours[10];
@@ -291,6 +302,11 @@ void main() {
       await tester.tap(find.text('#SockKAL'));
       await tester.pumpAndSettle();
 
+      await _openDetail(
+        tester,
+        const Key('project-composer-pattern-details-action'),
+      );
+
       await tester.enterText(
         _facetTextField(const Key('project-composer-pattern-designer-editor')),
         '@ali',
@@ -332,6 +348,14 @@ Finder _facetTextField(Key editorKey) {
     of: find.byKey(editorKey),
     matching: find.byType(TextField),
   );
+}
+
+Future<void> _openDetail(WidgetTester tester, Key key) async {
+  final action = find.byKey(key);
+  await tester.ensureVisible(action);
+  await tester.pumpAndSettle();
+  await tester.tap(action);
+  await tester.pumpAndSettle();
 }
 
 Future<void> _searchAndTapColour(
