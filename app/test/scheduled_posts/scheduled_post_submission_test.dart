@@ -387,6 +387,8 @@ void main() {
       await tester.ensureVisible(find.byKey(const Key('composer-add-image')));
       await tester.tap(find.byKey(const Key('composer-add-image')));
       await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('composer-choose-photos')));
+      await tester.pumpAndSettle();
 
       expect(pendingToken.isCancelled, isTrue);
       expect(find.text('One pattern'), findsNothing);

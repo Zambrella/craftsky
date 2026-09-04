@@ -8,6 +8,33 @@ import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('AT-006 forwards a prepared video into a standard draft snapshot', () {
+    final video = PreparedDraftVideo(
+      displayFileName: 'clip.mp4',
+      mimeType: 'video/mp4',
+      byteLength: 1,
+      openSource: () => Stream.value([1]),
+      width: 16,
+      height: 9,
+      duration: const Duration(seconds: 1),
+      altText: '',
+      posterMimeType: 'image/jpeg',
+      posterBytes: Uint8List.fromList([2]),
+    );
+
+    final request = const StandardDraftSnapshotAdapter().toWriteRequest(
+      id: '00000000-0000-4000-8000-000000000001',
+      owner: AccountKey('did:plc:alice'),
+      text: '',
+      languages: const ['en'],
+      schedule: const DraftScheduleIntent.now(),
+      images: const [],
+      video: video,
+    );
+
+    expect(request.video, same(video));
+  });
+
   test('builds an incomplete standard snapshot with reusable stored media', () {
     final request = const StandardDraftSnapshotAdapter().toWriteRequest(
       id: '00000000-0000-4000-8000-000000000001',

@@ -46,6 +46,7 @@ class AccountTypeMapper extends EnumMapper<AccountType> {
     }
   }
 }
+
 extension AccountTypeMapperExtension on AccountType {
   String toValue() {
     AccountTypeMapper.ensureInitialized();

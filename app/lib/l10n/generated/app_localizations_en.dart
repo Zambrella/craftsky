@@ -1090,6 +1090,131 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postComposeAddPhoto => 'Add a photo';
 
   @override
+  String get postComposeAddPhotosOrVideo => 'Add photos or a video';
+
+  @override
+  String get postComposePhotosOrVideoHelper =>
+      'Choose up to 4 photos or a video.';
+
+  @override
+  String get postComposeChoosePhotos => 'Choose photos';
+
+  @override
+  String get postComposeChooseVideo => 'Choose a video';
+
+  @override
+  String get postComposeVideoSelected => 'Selected video';
+
+  @override
+  String get postComposeReplaceVideo => 'Replace video';
+
+  @override
+  String get postComposeRemoveVideo => 'Remove video';
+
+  @override
+  String get postComposeVideoAltHint =>
+      'Describe the video for someone who cannot see it, including the craft, movement, materials, colors, and important details.';
+
+  @override
+  String get postVideoUploading => 'Uploading video';
+
+  @override
+  String get postVideoProcessing => 'Processing video';
+
+  @override
+  String get postVideoPublishing => 'Publishing post';
+
+  @override
+  String get postVideoCancel => 'Cancel';
+
+  @override
+  String get postVideoUnavailable => 'Video is unavailable. Try again later.';
+
+  @override
+  String get postVideoEmailUnverified =>
+      'Verify your email with your account provider before uploading video.';
+
+  @override
+  String get postVideoQuotaExhausted =>
+      'You\'ve reached your daily video limit. Try again after it resets.';
+
+  @override
+  String postVideoRemainingVideos(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count videos remaining today',
+      one: '1 video remaining today',
+      zero: 'No videos remaining today',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String postVideoRemainingBytes(int count) {
+    return '$count bytes remaining today';
+  }
+
+  @override
+  String postVideoRemainingQuota(int videos, int bytes) {
+    String _temp0 = intl.Intl.pluralLogic(
+      videos,
+      locale: localeName,
+      other: '$videos videos',
+      one: '1 video',
+      zero: 'No videos',
+    );
+    return '$_temp0 and $bytes bytes remaining today';
+  }
+
+  @override
+  String get postVideoProviderUnsupported =>
+      'Your account provider doesn\'t support video uploads yet.';
+
+  @override
+  String get postVideoValidationFailed =>
+      'The video service couldn\'t accept this MP4. Check its size and duration, then try another file.';
+
+  @override
+  String get postVideoProcessingFailed =>
+      'The video couldn\'t be processed. Retry or choose another MP4.';
+
+  @override
+  String get postVideoRetryableFailure =>
+      'The video couldn\'t be published. Check your connection and retry.';
+
+  @override
+  String get postVideoCaptions => 'Captions';
+
+  @override
+  String get postVideoCaptionsOff => 'Captions off';
+
+  @override
+  String get nativeVideoPlay => 'Play video';
+
+  @override
+  String get nativeVideoPause => 'Pause video';
+
+  @override
+  String get nativeVideoReplay => 'Replay video';
+
+  @override
+  String get nativeVideoMute => 'Mute video';
+
+  @override
+  String get nativeVideoUnmute => 'Unmute video';
+
+  @override
+  String get nativeVideoEnterFullscreen => 'Enter full screen';
+
+  @override
+  String get nativeVideoExitFullscreen => 'Exit full screen';
+
+  @override
+  String get postComposeVideoPublicNotice =>
+      'Published videos are public and stored with your post on your account provider.';
+
+  @override
   String get postComposeAddAnotherPhoto => 'Add another photo';
 
   @override

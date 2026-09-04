@@ -82,13 +82,18 @@ type Config struct {
 // Dependencies is the route-composition boundary. AddRoutes is the only
 // consumer of the complete set; capability registrars receive smaller bundles.
 type Dependencies struct {
-	Config        Config
-	Logger        *slog.Logger
-	DB            *pgxpool.Pool
-	AuthService   auth.AuthService
-	RateLimiter   *middleware.LocalRateLimiter
-	Observability *observability.Observer
-	LinkPreviews  api.LinkPreviewService
+	Config                   Config
+	Logger                   *slog.Logger
+	DB                       *pgxpool.Pool
+	AuthService              auth.AuthService
+	RateLimiter              *middleware.LocalRateLimiter
+	Observability            *observability.Observer
+	LinkPreviews             api.LinkPreviewService
+	VideoUploadAuthorization api.VideoUploadAuthorizationIssuer
+	VideoUploadLimits        api.VideoUploadLimitsService
+	VideoCompletionVerifier  api.VideoCompletionVerifier
+	VideoPlayback            api.PlaybackURLBuilder
+	VideoCaptionFetcher      api.VideoCaptionBlobFetcher
 
 	AccountDeletion             accountdeletion.Service
 	AccountDeletionOAuth        auth.AccountDeletionOAuthCallbacks

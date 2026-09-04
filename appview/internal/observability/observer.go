@@ -132,6 +132,19 @@ func (o *Observer) ObserveHTTPRequest(method, routePattern string, status int, d
 	o.metricRecorder.HTTPRequestFinished(context.Background(), method, routePattern, status, duration, responseBytes)
 }
 
+type videoMetricRecorder interface {
+	VideoOperation(context.Context, string, string, string, time.Duration)
+}
+
+func (o *Observer) ObserveVideoOperation(ctx context.Context, operation, result, reason string, duration time.Duration) {
+	if o == nil {
+		return
+	}
+	if recorder, ok := o.metricRecorder.(videoMetricRecorder); ok {
+		recorder.VideoOperation(ctx, operation, result, reason, duration)
+	}
+}
+
 func (o *Observer) Flush(timeout time.Duration) bool {
 	if o == nil {
 		return true

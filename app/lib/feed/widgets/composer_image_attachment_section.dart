@@ -6,6 +6,7 @@ import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/image/craftsky_image_attachment_preview.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
+import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -26,6 +27,8 @@ class ComposerImageAttachmentSection extends StatelessWidget {
     this.imageUrlFor,
     this.onReplace,
     this.keyPrefix = 'composer',
+    this.supportsVideo = false,
+    this.onAddVideo,
   });
 
   static const _imageListAnimationDuration = Duration(milliseconds: 220);
@@ -44,6 +47,8 @@ class ComposerImageAttachmentSection extends StatelessWidget {
   final String? Function(ComposerImageDraft image)? imageUrlFor;
   final Future<void> Function(String imageId)? onReplace;
   final String keyPrefix;
+  final bool supportsVideo;
+  final Future<void> Function()? onAddVideo;
 
   @override
   Widget build(BuildContext context) {
@@ -146,8 +151,13 @@ class ComposerImageAttachmentSection extends StatelessWidget {
             maxImages: maxImages,
             addKey: Key('$keyPrefix-add-image'),
             hasImages: imagesState.images.isNotEmpty,
+            supportsVideo: supportsVideo && imagesState.images.isEmpty,
             onPressed: enabled && onAddImages != null
-                ? () => unawaited(onAddImages!())
+                ? () => unawaited(
+                    supportsVideo && imagesState.images.isEmpty
+                        ? _chooseMedia(context)
+                        : onAddImages!(),
+                  )
                 : null,
           ),
         if (validationErrorText != null) ...[
@@ -159,6 +169,32 @@ class ComposerImageAttachmentSection extends StatelessWidget {
             ),
           ),
         ],
+      ],
+    );
+  }
+
+  Future<void> _chooseMedia(BuildContext context) async {
+    final l10n = AppLocalizations.of(context);
+    await showCraftskyContextMenu(
+      context,
+      position: craftskyContextMenuAnchorPosition(context),
+      groups: [
+        CraftskyContextMenuGroup(
+          items: [
+            CraftskyContextMenuItem(
+              key: const Key('composer-choose-photos'),
+              text: l10n.postComposeChoosePhotos,
+              icon: Icons.photo_library_outlined,
+              onPressed: onAddImages,
+            ),
+            CraftskyContextMenuItem(
+              key: const Key('composer-choose-video'),
+              text: l10n.postComposeChooseVideo,
+              icon: Icons.video_library_outlined,
+              onPressed: onAddVideo,
+            ),
+          ],
+        ),
       ],
     );
   }
@@ -548,6 +584,7 @@ class _AddPhotoCard extends StatelessWidget {
     required this.onPressed,
     required this.maxImages,
     required this.addKey,
+    required this.supportsVideo,
   });
 
   final int remainingCount;
@@ -555,6 +592,7 @@ class _AddPhotoCard extends StatelessWidget {
   final VoidCallback? onPressed;
   final int maxImages;
   final Key addKey;
+  final bool supportsVideo;
 
   @override
   Widget build(BuildContext context) {
@@ -564,10 +602,14 @@ class _AddPhotoCard extends StatelessWidget {
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final colors = theme.colorScheme;
     final l10n = AppLocalizations.of(context);
-    final label = hasImages
+    final label = supportsVideo
+        ? l10n.postComposeAddPhotosOrVideo
+        : hasImages
         ? l10n.postComposeAddAnotherPhoto
         : l10n.postComposeAddPhoto;
-    final subtitle = hasImages
+    final subtitle = supportsVideo
+        ? l10n.postComposePhotosOrVideoHelper
+        : hasImages
         ? l10n.postComposePhotosRemaining(remainingCount)
         : l10n.postComposePhotosLimitHelper(maxImages);
 

@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/models/create_post_external.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
+import 'package:craftsky_app/feed/models/create_post_video.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
@@ -43,6 +44,7 @@ class CreatePost extends _$CreatePost {
     Project? project,
     List<CreatePostImage>? images,
     CreatePostExternal? external,
+    CreatePostVideo? video,
     List<Map<String, dynamic>>? facets,
     ActiveAccountLease? ownership,
   }) async {
@@ -71,6 +73,7 @@ class CreatePost extends _$CreatePost {
         project: project,
         images: images,
         external: external,
+        video: video,
         facets: facets,
       );
       var post = created;

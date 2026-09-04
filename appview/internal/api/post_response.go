@@ -3,13 +3,17 @@ package api
 
 import (
 	"encoding/json"
+	"net/url"
 	"os"
 	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/ipfs/go-cid"
+	"golang.org/x/text/language"
 
 	"social.craftsky/appview/internal/relationships"
+	"social.craftsky/appview/internal/video"
 )
 
 var postImageMimeExt = map[string]string{
@@ -95,11 +99,37 @@ type PostResponse struct {
 	IndexedAt           time.Time               `json:"indexedAt"`
 	ExternalImport      *ExternalImportResponse `json:"externalImport,omitempty"`
 	External            *ExternalResponse       `json:"external,omitempty"`
+	Video               *PostVideoView          `json:"video,omitempty"`
 	Author              PostAuthor              `json:"author"`
 	Moderation          *ModerationMetadata     `json:"moderation,omitempty"`
 	Project             *Project                `json:"project,omitempty"`
 	Availability        string                  `json:"-"`
 	Relationship        *ContentRelationship    `json:"-"`
+}
+
+type PostVideoView struct {
+	CID         string                `json:"cid"`
+	MIME        string                `json:"mime"`
+	Size        int64                 `json:"size"`
+	Alt         string                `json:"alt"`
+	AspectRatio *PostImageAspectRatio `json:"aspectRatio,omitempty"`
+	Playlist    string                `json:"playlist"`
+	Thumbnail   string                `json:"thumbnail,omitempty"`
+	Captions    []PostVideoCaption    `json:"captions,omitempty"`
+}
+
+type PostVideoCaption struct {
+	CID  string `json:"cid"`
+	Lang string `json:"lang"`
+	URI  string `json:"uri"`
+}
+
+type PlaybackURLBuilder interface {
+	URLs(syntax.DID, syntax.CID) (string, string)
+}
+
+type postPlaybackProvider interface {
+	PostPlaybackURLBuilder() PlaybackURLBuilder
 }
 
 type ContentRelationship struct {
@@ -274,7 +304,7 @@ type ReplyingToAuthor struct {
 // BuildPostResponse converts a PostRow + resolved handle into the wire
 // response. Reply and quote pointers are flattened from the row's
 // pointer columns into the lexicon-shaped nested objects.
-func BuildPostResponse(row *PostRow, handle syntax.Handle) *PostResponse {
+func BuildPostResponse(row *PostRow, handle syntax.Handle, playbackBuilders ...PlaybackURLBuilder) *PostResponse {
 	tags := row.Tags
 	if tags == nil {
 		tags = []string{}
@@ -304,6 +334,13 @@ func BuildPostResponse(row *PostRow, handle syntax.Handle) *PostResponse {
 		},
 		Project: row.Project,
 	}
+	var playback PlaybackURLBuilder
+	if len(playbackBuilders) > 0 {
+		playback = playbackBuilders[0]
+	} else {
+		playback, _ = video.NewPlaybackURLBuilder(video.PlaybackConfig{})
+	}
+	resp.Video = buildPostVideoView(row, playback)
 	if len(resp.Images) == 0 {
 		resp.External = buildExternalResponse(row)
 	}
@@ -332,6 +369,73 @@ func BuildPostResponse(row *PostRow, handle syntax.Handle) *PostResponse {
 		resp.Moderation = &ModerationMetadata{WarningKind: *row.ModerationWarningKind}
 	}
 	return resp
+}
+
+func buildPostResponse(row *PostRow, handle syntax.Handle, source any) *PostResponse {
+	if provider, ok := source.(postPlaybackProvider); ok {
+		if playback := provider.PostPlaybackURLBuilder(); playback != nil {
+			return BuildPostResponse(row, handle, playback)
+		}
+	}
+	return BuildPostResponse(row, handle)
+}
+
+func buildPostVideoView(row *PostRow, playback PlaybackURLBuilder) *PostVideoView {
+	if row == nil || len(row.RawEmbed) == 0 || playback == nil {
+		return nil
+	}
+	var embed struct {
+		Type  string `json:"$type"`
+		Video struct {
+			Ref struct {
+				Link string `json:"$link"`
+			} `json:"ref"`
+			MIMEType string `json:"mimeType"`
+			Size     int64  `json:"size"`
+		} `json:"video"`
+		Alt         string                `json:"alt"`
+		AspectRatio *PostImageAspectRatio `json:"aspectRatio"`
+		Captions    []struct {
+			Lang string `json:"lang"`
+			File struct {
+				Ref struct {
+					Link string `json:"$link"`
+				} `json:"ref"`
+				MIMEType string `json:"mimeType"`
+				Size     int64  `json:"size"`
+			} `json:"file"`
+		} `json:"captions"`
+	}
+	if err := json.Unmarshal(row.RawEmbed, &embed); err != nil || embed.Type != "app.bsky.embed.video" ||
+		embed.Video.MIMEType != "video/mp4" || embed.Video.Size <= 0 || embed.Video.Size > 300_000_000 ||
+		embed.AspectRatio != nil && (embed.AspectRatio.Width <= 0 || embed.AspectRatio.Height <= 0) {
+		return nil
+	}
+	parsedCID, err := cid.Parse(embed.Video.Ref.Link)
+	if err != nil || parsedCID.String() != embed.Video.Ref.Link {
+		return nil
+	}
+	playlist, thumbnail := playback.URLs(syntax.DID(row.DID), syntax.CID(embed.Video.Ref.Link))
+	if playlist == "" {
+		return nil
+	}
+	view := &PostVideoView{CID: embed.Video.Ref.Link, MIME: embed.Video.MIMEType, Size: embed.Video.Size, Alt: embed.Alt,
+		AspectRatio: embed.AspectRatio, Playlist: playlist, Thumbnail: thumbnail}
+	for _, caption := range embed.Captions {
+		captionCID, err := cid.Parse(caption.File.Ref.Link)
+		if err != nil || captionCID.String() != caption.File.Ref.Link || caption.File.MIMEType != "text/vtt" ||
+			caption.File.Size <= 0 || caption.File.Size > 20_000 {
+			continue
+		}
+		if _, err := language.Parse(caption.Lang); err != nil || strings.TrimSpace(caption.Lang) == "" {
+			continue
+		}
+		view.Captions = append(view.Captions, PostVideoCaption{
+			CID: caption.File.Ref.Link, Lang: caption.Lang,
+			URI: "/v1/posts/" + url.PathEscape(row.DID) + "/" + url.PathEscape(row.Rkey) + "/video-captions/" + url.PathEscape(caption.File.Ref.Link),
+		})
+	}
+	return view
 }
 
 func BuildQuoteView(row *QuoteViewRow, handle syntax.Handle) *QuoteView {

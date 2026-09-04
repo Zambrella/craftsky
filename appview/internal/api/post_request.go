@@ -20,6 +20,8 @@ import (
 const (
 	maxProjectMaterials         = 10
 	maxProjectMaterialGraphemes = 100
+	maxVideoAltGraphemes        = 1000
+	maxVideoBlobBytes           = 300_000_000
 )
 
 // StrongRef is the wire shape of a strongRef ({uri, cid}). Used for
@@ -37,13 +39,11 @@ type ReplyRef struct {
 	Parent StrongRef `json:"parent"`
 }
 
-// EmbedRequest mirrors what the wire accepts on a create request. Today
-// only quote embeds are supported. The wire shape uses {embed: {quote:
-// {uri, cid}}}; the AppView translates it to the lexicon's
-// {embed: {$type: ..#quoteEmbed, record: {uri, cid}}} before writing.
+// EmbedRequest mirrors the supported create-post embed variants.
 type EmbedRequest struct {
 	Quote    *StrongRef            `json:"quote,omitempty"`
 	External *ExternalEmbedRequest `json:"external,omitempty"`
+	Video    *VideoEmbedRequest    `json:"video,omitempty"`
 }
 
 type ExternalEmbedRequest struct {
@@ -51,6 +51,24 @@ type ExternalEmbedRequest struct {
 	Title       string         `json:"title"`
 	Description string         `json:"description"`
 	Thumb       map[string]any `json:"thumb,omitempty"`
+}
+
+type VideoEmbedRequest struct {
+	JobID       string                `json:"jobId"`
+	Blob        VideoBlob             `json:"blob"`
+	Alt         string                `json:"alt,omitempty"`
+	AspectRatio *PostImageAspectRatio `json:"aspectRatio,omitempty"`
+}
+
+type VideoBlob struct {
+	Type     string       `json:"$type"`
+	Ref      VideoBlobRef `json:"ref"`
+	MIMEType string       `json:"mimeType"`
+	Size     int64        `json:"size"`
+}
+
+type VideoBlobRef struct {
+	Link string `json:"$link"`
 }
 
 // PostCreateRequest is the decoded body of POST /v1/posts.
@@ -165,6 +183,18 @@ func ValidatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits) err
 			fields["embed.external"] = "project posts cannot contain external embeds"
 		}
 	}
+	if req.Embed != nil && req.Embed.Video != nil {
+		validateVideoEmbed(fields, *req.Embed.Video)
+		if req.Embed.Quote != nil || req.Embed.External != nil {
+			fields["embed"] = "video, quote, and external embeds are mutually exclusive"
+		}
+		if len(req.Images) > 0 {
+			fields["embed.video"] = "video cannot coexist with images"
+		}
+		if req.Reply != nil {
+			fields["embed.video"] = "video posts must be standalone and cannot be replies"
+		}
+	}
 	if len(req.Images) > limits.MaxPostImages {
 		fields["images"] = fmt.Sprintf("exceeds maximum of %d entries", limits.MaxPostImages)
 	}
@@ -217,6 +247,36 @@ func ValidatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits) err
 		return &FieldError{Code: "validation_failed", Fields: fields}
 	}
 	return nil
+}
+
+func validateVideoEmbed(fields map[string]string, video VideoEmbedRequest) {
+	if strings.TrimSpace(video.JobID) == "" {
+		fields["embed.video.jobId"] = "must not be empty"
+	}
+	if video.Blob.Type != "blob" {
+		fields["embed.video.blob.$type"] = "must be blob"
+	}
+	parsedCID, err := cid.Parse(video.Blob.Ref.Link)
+	if err != nil || parsedCID.String() != video.Blob.Ref.Link {
+		fields["embed.video.blob.ref.$link"] = "must be a canonical CID"
+	}
+	if video.Blob.MIMEType != "video/mp4" {
+		fields["embed.video.blob.mimeType"] = "must be video/mp4"
+	}
+	if video.Blob.Size <= 0 || video.Blob.Size > maxVideoBlobBytes {
+		fields["embed.video.blob.size"] = "must be a positive integer no greater than 300000000"
+	}
+	if !utf8.ValidString(video.Alt) || uniseg.GraphemeClusterCount(video.Alt) > maxVideoAltGraphemes {
+		fields["embed.video.alt"] = "exceeds 1000 graphemes"
+	}
+	if video.AspectRatio != nil {
+		if video.AspectRatio.Width <= 0 {
+			fields["embed.video.aspectRatio.width"] = "must be a positive integer"
+		}
+		if video.AspectRatio.Height <= 0 {
+			fields["embed.video.aspectRatio.height"] = "must be a positive integer"
+		}
+	}
 }
 
 func validateExternalEmbed(fields map[string]string, external ExternalEmbedRequest) {

@@ -16,12 +16,20 @@ import 'package:craftsky_app/drafts/widgets/draft_close_dialog.dart';
 import 'package:craftsky_app/feed/composer/composer_media_uploader.dart';
 import 'package:craftsky_app/feed/composer/composer_submission_coordinator.dart';
 import 'package:craftsky_app/feed/composer/submission_screen_awake.dart';
+import 'package:craftsky_app/feed/composer/video_failure_message.dart';
+import 'package:craftsky_app/feed/composer/video_publication_coordinator.dart';
+import 'package:craftsky_app/feed/data/video_service_client.dart';
+import 'package:craftsky_app/feed/models/create_post_video.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
+import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
 import 'package:craftsky_app/feed/providers/create_post_provider.dart';
+import 'package:craftsky_app/feed/providers/image_picker_existing_video.dart';
 import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
+import 'package:craftsky_app/feed/providers/video_service_client_provider.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
+import 'package:craftsky_app/feed/widgets/composer_video_attachment_card.dart';
 import 'package:craftsky_app/feed/widgets/submission_blocking_overlay.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
@@ -49,6 +57,7 @@ import 'package:craftsky_app/scheduled_posts/widgets/schedule_time_picker.dart';
 import 'package:craftsky_app/scheduled_posts/widgets/scheduled_post_capacity_warning.dart';
 import 'package:craftsky_app/scheduled_posts/widgets/scheduled_staging_progress.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/messaging/message_action.dart';
 import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
@@ -101,6 +110,8 @@ class ProjectComposerSheet extends ConsumerStatefulWidget {
     this.scheduledOwner,
     this.draftSeed,
     this.draftOwner,
+    this.videoController,
+    this.prepareVideoProof,
   }) : assert(
          scheduledPost == null || draftSeed == null,
          'Scheduled and local draft edits are mutually exclusive',
@@ -113,13 +124,17 @@ class ProjectComposerSheet extends ConsumerStatefulWidget {
   final ActiveAccountLease? scheduledOwner;
   final LocalPostDraftSeed? draftSeed;
   final ActiveAccountLease? draftOwner;
+  final ComposerVideoController? videoController;
+  final Future<CreatePostVideo> Function(LocalVideoSelection video)?
+  prepareVideoProof;
 
   @override
   ConsumerState<ProjectComposerSheet> createState() =>
       _ProjectComposerSheetState();
 }
 
-class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
+class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
+    with WidgetsBindingObserver {
   late final Map<String, dynamic> _initialFormValues;
   static const List<String> _craftDetailFieldNames = [
     ProjectComposerFields.sewingProjectType,
@@ -201,6 +216,12 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   ActiveAccountLease? _scheduledOwner;
   late final ComposerMediaUploader _mediaUploader;
   late final ComposerSubmissionCoordinator _submissionCoordinator;
+  late final ComposerVideoController _videoController;
+  VideoPublicationCoordinator? _videoPublication;
+  ActiveAccountLease? _videoPublicationOwner;
+  VideoPublicationProgress? _videoProgress;
+  Object? _videoFailure;
+  var _usesStoredDraftVideo = false;
   bool _isSubmitting = false;
   bool _isSavingDraft = false;
   bool _submissionSucceeded = false;
@@ -213,6 +234,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _origin = DraftSubmissionOrigin(widget.draftSeed?.draft);
     _scheduledOwner = widget.scheduledOwner;
     final draftContent = widget.draftSeed?.draft.content;
@@ -253,6 +275,13 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     _submissionCoordinator = ComposerSubmissionCoordinator(
       screenAwake: const WakelockSubmissionScreenAwake(),
     );
+    _videoController =
+        widget.videoController ??
+        ComposerVideoController(
+          picker: ImagePickerExistingVideo(),
+          checkEligibility: () =>
+              ref.read(postApiClientProvider).getVideoUploadLimits(),
+        );
     if (draftContent is ProjectDraftContent) {
       _bodyText = draftContent.body;
       _initialBodyText = draftContent.body;
@@ -277,6 +306,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
           ref
               .read(composerImagesProvider(_composerId).notifier)
               .seedLocalDraft(widget.draftSeed!);
+          unawaited(_restoreDraftVideo(widget.draftSeed!));
         }
       });
     }
@@ -306,8 +336,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _unsavedGuard.unregister(_unsavedRegistration);
     unawaited(_submissionCoordinator.dispose());
+    _videoPublication?.cancel();
     _scrollController.dispose();
     _bodyController.dispose();
     _bodyFocusNode.dispose();
@@ -324,6 +356,16 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed &&
+        shouldCancelVideoPublicationOnLifecycleInterruption(
+          _videoProgress?.stage,
+        )) {
+      _videoPublication?.cancel();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
@@ -337,7 +379,12 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     _initialLanguages ??= List.of(_languages!.values);
     final imagesProvider = composerImagesProvider(_composerId);
     final imagesState = ref.watch(imagesProvider);
+    final selectedVideo = _videoController.selection;
     final activeLease = ref.watch(sessionRegistryProvider).value?.activeLease;
+    if (_videoPublicationOwner != null &&
+        activeLease != _videoPublicationOwner) {
+      _videoPublication?.cancel();
+    }
     if (widget.scheduledPost != null && _scheduledOwner == null) {
       _scheduledOwner = activeLease;
     }
@@ -376,7 +423,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
         !_isLoadingScheduledMedia &&
         !_scheduledMediaLoadFailed &&
         _languages != null &&
-        imagesState.canSubmitImages() &&
+        (selectedVideo != null || imagesState.canSubmitImages()) &&
+        (selectedVideo == null || _scheduleChoice == ScheduleChoice.now) &&
         (_scheduleChoice == ScheduleChoice.now || capacity.scheduleEnabled);
     final bodyErrorText = switch ((_attemptedSubmit, trimmedBody.isEmpty)) {
       (true, true) => l10n.projectComposerBodyRequiredError,
@@ -389,14 +437,17 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     };
     final photoErrorText =
         (_attemptedSubmit || _attemptedPageOneNext) &&
-            imagesState.images.isEmpty
+            imagesState.images.isEmpty &&
+            selectedVideo == null
         ? l10n.projectComposerPhotoRequiredError
         : null;
     final hasDraft =
         ProjectComposerDraftState.hasDraft(
           bodyText: _bodyText,
           initialBodyText: _initialBodyText,
-          imageCount: _draftMediaChanged(imagesState) ? 1 : 0,
+          imageCount: _draftMediaChanged(imagesState) || _draftVideoChanged()
+              ? 1
+              : 0,
           formValues: formValues,
           initialFormValues: _initialFormValues,
         ) ||
@@ -562,6 +613,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                                     theme: theme,
                                     spacing: spacing,
                                     imagesState: imagesState,
+                                    selectedVideo: selectedVideo,
                                     controlsEnabled: controlsEnabled,
                                     photoErrorText: photoErrorText,
                                     patternInfoTitle: l10n
@@ -569,6 +621,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                                     onAddImages: () => ref
                                         .read(imagesProvider.notifier)
                                         .addImages(),
+                                    onAddVideo: _selectVideo,
                                     onAltTextChanged: (imageId, value) => ref
                                         .read(imagesProvider.notifier)
                                         .setAltText(imageId, value),
@@ -709,6 +762,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
           if (_isSubmitting)
             SubmissionBlockingOverlay(
               scheduling: _scheduleChoice == ScheduleChoice.later,
+              videoProgress: _videoProgress,
+              onCancelVideo: _videoPublication?.cancel,
             ),
         ],
       ),
@@ -724,6 +779,32 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       confirmLabel: l10n.postComposeDiscardConfirm,
       cancelLabel: l10n.postComposeDiscardCancel,
     );
+  }
+
+  Future<void> _selectVideo({bool replace = false}) async {
+    try {
+      final limits = replace
+          ? await _videoController.replace()
+          : await _videoController.selectExisting();
+      if (!mounted) return;
+      if (limits != null && !limits.canUpload) {
+        context.showError(
+          videoLimitsMessage(AppLocalizations.of(context), limits),
+        );
+        return;
+      }
+      final quota = limits == null
+          ? null
+          : videoQuotaMessage(AppLocalizations.of(context), limits);
+      if (quota != null) {
+        context.showInfo(quota);
+      }
+      setState(() => _usesStoredDraftVideo = false);
+    } on Object {
+      if (mounted) {
+        context.showError(AppLocalizations.of(context).postCreateError);
+      }
+    }
   }
 
   Future<bool> _confirmProjectClose(ComposerImagesState imagesState) async {
@@ -762,6 +843,14 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       }
     }
     return false;
+  }
+
+  bool _draftVideoChanged() {
+    final baseline = widget.draftSeed?.draft.video;
+    final selection = _videoController.selection;
+    if (baseline == null) return selection != null;
+    if (selection == null || !_usesStoredDraftVideo) return true;
+    return selection.altText != baseline.altText;
   }
 
   Future<void> _saveProjectDraft(ComposerImagesState imagesState) async {
@@ -814,9 +903,76 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
         ...?_formKey.currentState?.value,
       },
       images: imagesState.images,
+      video: _draftVideoWrite(),
       existingRevision: existing?.revision,
       existingCreatedAt: existing?.createdAt,
     );
+  }
+
+  DraftVideoWrite? _draftVideoWrite() {
+    final selection = _videoController.selection;
+    if (selection == null) return null;
+    final stored = _origin.draft?.video;
+    if (_usesStoredDraftVideo && stored != null) {
+      return ExistingStoredVideo(
+        storageRevision: stored.storageRevision,
+        expectedSourceSha256: stored.sourceSha256,
+        expectedPosterSha256: stored.posterSha256,
+        altText: selection.altText,
+      );
+    }
+    final poster = selection.posterBytes;
+    if (poster == null) {
+      throw const DraftRepositoryException(
+        DraftRepositoryFailureReason.invalidRequest,
+      );
+    }
+    return PreparedDraftVideo(
+      displayFileName: selection.displayName,
+      mimeType: selection.mimeType,
+      byteLength: selection.byteLength,
+      openSource: selection.openRead,
+      width: selection.width,
+      height: selection.height,
+      duration: selection.duration,
+      altText: selection.altText,
+      posterMimeType: 'image/jpeg',
+      posterBytes: poster,
+    );
+  }
+
+  Future<void> _restoreDraftVideo(LocalPostDraftSeed seed) async {
+    final descriptor = seed.draft.video;
+    final owner = widget.draftOwner;
+    if (descriptor == null || owner == null) return;
+    try {
+      final repository = await ref.read(
+        accountLocalPostDraftRepositoryProvider(
+          owner.session.account,
+        ).future,
+      );
+      if (repository is! LocalVideoDraftRepository) return;
+      final videoRepository = repository as LocalVideoDraftRepository;
+      final poster = await videoRepository.readVideoPoster(seed.draft.id);
+      if (!mounted) return;
+      setState(() {
+        _videoController.restoredSelection = LocalVideoSelection(
+          displayName: descriptor.displayFileName,
+          mimeType: descriptor.mimeType,
+          byteLength: descriptor.sourceByteLength,
+          duration: descriptor.duration,
+          width: descriptor.width,
+          height: descriptor.height,
+          headerBytes: Uint8List(0),
+          openRead: () => videoRepository.openVideoSource(seed.draft.id),
+          posterBytes: poster,
+          altText: descriptor.altText,
+        );
+        _usesStoredDraftVideo = true;
+      });
+    } on Object {
+      // Damaged drafts remain editable after the missing video is replaced.
+    }
   }
 
   void _ensureUnsavedWorkRegistration() {
@@ -849,13 +1005,16 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     return ProjectComposerDraftState.hasDraft(
           bodyText: _bodyText,
           initialBodyText: _initialBodyText,
-          imageCount: _draftMediaChanged(imagesState) ? 1 : 0,
+          imageCount: _draftMediaChanged(imagesState) || _draftVideoChanged()
+              ? 1
+              : 0,
           formValues: formValues,
           initialFormValues: _initialFormValues,
         ) ||
         !listEquals(_languages?.values, _initialLanguages) ||
         _scheduleChoice != _initialScheduleChoice ||
-        _scheduledAtLocal != _initialScheduledAtLocal;
+        _scheduledAtLocal != _initialScheduledAtLocal ||
+        _draftVideoChanged();
   }
 
   bool _focusFirstPageField() {
@@ -913,10 +1072,12 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     required ThemeData theme,
     required SpacingTheme spacing,
     required ComposerImagesState imagesState,
+    required LocalVideoSelection? selectedVideo,
     required bool controlsEnabled,
     required String? photoErrorText,
     required String patternInfoTitle,
     required Future<void> Function()? onAddImages,
+    required Future<void> Function() onAddVideo,
     required void Function(String imageId, String value) onAltTextChanged,
     required ValueChanged<String> onRemoveImage,
     required Future<void> Function(String imageId) onReplaceUnavailable,
@@ -939,6 +1100,21 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
               ),
             ],
           )
+        else if (selectedVideo != null)
+          ComposerVideoAttachmentCard(
+            selection: selectedVideo,
+            enabled: controlsEnabled,
+            onAltTextChanged: (value) {
+              setState(() => _videoController.setAltText(value));
+            },
+            onReplace: () => unawaited(_selectVideo(replace: true)),
+            onRemove: () {
+              setState(() {
+                _usesStoredDraftVideo = false;
+                _videoController.remove();
+              });
+            },
+          )
         else
           ComposerImageAttachmentSection(
             imagesState: imagesState,
@@ -951,6 +1127,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
             onRemove: onRemoveImage,
             onReplaceUnavailable: onReplaceUnavailable,
             onReorder: onReorderImages,
+            supportsVideo:
+                widget.scheduledPost == null &&
+                _scheduleChoice == ScheduleChoice.now,
+            onAddVideo: onAddVideo,
           ),
         SizedBox(height: spacing.sp6),
         CraftskyFormBuilderDropdownField<String>(
@@ -1180,11 +1360,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     final craftField =
         _formKey.currentState?.fields[ProjectComposerFields.craftType];
     final isCraftValid = craftField?.validate() ?? false;
-    final hasRequiredPhoto = ref
-        .read(composerImagesProvider(_composerId))
-        .images
-        .isNotEmpty;
-    if (!isCraftValid || !hasRequiredPhoto) {
+    final hasRequiredMedia =
+        ref.read(composerImagesProvider(_composerId)).images.isNotEmpty ||
+        _videoController.selection != null;
+    if (!isCraftValid || !hasRequiredMedia) {
       return;
     }
 
@@ -1594,7 +1773,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     final isFormValid = form.saveAndValidate();
     final imagesState = ref.read(composerImagesProvider(_composerId));
     final hasRequiredBody = trimmedBody.isNotEmpty;
-    final hasRequiredPhoto = imagesState.images.isNotEmpty;
+    final hasRequiredPhoto =
+        imagesState.images.isNotEmpty || _videoController.selection != null;
     final isBodyLengthValid =
         _bodyText.length <= ProjectComposerSheet.maxCharacters;
     if (!isFormValid ||
@@ -1626,7 +1806,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       return;
     }
 
-    if (imagesState.hasImagesMissingAltText) {
+    if (imagesState.hasImagesMissingAltText ||
+        (_videoController.selection?.altText.trim().isEmpty ?? false)) {
       final l10n = AppLocalizations.of(context);
       final shouldPost = await showCraftskyConfirmDialog(
         context,
@@ -1671,6 +1852,17 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
         return;
       }
 
+      if (_videoController.selection case final selectedVideo?) {
+        await _publishVideo(
+          selectedVideo: selectedVideo,
+          owner: submissionOwner,
+          text: args.text,
+          project: args.project,
+          facets: args.facets,
+        );
+        return;
+      }
+
       final images = await _mediaUploader.materializeImmediate(
         composerId: _composerId,
         images: imagesState.images,
@@ -1698,12 +1890,91 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     });
   }
 
+  Future<void> _publishVideo({
+    required LocalVideoSelection selectedVideo,
+    required ActiveAccountLease? owner,
+    required String text,
+    required Project project,
+    required List<Map<String, dynamic>>? facets,
+  }) async {
+    if (owner == null) throw StateError('Video publication requires an owner');
+    if (widget.prepareVideoProof case final prepare?) {
+      final video = await prepare(selectedVideo);
+      final created = await ref
+          .read(createPostProvider.notifier)
+          .create(
+            text: text,
+            langs: _languages!.values,
+            project: project,
+            video: video,
+            facets: facets,
+            ownership: owner,
+          );
+      _submissionSucceeded = created != null;
+      return;
+    }
+    final api = ref.read(postApiClientProvider);
+    final service = ref.read(videoServiceClientProvider);
+    final coordinator = VideoPublicationCoordinator(
+      checkEligibility: api.getVideoUploadLimits,
+      authorize: api.authorizeVideoUpload,
+      upload:
+          ({
+            required authorizationHeader,
+            required cancelToken,
+            required onProgress,
+          }) => service.upload(
+            source: VideoUploadSource(
+              length: selectedVideo.byteLength,
+              openRead: selectedVideo.openRead,
+            ),
+            ownerDid: owner.session.account.did.value,
+            authorizationHeader: authorizationHeader,
+            cancelToken: cancelToken,
+            onProgress: onProgress,
+          ),
+      poll: (jobId, cancelToken) =>
+          service.getJobStatus(jobId, cancelToken: cancelToken),
+      wait: Future<void>.delayed,
+      publish: (video) async {
+        final created = await ref
+            .read(createPostProvider.notifier)
+            .create(
+              text: text,
+              langs: _languages!.values,
+              project: project,
+              video: video,
+              facets: facets,
+              ownership: owner,
+            );
+        _submissionSucceeded = created != null;
+      },
+      onProgress: (progress) {
+        if (mounted) setState(() => _videoProgress = progress);
+      },
+    );
+    _videoPublication = coordinator;
+    _videoPublicationOwner = owner;
+    try {
+      await coordinator.publish(
+        altText: selectedVideo.altText,
+        aspectRatio: (selectedVideo.width, selectedVideo.height),
+      );
+    } finally {
+      if (identical(_videoPublication, coordinator)) {
+        _videoPublication = null;
+        _videoPublicationOwner = null;
+      }
+    }
+  }
+
   Future<void> _runSubmission(
     ActiveAccountLease? submissionOwner,
     Future<void> Function() operation,
   ) async {
     if (_submissionCoordinator.isRunning) return;
     _submissionSucceeded = false;
+    _videoFailure = null;
     await _submissionCoordinator.run(
       presentOverlay: () async {
         await WidgetsBinding.instance.endOfFrame;
@@ -1711,7 +1982,14 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       },
       ownershipIsCurrent: () => _submissionOwnershipIsCurrent(submissionOwner),
       saveOriginSnapshot: _saveOriginSnapshot,
-      operation: operation,
+      operation: () async {
+        try {
+          await operation();
+        } on Object catch (error) {
+          if (_videoController.selection != null) _videoFailure = error;
+          rethrow;
+        }
+      },
       didSucceed: () => _submissionSucceeded,
       deleteOriginAfterSuccess: _deleteOriginDraftAfterSuccess,
       onRunningChanged: ({required running}) {
@@ -1719,7 +1997,21 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       },
       onFailure: (_) {
         if (mounted) {
-          context.showError(AppLocalizations.of(context).postCreateError);
+          final l10n = AppLocalizations.of(context);
+          final retryOperation = _videoController.selection == null
+              ? null
+              : MessageAction(
+                  label: l10n.retryButton,
+                  onPressed: () => unawaited(
+                    _runSubmission(submissionOwner, operation),
+                  ),
+                );
+          context.showError(
+            retryOperation == null
+                ? l10n.postCreateError
+                : videoPublicationFailureMessage(l10n, _videoFailure),
+            action: retryOperation,
+          );
         }
       },
     );

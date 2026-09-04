@@ -12,7 +12,7 @@ Lexicons are JSON schemas that define the shape of records stored on user PDSes.
 
 | Lexicon | Purpose |
 |---|---|
-| `social.craftsky.feed.post` | A post — general or a craft project (via optional `project` sub-object with `common` + open-union `details`). Supports replies, up to 4 images, rich-text facets (reusing `app.bsky.richtext.facet`), and quote embeds. |
+| `social.craftsky.feed.post` | A post — general or a craft project (via optional `project` sub-object with `common` + open-union `details`). Supports replies, up to 4 images, rich-text facets, quote embeds, standard external cards, and standard video. |
 | `social.craftsky.feed.defs` | Shared feed/project tokens for craft type, project status, and pattern difficulty. |
 | `social.craftsky.feed.repost` | A repost of a Craftsky post |
 | `social.craftsky.feed.like` | A like on a Craftsky post (distinct NSID for firehose-filter efficiency) |
@@ -38,6 +38,8 @@ Lexicons are JSON schemas that define the shape of records stored on user PDSes.
 | `app.bsky.graph.follow` | Standard follow semantics |
 | `app.bsky.graph.block` | Standard block semantics |
 | `app.bsky.richtext.facet` | Byte-range rich-text annotations (mentions/links/tags); referenced from `social.craftsky.feed.post.facets` |
+| `app.bsky.embed.external` | Standard external-card embed variant in the open post embed union |
+| `app.bsky.embed.video` | Standard video blob, alt text, aspect ratio, caption, and presentation metadata in the open post embed union |
 
 Business declarations also reference the complete, locally vendored
 `community.lexicon.location.address` value from

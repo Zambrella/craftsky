@@ -177,7 +177,7 @@ func (s *SavedPostService) ListSavedPosts(ctx context.Context, owner syntax.DID,
 		if !savedPostPolicyAllows(states[did]) {
 			continue
 		}
-		response := BuildPostResponse(row, handles[row.DID])
+		response := buildPostResponse(row, handles[row.DID], s.hydrator)
 		applyEngagementSummary(response, summaries[row.URI])
 		ApplyPostAuthorViewerState(response, states[did])
 		items = append(items, SavedPostItem{Post: response, SavedAt: ref.SavedAt, FolderID: ref.FolderID})

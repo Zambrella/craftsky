@@ -2020,6 +2020,198 @@ abstract class AppLocalizations {
   /// **'Add a photo'**
   String get postComposeAddPhoto;
 
+  /// Label on a video-capable empty composer attachment card.
+  ///
+  /// In en, this message translates to:
+  /// **'Add photos or a video'**
+  String get postComposeAddPhotosOrVideo;
+
+  /// Media options shown by a video-capable composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose up to 4 photos or a video.'**
+  String get postComposePhotosOrVideoHelper;
+
+  /// Photo choice in the composer media picker.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose photos'**
+  String get postComposeChoosePhotos;
+
+  /// Existing-video choice in the composer media picker.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a video'**
+  String get postComposeChooseVideo;
+
+  /// Heading above an attached composer video.
+  ///
+  /// In en, this message translates to:
+  /// **'Selected video'**
+  String get postComposeVideoSelected;
+
+  /// Action for replacing an attached composer video.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace video'**
+  String get postComposeReplaceVideo;
+
+  /// Action for removing an attached composer video.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove video'**
+  String get postComposeRemoveVideo;
+
+  /// Hint inside the attached video alt-text field.
+  ///
+  /// In en, this message translates to:
+  /// **'Describe the video for someone who cannot see it, including the craft, movement, materials, colors, and important details.'**
+  String get postComposeVideoAltHint;
+
+  /// Video publication upload stage.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading video'**
+  String get postVideoUploading;
+
+  /// Video publication processing stage.
+  ///
+  /// In en, this message translates to:
+  /// **'Processing video'**
+  String get postVideoProcessing;
+
+  /// Final video post publication stage.
+  ///
+  /// In en, this message translates to:
+  /// **'Publishing post'**
+  String get postVideoPublishing;
+
+  /// Cancels an active video upload or processing attempt.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get postVideoCancel;
+
+  /// Fallback shown when a native video cannot be played.
+  ///
+  /// In en, this message translates to:
+  /// **'Video is unavailable. Try again later.'**
+  String get postVideoUnavailable;
+
+  /// Actionable video upload failure for an unverified account email.
+  ///
+  /// In en, this message translates to:
+  /// **'Verify your email with your account provider before uploading video.'**
+  String get postVideoEmailUnverified;
+
+  /// Actionable video upload failure when daily quota is exhausted.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'ve reached your daily video limit. Try again after it resets.'**
+  String get postVideoQuotaExhausted;
+
+  /// Remaining daily video upload count shown when quota is constrained.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No videos remaining today} =1{1 video remaining today} other{{count} videos remaining today}}'**
+  String postVideoRemainingVideos(int count);
+
+  /// Remaining daily video upload bytes shown when quota is constrained.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} bytes remaining today'**
+  String postVideoRemainingBytes(int count);
+
+  /// Remaining daily video count and bytes shown when both quotas are available and constrained.
+  ///
+  /// In en, this message translates to:
+  /// **'{videos, plural, =0{No videos} =1{1 video} other{{videos} videos}} and {bytes} bytes remaining today'**
+  String postVideoRemainingQuota(int videos, int bytes);
+
+  /// Actionable video upload failure for an unsupported provider.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account provider doesn\'t support video uploads yet.'**
+  String get postVideoProviderUnsupported;
+
+  /// Actionable failure for service-side video validation.
+  ///
+  /// In en, this message translates to:
+  /// **'The video service couldn\'t accept this MP4. Check its size and duration, then try another file.'**
+  String get postVideoValidationFailed;
+
+  /// Actionable failure for video processing.
+  ///
+  /// In en, this message translates to:
+  /// **'The video couldn\'t be processed. Retry or choose another MP4.'**
+  String get postVideoProcessingFailed;
+
+  /// Safe retryable fallback for video publication failures.
+  ///
+  /// In en, this message translates to:
+  /// **'The video couldn\'t be published. Check your connection and retry.'**
+  String get postVideoRetryableFailure;
+
+  /// Tooltip for selecting a native video's caption track.
+  ///
+  /// In en, this message translates to:
+  /// **'Captions'**
+  String get postVideoCaptions;
+
+  /// Action that disables native video captions.
+  ///
+  /// In en, this message translates to:
+  /// **'Captions off'**
+  String get postVideoCaptionsOff;
+
+  /// Tooltip for playing a native video.
+  ///
+  /// In en, this message translates to:
+  /// **'Play video'**
+  String get nativeVideoPlay;
+
+  /// Tooltip for pausing a native video.
+  ///
+  /// In en, this message translates to:
+  /// **'Pause video'**
+  String get nativeVideoPause;
+
+  /// Tooltip for replaying a completed native video.
+  ///
+  /// In en, this message translates to:
+  /// **'Replay video'**
+  String get nativeVideoReplay;
+
+  /// Tooltip for muting a native video.
+  ///
+  /// In en, this message translates to:
+  /// **'Mute video'**
+  String get nativeVideoMute;
+
+  /// Tooltip for unmuting a native video.
+  ///
+  /// In en, this message translates to:
+  /// **'Unmute video'**
+  String get nativeVideoUnmute;
+
+  /// Tooltip for opening a native video in full screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter full screen'**
+  String get nativeVideoEnterFullscreen;
+
+  /// Tooltip for returning a native video from full screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Exit full screen'**
+  String get nativeVideoExitFullscreen;
+
+  /// Explains that an attached video will be public and stored with its public post.
+  ///
+  /// In en, this message translates to:
+  /// **'Published videos are public and stored with your post on your account provider.'**
+  String get postComposeVideoPublicNotice;
+
   /// Label on the composer card for adding another photo.
   ///
   /// In en, this message translates to:

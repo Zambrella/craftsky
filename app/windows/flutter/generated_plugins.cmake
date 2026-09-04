@@ -7,6 +7,8 @@ list(APPEND FLUTTER_PLUGIN_LIST
   file_selector_windows
   firebase_core
   flutter_secure_storage_windows
+  media_kit_libs_windows_video
+  media_kit_video
   sentry_flutter
   url_launcher_windows
 )

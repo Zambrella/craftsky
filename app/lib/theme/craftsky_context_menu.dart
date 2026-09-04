@@ -21,6 +21,7 @@ class CraftskyContextMenuItem {
     required this.text,
     required this.icon,
     required this.onPressed,
+    this.key,
     this.description,
     this.semanticHint,
     this.isSelected = false,
@@ -30,6 +31,7 @@ class CraftskyContextMenuItem {
   final String text;
   final IconData icon;
   final FutureOr<void> Function()? onPressed;
+  final Key? key;
   final String? description;
   final String? semanticHint;
   final bool isSelected;
@@ -385,6 +387,7 @@ class _CraftskyContextMenuRow extends StatelessWidget {
       child: Material(
         color: item.isSelected ? selectedBackground : Colors.transparent,
         child: ListTile(
+          key: item.key,
           enabled: !isDisabled,
           onTap: onTap,
           contentPadding: EdgeInsets.symmetric(horizontal: spacing.sp4),

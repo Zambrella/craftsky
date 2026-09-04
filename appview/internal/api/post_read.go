@@ -60,7 +60,7 @@ func GetPostHandler(store readPostStore, resolver HandleResolver, logger *slog.L
 			return
 		}
 		if relationshipState.HasBlock() {
-			resp := BuildPostResponse(row, "")
+			resp := buildPostResponse(row, "", store)
 			ApplyPostRelationshipPolicy(resp, relationshipState, relationships.SurfaceDirectPost)
 			writeJSON(w, http.StatusOK, resp)
 			return
@@ -81,7 +81,7 @@ func GetPostHandler(store readPostStore, resolver HandleResolver, logger *slog.L
 				"identity_unavailable", "could not resolve handle", runID, nil)
 			return
 		}
-		resp := BuildPostResponse(row, handle)
+		resp := buildPostResponse(row, handle, store)
 		ApplyPostAuthorViewerState(resp, relationshipState)
 		applyEngagementSummary(resp, summaries[row.URI])
 		if err := attachQuoteView(r.Context(), store, resolver, resp); err != nil {

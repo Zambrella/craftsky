@@ -12,6 +12,7 @@ import (
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/relationships"
+	"social.craftsky/appview/internal/video"
 )
 
 func ptrStr(s string) *string { return &s }
@@ -69,6 +70,30 @@ func TestBuildPostResponse_MinimalPost(t *testing.T) {
 	b, _ := json.Marshal(resp.Tags)
 	if string(b) != "[]" {
 		t.Errorf("tags = %s", b)
+	}
+}
+
+func TestBuildPostResponseHydratesCanonicalVideo(t *testing.T) {
+	t.Parallel()
+	row := baseRow()
+	row.RawEmbed = json.RawMessage(`{"$type":"app.bsky.embed.video","video":{"$type":"blob","ref":{"$link":"bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"},"mimeType":"video/mp4","size":123},"alt":"authored description","aspectRatio":{"width":16,"height":9},"captions":[{"lang":"en","file":{"$type":"blob","ref":{"$link":"bafkreigxxxkul4e5rjz4fomqgn6ieeoxbcqeztmxjbrhnbpe7r44ya4ahe"},"mimeType":"text/vtt","size":321}},{"lang":"fr","file":{"$type":"blob","ref":{"$link":"bafkreifqaaa7v7zgm4myr6tv22zowykwi5b3m5i4m5w4a2j4aa2qgq7lpa"},"mimeType":"text/plain","size":12}}]}`)
+	builder, err := video.NewPlaybackURLBuilder(video.PlaybackConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := api.BuildPostResponse(row, "alice.example", builder)
+	if response.Video == nil || response.Video.CID == "" || response.Video.MIME != "video/mp4" || response.Video.Size != 123 || response.Video.Alt != "authored description" || response.Video.AspectRatio == nil || len(response.Video.Captions) != 1 {
+		t.Fatalf("video = %+v", response.Video)
+	}
+	if !strings.HasSuffix(response.Video.Playlist, "/playlist.m3u8") || !strings.HasSuffix(response.Video.Thumbnail, "/thumbnail.jpg") {
+		t.Fatalf("playback = %q %q", response.Video.Playlist, response.Video.Thumbnail)
+	}
+	if response.Video.Captions[0].CID != "bafkreigxxxkul4e5rjz4fomqgn6ieeoxbcqeztmxjbrhnbpe7r44ya4ahe" || response.Video.Captions[0].Lang != "en" {
+		t.Fatalf("captions = %+v", response.Video.Captions)
+	}
+	raw, _ := json.Marshal(response)
+	if strings.Contains(string(raw), `"mime":"text/plain"`) || strings.Contains(string(raw), `"source"`) {
+		t.Fatalf("unsafe fallback/caption in response: %s", raw)
 	}
 }
 

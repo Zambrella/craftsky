@@ -19,14 +19,22 @@ import 'package:craftsky_app/feed/composer/composer_submission_coordinator.dart'
 import 'package:craftsky_app/feed/composer/link_preview_candidate.dart';
 import 'package:craftsky_app/feed/composer/link_preview_controller.dart';
 import 'package:craftsky_app/feed/composer/submission_screen_awake.dart';
+import 'package:craftsky_app/feed/composer/video_failure_message.dart';
+import 'package:craftsky_app/feed/composer/video_publication_coordinator.dart';
+import 'package:craftsky_app/feed/data/video_service_client.dart';
+import 'package:craftsky_app/feed/models/create_post_video.dart';
 import 'package:craftsky_app/feed/models/link_preview.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
+import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
 import 'package:craftsky_app/feed/providers/create_post_provider.dart';
+import 'package:craftsky_app/feed/providers/image_picker_existing_video.dart';
 import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
+import 'package:craftsky_app/feed/providers/video_service_client_provider.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
 import 'package:craftsky_app/feed/widgets/composer_link_preview_carousel.dart';
+import 'package:craftsky_app/feed/widgets/composer_video_attachment_card.dart';
 import 'package:craftsky_app/feed/widgets/submission_blocking_overlay.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
@@ -97,6 +105,8 @@ class PostComposerSheet extends ConsumerStatefulWidget {
     this.scheduledOwner,
     this.draftSeed,
     this.draftOwner,
+    this.videoController,
+    this.prepareVideoProof,
   }) : assert(
          replyTarget == null || quoteTarget == null,
          'replyTarget and quoteTarget are mutually exclusive',
@@ -122,12 +132,16 @@ class PostComposerSheet extends ConsumerStatefulWidget {
   final ActiveAccountLease? scheduledOwner;
   final LocalPostDraftSeed? draftSeed;
   final ActiveAccountLease? draftOwner;
+  final ComposerVideoController? videoController;
+  final Future<CreatePostVideo> Function(LocalVideoSelection video)?
+  prepareVideoProof;
 
   @override
   ConsumerState<PostComposerSheet> createState() => _PostComposerSheetState();
 }
 
-class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
+class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
+    with WidgetsBindingObserver {
   final _controller = FacetTextEditingController();
   final _focusNode = FocusNode(debugLabel: 'postComposerText');
   late final String _composerId;
@@ -153,6 +167,12 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
   ActiveAccountLease? _scheduledOwner;
   late final ComposerMediaUploader _mediaUploader;
   late final ComposerSubmissionCoordinator _submissionCoordinator;
+  late final ComposerVideoController _videoController;
+  VideoPublicationCoordinator? _videoPublication;
+  ActiveAccountLease? _videoPublicationOwner;
+  VideoPublicationProgress? _videoProgress;
+  Object? _videoFailure;
+  var _usesStoredDraftVideo = false;
   var _isSubmitting = false;
   var _isSavingDraft = false;
   var _submissionSucceeded = false;
@@ -168,6 +188,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _unsavedGuard = ref.read(unsavedWorkGuardProvider);
     _composerId = widget.composerId ?? const Uuid().v4();
     _existingExternalMediaId = _existingExternalThumbMediaId(
@@ -178,6 +199,13 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     _submissionCoordinator = ComposerSubmissionCoordinator(
       screenAwake: const WakelockSubmissionScreenAwake(),
     );
+    _videoController =
+        widget.videoController ??
+        ComposerVideoController(
+          picker: ImagePickerExistingVideo(),
+          checkEligibility: () =>
+              ref.read(postApiClientProvider).getVideoUploadLimits(),
+        );
     _scheduledOwner = widget.scheduledOwner;
     if (widget.draftSeed case final seed?) {
       final content = seed.draft.content;
@@ -206,6 +234,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
           ref
               .read(composerImagesProvider(_composerId).notifier)
               .seedLocalDraft(seed);
+          unawaited(_restoreDraftVideo(seed));
         }
       });
     }
@@ -247,12 +276,24 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _unsavedGuard.unregister(_unsavedRegistration);
     unawaited(_submissionCoordinator.dispose());
+    _videoPublication?.cancel();
     _controller.dispose();
     _focusNode.dispose();
     _mediaUploader.disposeComposer(_composerId);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed &&
+        shouldCancelVideoPublicationOnLifecycleInterruption(
+          _videoProgress?.stage,
+        )) {
+      _videoPublication?.cancel();
+    }
   }
 
   @override
@@ -269,10 +310,15 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     _initialLanguages ??= List.of(_languages!.values);
     final imagesProvider = composerImagesProvider(_composerId);
     final imagesState = ref.watch(imagesProvider);
+    final selectedVideo = _videoController.selection;
     final isReply = widget.replyTarget != null;
     final isQuote = widget.quoteTarget != null;
     final isSchedulable = !isReply && !isQuote;
     final activeLease = ref.watch(sessionRegistryProvider).value?.activeLease;
+    if (_videoPublicationOwner != null &&
+        activeLease != _videoPublicationOwner) {
+      _videoPublication?.cancel();
+    }
     if (widget.scheduledPost != null && _scheduledOwner == null) {
       _scheduledOwner = activeLease;
     }
@@ -343,6 +389,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
         !tooLong &&
         _languages != null &&
         imagesState.canSubmitImages() &&
+        (selectedVideo == null || _scheduleChoice == ScheduleChoice.now) &&
         (_scheduleChoice == ScheduleChoice.now || capacity.scheduleEnabled);
     final submitLabel = _scheduleChoice == ScheduleChoice.later
         ? l10n.scheduledPostAction
@@ -471,7 +518,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                             previewController?.updateText(value);
                           },
                         ),
-                        if (previewController != null &&
+                        if (selectedVideo == null &&
+                            previewController != null &&
                             previewState != null &&
                             !previewState.dismissed &&
                             !previewState.suppressed) ...[
@@ -572,6 +620,24 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                                 ),
                               ],
                             )
+                          else if (selectedVideo != null)
+                            ComposerVideoAttachmentCard(
+                              selection: selectedVideo,
+                              enabled: !createState.isLoading && !_isSubmitting,
+                              onAltTextChanged: (value) {
+                                setState(
+                                  () => _videoController.setAltText(value),
+                                );
+                              },
+                              onReplace: () =>
+                                  unawaited(_selectVideo(replace: true)),
+                              onRemove: () {
+                                setState(() {
+                                  _usesStoredDraftVideo = false;
+                                  _videoController.remove();
+                                });
+                              },
+                            )
                           else
                             ComposerImageAttachmentSection(
                               imagesState: imagesState,
@@ -593,6 +659,11 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                                     fromIndex: fromIndex,
                                     toIndex: toIndex,
                                   ),
+                              supportsVideo:
+                                  isSchedulable &&
+                                  _scheduleChoice == ScheduleChoice.now &&
+                                  widget.scheduledPost == null,
+                              onAddVideo: _selectVideo,
                             ),
                         ],
                         SizedBox(
@@ -628,6 +699,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
           if (_isSubmitting)
             SubmissionBlockingOverlay(
               scheduling: _scheduleChoice == ScheduleChoice.later,
+              videoProgress: _videoProgress,
+              onCancelVideo: _videoPublication?.cancel,
             ),
         ],
       ),
@@ -688,7 +761,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
         !listEquals(_languages?.values, _initialLanguages) ||
         _scheduleChoice != _initialScheduleChoice ||
         _scheduledAtLocal != _initialScheduledAtLocal ||
-        mediaChanged;
+        mediaChanged ||
+        _videoController.selection != null;
   }
 
   Future<void> _saveDraft(ComposerImagesState imagesState) async {
@@ -733,9 +807,76 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
       languages: _languages!.values,
       schedule: schedule,
       images: imagesState.images,
+      video: _draftVideoWrite(),
       existingRevision: existing?.revision,
       existingCreatedAt: existing?.createdAt,
     );
+  }
+
+  DraftVideoWrite? _draftVideoWrite() {
+    final selection = _videoController.selection;
+    if (selection == null) return null;
+    final stored = _origin.draft?.video;
+    if (_usesStoredDraftVideo && stored != null) {
+      return ExistingStoredVideo(
+        storageRevision: stored.storageRevision,
+        expectedSourceSha256: stored.sourceSha256,
+        expectedPosterSha256: stored.posterSha256,
+        altText: selection.altText,
+      );
+    }
+    final poster = selection.posterBytes;
+    if (poster == null) {
+      throw const DraftRepositoryException(
+        DraftRepositoryFailureReason.invalidRequest,
+      );
+    }
+    return PreparedDraftVideo(
+      displayFileName: selection.displayName,
+      mimeType: selection.mimeType,
+      byteLength: selection.byteLength,
+      openSource: selection.openRead,
+      width: selection.width,
+      height: selection.height,
+      duration: selection.duration,
+      altText: selection.altText,
+      posterMimeType: 'image/jpeg',
+      posterBytes: poster,
+    );
+  }
+
+  Future<void> _restoreDraftVideo(LocalPostDraftSeed seed) async {
+    final descriptor = seed.draft.video;
+    final owner = widget.draftOwner;
+    if (descriptor == null || owner == null) return;
+    try {
+      final repository = await ref.read(
+        accountLocalPostDraftRepositoryProvider(
+          owner.session.account,
+        ).future,
+      );
+      if (repository is! LocalVideoDraftRepository) return;
+      final videoRepository = repository as LocalVideoDraftRepository;
+      final poster = await videoRepository.readVideoPoster(seed.draft.id);
+      if (!mounted) return;
+      setState(() {
+        _videoController.restoredSelection = LocalVideoSelection(
+          displayName: descriptor.displayFileName,
+          mimeType: descriptor.mimeType,
+          byteLength: descriptor.sourceByteLength,
+          duration: descriptor.duration,
+          width: descriptor.width,
+          height: descriptor.height,
+          headerBytes: Uint8List(0),
+          openRead: () => videoRepository.openVideoSource(seed.draft.id),
+          posterBytes: poster,
+          altText: descriptor.altText,
+        );
+        _usesStoredDraftVideo = true;
+      });
+    } on Object {
+      // Damaged drafts remain editable after the missing video is replaced.
+    }
   }
 
   Future<bool> _confirmDiscard() {
@@ -804,6 +945,108 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     );
   }
 
+  Future<void> _selectVideo({bool replace = false}) async {
+    try {
+      final limits = replace
+          ? await _videoController.replace()
+          : await _videoController.selectExisting();
+      if (!mounted) return;
+      if (limits != null && !limits.canUpload) {
+        context.showError(
+          videoLimitsMessage(AppLocalizations.of(context), limits),
+        );
+        return;
+      }
+      final quota = limits == null
+          ? null
+          : videoQuotaMessage(AppLocalizations.of(context), limits);
+      if (quota != null) {
+        context.showInfo(quota);
+      }
+      setState(() => _usesStoredDraftVideo = false);
+    } on Object {
+      if (mounted) {
+        context.showError(AppLocalizations.of(context).postCreateError);
+      }
+    }
+  }
+
+  Future<void> _publishVideo({
+    required LocalVideoSelection selectedVideo,
+    required ActiveAccountLease? owner,
+    required String trimmedText,
+    required List<Map<String, dynamic>> facets,
+  }) async {
+    if (owner == null) throw StateError('Video publication requires an owner');
+    if (widget.prepareVideoProof case final prepare?) {
+      final video = await prepare(selectedVideo);
+      final created = await ref
+          .read(createPostProvider.notifier)
+          .create(
+            text: trimmedText,
+            langs: _languages!.values,
+            video: video,
+            facets: facets.isEmpty ? null : facets,
+            ownership: owner,
+          );
+      _submissionSucceeded = created != null;
+      return;
+    }
+    final api = ref.read(postApiClientProvider);
+    final service = ref.read(videoServiceClientProvider);
+    final coordinator = VideoPublicationCoordinator(
+      checkEligibility: api.getVideoUploadLimits,
+      authorize: api.authorizeVideoUpload,
+      upload:
+          ({
+            required authorizationHeader,
+            required cancelToken,
+            required onProgress,
+          }) => service.upload(
+            source: VideoUploadSource(
+              length: selectedVideo.byteLength,
+              openRead: selectedVideo.openRead,
+            ),
+            ownerDid: owner.session.account.did.value,
+            authorizationHeader: authorizationHeader,
+            cancelToken: cancelToken,
+            onProgress: onProgress,
+          ),
+      poll: (jobId, cancelToken) =>
+          service.getJobStatus(jobId, cancelToken: cancelToken),
+      wait: Future<void>.delayed,
+      publish: (video) async {
+        final created = await ref
+            .read(createPostProvider.notifier)
+            .create(
+              text: trimmedText,
+              langs: _languages!.values,
+              video: video,
+              facets: facets.isEmpty ? null : facets,
+              ownership: owner,
+            );
+        _submissionSucceeded = created != null;
+      },
+      onProgress: (progress) {
+        if (mounted) setState(() => _videoProgress = progress);
+      },
+    );
+    _videoPublication = coordinator;
+    _videoPublicationOwner = owner;
+    try {
+      await coordinator.publish(
+        altText: selectedVideo.altText,
+        aspectRatio: (selectedVideo.width, selectedVideo.height),
+      );
+    } finally {
+      if (identical(_videoPublication, coordinator)) {
+        _videoPublication = null;
+        _videoPublicationOwner = null;
+        if (mounted) setState(() => _videoProgress = null);
+      }
+    }
+  }
+
   Future<void> _submitPost({required String trimmedText}) async {
     final imagesState = ref.read(composerImagesProvider(_composerId));
     final activeLease = ref.read(sessionRegistryProvider).value?.activeLease;
@@ -844,6 +1087,18 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     final facets = await _facetsForSubmission(trimmedText);
     if (!mounted) return;
     final submissionOwner = activeLease;
+    if (_videoController.selection case final selectedVideo?) {
+      await _runSubmission(
+        submissionOwner,
+        () => _publishVideo(
+          selectedVideo: selectedVideo,
+          owner: submissionOwner,
+          trimmedText: trimmedText,
+          facets: facets,
+        ),
+      );
+      return;
+    }
     final needsUpload =
         imagesState.images.any(
           (image) => image.phase is ImageReady,
@@ -927,6 +1182,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
   ) async {
     if (_submissionCoordinator.isRunning) return;
     _submissionSucceeded = false;
+    _videoFailure = null;
     await _submissionCoordinator.run(
       presentOverlay: () async {
         await WidgetsBinding.instance.endOfFrame;
@@ -934,7 +1190,14 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
       },
       ownershipIsCurrent: () => _submissionOwnershipIsCurrent(submissionOwner),
       saveOriginSnapshot: _saveOriginSnapshot,
-      operation: operation,
+      operation: () async {
+        try {
+          await operation();
+        } on Object catch (error) {
+          if (_videoController.selection != null) _videoFailure = error;
+          rethrow;
+        }
+      },
       didSucceed: () => _submissionSucceeded,
       deleteOriginAfterSuccess: _deleteOriginDraftAfterSuccess,
       onRunningChanged: ({required running}) {
@@ -942,7 +1205,21 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
       },
       onFailure: (_) {
         if (mounted) {
-          context.showError(AppLocalizations.of(context).postCreateError);
+          final l10n = AppLocalizations.of(context);
+          final retryOperation = _videoController.selection == null
+              ? null
+              : MessageAction(
+                  label: l10n.retryButton,
+                  onPressed: () => unawaited(
+                    _runSubmission(submissionOwner, operation),
+                  ),
+                );
+          context.showError(
+            retryOperation == null
+                ? l10n.postCreateError
+                : videoPublicationFailureMessage(l10n, _videoFailure),
+            action: retryOperation,
+          );
         }
       },
     );

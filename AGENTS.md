@@ -22,7 +22,7 @@ Use [`.github/pull_request_template.md`](.github/pull_request_template.md) for e
 
 ## Repository Layout
 
-- `app/` — Flutter client. Uses [`atproto.dart`](https://github.com/myConsciousness/atproto.dart). Talks to `appview/` via HTTPS + session token, never to the PDS directly.
+- `app/` — Flutter client. Uses [`atproto.dart`](https://github.com/myConsciousness/atproto.dart). Reads and ordinary writes use `appview/` via HTTPS + session token; Flutter never contacts a PDS directly. The sole approved external write is direct Bluesky video upload using the ephemeral service JWT constrained by ADR 012.
 - `appview/` — Go App View. Consumes the atproto firehose via the Tap sidecar (WebSocket-with-acks), indexes Craftsky records into Postgres, serves a JSON/HTTP API to the app, mediates OAuth with the PDS (Token Mediating Backend).
 - `lexicon/` — atproto lexicon JSON schemas under the `social.craftsky.*` namespace (matches the `craftsky.social` domain). Treat these as load-bearing: once records are written to real PDSes with a given schema, migrating is painful.
 - `docker-compose.yml` — full local-dev stack: `postgres` + `migrate` + `tap` + `tap-bootstrap` + `appview`.
@@ -30,9 +30,8 @@ Use [`.github/pull_request_template.md`](.github/pull_request_template.md) for e
 
 ## Architectural Rules
 
-1. **Writes go through the PDS, reads come from the App View.** Never have the Flutter app read craft data directly from a PDS in the happy path.
-2. **The Flutter app never holds PDS tokens.** OAuth access/refresh tokens live in the App View's `sessions` table. The app only holds a Craftsky session token.
-   > **Note on the TMB upgrade path:** the current BFF design is consistent with this rule as written. Upgrading to the Token-Mediating Backend pattern (tracked as future work in the OAuth spec) will require amending this rule to distinguish *refresh* tokens (server-only) from short-lived access tokens + DPoP keys (may be handed down to clients).
+1. **Record writes go through the PDS; reads come from the App View.** Never have Flutter read craft data directly from a PDS. Ordinary record/blob writes remain AppView-mediated. ADR 012 narrowly permits Flutter to upload a video directly to the configured Bluesky video service, which stores the processed blob on the user's PDS; final post creation and verification still go through AppView.
+2. **OAuth credentials stay server-side.** OAuth access/refresh tokens, DPoP keys, and generic PDS credentials live only in AppView. ADR 012 permits Flutter to hold one short-lived PDS-signed service JWT in memory solely for the exact Bluesky video-upload origin/path. It must never be persisted, logged, forwarded on redirect, or reused for another operation. Any broader TMB handoff requires a separate architecture decision.
 3. **Public data on PDS, private data in Postgres.** Posts, follows, blocks, likes → PDS records. Drafts, mutes, push tokens, moderation state → App View Postgres. See the reference doc's "Data Visibility & Privacy" section.
 4. **Lexicon changes need an ADR.** Before modifying anything in `lexicon/`, invoke the project-level `atproto-lexicon` skill (at [`.claude/skills/atproto-lexicon/`](.claude/skills/atproto-lexicon/SKILL.md)) for NSID/type/style/evolution rules, then use `writing-architecture-decision-records` for the decision record itself.
    > **New firehose indexers** register via `dispatcher.Register(nsid, idx)` in `appview/internal/app/deps.go`. One indexer per NSID; `Handle` must be idempotent on `(URI, CID)`.
@@ -61,7 +60,7 @@ Project-scoped skills that Claude Code auto-discovers:
 ## What NOT to Do
 
 - Don't add a second serialization format. The API is JSON/HTTP to match atproto's XRPC. No protobuf/gRPC unless the whole project pivots.
-- Don't store PDS tokens on the device.
+- Don't persist PDS-issued tokens on the device. The ADR 012 video service JWT exception is memory-only and purpose-bound; OAuth access/refresh tokens and DPoP keys never enter Flutter.
 - Don't put private-by-intent data (drafts, mutes, wishlists) on the PDS — it's all public right now.
 - Don't delete data from a user's PDS for moderation, retention, cleanup, or ordinary product behavior. The App View controls what's surfaced; the PDS is the user's.
   - The sole exception is the explicit permanent CraftSky account-deletion flow approved by the authenticated owner after fresh PDS OAuth reauthentication and exact-handle confirmation. Its deletion worker may list and delete only that owner's records in registered `social.craftsky.*` record collections.

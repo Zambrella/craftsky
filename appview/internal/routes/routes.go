@@ -247,11 +247,15 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 	}
 
 	registerAuthRoutes(authRouteBundle{mux: mux, middleware: v1mw, handlers: oauthHandlers})
+	registerVideoRoutes(videoRouteBundle{
+		mux: mux, middleware: v1mw, authorization: deps.VideoUploadAuthorization,
+		limits: deps.VideoUploadLimits, logger: deps.Logger, observer: observer,
+	})
 	scheduledImageValidator := newScheduledImageValidator(deps.Config.ImageDecodeLimits, observer)
 	registerSearchRoutes(searchRouteBundle{
 		mux: mux, middleware: v1mw,
 		facetStore:     api.NewFacetStore(deps.DB, deps.AuthoritativeHandleResolver),
-		searchStore:    api.NewSearchStore(deps.DB, observer),
+		searchStore:    api.NewSearchStoreWithPlayback(deps.DB, observer, deps.VideoPlayback),
 		handleResolver: deps.HandleResolver, languages: deps.LanguagePreferences,
 		logger: deps.Logger,
 	})
@@ -291,7 +295,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 		cursors: deps.EventCursorCodec, now: deps.Now, logger: deps.Logger,
 	})
 
-	postStore := api.NewPostStore(deps.DB, observer)
+	postStore := api.NewPostStoreWithPlayback(deps.DB, observer, deps.VideoPlayback)
 	savedPostStore := api.NewSavedPostStore(deps.DB)
 	profilePinStore := api.NewProfilePinStore(deps.DB, api.ProfilePinStoreOptions{Observer: observer})
 	savedPostService := api.NewSavedPostService(savedPostStore, postStore, deps.HandleResolver)
@@ -321,7 +325,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 		handleResolver: deps.HandleResolver, newPDSEffects: deps.NewPDSEffects,
 		reportStore: deps.ReportStore, reportForwarder: deps.ReportForwarder,
 		moderationStore: deps.ModerationStore, languages: deps.LanguagePreferences,
-		mediaLimits: mediaLimits, logger: deps.Logger,
+		mediaLimits: mediaLimits, videoVerifier: deps.VideoCompletionVerifier, videoCaptions: deps.VideoCaptionFetcher, videoObserver: observer, logger: deps.Logger,
 	})
 	registerLinkPreviewRoute(linkPreviewRouteBundle{
 		mux: mux, middleware: v1mw, service: deps.LinkPreviews,

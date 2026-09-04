@@ -26,6 +26,7 @@ type SearchStore struct {
 	quoteReader        searchQuoteReader
 	relationshipReader searchRelationshipReader
 	blockedPairsReader searchBlockedPairsReader
+	videoPlayback      PlaybackURLBuilder
 }
 
 // profileSearchReader is owned by the profile-search HTTP consumers. It keeps
@@ -114,6 +115,10 @@ type recentSearchDeleter interface {
 }
 
 func NewSearchStore(pool *pgxpool.Pool, observer *observability.Observer) *SearchStore {
+	return NewSearchStoreWithPlayback(pool, observer, nil)
+}
+
+func NewSearchStoreWithPlayback(pool *pgxpool.Pool, observer *observability.Observer, playback PlaybackURLBuilder) *SearchStore {
 	posts := NewPostStore(pool, observer)
 	return &SearchStore{
 		pool:               pool,
@@ -122,7 +127,12 @@ func NewSearchStore(pool *pgxpool.Pool, observer *observability.Observer) *Searc
 		quoteReader:        posts,
 		relationshipReader: posts,
 		blockedPairsReader: posts,
+		videoPlayback:      playback,
 	}
+}
+
+func (s *SearchStore) PostPlaybackURLBuilder() PlaybackURLBuilder {
+	return s.videoPlayback
 }
 
 func (s *SearchStore) RelationshipStates(ctx context.Context, viewer syntax.DID, subjects []syntax.DID) (map[syntax.DID]relationships.State, error) {
@@ -575,7 +585,7 @@ func buildSearchPostResponses(ctx context.Context, rows []SearchPostRow, viewerD
 				handle = resolved
 			}
 		}
-		resp := BuildPostResponse(row.Post, handle)
+		resp := buildPostResponse(row.Post, handle, store)
 		applyEngagementSummary(resp, summaries[row.Post.URI])
 		items = append(items, resp)
 	}

@@ -14,6 +14,7 @@ import 'package:craftsky_app/shared/observability/sentry_error_reporter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
+import 'package:media_kit/media_kit.dart';
 
 final _log = Logger('main');
 
@@ -22,6 +23,7 @@ Future<void> main() async {
   await runZonedGuarded(
     () async {
       final binding = WidgetsFlutterBinding.ensureInitialized();
+      MediaKit.ensureInitialized();
 
       // Configure logging before anything else so error handlers and
       // bootstrap can both log through the root logger.

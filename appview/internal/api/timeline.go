@@ -149,7 +149,7 @@ func ListTimelineHandler(
 			}
 			postResponses := make([]*PostResponse, 0, len(rows))
 			for _, row := range rows {
-				resp := BuildPostResponse(row.Post, handles[row.Post.DID])
+				resp := buildPostResponse(row.Post, handles[row.Post.DID], store)
 				applyEngagementSummary(resp, summaries[row.Post.URI])
 				postResponses = append(postResponses, resp)
 			}

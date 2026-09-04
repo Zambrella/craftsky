@@ -4,7 +4,7 @@
   "defs": {
     "main": {
       "type": "record",
-      "description": "A post on Craftsky. May be a general post or a craft project post; when the optional 'project' field is present the post is a project post. The optional open embed union supports quoted records and standard external cards.",
+      "description": "A post on Craftsky. May be a general post or a craft project post; when the optional 'project' field is present the post is a project post. The optional open embed union supports quoted records, standard external cards, and standard video.",
       "key": "tid",
       "record": {
         "type": "object",
@@ -45,9 +45,10 @@
             "type": "union",
             "refs": [
               "#quoteEmbed",
-              "app.bsky.embed.external"
+              "app.bsky.embed.external",
+              "app.bsky.embed.video"
             ],
-            "description": "Optional embedded content. Open union supporting local quote embeds and standard external cards."
+            "description": "Optional embedded content. Open union supporting local quote embeds, standard external cards, and standard video."
           },
           "reply": {
             "type": "ref",

@@ -28,6 +28,7 @@ import (
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/relationships"
+	"social.craftsky/appview/internal/video"
 )
 
 // fakePostEffectState records durable effect calls. Zero-value methods
@@ -47,6 +48,29 @@ type fakePostEffectState struct {
 	lastDeleteRkey string
 	deleteCalls    int
 	deleteErr      error
+}
+
+type fakeVideoCompletionVerifier struct {
+	verified video.Blob
+	err      error
+	calls    int
+	owner    syntax.DID
+	jobID    string
+	blob     video.Blob
+}
+
+func (f *fakeVideoCompletionVerifier) Verify(_ context.Context, owner syntax.DID, jobID string, blob video.Blob) (video.Blob, error) {
+	f.calls++
+	f.owner = owner
+	f.jobID = jobID
+	f.blob = blob
+	if f.err != nil {
+		return video.Blob{}, f.err
+	}
+	if f.verified.CID != "" {
+		return f.verified, nil
+	}
+	return blob, nil
 }
 
 // fakePostEffects preserves the handler-level assertions in this file while
@@ -1414,6 +1438,121 @@ func TestCreatePost_MalformedBody_400(t *testing.T) {
 	if rr.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d", rr.Code)
 	}
+}
+
+func TestCreatePost_VideoProofVerifiedBeforePDSWrite(t *testing.T) {
+	t.Parallel()
+	const videoCID = "bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"
+	const body = `{"text":"video post","embed":{"video":{"jobId":"job-1","blob":{"$type":"blob","ref":{"$link":"` + videoCID + `"},"mimeType":"video/mp4","size":123}}}}`
+
+	tests := []struct {
+		name       string
+		verifyErr  error
+		wantStatus int
+		wantCode   string
+	}{
+		{name: "verified", wantStatus: http.StatusCreated},
+		{name: "rejected", verifyErr: &video.VerificationError{Kind: video.VerificationRejected}, wantStatus: http.StatusUnprocessableEntity, wantCode: "video_verification_failed"},
+		{name: "unavailable", verifyErr: &video.VerificationError{Kind: video.VerificationUnavailable}, wantStatus: http.StatusBadGateway, wantCode: "video_service_unavailable"},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			pds := &fakePostEffectState{}
+			verifier := &fakeVideoCompletionVerifier{err: test.verifyErr}
+			handler := api.CreatePostHandler(
+				&fakePostStore{},
+				newPDSEffectsFactory(pds),
+				fakeResolver{handleFor: "alice.example"},
+				api.DefaultMediaLimits(),
+				nilLogger(),
+				api.CreatePostHandlerOptions{VideoCompletionVerifier: verifier},
+			)
+			recorder := httptest.NewRecorder()
+			handler.ServeHTTP(recorder, authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice"))
+
+			if recorder.Code != test.wantStatus {
+				t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+			}
+			if verifier.calls != 1 || verifier.owner != syntax.DID("did:plc:alice") || verifier.jobID != "job-1" {
+				t.Fatalf("verifier calls=%d owner=%q job=%q", verifier.calls, verifier.owner, verifier.jobID)
+			}
+			if verifier.blob != (video.Blob{CID: syntax.CID(videoCID), MIMEType: "video/mp4", Size: 123}) {
+				t.Fatalf("submitted blob = %+v", verifier.blob)
+			}
+			if test.verifyErr == nil {
+				if pds.createCalls != 1 {
+					t.Fatalf("PDS writes = %d, want 1", pds.createCalls)
+				}
+				return
+			}
+			if pds.createCalls != 0 {
+				t.Fatalf("rejected proof reached PDS %d times", pds.createCalls)
+			}
+			if !strings.Contains(recorder.Body.String(), test.wantCode) || strings.Contains(recorder.Body.String(), videoCID) {
+				t.Fatalf("unsafe or incorrect error body: %s", recorder.Body.String())
+			}
+		})
+	}
+}
+
+func TestCreatePost_VerifiedVideoWritesStandardEmbed(t *testing.T) {
+	t.Parallel()
+	const submittedCID = "bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"
+	const verifiedCID = "bafkreigxxxkul4e5rjz4fomqgn6ieeoxbcqeztmxjbrhnbpe7r44ya4ahe"
+	pds := &fakePostEffectState{}
+	verifier := &fakeVideoCompletionVerifier{verified: video.Blob{
+		CID: syntax.CID(verifiedCID), MIMEType: "video/mp4", Size: 321,
+	}}
+	handler := api.CreatePostHandler(
+		&fakePostStore{},
+		newPDSEffectsFactory(pds),
+		fakeResolver{handleFor: "alice.example"},
+		api.DefaultMediaLimits(),
+		nilLogger(),
+		api.CreatePostHandlerOptions{VideoCompletionVerifier: verifier},
+	)
+	body := `{"text":"video post","embed":{"video":{"jobId":"private-job-id","blob":{"$type":"blob","ref":{"$link":"` + submittedCID + `"},"mimeType":"video/mp4","size":123},"alt":"Hands knitting","aspectRatio":{"width":16,"height":9}}}}`
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice"))
+
+	if recorder.Code != http.StatusCreated {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	record, ok := pds.lastCreateRec.(map[string]any)
+	if !ok {
+		t.Fatalf("PDS record type = %T", pds.lastCreateRec)
+	}
+	embed, ok := record["embed"].(map[string]any)
+	if !ok || embed["$type"] != "app.bsky.embed.video" || embed["alt"] != "Hands knitting" {
+		t.Fatalf("embed = %#v", record["embed"])
+	}
+	blob, ok := embed["video"].(map[string]any)
+	if !ok || blob["mimeType"] != "video/mp4" || blob["size"] != int64(321) {
+		t.Fatalf("video blob = %#v", embed["video"])
+	}
+	ref, _ := blob["ref"].(map[string]any)
+	if ref["$link"] != verifiedCID {
+		t.Fatalf("video CID = %v, want verifier result %s", ref["$link"], verifiedCID)
+	}
+	if _, exists := embed["jobId"]; exists || strings.Contains(mustJSON(t, record), "private-job-id") {
+		t.Fatalf("job proof leaked into PDS record: %#v", record)
+	}
+	ratio, _ := embed["aspectRatio"].(map[string]any)
+	if ratio["width"] != 16 || ratio["height"] != 9 {
+		t.Fatalf("aspect ratio = %#v", ratio)
+	}
+}
+
+func mustJSON(t *testing.T, value any) string {
+	t.Helper()
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("marshal JSON: %v", err)
+	}
+	return string(encoded)
 }
 
 func TestCreatePost_TextEmpty_422(t *testing.T) {

@@ -60,6 +60,7 @@ class ReportSubmissionMapper extends ClassMapperBase<ReportSubmission> {
     return ensureInitialized().decodeJson<ReportSubmission>(json);
   }
 }
+
 mixin ReportSubmissionMappable {
   String toJson() {
     return ReportSubmissionMapper.ensureInitialized()

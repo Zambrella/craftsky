@@ -53,6 +53,8 @@ void main() {
       expect(tester.widget<InkWell>(addPhoto).onTap, isNotNull);
 
       await tester.tap(addPhoto);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('composer-choose-photos')));
       await tester.pump();
       final uploaded = await _waitForImageState(
         tester,

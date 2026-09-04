@@ -24,6 +24,7 @@ class PostMapper extends ClassMapperBase<Post> {
       ]);
       PostAuthorMapper.ensureInitialized();
       PostImageMapper.ensureInitialized();
+      PostVideoMapper.ensureInitialized();
       PostReplyMapper.ensureInitialized();
       PostRefMapper.ensureInitialized();
       QuoteViewMapper.ensureInitialized();
@@ -128,6 +129,12 @@ class PostMapper extends ClassMapperBase<Post> {
     _$images,
     opt: true,
   );
+  static PostVideo? _$video(Post v) => v.video;
+  static const Field<Post, PostVideo> _f$video = Field(
+    'video',
+    _$video,
+    opt: true,
+  );
   static List<Map<String, dynamic>>? _$facets(Post v) => v.facets;
   static const Field<Post, List<Map<String, dynamic>>> _f$facets = Field(
     'facets',
@@ -210,6 +217,7 @@ class PostMapper extends ClassMapperBase<Post> {
     #viewerHasReplied: _f$viewerHasReplied,
     #viewerSavedFolderId: _f$viewerSavedFolderId,
     #images: _f$images,
+    #video: _f$video,
     #facets: _f$facets,
     #reply: _f$reply,
     #quote: _f$quote,
@@ -247,6 +255,7 @@ class PostMapper extends ClassMapperBase<Post> {
       viewerHasReplied: data.dec(_f$viewerHasReplied),
       viewerSavedFolderId: data.dec(_f$viewerSavedFolderId),
       images: data.dec(_f$images),
+      video: data.dec(_f$video),
       facets: data.dec(_f$facets),
       reply: data.dec(_f$reply),
       quote: data.dec(_f$quote),
@@ -311,6 +320,7 @@ abstract class PostCopyWith<$R, $In extends Post, $Out>
   ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get langs;
   ListCopyWith<$R, PostImage, PostImageCopyWith<$R, PostImage, PostImage>>?
   get images;
+  PostVideoCopyWith<$R, PostVideo, PostVideo>? get video;
   ListCopyWith<
     $R,
     Map<String, dynamic>,
@@ -348,6 +358,7 @@ abstract class PostCopyWith<$R, $In extends Post, $Out>
     bool? viewerHasReplied,
     String? viewerSavedFolderId,
     List<PostImage>? images,
+    PostVideo? video,
     List<Map<String, dynamic>>? facets,
     PostReply? reply,
     PostRef? quote,
@@ -394,6 +405,9 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
           (v) => call(images: v),
         )
       : null;
+  @override
+  PostVideoCopyWith<$R, PostVideo, PostVideo>? get video =>
+      $value.video?.copyWith.$chain((v) => call(video: v));
   @override
   ListCopyWith<
     $R,
@@ -455,6 +469,7 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
     bool? viewerHasReplied,
     Object? viewerSavedFolderId = $none,
     Object? images = $none,
+    Object? video = $none,
     Object? facets = $none,
     Object? reply = $none,
     Object? quote = $none,
@@ -487,6 +502,7 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
       if (viewerSavedFolderId != $none)
         #viewerSavedFolderId: viewerSavedFolderId,
       if (images != $none) #images: images,
+      if (video != $none) #video: video,
       if (facets != $none) #facets: facets,
       if (reply != $none) #reply: reply,
       if (quote != $none) #quote: quote,
@@ -526,6 +542,7 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
       or: $value.viewerSavedFolderId,
     ),
     images: data.get(#images, or: $value.images),
+    video: data.get(#video, or: $value.video),
     facets: data.get(#facets, or: $value.facets),
     reply: data.get(#reply, or: $value.reply),
     quote: data.get(#quote, or: $value.quote),
@@ -1111,6 +1128,365 @@ class _PostImageAspectRatioCopyWithImpl<$R, $Out>
   PostImageAspectRatioCopyWith<$R2, PostImageAspectRatio, $Out2>
   $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
       _PostImageAspectRatioCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
+class PostVideoMapper extends ClassMapperBase<PostVideo> {
+  PostVideoMapper._();
+
+  static PostVideoMapper? _instance;
+  static PostVideoMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = PostVideoMapper._());
+      MapperContainer.globals.useAll([CidMapper()]);
+      PostImageAspectRatioMapper.ensureInitialized();
+      PostVideoCaptionMapper.ensureInitialized();
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'PostVideo';
+
+  static Cid _$cid(PostVideo v) => v.cid;
+  static dynamic _arg$cid(f) => f<Cid>();
+  static const Field<PostVideo, String> _f$cid = Field(
+    'cid',
+    _$cid,
+    arg: _arg$cid,
+  );
+  static String _$mime(PostVideo v) => v.mime;
+  static const Field<PostVideo, String> _f$mime = Field('mime', _$mime);
+  static int _$size(PostVideo v) => v.size;
+  static const Field<PostVideo, int> _f$size = Field('size', _$size);
+  static String? _$alt(PostVideo v) => v.alt;
+  static const Field<PostVideo, String> _f$alt = Field('alt', _$alt, opt: true);
+  static PostImageAspectRatio? _$aspectRatio(PostVideo v) => v.aspectRatio;
+  static const Field<PostVideo, PostImageAspectRatio> _f$aspectRatio = Field(
+    'aspectRatio',
+    _$aspectRatio,
+    opt: true,
+  );
+  static String? _$playlist(PostVideo v) => v.playlist;
+  static const Field<PostVideo, String> _f$playlist = Field(
+    'playlist',
+    _$playlist,
+    opt: true,
+  );
+  static String? _$thumbnail(PostVideo v) => v.thumbnail;
+  static const Field<PostVideo, String> _f$thumbnail = Field(
+    'thumbnail',
+    _$thumbnail,
+    opt: true,
+  );
+  static List<PostVideoCaption> _$captions(PostVideo v) => v.captions;
+  static const Field<PostVideo, List<PostVideoCaption>> _f$captions = Field(
+    'captions',
+    _$captions,
+    opt: true,
+    def: const [],
+  );
+
+  @override
+  final MappableFields<PostVideo> fields = const {
+    #cid: _f$cid,
+    #mime: _f$mime,
+    #size: _f$size,
+    #alt: _f$alt,
+    #aspectRatio: _f$aspectRatio,
+    #playlist: _f$playlist,
+    #thumbnail: _f$thumbnail,
+    #captions: _f$captions,
+  };
+  @override
+  final bool ignoreNull = true;
+
+  static PostVideo _instantiate(DecodingData data) {
+    return PostVideo(
+      cid: data.dec(_f$cid),
+      mime: data.dec(_f$mime),
+      size: data.dec(_f$size),
+      alt: data.dec(_f$alt),
+      aspectRatio: data.dec(_f$aspectRatio),
+      playlist: data.dec(_f$playlist),
+      thumbnail: data.dec(_f$thumbnail),
+      captions: data.dec(_f$captions),
+    );
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static PostVideo fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<PostVideo>(map);
+  }
+
+  static PostVideo fromJson(String json) {
+    return ensureInitialized().decodeJson<PostVideo>(json);
+  }
+}
+
+mixin PostVideoMappable {
+  String toJson() {
+    return PostVideoMapper.ensureInitialized().encodeJson<PostVideo>(
+      this as PostVideo,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return PostVideoMapper.ensureInitialized().encodeMap<PostVideo>(
+      this as PostVideo,
+    );
+  }
+
+  PostVideoCopyWith<PostVideo, PostVideo, PostVideo> get copyWith =>
+      _PostVideoCopyWithImpl<PostVideo, PostVideo>(
+        this as PostVideo,
+        $identity,
+        $identity,
+      );
+  @override
+  String toString() {
+    return PostVideoMapper.ensureInitialized().stringifyValue(
+      this as PostVideo,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return PostVideoMapper.ensureInitialized().equalsValue(
+      this as PostVideo,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return PostVideoMapper.ensureInitialized().hashValue(this as PostVideo);
+  }
+}
+
+extension PostVideoValueCopy<$R, $Out> on ObjectCopyWith<$R, PostVideo, $Out> {
+  PostVideoCopyWith<$R, PostVideo, $Out> get $asPostVideo =>
+      $base.as((v, t, t2) => _PostVideoCopyWithImpl<$R, $Out>(v, t, t2));
+}
+
+abstract class PostVideoCopyWith<$R, $In extends PostVideo, $Out>
+    implements ClassCopyWith<$R, $In, $Out> {
+  PostImageAspectRatioCopyWith<$R, PostImageAspectRatio, PostImageAspectRatio>?
+  get aspectRatio;
+  ListCopyWith<
+    $R,
+    PostVideoCaption,
+    PostVideoCaptionCopyWith<$R, PostVideoCaption, PostVideoCaption>
+  >
+  get captions;
+  $R call({
+    String? cid,
+    String? mime,
+    int? size,
+    String? alt,
+    PostImageAspectRatio? aspectRatio,
+    String? playlist,
+    String? thumbnail,
+    List<PostVideoCaption>? captions,
+  });
+  PostVideoCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(Then<$Out2, $R2> t);
+}
+
+class _PostVideoCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, PostVideo, $Out>
+    implements PostVideoCopyWith<$R, PostVideo, $Out> {
+  _PostVideoCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<PostVideo> $mapper =
+      PostVideoMapper.ensureInitialized();
+  @override
+  PostImageAspectRatioCopyWith<$R, PostImageAspectRatio, PostImageAspectRatio>?
+  get aspectRatio =>
+      $value.aspectRatio?.copyWith.$chain((v) => call(aspectRatio: v));
+  @override
+  ListCopyWith<
+    $R,
+    PostVideoCaption,
+    PostVideoCaptionCopyWith<$R, PostVideoCaption, PostVideoCaption>
+  >
+  get captions => ListCopyWith(
+    $value.captions,
+    (v, t) => v.copyWith.$chain(t),
+    (v) => call(captions: v),
+  );
+  @override
+  $R call({
+    String? cid,
+    String? mime,
+    int? size,
+    Object? alt = $none,
+    Object? aspectRatio = $none,
+    Object? playlist = $none,
+    Object? thumbnail = $none,
+    List<PostVideoCaption>? captions,
+  }) => $apply(
+    FieldCopyWithData({
+      if (cid != null) #cid: cid,
+      if (mime != null) #mime: mime,
+      if (size != null) #size: size,
+      if (alt != $none) #alt: alt,
+      if (aspectRatio != $none) #aspectRatio: aspectRatio,
+      if (playlist != $none) #playlist: playlist,
+      if (thumbnail != $none) #thumbnail: thumbnail,
+      if (captions != null) #captions: captions,
+    }),
+  );
+  @override
+  PostVideo $make(CopyWithData data) => PostVideo(
+    cid: data.get(#cid, or: $value.cid),
+    mime: data.get(#mime, or: $value.mime),
+    size: data.get(#size, or: $value.size),
+    alt: data.get(#alt, or: $value.alt),
+    aspectRatio: data.get(#aspectRatio, or: $value.aspectRatio),
+    playlist: data.get(#playlist, or: $value.playlist),
+    thumbnail: data.get(#thumbnail, or: $value.thumbnail),
+    captions: data.get(#captions, or: $value.captions),
+  );
+
+  @override
+  PostVideoCopyWith<$R2, PostVideo, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  ) => _PostVideoCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
+class PostVideoCaptionMapper extends ClassMapperBase<PostVideoCaption> {
+  PostVideoCaptionMapper._();
+
+  static PostVideoCaptionMapper? _instance;
+  static PostVideoCaptionMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(_instance = PostVideoCaptionMapper._());
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'PostVideoCaption';
+
+  static String _$lang(PostVideoCaption v) => v.lang;
+  static const Field<PostVideoCaption, String> _f$lang = Field('lang', _$lang);
+  static String _$name(PostVideoCaption v) => v.name;
+  static const Field<PostVideoCaption, String> _f$name = Field('name', _$name);
+  static String _$uri(PostVideoCaption v) => v.uri;
+  static const Field<PostVideoCaption, String> _f$uri = Field('uri', _$uri);
+
+  @override
+  final MappableFields<PostVideoCaption> fields = const {
+    #lang: _f$lang,
+    #name: _f$name,
+    #uri: _f$uri,
+  };
+
+  static PostVideoCaption _instantiate(DecodingData data) {
+    return PostVideoCaption(
+      lang: data.dec(_f$lang),
+      name: data.dec(_f$name),
+      uri: data.dec(_f$uri),
+    );
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static PostVideoCaption fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<PostVideoCaption>(map);
+  }
+
+  static PostVideoCaption fromJson(String json) {
+    return ensureInitialized().decodeJson<PostVideoCaption>(json);
+  }
+}
+
+mixin PostVideoCaptionMappable {
+  String toJson() {
+    return PostVideoCaptionMapper.ensureInitialized()
+        .encodeJson<PostVideoCaption>(this as PostVideoCaption);
+  }
+
+  Map<String, dynamic> toMap() {
+    return PostVideoCaptionMapper.ensureInitialized()
+        .encodeMap<PostVideoCaption>(this as PostVideoCaption);
+  }
+
+  PostVideoCaptionCopyWith<PostVideoCaption, PostVideoCaption, PostVideoCaption>
+  get copyWith =>
+      _PostVideoCaptionCopyWithImpl<PostVideoCaption, PostVideoCaption>(
+        this as PostVideoCaption,
+        $identity,
+        $identity,
+      );
+  @override
+  String toString() {
+    return PostVideoCaptionMapper.ensureInitialized().stringifyValue(
+      this as PostVideoCaption,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return PostVideoCaptionMapper.ensureInitialized().equalsValue(
+      this as PostVideoCaption,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return PostVideoCaptionMapper.ensureInitialized().hashValue(
+      this as PostVideoCaption,
+    );
+  }
+}
+
+extension PostVideoCaptionValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, PostVideoCaption, $Out> {
+  PostVideoCaptionCopyWith<$R, PostVideoCaption, $Out>
+  get $asPostVideoCaption =>
+      $base.as((v, t, t2) => _PostVideoCaptionCopyWithImpl<$R, $Out>(v, t, t2));
+}
+
+abstract class PostVideoCaptionCopyWith<$R, $In extends PostVideoCaption, $Out>
+    implements ClassCopyWith<$R, $In, $Out> {
+  $R call({String? lang, String? name, String? uri});
+  PostVideoCaptionCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  );
+}
+
+class _PostVideoCaptionCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, PostVideoCaption, $Out>
+    implements PostVideoCaptionCopyWith<$R, PostVideoCaption, $Out> {
+  _PostVideoCaptionCopyWithImpl(super.value, super.then, super.then2);
+
+  @override
+  late final ClassMapperBase<PostVideoCaption> $mapper =
+      PostVideoCaptionMapper.ensureInitialized();
+  @override
+  $R call({String? lang, String? name, String? uri}) => $apply(
+    FieldCopyWithData({
+      if (lang != null) #lang: lang,
+      if (name != null) #name: name,
+      if (uri != null) #uri: uri,
+    }),
+  );
+  @override
+  PostVideoCaption $make(CopyWithData data) => PostVideoCaption(
+    lang: data.get(#lang, or: $value.lang),
+    name: data.get(#name, or: $value.name),
+    uri: data.get(#uri, or: $value.uri),
+  );
+
+  @override
+  PostVideoCaptionCopyWith<$R2, PostVideoCaption, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  ) => _PostVideoCaptionCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
 
 class PostReplyMapper extends ClassMapperBase<PostReply> {

@@ -14,6 +14,7 @@ final class StandardDraftSnapshotAdapter {
     required List<String> languages,
     required DraftScheduleIntent schedule,
     required List<ComposerImageDraft> images,
+    DraftVideoWrite? video,
     int? existingRevision,
     DateTime? existingCreatedAt,
   }) {
@@ -29,6 +30,7 @@ final class StandardDraftSnapshotAdapter {
       ),
       schedule: schedule,
       orderedMedia: draftMediaWritesFromComposer(images),
+      video: video,
     );
   }
 }

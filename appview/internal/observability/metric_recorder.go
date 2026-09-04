@@ -185,6 +185,12 @@ func (r *InMemoryMetricRecorder) PDSOperation(_ context.Context, operation, stag
 	})
 }
 
+func (r *InMemoryMetricRecorder) VideoOperation(_ context.Context, operation, result, reason string, duration time.Duration) {
+	attrs := videoOperationAttributes(operation, result, reason)
+	r.record(MetricCall{Name: "craftsky_appview_video_operations_total", Kind: MetricKindCounter, Value: 1, Attributes: attrs})
+	r.record(MetricCall{Name: "craftsky_appview_video_operation_duration_seconds", Kind: MetricKindDistribution, Unit: "second", Value: nonNegativeDuration(duration).Seconds(), Attributes: attrs})
+}
+
 func (r *InMemoryMetricRecorder) TapConnected(_ context.Context, connected bool) {
 	value := float64(0)
 	if connected {
@@ -528,6 +534,12 @@ func (r *sentryMetricRecorder) PDSOperation(ctx context.Context, operation, stag
 		"result":    safeMetricResult(result),
 		"category":  safeMetricCategory(category),
 	})
+}
+
+func (r *sentryMetricRecorder) VideoOperation(ctx context.Context, operation, result, reason string, duration time.Duration) {
+	attrs := videoOperationAttributes(operation, result, reason)
+	r.count(ctx, "craftsky_appview_video_operations_total", 1, "", attrs)
+	r.distribution(ctx, "craftsky_appview_video_operation_duration_seconds", nonNegativeDuration(duration).Seconds(), "second", attrs)
 }
 
 func (r *sentryMetricRecorder) TapConnected(ctx context.Context, connected bool) {
@@ -925,6 +937,28 @@ func safeMetricResult(result string) string {
 	default:
 		return "unknown"
 	}
+}
+
+func videoOperationAttributes(operation, result, reason string) map[string]string {
+	switch strings.TrimSpace(operation) {
+	case "authorization", "limits", "verification", "caption":
+		operation = strings.TrimSpace(operation)
+	default:
+		operation = "unknown"
+	}
+	switch strings.TrimSpace(result) {
+	case "success", "rejected", "unavailable", "canceled":
+		result = strings.TrimSpace(result)
+	default:
+		result = "unknown"
+	}
+	switch strings.TrimSpace(reason) {
+	case "none", "invalid_request", "ineligible", "owner_mismatch", "blob_mismatch", "incomplete", "not_found", "invalid_content", "upstream":
+		reason = strings.TrimSpace(reason)
+	default:
+		reason = "unknown"
+	}
+	return map[string]string{"operation": operation, "result": result, "reason": reason}
 }
 
 func pushOperationAttributes(

@@ -48,6 +48,7 @@ class ModerationMetadataMapper extends ClassMapperBase<ModerationMetadata> {
     return ensureInitialized().decodeJson<ModerationMetadata>(json);
   }
 }
+
 mixin ModerationMetadataMappable {
   String toJson() {
     return ModerationMetadataMapper.ensureInitialized()

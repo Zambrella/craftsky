@@ -108,6 +108,35 @@ func TestLoadConfigLinkPreviewEnablement(t *testing.T) {
 	}
 }
 
+func TestLoadConfigVideoEndpoints(t *testing.T) {
+	const base = "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap\n"
+	t.Run("defaults", func(t *testing.T) {
+		cfg, err := LoadConfig(EnvDev, testConfigFile(t, base))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.VideoServiceURL != "https://video.bsky.app" ||
+			cfg.VideoPlaylistURLTemplate != "https://video.bsky.app/watch/{did}/{cid}/playlist.m3u8" ||
+			cfg.VideoThumbnailURLTemplate != "https://video.bsky.app/watch/{did}/{cid}/thumbnail.jpg" {
+			t.Fatalf("video defaults = %q, %q, %q", cfg.VideoServiceURL, cfg.VideoPlaylistURLTemplate, cfg.VideoThumbnailURLTemplate)
+		}
+	})
+	t.Run("overrides", func(t *testing.T) {
+		cfg, err := LoadConfig(EnvDev, testConfigFile(t, base+
+			"VIDEO_SERVICE_URL=https://jobs.example\n"+
+			"VIDEO_PLAYLIST_URL_TEMPLATE=https://media.example/{did}/{cid}/index.m3u8\n"+
+			"VIDEO_THUMBNAIL_URL_TEMPLATE=https://media.example/{did}/{cid}/poster.jpg\n"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if cfg.VideoServiceURL != "https://jobs.example" ||
+			cfg.VideoPlaylistURLTemplate != "https://media.example/{did}/{cid}/index.m3u8" ||
+			cfg.VideoThumbnailURLTemplate != "https://media.example/{did}/{cid}/poster.jpg" {
+			t.Fatalf("video overrides = %q, %q, %q", cfg.VideoServiceURL, cfg.VideoPlaylistURLTemplate, cfg.VideoThumbnailURLTemplate)
+		}
+	})
+}
+
 // UT-017: link previews have independent hourly token and device budgets with
 // exact fixed-window rollover.
 func TestDefaultRateLimitConfigLinkPreview(t *testing.T) {
@@ -247,6 +276,7 @@ func testConfigFile(t *testing.T, contents string) string {
 		"INSTAGRAM_META_API_VERSION", "INSTAGRAM_META_API_BASE_URL",
 		"INSTAGRAM_META_DM_URL", "INSTAGRAM_META_REPLIES_ENABLED",
 		"APPVIEW_REPLICA_COUNT", "INSTAGRAM_SHARED_RATE_LIMITS",
+		"VIDEO_SERVICE_URL", "VIDEO_PLAYLIST_URL_TEMPLATE", "VIDEO_THUMBNAIL_URL_TEMPLATE",
 		"INSTAGRAM_TRUSTED_PROXY_CIDRS", "INSTAGRAM_CHALLENGE_TTL",
 		"INSTAGRAM_WEBHOOK_BODY_LIMIT_BYTES", "INSTAGRAM_WEBHOOK_MAX_EVENTS",
 		"INSTAGRAM_WEBHOOK_GLOBAL_PER_MINUTE", "INSTAGRAM_WEBHOOK_IP_PER_MINUTE",

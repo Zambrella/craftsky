@@ -112,6 +112,7 @@ class PostSummaryDataMapper extends ClassMapperBase<PostSummaryData> {
   @override
   final Function instantiate = _instantiate;
 }
+
 mixin PostSummaryDataMappable {
   PostSummaryDataCopyWith<PostSummaryData, PostSummaryData, PostSummaryData>
   get copyWith =>

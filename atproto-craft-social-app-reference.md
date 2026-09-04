@@ -105,7 +105,10 @@ The recommended approach for a Flutter app is to use your backend as a **Token M
 - **DPoP (Demonstrating Proof of Possession):** Required by atproto OAuth. Binds tokens to specific client instances. Each request includes a DPoP proof.
 - **Access tokens** are often signed JWTs — can be validated locally by checking signature, expiry, and claims.
 - **Client metadata JSON** must be hosted as a static file at a public URL (e.g. `https://craftapp.xyz/client-metadata.json`). The PDS fetches this during OAuth.
-- **Token refresh** is handled transparently by your backend. The Flutter app never deals with PDS tokens directly.
+- **OAuth token refresh** is handled transparently by AppView. Flutter never
+  receives OAuth access/refresh tokens or DPoP keys. ADR 012 permits one
+  separate, memory-only PDS-signed service JWT for the exact Bluesky video
+  upload operation.
 
 ### Login UX
 
@@ -320,8 +323,9 @@ moderation_actions (
 
 | Token | Where | Who Uses It |
 |---|---|---|
-| PDS access + refresh tokens | `sessions` table in Postgres | Your backend only |
-| DPoP keypair | `sessions` table in Postgres | Your backend only |
+| PDS OAuth access + refresh tokens | `sessions` table in Postgres | Your backend only |
+| OAuth DPoP keypair | `sessions` table in Postgres | Your backend only |
+| Video upload service JWT | Flutter memory only, never persistent storage | Flutter → exact configured Bluesky video upload endpoint; see ADR 012 |
 | Your app's session token | Flutter device (secure storage) | Flutter app → your backend |
 | Client metadata JSON | Static file at public URL | PDS fetches during OAuth |
 

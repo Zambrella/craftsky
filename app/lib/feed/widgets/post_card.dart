@@ -9,8 +9,10 @@ import 'package:craftsky_app/feed/models/post_uri.dart';
 import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/providers/author_post_cache.dart';
+import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
 import 'package:craftsky_app/feed/providers/profile_pins_provider.dart';
 import 'package:craftsky_app/feed/widgets/external_card.dart';
+import 'package:craftsky_app/feed/widgets/native_video_player.dart';
 import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -70,6 +72,7 @@ class PostCard extends ConsumerWidget {
     this.hideWhenAuthorProtected = false,
     this.allowProfilePinAction = false,
     this.showPinnedProfileAttribution = false,
+    this.videoPlayerBuilder,
   });
 
   final Post post;
@@ -99,6 +102,7 @@ class PostCard extends ConsumerWidget {
   final bool hideWhenAuthorProtected;
   final bool allowProfilePinAction;
   final bool showPinnedProfileAttribution;
+  final Widget Function(PostVideo video)? videoPlayerBuilder;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -346,6 +350,16 @@ class PostCard extends ConsumerWidget {
                       const ImportedPostLabel(),
                     ],
                     SizedBox(height: spacing.sp3),
+                    if (post.video case final video?) ...[
+                      videoPlayerBuilder?.call(video) ??
+                          NativeVideoPlayer(
+                            video: video,
+                            loadCaption: ref
+                                .read(postApiClientProvider)
+                                .downloadVideoCaption,
+                          ),
+                      SizedBox(height: spacing.sp3),
+                    ],
                     if (post.images case final images?
                         when images.isNotEmpty) ...[
                       PostImageCarousel(
@@ -376,7 +390,8 @@ class PostCard extends ConsumerWidget {
                       style: theme.textTheme.bodyLarge,
                     ),
                     if (post.external case final external?
-                        when post.images?.isNotEmpty != true) ...[
+                        when post.images?.isNotEmpty != true &&
+                            post.video == null) ...[
                       SizedBox(height: spacing.sp3),
                       ExternalCard(external: external),
                     ],

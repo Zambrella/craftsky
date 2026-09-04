@@ -110,7 +110,7 @@ func ListNotificationsHandler(store NotificationReader, _ HandleResolver, logger
 				}
 			}
 			for _, row := range rows {
-				items = append(items, buildNotificationItem(row, handles, summaries))
+				items = append(items, buildNotificationItem(row, handles, summaries, store))
 			}
 		}
 
@@ -135,7 +135,7 @@ func parseNotificationLimit(raw string) int {
 	return n
 }
 
-func buildNotificationItem(row *NotificationRow, handles map[string]syntax.Handle, summaries map[string]EngagementSummary) *NotificationItem {
+func buildNotificationItem(row *NotificationRow, handles map[string]syntax.Handle, summaries map[string]EngagementSummary, playbackSource any) *NotificationItem {
 	item := &NotificationItem{
 		ID:        row.ID,
 		Type:      row.Type,
@@ -167,7 +167,7 @@ func buildNotificationItem(row *NotificationRow, handles map[string]syntax.Handl
 	item.Reply = row.Reply
 	item.References = &row.References
 	if row.SubjectPost != nil {
-		post := BuildPostResponse(row.SubjectPost, handles[row.SubjectPost.DID])
+		post := buildPostResponse(row.SubjectPost, handles[row.SubjectPost.DID], playbackSource)
 		applyEngagementSummary(post, summaries[row.SubjectPost.URI])
 		item.SubjectPost = post
 	}

@@ -532,3 +532,59 @@ func TestDecodePostCreate_RejectsVideoField(t *testing.T) {
 		t.Fatalf("code = %q, want unexpected_field", fe.Code)
 	}
 }
+
+func TestDecodeAndValidatePostCreate_VideoProof(t *testing.T) {
+	t.Parallel()
+	const videoBlob = `{"$type":"blob","ref":{"$link":"bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"},"mimeType":"video/mp4","size":300000000}`
+
+	req, err := api.DecodePostCreate(strings.NewReader(`{
+		"text":"video post",
+		"embed":{"video":{"jobId":"job-1","blob":` + videoBlob + `,"alt":"Knitting in progress","aspectRatio":{"width":16,"height":9}}}
+	}`))
+	if err != nil {
+		t.Fatalf("DecodePostCreate: %v", err)
+	}
+	if req.Embed == nil || req.Embed.Video == nil {
+		t.Fatalf("embed = %+v, want video proof", req.Embed)
+	}
+	if req.Embed.Video.JobID != "job-1" || req.Embed.Video.Blob.MIMEType != "video/mp4" || req.Embed.Video.Blob.Size != 300_000_000 {
+		t.Fatalf("video = %+v", req.Embed.Video)
+	}
+	if err := api.ValidatePostCreate(req); err != nil {
+		t.Fatalf("ValidatePostCreate: %v", err)
+	}
+
+	tests := []struct {
+		name  string
+		body  string
+		field string
+	}{
+		{name: "empty job ID", body: `{"text":"hi","embed":{"video":{"jobId":"","blob":` + videoBlob + `}}}`, field: "embed.video.jobId"},
+		{name: "noncanonical CID", body: `{"text":"hi","embed":{"video":{"jobId":"job-1","blob":{"$type":"blob","ref":{"$link":"not-a-cid"},"mimeType":"video/mp4","size":1}}}}`, field: "embed.video.blob.ref.$link"},
+		{name: "wrong blob type", body: `{"text":"hi","embed":{"video":{"jobId":"job-1","blob":{"$type":"not-blob","ref":{"$link":"bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"},"mimeType":"video/mp4","size":1}}}}`, field: "embed.video.blob.$type"},
+		{name: "wrong MIME", body: `{"text":"hi","embed":{"video":{"jobId":"job-1","blob":{"$type":"blob","ref":{"$link":"bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"},"mimeType":"video/webm","size":1}}}}`, field: "embed.video.blob.mimeType"},
+		{name: "oversized", body: `{"text":"hi","embed":{"video":{"jobId":"job-1","blob":{"$type":"blob","ref":{"$link":"bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"},"mimeType":"video/mp4","size":300000001}}}}`, field: "embed.video.blob.size"},
+		{name: "alt too long", body: `{"text":"hi","embed":{"video":{"jobId":"job-1","blob":` + videoBlob + `,"alt":` + fmt.Sprintf("%q", strings.Repeat("a", 1001)) + `}}}`, field: "embed.video.alt"},
+		{name: "invalid aspect ratio", body: `{"text":"hi","embed":{"video":{"jobId":"job-1","blob":` + videoBlob + `,"aspectRatio":{"width":0,"height":9}}}}`, field: "embed.video.aspectRatio.width"},
+		{name: "with images", body: `{"text":"hi","embed":{"video":{"jobId":"job-1","blob":` + videoBlob + `}},"images":[{"image":{"$type":"blob","ref":{"$link":"bafkimage"},"mimeType":"image/jpeg","size":1}}]}`, field: "embed.video"},
+		{name: "with quote", body: `{"text":"hi","embed":{"video":{"jobId":"job-1","blob":` + videoBlob + `},"quote":{"uri":"at://did:plc:abc/social.craftsky.feed.post/rk1","cid":"bafy1"}}}`, field: "embed"},
+		{name: "with external", body: `{"text":"hi","embed":{"video":{"jobId":"job-1","blob":` + videoBlob + `},"external":{"uri":"https://example.com","title":"Example","description":""}}}`, field: "embed"},
+		{name: "in reply", body: `{"text":"hi","reply":{"root":{"uri":"at://did:plc:abc/social.craftsky.feed.post/rk1","cid":"bafy1"},"parent":{"uri":"at://did:plc:abc/social.craftsky.feed.post/rk2","cid":"bafy2"}},"embed":{"video":{"jobId":"job-1","blob":` + videoBlob + `}}}`, field: "embed.video"},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			req, err := api.DecodePostCreate(strings.NewReader(test.body))
+			if err != nil {
+				t.Fatalf("DecodePostCreate: %v", err)
+			}
+			err = api.ValidatePostCreate(req)
+			var fieldErr *api.FieldError
+			if !errors.As(err, &fieldErr) || fieldErr.Fields[test.field] == "" {
+				t.Fatalf("error = %#v, want field %q", err, test.field)
+			}
+		})
+	}
+}

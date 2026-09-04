@@ -15,10 +15,13 @@ finding-level plan is
 
 ## 1. Core rules
 
-1. AppView is the confidential atproto OAuth client. Access tokens, refresh
-   tokens, DPoP private keys, nonces, and authorization-server session data are
-   stored and used only by AppView.
-2. Flutter and the CLI receive only opaque CraftSky session bearers.
+1. AppView is the confidential atproto OAuth client. OAuth access tokens,
+   refresh tokens, DPoP private keys, nonces, and authorization-server session
+   data are stored and used only by AppView.
+2. Flutter and the CLI normally receive only opaque CraftSky session bearers.
+   ADR 012 narrowly permits Flutter to receive one short-lived PDS-signed
+   service JWT for the exact Bluesky video-upload operation. It contains no
+   OAuth access/refresh token or DPoP key and must remain memory-only.
 3. A browser callback never transports a CraftSky bearer. It transports only a
    short-lived, hash-only, device-bound handoff code.
 4. First persistence creates a `pending_handoff` OAuth parent. Ordinary session
@@ -63,6 +66,7 @@ capabilities.
 | `POST` | `/v1/auth/handoffs/exchange` | anonymous, code + device protected | Redeem a code for one pending bearer and sealed receipt. |
 | `POST` | `/v1/auth/handoffs/confirm` | pending bearer + device | Confirm durable client persistence and activate the session. |
 | `POST` | `/v1/auth/logout` | authenticated recovery | Revoke one child or, with the explicit all-devices option, advance the owner auth epoch and invalidate all ordinary auth artifacts. |
+| `POST` | `/v1/blobs/videos/authorization` | authenticated, device-bound | Return one ephemeral service JWT bound to the current user's PDS audience and `com.atproto.repo.uploadBlob`; see ADR 012. |
 
 The `/oauth/*` paths are protocol-facing and unversioned. CraftSky client APIs
 are under `/v1/` and use camelCase JSON.
@@ -174,6 +178,17 @@ Every complete PDS method runs inside the session coordinator. It holds a shared
 owner fence plus the parent-session lock, reloads the latest version, and
 CAS-persists refresh/nonce changes on the same connection. A persistence
 failure is indeterminate and the raw client does not escape.
+
+The video authorization operation is also fully coordinated. It calls
+`com.atproto.server.getServiceAuth` while the owner/session fences are held and
+returns only the resulting purpose-bound service JWT and expiry. The underlying
+OAuth session, OAuth tokens, DPoP key/nonces, PDS endpoint, and raw PDS client do
+not escape. AppView does not persist the service JWT.
+
+Video upload-limit checks obtain their separate
+`app.bsky.video.getUploadLimits` service authorization under the same
+coordinator and use it only inside AppView. It is never returned to a client or
+persisted. Neither operation exposes a generic service-auth minting facility.
 
 Single-device logout revokes the selected child locally first and queues parent
 revocation when appropriate. All-devices logout advances the DID-wide auth
