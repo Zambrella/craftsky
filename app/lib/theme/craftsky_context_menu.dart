@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:craftsky_app/theme/craftsky_divider.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -68,7 +69,7 @@ RelativeRect craftskyContextMenuAnchorPosition(BuildContext context) {
 class CraftskyContextMenuButton extends StatelessWidget {
   const CraftskyContextMenuButton({
     required this.groups,
-    this.icon = Icons.more_horiz,
+    this.icon = CraftskyIconsBold.more,
     this.tooltip,
     this.enabled = true,
     super.key,
@@ -390,7 +391,7 @@ class _CraftskyContextMenuRow extends StatelessWidget {
           contentPadding: EdgeInsets.symmetric(horizontal: spacing.sp4),
           horizontalTitleGap: spacing.sp3,
           leading: Icon(
-            item.isSelected ? Icons.check_box : item.icon,
+            item.isSelected ? CraftskyIcons.selectedOption : item.icon,
             color: color,
           ),
           title: Text(

@@ -2,6 +2,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
 import 'package:craftsky_app/shared/messaging/widgets/craftsky_snack_bar.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -26,8 +27,8 @@ void main() {
           ),
         );
 
-        expect(find.byIcon(Icons.info_outline), findsOneWidget);
-        expect(find.byIcon(Icons.close), findsNothing);
+        expect(find.byIcon(CraftskyIcons.info), findsOneWidget);
+        expect(find.byIcon(CraftskyIconsBold.close), findsNothing);
         expect(find.text('Saved'), findsOneWidget);
       },
     );
@@ -46,10 +47,10 @@ void main() {
           ),
         );
 
-        expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
-        expect(find.byIcon(Icons.close), findsOneWidget);
+        expect(find.byIcon(CraftskyIcons.warning), findsOneWidget);
+        expect(find.byIcon(CraftskyIconsBold.close), findsOneWidget);
 
-        await tester.tap(find.byIcon(Icons.close));
+        await tester.tap(find.byIcon(CraftskyIconsBold.close));
         expect(dismissed, isTrue);
       },
     );
@@ -67,8 +68,8 @@ void main() {
           ),
         );
 
-        expect(find.byIcon(Icons.error_outline), findsOneWidget);
-        expect(find.byIcon(Icons.close), findsOneWidget);
+        expect(find.byIcon(CraftskyIcons.error), findsOneWidget);
+        expect(find.byIcon(CraftskyIconsBold.close), findsOneWidget);
       },
     );
 
@@ -112,7 +113,7 @@ void main() {
         );
 
         expect(find.byType(TextButton), findsNothing);
-        expect(find.byIcon(Icons.close), findsNothing);
+        expect(find.byIcon(CraftskyIconsBold.close), findsNothing);
       },
     );
   });

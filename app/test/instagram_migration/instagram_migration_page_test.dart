@@ -18,6 +18,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -1027,7 +1028,7 @@ void main() {
 
       final deleteButtonFinder = find.widgetWithIcon(
         IconButton,
-        Icons.delete_outline,
+        CraftskyIconsBold.delete,
       );
       await tester.ensureVisible(deleteButtonFinder);
       await tester.pumpAndSettle();

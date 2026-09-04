@@ -2,6 +2,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 
 class ErrorScreen extends StatelessWidget {
@@ -28,7 +29,7 @@ class ErrorScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
-                Icons.broken_image_outlined,
+                CraftskyIcons.brokenImage,
                 size: 64,
                 color: theme.colorScheme.error,
               ),
@@ -46,7 +47,7 @@ class ErrorScreen extends StatelessWidget {
               const SizedBox(height: 24),
               ElevatedButton.icon(
                 onPressed: () => const FeedRoute().go(context),
-                icon: const Icon(Icons.home),
+                icon: const Icon(CraftskyIconsBold.home),
                 label: Text(l10n.goHomeButton),
               ),
             ],

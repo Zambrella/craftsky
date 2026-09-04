@@ -36,7 +36,7 @@ class _ProjectFilterSheetState extends State<_ProjectFilterSheet> {
         appBar: AppBar(
           title: Text(l10n.projectsFiltersTitle(craftLabel)),
           leading: IconButton(
-            icon: const Icon(Icons.close),
+            icon: const Icon(CraftskyIconsBold.close),
             onPressed: () => Navigator.of(context).pop(),
           ),
         ),

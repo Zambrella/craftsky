@@ -1,4 +1,5 @@
 import 'package:craftsky_app/theme/brand_colors.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flex_color_scheme/flex_color_scheme.dart';
 import 'package:flutter/material.dart';
@@ -113,6 +114,7 @@ class AppTheme {
     );
     return base.copyWith(
       extensions: _extensions(base.colorScheme),
+      actionIconTheme: _actionIconTheme,
       appBarTheme: _appBarTheme(base),
       navigationBarTheme: _navigationBarTheme(base),
       navigationRailTheme: _navigationRailTheme(base),
@@ -171,6 +173,7 @@ class AppTheme {
     );
     return base.copyWith(
       extensions: _extensions(base.colorScheme, dark: true),
+      actionIconTheme: _actionIconTheme,
       appBarTheme: _appBarTheme(base),
       navigationBarTheme: _navigationBarTheme(base),
       navigationRailTheme: _navigationRailTheme(base),
@@ -180,6 +183,13 @@ class AppTheme {
       timePickerTheme: _timePickerTheme(base),
     );
   }
+
+  static final _actionIconTheme = ActionIconThemeData(
+    backButtonIconBuilder: (_) => const Icon(CraftskyIconsBold.back),
+    closeButtonIconBuilder: (_) => const Icon(CraftskyIconsBold.close),
+    drawerButtonIconBuilder: (_) => const Icon(CraftskyIconsBold.menu),
+    endDrawerButtonIconBuilder: (_) => const Icon(CraftskyIconsBold.menu),
+  );
 
   static TimePickerThemeData _timePickerTheme(ThemeData base) {
     final selectorStyle = base.textTheme.headlineLarge?.copyWith(

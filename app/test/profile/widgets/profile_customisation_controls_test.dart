@@ -4,6 +4,7 @@ import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/chunky_icon_button.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -39,7 +40,7 @@ Widget _subject({
             ),
             ChunkyIconButton(
               onPressed: () {},
-              icon: Icons.settings_outlined,
+              icon: CraftskyIcons.settings,
               tooltip: 'Secondary',
             ),
           ],
@@ -92,7 +93,7 @@ void main() {
       expect(
         secondary
             .defaultStyleOf(
-              tester.element(find.byIcon(Icons.settings_outlined)),
+              tester.element(find.byIcon(CraftskyIcons.settings)),
             )
             .foregroundColor
             ?.resolve({}),

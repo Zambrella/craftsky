@@ -16,6 +16,7 @@ import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -162,7 +163,7 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
                   (true, _) => const StitchProgressIndicator(),
                   (_, true) => TextButton.icon(
                     onPressed: onLoadMore,
-                    icon: const Icon(Icons.refresh),
+                    icon: const Icon(CraftskyIconsBold.refresh),
                     label: Text(l10n.retryButton),
                   ),
                   _ => const SizedBox.shrink(),
@@ -245,7 +246,7 @@ class ProfileTabErrorSliver extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (showErrorIcon) ...[
-                Icon(Icons.error_outline, color: theme.colorScheme.error),
+                Icon(CraftskyIcons.error, color: theme.colorScheme.error),
                 SizedBox(height: spacing.sp3),
               ],
               Text(
@@ -258,7 +259,7 @@ class ProfileTabErrorSliver extends StatelessWidget {
               SizedBox(height: spacing.sp3),
               TextButton.icon(
                 onPressed: onRetry,
-                icon: const Icon(Icons.refresh),
+                icon: const Icon(CraftskyIconsBold.refresh),
                 label: Text(l10n.retryButton),
               ),
             ],

@@ -15,6 +15,7 @@ import 'package:craftsky_app/saved_posts/widgets/saved_post_folder_dialogs.dart'
 import 'package:craftsky_app/saved_posts/widgets/saved_post_row.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_row_actions.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_sort_button.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -70,7 +71,7 @@ class _SavedPostsPageState extends ConsumerState<SavedPostsPage> {
         actions: [
           IconButton(
             tooltip: l10n.savedPostNewFolder,
-            icon: const Icon(Icons.create_new_folder_outlined),
+            icon: const Icon(CraftskyIconsBold.newFolder),
             onPressed: () => unawaited(
               showCreateSavedPostFolderDialog(context, account: account),
             ),
@@ -177,9 +178,9 @@ class _OverviewBody extends ConsumerWidget {
                     final folder = overview.folders[index];
                     return ListTile(
                       key: ValueKey('saved-overview-folder-${folder.id}'),
-                      leading: const Icon(Icons.folder_outlined),
+                      leading: const Icon(CraftskyIcons.folder),
                       title: Text(folder.name),
-                      trailing: const Icon(Icons.chevron_right),
+                      trailing: const Icon(CraftskyIconsBold.next),
                       onTap: () => SavedPostFolderRoute(
                         $extra: SavedPostFolderRouteData(folder: folder),
                       ).go(context),

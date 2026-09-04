@@ -27,6 +27,7 @@ import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -381,12 +382,12 @@ class _SearchInputHeader extends StatelessWidget {
                 controller: controller,
                 focusNode: focusNode,
                 hintText: l10n.searchHint,
-                prefixIcon: const Icon(Icons.search),
+                prefixIcon: const Icon(CraftskyIcons.search),
                 suffixIcon: draftQuery.isEmpty
                     ? null
                     : IconButton(
                         tooltip: l10n.searchClearAction,
-                        icon: const Icon(Icons.cancel),
+                        icon: const Icon(CraftskyIconsBold.clear),
                         onPressed: onClear,
                       ),
                 textInputAction: TextInputAction.search,
@@ -510,7 +511,7 @@ class _ErrorView extends StatelessWidget {
             SizedBox(height: spacing.sp2),
             TextButton.icon(
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
+              icon: const Icon(CraftskyIconsBold.refresh),
               label: Text(l10n.retryButton),
             ),
           ],

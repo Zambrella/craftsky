@@ -1,6 +1,7 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/scheduled_posts/composer/schedule_composer_state.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 
 Future<ScheduleChoice?> showScheduleChoiceMenu(
@@ -19,7 +20,7 @@ Future<ScheduleChoice?> showScheduleChoiceMenu(
         items: [
           CraftskyContextMenuItem(
             text: l10n.scheduledPostNow,
-            icon: Icons.send_outlined,
+            icon: CraftskyIconsBold.send,
             isSelected: selectedChoice == ScheduleChoice.now,
             onPressed: () => choice = ScheduleChoice.now,
           ),
@@ -28,7 +29,7 @@ Future<ScheduleChoice?> showScheduleChoiceMenu(
             description: scheduleEnabled
                 ? null
                 : l10n.scheduledPostCapacityWarning,
-            icon: Icons.schedule_outlined,
+            icon: CraftskyIconsBold.schedule,
             isSelected: selectedChoice == ScheduleChoice.later,
             onPressed: scheduleEnabled
                 ? () => choice = ScheduleChoice.later

@@ -8,6 +8,7 @@ import 'package:craftsky_app/feed/widgets/youtube_inline_player.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
@@ -155,7 +156,7 @@ class _ExternalCardState extends ConsumerState<ExternalCard> {
                     launchUrl: launcher,
                   ),
                 ),
-                icon: const Icon(Icons.open_in_new),
+                icon: const Icon(CraftskyIconsBold.externalLink),
                 label: Text(
                   AppLocalizations.of(context).youtubeOpenExternally,
                 ),
@@ -180,7 +181,7 @@ class _ExternalCardState extends ConsumerState<ExternalCard> {
               const ColoredBox(color: Color(0x33000000)),
               const Center(
                 child: Icon(
-                  Icons.play_circle_fill,
+                  CraftskyIconsBold.play,
                   key: Key('youtube-play-indicator'),
                   size: 56,
                   color: Colors.white,
@@ -273,7 +274,7 @@ class _ExternalCardCopy extends StatelessWidget {
           children: [
             if (showPlayIndicator) ...[
               const Icon(
-                Icons.play_circle_fill,
+                CraftskyIconsBold.play,
                 key: Key('youtube-play-indicator'),
               ),
               const SizedBox(width: 8),
@@ -391,7 +392,7 @@ class _YouTubePlaybackError extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  Icons.video_file_outlined,
+                  CraftskyIcons.fileVideo,
                   size: 40,
                   color: theme.colorScheme.onSurfaceVariant,
                 ),

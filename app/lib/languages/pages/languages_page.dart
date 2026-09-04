@@ -6,6 +6,7 @@ import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -157,7 +158,7 @@ class _AccountLanguageSections extends ConsumerWidget {
         child: Column(
           children: [
             Icon(
-              Icons.cloud_off_outlined,
+              CraftskyIcons.offline,
               color: theme.colorScheme.primary,
             ),
             SizedBox(height: spacing.sp3),
@@ -209,7 +210,7 @@ class _AppLanguageField extends StatelessWidget {
           Row(
             children: [
               Icon(
-                Icons.translate,
+                CraftskyIcons.translate,
                 size: 18,
                 color: theme.colorScheme.primary,
               ),

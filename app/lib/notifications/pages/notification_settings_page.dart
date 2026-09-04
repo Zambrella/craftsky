@@ -10,6 +10,7 @@ import 'package:craftsky_app/notifications/providers/notification_service_provid
 import 'package:craftsky_app/notifications/widgets/notification_category_icon.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -141,7 +142,7 @@ class _PermissionWarning extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(
-                Icons.notifications_off_outlined,
+                CraftskyIcons.notificationsOff,
                 color: theme.colorScheme.primary,
               ),
               SizedBox(width: spacing.sp3),

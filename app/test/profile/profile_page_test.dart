@@ -30,6 +30,7 @@ import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -85,7 +86,7 @@ void main() {
       expect(find.text('Edit profile'), findsOneWidget);
       // Settings is icon-only in the action row plus the cog in the
       // collapsed-state trailing slot — assert by icon, not text.
-      expect(find.byIcon(Icons.settings_outlined), findsWidgets);
+      expect(find.byIcon(CraftskyIconsBold.settings), findsWidgets);
     });
 
     testWidgets('visitor profile renders Follow + Mute actions', (
@@ -389,7 +390,7 @@ void main() {
       final appBar = tester.widget<SliverAppBar>(find.byType(SliverAppBar));
       final darkScheme = AppTheme.darkThemeData.colorScheme;
       IconButton menuButton() => tester.widget<IconButton>(
-        find.widgetWithIcon(IconButton, Icons.menu),
+        find.widgetWithIcon(IconButton, CraftskyIconsBold.menu),
       );
 
       expect(
@@ -409,7 +410,7 @@ void main() {
         Colors.transparent,
       );
       final settingsButton = tester.widget<IconButton>(
-        find.widgetWithIcon(IconButton, Icons.settings_outlined),
+        find.widgetWithIcon(IconButton, CraftskyIconsBold.settings),
       );
       expect(
         settingsButton.style?.backgroundColor?.resolve({}),

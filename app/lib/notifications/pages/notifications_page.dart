@@ -9,6 +9,7 @@ import 'package:craftsky_app/notifications/providers/notifications_provider.dart
 import 'package:craftsky_app/notifications/widgets/notification_row.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -40,7 +41,7 @@ class NotificationsPage extends ConsumerWidget {
               IconButton(
                 tooltip: l10n.notificationSettingsAction,
                 onPressed: () => const NotificationSettingsRoute().go(context),
-                icon: const Icon(Icons.settings_outlined),
+                icon: const Icon(CraftskyIconsBold.settings),
               ),
             ],
           ),
@@ -129,7 +130,7 @@ class _NotificationsLoadedSlivers extends ConsumerWidget {
                   (true, _) => const StitchProgressIndicator(),
                   (_, true) => TextButton.icon(
                     onPressed: () => _loadMore(ref),
-                    icon: const Icon(Icons.refresh),
+                    icon: const Icon(CraftskyIconsBold.refresh),
                     label: Text(l10n.retryButton),
                   ),
                   _ => TextButton(

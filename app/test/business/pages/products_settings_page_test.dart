@@ -19,6 +19,7 @@ import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -96,7 +97,7 @@ void main() {
     final manage = find.byTooltip('Edit One');
     final manageIcon = find.descendant(
       of: manage,
-      matching: find.byIcon(Icons.more_horiz),
+      matching: find.byIcon(CraftskyIconsBold.more),
     );
     requestKeyboardFocus(tester, manageIcon);
     await tester.pump();

@@ -1,6 +1,7 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/scheduled_posts/providers/scheduled_media_provider.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -34,7 +35,7 @@ class ScheduledMediaThumbnail extends ConsumerWidget {
             fit: BoxFit.cover,
             semanticLabel: l10n.scheduledPostsThumbnailSemantics,
           ),
-          AsyncError() => const Icon(Icons.broken_image_outlined),
+          AsyncError() => const Icon(CraftskyIcons.brokenImage),
           _ => const Center(child: CircularProgressIndicator()),
         },
       ),

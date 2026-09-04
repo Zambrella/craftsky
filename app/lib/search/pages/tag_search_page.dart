@@ -7,6 +7,7 @@ import 'package:craftsky_app/search/models/search_sort.dart';
 import 'package:craftsky_app/search/providers/hashtag_search_provider.dart';
 import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
 import 'package:craftsky_app/shared/widgets/sort_menu_button.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -58,7 +59,7 @@ class _TagSearchPageState extends ConsumerState<TagSearchPage> {
         _ when tagResultsAsync.hasError => Center(
           child: TextButton.icon(
             onPressed: () => ref.invalidate(provider),
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(CraftskyIconsBold.refresh),
             label: Text(l10n.searchLoadError),
           ),
         ),

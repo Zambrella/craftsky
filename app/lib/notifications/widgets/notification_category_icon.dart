@@ -1,16 +1,17 @@
 import 'package:craftsky_app/notifications/models/notification_category.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 
 /// Shared outlined action glyphs for notification settings and activity rows.
 IconData notificationCategoryIcon(NotificationCategory category) =>
     switch (category) {
-      NotificationCategory.like => Icons.favorite_outline,
-      NotificationCategory.follow => Icons.person_add_alt_outlined,
-      NotificationCategory.reply => Icons.chat_bubble_outline,
-      NotificationCategory.mention => Icons.alternate_email,
-      NotificationCategory.quote => Icons.format_quote,
-      NotificationCategory.repost => Icons.repeat,
-      NotificationCategory.instagramMatch => Icons.person_search_outlined,
+      NotificationCategory.like => CraftskyIcons.like,
+      NotificationCategory.follow => CraftskyIcons.follow,
+      NotificationCategory.reply => CraftskyIcons.comment,
+      NotificationCategory.mention => CraftskyIcons.mention,
+      NotificationCategory.quote => CraftskyIcons.quote,
+      NotificationCategory.repost => CraftskyIcons.repost,
+      NotificationCategory.instagramMatch => CraftskyIcons.findPeople,
       NotificationCategory.everythingElse ||
-      NotificationCategory.unknown => Icons.notifications_none,
+      NotificationCategory.unknown => CraftskyIcons.notification,
     };

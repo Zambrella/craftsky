@@ -2,6 +2,7 @@ import 'dart:ui' show Tristate;
 
 import 'package:craftsky_app/settings/models/settings_row.dart';
 import 'package:craftsky_app/settings/widgets/settings_row_tile.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -19,14 +20,14 @@ void main() {
               kind: SettingsRowKind.disclosure,
             ),
             label: 'Account',
-            leading: Icons.manage_accounts_outlined,
+            leading: CraftskyIcons.accountSettings,
             onTap: _noop,
           ),
         ),
       ),
     );
 
-    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+    expect(find.byIcon(CraftskyIconsBold.next), findsOneWidget);
     expect(
       tester.getSize(find.byType(SettingsRowTile)).height,
       greaterThanOrEqualTo(48),
@@ -56,7 +57,7 @@ void main() {
                     kind: SettingsRowKind.disclosure,
                   ),
                   label: 'About',
-                  leading: Icons.info_outline,
+                  leading: CraftskyIcons.info,
                   onTap: _noop,
                 ),
                 SettingsRowTile(
@@ -65,7 +66,7 @@ void main() {
                     kind: SettingsRowKind.destructiveAction,
                   ),
                   label: 'Sign out',
-                  leading: Icons.logout,
+                  leading: CraftskyIcons.logout,
                   onTap: _noop,
                 ),
               ],
@@ -75,9 +76,9 @@ void main() {
       ),
     );
 
-    expect(find.byIcon(Icons.chevron_left), findsOneWidget);
-    expect(find.byIcon(Icons.chevron_right), findsNothing);
-    expect(find.byIcon(Icons.open_in_new), findsNothing);
+    expect(find.byIcon(CraftskyIconsBold.previous), findsOneWidget);
+    expect(find.byIcon(CraftskyIconsBold.next), findsNothing);
+    expect(find.byIcon(CraftskyIconsBold.externalLink), findsNothing);
   });
 
   testWidgets('disabled row exposes disabled semantics', (tester) async {
@@ -91,7 +92,7 @@ void main() {
               kind: SettingsRowKind.disclosure,
             ),
             label: 'Switch account',
-            leading: Icons.switch_account_outlined,
+            leading: CraftskyIconsBold.switchAccount,
           ),
         ),
       ),

@@ -1,4 +1,5 @@
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -27,19 +28,19 @@ class ProfileStats extends StatelessWidget {
     final stats = <_ProfileStatData>[
       if (profile.isCraftskyProfile && profile.createdAt != null)
         _ProfileStatData(
-          icon: Icons.calendar_today_outlined,
+          icon: CraftskyIcons.date,
           value: formatJoinedAge(profile.createdAt!),
           label: 'here',
         ),
       if (profile.postsLast7Days != null)
         _ProfileStatData(
-          icon: Icons.edit_outlined,
+          icon: CraftskyIcons.edit,
           value: '${_formatCount(profile.postsLast7Days!)} posts',
           label: '7 days',
         ),
       if (profile.projectCount != null)
         _ProfileStatData(
-          icon: Icons.inventory_2_outlined,
+          icon: CraftskyIcons.projectCount,
           value: _formatCount(profile.projectCount!),
           label: 'projects',
         ),

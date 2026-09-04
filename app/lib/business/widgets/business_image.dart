@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 
 class BusinessImage extends StatelessWidget {
@@ -22,7 +23,7 @@ class BusinessImage extends StatelessWidget {
     return CachedNetworkImage(
       imageUrl: networkUrl,
       fit: fit,
-      errorWidget: (_, _, _) => const Icon(Icons.image_not_supported_outlined),
+      errorWidget: (_, _, _) => const Icon(CraftskyIcons.imageUnavailable),
     );
   }
 }

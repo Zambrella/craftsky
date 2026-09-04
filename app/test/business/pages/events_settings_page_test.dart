@@ -21,6 +21,7 @@ import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -304,8 +305,8 @@ void main() {
 
       await tester.tap(find.byTooltip('Manage Event managed'));
       await tester.pumpAndSettle();
-      expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.delete_outline), findsOneWidget);
+      expect(find.byIcon(CraftskyIconsBold.edit), findsOneWidget);
+      expect(find.byIcon(CraftskyIconsBold.delete), findsOneWidget);
       await tester.tap(find.text('Cancel event'));
       await tester.pumpAndSettle();
       expect(repository.updates.single.draft.status, 'cancelled');

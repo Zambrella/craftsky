@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -62,13 +63,13 @@ class CraftskyImageAttachmentPreview extends StatelessWidget {
                   fit: BoxFit.cover,
                   width: double.infinity,
                   errorWidget: (_, _, _) => const Center(
-                    child: Icon(Icons.broken_image_outlined),
+                    child: Icon(CraftskyIcons.brokenImage),
                   ),
                 ),
                 (null, null) => DecoratedBox(
                   decoration: const BoxDecoration(color: Color(0xFFEAEAEA)),
                   child: unavailable
-                      ? const Center(child: Icon(Icons.broken_image_outlined))
+                      ? const Center(child: Icon(CraftskyIcons.brokenImage))
                       : switch (placeholderIcon) {
                           final icon? => Center(child: Icon(icon, size: 56)),
                           null => null,

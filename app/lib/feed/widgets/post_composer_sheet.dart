@@ -51,6 +51,7 @@ import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_provide
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/foundation.dart';
@@ -508,10 +509,10 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                           Builder(
                             builder: (menuContext) => ListTile(
                               contentPadding: EdgeInsets.zero,
-                              leading: const Icon(Icons.schedule_outlined),
+                              leading: const Icon(CraftskyIcons.schedule),
                               title: Text(l10n.scheduledPostWhenTitle),
                               subtitle: Text(_whenLabel(context)),
-                              trailing: const Icon(Icons.chevron_right),
+                              trailing: const Icon(CraftskyIconsBold.next),
                               enabled: !_isScheduling,
                               onTap: () => _chooseWhen(
                                 menuContext,
@@ -543,7 +544,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                                 onPressed: _isScheduling
                                     ? null
                                     : _deleteExistingSchedule,
-                                icon: const Icon(Icons.delete_outline),
+                                icon: const Icon(CraftskyIconsBold.delete),
                                 label: Text(l10n.scheduledPostsDeleteTooltip),
                               ),
                             ),

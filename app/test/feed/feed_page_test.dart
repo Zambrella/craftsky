@@ -19,6 +19,7 @@ import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -203,7 +204,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(Icons.more_horiz));
+    await tester.tap(find.byIcon(CraftskyIconsBold.more));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Pin post'));
     await tester.pumpAndSettle();
@@ -470,9 +471,9 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.favorite_border));
+    await tester.tap(find.byIcon(CraftskyIconsBold.like));
     await tester.pump();
-    await tester.tap(find.byIcon(Icons.repeat));
+    await tester.tap(find.byIcon(CraftskyIconsBold.repost));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Repost'));
     await tester.pumpAndSettle();
@@ -481,7 +482,7 @@ void main() {
       'like:did:plc:alice/actions',
       'repost:did:plc:alice/actions',
     ]);
-    expect(find.byIcon(Icons.favorite), findsOneWidget);
+    expect(find.byIcon(CraftskyIcons.liked), findsOneWidget);
   });
 
   testWidgets('FeedPage quote action opens composer with quote target', (
@@ -496,7 +497,7 @@ void main() {
     await _pump(tester, repo);
 
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.repeat));
+    await tester.tap(find.byIcon(CraftskyIconsBold.repost));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Quote'));
     await tester.pumpAndSettle();
@@ -525,7 +526,7 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.favorite_border));
+    await tester.tap(find.byIcon(CraftskyIconsBold.like));
     await tester.pump();
     await tester.pump();
 
@@ -533,7 +534,7 @@ void main() {
       messenger.calls,
       contains(('error', "Couldn't update like.", null)),
     );
-    expect(find.byIcon(Icons.favorite_border), findsOneWidget);
+    expect(find.byIcon(CraftskyIconsBold.like), findsOneWidget);
   });
 
   testWidgets('FeedPage reply opens focused thread and updates root row', (
@@ -591,7 +592,7 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.chat_bubble_outline));
+    await tester.tap(find.byIcon(CraftskyIconsBold.comment));
     await tester.pumpAndSettle();
     expect(find.text('Regular post'), findsNothing);
     expect(find.text('Project post'), findsNothing);
@@ -659,15 +660,15 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.more_horiz), findsNWidgets(2));
+    expect(find.byIcon(CraftskyIconsBold.more), findsNWidgets(2));
 
-    await tester.tap(find.byIcon(Icons.more_horiz).last);
+    await tester.tap(find.byIcon(CraftskyIconsBold.more).last);
     await tester.pumpAndSettle();
     expect(find.text('Delete post'), findsNothing);
     await tester.tapAt(const Offset(10, 10));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(Icons.more_horiz).first);
+    await tester.tap(find.byIcon(CraftskyIconsBold.more).first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Delete post'));
     await tester.pumpAndSettle();
@@ -707,7 +708,7 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.more_horiz));
+    await tester.tap(find.byIcon(CraftskyIconsBold.more));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Report post'));
     await tester.pumpAndSettle();

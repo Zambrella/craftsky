@@ -418,7 +418,7 @@ class _CraftskySingleSelectInputState<T>
                           ),
                         ),
                       ),
-                      const Icon(Icons.search),
+                      const Icon(CraftskyIcons.search),
                     ],
                   ),
                 )
@@ -461,7 +461,11 @@ class _CraftskySingleSelectInputState<T>
                                   ),
                             ),
                           ),
-                          Icon(_open ? Icons.expand_less : Icons.expand_more),
+                          Icon(
+                            _open
+                                ? CraftskyIconsBold.collapse
+                                : CraftskyIconsBold.expand,
+                          ),
                         ],
                       ),
                     ),

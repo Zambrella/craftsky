@@ -5,6 +5,7 @@ import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 import 'package:craftsky_app/shared/image/clear_image_cache_provider.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -40,7 +41,7 @@ class ClearImageCacheTile extends ConsumerWidget {
         kind: SettingsRowKind.action,
       ),
       label: l10n.settingsClearImageCache,
-      leading: Icons.cleaning_services_outlined,
+      leading: CraftskyIconsBold.clearCache,
       onTap: state is AsyncLoading
           ? null
           : () => ref.read(clearImageCacheProvider.notifier).clear(),

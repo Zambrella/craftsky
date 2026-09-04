@@ -3,6 +3,7 @@ import 'package:craftsky_app/shared/rich_text/data/mock_facet_suggestion_reposit
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -131,7 +132,7 @@ void main() {
         expect(find.text('#sockmending'), findsOneWidget);
         expect(find.text('12 posts'), findsOneWidget);
         expect(find.textContaining('in the last 28 days'), findsNothing);
-        expect(find.byIcon(Icons.show_chart), findsNWidgets(2));
+        expect(find.byIcon(CraftskyIcons.trending), findsNWidgets(2));
 
         await tester.tap(find.text('#SockKAL'));
         await tester.pump();

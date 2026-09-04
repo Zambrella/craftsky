@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/feed/media/youtube_external.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -136,7 +137,11 @@ class _FullscreenControl extends StatelessWidget {
               ? MaterialLocalizations.of(context).closeButtonTooltip
               : AppLocalizations.of(context).youtubeEnterFullscreen,
           onPressed: onPressed,
-          icon: Icon(close ? Icons.fullscreen_exit : Icons.fullscreen),
+          icon: Icon(
+            close
+                ? CraftskyIconsBold.fullscreenExit
+                : CraftskyIconsBold.fullscreen,
+          ),
         ),
       ),
     ],

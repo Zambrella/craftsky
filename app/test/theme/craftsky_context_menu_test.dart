@@ -2,6 +2,7 @@ import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -40,7 +41,7 @@ void main() {
               items: [
                 CraftskyContextMenuItem(
                   text: 'Report',
-                  icon: Icons.flag_outlined,
+                  icon: CraftskyIcons.report,
                   onPressed: () => tapped = true,
                 ),
               ],
@@ -49,7 +50,7 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.tap(find.byIcon(CraftskyIconsBold.more));
       await tester.pumpAndSettle();
 
       expect(find.byType(BottomSheet), findsOneWidget);
@@ -75,7 +76,7 @@ void main() {
               items: [
                 CraftskyContextMenuItem(
                   text: 'Report',
-                  icon: Icons.flag_outlined,
+                  icon: CraftskyIcons.report,
                   onPressed: () {},
                 ),
               ],
@@ -84,7 +85,7 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.tap(find.byIcon(CraftskyIconsBold.more));
       await tester.pumpAndSettle();
 
       final sheet = tester.widget<BottomSheet>(find.byType(BottomSheet));
@@ -105,7 +106,7 @@ void main() {
               items: [
                 CraftskyContextMenuItem(
                   text: 'Share',
-                  icon: Icons.ios_share,
+                  icon: CraftskyIcons.share,
                   onPressed: () => tapped = true,
                 ),
               ],
@@ -114,7 +115,7 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.tap(find.byIcon(CraftskyIconsBold.more));
       await tester.pumpAndSettle();
 
       expect(find.byType(BottomSheet), findsNothing);
@@ -146,7 +147,7 @@ void main() {
                   items: [
                     CraftskyContextMenuItem(
                       text: 'Share',
-                      icon: Icons.ios_share,
+                      icon: CraftskyIcons.share,
                       onPressed: () {},
                     ),
                   ],
@@ -157,7 +158,7 @@ void main() {
         ),
       );
 
-      final target = find.byIcon(Icons.more_horiz);
+      final target = find.byIcon(CraftskyIconsBold.more);
       final targetRect = tester.getRect(target);
       await tester.tap(target);
       await tester.pumpAndSettle();
@@ -187,12 +188,12 @@ void main() {
                   items: [
                     CraftskyContextMenuItem(
                       text: 'Share',
-                      icon: Icons.ios_share,
+                      icon: CraftskyIcons.share,
                       onPressed: () {},
                     ),
                     CraftskyContextMenuItem(
                       text: 'Report',
-                      icon: Icons.flag_outlined,
+                      icon: CraftskyIcons.report,
                       onPressed: () {},
                     ),
                   ],
@@ -203,7 +204,7 @@ void main() {
         ),
       );
 
-      final target = find.byIcon(Icons.more_horiz);
+      final target = find.byIcon(CraftskyIconsBold.more);
       final targetRect = tester.getRect(target);
       await tester.tap(target);
       await tester.pumpAndSettle();
@@ -241,7 +242,7 @@ void main() {
                                 items: [
                                   CraftskyContextMenuItem(
                                     text: 'Repost',
-                                    icon: Icons.repeat,
+                                    icon: CraftskyIcons.repost,
                                     onPressed: () {},
                                   ),
                                 ],
@@ -259,7 +260,7 @@ void main() {
         ),
       );
 
-      final button = find.byIcon(Icons.more_horiz);
+      final button = find.byIcon(CraftskyIconsBold.more);
       await tester.tap(button);
       await tester.pumpAndSettle();
 
@@ -282,7 +283,7 @@ void main() {
               items: [
                 CraftskyContextMenuItem(
                   text: 'Copy link',
-                  icon: Icons.link,
+                  icon: CraftskyIcons.link,
                   onPressed: () {},
                 ),
               ],
@@ -291,7 +292,7 @@ void main() {
               items: [
                 CraftskyContextMenuItem(
                   text: 'Block',
-                  icon: Icons.block,
+                  icon: CraftskyIcons.block,
                   onPressed: () {},
                 ),
               ],
@@ -300,7 +301,7 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.tap(find.byIcon(CraftskyIconsBold.more));
       await tester.pumpAndSettle();
 
       expect(find.text('Copy link'), findsOneWidget);
@@ -318,7 +319,7 @@ void main() {
               items: [
                 CraftskyContextMenuItem(
                   text: 'Delete',
-                  icon: Icons.delete_outline,
+                  icon: CraftskyIcons.delete,
                   onPressed: () {},
                   style: CraftskyContextMenuItemStyle.destructive,
                 ),
@@ -328,10 +329,10 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.tap(find.byIcon(CraftskyIconsBold.more));
       await tester.pumpAndSettle();
 
-      final icon = tester.widget<Icon>(find.byIcon(Icons.delete_outline));
+      final icon = tester.widget<Icon>(find.byIcon(CraftskyIcons.delete));
       final text = tester.widget<Text>(find.text('Delete'));
 
       expect(icon.color, BrandColors.red);
@@ -350,12 +351,12 @@ void main() {
               items: [
                 const CraftskyContextMenuItem(
                   text: 'Disabled',
-                  icon: Icons.lock_outline,
+                  icon: CraftskyIcons.lock,
                   onPressed: null,
                 ),
                 CraftskyContextMenuItem(
                   text: 'Enabled',
-                  icon: Icons.check,
+                  icon: CraftskyIcons.check,
                   onPressed: () => tapped = true,
                 ),
               ],
@@ -364,7 +365,7 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.tap(find.byIcon(CraftskyIconsBold.more));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Disabled'));
       await tester.pumpAndSettle();
@@ -384,7 +385,7 @@ void main() {
               items: [
                 CraftskyContextMenuItem(
                   text: 'Share',
-                  icon: Icons.ios_share_outlined,
+                  icon: CraftskyIcons.share,
                   onPressed: () {},
                 ),
               ],
@@ -393,7 +394,7 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.tap(find.byIcon(CraftskyIconsBold.more));
       await tester.pumpAndSettle();
 
       expect(find.byType(BottomSheet), findsNothing);

@@ -8,6 +8,7 @@ import 'package:craftsky_app/profile/widgets/profile_framed_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_header_background.dart';
 import 'package:craftsky_app/profile/widgets/profile_identity.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -423,7 +424,7 @@ class _CollapsedTrailingAction extends StatelessWidget {
     return switch (actions) {
       SelfProfileActionSet(:final onSettings) => IconButton(
         tooltip: l10n.profileSettingsAction,
-        icon: const Icon(Icons.settings_outlined),
+        icon: const Icon(CraftskyIconsBold.settings),
         onPressed: onSettings,
         style: style,
       ),
@@ -439,9 +440,7 @@ class _CollapsedTrailingAction extends StatelessWidget {
                     ? l10n.profileUnmuteAction
                     : l10n.profileMuteAction,
                 icon: Icon(
-                  isMuted
-                      ? Icons.volume_up_outlined
-                      : Icons.volume_off_outlined,
+                  isMuted ? CraftskyIconsBold.unmuted : CraftskyIconsBold.muted,
                 ),
                 onPressed: isBusy ? null : onMuteToggle,
                 style: style,

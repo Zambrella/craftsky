@@ -84,7 +84,7 @@ class _RecentSearchSection extends ConsumerWidget {
             title: Text(recent.displayLabel),
             trailing: IconButton(
               tooltip: l10n.searchDeleteRecentAction,
-              icon: const Icon(Icons.close),
+              icon: const Icon(CraftskyIconsBold.close),
               onPressed: () => ref
                   .read(deleteRecentSearchProvider.notifier)
                   .delete(recent.id),

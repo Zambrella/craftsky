@@ -29,6 +29,7 @@ import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -397,8 +398,8 @@ class PostCard extends ConsumerWidget {
                           children: [
                             _PostCardAction(
                               icon: post.viewerHasLiked
-                                  ? Icons.favorite
-                                  : Icons.favorite_border,
+                                  ? CraftskyIcons.liked
+                                  : CraftskyIconsBold.like,
                               count: post.likeCount,
                               isSelected: post.viewerHasLiked,
                               selectedColor: semanticColors.error,
@@ -408,7 +409,7 @@ class PostCard extends ConsumerWidget {
                               onPressed: onLike,
                             ),
                             _PostCardAction(
-                              icon: Icons.chat_bubble_outline,
+                              icon: CraftskyIconsBold.comment,
                               count: showReplyCount ? post.replyCount : 0,
                               isSelected: post.viewerHasReplied,
                               selectedColor: swatches.clay,
@@ -647,7 +648,7 @@ class _RepostAttribution extends StatelessWidget {
     final displayName = reason.by.displayName ?? reason.by.handle;
     return Row(
       children: [
-        Icon(Icons.repeat, size: 16, color: theme.colorScheme.outline),
+        Icon(CraftskyIcons.repost, size: 16, color: theme.colorScheme.outline),
         const SizedBox(width: 8),
         Expanded(
           child: _PostCardAuthorTapTarget(
@@ -679,7 +680,7 @@ class _PinnedPostAttribution extends StatelessWidget {
         child: Row(
           children: [
             Icon(
-              Icons.push_pin_outlined,
+              CraftskyIcons.pin,
               size: 16,
               color: theme.colorScheme.outline,
             ),
@@ -800,7 +801,7 @@ class _PostCardMenu extends StatelessWidget {
               if (pinLabel != null)
                 CraftskyContextMenuItem(
                   text: pinLabel!,
-                  icon: isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                  icon: isPinned ? CraftskyIcons.pinned : CraftskyIconsBold.pin,
                   onPressed: onPinToggle,
                   isSelected: isPinned,
                 ),
@@ -809,7 +810,7 @@ class _PostCardMenu extends StatelessWidget {
                   text: isMuted
                       ? l10n.profileUnmuteAction
                       : l10n.profileMuteAction,
-                  icon: Icons.volume_off_outlined,
+                  icon: CraftskyIconsBold.muted,
                   onPressed: isRelationshipBusy ? null : onMuteToggle,
                 ),
               if (onBlockToggle != null)
@@ -817,7 +818,7 @@ class _PostCardMenu extends StatelessWidget {
                   text: isBlocking
                       ? l10n.profileUnblockAction
                       : l10n.profileBlockAction,
-                  icon: Icons.block_outlined,
+                  icon: CraftskyIconsBold.block,
                   onPressed: isRelationshipBusy ? null : onBlockToggle,
                   style: CraftskyContextMenuItemStyle.destructive,
                   semanticHint: isBlocking ? null : l10n.destructiveActionHint,
@@ -825,13 +826,13 @@ class _PostCardMenu extends StatelessWidget {
               if (onReport != null)
                 CraftskyContextMenuItem(
                   text: reportLabel ?? l10n.postReportAction,
-                  icon: Icons.flag_outlined,
+                  icon: CraftskyIconsBold.report,
                   onPressed: onReport,
                 ),
               if (onDelete != null)
                 CraftskyContextMenuItem(
                   text: label ?? l10n.postDeleteAction,
-                  icon: Icons.delete_outline,
+                  icon: CraftskyIconsBold.delete,
                   onPressed: onDelete,
                   style: CraftskyContextMenuItemStyle.destructive,
                 ),
@@ -969,7 +970,7 @@ class _PostCardShareAction extends StatelessWidget {
               excludeFromSemantics: true,
               child: TextButton.icon(
                 icon: Icon(
-                  Icons.repeat,
+                  CraftskyIconsBold.repost,
                   color: color,
                   size: _postCardActionIconSize,
                 ),
@@ -1008,14 +1009,14 @@ class _PostCardShareAction extends StatelessWidget {
             if (onRepost != null)
               CraftskyContextMenuItem(
                 text: repostLabel,
-                icon: Icons.repeat,
+                icon: CraftskyIconsBold.repost,
                 onPressed: onRepost,
                 isSelected: isSelected,
               ),
             if (onQuote != null)
               CraftskyContextMenuItem(
                 text: quoteLabel,
-                icon: Icons.format_quote,
+                icon: CraftskyIconsBold.quote,
                 onPressed: onQuote,
               ),
           ],

@@ -1,6 +1,7 @@
 import 'package:craftsky_app/drafts/models/draft_media_descriptor.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 
 final class DraftRow extends StatelessWidget {
@@ -64,12 +65,12 @@ final class DraftRow extends StatelessWidget {
             IconButton(
               tooltip: l10n.draftsEditTooltip,
               onPressed: () => onEdit(draft),
-              icon: const Icon(Icons.edit_outlined),
+              icon: const Icon(CraftskyIconsBold.edit),
             ),
           IconButton(
             tooltip: l10n.draftsDeleteTooltip,
             onPressed: () => onDelete(draft),
-            icon: const Icon(Icons.delete_outline),
+            icon: const Icon(CraftskyIconsBold.delete),
           ),
         ],
       ),
@@ -80,12 +81,12 @@ final class DraftRow extends StatelessWidget {
     AppLocalizations l10n,
     DraftMediaDescriptor? firstMedia,
   ) {
-    if (firstMedia == null) return const Icon(Icons.drafts_outlined);
+    if (firstMedia == null) return const Icon(CraftskyIcons.draft);
     if (firstMedia.availability == DraftMediaAvailability.unavailable) {
-      return const Icon(Icons.broken_image_outlined);
+      return const Icon(CraftskyIcons.brokenImage);
     }
     return thumbnailBuilder?.call(draft.id, firstMedia.mediaId) ??
-        const Icon(Icons.image_outlined);
+        const Icon(CraftskyIcons.image);
   }
 
   String _preview(AppLocalizations l10n) {
