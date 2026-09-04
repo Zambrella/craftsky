@@ -3,6 +3,7 @@ import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -75,6 +76,7 @@ class _ProjectSummary extends StatelessWidget {
               ),
             _ProjectChip(
               label: _craftTypeLabel(project.common.craftType),
+              craft: project.common.craftType,
               tone: _ProjectChipTone.outlined,
             ),
           ],
@@ -128,6 +130,7 @@ class _ProjectDetail extends StatelessWidget {
               ),
             _ProjectChip(
               label: _craftTypeLabel(project.common.craftType),
+              craft: project.common.craftType,
               tone: _ProjectChipTone.outlined,
             ),
           ],
@@ -272,10 +275,11 @@ class _ProjectMaterialChip extends StatelessWidget {
 enum _ProjectChipTone { finished, wip, outlined }
 
 class _ProjectChip extends StatelessWidget {
-  const _ProjectChip({required this.label, required this.tone});
+  const _ProjectChip({required this.label, required this.tone, this.craft});
 
   final String label;
   final _ProjectChipTone tone;
+  final String? craft;
 
   @override
   Widget build(BuildContext context) {
@@ -313,13 +317,25 @@ class _ProjectChip extends StatelessWidget {
           horizontal: spacing.sp2,
           vertical: spacing.sp1,
         ),
-        child: Text(
-          label,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: foreground,
-            letterSpacing: 0,
-          ),
-        ),
+        child: craft == null
+            ? Text(
+                label,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: foreground,
+                  letterSpacing: 0,
+                ),
+              )
+            : CraftIconLabel(
+                craft: craft!,
+                label: label,
+                iconSize: 15,
+                gap: spacing.sp1,
+                flexibleLabel: true,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: foreground,
+                  letterSpacing: 0,
+                ),
+              ),
       ),
     );
   }

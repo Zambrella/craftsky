@@ -5,6 +5,7 @@ import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
@@ -52,6 +53,25 @@ void main() {
     await tester.pump();
 
     expect(tester.widget<TextField>(bodyField).focusNode?.hasFocus, isFalse);
+  });
+
+  testWidgets('craft selector shows branded icons in options and selection', (
+    tester,
+  ) async {
+    await _pumpComposer(tester, 'craft-icon-composer');
+
+    final craft = find.byKey(const Key('craftType-select-button'));
+    await tester.ensureVisible(craft);
+    await tester.pumpAndSettle();
+    await tester.tap(craft);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CraftIcon), findsNWidgets(5));
+
+    await tester.tap(find.text('Knitting').last);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CraftIcon), findsOneWidget);
   });
 
   testWidgets('AT-003 primary fields use normal widget-order tab traversal', (

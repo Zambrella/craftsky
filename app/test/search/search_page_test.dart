@@ -16,6 +16,7 @@ import 'package:craftsky_app/search/models/search_suggestions.dart';
 import 'package:craftsky_app/search/models/top_hashtags.dart';
 import 'package:craftsky_app/search/pages/search_page.dart';
 import 'package:craftsky_app/search/providers/search_repository_provider.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -34,6 +35,7 @@ void main() {
     expect(find.text('linen dress'), findsOneWidget);
     expect(find.text('Trending hashtags'), findsOneWidget);
     expect(find.text('#memademay'), findsOneWidget);
+    expect(find.byType(CraftIcon), findsOneWidget);
   });
 
   testWidgets('SearchPage renders debounced profile and hashtag suggestions', (
@@ -93,6 +95,7 @@ void main() {
     expect(find.text('Profiles'), findsWidgets);
     expect(find.text('@alice.craftsky.social'), findsOneWidget);
     expect(find.text('Alice • Knitting'), findsOneWidget);
+    expect(find.byType(CraftIcon), findsOneWidget);
     expect(find.text('Hashtags'), findsOneWidget);
     expect(find.text('#sockkal'), findsOneWidget);
     expect(find.text('12 posts'), findsOneWidget);

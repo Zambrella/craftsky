@@ -20,6 +20,7 @@ import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
 import 'package:craftsky_app/profile/widgets/profile_route_presentation.dart';
 import 'package:craftsky_app/profile/widgets/profile_stats.dart';
 import 'package:craftsky_app/profile/widgets/profile_tab_bar.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/cupertino.dart'
@@ -336,6 +337,7 @@ void main() {
         expect(find.text('@alice.craftsky.social'), findsOneWidget);
         expect(find.text('Knitting'), findsOneWidget);
         expect(find.text('Sewing'), findsOneWidget);
+        expect(find.byType(CraftIcon), findsNWidgets(2));
         expect(find.text('1y'), findsOneWidget);
         expect(find.text('here'), findsOneWidget);
         expect(find.text('3 posts'), findsOneWidget);

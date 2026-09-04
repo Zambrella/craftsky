@@ -53,6 +53,7 @@ import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
@@ -902,14 +903,18 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   }
 
   List<CraftskySelectOption<String>> _selectOptions(
-    List<ProjectOption> options,
-  ) {
+    List<ProjectOption> options, {
+    bool includeCraftIcons = false,
+  }) {
     return [
       for (final option in options)
         CraftskySelectOption<String>(
           value: option.value,
           label: option.label,
           description: option.description,
+          leadingBuilder: includeCraftIcons
+              ? (_) => CraftIcon(craft: option.value)
+              : null,
         ),
     ];
   }
@@ -1173,7 +1178,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
           label: l10n.projectComposerCraftTypeLabel,
           required: true,
           requiredLabel: l10n.projectComposerRequiredLabel,
-          options: _selectOptions(ProjectOptionCatalogs.craftTypes),
+          options: _selectOptions(
+            ProjectOptionCatalogs.craftTypes,
+            includeCraftIcons: true,
+          ),
           enabled: controlsEnabled,
           validator: (value) =>
               value == null ? l10n.projectComposerCraftRequiredError : null,

@@ -9,8 +9,8 @@ Audited 4 September 2026. The inventory covers hand-written Dart under
 - There are no `CupertinoIcons` or custom `IconData` definitions in production
   code. The declared `cupertino_icons` dependency is unused.
 - Eight craft-specific SVG icons already exist under
-  `app/assets/design/icons/`, but the app has no SVG renderer and does not use
-  them yet.
+  `app/assets/design/icons/`. Five map directly to supported craft taxonomy
+  values; `skein`, `spool`, and `stitch` are generic decorative motifs.
 - Most shared component APIs accept `IconData`, so another icon-font package
   can be introduced with relatively little structural change.
 - Tests contain 188 direct Material-icon references across 33 files. Many use
@@ -219,8 +219,9 @@ settings, and compact metadata.
 3. Add stable keys or semantic labels before changing tests that currently use
    `find.byIcon` to locate controls. `more_horiz`, like, reply, repost, close,
    and bookmark are the most heavily coupled test icons.
-4. Add SVG rendering separately for the eight branded craft icons. Do not widen
-   every `IconData` API merely to support the small branded subset.
+4. SVG rendering is provided by `CraftIcon` and `CraftIconLabel`. Keep these
+   widgets separate from generic `IconData` APIs and only map assets that have
+   an unambiguous craft taxonomy value.
 5. Migrate in slices: semantic catalogue and shell, social actions, common
    actions/feedback, settings and business features, then low-frequency states.
 6. Remove `cupertino_icons` after confirming no near-term platform-specific use.

@@ -10,6 +10,7 @@ import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/search/models/search_sort.dart';
 import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/shared/widgets/sort_menu_button.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
@@ -186,7 +187,12 @@ class _ProjectCraftTabBarDelegate extends SliverPersistentHeaderDelegate {
               padding: EdgeInsets.symmetric(horizontal: spacing.sp2),
               tabs: [
                 for (final option in ProjectOptionCatalogs.craftTypes)
-                  Tab(text: option.label),
+                  Tab(
+                    child: CraftIconLabel(
+                      craft: option.value,
+                      label: option.label,
+                    ),
+                  ),
               ],
             ),
           ),

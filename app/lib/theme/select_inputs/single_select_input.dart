@@ -353,7 +353,8 @@ class _CraftskySingleSelectInputState<T>
 
   @override
   Widget build(BuildContext context) {
-    final selectedLabel = _selectedOption?.label;
+    final selectedOption = _selectedOption;
+    final selectedLabel = selectedOption?.label;
     final emptySelectionText = 'Select ${widget.label}';
     final keyPrefix = widget.keyPrefix ?? widget.label;
     return CraftskyFieldScaffold(
@@ -383,6 +384,11 @@ class _CraftskySingleSelectInputState<T>
                   ),
                   child: Row(
                     children: [
+                      if (selectedOption?.leadingBuilder
+                          case final builder?) ...[
+                        builder(context),
+                        const SizedBox(width: 8),
+                      ],
                       Expanded(
                         child: Focus(
                           skipTraversal: true,
@@ -448,6 +454,11 @@ class _CraftskySingleSelectInputState<T>
                       ),
                       child: Row(
                         children: [
+                          if (selectedOption?.leadingBuilder
+                              case final builder?) ...[
+                            builder(context),
+                            const SizedBox(width: 8),
+                          ],
                           Expanded(
                             child: Text(
                               selectedLabel ?? emptySelectionText,
@@ -509,6 +520,7 @@ class _CraftskySingleSelectInputState<T>
                   selected: index == _highlightedIndex,
                   selectedTileColor: selectedTileColor,
                   shape: selectedTileShape,
+                  leading: option.leadingBuilder?.call(context),
                   title: Text(option.label),
                   subtitle: option.description == null
                       ? null
