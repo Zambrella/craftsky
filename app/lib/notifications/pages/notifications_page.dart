@@ -9,6 +9,7 @@ import 'package:craftsky_app/notifications/providers/notifications_provider.dart
 import 'package:craftsky_app/notifications/widgets/notification_row.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
@@ -111,7 +112,11 @@ class _NotificationsLoadedSlivers extends ConsumerWidget {
     if (items.isEmpty) {
       return SliverFillRemaining(
         hasScrollBody: false,
-        child: Center(child: Text(l10n.notificationsEmpty)),
+        child: CraftskyEmptyState(
+          icon: CraftskyIcons.notifications,
+          title: l10n.notificationsTitle,
+          subtitle: l10n.notificationsEmpty,
+        ),
       );
     }
     return SliverMainAxisGroup(

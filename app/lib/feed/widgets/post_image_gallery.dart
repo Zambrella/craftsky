@@ -1,7 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_image_page_indicator.dart';
-import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -31,13 +30,22 @@ Future<void> showImageGallery(
   BuildContext context, {
   required List<GalleryImage> images,
   int initialIndex = 0,
+  List<Object>? heroTags,
 }) {
   if (images.isEmpty) return Future<void>.value();
+  assert(
+    heroTags == null || heroTags.length == images.length,
+    'heroTags must match the number of gallery images.',
+  );
 
-  return responsiveModalNavigator(context).push<void>(
-    MaterialPageRoute<void>(
+  return Navigator.of(context, rootNavigator: true).push<void>(
+    PageRouteBuilder<void>(
       fullscreenDialog: true,
-      builder: (context) {
+      transitionDuration: const Duration(milliseconds: 200),
+      reverseTransitionDuration: const Duration(milliseconds: 200),
+      transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+          FadeTransition(opacity: animation, child: child),
+      pageBuilder: (context, animation, secondaryAnimation) {
         final viewPadding = MediaQuery.of(context).viewPadding;
         final spacing =
             Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
@@ -49,6 +57,7 @@ Future<void> showImageGallery(
                 child: PostImageGallery.items(
                   galleryImages: images,
                   initialIndex: initialIndex,
+                  heroTags: heroTags,
                 ),
               ),
               Positioned(
@@ -75,11 +84,13 @@ Future<void> showPostImageGallery(
   BuildContext context, {
   required List<PostImage> images,
   int initialIndex = 0,
+  List<Object>? heroTags,
 }) {
   return showImageGallery(
     context,
     images: images.map(GalleryImage.fromPostImage).toList(),
     initialIndex: initialIndex,
+    heroTags: heroTags,
   );
 }
 
@@ -87,18 +98,21 @@ class PostImageGallery extends ConsumerStatefulWidget {
   PostImageGallery({
     required this.images,
     this.initialIndex = 0,
+    this.heroTags,
     super.key,
   }) : galleryImages = images.map(GalleryImage.fromPostImage).toList();
 
   const PostImageGallery.items({
     required this.galleryImages,
     this.initialIndex = 0,
+    this.heroTags,
     super.key,
   }) : images = const [];
 
   final List<PostImage> images;
   final List<GalleryImage> galleryImages;
   final int initialIndex;
+  final List<Object>? heroTags;
 
   @override
   ConsumerState<PostImageGallery> createState() => _PostImageGalleryState();
@@ -162,6 +176,7 @@ class _PostImageGalleryState extends ConsumerState<PostImageGallery> {
             return _ZoomableGalleryImage(
               image: image,
               imageUrl: url,
+              heroTag: widget.heroTags?[index],
               onZoomChanged: index == _currentIndex
                   ? _setCurrentPageZoomed
                   : null,
@@ -307,11 +322,13 @@ class _ZoomableGalleryImage extends ConsumerStatefulWidget {
   const _ZoomableGalleryImage({
     required this.image,
     required this.imageUrl,
+    required this.heroTag,
     required this.onZoomChanged,
   });
 
   final GalleryImage image;
   final String? imageUrl;
+  final Object? heroTag;
   final ValueChanged<bool>? onZoomChanged;
 
   @override
@@ -348,29 +365,32 @@ class _ZoomableGalleryImageState extends ConsumerState<_ZoomableGalleryImage> {
 
   @override
   Widget build(BuildContext context) {
+    final image = Semantics(
+      label: widget.image.alt,
+      child: widget.imageUrl == null
+          ? const DecoratedBox(
+              decoration: BoxDecoration(color: Color(0xFF111111)),
+            )
+          : CachedNetworkImage(
+              imageUrl: widget.imageUrl!,
+              cacheManager: ref.watch(feedImageCacheManagerProvider),
+              fit: BoxFit.contain,
+              progressIndicatorBuilder: (context, _, progress) => Center(
+                child: CircularProgressIndicator(
+                  key: const Key('post-image-gallery-loading'),
+                  value: progress.progress,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+    );
     return InteractiveViewer(
       minScale: _galleryMinScale,
       maxScale: _galleryMaxScale,
       transformationController: _transformationController,
-      child: Semantics(
-        label: widget.image.alt,
-        child: widget.imageUrl == null
-            ? const DecoratedBox(
-                decoration: BoxDecoration(color: Color(0xFF111111)),
-              )
-            : CachedNetworkImage(
-                imageUrl: widget.imageUrl!,
-                cacheManager: ref.watch(feedImageCacheManagerProvider),
-                fit: BoxFit.contain,
-                progressIndicatorBuilder: (context, _, progress) => Center(
-                  child: CircularProgressIndicator(
-                    key: const Key('post-image-gallery-loading'),
-                    value: progress.progress,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-      ),
+      child: widget.heroTag == null
+          ? image
+          : Hero(tag: widget.heroTag!, child: image),
     );
   }
 }

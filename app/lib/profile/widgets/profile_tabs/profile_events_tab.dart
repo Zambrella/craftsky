@@ -4,6 +4,7 @@ import 'package:craftsky_app/business/providers/profile_business_events_provider
 import 'package:craftsky_app/business/widgets/event_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -49,28 +50,16 @@ class ProfileEventsTab extends ConsumerWidget {
     if (state.items.isEmpty) {
       return SliverFillRemaining(
         hasScrollBody: false,
-        child: Center(
-          child: Padding(
-            padding: EdgeInsets.all(spacing.sp6),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  isOwnProfile
-                      ? l10n.businessEventsOwnerEmpty
-                      : l10n.businessEventsVisitorEmpty,
-                  textAlign: TextAlign.center,
-                ),
-                if (isOwnProfile && onManage != null) ...[
-                  SizedBox(height: spacing.sp2),
-                  TextButton(
-                    onPressed: onManage,
-                    child: Text(l10n.businessEventsManageAction),
-                  ),
-                ],
-              ],
-            ),
-          ),
+        child: CraftskyEmptyState(
+          icon: CraftskyIcons.events,
+          title: l10n.businessEventsUpcomingTab,
+          subtitle: isOwnProfile
+              ? l10n.businessEventsOwnerEmpty
+              : l10n.businessEventsVisitorEmpty,
+          actionLabel: isOwnProfile && onManage != null
+              ? l10n.businessEventsManageAction
+              : null,
+          onAction: isOwnProfile ? onManage : null,
         ),
       );
     }

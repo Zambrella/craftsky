@@ -16,6 +16,9 @@
   "feedTitle": "Feed",
   "@feedTitle": { "description": "Title for the main chronological feed page." },
 
+  "feedConnectInstagramAction": "Connect Instagram",
+  "@feedConnectInstagramAction": { "description": "Empty-feed action that opens Instagram migration." },
+
   "navigationMenuTooltip": "Open navigation menu",
   "@navigationMenuTooltip": { "description": "Tooltip and accessible label for the button that opens the app navigation drawer." },
 
@@ -152,7 +155,7 @@
   "notificationOpenSettings": "Open settings",
   "notificationCategoryLikes": "Likes",
   "notificationCategoryFollows": "Follows",
-  "notificationCategoryReplies": "Replies",
+  "notificationCategoryReplies": "Comments & replies",
   "notificationCategoryMentions": "Mentions",
   "notificationCategoryQuotes": "Quotes",
   "notificationCategoryReposts": "Reposts",
@@ -523,7 +526,7 @@
   "profileTabPosts": "Posts",
   "@profileTabPosts": { "description": "Tab label for the Posts tab on the profile screen." },
 
-  "profileTabComments": "Comments",
+  "profileTabComments": "Comments & replies",
   "@profileTabComments": { "description": "Tab label for the Comments tab on the profile screen." },
 
   "profileTabProjects": "Projects",
@@ -580,11 +583,11 @@
   "profilePostsLoadMore": "Load more posts",
   "@profilePostsLoadMore": { "description": "Button label for loading the next page in the profile Posts tab." },
 
-  "profileCommentsEmpty": "No comments yet.",
-  "@profileCommentsEmpty": { "description": "Muted placeholder shown in the profile Comments tab when the user has not commented." },
+  "profileCommentsEmpty": "No comments or replies yet.",
+  "@profileCommentsEmpty": { "description": "Empty state shown in the profile Comments & replies tab when the user has not responded to a post." },
 
-  "profileCommentsLoadError": "Comments didn't load.",
-  "@profileCommentsLoadError": { "description": "Error title shown in the profile Comments tab when comment fetching fails." },
+  "profileCommentsLoadError": "Comments and replies didn't load.",
+  "@profileCommentsLoadError": { "description": "Error title shown in the profile Comments & replies tab when response fetching fails." },
 
   "profileCommentsLoadMore": "Load more comments",
   "@profileCommentsLoadMore": { "description": "Button label for loading the next page in the profile Comments tab." },
@@ -592,8 +595,11 @@
   "postThreadTitle": "Post",
   "@postThreadTitle": { "description": "Title of the post thread screen." },
 
-  "postThreadEmptyReplies": "No replies yet.",
-  "@postThreadEmptyReplies": { "description": "Empty state shown on a post thread when the post has no direct replies." },
+  "postThreadEmptyReplies": "No comments yet.",
+  "@postThreadEmptyReplies": { "description": "Empty state shown on a post thread when the root post has no comments." },
+
+  "postThreadEmptyCommentsSubtitle": "Start the conversation with a comment.",
+  "@postThreadEmptyCommentsSubtitle": { "description": "Supporting copy beneath the empty comment-thread title." },
 
   "postThreadReadMoreReplies": "Read more replies",
   "@postThreadReadMoreReplies": { "description": "Label shown when a thread response has additional replies that are not loaded yet." },
@@ -934,14 +940,23 @@
   "postComposeReplyTitle": "Reply",
   "@postComposeReplyTitle": { "description": "Title of the reply composer sheet." },
 
+  "postComposeCommentTitle": "Comment",
+  "@postComposeCommentTitle": { "description": "Title of the composer when commenting directly on a root post." },
+
   "postComposeReplyHint": "Write your reply",
   "@postComposeReplyHint": { "description": "Label above the text field in reply mode." },
+
+  "postComposeCommentHint": "Write your comment",
+  "@postComposeCommentHint": { "description": "Label above the text field when commenting directly on a root post." },
 
   "postComposeSubmit": "Post",
   "@postComposeSubmit": { "description": "Submit button label in the text-only post composer." },
 
   "postComposeReplySubmit": "Reply",
   "@postComposeReplySubmit": { "description": "Submit button label in reply mode." },
+
+  "postComposeCommentSubmit": "Comment",
+  "@postComposeCommentSubmit": { "description": "Submit button label when commenting directly on a root post." },
 
   "postComposeTooLong": "Posts must be 2000 characters or fewer",
   "@postComposeTooLong": { "description": "Validation error shown when the text-only post composer exceeds the post text limit." },
@@ -1131,6 +1146,12 @@
   "postReportAction": "Report post",
   "@postReportAction": { "description": "Menu label for reporting a post." },
 
+  "commentReportAction": "Report comment",
+  "@commentReportAction": { "description": "Menu and sheet title for reporting a top-level comment." },
+
+  "replyReportAction": "Report reply",
+  "@replyReportAction": { "description": "Menu and sheet title for reporting a nested reply." },
+
   "postPinAction": "Pin post",
   "@postPinAction": { "description": "Menu label for pinning an eligible post to its owner's profile." },
 
@@ -1184,6 +1205,15 @@
 
   "postDeleteSuccess": "Post deleted.",
   "@postDeleteSuccess": { "description": "Snackbar shown after successfully deleting a post." },
+
+  "commentDeleteSuccess": "Comment deleted.",
+  "@commentDeleteSuccess": { "description": "Snackbar shown after successfully deleting a top-level comment." },
+
+  "replyDeleteSuccess": "Reply deleted.",
+  "@replyDeleteSuccess": { "description": "Snackbar shown after successfully deleting a nested reply." },
+
+  "responseDeleteError": "Couldn't delete that comment or reply.",
+  "@responseDeleteError": { "description": "Snackbar shown when deleting a comment or reply fails and its exact role is unavailable." },
 
   "postDeleteError": "Couldn't delete post.",
   "@postDeleteError": { "description": "Snackbar shown when deleting a post fails." },
@@ -2287,6 +2317,19 @@
   "@settingsFollowers": { "description": "Settings row opening followers." },
   "settingsFollowing": "Following",
   "@settingsFollowing": { "description": "Settings row opening followed accounts." },
+
+  "followersEmptyTitle": "No one follows you yet",
+  "@followersEmptyTitle": { "description": "Title shown when the viewer's follower collection is empty." },
+  "followersEmptySubtitle": "When someone follows you, they will appear here.",
+  "@followersEmptySubtitle": { "description": "Explanation shown when the viewer's follower collection is empty." },
+  "followingEmptyTitle": "You are not following anyone",
+  "@followingEmptyTitle": { "description": "Title shown when the viewer's following collection is empty." },
+  "followingEmptySubtitle": "Accounts you follow will appear here.",
+  "@followingEmptySubtitle": { "description": "Explanation shown when the viewer's following collection is empty." },
+  "mutualFollowersEmptyTitle": "No mutual followers",
+  "@mutualFollowersEmptyTitle": { "description": "Title shown when a mutual-follower sheet opens after its summary became stale." },
+  "mutualFollowersEmptySubtitle": "This list may have changed since the profile loaded.",
+  "@mutualFollowersEmptySubtitle": { "description": "Explanation for a stale-empty mutual-follower list." },
   "settingsAccount": "Account",
   "@settingsAccount": { "description": "Settings row opening account settings." },
   "settingsAbout": "About",

@@ -7,6 +7,7 @@ import 'package:craftsky_app/business/providers/products_controller.dart';
 import 'package:craftsky_app/business/widgets/product_editor.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/image/craftsky_image_attachment_preview.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -137,7 +138,11 @@ class _ProductsContent extends ConsumerWidget {
                 SizedBox(height: spacing.sp3),
                 Expanded(
                   child: state.products.isEmpty
-                      ? Center(child: Text(l10n.businessProductsEmpty))
+                      ? CraftskyEmptyState(
+                          icon: CraftskyIcons.storefront,
+                          title: l10n.businessProductsSettingsTitle,
+                          subtitle: l10n.businessProductsEmpty,
+                        )
                       : ReorderableListView.builder(
                           itemCount: state.products.length,
                           onReorderItem: (oldIndex, newIndex) => unawaited(

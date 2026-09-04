@@ -57,6 +57,48 @@ Future<void> _pumpRoute(
   );
 }
 
+Future<void> _pumpNestedRoute(
+  WidgetTester tester, {
+  required Object heroTag,
+}) {
+  return tester.pumpWidget(
+    ProviderScope(
+      child: MaterialApp(
+        home: Scaffold(
+          body: Row(
+            children: [
+              const Text('Persistent shell'),
+              Expanded(
+                child: Navigator(
+                  onGenerateRoute: (_) => MaterialPageRoute<void>(
+                    builder: (context) => Scaffold(
+                      body: Center(
+                        child: Hero(
+                          tag: heroTag,
+                          child: ElevatedButton(
+                            onPressed: () => showImageGallery(
+                              context,
+                              images: const [
+                                GalleryImage(alt: 'Blue shawl'),
+                              ],
+                              heroTags: [heroTag],
+                            ),
+                            child: const Text('Open nested gallery'),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
 void main() {
   testWidgets('shows current alt text and updates when swiping pages', (
     tester,
@@ -227,6 +269,56 @@ void main() {
     expect(find.text('Open gallery'), findsOneWidget);
   });
 
+  testWidgets('fullscreen gallery route fades in', (tester) async {
+    await _pumpRoute(tester);
+
+    await tester.tap(find.text('Open gallery'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final routeFade = find.ancestor(
+      of: find.byType(PostImageGallery),
+      matching: find.byType(FadeTransition),
+    );
+    expect(routeFade, findsOneWidget);
+    final fade = tester.widget<FadeTransition>(routeFade);
+    expect(fade.opacity.value, greaterThan(0));
+    expect(fade.opacity.value, lessThan(1));
+  });
+
+  testWidgets('gallery covers the shell and Hero animates on push and pop', (
+    tester,
+  ) async {
+    await tester.binding.setSurfaceSize(const Size(1200, 800));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+    final heroTag = Object();
+    await _pumpNestedRoute(tester, heroTag: heroTag);
+
+    await tester.tap(find.text('Open nested gallery'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.byType(PostImageGallery), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is Hero && identical(widget.tag, heroTag),
+        skipOffstage: false,
+      ),
+      findsAtLeastNWidgets(2),
+    );
+    expect(tester.takeException(), isNull);
+
+    await tester.pumpAndSettle();
+    expect(find.text('Persistent shell'), findsNothing);
+    await tester.tap(find.byType(CloseButton));
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(tester.takeException(), isNull);
+    await tester.pumpAndSettle();
+
+    expect(find.byType(PostImageGallery), findsNothing);
+    expect(find.text('Persistent shell'), findsOneWidget);
+  });
+
   testWidgets('gallery overlays account for media view padding', (
     tester,
   ) async {
@@ -267,10 +359,7 @@ void main() {
     final altPadding = tester.widget<Padding>(
       find.byKey(const Key('post-image-gallery-alt-text-padding')),
     );
-    expect(
-      altPadding.padding,
-      const EdgeInsets.fromLTRB(18, 12, 20, 46),
-    );
+    expect(altPadding.padding, const EdgeInsets.fromLTRB(18, 12, 20, 46));
     expect(find.byType(SafeArea), findsNothing);
   });
 

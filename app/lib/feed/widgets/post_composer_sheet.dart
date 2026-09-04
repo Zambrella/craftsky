@@ -270,9 +270,10 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
     _initialLanguages ??= List.of(_languages!.values);
     final imagesProvider = composerImagesProvider(_composerId);
     final imagesState = ref.watch(imagesProvider);
-    final isReply = widget.replyTarget != null;
+    final isResponse = widget.replyTarget != null;
+    final isComment = widget.replyTarget?.reply == null && isResponse;
     final isQuote = widget.quoteTarget != null;
-    final isSchedulable = !isReply && !isQuote;
+    final isSchedulable = !isResponse && !isQuote;
     final activeLease = ref.watch(sessionRegistryProvider).value?.activeLease;
     if (widget.scheduledPost != null && _scheduledOwner == null) {
       _scheduledOwner = activeLease;
@@ -347,7 +348,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
         (_scheduleChoice == ScheduleChoice.now || capacity.scheduleEnabled);
     final submitLabel = _scheduleChoice == ScheduleChoice.later
         ? l10n.scheduledPostAction
-        : isReply
+        : isComment
+        ? l10n.postComposeCommentSubmit
+        : isResponse
         ? l10n.postComposeReplySubmit
         : l10n.postComposeSubmit;
     final hasDraft = _hasDraft(imagesState);
@@ -401,7 +404,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
             backgroundColor: swatches.paper,
             appBar: AppBar(
               title: Text(
-                isReply
+                isComment
+                    ? l10n.postComposeCommentTitle
+                    : isResponse
                     ? l10n.postComposeReplyTitle
                     : isQuote
                     ? l10n.postQuoteAction
@@ -450,13 +455,17 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                           SizedBox(height: spacing.sp4),
                         ],
                         FacetAutocompleteEditor(
-                          label: isReply
+                          label: isComment
+                              ? l10n.postComposeCommentHint
+                              : isResponse
                               ? l10n.postComposeReplyHint
                               : l10n.postComposeHint,
-                          hintText: isReply ? null : l10n.postComposeBodyHint,
+                          hintText: isResponse
+                              ? null
+                              : l10n.postComposeBodyHint,
                           controller: _controller,
                           focusNode: _focusNode,
-                          minLines: isReply ? 5 : 3,
+                          minLines: isResponse ? 5 : 3,
                           maxLines: 12,
                           textInputAction: TextInputAction.newline,
                           keyboardType: TextInputType.multiline,
@@ -558,7 +567,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet> {
                             ),
                           ],
                         ],
-                        if (!isReply) ...[
+                        if (!isResponse) ...[
                           SizedBox(height: spacing.sp6),
                           if (_isLoadingScheduledMedia)
                             const Center(child: CircularProgressIndicator())

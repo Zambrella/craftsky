@@ -69,7 +69,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(_tabLabels(tester), hasLength(4));
-      await tester.tap(find.text('Comments'));
+      await tester.tap(find.widgetWithText(Tab, 'Comments & replies'));
       await tester.pumpAndSettle();
 
       profile = Profile(
@@ -88,10 +88,10 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(_tabLabels(tester), hasLength(7));
-      expect(_selectedTab(tester), 'Comments');
+      expect(_selectedTab(tester), 'Comments & replies');
       await tester.ensureVisible(find.text('Products'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Products'));
+      await tester.tap(find.widgetWithText(Tab, 'Products'));
       await tester.pumpAndSettle();
 
       profile = profile.copyWith(
@@ -126,7 +126,7 @@ void main() {
       'About',
       'Projects',
       'Posts',
-      'Comments',
+      'Comments & replies',
       'Reposts',
     ]);
     expect(_selectedTab(tester), 'About');
@@ -154,7 +154,7 @@ void main() {
       'About',
       'Projects',
       'Posts',
-      'Comments',
+      'Comments & replies',
       'Reposts',
     ]);
     expect(_selectedTab(tester), 'Upcoming Events');
@@ -181,12 +181,12 @@ void main() {
       'About',
       'Projects',
       'Posts',
-      'Comments',
+      'Comments & replies',
       'Reposts',
     ]);
     expect(_selectedTab(tester), 'Products');
 
-    await tester.tap(find.text('Products'));
+    await tester.tap(find.widgetWithText(Tab, 'Products'));
     await tester.pumpAndSettle();
     expect(
       find.text('Add featured products to help visitors find your work.'),
@@ -194,7 +194,7 @@ void main() {
     );
     expect(find.text('Manage products'), findsOneWidget);
 
-    await tester.tap(find.text('Upcoming Events'));
+    await tester.tap(find.widgetWithText(Tab, 'Upcoming Events'));
     await tester.pumpAndSettle();
     expect(
       find.text('Add an event appearance to share what’s coming up.'),
@@ -256,7 +256,7 @@ void main() {
     expect(_tabLabels(tester), [
       'Projects',
       'Posts',
-      'Comments',
+      'Comments & replies',
       'Reposts',
     ]);
     expect(find.text('About'), findsNothing);
@@ -290,14 +290,14 @@ void main() {
     for (final entry in const {
       'Projects': 'projects',
       'Posts': 'posts',
-      'Comments': 'comments',
+      'Comments & replies': 'comments',
       'Reposts': 'reposts',
       'Products': 'products',
       'Upcoming Events': 'upcomingEvents',
       'About': 'about',
     }.entries) {
       await tester.ensureVisible(find.text(entry.key));
-      await tester.tap(find.text(entry.key));
+      await tester.tap(find.widgetWithText(Tab, entry.key));
       await tester.pumpAndSettle();
       expect(
         find.byKey(PageStorageKey<String>('profile_tab_${entry.value}')),

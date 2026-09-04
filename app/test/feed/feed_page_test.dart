@@ -443,6 +443,7 @@ void main() {
 
     await tester.pumpAndSettle();
     await tester.tap(find.text('timeline post tapme'));
+    await tester.pump(const Duration(milliseconds: 350));
     await tester.pumpAndSettle();
 
     expect(find.text('Thread route'), findsOneWidget);
@@ -598,7 +599,7 @@ void main() {
     expect(find.text('Project post'), findsNothing);
     await tester.enterText(find.byType(TextField), 'new comment');
     await tester.pump();
-    await tester.tap(find.widgetWithText(ChunkyButton, 'Reply'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Comment'));
     await tester.pumpAndSettle();
 
     expect(find.text('Thread route'), findsOneWidget);

@@ -10,6 +10,7 @@ import 'package:craftsky_app/business/providers/owner_business_events_provider.d
 import 'package:craftsky_app/business/providers/profile_business_events_provider.dart';
 import 'package:craftsky_app/business/widgets/event_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
@@ -175,16 +176,16 @@ class _EventList extends ConsumerWidget {
           onRetry: () => unawaited(controller.refresh()),
         ),
       if (state.items.isEmpty)
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
-          child: Center(
-            child: Text(
-              filter == OwnerEventFilter.upcoming
-                  ? l10n.businessEventsUpcomingEmpty
-                  : l10n.businessEventsHistoryEmpty,
-              textAlign: TextAlign.center,
-            ),
-          ),
+        CraftskyEmptyState(
+          icon: filter == OwnerEventFilter.upcoming
+              ? CraftskyIcons.events
+              : CraftskyIcons.history,
+          title: filter == OwnerEventFilter.upcoming
+              ? l10n.businessEventsUpcomingTab
+              : l10n.businessEventsHistoryTab,
+          subtitle: filter == OwnerEventFilter.upcoming
+              ? l10n.businessEventsUpcomingEmpty
+              : l10n.businessEventsHistoryEmpty,
         )
       else
         for (final event in state.items) _OwnerEventCard(event: event),

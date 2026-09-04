@@ -1,9 +1,11 @@
 import 'dart:async';
 
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
@@ -70,8 +72,12 @@ class _FollowListPageState extends ConsumerState<FollowListPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final title = widget.kind == FollowListKind.followers
+        ? l10n.settingsFollowers
+        : l10n.settingsFollowing;
     return Scaffold(
-      appBar: AppBar(title: Text('$_title ($_totalCount)')),
+      appBar: AppBar(title: Text('$title ($_totalCount)')),
       body: _isInitialLoading
           ? const Center(child: StitchProgressIndicator())
           : _FollowListBody(
@@ -83,11 +89,6 @@ class _FollowListPageState extends ConsumerState<FollowListPage> {
             ),
     );
   }
-
-  String get _title => switch (widget.kind) {
-    FollowListKind.followers => 'Followers',
-    FollowListKind.following => 'Following',
-  };
 }
 
 class _FollowListBody extends StatelessWidget {
@@ -108,13 +109,17 @@ class _FollowListBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) {
-      return Center(
-        child: Text(
-          switch (kind) {
-            FollowListKind.followers => 'No one follows you yet',
-            FollowListKind.following => 'You are not following anyone',
-          },
-        ),
+      final l10n = AppLocalizations.of(context);
+      return CraftskyEmptyState(
+        icon: CraftskyIcons.people,
+        title: switch (kind) {
+          FollowListKind.followers => l10n.settingsFollowers,
+          FollowListKind.following => l10n.settingsFollowing,
+        },
+        subtitle: switch (kind) {
+          FollowListKind.followers => 'No one follows you yet',
+          FollowListKind.following => 'You are not following anyone',
+        },
       );
     }
     return ListView.builder(

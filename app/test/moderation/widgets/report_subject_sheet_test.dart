@@ -33,6 +33,20 @@ Future<void> _pump(
 
 void main() {
   group('ReportSubjectSheet', () {
+    for (final (subjectType, title) in [
+      (ReportSubjectType.comment, 'Report comment'),
+      (ReportSubjectType.reply, 'Report reply'),
+    ]) {
+      testWidgets('uses the $title title', (tester) async {
+        await _pump(
+          tester,
+          ReportSubjectSheet(subjectType: subjectType, onSubmit: (_) {}),
+        );
+
+        expect(find.text(title), findsOneWidget);
+      });
+    }
+
     testWidgets('uses the event title without changing the shared form', (
       tester,
     ) async {

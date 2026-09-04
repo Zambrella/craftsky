@@ -26,6 +26,7 @@ import 'package:craftsky_app/search/providers/search_suggestions_provider.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -171,10 +172,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           ),
         );
     if (!mounted) return;
-    await showUserProfileCard(
-      context,
-      handleOrDid: profile.handle.toString(),
-    );
+    await showUserProfileCard(context, handleOrDid: profile.handle.toString());
   }
 
   Future<void> _openHashtag(String tag) async {
@@ -246,11 +244,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
       );
     }
 
-    final body = switch ((
-      _hasSubmittedQuery,
-      showSuggestions,
-      draft.isEmpty,
-    )) {
+    final body = switch ((_hasSubmittedQuery, showSuggestions, draft.isEmpty)) {
       (true, _, _) => const <Widget>[],
       (false, true, true) => const <Widget>[],
       (false, true, false) => _SuggestionList.slivers(
@@ -268,19 +262,13 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         ref: ref,
         onOpenQuery: (query) => SearchRoute(q: query).go(context),
         onOpenHashtag: (tag) => TagSearchRoute(tag: tag).push<void>(context),
-        onOpenProfile: (handle) => unawaited(
-          showUserProfileCard(context, handleOrDid: handle),
-        ),
+        onOpenProfile: (handle) =>
+            unawaited(showUserProfileCard(context, handleOrDid: handle)),
       ),
     };
 
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          ...headerSlivers,
-          ...body,
-        ],
-      ),
+      body: CustomScrollView(slivers: [...headerSlivers, ...body]),
     );
   }
 
@@ -413,14 +401,14 @@ class _SearchInputHeader extends StatelessWidget {
 class _PostList extends StatelessWidget {
   const _PostList({
     required this.posts,
-    required this.emptyText,
+    required this.emptyState,
     required this.isLoadingMore,
     required this.hasLoadMoreError,
     required this.onNearEnd,
   });
 
   final List<Post> posts;
-  final String emptyText;
+  final Widget emptyState;
   final bool isLoadingMore;
   final bool hasLoadMoreError;
   final VoidCallback onNearEnd;
@@ -429,7 +417,7 @@ class _PostList extends StatelessWidget {
   Widget build(BuildContext context) {
     return AutoPaginatedSliverList(
       itemCount: posts.length,
-      emptyText: emptyText,
+      emptyState: emptyState,
       isLoadingMore: isLoadingMore,
       hasLoadMoreError: hasLoadMoreError,
       onNearEnd: onNearEnd,
@@ -437,6 +425,7 @@ class _PostList extends StatelessWidget {
         final post = posts[index];
         return PostCard(
           post: post,
+          imageInteractionMode: PostCardImageInteractionMode.navigate,
           hideWhenAuthorProtected: true,
           onTap: () => PostThreadRoute(
             did: post.author.did,

@@ -33,6 +33,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/errors/notification_destination_error.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -712,7 +713,11 @@ class _ProfileTabScrollView extends StatelessWidget {
         handle: profile.handle,
         isOwnProfile: isOwnProfile,
       ),
-      ProfileTab.reposts => ProfileEmptyTab(message: l10n.profileEmptyReposts),
+      ProfileTab.reposts => ProfileEmptyTab(
+        icon: CraftskyIcons.repost,
+        title: l10n.profileTabReposts,
+        subtitle: l10n.profileEmptyReposts,
+      ),
       ProfileTab.products => ProfileProductsTab(
         products: profile.business?.products ?? const [],
         isOwnProfile: isOwnProfile,

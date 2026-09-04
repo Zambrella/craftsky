@@ -157,6 +157,13 @@ Future<void> _pump(
   );
 }
 
+Future<void> _doubleTap(WidgetTester tester, Finder finder) async {
+  await tester.tap(finder);
+  await tester.pump(const Duration(milliseconds: 50));
+  await tester.tap(finder);
+  await tester.pump(const Duration(milliseconds: 350));
+}
+
 void main() {
   group('PostCard', () {
     testWidgets('IT-014 renders full external card and applies images-win', (
@@ -178,12 +185,7 @@ void main() {
           post: _post(
             external: external,
             images: [
-              PostImage(
-                cid: 'bafyimage',
-                mime: 'image/jpeg',
-                size: 1,
-                alt: '',
-              ),
+              PostImage(cid: 'bafyimage', mime: 'image/jpeg', size: 1, alt: ''),
             ],
           ),
         ),
@@ -223,11 +225,7 @@ void main() {
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pumpAndSettle();
 
-        await _pump(
-          tester,
-          PostCard(post: _post()),
-          overrides: overrides,
-        );
+        await _pump(tester, PostCard(post: _post()), overrides: overrides);
         await tester.pumpAndSettle();
         await tester.tap(find.byIcon(CraftskyIconsBold.more));
         await tester.pumpAndSettle();
@@ -240,9 +238,8 @@ void main() {
     ) async {
       final standard = _post();
       final repository = FakePostRepository(
-        onProfilePins: () async => ProfilePinState(
-          standardPostUri: standard.uri.value,
-        ),
+        onProfilePins: () async =>
+            ProfilePinState(standardPostUri: standard.uri.value),
       );
       final ownerOverrides = [
         authSessionProvider.overrideWith(
@@ -386,10 +383,7 @@ void main() {
               size: Size(320, 800),
               textScaler: TextScaler.linear(2),
             ),
-            child: PostCard(
-              post: _post(),
-              showPinnedProfileAttribution: true,
-            ),
+            child: PostCard(post: _post(), showPinnedProfileAttribution: true),
           ),
         );
 
@@ -546,10 +540,7 @@ void main() {
       await _pump(
         tester,
         PostCard(
-          post: _post(
-            viewerHasSaved: true,
-            viewerSavedFolderId: 'folder-a',
-          ),
+          post: _post(viewerHasSaved: true, viewerSavedFolderId: 'folder-a'),
         ),
         overrides: [
           authSessionProvider.overrideWith(SignedInAuthSession.new),
@@ -621,10 +612,7 @@ void main() {
       await _pump(
         tester,
         PostCard(
-          post: _post(
-            viewerHasSaved: true,
-            viewerSavedFolderId: 'folder-a',
-          ),
+          post: _post(viewerHasSaved: true, viewerSavedFolderId: 'folder-a'),
         ),
         overrides: [
           authSessionProvider.overrideWith(SignedInAuthSession.new),
@@ -682,6 +670,28 @@ void main() {
       expect(repostIcon.color, BrandColors.ink2);
     });
 
+    testWidgets('author identity tap target does not fill the header row', (
+      tester,
+    ) async {
+      await _pump(tester, PostCard(post: _post(displayName: 'Alice')));
+
+      final identityTarget = find.ancestor(
+        of: find.text('Alice'),
+        matching: find.byType(GestureDetector),
+      );
+      final time = find.textContaining('3m');
+
+      expect(
+        tester.getTopRight(identityTarget.first).dx,
+        lessThan(tester.getTopLeft(time).dx),
+      );
+      expect(
+        tester.getRect(find.byType(CraftskyCard).first).right -
+            tester.getRect(time).right,
+        lessThan(32),
+      );
+    });
+
     testWidgets(
       'AT-009 IT-015 renders accessible Instagram provenance on a full post',
       (tester) async {
@@ -701,9 +711,7 @@ void main() {
           find.bySemanticsLabel('Imported from Instagram'),
           findsOneWidget,
         );
-        final label = tester.widget<Text>(
-          find.text('Imported from Instagram'),
-        );
+        final label = tester.widget<Text>(find.text('Imported from Instagram'));
         final theme = Theme.of(tester.element(find.byType(PostCard)));
         expect(label.style?.color, theme.colorScheme.outline);
         expect(label.style?.fontSize, theme.textTheme.labelSmall?.fontSize);
@@ -884,10 +892,7 @@ void main() {
     testWidgets('renders combined share count from reposts and quotes', (
       tester,
     ) async {
-      await _pump(
-        tester,
-        PostCard(post: _post(repostCount: 2, quoteCount: 3)),
-      );
+      await _pump(tester, PostCard(post: _post(repostCount: 2, quoteCount: 3)));
 
       expect(find.text('5'), findsOneWidget);
       expect(find.text('2'), findsNothing);
@@ -928,42 +933,36 @@ void main() {
       expect(reposterTaps, 1);
     });
 
-    testWidgets(
-      'AT-009 IT-015 renders accessible Instagram provenance '
-      'in a quote preview',
-      (tester) async {
-        final semantics = tester.ensureSemantics();
+    testWidgets('AT-009 IT-015 renders accessible Instagram provenance '
+        'in a quote preview', (tester) async {
+      final semantics = tester.ensureSemantics();
 
-        await _pump(
-          tester,
-          PostCard(
-            post: _post(
-              quoteView: QuoteView(
-                state: 'visible',
-                post: QuotePreviewPost(
-                  uri: 'at://did:plc:bob/social.craftsky.feed.post/target',
-                  cid: 'bafyquote',
-                  text: 'Original imported post',
-                  author: PostAuthor(
-                    did: 'did:plc:bob',
-                    handle: 'bob.craftsky.social',
-                  ),
-                  createdAt: DateTime(2020, 5, 22, 12),
-                  externalImport: const ExternalImport(source: 'instagram'),
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            quoteView: QuoteView(
+              state: 'visible',
+              post: QuotePreviewPost(
+                uri: 'at://did:plc:bob/social.craftsky.feed.post/target',
+                cid: 'bafyquote',
+                text: 'Original imported post',
+                author: PostAuthor(
+                  did: 'did:plc:bob',
+                  handle: 'bob.craftsky.social',
                 ),
+                createdAt: DateTime(2020, 5, 22, 12),
+                externalImport: const ExternalImport(source: 'instagram'),
               ),
             ),
           ),
-        );
+        ),
+      );
 
-        expect(find.text('Imported from Instagram'), findsOneWidget);
-        expect(
-          find.bySemanticsLabel('Imported from Instagram'),
-          findsOneWidget,
-        );
-        semantics.dispose();
-      },
-    );
+      expect(find.text('Imported from Instagram'), findsOneWidget);
+      expect(find.bySemanticsLabel('Imported from Instagram'), findsOneWidget);
+      semantics.dispose();
+    });
 
     testWidgets(
       'REG-007 ordinary and unknown quote previews show no provenance label',
@@ -1136,9 +1135,7 @@ void main() {
 
     testWidgets(
       'renders the first image and project name for a quoted project',
-      (
-        tester,
-      ) async {
+      (tester) async {
         final fakeCache = FakeBaseCacheManager();
         await _pump(
           tester,
@@ -1222,19 +1219,13 @@ void main() {
           children: [
             PostCard(
               post: _post(
-                quoteView: const QuoteView(
-                  state: 'muted',
-                  revealable: true,
-                ),
+                quoteView: const QuoteView(state: 'muted', revealable: true),
               ),
               onRevealQuotedPost: () => reveals++,
             ),
             PostCard(
               post: _post(
-                quoteView: const QuoteView(
-                  state: 'blocked',
-                  revealable: false,
-                ),
+                quoteView: const QuoteView(state: 'blocked', revealable: false),
               ),
             ),
           ],
@@ -1278,7 +1269,7 @@ void main() {
       final replyIcon = tester.widget<Icon>(
         find.byIcon(CraftskyIconsBold.comment),
       );
-      final replyLabel = tester.widget<Text>(find.text('Reply'));
+      final replyLabel = tester.widget<Text>(find.text('Comment'));
 
       expect(replyIcon.color, BrandColors.clay);
       expect(replyLabel.style?.color, BrandColors.clay);
@@ -1312,20 +1303,17 @@ void main() {
 
       expect(find.byIcon(CraftskyIconsBold.comment), findsOneWidget);
       expect(find.text('3'), findsNothing);
-      expect(find.text('Reply'), findsOneWidget);
+      expect(find.text('Comment'), findsOneWidget);
     });
 
     testWidgets('can hide reply label while keeping reply count', (
       tester,
     ) async {
-      await _pump(
-        tester,
-        PostCard(post: _post(replyCount: 3)),
-      );
+      await _pump(tester, PostCard(post: _post(replyCount: 3)));
 
       expect(find.byIcon(CraftskyIconsBold.comment), findsOneWidget);
       expect(find.text('3'), findsOneWidget);
-      expect(find.text('Reply'), findsNothing);
+      expect(find.text('Comment'), findsNothing);
     });
 
     testWidgets('flat style does not use the card surface', (tester) async {
@@ -1339,7 +1327,7 @@ void main() {
       );
 
       expect(find.byType(CraftskyCard), findsNothing);
-      expect(find.text('Reply'), findsOneWidget);
+      expect(find.text('Comment'), findsOneWidget);
     });
 
     testWidgets('renders project summary before body text', (tester) async {
@@ -1384,6 +1372,18 @@ void main() {
       expect(find.text('SIZE'), findsOneWidget);
       expect(find.text('Medium'), findsOneWidget);
       expect(find.text('Process shots, swipe through.'), findsOneWidget);
+      expect(
+        tester.getCenter(find.byKey(const Key('post-image-carousel'))).dy,
+        lessThan(
+          tester.getCenter(find.text('Wiksten Haori in indigo linen')).dy,
+        ),
+      );
+      expect(
+        tester.getCenter(find.text('Wiksten Haori in indigo linen')).dy,
+        lessThan(
+          tester.getCenter(find.text('Process shots, swipe through.')).dy,
+        ),
+      );
 
       final title = tester.widget<Text>(
         find.text('Wiksten Haori in indigo linen'),
@@ -1772,8 +1772,53 @@ void main() {
       await _pump(tester, PostCard(post: _post(), onTap: () => taps++));
 
       await tester.tap(find.text('Cast on for the Hitchhiker shawl tonight.'));
+      await tester.pump(const Duration(milliseconds: 350));
 
       expect(taps, 1);
+    });
+
+    testWidgets('double tapping card likes once without navigating', (
+      tester,
+    ) async {
+      var likes = 0;
+      var taps = 0;
+      await _pump(
+        tester,
+        PostCard(post: _post(), onTap: () => taps++, onLike: () => likes++),
+      );
+
+      await _doubleTap(
+        tester,
+        find.text('Cast on for the Hitchhiker shawl tonight.'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(likes, 1);
+      expect(taps, 0);
+    });
+
+    testWidgets('double tapping an already-liked card is a no-op', (
+      tester,
+    ) async {
+      var likes = 0;
+      var taps = 0;
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(viewerHasLiked: true),
+          onTap: () => taps++,
+          onLike: () => likes++,
+        ),
+      );
+
+      await _doubleTap(
+        tester,
+        find.text('Cast on for the Hitchhiker shawl tonight.'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(likes, 0);
+      expect(taps, 0);
     });
 
     testWidgets('reply tap does not invoke card tap', (tester) async {
@@ -1781,11 +1826,7 @@ void main() {
       var taps = 0;
       await _pump(
         tester,
-        PostCard(
-          post: _post(),
-          onTap: () => taps++,
-          onReply: () => replies++,
-        ),
+        PostCard(post: _post(), onTap: () => taps++, onReply: () => replies++),
       );
 
       await tester.tap(find.byIcon(CraftskyIconsBold.comment));
@@ -1832,10 +1873,7 @@ void main() {
       tester,
     ) async {
       var reports = 0;
-      await _pump(
-        tester,
-        PostCard(post: _post(), onReport: () => reports++),
-      );
+      await _pump(tester, PostCard(post: _post(), onReport: () => reports++));
 
       await tester.tap(find.byIcon(CraftskyIconsBold.more));
       await tester.pumpAndSettle();
@@ -1921,9 +1959,7 @@ void main() {
       );
       unawaited(
         container
-            .read(
-              profileRelationshipProvider(account, 'did:plc:bob').notifier,
-            )
+            .read(profileRelationshipProvider(account, 'did:plc:bob').notifier)
             .mutate(ProfileRelationshipAction.mute),
       );
       await tester.pump();
@@ -1936,41 +1972,40 @@ void main() {
       await tester.pumpAndSettle();
     });
 
-    testWidgets(
-      'AT-003 fresh muted post shows annotation and Unmute action',
-      (tester) async {
-        final account = AccountKey('did:plc:test');
-        await _pump(
-          tester,
-          PostCard(
-            post: _post(
-              authorMuted: true,
-              authorBlocking: false,
-              authorBlockedBy: false,
-            ),
+    testWidgets('AT-003 fresh muted post shows annotation and Unmute action', (
+      tester,
+    ) async {
+      final account = AccountKey('did:plc:test');
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            authorMuted: true,
+            authorBlocking: false,
+            authorBlockedBy: false,
           ),
-          overrides: [
-            authSessionProvider.overrideWith(SignedInAuthSession.new),
-            accountRelationshipRepositoryProvider(
-              account,
-            ).overrideWith((ref) async => FakeProfileRepository()),
-          ],
-        );
-        await tester.pumpAndSettle();
+        ),
+        overrides: [
+          authSessionProvider.overrideWith(SignedInAuthSession.new),
+          accountRelationshipRepositoryProvider(
+            account,
+          ).overrideWith((ref) async => FakeProfileRepository()),
+        ],
+      );
+      await tester.pumpAndSettle();
 
-        expect(find.text('Muted account'), findsOneWidget);
-        expect(
-          find.text('Cast on for the Hitchhiker shawl tonight.'),
-          findsOneWidget,
-        );
+      expect(find.text('Muted account'), findsOneWidget);
+      expect(
+        find.text('Cast on for the Hitchhiker shawl tonight.'),
+        findsOneWidget,
+      );
 
-        await tester.tap(find.byIcon(CraftskyIconsBold.more));
-        await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(CraftskyIconsBold.more));
+      await tester.pumpAndSettle();
 
-        expect(find.text('Unmute account'), findsOneWidget);
-        expect(find.text('Mute account'), findsNothing);
-      },
-    );
+      expect(find.text('Unmute account'), findsOneWidget);
+      expect(find.text('Mute account'), findsNothing);
+    });
 
     testWidgets('renders generic warning copy without raw reason text', (
       tester,
@@ -1994,11 +2029,7 @@ void main() {
     testWidgets('uses custom delete label when supplied', (tester) async {
       await _pump(
         tester,
-        PostCard(
-          post: _post(),
-          deleteLabel: 'Delete comment',
-          onDelete: () {},
-        ),
+        PostCard(post: _post(), deleteLabel: 'Delete comment', onDelete: () {}),
       );
 
       await tester.tap(find.byIcon(CraftskyIconsBold.more));
@@ -2034,6 +2065,33 @@ void main() {
       expect(find.byKey(const Key('post-image-dots')), findsNothing);
       expect(find.bySemanticsLabel('Blue shawl drying flat'), findsOneWidget);
       expect(find.byType(InteractiveViewer), findsWidgets);
+    });
+
+    testWidgets('renders regular-post text above its image', (tester) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            images: [
+              PostImage(
+                cid: 'bafkimage1',
+                mime: 'image/jpeg',
+                size: 10,
+                alt: 'Blue shawl drying flat',
+              ),
+            ],
+          ),
+        ),
+      );
+
+      expect(
+        tester
+            .getCenter(find.text('Cast on for the Hitchhiker shawl tonight.'))
+            .dy,
+        lessThan(
+          tester.getCenter(find.byKey(const Key('post-image-carousel'))).dy,
+        ),
+      );
     });
 
     testWidgets('renders multi-image indicators and count', (tester) async {
@@ -2113,9 +2171,7 @@ void main() {
 
     testWidgets(
       'tapping image opens gallery while non-image tap keeps card routing',
-      (
-        tester,
-      ) async {
+      (tester) async {
         var cardTaps = 0;
         await _pump(
           tester,
@@ -2144,12 +2200,30 @@ void main() {
           ),
         );
 
+        final sourceHero = tester.widget<Hero>(
+          find
+              .descendant(
+                of: find.byKey(const Key('post-image-carousel')),
+                matching: find.byType(Hero),
+              )
+              .first,
+        );
         await tester.tap(find.byKey(const Key('post-image-carousel')));
         await tester.pump();
         await tester.pump(const Duration(seconds: 1));
+        await tester.pump(const Duration(milliseconds: 250));
 
         expect(find.byType(PostImageGallery), findsOneWidget);
         expect(find.byType(AppBar), findsNothing);
+        final destinationHero = tester.widget<Hero>(
+          find
+              .descendant(
+                of: find.byType(PostImageGallery),
+                matching: find.byType(Hero),
+              )
+              .first,
+        );
+        expect(destinationHero.tag, same(sourceHero.tag));
         expect(find.byType(CloseButton), findsOneWidget);
         expect(
           find.byKey(const Key('post-image-gallery-close-background')),
@@ -2179,9 +2253,108 @@ void main() {
         await tester.tap(
           find.text('Cast on for the Hitchhiker shawl tonight.'),
         );
+        await tester.pump(const Duration(milliseconds: 350));
         expect(cardTaps, 1);
       },
     );
+
+    testWidgets('list image tap navigates without opening gallery', (
+      tester,
+    ) async {
+      var cardTaps = 0;
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            images: [
+              PostImage(
+                cid: 'bafkimage1',
+                mime: 'image/jpeg',
+                size: 10,
+                alt: 'Image one',
+              ),
+            ],
+          ),
+          imageInteractionMode: PostCardImageInteractionMode.navigate,
+          onTap: () => cardTaps++,
+        ),
+      );
+
+      await tester.tap(find.byKey(const Key('post-image-carousel')));
+      await tester.pump(const Duration(milliseconds: 350));
+
+      expect(cardTaps, 1);
+      expect(find.byType(PostImageGallery), findsNothing);
+    });
+
+    testWidgets('double tapping list image likes once without navigating', (
+      tester,
+    ) async {
+      var likes = 0;
+      var cardTaps = 0;
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            images: [
+              PostImage(
+                cid: 'bafkimage1',
+                mime: 'image/jpeg',
+                size: 10,
+                alt: 'Image one',
+              ),
+            ],
+          ),
+          imageInteractionMode: PostCardImageInteractionMode.navigate,
+          onTap: () => cardTaps++,
+          onLike: () => likes++,
+        ),
+      );
+
+      await _doubleTap(
+        tester,
+        find.byKey(const Key('post-image-carousel')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(likes, 1);
+      expect(cardTaps, 0);
+      expect(find.byType(PostImageGallery), findsNothing);
+    });
+
+    testWidgets('double tapping an already-liked image is a no-op', (
+      tester,
+    ) async {
+      var likes = 0;
+      var cardTaps = 0;
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            viewerHasLiked: true,
+            images: [
+              PostImage(
+                cid: 'bafkimage1',
+                mime: 'image/jpeg',
+                size: 10,
+                alt: 'Image one',
+              ),
+            ],
+          ),
+          imageInteractionMode: PostCardImageInteractionMode.navigate,
+          onTap: () => cardTaps++,
+          onLike: () => likes++,
+        ),
+      );
+
+      await _doubleTap(
+        tester,
+        find.byKey(const Key('post-image-carousel')),
+      );
+
+      expect(likes, 0);
+      expect(cardTaps, 0);
+    });
 
     testWidgets('gallery close button accounts for media view padding', (
       tester,
@@ -2208,6 +2381,7 @@ void main() {
       await tester.tap(find.byKey(const Key('post-image-carousel')));
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(milliseconds: 250));
 
       final closeBackground = find.byKey(
         const Key('post-image-gallery-close-background'),
@@ -2257,6 +2431,7 @@ void main() {
       await tester.tap(find.byKey(const Key('post-image-carousel')));
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(milliseconds: 250));
 
       expect(find.byType(PostImageGallery), findsOneWidget);
       expect(find.text('Image two'), findsOneWidget);
@@ -2264,9 +2439,7 @@ void main() {
       expect(find.text('Image one'), findsNothing);
     });
 
-    testWidgets('opens gallery without hero animations', (
-      tester,
-    ) async {
+    testWidgets('opens gallery with a hero animation', (tester) async {
       await _pump(
         tester,
         PostCard(
@@ -2288,9 +2461,10 @@ void main() {
       await tester.tap(find.byKey(const Key('post-image-carousel')));
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(milliseconds: 250));
 
       expect(find.byType(PostImageGallery), findsOneWidget);
-      expect(find.byType(Hero), findsNothing);
+      expect(find.byType(Hero), findsOneWidget);
     });
 
     testWidgets('image-card action taps do not open gallery', (tester) async {
@@ -2364,10 +2538,8 @@ final class _PostCardSavedRepository implements SavedPostRepository {
       throw UnimplementedError();
 
   @override
-  Future<void> deleteFolder(
-    String folderId, {
-    required bool deleteSaves,
-  }) => throw UnimplementedError();
+  Future<void> deleteFolder(String folderId, {required bool deleteSaves}) =>
+      throw UnimplementedError();
 }
 
 List<TextSpan> _leafTextSpans(TextSpan root) {

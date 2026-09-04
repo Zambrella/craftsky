@@ -118,6 +118,12 @@ abstract class AppLocalizations {
   /// **'Feed'**
   String get feedTitle;
 
+  /// Empty-feed action that opens Instagram migration.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect Instagram'**
+  String get feedConnectInstagramAction;
+
   /// Tooltip and accessible label for the button that opens the app navigation drawer.
   ///
   /// In en, this message translates to:
@@ -349,7 +355,7 @@ abstract class AppLocalizations {
   /// No description provided for @notificationCategoryReplies.
   ///
   /// In en, this message translates to:
-  /// **'Replies'**
+  /// **'Comments & replies'**
   String get notificationCategoryReplies;
 
   /// No description provided for @notificationCategoryMentions.
@@ -1135,7 +1141,7 @@ abstract class AppLocalizations {
   /// Tab label for the Comments tab on the profile screen.
   ///
   /// In en, this message translates to:
-  /// **'Comments'**
+  /// **'Comments & replies'**
   String get profileTabComments;
 
   /// Tab label for the Projects tab on the profile screen.
@@ -1246,16 +1252,16 @@ abstract class AppLocalizations {
   /// **'Load more posts'**
   String get profilePostsLoadMore;
 
-  /// Muted placeholder shown in the profile Comments tab when the user has not commented.
+  /// Empty state shown in the profile Comments & replies tab when the user has not responded to a post.
   ///
   /// In en, this message translates to:
-  /// **'No comments yet.'**
+  /// **'No comments or replies yet.'**
   String get profileCommentsEmpty;
 
-  /// Error title shown in the profile Comments tab when comment fetching fails.
+  /// Error title shown in the profile Comments & replies tab when response fetching fails.
   ///
   /// In en, this message translates to:
-  /// **'Comments didn\'t load.'**
+  /// **'Comments and replies didn\'t load.'**
   String get profileCommentsLoadError;
 
   /// Button label for loading the next page in the profile Comments tab.
@@ -1270,11 +1276,17 @@ abstract class AppLocalizations {
   /// **'Post'**
   String get postThreadTitle;
 
-  /// Empty state shown on a post thread when the post has no direct replies.
+  /// Empty state shown on a post thread when the root post has no comments.
   ///
   /// In en, this message translates to:
-  /// **'No replies yet.'**
+  /// **'No comments yet.'**
   String get postThreadEmptyReplies;
+
+  /// Supporting copy beneath the empty comment-thread title.
+  ///
+  /// In en, this message translates to:
+  /// **'Start the conversation with a comment.'**
+  String get postThreadEmptyCommentsSubtitle;
 
   /// Label shown when a thread response has additional replies that are not loaded yet.
   ///
@@ -1900,11 +1912,23 @@ abstract class AppLocalizations {
   /// **'Reply'**
   String get postComposeReplyTitle;
 
+  /// Title of the composer when commenting directly on a root post.
+  ///
+  /// In en, this message translates to:
+  /// **'Comment'**
+  String get postComposeCommentTitle;
+
   /// Label above the text field in reply mode.
   ///
   /// In en, this message translates to:
   /// **'Write your reply'**
   String get postComposeReplyHint;
+
+  /// Label above the text field when commenting directly on a root post.
+  ///
+  /// In en, this message translates to:
+  /// **'Write your comment'**
+  String get postComposeCommentHint;
 
   /// Submit button label in the text-only post composer.
   ///
@@ -1917,6 +1941,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reply'**
   String get postComposeReplySubmit;
+
+  /// Submit button label when commenting directly on a root post.
+  ///
+  /// In en, this message translates to:
+  /// **'Comment'**
+  String get postComposeCommentSubmit;
 
   /// Validation error shown when the text-only post composer exceeds the post text limit.
   ///
@@ -2224,6 +2254,18 @@ abstract class AppLocalizations {
   /// **'Report post'**
   String get postReportAction;
 
+  /// Menu and sheet title for reporting a top-level comment.
+  ///
+  /// In en, this message translates to:
+  /// **'Report comment'**
+  String get commentReportAction;
+
+  /// Menu and sheet title for reporting a nested reply.
+  ///
+  /// In en, this message translates to:
+  /// **'Report reply'**
+  String get replyReportAction;
+
   /// Menu label for pinning an eligible post to its owner's profile.
   ///
   /// In en, this message translates to:
@@ -2331,6 +2373,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Post deleted.'**
   String get postDeleteSuccess;
+
+  /// Snackbar shown after successfully deleting a top-level comment.
+  ///
+  /// In en, this message translates to:
+  /// **'Comment deleted.'**
+  String get commentDeleteSuccess;
+
+  /// Snackbar shown after successfully deleting a nested reply.
+  ///
+  /// In en, this message translates to:
+  /// **'Reply deleted.'**
+  String get replyDeleteSuccess;
+
+  /// Snackbar shown when deleting a comment or reply fails and its exact role is unavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t delete that comment or reply.'**
+  String get responseDeleteError;
 
   /// Snackbar shown when deleting a post fails.
   ///
@@ -4760,6 +4820,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Following'**
   String get settingsFollowing;
+
+  /// Title shown when the viewer's follower collection is empty.
+  ///
+  /// In en, this message translates to:
+  /// **'No one follows you yet'**
+  String get followersEmptyTitle;
+
+  /// Explanation shown when the viewer's follower collection is empty.
+  ///
+  /// In en, this message translates to:
+  /// **'When someone follows you, they will appear here.'**
+  String get followersEmptySubtitle;
+
+  /// Title shown when the viewer's following collection is empty.
+  ///
+  /// In en, this message translates to:
+  /// **'You are not following anyone'**
+  String get followingEmptyTitle;
+
+  /// Explanation shown when the viewer's following collection is empty.
+  ///
+  /// In en, this message translates to:
+  /// **'Accounts you follow will appear here.'**
+  String get followingEmptySubtitle;
+
+  /// Title shown when a mutual-follower sheet opens after its summary became stale.
+  ///
+  /// In en, this message translates to:
+  /// **'No mutual followers'**
+  String get mutualFollowersEmptyTitle;
+
+  /// Explanation for a stale-empty mutual-follower list.
+  ///
+  /// In en, this message translates to:
+  /// **'This list may have changed since the profile loaded.'**
+  String get mutualFollowersEmptySubtitle;
 
   /// Settings row opening account settings.
   ///

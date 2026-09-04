@@ -15,6 +15,7 @@ import 'package:craftsky_app/saved_posts/widgets/saved_post_folder_dialogs.dart'
 import 'package:craftsky_app/saved_posts/widgets/saved_post_row.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_row_actions.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_sort_button.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -161,7 +162,11 @@ class _OverviewBody extends ConsumerWidget {
           if (overview.isEmpty)
             SliverFillRemaining(
               hasScrollBody: false,
-              child: Center(child: Text(l10n.savedPostsEmpty)),
+              child: CraftskyEmptyState(
+                icon: CraftskyIcons.savedSection,
+                title: l10n.savedPostsTitle,
+                subtitle: l10n.savedPostsEmpty,
+              ),
             )
           else ...[
             MultiSliver(

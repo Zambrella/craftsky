@@ -132,6 +132,28 @@ void main() {
     expect(indicator.effect, isA<WormEffect>());
   });
 
+  testWidgets('uses stable unique Hero tags for each image', (tester) async {
+    final carousel = PostImageCarousel(images: _images('hero'));
+    await _pumpCarousel(tester, carousel);
+
+    final firstTag = tester.widget<Hero>(find.byType(Hero)).tag;
+
+    await tester.drag(
+      find.byKey(const Key('post-image-carousel')),
+      const Offset(-500, 0),
+    );
+    await tester.pumpAndSettle();
+    final secondTag = tester.widget<Hero>(find.byType(Hero)).tag;
+    expect(secondTag, isNot(same(firstTag)));
+
+    await tester.drag(
+      find.byKey(const Key('post-image-carousel')),
+      const Offset(500, 0),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.widget<Hero>(find.byType(Hero)).tag, same(firstTag));
+  });
+
   testWidgets('newly visible carousels start on the first image', (
     tester,
   ) async {

@@ -9,7 +9,7 @@ const autoLoadMoreExtent = 240.0;
 class AutoPaginatedListView extends StatelessWidget {
   const AutoPaginatedListView({
     required this.itemCount,
-    required this.emptyText,
+    required this.emptyState,
     required this.isLoadingMore,
     required this.hasLoadMoreError,
     required this.onNearEnd,
@@ -18,7 +18,7 @@ class AutoPaginatedListView extends StatelessWidget {
   });
 
   final int itemCount;
-  final String emptyText;
+  final Widget emptyState;
   final bool isLoadingMore;
   final bool hasLoadMoreError;
   final VoidCallback onNearEnd;
@@ -28,7 +28,7 @@ class AutoPaginatedListView extends StatelessWidget {
   Widget build(BuildContext context) {
     final spacing =
         Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
-    if (itemCount == 0) return Center(child: Text(emptyText));
+    if (itemCount == 0) return emptyState;
     return NotificationListener<ScrollNotification>(
       onNotification: (notification) {
         if (notification.metrics.extentAfter < autoLoadMoreExtent &&
@@ -64,7 +64,7 @@ class AutoPaginatedListView extends StatelessWidget {
 class AutoPaginatedSliverList extends StatelessWidget {
   const AutoPaginatedSliverList({
     required this.itemCount,
-    required this.emptyText,
+    required this.emptyState,
     required this.isLoadingMore,
     required this.hasLoadMoreError,
     required this.onNearEnd,
@@ -73,7 +73,7 @@ class AutoPaginatedSliverList extends StatelessWidget {
   });
 
   final int itemCount;
-  final String emptyText;
+  final Widget emptyState;
   final bool isLoadingMore;
   final bool hasLoadMoreError;
   final VoidCallback onNearEnd;
@@ -84,10 +84,7 @@ class AutoPaginatedSliverList extends StatelessWidget {
     final spacing =
         Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
     if (itemCount == 0) {
-      return SliverFillRemaining(
-        hasScrollBody: false,
-        child: Center(child: Text(emptyText)),
-      );
+      return SliverFillRemaining(hasScrollBody: false, child: emptyState);
     }
     return SliverMainAxisGroup(
       slivers: [
@@ -103,9 +100,7 @@ class AutoPaginatedSliverList extends StatelessWidget {
                       : TextButton.icon(
                           onPressed: onNearEnd,
                           icon: const Icon(CraftskyIconsBold.refresh),
-                          label: Text(
-                            AppLocalizations.of(context).retryButton,
-                          ),
+                          label: Text(AppLocalizations.of(context).retryButton),
                         ),
                 ),
               );

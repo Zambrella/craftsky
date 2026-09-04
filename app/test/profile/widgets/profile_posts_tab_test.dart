@@ -400,7 +400,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byIcon(CraftskyIconsBold.comment));
       await tester.pumpAndSettle();
-      expect(find.text('Reply'), findsWidgets);
+      expect(find.text('Comment'), findsWidgets);
       await tester.tap(find.byType(CloseButton));
       await tester.pumpAndSettle();
       await tester.tap(find.byIcon(CraftskyIconsBold.like));
@@ -480,7 +480,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'new comment');
       await tester.pump();
-      await tester.tap(find.widgetWithText(ChunkyButton, 'Reply'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Comment'));
       await tester.pumpAndSettle();
 
       expect(find.text('Thread route'), findsOneWidget);

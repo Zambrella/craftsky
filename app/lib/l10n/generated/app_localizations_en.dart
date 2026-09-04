@@ -23,6 +23,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get feedTitle => 'Feed';
 
   @override
+  String get feedConnectInstagramAction => 'Connect Instagram';
+
+  @override
   String get navigationMenuTooltip => 'Open navigation menu';
 
   @override
@@ -168,7 +171,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notificationCategoryFollows => 'Follows';
 
   @override
-  String get notificationCategoryReplies => 'Replies';
+  String get notificationCategoryReplies => 'Comments & replies';
 
   @override
   String get notificationCategoryMentions => 'Mentions';
@@ -600,7 +603,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileTabPosts => 'Posts';
 
   @override
-  String get profileTabComments => 'Comments';
+  String get profileTabComments => 'Comments & replies';
 
   @override
   String get profileTabProjects => 'Projects';
@@ -657,10 +660,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profilePostsLoadMore => 'Load more posts';
 
   @override
-  String get profileCommentsEmpty => 'No comments yet.';
+  String get profileCommentsEmpty => 'No comments or replies yet.';
 
   @override
-  String get profileCommentsLoadError => 'Comments didn\'t load.';
+  String get profileCommentsLoadError => 'Comments and replies didn\'t load.';
 
   @override
   String get profileCommentsLoadMore => 'Load more comments';
@@ -669,7 +672,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postThreadTitle => 'Post';
 
   @override
-  String get postThreadEmptyReplies => 'No replies yet.';
+  String get postThreadEmptyReplies => 'No comments yet.';
+
+  @override
+  String get postThreadEmptyCommentsSubtitle =>
+      'Start the conversation with a comment.';
 
   @override
   String get postThreadReadMoreReplies => 'Read more replies';
@@ -1027,13 +1034,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postComposeReplyTitle => 'Reply';
 
   @override
+  String get postComposeCommentTitle => 'Comment';
+
+  @override
   String get postComposeReplyHint => 'Write your reply';
+
+  @override
+  String get postComposeCommentHint => 'Write your comment';
 
   @override
   String get postComposeSubmit => 'Post';
 
   @override
   String get postComposeReplySubmit => 'Reply';
+
+  @override
+  String get postComposeCommentSubmit => 'Comment';
 
   @override
   String get postComposeTooLong => 'Posts must be 2000 characters or fewer';
@@ -1212,6 +1228,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postReportAction => 'Report post';
 
   @override
+  String get commentReportAction => 'Report comment';
+
+  @override
+  String get replyReportAction => 'Report reply';
+
+  @override
   String get postPinAction => 'Pin post';
 
   @override
@@ -1264,6 +1286,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get postDeleteSuccess => 'Post deleted.';
+
+  @override
+  String get commentDeleteSuccess => 'Comment deleted.';
+
+  @override
+  String get replyDeleteSuccess => 'Reply deleted.';
+
+  @override
+  String get responseDeleteError => 'Couldn\'t delete that comment or reply.';
 
   @override
   String get postDeleteError => 'Couldn\'t delete post.';
@@ -2648,6 +2679,26 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsFollowing => 'Following';
+
+  @override
+  String get followersEmptyTitle => 'No one follows you yet';
+
+  @override
+  String get followersEmptySubtitle =>
+      'When someone follows you, they will appear here.';
+
+  @override
+  String get followingEmptyTitle => 'You are not following anyone';
+
+  @override
+  String get followingEmptySubtitle => 'Accounts you follow will appear here.';
+
+  @override
+  String get mutualFollowersEmptyTitle => 'No mutual followers';
+
+  @override
+  String get mutualFollowersEmptySubtitle =>
+      'This list may have changed since the profile loaded.';
 
   @override
   String get settingsAccount => 'Account';

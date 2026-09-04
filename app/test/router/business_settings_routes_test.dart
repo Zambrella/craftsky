@@ -117,7 +117,7 @@ void main() {
           size: const Size(800, 900),
         );
 
-        await tester.tap(find.text(route.profileTabLabel));
+        await tester.tap(find.widgetWithText(Tab, route.profileTabLabel));
         await tester.pumpAndSettle();
         await tester.tap(find.text(route.manageLabel));
         await tester.pumpAndSettle();

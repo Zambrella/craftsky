@@ -4,6 +4,8 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/settings/providers/relationship_list_provider.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -111,13 +113,16 @@ class _RelationshipListBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     if (state.items.isEmpty) {
-      return Center(
-        child: Text(
-          switch (kind) {
-            RelationshipListKind.muted => l10n.settingsMutedAccountsEmpty,
-            RelationshipListKind.blocked => l10n.settingsBlockedAccountsEmpty,
-          },
-        ),
+      return CraftskyEmptyState(
+        icon: switch (kind) {
+          RelationshipListKind.muted => CraftskyIcons.muted,
+          RelationshipListKind.blocked => CraftskyIcons.block,
+        },
+        title: switch (kind) {
+          RelationshipListKind.muted => l10n.settingsMutedAccountsEmpty,
+          RelationshipListKind.blocked => l10n.settingsBlockedAccountsEmpty,
+        },
+        subtitle: l10n.profileAboutEmpty,
       );
     }
     return ListView.builder(

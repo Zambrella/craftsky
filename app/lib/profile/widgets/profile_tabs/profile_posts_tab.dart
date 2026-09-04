@@ -1,6 +1,8 @@
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_post_feed_slivers.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -31,7 +33,11 @@ class ProfilePostsTab extends ConsumerWidget {
         hasLoadMoreError: postsAsync.hasError,
         isOwnProfile: isOwnProfile,
         pinnedPostUri: value.pinnedPostUri,
-        emptyText: l10n.profilePostsEmpty,
+        emptyState: CraftskyEmptyState(
+          icon: CraftskyIcons.textPost,
+          title: l10n.profileTabPosts,
+          subtitle: l10n.profilePostsEmpty,
+        ),
         showComposeButton: isOwnProfile,
         onLoadMore: () =>
             ref.read(userPostsProvider(handle).notifier).loadMore(),

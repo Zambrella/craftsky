@@ -16,6 +16,7 @@ import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -127,7 +128,14 @@ class _FeedLoadedSlivers extends ConsumerWidget {
         if (items.isEmpty)
           SliverFillRemaining(
             hasScrollBody: false,
-            child: Center(child: Text(l10n.feedEmpty)),
+            child: CraftskyEmptyState(
+              icon: CraftskyIcons.home,
+              title: l10n.feedTitle,
+              subtitle: l10n.feedEmpty,
+              actionLabel: l10n.feedConnectInstagramAction,
+              onAction: () =>
+                  const InstagramMigrationRoute().push<void>(context),
+            ),
           )
         else
           SliverList.builder(
@@ -147,6 +155,7 @@ class _FeedLoadedSlivers extends ConsumerWidget {
               final post = item.post;
               return PostCard(
                 post: post,
+                imageInteractionMode: PostCardImageInteractionMode.navigate,
                 hideWhenAuthorProtected: true,
                 allowProfilePinAction: true,
                 repostReason: item.reason,

@@ -54,7 +54,7 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
     required this.isLoadingMore,
     required this.hasLoadMoreError,
     required this.isOwnProfile,
-    required this.emptyText,
+    required this.emptyState,
     required this.onLoadMore,
     required this.onReplacePost,
     required this.pinnedPostUri,
@@ -67,7 +67,7 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
   final bool isLoadingMore;
   final bool hasLoadMoreError;
   final bool isOwnProfile;
-  final String emptyText;
+  final Widget emptyState;
   final Future<void> Function() onLoadMore;
   final void Function(Post post) onReplacePost;
   final String? pinnedPostUri;
@@ -110,7 +110,7 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
         if (posts.isEmpty)
           SliverFillRemaining(
             hasScrollBody: false,
-            child: Center(child: Text(emptyText)),
+            child: emptyState,
           )
         else
           SliverList.builder(
@@ -127,6 +127,7 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
               final post = posts[index];
               return PostCard(
                 post: post,
+                imageInteractionMode: PostCardImageInteractionMode.navigate,
                 hideWhenAuthorProtected: true,
                 allowProfilePinAction: isOwnProfile,
                 showPinnedProfileAttribution: post.uri.value == pinnedPostUri,
@@ -194,10 +195,7 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
     final created = await showPostComposerSheet(context, replyTarget: post);
     if (created == null || !context.mounted) return;
     onReplacePost(
-      post.copyWith(
-        replyCount: post.replyCount + 1,
-        viewerHasReplied: true,
-      ),
+      post.copyWith(replyCount: post.replyCount + 1, viewerHasReplied: true),
     );
     await PostThreadRoute(
       did: post.author.did,

@@ -3,6 +3,8 @@ import 'package:craftsky_app/profile/widgets/profile_tabs/profile_post_feed_sliv
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -31,7 +33,11 @@ class ProfileProjectsTab extends ConsumerWidget {
         hasLoadMoreError: projectsAsync.hasError,
         isOwnProfile: isOwnProfile,
         pinnedPostUri: value.pinnedPostUri,
-        emptyText: l10n.profileEmptyProjects,
+        emptyState: CraftskyEmptyState(
+          icon: CraftskyIcons.projects,
+          title: l10n.profileTabProjects,
+          subtitle: l10n.profileEmptyProjects,
+        ),
         onLoadMore: () =>
             ref.read(userProjectsProvider(handle).notifier).loadMore(),
         onReplacePost: (post) =>

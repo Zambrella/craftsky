@@ -13,6 +13,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -40,11 +41,16 @@ class ProfileCommentsTab extends ConsumerWidget {
     ref
       ..listen(deletePostProvider, (previous, next) {
         switch ((previous, next)) {
-          case (AsyncLoading(), AsyncData(value: != null)):
-            context.showInfo(l10n.postDeleteSuccess);
+          case (AsyncLoading(), AsyncData(:final value?)):
+            final isReply =
+                value.reply != null &&
+                value.reply!.root.uri != value.reply!.parent.uri;
+            context.showInfo(
+              isReply ? l10n.replyDeleteSuccess : l10n.commentDeleteSuccess,
+            );
             ref.read(deletePostProvider.notifier).reset();
           case (AsyncLoading(), AsyncError()):
-            context.showError(l10n.postDeleteError);
+            context.showError(l10n.responseDeleteError);
             ref.read(deletePostProvider.notifier).reset();
           case _:
             break;
@@ -109,7 +115,11 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
         if (comments.isEmpty)
           SliverFillRemaining(
             hasScrollBody: false,
-            child: Center(child: Text(l10n.profileCommentsEmpty)),
+            child: CraftskyEmptyState(
+              icon: CraftskyIcons.comment,
+              title: l10n.profileTabComments,
+              subtitle: l10n.profileCommentsEmpty,
+            ),
           )
         else
           SliverList.builder(
@@ -138,6 +148,7 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
                   post.reply!.root.uri != post.reply!.parent.uri;
               return PostCard(
                 post: post,
+                imageInteractionMode: PostCardImageInteractionMode.navigate,
                 hideWhenAuthorProtected: true,
                 style: PostCardStyle.flat,
                 replyTooltip: l10n.postThreadReplyAction,
@@ -164,6 +175,9 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
                 onReport: viewerDid != null && post.author.did != viewerDid
                     ? () => showPostReportSheet(context, ref, post)
                     : null,
+                reportLabel: isReply
+                    ? l10n.replyReportAction
+                    : l10n.commentReportAction,
               );
             },
           ),
