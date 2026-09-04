@@ -27,6 +27,7 @@ import 'package:craftsky_app/settings/pages/relationship_list_page.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -323,7 +324,7 @@ void main() {
       expect(find.text(label), findsOneWidget, reason: label);
     }
     expect(find.text('Clear image cache'), findsNothing);
-    expect(find.byIcon(Icons.chevron_right), findsNWidgets(13));
+    expect(find.byIcon(CraftskyIconsBold.next), findsNWidgets(13));
     final signOut = tester.widget<Text>(find.text('Sign out'));
     expect(
       signOut.style?.color,

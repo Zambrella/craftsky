@@ -12,6 +12,7 @@ import 'package:craftsky_app/onboarding/widgets/onboarding_instagram_step.dart';
 import 'package:craftsky_app/onboarding/widgets/onboarding_profile_step.dart';
 import 'package:craftsky_app/onboarding/widgets/onboarding_progress.dart';
 import 'package:craftsky_app/profile/data/profile_field_constraints.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -108,7 +109,7 @@ class _OnboardingFlowScaffold extends ConsumerWidget {
               ? null
               : IconButton(
                   onPressed: action.canGoBack ? previous : null,
-                  icon: const Icon(Icons.arrow_back),
+                  icon: const Icon(CraftskyIconsBold.back),
                 ),
           title: Text(l10n.onboardingTitle),
           actions: [

@@ -34,9 +34,13 @@ class _ProjectFilterSheetState extends State<_ProjectFilterSheet> {
     return SizedBox.expand(
       child: Scaffold(
         appBar: AppBar(
-          title: Text(l10n.projectsFiltersTitle(craftLabel)),
+          title: CraftIconLabel(
+            craft: widget.craftType,
+            label: l10n.projectsFiltersTitle(craftLabel),
+            flexibleLabel: true,
+          ),
           leading: IconButton(
-            icon: const Icon(Icons.close),
+            icon: const Icon(CraftskyIconsBold.close),
             onPressed: () => Navigator.of(context).pop(),
           ),
         ),

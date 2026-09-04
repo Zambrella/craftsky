@@ -1,3 +1,4 @@
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 
 enum SettingsSectionId {
@@ -48,8 +49,10 @@ final class SettingsRowDescriptor {
 
   IconData? trailingIcon(TextDirection direction) => switch (kind) {
     SettingsRowKind.disclosure =>
-      direction == TextDirection.ltr ? Icons.chevron_right : Icons.chevron_left,
-    SettingsRowKind.externalLink => Icons.open_in_new,
+      direction == TextDirection.ltr
+          ? CraftskyIconsBold.next
+          : CraftskyIconsBold.previous,
+    SettingsRowKind.externalLink => CraftskyIconsBold.externalLink,
     SettingsRowKind.action ||
     SettingsRowKind.destructiveAction ||
     SettingsRowKind.readOnly => null,

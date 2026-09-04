@@ -12,6 +12,7 @@ import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/theme/craftsky_field_scaffold.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -447,7 +448,7 @@ class EventFormState extends ConsumerState<EventForm> {
                         : Theme.of(context).textTheme.bodyLarge,
                   ),
                 ),
-                const Icon(Icons.calendar_month_outlined),
+                const Icon(CraftskyIconsBold.eventDatePicker),
               ],
             ),
           ),

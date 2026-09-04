@@ -19,6 +19,7 @@ import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -215,8 +216,8 @@ class _AccountAndVerificationCardState
         children: [
           _CardHeading(
             icon: account == null
-                ? Icons.verified_outlined
-                : Icons.link_outlined,
+                ? CraftskyIcons.verifiedAccount
+                : CraftskyIcons.link,
             title: account == null
                 ? l10n.instagramVerificationTitle
                 : l10n.instagramAccountTitle,
@@ -254,7 +255,7 @@ class _AccountAndVerificationCardState
           const SizedBox(height: 12),
           FilledButton.icon(
             onPressed: flow.isBusy ? null : notifier.create,
-            icon: const Icon(Icons.verified_outlined),
+            icon: const Icon(CraftskyIconsBold.verifiedAccount),
             label: Text(l10n.instagramVerificationStart),
           ),
           if (flow.hasError) ...[
@@ -435,7 +436,7 @@ class _ChallengeControls extends ConsumerWidget {
                       if (!context.mounted || !_current(ref, lease)) return;
                       context.showInfo(l10n.instagramChallengeCopied);
                     },
-              icon: const Icon(Icons.copy_outlined),
+              icon: const Icon(CraftskyIconsBold.copy),
               label: Text(l10n.instagramCopyChallenge),
             ),
             const SizedBox(height: 8),
@@ -446,7 +447,7 @@ class _ChallengeControls extends ConsumerWidget {
                       await ref.read(instagramDmLauncherProvider)(dmUrl);
                       if (!context.mounted || !_current(ref, lease)) return;
                     },
-              icon: const Icon(Icons.open_in_new),
+              icon: const Icon(CraftskyIconsBold.externalLink),
               label: Text(l10n.instagramOpenDm),
             ),
             const SizedBox(height: 8),
@@ -558,7 +559,7 @@ class _RevokeInstagramVerificationButton extends ConsumerWidget {
         foregroundColor: theme.colorScheme.error,
         iconColor: theme.colorScheme.error,
       ),
-      icon: const Icon(Icons.link_off),
+      icon: const Icon(CraftskyIconsBold.unlink),
       label: Text(l10n.instagramRevokeAccount),
     );
   }
@@ -605,7 +606,7 @@ class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _CardHeading(
-            icon: Icons.person_search_outlined,
+            icon: CraftskyIcons.findPeople,
             title: l10n.instagramImportTitle,
           ),
           SizedBox(height: spacing.sp3),
@@ -615,12 +616,12 @@ class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
               ButtonSegment(
                 value: _ImportInputKind.json,
                 label: Text(l10n.instagramImportJson),
-                icon: const Icon(Icons.file_open_outlined),
+                icon: const Icon(CraftskyIconsBold.openFile),
               ),
               ButtonSegment(
                 value: _ImportInputKind.manual,
                 label: Text(l10n.instagramImportManual),
-                icon: const Icon(Icons.edit_outlined),
+                icon: const Icon(CraftskyIconsBold.edit),
               ),
             ],
             selected: {_kind},
@@ -658,7 +659,7 @@ class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
           ] else
             FilledButton.icon(
               onPressed: ready && !_busy ? _pickExport : null,
-              icon: const Icon(Icons.file_open_outlined),
+              icon: const Icon(CraftskyIconsBold.openFile),
               label: Text(l10n.instagramImportSelectJson),
             ),
           if (imports.hasError) ...[
@@ -801,7 +802,7 @@ class _ImportsCard extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _CardHeading(
-            icon: Icons.inventory_2_outlined,
+            icon: CraftskyIcons.projectCount,
             title: l10n.instagramImportsTitle,
           ),
           SizedBox(height: spacing.sp2),
@@ -891,7 +892,7 @@ class _ImportRow extends ConsumerWidget {
                 style: IconButton.styleFrom(
                   foregroundColor: theme.colorScheme.error,
                 ),
-                icon: const Icon(Icons.delete_outline),
+                icon: const Icon(CraftskyIconsBold.delete),
                 tooltip: l10n.instagramImportDelete,
               ),
             ],
@@ -923,7 +924,7 @@ class _SuggestionsCard extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _CardHeading(
-            icon: Icons.group_add_outlined,
+            icon: CraftskyIcons.addPeople,
             title: l10n.instagramSuggestionsTitle,
           ),
           SizedBox(height: spacing.sp2),

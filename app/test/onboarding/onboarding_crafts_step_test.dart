@@ -5,6 +5,7 @@ import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
 import 'package:craftsky_app/onboarding/widgets/onboarding_crafts_step.dart';
 import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -51,6 +52,7 @@ void main() {
       Tristate.isTrue,
     );
     expect(find.byType(InkWell), findsNWidgets(Craft.values.length));
+    expect(find.byType(CraftIcon), findsNWidgets(5));
     await tester.tap(find.text('Sewing'));
     expect(toggled, Craft.sewing);
     semantics.dispose();

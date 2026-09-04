@@ -25,8 +25,10 @@ import 'package:craftsky_app/search/providers/recent_searches_provider.dart';
 import 'package:craftsky_app/search/providers/search_suggestions_provider.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -381,12 +383,12 @@ class _SearchInputHeader extends StatelessWidget {
                 controller: controller,
                 focusNode: focusNode,
                 hintText: l10n.searchHint,
-                prefixIcon: const Icon(Icons.search),
+                prefixIcon: const Icon(CraftskyIcons.search),
                 suffixIcon: draftQuery.isEmpty
                     ? null
                     : IconButton(
                         tooltip: l10n.searchClearAction,
-                        icon: const Icon(Icons.cancel),
+                        icon: const Icon(CraftskyIconsBold.clear),
                         onPressed: onClear,
                       ),
                 textInputAction: TextInputAction.search,
@@ -464,8 +466,34 @@ class _ProfileResultTile extends StatelessWidget {
         customisation: profile.customisation,
       ),
       title: Text(title),
-      subtitle: subtitle == null ? null : Text(subtitle),
+      subtitle: subtitle == null
+          ? null
+          : _ProfileResultSubtitle(profile: profile, text: subtitle),
       onTap: onTap,
+    );
+  }
+}
+
+class _ProfileResultSubtitle extends StatelessWidget {
+  const _ProfileResultSubtitle({required this.profile, required this.text});
+
+  final ProfileSearchResult profile;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final iconCrafts = profile.crafts
+        .where((craft) => CraftIcon.assetPathFor(craft) != null)
+        .toList(growable: false);
+    if (iconCrafts.isEmpty) return Text(text);
+    return Row(
+      children: [
+        for (final craft in iconCrafts) ...[
+          CraftIcon(craft: craft, size: 16),
+          const SizedBox(width: 4),
+        ],
+        Flexible(child: Text(text)),
+      ],
     );
   }
 }
@@ -510,7 +538,7 @@ class _ErrorView extends StatelessWidget {
             SizedBox(height: spacing.sp2),
             TextButton.icon(
               onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
+              icon: const Icon(CraftskyIconsBold.refresh),
               label: Text(l10n.retryButton),
             ),
           ],

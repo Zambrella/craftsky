@@ -4,6 +4,7 @@ import 'package:craftsky_app/business/providers/profile_business_events_provider
 import 'package:craftsky_app/business/widgets/event_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -146,7 +147,7 @@ class ProfileEventsTab extends ConsumerWidget {
                         ),
                   icon: state.isRefreshing
                       ? const StitchProgressIndicator(size: 18)
-                      : const Icon(Icons.refresh),
+                      : const Icon(CraftskyIconsBold.refresh),
                   label: Text(l10n.businessEventsRefreshAction),
                 ),
               ],

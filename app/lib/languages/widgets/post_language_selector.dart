@@ -2,6 +2,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/data/language_catalogue.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -39,7 +40,7 @@ class PostLanguageSelector extends StatelessWidget {
                   : null,
             ),
           ActionChip(
-            avatar: const Icon(Icons.add, size: 18),
+            avatar: const Icon(CraftskyIconsBold.add, size: 18),
             label: Text(l10n.postLanguageAdd),
             onPressed: enabled && selection.values.length < 3
                 ? () async {

@@ -19,6 +19,7 @@ import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -41,43 +42,43 @@ class _DestinationSpec {
 
 const _primaryDestinations = <_DestinationSpec>[
   _DestinationSpec(
-    icon: Icons.home_outlined,
-    selectedIcon: Icons.home,
+    icon: CraftskyIcons.home,
+    selectedIcon: CraftskyIcons.homeSelected,
   ),
   _DestinationSpec(
-    icon: Icons.grid_view_outlined,
-    selectedIcon: Icons.grid_view,
+    icon: CraftskyIcons.projects,
+    selectedIcon: CraftskyIcons.projectsSelected,
   ),
   _DestinationSpec(
-    icon: Icons.search_outlined,
-    selectedIcon: Icons.search,
+    icon: CraftskyIcons.search,
+    selectedIcon: CraftskyIcons.searchSelected,
   ),
   _DestinationSpec(
-    icon: Icons.notifications_outlined,
-    selectedIcon: Icons.notifications,
+    icon: CraftskyIcons.notifications,
+    selectedIcon: CraftskyIcons.notificationsSelected,
   ),
   _DestinationSpec(
-    icon: Icons.person_outline,
-    selectedIcon: Icons.person,
+    icon: CraftskyIcons.profile,
+    selectedIcon: CraftskyIcons.profileSelected,
   ),
 ];
 
 const _secondaryDestinations = <_DestinationSpec>[
   _DestinationSpec(
-    icon: Icons.bookmarks_outlined,
-    selectedIcon: Icons.bookmarks,
+    icon: CraftskyIcons.savedSection,
+    selectedIcon: CraftskyIcons.savedSectionSelected,
   ),
   _DestinationSpec(
-    icon: Icons.schedule_outlined,
-    selectedIcon: Icons.schedule,
+    icon: CraftskyIcons.schedule,
+    selectedIcon: CraftskyIcons.scheduleSelected,
   ),
   _DestinationSpec(
-    icon: Icons.edit_note_outlined,
-    selectedIcon: Icons.edit_note,
+    icon: CraftskyIcons.drafts,
+    selectedIcon: CraftskyIcons.draftsSelected,
   ),
   _DestinationSpec(
-    icon: Icons.settings_outlined,
-    selectedIcon: Icons.settings,
+    icon: CraftskyIcons.settings,
+    selectedIcon: CraftskyIcons.settingsSelected,
   ),
 ];
 
@@ -746,7 +747,7 @@ class _ShellDrawerState extends State<_ShellDrawer> {
                 children: [
                   OutlinedButton.icon(
                     onPressed: () {},
-                    icon: const Icon(Icons.chat_bubble_outline),
+                    icon: const Icon(CraftskyIconsBold.comment),
                     label: Text(l10n.navigationFeedback),
                   ),
                   if (buildVersionLabel case final label?) ...[
@@ -932,7 +933,7 @@ class _ShellNavigationRail extends StatelessWidget {
                 ),
                 OutlinedButton.icon(
                   onPressed: () {},
-                  icon: const Icon(Icons.chat_bubble_outline),
+                  icon: const Icon(CraftskyIconsBold.comment),
                   label: Text(l10n.navigationFeedback),
                 ),
                 if (buildVersionLabel case final label?) ...[
@@ -1067,7 +1068,7 @@ class _AccountSwitcherButton extends StatelessWidget {
     focusNode: focusNode,
     tooltip: AppLocalizations.of(context).accountSwitcherTooltip,
     onPressed: onPressed,
-    icon: const Icon(Icons.switch_account),
+    icon: const Icon(CraftskyIconsBold.switchAccount),
   );
 }
 

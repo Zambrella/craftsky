@@ -10,6 +10,7 @@ import 'package:craftsky_app/scheduled_posts/providers/scheduled_post_repository
 import 'package:craftsky_app/scheduled_posts/providers/scheduled_posts_provider.dart';
 import 'package:craftsky_app/scheduled_posts/widgets/scheduled_media_thumbnail.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -189,9 +190,9 @@ class _ScheduledPostTile extends StatelessWidget {
     return ListTile(
       onTap: locked ? null : () => onEdit(item),
       leading: row.firstMediaId == null
-          ? const Icon(Icons.schedule_outlined)
+          ? const Icon(CraftskyIcons.schedule)
           : thumbnailBuilder?.call(row.firstMediaId!) ??
-                const Icon(Icons.image_outlined),
+                const Icon(CraftskyIcons.image),
       title: Text(
         row.projectTitle ?? row.preview,
         maxLines: 2,
@@ -234,7 +235,7 @@ class _ScheduledPostTile extends StatelessWidget {
           ? Semantics(
               label: l10n.scheduledPostsPublishingLockSemantics,
               child: const ExcludeSemantics(
-                child: Icon(Icons.lock_outline),
+                child: Icon(CraftskyIcons.lock),
               ),
             )
           : Wrap(
@@ -242,12 +243,12 @@ class _ScheduledPostTile extends StatelessWidget {
                 IconButton(
                   tooltip: l10n.scheduledPostsEditTooltip,
                   onPressed: () => onEdit(item),
-                  icon: const Icon(Icons.edit_outlined),
+                  icon: const Icon(CraftskyIconsBold.edit),
                 ),
                 IconButton(
                   tooltip: l10n.scheduledPostsDeleteTooltip,
                   onPressed: () => onDelete(item),
-                  icon: const Icon(Icons.delete_outline),
+                  icon: const Icon(CraftskyIconsBold.delete),
                 ),
               ],
             ),

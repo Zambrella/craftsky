@@ -1,5 +1,6 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/data/crafts_catalog.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -84,8 +85,11 @@ class _CraftChoiceChip extends StatelessWidget {
               width: 1.5,
             ),
           ),
-          child: Text(
-            craftLabel(craft, l10n),
+          child: CraftIconLabel(
+            craft: craft.id,
+            label: craftLabel(craft, l10n),
+            gap: spacing.sp1,
+            flexibleLabel: true,
             style: theme.textTheme.labelMedium?.copyWith(color: foreground),
           ),
         ),

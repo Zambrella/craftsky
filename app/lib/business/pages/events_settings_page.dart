@@ -13,6 +13,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -47,7 +48,7 @@ class EventsSettingsPage extends ConsumerWidget {
           identity.value?.profile.accountType == AccountType.business
           ? CraftskyFloatingActionButton.extended(
               onPressed: () => _openEditor(context),
-              icon: const Icon(Icons.add),
+              icon: const Icon(CraftskyIconsBold.add),
               label: Text(l10n.businessEventCreateTitle),
             )
           : null,
@@ -254,7 +255,7 @@ class _OwnerEventCard extends ConsumerWidget {
                   items: [
                     CraftskyContextMenuItem(
                       text: l10n.businessEventEditAction,
-                      icon: Icons.edit_outlined,
+                      icon: CraftskyIconsBold.edit,
                       onPressed: () => _performAction(
                         context,
                         ref,
@@ -269,7 +270,7 @@ class _OwnerEventCard extends ConsumerWidget {
                     if (event.status.value != 'cancelled')
                       CraftskyContextMenuItem(
                         text: l10n.businessEventCancelAction,
-                        icon: Icons.event_busy_outlined,
+                        icon: CraftskyIconsBold.eventUnavailable,
                         onPressed: () => _performAction(
                           context,
                           ref,
@@ -280,7 +281,7 @@ class _OwnerEventCard extends ConsumerWidget {
                     if (event.status.value != 'postponed')
                       CraftskyContextMenuItem(
                         text: l10n.businessEventPostponeAction,
-                        icon: Icons.schedule_outlined,
+                        icon: CraftskyIconsBold.schedule,
                         onPressed: () => _performAction(
                           context,
                           ref,
@@ -294,7 +295,7 @@ class _OwnerEventCard extends ConsumerWidget {
                   items: [
                     CraftskyContextMenuItem(
                       text: l10n.businessEventDeleteAction,
-                      icon: Icons.delete_outline,
+                      icon: CraftskyIconsBold.delete,
                       style: CraftskyContextMenuItemStyle.destructive,
                       onPressed: () => _performAction(
                         context,
@@ -314,7 +315,7 @@ class _OwnerEventCard extends ConsumerWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.info_outline, size: 18),
+                  const Icon(CraftskyIcons.info, size: 18),
                   SizedBox(width: spacing.sp2),
                   Expanded(child: Text(diagnostic)),
                 ],

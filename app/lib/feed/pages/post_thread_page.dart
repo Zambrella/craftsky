@@ -23,6 +23,7 @@ import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
 import 'package:craftsky_app/shared/widgets/sort_menu_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -1001,7 +1002,7 @@ class _ReplyPrompt extends StatelessWidget {
         padding: EdgeInsets.all(spacing.sp4),
         child: FilledButton.icon(
           onPressed: () => showPostComposerSheet(context, replyTarget: post),
-          icon: const Icon(Icons.chat_bubble_outline),
+          icon: const Icon(CraftskyIconsBold.comment),
           label: Text(
             isRootPrompt ? l10n.postCommentAction : l10n.postThreadReplyAction,
             semanticsLabel: isRootPrompt

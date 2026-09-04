@@ -2,6 +2,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/widgets/profile_stats.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -52,9 +53,9 @@ void main() {
       expect(find.text('following'), findsNothing);
       expect(find.text('9'), findsNothing);
       expect(find.text('7'), findsNothing);
-      expect(find.byIcon(Icons.calendar_today_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.edit_outlined), findsOneWidget);
-      expect(find.byIcon(Icons.inventory_2_outlined), findsOneWidget);
+      expect(find.byIcon(CraftskyIcons.date), findsOneWidget);
+      expect(find.byIcon(CraftskyIcons.edit), findsOneWidget);
+      expect(find.byIcon(CraftskyIcons.projectCount), findsOneWidget);
     });
 
     testWidgets('hides account age for non-CraftSky profiles', (tester) async {

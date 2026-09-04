@@ -5,6 +5,7 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_banner.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -75,7 +76,7 @@ class EditProfileBannerAvatar extends StatelessWidget {
             top: ProfileBanner.defaultHeight - spacing.sp3 - 40,
             child: FilledButton.tonalIcon(
               onPressed: onPickBanner,
-              icon: const Icon(Icons.image_outlined),
+              icon: const Icon(CraftskyIconsBold.image),
               label: Text(l10n.editProfileChangeCover),
             ),
           ),
@@ -98,7 +99,7 @@ class EditProfileBannerAvatar extends StatelessWidget {
                 IconButton.filledTonal(
                   onPressed: onPickAvatar,
                   tooltip: l10n.editProfileChangeAvatar,
-                  icon: const Icon(Icons.photo_camera_outlined, size: 18),
+                  icon: const Icon(CraftskyIconsBold.camera, size: 18),
                 ),
               ],
             ),
@@ -208,7 +209,7 @@ class _EditableAvatar extends StatelessWidget {
                   padding: EdgeInsets.all(28),
                   child: CircularProgressIndicator(strokeWidth: 3),
                 )
-              : const Icon(Icons.error_outline, color: Colors.white),
+              : const Icon(CraftskyIcons.error, color: Colors.white),
         ),
       ],
     );

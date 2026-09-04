@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -39,7 +40,7 @@ class SortMenuButton<T> extends StatelessWidget {
 
     return OutlinedButton.icon(
       onPressed: () => _showMenu(context),
-      icon: const Icon(Icons.filter_list, size: 18),
+      icon: const Icon(CraftskyIconsBold.filter, size: 18),
       label: Text(selected.label),
       style: OutlinedButton.styleFrom(
         foregroundColor: theme.colorScheme.onSurface,
@@ -72,7 +73,7 @@ class SortMenuButton<T> extends StatelessWidget {
                 CraftskyContextMenuItem(
                   text: option.label,
                   description: option.description,
-                  icon: Icons.check_box_outline_blank,
+                  icon: CraftskyIcons.unselectedOption,
                   isSelected: selectedValue == option.value,
                   onPressed: selectedValue == option.value
                       ? () {}

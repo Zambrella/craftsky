@@ -17,6 +17,7 @@ import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_provide
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -711,11 +712,11 @@ void main() {
 
     await _pumpCommentSection(tester, repo: repo);
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.favorite_border).at(0));
+    await tester.tap(find.byIcon(CraftskyIconsBold.like).at(0));
     await tester.pump();
-    await tester.tap(find.byIcon(Icons.favorite_border).at(0));
+    await tester.tap(find.byIcon(CraftskyIconsBold.like).at(0));
     await tester.pump();
-    await tester.tap(find.byIcon(Icons.favorite_border).at(0));
+    await tester.tap(find.byIcon(CraftskyIconsBold.like).at(0));
     await tester.pump();
 
     expect(calls, [
@@ -723,8 +724,8 @@ void main() {
       'did:plc:bob/comment',
       'did:plc:carol/reply',
     ]);
-    expect(find.byIcon(Icons.favorite), findsNWidgets(3));
-    expect(find.byIcon(Icons.favorite_border), findsNothing);
+    expect(find.byIcon(CraftskyIcons.liked), findsNWidgets(3));
+    expect(find.byIcon(CraftskyIconsBold.like), findsNothing);
     expect(find.text('1'), findsNWidgets(3));
   });
 
@@ -746,7 +747,7 @@ void main() {
 
     await _pumpCommentSection(tester, repo: repo);
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.repeat));
+    await tester.tap(find.byIcon(CraftskyIconsBold.repost));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Repost'));
     await tester.pumpAndSettle();
@@ -799,7 +800,7 @@ void main() {
     await tester.tap(find.text('Oldest'));
     await tester.pumpAndSettle();
     expect(find.text('Conversation order'), findsOneWidget);
-    expect(find.byIcon(Icons.check_box), findsOneWidget);
+    expect(find.byIcon(CraftskyIcons.selectedOption), findsOneWidget);
     await tester.tap(find.text('Newest').last);
     await tester.pumpAndSettle();
 

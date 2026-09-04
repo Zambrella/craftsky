@@ -3,6 +3,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -289,7 +290,7 @@ class _TextFieldsSample extends StatelessWidget {
         const BrandTextField(
           label: 'Pattern name',
           hintText: 'e.g. Wiksten Haori',
-          prefixIcon: Icon(Icons.search),
+          prefixIcon: Icon(CraftskyIcons.search),
         ),
         SizedBox(height: sp.sp5),
         const BrandTextField(

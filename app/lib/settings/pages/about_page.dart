@@ -9,6 +9,7 @@ import 'package:craftsky_app/settings/widgets/clear_image_cache_tile.dart';
 import 'package:craftsky_app/settings/widgets/settings_row_tile.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -45,7 +46,7 @@ class AboutPage extends ConsumerWidget {
               kind: SettingsRowKind.externalLink,
             ),
             label: l10n.settingsTerms,
-            leading: Icons.description_outlined,
+            leading: CraftskyIcons.document,
             onTap: () => unawaited(
               _open(context, settingsTermsUri, l10n.navigationLinkOpenError),
             ),
@@ -56,7 +57,7 @@ class AboutPage extends ConsumerWidget {
               kind: SettingsRowKind.externalLink,
             ),
             label: l10n.settingsPrivacyPolicy,
-            leading: Icons.privacy_tip_outlined,
+            leading: CraftskyIcons.privacy,
             onTap: () => unawaited(
               _open(context, settingsPrivacyUri, l10n.navigationLinkOpenError),
             ),
@@ -70,7 +71,7 @@ class AboutPage extends ConsumerWidget {
               ),
               label: l10n.settingsVersion,
               subtitle: visibleVersion,
-              leading: Icons.info_outline,
+              leading: CraftskyIcons.info,
             ),
         ],
       ),

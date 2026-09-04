@@ -18,6 +18,7 @@ import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -211,14 +212,14 @@ void main() {
         'https://cdn.example/avatar/alice.jpg',
       );
       for (final icon in [
-        Icons.person_add_alt_outlined,
-        Icons.favorite_outline,
-        Icons.repeat,
-        Icons.chat_bubble_outline,
-        Icons.alternate_email,
-        Icons.format_quote,
-        Icons.person_search_outlined,
-        Icons.notifications_none,
+        CraftskyIcons.follow,
+        CraftskyIcons.like,
+        CraftskyIcons.repost,
+        CraftskyIcons.comment,
+        CraftskyIcons.mention,
+        CraftskyIcons.quote,
+        CraftskyIcons.findPeople,
+        CraftskyIcons.notification,
       ]) {
         expect(find.byIcon(icon), findsOneWidget, reason: '$icon');
       }
@@ -280,8 +281,8 @@ void main() {
 
     expect(find.byType(PostSummary), findsNWidgets(5));
     expect(find.text('viewer post'), findsNWidgets(5));
-    expect(find.byIcon(Icons.bookmark), findsNothing);
-    expect(find.byIcon(Icons.bookmark_border), findsNothing);
+    expect(find.byIcon(CraftskyIcons.saved), findsNothing);
+    expect(find.byIcon(CraftskyIconsBold.unsaved), findsNothing);
   });
 
   testWidgets('UT-021 derives an actor avatar URL from an older CID response', (

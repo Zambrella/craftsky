@@ -5,6 +5,7 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_field_scaffold.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -80,7 +81,7 @@ void main() {
     expect(changedName, 'Alicia');
     expect(changedBio, 'New bio');
     expect(avatarPicks, 1);
-    expect(find.byIcon(Icons.camera_alt), findsNothing);
+    expect(find.byIcon(CraftskyIcons.camera), findsNothing);
     expect(find.textContaining('Remove'), findsNothing);
   });
 
@@ -101,7 +102,7 @@ void main() {
 
     await _pumpStep(tester, initial.copyWith(avatarUploadFailed: true));
     expect(find.text('Photo upload failed. Try again.'), findsOneWidget);
-    expect(find.byIcon(Icons.error_outline), findsOneWidget);
+    expect(find.byIcon(CraftskyIcons.error), findsOneWidget);
   });
 
   testWidgets('applies profile prefill that arrives after the first frame', (

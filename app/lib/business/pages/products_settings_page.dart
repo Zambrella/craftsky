@@ -11,6 +11,7 @@ import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -167,7 +168,7 @@ class _ProductsContent extends ConsumerWidget {
                                           aspectRatio: 1,
                                           bytes: product.image.previewBytes,
                                           imageUrl: product.image.previewUrl,
-                                          placeholderIcon: Icons.image_outlined,
+                                          placeholderIcon: CraftskyIcons.image,
                                         ),
                                       ),
                                       SizedBox(width: spacing.sp3),
@@ -217,7 +218,7 @@ class _ProductsContent extends ConsumerWidget {
                                             items: [
                                               CraftskyContextMenuItem(
                                                 text: editLabel,
-                                                icon: Icons.edit_outlined,
+                                                icon: CraftskyIconsBold.edit,
                                                 onPressed: () => _openEditor(
                                                   context,
                                                   controller,
@@ -230,7 +231,8 @@ class _ProductsContent extends ConsumerWidget {
                                                       .businessProductMoveUp(
                                                         product.title,
                                                       ),
-                                                  icon: Icons.arrow_upward,
+                                                  icon:
+                                                      CraftskyIconsBold.moveUp,
                                                   onPressed: () => unawaited(
                                                     controller.move(
                                                       product.id,
@@ -245,7 +247,8 @@ class _ProductsContent extends ConsumerWidget {
                                                       .businessProductMoveDown(
                                                         product.title,
                                                       ),
-                                                  icon: Icons.arrow_downward,
+                                                  icon: CraftskyIconsBold
+                                                      .moveDown,
                                                   onPressed: () => unawaited(
                                                     controller.move(
                                                       product.id,
@@ -262,7 +265,7 @@ class _ProductsContent extends ConsumerWidget {
                                                     .businessProductRemove(
                                                       product.title,
                                                     ),
-                                                icon: Icons.delete_outline,
+                                                icon: CraftskyIconsBold.delete,
                                                 style:
                                                     CraftskyContextMenuItemStyle
                                                         .destructive,
@@ -345,7 +348,7 @@ class _ProductActions extends ConsumerWidget {
       onPressed: busy || state.products.length >= businessProductLimit
           ? null
           : () => _openNewProduct(context, controller, state.products),
-      icon: const Icon(Icons.add),
+      icon: const Icon(CraftskyIconsBold.add),
       label: Text(l10n.businessProductsAdd),
     );
   }

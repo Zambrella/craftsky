@@ -11,6 +11,7 @@ import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_flow_provider.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -151,7 +152,7 @@ void main() {
     expect(find.text('Step 2 of 3'), findsOneWidget);
     expect(find.text('What do you make?'), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.arrow_back));
+    await tester.tap(find.byIcon(CraftskyIconsBold.back));
     await tester.pump();
     expect(find.text('Step 1 of 3'), findsOneWidget);
   });

@@ -8,6 +8,7 @@ import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -91,8 +92,8 @@ void main() {
       tester.getTopLeft(postTime).dy,
       lessThan(tester.getTopLeft(find.text(post.text)).dy),
     );
-    expect(find.byIcon(Icons.bookmark), findsNothing);
-    expect(find.byIcon(Icons.favorite_border), findsNothing);
+    expect(find.byIcon(CraftskyIcons.saved), findsNothing);
+    expect(find.byIcon(CraftskyIcons.like), findsNothing);
     final avatar = tester.widget<ProfileAvatar>(find.byType(ProfileAvatar));
     expect(avatar.customisation.colour, 'lime');
     expect(avatar.customisation.border, 'thick');

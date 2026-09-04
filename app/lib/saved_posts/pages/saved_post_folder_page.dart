@@ -13,6 +13,7 @@ import 'package:craftsky_app/saved_posts/widgets/saved_post_row.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_row_actions.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_sort_button.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -63,7 +64,7 @@ class _SavedPostFolderScreenState extends ConsumerState<SavedPostFolderScreen> {
                 items: [
                   CraftskyContextMenuItem(
                     text: l10n.savedPostRenameFolder,
-                    icon: Icons.edit_outlined,
+                    icon: CraftskyIconsBold.edit,
                     onPressed: () => showRenameSavedPostFolderDialog(
                       context,
                       account: widget.account,
@@ -72,7 +73,7 @@ class _SavedPostFolderScreenState extends ConsumerState<SavedPostFolderScreen> {
                   ),
                   CraftskyContextMenuItem(
                     text: l10n.savedPostDeleteFolder,
-                    icon: Icons.delete_outline,
+                    icon: CraftskyIconsBold.delete,
                     style: CraftskyContextMenuItemStyle.destructive,
                     onPressed: () async {
                       final deleted = await showDeleteSavedPostFolderDialog(

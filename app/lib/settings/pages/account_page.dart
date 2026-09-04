@@ -11,6 +11,7 @@ import 'package:craftsky_app/settings/models/settings_row.dart';
 import 'package:craftsky_app/settings/providers/account_deletion_controller.dart';
 import 'package:craftsky_app/settings/widgets/settings_row_tile.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -75,7 +76,7 @@ class AccountPage extends ConsumerWidget {
               kind: SettingsRowKind.destructiveAction,
             ),
             label: l10n.deleteAccountAction,
-            leading: Icons.delete_forever_outlined,
+            leading: CraftskyIconsBold.deleteForever,
             onTap: handle == null ? null : () => _begin(context, ref, handle),
           ),
         ],

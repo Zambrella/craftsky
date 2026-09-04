@@ -36,6 +36,7 @@ import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -213,7 +214,7 @@ void main() {
           overrides: overrides,
         );
         await tester.pumpAndSettle();
-        await tester.tap(find.byIcon(Icons.more_horiz));
+        await tester.tap(find.byIcon(CraftskyIconsBold.more));
         await tester.pumpAndSettle();
         expect(find.text('Pin post'), findsOneWidget);
         expect(find.text('Unpin post'), findsNothing);
@@ -228,7 +229,7 @@ void main() {
           overrides: overrides,
         );
         await tester.pumpAndSettle();
-        await tester.tap(find.byIcon(Icons.more_horiz));
+        await tester.tap(find.byIcon(CraftskyIconsBold.more));
         await tester.pumpAndSettle();
         expect(find.text('Pin post'), findsNothing);
       },
@@ -259,7 +260,7 @@ void main() {
         overrides: ownerOverrides,
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.tap(find.byIcon(CraftskyIconsBold.more));
       await tester.pumpAndSettle();
       expect(find.text('Unpin post'), findsOneWidget);
       await tester.tapAt(Offset.zero);
@@ -281,7 +282,7 @@ void main() {
         ],
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.tap(find.byIcon(CraftskyIconsBold.more));
       await tester.pumpAndSettle();
       expect(find.text('Pin post'), findsNothing);
       expect(find.text('Unpin post'), findsNothing);
@@ -302,7 +303,7 @@ void main() {
         overrides: ownerOverrides,
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.tap(find.byIcon(CraftskyIconsBold.more));
       await tester.pumpAndSettle();
       expect(find.text('Pin post'), findsNothing);
       expect(find.text('Unpin post'), findsNothing);
@@ -344,12 +345,12 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byIcon(Icons.more_horiz).first);
+      await tester.tap(find.byIcon(CraftskyIconsBold.more).first);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Pin post'));
       await tester.pump();
 
-      await tester.tap(find.byIcon(Icons.more_horiz).first);
+      await tester.tap(find.byIcon(CraftskyIconsBold.more).first);
       await tester.pumpAndSettle();
       final standardTile = tester.widget<ListTile>(
         find.ancestor(
@@ -361,7 +362,7 @@ void main() {
       await tester.tapAt(Offset.zero);
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byIcon(Icons.more_horiz).at(1));
+      await tester.tap(find.byIcon(CraftskyIconsBold.more).at(1));
       await tester.pumpAndSettle();
       final projectTile = tester.widget<ListTile>(
         find.ancestor(
@@ -393,7 +394,7 @@ void main() {
         );
 
         expect(find.text('Pinned post'), findsOneWidget);
-        expect(find.byIcon(Icons.push_pin_outlined), findsOneWidget);
+        expect(find.byIcon(CraftskyIcons.pin), findsOneWidget);
         expect(
           find.byWidgetPredicate(
             (widget) =>
@@ -472,12 +473,14 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
-      expect(find.byIcon(Icons.bookmark), findsNothing);
+      expect(find.byIcon(CraftskyIconsBold.unsaved), findsOneWidget);
+      expect(find.byIcon(CraftskyIcons.saved), findsNothing);
       final bookmarkCenter = tester.getCenter(
-        find.byIcon(Icons.bookmark_border),
+        find.byIcon(CraftskyIconsBold.unsaved),
       );
-      final overflowCenter = tester.getCenter(find.byIcon(Icons.more_horiz));
+      final overflowCenter = tester.getCenter(
+        find.byIcon(CraftskyIconsBold.more),
+      );
       expect(bookmarkCenter.dx, lessThan(overflowCenter.dx));
       expect(
         tester
@@ -499,7 +502,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.bookmark), findsOneWidget);
+      expect(find.byIcon(CraftskyIcons.saved), findsOneWidget);
       expect(
         tester
             .getSemantics(find.byTooltip('Remove from saved posts'))
@@ -559,10 +562,10 @@ void main() {
 
       await tester.tap(find.byTooltip('Remove from saved posts'));
       await tester.pump();
-      await tester.tap(find.byIcon(Icons.bookmark_border));
+      await tester.tap(find.byIcon(CraftskyIconsBold.unsaved));
       await tester.pump();
 
-      expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
+      expect(find.byIcon(CraftskyIconsBold.unsaved), findsOneWidget);
       expect(repository.unsaveCalls, 1);
       expect(find.text('Undo'), findsNothing);
     });
@@ -592,14 +595,14 @@ void main() {
 
       await tester.tap(find.byTooltip('Remove from saved posts'));
       await tester.pump();
-      expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
+      expect(find.byIcon(CraftskyIconsBold.unsaved), findsOneWidget);
 
       repository.unsaveCompleter!.completeError(
         StateError('private-folder-sentinel request failed'),
       );
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.bookmark), findsOneWidget);
+      expect(find.byIcon(CraftskyIcons.saved), findsOneWidget);
       expect(
         find.text("This post couldn't be removed. Try again."),
         findsOneWidget,
@@ -634,12 +637,12 @@ void main() {
 
       await tester.tap(find.byTooltip('Remove from saved posts'));
       await tester.pump();
-      expect(find.byIcon(Icons.bookmark_border), findsOneWidget);
+      expect(find.byIcon(CraftskyIconsBold.unsaved), findsOneWidget);
 
       repository.unsaveCompleter!.completeError(const ApiCanceled());
       await tester.pumpAndSettle();
 
-      expect(find.byIcon(Icons.bookmark), findsOneWidget);
+      expect(find.byIcon(CraftskyIcons.saved), findsOneWidget);
       expect(find.byType(SnackBar), findsNothing);
       expect(
         find.text("This post couldn't be removed. Try again."),
@@ -660,18 +663,20 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('3m'), findsOneWidget);
-      expect(find.byIcon(Icons.more_horiz), findsOneWidget);
-      expect(find.byIcon(Icons.favorite_border), findsOneWidget);
-      expect(find.byIcon(Icons.chat_bubble_outline), findsOneWidget);
+      expect(find.byIcon(CraftskyIconsBold.more), findsOneWidget);
+      expect(find.byIcon(CraftskyIconsBold.like), findsOneWidget);
+      expect(find.byIcon(CraftskyIconsBold.comment), findsOneWidget);
       expect(find.text('Reply'), findsNothing);
-      expect(find.byIcon(Icons.repeat), findsOneWidget);
+      expect(find.byIcon(CraftskyIconsBold.repost), findsOneWidget);
       expect(find.text('0'), findsNothing);
 
       final replyIcon = tester.widget<Icon>(
-        find.byIcon(Icons.chat_bubble_outline),
+        find.byIcon(CraftskyIconsBold.comment),
       );
-      final likeIcon = tester.widget<Icon>(find.byIcon(Icons.favorite_border));
-      final repostIcon = tester.widget<Icon>(find.byIcon(Icons.repeat));
+      final likeIcon = tester.widget<Icon>(find.byIcon(CraftskyIconsBold.like));
+      final repostIcon = tester.widget<Icon>(
+        find.byIcon(CraftskyIconsBold.repost),
+      );
       expect(replyIcon.color, BrandColors.ink2);
       expect(likeIcon.color, BrandColors.ink2);
       expect(repostIcon.color, BrandColors.ink2);
@@ -852,16 +857,18 @@ void main() {
         ),
       );
 
-      expect(find.byIcon(Icons.favorite), findsOneWidget);
+      expect(find.byIcon(CraftskyIcons.liked), findsOneWidget);
       expect(find.text('5'), findsOneWidget);
       expect(find.text('2'), findsOneWidget);
       expect(find.text('3'), findsOneWidget);
 
       final replyIcon = tester.widget<Icon>(
-        find.byIcon(Icons.chat_bubble_outline),
+        find.byIcon(CraftskyIconsBold.comment),
       );
-      final likeIcon = tester.widget<Icon>(find.byIcon(Icons.favorite));
-      final repostIcon = tester.widget<Icon>(find.byIcon(Icons.repeat));
+      final likeIcon = tester.widget<Icon>(find.byIcon(CraftskyIcons.liked));
+      final repostIcon = tester.widget<Icon>(
+        find.byIcon(CraftskyIconsBold.repost),
+      );
       final replyCount = tester.widget<Text>(find.text('3'));
       final likeCount = tester.widget<Text>(find.text('5'));
       final repostCount = tester.widget<Text>(find.text('2'));
@@ -1251,10 +1258,10 @@ void main() {
       await _pump(tester, PostCard(post: post));
 
       expect(find.text('Post unavailable'), findsOneWidget);
-      expect(find.byIcon(Icons.favorite_border), findsNothing);
-      expect(find.byIcon(Icons.bookmark_border), findsNothing);
-      expect(find.byIcon(Icons.bookmark), findsNothing);
-      expect(find.byIcon(Icons.more_horiz), findsNothing);
+      expect(find.byIcon(CraftskyIconsBold.like), findsNothing);
+      expect(find.byIcon(CraftskyIconsBold.unsaved), findsNothing);
+      expect(find.byIcon(CraftskyIcons.saved), findsNothing);
+      expect(find.byIcon(CraftskyIconsBold.more), findsNothing);
       expect(find.textContaining('unavailable.invalid'), findsNothing);
     });
 
@@ -1269,7 +1276,7 @@ void main() {
       );
 
       final replyIcon = tester.widget<Icon>(
-        find.byIcon(Icons.chat_bubble_outline),
+        find.byIcon(CraftskyIconsBold.comment),
       );
       final replyLabel = tester.widget<Text>(find.text('Reply'));
 
@@ -1303,7 +1310,7 @@ void main() {
         ),
       );
 
-      expect(find.byIcon(Icons.chat_bubble_outline), findsOneWidget);
+      expect(find.byIcon(CraftskyIconsBold.comment), findsOneWidget);
       expect(find.text('3'), findsNothing);
       expect(find.text('Reply'), findsOneWidget);
     });
@@ -1316,7 +1323,7 @@ void main() {
         PostCard(post: _post(replyCount: 3)),
       );
 
-      expect(find.byIcon(Icons.chat_bubble_outline), findsOneWidget);
+      expect(find.byIcon(CraftskyIconsBold.comment), findsOneWidget);
       expect(find.text('3'), findsOneWidget);
       expect(find.text('Reply'), findsNothing);
     });
@@ -1685,7 +1692,7 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byIcon(Icons.repeat));
+      await tester.tap(find.byIcon(CraftskyIconsBold.repost));
       await tester.pumpAndSettle();
 
       expect(find.text('Repost'), findsOneWidget);
@@ -1732,7 +1739,7 @@ void main() {
         ),
       );
 
-      expect(find.byIcon(Icons.repeat), findsNothing);
+      expect(find.byIcon(CraftskyIconsBold.repost), findsNothing);
     });
 
     testWidgets('invokes interaction callbacks', (tester) async {
@@ -1749,9 +1756,9 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byIcon(Icons.favorite_border));
-      await tester.tap(find.byIcon(Icons.chat_bubble_outline));
-      await tester.tap(find.byIcon(Icons.repeat));
+      await tester.tap(find.byIcon(CraftskyIconsBold.like));
+      await tester.tap(find.byIcon(CraftskyIconsBold.comment));
+      await tester.tap(find.byIcon(CraftskyIconsBold.repost));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Repost'));
 
@@ -1781,7 +1788,7 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byIcon(Icons.chat_bubble_outline));
+      await tester.tap(find.byIcon(CraftskyIconsBold.comment));
 
       expect(replies, 1);
       expect(taps, 0);
@@ -1800,7 +1807,7 @@ void main() {
     ) async {
       await _pump(tester, PostCard(post: _post()));
 
-      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.tap(find.byIcon(CraftskyIconsBold.more));
       await tester.pumpAndSettle();
 
       expect(find.text('Delete post'), findsNothing);
@@ -1815,7 +1822,7 @@ void main() {
         PostCard(post: _post(), onDelete: () => tapped = true),
       );
 
-      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.tap(find.byIcon(CraftskyIconsBold.more));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Delete post'));
       expect(tapped, isTrue);
@@ -1830,14 +1837,14 @@ void main() {
         PostCard(post: _post(), onReport: () => reports++),
       );
 
-      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.tap(find.byIcon(CraftskyIconsBold.more));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Report post'));
 
       expect(reports, 1);
 
       await _pump(tester, PostCard(post: _post()));
-      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.tap(find.byIcon(CraftskyIconsBold.more));
       await tester.pumpAndSettle();
 
       expect(find.text('Report post'), findsNothing);
@@ -1861,7 +1868,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.tap(find.byIcon(CraftskyIconsBold.more));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Mute account'));
       await tester.pump();
@@ -1957,7 +1964,7 @@ void main() {
           findsOneWidget,
         );
 
-        await tester.tap(find.byIcon(Icons.more_horiz));
+        await tester.tap(find.byIcon(CraftskyIconsBold.more));
         await tester.pumpAndSettle();
 
         expect(find.text('Unmute account'), findsOneWidget);
@@ -1994,7 +2001,7 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.tap(find.byIcon(CraftskyIconsBold.more));
       await tester.pumpAndSettle();
 
       expect(find.text('Delete comment'), findsOneWidget);
@@ -2307,7 +2314,7 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byIcon(Icons.chat_bubble_outline));
+      await tester.tap(find.byIcon(CraftskyIconsBold.comment));
       await tester.pumpAndSettle();
 
       expect(replies, 1);

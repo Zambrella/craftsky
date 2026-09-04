@@ -53,10 +53,12 @@ import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_text_field.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/foundation.dart';
@@ -588,7 +590,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                                 'project-composer-pattern-details-action',
                               ),
                               focusNode: _patternDetailsFocusNode,
-                              icon: Icons.menu_book_outlined,
+                              icon: CraftskyIcons.pattern,
                               title: l10n.projectComposerPatternDetailsTitle,
                               subtitle: _detailSummary(
                                 _patternDetailFieldNames,
@@ -604,7 +606,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                               'project-composer-common-details-action',
                             ),
                             focusNode: _commonDetailsFocusNode,
-                            icon: Icons.palette_outlined,
+                            icon: CraftskyIcons.palette,
                             title: l10n.projectComposerCommonDetailsTitle,
                             subtitle: _detailSummary(
                               _commonDetailFieldNames,
@@ -622,7 +624,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                                 'project-composer-craft-details-action',
                               ),
                               focusNode: _craftDetailsFocusNode,
-                              icon: Icons.tune_outlined,
+                              icon: CraftskyIcons.adjustments,
                               title: craftDetailsTitle,
                               subtitle: _detailSummary(
                                 _activeCraftDetailFieldNames,
@@ -645,10 +647,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                           Builder(
                             builder: (menuContext) => ListTile(
                               contentPadding: EdgeInsets.zero,
-                              leading: const Icon(Icons.schedule_outlined),
+                              leading: const Icon(CraftskyIcons.schedule),
                               title: Text(l10n.scheduledPostWhenTitle),
                               subtitle: Text(_whenLabel(context)),
-                              trailing: const Icon(Icons.chevron_right),
+                              trailing: const Icon(CraftskyIconsBold.next),
                               enabled: controlsEnabled,
                               onTap: () => _chooseWhen(
                                 menuContext,
@@ -689,7 +691,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
                                 onPressed: _isScheduling
                                     ? null
                                     : _deleteExistingSchedule,
-                                icon: const Icon(Icons.delete_outline),
+                                icon: const Icon(CraftskyIconsBold.delete),
                                 label: Text(l10n.scheduledPostsDeleteTooltip),
                               ),
                             ),
@@ -901,14 +903,18 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   }
 
   List<CraftskySelectOption<String>> _selectOptions(
-    List<ProjectOption> options,
-  ) {
+    List<ProjectOption> options, {
+    bool includeCraftIcons = false,
+  }) {
     return [
       for (final option in options)
         CraftskySelectOption<String>(
           value: option.value,
           label: option.label,
           description: option.description,
+          leadingBuilder: includeCraftIcons
+              ? (_) => CraftIcon(craft: option.value)
+              : null,
         ),
     ];
   }
@@ -1172,7 +1178,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
           label: l10n.projectComposerCraftTypeLabel,
           required: true,
           requiredLabel: l10n.projectComposerRequiredLabel,
-          options: _selectOptions(ProjectOptionCatalogs.craftTypes),
+          options: _selectOptions(
+            ProjectOptionCatalogs.craftTypes,
+            includeCraftIcons: true,
+          ),
           enabled: controlsEnabled,
           validator: (value) =>
               value == null ? l10n.projectComposerCraftRequiredError : null,
@@ -2246,7 +2255,7 @@ class _ProjectDetailActionTile extends StatelessWidget {
           errorText ?? subtitle,
           style: errorText == null ? null : TextStyle(color: colors.error),
         ),
-        trailing: const Icon(Icons.chevron_right),
+        trailing: const Icon(CraftskyIconsBold.next),
         enabled: enabled,
         onTap: enabled ? onTap : null,
       ),
@@ -2577,7 +2586,7 @@ class _MaterialEntryList extends StatelessWidget {
                       '${ProjectComposerFields.materials}-remove-'
                       '${material.text}',
                     ),
-                    icon: const Icon(Icons.close),
+                    icon: const Icon(CraftskyIconsBold.close),
                     tooltip: 'Remove material',
                     visualDensity: VisualDensity.compact,
                     padding: EdgeInsets.zero,

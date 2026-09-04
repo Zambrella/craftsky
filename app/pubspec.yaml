@@ -14,7 +14,6 @@ dependencies:
   at_primitives: ^1.0.0
   cached_network_image: ^3.4.1
   crypto: ^3.0.7
-  cupertino_icons: ^1.0.8
   dart_mappable: ^4.6.1
   device_info_plus: ^13.1.0
   dio: ^5.7.0
@@ -32,6 +31,7 @@ dependencies:
     sdk: flutter
   flutter_riverpod: ^3.3.1
   flutter_secure_storage: ^10.2.0
+  flutter_svg: ^2.3.0
   form_builder_validators: ^11.3.0
   go_router: ^17.0.0
   google_fonts: ^8.1.0
@@ -47,6 +47,7 @@ dependencies:
   package_info_plus: ^10.1.0
   path: ^1.9.1
   path_provider: ^2.1.6
+  phosphor_icons: ^3.0.1
   pinch_zoom: ^2.0.1
   pub_semver: ^2.2.0
   riverpod_annotation: ^4.0.2

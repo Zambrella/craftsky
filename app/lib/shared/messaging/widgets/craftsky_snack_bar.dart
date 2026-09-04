@@ -1,5 +1,6 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/message_action.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -54,7 +55,7 @@ class CraftskySnackBarContent extends StatelessWidget {
         if (onDismiss != null) ...[
           SizedBox(width: spacing.sp2),
           IconButton(
-            icon: const Icon(Icons.close, size: 20),
+            icon: const Icon(CraftskyIconsBold.close, size: 20),
             tooltip: l10n.messengerDismiss,
             onPressed: onDismiss,
           ),
@@ -64,9 +65,9 @@ class CraftskySnackBarContent extends StatelessWidget {
   }
 
   static IconData _iconFor(MessageSeverity s) => switch (s) {
-    MessageSeverity.info => Icons.info_outline,
-    MessageSeverity.warning => Icons.warning_amber_rounded,
-    MessageSeverity.error => Icons.error_outline,
+    MessageSeverity.info => CraftskyIcons.info,
+    MessageSeverity.warning => CraftskyIcons.warning,
+    MessageSeverity.error => CraftskyIcons.error,
   };
 
   static Color _colorFor(MessageSeverity s, SemanticColorsTheme c) =>

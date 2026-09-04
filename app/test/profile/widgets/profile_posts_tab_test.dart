@@ -14,6 +14,7 @@ import 'package:craftsky_app/profile/widgets/profile_tabs/profile_posts_tab.dart
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -181,7 +182,7 @@ void main() {
         ],
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.tap(find.byIcon(CraftskyIconsBold.more));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Pin post'));
       await tester.pumpAndSettle();
@@ -218,7 +219,7 @@ void main() {
         ],
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.tap(find.byIcon(CraftskyIconsBold.more));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Unpin post'));
       await tester.pumpAndSettle();
@@ -252,7 +253,7 @@ void main() {
         ],
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.more_horiz));
+      await tester.tap(find.byIcon(CraftskyIconsBold.more));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Pin post'));
       await tester.pumpAndSettle();
@@ -278,7 +279,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Pinned post'), findsOneWidget);
-      expect(find.byIcon(Icons.push_pin_outlined), findsOneWidget);
+      expect(find.byIcon(CraftskyIcons.pin), findsOneWidget);
     });
 
     testWidgets('renders posts from userPostsProvider', (tester) async {
@@ -397,14 +398,14 @@ void main() {
 
       await _pump(tester, repo: repo, isOwnProfile: false);
       await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.chat_bubble_outline));
+      await tester.tap(find.byIcon(CraftskyIconsBold.comment));
       await tester.pumpAndSettle();
       expect(find.text('Reply'), findsWidgets);
-      await tester.tap(find.byIcon(Icons.close));
+      await tester.tap(find.byType(CloseButton));
       await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.favorite_border));
+      await tester.tap(find.byIcon(CraftskyIconsBold.like));
       await tester.pump();
-      await tester.tap(find.byIcon(Icons.repeat));
+      await tester.tap(find.byIcon(CraftskyIconsBold.repost));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Repost'));
       await tester.pumpAndSettle();
@@ -475,7 +476,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byIcon(Icons.chat_bubble_outline));
+      await tester.tap(find.byIcon(CraftskyIconsBold.comment));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'new comment');
       await tester.pump();
@@ -502,7 +503,7 @@ void main() {
 
       await _pump(tester, repo: repo, isOwnProfile: true, messenger: messenger);
       await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.more_horiz).first);
+      await tester.tap(find.byIcon(CraftskyIconsBold.more).first);
       await tester.pumpAndSettle();
       await tester.tap(find.text('Delete post').first);
       await tester.pumpAndSettle();

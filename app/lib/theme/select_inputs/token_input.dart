@@ -144,7 +144,7 @@ class _CraftskyTokenInputState extends State<CraftskyTokenInput> {
                       label: Text(value),
                       onDeleted: widget.enabled ? () => _remove(value) : null,
                       deleteIcon: Icon(
-                        Icons.close,
+                        CraftskyIconsBold.close,
                         key: Key(
                           '${widget.keyPrefix ?? widget.label}-remove-$value',
                         ),

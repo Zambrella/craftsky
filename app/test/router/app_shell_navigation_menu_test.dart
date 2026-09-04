@@ -10,6 +10,7 @@ import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -132,7 +133,7 @@ void main() {
     expect(
       find.descendant(
         of: profileTile,
-        matching: find.byIcon(Icons.person_outline),
+        matching: find.byIcon(CraftskyIcons.profile),
       ),
       findsOneWidget,
     );
@@ -161,7 +162,7 @@ void main() {
     expect(find.byType(NavigationRail), findsOneWidget);
     expect(find.byType(CraftskyDivider), findsNothing);
     expect(find.byType(AccountAvatar), findsNothing);
-    expect(find.byIcon(Icons.person_outline), findsOneWidget);
+    expect(find.byIcon(CraftskyIcons.profile), findsOneWidget);
   });
 
   testWidgets('UIP-009 rail selection uses primary theme colors', (

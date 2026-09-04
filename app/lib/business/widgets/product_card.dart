@@ -6,6 +6,7 @@ import 'package:craftsky_app/business/widgets/business_image.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -80,7 +81,7 @@ class ProductCard extends StatelessWidget {
               if (destination != null)
                 Padding(
                   padding: EdgeInsets.all(spacing.sp2),
-                  child: const Icon(Icons.open_in_new),
+                  child: const Icon(CraftskyIconsBold.externalLink),
                 ),
             ],
           ),

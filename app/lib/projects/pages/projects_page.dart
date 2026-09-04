@@ -10,9 +10,11 @@ import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/search/models/search_sort.dart';
 import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/shared/widgets/sort_menu_button.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -51,7 +53,7 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage> {
               actions: [
                 OutlinedButton.icon(
                   onPressed: _openFilters,
-                  icon: const Icon(Icons.tune, size: 18),
+                  icon: const Icon(CraftskyIconsBold.adjustments, size: 18),
                   label: Text(l10n.projectsFilterAction),
                   style: _appBarControlStyle(context),
                 ),
@@ -185,7 +187,12 @@ class _ProjectCraftTabBarDelegate extends SliverPersistentHeaderDelegate {
               padding: EdgeInsets.symmetric(horizontal: spacing.sp2),
               tabs: [
                 for (final option in ProjectOptionCatalogs.craftTypes)
-                  Tab(text: option.label),
+                  Tab(
+                    child: CraftIconLabel(
+                      craft: option.value,
+                      label: option.label,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -294,7 +301,7 @@ class _ProjectErrorSliver extends StatelessWidget {
       child: Center(
         child: TextButton.icon(
           onPressed: onRetry,
-          icon: const Icon(Icons.refresh),
+          icon: const Icon(CraftskyIconsBold.refresh),
           label: Text(l10n.projectsLoadError),
         ),
       ),

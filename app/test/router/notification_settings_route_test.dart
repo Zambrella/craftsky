@@ -11,6 +11,7 @@ import 'package:craftsky_app/notifications/providers/notification_repository_pro
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -75,7 +76,7 @@ void main() {
     expect(find.byTooltip('Notification settings'), findsOneWidget);
     final settingsButton = find.widgetWithIcon(
       IconButton,
-      Icons.settings_outlined,
+      CraftskyIconsBold.settings,
     );
     expect(GoRouter.of(tester.element(settingsButton)), same(router));
     tester.widget<IconButton>(settingsButton).onPressed!();

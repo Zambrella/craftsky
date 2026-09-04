@@ -3,6 +3,7 @@ import 'package:craftsky_app/shared/messaging/message_action.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -36,8 +37,8 @@ void main() {
       final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
       expect(snackBar.duration, const Duration(seconds: 4));
       expect(find.text('Hello'), findsOneWidget);
-      expect(find.byIcon(Icons.info_outline), findsOneWidget);
-      expect(find.byIcon(Icons.close), findsNothing);
+      expect(find.byIcon(CraftskyIcons.info), findsOneWidget);
+      expect(find.byIcon(CraftskyIconsBold.close), findsNothing);
     });
 
     testWidgets(
@@ -49,8 +50,8 @@ void main() {
 
         final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
         expect(snackBar.duration, const Duration(days: 365));
-        expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
-        expect(find.byIcon(Icons.close), findsOneWidget);
+        expect(find.byIcon(CraftskyIcons.warning), findsOneWidget);
+        expect(find.byIcon(CraftskyIconsBold.close), findsOneWidget);
       },
     );
 
@@ -63,8 +64,8 @@ void main() {
 
       final snackBar = tester.widget<SnackBar>(find.byType(SnackBar));
       expect(snackBar.duration, const Duration(days: 365));
-      expect(find.byIcon(Icons.error_outline), findsOneWidget);
-      expect(find.byIcon(Icons.close), findsOneWidget);
+      expect(find.byIcon(CraftskyIcons.error), findsOneWidget);
+      expect(find.byIcon(CraftskyIconsBold.close), findsOneWidget);
     });
 
     testWidgets('a second call replaces the first (always-replace policy)', (
@@ -146,7 +147,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 300));
 
-      await tester.tap(find.byIcon(Icons.close));
+      await tester.tap(find.byIcon(CraftskyIconsBold.close));
       await tester.pump();
       await tester.pump(const Duration(seconds: 1));
 

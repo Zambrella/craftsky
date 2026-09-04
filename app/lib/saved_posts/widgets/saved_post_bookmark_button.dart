@@ -7,6 +7,7 @@ import 'package:craftsky_app/saved_posts/models/saved_post_error.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_keys.dart';
 import 'package:craftsky_app/saved_posts/providers/account_saved_post_state_provider.dart';
 import 'package:craftsky_app/saved_posts/widgets/save_post_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -44,8 +45,8 @@ class SavedPostBookmarkButton extends ConsumerWidget {
       dimension: 48,
       child: IconButton(
         isSelected: isSaved,
-        icon: const Icon(Icons.bookmark_border),
-        selectedIcon: const Icon(Icons.bookmark),
+        icon: const Icon(CraftskyIconsBold.unsaved),
+        selectedIcon: const Icon(CraftskyIcons.saved),
         tooltip: isSaved
             ? l10n.savedPostUnsaveAction
             : l10n.savedPostSaveAction,

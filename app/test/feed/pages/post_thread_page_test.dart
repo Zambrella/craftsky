@@ -15,6 +15,7 @@ import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -110,7 +111,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(Icons.more_horiz));
+    await tester.tap(find.byIcon(CraftskyIconsBold.more));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Pin post'));
     await tester.pumpAndSettle();

@@ -8,6 +8,7 @@ import 'package:craftsky_app/saved_posts/providers/account_saved_post_state_prov
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -66,12 +67,12 @@ class SavedPostRow extends ConsumerWidget {
                       items: [
                         CraftskyContextMenuItem(
                           text: l10n.savedPostMoveAction,
-                          icon: Icons.drive_file_move_outline,
+                          icon: CraftskyIconsBold.moveToFolder,
                           onPressed: onMove,
                         ),
                         CraftskyContextMenuItem(
                           text: l10n.savedPostRowUnsaveAction,
-                          icon: Icons.bookmark_remove_outlined,
+                          icon: CraftskyIconsBold.removeSaved,
                           onPressed: onUnsave,
                           style: CraftskyContextMenuItemStyle.destructive,
                           semanticHint: l10n.destructiveActionHint,

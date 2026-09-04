@@ -1,4 +1,5 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -49,7 +50,7 @@ class AutoPaginatedListView extends StatelessWidget {
                   ? const StitchProgressIndicator()
                   : TextButton.icon(
                       onPressed: onNearEnd,
-                      icon: const Icon(Icons.refresh),
+                      icon: const Icon(CraftskyIconsBold.refresh),
                       label: Text(AppLocalizations.of(context).retryButton),
                     ),
             ),
@@ -101,7 +102,7 @@ class AutoPaginatedSliverList extends StatelessWidget {
                       ? const StitchProgressIndicator()
                       : TextButton.icon(
                           onPressed: onNearEnd,
-                          icon: const Icon(Icons.refresh),
+                          icon: const Icon(CraftskyIconsBold.refresh),
                           label: Text(
                             AppLocalizations.of(context).retryButton,
                           ),
