@@ -1,12 +1,13 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
+import 'package:craftsky_app/shared/widgets/root_overlay_scope.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:pinch_zoom/pinch_zoom.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
+import 'package:zoom_pinch_overlay/zoom_pinch_overlay.dart';
 
 Future<void> _pumpCarousel(
   WidgetTester tester,
@@ -157,10 +158,122 @@ void main() {
       ),
     );
 
-    final zoom = tester.widget<PinchZoom>(find.byType(PinchZoom));
+    final zoom = tester.widget<ZoomOverlay>(find.byType(ZoomOverlay));
+    final zoomContext = tester.element(find.byType(ZoomOverlay));
     expect(zoom.maxScale, 4);
-    expect(zoom.zoomEnabled, isTrue);
+    expect(zoom.minScale, 1);
+    expect(zoom.twoTouchOnly, isTrue);
+    expect(zoom.modalBarrierColor, Colors.black12);
+    expect(zoom.animationDuration, const Duration(milliseconds: 300));
+    expect(
+      Overlay.of(zoom.buildContextOverlayState!),
+      same(Overlay.of(zoomContext, rootOverlay: true)),
+    );
     expect(find.bySemanticsLabel('Blue shawl drying flat'), findsOneWidget);
+  });
+
+  testWidgets('pinch lifts the image into the root overlay until release', (
+    tester,
+  ) async {
+    await _pumpCarousel(
+      tester,
+      PostImageCarousel(
+        images: [
+          PostImage(
+            cid: 'bafkoverlayimage',
+            mime: 'image/jpeg',
+            size: 10,
+            alt: 'Quilt detail in overlay',
+          ),
+        ],
+      ),
+    );
+
+    final center = tester.getCenter(find.byType(ZoomOverlay));
+    final firstFinger = await tester.createGesture(pointer: 1);
+    final secondFinger = await tester.createGesture(pointer: 2);
+    await firstFinger.down(center - const Offset(20, 0));
+    await secondFinger.down(center + const Offset(20, 0));
+    await firstFinger.moveTo(center - const Offset(60, 0));
+    await secondFinger.moveTo(center + const Offset(60, 0));
+    await tester.pump();
+
+    expect(find.bySemanticsLabel('Quilt detail in overlay'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(ZoomOverlay),
+        matching: find.byWidgetPredicate(
+          (widget) => widget is Opacity && widget.opacity == 0,
+        ),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is ModalBarrier && widget.color == Colors.black12,
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester.getSize(find.bySemanticsLabel('Quilt detail in overlay')),
+      const Size(320, 320),
+    );
+
+    await firstFinger.up();
+    await secondFinger.up();
+    await tester.pumpAndSettle();
+
+    expect(find.bySemanticsLabel('Quilt detail in overlay'), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is ModalBarrier && widget.color == Colors.black12,
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('targets the scoped overlay above a nested navigator', (
+    tester,
+  ) async {
+    late OverlayState rootOverlay;
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: Builder(
+            builder: (rootContext) {
+              rootOverlay = Overlay.of(rootContext);
+              return RootOverlayScope(
+                overlayContext: rootContext,
+                child: Navigator(
+                  onGenerateRoute: (_) => MaterialPageRoute<void>(
+                    builder: (_) => Scaffold(
+                      body: SizedBox(
+                        width: 320,
+                        child: PostImageCarousel(
+                          images: [
+                            PostImage(
+                              cid: 'bafknestedoverlay',
+                              mime: 'image/jpeg',
+                              size: 10,
+                              alt: 'Nested navigator image',
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    final zoom = tester.widget<ZoomOverlay>(find.byType(ZoomOverlay));
+    final nestedContext = tester.element(find.byType(ZoomOverlay));
+    expect(Overlay.of(nestedContext), isNot(same(rootOverlay)));
+    expect(Overlay.of(zoom.buildContextOverlayState!), same(rootOverlay));
   });
 
   testWidgets('uses the soft rounded outline from embedded previews', (

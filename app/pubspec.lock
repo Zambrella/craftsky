@@ -1133,14 +1133,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.0.1"
-  pinch_zoom:
-    dependency: "direct main"
-    description:
-      name: pinch_zoom
-      sha256: "12a0050d45f93adbf372903caef4146bafefda3dba3fdd460579d33f35b7d6cb"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.0.1"
   platform:
     dependency: transitive
     description:
@@ -1890,6 +1882,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.1.3"
+  zoom_pinch_overlay:
+    dependency: "direct main"
+    description:
+      name: zoom_pinch_overlay
+      sha256: "8f34f508c81441b0f51f0ea56827ccbfd32fd3c1c63c0c4d677b55fd849d9ef4"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.4.3"
 sdks:
   dart: ">=3.12.0 <4.0.0"
   flutter: ">=3.44.0"

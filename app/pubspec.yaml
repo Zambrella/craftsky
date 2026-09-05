@@ -48,7 +48,6 @@ dependencies:
   path: ^1.9.1
   path_provider: ^2.1.6
   phosphor_icons: ^3.0.1
-  pinch_zoom: ^2.0.1
   pub_semver: ^2.2.0
   riverpod_annotation: ^4.0.2
   sealed_countries: ^3.3.0
@@ -62,6 +61,7 @@ dependencies:
   uuid: ^4.5.1
   wakelock_plus: ^1.7.0
   youtube_player_iframe: ^6.0.2
+  zoom_pinch_overlay: ^1.4.3
 
 dev_dependencies:
   build_runner: ^2.10.4

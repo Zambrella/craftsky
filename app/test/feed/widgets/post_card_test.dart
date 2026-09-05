@@ -41,6 +41,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:zoom_pinch_overlay/zoom_pinch_overlay.dart';
 
 import '../../fakes/auth_session_fakes.dart';
 import '../../fakes/image_cache_fakes.dart';
@@ -2260,7 +2261,7 @@ void main() {
       expect(find.byKey(const Key('post-image-count')), findsNothing);
       expect(find.byKey(const Key('post-image-dots')), findsNothing);
       expect(find.bySemanticsLabel('Blue shawl drying flat'), findsOneWidget);
-      expect(find.byType(InteractiveViewer), findsWidgets);
+      expect(find.byType(ZoomOverlay), findsOneWidget);
     });
 
     testWidgets('renders regular-post text above its image', (tester) async {

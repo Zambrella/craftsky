@@ -21,6 +21,7 @@ import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/settings/settings_links.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/widgets/root_overlay_scope.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
@@ -135,24 +136,32 @@ class _AuthenticatedShellState extends State<AuthenticatedShell> {
 
   @override
   Widget build(BuildContext context) {
-    if (!FormFactorWidget.of(context).isLarge) return widget.child;
+    if (!FormFactorWidget.of(context).isLarge) {
+      return RootOverlayScope(
+        overlayContext: context,
+        child: widget.child,
+      );
+    }
     final router = GoRouter.of(context);
-    return ListenableBuilder(
-      listenable: router.routerDelegate,
-      builder: (context, _) => _AuthenticatedShellNavigationScope(
-        registerComposerContext: (branchContext) {
-          _composerContext = branchContext;
-        },
-        child: _LargeShellNavigationFrame(
-          selectedIndex: _destinationIndexForLocation(
-            router.state.matchedLocation,
+    return RootOverlayScope(
+      overlayContext: context,
+      child: ListenableBuilder(
+        listenable: router.routerDelegate,
+        builder: (context, _) => _AuthenticatedShellNavigationScope(
+          registerComposerContext: (branchContext) {
+            _composerContext = branchContext;
+          },
+          child: _LargeShellNavigationFrame(
+            selectedIndex: _destinationIndexForLocation(
+              router.state.matchedLocation,
+            ),
+            onDestinationSelected: (index) => _goDestination(context, index),
+            composerContext: () =>
+                widget.navigatorKey?.currentContext ??
+                _composerContext ??
+                context,
+            child: widget.child,
           ),
-          onDestinationSelected: (index) => _goDestination(context, index),
-          composerContext: () =>
-              widget.navigatorKey?.currentContext ??
-              _composerContext ??
-              context,
-          child: widget.child,
         ),
       ),
     );
