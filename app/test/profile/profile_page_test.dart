@@ -475,7 +475,7 @@ void main() {
       expect(tester.widget<Opacity>(divider).opacity, 1);
     });
 
-    testWidgets('profile menu surface fades out as the header collapses', (
+    testWidgets('profile menu icon follows header contrast without a surface', (
       tester,
     ) async {
       final controller = ScrollController();
@@ -526,11 +526,11 @@ void main() {
 
       expect(
         menuButton().style?.backgroundColor?.resolve({}),
-        darkScheme.surface,
+        Colors.transparent,
       );
       expect(
         menuButton().style?.foregroundColor?.resolve({}),
-        darkScheme.onSurface,
+        Colors.white,
       );
       expect(title.left, 56);
 
@@ -540,6 +540,10 @@ void main() {
       expect(
         menuButton().style?.backgroundColor?.resolve({}),
         Colors.transparent,
+      );
+      expect(
+        menuButton().style?.foregroundColor?.resolve({}),
+        darkScheme.onSurface,
       );
       final settingsButton = tester.widget<IconButton>(
         find.widgetWithIcon(IconButton, CraftskyIconsBold.settings),

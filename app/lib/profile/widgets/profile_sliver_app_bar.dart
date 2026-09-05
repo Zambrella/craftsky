@@ -4,6 +4,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_craft_chips.dart';
+import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
 import 'package:craftsky_app/profile/widgets/profile_framed_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_header_background.dart';
 import 'package:craftsky_app/profile/widgets/profile_identity.dart';
@@ -59,6 +60,7 @@ class ProfileSliverAppBar extends StatelessWidget {
           ? _ProfileLeadingAction(
               showDrawer: hasDrawer,
               expandedHeight: layout.expandedHeight,
+              customisation: customisation,
             )
           : null,
       pinned: true,
@@ -194,10 +196,12 @@ class _ProfileLeadingAction extends StatelessWidget {
   const _ProfileLeadingAction({
     required this.showDrawer,
     required this.expandedHeight,
+    required this.customisation,
   });
 
   final bool showDrawer;
   final double expandedHeight;
+  final ProfileCustomisation customisation;
 
   @override
   Widget build(BuildContext context) {
@@ -213,12 +217,24 @@ class _ProfileLeadingAction extends StatelessWidget {
     final collapsed = range == 0
         ? 0.0
         : ((maxExtent - currentExtent) / range).clamp(0.0, 1.0);
-    final backgroundColor = collapsed >= 1
+    final bundle =
+        profileColourBundles[customisation.colour] ??
+        profileColourBundles[ProfileCustomisation.defaults.colour]!;
+    final backgroundColor = showDrawer
+        ? Colors.transparent
+        : collapsed >= 1
         ? Colors.transparent
         : swatches.paper3.withValues(alpha: 1 - collapsed);
+    final foregroundColor = showDrawer
+        ? Color.lerp(
+            profileColour(bundle.foreground),
+            theme.colorScheme.onSurface,
+            collapsed,
+          )
+        : theme.colorScheme.onSurface;
     final style = ButtonStyle(
       backgroundColor: WidgetStatePropertyAll(backgroundColor),
-      foregroundColor: WidgetStatePropertyAll(theme.colorScheme.onSurface),
+      foregroundColor: WidgetStatePropertyAll(foregroundColor),
     );
 
     if (showDrawer) {

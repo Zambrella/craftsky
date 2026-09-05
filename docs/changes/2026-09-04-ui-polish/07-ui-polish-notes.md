@@ -20,6 +20,7 @@ Refined post media and expandable text, navigation-rail composition, refresh and
 | UIP-010 | User feedback | Removed the compact drawer-button inset from the collapsed profile header when the navigation rail is present. | `app/lib/profile/widgets/profile_sliver_app_bar.dart` | Done |
 | UIP-011 | User feedback | Let scaled post-author identities use all available header width before truncating. | `app/lib/feed/widgets/post_card.dart` | Done |
 | UIP-012 | User feedback | Removed the banner editor and centered the shadowless avatar editor on Edit profile. | `app/lib/profile/pages/edit_profile_dialog.dart`, `app/lib/profile/widgets/edit_profile_banner_avatar.dart` | Done |
+| UIP-013 | User feedback | Removed the expanded profile menu surface and used the selected profile palette's audited contrasting foreground. | `app/lib/profile/widgets/profile_sliver_app_bar.dart` | Done |
 
 ## Verification
 
