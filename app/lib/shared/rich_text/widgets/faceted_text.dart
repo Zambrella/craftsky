@@ -17,6 +17,9 @@ class FacetedText extends ConsumerStatefulWidget {
     this.textAlign,
     this.maxLines,
     this.overflow,
+    this.suffixText,
+    this.actionLabel,
+    this.onAction,
   });
 
   /// Plain visible text.
@@ -39,6 +42,15 @@ class FacetedText extends ConsumerStatefulWidget {
 
   /// Overflow behavior.
   final TextOverflow? overflow;
+
+  /// Plain text appended after the faceted content.
+  final String? suffixText;
+
+  /// Accessible label rendered as an inline action after [suffixText].
+  final String? actionLabel;
+
+  /// Invoked when the inline [actionLabel] is activated.
+  final VoidCallback? onAction;
 
   @override
   ConsumerState<FacetedText> createState() => _FacetedTextState();
@@ -66,12 +78,18 @@ class _FacetedTextState extends ConsumerState<FacetedText> {
     final theme = Theme.of(context);
     final baseStyle =
         widget.style ?? theme.textTheme.bodyMedium ?? const TextStyle();
+    final effectiveBaseStyle = DefaultTextStyle.of(context).style.merge(
+      baseStyle,
+    );
+    final actionStyle = effectiveBaseStyle.copyWith(
+      fontWeight: FontWeight.bold,
+    );
     final ranges = FacetedTextModel.fromRaw(
       text: widget.text,
       rawFacets: widget.facets,
     );
     final handler = ref.watch(facetActionHandlerProvider);
-    final span = FacetedTextSpanBuilder.build(
+    final contentSpan = FacetedTextSpanBuilder.build(
       text: widget.text,
       ranges: ranges,
       baseStyle: baseStyle,
@@ -92,6 +110,38 @@ class _FacetedTextState extends ConsumerState<FacetedText> {
         return recognizer;
       },
     );
+    final actionLabel = widget.actionLabel;
+    final onAction = widget.onAction;
+    final hasAction = actionLabel != null && onAction != null;
+    final span = widget.suffixText == null && !hasAction
+        ? contentSpan
+        : TextSpan(
+            style: baseStyle,
+            children: [
+              contentSpan,
+              if (widget.suffixText case final suffix?)
+                TextSpan(text: suffix, style: baseStyle),
+              if (hasAction)
+                WidgetSpan(
+                  alignment: PlaceholderAlignment.baseline,
+                  baseline: TextBaseline.alphabetic,
+                  child: TextButton(
+                    style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      textStyle: actionStyle,
+                    ),
+                    onPressed: onAction,
+                    child: Text(
+                      actionLabel,
+                      style: actionStyle,
+                      textScaler: TextScaler.noScaling,
+                    ),
+                  ),
+                ),
+            ],
+          );
 
     return Text.rich(
       span,

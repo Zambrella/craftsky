@@ -425,6 +425,7 @@ class _PostList extends StatelessWidget {
         final post = posts[index];
         return PostCard(
           post: post,
+          collapseBody: true,
           imageInteractionMode: PostCardImageInteractionMode.navigate,
           hideWhenAuthorProtected: true,
           onTap: () => PostThreadRoute(

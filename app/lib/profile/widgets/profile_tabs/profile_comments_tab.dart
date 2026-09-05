@@ -148,6 +148,7 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
                   post.reply!.root.uri != post.reply!.parent.uri;
               return PostCard(
                 post: post,
+                collapseBody: true,
                 imageInteractionMode: PostCardImageInteractionMode.navigate,
                 hideWhenAuthorProtected: true,
                 style: PostCardStyle.flat,

@@ -1,17 +1,23 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:pinch_zoom/pinch_zoom.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 
-Future<void> _pumpCarousel(WidgetTester tester, PostImageCarousel carousel) {
+Future<void> _pumpCarousel(
+  WidgetTester tester,
+  PostImageCarousel carousel, {
+  double width = 320,
+}) {
   return tester.pumpWidget(
     ProviderScope(
       child: MaterialApp(
         home: Scaffold(
-          body: SizedBox(width: 320, child: carousel),
+          body: SizedBox(width: width, child: carousel),
         ),
       ),
     ),
@@ -74,6 +80,66 @@ void main() {
     });
   });
 
+  test('carousel max height grows with the viewport within safe bounds', () {
+    expect(computeResponsiveCarouselMaxHeight(600), 420);
+    expect(computeResponsiveCarouselMaxHeight(1024), 716.8);
+    expect(computeResponsiveCarouselMaxHeight(1400), 720);
+  });
+
+  test('fitting portraits and landscape images remain edge-to-edge', () {
+    expect(
+      computePostImageFit(
+        availableWidth: 320,
+        aspectRatio: const PostImageAspectRatio(width: 4, height: 5),
+        maxHeight: 420,
+      ),
+      BoxFit.cover,
+    );
+    expect(
+      computePostImageFit(
+        availableWidth: 800,
+        aspectRatio: const PostImageAspectRatio(width: 16, height: 9),
+        maxHeight: 420,
+      ),
+      BoxFit.cover,
+    );
+  });
+
+  testWidgets('contains over-height portrait images on tablet surfaces', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1200, 1024);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _pumpCarousel(
+      tester,
+      PostImageCarousel(
+        images: [
+          PostImage(
+            cid: 'bafktabletimage',
+            mime: 'image/jpeg',
+            size: 10,
+            alt: 'Portrait project photo',
+            aspectRatio: const PostImageAspectRatio(width: 4, height: 5),
+            fullsize: 'https://example.com/portrait.jpg',
+          ),
+        ],
+      ),
+      width: 800,
+    );
+
+    expect(
+      tester.getSize(find.byKey(const Key('post-image-frame'))).height,
+      716.8,
+    );
+    expect(
+      tester.widget<CachedNetworkImage>(find.byType(CachedNetworkImage)).fit,
+      BoxFit.contain,
+    );
+  });
+
   testWidgets('wraps post images in Instagram-style pinch zoom', (
     tester,
   ) async {
@@ -95,6 +161,37 @@ void main() {
     expect(zoom.maxScale, 4);
     expect(zoom.zoomEnabled, isTrue);
     expect(find.bySemanticsLabel('Blue shawl drying flat'), findsOneWidget);
+  });
+
+  testWidgets('uses the soft rounded outline from embedded previews', (
+    tester,
+  ) async {
+    await _pumpCarousel(
+      tester,
+      PostImageCarousel(images: _images('outlined')),
+    );
+
+    final context = tester.element(find.byType(PostImageCarousel));
+    final theme = Theme.of(context);
+    final radii = theme.extension<RadiusTheme>() ?? const RadiusTheme();
+    final outline = tester.widget<DecoratedBox>(
+      find.byKey(const Key('post-image-carousel-outline')),
+    );
+    final decoration = outline.decoration as BoxDecoration;
+
+    expect(
+      decoration.border,
+      Border.all(color: theme.colorScheme.outlineVariant),
+    );
+    expect(decoration.borderRadius, BorderRadius.circular(radii.r2));
+
+    final clip = tester.widget<ClipRRect>(
+      find.ancestor(
+        of: find.byKey(const Key('post-image-carousel')),
+        matching: find.byType(ClipRRect),
+      ),
+    );
+    expect(clip.borderRadius, BorderRadius.circular(radii.r2));
   });
 
   testWidgets('uses high-contrast worm page indicators', (tester) async {

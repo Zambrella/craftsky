@@ -6,6 +6,8 @@ import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/languages/models/language_preferences.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
@@ -49,6 +51,91 @@ final _emptyPostRepository = FakePostRepository(
 
 void main() {
   group('ProfilePage', () {
+    testWidgets('remote collection tabs refresh the profile, except Reposts', (
+      tester,
+    ) async {
+      var profileFetches = 0;
+      var postFetches = 0;
+      var projectFetches = 0;
+      var commentFetches = 0;
+      final profile = Profile(
+        did: 'did:plc:other',
+        handle: 'alice.bsky.social',
+        displayName: 'Alice',
+        crafts: const [],
+      );
+      final repo = FakeProfileRepository(
+        onFetch: (_) async {
+          profileFetches++;
+          return profile;
+        },
+      );
+      final posts = FakePostRepository(
+        onListByAuthor: (_, {cursor, limit}) async {
+          postFetches++;
+          return const PostPage(items: []);
+        },
+        onListProjectsByAuthor: (_, {cursor, limit}) async {
+          projectFetches++;
+          return const PostPage(items: []);
+        },
+        onListCommentsByAuthor: (_, {cursor, limit}) async {
+          commentFetches++;
+          return const PostPage(items: []);
+        },
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            profileRepositoryProvider.overrideWithValue(repo),
+            postRepositoryProvider.overrideWithValue(posts),
+            activeLanguagePreferencesProvider.overrideWithValue(
+              const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProfilePage(handle: 'alice.bsky.social'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      for (final entry in const {
+        'Projects': 'projects',
+        'Posts': 'posts',
+        'Comments & replies': 'comments',
+      }.entries) {
+        await tester.tap(find.widgetWithText(Tab, entry.key));
+        await tester.pumpAndSettle();
+
+        final scrollView = tester.widget<CustomScrollView>(
+          find.byKey(PageStorageKey<String>('profile_tab_${entry.value}')),
+        );
+        expect(scrollView.physics, isA<AlwaysScrollableScrollPhysics>());
+        await tester
+            .widget<RefreshIndicator>(find.byType(RefreshIndicator))
+            .onRefresh();
+        await tester.pumpAndSettle();
+      }
+
+      expect(profileFetches, 1);
+      expect(postFetches, greaterThanOrEqualTo(2));
+      expect(projectFetches, greaterThanOrEqualTo(2));
+      expect(commentFetches, greaterThanOrEqualTo(2));
+
+      await tester.tap(find.widgetWithText(Tab, 'Reposts'));
+      await tester.pumpAndSettle();
+      expect(find.byType(RefreshIndicator), findsNothing);
+    });
+
     testWidgets('signed-in self profile renders identity + edit actions', (
       tester,
     ) async {

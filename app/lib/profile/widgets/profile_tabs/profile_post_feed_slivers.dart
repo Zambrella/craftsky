@@ -8,13 +8,10 @@ import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
-import 'package:craftsky_app/feed/widgets/post_type_chooser.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
-import 'package:craftsky_app/theme/chunky_button.dart';
-import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -59,7 +56,6 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
     required this.onReplacePost,
     required this.pinnedPostUri,
     super.key,
-    this.showComposeButton = false,
   });
 
   final List<Post> posts;
@@ -71,7 +67,6 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
   final Future<void> Function() onLoadMore;
   final void Function(Post post) onReplacePost;
   final String? pinnedPostUri;
-  final bool showComposeButton;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -84,29 +79,6 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
 
     return SliverMainAxisGroup(
       slivers: [
-        if (showComposeButton)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.all(spacing.sp4),
-              child: Builder(
-                builder: (buttonContext) {
-                  return ChunkyButton(
-                    onPressed: () {
-                      unawaited(
-                        showTopLevelPostComposerChooser(
-                          context,
-                          position: craftskyContextMenuAnchorPosition(
-                            buttonContext,
-                          ),
-                        ),
-                      );
-                    },
-                    child: Text(l10n.postComposeAction),
-                  );
-                },
-              ),
-            ),
-          ),
         if (posts.isEmpty)
           SliverFillRemaining(
             hasScrollBody: false,
@@ -127,6 +99,7 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
               final post = posts[index];
               return PostCard(
                 post: post,
+                collapseBody: true,
                 imageInteractionMode: PostCardImageInteractionMode.navigate,
                 hideWhenAuthorProtected: true,
                 allowProfilePinAction: isOwnProfile,

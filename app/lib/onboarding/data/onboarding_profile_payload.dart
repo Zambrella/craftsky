@@ -28,7 +28,7 @@ final class OnboardingProfilePayload {
           ? state.identity.bio.trim()
           : (state.baseline.description ?? '').trim(),
       crafts: [
-        for (final craft in Craft.values)
+        for (final craft in canonicalSelectableCrafts)
           if (selectedCraftIds.contains(craft.id)) craft.id,
         ...state.unknownCraftIds,
       ],

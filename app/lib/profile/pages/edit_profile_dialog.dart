@@ -21,6 +21,8 @@ import 'package:craftsky_app/profile/widgets/edit_profile_banner_avatar.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_crafts_picker.dart';
 import 'package:craftsky_app/profile/widgets/profile_page_error.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
+import 'package:craftsky_app/settings/settings_links.dart';
+import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
@@ -61,11 +63,18 @@ const _fieldCrafts = 'crafts';
 /// Discard semantics still flow through [PopScope] inside the dialog,
 /// so the close button and system-back with unsaved changes prompt a
 /// confirm dialog before the pop completes.
-Future<void> showEditProfileDialog(BuildContext context) {
+Future<void> showEditProfileDialog(
+  BuildContext context, {
+  ExternalLinkLauncher linkLauncher = launchExternalLink,
+  ExternalLinkConfirmer confirmOpenLink = showOpenLinkDialog,
+}) {
   return responsiveModalNavigator(context).push<void>(
     MaterialPageRoute<void>(
       fullscreenDialog: true,
-      builder: (_) => const EditProfileDialog(),
+      builder: (_) => EditProfileDialog(
+        linkLauncher: linkLauncher,
+        confirmOpenLink: confirmOpenLink,
+      ),
     ),
   );
 }
@@ -81,7 +90,14 @@ Future<void> showEditProfileDialog(BuildContext context) {
 /// from `fullscreenDialog: true`) is reachable even before the profile
 /// resolves.
 class EditProfileDialog extends ConsumerWidget {
-  const EditProfileDialog({super.key});
+  const EditProfileDialog({
+    this.linkLauncher = launchExternalLink,
+    this.confirmOpenLink = showOpenLinkDialog,
+    super.key,
+  });
+
+  final ExternalLinkLauncher linkLauncher;
+  final ExternalLinkConfirmer confirmOpenLink;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -95,7 +111,11 @@ class EditProfileDialog extends ConsumerWidget {
 
     final profileAsync = ref.watch(userProfileProvider(myHandle));
     return switch (profileAsync) {
-      AsyncValue(:final value?) => _EditProfileForm(profile: value),
+      AsyncValue(:final value?) => _EditProfileForm(
+        profile: value,
+        linkLauncher: linkLauncher,
+        confirmOpenLink: confirmOpenLink,
+      ),
       AsyncError(:final error) => Scaffold(
         appBar: AppBar(),
         body: ProfilePageError(
@@ -125,13 +145,19 @@ class _EditProfileLoadingScaffold extends StatelessWidget {
 /// dirty tracking, and read-time access all flow through a single
 /// [GlobalKey<FormBuilderState>].
 class _EditProfileForm extends ConsumerStatefulWidget {
-  const _EditProfileForm({required this.profile});
+  const _EditProfileForm({
+    required this.profile,
+    required this.linkLauncher,
+    required this.confirmOpenLink,
+  });
 
   /// Snapshot of the signed-in user's profile at the time the sheet
   /// opened. Treated as the "original" against which the form's diff
   /// is computed — we don't re-seed the form if the underlying provider
   /// changes mid-edit, since that would clobber the user's typing.
   final Profile profile;
+  final ExternalLinkLauncher linkLauncher;
+  final ExternalLinkConfirmer confirmOpenLink;
 
   @override
   ConsumerState<_EditProfileForm> createState() => _EditProfileFormState();
@@ -164,11 +190,9 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   /// selection lives in the form's value under [_fieldCrafts].
   late final Set<Craft> _initialSelectedCrafts;
 
-  /// Crafts on the profile that don't map to any [Craft] enum entry.
-  /// Preserved verbatim and re-attached on save so a viewer on an older
-  /// build can't accidentally drop tags it doesn't recognise from a
-  /// newer server.
-  late final List<String> _unknownCrafts;
+  /// Existing craft IDs that are not currently selectable. These include
+  /// legacy enum values and unknown values from newer clients.
+  late final List<String> _preservedCrafts;
   late Profile _ordinaryBaseline;
   late BusinessDeclarationDraft _businessBaseline;
 
@@ -196,17 +220,17 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     _bioFocusNode = FocusNode(debugLabel: _fieldBio);
 
     final selected = <Craft>{};
-    final unknown = <String>[];
+    final preserved = <String>[];
     for (final id in widget.profile.crafts) {
       final craft = Craft.fromId(id);
-      if (craft != null) {
+      if (craft != null && isCanonicalSelectableCraft(id)) {
         selected.add(craft);
       } else {
-        unknown.add(id);
+        preserved.add(id);
       }
     }
     _initialSelectedCrafts = Set.unmodifiable(selected);
-    _unknownCrafts = List.unmodifiable(unknown);
+    _preservedCrafts = List.unmodifiable(preserved);
   }
 
   @override
@@ -237,7 +261,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     if ((values[_fieldBio] as String? ?? '') != initialBio) return true;
 
     final initialIds = _ordinaryBaseline.crafts
-        .where((id) => Craft.fromId(id) != null)
+        .where(isCanonicalSelectableCraft)
         .toSet();
     final currentIds = (values[_fieldCrafts] as Set<Craft>? ?? const <Craft>{})
         .map((c) => c.id)
@@ -284,11 +308,10 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     final businessChanged = _hasBusinessChanges;
     final businessDraft = _currentBusinessDraft;
 
-    // Re-attach the preserved unknowns so a save from this client
-    // doesn't strip tags a newer server has added.
+    // Re-attach hidden legacy and unknown values unchanged.
     final craftsPayload = <String>[
       ...selectedCrafts.map((c) => c.id),
-      ..._unknownCrafts,
+      ..._preservedCrafts,
     ];
     final description = (values[_fieldBio] as String? ?? '').trim();
 
@@ -563,6 +586,16 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                                     }
                                     field.didChange(next);
                                   },
+                            onRequestMore: isSaving
+                                ? null
+                                : () => unawaited(
+                                    confirmAndLaunchExternalLink(
+                                      context,
+                                      uri: settingsSupportUri,
+                                      launchUrl: widget.linkLauncher,
+                                      confirmOpenLink: widget.confirmOpenLink,
+                                    ),
+                                  ),
                           );
                         },
                       ),

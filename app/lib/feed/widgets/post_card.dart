@@ -23,6 +23,7 @@ import 'package:craftsky_app/projects/widgets/project_card.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_bookmark_button.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/rich_text/faceted_text_model.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
@@ -74,6 +75,7 @@ class PostCard extends ConsumerWidget {
     this.allowProfilePinAction = false,
     this.showPinnedProfileAttribution = false,
     this.imageInteractionMode = PostCardImageInteractionMode.fullscreenGallery,
+    this.collapseBody = false,
   });
 
   final Post post;
@@ -104,6 +106,7 @@ class PostCard extends ConsumerWidget {
   final bool allowProfilePinAction;
   final bool showPinnedProfileAttribution;
   final PostCardImageInteractionMode imageInteractionMode;
+  final bool collapseBody;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -200,23 +203,16 @@ class PostCard extends ConsumerWidget {
     }
 
     Widget postBody() {
-      final body = FacetedText(
+      return _ExpandablePostBody(
+        postIdentity: post.uri.value,
         text: post.text,
         facets: post.facets,
         style: theme.textTheme.bodyLarge,
-      );
-      if (post.facets?.isNotEmpty ?? false) {
-        return GestureDetector(
-          behavior: HitTestBehavior.translucent,
-          onTap: onTap,
-          child: body,
-        );
-      }
-      return GestureDetector(
-        behavior: HitTestBehavior.translucent,
+        collapse: collapseBody,
+        showMoreLabel: l10n.postShowMore,
+        showLessLabel: l10n.postShowLess,
         onTap: onTap,
         onDoubleTap: likeOnDoubleTap,
-        child: body,
       );
     }
 
@@ -686,6 +682,90 @@ class PostCard extends ConsumerWidget {
                 },
         ),
       ),
+    );
+  }
+}
+
+class _ExpandablePostBody extends StatefulWidget {
+  const _ExpandablePostBody({
+    required this.postIdentity,
+    required this.text,
+    required this.facets,
+    required this.style,
+    required this.collapse,
+    required this.showMoreLabel,
+    required this.showLessLabel,
+    required this.onTap,
+    required this.onDoubleTap,
+  });
+
+  final String postIdentity;
+  final String text;
+  final List<Map<String, dynamic>>? facets;
+  final TextStyle? style;
+  final bool collapse;
+  final String showMoreLabel;
+  final String showLessLabel;
+  final VoidCallback? onTap;
+  final VoidCallback? onDoubleTap;
+
+  @override
+  State<_ExpandablePostBody> createState() => _ExpandablePostBodyState();
+}
+
+class _ExpandablePostBodyState extends State<_ExpandablePostBody> {
+  static const _collapsedLength = 300;
+
+  bool _expanded = false;
+
+  @override
+  void didUpdateWidget(covariant _ExpandablePostBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.postIdentity != widget.postIdentity) {
+      _expanded = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canCollapse =
+        widget.collapse && widget.text.characters.length > _collapsedLength;
+    final shouldCollapse = canCollapse && !_expanded;
+    var visibleText = shouldCollapse
+        ? widget.text.characters.take(_collapsedLength).toString()
+        : widget.text;
+    if (shouldCollapse) {
+      final cutoff = visibleText.length;
+      final crossingFacets = FacetedTextModel.fromRaw(
+        text: widget.text,
+        rawFacets: widget.facets,
+      ).where((range) => range.charStart < cutoff && range.charEnd > cutoff);
+      if (crossingFacets.isNotEmpty) {
+        visibleText = widget.text.substring(0, crossingFacets.first.charStart);
+      }
+    }
+    final body = FacetedText(
+      text: visibleText,
+      facets: widget.facets,
+      style: widget.style,
+      suffixText: canCollapse ? (shouldCollapse ? '… ' : ' ') : null,
+      actionLabel: canCollapse
+          ? (shouldCollapse ? widget.showMoreLabel : widget.showLessLabel)
+          : null,
+      onAction: canCollapse
+          ? () => setState(() {
+              _expanded = !_expanded;
+            })
+          : null,
+    );
+
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: widget.onTap,
+      onDoubleTap: widget.facets?.isNotEmpty ?? false
+          ? null
+          : widget.onDoubleTap,
+      child: body,
     );
   }
 }

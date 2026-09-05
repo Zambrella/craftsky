@@ -53,6 +53,10 @@ void main() {
       find.descendant(of: fab, matching: find.byType(ChunkyButton)),
       findsOneWidget,
     );
+    expect(
+      tester.widget<ListView>(find.byType(ListView).first).physics,
+      isA<AlwaysScrollableScrollPhysics>(),
+    );
   });
 
   for (final constraint in businessAccessibilityMatrix) {

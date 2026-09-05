@@ -45,7 +45,7 @@ abstract final class CraftskyIcons {
   static const IconData expand = PhosphorIconsRegular.caretDown;
   static const IconData externalLink = PhosphorIconsRegular.arrowSquareOut;
   static const IconData fileVideo = PhosphorIconsRegular.fileVideo;
-  static const IconData filter = PhosphorIconsRegular.funnel;
+  static const IconData filter = PhosphorIconsRegular.funnelSimple;
   static const IconData findPeople = PhosphorIconsRegular.userFocus;
   static const IconData folder = PhosphorIconsRegular.folder;
   static const IconData follow = PhosphorIconsRegular.userPlus;
@@ -155,7 +155,7 @@ abstract final class CraftskyIconsBold {
   static const IconData eventUnavailable = PhosphorIconsBold.calendarX;
   static const IconData expand = PhosphorIconsBold.caretDown;
   static const IconData externalLink = PhosphorIconsBold.arrowSquareOut;
-  static const IconData filter = PhosphorIconsBold.funnel;
+  static const IconData filter = PhosphorIconsBold.funnelSimple;
   static const IconData fullscreen = PhosphorIconsBold.cornersOut;
   static const IconData fullscreenExit = PhosphorIconsBold.cornersIn;
   static const IconData home = PhosphorIconsBold.house;

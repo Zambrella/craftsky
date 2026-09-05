@@ -30,46 +30,54 @@ class NotificationsPage extends ConsumerWidget {
         : ref.watch(accountNotificationsProvider(owner.account));
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            leading: AppShellDrawerScope.maybeOf(context) == null
-                ? null
-                : const AppShellDrawerButton(),
-            title: Text(l10n.notificationsTitle),
-            pinned: true,
-            actions: [
-              IconButton(
-                tooltip: l10n.notificationSettingsAction,
-                onPressed: () => const NotificationSettingsRoute().go(context),
-                icon: const Icon(CraftskyIconsBold.settings),
+      body: RefreshIndicator(
+        edgeOffset: MediaQuery.paddingOf(context).top + kToolbarHeight,
+        onRefresh: () => owner == null
+            ? ref.refresh(notificationsProvider.future)
+            : ref.refresh(accountNotificationsProvider(owner.account).future),
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverAppBar(
+              leading: AppShellDrawerScope.maybeOf(context) == null
+                  ? null
+                  : const AppShellDrawerButton(),
+              title: Text(l10n.notificationsTitle),
+              pinned: true,
+              actions: [
+                IconButton(
+                  tooltip: l10n.notificationSettingsAction,
+                  onPressed: () =>
+                      const NotificationSettingsRoute().go(context),
+                  icon: const Icon(CraftskyIconsBold.settings),
+                ),
+              ],
+            ),
+            switch (notifications) {
+              AsyncValue(:final value?) => _NotificationsLoadedSlivers(
+                items: value.items,
+                hasMore: value.hasMore,
+                isLoadingMore: notifications.isLoading,
+                hasLoadMoreError: notifications.hasError,
+                renderToken: value.renderToken,
+                owner: value.owner,
               ),
-            ],
-          ),
-          switch (notifications) {
-            AsyncValue(:final value?) => _NotificationsLoadedSlivers(
-              items: value.items,
-              hasMore: value.hasMore,
-              isLoadingMore: notifications.isLoading,
-              hasLoadMoreError: notifications.hasError,
-              renderToken: value.renderToken,
-              owner: value.owner,
-            ),
-            _ when notifications.hasError => _NotificationsErrorSliver(
-              onRetry: () {
-                if (owner != null) {
-                  ref.invalidate(accountNotificationsProvider(owner.account));
-                } else {
-                  ref.invalidate(notificationsProvider);
-                }
-              },
-            ),
-            _ => const SliverFillRemaining(
-              hasScrollBody: false,
-              child: Center(child: StitchProgressIndicator()),
-            ),
-          },
-        ],
+              _ when notifications.hasError => _NotificationsErrorSliver(
+                onRetry: () {
+                  if (owner != null) {
+                    ref.invalidate(accountNotificationsProvider(owner.account));
+                  } else {
+                    ref.invalidate(notificationsProvider);
+                  }
+                },
+              ),
+              _ => const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: StitchProgressIndicator()),
+              ),
+            },
+          ],
+        ),
       ),
     );
   }

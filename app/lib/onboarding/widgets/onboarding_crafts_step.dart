@@ -8,11 +8,13 @@ class OnboardingCraftsStep extends StatelessWidget {
   const OnboardingCraftsStep({
     required this.state,
     required this.onToggle,
+    required this.onRequestMore,
     super.key,
   });
 
   final OnboardingFlowState state;
   final ValueChanged<Craft> onToggle;
+  final VoidCallback onRequestMore;
 
   @override
   Widget build(BuildContext context) {
@@ -33,6 +35,7 @@ class OnboardingCraftsStep extends StatelessWidget {
               if (state.selectedCraftIds.contains(craft.id)) craft,
           },
           onToggle: onToggle,
+          onRequestMore: onRequestMore,
         ),
       ],
     );

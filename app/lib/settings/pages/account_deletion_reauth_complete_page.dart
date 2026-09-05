@@ -6,6 +6,7 @@ import 'package:craftsky_app/settings/providers/account_deletion_controller.dart
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -50,7 +51,9 @@ class _AccountDeletionReauthCompletePageState
       return _guardIntent(
         Scaffold(
           appBar: AppBar(title: Text(l10n.deleteAccountConfirmTitle)),
-          body: Center(child: Text(l10n.errorActionFailed)),
+          body: _BoundedConfirmationContent(
+            child: Center(child: Text(l10n.errorActionFailed)),
+          ),
         ),
       );
     }
@@ -65,49 +68,51 @@ class _AccountDeletionReauthCompletePageState
     return _guardIntent(
       Scaffold(
         appBar: AppBar(title: Text(l10n.deleteAccountConfirmTitle)),
-        body: ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
-            Text.rich(
-              TextSpan(
-                children: handleOffset < 0
-                    ? [TextSpan(text: confirmationPrompt)]
-                    : [
-                        TextSpan(
-                          text: confirmationPrompt.substring(0, handleOffset),
-                        ),
-                        TextSpan(
-                          text: requiredHandle,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
-                        ),
-                        TextSpan(
-                          text: confirmationPrompt.substring(
-                            handleOffset + requiredHandle.length,
+        body: _BoundedConfirmationContent(
+          child: ListView(
+            padding: const EdgeInsets.all(24),
+            children: [
+              Text.rich(
+                TextSpan(
+                  children: handleOffset < 0
+                      ? [TextSpan(text: confirmationPrompt)]
+                      : [
+                          TextSpan(
+                            text: confirmationPrompt.substring(0, handleOffset),
                           ),
-                        ),
-                      ],
+                          TextSpan(
+                            text: requiredHandle,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          TextSpan(
+                            text: confirmationPrompt.substring(
+                              handleOffset + requiredHandle.length,
+                            ),
+                          ),
+                        ],
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            BrandTextField(
-              label: l10n.deleteAccountTypeHandleLabel,
-              controller: _controller,
-              autocorrect: false,
-              enableSuggestions: false,
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: 24),
-            ChunkyButton(
-              backgroundColor: colors.error,
-              foregroundColor: colors.onError,
-              onPressed: !_busy && matches
-                  ? () => _confirm(requiredHandle)
-                  : null,
-              child: _busy
-                  ? StitchProgressIndicator(size: 18, color: colors.onError)
-                  : Text(l10n.deleteAccountAction),
-            ),
-          ],
+              const SizedBox(height: 16),
+              BrandTextField(
+                label: l10n.deleteAccountTypeHandleLabel,
+                controller: _controller,
+                autocorrect: false,
+                enableSuggestions: false,
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 24),
+              ChunkyButton(
+                backgroundColor: colors.error,
+                foregroundColor: colors.onError,
+                onPressed: !_busy && matches
+                    ? () => _confirm(requiredHandle)
+                    : null,
+                child: _busy
+                    ? StitchProgressIndicator(size: 18, color: colors.onError)
+                    : Text(l10n.deleteAccountAction),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -146,4 +151,21 @@ class _AccountDeletionReauthCompletePageState
       context.showError(AppLocalizations.of(context).errorActionFailed);
     }
   }
+}
+
+class _BoundedConfirmationContent extends StatelessWidget {
+  const _BoundedConfirmationContent({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => Center(
+    child: ConstrainedBox(
+      key: const Key('account-deletion-confirmation-content'),
+      constraints: BoxConstraints(
+        maxWidth: FormFactor.tablet.breakpoint,
+      ),
+      child: SizedBox.expand(child: child),
+    ),
+  );
 }

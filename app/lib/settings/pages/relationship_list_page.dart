@@ -37,6 +37,7 @@ class RelationshipListPage extends ConsumerWidget {
           onLoadMore: () => unawaited(
             ref.read(provider.notifier).loadMore(),
           ),
+          onRefresh: () => ref.refresh(provider.future),
           onReverse: (account) => _reverse(context, ref, provider, account),
         ),
         AsyncError() => _RelationshipListError(
@@ -100,6 +101,7 @@ class _RelationshipListBody extends StatelessWidget {
     required this.state,
     required this.isLoadingMore,
     required this.onLoadMore,
+    required this.onRefresh,
     required this.onReverse,
   });
 
@@ -107,68 +109,83 @@ class _RelationshipListBody extends StatelessWidget {
   final RelationshipListState state;
   final bool isLoadingMore;
   final VoidCallback onLoadMore;
+  final RefreshCallback onRefresh;
   final Future<void> Function(ProfileAccountSummary account) onReverse;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    if (state.items.isEmpty) {
-      return CraftskyEmptyState(
-        icon: switch (kind) {
-          RelationshipListKind.muted => CraftskyIcons.muted,
-          RelationshipListKind.blocked => CraftskyIcons.block,
-        },
-        title: switch (kind) {
-          RelationshipListKind.muted => l10n.settingsMutedAccountsEmpty,
-          RelationshipListKind.blocked => l10n.settingsBlockedAccountsEmpty,
-        },
-        subtitle: l10n.profileAboutEmpty,
-      );
-    }
-    return ListView.builder(
-      itemCount: state.items.length + (state.hasMore ? 1 : 0),
-      itemBuilder: (context, index) {
-        if (index == state.items.length) {
-          return Center(
-            child: isLoadingMore
-                ? const Padding(
-                    padding: EdgeInsets.all(16),
-                    child: StitchProgressIndicator(),
-                  )
-                : TextButton(
-                    onPressed: onLoadMore,
-                    child: Text(l10n.relationshipListLoadMore),
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          if (state.items.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: CraftskyEmptyState(
+                icon: switch (kind) {
+                  RelationshipListKind.muted => CraftskyIcons.muted,
+                  RelationshipListKind.blocked => CraftskyIcons.block,
+                },
+                title: switch (kind) {
+                  RelationshipListKind.muted => l10n.settingsMutedAccountsEmpty,
+                  RelationshipListKind.blocked =>
+                    l10n.settingsBlockedAccountsEmpty,
+                },
+                subtitle: l10n.profileAboutEmpty,
+              ),
+            )
+          else
+            SliverList.builder(
+              itemCount: state.items.length + (state.hasMore ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index == state.items.length) {
+                  return Center(
+                    child: isLoadingMore
+                        ? const Padding(
+                            padding: EdgeInsets.all(16),
+                            child: StitchProgressIndicator(),
+                          )
+                        : TextButton(
+                            onPressed: onLoadMore,
+                            child: Text(l10n.relationshipListLoadMore),
+                          ),
+                  );
+                }
+                final account = state.items[index];
+                final did = account.did.toString();
+                return ListTile(
+                  title: Text(
+                    account.displayName?.isNotEmpty ?? false
+                        ? account.displayName!
+                        : account.handle.toString(),
                   ),
-          );
-        }
-        final account = state.items[index];
-        final did = account.did.toString();
-        return ListTile(
-          title: Text(
-            account.displayName?.isNotEmpty ?? false
-                ? account.displayName!
-                : account.handle.toString(),
-          ),
-          subtitle: Text('@${account.handle}'),
-          onTap: () => unawaited(
-            showUserProfileCard(
-              context,
-              handleOrDid: account.handle.toString(),
-            ),
-          ),
-          trailing: TextButton(
-            onPressed: state.mutatingDids.contains(did)
-                ? null
-                : () => unawaited(onReverse(account)),
-            child: Text(
-              switch (kind) {
-                RelationshipListKind.muted => l10n.relationshipListUnmute,
-                RelationshipListKind.blocked => l10n.relationshipListUnblock,
+                  subtitle: Text('@${account.handle}'),
+                  onTap: () => unawaited(
+                    showUserProfileCard(
+                      context,
+                      handleOrDid: account.handle.toString(),
+                    ),
+                  ),
+                  trailing: TextButton(
+                    onPressed: state.mutatingDids.contains(did)
+                        ? null
+                        : () => unawaited(onReverse(account)),
+                    child: Text(
+                      switch (kind) {
+                        RelationshipListKind.muted =>
+                          l10n.relationshipListUnmute,
+                        RelationshipListKind.blocked =>
+                          l10n.relationshipListUnblock,
+                      },
+                    ),
+                  ),
+                );
               },
             ),
-          ),
-        );
-      },
+        ],
+      ),
     );
   }
 }

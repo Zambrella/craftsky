@@ -58,6 +58,9 @@
   "externalLinkConfirmAction": "Open link",
   "@externalLinkConfirmAction": { "description": "Confirmation action for opening an external link." },
 
+  "craftsRequestMoreAction": "Request more",
+  "@craftsRequestMoreAction": { "description": "Action below a crafts picker that opens the craft request form." },
+
   "notificationsTitle": "Notifications",
   "@notificationsTitle": { "description": "Title for the in-app notifications page." },
 
@@ -681,6 +684,12 @@
 
   "postComposeAction": "New post",
   "@postComposeAction": { "description": "Button label that opens the text-only post composer." },
+  "postShowMore": "Show more",
+  "@postShowMore": { "description": "Inline action that expands truncated post text." },
+  "postShowLess": "Show less",
+  "@postShowLess": { "description": "Inline action that collapses expanded post text." },
+  "scrollToTopAction": "Back to top",
+  "@scrollToTopAction": { "description": "Tooltip and accessibility label for returning a collection to its first item." },
 
   "postComposeTitle": "New post",
   "@postComposeTitle": { "description": "Title of the text-only post composer sheet." },

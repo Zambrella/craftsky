@@ -64,6 +64,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get externalLinkConfirmAction => 'Open link';
 
   @override
+  String get craftsRequestMoreAction => 'Request more';
+
+  @override
   String get notificationsTitle => 'Notifications';
 
   @override
@@ -760,6 +763,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get postComposeAction => 'New post';
+
+  @override
+  String get postShowMore => 'Show more';
+
+  @override
+  String get postShowLess => 'Show less';
+
+  @override
+  String get scrollToTopAction => 'Back to top';
 
   @override
   String get postComposeTitle => 'New post';

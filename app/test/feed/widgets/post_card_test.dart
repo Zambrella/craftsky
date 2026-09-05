@@ -49,6 +49,7 @@ import '../../profile/fakes/fake_profile_repository.dart';
 import '../fakes/fake_post_repository.dart';
 
 Post _post({
+  String uri = 'at://did:plc:alice/social.craftsky.feed.post/3lf2abc',
   String text = 'Cast on for the Hitchhiker shawl tonight.',
   List<Map<String, dynamic>>? facets,
   String? displayName,
@@ -75,7 +76,7 @@ Post _post({
   ProfileCustomisation customisation = ProfileCustomisation.defaults,
 }) {
   return Post(
-    uri: 'at://did:plc:alice/social.craftsky.feed.post/3lf2abc',
+    uri: uri,
     cid: 'bafy123',
     rkey: '3lf2abc',
     text: text,
@@ -1775,6 +1776,201 @@ void main() {
       await tester.pump(const Duration(milliseconds: 350));
 
       expect(taps, 1);
+    });
+
+    testWidgets('shows long post bodies in full by default', (tester) async {
+      final text = '${List.filled(300, 'a').join()}z';
+
+      await _pump(tester, PostCard(post: _post(text: text)));
+
+      expect(find.text(text), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('Show more')), findsNothing);
+      expect(find.bySemanticsLabel(RegExp('Show less')), findsNothing);
+
+      final exactlyAtCutoff = List.filled(300, 'a').join();
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(text: exactlyAtCutoff),
+          collapseBody: true,
+        ),
+      );
+      expect(find.text(exactlyAtCutoff), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('Show more')), findsNothing);
+      expect(find.bySemanticsLabel(RegExp('Show less')), findsNothing);
+    });
+
+    testWidgets('collapses after 300 graphemes and expands only the body', (
+      tester,
+    ) async {
+      final prefix = '${List.filled(299, 'a').join()}👨‍👩‍👧‍👦';
+      final text = '${prefix}z';
+      var taps = 0;
+      var likes = 0;
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(text: text),
+          collapseBody: true,
+          onTap: () => taps++,
+          onLike: () => likes++,
+        ),
+      );
+
+      final collapsed = tester.widget<RichText>(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is RichText &&
+              widget.text.toPlainText().startsWith(prefix),
+        ),
+      );
+      expect(collapsed.text.toPlainText(), startsWith('$prefix… '));
+
+      await tester.tap(find.text('Show more'));
+      await tester.pump(const Duration(milliseconds: 350));
+
+      expect(find.bySemanticsLabel(RegExp('Show more')), findsNothing);
+      expect(find.bySemanticsLabel(RegExp('Show less')), findsOneWidget);
+
+      await tester.ensureVisible(find.text('Show less'));
+      await tester.tap(find.text('Show less'));
+      await tester.pump(const Duration(milliseconds: 350));
+
+      expect(find.bySemanticsLabel(RegExp('Show more')), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('Show less')), findsNothing);
+      expect(taps, 0);
+      expect(likes, 0);
+    });
+
+    testWidgets('keeps facets before the collapsed cutoff active', (
+      tester,
+    ) async {
+      final text = 'https://example.com ${List.filled(300, 'a').join()}';
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            text: text,
+            facets: [
+              {
+                'index': {'byteStart': 0, 'byteEnd': 19},
+                'features': [
+                  {
+                    r'$type': 'app.bsky.richtext.facet#link',
+                    'uri': 'https://example.com',
+                  },
+                ],
+              },
+            ],
+          ),
+          collapseBody: true,
+        ),
+      );
+
+      final richText = tester.widget<RichText>(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is RichText &&
+              widget.text.toPlainText().startsWith('example.com'),
+        ),
+      );
+      final facetSpan = _leafTextSpans(
+        richText.text as TextSpan,
+      ).singleWhere((span) => span.text == 'example.com');
+      expect(facetSpan.recognizer, isNotNull);
+      expect(find.bySemanticsLabel(RegExp('Show more')), findsOneWidget);
+    });
+
+    testWidgets('does not expose a partial facet at the collapsed cutoff', (
+      tester,
+    ) async {
+      final prefix = List.filled(295, 'a').join();
+      final text = '${prefix}https://example.com trailing';
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            text: text,
+            facets: [
+              {
+                'index': {'byteStart': 295, 'byteEnd': 314},
+                'features': [
+                  {
+                    r'$type': 'app.bsky.richtext.facet#link',
+                    'uri': 'https://example.com',
+                  },
+                ],
+              },
+            ],
+          ),
+          collapseBody: true,
+        ),
+      );
+
+      final collapsed = tester.widget<RichText>(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is RichText &&
+              widget.text.toPlainText().startsWith(prefix),
+        ),
+      );
+      expect(collapsed.text.toPlainText(), startsWith('$prefix…'));
+      expect(collapsed.text.toPlainText(), isNot(contains('https')));
+
+      await tester.tap(find.text('Show more'));
+      await tester.pump();
+      expect(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is RichText &&
+              widget.text.toPlainText().startsWith(prefix) &&
+              widget.text.toPlainText().contains('example.com trailing'),
+        ),
+        findsOneWidget,
+      );
+      expect(find.bySemanticsLabel(RegExp('Show more')), findsNothing);
+      expect(find.bySemanticsLabel(RegExp('Show less')), findsOneWidget);
+    });
+
+    testWidgets('resets body expansion when post identity changes', (
+      tester,
+    ) async {
+      final firstText = '${List.filled(300, 'a').join()}1';
+      final secondText = '${List.filled(300, 'b').join()}2';
+      await _pump(
+        tester,
+        PostCard(post: _post(text: firstText), collapseBody: true),
+      );
+      await tester.tap(find.text('Show more'));
+      await tester.pump(const Duration(milliseconds: 350));
+      expect(find.bySemanticsLabel(RegExp('Show more')), findsNothing);
+      expect(find.bySemanticsLabel(RegExp('Show less')), findsOneWidget);
+
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(
+            uri: 'at://did:plc:alice/social.craftsky.feed.post/different',
+            text: secondText,
+          ),
+          collapseBody: true,
+        ),
+      );
+
+      expect(find.bySemanticsLabel(RegExp('Show more')), findsOneWidget);
+      final richText = tester.widget<RichText>(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is RichText &&
+              widget.text.toPlainText().startsWith(
+                List.filled(300, 'b').join(),
+              ),
+        ),
+      );
+      expect(
+        richText.text.toPlainText(),
+        startsWith('${List.filled(300, 'b').join()}… '),
+      );
     });
 
     testWidgets('double tapping card likes once without navigating', (

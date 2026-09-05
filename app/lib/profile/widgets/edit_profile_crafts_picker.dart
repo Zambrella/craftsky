@@ -6,31 +6,43 @@ import 'package:flutter/material.dart';
 
 /// Multi-select chip grid backed by the [Craft] catalog. Tapping a chip
 /// toggles its presence in [selected] via [onToggle]. Renders every
-/// catalog entry — order is the catalog's enum order, not the user's
-/// selection order, so the grid layout is stable as the user toggles.
+/// currently selectable catalog entry in canonical order.
 class EditProfileCraftsPicker extends StatelessWidget {
   const EditProfileCraftsPicker({
     required this.selected,
     required this.onToggle,
+    required this.onRequestMore,
     super.key,
   });
 
   final Set<Craft> selected;
   final ValueChanged<Craft> onToggle;
+  final VoidCallback? onRequestMore;
 
   @override
   Widget build(BuildContext context) {
     final spacing = Theme.of(context).extension<SpacingTheme>()!;
-    return Wrap(
-      spacing: spacing.sp2,
-      runSpacing: spacing.sp2,
+    final l10n = AppLocalizations.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final craft in Craft.values)
-          _CraftChoiceChip(
-            craft: craft,
-            isSelected: selected.contains(craft),
-            onTap: () => onToggle(craft),
-          ),
+        Wrap(
+          spacing: spacing.sp2,
+          runSpacing: spacing.sp2,
+          children: [
+            for (final craft in canonicalSelectableCrafts)
+              _CraftChoiceChip(
+                craft: craft,
+                isSelected: selected.contains(craft),
+                onTap: () => onToggle(craft),
+              ),
+          ],
+        ),
+        SizedBox(height: spacing.sp2),
+        TextButton(
+          onPressed: onRequestMore,
+          child: Text(l10n.craftsRequestMoreAction),
+        ),
       ],
     );
   }

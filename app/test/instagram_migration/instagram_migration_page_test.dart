@@ -88,6 +88,10 @@ void main() {
       );
       expect(find.byKey(const Key('instagram-imports-card')), findsNothing);
       expect(find.byKey(const Key('instagram-suggestions-card')), findsNothing);
+      expect(
+        tester.widget<ListView>(find.byType(ListView)).physics,
+        isA<AlwaysScrollableScrollPhysics>(),
+      );
       semantics.dispose();
     },
   );

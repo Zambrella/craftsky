@@ -9,6 +9,7 @@ class CraftskyFloatingActionButton extends StatelessWidget {
     required this.icon,
     required this.label,
     this.tooltip,
+    this.minimumHeight = 56,
     super.key,
   });
 
@@ -16,6 +17,7 @@ class CraftskyFloatingActionButton extends StatelessWidget {
   final Widget icon;
   final Widget label;
   final String? tooltip;
+  final double minimumHeight;
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +25,7 @@ class CraftskyFloatingActionButton extends StatelessWidget {
     final button = ChunkyButton(
       onPressed: onPressed,
       style: ButtonStyle(
-        minimumSize: const WidgetStatePropertyAll(Size(0, 56)),
+        minimumSize: WidgetStatePropertyAll(Size(0, minimumHeight)),
         padding: WidgetStatePropertyAll(
           EdgeInsets.symmetric(horizontal: spacing.sp5),
         ),

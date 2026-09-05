@@ -2,9 +2,9 @@ import 'package:craftsky_app/shared/link/external_link.dart';
 
 final settingsTermsUri = Uri.https('craftsky.social', '/terms');
 final settingsPrivacyUri = Uri.https('craftsky.social', '/privacy');
-final settingsSupportUri = Uri.https(
-  'github.com',
-  '/Zambrella/craftsky/discussions',
+final Uri settingsSupportUri = Uri.parse(
+  'https://userinput.app/s/did:plc:lmmx63zcns6gewgxqfdt4kof/'
+  '3mpr5izppvt2k?lang=en',
 );
 
 Future<bool> tryLaunchSettingsLink(

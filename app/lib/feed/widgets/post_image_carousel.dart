@@ -4,6 +4,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_image_page_indicator.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +13,8 @@ import 'package:pinch_zoom/pinch_zoom.dart';
 const _defaultFallbackHeight = 320.0;
 const _defaultMinHeight = 160.0;
 const _defaultMaxHeight = 420.0;
+const _largestResponsiveMaxHeight = 720.0;
+const _viewportHeightFraction = 0.7;
 
 typedef PostImageTapCallback = void Function(int index, List<Object> heroTags);
 
@@ -31,6 +34,28 @@ double computeBoundedImageHeight({
   final ratio = aspectRatio.width / aspectRatio.height;
   final rawHeight = availableWidth / ratio;
   return rawHeight.clamp(minHeight, maxHeight);
+}
+
+double computeResponsiveCarouselMaxHeight(double viewportHeight) =>
+    (viewportHeight * _viewportHeightFraction).clamp(
+      _defaultMaxHeight,
+      _largestResponsiveMaxHeight,
+    );
+
+BoxFit computePostImageFit({
+  required double availableWidth,
+  required PostImageAspectRatio? aspectRatio,
+  required double maxHeight,
+}) {
+  if (aspectRatio == null ||
+      aspectRatio.width <= 0 ||
+      aspectRatio.height <= 0 ||
+      aspectRatio.width >= aspectRatio.height) {
+    return BoxFit.cover;
+  }
+  final naturalHeight =
+      availableWidth / (aspectRatio.width / aspectRatio.height);
+  return naturalHeight > maxHeight ? BoxFit.contain : BoxFit.cover;
 }
 
 class PostImageCarousel extends ConsumerStatefulWidget {
@@ -86,12 +111,20 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final radii = theme.extension<RadiusTheme>() ?? const RadiusTheme();
+    final borderRadius = BorderRadius.circular(radii.r2);
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final current = widget.images[_page.clamp(0, widget.images.length - 1)];
+        final maxHeight = computeResponsiveCarouselMaxHeight(
+          MediaQuery.sizeOf(context).height,
+        );
         final height = computeBoundedImageHeight(
           availableWidth: constraints.maxWidth,
           aspectRatio: current.aspectRatio,
+          maxHeight: maxHeight,
         );
 
         return Listener(
@@ -100,103 +133,118 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
           onPointerMove: _handlePointerMove,
           onPointerUp: _handlePointerUp,
           onPointerCancel: (_) => _resetPointer(),
-          child: Stack(
-            key: const Key('post-image-carousel'),
-            children: [
-              DecoratedBox(
-                position: DecorationPosition.foreground,
-                decoration: const BoxDecoration(
-                  border: Border.fromBorderSide(BorderSide()),
-                ),
-                child: SizedBox(
-                  height: height,
-                  child: PageView.builder(
-                    controller: _pageController,
-                    itemCount: widget.images.length,
-                    onPageChanged: (value) => setState(() => _page = value),
-                    itemBuilder: (context, index) {
-                      final image = widget.images[index];
-                      final url = image.thumb ?? image.fullsize;
-                      if (url == null) {
-                        final child = PinchZoom(
-                          maxScale: 4,
-                          child: Semantics(
-                            label: image.alt,
-                            child: DecoratedBox(
-                              decoration: BoxDecoration(
-                                color:
-                                    Theme.of(context).brightness ==
-                                        Brightness.dark
-                                    ? Theme.of(
-                                        context,
-                                      ).colorScheme.surfaceContainerHighest
-                                    : const Color(0xFFEAEAEA),
+          child: ClipRRect(
+            borderRadius: borderRadius,
+            child: Stack(
+              key: const Key('post-image-carousel'),
+              children: [
+                DecoratedBox(
+                  key: const Key('post-image-carousel-outline'),
+                  position: DecorationPosition.foreground,
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: theme.colorScheme.outlineVariant,
+                    ),
+                    borderRadius: borderRadius,
+                  ),
+                  child: SizedBox(
+                    key: const Key('post-image-frame'),
+                    height: height,
+                    child: ColoredBox(
+                      color: theme.colorScheme.surfaceContainerLow,
+                      child: PageView.builder(
+                        controller: _pageController,
+                        itemCount: widget.images.length,
+                        onPageChanged: (value) => setState(() => _page = value),
+                        itemBuilder: (context, index) {
+                          final image = widget.images[index];
+                          final url = image.thumb ?? image.fullsize;
+                          if (url == null) {
+                            final child = PinchZoom(
+                              maxScale: 4,
+                              child: Semantics(
+                                label: image.alt,
+                                child: DecoratedBox(
+                                  decoration: BoxDecoration(
+                                    color:
+                                        Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? Theme.of(
+                                            context,
+                                          ).colorScheme.surfaceContainerHighest
+                                        : const Color(0xFFEAEAEA),
+                                  ),
+                                ),
+                              ),
+                            );
+
+                            return Hero(tag: _heroTags[index], child: child);
+                          }
+
+                          final child = PinchZoom(
+                            maxScale: 4,
+                            child: Semantics(
+                              label: image.alt,
+                              child: CachedNetworkImage(
+                                imageUrl: url,
+                                cacheManager: ref.watch(
+                                  feedImageCacheManagerProvider,
+                                ),
+                                fit: computePostImageFit(
+                                  availableWidth: constraints.maxWidth,
+                                  aspectRatio: image.aspectRatio,
+                                  maxHeight: maxHeight,
+                                ),
+                                width: double.infinity,
+                                height: height,
                               ),
                             ),
-                          ),
-                        );
+                          );
 
-                        return Hero(tag: _heroTags[index], child: child);
-                      }
-
-                      final child = PinchZoom(
-                        maxScale: 4,
-                        child: Semantics(
-                          label: image.alt,
-                          child: CachedNetworkImage(
-                            imageUrl: url,
-                            cacheManager: ref.watch(
-                              feedImageCacheManagerProvider,
-                            ),
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                            height: height,
-                          ),
-                        ),
-                      );
-
-                      return Hero(tag: _heroTags[index], child: child);
-                    },
-                  ),
-                ),
-              ),
-              if (widget.images.length > 1)
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: DecoratedBox(
-                    key: const Key('post-image-count'),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.45),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
-                      ),
-                      child: Text(
-                        '${_page + 1}/${widget.images.length}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                        ),
+                          return Hero(tag: _heroTags[index], child: child);
+                        },
                       ),
                     ),
                   ),
                 ),
-              if (widget.images.length > 1)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 8,
-                  child: PostImagePageIndicator(
-                    indicatorKey: const Key('post-image-dots'),
-                    controller: _pageController,
-                    count: widget.images.length,
+                if (widget.images.length > 1)
+                  Positioned(
+                    right: 8,
+                    top: 8,
+                    child: DecoratedBox(
+                      key: const Key('post-image-count'),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.45),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        child: Text(
+                          '${_page + 1}/${widget.images.length}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
-                ),
-            ],
+                if (widget.images.length > 1)
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 8,
+                    child: PostImagePageIndicator(
+                      indicatorKey: const Key('post-image-dots'),
+                      controller: _pageController,
+                      count: widget.images.length,
+                    ),
+                  ),
+              ],
+            ),
           ),
         );
       },

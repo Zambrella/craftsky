@@ -28,6 +28,8 @@ class _FollowListPageState extends ConsumerState<FollowListPage> {
   int _totalCount = 0;
   var _isInitialLoading = true;
   var _isLoadingMore = false;
+  var _isRefreshing = false;
+  var _loadGeneration = 0;
 
   @override
   void initState() {
@@ -36,8 +38,13 @@ class _FollowListPageState extends ConsumerState<FollowListPage> {
   }
 
   Future<void> _loadFirstPage() async {
+    final generation = ++_loadGeneration;
+    _isRefreshing = true;
+    if (!_isInitialLoading && mounted) {
+      setState(() => _isLoadingMore = false);
+    }
     final page = await _fetchPage();
-    if (!mounted) return;
+    if (!mounted || generation != _loadGeneration) return;
     setState(() {
       _items
         ..clear()
@@ -45,15 +52,17 @@ class _FollowListPageState extends ConsumerState<FollowListPage> {
       _cursor = page.cursor;
       _totalCount = page.totalCount;
       _isInitialLoading = false;
+      _isRefreshing = false;
     });
   }
 
   Future<void> _loadMore() async {
     final cursor = _cursor;
-    if (cursor == null || _isLoadingMore) return;
+    if (cursor == null || _isLoadingMore || _isRefreshing) return;
+    final generation = _loadGeneration;
     setState(() => _isLoadingMore = true);
     final page = await _fetchPage(cursor: cursor);
-    if (!mounted) return;
+    if (!mounted || generation != _loadGeneration) return;
     setState(() {
       _items.addAll(page.items);
       _cursor = page.cursor;
@@ -86,6 +95,7 @@ class _FollowListPageState extends ConsumerState<FollowListPage> {
               hasMore: _cursor != null,
               isLoadingMore: _isLoadingMore,
               onLoadMore: _loadMore,
+              onRefresh: _loadFirstPage,
             ),
     );
   }
@@ -98,6 +108,7 @@ class _FollowListBody extends StatelessWidget {
     required this.hasMore,
     required this.isLoadingMore,
     required this.onLoadMore,
+    required this.onRefresh,
   });
 
   final FollowListKind kind;
@@ -105,55 +116,67 @@ class _FollowListBody extends StatelessWidget {
   final bool hasMore;
   final bool isLoadingMore;
   final VoidCallback onLoadMore;
+  final RefreshCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    if (items.isEmpty) {
-      final l10n = AppLocalizations.of(context);
-      return CraftskyEmptyState(
-        icon: CraftskyIcons.people,
-        title: switch (kind) {
-          FollowListKind.followers => l10n.settingsFollowers,
-          FollowListKind.following => l10n.settingsFollowing,
-        },
-        subtitle: switch (kind) {
-          FollowListKind.followers => 'No one follows you yet',
-          FollowListKind.following => 'You are not following anyone',
-        },
-      );
-    }
-    return ListView.builder(
-      itemCount: items.length + (hasMore ? 1 : 0),
-      itemBuilder: (context, index) {
-        if (index == items.length) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Center(
-              child: isLoadingMore
-                  ? const StitchProgressIndicator()
-                  : TextButton(
-                      onPressed: onLoadMore,
-                      child: const Text('Load more'),
+    final l10n = AppLocalizations.of(context);
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          if (items.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: CraftskyEmptyState(
+                icon: CraftskyIcons.people,
+                title: switch (kind) {
+                  FollowListKind.followers => l10n.settingsFollowers,
+                  FollowListKind.following => l10n.settingsFollowing,
+                },
+                subtitle: switch (kind) {
+                  FollowListKind.followers => 'No one follows you yet',
+                  FollowListKind.following => 'You are not following anyone',
+                },
+              ),
+            )
+          else
+            SliverList.builder(
+              itemCount: items.length + (hasMore ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index == items.length) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Center(
+                      child: isLoadingMore
+                          ? const StitchProgressIndicator()
+                          : TextButton(
+                              onPressed: onLoadMore,
+                              child: const Text('Load more'),
+                            ),
                     ),
+                  );
+                }
+                final account = items[index];
+                final title = account.displayName?.isNotEmpty ?? false
+                    ? account.displayName!
+                    : account.handle.toString();
+                return ListTile(
+                  title: Text(title),
+                  subtitle: Text('@${account.handle}'),
+                  trailing: const Icon(CraftskyIconsBold.next),
+                  onTap: () => unawaited(
+                    showUserProfileCard(
+                      context,
+                      handleOrDid: account.handle.toString(),
+                    ),
+                  ),
+                );
+              },
             ),
-          );
-        }
-        final account = items[index];
-        final title = account.displayName?.isNotEmpty ?? false
-            ? account.displayName!
-            : account.handle.toString();
-        return ListTile(
-          title: Text(title),
-          subtitle: Text('@${account.handle}'),
-          trailing: const Icon(CraftskyIconsBold.next),
-          onTap: () => unawaited(
-            showUserProfileCard(
-              context,
-              handleOrDid: account.handle.toString(),
-            ),
-          ),
-        );
-      },
+        ],
+      ),
     );
   }
 }

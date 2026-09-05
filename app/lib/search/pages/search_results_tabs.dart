@@ -135,7 +135,7 @@ class _SearchResultsTabBarDelegate extends SliverPersistentHeaderDelegate {
   }
 }
 
-class _SearchResultTabScrollView extends StatelessWidget {
+class _SearchResultTabScrollView extends ConsumerWidget {
   const _SearchResultTabScrollView({
     required this.tab,
     required this.query,
@@ -147,12 +147,31 @@ class _SearchResultTabScrollView extends StatelessWidget {
   final ValueChanged<String> onOpenHashtag;
 
   @override
-  Widget build(BuildContext context) {
-    return CustomScrollView(
-      key: PageStorageKey<String>('search_results_tab_${tab.name}'),
-      slivers: [_sliverForTab(tab)],
+  Widget build(BuildContext context, WidgetRef ref) {
+    return RefreshIndicator(
+      onRefresh: () => _refresh(ref),
+      child: CustomScrollView(
+        key: PageStorageKey<String>('search_results_tab_${tab.name}'),
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [_sliverForTab(tab)],
+      ),
     );
   }
+
+  Future<void> _refresh(WidgetRef ref) => switch (tab) {
+    SearchResultsTab.posts => ref.refresh(
+      postSearchProvider(PostSearchQuery(q: query)).future,
+    ),
+    SearchResultsTab.projects => ref.refresh(
+      projectSearchProvider(ProjectSearchQuery(q: query)).future,
+    ),
+    SearchResultsTab.profiles => ref.refresh(
+      profileSearchProvider(ProfileSearchQuery(q: query)).future,
+    ),
+    SearchResultsTab.tags => ref.refresh(
+      hashtagResultSearchProvider(HashtagResultSearchQuery(q: query)).future,
+    ),
+  };
 
   Widget _sliverForTab(SearchResultsTab tab) {
     return switch (tab) {

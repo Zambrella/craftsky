@@ -9,16 +9,21 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/auth/widgets/account_avatar.dart';
 import 'package:craftsky_app/auth/widgets/account_switcher_launcher.dart';
+import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
+import 'package:craftsky_app/feed/widgets/post_type_chooser.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/notification_badge.dart';
 import 'package:craftsky_app/notifications/providers/notification_new_count_provider.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/route_locations.dart';
+import 'package:craftsky_app/settings/settings_links.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
+import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -87,7 +92,6 @@ const List<_DestinationSpec> _menuDestinations = [
   ..._secondaryDestinations,
 ];
 
-const _compactDrawerEdgeDragWidth = 96.0;
 const _largeScreenContentMaxWidth = 800.0;
 const _desktopSidebarSize = 300.0;
 const _utilityLinkHeight = 40.0;
@@ -112,24 +116,43 @@ BorderDirectional _navigationRailBorder(ThemeData theme) => BorderDirectional(
 /// Keeps signed-in detail routes beside the navigation rail on large screens.
 /// Compact routes remain full-screen because their navigator is returned
 /// unchanged.
-class AuthenticatedShell extends StatelessWidget {
-  const AuthenticatedShell({required this.child, super.key});
+class AuthenticatedShell extends StatefulWidget {
+  const AuthenticatedShell({
+    required this.child,
+    this.navigatorKey,
+    super.key,
+  });
 
   final Widget child;
+  final GlobalKey<NavigatorState>? navigatorKey;
+
+  @override
+  State<AuthenticatedShell> createState() => _AuthenticatedShellState();
+}
+
+class _AuthenticatedShellState extends State<AuthenticatedShell> {
+  BuildContext? _composerContext;
 
   @override
   Widget build(BuildContext context) {
-    if (!FormFactorWidget.of(context).isLarge) return child;
+    if (!FormFactorWidget.of(context).isLarge) return widget.child;
     final router = GoRouter.of(context);
     return ListenableBuilder(
       listenable: router.routerDelegate,
       builder: (context, _) => _AuthenticatedShellNavigationScope(
+        registerComposerContext: (branchContext) {
+          _composerContext = branchContext;
+        },
         child: _LargeShellNavigationFrame(
           selectedIndex: _destinationIndexForLocation(
             router.state.matchedLocation,
           ),
           onDestinationSelected: (index) => _goDestination(context, index),
-          child: child,
+          composerContext: () =>
+              widget.navigatorKey?.currentContext ??
+              _composerContext ??
+              context,
+          child: widget.child,
         ),
       ),
     );
@@ -153,14 +176,17 @@ class AuthenticatedShell extends StatelessWidget {
 }
 
 class _AuthenticatedShellNavigationScope extends InheritedWidget {
-  const _AuthenticatedShellNavigationScope({required super.child});
+  const _AuthenticatedShellNavigationScope({
+    required this.registerComposerContext,
+    required super.child,
+  });
 
-  static bool ownsLargeRail(BuildContext context) =>
-      context
-          .dependOnInheritedWidgetOfExactType<
-            _AuthenticatedShellNavigationScope
-          >() !=
-      null;
+  final ValueChanged<BuildContext> registerComposerContext;
+
+  static _AuthenticatedShellNavigationScope? maybeOf(
+    BuildContext context,
+  ) => context
+      .dependOnInheritedWidgetOfExactType<_AuthenticatedShellNavigationScope>();
 
   @override
   bool updateShouldNotify(_AuthenticatedShellNavigationScope oldWidget) =>
@@ -171,15 +197,19 @@ class _LargeShellNavigationFrame extends ConsumerStatefulWidget {
   const _LargeShellNavigationFrame({
     required this.selectedIndex,
     required this.onDestinationSelected,
+    required this.composerContext,
     required this.child,
     this.linkLauncher = launchExternalLink,
+    this.confirmOpenLink = showOpenLinkDialog,
     this.buildVersionLabel,
   });
 
   final int selectedIndex;
   final ValueChanged<int> onDestinationSelected;
+  final BuildContext Function() composerContext;
   final Widget child;
   final ExternalLinkLauncher linkLauncher;
+  final ExternalLinkConfirmer confirmOpenLink;
   final String? buildVersionLabel;
 
   @override
@@ -299,6 +329,8 @@ class _LargeShellNavigationFrameState
               onOpenPrivacy: () => _openExternalLink(
                 Uri.parse('https://craftsky.social/privacy'),
               ),
+              onOpenFeedback: _openFeedback,
+              onCompose: _openComposer,
             ),
           ),
         ],
@@ -315,6 +347,26 @@ class _LargeShellNavigationFrameState
     }
     if (!mounted || opened) return;
     context.showError(AppLocalizations.of(context).navigationLinkOpenError);
+  }
+
+  Future<void> _openFeedback() => confirmAndLaunchExternalLink(
+    context,
+    uri: settingsSupportUri,
+    launchUrl: widget.linkLauncher,
+    confirmOpenLink: widget.confirmOpenLink,
+  );
+
+  void _openComposer(BuildContext anchorContext) {
+    unawaited(
+      showTopLevelPostComposerChooser(
+        anchorContext,
+        position: craftskyContextMenuAnchorPosition(anchorContext),
+        showRegularComposer: (_) =>
+            showPostComposerSheet(widget.composerContext()),
+        showProjectComposer: (_) =>
+            showProjectComposerSheet(widget.composerContext()),
+      ),
+    );
   }
 
   Future<void> _showLargeSwitcher(AccountSwitcherState state) async {
@@ -395,12 +447,14 @@ class AppShell extends ConsumerStatefulWidget {
   const AppShell({
     required this.navigationShell,
     this.linkLauncher = launchExternalLink,
+    this.confirmOpenLink = showOpenLinkDialog,
     this.buildVersionLabel,
     super.key,
   });
 
   final StatefulNavigationShell navigationShell;
   final ExternalLinkLauncher linkLauncher;
+  final ExternalLinkConfirmer confirmOpenLink;
   final String? buildVersionLabel;
 
   @override
@@ -494,13 +548,32 @@ class _AppShellState extends ConsumerState<AppShell> {
     final router = GoRouter.of(context);
 
     if (formFactor.isLarge) {
-      if (_AuthenticatedShellNavigationScope.ownsLargeRail(context)) {
+      if (_AuthenticatedShellNavigationScope.maybeOf(context)
+          case final scope?) {
+        scope.registerComposerContext(
+          widget
+                  .navigationShell
+                  .route
+                  .branches[widget.navigationShell.currentIndex]
+                  .navigatorKey
+                  .currentContext ??
+              context,
+        );
         return widget.navigationShell;
       }
       return _LargeShellNavigationFrame(
         selectedIndex: selectedDestinationIndex,
         onDestinationSelected: _goDestination,
+        composerContext: () =>
+            widget
+                .navigationShell
+                .route
+                .branches[widget.navigationShell.currentIndex]
+                .navigatorKey
+                .currentContext ??
+            context,
         linkLauncher: widget.linkLauncher,
+        confirmOpenLink: widget.confirmOpenLink,
         buildVersionLabel: widget.buildVersionLabel,
         child: widget.navigationShell,
       );
@@ -508,7 +581,6 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     return Scaffold(
       key: _compactScaffoldKey,
-      drawerEdgeDragWidth: _compactDrawerEdgeDragWidth,
       body: AppShellDrawerScope(
         openDrawer: () => _compactScaffoldKey.currentState?.openDrawer(),
         isDrawerOpen: _isDrawerOpen,
@@ -546,6 +618,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           onOpenPrivacy: () => _openExternalLink(
             Uri.parse('https://craftsky.social/privacy'),
           ),
+          onOpenFeedback: _openFeedback,
         ),
       ),
       bottomNavigationBar: _ShellNavigationBar(
@@ -596,6 +669,13 @@ class _AppShellState extends ConsumerState<AppShell> {
     context.showError(AppLocalizations.of(context).navigationLinkOpenError);
   }
 
+  Future<void> _openFeedback() => confirmAndLaunchExternalLink(
+    context,
+    uri: settingsSupportUri,
+    launchUrl: widget.linkLauncher,
+    confirmOpenLink: widget.confirmOpenLink,
+  );
+
   Future<void> _showCompactSwitcher(AccountSwitcherState state) =>
       showAccountSwitcherSheet(
         context: context,
@@ -618,6 +698,7 @@ class _ShellDrawer extends StatefulWidget {
     required this.onOpenAccountSwitcher,
     required this.onOpenTerms,
     required this.onOpenPrivacy,
+    required this.onOpenFeedback,
   });
 
   final int selectedIndex;
@@ -628,6 +709,7 @@ class _ShellDrawer extends StatefulWidget {
   final VoidCallback? onOpenAccountSwitcher;
   final Future<void> Function() onOpenTerms;
   final Future<void> Function() onOpenPrivacy;
+  final Future<void> Function() onOpenFeedback;
 
   @override
   State<_ShellDrawer> createState() => _ShellDrawerState();
@@ -644,6 +726,7 @@ class _ShellDrawerState extends State<_ShellDrawer> {
   VoidCallback? get onOpenAccountSwitcher => widget.onOpenAccountSwitcher;
   Future<void> Function() get onOpenTerms => widget.onOpenTerms;
   Future<void> Function() get onOpenPrivacy => widget.onOpenPrivacy;
+  Future<void> Function() get onOpenFeedback => widget.onOpenFeedback;
 
   @override
   Widget build(BuildContext context) {
@@ -746,7 +829,10 @@ class _ShellDrawerState extends State<_ShellDrawer> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   OutlinedButton.icon(
-                    onPressed: () {},
+                    onPressed: () => _openExternalLink(
+                      context,
+                      onOpenFeedback,
+                    ),
                     icon: const Icon(CraftskyIconsBold.comment),
                     label: Text(l10n.navigationFeedback),
                   ),
@@ -886,6 +972,8 @@ class _ShellNavigationRail extends StatelessWidget {
     required this.onOpenAccountSwitcher,
     required this.onOpenTerms,
     required this.onOpenPrivacy,
+    required this.onOpenFeedback,
+    required this.onCompose,
   });
 
   final int selectedIndex;
@@ -897,6 +985,8 @@ class _ShellNavigationRail extends StatelessWidget {
   final VoidCallback? onOpenAccountSwitcher;
   final Future<void> Function() onOpenTerms;
   final Future<void> Function() onOpenPrivacy;
+  final Future<void> Function() onOpenFeedback;
+  final ValueChanged<BuildContext> onCompose;
 
   @override
   Widget build(BuildContext context) {
@@ -907,89 +997,110 @@ class _ShellNavigationRail extends StatelessWidget {
       surfaceTintColor: Colors.transparent,
       clipBehavior: Clip.antiAlias,
       shape: _navigationRailBorder(theme),
-      child: NavigationRail(
-        backgroundColor: Colors.transparent,
-        selectedIndex: selectedIndex,
-        onDestinationSelected: onDestinationSelected,
-        extended: true,
-        scrollable: true,
-        trailingAtBottom: true,
-        trailing: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-          child: SizedBox(
-            width: 200,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                TextButton(
-                  style: _utilityLinkButtonStyle(),
-                  onPressed: () => unawaited(onOpenTerms()),
-                  child: Text(l10n.navigationTerms),
+      child: Column(
+        children: [
+          Expanded(
+            child: NavigationRail(
+              backgroundColor: Colors.transparent,
+              selectedIndex: selectedIndex,
+              onDestinationSelected: onDestinationSelected,
+              extended: true,
+              scrollable: true,
+              trailing: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                child: SizedBox(
+                  width: 200,
+                  child: Builder(
+                    builder: (buttonContext) =>
+                        CraftskyFloatingActionButton.extended(
+                          tooltip: l10n.postComposeAction,
+                          minimumHeight: 44,
+                          onPressed: () => onCompose(buttonContext),
+                          icon: const Icon(CraftskyIconsBold.add),
+                          label: Text(l10n.postComposeAction),
+                        ),
+                  ),
                 ),
-                TextButton(
-                  style: _utilityLinkButtonStyle(),
-                  onPressed: () => unawaited(onOpenPrivacy()),
-                  child: Text(l10n.navigationPrivacy),
-                ),
-                OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(CraftskyIconsBold.comment),
-                  label: Text(l10n.navigationFeedback),
-                ),
-                if (buildVersionLabel case final label?) ...[
-                  const SizedBox(height: 4),
-                  _BuildVersionText(label),
-                ],
+              ),
+              destinations: [
+                for (final (index, d) in _menuDestinations.indexed)
+                  NavigationRailDestination(
+                    icon: _DestinationIcon(
+                      icon: d.icon,
+                      badge: index == 3 ? notificationBadge : null,
+                      profileIconOnly: index == 4,
+                      onTapDestination: index == 4
+                          ? () => onDestinationSelected(index)
+                          : null,
+                      onOpenAccountSwitcher: index == 4
+                          ? onOpenAccountSwitcher
+                          : null,
+                    ),
+                    selectedIcon: _DestinationIcon(
+                      icon: d.selectedIcon,
+                      badge: index == 3 ? notificationBadge : null,
+                      profileIconOnly: index == 4,
+                      onTapDestination: index == 4
+                          ? () => onDestinationSelected(index)
+                          : null,
+                      onOpenAccountSwitcher: index == 4
+                          ? onOpenAccountSwitcher
+                          : null,
+                    ),
+                    label: index == 4
+                        ? _ProfileRailLabel(
+                            anchorKey: profileAnchorKey,
+                            label: _destinationSemanticsLabel(
+                              context,
+                              index: index,
+                              notificationBadge: notificationBadge,
+                            ),
+                            focusNode: profileFocusNode,
+                            onOpenAccountSwitcher: onOpenAccountSwitcher,
+                          )
+                        : Semantics(
+                            label: _destinationSemanticsLabel(
+                              context,
+                              index: index,
+                              notificationBadge: notificationBadge,
+                            ),
+                            excludeSemantics: true,
+                            child: Text(_destinationLabel(l10n, index)),
+                          ),
+                  ),
               ],
             ),
           ),
-        ),
-        destinations: [
-          for (final (index, d) in _menuDestinations.indexed)
-            NavigationRailDestination(
-              icon: _DestinationIcon(
-                icon: d.icon,
-                badge: index == 3 ? notificationBadge : null,
-                profileIconOnly: index == 4,
-                onTapDestination: index == 4
-                    ? () => onDestinationSelected(index)
-                    : null,
-                onOpenAccountSwitcher: index == 4
-                    ? onOpenAccountSwitcher
-                    : null,
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+            child: SizedBox(
+              width: 200,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  TextButton(
+                    style: _utilityLinkButtonStyle(),
+                    onPressed: () => unawaited(onOpenTerms()),
+                    child: Text(l10n.navigationTerms),
+                  ),
+                  TextButton(
+                    style: _utilityLinkButtonStyle(),
+                    onPressed: () => unawaited(onOpenPrivacy()),
+                    child: Text(l10n.navigationPrivacy),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => unawaited(onOpenFeedback()),
+                    icon: const Icon(CraftskyIconsBold.comment),
+                    label: Text(l10n.navigationFeedback),
+                  ),
+                  if (buildVersionLabel case final label?) ...[
+                    const SizedBox(height: 4),
+                    _BuildVersionText(label),
+                  ],
+                ],
               ),
-              selectedIcon: _DestinationIcon(
-                icon: d.selectedIcon,
-                badge: index == 3 ? notificationBadge : null,
-                profileIconOnly: index == 4,
-                onTapDestination: index == 4
-                    ? () => onDestinationSelected(index)
-                    : null,
-                onOpenAccountSwitcher: index == 4
-                    ? onOpenAccountSwitcher
-                    : null,
-              ),
-              label: index == 4
-                  ? _ProfileRailLabel(
-                      anchorKey: profileAnchorKey,
-                      label: _destinationSemanticsLabel(
-                        context,
-                        index: index,
-                        notificationBadge: notificationBadge,
-                      ),
-                      focusNode: profileFocusNode,
-                      onOpenAccountSwitcher: onOpenAccountSwitcher,
-                    )
-                  : Semantics(
-                      label: _destinationSemanticsLabel(
-                        context,
-                        index: index,
-                        notificationBadge: notificationBadge,
-                      ),
-                      excludeSemantics: true,
-                      child: Text(_destinationLabel(l10n, index)),
-                    ),
             ),
+          ),
         ],
       ),
     );

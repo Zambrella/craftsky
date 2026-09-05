@@ -196,6 +196,12 @@ abstract class AppLocalizations {
   /// **'Open link'**
   String get externalLinkConfirmAction;
 
+  /// Action below a crafts picker that opens the craft request form.
+  ///
+  /// In en, this message translates to:
+  /// **'Request more'**
+  String get craftsRequestMoreAction;
+
   /// Title for the in-app notifications page.
   ///
   /// In en, this message translates to:
@@ -1419,6 +1425,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'New post'**
   String get postComposeAction;
+
+  /// Inline action that expands truncated post text.
+  ///
+  /// In en, this message translates to:
+  /// **'Show more'**
+  String get postShowMore;
+
+  /// Inline action that collapses expanded post text.
+  ///
+  /// In en, this message translates to:
+  /// **'Show less'**
+  String get postShowLess;
+
+  /// Tooltip and accessibility label for returning a collection to its first item.
+  ///
+  /// In en, this message translates to:
+  /// **'Back to top'**
+  String get scrollToTopAction;
 
   /// Title of the text-only post composer sheet.
   ///

@@ -219,6 +219,7 @@ class _EventList extends ConsumerWidget {
       onRefresh: controller.refresh,
       child: ListView(
         key: PageStorageKey(filter),
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: rows,
       ),

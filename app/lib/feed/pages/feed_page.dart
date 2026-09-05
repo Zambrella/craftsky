@@ -17,23 +17,53 @@ import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
-import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/shared/widgets/scroll_to_top_button.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 const _autoLoadMoreThreshold = 3;
 
-class FeedPage extends ConsumerWidget {
+class FeedPage extends ConsumerStatefulWidget {
   const FeedPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<FeedPage> createState() => _FeedPageState();
+}
+
+class _FeedPageState extends ConsumerState<FeedPage> {
+  static const _scrollToTopThreshold = 200.0;
+  final _scrollController = ScrollController();
+  var _isPastScrollThreshold = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_handleScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_handleScroll)
+      ..dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final timelineAsync = ref.watch(timelineProvider);
+    final hasItems = timelineAsync.value?.items.isNotEmpty ?? false;
+    final isCompact = FormFactor.fromWidth(
+      MediaQuery.sizeOf(context).width,
+    ).isSmall;
     ref
       ..listen(deletePostProvider, (previous, next) {
         switch ((previous, next)) {
@@ -54,31 +84,97 @@ class FeedPage extends ConsumerWidget {
         }
       });
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            leading: AppShellDrawerScope.maybeOf(context) == null
-                ? null
-                : const AppShellDrawerButton(),
-            title: Text(l10n.feedTitle),
-            pinned: true,
+      floatingActionButton: isCompact
+          ? Builder(
+              builder: (buttonContext) => CraftskyFloatingActionButton.extended(
+                tooltip: l10n.postComposeAction,
+                onPressed: () => _openComposer(buttonContext),
+                icon: const Icon(CraftskyIconsBold.add),
+                label: Text(l10n.postComposeAction),
+              ),
+            )
+          : null,
+      body: Stack(
+        children: [
+          RefreshIndicator(
+            edgeOffset: MediaQuery.paddingOf(context).top + kToolbarHeight,
+            onRefresh: () async {
+              final _ = await ref.refresh(timelineProvider.future);
+            },
+            child: CustomScrollView(
+              controller: _scrollController,
+              physics: const AlwaysScrollableScrollPhysics(),
+              slivers: [
+                SliverAppBar(
+                  leading: AppShellDrawerScope.maybeOf(context) == null
+                      ? null
+                      : const AppShellDrawerButton(),
+                  title: Text(l10n.feedTitle),
+                  pinned: true,
+                ),
+                switch (timelineAsync) {
+                  AsyncValue(:final value?) => _FeedLoadedSlivers(
+                    items: value.items,
+                    hasMore: value.hasMore,
+                    isLoadingMore: timelineAsync.isLoading,
+                    hasLoadMoreError: timelineAsync.hasError,
+                  ),
+                  _ when timelineAsync.hasError => _FeedErrorSliver(
+                    onRetry: () => ref.invalidate(timelineProvider),
+                  ),
+                  _ => const SliverFillRemaining(
+                    hasScrollBody: false,
+                    child: Center(child: StitchProgressIndicator()),
+                  ),
+                },
+              ],
+            ),
           ),
-          switch (timelineAsync) {
-            AsyncValue(:final value?) => _FeedLoadedSlivers(
-              items: value.items,
-              hasMore: value.hasMore,
-              isLoadingMore: timelineAsync.isLoading,
-              hasLoadMoreError: timelineAsync.hasError,
+          Positioned(
+            left: 16,
+            bottom: isCompact && Directionality.of(context) == TextDirection.rtl
+                ? 88
+                : 16,
+            child: ScrollToTopButton(
+              visible: hasItems && _isPastScrollThreshold,
+              tooltip: l10n.scrollToTopAction,
+              onPressed: _scrollToTop,
             ),
-            _ when timelineAsync.hasError => _FeedErrorSliver(
-              onRetry: () => ref.invalidate(timelineProvider),
-            ),
-            _ => const SliverFillRemaining(
-              hasScrollBody: false,
-              child: Center(child: StitchProgressIndicator()),
-            ),
-          },
+          ),
         ],
+      ),
+    );
+  }
+
+  void _handleScroll() {
+    final isPastThreshold =
+        _scrollController.hasClients &&
+        _scrollController.offset >= _scrollToTopThreshold;
+    if (isPastThreshold == _isPastScrollThreshold || !mounted) return;
+    setState(() => _isPastScrollThreshold = isPastThreshold);
+  }
+
+  void _openComposer(BuildContext buttonContext) {
+    unawaited(
+      showTopLevelPostComposerChooser(
+        buttonContext,
+        position: craftskyContextMenuAnchorPosition(buttonContext),
+      ),
+    );
+  }
+
+  void _scrollToTop() {
+    if (!_scrollController.hasClients) return;
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _scrollController.jumpTo(_scrollController.position.minScrollExtent);
+      return;
+    }
+    final durations = Theme.of(context).extension<DurationTheme>()!;
+    unawaited(
+      _scrollController.animateTo(
+        _scrollController.position.minScrollExtent,
+        duration: durations.medium,
+        curve: durations.ease,
       ),
     );
   }
@@ -103,28 +199,6 @@ class _FeedLoadedSlivers extends ConsumerWidget {
     final auth = ref.watch(authSessionProvider).value;
     return SliverMainAxisGroup(
       slivers: [
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Builder(
-              builder: (buttonContext) {
-                return ChunkyButton(
-                  onPressed: () {
-                    unawaited(
-                      showTopLevelPostComposerChooser(
-                        buttonContext,
-                        position: craftskyContextMenuAnchorPosition(
-                          buttonContext,
-                        ),
-                      ),
-                    );
-                  },
-                  child: Text(l10n.postComposeAction),
-                );
-              },
-            ),
-          ),
-        ),
         if (items.isEmpty)
           SliverFillRemaining(
             hasScrollBody: false,
@@ -155,6 +229,7 @@ class _FeedLoadedSlivers extends ConsumerWidget {
               final post = item.post;
               return PostCard(
                 post: post,
+                collapseBody: true,
                 imageInteractionMode: PostCardImageInteractionMode.navigate,
                 hideWhenAuthorProtected: true,
                 allowProfilePinAction: true,

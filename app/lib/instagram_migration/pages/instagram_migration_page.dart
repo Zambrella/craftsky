@@ -80,6 +80,7 @@ class _InstagramMigrationBody extends ConsumerWidget {
         await ref.read(instagramSuggestionsProvider(lease).notifier).refresh();
       },
       child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.fromLTRB(
           spacing.sp4,
           spacing.sp4,

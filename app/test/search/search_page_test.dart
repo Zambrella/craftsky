@@ -15,6 +15,7 @@ import 'package:craftsky_app/search/models/search_results_tab.dart';
 import 'package:craftsky_app/search/models/search_suggestions.dart';
 import 'package:craftsky_app/search/models/top_hashtags.dart';
 import 'package:craftsky_app/search/pages/search_page.dart';
+import 'package:craftsky_app/search/pages/tag_search_page.dart';
 import 'package:craftsky_app/search/providers/search_repository_provider.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -213,6 +214,116 @@ void main() {
     expect(find.text('search result result-a'), findsOneWidget);
     expect(find.text('search result result-b'), findsOneWidget);
     expect(find.text('search result result-c'), findsOneWidget);
+  });
+
+  for (final tab in SearchResultsTab.values) {
+    testWidgets('submitted ${tab.name} tab refreshes from an empty result', (
+      tester,
+    ) async {
+      var calls = 0;
+      final repository = FakeSearchRepository(
+        onSearchPosts: ({required q, limit, cursor}) async {
+          if (tab != SearchResultsTab.posts) {
+            return const SearchPostPage(items: []);
+          }
+          calls++;
+          return SearchPostPage(
+            items: calls == 1 ? const [] : [_post('refreshed-post')],
+          );
+        },
+        onSearchProjects: ({required q, limit, cursor}) async {
+          if (tab != SearchResultsTab.projects) {
+            return const SearchPostPage(items: []);
+          }
+          calls++;
+          return SearchPostPage(
+            items: calls == 1 ? const [] : [_post('refreshed-project')],
+          );
+        },
+        onSearchProfiles: ({required q, limit, cursor}) async {
+          if (tab != SearchResultsTab.profiles) {
+            return const ProfileSearchPage(items: []);
+          }
+          calls++;
+          return ProfileSearchPage(
+            items: calls == 1
+                ? const []
+                : [
+                    ProfileSearchResult(
+                      did: 'did:plc:refresh',
+                      handle: 'refresh.test',
+                      isCraftskyProfile: true,
+                      viewerIsFollowing: false,
+                    ),
+                  ],
+          );
+        },
+        onSearchHashtags: ({required q, limit, cursor}) async {
+          if (tab != SearchResultsTab.tags) {
+            return const HashtagSearchPage(items: []);
+          }
+          calls++;
+          return HashtagSearchPage(
+            items: calls == 1
+                ? const []
+                : const [
+                    HashtagSearchResult(tag: 'refreshed', postsLast28Days: 1),
+                  ],
+          );
+        },
+      );
+      await tester.pumpWidget(
+        _searchPageApp(
+          repository: repository,
+          home: SearchPage(q: 'refresh', tab: tab),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final scrollView = find.byKey(
+        PageStorageKey<String>('search_results_tab_${tab.name}'),
+      );
+      await tester.drag(scrollView, const Offset(0, 400));
+      await tester.pumpAndSettle();
+
+      expect(calls, 2);
+      switch (tab) {
+        case SearchResultsTab.posts:
+          expect(find.text('search result refreshed-post'), findsOneWidget);
+        case SearchResultsTab.projects:
+          expect(find.text('search result refreshed-project'), findsOneWidget);
+        case SearchResultsTab.profiles:
+          expect(find.text('@refresh.test'), findsOneWidget);
+        case SearchResultsTab.tags:
+          expect(find.text('#refreshed'), findsOneWidget);
+      }
+    });
+  }
+
+  testWidgets('hashtag result page refreshes from an empty result', (
+    tester,
+  ) async {
+    var calls = 0;
+    await tester.pumpWidget(
+      _searchPageApp(
+        repository: FakeSearchRepository(
+          onSearchHashtagPosts: (tag, {sort, limit, cursor}) async {
+            calls++;
+            return SearchPostPage(
+              items: calls == 1 ? const [] : [_post('tag-refreshed')],
+            );
+          },
+        ),
+        home: const TagSearchPage(tag: 'knitting'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, 400));
+    await tester.pumpAndSettle();
+
+    expect(calls, 2);
+    expect(find.text('search result tag-refreshed'), findsOneWidget);
   });
 
   test('SearchRoute preserves submitted query context', () {

@@ -6,6 +6,8 @@ import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/providers/profile_business_events_provider.dart';
+import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
+import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
@@ -27,6 +29,7 @@ import 'package:craftsky_app/profile/widgets/profile_tabs/profile_events_tab.dar
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_posts_tab.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_products_tab.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_projects_tab.dart';
+import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -672,7 +675,7 @@ class _RelationshipAnnotation extends StatelessWidget {
 /// Inner scrollable for one tab. Wraps the tab's slivers in a
 /// [CustomScrollView] keyed by tab name so [PageStorage] retains the
 /// scroll offset when the user swipes back to it.
-class _ProfileTabScrollView extends StatelessWidget {
+class _ProfileTabScrollView extends ConsumerWidget {
   const _ProfileTabScrollView({
     required this.tab,
     required this.profile,
@@ -686,12 +689,48 @@ class _ProfileTabScrollView extends StatelessWidget {
   final AccountKey? viewerAccount;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    return CustomScrollView(
+    final onRefresh = switch (tab) {
+      ProfileTab.posts => () async {
+        final _ = await ref.refresh(userPostsProvider(profile.handle).future);
+      },
+      ProfileTab.projects => () async {
+        final _ = await ref.refresh(
+          userProjectsProvider(profile.handle).future,
+        );
+      },
+      ProfileTab.comments => () async {
+        final _ = await ref.refresh(
+          userCommentsProvider(profile.handle).future,
+        );
+      },
+      ProfileTab.products => () async {
+        final _ = await ref.refresh(
+          userProfileProvider(profile.handle).future,
+        );
+      },
+      ProfileTab.upcomingEvents when viewerAccount != null =>
+        () => ref
+            .read(
+              profileBusinessEventsProvider(
+                ProfileBusinessEventsTarget(
+                  account: viewerAccount!,
+                  owner: AtIdentifier.parse(profile.did.toString()),
+                ),
+              ).notifier,
+            )
+            .refresh(),
+      _ => null,
+    };
+    final scrollView = CustomScrollView(
       key: PageStorageKey<String>(tab.storageKey),
+      physics: onRefresh == null ? null : const AlwaysScrollableScrollPhysics(),
       slivers: [_sliverForTab(context, tab, profile, l10n)],
     );
+    return onRefresh == null
+        ? scrollView
+        : RefreshIndicator(onRefresh: onRefresh, child: scrollView);
   }
 
   Widget _sliverForTab(

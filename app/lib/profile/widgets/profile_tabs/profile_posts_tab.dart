@@ -38,7 +38,6 @@ class ProfilePostsTab extends ConsumerWidget {
           title: l10n.profileTabPosts,
           subtitle: l10n.profilePostsEmpty,
         ),
-        showComposeButton: isOwnProfile,
         onLoadMore: () =>
             ref.read(userPostsProvider(handle).notifier).loadMore(),
         onReplacePost: (post) =>

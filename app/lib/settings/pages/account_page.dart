@@ -11,6 +11,9 @@ import 'package:craftsky_app/settings/models/settings_row.dart';
 import 'package:craftsky_app/settings/providers/account_deletion_controller.dart';
 import 'package:craftsky_app/settings/widgets/settings_row_tile.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/theme/brand_colors.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -103,25 +106,14 @@ class AccountPage extends ConsumerWidget {
     String handle,
   ) async {
     final l10n = AppLocalizations.of(context);
-    final proceed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        scrollable: true,
-        title: Text(l10n.deleteAccountTitle),
-        content: Text(l10n.deleteAccountBoundary(handle)),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: Text(l10n.actionCancel),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: Text(l10n.deleteAccountContinue),
-          ),
-        ],
-      ),
+    final proceed = await showCraftskyDestructiveConfirmDialog(
+      context,
+      title: l10n.deleteAccountTitle,
+      message: l10n.deleteAccountBoundary(handle),
+      confirmLabel: l10n.deleteAccountContinue,
+      cancelLabel: l10n.actionCancel,
     );
-    if (proceed != true || !context.mounted) return;
+    if (!proceed || !context.mounted) return;
     if (onDeleteConfirmed case final callback?) {
       await _confirmHandle(context, handle, callback);
       return;
@@ -139,8 +131,8 @@ class AccountPage extends ConsumerWidget {
     String handle,
     Future<void> Function(String handle) callback,
   ) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
+    final confirmed = await showCraftskyModal<bool>(
+      context,
       builder: (_) => _HandleConfirmationDialog(requiredHandle: handle),
     );
     if (confirmed == true) await callback(handle);
@@ -169,34 +161,31 @@ class _HandleConfirmationDialogState extends State<_HandleConfirmationDialog> {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return AlertDialog(
-      title: Text(l10n.deleteAccountConfirmTitle),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              l10n.deleteAccountConfirmationPrompt(widget.requiredHandle),
+    return CraftskyDialog(
+      title: l10n.deleteAccountConfirmTitle,
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(l10n.deleteAccountConfirmationPrompt(widget.requiredHandle)),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _controller,
+            autocorrect: false,
+            enableSuggestions: false,
+            decoration: InputDecoration(
+              labelText: l10n.deleteAccountTypeHandleLabel,
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _controller,
-              autocorrect: false,
-              enableSuggestions: false,
-              decoration: InputDecoration(
-                labelText: l10n.deleteAccountTypeHandleLabel,
-              ),
-              onChanged: (_) => setState(() {}),
-            ),
-          ],
-        ),
+            onChanged: (_) => setState(() {}),
+          ),
+        ],
       ),
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context, false),
           child: Text(l10n.actionCancel),
         ),
-        FilledButton(
+        ChunkyButton(
+          backgroundColor: BrandColors.red,
           onPressed:
               matchesDeletionConfirmationHandle(
                 requiredHandle: widget.requiredHandle,

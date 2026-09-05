@@ -1,15 +1,21 @@
 import 'dart:ui' show Tristate;
 
 import 'package:craftsky_app/auth/widgets/account_avatar.dart';
+import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/languages/models/language_preferences.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
+import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/router/app_shell.dart';
+import 'package:craftsky_app/settings/settings_links.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
+import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -23,9 +29,18 @@ import '../fakes/recording_messenger.dart';
 
 void main() {
   testWidgets(
-    'compact shell drawer exposes navigation, legal links, and inert feedback',
+    'compact shell drawer opens the shared Feedback destination',
     (tester) async {
-      final router = await _pumpShell(tester, const Size(500, 800));
+      Uri? openedUri;
+      final router = await _pumpShell(
+        tester,
+        const Size(500, 800),
+        linkLauncher: (uri) async {
+          openedUri = uri;
+          return true;
+        },
+        confirmOpenLink: (_, _) async => true,
+      );
 
       await tester.dragFrom(
         const Offset(0, 400),
@@ -62,7 +77,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(router.state.matchedLocation, '/feed');
-      expect(find.byType(Drawer), findsOneWidget);
+      expect(find.byType(Drawer), findsNothing);
+      expect(openedUri, settingsSupportUri);
     },
   );
 
@@ -81,18 +97,17 @@ void main() {
     );
   });
 
-  testWidgets('UIP-004 compact drawer opens from the wider swipe region', (
+  testWidgets('compact shell leaves the drawer edge drag width at default', (
     tester,
   ) async {
     await _pumpShell(tester, const Size(500, 800));
 
-    await tester.dragFrom(
-      const Offset(80, 400),
-      const Offset(320, 0),
+    final scaffold = tester.widget<Scaffold>(
+      find.byWidgetPredicate(
+        (widget) => widget is Scaffold && widget.drawer != null,
+      ),
     );
-    await tester.pumpAndSettle();
-
-    expect(find.byType(Drawer), findsOneWidget);
+    expect(scaffold.drawerEdgeDragWidth, isNull);
   });
 
   testWidgets('UIP-001 drawer is outlined, divider-free, and icon-only', (
@@ -163,6 +178,101 @@ void main() {
     expect(find.byType(CraftskyDivider), findsNothing);
     expect(find.byType(AccountAvatar), findsNothing);
     expect(find.byIcon(CraftskyIcons.profile), findsOneWidget);
+  });
+
+  testWidgets('wide rail has one compose action outside its 9 destinations', (
+    tester,
+  ) async {
+    await _pumpShell(tester, const Size(1200, 800));
+
+    final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
+    expect(rail.destinations, hasLength(9));
+    expect(rail.leading, isNull);
+    expect(rail.trailing, isNotNull);
+    expect(
+      find.widgetWithText(CraftskyFloatingActionButton, 'New post'),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .getSize(
+            find.widgetWithText(CraftskyFloatingActionButton, 'New post'),
+          )
+          .height,
+      44,
+    );
+    expect(
+      tester
+          .getTopLeft(
+            find.widgetWithText(CraftskyFloatingActionButton, 'New post'),
+          )
+          .dy,
+      greaterThan(tester.getTopLeft(find.text('Settings')).dy),
+    );
+    expect(
+      tester.getTopLeft(find.widgetWithText(OutlinedButton, 'Feedback')).dy,
+      greaterThan(
+        tester
+            .getTopLeft(
+              find.widgetWithText(CraftskyFloatingActionButton, 'New post'),
+            )
+            .dy,
+      ),
+    );
+  });
+
+  testWidgets('wide compose chooser opens without changing route', (
+    tester,
+  ) async {
+    final router = await _pumpShell(tester, const Size(1200, 800));
+
+    await tester.tap(
+      find.widgetWithText(CraftskyFloatingActionButton, 'New post'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(router.state.matchedLocation, '/feed');
+    expect(find.text('Regular post'), findsOneWidget);
+    expect(find.text('Project post'), findsOneWidget);
+    expect(find.byType(NavigationRail), findsOneWidget);
+  });
+
+  for (final (option, composerType, destination, location) in [
+    ('Regular post', PostComposerSheet, null, '/feed'),
+    ('Project post', ProjectComposerSheet, 'Projects', '/projects'),
+  ]) {
+    testWidgets(
+      'wide $option composer uses active branch and keeps rail visible',
+      (tester) async {
+        final router = await _pumpShell(
+          tester,
+          const Size(1200, 800),
+          wrapInAuthenticatedShell: true,
+        );
+        if (destination != null) {
+          await tester.tap(find.text(destination));
+          await tester.pumpAndSettle();
+        }
+
+        await tester.tap(
+          find.widgetWithText(CraftskyFloatingActionButton, 'New post'),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(option));
+        await tester.pumpAndSettle();
+
+        expect(router.state.matchedLocation, location);
+        expect(find.byType(composerType), findsOneWidget);
+        expect(find.byType(NavigationRail), findsOneWidget);
+      },
+    );
+  }
+
+  testWidgets('compact shell does not expose rail compose', (tester) async {
+    await _pumpShell(tester, const Size(500, 800));
+
+    expect(find.byType(CraftskyFloatingActionButton), findsNothing);
+    expect(find.text('New post'), findsNothing);
   });
 
   testWidgets('UIP-009 rail selection uses primary theme colors', (
@@ -585,8 +695,14 @@ void main() {
     await _pumpShell(tester, const Size(1200, 800));
 
     final rail = find.byType(NavigationRail);
-    final railVersion = find.descendant(
+    final railSurface = find.ancestor(
       of: rail,
+      matching: find.byWidgetPredicate(
+        (widget) => widget is Material && widget.shape != null,
+      ),
+    );
+    final railVersion = find.descendant(
+      of: railSurface,
       matching: find.text('1.0.0 (1)'),
     );
     expect(railVersion, findsOneWidget);
@@ -596,7 +712,7 @@ void main() {
         tester
             .getBottomLeft(
               find.descendant(
-                of: rail,
+                of: railSurface,
                 matching: find.widgetWithText(OutlinedButton, 'Feedback'),
               ),
             )
@@ -629,10 +745,19 @@ void main() {
     }
   });
 
-  testWidgets('CORR-005 large rail is selected and Feedback remains inert', (
+  testWidgets('large rail keeps selection and opens Feedback destination', (
     tester,
   ) async {
-    final router = await _pumpShell(tester, const Size(1200, 800));
+    Uri? openedUri;
+    final router = await _pumpShell(
+      tester,
+      const Size(1200, 800),
+      linkLauncher: (uri) async {
+        openedUri = uri;
+        return true;
+      },
+      confirmOpenLink: (_, _) async => true,
+    );
     final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
 
     expect(rail.destinations, hasLength(9));
@@ -644,6 +769,28 @@ void main() {
     await tester.tap(find.text('Feedback'));
     await tester.pumpAndSettle();
 
+    expect(router.state.matchedLocation, '/feed');
+    expect(find.byType(NavigationRail), findsOneWidget);
+    expect(openedUri, settingsSupportUri);
+  });
+
+  testWidgets('cancelling Feedback does not call the launcher', (tester) async {
+    var launcherCalled = false;
+    final router = await _pumpShell(
+      tester,
+      const Size(1200, 800),
+      linkLauncher: (_) async {
+        launcherCalled = true;
+        return true;
+      },
+      confirmOpenLink: (_, _) async => false,
+    );
+
+    await tester.ensureVisible(find.text('Feedback'));
+    await tester.tap(find.text('Feedback'));
+    await tester.pumpAndSettle();
+
+    expect(launcherCalled, isFalse);
     expect(router.state.matchedLocation, '/feed');
     expect(find.byType(NavigationRail), findsOneWidget);
   });
@@ -774,16 +921,20 @@ void main() {
   testWidgets('CORR-006 rail remains scrollable at large text and low height', (
     tester,
   ) async {
-    await _pumpShell(
+    final router = await _pumpShell(
       tester,
       const Size(1200, 500),
       textScaler: const TextScaler.linear(2),
     );
 
     expect(tester.takeException(), isNull);
-    await tester.ensureVisible(find.text('Feedback'));
+    await tester.ensureVisible(find.text('Settings'));
     await tester.pumpAndSettle();
-    expect(find.text('Feedback'), findsOneWidget);
+    await tester.tap(find.text('Settings'));
+    await tester.pumpAndSettle();
+
+    expect(router.state.matchedLocation, '/profile/settings');
+    expect(find.text('Settings'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 
@@ -821,11 +972,13 @@ Future<GoRouter> _pumpShell(
   WidgetTester tester,
   Size size, {
   ExternalLinkLauncher? linkLauncher,
+  ExternalLinkConfirmer? confirmOpenLink,
   ValueChanged<String>? onRedirect,
   TextDirection? textDirection,
   TextScaler? textScaler,
   RecordingMessenger? messenger,
   ThemeMode themeMode = ThemeMode.light,
+  bool wrapInAuthenticatedShell = false,
 }) async {
   addTearDown(tester.view.resetPhysicalSize);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -839,11 +992,17 @@ Future<GoRouter> _pumpShell(
     },
     routes: [
       StatefulShellRoute.indexedStack(
-        builder: (context, state, navigationShell) => AppShell(
-          navigationShell: navigationShell,
-          linkLauncher: linkLauncher ?? (_) async => true,
-          buildVersionLabel: '1.0.0 (1)',
-        ),
+        builder: (context, state, navigationShell) {
+          final shell = AppShell(
+            navigationShell: navigationShell,
+            linkLauncher: linkLauncher ?? (_) async => true,
+            confirmOpenLink: confirmOpenLink ?? ((_, _) async => true),
+            buildVersionLabel: '1.0.0 (1)',
+          );
+          return wrapInAuthenticatedShell
+              ? AuthenticatedShell(child: shell)
+              : shell;
+        },
         branches: [
           for (final path in [
             '/feed',
@@ -895,6 +1054,12 @@ Future<GoRouter> _pumpShell(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        activeLanguagePreferencesProvider.overrideWith(
+          (ref) => const LanguagePreferences(
+            primaryLanguage: 'en',
+            contentLanguages: ['en'],
+          ),
+        ),
         notificationNewnessRepositoryProvider.overrideWithValue(
           const _ZeroNewnessRepository(),
         ),
