@@ -135,7 +135,7 @@ class _SearchResultsTabBarDelegate extends SliverPersistentHeaderDelegate {
   }
 }
 
-class _SearchResultTabScrollView extends StatelessWidget {
+class _SearchResultTabScrollView extends ConsumerWidget {
   const _SearchResultTabScrollView({
     required this.tab,
     required this.query,
@@ -147,12 +147,31 @@ class _SearchResultTabScrollView extends StatelessWidget {
   final ValueChanged<String> onOpenHashtag;
 
   @override
-  Widget build(BuildContext context) {
-    return CustomScrollView(
-      key: PageStorageKey<String>('search_results_tab_${tab.name}'),
-      slivers: [_sliverForTab(tab)],
+  Widget build(BuildContext context, WidgetRef ref) {
+    return RefreshIndicator(
+      onRefresh: () => _refresh(ref),
+      child: CustomScrollView(
+        key: PageStorageKey<String>('search_results_tab_${tab.name}'),
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [_sliverForTab(tab)],
+      ),
     );
   }
+
+  Future<void> _refresh(WidgetRef ref) => switch (tab) {
+    SearchResultsTab.posts => ref.refresh(
+      postSearchProvider(PostSearchQuery(q: query)).future,
+    ),
+    SearchResultsTab.projects => ref.refresh(
+      projectSearchProvider(ProjectSearchQuery(q: query)).future,
+    ),
+    SearchResultsTab.profiles => ref.refresh(
+      profileSearchProvider(ProfileSearchQuery(q: query)).future,
+    ),
+    SearchResultsTab.tags => ref.refresh(
+      hashtagResultSearchProvider(HashtagResultSearchQuery(q: query)).future,
+    ),
+  };
 
   Widget _sliverForTab(SearchResultsTab tab) {
     return switch (tab) {
@@ -180,7 +199,11 @@ class _SubmittedPostResults extends ConsumerWidget {
     return switch (postResultsAsync) {
       AsyncValue(:final value?) => _PostList(
         posts: value.items,
-        emptyText: l10n.searchEmptyPosts,
+        emptyState: CraftskyEmptyState(
+          icon: CraftskyIcons.textPost,
+          title: l10n.searchTabPosts,
+          subtitle: l10n.searchEmptyPosts,
+        ),
         isLoadingMore: postResultsAsync.isLoading,
         hasLoadMoreError: postResultsAsync.hasError,
         onNearEnd: () => ref.read(provider.notifier).loadMore(),
@@ -210,7 +233,11 @@ class _SubmittedProjectResults extends ConsumerWidget {
     return switch (projectResultsAsync) {
       AsyncValue(:final value?) => _PostList(
         posts: value.items,
-        emptyText: l10n.searchEmptyProjects,
+        emptyState: CraftskyEmptyState(
+          icon: CraftskyIcons.projects,
+          title: l10n.searchTabProjects,
+          subtitle: l10n.searchEmptyProjects,
+        ),
         isLoadingMore: projectResultsAsync.isLoading,
         hasLoadMoreError: projectResultsAsync.hasError,
         onNearEnd: () => ref.read(provider.notifier).loadMore(),
@@ -240,7 +267,11 @@ class _ProfileResultsSliver extends ConsumerWidget {
     return switch (profileResultsAsync) {
       AsyncValue(:final value?) => AutoPaginatedSliverList(
         itemCount: value.items.length,
-        emptyText: l10n.searchEmptyProfiles,
+        emptyState: CraftskyEmptyState(
+          icon: CraftskyIcons.people,
+          title: l10n.searchTabProfiles,
+          subtitle: l10n.searchEmptyProfiles,
+        ),
         isLoadingMore: profileResultsAsync.isLoading,
         hasLoadMoreError: profileResultsAsync.hasError,
         onNearEnd: () => ref.read(provider.notifier).loadMore(),
@@ -288,7 +319,11 @@ class _HashtagResultsSliver extends ConsumerWidget {
     return switch (hashtagResultsAsync) {
       AsyncValue(:final value?) => AutoPaginatedSliverList(
         itemCount: value.items.length,
-        emptyText: l10n.searchEmptyTags,
+        emptyState: CraftskyEmptyState(
+          icon: CraftskyIcons.search,
+          title: l10n.searchTabTags,
+          subtitle: l10n.searchEmptyTags,
+        ),
         isLoadingMore: hashtagResultsAsync.isLoading,
         hasLoadMoreError: hashtagResultsAsync.hasError,
         onNearEnd: () => ref.read(provider.notifier).loadMore(),

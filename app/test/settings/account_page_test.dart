@@ -14,6 +14,9 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/settings/pages/account_page.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -42,6 +45,7 @@ void main() {
               ),
             ],
             child: MaterialApp(
+              theme: AppTheme.lightThemeData,
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: AccountPage(onDeleteConfirmed: (_) async {}),
@@ -72,7 +76,7 @@ void main() {
         expect(find.text('Delete CraftSky account?'), findsOneWidget);
         expect(
           tester
-              .getSemantics(find.widgetWithText(FilledButton, 'Continue'))
+              .getSemantics(find.widgetWithText(ChunkyButton, 'Continue'))
               .getSemanticsData()
               .hasAction(SemanticsAction.tap),
           isTrue,
@@ -184,6 +188,7 @@ void main() {
           authSessionProvider.overrideWith(SignedInAuthSession.new),
         ],
         child: MaterialApp(
+          theme: AppTheme.lightThemeData,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: AccountPage(
@@ -196,6 +201,8 @@ void main() {
 
     await tester.tap(find.text('Delete account'));
     await tester.pumpAndSettle();
+    expect(find.byType(CraftskyDialog), findsOneWidget);
+    expect(find.byType(AlertDialog), findsNothing);
     expect(find.text('Delete CraftSky account?'), findsOneWidget);
     expect(
       find.textContaining('all your CraftSky data from your PDS'),
@@ -208,17 +215,19 @@ void main() {
 
     await tester.tap(find.text('Continue'));
     await tester.pumpAndSettle();
+    expect(find.byType(CraftskyDialog), findsOneWidget);
+    expect(find.byType(AlertDialog), findsNothing);
     await tester.enterText(find.byType(TextField), '@Test.bsky.social');
     await tester.pump();
-    FilledButton deleteButton() => tester.widget<FilledButton>(
-      find.widgetWithText(FilledButton, 'Delete account'),
+    ChunkyButton deleteButton() => tester.widget<ChunkyButton>(
+      find.widgetWithText(ChunkyButton, 'Delete account'),
     );
     expect(deleteButton().onPressed, isNull);
 
     await tester.enterText(find.byType(TextField), '@test.bsky.social');
     await tester.pump();
     expect(deleteButton().onPressed, isNotNull);
-    await tester.tap(find.widgetWithText(FilledButton, 'Delete account'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Delete account'));
     await tester.pumpAndSettle();
     expect(confirmedHandle, '@test.bsky.social');
   });

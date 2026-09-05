@@ -12,13 +12,23 @@ import 'package:craftsky_app/onboarding/widgets/onboarding_instagram_step.dart';
 import 'package:craftsky_app/onboarding/widgets/onboarding_profile_step.dart';
 import 'package:craftsky_app/onboarding/widgets/onboarding_progress.dart';
 import 'package:craftsky_app/profile/data/profile_field_constraints.dart';
+import 'package:craftsky_app/settings/settings_links.dart';
+import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class OnboardingPage extends ConsumerWidget {
-  const OnboardingPage({super.key});
+  const OnboardingPage({
+    this.linkLauncher = launchExternalLink,
+    this.confirmOpenLink = showOpenLinkDialog,
+    super.key,
+  });
+
+  final ExternalLinkLauncher linkLauncher;
+  final ExternalLinkConfirmer confirmOpenLink;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -42,6 +52,8 @@ class OnboardingPage extends ConsumerWidget {
       AsyncData(:final value) => _OnboardingFlowScaffold(
         lease: lease,
         state: value,
+        linkLauncher: linkLauncher,
+        confirmOpenLink: confirmOpenLink,
       ),
       AsyncError() => Scaffold(
         appBar: prefillAppBar,
@@ -67,10 +79,17 @@ class OnboardingPage extends ConsumerWidget {
 }
 
 class _OnboardingFlowScaffold extends ConsumerWidget {
-  const _OnboardingFlowScaffold({required this.lease, required this.state});
+  const _OnboardingFlowScaffold({
+    required this.lease,
+    required this.state,
+    required this.linkLauncher,
+    required this.confirmOpenLink,
+  });
 
   final ActiveAccountLease lease;
   final OnboardingFlowState state;
+  final ExternalLinkLauncher linkLauncher;
+  final ExternalLinkConfirmer confirmOpenLink;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -123,68 +142,88 @@ class _OnboardingFlowScaffold extends ConsumerWidget {
         ),
         body: SafeArea(
           top: false,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-                child: OnboardingProgress(step: state.step),
+          child: Center(
+            child: ConstrainedBox(
+              key: const Key('onboarding-flow-content'),
+              constraints: BoxConstraints(
+                maxWidth: FormFactor.tablet.breakpoint,
               ),
-              Expanded(
-                child: SingleChildScrollView(
-                  padding: EdgeInsets.fromLTRB(
-                    24,
-                    24,
-                    24,
-                    24 + MediaQuery.viewInsetsOf(context).bottom,
-                  ),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 720),
-                      child: switch (state.step) {
-                        OnboardingStep.profile => OnboardingProfileStep(
-                          state: state,
-                          onDisplayNameChanged: (value) =>
-                              notifier.updateIdentity(displayName: value),
-                          onBioChanged: (value) =>
-                              notifier.updateIdentity(bio: value),
-                          onPickAvatar: () => unawaited(notifier.pickAvatar()),
+              child: SizedBox(
+                width: double.infinity,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                      child: OnboardingProgress(step: state.step),
+                    ),
+                    Expanded(
+                      child: SingleChildScrollView(
+                        padding: EdgeInsets.fromLTRB(
+                          24,
+                          24,
+                          24,
+                          24 + MediaQuery.viewInsetsOf(context).bottom,
                         ),
-                        OnboardingStep.crafts => OnboardingCraftsStep(
-                          state: state,
-                          onToggle: (craft) => notifier.toggleCraft(craft.id),
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 720),
+                            child: switch (state.step) {
+                              OnboardingStep.profile => OnboardingProfileStep(
+                                state: state,
+                                onDisplayNameChanged: (value) =>
+                                    notifier.updateIdentity(displayName: value),
+                                onBioChanged: (value) =>
+                                    notifier.updateIdentity(bio: value),
+                                onPickAvatar: () =>
+                                    unawaited(notifier.pickAvatar()),
+                              ),
+                              OnboardingStep.crafts => OnboardingCraftsStep(
+                                state: state,
+                                onToggle: (craft) =>
+                                    notifier.toggleCraft(craft.id),
+                                onRequestMore: () => unawaited(
+                                  confirmAndLaunchExternalLink(
+                                    context,
+                                    uri: settingsSupportUri,
+                                    launchUrl: linkLauncher,
+                                    confirmOpenLink: confirmOpenLink,
+                                  ),
+                                ),
+                              ),
+                              OnboardingStep.instagram =>
+                                OnboardingInstagramStep(lease: lease),
+                            },
+                          ),
                         ),
-                        OnboardingStep.instagram => OnboardingInstagramStep(
-                          lease: lease,
+                      ),
+                    ),
+                    if (state.saveError != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Text(
+                          l10n.onboardingSaveError,
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
                         ),
+                      ),
+                    OnboardingBottomAction(
+                      state: action,
+                      onPressed: () {
+                        switch (action.kind) {
+                          case OnboardingActionKind.next:
+                            notifier.next();
+                          case OnboardingActionKind.saveAndNext:
+                            unawaited(notifier.saveAndNext());
+                          case OnboardingActionKind.finish:
+                            unawaited(notifier.complete());
+                        }
                       },
                     ),
-                  ),
+                  ],
                 ),
               ),
-              if (state.saveError != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Text(
-                    l10n.onboardingSaveError,
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                  ),
-                ),
-              OnboardingBottomAction(
-                state: action,
-                onPressed: () {
-                  switch (action.kind) {
-                    case OnboardingActionKind.next:
-                      notifier.next();
-                    case OnboardingActionKind.saveAndNext:
-                      unawaited(notifier.saveAndNext());
-                    case OnboardingActionKind.finish:
-                      unawaited(notifier.complete());
-                  }
-                },
-              ),
-            ],
+            ),
           ),
         ),
       ),

@@ -296,19 +296,7 @@ void main() {
       expect(find.text('New post'), findsNothing);
     });
 
-    testWidgets('shows composer entry point on own profile', (tester) async {
-      final repo = FakePostRepository(
-        onListByAuthor: (_, {cursor, limit}) async => const PostPage(items: []),
-      );
-
-      await _pump(tester, repo: repo, isOwnProfile: true);
-      await tester.pumpAndSettle();
-
-      expect(find.text('New post'), findsOneWidget);
-      expect(find.text('No posts yet.'), findsOneWidget);
-    });
-
-    testWidgets('own-profile New post opens chooser and project branch', (
+    testWidgets('does not show a top-level composer on own profile', (
       tester,
     ) async {
       final repo = FakePostRepository(
@@ -318,17 +306,8 @@ void main() {
       await _pump(tester, repo: repo, isOwnProfile: true);
       await tester.pumpAndSettle();
 
-      await tester.tap(find.text('New post'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Regular post'), findsOneWidget);
-      expect(find.text('Project post'), findsOneWidget);
-
-      await tester.tap(find.text('Project post'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Project post'), findsOneWidget);
-      expect(find.byKey(const Key('craftType-select-button')), findsOneWidget);
+      expect(find.text('New post'), findsNothing);
+      expect(find.text('No posts yet.'), findsOneWidget);
     });
 
     testWidgets('scrolling near the end appends the next page', (tester) async {
@@ -400,7 +379,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.byIcon(CraftskyIconsBold.comment));
       await tester.pumpAndSettle();
-      expect(find.text('Reply'), findsWidgets);
+      expect(find.text('Comment'), findsWidgets);
       await tester.tap(find.byType(CloseButton));
       await tester.pumpAndSettle();
       await tester.tap(find.byIcon(CraftskyIconsBold.like));
@@ -480,7 +459,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField), 'new comment');
       await tester.pump();
-      await tester.tap(find.widgetWithText(ChunkyButton, 'Reply'));
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Comment'));
       await tester.pumpAndSettle();
 
       expect(find.text('Thread route'), findsOneWidget);

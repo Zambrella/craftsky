@@ -9,6 +9,7 @@ import 'package:craftsky_app/notifications/providers/notifications_provider.dart
 import 'package:craftsky_app/notifications/widgets/notification_row.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
@@ -29,46 +30,54 @@ class NotificationsPage extends ConsumerWidget {
         : ref.watch(accountNotificationsProvider(owner.account));
     final l10n = AppLocalizations.of(context);
     return Scaffold(
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar(
-            leading: AppShellDrawerScope.maybeOf(context) == null
-                ? null
-                : const AppShellDrawerButton(),
-            title: Text(l10n.notificationsTitle),
-            pinned: true,
-            actions: [
-              IconButton(
-                tooltip: l10n.notificationSettingsAction,
-                onPressed: () => const NotificationSettingsRoute().go(context),
-                icon: const Icon(CraftskyIconsBold.settings),
+      body: RefreshIndicator(
+        edgeOffset: MediaQuery.paddingOf(context).top + kToolbarHeight,
+        onRefresh: () => owner == null
+            ? ref.refresh(notificationsProvider.future)
+            : ref.refresh(accountNotificationsProvider(owner.account).future),
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          slivers: [
+            SliverAppBar(
+              leading: AppShellDrawerScope.maybeOf(context) == null
+                  ? null
+                  : const AppShellDrawerButton(),
+              title: Text(l10n.notificationsTitle),
+              pinned: true,
+              actions: [
+                IconButton(
+                  tooltip: l10n.notificationSettingsAction,
+                  onPressed: () =>
+                      const NotificationSettingsRoute().go(context),
+                  icon: const Icon(CraftskyIconsBold.settings),
+                ),
+              ],
+            ),
+            switch (notifications) {
+              AsyncValue(:final value?) => _NotificationsLoadedSlivers(
+                items: value.items,
+                hasMore: value.hasMore,
+                isLoadingMore: notifications.isLoading,
+                hasLoadMoreError: notifications.hasError,
+                renderToken: value.renderToken,
+                owner: value.owner,
               ),
-            ],
-          ),
-          switch (notifications) {
-            AsyncValue(:final value?) => _NotificationsLoadedSlivers(
-              items: value.items,
-              hasMore: value.hasMore,
-              isLoadingMore: notifications.isLoading,
-              hasLoadMoreError: notifications.hasError,
-              renderToken: value.renderToken,
-              owner: value.owner,
-            ),
-            _ when notifications.hasError => _NotificationsErrorSliver(
-              onRetry: () {
-                if (owner != null) {
-                  ref.invalidate(accountNotificationsProvider(owner.account));
-                } else {
-                  ref.invalidate(notificationsProvider);
-                }
-              },
-            ),
-            _ => const SliverFillRemaining(
-              hasScrollBody: false,
-              child: Center(child: StitchProgressIndicator()),
-            ),
-          },
-        ],
+              _ when notifications.hasError => _NotificationsErrorSliver(
+                onRetry: () {
+                  if (owner != null) {
+                    ref.invalidate(accountNotificationsProvider(owner.account));
+                  } else {
+                    ref.invalidate(notificationsProvider);
+                  }
+                },
+              ),
+              _ => const SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(child: StitchProgressIndicator()),
+              ),
+            },
+          ],
+        ),
       ),
     );
   }
@@ -111,7 +120,11 @@ class _NotificationsLoadedSlivers extends ConsumerWidget {
     if (items.isEmpty) {
       return SliverFillRemaining(
         hasScrollBody: false,
-        child: Center(child: Text(l10n.notificationsEmpty)),
+        child: CraftskyEmptyState(
+          icon: CraftskyIcons.notifications,
+          title: l10n.notificationsTitle,
+          subtitle: l10n.notificationsEmpty,
+        ),
       );
     }
     return SliverMainAxisGroup(

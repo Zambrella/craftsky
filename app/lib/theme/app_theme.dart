@@ -121,6 +121,8 @@ class AppTheme {
       tabBarTheme: _tabBarTheme(base),
       segmentedButtonTheme: _segmentedButtonTheme(base.colorScheme),
       floatingActionButtonTheme: _floatingActionButtonTheme(base),
+      progressIndicatorTheme: _progressIndicatorTheme(base),
+      snackBarTheme: _snackBarTheme(base, swatches: const BrandSwatchTheme()),
       timePickerTheme: _timePickerTheme(base),
     );
   }
@@ -180,6 +182,8 @@ class AppTheme {
       tabBarTheme: _tabBarTheme(base),
       segmentedButtonTheme: _segmentedButtonTheme(base.colorScheme),
       floatingActionButtonTheme: _floatingActionButtonTheme(base),
+      progressIndicatorTheme: _progressIndicatorTheme(base),
+      snackBarTheme: _snackBarTheme(base, swatches: _darkSwatches),
       timePickerTheme: _timePickerTheme(base),
     );
   }
@@ -220,6 +224,39 @@ class AppTheme {
         color: colors.onPrimary,
         fontWeight: FontWeight.w800,
         letterSpacing: 0.2,
+      ),
+    );
+  }
+
+  static ProgressIndicatorThemeData _progressIndicatorTheme(ThemeData base) {
+    final swatches = base.brightness == Brightness.dark
+        ? _darkSwatches
+        : const BrandSwatchTheme();
+    return ProgressIndicatorThemeData(
+      color: base.colorScheme.primary,
+      refreshBackgroundColor: swatches.paper3,
+    );
+  }
+
+  static SnackBarThemeData _snackBarTheme(
+    ThemeData base, {
+    required BrandSwatchTheme swatches,
+  }) {
+    final colors = base.colorScheme;
+    return SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: swatches.paper3,
+      contentTextStyle: base.textTheme.bodyMedium?.copyWith(
+        color: colors.onSurface,
+      ),
+      actionTextColor: colors.primary,
+      disabledActionTextColor: colors.outline,
+      closeIconColor: colors.onSurface,
+      elevation: 3,
+      insetPadding: const EdgeInsets.all(16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(const RadiusTheme().r3),
+        side: BorderSide(color: colors.onSurface, width: 1.5),
       ),
     );
   }

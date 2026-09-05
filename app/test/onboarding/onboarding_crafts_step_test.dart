@@ -15,6 +15,7 @@ void main() {
     tester,
   ) async {
     Craft? toggled;
+    var requestMoreCalls = 0;
     final semantics = tester.ensureSemantics();
     final state = OnboardingFlowState.fromProfile(
       Profile(
@@ -34,6 +35,7 @@ void main() {
             child: OnboardingCraftsStep(
               state: state,
               onToggle: (craft) => toggled = craft,
+              onRequestMore: () => requestMoreCalls++,
             ),
           ),
         ),
@@ -51,9 +53,16 @@ void main() {
       sewingSemantics.flagsCollection.isSelected,
       Tristate.isTrue,
     );
-    expect(find.byType(InkWell), findsNWidgets(Craft.values.length));
+    expect(
+      canonicalSelectableCrafts.map((craft) => craft.id),
+      ['sewing', 'knitting', 'crochet', 'quilting', 'embroidery'],
+    );
     expect(find.byType(CraftIcon), findsNWidgets(5));
+    expect(find.text('Weaving'), findsNothing);
     await tester.tap(find.text('Sewing'));
+    expect(toggled, Craft.sewing);
+    await tester.tap(find.text('Request more'));
+    expect(requestMoreCalls, 1);
     expect(toggled, Craft.sewing);
     semantics.dispose();
   });

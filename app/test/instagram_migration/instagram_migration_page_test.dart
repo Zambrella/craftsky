@@ -88,6 +88,10 @@ void main() {
       );
       expect(find.byKey(const Key('instagram-imports-card')), findsNothing);
       expect(find.byKey(const Key('instagram-suggestions-card')), findsNothing);
+      expect(
+        tester.widget<ListView>(find.byType(ListView)).physics,
+        isA<AlwaysScrollableScrollPhysics>(),
+      );
       semantics.dispose();
     },
   );
@@ -264,7 +268,7 @@ void main() {
       findsOneWidget,
     );
     final importButton = find.text('Import handles');
-    await tester.drag(find.byType(ListView), const Offset(0, -300));
+    await tester.ensureVisible(importButton);
     await tester.pumpAndSettle();
     await tester.tap(importButton);
     await tester.pumpAndSettle();

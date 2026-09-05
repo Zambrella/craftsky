@@ -90,6 +90,36 @@ void main() {
     expect(find.text('You have not muted any accounts.'), findsOneWidget);
   });
 
+  testWidgets('muted accounts refresh from empty', (tester) async {
+    var calls = 0;
+    final repo = FakeProfileRepository(
+      onListMutedProfiles: ({limit, cursor}) async {
+        calls++;
+        return ProfileAccountPage(
+          totalCount: calls == 1 ? 0 : 1,
+          items: calls == 1
+              ? const []
+              : [
+                  ProfileAccountSummary(
+                    did: 'did:plc:bob',
+                    handle: 'bob.craftsky.social',
+                    isCraftskyProfile: true,
+                    muted: true,
+                  ),
+                ],
+        );
+      },
+    );
+    await tester.pumpWidget(_app(repo, RelationshipListKind.muted));
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, 400));
+    await tester.pumpAndSettle();
+
+    expect(calls, 2);
+    expect(find.text('@bob.craftsky.social'), findsOneWidget);
+  });
+
   testWidgets('row-level unmute removes the account after success', (
     tester,
   ) async {

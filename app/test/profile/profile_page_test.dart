@@ -6,6 +6,8 @@ import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/languages/models/language_preferences.dart';
+import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
@@ -31,6 +33,7 @@ import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -49,6 +52,91 @@ final _emptyPostRepository = FakePostRepository(
 
 void main() {
   group('ProfilePage', () {
+    testWidgets('remote collection tabs refresh the profile, except Reposts', (
+      tester,
+    ) async {
+      var profileFetches = 0;
+      var postFetches = 0;
+      var projectFetches = 0;
+      var commentFetches = 0;
+      final profile = Profile(
+        did: 'did:plc:other',
+        handle: 'alice.bsky.social',
+        displayName: 'Alice',
+        crafts: const [],
+      );
+      final repo = FakeProfileRepository(
+        onFetch: (_) async {
+          profileFetches++;
+          return profile;
+        },
+      );
+      final posts = FakePostRepository(
+        onListByAuthor: (_, {cursor, limit}) async {
+          postFetches++;
+          return const PostPage(items: []);
+        },
+        onListProjectsByAuthor: (_, {cursor, limit}) async {
+          projectFetches++;
+          return const PostPage(items: []);
+        },
+        onListCommentsByAuthor: (_, {cursor, limit}) async {
+          commentFetches++;
+          return const PostPage(items: []);
+        },
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            profileRepositoryProvider.overrideWithValue(repo),
+            postRepositoryProvider.overrideWithValue(posts),
+            activeLanguagePreferencesProvider.overrideWithValue(
+              const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+            ),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProfilePage(handle: 'alice.bsky.social'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      for (final entry in const {
+        'Projects': 'projects',
+        'Posts': 'posts',
+        'Comments & replies': 'comments',
+      }.entries) {
+        await tester.tap(find.widgetWithText(Tab, entry.key));
+        await tester.pumpAndSettle();
+
+        final scrollView = tester.widget<CustomScrollView>(
+          find.byKey(PageStorageKey<String>('profile_tab_${entry.value}')),
+        );
+        expect(scrollView.physics, isA<AlwaysScrollableScrollPhysics>());
+        await tester
+            .widget<RefreshIndicator>(find.byType(RefreshIndicator))
+            .onRefresh();
+        await tester.pumpAndSettle();
+      }
+
+      expect(profileFetches, 1);
+      expect(postFetches, greaterThanOrEqualTo(2));
+      expect(projectFetches, greaterThanOrEqualTo(2));
+      expect(commentFetches, greaterThanOrEqualTo(2));
+
+      await tester.tap(find.widgetWithText(Tab, 'Reposts'));
+      await tester.pumpAndSettle();
+      expect(find.byType(RefreshIndicator), findsNothing);
+    });
+
     testWidgets('signed-in self profile renders identity + edit actions', (
       tester,
     ) async {
@@ -245,6 +333,46 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('rail profile header does not reserve a drawer-button gap', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: CustomScrollView(
+              slivers: [
+                ProfileSliverAppBar(
+                  handle: 'alice.bsky.social',
+                  displayName: 'Alice',
+                  actions: SelfProfileActionSet(
+                    onEdit: () {},
+                    onSettings: () {},
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final appBar = tester.widget<SliverAppBar>(find.byType(SliverAppBar));
+      final title = tester.widget<Positioned>(
+        find.byKey(const Key('profile-sliver-collapsed-title')),
+      );
+      final context = tester.element(find.byType(ProfileSliverAppBar));
+      expect(appBar.automaticallyImplyLeading, isFalse);
+      expect(appBar.leading, isNull);
+      expect(title.left, Theme.of(context).extension<SpacingTheme>()!.sp4);
+    });
+
     testWidgets('collapsed business app bar omits the business label', (
       tester,
     ) async {
@@ -347,7 +475,7 @@ void main() {
       expect(tester.widget<Opacity>(divider).opacity, 1);
     });
 
-    testWidgets('profile menu surface fades out as the header collapses', (
+    testWidgets('profile menu icon follows header contrast without a surface', (
       tester,
     ) async {
       final controller = ScrollController();
@@ -388,6 +516,9 @@ void main() {
       await tester.pump();
 
       final appBar = tester.widget<SliverAppBar>(find.byType(SliverAppBar));
+      final title = tester.widget<Positioned>(
+        find.byKey(const Key('profile-sliver-collapsed-title')),
+      );
       final darkScheme = AppTheme.darkThemeData.colorScheme;
       IconButton menuButton() => tester.widget<IconButton>(
         find.widgetWithIcon(IconButton, CraftskyIconsBold.menu),
@@ -395,12 +526,13 @@ void main() {
 
       expect(
         menuButton().style?.backgroundColor?.resolve({}),
-        darkScheme.surface,
+        Colors.transparent,
       );
       expect(
         menuButton().style?.foregroundColor?.resolve({}),
-        darkScheme.onSurface,
+        Colors.white,
       );
+      expect(title.left, 56);
 
       controller.jumpTo(appBar.expandedHeight! - kToolbarHeight);
       await tester.pump();
@@ -408,6 +540,10 @@ void main() {
       expect(
         menuButton().style?.backgroundColor?.resolve({}),
         Colors.transparent,
+      );
+      expect(
+        menuButton().style?.foregroundColor?.resolve({}),
+        darkScheme.onSurface,
       );
       final settingsButton = tester.widget<IconButton>(
         find.widgetWithIcon(IconButton, CraftskyIconsBold.settings),

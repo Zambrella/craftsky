@@ -201,4 +201,113 @@ void main() {
     await tester.pump();
     expect(flow.completionCalls, 1);
   });
+
+  testWidgets('complete flow content is centered and capped at tablet width', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final flow = _Flow(
+      OnboardingFlowState.fromProfile(
+        Profile(
+          did: 'did:plc:alice',
+          handle: 'alice.test',
+          crafts: const [],
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          activeAccountInitializationProvider.overrideWith(
+            (ref) => ActiveAccountInitialization(
+              lease: _lease,
+              languagePreferences: const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+              onboardingComplete: false,
+            ),
+          ),
+          onboardingFlowProvider.overrideWith2((_) => flow),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const OnboardingPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final bounds = tester.getRect(
+      find.byKey(const Key('onboarding-flow-content')),
+    );
+    expect(bounds.width, 900);
+    expect(bounds.center.dx, 700);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('Request more opens support without changing the craft draft', (
+    tester,
+  ) async {
+    final initial = OnboardingFlowState.fromProfile(
+      Profile(
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+        crafts: const ['sewing', 'weaving'],
+      ),
+    ).copyWith(step: OnboardingStep.crafts);
+    final flow = _Flow(initial);
+    Uri? confirmedUri;
+    Uri? launchedUri;
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          activeAccountInitializationProvider.overrideWith(
+            (ref) => ActiveAccountInitialization(
+              lease: _lease,
+              languagePreferences: const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+              onboardingComplete: false,
+            ),
+          ),
+          onboardingFlowProvider.overrideWith2((_) => flow),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: OnboardingPage(
+            confirmOpenLink: (context, uri) async {
+              confirmedUri = uri;
+              return true;
+            },
+            linkLauncher: (uri) async {
+              launchedUri = uri;
+              return true;
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Request more'));
+    await tester.pump();
+
+    const expected =
+        'https://userinput.app/s/did:plc:lmmx63zcns6gewgxqfdt4kof/'
+        '3mpr5izppvt2k?lang=en';
+    expect(confirmedUri.toString(), expected);
+    expect(launchedUri.toString(), expected);
+    expect(flow.state.requireValue.selectedCraftIds, initial.selectedCraftIds);
+    expect(find.text('What do you make?'), findsOneWidget);
+  });
 }

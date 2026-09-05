@@ -9,6 +9,7 @@ import 'package:craftsky_app/scheduled_posts/models/scheduled_post_row_model.dar
 import 'package:craftsky_app/scheduled_posts/providers/scheduled_post_repository_provider.dart';
 import 'package:craftsky_app/scheduled_posts/providers/scheduled_posts_provider.dart';
 import 'package:craftsky_app/scheduled_posts/widgets/scheduled_media_thumbnail.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
@@ -140,9 +141,10 @@ class ScheduledPostsPageContent extends StatelessWidget {
               ),
             ),
           if (items.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(32),
-              child: Center(child: Text(l10n.scheduledPostsEmpty)),
+            CraftskyEmptyState(
+              icon: CraftskyIcons.schedule,
+              title: l10n.scheduledPostsTitle,
+              subtitle: l10n.scheduledPostsEmpty,
             )
           else
             for (final item in items)

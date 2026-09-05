@@ -5,6 +5,11 @@ void main() {
   test('legal destinations are canonical HTTPS URLs', () {
     expect(settingsTermsUri, Uri.https('craftsky.social', '/terms'));
     expect(settingsPrivacyUri, Uri.https('craftsky.social', '/privacy'));
+    expect(
+      settingsSupportUri.toString(),
+      'https://userinput.app/s/did:plc:lmmx63zcns6gewgxqfdt4kof/'
+      '3mpr5izppvt2k?lang=en',
+    );
   });
 
   test(

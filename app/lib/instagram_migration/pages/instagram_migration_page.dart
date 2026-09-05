@@ -17,6 +17,7 @@ import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -79,6 +80,7 @@ class _InstagramMigrationBody extends ConsumerWidget {
         await ref.read(instagramSuggestionsProvider(lease).notifier).refresh();
       },
       child: ListView(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: EdgeInsets.fromLTRB(
           spacing.sp4,
           spacing.sp4,
@@ -814,7 +816,11 @@ class _ImportsCard extends ConsumerWidget {
                   ref.read(instagramImportsProvider(lease).notifier).refresh(),
             ),
             data: (page) => page.items.isEmpty
-                ? Text(l10n.instagramImportsEmpty)
+                ? CraftskyEmptyState(
+                    icon: CraftskyIcons.history,
+                    title: l10n.instagramImportsEmpty,
+                    subtitle: l10n.instagramImportCounts(0),
+                  )
                 : Column(
                     children: [
                       for (final item in page.items)
@@ -946,7 +952,11 @@ class _SuggestionsCard extends ConsumerWidget {
             data: (value) => Column(
               children: [
                 if (value.items.isEmpty)
-                  Text(l10n.instagramSuggestionsEmpty)
+                  CraftskyEmptyState(
+                    icon: CraftskyIcons.findPeople,
+                    title: l10n.instagramSuggestionsEmpty,
+                    subtitle: l10n.instagramMigrationSettingsSubtitle,
+                  )
                 else
                   for (final suggestion in value.items)
                     _SuggestionRow(

@@ -49,6 +49,53 @@ void main() {
     expect(find.text(l10n.notificationsTitle), findsWidgets);
   });
 
+  testWidgets('refresh indicator starts below the sliver app bar', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          notificationRepositoryProvider.overrideWithValue(
+            const _FakeNotificationRepository(NotificationPage(items: [])),
+          ),
+        ],
+        child: const _TestApp(
+          topPadding: 24,
+          home: NotificationsPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<RefreshIndicator>(find.byType(RefreshIndicator)).edgeOffset,
+      24 + kToolbarHeight,
+    );
+  });
+
+  testWidgets('pull to refresh reloads an empty notifications page', (
+    tester,
+  ) async {
+    final repo = _QueueNotificationRepository([
+      Future.value(const NotificationPage(items: [])),
+      Future.value(NotificationPage(items: [_follow('refreshed')])),
+    ]);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [notificationRepositoryProvider.overrideWithValue(repo)],
+        child: const _TestApp(home: NotificationsPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('No notifications yet.'), findsOneWidget);
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, 400));
+    await tester.pumpAndSettle();
+
+    expect(repo.calls.map((call) => call.cursor), [null, null]);
+    expect(find.text('Alice followed you'), findsOneWidget);
+  });
+
   testWidgets('renders empty state and mixed rows', (tester) async {
     await tester.pumpWidget(
       ProviderScope(
@@ -723,9 +770,10 @@ void main() {
 }
 
 class _TestApp extends StatelessWidget {
-  const _TestApp({required this.home});
+  const _TestApp({required this.home, this.topPadding = 0});
 
   final Widget home;
+  final double topPadding;
 
   @override
   Widget build(BuildContext context) => ProviderScope(
@@ -733,7 +781,14 @@ class _TestApp extends StatelessWidget {
       theme: AppTheme.lightThemeData,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      home: home,
+      home: Builder(
+        builder: (context) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(padding: EdgeInsets.only(top: topPadding)),
+          child: home,
+        ),
+      ),
     ),
   );
 }

@@ -91,7 +91,7 @@ void main() {
 
     expect(sent?.displayName, 'Alicia');
     expect(sent?.description, 'New bio');
-    expect(sent?.crafts, ['sewing', 'future-craft']);
+    expect(sent?.crafts, ['sewing', 'weaving', 'future-craft']);
     expect(sent?.avatar, isNull);
     expect(sent?.clearAvatar, isFalse);
     expect(sent?.banner, isNull);
@@ -146,7 +146,7 @@ void main() {
 
     expect(sent?.displayName, 'Alice');
     expect(sent?.description, 'Bio');
-    expect(sent?.crafts, ['quilting', 'future-craft']);
+    expect(sent?.crafts, ['quilting', 'weaving', 'future-craft']);
     expect(sent?.avatar, isNull);
     expect(sent?.clearAvatar, isFalse);
     expect(sent?.banner, isNull);
@@ -237,7 +237,7 @@ Profile _fullProfile() => Profile(
   description: 'Bio',
   avatar: 'https://example/avatar',
   banner: 'https://example/banner',
-  crafts: const ['sewing', 'future-craft'],
+  crafts: const ['sewing', 'weaving', 'future-craft'],
 );
 
 Future<void> _waitForPrefill(

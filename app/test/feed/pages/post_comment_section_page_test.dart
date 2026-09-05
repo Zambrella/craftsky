@@ -846,9 +846,10 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('threadStickyReplyPrompt')));
     await tester.pumpAndSettle();
+    expect(find.text('Write your comment'), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'created comment');
     await tester.pump();
-    await tester.tap(find.widgetWithText(ChunkyButton, 'Reply'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Comment'));
     await tester.pumpAndSettle();
 
     expect(createCalls, 1);
@@ -910,7 +911,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'created comment');
     await tester.pump();
-    await tester.tap(find.widgetWithText(ChunkyButton, 'Reply'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Comment'));
     await tester.pumpAndSettle();
 
     expect(find.text('created comment'), findsOneWidget);
@@ -970,7 +971,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'created comment');
     await tester.pump();
-    await tester.tap(find.widgetWithText(ChunkyButton, 'Reply'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Comment'));
     await tester.pumpAndSettle();
 
     final createdRect = tester.getRect(find.text('created comment'));

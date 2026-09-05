@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
@@ -6,6 +8,7 @@ import 'package:craftsky_app/auth/providers/active_account_initialization_provid
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/instagram_migration/pages/instagram_migration_page.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/data/language_preferences_repository.dart';
@@ -16,6 +19,8 @@ import 'package:craftsky_app/notifications/pages/notification_settings_page.dart
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/profile/widgets/profile_route_presentation.dart';
+import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/settings/pages/about_page.dart';
 import 'package:craftsky_app/settings/pages/account_page.dart';
@@ -135,6 +140,74 @@ void main() {
       4,
     );
   });
+
+  for (final (option, composerType) in [
+    ('Regular post', PostComposerSheet),
+    ('Project post', ProjectComposerSheet),
+  ]) {
+    testWidgets(
+      'wide Settings profile detail presents $option '
+      'above the production route',
+      (tester) async {
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(1200, 800);
+
+        final container = _container();
+        addTearDown(container.dispose);
+        final subscription = container.listen(
+          goRouterProvider,
+          (_, _) {},
+          fireImmediately: true,
+        );
+        addTearDown(subscription.close);
+        final router = subscription.read()
+          ..go(const AppearanceRoute().location);
+
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: MaterialApp.router(
+              routerConfig: router,
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              builder: (context, child) => MessengerScope(
+                messenger: RecordingMessenger(),
+                child: FormFactorWidget(child: child!),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byType(AppearancePage), findsOneWidget);
+        unawaited(
+          router.push(
+            const UserProfileRoute(handle: 'detail.bsky.social').location,
+          ),
+        );
+        await tester.pumpAndSettle();
+        expect(
+          find.byType(ProfileRoutePresentation).hitTestable(),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.text('New post'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(option));
+        await tester.pumpAndSettle();
+
+        expect(find.byType(NavigationRail), findsOneWidget);
+        expect(find.byType(composerType).hitTestable(), findsOneWidget);
+        expect(
+          find.byType(ProfileRoutePresentation).hitTestable(),
+          findsNothing,
+        );
+      },
+    );
+  }
 
   testWidgets('Back from Settings reselects Profile in the compact drawer', (
     tester,

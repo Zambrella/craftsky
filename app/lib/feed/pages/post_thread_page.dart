@@ -20,6 +20,7 @@ import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/errors/notification_destination_error.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
 import 'package:craftsky_app/shared/widgets/sort_menu_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -97,11 +98,11 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
     ref
       ..listen(deletePostProvider, (previous, next) {
         switch ((previous, next)) {
-          case (AsyncLoading(), AsyncData(value: != null)):
-            context.showInfo(l10n.postDeleteSuccess);
+          case (AsyncLoading(), AsyncData(:final value?)):
+            context.showInfo(_deleteSuccessMessage(l10n, value));
             ref.read(deletePostProvider.notifier).reset();
           case (AsyncLoading(), AsyncError()):
-            context.showError(l10n.postDeleteError);
+            context.showError(l10n.responseDeleteError);
             ref.read(deletePostProvider.notifier).reset();
           case _:
             break;
@@ -551,9 +552,10 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
                     child: Center(child: StitchProgressIndicator()),
                   )
                 else if (widget.section.comments.items.isEmpty)
-                  Padding(
-                    padding: EdgeInsets.all(spacing.sp5),
-                    child: Center(child: Text(l10n.postThreadEmptyReplies)),
+                  CraftskyEmptyState(
+                    icon: CraftskyIcons.comment,
+                    title: l10n.postThreadEmptyReplies,
+                    subtitle: l10n.postThreadEmptyCommentsSubtitle,
                   )
                 else
                   for (final comment in widget.section.comments.items)
@@ -1022,3 +1024,13 @@ String _threadAuthorLabel(craftsky_post.Post post) {
   }
   return '@${post.author.handle}';
 }
+
+String _deleteSuccessMessage(
+  AppLocalizations l10n,
+  craftsky_post.Post post,
+) => switch (post.reply) {
+  null => l10n.postDeleteSuccess,
+  final reply when reply.parent.uri == reply.root.uri =>
+    l10n.commentDeleteSuccess,
+  _ => l10n.replyDeleteSuccess,
+};
