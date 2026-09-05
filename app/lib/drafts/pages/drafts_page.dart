@@ -12,7 +12,9 @@ import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -62,7 +64,7 @@ final class DraftsPage extends ConsumerWidget {
               draftId: draftId,
               mediaId: mediaId,
             ),
-            error: (_, _) => const Icon(Icons.broken_image_outlined),
+            error: (_, _) => const Icon(CraftskyIcons.brokenImage),
             loading: () => const CircularProgressIndicator(strokeWidth: 2),
           ),
           onEdit: (draft) => _openDraft(
@@ -171,9 +173,10 @@ final class DraftsPageContent extends StatelessWidget {
               ),
             ),
           if (items.isEmpty)
-            Padding(
-              padding: const EdgeInsets.all(32),
-              child: Center(child: Text(l10n.draftsEmpty)),
+            CraftskyEmptyState(
+              icon: CraftskyIcons.drafts,
+              title: l10n.draftsTitle,
+              subtitle: l10n.draftsEmpty,
             )
           else
             for (final draft in items)

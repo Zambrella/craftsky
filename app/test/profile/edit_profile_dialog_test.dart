@@ -9,6 +9,7 @@ import 'package:craftsky_app/profile/pages/edit_profile_dialog.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -39,6 +40,8 @@ Future<void> _pumpEditDialog(
   WidgetTester tester, {
   required FakeProfileRepository repo,
   BusinessRepository? businessRepository,
+  ExternalLinkLauncher linkLauncher = launchExternalLink,
+  ExternalLinkConfirmer confirmOpenLink = showOpenLinkDialog,
 }) async {
   final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
   final messenger = ScaffoldMessengerImpl(scaffoldMessengerKey);
@@ -63,7 +66,11 @@ Future<void> _pumpEditDialog(
               return Scaffold(
                 body: Center(
                   child: ElevatedButton(
-                    onPressed: () => showEditProfileDialog(context),
+                    onPressed: () => showEditProfileDialog(
+                      context,
+                      linkLauncher: linkLauncher,
+                      confirmOpenLink: confirmOpenLink,
+                    ),
                     child: const Text('Open'),
                   ),
                 ),
@@ -315,6 +322,84 @@ void main() {
       expect(capturedDescription, 'Sewist in Bristol');
       expect(capturedCrafts, ['sewing', 'quilting']);
     });
+
+    testWidgets('save invisibly preserves legacy and unknown crafts', (
+      tester,
+    ) async {
+      final profile = _seedProfile.copyWith(
+        crafts: ['sewing', 'weaving', 'future-craft'],
+      );
+      List<String>? capturedCrafts;
+      final repo = FakeProfileRepository(
+        onFetch: (_) async => profile,
+        onUpdateMe:
+            ({
+              displayName,
+              description,
+              crafts,
+              avatar,
+              clearAvatar = false,
+              banner,
+              clearBanner = false,
+            }) async {
+              capturedCrafts = crafts;
+              return profile.copyWith(displayName: displayName, crafts: crafts);
+            },
+      );
+
+      await _pumpEditDialog(tester, repo: repo);
+      expect(find.text('Weaving'), findsNothing);
+      expect(find.text('future-craft'), findsNothing);
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Test User'),
+        'Renamed',
+      );
+      await tester.pump();
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      expect(capturedCrafts, ['sewing', 'weaving', 'future-craft']);
+    });
+
+    testWidgets(
+      'Request more uses the safe support-link flow without changing state',
+      (tester) async {
+        Uri? confirmedUri;
+        Uri? launchedUri;
+        await _pumpEditDialog(
+          tester,
+          repo: FakeProfileRepository(onFetch: (_) async => _seedProfile),
+          confirmOpenLink: (context, uri) async {
+            confirmedUri = uri;
+            return true;
+          },
+          linkLauncher: (uri) async {
+            launchedUri = uri;
+            return false;
+          },
+        );
+
+        final requestMore = find.text('Request more');
+        await tester.ensureVisible(requestMore);
+        await tester.tap(requestMore);
+        await tester.pumpAndSettle();
+
+        const expected =
+            'https://userinput.app/s/did:plc:lmmx63zcns6gewgxqfdt4kof/'
+            '3mpr5izppvt2k?lang=en';
+        expect(confirmedUri.toString(), expected);
+        expect(launchedUri.toString(), expected);
+        expect(find.text("Couldn't open that link."), findsOneWidget);
+        expect(find.text('Edit profile'), findsOneWidget);
+        expect(
+          tester
+              .widget<TextButton>(find.widgetWithText(TextButton, 'Save'))
+              .onPressed,
+          isNull,
+        );
+      },
+    );
 
     testWidgets('successful save pops back to the previous route', (
       tester,

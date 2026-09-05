@@ -3,6 +3,7 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/edit_profile_banner_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/profile/widgets/profile_banner.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -21,6 +22,7 @@ void main() {
     did: 'did:plc:test',
     handle: 'test.craftsky.social',
     displayName: 'Test User',
+    banner: 'https://example.test/banner.jpg',
     crafts: const [],
     customisation: const ProfileCustomisation(
       colour: 'orchid',
@@ -28,7 +30,7 @@ void main() {
     ),
   );
 
-  testWidgets('avatar edit button is tappable in the overlap area', (
+  testWidgets('avatar edit button remains tappable', (
     tester,
   ) async {
     var tapped = 0;
@@ -37,7 +39,6 @@ void main() {
       _wrap(
         EditProfileBannerAvatar(
           profile: profile,
-          bannerColor: const Color(0xFFCC8866),
           onPickAvatar: () => tapped++,
         ),
       ),
@@ -50,24 +51,28 @@ void main() {
     final avatar = tester.widget<ProfileAvatar>(find.byType(ProfileAvatar));
     expect(avatar.customisation.colour, 'orchid');
     expect(avatar.customisation.border, 'thick');
+    expect(avatar.showShadow, isFalse);
   });
 
-  testWidgets('cover edit button remains tappable', (tester) async {
-    var tapped = 0;
-
+  testWidgets('banner is absent and avatar is centered without a shadow', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       _wrap(
         EditProfileBannerAvatar(
           profile: profile,
-          bannerColor: const Color(0xFFCC8866),
-          onPickBanner: () => tapped++,
         ),
       ),
     );
 
-    await tester.tap(find.text('Change cover'));
-    await tester.pump();
-
-    expect(tapped, 1);
+    final header = find.byType(EditProfileBannerAvatar);
+    final avatar = find.byType(ProfileAvatar);
+    final shadow = tester.widget<DecoratedBox>(
+      find.byKey(const Key('profile-avatar-shadow')),
+    );
+    expect(find.text('Change cover'), findsNothing);
+    expect(find.byType(ProfileBanner), findsNothing);
+    expect(tester.getCenter(avatar).dx, tester.getCenter(header).dx);
+    expect((shadow.decoration as BoxDecoration).boxShadow, isEmpty);
   });
 }

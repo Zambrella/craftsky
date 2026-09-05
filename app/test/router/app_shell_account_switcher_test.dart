@@ -26,6 +26,7 @@ import 'package:craftsky_app/profile/providers/profile_repository_provider.dart'
 import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -353,7 +354,7 @@ void main() {
       expect(find.text('7'), findsNothing);
       expect(find.text('Add account'), findsOneWidget);
       expect(find.textContaining('Sign out'), findsNothing);
-      expect(find.byIcon(Icons.delete_outline), findsNothing);
+      expect(find.byIcon(CraftskyIcons.delete), findsNothing);
 
       await tester.tap(find.text('Bob'));
       await tester.tap(find.text('Add account'));
@@ -524,7 +525,7 @@ void main() {
 
       final drawerProfileIcon = find.descendant(
         of: find.byType(Drawer),
-        matching: find.byIcon(Icons.person_outline),
+        matching: find.byIcon(CraftskyIcons.profile),
       );
       expect(drawerProfileIcon, findsOneWidget);
       expect(
@@ -550,7 +551,7 @@ void main() {
       expect(
         find.descendant(
           of: switchButton,
-          matching: find.byIcon(Icons.switch_account),
+          matching: find.byIcon(CraftskyIconsBold.switchAccount),
         ),
         findsOneWidget,
       );
@@ -600,7 +601,7 @@ void main() {
 
     expect(find.byType(NavigationRail), findsOneWidget);
     expect(find.byType(AccountAvatar), findsNothing);
-    final profileIcon = find.byIcon(Icons.person_outline);
+    final profileIcon = find.byIcon(CraftskyIcons.profile);
     expect(profileIcon, findsOneWidget);
     final semantics = tester.getSemantics(profileIcon);
     expect(
@@ -613,7 +614,7 @@ void main() {
     expect(
       find.descendant(
         of: switchButton,
-        matching: find.byIcon(Icons.switch_account),
+        matching: find.byIcon(CraftskyIconsBold.switchAccount),
       ),
       findsOneWidget,
     );
@@ -676,12 +677,12 @@ void main() {
       4,
     );
     expect(find.byType(AccountSwitcherContent), findsNothing);
-    expect(find.byIcon(Icons.person), findsOneWidget);
+    expect(find.byIcon(CraftskyIcons.profileSelected), findsOneWidget);
 
     tester
         .widget<IconButton>(
           find.ancestor(
-            of: find.byIcon(Icons.switch_account),
+            of: find.byIcon(CraftskyIconsBold.switchAccount),
             matching: find.byType(IconButton),
           ),
         )
@@ -717,9 +718,9 @@ void main() {
     );
 
     expect(find.byType(AccountAvatar), findsNothing);
-    expect(find.byIcon(Icons.person_outline), findsOneWidget);
+    expect(find.byIcon(CraftskyIcons.profile), findsOneWidget);
 
-    await tester.tap(find.byIcon(Icons.person_outline));
+    await tester.tap(find.byIcon(CraftskyIcons.profile));
     await tester.pumpAndSettle();
 
     expect(
@@ -728,6 +729,6 @@ void main() {
     );
     expect(find.byType(AccountSwitcherContent), findsNothing);
     expect(find.byType(AccountAvatar), findsNothing);
-    expect(find.byIcon(Icons.person), findsOneWidget);
+    expect(find.byIcon(CraftskyIcons.profileSelected), findsOneWidget);
   });
 }

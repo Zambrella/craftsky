@@ -47,7 +47,7 @@ final class OnboardingFlowState {
     final known = <String>{};
     final unknown = <String>[];
     for (final id in profile.crafts) {
-      if (Craft.fromId(id) == null) {
+      if (!isCanonicalSelectableCraft(id)) {
         unknown.add(id);
       } else {
         known.add(id);
@@ -84,7 +84,7 @@ final class OnboardingFlowState {
 
   bool get craftsDirty {
     final baselineKnown = baseline.crafts.where(
-      (id) => Craft.fromId(id) != null,
+      isCanonicalSelectableCraft,
     );
     return baselineKnown.toSet().length != selectedCraftIds.length ||
         !selectedCraftIds.containsAll(baselineKnown);

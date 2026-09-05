@@ -1,9 +1,12 @@
 import 'dart:async';
 
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,6 +28,8 @@ class _FollowListPageState extends ConsumerState<FollowListPage> {
   int _totalCount = 0;
   var _isInitialLoading = true;
   var _isLoadingMore = false;
+  var _isRefreshing = false;
+  var _loadGeneration = 0;
 
   @override
   void initState() {
@@ -33,8 +38,13 @@ class _FollowListPageState extends ConsumerState<FollowListPage> {
   }
 
   Future<void> _loadFirstPage() async {
+    final generation = ++_loadGeneration;
+    _isRefreshing = true;
+    if (!_isInitialLoading && mounted) {
+      setState(() => _isLoadingMore = false);
+    }
     final page = await _fetchPage();
-    if (!mounted) return;
+    if (!mounted || generation != _loadGeneration) return;
     setState(() {
       _items
         ..clear()
@@ -42,15 +52,17 @@ class _FollowListPageState extends ConsumerState<FollowListPage> {
       _cursor = page.cursor;
       _totalCount = page.totalCount;
       _isInitialLoading = false;
+      _isRefreshing = false;
     });
   }
 
   Future<void> _loadMore() async {
     final cursor = _cursor;
-    if (cursor == null || _isLoadingMore) return;
+    if (cursor == null || _isLoadingMore || _isRefreshing) return;
+    final generation = _loadGeneration;
     setState(() => _isLoadingMore = true);
     final page = await _fetchPage(cursor: cursor);
-    if (!mounted) return;
+    if (!mounted || generation != _loadGeneration) return;
     setState(() {
       _items.addAll(page.items);
       _cursor = page.cursor;
@@ -69,8 +81,12 @@ class _FollowListPageState extends ConsumerState<FollowListPage> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final title = widget.kind == FollowListKind.followers
+        ? l10n.settingsFollowers
+        : l10n.settingsFollowing;
     return Scaffold(
-      appBar: AppBar(title: Text('$_title ($_totalCount)')),
+      appBar: AppBar(title: Text('$title ($_totalCount)')),
       body: _isInitialLoading
           ? const Center(child: StitchProgressIndicator())
           : _FollowListBody(
@@ -79,14 +95,10 @@ class _FollowListPageState extends ConsumerState<FollowListPage> {
               hasMore: _cursor != null,
               isLoadingMore: _isLoadingMore,
               onLoadMore: _loadMore,
+              onRefresh: _loadFirstPage,
             ),
     );
   }
-
-  String get _title => switch (widget.kind) {
-    FollowListKind.followers => 'Followers',
-    FollowListKind.following => 'Following',
-  };
 }
 
 class _FollowListBody extends StatelessWidget {
@@ -96,6 +108,7 @@ class _FollowListBody extends StatelessWidget {
     required this.hasMore,
     required this.isLoadingMore,
     required this.onLoadMore,
+    required this.onRefresh,
   });
 
   final FollowListKind kind;
@@ -103,51 +116,67 @@ class _FollowListBody extends StatelessWidget {
   final bool hasMore;
   final bool isLoadingMore;
   final VoidCallback onLoadMore;
+  final RefreshCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
-    if (items.isEmpty) {
-      return Center(
-        child: Text(
-          switch (kind) {
-            FollowListKind.followers => 'No one follows you yet',
-            FollowListKind.following => 'You are not following anyone',
-          },
-        ),
-      );
-    }
-    return ListView.builder(
-      itemCount: items.length + (hasMore ? 1 : 0),
-      itemBuilder: (context, index) {
-        if (index == items.length) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Center(
-              child: isLoadingMore
-                  ? const StitchProgressIndicator()
-                  : TextButton(
-                      onPressed: onLoadMore,
-                      child: const Text('Load more'),
+    final l10n = AppLocalizations.of(context);
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          if (items.isEmpty)
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: CraftskyEmptyState(
+                icon: CraftskyIcons.people,
+                title: switch (kind) {
+                  FollowListKind.followers => l10n.settingsFollowers,
+                  FollowListKind.following => l10n.settingsFollowing,
+                },
+                subtitle: switch (kind) {
+                  FollowListKind.followers => 'No one follows you yet',
+                  FollowListKind.following => 'You are not following anyone',
+                },
+              ),
+            )
+          else
+            SliverList.builder(
+              itemCount: items.length + (hasMore ? 1 : 0),
+              itemBuilder: (context, index) {
+                if (index == items.length) {
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Center(
+                      child: isLoadingMore
+                          ? const StitchProgressIndicator()
+                          : TextButton(
+                              onPressed: onLoadMore,
+                              child: const Text('Load more'),
+                            ),
                     ),
+                  );
+                }
+                final account = items[index];
+                final title = account.displayName?.isNotEmpty ?? false
+                    ? account.displayName!
+                    : account.handle.toString();
+                return ListTile(
+                  title: Text(title),
+                  subtitle: Text('@${account.handle}'),
+                  trailing: const Icon(CraftskyIconsBold.next),
+                  onTap: () => unawaited(
+                    showUserProfileCard(
+                      context,
+                      handleOrDid: account.handle.toString(),
+                    ),
+                  ),
+                );
+              },
             ),
-          );
-        }
-        final account = items[index];
-        final title = account.displayName?.isNotEmpty ?? false
-            ? account.displayName!
-            : account.handle.toString();
-        return ListTile(
-          title: Text(title),
-          subtitle: Text('@${account.handle}'),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => unawaited(
-            showUserProfileCard(
-              context,
-              handleOrDid: account.handle.toString(),
-            ),
-          ),
-        );
-      },
+        ],
+      ),
     );
   }
 }

@@ -4,6 +4,7 @@ import 'package:craftsky_app/business/models/business_labels.dart';
 import 'package:craftsky_app/business/widgets/business_image.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -73,37 +74,37 @@ class EventCard extends StatelessWidget {
                             child: action,
                           )
                         else
-                          const Icon(Icons.chevron_right),
+                          const Icon(CraftskyIconsBold.next),
                       ],
                     ),
                     SizedBox(height: spacing.sp2),
                     _EventCardLine(
-                      icon: Icons.calendar_today_outlined,
+                      icon: CraftskyIcons.date,
                       text: display.date,
                     ),
                     SizedBox(height: spacing.sp1),
                     _EventCardLine(
-                      icon: Icons.schedule_outlined,
+                      icon: CraftskyIcons.schedule,
                       text: display.time,
                     ),
                     if (event.venueName case final venue?) ...[
                       SizedBox(height: spacing.sp1),
                       _EventCardLine(
-                        icon: Icons.location_on_outlined,
+                        icon: CraftskyIcons.location,
                         text: venue,
                       ),
                     ],
                     if (event.mode case final mode?) ...[
                       SizedBox(height: spacing.sp1),
                       _EventCardLine(
-                        icon: Icons.people_outline,
+                        icon: CraftskyIcons.people,
                         text: BusinessLabels.eventMode(mode, l10n),
                       ),
                     ],
                     if (roles.isNotEmpty) ...[
                       SizedBox(height: spacing.sp1),
                       _EventCardLine(
-                        icon: Icons.badge_outlined,
+                        icon: CraftskyIcons.businessIdentity,
                         text: roles,
                       ),
                     ],

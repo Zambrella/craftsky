@@ -1,4 +1,4 @@
-import 'package:craftsky_app/theme/theme_extensions.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:flutter/material.dart';
 
 /// Generic empty/placeholder body for tabs that don't have data wiring
@@ -6,29 +6,25 @@ import 'package:flutter/material.dart';
 /// it fills whatever scrollable space is left below the header chrome.
 /// Per the design-system voice, copy is warm rather than apologetic.
 class ProfileEmptyTab extends StatelessWidget {
-  const ProfileEmptyTab({required this.message, super.key});
+  const ProfileEmptyTab({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    super.key,
+  });
 
-  final String message;
+  final IconData icon;
+  final String title;
+  final String subtitle;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final spacing = theme.extension<SpacingTheme>()!;
     return SliverFillRemaining(
       hasScrollBody: false,
-      child: Center(
-        child: Padding(
-          padding: EdgeInsets.all(spacing.sp6),
-          child: Text(
-            message,
-            textAlign: TextAlign.center,
-            // `outline` carries the brand's ink3 (tertiary text) per
-            // the ColorScheme override in app_theme.dart.
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.outline,
-            ),
-          ),
-        ),
+      child: CraftskyEmptyState(
+        icon: icon,
+        title: title,
+        subtitle: subtitle,
       ),
     );
   }

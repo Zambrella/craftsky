@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
 import 'package:craftsky_app/profile/data/profile_field_constraints.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:flutter/material.dart';
 
@@ -88,7 +89,7 @@ class _OnboardingProfileStepState extends State<OnboardingProfileStep> {
                 ),
                 child:
                     profile.avatar == null && widget.state.avatarPreview == null
-                    ? const Icon(Icons.add_a_photo_outlined, size: 32)
+                    ? const Icon(CraftskyIconsBold.addPhoto, size: 32)
                     : null,
               ),
             ),
@@ -114,7 +115,7 @@ class _OnboardingProfileStepState extends State<OnboardingProfileStep> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Icon(
-                  Icons.error_outline,
+                  CraftskyIcons.error,
                   color: Theme.of(context).colorScheme.error,
                 ),
                 const SizedBox(width: 8),

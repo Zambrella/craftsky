@@ -15,6 +15,7 @@ import 'package:craftsky_app/profile/widgets/profile_tabs/profile_events_tab.dar
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -180,7 +181,7 @@ void main() {
       lessThan(tester.getTopLeft(find.text('Fibre Fair')).dy),
     );
     expect(find.byType(CraftskyCard), findsWidgets);
-    expect(find.byIcon(Icons.calendar_today_outlined), findsWidgets);
+    expect(find.byIcon(CraftskyIcons.date), findsWidgets);
 
     await tester.tap(find.byType(EventCard));
     expect(opened, ['did:plc:business/first']);

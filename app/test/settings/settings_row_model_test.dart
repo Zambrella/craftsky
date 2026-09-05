@@ -1,4 +1,5 @@
 import 'package:craftsky_app/settings/models/settings_row.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -45,10 +46,19 @@ void main() {
       kind: SettingsRowKind.externalLink,
     );
 
-    expect(disclosure.trailingIcon(TextDirection.ltr), Icons.chevron_right);
-    expect(disclosure.trailingIcon(TextDirection.rtl), Icons.chevron_left);
-    expect(external.trailingIcon(TextDirection.ltr), Icons.open_in_new);
-    expect(external.trailingIcon(TextDirection.rtl), Icons.open_in_new);
+    expect(disclosure.trailingIcon(TextDirection.ltr), CraftskyIconsBold.next);
+    expect(
+      disclosure.trailingIcon(TextDirection.rtl),
+      CraftskyIconsBold.previous,
+    );
+    expect(
+      external.trailingIcon(TextDirection.ltr),
+      CraftskyIconsBold.externalLink,
+    );
+    expect(
+      external.trailingIcon(TextDirection.rtl),
+      CraftskyIconsBold.externalLink,
+    );
 
     for (final kind in [
       SettingsRowKind.action,

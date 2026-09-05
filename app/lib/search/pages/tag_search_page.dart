@@ -6,7 +6,9 @@ import 'package:craftsky_app/search/models/search_queries.dart';
 import 'package:craftsky_app/search/models/search_sort.dart';
 import 'package:craftsky_app/search/providers/hashtag_search_provider.dart';
 import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/sort_menu_button.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -54,11 +56,12 @@ class _TagSearchPageState extends ConsumerState<TagSearchPage> {
           isLoadingMore: tagResultsAsync.isLoading,
           hasLoadMoreError: tagResultsAsync.hasError,
           onNearEnd: () => ref.read(provider.notifier).loadMore(),
+          onRefresh: () => ref.refresh(provider.future),
         ),
         _ when tagResultsAsync.hasError => Center(
           child: TextButton.icon(
             onPressed: () => ref.invalidate(provider),
-            icon: const Icon(Icons.refresh),
+            icon: const Icon(CraftskyIconsBold.refresh),
             label: Text(l10n.searchLoadError),
           ),
         ),
@@ -87,33 +90,49 @@ class _TagPostList extends StatelessWidget {
     required this.isLoadingMore,
     required this.hasLoadMoreError,
     required this.onNearEnd,
+    required this.onRefresh,
   });
 
   final List<Post> posts;
   final bool isLoadingMore;
   final bool hasLoadMoreError;
   final VoidCallback onNearEnd;
+  final RefreshCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
-    return AutoPaginatedListView(
-      itemCount: posts.length,
-      emptyText: l10n.tagSearchEmpty,
-      isLoadingMore: isLoadingMore,
-      hasLoadMoreError: hasLoadMoreError,
-      onNearEnd: onNearEnd,
-      itemBuilder: (context, index) {
-        final post = posts[index];
-        return PostCard(
-          post: post,
-          hideWhenAuthorProtected: true,
-          onTap: () => PostThreadRoute(
-            did: post.author.did,
-            rkey: post.rkey,
-          ).push<void>(context),
-        );
-      },
+    return RefreshIndicator(
+      onRefresh: onRefresh,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        slivers: [
+          AutoPaginatedSliverList(
+            itemCount: posts.length,
+            emptyState: CraftskyEmptyState(
+              icon: CraftskyIcons.search,
+              title: l10n.searchHashtagsHeading,
+              subtitle: l10n.tagSearchEmpty,
+            ),
+            isLoadingMore: isLoadingMore,
+            hasLoadMoreError: hasLoadMoreError,
+            onNearEnd: onNearEnd,
+            itemBuilder: (context, index) {
+              final post = posts[index];
+              return PostCard(
+                post: post,
+                collapseBody: true,
+                imageInteractionMode: PostCardImageInteractionMode.navigate,
+                hideWhenAuthorProtected: true,
+                onTap: () => PostThreadRoute(
+                  did: post.author.did,
+                  rkey: post.rkey,
+                ).push<void>(context),
+              );
+            },
+          ),
+        ],
+      ),
     );
   }
 }

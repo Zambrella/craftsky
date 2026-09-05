@@ -59,6 +59,7 @@ import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_provide
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/foundation.dart';
@@ -311,9 +312,10 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     final imagesProvider = composerImagesProvider(_composerId);
     final imagesState = ref.watch(imagesProvider);
     final selectedVideo = _videoController.selection;
-    final isReply = widget.replyTarget != null;
+    final isResponse = widget.replyTarget != null;
+    final isComment = widget.replyTarget?.reply == null && isResponse;
     final isQuote = widget.quoteTarget != null;
-    final isSchedulable = !isReply && !isQuote;
+    final isSchedulable = !isResponse && !isQuote;
     final activeLease = ref.watch(sessionRegistryProvider).value?.activeLease;
     if (_videoPublicationOwner != null &&
         activeLease != _videoPublicationOwner) {
@@ -393,7 +395,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         (_scheduleChoice == ScheduleChoice.now || capacity.scheduleEnabled);
     final submitLabel = _scheduleChoice == ScheduleChoice.later
         ? l10n.scheduledPostAction
-        : isReply
+        : isComment
+        ? l10n.postComposeCommentSubmit
+        : isResponse
         ? l10n.postComposeReplySubmit
         : l10n.postComposeSubmit;
     final hasDraft = _hasDraft(imagesState);
@@ -447,7 +451,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
             backgroundColor: swatches.paper,
             appBar: AppBar(
               title: Text(
-                isReply
+                isComment
+                    ? l10n.postComposeCommentTitle
+                    : isResponse
                     ? l10n.postComposeReplyTitle
                     : isQuote
                     ? l10n.postQuoteAction
@@ -496,13 +502,17 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                           SizedBox(height: spacing.sp4),
                         ],
                         FacetAutocompleteEditor(
-                          label: isReply
+                          label: isComment
+                              ? l10n.postComposeCommentHint
+                              : isResponse
                               ? l10n.postComposeReplyHint
                               : l10n.postComposeHint,
-                          hintText: isReply ? null : l10n.postComposeBodyHint,
+                          hintText: isResponse
+                              ? null
+                              : l10n.postComposeBodyHint,
                           controller: _controller,
                           focusNode: _focusNode,
-                          minLines: isReply ? 5 : 3,
+                          minLines: isResponse ? 5 : 3,
                           maxLines: 12,
                           textInputAction: TextInputAction.newline,
                           keyboardType: TextInputType.multiline,
@@ -556,10 +566,10 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                           Builder(
                             builder: (menuContext) => ListTile(
                               contentPadding: EdgeInsets.zero,
-                              leading: const Icon(Icons.schedule_outlined),
+                              leading: const Icon(CraftskyIcons.schedule),
                               title: Text(l10n.scheduledPostWhenTitle),
                               subtitle: Text(_whenLabel(context)),
-                              trailing: const Icon(Icons.chevron_right),
+                              trailing: const Icon(CraftskyIconsBold.next),
                               enabled: !_isScheduling,
                               onTap: () => _chooseWhen(
                                 menuContext,
@@ -591,7 +601,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                                 onPressed: _isScheduling
                                     ? null
                                     : _deleteExistingSchedule,
-                                icon: const Icon(Icons.delete_outline),
+                                icon: const Icon(CraftskyIconsBold.delete),
                                 label: Text(l10n.scheduledPostsDeleteTooltip),
                               ),
                             ),
@@ -605,7 +615,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                             ),
                           ],
                         ],
-                        if (!isReply) ...[
+                        if (!isResponse) ...[
                           SizedBox(height: spacing.sp6),
                           if (_isLoadingScheduledMedia)
                             const Center(child: CircularProgressIndicator())

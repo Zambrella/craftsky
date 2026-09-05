@@ -28,7 +28,10 @@ class _SelectedChips<T> extends StatelessWidget {
           InputChip(
             label: Text(labelByValue[value] ?? value.toString()),
             onDeleted: enabled ? () => onRemove(value) : null,
-            deleteIcon: Icon(Icons.close, key: Key('$keyPrefix-remove-$value')),
+            deleteIcon: Icon(
+              CraftskyIconsBold.close,
+              key: Key('$keyPrefix-remove-$value'),
+            ),
           ),
       ],
     );

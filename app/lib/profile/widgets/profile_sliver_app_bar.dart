@@ -4,10 +4,12 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_craft_chips.dart';
+import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
 import 'package:craftsky_app/profile/widgets/profile_framed_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_header_background.dart';
 import 'package:craftsky_app/profile/widgets/profile_identity.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -51,11 +53,14 @@ class ProfileSliverAppBar extends StatelessWidget {
     final layout = _resolveLayout(context);
     final hasDrawer = AppShellDrawerScope.maybeOf(context) != null;
     final hasBack = ModalRoute.of(context)?.impliesAppBarDismissal ?? false;
+    final hasLeading = hasDrawer || hasBack;
     return SliverAppBar(
-      leading: hasDrawer || hasBack
+      automaticallyImplyLeading: false,
+      leading: hasLeading
           ? _ProfileLeadingAction(
               showDrawer: hasDrawer,
               expandedHeight: layout.expandedHeight,
+              customisation: customisation,
             )
           : null,
       pinned: true,
@@ -76,6 +81,7 @@ class ProfileSliverAppBar extends StatelessWidget {
         expandedHeight: layout.expandedHeight,
         identityHeight: layout.identityHeight,
         craftsTop: layout.craftsTop,
+        hasLeading: hasLeading,
       ),
     );
   }
@@ -190,10 +196,12 @@ class _ProfileLeadingAction extends StatelessWidget {
   const _ProfileLeadingAction({
     required this.showDrawer,
     required this.expandedHeight,
+    required this.customisation,
   });
 
   final bool showDrawer;
   final double expandedHeight;
+  final ProfileCustomisation customisation;
 
   @override
   Widget build(BuildContext context) {
@@ -209,12 +217,24 @@ class _ProfileLeadingAction extends StatelessWidget {
     final collapsed = range == 0
         ? 0.0
         : ((maxExtent - currentExtent) / range).clamp(0.0, 1.0);
-    final backgroundColor = collapsed >= 1
+    final bundle =
+        profileColourBundles[customisation.colour] ??
+        profileColourBundles[ProfileCustomisation.defaults.colour]!;
+    final backgroundColor = showDrawer
+        ? Colors.transparent
+        : collapsed >= 1
         ? Colors.transparent
         : swatches.paper3.withValues(alpha: 1 - collapsed);
+    final foregroundColor = showDrawer
+        ? Color.lerp(
+            profileColour(bundle.foreground),
+            theme.colorScheme.onSurface,
+            collapsed,
+          )
+        : theme.colorScheme.onSurface;
     final style = ButtonStyle(
       backgroundColor: WidgetStatePropertyAll(backgroundColor),
-      foregroundColor: WidgetStatePropertyAll(theme.colorScheme.onSurface),
+      foregroundColor: WidgetStatePropertyAll(foregroundColor),
     );
 
     if (showDrawer) {
@@ -249,6 +269,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
     required this.expandedHeight,
     required this.identityHeight,
     required this.craftsTop,
+    required this.hasLeading,
   });
 
   final String handle;
@@ -262,6 +283,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
   final double expandedHeight;
   final double identityHeight;
   final double craftsTop;
+  final bool hasLeading;
 
   @override
   Widget build(BuildContext context) {
@@ -349,7 +371,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
         ),
         Positioned(
           key: const Key('profile-sliver-collapsed-title'),
-          left: 56,
+          left: hasLeading ? 56 : spacing.sp4,
           right: 56,
           top: topPadding,
           height: kToolbarHeight,
@@ -423,7 +445,7 @@ class _CollapsedTrailingAction extends StatelessWidget {
     return switch (actions) {
       SelfProfileActionSet(:final onSettings) => IconButton(
         tooltip: l10n.profileSettingsAction,
-        icon: const Icon(Icons.settings_outlined),
+        icon: const Icon(CraftskyIconsBold.settings),
         onPressed: onSettings,
         style: style,
       ),
@@ -439,9 +461,7 @@ class _CollapsedTrailingAction extends StatelessWidget {
                     ? l10n.profileUnmuteAction
                     : l10n.profileMuteAction,
                 icon: Icon(
-                  isMuted
-                      ? Icons.volume_up_outlined
-                      : Icons.volume_off_outlined,
+                  isMuted ? CraftskyIconsBold.unmuted : CraftskyIconsBold.muted,
                 ),
                 onPressed: isBusy ? null : onMuteToggle,
                 style: style,

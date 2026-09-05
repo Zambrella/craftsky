@@ -6,6 +6,7 @@ import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart
 import 'package:craftsky_app/shared/rich_text/facet_syntax.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -662,7 +663,7 @@ class _HashtagSuggestionList extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
-                          Icons.show_chart,
+                          CraftskyIcons.trending,
                           size: 16,
                           color: theme.colorScheme.onSurfaceVariant,
                         ),

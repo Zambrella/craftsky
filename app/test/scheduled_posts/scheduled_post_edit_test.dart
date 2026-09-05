@@ -1352,15 +1352,29 @@ void main() {
 
     expect(find.text('Save draft'), findsNothing);
     expect(find.byKey(const Key('composer-alt-old-1')), findsOneWidget);
+    final patternDetails = find.byKey(
+      const Key('project-composer-pattern-details-action'),
+    );
+    expect(
+      patternDetails,
+      findsOneWidget,
+    );
+    await tester.ensureVisible(patternDetails);
+    await tester.tap(patternDetails);
+    await tester.pumpAndSettle();
     expect(
       find.byKey(const Key('project-composer-pattern-designer-editor')),
       findsOneWidget,
     );
     expect(find.text('A. Maker'), findsOneWidget);
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
 
-    await tester.tap(
-      find.byKey(const Key('project-composer-primary-action')),
+    final craftDetails = find.byKey(
+      const Key('project-composer-craft-details-action'),
     );
+    await tester.ensureVisible(craftDetails);
+    await tester.tap(craftDetails);
     await tester.pumpAndSettle();
     expect(
       find.byKey(
@@ -1372,10 +1386,7 @@ void main() {
       find.byKey(const Key('knitting-gauge-stitches-input')),
       findsOneWidget,
     );
-
-    await tester.tap(
-      find.byKey(const Key('project-composer-primary-action')),
-    );
+    await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
     expect(find.textContaining('of 3 scheduled'), findsNothing);
     expect(find.textContaining("can't schedule another post"), findsNothing);
@@ -1445,24 +1456,35 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('composer-alt-old-1')), findsOneWidget);
+      final patternDetails = find.byKey(
+        const Key('project-composer-pattern-details-action'),
+      );
       expect(
-        find.byKey(
-          const Key('project-composer-pattern-designer-editor'),
-        ),
+        patternDetails,
+        findsOneWidget,
+      );
+      await tester.ensureVisible(patternDetails);
+      await tester.tap(patternDetails);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('project-composer-pattern-designer-editor')),
         findsOneWidget,
       );
       expect(find.text('A. Maker'), findsOneWidget);
-      await tester.tap(
-        find.byKey(const Key('project-composer-primary-action')),
+      await tester.tap(find.byTooltip('Back'));
+      await tester.pumpAndSettle();
+
+      final craftDetails = find.byKey(
+        const Key('project-composer-craft-details-action'),
       );
+      await tester.ensureVisible(craftDetails);
+      await tester.tap(craftDetails);
       await tester.pumpAndSettle();
       expect(
         find.byKey(Key('${fixture.key}ProjectType-select-button')),
         findsOneWidget,
       );
-      await tester.tap(
-        find.byKey(const Key('project-composer-primary-action')),
-      );
+      await tester.tap(find.byTooltip('Back'));
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(ChunkyButton, 'Schedule'));
       await tester.pumpAndSettle();

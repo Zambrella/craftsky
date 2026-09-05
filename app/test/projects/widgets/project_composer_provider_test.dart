@@ -138,9 +138,9 @@ Future<void> _submitValidEmbroideryProject(WidgetTester tester) async {
   await tester.pumpAndSettle();
   await tester.tap(find.text('Embroidery').last);
   await tester.pumpAndSettle();
-  await tester.tap(find.byKey(const Key('project-composer-primary-action')));
-  await tester.pumpAndSettle();
-  await tester.tap(find.byKey(const Key('project-composer-primary-action')));
+  await tester.ensureVisible(
+    find.byKey(const Key('project-composer-body-editor')),
+  );
   await tester.pumpAndSettle();
   await tester.enterText(_bodyTextField(), 'Finished project');
   await _pumpUntilPostEnabled(tester);

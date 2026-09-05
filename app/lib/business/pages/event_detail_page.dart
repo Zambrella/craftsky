@@ -12,6 +12,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -56,7 +57,7 @@ class EventDetailPage extends ConsumerWidget {
                 items: [
                   CraftskyContextMenuItem(
                     text: l10n.businessEventReportAction,
-                    icon: Icons.flag_outlined,
+                    icon: CraftskyIconsBold.report,
                     onPressed: () => showBusinessEventReportSheet(
                       context,
                       ref,
@@ -294,14 +295,16 @@ class _EventDetail extends StatelessWidget {
                 runSpacing: spacing.sp2,
                 children: [
                   Chip(
-                    avatar: const Icon(Icons.event_available_outlined),
+                    avatar: const Icon(CraftskyIcons.eventAvailable),
                     label: Text(
                       BusinessLabels.eventStatus(event.status, l10n),
                     ),
                   ),
                   Chip(
                     avatar: Icon(
-                      event.past ? Icons.history : Icons.upcoming_outlined,
+                      event.past
+                          ? CraftskyIcons.history
+                          : CraftskyIcons.upcoming,
                     ),
                     label: Text(
                       event.past
@@ -319,33 +322,33 @@ class _EventDetail extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     _EventInfo(
-                      icon: Icons.calendar_today_outlined,
+                      icon: CraftskyIcons.date,
                       title: display.date,
                     ),
                     Divider(height: spacing.sp5),
                     _EventInfo(
-                      icon: Icons.schedule_outlined,
+                      icon: CraftskyIcons.schedule,
                       title: display.time,
                       subtitle: event.timeZone,
                     ),
                     if (event.venueName case final venue?) ...[
                       Divider(height: spacing.sp5),
                       _EventInfo(
-                        icon: Icons.location_on_outlined,
+                        icon: CraftskyIcons.location,
                         title: venue,
                       ),
                     ],
                     if (event.mode case final mode?) ...[
                       Divider(height: spacing.sp5),
                       _EventInfo(
-                        icon: Icons.people_outline,
+                        icon: CraftskyIcons.people,
                         title: BusinessLabels.eventMode(mode, l10n),
                       ),
                     ],
                     if (isOwner && role.isNotEmpty) ...[
                       Divider(height: spacing.sp5),
                       _EventInfo(
-                        icon: Icons.badge_outlined,
+                        icon: CraftskyIcons.businessIdentity,
                         title: role,
                         subtitle: l10n.businessEventRolesLabel,
                       ),
@@ -353,7 +356,7 @@ class _EventDetail extends StatelessWidget {
                     if (isOwner) ...[
                       Divider(height: spacing.sp5),
                       _EventInfo(
-                        icon: Icons.publish_outlined,
+                        icon: CraftskyIcons.publish,
                         title: l10n.businessEventPublishedOn(
                           DateFormat.yMMMd(
                             l10n.localeName,
@@ -381,7 +384,7 @@ class _EventDetail extends StatelessWidget {
                               confirmOpenLink: confirmExternal,
                             ),
                           ),
-                          icon: const Icon(Icons.open_in_new),
+                          icon: const Icon(CraftskyIconsBold.externalLink),
                           label: Text(l10n.businessEventWebsiteAction),
                         ),
                       if (registrationDestination != null)
@@ -395,7 +398,7 @@ class _EventDetail extends StatelessWidget {
                             ),
                           ),
                           icon: const Icon(
-                            Icons.confirmation_number_outlined,
+                            CraftskyIconsBold.ticket,
                           ),
                           label: Text(l10n.businessEventRegistrationAction),
                         ),

@@ -2,6 +2,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/settings/pages/about_page.dart';
 import 'package:craftsky_app/settings/settings_links.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -39,7 +40,7 @@ void main() {
     expect(find.text('Clear image cache'), findsOneWidget);
     expect(find.text('Version'), findsOneWidget);
     expect(find.text('1.2.3 (45)'), findsOneWidget);
-    expect(find.byIcon(Icons.open_in_new), findsNWidgets(2));
+    expect(find.byIcon(CraftskyIconsBold.externalLink), findsNWidgets(2));
 
     await tester.tap(find.text('Terms'));
     await tester.pump();

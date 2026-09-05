@@ -48,13 +48,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Embroidery').last);
     await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const Key('project-composer-primary-action')),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const Key('project-composer-primary-action')),
-    );
+    await tester.ensureVisible(find.text('French'));
     await tester.pumpAndSettle();
 
     expect(find.text('French'), findsOneWidget);

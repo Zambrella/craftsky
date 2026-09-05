@@ -18,6 +18,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -87,6 +88,10 @@ void main() {
       );
       expect(find.byKey(const Key('instagram-imports-card')), findsNothing);
       expect(find.byKey(const Key('instagram-suggestions-card')), findsNothing);
+      expect(
+        tester.widget<ListView>(find.byType(ListView)).physics,
+        isA<AlwaysScrollableScrollPhysics>(),
+      );
       semantics.dispose();
     },
   );
@@ -263,7 +268,7 @@ void main() {
       findsOneWidget,
     );
     final importButton = find.text('Import handles');
-    await tester.drag(find.byType(ListView), const Offset(0, -300));
+    await tester.ensureVisible(importButton);
     await tester.pumpAndSettle();
     await tester.tap(importButton);
     await tester.pumpAndSettle();
@@ -1027,7 +1032,7 @@ void main() {
 
       final deleteButtonFinder = find.widgetWithIcon(
         IconButton,
-        Icons.delete_outline,
+        CraftskyIconsBold.delete,
       );
       await tester.ensureVisible(deleteButtonFinder);
       await tester.pumpAndSettle();

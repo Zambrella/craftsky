@@ -312,7 +312,7 @@ class _CraftskySearchableMultiSelectInputState<T>
                                   ),
                                 ),
                               ),
-                              const Icon(Icons.search),
+                              const Icon(CraftskyIcons.search),
                             ],
                           ),
                         ],

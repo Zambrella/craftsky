@@ -6,6 +6,7 @@ import 'package:craftsky_app/profile/widgets/profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_meta_section.dart';
 import 'package:craftsky_app/profile/widgets/profile_stats.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -85,8 +86,8 @@ void main() {
       findsOneWidget,
     );
     expect(find.byType(ProfileStats), findsNothing);
-    expect(find.byIcon(Icons.verified), findsNothing);
-    expect(find.byIcon(Icons.verified_outlined), findsNothing);
+    expect(find.byIcon(CraftskyIcons.verifiedAccount), findsNothing);
+    expect(find.byIcon(CraftskyIcons.verifiedAccount), findsNothing);
     expect(
       find.text('Small-batch colour for adventurous knitters'),
       findsOneWidget,

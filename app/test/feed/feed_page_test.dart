@@ -11,6 +11,7 @@ import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/pages/feed_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
+import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
@@ -19,6 +20,8 @@ import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
+import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -48,6 +51,7 @@ final class _FeedPinRegistryStorage implements SessionRegistryStorage {
 
 Map<String, dynamic> _postMap({
   required String rkey,
+  String? text,
   String did = 'did:plc:alice',
   String handle = 'alice.craftsky.social',
   int replyCount = 3,
@@ -56,7 +60,7 @@ Map<String, dynamic> _postMap({
   'uri': 'at://$did/social.craftsky.feed.post/$rkey',
   'cid': 'bafy_$rkey',
   'rkey': rkey,
-  'text': 'timeline post $rkey',
+  'text': text ?? 'timeline post $rkey',
   'tags': <String>[],
   'likeCount': 1,
   'repostCount': 2,
@@ -72,6 +76,7 @@ Map<String, dynamic> _postMap({
 
 Post _post(
   String rkey, {
+  String? text,
   String did = 'did:plc:alice',
   String handle = 'alice.craftsky.social',
   int replyCount = 3,
@@ -79,6 +84,7 @@ Post _post(
 }) => PostMapper.fromMap(
   _postMap(
     rkey: rkey,
+    text: text,
     did: did,
     handle: handle,
     replyCount: replyCount,
@@ -133,6 +139,8 @@ Future<void> _pump(
   FakePostRepository repo, {
   List<dynamic> overrides = const [],
   RecordingMessenger? messenger,
+  TextDirection textDirection = TextDirection.ltr,
+  double topPadding = 0,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -152,7 +160,17 @@ Future<void> _pump(
           theme: AppTheme.lightThemeData,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: const FeedPage(),
+          home: Builder(
+            builder: (context) => Directionality(
+              textDirection: textDirection,
+              child: MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(padding: EdgeInsets.only(top: topPadding)),
+                child: const FeedPage(),
+              ),
+            ),
+          ),
         ),
       ),
     ),
@@ -161,6 +179,213 @@ Future<void> _pump(
 
 void main() {
   setUpAll(initializeMappers);
+
+  testWidgets('compact Feed exposes one extended New post action', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(600, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _pump(
+      tester,
+      FakePostRepository(
+        onListTimeline: ({cursor, limit}) async => _timelinePage([_post('a')]),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CraftskyFloatingActionButton), findsOneWidget);
+    expect(find.text('New post'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(PostCard),
+        matching: find.text('New post'),
+      ),
+      findsNothing,
+    );
+  });
+
+  testWidgets('wide Feed has no New post floating action', (tester) async {
+    tester.view.physicalSize = const Size(1000, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _pump(
+      tester,
+      FakePostRepository(
+        onListTimeline: ({cursor, limit}) async => _timelinePage([_post('a')]),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CraftskyFloatingActionButton), findsNothing);
+    expect(find.text('New post'), findsNothing);
+  });
+
+  for (final initialPosts in <List<Post>>[
+    const [],
+    [_post('before')],
+  ]) {
+    testWidgets(
+      'Feed pull-to-refresh reloads '
+      '${initialPosts.isEmpty ? 'empty' : 'nonempty'} data',
+      (tester) async {
+        var calls = 0;
+        await _pump(
+          tester,
+          FakePostRepository(
+            onListTimeline: ({cursor, limit}) async {
+              calls++;
+              return calls == 1
+                  ? _timelinePage(initialPosts)
+                  : _timelinePage([_post('refreshed')]);
+            },
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        await tester.drag(
+          find.byType(CustomScrollView),
+          const Offset(0, 400),
+        );
+        await tester.pumpAndSettle();
+
+        expect(calls, 2);
+        expect(find.text('timeline post refreshed'), findsOneWidget);
+      },
+    );
+  }
+
+  testWidgets('Feed refresh indicator starts below its sliver app bar', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      FakePostRepository(
+        onListTimeline: ({cursor, limit}) async =>
+            const TimelinePage(items: []),
+      ),
+      topPadding: 24,
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<RefreshIndicator>(find.byType(RefreshIndicator)).edgeOffset,
+      24 + kToolbarHeight,
+    );
+  });
+
+  testWidgets('Feed back-to-top is absent while loading, empty, and at top', (
+    tester,
+  ) async {
+    final gate = Completer<TimelinePage>();
+    await _pump(
+      tester,
+      FakePostRepository(onListTimeline: ({cursor, limit}) => gate.future),
+    );
+    expect(find.byTooltip('Back to top'), findsNothing);
+
+    gate.complete(const TimelinePage(items: []));
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Back to top'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await _pump(
+      tester,
+      FakePostRepository(
+        onListTimeline: ({cursor, limit}) async => _timelinePage([
+          for (var i = 0; i < 12; i++) _post('top-$i'),
+        ]),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byTooltip('Back to top'), findsNothing);
+  });
+
+  testWidgets('Feed back-to-top appears after 200 px and returns to top', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      FakePostRepository(
+        onListTimeline: ({cursor, limit}) async => _timelinePage([
+          for (var i = 0; i < 16; i++) _post('scroll-$i'),
+        ]),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final scrollable = tester.state<ScrollableState>(
+      find.descendant(
+        of: find.byType(CustomScrollView),
+        matching: find.byType(Scrollable),
+      ),
+    );
+
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -250));
+    await tester.pumpAndSettle();
+
+    expect(scrollable.position.pixels, greaterThanOrEqualTo(200));
+    expect(find.byTooltip('Back to top'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Back to top'));
+    await tester.pumpAndSettle();
+
+    expect(scrollable.position.pixels, scrollable.position.minScrollExtent);
+    expect(find.byTooltip('Back to top'), findsNothing);
+  });
+
+  testWidgets('Feed actions do not overlap in right-to-left layouts', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(600, 800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _pump(
+      tester,
+      FakePostRepository(
+        onListTimeline: ({cursor, limit}) async => _timelinePage([
+          for (var i = 0; i < 16; i++) _post('rtl-$i'),
+        ]),
+      ),
+      textDirection: TextDirection.rtl,
+    );
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -250));
+    await tester.pumpAndSettle();
+
+    final composeRect = tester.getRect(
+      find.byType(CraftskyFloatingActionButton),
+    );
+    final topRect = tester.getRect(find.byTooltip('Back to top'));
+    expect(composeRect.overlaps(topRect), isFalse);
+  });
+
+  testWidgets('Feed long cards toggle between Show more and Show less', (
+    tester,
+  ) async {
+    final longText = List.filled(301, 'x').join();
+    await _pump(
+      tester,
+      FakePostRepository(
+        onListTimeline: ({cursor, limit}) async =>
+            _timelinePage([_post('long', text: longText)]),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Show more'), findsOneWidget);
+    await tester.ensureVisible(find.text('Show more'));
+    await tester.tap(find.text('Show more'));
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(find.text('Show less'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('Show less'));
+    await tester.tap(find.text('Show less'));
+    await tester.pump(const Duration(milliseconds: 350));
+    expect(find.text('Show more'), findsOneWidget);
+  });
 
   testWidgets('FeedPage renders timeline loading state', (tester) async {
     final gate = Completer<TimelinePage>();
@@ -203,7 +428,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(Icons.more_horiz));
+    await tester.tap(find.byIcon(CraftskyIconsBold.more));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Pin post'));
     await tester.pumpAndSettle();
@@ -387,6 +612,8 @@ void main() {
     expect(nextCursors, ['c1']);
 
     allowNextPage = true;
+    await tester.ensureVisible(find.text('Retry'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Retry'));
     await tester.pumpAndSettle();
 
@@ -442,6 +669,7 @@ void main() {
 
     await tester.pumpAndSettle();
     await tester.tap(find.text('timeline post tapme'));
+    await tester.pump(const Duration(milliseconds: 350));
     await tester.pumpAndSettle();
 
     expect(find.text('Thread route'), findsOneWidget);
@@ -470,9 +698,9 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.favorite_border));
+    await tester.tap(find.byIcon(CraftskyIconsBold.like));
     await tester.pump();
-    await tester.tap(find.byIcon(Icons.repeat));
+    await tester.tap(find.byIcon(CraftskyIconsBold.repost));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Repost'));
     await tester.pumpAndSettle();
@@ -481,7 +709,7 @@ void main() {
       'like:did:plc:alice/actions',
       'repost:did:plc:alice/actions',
     ]);
-    expect(find.byIcon(Icons.favorite), findsOneWidget);
+    expect(find.byIcon(CraftskyIcons.liked), findsOneWidget);
   });
 
   testWidgets('FeedPage quote action opens composer with quote target', (
@@ -496,7 +724,7 @@ void main() {
     await _pump(tester, repo);
 
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.repeat));
+    await tester.tap(find.byIcon(CraftskyIconsBold.repost));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Quote'));
     await tester.pumpAndSettle();
@@ -525,7 +753,7 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.favorite_border));
+    await tester.tap(find.byIcon(CraftskyIconsBold.like));
     await tester.pump();
     await tester.pump();
 
@@ -533,7 +761,7 @@ void main() {
       messenger.calls,
       contains(('error', "Couldn't update like.", null)),
     );
-    expect(find.byIcon(Icons.favorite_border), findsOneWidget);
+    expect(find.byIcon(CraftskyIconsBold.like), findsOneWidget);
   });
 
   testWidgets('FeedPage reply opens focused thread and updates root row', (
@@ -591,13 +819,13 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.chat_bubble_outline));
+    await tester.tap(find.byIcon(CraftskyIconsBold.comment));
     await tester.pumpAndSettle();
     expect(find.text('Regular post'), findsNothing);
     expect(find.text('Project post'), findsNothing);
     await tester.enterText(find.byType(TextField), 'new comment');
     await tester.pump();
-    await tester.tap(find.widgetWithText(ChunkyButton, 'Reply'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Comment'));
     await tester.pumpAndSettle();
 
     expect(find.text('Thread route'), findsOneWidget);
@@ -659,15 +887,15 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    expect(find.byIcon(Icons.more_horiz), findsNWidgets(2));
+    expect(find.byIcon(CraftskyIconsBold.more), findsNWidgets(2));
 
-    await tester.tap(find.byIcon(Icons.more_horiz).last);
+    await tester.tap(find.byIcon(CraftskyIconsBold.more).last);
     await tester.pumpAndSettle();
     expect(find.text('Delete post'), findsNothing);
     await tester.tapAt(const Offset(10, 10));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byIcon(Icons.more_horiz).first);
+    await tester.tap(find.byIcon(CraftskyIconsBold.more).first);
     await tester.pumpAndSettle();
     await tester.tap(find.text('Delete post'));
     await tester.pumpAndSettle();
@@ -707,7 +935,7 @@ void main() {
     );
 
     await tester.pumpAndSettle();
-    await tester.tap(find.byIcon(Icons.more_horiz));
+    await tester.tap(find.byIcon(CraftskyIconsBold.more));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Report post'));
     await tester.pumpAndSettle();

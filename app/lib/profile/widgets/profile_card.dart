@@ -18,6 +18,7 @@ import 'package:craftsky_app/profile/widgets/profile_tab_bar.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/chunky_icon_button.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -431,7 +432,7 @@ class _ProfileCardSurface extends StatelessWidget {
                                           colors.onSurface,
                                         ),
                                       ),
-                                      icon: const Icon(Icons.close),
+                                      icon: const Icon(CraftskyIconsBold.close),
                                     ),
                                   ),
                                 ),
@@ -512,7 +513,7 @@ class _ProfileCardActions extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.edit_outlined),
+                        const Icon(CraftskyIconsBold.edit),
                         SizedBox(width: spacing.sp2),
                         Text(l10n.profileEditAction),
                       ],
@@ -521,7 +522,7 @@ class _ProfileCardActions extends StatelessWidget {
                   SizedBox(width: spacing.sp3),
                   ChunkyIconButton(
                     onPressed: () {},
-                    icon: Icons.settings_outlined,
+                    icon: CraftskyIconsBold.settings,
                     tooltip: l10n.profileSettingsAction,
                   ),
                 ],
@@ -597,7 +598,7 @@ class _ProfileCardActions extends StatelessWidget {
                       children: [
                         ChunkyIconButton(
                           onPressed: () {},
-                          icon: Icons.volume_off_outlined,
+                          icon: CraftskyIconsBold.muted,
                           tooltip: l10n.profileMuteAction,
                         ),
                         SizedBox(width: spacing.sp3),
@@ -624,7 +625,7 @@ class _ProfileCardActions extends StatelessWidget {
         items: [
           CraftskyContextMenuItem(
             text: l10n.profileShareAction,
-            icon: Icons.ios_share_outlined,
+            icon: CraftskyIconsBold.share,
             onPressed: () {},
           ),
         ],
@@ -633,14 +634,14 @@ class _ProfileCardActions extends StatelessWidget {
         items: [
           CraftskyContextMenuItem(
             text: l10n.profileBlockAction,
-            icon: Icons.block_outlined,
+            icon: CraftskyIconsBold.block,
             onPressed: () {},
             style: CraftskyContextMenuItemStyle.destructive,
             semanticHint: l10n.destructiveActionHint,
           ),
           CraftskyContextMenuItem(
             text: l10n.profileReportAction,
-            icon: Icons.flag_outlined,
+            icon: CraftskyIconsBold.report,
             onPressed: () {},
           ),
         ],

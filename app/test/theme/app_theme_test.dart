@@ -71,6 +71,42 @@ void main() {
       expect(shape.side.width, 1.5);
       expect(fab.extendedTextStyle?.fontWeight, FontWeight.w800);
     });
+
+    testWidgets('$name theme gives refresh indicators a paper treatment', (
+      tester,
+    ) async {
+      final theme = loadTheme();
+      final swatches = theme.extension<BrandSwatchTheme>()!;
+
+      expect(theme.progressIndicatorTheme.color, theme.colorScheme.primary);
+      expect(
+        theme.progressIndicatorTheme.refreshBackgroundColor,
+        swatches.paper3,
+      );
+    });
+
+    testWidgets('$name theme gives snackbars a paper-cutout treatment', (
+      tester,
+    ) async {
+      final theme = loadTheme();
+      final swatches = theme.extension<BrandSwatchTheme>()!;
+      final snackBar = theme.snackBarTheme;
+      final shape = snackBar.shape! as RoundedRectangleBorder;
+
+      expect(snackBar.behavior, SnackBarBehavior.floating);
+      expect(snackBar.backgroundColor, swatches.paper3);
+      expect(snackBar.contentTextStyle?.color, theme.colorScheme.onSurface);
+      expect(snackBar.actionTextColor, theme.colorScheme.primary);
+      expect(snackBar.closeIconColor, theme.colorScheme.onSurface);
+      expect(snackBar.elevation, 3);
+      expect(snackBar.insetPadding, const EdgeInsets.all(16));
+      expect(
+        shape.borderRadius,
+        BorderRadius.circular(const RadiusTheme().r3),
+      );
+      expect(shape.side.color, theme.colorScheme.onSurface);
+      expect(shape.side.width, 1.5);
+    });
   }
 
   test('dark theme uses the Midnight Paper palette', () {

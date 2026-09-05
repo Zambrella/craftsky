@@ -84,7 +84,7 @@ class _RecentSearchSection extends ConsumerWidget {
             title: Text(recent.displayLabel),
             trailing: IconButton(
               tooltip: l10n.searchDeleteRecentAction,
-              icon: const Icon(Icons.close),
+              icon: const Icon(CraftskyIconsBold.close),
               onPressed: () => ref
                   .read(deleteRecentSearchProvider.notifier)
                   .delete(recent.id),
@@ -133,8 +133,12 @@ class _TopHashtagSection extends StatelessWidget {
         ),
         for (final group in groups) ...[
           SizedBox(height: spacing.sp3),
-          Text(
-            _optionLabel(ProjectOptionCatalogs.craftTypes, group.craftType),
+          CraftIconLabel(
+            craft: group.craftType,
+            label: _optionLabel(
+              ProjectOptionCatalogs.craftTypes,
+              group.craftType,
+            ),
             style: Theme.of(context).textTheme.titleSmall,
           ),
           if (group.items.isEmpty)

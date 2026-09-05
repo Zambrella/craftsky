@@ -12,7 +12,9 @@ import 'package:craftsky_app/saved_posts/widgets/saved_post_folder_dialogs.dart'
 import 'package:craftsky_app/saved_posts/widgets/saved_post_row.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_row_actions.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_sort_button.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -63,7 +65,7 @@ class _SavedPostFolderScreenState extends ConsumerState<SavedPostFolderScreen> {
                 items: [
                   CraftskyContextMenuItem(
                     text: l10n.savedPostRenameFolder,
-                    icon: Icons.edit_outlined,
+                    icon: CraftskyIconsBold.edit,
                     onPressed: () => showRenameSavedPostFolderDialog(
                       context,
                       account: widget.account,
@@ -72,7 +74,7 @@ class _SavedPostFolderScreenState extends ConsumerState<SavedPostFolderScreen> {
                   ),
                   CraftskyContextMenuItem(
                     text: l10n.savedPostDeleteFolder,
-                    icon: Icons.delete_outline,
+                    icon: CraftskyIconsBold.delete,
                     style: CraftskyContextMenuItemStyle.destructive,
                     onPressed: () async {
                       final deleted = await showDeleteSavedPostFolderDialog(
@@ -100,9 +102,10 @@ class _SavedPostFolderScreenState extends ConsumerState<SavedPostFolderScreen> {
             physics: const AlwaysScrollableScrollPhysics(),
             children: [
               if (value.items.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.all(24),
-                  child: Center(child: Text(l10n.savedPostsEmpty)),
+                CraftskyEmptyState(
+                  icon: CraftskyIcons.folder,
+                  title: l10n.savedPostsEmpty,
+                  subtitle: l10n.savedPostsTitle,
                 ),
               for (final item in value.items)
                 SavedPostRow(
