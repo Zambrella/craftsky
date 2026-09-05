@@ -20,6 +20,7 @@ import 'package:craftsky_app/profile/pages/profile_page.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
+import 'package:craftsky_app/profile/widgets/profile_craft_chips.dart';
 import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
 import 'package:craftsky_app/profile/widgets/profile_identity.dart';
 import 'package:craftsky_app/profile/widgets/profile_meta_section.dart';
@@ -333,6 +334,60 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('expanded header reserves space for wrapped craft chips', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(402, 874);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: CustomScrollView(
+              slivers: [
+                ProfileSliverAppBar(
+                  handle: 'craftsky.social',
+                  displayName: 'Craftsky',
+                  crafts: const ['sewing', 'sewing', 'sewing', 'sewing'],
+                  actions: VisitorProfileActionSet(
+                    isFollowing: true,
+                    isBusy: false,
+                    onFollowToggle: () {},
+                    onShare: () {},
+                    onReport: () {},
+                    onMuteToggle: () {},
+                    onBlockToggle: () {},
+                  ),
+                ),
+                const SliverToBoxAdapter(
+                  child: SizedBox(key: Key('profile-content-start'), height: 1),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final sewingLabels = find.text('Sewing');
+      final firstCraftTop = tester.getTopLeft(sewingLabels.at(0)).dy;
+      final lastCraftTop = tester.getTopLeft(sewingLabels.at(3)).dy;
+      final craftsBottom = tester
+          .getBottomLeft(find.byType(ProfileCraftChips))
+          .dy;
+      final contentTop = tester
+          .getTopLeft(find.byKey(const Key('profile-content-start')))
+          .dy;
+      expect(lastCraftTop, greaterThan(firstCraftTop));
+      expect(craftsBottom, lessThanOrEqualTo(contentTop));
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('rail profile header does not reserve a drawer-button gap', (
       tester,
     ) async {
@@ -558,7 +613,7 @@ void main() {
       );
     });
 
-    testWidgets('profile back surface fades out as the header collapses', (
+    testWidgets('profile back button follows expanded header contrast', (
       tester,
     ) async {
       final controller = ScrollController();
@@ -607,12 +662,22 @@ void main() {
       await tester.pumpAndSettle();
 
       final appBar = tester.widget<SliverAppBar>(find.byType(SliverAppBar));
-      final paper3 = AppTheme.lightThemeData.colorScheme.surface;
+      final onSurface = AppTheme.lightThemeData.colorScheme.onSurface;
+      final expandedForeground = profileColour(
+        profileColourBundles['orchid']!.foreground,
+      );
       BackButton backButton() => tester.widget<BackButton>(
         find.byType(BackButton),
       );
 
-      expect(backButton().style?.backgroundColor?.resolve({}), paper3);
+      expect(
+        backButton().style?.backgroundColor?.resolve({}),
+        Colors.transparent,
+      );
+      expect(
+        backButton().style?.foregroundColor?.resolve({}),
+        expandedForeground,
+      );
 
       controller.jumpTo(appBar.expandedHeight! - kToolbarHeight);
       await tester.pump();
@@ -621,6 +686,7 @@ void main() {
         backButton().style?.backgroundColor?.resolve({}),
         Colors.transparent,
       );
+      expect(backButton().style?.foregroundColor?.resolve({}), onSurface);
     });
 
     testWidgets(
