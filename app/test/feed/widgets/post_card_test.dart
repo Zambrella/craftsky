@@ -54,6 +54,7 @@ Post _post({
   String text = 'Cast on for the Hitchhiker shawl tonight.',
   List<Map<String, dynamic>>? facets,
   String? displayName,
+  String handle = 'alice.craftsky.social',
   int likeCount = 0,
   int repostCount = 0,
   int quoteCount = 0,
@@ -98,7 +99,7 @@ Post _post({
     indexedAt: DateTime.now().subtract(const Duration(minutes: 2)),
     author: PostAuthor(
       did: 'did:plc:alice',
-      handle: 'alice.craftsky.social',
+      handle: handle,
       displayName: displayName,
       muted: authorMuted,
       blocking: authorBlocking,
@@ -691,6 +692,34 @@ void main() {
         tester.getRect(find.byType(CraftskyCard).first).right -
             tester.getRect(time).right,
         lessThan(32),
+      );
+    });
+
+    testWidgets('large text identity uses available width before truncating', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        MediaQuery(
+          data: const MediaQueryData(
+            size: Size(430, 900),
+            textScaler: TextScaler.linear(2),
+          ),
+          child: PostCard(
+            post: _post(displayName: 'Doug Todd', handle: 'dougtodd.dev'),
+          ),
+        ),
+      );
+
+      final identityTarget = find.ancestor(
+        of: find.text('@dougtodd.dev'),
+        matching: find.byType(GestureDetector),
+      );
+      final time = find.textContaining('3m');
+      expect(tester.getSize(identityTarget.first).width, greaterThan(180));
+      expect(
+        tester.getTopRight(identityTarget.first).dx,
+        lessThanOrEqualTo(tester.getTopLeft(time).dx),
       );
     });
 

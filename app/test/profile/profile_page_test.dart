@@ -33,6 +33,7 @@ import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -332,6 +333,46 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
+    testWidgets('rail profile header does not reserve a drawer-button gap', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1200, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: CustomScrollView(
+              slivers: [
+                ProfileSliverAppBar(
+                  handle: 'alice.bsky.social',
+                  displayName: 'Alice',
+                  actions: SelfProfileActionSet(
+                    onEdit: () {},
+                    onSettings: () {},
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final appBar = tester.widget<SliverAppBar>(find.byType(SliverAppBar));
+      final title = tester.widget<Positioned>(
+        find.byKey(const Key('profile-sliver-collapsed-title')),
+      );
+      final context = tester.element(find.byType(ProfileSliverAppBar));
+      expect(appBar.automaticallyImplyLeading, isFalse);
+      expect(appBar.leading, isNull);
+      expect(title.left, Theme.of(context).extension<SpacingTheme>()!.sp4);
+    });
+
     testWidgets('collapsed business app bar omits the business label', (
       tester,
     ) async {
@@ -475,6 +516,9 @@ void main() {
       await tester.pump();
 
       final appBar = tester.widget<SliverAppBar>(find.byType(SliverAppBar));
+      final title = tester.widget<Positioned>(
+        find.byKey(const Key('profile-sliver-collapsed-title')),
+      );
       final darkScheme = AppTheme.darkThemeData.colorScheme;
       IconButton menuButton() => tester.widget<IconButton>(
         find.widgetWithIcon(IconButton, CraftskyIconsBold.menu),
@@ -488,6 +532,7 @@ void main() {
         menuButton().style?.foregroundColor?.resolve({}),
         darkScheme.onSurface,
       );
+      expect(title.left, 56);
 
       controller.jumpTo(appBar.expandedHeight! - kToolbarHeight);
       await tester.pump();

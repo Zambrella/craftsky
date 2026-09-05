@@ -352,26 +352,18 @@ class PostCard extends ConsumerWidget {
                         ),
                         SizedBox(width: spacing.sp3),
                         Expanded(
-                          child: Row(
-                            children: [
-                              Flexible(
-                                child: _PostCardHeader(
-                                  displayName: displayName,
-                                  handle: post.author.handle,
-                                  onTap: openAuthorProfile,
-                                ),
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: onTap,
+                            onDoubleTap: likeOnDoubleTap,
+                            child: Align(
+                              alignment: AlignmentDirectional.centerStart,
+                              child: _PostCardHeader(
+                                displayName: displayName,
+                                handle: post.author.handle,
+                                onTap: openAuthorProfile,
                               ),
-                              Expanded(
-                                child: GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onTap: onTap,
-                                  onDoubleTap: likeOnDoubleTap,
-                                  child: const SizedBox(
-                                    height: _postCardMenuWidth,
-                                  ),
-                                ),
-                              ),
-                            ],
+                            ),
                           ),
                         ),
                         GestureDetector(

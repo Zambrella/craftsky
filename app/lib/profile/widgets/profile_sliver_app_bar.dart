@@ -52,8 +52,10 @@ class ProfileSliverAppBar extends StatelessWidget {
     final layout = _resolveLayout(context);
     final hasDrawer = AppShellDrawerScope.maybeOf(context) != null;
     final hasBack = ModalRoute.of(context)?.impliesAppBarDismissal ?? false;
+    final hasLeading = hasDrawer || hasBack;
     return SliverAppBar(
-      leading: hasDrawer || hasBack
+      automaticallyImplyLeading: false,
+      leading: hasLeading
           ? _ProfileLeadingAction(
               showDrawer: hasDrawer,
               expandedHeight: layout.expandedHeight,
@@ -77,6 +79,7 @@ class ProfileSliverAppBar extends StatelessWidget {
         expandedHeight: layout.expandedHeight,
         identityHeight: layout.identityHeight,
         craftsTop: layout.craftsTop,
+        hasLeading: hasLeading,
       ),
     );
   }
@@ -250,6 +253,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
     required this.expandedHeight,
     required this.identityHeight,
     required this.craftsTop,
+    required this.hasLeading,
   });
 
   final String handle;
@@ -263,6 +267,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
   final double expandedHeight;
   final double identityHeight;
   final double craftsTop;
+  final bool hasLeading;
 
   @override
   Widget build(BuildContext context) {
@@ -350,7 +355,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
         ),
         Positioned(
           key: const Key('profile-sliver-collapsed-title'),
-          left: 56,
+          left: hasLeading ? 56 : spacing.sp4,
           right: 56,
           top: topPadding,
           height: kToolbarHeight,

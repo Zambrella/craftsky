@@ -197,7 +197,6 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   late BusinessDeclarationDraft _businessBaseline;
 
   _ProfileImageDraft _avatarDraft = const _ProfileImageDraft();
-  _ProfileImageDraft _bannerDraft = const _ProfileImageDraft();
   AccountSessionLease? _unsavedOwner;
   UnsavedWorkRegistration? _unsavedRegistration;
   late final UnsavedWorkGuard _unsavedGuard;
@@ -268,7 +267,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
         .toSet();
     if (currentIds.length != initialIds.length) return true;
     if (!currentIds.containsAll(initialIds)) return true;
-    if (_avatarDraft.changed || _bannerDraft.changed) return true;
+    if (_avatarDraft.changed) return true;
     return false;
   }
 
@@ -285,11 +284,9 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   BusinessDeclarationDraft get _currentBusinessDraft =>
       BusinessProfileFields.draftFrom(_formValues, _businessBaseline);
 
-  bool get _imageUploadInFlight =>
-      _avatarDraft.isUploading || _bannerDraft.isUploading;
+  bool get _imageUploadInFlight => _avatarDraft.isUploading;
 
-  bool get _imageUploadHasError =>
-      _avatarDraft.hasError || _bannerDraft.hasError;
+  bool get _imageUploadHasError => _avatarDraft.hasError;
 
   /// Validates the form and dispatches the save. Sends the **full**
   /// current form state, not a diff — atproto profile records are
@@ -327,12 +324,11 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
             description: description,
             crafts: craftsPayload,
             avatar: _avatarDraft.uploaded?.blob,
-            banner: _bannerDraft.uploaded?.blob,
           ),
     );
   }
 
-  Future<void> _pickProfileImage(_ProfileImageKind kind) async {
+  Future<void> _pickProfileImage() async {
     if (_imageUploadInFlight) return;
     final l10n = AppLocalizations.of(context);
     try {
@@ -342,33 +338,21 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
             onPreviewReady: (bytes) {
               if (!mounted) return;
               setState(
-                () => _setImageDraft(
-                  kind,
-                  _ProfileImageDraft.uploading(bytes),
-                ),
+                () => _avatarDraft = _ProfileImageDraft.uploading(bytes),
               );
             },
           );
       if (result == null || !mounted) return;
       setState(
-        () => _setImageDraft(
-          kind,
-          _ProfileImageDraft.uploaded(result.previewBytes, result.uploaded),
+        () => _avatarDraft = _ProfileImageDraft.uploaded(
+          result.previewBytes,
+          result.uploaded,
         ),
       );
     } on Object {
       if (!mounted) return;
-      setState(() => _setImageDraft(kind, _ProfileImageDraft.failed()));
+      setState(() => _avatarDraft = _ProfileImageDraft.failed());
       context.showError(l10n.editProfilePhotoUploadError);
-    }
-  }
-
-  void _setImageDraft(_ProfileImageKind kind, _ProfileImageDraft draft) {
-    switch (kind) {
-      case _ProfileImageKind.avatar:
-        _avatarDraft = draft;
-      case _ProfileImageKind.banner:
-        _bannerDraft = draft;
     }
   }
 
@@ -474,23 +458,12 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
               children: [
                 EditProfileBannerAvatar(
                   profile: widget.profile,
-                  bannerColor: swatches.clay,
                   avatarPreviewBytes: _avatarDraft.previewBytes,
-                  bannerPreviewBytes: _bannerDraft.previewBytes,
                   avatarUploading: _avatarDraft.isUploading,
-                  bannerUploading: _bannerDraft.isUploading,
                   avatarError: _avatarDraft.hasError,
-                  bannerError: _bannerDraft.hasError,
                   onPickAvatar: isSaving
                       ? null
-                      : () => unawaited(
-                          _pickProfileImage(_ProfileImageKind.avatar),
-                        ),
-                  onPickBanner: isSaving
-                      ? null
-                      : () => unawaited(
-                          _pickProfileImage(_ProfileImageKind.banner),
-                        ),
+                      : () => unawaited(_pickProfileImage()),
                 ),
                 Padding(
                   padding: EdgeInsets.fromLTRB(
@@ -638,7 +611,6 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     if (result.ordinary.value case final Profile saved?) {
       _ordinaryBaseline = saved;
       _avatarDraft = const _ProfileImageDraft();
-      _bannerDraft = const _ProfileImageDraft();
     }
     if (result.business.value case final BusinessProfile saved?) {
       _businessBaseline = BusinessDeclarationDraft.fromProfile(saved);
@@ -697,8 +669,6 @@ class _SaveAction extends StatelessWidget {
     );
   }
 }
-
-enum _ProfileImageKind { avatar, banner }
 
 class _ProfileImageDraft {
   const _ProfileImageDraft({
