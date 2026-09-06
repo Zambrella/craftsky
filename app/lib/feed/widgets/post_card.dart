@@ -315,7 +315,9 @@ class PostCard extends ConsumerWidget {
         borderRadius: borderRadius,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
+          key: const Key('post-card-tap-target'),
           borderRadius: borderRadius,
+          onTap: onTap,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -412,23 +414,29 @@ class PostCard extends ConsumerWidget {
                     ],
                     if (post.images case final images?
                         when images.isNotEmpty) ...[
-                      PostImageCarousel(
-                        images: images,
-                        onImageTap: (index, heroTags) =>
-                            switch (imageInteractionMode) {
-                              PostCardImageInteractionMode.navigate =>
-                                onTap?.call(),
-                              PostCardImageInteractionMode.fullscreenGallery =>
-                                unawaited(
-                                  showPostImageGallery(
-                                    context,
-                                    images: images,
-                                    initialIndex: index,
-                                    heroTags: heroTags,
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        excludeFromSemantics: true,
+                        onTap: () {},
+                        child: PostImageCarousel(
+                          images: images,
+                          onImageTap: (index, heroTags) =>
+                              switch (imageInteractionMode) {
+                                PostCardImageInteractionMode.navigate =>
+                                  onTap?.call(),
+                                PostCardImageInteractionMode
+                                    .fullscreenGallery =>
+                                  unawaited(
+                                    showPostImageGallery(
+                                      context,
+                                      images: images,
+                                      initialIndex: index,
+                                      heroTags: heroTags,
+                                    ),
                                   ),
-                                ),
-                            },
-                        onImageDoubleTap: likeOnDoubleTap,
+                              },
+                          onImageDoubleTap: likeOnDoubleTap,
+                        ),
                       ),
                       SizedBox(height: spacing.sp3),
                     ],

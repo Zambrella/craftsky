@@ -1809,6 +1809,54 @@ void main() {
       expect(taps, 1);
     });
 
+    testWidgets('makes the full unused card surface tappable with InkWell', (
+      tester,
+    ) async {
+      var taps = 0;
+      await _pump(tester, PostCard(post: _post(), onTap: () => taps++));
+
+      final tapTarget = find.byKey(const Key('post-card-tap-target'));
+      final inkWell = tester.widget<InkWell>(tapTarget);
+      final rect = tester.getRect(tapTarget);
+
+      expect(inkWell.onTap, isNotNull);
+      await tester.tapAt(Offset(rect.left + 4, rect.center.dy));
+      await tester.pumpAndSettle();
+
+      expect(taps, 1);
+    });
+
+    testWidgets('keeps the full flat card surface tappable', (tester) async {
+      var taps = 0;
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(),
+          style: PostCardStyle.flat,
+          onTap: () => taps++,
+        ),
+      );
+
+      final tapTarget = find.byKey(const Key('post-card-tap-target'));
+      final rect = tester.getRect(tapTarget);
+      await tester.tapAt(Offset(rect.left + 4, rect.center.dy));
+      await tester.pumpAndSettle();
+
+      expect(taps, 1);
+    });
+
+    testWidgets('disables the card InkWell when navigation is unavailable', (
+      tester,
+    ) async {
+      await _pump(tester, PostCard(post: _post()));
+
+      final inkWell = tester.widget<InkWell>(
+        find.byKey(const Key('post-card-tap-target')),
+      );
+
+      expect(inkWell.onTap, isNull);
+    });
+
     testWidgets('shows long post bodies in full by default', (tester) async {
       final text = '${List.filled(300, 'a').join()}z';
 
