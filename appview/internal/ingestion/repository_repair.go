@@ -78,6 +78,10 @@ func (repair *RepositoryRepair) Apply(
 	if err != nil {
 		return "", err
 	}
+	ownerGeneration, err := repair.store.repositoryRepairOwnerGeneration(ctx, snapshot.verified.did)
+	if err != nil {
+		return "", err
+	}
 	descriptions, err := DescribeRepositoryRepair(snapshot, indexed, registry)
 	if err != nil {
 		return "", err
@@ -94,7 +98,9 @@ func (repair *RepositoryRepair) Apply(
 			if exists && source.Revision > snapshot.verified.revision {
 				continue
 			}
-			if description.Action == RepositoryRepairNoop && source.OrderingStatus == "authoritative" {
+			generationCurrent := isIndependentBusinessCollection(source.Collection) ||
+				(source.ProjectionGeneration != nil && *source.ProjectionGeneration == ownerGeneration)
+			if description.Action == RepositoryRepairNoop && source.OrderingStatus == "authoritative" && generationCurrent {
 				continue
 			}
 			if exists {
@@ -151,12 +157,22 @@ func (repair *RepositoryRepair) Apply(
 			}
 			if ok {
 				if err := repair.store.Project(ctx, claim, repair.projector); err != nil {
-					return "", err
+					return "", fmt.Errorf("project repository repair source %s: %w", source.URI, err)
 				}
 			}
 		}
 	}
 	return snapshot.verified.revision.String(), nil
+}
+
+func (store *Store) repositoryRepairOwnerGeneration(ctx context.Context, did syntax.DID) (int64, error) {
+	var generation int64
+	if err := store.pool.QueryRow(ctx, `
+		SELECT generation FROM owner_lifecycles WHERE owner_did=$1
+	`, did).Scan(&generation); err != nil {
+		return 0, fmt.Errorf("read repository repair owner generation: %w", err)
+	}
+	return generation, nil
 }
 
 func deterministicRepairEventID(snapshot *verifiedRepositorySnapshot, description RepositoryRepairDescription) uint64 {

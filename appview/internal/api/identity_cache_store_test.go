@@ -416,6 +416,47 @@ func TestIdentityCacheAuthoritativeRefreshRejectsKnownTerminalTarget(t *testing.
 	}
 }
 
+func TestIdentityCacheAuthoritativeRefreshReusesExistingAuthFence(t *testing.T) {
+	pool := testdb.WithSchema(t, facetStoreDDL)
+	ctx := context.Background()
+	target := syntax.DID("did:plc:fenced-cache-target")
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO owner_lifecycles(owner_did,state,generation)
+		VALUES($1,'active',1)
+	`, target); err != nil {
+		t.Fatal(err)
+	}
+	fencer, err := ownerlifecycle.NewFencer(pool, 100*time.Millisecond)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owners, err := ownerlifecycle.NewStore(pool, fencer, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolver := exactResolveFakeResolver{
+		didByHandle: map[string]syntax.DID{"fenced.example": target},
+		handleByDID: map[string]syntax.Handle{target.String(): "fenced.example"},
+	}
+	service := api.NewIdentityCacheService(pool, resolver, time.Now, nil)
+	refreshCtx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+
+	err = owners.WithExistingAuth(refreshCtx, target, func(fenceCtx context.Context, _ ownerlifecycle.Lifecycle) error {
+		return service.RefreshCurrentHandle(fenceCtx, target)
+	})
+	if err != nil {
+		t.Fatalf("RefreshCurrentHandle under existing auth fence: %v", err)
+	}
+	var handle string
+	if err := pool.QueryRow(ctx, `SELECT handle FROM atproto_identity_cache WHERE did=$1`, target).Scan(&handle); err != nil {
+		t.Fatal(err)
+	}
+	if handle != "fenced.example" {
+		t.Fatalf("handle = %q, want fenced.example", handle)
+	}
+}
+
 func TestFacetStoreResolveMentionRechecksTerminalTargetAtFinalCacheWrite(t *testing.T) {
 	pool := testdb.WithSchema(t, facetStoreDDL)
 	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)

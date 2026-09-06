@@ -8,6 +8,8 @@ const _anonymousPaths = <String>{
   '/v1/auth/registrations',
 };
 
+const _pendingBearerPaths = <String>{'/v1/auth/handoffs/confirm'};
+
 class SessionAuthInterceptor extends Interceptor {
   /// Account-bound constructor. The bearer is captured once and cannot change
   /// if another account becomes active while a request is in flight.
@@ -38,8 +40,14 @@ class SessionAuthInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
-    options.headers.removeWhere((name, _) {
+    String? requestBearer;
+    options.headers.removeWhere((name, value) {
       final normalized = name.toLowerCase();
+      if (normalized == 'authorization') {
+        if (value is String && value.startsWith('Bearer ')) {
+          requestBearer = value;
+        }
+      }
       return normalized == 'authorization' ||
           normalized == 'dpop' ||
           normalized.startsWith('x-pds-');
@@ -51,6 +59,9 @@ class SessionAuthInterceptor extends Interceptor {
       final token = _readToken();
       if (token != null) {
         options.headers['Authorization'] = 'Bearer $token';
+      } else if (_pendingBearerPaths.contains(options.path) &&
+          requestBearer != null) {
+        options.headers['Authorization'] = requestBearer;
       }
     }
     handler.next(options);

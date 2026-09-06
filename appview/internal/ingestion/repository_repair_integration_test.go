@@ -40,6 +40,74 @@ import (
 
 var errRepairInterrupted = errors.New("injected repair interruption")
 
+func TestRepositoryRepairReconcilesNoopWithStaleProjectionGeneration(t *testing.T) {
+	pool := lifecycleIngestionPool(t)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `
+		CREATE TABLE repair_projection_audit(
+			uri TEXT PRIMARY KEY, owner_did TEXT NOT NULL, action TEXT NOT NULL,
+			applications INTEGER NOT NULL DEFAULT 1
+		)
+	`); err != nil {
+		t.Fatal(err)
+	}
+	store, lifecycles, service := repairIntegrationService(t, pool, nil)
+	dispatcher := repairIntegrationDispatcher(t)
+	owner := syntax.DID("did:plc:repair-stale-generation")
+	profile := repairFixtureRecord(owner, "social.craftsky.actor.profile", "self", "profile")
+	seedRepairSource(t, service, store, dispatcher, profile.event(1, "3aaaaaaaaaaa2", "create"))
+	lifecycle, err := lifecycles.Get(ctx, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE tap_source_records
+		SET projection_generation=$2-1,projection_disposition='blocked_departed'
+		WHERE uri=$1
+	`, profile.uri, lifecycle.Generation); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE tap_projection_jobs
+		SET state='blocked',dependency_kind='repository_did',dependency_key=$2,
+		    lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,
+		    last_reason_code='source_order_uncertain',completed_at=NULL
+		WHERE source_uri=$1
+	`, profile.uri, owner); err != nil {
+		t.Fatal(err)
+	}
+	snapshot := fetchSignedRepairSnapshot(t, owner, "3aaaaaaaaaaa2", []repairFixture{profile})
+	repair, err := ingestion.NewRepositoryRepair(ingestion.RepositoryRepairConfig{
+		Store: store, Ingestor: service, Projector: dispatcher.Project,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.EnqueueRepositoryJob(ctx, owner, ingestion.RepositoryJobPDSReconcile); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM tap_repository_jobs WHERE did=$1 AND job_kind='tap_add_repo'`, owner); err != nil {
+		t.Fatal(err)
+	}
+	claim := claimRepairRepositoryJob(t, store)
+	if err := store.RunRepositoryJob(ctx, claim, func(ctx context.Context, _ ingestion.RepositoryClaim) (string, error) {
+		return repair.Apply(ctx, snapshot, dispatcher)
+	}); err != nil {
+		t.Fatalf("repair stale no-op projection: %v", err)
+	}
+	source, err := store.Source(ctx, profile.uri)
+	if err != nil {
+		t.Fatal(err)
+	}
+	job, err := store.RepositoryJob(ctx, owner, ingestion.RepositoryJobPDSReconcile)
+	if err != nil || job.State != "complete" {
+		t.Fatalf("repository job=%+v source generation=%d owner generation=%d err=%v, want complete", job, *source.ProjectionGeneration, lifecycle.Generation, err)
+	}
+	if source.ProjectionGeneration == nil || *source.ProjectionGeneration != lifecycle.Generation {
+		t.Fatalf("projection generation=%v, want %d", source.ProjectionGeneration, lifecycle.Generation)
+	}
+}
+
 func TestRepositoryRepairVerifiedSnapshotConvergesThroughDurableProjection(t *testing.T) {
 	pool := lifecycleIngestionPool(t)
 	if _, err := pool.Exec(context.Background(), `

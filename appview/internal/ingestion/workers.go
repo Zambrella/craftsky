@@ -211,7 +211,8 @@ func (worker *RepositoryWorker) Run(ctx context.Context) error {
 		if err != nil {
 			worker.logger.Error("Tap repository batch failed",
 				slog.String("component", "tap_repository"),
-				slog.String("error_category", "batch"))
+				slog.String("error_category", "batch"),
+				slog.String("reason", repositoryJobFailureReason(err)))
 		}
 		return nil
 	})

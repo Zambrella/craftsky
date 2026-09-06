@@ -33,6 +33,20 @@ void main() {
     expect(options.headers['X-Craftsky-Device-Id'], 'device-abc');
   });
 
+  test('anonymous handoff confirmation preserves its pending bearer', () async {
+    final options = RequestOptions(
+      path: '/v1/auth/handoffs/confirm',
+      headers: {'Authorization': 'Bearer pending-handoff-token'},
+    );
+    SessionAuthInterceptor.anonymous(
+      readDeviceId: () async => 'device-abc',
+    ).onRequest(options, _CapturingHandler());
+    await _pumpEventLoop();
+
+    expect(options.headers['Authorization'], 'Bearer pending-handoff-token');
+    expect(options.headers['X-Craftsky-Device-Id'], 'device-abc');
+  });
+
   test('registration stays anonymous with the stable device ID', () async {
     final options = RequestOptions(path: '/v1/auth/registrations');
     SessionAuthInterceptor.fixed(

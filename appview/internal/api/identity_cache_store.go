@@ -68,9 +68,7 @@ func (s *IdentityCacheService) RefreshCurrentHandle(ctx context.Context, did syn
 	if !valid {
 		handle = syntax.HandleInvalid
 	}
-	commit, completed, err := s.store.completeRefresh(ctx, candidate, handle, now, func(tx pgx.Tx) error {
-		return ownerlifecycle.GuardNonTerminalTargetsTx(ctx, tx, []syntax.DID{did})
-	})
+	commit, completed, err := s.store.completeRefresh(ctx, candidate, handle, now)
 	if err != nil {
 		return err
 	}
@@ -227,36 +225,45 @@ type identityRefreshCandidate struct {
 }
 
 func (s *IdentityCacheStore) claimRefresh(ctx context.Context, did syntax.DID, now time.Time) (identityRefreshCandidate, error) {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return identityRefreshCandidate{}, fmt.Errorf("identity cache claim refresh begin %s: %w", did, err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	if err := ownerlifecycle.GuardNonTerminalTargetsTx(ctx, tx, []syntax.DID{did}); err != nil {
-		return identityRefreshCandidate{}, fmt.Errorf("identity cache claim refresh authorize %s: %w", did, err)
-	}
 	candidate := identityRefreshCandidate{DID: did}
-	if err := tx.QueryRow(ctx, `SELECT handle,resolved_at FROM atproto_identity_cache WHERE did=$1`, did).Scan(&candidate.Handle, &candidate.ResolvedAt); err != nil && err != pgx.ErrNoRows {
-		return identityRefreshCandidate{}, fmt.Errorf("identity cache claim current handle %s: %w", did, err)
+	err := s.withNonTerminalOwnerTx(ctx, did, func(tx pgx.Tx) error {
+		if err := tx.QueryRow(ctx, `SELECT handle,resolved_at FROM atproto_identity_cache WHERE did=$1`, did).Scan(&candidate.Handle, &candidate.ResolvedAt); err != nil && err != pgx.ErrNoRows {
+			return fmt.Errorf("identity cache claim current handle %s: %w", did, err)
+		}
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO atproto_identity_refresh_state(
+				did,next_attempt_at,attempt_count,last_result,updated_at
+			) VALUES($1,$2,0,'pending',$2)
+			ON CONFLICT(did) DO UPDATE SET
+				next_attempt_at=EXCLUDED.next_attempt_at,
+				attempt_count=0,
+				last_result='pending',
+				updated_at=EXCLUDED.updated_at,
+				refresh_version=atproto_identity_refresh_state.refresh_version+1
+			RETURNING tap_event_id,refresh_version
+		`, did, now).Scan(&candidate.TapEventID, &candidate.Version); err != nil {
+			return fmt.Errorf("identity cache claim refresh %s: %w", did, err)
+		}
+		return nil
+	})
+	return candidate, err
+}
+
+func (s *IdentityCacheStore) withNonTerminalOwnerTx(
+	ctx context.Context,
+	did syntax.DID,
+	callback func(pgx.Tx) error,
+) error {
+	used, err := ownerlifecycle.WithPreheldNonTerminalOwnerTx(ctx, did, callback)
+	if used {
+		return err
 	}
-	if err := tx.QueryRow(ctx, `
-		INSERT INTO atproto_identity_refresh_state(
-			did,next_attempt_at,attempt_count,last_result,updated_at
-		) VALUES($1,$2,0,'pending',$2)
-		ON CONFLICT(did) DO UPDATE SET
-			next_attempt_at=EXCLUDED.next_attempt_at,
-			attempt_count=0,
-			last_result='pending',
-			updated_at=EXCLUDED.updated_at,
-			refresh_version=atproto_identity_refresh_state.refresh_version+1
-		RETURNING tap_event_id,refresh_version
-	`, did, now).Scan(&candidate.TapEventID, &candidate.Version); err != nil {
-		return identityRefreshCandidate{}, fmt.Errorf("identity cache claim refresh %s: %w", did, err)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return identityRefreshCandidate{}, fmt.Errorf("identity cache claim refresh commit %s: %w", did, err)
-	}
-	return candidate, nil
+	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		if err := ownerlifecycle.GuardNonTerminalTargetsTx(ctx, tx, []syntax.DID{did}); err != nil {
+			return fmt.Errorf("authorize identity cache refresh %s: %w", did, err)
+		}
+		return callback(tx)
+	})
 }
 
 func (s *IdentityCacheStore) refreshCandidates(ctx context.Context, limit int, now time.Time) ([]identityRefreshCandidate, error) {
@@ -378,51 +385,50 @@ func (s *IdentityCacheStore) completeRefresh(
 	authorize ...func(pgx.Tx) error,
 ) (identityRefreshCommit, bool, error) {
 	var commit identityRefreshCommit
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return commit, false, fmt.Errorf("identity cache complete refresh begin %s: %w", candidate.DID, err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	authorizeRefresh := func(tx pgx.Tx) error {
-		return ownerlifecycle.GuardNonTerminalTargetsTx(ctx, tx, []syntax.DID{candidate.DID})
-	}
-	if len(authorize) > 0 && authorize[0] != nil {
-		authorizeRefresh = authorize[0]
-	}
-	if err := authorizeRefresh(tx); err != nil {
-		return commit, false, fmt.Errorf("identity cache complete refresh authorize %s: %w", candidate.DID, err)
-	}
-	var currentVersion int64
-	err = tx.QueryRow(ctx, `
-		SELECT refresh_version
-		FROM atproto_identity_refresh_state
-		WHERE did=$1
-		FOR UPDATE
-	`, candidate.DID).Scan(&currentVersion)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return commit, false, nil
+	completed := false
+	complete := func(tx pgx.Tx) error {
+		var currentVersion int64
+		err := tx.QueryRow(ctx, `
+			SELECT refresh_version
+			FROM atproto_identity_refresh_state
+			WHERE did=$1
+			FOR UPDATE
+		`, candidate.DID).Scan(&currentVersion)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				return nil
+			}
+			return fmt.Errorf("identity cache complete refresh state %s: %w", candidate.DID, err)
 		}
-		return commit, false, fmt.Errorf("identity cache complete refresh state %s: %w", candidate.DID, err)
+		if currentVersion != candidate.Version {
+			return nil
+		}
+		if err := s.writeAuthoritativeTx(ctx, tx, candidate.DID, handle, resolvedAt, &commit); err != nil {
+			return err
+		}
+		result, err := tx.Exec(ctx, `
+			DELETE FROM atproto_identity_refresh_state
+			WHERE did=$1 AND refresh_version=$2
+		`, candidate.DID, candidate.Version)
+		if err != nil {
+			return fmt.Errorf("identity cache complete refresh clear %s: %w", candidate.DID, err)
+		}
+		if result.RowsAffected() != 1 {
+			return fmt.Errorf("identity cache complete refresh state changed for %s", candidate.DID)
+		}
+		completed = true
+		return nil
 	}
-	if currentVersion != candidate.Version {
-		return commit, false, nil
+	var err error
+	if len(authorize) > 0 && authorize[0] != nil {
+		err = pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+			if err := authorize[0](tx); err != nil {
+				return fmt.Errorf("identity cache complete refresh authorize %s: %w", candidate.DID, err)
+			}
+			return complete(tx)
+		})
+	} else {
+		err = s.withNonTerminalOwnerTx(ctx, candidate.DID, complete)
 	}
-	if err := s.writeAuthoritativeTx(ctx, tx, candidate.DID, handle, resolvedAt, &commit); err != nil {
-		return commit, false, err
-	}
-	result, err := tx.Exec(ctx, `
-		DELETE FROM atproto_identity_refresh_state
-		WHERE did=$1 AND refresh_version=$2
-	`, candidate.DID, candidate.Version)
-	if err != nil {
-		return commit, false, fmt.Errorf("identity cache complete refresh clear %s: %w", candidate.DID, err)
-	}
-	if result.RowsAffected() != 1 {
-		return commit, false, fmt.Errorf("identity cache complete refresh state changed for %s", candidate.DID)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return commit, false, fmt.Errorf("identity cache complete refresh commit %s: %w", candidate.DID, err)
-	}
-	return commit, true, nil
+	return commit, completed, err
 }
