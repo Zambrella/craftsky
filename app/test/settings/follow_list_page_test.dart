@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
@@ -78,6 +80,48 @@ void main() {
     expect(find.text('You are not following anyone'), findsOneWidget);
   });
 
+  testWidgets('following page refreshes from empty', (tester) async {
+    var calls = 0;
+    final repo = FakeProfileRepository(
+      onListFollowingMe: ({cursor, limit}) async {
+        calls++;
+        return ProfileAccountPage(
+          totalCount: calls == 1 ? 0 : 1,
+          items: calls == 1
+              ? const []
+              : [
+                  ProfileAccountSummary(
+                    did: 'did:plc:dana',
+                    handle: 'dana.craftsky.social',
+                    displayName: 'Dana',
+                    isCraftskyProfile: true,
+                  ),
+                ],
+        );
+      },
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [profileRepositoryProvider.overrideWithValue(repo)],
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const FollowListPage(kind: FollowListKind.following),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, 400));
+    await tester.pumpAndSettle();
+
+    expect(calls, 2);
+    expect(find.text('Following (1)'), findsOneWidget);
+    expect(find.text('Dana'), findsOneWidget);
+  });
+
   testWidgets('followers page loads and appends cursor pages', (tester) async {
     final cursors = <String?>[];
     final repo = FakeProfileRepository(
@@ -144,6 +188,71 @@ void main() {
       lessThan(tester.getTopLeft(find.text('Bob')).dy),
     );
     expect(find.text('Load more'), findsNothing);
+  });
+
+  testWidgets('refresh ignores an older in-flight pagination result', (
+    tester,
+  ) async {
+    final loadMore = Completer<ProfileAccountPage>();
+    var firstPageCalls = 0;
+    final repo = FakeProfileRepository(
+      onListFollowersMe: ({cursor, limit}) async {
+        if (cursor != null) return loadMore.future;
+        firstPageCalls++;
+        return ProfileAccountPage(
+          totalCount: 1,
+          cursor: firstPageCalls == 1 ? 'next' : null,
+          items: [
+            ProfileAccountSummary(
+              did: firstPageCalls == 1
+                  ? 'did:plc:initial'
+                  : 'did:plc:refreshed',
+              handle: firstPageCalls == 1 ? 'initial.test' : 'refreshed.test',
+              displayName: firstPageCalls == 1 ? 'Initial' : 'Refreshed',
+              isCraftskyProfile: true,
+            ),
+          ],
+        );
+      },
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [profileRepositoryProvider.overrideWithValue(repo)],
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: FollowListPage(kind: FollowListKind.followers),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Load more'));
+    await tester.pump();
+
+    final refresh = tester
+        .widget<RefreshIndicator>(find.byType(RefreshIndicator))
+        .onRefresh();
+    await refresh;
+    await tester.pump();
+    loadMore.complete(
+      ProfileAccountPage(
+        totalCount: 2,
+        items: [
+          ProfileAccountSummary(
+            did: 'did:plc:stale',
+            handle: 'stale.test',
+            displayName: 'Stale',
+            isCraftskyProfile: true,
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Refreshed'), findsOneWidget);
+    expect(find.text('Initial'), findsNothing);
+    expect(find.text('Stale'), findsNothing);
   });
 
   testWidgets('TDD-005C tapping an account opens the compact profile route', (

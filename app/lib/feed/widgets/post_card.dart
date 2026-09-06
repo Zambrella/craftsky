@@ -9,8 +9,10 @@ import 'package:craftsky_app/feed/models/post_uri.dart';
 import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/providers/author_post_cache.dart';
+import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
 import 'package:craftsky_app/feed/providers/profile_pins_provider.dart';
 import 'package:craftsky_app/feed/widgets/external_card.dart';
+import 'package:craftsky_app/feed/widgets/native_video_player.dart';
 import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -24,12 +26,14 @@ import 'package:craftsky_app/projects/widgets/project_card.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_bookmark_button.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/rich_text/faceted_text_model.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -39,6 +43,8 @@ const _postCardMenuWidth = 48.0;
 const _postCardActionIconSize = 22.0;
 
 enum PostCardStyle { card, flat }
+
+enum PostCardImageInteractionMode { navigate, fullscreenGallery }
 
 /// Card-shaped post row used by the feed and the profile Posts tab.
 class PostCard extends ConsumerWidget {
@@ -71,6 +77,9 @@ class PostCard extends ConsumerWidget {
     this.hideWhenAuthorProtected = false,
     this.allowProfilePinAction = false,
     this.showPinnedProfileAttribution = false,
+    this.videoPlayerBuilder,
+    this.imageInteractionMode = PostCardImageInteractionMode.fullscreenGallery,
+    this.collapseBody = false,
   });
 
   final Post post;
@@ -100,6 +109,9 @@ class PostCard extends ConsumerWidget {
   final bool hideWhenAuthorProtected;
   final bool allowProfilePinAction;
   final bool showPinnedProfileAttribution;
+  final Widget Function(PostVideo video)? videoPlayerBuilder;
+  final PostCardImageInteractionMode imageInteractionMode;
+  final bool collapseBody;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -195,6 +207,35 @@ class PostCard extends ConsumerWidget {
     );
     final isFlat = style == PostCardStyle.flat;
     final canShowShareAction = showRepostAction && post.reply == null;
+    void likeOnDoubleTap() {
+      if (!post.viewerHasLiked) onLike?.call();
+    }
+
+    Widget postBody() {
+      return _ExpandablePostBody(
+        postIdentity: post.uri.value,
+        text: post.text,
+        facets: post.facets,
+        style: theme.textTheme.bodyLarge,
+        collapse: collapseBody,
+        showMoreLabel: l10n.postShowMore,
+        showLessLabel: l10n.postShowLess,
+        onTap: onTap,
+        onDoubleTap: likeOnDoubleTap,
+      );
+    }
+
+    final responseAction = post.reply == null
+        ? l10n.postCommentAction
+        : l10n.postThreadReplyAction;
+    final effectiveReportLabel =
+        reportLabel ??
+        (post.reply == null
+            ? l10n.postReportAction
+            : post.reply!.parent.uri == post.reply!.root.uri
+            ? l10n.commentReportAction
+            : l10n.replyReportAction);
+
     final pinSlot = classifyProfilePinSlot(
       isReply: post.reply != null,
       isProject: post.project != null,
@@ -225,10 +266,7 @@ class PostCard extends ConsumerWidget {
         ? BorderRadius.zero
         : BorderRadius.circular(radii.r3);
     void openAuthorProfile() => unawaited(
-      showUserProfileCard(
-        context,
-        did: post.author.did,
-      ),
+      showUserProfileCard(context, did: post.author.did),
     );
     final quotedPost = post.quoteView?.post;
     final quotedPostParts = quotedPost == null
@@ -269,9 +307,7 @@ class PostCard extends ConsumerWidget {
       decoration: BoxDecoration(
         color: isHighlighted ? swatches.sky.withValues(alpha: 0.32) : null,
         border: isHighlighted
-            ? Border(
-                left: BorderSide(color: colors.primary, width: 6),
-              )
+            ? Border(left: BorderSide(color: colors.primary, width: 6))
             : null,
       ),
       child: Material(
@@ -279,7 +315,6 @@ class PostCard extends ConsumerWidget {
         borderRadius: borderRadius,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
-          onTap: onTap,
           borderRadius: borderRadius,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -298,10 +333,7 @@ class PostCard extends ConsumerWidget {
                       const _PinnedPostAttribution(),
                       SizedBox(height: spacing.sp2),
                     ] else if (repostReason case final reason?) ...[
-                      _RepostAttribution(
-                        reason: reason,
-                        onTap: openReposter,
-                      ),
+                      _RepostAttribution(reason: reason, onTap: openReposter),
                       SizedBox(height: spacing.sp2),
                     ],
                     if (effectiveRelationship?.muted ?? false) ...[
@@ -329,20 +361,29 @@ class PostCard extends ConsumerWidget {
                         ),
                         SizedBox(width: spacing.sp3),
                         Expanded(
-                          child: _PostCardHeader(
-                            displayName: displayName,
-                            handle: authorHandle.currentLabel(
-                              unavailableLabel: l10n.handleUnavailable,
+                          child: Align(
+                            alignment: AlignmentDirectional.centerStart,
+                            child: _PostCardHeader(
+                              displayName: displayName,
+                              handle: authorHandle.currentLabel(
+                                unavailableLabel: l10n.handleUnavailable,
+                              ),
+                              onTap: openAuthorProfile,
                             ),
-                            onTap: openAuthorProfile,
                           ),
                         ),
-                        SizedBox(
-                          width: _postCardMenuWidth,
-                          child: Center(
-                            child: RelativeTimeText(
-                              timestamp: post.createdAt,
-                              textAlign: TextAlign.end,
+                        GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: onTap,
+                          onDoubleTap: likeOnDoubleTap,
+                          child: SizedBox(
+                            width: _postCardMenuWidth,
+                            child: Align(
+                              alignment: AlignmentDirectional.centerEnd,
+                              child: RelativeTimeText(
+                                timestamp: post.createdAt,
+                                textAlign: TextAlign.end,
+                              ),
                             ),
                           ),
                         ),
@@ -353,19 +394,41 @@ class PostCard extends ConsumerWidget {
                       const ImportedPostLabel(),
                     ],
                     SizedBox(height: spacing.sp3),
+                    if (post.project == null) ...[
+                      postBody(),
+                      if (post.video != null ||
+                          (post.images?.isNotEmpty ?? false))
+                        SizedBox(height: spacing.sp3),
+                    ],
+                    if (post.video case final video?) ...[
+                      videoPlayerBuilder?.call(video) ??
+                          NativeVideoPlayer(
+                            video: video,
+                            loadCaption: ref
+                                .read(postApiClientProvider)
+                                .downloadVideoCaption,
+                          ),
+                      SizedBox(height: spacing.sp3),
+                    ],
                     if (post.images case final images?
                         when images.isNotEmpty) ...[
                       PostImageCarousel(
                         images: images,
-                        onImageTap: (index) {
-                          unawaited(
-                            showPostImageGallery(
-                              context,
-                              images: images,
-                              initialIndex: index,
-                            ),
-                          );
-                        },
+                        onImageTap: (index, heroTags) =>
+                            switch (imageInteractionMode) {
+                              PostCardImageInteractionMode.navigate =>
+                                onTap?.call(),
+                              PostCardImageInteractionMode.fullscreenGallery =>
+                                unawaited(
+                                  showPostImageGallery(
+                                    context,
+                                    images: images,
+                                    initialIndex: index,
+                                    heroTags: heroTags,
+                                  ),
+                                ),
+                            },
+                        onImageDoubleTap: likeOnDoubleTap,
                       ),
                       SizedBox(height: spacing.sp3),
                     ],
@@ -377,13 +440,10 @@ class PostCard extends ConsumerWidget {
                       ProjectCard(project: project, variant: projectVariant),
                       SizedBox(height: spacing.sp3),
                     ],
-                    FacetedText(
-                      text: post.text,
-                      facets: post.facets,
-                      style: theme.textTheme.bodyLarge,
-                    ),
+                    if (post.project != null) postBody(),
                     if (post.external case final external?
-                        when post.images?.isNotEmpty != true) ...[
+                        when post.images?.isNotEmpty != true &&
+                            post.video == null) ...[
                       SizedBox(height: spacing.sp3),
                       ExternalCard(external: external),
                     ],
@@ -404,8 +464,8 @@ class PostCard extends ConsumerWidget {
                           children: [
                             _PostCardAction(
                               icon: post.viewerHasLiked
-                                  ? Icons.favorite
-                                  : Icons.favorite_border,
+                                  ? CraftskyIcons.liked
+                                  : CraftskyIconsBold.like,
                               count: post.likeCount,
                               isSelected: post.viewerHasLiked,
                               selectedColor: semanticColors.error,
@@ -415,14 +475,12 @@ class PostCard extends ConsumerWidget {
                               onPressed: onLike,
                             ),
                             _PostCardAction(
-                              icon: Icons.chat_bubble_outline,
+                              icon: CraftskyIconsBold.comment,
                               count: showReplyCount ? post.replyCount : 0,
                               isSelected: post.viewerHasReplied,
                               selectedColor: swatches.clay,
-                              tooltip: replyTooltip ?? l10n.postReplyAction,
-                              label: showReplyLabel
-                                  ? l10n.postReplyAction
-                                  : null,
+                              tooltip: replyTooltip ?? responseAction,
+                              label: showReplyLabel ? responseAction : null,
                               onPressed: onReply,
                             ),
                             if (canShowShareAction)
@@ -442,10 +500,7 @@ class PostCard extends ConsumerWidget {
                         ),
                         const Spacer(),
                         if (account != null)
-                          SavedPostBookmarkButton(
-                            account: account,
-                            post: post,
-                          ),
+                          SavedPostBookmarkButton(account: account, post: post),
                         _PostCardMenu(
                           pinLabel: pinPresentation == null
                               ? null
@@ -472,7 +527,7 @@ class PostCard extends ConsumerWidget {
                           onReport: onReport,
                           tooltip: deleteTooltip,
                           label: deleteLabel,
-                          reportLabel: reportLabel,
+                          reportLabel: effectiveReportLabel,
                           isMuted: effectiveRelationship?.muted ?? false,
                           isBlocking: effectiveRelationship?.blocking ?? false,
                           isRelationshipBusy:
@@ -641,6 +696,90 @@ class PostCard extends ConsumerWidget {
   }
 }
 
+class _ExpandablePostBody extends StatefulWidget {
+  const _ExpandablePostBody({
+    required this.postIdentity,
+    required this.text,
+    required this.facets,
+    required this.style,
+    required this.collapse,
+    required this.showMoreLabel,
+    required this.showLessLabel,
+    required this.onTap,
+    required this.onDoubleTap,
+  });
+
+  final String postIdentity;
+  final String text;
+  final List<Map<String, dynamic>>? facets;
+  final TextStyle? style;
+  final bool collapse;
+  final String showMoreLabel;
+  final String showLessLabel;
+  final VoidCallback? onTap;
+  final VoidCallback? onDoubleTap;
+
+  @override
+  State<_ExpandablePostBody> createState() => _ExpandablePostBodyState();
+}
+
+class _ExpandablePostBodyState extends State<_ExpandablePostBody> {
+  static const _collapsedLength = 300;
+
+  bool _expanded = false;
+
+  @override
+  void didUpdateWidget(covariant _ExpandablePostBody oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.postIdentity != widget.postIdentity) {
+      _expanded = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final canCollapse =
+        widget.collapse && widget.text.characters.length > _collapsedLength;
+    final shouldCollapse = canCollapse && !_expanded;
+    var visibleText = shouldCollapse
+        ? widget.text.characters.take(_collapsedLength).toString()
+        : widget.text;
+    if (shouldCollapse) {
+      final cutoff = visibleText.length;
+      final crossingFacets = FacetedTextModel.fromRaw(
+        text: widget.text,
+        rawFacets: widget.facets,
+      ).where((range) => range.charStart < cutoff && range.charEnd > cutoff);
+      if (crossingFacets.isNotEmpty) {
+        visibleText = widget.text.substring(0, crossingFacets.first.charStart);
+      }
+    }
+    final body = FacetedText(
+      text: visibleText,
+      facets: widget.facets,
+      style: widget.style,
+      suffixText: canCollapse ? (shouldCollapse ? '… ' : ' ') : null,
+      actionLabel: canCollapse
+          ? (shouldCollapse ? widget.showMoreLabel : widget.showLessLabel)
+          : null,
+      onAction: canCollapse
+          ? () => setState(() {
+              _expanded = !_expanded;
+            })
+          : null,
+    );
+
+    return GestureDetector(
+      behavior: HitTestBehavior.translucent,
+      onTap: widget.onTap,
+      onDoubleTap: widget.facets?.isNotEmpty ?? false
+          ? null
+          : widget.onDoubleTap,
+      child: body,
+    );
+  }
+}
+
 class _RepostAttribution extends StatelessWidget {
   const _RepostAttribution({required this.reason, required this.onTap});
 
@@ -657,7 +796,7 @@ class _RepostAttribution extends StatelessWidget {
     );
     return Row(
       children: [
-        Icon(Icons.repeat, size: 16, color: theme.colorScheme.outline),
+        Icon(CraftskyIcons.repost, size: 16, color: theme.colorScheme.outline),
         const SizedBox(width: 8),
         Expanded(
           child: _PostCardAuthorTapTarget(
@@ -688,11 +827,7 @@ class _PinnedPostAttribution extends StatelessWidget {
       child: ExcludeSemantics(
         child: Row(
           children: [
-            Icon(
-              Icons.push_pin_outlined,
-              size: 16,
-              color: theme.colorScheme.outline,
-            ),
+            Icon(CraftskyIcons.pin, size: 16, color: theme.colorScheme.outline),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -810,7 +945,7 @@ class _PostCardMenu extends StatelessWidget {
               if (pinLabel != null)
                 CraftskyContextMenuItem(
                   text: pinLabel!,
-                  icon: isPinned ? Icons.push_pin : Icons.push_pin_outlined,
+                  icon: isPinned ? CraftskyIcons.pinned : CraftskyIconsBold.pin,
                   onPressed: onPinToggle,
                   isSelected: isPinned,
                 ),
@@ -819,7 +954,7 @@ class _PostCardMenu extends StatelessWidget {
                   text: isMuted
                       ? l10n.profileUnmuteAction
                       : l10n.profileMuteAction,
-                  icon: Icons.volume_off_outlined,
+                  icon: CraftskyIconsBold.muted,
                   onPressed: isRelationshipBusy ? null : onMuteToggle,
                 ),
               if (onBlockToggle != null)
@@ -827,7 +962,7 @@ class _PostCardMenu extends StatelessWidget {
                   text: isBlocking
                       ? l10n.profileUnblockAction
                       : l10n.profileBlockAction,
-                  icon: Icons.block_outlined,
+                  icon: CraftskyIconsBold.block,
                   onPressed: isRelationshipBusy ? null : onBlockToggle,
                   style: CraftskyContextMenuItemStyle.destructive,
                   semanticHint: isBlocking ? null : l10n.destructiveActionHint,
@@ -835,13 +970,13 @@ class _PostCardMenu extends StatelessWidget {
               if (onReport != null)
                 CraftskyContextMenuItem(
                   text: reportLabel ?? l10n.postReportAction,
-                  icon: Icons.flag_outlined,
+                  icon: CraftskyIconsBold.report,
                   onPressed: onReport,
                 ),
               if (onDelete != null)
                 CraftskyContextMenuItem(
                   text: label ?? l10n.postDeleteAction,
-                  icon: Icons.delete_outline,
+                  icon: CraftskyIconsBold.delete,
                   onPressed: onDelete,
                   style: CraftskyContextMenuItemStyle.destructive,
                 ),
@@ -979,7 +1114,7 @@ class _PostCardShareAction extends StatelessWidget {
               excludeFromSemantics: true,
               child: TextButton.icon(
                 icon: Icon(
-                  Icons.repeat,
+                  CraftskyIconsBold.repost,
                   color: color,
                   size: _postCardActionIconSize,
                 ),
@@ -1018,14 +1153,14 @@ class _PostCardShareAction extends StatelessWidget {
             if (onRepost != null)
               CraftskyContextMenuItem(
                 text: repostLabel,
-                icon: Icons.repeat,
+                icon: CraftskyIconsBold.repost,
                 onPressed: onRepost,
                 isSelected: isSelected,
               ),
             if (onQuote != null)
               CraftskyContextMenuItem(
                 text: quoteLabel,
-                icon: Icons.format_quote,
+                icon: CraftskyIconsBold.quote,
                 onPressed: onQuote,
               ),
           ],
@@ -1072,11 +1207,7 @@ class _PostCardAction extends StatelessWidget {
           message: tooltip,
           excludeFromSemantics: true,
           child: TextButton.icon(
-            icon: Icon(
-              icon,
-              color: color,
-              size: _postCardActionIconSize,
-            ),
+            icon: Icon(icon, color: color, size: _postCardActionIconSize),
             onPressed: onPressed,
             style: TextButton.styleFrom(
               foregroundColor: color,

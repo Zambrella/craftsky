@@ -33,6 +33,34 @@ void main() {
       expect(find.text('Action one'), findsOneWidget);
       expect(find.text('Action two'), findsOneWidget);
     });
+
+    testWidgets('keeps its 360 width cap on wide screens', (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1400, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(
+        pumpHarness(
+          const CraftskyDialog(
+            title: 'A title',
+            body: Text('A body'),
+            actions: [Text('Action')],
+          ),
+        ),
+      );
+
+      final widthBoundary = find.descendant(
+        of: find.byType(CraftskyDialog),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is ConstrainedBox && widget.constraints.maxWidth == 360,
+        ),
+      );
+      expect(widthBoundary, findsOneWidget);
+      expect(tester.getSize(widthBoundary).width, 360);
+      expect(tester.getRect(widthBoundary).center.dx, 700);
+    });
   });
 
   group('showCraftskyConfirmDialog', () {

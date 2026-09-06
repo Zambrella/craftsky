@@ -1,5 +1,6 @@
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
@@ -307,7 +308,7 @@ void main() {
     );
 
     expect(find.byKey(const Key('needleSize-search-input')), findsOneWidget);
-    expect(find.byIcon(Icons.search), findsOneWidget);
+    expect(find.byIcon(CraftskyIcons.search), findsOneWidget);
     expect(find.byKey(const Key('needleSize-options-panel')), findsNothing);
 
     await tester.tap(find.byKey(const Key('needleSize-search-input')));

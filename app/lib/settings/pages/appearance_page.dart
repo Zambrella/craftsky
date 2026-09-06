@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_notifier.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,17 +27,17 @@ class AppearancePage extends ConsumerWidget {
           children: [
             RadioListTile<ThemeMode>(
               value: ThemeMode.system,
-              secondary: const Icon(Icons.brightness_auto_outlined),
+              secondary: const Icon(CraftskyIcons.systemTheme),
               title: Text(l10n.appearanceUseDeviceSetting),
             ),
             RadioListTile<ThemeMode>(
               value: ThemeMode.light,
-              secondary: const Icon(Icons.light_mode_outlined),
+              secondary: const Icon(CraftskyIcons.lightTheme),
               title: Text(l10n.appearanceLight),
             ),
             RadioListTile<ThemeMode>(
               value: ThemeMode.dark,
-              secondary: const Icon(Icons.dark_mode_outlined),
+              secondary: const Icon(CraftskyIcons.darkTheme),
               title: Text(l10n.appearanceDark),
             ),
           ],

@@ -1,3 +1,4 @@
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -12,6 +13,8 @@ class ProfileCraftChips extends StatelessWidget {
 
   final List<String> crafts;
   final WrapAlignment alignment;
+
+  static const double iconSize = 16;
 
   @override
   Widget build(BuildContext context) {
@@ -44,8 +47,12 @@ class _CraftChip extends StatelessWidget {
         color: theme.colorScheme.primaryContainer,
         borderRadius: BorderRadius.circular(radii.rPill),
       ),
-      child: Text(
-        display,
+      child: CraftIconLabel(
+        craft: label,
+        label: display,
+        iconSize: ProfileCraftChips.iconSize,
+        gap: spacing.sp1,
+        flexibleLabel: true,
         style: theme.textTheme.labelMedium?.copyWith(
           color: theme.colorScheme.onPrimaryContainer,
         ),

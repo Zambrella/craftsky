@@ -8,14 +8,12 @@ import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
-import 'package:craftsky_app/feed/widgets/post_type_chooser.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
-import 'package:craftsky_app/theme/chunky_button.dart';
-import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -53,12 +51,11 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
     required this.isLoadingMore,
     required this.hasLoadMoreError,
     required this.isOwnProfile,
-    required this.emptyText,
+    required this.emptyState,
     required this.onLoadMore,
     required this.onReplacePost,
     required this.pinnedPostUri,
     super.key,
-    this.showComposeButton = false,
   });
 
   final List<Post> posts;
@@ -66,11 +63,10 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
   final bool isLoadingMore;
   final bool hasLoadMoreError;
   final bool isOwnProfile;
-  final String emptyText;
+  final Widget emptyState;
   final Future<void> Function() onLoadMore;
   final void Function(Post post) onReplacePost;
   final String? pinnedPostUri;
-  final bool showComposeButton;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -83,33 +79,10 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
 
     return SliverMainAxisGroup(
       slivers: [
-        if (showComposeButton)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.all(spacing.sp4),
-              child: Builder(
-                builder: (buttonContext) {
-                  return ChunkyButton(
-                    onPressed: () {
-                      unawaited(
-                        showTopLevelPostComposerChooser(
-                          context,
-                          position: craftskyContextMenuAnchorPosition(
-                            buttonContext,
-                          ),
-                        ),
-                      );
-                    },
-                    child: Text(l10n.postComposeAction),
-                  );
-                },
-              ),
-            ),
-          ),
         if (posts.isEmpty)
           SliverFillRemaining(
             hasScrollBody: false,
-            child: Center(child: Text(emptyText)),
+            child: emptyState,
           )
         else
           SliverList.builder(
@@ -126,6 +99,8 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
               final post = posts[index];
               return PostCard(
                 post: post,
+                collapseBody: true,
+                imageInteractionMode: PostCardImageInteractionMode.navigate,
                 hideWhenAuthorProtected: true,
                 allowProfilePinAction: isOwnProfile,
                 showPinnedProfileAttribution: post.uri.value == pinnedPostUri,
@@ -162,7 +137,7 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
                   (true, _) => const StitchProgressIndicator(),
                   (_, true) => TextButton.icon(
                     onPressed: onLoadMore,
-                    icon: const Icon(Icons.refresh),
+                    icon: const Icon(CraftskyIconsBold.refresh),
                     label: Text(l10n.retryButton),
                   ),
                   _ => const SizedBox.shrink(),
@@ -193,10 +168,7 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
     final created = await showPostComposerSheet(context, replyTarget: post);
     if (created == null || !context.mounted) return;
     onReplacePost(
-      post.copyWith(
-        replyCount: post.replyCount + 1,
-        viewerHasReplied: true,
-      ),
+      post.copyWith(replyCount: post.replyCount + 1, viewerHasReplied: true),
     );
     await PostThreadRoute(
       did: post.author.did,
@@ -245,7 +217,7 @@ class ProfileTabErrorSliver extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (showErrorIcon) ...[
-                Icon(Icons.error_outline, color: theme.colorScheme.error),
+                Icon(CraftskyIcons.error, color: theme.colorScheme.error),
                 SizedBox(height: spacing.sp3),
               ],
               Text(
@@ -258,7 +230,7 @@ class ProfileTabErrorSliver extends StatelessWidget {
               SizedBox(height: spacing.sp3),
               TextButton.icon(
                 onPressed: onRetry,
-                icon: const Icon(Icons.refresh),
+                icon: const Icon(CraftskyIconsBold.refresh),
                 label: Text(l10n.retryButton),
               ),
             ],

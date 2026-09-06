@@ -51,20 +51,10 @@ void main() {
     );
 
     await _selectCraft(tester, 'Embroidery');
-    await tester.tap(
-      find.byKey(const Key('project-composer-primary-action')),
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const Key('project-composer-primary-action')),
-    );
-    await tester.pumpAndSettle();
-
     await tester.ensureVisible(_bodyTextField());
     await tester.enterText(_bodyTextField(), 'A finished hoop');
     await tester.pump();
 
-    await _returnToFirstPage(tester);
     await tester.tap(find.byType(CloseButton));
     await tester.pumpAndSettle();
 
@@ -195,9 +185,12 @@ void main() {
     );
 
     await _selectCraft(tester, 'Embroidery');
-    await tester.tap(
-      find.byKey(const Key('project-composer-primary-action')),
+    final commonDetails = find.byKey(
+      const Key('project-composer-common-details-action'),
     );
+    await tester.ensureVisible(commonDetails);
+    await tester.pumpAndSettle();
+    await tester.tap(commonDetails);
     await tester.pumpAndSettle();
     await tester.enterText(_materialsTextField(), 'Wool roving');
     await tester.pump();
@@ -244,13 +237,6 @@ Future<void> _selectStatus(WidgetTester tester, String statusLabel) async {
   await tester.tap(statusDropdown);
   await tester.pumpAndSettle();
   await tester.tap(find.text(statusLabel).last);
-  await tester.pumpAndSettle();
-}
-
-Future<void> _returnToFirstPage(WidgetTester tester) async {
-  await tester.tap(find.byTooltip('Back'));
-  await tester.pumpAndSettle();
-  await tester.tap(find.byTooltip('Back'));
   await tester.pumpAndSettle();
 }
 

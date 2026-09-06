@@ -1,5 +1,6 @@
 import 'package:craftsky_app/feed/composer/link_preview_controller.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -91,7 +92,7 @@ class ComposerLinkPreviewCarousel extends StatelessWidget {
                     IconButton(
                       tooltip: l10n.linkPreviewDismiss,
                       onPressed: onDismiss,
-                      icon: const Icon(Icons.close),
+                      icon: const Icon(CraftskyIconsBold.close),
                     ),
                   ],
                 ),
@@ -123,7 +124,7 @@ class ComposerLinkPreviewCarousel extends StatelessWidget {
                   IconButton(
                     tooltip: l10n.linkPreviewPrevious,
                     onPressed: total > 1 ? onPrevious : null,
-                    icon: const Icon(Icons.chevron_left),
+                    icon: const Icon(CraftskyIconsBold.previous),
                   ),
                   Expanded(
                     child: Text(
@@ -134,7 +135,7 @@ class ComposerLinkPreviewCarousel extends StatelessWidget {
                   IconButton(
                     tooltip: l10n.linkPreviewNext,
                     onPressed: total > 1 ? onNext : null,
-                    icon: const Icon(Icons.chevron_right),
+                    icon: const Icon(CraftskyIconsBold.next),
                   ),
                 ],
               ),

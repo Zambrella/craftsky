@@ -19,6 +19,7 @@ class ProjectDraftSnapshotAdapter {
     required DraftScheduleIntent schedule,
     required Map<String, dynamic> formValues,
     required List<ComposerImageDraft> images,
+    DraftVideoWrite? video,
     int? existingRevision,
     DateTime? existingCreatedAt,
   }) {
@@ -35,6 +36,7 @@ class ProjectDraftSnapshotAdapter {
       ),
       schedule: schedule,
       orderedMedia: draftMediaWritesFromComposer(images),
+      video: video,
     );
   }
 

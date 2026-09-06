@@ -20,6 +20,7 @@ import 'package:craftsky_app/settings/models/settings_identity.dart';
 import 'package:craftsky_app/settings/models/settings_row.dart';
 import 'package:craftsky_app/settings/widgets/settings_row_tile.dart';
 import 'package:craftsky_app/settings/widgets/sign_out_tile.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_notifier.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -84,7 +85,7 @@ class SettingsPage extends ConsumerWidget {
               kind: SettingsRowKind.disclosure,
             ),
             label: l10n.settingsSwitchAccount,
-            leading: Icons.switch_account_outlined,
+            leading: CraftskyIconsBold.switchAccount,
             onTap: switcherState == null
                 ? null
                 : () => unawaited(_openSwitcher(context, ref, switcherState)),
@@ -96,7 +97,7 @@ class SettingsPage extends ConsumerWidget {
               kind: SettingsRowKind.disclosure,
             ),
             label: l10n.appearanceTitle,
-            leading: Icons.brightness_6_outlined,
+            leading: CraftskyIcons.appearance,
             subtitle: switch (themeMode) {
               ThemeMode.system => l10n.appearanceUseDeviceSetting,
               ThemeMode.light => l10n.appearanceLight,
@@ -110,7 +111,7 @@ class SettingsPage extends ConsumerWidget {
               kind: SettingsRowKind.disclosure,
             ),
             label: l10n.profileCustomisationTitle,
-            leading: Icons.palette_outlined,
+            leading: CraftskyIcons.palette,
             onTap: () => const ProfileCustomisationRoute().go(context),
           ),
           SettingsRowTile(
@@ -119,7 +120,7 @@ class SettingsPage extends ConsumerWidget {
               kind: SettingsRowKind.disclosure,
             ),
             label: l10n.settingsLanguages,
-            leading: Icons.language_outlined,
+            leading: CraftskyIcons.language,
             onTap: () => const LanguagesRoute().go(context),
           ),
           SettingsRowTile(
@@ -128,7 +129,7 @@ class SettingsPage extends ConsumerWidget {
               kind: SettingsRowKind.disclosure,
             ),
             label: l10n.settingsNotifications,
-            leading: Icons.notifications_outlined,
+            leading: CraftskyIcons.notifications,
             onTap: () => unawaited(
               const NotificationSettingsRoute().push<void>(context),
             ),
@@ -140,7 +141,7 @@ class SettingsPage extends ConsumerWidget {
               kind: SettingsRowKind.disclosure,
             ),
             label: l10n.settingsGrowth,
-            leading: Icons.show_chart,
+            leading: CraftskyIcons.trending,
             onTap: () => const FollowerGrowthRoute().go(context),
           ),
           SettingsRowTile(
@@ -149,7 +150,7 @@ class SettingsPage extends ConsumerWidget {
               kind: SettingsRowKind.disclosure,
             ),
             label: l10n.settingsFollowers,
-            leading: Icons.group_outlined,
+            leading: CraftskyIcons.people,
             onTap: () => const FollowersRoute().go(context),
           ),
           SettingsRowTile(
@@ -158,7 +159,7 @@ class SettingsPage extends ConsumerWidget {
               kind: SettingsRowKind.disclosure,
             ),
             label: l10n.settingsFollowing,
-            leading: Icons.person_add_alt_outlined,
+            leading: CraftskyIcons.follow,
             onTap: () => const FollowingRoute().go(context),
           ),
           SettingsRowTile(
@@ -167,7 +168,7 @@ class SettingsPage extends ConsumerWidget {
               kind: SettingsRowKind.disclosure,
             ),
             label: l10n.settingsMutedAccounts,
-            leading: Icons.volume_off_outlined,
+            leading: CraftskyIcons.muted,
             onTap: () => const MutedAccountsRoute().go(context),
           ),
           SettingsRowTile(
@@ -176,7 +177,7 @@ class SettingsPage extends ConsumerWidget {
               kind: SettingsRowKind.disclosure,
             ),
             label: l10n.settingsBlockedAccounts,
-            leading: Icons.block_outlined,
+            leading: CraftskyIconsBold.block,
             onTap: () => const BlockedAccountsRoute().go(context),
           ),
           _SectionLabel(l10n.settingsSectionDiscovery),
@@ -186,7 +187,7 @@ class SettingsPage extends ConsumerWidget {
               kind: SettingsRowKind.disclosure,
             ),
             label: l10n.instagramMigrationTitle,
-            leading: Icons.photo_camera_outlined,
+            leading: CraftskyIcons.camera,
             onTap: () => const InstagramMigrationRoute().go(context),
             subtitle: l10n.instagramMigrationSettingsSubtitle,
           ),
@@ -198,7 +199,7 @@ class SettingsPage extends ConsumerWidget {
                 kind: SettingsRowKind.disclosure,
               ),
               label: l10n.settingsBusinessEvents,
-              leading: Icons.event_outlined,
+              leading: CraftskyIcons.events,
               onTap: () => const BusinessEventsRoute().go(context),
             ),
             SettingsRowTile(
@@ -207,7 +208,7 @@ class SettingsPage extends ConsumerWidget {
                 kind: SettingsRowKind.disclosure,
               ),
               label: l10n.settingsBusinessProducts,
-              leading: Icons.storefront_outlined,
+              leading: CraftskyIcons.storefront,
               onTap: () => const BusinessProductsRoute().go(context),
             ),
           ],
@@ -218,7 +219,7 @@ class SettingsPage extends ConsumerWidget {
               kind: SettingsRowKind.disclosure,
             ),
             label: l10n.settingsAccount,
-            leading: Icons.manage_accounts_outlined,
+            leading: CraftskyIcons.accountSettings,
             onTap: () => const AccountRoute().go(context),
           ),
           SettingsRowTile(
@@ -227,7 +228,7 @@ class SettingsPage extends ConsumerWidget {
               kind: SettingsRowKind.disclosure,
             ),
             label: l10n.settingsAbout,
-            leading: Icons.info_outline,
+            leading: CraftskyIcons.info,
             onTap: () => const AboutRoute().go(context),
           ),
           const Divider(),

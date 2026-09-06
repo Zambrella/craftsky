@@ -1,6 +1,7 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 
 class InitializationErrorScreen extends StatelessWidget {
@@ -30,7 +31,7 @@ class InitializationErrorScreen extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Icon(
-                Icons.error_outline,
+                CraftskyIcons.error,
                 color: theme.colorScheme.error,
                 size: 64,
               ),
@@ -48,7 +49,7 @@ class InitializationErrorScreen extends StatelessWidget {
               const SizedBox(height: 24),
               ElevatedButton.icon(
                 onPressed: onRetry,
-                icon: const Icon(Icons.refresh),
+                icon: const Icon(CraftskyIconsBold.refresh),
                 label: Text(l10n.retryButton),
               ),
             ],

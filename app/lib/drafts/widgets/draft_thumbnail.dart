@@ -1,5 +1,6 @@
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 
 final class DraftThumbnail extends StatelessWidget {
@@ -33,7 +34,7 @@ final class DraftThumbnail extends StatelessWidget {
             );
           }
           if (snapshot.hasError) {
-            return const Icon(Icons.broken_image_outlined);
+            return const Icon(CraftskyIcons.brokenImage);
           }
           return const SizedBox.square(
             dimension: 56,

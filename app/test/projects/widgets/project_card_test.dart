@@ -2,6 +2,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/projects/widgets/project_card.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -61,6 +62,7 @@ void main() {
       expect(find.text('Indigo jacket'), findsOneWidget);
       expect(find.text('Finished'), findsOneWidget);
       expect(find.text('Sewing'), findsOneWidget);
+      expect(find.byType(CraftIcon), findsOneWidget);
       expect(find.text('DURATION'), findsNothing);
       expect(find.text('3 weekends'), findsNothing);
       expect(find.text('MATERIALS'), findsNothing);

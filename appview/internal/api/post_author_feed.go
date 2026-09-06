@@ -282,7 +282,7 @@ func listAuthorPostsHandler(
 				return
 			}
 			for _, row := range rows {
-				resp := BuildPostResponse(row, handle)
+				resp := buildPostResponse(row, handle, store)
 				applyEngagementSummary(resp, summaries[row.URI])
 				items = append(items, resp)
 			}

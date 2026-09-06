@@ -21,6 +21,7 @@ import (
 	"social.craftsky/appview/internal/postrecord"
 	"social.craftsky/appview/internal/postutil"
 	"social.craftsky/appview/internal/relationships"
+	"social.craftsky/appview/internal/video"
 )
 
 type postAuthorReader interface {
@@ -34,6 +35,14 @@ type createPostStore interface {
 	postQuoteHydrationStore
 }
 
+type VideoCompletionVerifier interface {
+	Verify(context.Context, syntax.DID, string, video.Blob) (video.Blob, error)
+}
+
+type CreatePostHandlerOptions struct {
+	VideoCompletionVerifier VideoCompletionVerifier
+}
+
 // CreatePostHandler serves POST /v1/posts.
 func CreatePostHandler(
 	store createPostStore,
@@ -41,8 +50,13 @@ func CreatePostHandler(
 	resolver HandleResolver,
 	limits MediaLimits,
 	logger *slog.Logger,
+	options ...CreatePostHandlerOptions,
 ) http.Handler {
 	limits = normalizeMediaLimits(limits)
+	var videoVerifier VideoCompletionVerifier
+	if len(options) > 0 {
+		videoVerifier = options[0].VideoCompletionVerifier
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
 		did, ok := middleware.GetDID(r.Context())
@@ -89,6 +103,32 @@ func CreatePostHandler(
 			envelope.WriteError(w, http.StatusUnprocessableEntity,
 				"validation_failed", "validation failed", runID, nil)
 			return
+		}
+		var verifiedVideo *video.Blob
+		if req.Embed != nil && req.Embed.Video != nil {
+			if videoVerifier == nil {
+				envelope.WriteError(w, http.StatusBadGateway,
+					"video_service_unavailable", "could not verify video", runID, nil)
+				return
+			}
+			submitted := video.Blob{
+				CID:      syntax.CID(req.Embed.Video.Blob.Ref.Link),
+				MIMEType: req.Embed.Video.Blob.MIMEType,
+				Size:     req.Embed.Video.Blob.Size,
+			}
+			verified, err := videoVerifier.Verify(r.Context(), did, req.Embed.Video.JobID, submitted)
+			if err != nil {
+				var verificationError *video.VerificationError
+				if errors.As(err, &verificationError) && verificationError.Kind == video.VerificationRejected {
+					envelope.WriteError(w, http.StatusUnprocessableEntity,
+						"video_verification_failed", "video could not be verified", runID, nil)
+					return
+				}
+				envelope.WriteError(w, http.StatusBadGateway,
+					"video_service_unavailable", "could not verify video", runID, nil)
+				return
+			}
+			verifiedVideo = &verified
 		}
 		effectTargets := make([]syntax.DID, 0, 2)
 		if req.Embed != nil && req.Embed.Quote != nil {
@@ -152,7 +192,7 @@ func CreatePostHandler(
 		logger.Debug("post create: validated request",
 			pdsLogAttrs(runID, pdsOperationPostCreate, pdsStageRequestBuild)...)
 
-		body, err := lexiconRecordBody(req)
+		body, err := lexiconRecordBody(req, verifiedVideo)
 		if err != nil {
 			logger.Error("post create: generated record construction failed",
 				pdsLogErrorAttrs(runID, pdsOperationPostCreate, pdsStageRequestBuild, err)...)
@@ -203,7 +243,7 @@ func CreatePostHandler(
 		logger.Debug("post create: PDS record created",
 			pdsLogSuccessAttrs(runID, pdsOperationPostCreate, pdsStagePDSRequest)...)
 
-		row, err := syntheticPostRow(r, store, did, result.URI, result.CID, req)
+		row, err := syntheticPostRow(r, store, did, result.URI, result.CID, req, verifiedVideo)
 		if err != nil {
 			logger.Error("post: hydrate author failed",
 				pdsLogErrorAttrs(runID, pdsOperationPostCreate, pdsStagePDSRequest, err)...)
@@ -219,7 +259,7 @@ func CreatePostHandler(
 				"identity_unavailable", "could not resolve handle", runID, nil)
 			return
 		}
-		resp := BuildPostResponse(row, handle)
+		resp := buildPostResponse(row, handle, store)
 		if err := attachQuoteView(r.Context(), store, resolver, resp); err != nil {
 			logger.Error("post create: QuoteViewRows failed",
 				pdsLogErrorAttrs(runID, pdsOperationPostCreate, pdsStagePDSRequest, err)...)
@@ -315,7 +355,7 @@ func mentionedDIDs(req PostCreateRequest) ([]syntax.DID, error) {
 // record body that goes to the PDS. Facets are pass-through raw JSON so
 // the PDS sees exactly what the client sent (including any "$type"
 // discriminators on union variants).
-func lexiconRecordBody(req PostCreateRequest) (map[string]any, error) {
+func lexiconRecordBody(req PostCreateRequest, verifiedVideo *video.Blob) (map[string]any, error) {
 	body := map[string]any{
 		"$type":     craftskyPostNSID,
 		"text":      req.Text,
@@ -349,6 +389,12 @@ func lexiconRecordBody(req PostCreateRequest) (map[string]any, error) {
 		}
 		body["embed"] = embed
 	}
+	if req.Embed != nil && req.Embed.Video != nil {
+		if verifiedVideo == nil {
+			return nil, errors.New("verified video is required")
+		}
+		body["embed"] = videoEmbedRecord(*req.Embed.Video, *verifiedVideo)
+	}
 	if len(req.Images) > 0 {
 		images := make([]map[string]any, 0, len(req.Images))
 		for _, img := range req.Images {
@@ -374,6 +420,28 @@ func lexiconRecordBody(req PostCreateRequest) (map[string]any, error) {
 	return body, nil
 }
 
+func videoEmbedRecord(request VideoEmbedRequest, verified video.Blob) map[string]any {
+	embed := map[string]any{
+		"$type": "app.bsky.embed.video",
+		"video": map[string]any{
+			"$type":    "blob",
+			"ref":      map[string]any{"$link": string(verified.CID)},
+			"mimeType": verified.MIMEType,
+			"size":     verified.Size,
+		},
+	}
+	if request.Alt != "" {
+		embed["alt"] = request.Alt
+	}
+	if request.AspectRatio != nil {
+		embed["aspectRatio"] = map[string]any{
+			"width":  request.AspectRatio.Width,
+			"height": request.AspectRatio.Height,
+		}
+	}
+	return embed
+}
+
 func externalEmbedRecord(external ExternalEmbedRequest) (map[string]any, error) {
 	return postrecord.ExternalEmbed(
 		external.URI, external.Title, external.Description, external.Thumb,
@@ -397,6 +465,7 @@ func syntheticPostRow(
 	uri syntax.ATURI,
 	cid syntax.CID,
 	req PostCreateRequest,
+	verifiedVideo *video.Blob,
 ) (*PostRow, error) {
 	now := time.Now().UTC()
 	row := &PostRow{
@@ -430,6 +499,13 @@ func syntheticPostRow(
 			return nil, err
 		}
 		rawEmbed, err := json.Marshal(embed)
+		if err != nil {
+			return nil, err
+		}
+		row.RawEmbed = rawEmbed
+	}
+	if req.Embed != nil && req.Embed.Video != nil && verifiedVideo != nil {
+		rawEmbed, err := json.Marshal(videoEmbedRecord(*req.Embed.Video, *verifiedVideo))
 		if err != nil {
 			return nil, err
 		}

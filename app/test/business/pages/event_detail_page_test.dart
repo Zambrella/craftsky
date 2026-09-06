@@ -17,6 +17,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -350,8 +351,8 @@ void main() {
           .clipBehavior,
       Clip.none,
     );
-    expect(find.byIcon(Icons.calendar_today_outlined), findsOneWidget);
-    expect(find.byIcon(Icons.schedule_outlined), findsOneWidget);
+    expect(find.byIcon(CraftskyIcons.date), findsOneWidget);
+    expect(find.byIcon(CraftskyIcons.schedule), findsOneWidget);
     expect(
       tester
           .widget<CachedNetworkImage>(find.byType(CachedNetworkImage))

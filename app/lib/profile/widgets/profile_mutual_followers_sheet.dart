@@ -6,6 +6,8 @@ import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -109,7 +111,12 @@ class _ProfileMutualFollowersBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final unavailable = AppLocalizations.of(context).handleUnavailable;
     if (items.isEmpty) {
-      return const SizedBox.shrink();
+      final l10n = AppLocalizations.of(context);
+      return CraftskyEmptyState(
+        icon: CraftskyIcons.people,
+        title: l10n.settingsFollowers,
+        subtitle: l10n.profileAboutEmpty,
+      );
     }
     return ListView.builder(
       itemCount: items.length + (hasMore ? 1 : 0),

@@ -16,12 +16,20 @@ import 'package:craftsky_app/drafts/widgets/draft_close_dialog.dart';
 import 'package:craftsky_app/feed/composer/composer_media_uploader.dart';
 import 'package:craftsky_app/feed/composer/composer_submission_coordinator.dart';
 import 'package:craftsky_app/feed/composer/submission_screen_awake.dart';
+import 'package:craftsky_app/feed/composer/video_failure_message.dart';
+import 'package:craftsky_app/feed/composer/video_publication_coordinator.dart';
+import 'package:craftsky_app/feed/data/video_service_client.dart';
+import 'package:craftsky_app/feed/models/create_post_video.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
+import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
 import 'package:craftsky_app/feed/providers/create_post_provider.dart';
+import 'package:craftsky_app/feed/providers/image_picker_existing_video.dart';
 import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
+import 'package:craftsky_app/feed/providers/video_service_client_provider.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
+import 'package:craftsky_app/feed/widgets/composer_video_attachment_card.dart';
 import 'package:craftsky_app/feed/widgets/submission_blocking_overlay.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
@@ -49,19 +57,21 @@ import 'package:craftsky_app/scheduled_posts/widgets/schedule_time_picker.dart';
 import 'package:craftsky_app/scheduled_posts/widgets/scheduled_post_capacity_warning.dart';
 import 'package:craftsky_app/scheduled_posts/widgets/scheduled_staging_progress.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/messaging/message_action.dart';
 import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_text_field.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
@@ -101,6 +111,8 @@ class ProjectComposerSheet extends ConsumerStatefulWidget {
     this.scheduledOwner,
     this.draftSeed,
     this.draftOwner,
+    this.videoController,
+    this.prepareVideoProof,
   }) : assert(
          scheduledPost == null || draftSeed == null,
          'Scheduled and local draft edits are mutually exclusive',
@@ -113,14 +125,30 @@ class ProjectComposerSheet extends ConsumerStatefulWidget {
   final ActiveAccountLease? scheduledOwner;
   final LocalPostDraftSeed? draftSeed;
   final ActiveAccountLease? draftOwner;
+  final ComposerVideoController? videoController;
+  final Future<CreatePostVideo> Function(LocalVideoSelection video)?
+  prepareVideoProof;
 
   @override
   ConsumerState<ProjectComposerSheet> createState() =>
       _ProjectComposerSheetState();
 }
 
-class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
+class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
+    with WidgetsBindingObserver {
   late final Map<String, dynamic> _initialFormValues;
+  late final Map<String, dynamic> _detailFormValues;
+  static const List<String> _patternDetailFieldNames = [
+    ProjectComposerFields.patternDesigner,
+    ProjectComposerFields.patternPublisher,
+    ProjectComposerFields.patternUrl,
+    ProjectComposerFields.patternDifficulty,
+  ];
+  static const List<String> _commonDetailFieldNames = [
+    ProjectComposerFields.materials,
+    ProjectComposerFields.colours,
+    ProjectComposerFields.designTags,
+  ];
   static const List<String> _craftDetailFieldNames = [
     ProjectComposerFields.sewingProjectType,
     ProjectComposerFields.sewingProjectSubtype,
@@ -152,15 +180,23 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   ];
 
   final _formKey = GlobalKey<FormBuilderState>();
-  final _wizardPagesKey = GlobalKey<_MountedWizardPagesState>();
+  final _patternDetailsFormKey = GlobalKey<FormBuilderState>();
+  final _commonDetailsFormKey = GlobalKey<FormBuilderState>();
+  final _craftDetailsFormKey = GlobalKey<FormBuilderState>();
   final _scrollController = ScrollController();
   final _bodyController = FacetTextEditingController();
   final _bodyFocusNode = FocusNode(debugLabel: 'projectComposerBody');
-  final _backActionFocusNode = FocusNode(
-    debugLabel: 'projectComposerBackAction',
-  );
   final _primaryActionFocusNode = FocusNode(
     debugLabel: 'projectComposerPrimaryAction',
+  );
+  final _patternDetailsFocusNode = FocusNode(
+    debugLabel: 'projectPatternDetailsAction',
+  );
+  final _commonDetailsFocusNode = FocusNode(
+    debugLabel: 'projectCommonDetailsAction',
+  );
+  final _craftDetailsFocusNode = FocusNode(
+    debugLabel: 'projectCraftDetailsAction',
   );
   final _patternNameController = FacetTextEditingController(text: '#');
   final _patternDesignerController = FacetTextEditingController();
@@ -173,10 +209,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     debugLabel: 'projectPatternPublisher',
   );
   late final String _composerId;
-  int _currentPage = 0;
   String _bodyText = '';
   String _patternNameText = '';
-  bool _attemptedPageOneNext = false;
   String? _activeCraftType;
   String? _sewingProjectType;
   String? _knittingProjectType;
@@ -201,6 +235,12 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   ActiveAccountLease? _scheduledOwner;
   late final ComposerMediaUploader _mediaUploader;
   late final ComposerSubmissionCoordinator _submissionCoordinator;
+  late final ComposerVideoController _videoController;
+  VideoPublicationCoordinator? _videoPublication;
+  ActiveAccountLease? _videoPublicationOwner;
+  VideoPublicationProgress? _videoProgress;
+  Object? _videoFailure;
+  var _usesStoredDraftVideo = false;
   bool _isSubmitting = false;
   bool _isSavingDraft = false;
   bool _submissionSucceeded = false;
@@ -213,6 +253,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _origin = DraftSubmissionOrigin(widget.draftSeed?.draft);
     _scheduledOwner = widget.scheduledOwner;
     final draftContent = widget.draftSeed?.draft.content;
@@ -224,6 +265,15 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
         : hydrateScheduledProjectComposer(
             project is Map<String, dynamic> ? project : null,
           );
+    _detailFormValues = {
+      for (final name in [
+        ..._patternDetailFieldNames,
+        ..._commonDetailFieldNames,
+        ..._craftDetailFieldNames,
+      ])
+        if (_initialFormValues.containsKey(name))
+          name: _initialFormValues[name],
+    };
     _patternNameController.text = _patternDisplayText(
       _initialFormValues[ProjectComposerFields.patternName],
     );
@@ -253,6 +303,13 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     _submissionCoordinator = ComposerSubmissionCoordinator(
       screenAwake: const WakelockSubmissionScreenAwake(),
     );
+    _videoController =
+        widget.videoController ??
+        ComposerVideoController(
+          picker: ImagePickerExistingVideo(),
+          checkEligibility: () =>
+              ref.read(postApiClientProvider).getVideoUploadLimits(),
+        );
     if (draftContent is ProjectDraftContent) {
       _bodyText = draftContent.body;
       _initialBodyText = draftContent.body;
@@ -277,6 +334,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
           ref
               .read(composerImagesProvider(_composerId).notifier)
               .seedLocalDraft(widget.draftSeed!);
+          unawaited(_restoreDraftVideo(widget.draftSeed!));
         }
       });
     }
@@ -306,13 +364,17 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _unsavedGuard.unregister(_unsavedRegistration);
     unawaited(_submissionCoordinator.dispose());
+    _videoPublication?.cancel();
     _scrollController.dispose();
     _bodyController.dispose();
     _bodyFocusNode.dispose();
-    _backActionFocusNode.dispose();
     _primaryActionFocusNode.dispose();
+    _patternDetailsFocusNode.dispose();
+    _commonDetailsFocusNode.dispose();
+    _craftDetailsFocusNode.dispose();
     _patternNameController.dispose();
     _patternDesignerController.dispose();
     _patternPublisherController.dispose();
@@ -321,6 +383,16 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     _patternPublisherFocusNode.dispose();
     _mediaUploader.disposeComposer(_composerId);
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed &&
+        shouldCancelVideoPublicationOnLifecycleInterruption(
+          _videoProgress?.stage,
+        )) {
+      _videoPublication?.cancel();
+    }
   }
 
   @override
@@ -337,7 +409,12 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     _initialLanguages ??= List.of(_languages!.values);
     final imagesProvider = composerImagesProvider(_composerId);
     final imagesState = ref.watch(imagesProvider);
+    final selectedVideo = _videoController.selection;
     final activeLease = ref.watch(sessionRegistryProvider).value?.activeLease;
+    if (_videoPublicationOwner != null &&
+        activeLease != _videoPublicationOwner) {
+      _videoPublication?.cancel();
+    }
     if (widget.scheduledPost != null && _scheduledOwner == null) {
       _scheduledOwner = activeLease;
     }
@@ -376,27 +453,26 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
         !_isLoadingScheduledMedia &&
         !_scheduledMediaLoadFailed &&
         _languages != null &&
-        imagesState.canSubmitImages() &&
+        (selectedVideo != null || imagesState.canSubmitImages()) &&
+        (selectedVideo == null || _scheduleChoice == ScheduleChoice.now) &&
         (_scheduleChoice == ScheduleChoice.now || capacity.scheduleEnabled);
     final bodyErrorText = switch ((_attemptedSubmit, trimmedBody.isEmpty)) {
       (true, true) => l10n.projectComposerBodyRequiredError,
       _ when tooLong => l10n.postComposeTooLong,
       _ => null,
     };
-    final formValues = {
-      ..._initialFormValues,
-      ...?_formKey.currentState?.instantValue,
-    };
+    final formValues = _combinedFormValues();
     final photoErrorText =
-        (_attemptedSubmit || _attemptedPageOneNext) &&
-            imagesState.images.isEmpty
+        _attemptedSubmit && imagesState.images.isEmpty && selectedVideo == null
         ? l10n.projectComposerPhotoRequiredError
         : null;
     final hasDraft =
         ProjectComposerDraftState.hasDraft(
           bodyText: _bodyText,
           initialBodyText: _initialBodyText,
-          imageCount: _draftMediaChanged(imagesState) ? 1 : 0,
+          imageCount: _draftMediaChanged(imagesState) || _draftVideoChanged()
+              ? 1
+              : 0,
           formValues: formValues,
           initialFormValues: _initialFormValues,
         ) ||
@@ -447,17 +523,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     }
 
     return PopScope<Post?>(
-      canPop:
-          !_isSubmitting &&
-          _currentPage == 0 &&
-          (!hasDraft || createState.isLoading),
+      canPop: !_isSubmitting && (!hasDraft || createState.isLoading),
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
         if (_isSubmitting) return;
-        if (_currentPage > 0) {
-          _setCurrentPage(_currentPage - 1);
-          return;
-        }
         final shouldClose = await _confirmProjectClose(imagesState);
         if (!shouldClose || !context.mounted) return;
         Navigator.of(context).pop();
@@ -465,250 +534,262 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       child: Stack(
         fit: StackFit.expand,
         children: [
-          Actions(
-            actions: <Type, Action<Intent>>{
-              NextFocusIntent: _ProjectComposerNextFocusAction(
-                shouldEnterPage: () => _backActionFocusNode.hasPrimaryFocus,
-                enterPage: _focusFirstPageField,
-                exitPage: _focusPrimaryActionFromLastPageField,
+          Scaffold(
+            backgroundColor: swatches.paper,
+            appBar: AppBar(
+              title: Text(
+                l10n.projectComposerTitle,
+                style: theme.textTheme.titleLarge,
               ),
-            },
-            child: Scaffold(
-              backgroundColor: swatches.paper,
-              appBar: AppBar(
-                leading: _currentPage == 0
-                    ? null
-                    : IconButton(
-                        key: const Key('project-composer-back-action'),
-                        focusNode: _backActionFocusNode,
-                        icon: const BackButtonIcon(),
-                        tooltip: MaterialLocalizations.of(
-                          context,
-                        ).backButtonTooltip,
-                        onPressed: createState.isLoading
-                            ? null
-                            : () => _setCurrentPage(_currentPage - 1),
-                      ),
-                title: Text(
-                  l10n.projectComposerTitle,
-                  style: theme.textTheme.titleLarge,
-                ),
-                actions: [
-                  if (widget.scheduledPost == null)
-                    TextButton(
-                      onPressed: canSaveDraft
-                          ? () => _saveProjectDraft(imagesState)
-                          : null,
-                      child: Text(
-                        widget.draftSeed == null
-                            ? l10n.draftSaveAction
-                            : l10n.draftSaveChangesAction,
-                      ),
+              actions: [
+                if (widget.scheduledPost == null)
+                  TextButton(
+                    onPressed: canSaveDraft
+                        ? () => _saveProjectDraft(imagesState)
+                        : null,
+                    child: Text(
+                      widget.draftSeed == null
+                          ? l10n.draftSaveAction
+                          : l10n.draftSaveChangesAction,
                     ),
-                ],
-              ),
-              body: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    SafeArea(
-                      top: false,
-                      bottom: false,
-                      child: SingleChildScrollView(
-                        controller: _scrollController,
-                        padding: EdgeInsets.fromLTRB(
-                          spacing.sp4,
-                          spacing.sp5,
-                          spacing.sp4,
-                          0,
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            if (_formValidationError
-                                case final formValidationError?) ...[
-                              Text(
-                                formValidationError,
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: theme.colorScheme.error,
+                  ),
+              ],
+            ),
+            body: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  SafeArea(
+                    top: false,
+                    bottom: false,
+                    child: SingleChildScrollView(
+                      controller: _scrollController,
+                      padding: EdgeInsets.fromLTRB(
+                        spacing.sp4,
+                        spacing.sp5,
+                        spacing.sp4,
+                        0,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          FormBuilder(
+                            key: _formKey,
+                            initialValue: _initialFormValues,
+                            onChanged: () {
+                              if (mounted) setState(() {});
+                            },
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                _pageOne(
+                                  l10n: l10n,
+                                  theme: theme,
+                                  spacing: spacing,
+                                  imagesState: imagesState,
+                                  selectedVideo: selectedVideo,
+                                  controlsEnabled: controlsEnabled,
+                                  photoErrorText: photoErrorText,
+                                  onAddImages: () => ref
+                                      .read(imagesProvider.notifier)
+                                      .addImages(),
+                                  onAddVideo: _selectVideo,
+                                  onAltTextChanged: (imageId, value) => ref
+                                      .read(imagesProvider.notifier)
+                                      .setAltText(imageId, value),
+                                  onRemoveImage: (imageId) => ref
+                                      .read(imagesProvider.notifier)
+                                      .remove(imageId),
+                                  onReplaceUnavailable: (imageId) => ref
+                                      .read(imagesProvider.notifier)
+                                      .replaceUnavailable(imageId),
+                                  onReorderImages: (fromIndex, toIndex) => ref
+                                      .read(imagesProvider.notifier)
+                                      .reorder(
+                                        fromIndex: fromIndex,
+                                        toIndex: toIndex,
+                                      ),
                                 ),
-                              ),
-                              SizedBox(height: spacing.sp4),
-                            ],
-                            FormBuilder(
-                              key: _formKey,
-                              initialValue: _initialFormValues,
-                              onChanged: () {
-                                if (mounted) setState(() {});
-                              },
-                              child: _MountedWizardPages(
-                                key: _wizardPagesKey,
-                                currentPage: _currentPage,
-                                onExitBackward: _currentPage == 0
-                                    ? null
-                                    : () {
-                                        _backActionFocusNode.requestFocus();
-                                        return true;
-                                      },
-                                onExitForward: () {
-                                  _primaryActionFocusNode.requestFocus();
-                                  return true;
-                                },
-                                children: [
-                                  _pageOne(
-                                    l10n: l10n,
-                                    theme: theme,
-                                    spacing: spacing,
-                                    imagesState: imagesState,
-                                    controlsEnabled: controlsEnabled,
-                                    photoErrorText: photoErrorText,
-                                    patternInfoTitle: l10n
-                                        .projectComposerPatternInfoSectionLabel,
-                                    onAddImages: () => ref
-                                        .read(imagesProvider.notifier)
-                                        .addImages(),
-                                    onAltTextChanged: (imageId, value) => ref
-                                        .read(imagesProvider.notifier)
-                                        .setAltText(imageId, value),
-                                    onRemoveImage: (imageId) => ref
-                                        .read(imagesProvider.notifier)
-                                        .remove(imageId),
-                                    onReplaceUnavailable: (imageId) => ref
-                                        .read(imagesProvider.notifier)
-                                        .replaceUnavailable(imageId),
-                                    onReorderImages: (fromIndex, toIndex) => ref
-                                        .read(imagesProvider.notifier)
-                                        .reorder(
-                                          fromIndex: fromIndex,
-                                          toIndex: toIndex,
-                                        ),
-                                  ),
-                                  _pageTwo(
-                                    l10n: l10n,
-                                    theme: theme,
-                                    spacing: spacing,
-                                    controlsEnabled: controlsEnabled,
-                                  ),
-                                  _pageThree(
-                                    l10n: l10n,
-                                    spacing: spacing,
-                                    controlsEnabled: controlsEnabled,
-                                    bodyErrorText: bodyErrorText,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            if (_currentPage == 2) ...[
-                              SizedBox(height: spacing.sp4),
-                              PostLanguageSelector(
-                                selection: _languages!,
-                                enabled: controlsEnabled,
-                                onChanged: (value) =>
-                                    setState(() => _languages = value),
-                              ),
-                              SizedBox(height: spacing.sp4),
-                              Builder(
-                                builder: (menuContext) => ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  leading: const Icon(Icons.schedule_outlined),
-                                  title: Text(l10n.scheduledPostWhenTitle),
-                                  subtitle: Text(_whenLabel(context)),
-                                  trailing: const Icon(Icons.chevron_right),
-                                  enabled: controlsEnabled,
-                                  onTap: () => _chooseWhen(
-                                    menuContext,
-                                    scheduleEnabled: capacity.scheduleEnabled,
-                                  ),
-                                ),
-                              ),
-                              if (capacity.showCapacityWarning)
-                                const ScheduledPostCapacityWarning(),
-                              if (capacity.showManageLink)
-                                Align(
-                                  alignment: AlignmentDirectional.centerStart,
-                                  child: TextButton(
-                                    onPressed: () =>
-                                        const ScheduledPostsRoute().go(context),
-                                    child: Text(l10n.scheduledPostManageAction),
-                                  ),
-                                ),
-                              if (_missedScheduledAtLocal case final missed?)
-                                Text(
-                                  l10n.scheduledPostMissedTime(
-                                    _projectLocalTimeLabel(context, missed),
-                                  ),
-                                ),
-                              if (_isScheduling &&
-                                  (_stagedImageTotal > 0 ||
-                                      _isSavingSchedule)) ...[
-                                SizedBox(height: spacing.sp3),
-                                ScheduledStagingProgress(
-                                  completed: _stagedImageCount,
-                                  total: _stagedImageTotal,
-                                  creating: _isSavingSchedule,
+                                SizedBox(height: spacing.sp4),
+                                _pageThree(
+                                  l10n: l10n,
+                                  spacing: spacing,
+                                  controlsEnabled: controlsEnabled,
+                                  bodyErrorText: bodyErrorText,
                                 ),
                               ],
-                            ],
-                            if (widget.scheduledPost != null)
-                              Align(
-                                alignment: AlignmentDirectional.centerStart,
-                                child: TextButton.icon(
-                                  onPressed: _isScheduling
-                                      ? null
-                                      : _deleteExistingSchedule,
-                                  icon: const Icon(Icons.delete_outline),
-                                  label: Text(l10n.scheduledPostsDeleteTooltip),
-                                ),
-                              ),
-                            SizedBox(
+                            ),
+                          ),
+                          SizedBox(height: spacing.sp6),
+                          Text(
+                            l10n.projectComposerMoreDetailsHeading,
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          SizedBox(height: spacing.sp2),
+                          Text(
+                            l10n.projectComposerMoreDetailsPrompt,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                          SizedBox(height: spacing.sp2),
+                          if (_hasMeaningfulPatternName(_patternNameText))
+                            _ProjectDetailActionTile(
                               key: const Key(
-                                'project-composer-bottom-safe-space',
+                                'project-composer-pattern-details-action',
                               ),
-                              height:
-                                  spacing.sp9 +
-                                  MediaQuery.paddingOf(context).bottom,
+                              focusNode: _patternDetailsFocusNode,
+                              icon: CraftskyIcons.pattern,
+                              title: l10n.projectComposerPatternDetailsTitle,
+                              subtitle: _detailSummary(
+                                _patternDetailFieldNames,
+                                empty: l10n
+                                    .projectComposerPatternDetailsDescription,
+                                l10n: l10n,
+                              ),
+                              enabled: controlsEnabled,
+                              onTap: _openPatternDetails,
+                            ),
+                          _ProjectDetailActionTile(
+                            key: const Key(
+                              'project-composer-common-details-action',
+                            ),
+                            focusNode: _commonDetailsFocusNode,
+                            icon: CraftskyIcons.palette,
+                            title: l10n.projectComposerCommonDetailsTitle,
+                            subtitle: _detailSummary(
+                              _commonDetailFieldNames,
+                              empty:
+                                  l10n.projectComposerCommonDetailsDescription,
+                              l10n: l10n,
+                            ),
+                            enabled: controlsEnabled,
+                            onTap: _openCommonDetails,
+                          ),
+                          if (_craftDetailsTitle(l10n)
+                              case final craftDetailsTitle?)
+                            _ProjectDetailActionTile(
+                              key: const Key(
+                                'project-composer-craft-details-action',
+                              ),
+                              focusNode: _craftDetailsFocusNode,
+                              icon: CraftskyIcons.adjustments,
+                              title: craftDetailsTitle,
+                              subtitle: _detailSummary(
+                                _activeCraftDetailFieldNames,
+                                empty:
+                                    l10n.projectComposerCraftDetailsDescription,
+                                l10n: l10n,
+                              ),
+                              errorText: _formValidationError,
+                              enabled: controlsEnabled,
+                              onTap: _openCraftDetails,
+                            ),
+                          SizedBox(height: spacing.sp4),
+                          PostLanguageSelector(
+                            selection: _languages!,
+                            enabled: controlsEnabled,
+                            onChanged: (value) =>
+                                setState(() => _languages = value),
+                          ),
+                          SizedBox(height: spacing.sp4),
+                          Builder(
+                            builder: (menuContext) => ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(CraftskyIcons.schedule),
+                              title: Text(l10n.scheduledPostWhenTitle),
+                              subtitle: Text(_whenLabel(context)),
+                              trailing: const Icon(CraftskyIconsBold.next),
+                              enabled: controlsEnabled,
+                              onTap: () => _chooseWhen(
+                                menuContext,
+                                scheduleEnabled: capacity.scheduleEnabled,
+                              ),
+                            ),
+                          ),
+                          if (capacity.showCapacityWarning)
+                            const ScheduledPostCapacityWarning(),
+                          if (capacity.showManageLink)
+                            Align(
+                              alignment: AlignmentDirectional.centerStart,
+                              child: TextButton(
+                                onPressed: () =>
+                                    const ScheduledPostsRoute().go(context),
+                                child: Text(l10n.scheduledPostManageAction),
+                              ),
+                            ),
+                          if (_missedScheduledAtLocal case final missed?)
+                            Text(
+                              l10n.scheduledPostMissedTime(
+                                _projectLocalTimeLabel(context, missed),
+                              ),
+                            ),
+                          if (_isScheduling &&
+                              (_stagedImageTotal > 0 || _isSavingSchedule)) ...[
+                            SizedBox(height: spacing.sp3),
+                            ScheduledStagingProgress(
+                              completed: _stagedImageCount,
+                              total: _stagedImageTotal,
+                              creating: _isSavingSchedule,
                             ),
                           ],
-                        ),
-                      ),
-                    ),
-                    PositionedDirectional(
-                      start: spacing.sp4,
-                      end: spacing.sp4,
-                      bottom: 0,
-                      child: SafeArea(
-                        top: false,
-                        minimum: EdgeInsets.only(bottom: spacing.sp4),
-                        child: ChunkyButton(
-                          key: const Key('project-composer-primary-action'),
-                          focusNode: _primaryActionFocusNode,
-                          onPressed: _currentPage < 2
-                              ? (controlsEnabled ? _goToNextPage : null)
-                              : (canSubmit
-                                    ? () => _submitProject(
-                                        trimmedBody: trimmedBody,
-                                      )
-                                    : null),
-                          child: Text(
-                            _currentPage < 2
-                                ? l10n.projectComposerNextAction
-                                : _scheduleChoice == ScheduleChoice.later
-                                ? l10n.scheduledPostAction
-                                : l10n.postComposeSubmit,
+                          if (widget.scheduledPost != null)
+                            Align(
+                              alignment: AlignmentDirectional.centerStart,
+                              child: TextButton.icon(
+                                onPressed: _isScheduling
+                                    ? null
+                                    : _deleteExistingSchedule,
+                                icon: const Icon(CraftskyIconsBold.delete),
+                                label: Text(l10n.scheduledPostsDeleteTooltip),
+                              ),
+                            ),
+                          SizedBox(
+                            key: const Key(
+                              'project-composer-bottom-safe-space',
+                            ),
+                            height:
+                                spacing.sp9 +
+                                MediaQuery.paddingOf(context).bottom,
                           ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  PositionedDirectional(
+                    start: spacing.sp4,
+                    end: spacing.sp4,
+                    bottom: 0,
+                    child: SafeArea(
+                      top: false,
+                      minimum: EdgeInsets.only(bottom: spacing.sp4),
+                      child: ChunkyButton(
+                        key: const Key('project-composer-primary-action'),
+                        focusNode: _primaryActionFocusNode,
+                        onPressed: canSubmit
+                            ? () => _submitProject(trimmedBody: trimmedBody)
+                            : null,
+                        child: Text(
+                          _scheduleChoice == ScheduleChoice.later
+                              ? l10n.scheduledPostAction
+                              : l10n.postComposeSubmit,
                         ),
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
           if (_isSubmitting)
             SubmissionBlockingOverlay(
               scheduling: _scheduleChoice == ScheduleChoice.later,
+              videoProgress: _videoProgress,
+              onCancelVideo: _videoPublication?.cancel,
             ),
         ],
       ),
@@ -724,6 +805,32 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       confirmLabel: l10n.postComposeDiscardConfirm,
       cancelLabel: l10n.postComposeDiscardCancel,
     );
+  }
+
+  Future<void> _selectVideo({bool replace = false}) async {
+    try {
+      final limits = replace
+          ? await _videoController.replace()
+          : await _videoController.selectExisting();
+      if (!mounted) return;
+      if (limits != null && !limits.canUpload) {
+        context.showError(
+          videoLimitsMessage(AppLocalizations.of(context), limits),
+        );
+        return;
+      }
+      final quota = limits == null
+          ? null
+          : videoQuotaMessage(AppLocalizations.of(context), limits);
+      if (quota != null) {
+        context.showInfo(quota);
+      }
+      setState(() => _usesStoredDraftVideo = false);
+    } on Object {
+      if (mounted) {
+        context.showError(AppLocalizations.of(context).postCreateError);
+      }
+    }
   }
 
   Future<bool> _confirmProjectClose(ComposerImagesState imagesState) async {
@@ -762,6 +869,14 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       }
     }
     return false;
+  }
+
+  bool _draftVideoChanged() {
+    final baseline = widget.draftSeed?.draft.video;
+    final selection = _videoController.selection;
+    if (baseline == null) return selection != null;
+    if (selection == null || !_usesStoredDraftVideo) return true;
+    return selection.altText != baseline.altText;
   }
 
   Future<void> _saveProjectDraft(ComposerImagesState imagesState) async {
@@ -809,14 +924,78 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       body: _bodyText,
       languages: _languages!.values,
       schedule: schedule,
-      formValues: {
-        ..._initialFormValues,
-        ...?_formKey.currentState?.value,
-      },
+      formValues: _combinedFormValues(saved: true),
       images: imagesState.images,
+      video: _draftVideoWrite(),
       existingRevision: existing?.revision,
       existingCreatedAt: existing?.createdAt,
     );
+  }
+
+  DraftVideoWrite? _draftVideoWrite() {
+    final selection = _videoController.selection;
+    if (selection == null) return null;
+    final stored = _origin.draft?.video;
+    if (_usesStoredDraftVideo && stored != null) {
+      return ExistingStoredVideo(
+        storageRevision: stored.storageRevision,
+        expectedSourceSha256: stored.sourceSha256,
+        expectedPosterSha256: stored.posterSha256,
+        altText: selection.altText,
+      );
+    }
+    final poster = selection.posterBytes;
+    if (poster == null) {
+      throw const DraftRepositoryException(
+        DraftRepositoryFailureReason.invalidRequest,
+      );
+    }
+    return PreparedDraftVideo(
+      displayFileName: selection.displayName,
+      mimeType: selection.mimeType,
+      byteLength: selection.byteLength,
+      openSource: selection.openRead,
+      width: selection.width,
+      height: selection.height,
+      duration: selection.duration,
+      altText: selection.altText,
+      posterMimeType: 'image/jpeg',
+      posterBytes: poster,
+    );
+  }
+
+  Future<void> _restoreDraftVideo(LocalPostDraftSeed seed) async {
+    final descriptor = seed.draft.video;
+    final owner = widget.draftOwner;
+    if (descriptor == null || owner == null) return;
+    try {
+      final repository = await ref.read(
+        accountLocalPostDraftRepositoryProvider(
+          owner.session.account,
+        ).future,
+      );
+      if (repository is! LocalVideoDraftRepository) return;
+      final videoRepository = repository as LocalVideoDraftRepository;
+      final poster = await videoRepository.readVideoPoster(seed.draft.id);
+      if (!mounted) return;
+      setState(() {
+        _videoController.restoredSelection = LocalVideoSelection(
+          displayName: descriptor.displayFileName,
+          mimeType: descriptor.mimeType,
+          byteLength: descriptor.sourceByteLength,
+          duration: descriptor.duration,
+          width: descriptor.width,
+          height: descriptor.height,
+          headerBytes: Uint8List(0),
+          openRead: () => videoRepository.openVideoSource(seed.draft.id),
+          posterBytes: poster,
+          altText: descriptor.altText,
+        );
+        _usesStoredDraftVideo = true;
+      });
+    } on Object {
+      // Damaged drafts remain editable after the missing video is replaced.
+    }
   }
 
   void _ensureUnsavedWorkRegistration() {
@@ -842,33 +1021,20 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   bool _hasUnsavedProject() {
     if (!mounted) return false;
     final imagesState = ref.read(composerImagesProvider(_composerId));
-    final formValues = {
-      ..._initialFormValues,
-      ...?_formKey.currentState?.instantValue,
-    };
+    final formValues = _combinedFormValues();
     return ProjectComposerDraftState.hasDraft(
           bodyText: _bodyText,
           initialBodyText: _initialBodyText,
-          imageCount: _draftMediaChanged(imagesState) ? 1 : 0,
+          imageCount: _draftMediaChanged(imagesState) || _draftVideoChanged()
+              ? 1
+              : 0,
           formValues: formValues,
           initialFormValues: _initialFormValues,
         ) ||
         !listEquals(_languages?.values, _initialLanguages) ||
         _scheduleChoice != _initialScheduleChoice ||
-        _scheduledAtLocal != _initialScheduledAtLocal;
-  }
-
-  bool _focusFirstPageField() {
-    return _wizardPagesKey.currentState?.focusFirstInCurrentPage() ?? false;
-  }
-
-  bool _focusPrimaryActionFromLastPageField() {
-    final wizardPages = _wizardPagesKey.currentState;
-    if (wizardPages == null || !wizardPages.primaryFocusAtEndOfCurrentPage()) {
-      return false;
-    }
-    _primaryActionFocusNode.requestFocus();
-    return true;
+        _scheduledAtLocal != _initialScheduledAtLocal ||
+        _draftVideoChanged();
   }
 
   void _consumeImageNotice({
@@ -896,16 +1062,231 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   }
 
   List<CraftskySelectOption<String>> _selectOptions(
-    List<ProjectOption> options,
-  ) {
+    List<ProjectOption> options, {
+    bool includeCraftIcons = false,
+  }) {
     return [
       for (final option in options)
         CraftskySelectOption<String>(
           value: option.value,
           label: option.label,
           description: option.description,
+          leadingBuilder: includeCraftIcons
+              ? (_) => CraftIcon(craft: option.value)
+              : null,
         ),
     ];
+  }
+
+  Map<String, dynamic> _combinedFormValues({bool saved = false}) => {
+    ..._initialFormValues,
+    ..._detailFormValues,
+    ...?(saved
+        ? _formKey.currentState?.value
+        : _formKey.currentState?.instantValue),
+  };
+
+  Map<String, dynamic> _detailInitialValues(Iterable<String> names) => {
+    for (final name in names) name: _detailFormValues[name],
+  };
+
+  void _syncDetailForm(
+    GlobalKey<FormBuilderState> key,
+    Iterable<String> names,
+  ) {
+    final values = key.currentState?.instantValue;
+    if (values == null || !mounted) return;
+    setState(() {
+      for (final name in names) {
+        _detailFormValues[name] = values[name];
+      }
+      _formValidationError = null;
+    });
+  }
+
+  bool _hasAnyDetail(Iterable<String> names) => names.any(
+    (name) => switch (_detailFormValues[name]) {
+      final String value => value.trim().isNotEmpty,
+      final Iterable<Object?> values => values.isNotEmpty,
+      final num value => value > 0,
+      _ => false,
+    },
+  );
+
+  String _detailSummary(
+    Iterable<String> names, {
+    required String empty,
+    required AppLocalizations l10n,
+  }) {
+    final count = names.where((name) {
+      final value = _detailFormValues[name];
+      return switch (value) {
+        final String text => text.trim().isNotEmpty,
+        final Iterable<Object?> values => values.isNotEmpty,
+        final num number => number > 0,
+        _ => false,
+      };
+    }).length;
+    return count == 0 ? empty : l10n.projectComposerDetailsAdded(count);
+  }
+
+  List<String> get _activeCraftDetailFieldNames => switch (_activeCraftType) {
+    ProjectOptionCatalogs.sewingCraftToken =>
+      _craftDetailFieldNames
+          .where((name) => name.startsWith('sewing'))
+          .toList(growable: false),
+    ProjectOptionCatalogs.knittingCraftToken =>
+      _craftDetailFieldNames
+          .where((name) => name.startsWith('knitting'))
+          .toList(growable: false),
+    ProjectOptionCatalogs.crochetCraftToken =>
+      _craftDetailFieldNames
+          .where((name) => name.startsWith('crochet'))
+          .toList(growable: false),
+    ProjectOptionCatalogs.quiltingCraftToken =>
+      _craftDetailFieldNames
+          .where((name) => name.startsWith('quilting'))
+          .toList(growable: false),
+    _ => const [],
+  };
+
+  String? _craftDetailsTitle(AppLocalizations l10n) {
+    if (_activeCraftDetailFieldNames.isEmpty) return null;
+    final craft = ProjectOptionCatalogs.craftTypes
+        .where((option) => option.value == _activeCraftType)
+        .firstOrNull;
+    return craft == null
+        ? null
+        : l10n.projectComposerCraftDetailsTitle(craft.label);
+  }
+
+  Future<void> _openPatternDetails() async {
+    final l10n = AppLocalizations.of(context);
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => _ProjectComposerDetailPage(
+          title: l10n.projectComposerPatternDetailsTitle,
+          child: FormBuilder(
+            key: _patternDetailsFormKey,
+            initialValue: _detailInitialValues(_patternDetailFieldNames),
+            onChanged: () => _syncDetailForm(
+              _patternDetailsFormKey,
+              _patternDetailFieldNames,
+            ),
+            child: _patternDetailFields(l10n),
+          ),
+        ),
+      ),
+    );
+    if (mounted) _patternDetailsFocusNode.requestFocus();
+  }
+
+  Future<void> _openCommonDetails() async {
+    final l10n = AppLocalizations.of(context);
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => _ProjectComposerDetailPage(
+          title: l10n.projectComposerCommonDetailsTitle,
+          child: FormBuilder(
+            key: _commonDetailsFormKey,
+            initialValue: _detailInitialValues(_commonDetailFieldNames),
+            onChanged: () => _syncDetailForm(
+              _commonDetailsFormKey,
+              _commonDetailFieldNames,
+            ),
+            child: _pageTwo(
+              l10n: l10n,
+              spacing: Theme.of(context).extension<SpacingTheme>()!,
+              controlsEnabled: true,
+            ),
+          ),
+        ),
+      ),
+    );
+    if (mounted) _commonDetailsFocusNode.requestFocus();
+  }
+
+  Future<void> _openCraftDetails() async {
+    final l10n = AppLocalizations.of(context);
+    final title = _craftDetailsTitle(l10n);
+    if (title == null) return;
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (_) => StatefulBuilder(
+          builder: (context, setRouteState) => _ProjectComposerDetailPage(
+            title: title,
+            errorText: _formValidationError,
+            child: FormBuilder(
+              key: _craftDetailsFormKey,
+              initialValue: _detailInitialValues(
+                _activeCraftDetailFieldNames,
+              ),
+              onChanged: () {
+                _syncDetailForm(
+                  _craftDetailsFormKey,
+                  _activeCraftDetailFieldNames,
+                );
+                setRouteState(() {});
+              },
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: _detailFields(
+                  l10n,
+                  Theme.of(context).extension<SpacingTheme>()!,
+                  true,
+                  routeSetState: setRouteState,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    if (mounted) _craftDetailsFocusNode.requestFocus();
+  }
+
+  Widget _patternDetailFields(AppLocalizations l10n) {
+    final spacing = Theme.of(context).extension<SpacingTheme>()!;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _FacetFormBuilderTextField(
+          name: ProjectComposerFields.patternDesigner,
+          key: const Key('project-composer-pattern-designer-field'),
+          editorKey: const Key('project-composer-pattern-designer-editor'),
+          label: l10n.projectComposerPatternDesignerLabel,
+          hintText: l10n.projectComposerPatternDesignerHint,
+          controller: _patternDesignerController,
+          focusNode: _patternDesignerFocusNode,
+          allowedTokenKinds: const {ActiveFacetTokenKind.mention},
+        ),
+        SizedBox(height: spacing.sp4),
+        _FacetFormBuilderTextField(
+          name: ProjectComposerFields.patternPublisher,
+          key: const Key('project-composer-pattern-publisher-field'),
+          editorKey: const Key('project-composer-pattern-publisher-editor'),
+          label: l10n.projectComposerPatternPublisherLabel,
+          hintText: l10n.projectComposerPatternPublisherHint,
+          controller: _patternPublisherController,
+          focusNode: _patternPublisherFocusNode,
+          allowedTokenKinds: const {ActiveFacetTokenKind.mention},
+        ),
+        SizedBox(height: spacing.sp4),
+        CraftskyFormBuilderTextField(
+          name: ProjectComposerFields.patternUrl,
+          label: l10n.projectComposerPatternUrlLabel,
+          hintText: l10n.projectComposerPatternUrlHint,
+          keyboardType: TextInputType.url,
+          textFieldKey: const Key('pattern-url-input'),
+        ),
+        SizedBox(height: spacing.sp4),
+        CraftskyFormBuilderDropdownField<String>(
+          name: ProjectComposerFields.patternDifficulty,
+          label: l10n.projectComposerPatternDifficultyLabel,
+          options: _selectOptions(ProjectOptionCatalogs.patternDifficulties),
+        ),
+      ],
+    );
   }
 
   Widget _pageOne({
@@ -913,16 +1294,16 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     required ThemeData theme,
     required SpacingTheme spacing,
     required ComposerImagesState imagesState,
+    required LocalVideoSelection? selectedVideo,
     required bool controlsEnabled,
     required String? photoErrorText,
-    required String patternInfoTitle,
     required Future<void> Function()? onAddImages,
+    required Future<void> Function() onAddVideo,
     required void Function(String imageId, String value) onAltTextChanged,
     required ValueChanged<String> onRemoveImage,
     required Future<void> Function(String imageId) onReplaceUnavailable,
     required void Function(int fromIndex, int toIndex) onReorderImages,
   }) {
-    final showPatternDetails = _hasMeaningfulPatternName(_patternNameText);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -939,6 +1320,21 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
               ),
             ],
           )
+        else if (selectedVideo != null)
+          ComposerVideoAttachmentCard(
+            selection: selectedVideo,
+            enabled: controlsEnabled,
+            onAltTextChanged: (value) {
+              setState(() => _videoController.setAltText(value));
+            },
+            onReplace: () => unawaited(_selectVideo(replace: true)),
+            onRemove: () {
+              setState(() {
+                _usesStoredDraftVideo = false;
+                _videoController.remove();
+              });
+            },
+          )
         else
           ComposerImageAttachmentSection(
             imagesState: imagesState,
@@ -951,6 +1347,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
             onRemove: onRemoveImage,
             onReplaceUnavailable: onReplaceUnavailable,
             onReorder: onReorderImages,
+            supportsVideo:
+                widget.scheduledPost == null &&
+                _scheduleChoice == ScheduleChoice.now,
+            onAddVideo: onAddVideo,
           ),
         SizedBox(height: spacing.sp6),
         CraftskyFormBuilderDropdownField<String>(
@@ -958,7 +1358,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
           label: l10n.projectComposerCraftTypeLabel,
           required: true,
           requiredLabel: l10n.projectComposerRequiredLabel,
-          options: _selectOptions(ProjectOptionCatalogs.craftTypes),
+          options: _selectOptions(
+            ProjectOptionCatalogs.craftTypes,
+            includeCraftIcons: true,
+          ),
           enabled: controlsEnabled,
           validator: (value) =>
               value == null ? l10n.projectComposerCraftRequiredError : null,
@@ -1002,76 +1405,18 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
           normalizeValue: _patternFormValue,
           onChanged: _onPatternNameChanged,
         ),
-        if (showPatternDetails) ...[
-          SizedBox(height: spacing.sp4),
-          Text(
-            patternInfoTitle,
-            style: theme.textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w900,
-              color: theme.colorScheme.onSurface,
-            ),
-          ),
-          SizedBox(height: spacing.sp3),
-          _FacetFormBuilderTextField(
-            name: ProjectComposerFields.patternDesigner,
-            key: const Key('project-composer-pattern-designer-field'),
-            editorKey: const Key('project-composer-pattern-designer-editor'),
-            label: l10n.projectComposerPatternDesignerLabel,
-            hintText: l10n.projectComposerPatternDesignerHint,
-            controller: _patternDesignerController,
-            focusNode: _patternDesignerFocusNode,
-            enabled: controlsEnabled,
-            allowedTokenKinds: const {ActiveFacetTokenKind.mention},
-          ),
-          SizedBox(height: spacing.sp4),
-          _FacetFormBuilderTextField(
-            name: ProjectComposerFields.patternPublisher,
-            key: const Key('project-composer-pattern-publisher-field'),
-            editorKey: const Key('project-composer-pattern-publisher-editor'),
-            label: l10n.projectComposerPatternPublisherLabel,
-            hintText: l10n.projectComposerPatternPublisherHint,
-            controller: _patternPublisherController,
-            focusNode: _patternPublisherFocusNode,
-            enabled: controlsEnabled,
-            allowedTokenKinds: const {ActiveFacetTokenKind.mention},
-          ),
-          SizedBox(height: spacing.sp4),
-          CraftskyFormBuilderTextField(
-            name: ProjectComposerFields.patternUrl,
-            label: l10n.projectComposerPatternUrlLabel,
-            hintText: l10n.projectComposerPatternUrlHint,
-            keyboardType: TextInputType.url,
-            textFieldKey: const Key('pattern-url-input'),
-            enabled: controlsEnabled,
-          ),
-          SizedBox(height: spacing.sp4),
-          CraftskyFormBuilderDropdownField<String>(
-            name: ProjectComposerFields.patternDifficulty,
-            label: l10n.projectComposerPatternDifficultyLabel,
-            options: _selectOptions(ProjectOptionCatalogs.patternDifficulties),
-            enabled: controlsEnabled,
-          ),
-        ],
       ],
     );
   }
 
   Widget _pageTwo({
     required AppLocalizations l10n,
-    required ThemeData theme,
     required SpacingTheme spacing,
     required bool controlsEnabled,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          l10n.projectComposerOptionalDetailsPrompt,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-          ),
-        ),
-        SizedBox(height: spacing.sp4),
         _MaterialsFormBuilderField(
           name: ProjectComposerFields.materials,
           label: l10n.projectComposerMaterialsLabel,
@@ -1110,8 +1455,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
           ),
           enabled: controlsEnabled,
         ),
-        SizedBox(height: spacing.sp4),
-        ..._detailFields(l10n, spacing, controlsEnabled),
       ],
     );
   }
@@ -1150,6 +1493,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   }
 
   void _onCraftTypeChanged(String? value) {
+    if (value == _activeCraftType) return;
+    final clearedDetails = _hasAnyDetail(_craftDetailFieldNames);
     setState(() {
       _activeCraftType = value;
       _formValidationError = null;
@@ -1157,74 +1502,32 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       _knittingProjectType = null;
       _crochetProjectType = null;
       _quiltingProjectType = null;
-      _craftDetailFieldNames.forEach(_clearFormField);
+      for (final name in _craftDetailFieldNames) {
+        _detailFormValues[name] = null;
+      }
     });
-  }
-
-  void _clearFormField(String fieldName) {
-    final form = _formKey.currentState;
-    form?.fields[fieldName]?.didChange(null);
-    form?.removeInternalFieldValue(fieldName);
-  }
-
-  void _goToNextPage() {
-    if (_currentPage != 0) {
-      _setCurrentPage(_currentPage + 1);
-      return;
+    if (clearedDetails) {
+      context.showInfo(
+        AppLocalizations.of(context).projectComposerCraftCleared,
+      );
     }
-
-    setState(() {
-      _attemptedPageOneNext = true;
-      _formValidationError = null;
-    });
-    final craftField =
-        _formKey.currentState?.fields[ProjectComposerFields.craftType];
-    final isCraftValid = craftField?.validate() ?? false;
-    final hasRequiredPhoto = ref
-        .read(composerImagesProvider(_composerId))
-        .images
-        .isNotEmpty;
-    if (!isCraftValid || !hasRequiredPhoto) {
-      return;
-    }
-
-    setState(() => _attemptedPageOneNext = false);
-    _setCurrentPage(1);
-  }
-
-  void _setCurrentPage(int page) {
-    if (_currentPage == page) {
-      _scrollToTop();
-      return;
-    }
-    FocusManager.instance.primaryFocus?.unfocus();
-    setState(() => _currentPage = page);
-    _scrollToTop();
-  }
-
-  void _scrollToTop() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.hasClients) return;
-      _scrollController.jumpTo(0);
-    });
   }
 
   void _onPatternNameChanged(String value) {
     final nextValue = _patternFormValue(value);
-    final hadDetails = _hasMeaningfulPatternName(_patternNameText);
     final hasDetails = _hasMeaningfulPatternName(nextValue ?? '');
     setState(() => _patternNameText = nextValue ?? '');
-    if (hadDetails && !hasDetails) {
+    if (!hasDetails && _hasAnyDetail(_patternDetailFieldNames)) {
       _patternDesignerController.clear();
       _patternPublisherController.clear();
-      _formKey.currentState?.fields[ProjectComposerFields.patternDesigner]
-          ?.didChange(null);
-      _formKey.currentState?.fields[ProjectComposerFields.patternPublisher]
-          ?.didChange(null);
-      _formKey.currentState?.fields[ProjectComposerFields.patternUrl]
-          ?.didChange(null);
-      _formKey.currentState?.fields[ProjectComposerFields.patternDifficulty]
-          ?.didChange(null);
+      setState(() {
+        for (final name in _patternDetailFieldNames) {
+          _detailFormValues[name] = null;
+        }
+      });
+      context.showInfo(
+        AppLocalizations.of(context).projectComposerPatternCleared,
+      );
     }
   }
 
@@ -1249,28 +1552,33 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
   List<Widget> _detailFields(
     AppLocalizations l10n,
     SpacingTheme spacing,
-    bool controlsEnabled,
-  ) {
+    bool controlsEnabled, {
+    StateSetter? routeSetState,
+  }) {
     return switch (_activeCraftType) {
       ProjectOptionCatalogs.sewingCraftToken => _sewingDetailFields(
         l10n,
         spacing,
         controlsEnabled,
+        routeSetState,
       ),
       ProjectOptionCatalogs.knittingCraftToken => _knittingDetailFields(
         l10n,
         spacing,
         controlsEnabled,
+        routeSetState,
       ),
       ProjectOptionCatalogs.crochetCraftToken => _crochetDetailFields(
         l10n,
         spacing,
         controlsEnabled,
+        routeSetState,
       ),
       ProjectOptionCatalogs.quiltingCraftToken => _quiltingDetailFields(
         l10n,
         spacing,
         controlsEnabled,
+        routeSetState,
       ),
       ProjectOptionCatalogs.embroideryCraftToken => const <Widget>[],
       null => [
@@ -1290,6 +1598,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     AppLocalizations l10n,
     SpacingTheme spacing,
     bool controlsEnabled,
+    StateSetter? routeSetState,
   ) {
     final subtypeOptions = ProjectOptionCatalogs.projectSubtypesFor(
       craftToken: ProjectOptionCatalogs.sewingCraftToken,
@@ -1308,11 +1617,12 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
         onChanged: (value) {
           setState(() {
             _sewingProjectType = value;
-            _formKey
+            _craftDetailsFormKey
                 .currentState
                 ?.fields[ProjectComposerFields.sewingProjectSubtype]
                 ?.didChange(null);
           });
+          routeSetState?.call(() {});
         },
       ),
       SizedBox(height: spacing.sp4),
@@ -1343,6 +1653,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     AppLocalizations l10n,
     SpacingTheme spacing,
     bool controlsEnabled,
+    StateSetter? routeSetState,
   ) {
     final subtypeOptions = ProjectOptionCatalogs.projectSubtypesFor(
       craftToken: ProjectOptionCatalogs.knittingCraftToken,
@@ -1361,11 +1672,12 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
         onChanged: (value) {
           setState(() {
             _knittingProjectType = value;
-            _formKey
+            _craftDetailsFormKey
                 .currentState
                 ?.fields[ProjectComposerFields.knittingProjectSubtype]
                 ?.didChange(null);
           });
+          routeSetState?.call(() {});
         },
       ),
       SizedBox(height: spacing.sp4),
@@ -1435,6 +1747,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     AppLocalizations l10n,
     SpacingTheme spacing,
     bool controlsEnabled,
+    StateSetter? routeSetState,
   ) {
     final subtypeOptions = ProjectOptionCatalogs.projectSubtypesFor(
       craftToken: ProjectOptionCatalogs.crochetCraftToken,
@@ -1453,11 +1766,12 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
         onChanged: (value) {
           setState(() {
             _crochetProjectType = value;
-            _formKey
+            _craftDetailsFormKey
                 .currentState
                 ?.fields[ProjectComposerFields.crochetProjectSubtype]
                 ?.didChange(null);
           });
+          routeSetState?.call(() {});
         },
       ),
       SizedBox(height: spacing.sp4),
@@ -1526,6 +1840,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     AppLocalizations l10n,
     SpacingTheme spacing,
     bool controlsEnabled,
+    StateSetter? routeSetState,
   ) {
     final subtypeOptions = ProjectOptionCatalogs.projectSubtypesFor(
       craftToken: ProjectOptionCatalogs.quiltingCraftToken,
@@ -1544,11 +1859,12 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
         onChanged: (value) {
           setState(() {
             _quiltingProjectType = value;
-            _formKey
+            _craftDetailsFormKey
                 .currentState
                 ?.fields[ProjectComposerFields.quiltingProjectSubtype]
                 ?.didChange(null);
           });
+          routeSetState?.call(() {});
         },
       ),
       SizedBox(height: spacing.sp4),
@@ -1594,23 +1910,32 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     final isFormValid = form.saveAndValidate();
     final imagesState = ref.read(composerImagesProvider(_composerId));
     final hasRequiredBody = trimmedBody.isNotEmpty;
-    final hasRequiredPhoto = imagesState.images.isNotEmpty;
+    final hasRequiredPhoto =
+        imagesState.images.isNotEmpty || _videoController.selection != null;
     final isBodyLengthValid =
         _bodyText.length <= ProjectComposerSheet.maxCharacters;
     if (!isFormValid ||
         !hasRequiredBody ||
         !hasRequiredPhoto ||
         !isBodyLengthValid) {
-      _showFirstInvalidPage(
-        isFormValid: isFormValid,
-        hasRequiredBody: hasRequiredBody,
-        hasRequiredPhoto: hasRequiredPhoto,
-        isBodyLengthValid: isBodyLengthValid,
-      );
+      if (!hasRequiredPhoto || !isFormValid) {
+        await _scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      } else {
+        _bodyFocusNode.requestFocus();
+        if (_bodyFocusNode.context case final bodyContext?) {
+          await Scrollable.ensureVisible(bodyContext);
+        }
+      }
       return;
     }
 
-    final payload = buildProjectComposerPayload(formValues: form.value);
+    final payload = buildProjectComposerPayload(
+      formValues: _combinedFormValues(saved: true),
+    );
     final project = payload.project;
     if (project == null) {
       setState(() {
@@ -1622,11 +1947,12 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
             ? AppLocalizations.of(context).projectComposerGaugeInvalidError
             : null;
       });
-      _setCurrentPage(1);
+      if (_formValidationError != null) await _openCraftDetails();
       return;
     }
 
-    if (imagesState.hasImagesMissingAltText) {
+    if (imagesState.hasImagesMissingAltText ||
+        (_videoController.selection?.altText.trim().isEmpty ?? false)) {
       final l10n = AppLocalizations.of(context);
       final shouldPost = await showCraftskyConfirmDialog(
         context,
@@ -1671,6 +1997,17 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
         return;
       }
 
+      if (_videoController.selection case final selectedVideo?) {
+        await _publishVideo(
+          selectedVideo: selectedVideo,
+          owner: submissionOwner,
+          text: args.text,
+          project: args.project,
+          facets: args.facets,
+        );
+        return;
+      }
+
       final images = await _mediaUploader.materializeImmediate(
         composerId: _composerId,
         images: imagesState.images,
@@ -1698,12 +2035,91 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
     });
   }
 
+  Future<void> _publishVideo({
+    required LocalVideoSelection selectedVideo,
+    required ActiveAccountLease? owner,
+    required String text,
+    required Project project,
+    required List<Map<String, dynamic>>? facets,
+  }) async {
+    if (owner == null) throw StateError('Video publication requires an owner');
+    if (widget.prepareVideoProof case final prepare?) {
+      final video = await prepare(selectedVideo);
+      final created = await ref
+          .read(createPostProvider.notifier)
+          .create(
+            text: text,
+            langs: _languages!.values,
+            project: project,
+            video: video,
+            facets: facets,
+            ownership: owner,
+          );
+      _submissionSucceeded = created != null;
+      return;
+    }
+    final api = ref.read(postApiClientProvider);
+    final service = ref.read(videoServiceClientProvider);
+    final coordinator = VideoPublicationCoordinator(
+      checkEligibility: api.getVideoUploadLimits,
+      authorize: api.authorizeVideoUpload,
+      upload:
+          ({
+            required authorizationHeader,
+            required cancelToken,
+            required onProgress,
+          }) => service.upload(
+            source: VideoUploadSource(
+              length: selectedVideo.byteLength,
+              openRead: selectedVideo.openRead,
+            ),
+            ownerDid: owner.session.account.did.value,
+            authorizationHeader: authorizationHeader,
+            cancelToken: cancelToken,
+            onProgress: onProgress,
+          ),
+      poll: (jobId, cancelToken) =>
+          service.getJobStatus(jobId, cancelToken: cancelToken),
+      wait: Future<void>.delayed,
+      publish: (video) async {
+        final created = await ref
+            .read(createPostProvider.notifier)
+            .create(
+              text: text,
+              langs: _languages!.values,
+              project: project,
+              video: video,
+              facets: facets,
+              ownership: owner,
+            );
+        _submissionSucceeded = created != null;
+      },
+      onProgress: (progress) {
+        if (mounted) setState(() => _videoProgress = progress);
+      },
+    );
+    _videoPublication = coordinator;
+    _videoPublicationOwner = owner;
+    try {
+      await coordinator.publish(
+        altText: selectedVideo.altText,
+        aspectRatio: (selectedVideo.width, selectedVideo.height),
+      );
+    } finally {
+      if (identical(_videoPublication, coordinator)) {
+        _videoPublication = null;
+        _videoPublicationOwner = null;
+      }
+    }
+  }
+
   Future<void> _runSubmission(
     ActiveAccountLease? submissionOwner,
     Future<void> Function() operation,
   ) async {
     if (_submissionCoordinator.isRunning) return;
     _submissionSucceeded = false;
+    _videoFailure = null;
     await _submissionCoordinator.run(
       presentOverlay: () async {
         await WidgetsBinding.instance.endOfFrame;
@@ -1711,7 +2127,14 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       },
       ownershipIsCurrent: () => _submissionOwnershipIsCurrent(submissionOwner),
       saveOriginSnapshot: _saveOriginSnapshot,
-      operation: operation,
+      operation: () async {
+        try {
+          await operation();
+        } on Object catch (error) {
+          if (_videoController.selection != null) _videoFailure = error;
+          rethrow;
+        }
+      },
       didSucceed: () => _submissionSucceeded,
       deleteOriginAfterSuccess: _deleteOriginDraftAfterSuccess,
       onRunningChanged: ({required running}) {
@@ -1719,7 +2142,21 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       },
       onFailure: (_) {
         if (mounted) {
-          context.showError(AppLocalizations.of(context).postCreateError);
+          final l10n = AppLocalizations.of(context);
+          final retryOperation = _videoController.selection == null
+              ? null
+              : MessageAction(
+                  label: l10n.retryButton,
+                  onPressed: () => unawaited(
+                    _runSubmission(submissionOwner, operation),
+                  ),
+                );
+          context.showError(
+            retryOperation == null
+                ? l10n.postCreateError
+                : videoPublicationFailureMessage(l10n, _videoFailure),
+            action: retryOperation,
+          );
         }
       },
     );
@@ -2074,230 +2511,95 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet> {
       if (mounted) setState(() => _isScheduling = false);
     }
   }
-
-  void _showFirstInvalidPage({
-    required bool isFormValid,
-    required bool hasRequiredBody,
-    required bool hasRequiredPhoto,
-    required bool isBodyLengthValid,
-  }) {
-    final craftField =
-        _formKey.currentState?.fields[ProjectComposerFields.craftType];
-    final page = switch ((
-      !hasRequiredPhoto || craftField?.hasError == true,
-      !isFormValid,
-      !hasRequiredBody || !isBodyLengthValid,
-    )) {
-      (true, _, _) => 0,
-      (_, true, _) => 1,
-      (_, _, true) => 2,
-      _ => _currentPage,
-    };
-    _setCurrentPage(page);
-  }
 }
 
-class _ProjectComposerNextFocusAction extends NextFocusAction {
-  _ProjectComposerNextFocusAction({
-    required this.shouldEnterPage,
-    required this.enterPage,
-    required this.exitPage,
-  });
-
-  final bool Function() shouldEnterPage;
-  final bool Function() enterPage;
-  final bool Function() exitPage;
-
-  @override
-  bool invoke(NextFocusIntent intent) {
-    if (shouldEnterPage() && enterPage()) return true;
-    if (exitPage()) return true;
-    return super.invoke(intent);
-  }
-}
-
-class _MountedWizardPages extends StatefulWidget {
-  const _MountedWizardPages({
-    required this.currentPage,
-    required this.children,
+class _ProjectDetailActionTile extends StatelessWidget {
+  const _ProjectDetailActionTile({
+    required this.focusNode,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.enabled,
+    required this.onTap,
+    this.errorText,
     super.key,
-    this.onExitBackward,
-    this.onExitForward,
   });
 
-  final int currentPage;
-  final List<Widget> children;
-  final bool Function()? onExitBackward;
-  final bool Function()? onExitForward;
-
-  @override
-  State<_MountedWizardPages> createState() => _MountedWizardPagesState();
-}
-
-class _MountedWizardPagesState extends State<_MountedWizardPages> {
-  late List<FocusNode> _pageFocusNodes;
-
-  @override
-  void initState() {
-    super.initState();
-    _pageFocusNodes = _createPageFocusNodes(widget.children.length);
-  }
-
-  @override
-  void didUpdateWidget(covariant _MountedWizardPages oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.children.length != widget.children.length) {
-      for (final node in _pageFocusNodes) {
-        node.dispose();
-      }
-      _pageFocusNodes = _createPageFocusNodes(widget.children.length);
-    }
-  }
-
-  @override
-  void dispose() {
-    for (final node in _pageFocusNodes) {
-      node.dispose();
-    }
-    super.dispose();
-  }
-
-  static List<FocusNode> _createPageFocusNodes(int count) {
-    return [
-      for (var index = 0; index < count; index++)
-        FocusNode(debugLabel: 'projectComposerPage$index'),
-    ];
-  }
-
-  bool focusFirstInCurrentPage() {
-    if (widget.currentPage < 0 ||
-        widget.currentPage >= _pageFocusNodes.length) {
-      return false;
-    }
-    final pageNode = _pageFocusNodes[widget.currentPage];
-    final orderedGroups = _orderedFocusGroups(pageNode, pageNode);
-    if (orderedGroups.isEmpty) return false;
-    _preferredFocusTarget(orderedGroups.first).requestFocus();
-    return true;
-  }
-
-  bool primaryFocusAtEndOfCurrentPage() {
-    if (widget.currentPage < 0 ||
-        widget.currentPage >= _pageFocusNodes.length) {
-      return false;
-    }
-    final focusedNode = FocusManager.instance.primaryFocus;
-    if (focusedNode == null) return false;
-    final pageNode = _pageFocusNodes[widget.currentPage];
-    if (focusedNode != pageNode && !focusedNode.ancestors.contains(pageNode)) {
-      return false;
-    }
-    final orderedGroups = _orderedFocusGroups(pageNode, focusedNode);
-    if (orderedGroups.isEmpty) return false;
-    final currentGroup = _nearestOrderedNode(focusedNode, orderedGroups);
-    return currentGroup == orderedGroups.last;
-  }
-
-  KeyEventResult _handlePageKey(FocusNode pageNode, KeyEvent event) {
-    if (event is! KeyDownEvent || event.logicalKey != LogicalKeyboardKey.tab) {
-      return KeyEventResult.ignored;
-    }
-    final focusedNode = FocusManager.instance.primaryFocus;
-    if (focusedNode == null || !focusedNode.ancestors.contains(pageNode)) {
-      return KeyEventResult.ignored;
-    }
-
-    final orderedGroups = _orderedFocusGroups(pageNode, focusedNode);
-    if (orderedGroups.length < 2) return KeyEventResult.ignored;
-
-    final currentGroup = _nearestOrderedNode(focusedNode, orderedGroups);
-    if (currentGroup == null) return KeyEventResult.ignored;
-    final currentIndex = orderedGroups.indexOf(currentGroup);
-    if (currentIndex == -1) return KeyEventResult.ignored;
-    final direction = HardwareKeyboard.instance.isShiftPressed ? -1 : 1;
-    final nextIndex = currentIndex + direction;
-    if (nextIndex < 0 || nextIndex >= orderedGroups.length) {
-      final handled = direction < 0
-          ? widget.onExitBackward?.call()
-          : widget.onExitForward?.call();
-      if (handled == true) return KeyEventResult.handled;
-      return KeyEventResult.ignored;
-    }
-    _preferredFocusTarget(orderedGroups[nextIndex]).requestFocus();
-    return KeyEventResult.handled;
-  }
-
-  static List<FocusNode> _orderedFocusGroups(
-    FocusNode pageNode,
-    FocusNode anchor,
-  ) {
-    final focusGroups = pageNode.descendants.where(
-      (node) =>
-          node.canRequestFocus &&
-          node.context != null &&
-          !_hasFocusableAncestorWithin(node, pageNode),
-    );
-    return WidgetOrderTraversalPolicy()
-        .sortDescendants(focusGroups, anchor)
-        .where((node) => node.context != null)
-        .toList(growable: false);
-  }
-
-  static bool _hasFocusableAncestorWithin(FocusNode node, FocusNode root) {
-    for (final ancestor in node.ancestors) {
-      if (ancestor == root) return false;
-      if (ancestor.canRequestFocus && ancestor.context != null) return true;
-    }
-    return false;
-  }
-
-  static FocusNode? _nearestOrderedNode(
-    FocusNode node,
-    List<FocusNode> orderedNodes,
-  ) {
-    if (orderedNodes.contains(node)) return node;
-    for (final ancestor in node.ancestors) {
-      if (orderedNodes.contains(ancestor)) return ancestor;
-    }
-    return null;
-  }
-
-  static FocusNode _preferredFocusTarget(FocusNode group) {
-    final leafNodes = group.descendants.where(
-      (node) => node.canRequestFocus && node.context != null,
-    );
-    final orderedLeafNodes = WidgetOrderTraversalPolicy()
-        .sortDescendants(leafNodes, group)
-        .toList(growable: false);
-    if (orderedLeafNodes.isEmpty) return group;
-    return orderedLeafNodes.last;
-  }
+  final FocusNode focusNode;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String? errorText;
+  final bool enabled;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        for (final (index, child) in widget.children.indexed)
-          Offstage(
-            offstage: index != widget.currentPage,
-            child: TickerMode(
-              enabled: index == widget.currentPage,
-              child: FocusTraversalGroup(
-                policy: WidgetOrderTraversalPolicy(),
-                child: Focus(
-                  focusNode: _pageFocusNodes[index],
-                  canRequestFocus: index == widget.currentPage,
-                  skipTraversal: true,
-                  descendantsAreFocusable: index == widget.currentPage,
-                  descendantsAreTraversable: index == widget.currentPage,
-                  onKeyEvent: _handlePageKey,
-                  child: child,
-                ),
-              ),
+    final colors = Theme.of(context).colorScheme;
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        focusNode: focusNode,
+        leading: Icon(icon),
+        title: Text(title),
+        subtitle: Text(
+          errorText ?? subtitle,
+          style: errorText == null ? null : TextStyle(color: colors.error),
+        ),
+        trailing: const Icon(CraftskyIconsBold.next),
+        enabled: enabled,
+        onTap: enabled ? onTap : null,
+      ),
+    );
+  }
+}
+
+class _ProjectComposerDetailPage extends StatelessWidget {
+  const _ProjectComposerDetailPage({
+    required this.title,
+    required this.child,
+    this.errorText,
+  });
+
+  final String title;
+  final Widget child;
+  final String? errorText;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
+    final swatches = theme.extension<BrandSwatchTheme>()!;
+    return Scaffold(
+      backgroundColor: swatches.paper,
+      appBar: AppBar(title: Text(title, style: theme.textTheme.titleLarge)),
+      body: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+        child: SafeArea(
+          top: false,
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(spacing.sp4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (errorText case final message?) ...[
+                  Text(
+                    message,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.error,
+                    ),
+                  ),
+                  SizedBox(height: spacing.sp4),
+                ],
+                child,
+              ],
             ),
           ),
-      ],
+        ),
+      ),
     );
   }
 }
@@ -2577,7 +2879,7 @@ class _MaterialEntryList extends StatelessWidget {
                       '${ProjectComposerFields.materials}-remove-'
                       '${material.text}',
                     ),
-                    icon: const Icon(Icons.close),
+                    icon: const Icon(CraftskyIconsBold.close),
                     tooltip: 'Remove material',
                     visualDensity: VisualDensity.compact,
                     padding: EdgeInsets.zero,

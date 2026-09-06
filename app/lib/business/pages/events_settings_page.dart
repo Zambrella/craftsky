@@ -10,9 +10,11 @@ import 'package:craftsky_app/business/providers/owner_business_events_provider.d
 import 'package:craftsky_app/business/providers/profile_business_events_provider.dart';
 import 'package:craftsky_app/business/widgets/event_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -47,7 +49,7 @@ class EventsSettingsPage extends ConsumerWidget {
           identity.value?.profile.accountType == AccountType.business
           ? CraftskyFloatingActionButton.extended(
               onPressed: () => _openEditor(context),
-              icon: const Icon(Icons.add),
+              icon: const Icon(CraftskyIconsBold.add),
               label: Text(l10n.businessEventCreateTitle),
             )
           : null,
@@ -174,16 +176,16 @@ class _EventList extends ConsumerWidget {
           onRetry: () => unawaited(controller.refresh()),
         ),
       if (state.items.isEmpty)
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 48, horizontal: 24),
-          child: Center(
-            child: Text(
-              filter == OwnerEventFilter.upcoming
-                  ? l10n.businessEventsUpcomingEmpty
-                  : l10n.businessEventsHistoryEmpty,
-              textAlign: TextAlign.center,
-            ),
-          ),
+        CraftskyEmptyState(
+          icon: filter == OwnerEventFilter.upcoming
+              ? CraftskyIcons.events
+              : CraftskyIcons.history,
+          title: filter == OwnerEventFilter.upcoming
+              ? l10n.businessEventsUpcomingTab
+              : l10n.businessEventsHistoryTab,
+          subtitle: filter == OwnerEventFilter.upcoming
+              ? l10n.businessEventsUpcomingEmpty
+              : l10n.businessEventsHistoryEmpty,
         )
       else
         for (final event in state.items) _OwnerEventCard(event: event),
@@ -217,6 +219,7 @@ class _EventList extends ConsumerWidget {
       onRefresh: controller.refresh,
       child: ListView(
         key: PageStorageKey(filter),
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(16),
         children: rows,
       ),
@@ -254,7 +257,7 @@ class _OwnerEventCard extends ConsumerWidget {
                   items: [
                     CraftskyContextMenuItem(
                       text: l10n.businessEventEditAction,
-                      icon: Icons.edit_outlined,
+                      icon: CraftskyIconsBold.edit,
                       onPressed: () => _performAction(
                         context,
                         ref,
@@ -269,7 +272,7 @@ class _OwnerEventCard extends ConsumerWidget {
                     if (event.status.value != 'cancelled')
                       CraftskyContextMenuItem(
                         text: l10n.businessEventCancelAction,
-                        icon: Icons.event_busy_outlined,
+                        icon: CraftskyIconsBold.eventUnavailable,
                         onPressed: () => _performAction(
                           context,
                           ref,
@@ -280,7 +283,7 @@ class _OwnerEventCard extends ConsumerWidget {
                     if (event.status.value != 'postponed')
                       CraftskyContextMenuItem(
                         text: l10n.businessEventPostponeAction,
-                        icon: Icons.schedule_outlined,
+                        icon: CraftskyIconsBold.schedule,
                         onPressed: () => _performAction(
                           context,
                           ref,
@@ -294,7 +297,7 @@ class _OwnerEventCard extends ConsumerWidget {
                   items: [
                     CraftskyContextMenuItem(
                       text: l10n.businessEventDeleteAction,
-                      icon: Icons.delete_outline,
+                      icon: CraftskyIconsBold.delete,
                       style: CraftskyContextMenuItemStyle.destructive,
                       onPressed: () => _performAction(
                         context,
@@ -314,7 +317,7 @@ class _OwnerEventCard extends ConsumerWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.info_outline, size: 18),
+                  const Icon(CraftskyIcons.info, size: 18),
                   SizedBox(width: spacing.sp2),
                   Expanded(child: Text(diagnostic)),
                 ],

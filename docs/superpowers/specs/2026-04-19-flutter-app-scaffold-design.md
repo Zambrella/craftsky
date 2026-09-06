@@ -21,7 +21,10 @@ We deliberately **do not** include the following in this pass:
 
 - **Riverpod 3.x with code generation** (`@riverpod` annotation). See `.claude/rules/riverpod.md`.
 - **Flutter widget and theming rules** from `.claude/rules/flutter.md`: one widget class per concern, no `_build*` helpers, `Theme.of(context)` for colors/text styles, no `.withOpacity()`, immutable models via `dart_mappable` or `freezed`, `logging` over `print`.
-- **Architectural rule from `AGENTS.md`:** the Flutter app talks to the App View only (HTTPS + session token). It must never read/write PDS directly in the happy path. The atproto SDK is `atproto.dart`.
+- **Architectural rule from `AGENTS.md`:** Flutter reads and ordinary writes use
+  AppView over HTTPS with its session token; it never contacts a PDS directly.
+  ADR 012 permits one isolated direct Bluesky video upload with a memory-only,
+  purpose-bound service JWT. The atproto SDK is `atproto.dart`.
 
 ## Architecture
 

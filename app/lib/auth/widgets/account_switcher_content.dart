@@ -2,6 +2,7 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/account_switcher_state.dart';
 import 'package:craftsky_app/auth/widgets/account_avatar.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 
 class AccountSwitcherContent extends StatelessWidget {
@@ -51,7 +52,7 @@ class AccountSwitcherContent extends StatelessWidget {
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
                     : row.isCurrent
-                    ? const Icon(Icons.check)
+                    ? const Icon(CraftskyIcons.check)
                     : null,
                 onTap: busy || row.isCurrent ? null : () => onSelect(row.lease),
               ),
@@ -60,7 +61,7 @@ class AccountSwitcherContent extends StatelessWidget {
             const Divider(),
             ListTile(
               enabled: !busy && state.canAddAccount,
-              leading: const Icon(Icons.person_add_alt_1),
+              leading: const Icon(CraftskyIconsBold.addAccount),
               title: Text(l10n.accountSwitcherAdd),
               subtitle: state.canAddAccount
                   ? null

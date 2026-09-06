@@ -118,6 +118,12 @@ abstract class AppLocalizations {
   /// **'Feed'**
   String get feedTitle;
 
+  /// Empty-feed action that opens Instagram migration.
+  ///
+  /// In en, this message translates to:
+  /// **'Connect Instagram'**
+  String get feedConnectInstagramAction;
+
   /// Tooltip and accessible label for the button that opens the app navigation drawer.
   ///
   /// In en, this message translates to:
@@ -195,6 +201,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open link'**
   String get externalLinkConfirmAction;
+
+  /// Action below a crafts picker that opens the craft request form.
+  ///
+  /// In en, this message translates to:
+  /// **'Request more'**
+  String get craftsRequestMoreAction;
 
   /// Title for the in-app notifications page.
   ///
@@ -355,7 +367,7 @@ abstract class AppLocalizations {
   /// No description provided for @notificationCategoryReplies.
   ///
   /// In en, this message translates to:
-  /// **'Replies'**
+  /// **'Comments & replies'**
   String get notificationCategoryReplies;
 
   /// No description provided for @notificationCategoryMentions.
@@ -1141,7 +1153,7 @@ abstract class AppLocalizations {
   /// Tab label for the Comments tab on the profile screen.
   ///
   /// In en, this message translates to:
-  /// **'Comments'**
+  /// **'Comments & replies'**
   String get profileTabComments;
 
   /// Tab label for the Projects tab on the profile screen.
@@ -1252,16 +1264,16 @@ abstract class AppLocalizations {
   /// **'Load more posts'**
   String get profilePostsLoadMore;
 
-  /// Muted placeholder shown in the profile Comments tab when the user has not commented.
+  /// Empty state shown in the profile Comments & replies tab when the user has not responded to a post.
   ///
   /// In en, this message translates to:
-  /// **'No comments yet.'**
+  /// **'No comments or replies yet.'**
   String get profileCommentsEmpty;
 
-  /// Error title shown in the profile Comments tab when comment fetching fails.
+  /// Error title shown in the profile Comments & replies tab when response fetching fails.
   ///
   /// In en, this message translates to:
-  /// **'Comments didn\'t load.'**
+  /// **'Comments and replies didn\'t load.'**
   String get profileCommentsLoadError;
 
   /// Button label for loading the next page in the profile Comments tab.
@@ -1276,11 +1288,17 @@ abstract class AppLocalizations {
   /// **'Post'**
   String get postThreadTitle;
 
-  /// Empty state shown on a post thread when the post has no direct replies.
+  /// Empty state shown on a post thread when the root post has no comments.
   ///
   /// In en, this message translates to:
-  /// **'No replies yet.'**
+  /// **'No comments yet.'**
   String get postThreadEmptyReplies;
+
+  /// Supporting copy beneath the empty comment-thread title.
+  ///
+  /// In en, this message translates to:
+  /// **'Start the conversation with a comment.'**
+  String get postThreadEmptyCommentsSubtitle;
 
   /// Label shown when a thread response has additional replies that are not loaded yet.
   ///
@@ -1413,6 +1431,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'New post'**
   String get postComposeAction;
+
+  /// Inline action that expands truncated post text.
+  ///
+  /// In en, this message translates to:
+  /// **'Show more'**
+  String get postShowMore;
+
+  /// Inline action that collapses expanded post text.
+  ///
+  /// In en, this message translates to:
+  /// **'Show less'**
+  String get postShowLess;
+
+  /// Tooltip and accessibility label for returning a collection to its first item.
+  ///
+  /// In en, this message translates to:
+  /// **'Back to top'**
+  String get scrollToTopAction;
 
   /// Title of the text-only post composer sheet.
   ///
@@ -1593,6 +1629,72 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'More project details'**
   String get projectComposerMoreDetailsLabel;
+
+  /// Heading above the optional detail actions in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Add more details'**
+  String get projectComposerMoreDetailsHeading;
+
+  /// Helper text above the optional detail actions in the project composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Optional details help other crafters discover and understand your project.'**
+  String get projectComposerMoreDetailsPrompt;
+
+  /// Title of the optional pattern details action and page.
+  ///
+  /// In en, this message translates to:
+  /// **'Pattern details'**
+  String get projectComposerPatternDetailsTitle;
+
+  /// Description shown when no optional pattern details have been added.
+  ///
+  /// In en, this message translates to:
+  /// **'Add designer, publisher, link and difficulty'**
+  String get projectComposerPatternDetailsDescription;
+
+  /// Title of the common optional project metadata action and page.
+  ///
+  /// In en, this message translates to:
+  /// **'Materials and style'**
+  String get projectComposerCommonDetailsTitle;
+
+  /// Description shown when no materials or style details have been added.
+  ///
+  /// In en, this message translates to:
+  /// **'Help others discover projects like yours'**
+  String get projectComposerCommonDetailsDescription;
+
+  /// Title of the selected craft's optional detail action and page.
+  ///
+  /// In en, this message translates to:
+  /// **'{craft} details'**
+  String projectComposerCraftDetailsTitle(String craft);
+
+  /// Description shown when no craft-specific details have been added.
+  ///
+  /// In en, this message translates to:
+  /// **'Add project type and craft-specific details'**
+  String get projectComposerCraftDetailsDescription;
+
+  /// Summary count for a populated optional project detail group.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 detail added} other{{count} details added}}'**
+  String projectComposerDetailsAdded(int count);
+
+  /// Notice shown after changing craft type clears populated craft-specific details.
+  ///
+  /// In en, this message translates to:
+  /// **'Craft details cleared.'**
+  String get projectComposerCraftCleared;
+
+  /// Notice shown after removing a pattern name clears populated pattern details.
+  ///
+  /// In en, this message translates to:
+  /// **'Pattern details cleared.'**
+  String get projectComposerPatternCleared;
 
   /// Empty-state text shown in the craft-specific project details section before a craft type is selected.
   ///
@@ -1840,11 +1942,23 @@ abstract class AppLocalizations {
   /// **'Reply'**
   String get postComposeReplyTitle;
 
+  /// Title of the composer when commenting directly on a root post.
+  ///
+  /// In en, this message translates to:
+  /// **'Comment'**
+  String get postComposeCommentTitle;
+
   /// Label above the text field in reply mode.
   ///
   /// In en, this message translates to:
   /// **'Write your reply'**
   String get postComposeReplyHint;
+
+  /// Label above the text field when commenting directly on a root post.
+  ///
+  /// In en, this message translates to:
+  /// **'Write your comment'**
+  String get postComposeCommentHint;
 
   /// Submit button label in the text-only post composer.
   ///
@@ -1857,6 +1971,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Reply'**
   String get postComposeReplySubmit;
+
+  /// Submit button label when commenting directly on a root post.
+  ///
+  /// In en, this message translates to:
+  /// **'Comment'**
+  String get postComposeCommentSubmit;
 
   /// Validation error shown when the text-only post composer exceeds the post text limit.
   ///
@@ -2026,6 +2146,198 @@ abstract class AppLocalizations {
   /// **'Add a photo'**
   String get postComposeAddPhoto;
 
+  /// Label on a video-capable empty composer attachment card.
+  ///
+  /// In en, this message translates to:
+  /// **'Add photos or a video'**
+  String get postComposeAddPhotosOrVideo;
+
+  /// Media options shown by a video-capable composer.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose up to 4 photos or a video.'**
+  String get postComposePhotosOrVideoHelper;
+
+  /// Photo choice in the composer media picker.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose photos'**
+  String get postComposeChoosePhotos;
+
+  /// Existing-video choice in the composer media picker.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a video'**
+  String get postComposeChooseVideo;
+
+  /// Heading above an attached composer video.
+  ///
+  /// In en, this message translates to:
+  /// **'Selected video'**
+  String get postComposeVideoSelected;
+
+  /// Action for replacing an attached composer video.
+  ///
+  /// In en, this message translates to:
+  /// **'Replace video'**
+  String get postComposeReplaceVideo;
+
+  /// Action for removing an attached composer video.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove video'**
+  String get postComposeRemoveVideo;
+
+  /// Hint inside the attached video alt-text field.
+  ///
+  /// In en, this message translates to:
+  /// **'Describe the video for someone who cannot see it, including the craft, movement, materials, colors, and important details.'**
+  String get postComposeVideoAltHint;
+
+  /// Video publication upload stage.
+  ///
+  /// In en, this message translates to:
+  /// **'Uploading video'**
+  String get postVideoUploading;
+
+  /// Video publication processing stage.
+  ///
+  /// In en, this message translates to:
+  /// **'Processing video'**
+  String get postVideoProcessing;
+
+  /// Final video post publication stage.
+  ///
+  /// In en, this message translates to:
+  /// **'Publishing post'**
+  String get postVideoPublishing;
+
+  /// Cancels an active video upload or processing attempt.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get postVideoCancel;
+
+  /// Fallback shown when a native video cannot be played.
+  ///
+  /// In en, this message translates to:
+  /// **'Video is unavailable. Try again later.'**
+  String get postVideoUnavailable;
+
+  /// Actionable video upload failure for an unverified account email.
+  ///
+  /// In en, this message translates to:
+  /// **'Verify your email with your account provider before uploading video.'**
+  String get postVideoEmailUnverified;
+
+  /// Actionable video upload failure when daily quota is exhausted.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'ve reached your daily video limit. Try again after it resets.'**
+  String get postVideoQuotaExhausted;
+
+  /// Remaining daily video upload count shown when quota is constrained.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =0{No videos remaining today} =1{1 video remaining today} other{{count} videos remaining today}}'**
+  String postVideoRemainingVideos(int count);
+
+  /// Remaining daily video upload bytes shown when quota is constrained.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} bytes remaining today'**
+  String postVideoRemainingBytes(int count);
+
+  /// Remaining daily video count and bytes shown when both quotas are available and constrained.
+  ///
+  /// In en, this message translates to:
+  /// **'{videos, plural, =0{No videos} =1{1 video} other{{videos} videos}} and {bytes} bytes remaining today'**
+  String postVideoRemainingQuota(int videos, int bytes);
+
+  /// Actionable video upload failure for an unsupported provider.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account provider doesn\'t support video uploads yet.'**
+  String get postVideoProviderUnsupported;
+
+  /// Actionable failure for service-side video validation.
+  ///
+  /// In en, this message translates to:
+  /// **'The video service couldn\'t accept this MP4. Check its size and duration, then try another file.'**
+  String get postVideoValidationFailed;
+
+  /// Actionable failure for video processing.
+  ///
+  /// In en, this message translates to:
+  /// **'The video couldn\'t be processed. Retry or choose another MP4.'**
+  String get postVideoProcessingFailed;
+
+  /// Safe retryable fallback for video publication failures.
+  ///
+  /// In en, this message translates to:
+  /// **'The video couldn\'t be published. Check your connection and retry.'**
+  String get postVideoRetryableFailure;
+
+  /// Tooltip for selecting a native video's caption track.
+  ///
+  /// In en, this message translates to:
+  /// **'Captions'**
+  String get postVideoCaptions;
+
+  /// Action that disables native video captions.
+  ///
+  /// In en, this message translates to:
+  /// **'Captions off'**
+  String get postVideoCaptionsOff;
+
+  /// Tooltip for playing a native video.
+  ///
+  /// In en, this message translates to:
+  /// **'Play video'**
+  String get nativeVideoPlay;
+
+  /// Tooltip for pausing a native video.
+  ///
+  /// In en, this message translates to:
+  /// **'Pause video'**
+  String get nativeVideoPause;
+
+  /// Tooltip for replaying a completed native video.
+  ///
+  /// In en, this message translates to:
+  /// **'Replay video'**
+  String get nativeVideoReplay;
+
+  /// Tooltip for muting a native video.
+  ///
+  /// In en, this message translates to:
+  /// **'Mute video'**
+  String get nativeVideoMute;
+
+  /// Tooltip for unmuting a native video.
+  ///
+  /// In en, this message translates to:
+  /// **'Unmute video'**
+  String get nativeVideoUnmute;
+
+  /// Tooltip for opening a native video in full screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter full screen'**
+  String get nativeVideoEnterFullscreen;
+
+  /// Tooltip for returning a native video from full screen.
+  ///
+  /// In en, this message translates to:
+  /// **'Exit full screen'**
+  String get nativeVideoExitFullscreen;
+
+  /// Explains that an attached video will be public and stored with its public post.
+  ///
+  /// In en, this message translates to:
+  /// **'Published videos are public and stored with your post on your account provider.'**
+  String get postComposeVideoPublicNotice;
+
   /// Label on the composer card for adding another photo.
   ///
   /// In en, this message translates to:
@@ -2164,6 +2476,18 @@ abstract class AppLocalizations {
   /// **'Report post'**
   String get postReportAction;
 
+  /// Menu and sheet title for reporting a top-level comment.
+  ///
+  /// In en, this message translates to:
+  /// **'Report comment'**
+  String get commentReportAction;
+
+  /// Menu and sheet title for reporting a nested reply.
+  ///
+  /// In en, this message translates to:
+  /// **'Report reply'**
+  String get replyReportAction;
+
   /// Menu label for pinning an eligible post to its owner's profile.
   ///
   /// In en, this message translates to:
@@ -2271,6 +2595,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Post deleted.'**
   String get postDeleteSuccess;
+
+  /// Snackbar shown after successfully deleting a top-level comment.
+  ///
+  /// In en, this message translates to:
+  /// **'Comment deleted.'**
+  String get commentDeleteSuccess;
+
+  /// Snackbar shown after successfully deleting a nested reply.
+  ///
+  /// In en, this message translates to:
+  /// **'Reply deleted.'**
+  String get replyDeleteSuccess;
+
+  /// Snackbar shown when deleting a comment or reply fails and its exact role is unavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t delete that comment or reply.'**
+  String get responseDeleteError;
 
   /// Snackbar shown when deleting a post fails.
   ///
@@ -4700,6 +5042,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Following'**
   String get settingsFollowing;
+
+  /// Title shown when the viewer's follower collection is empty.
+  ///
+  /// In en, this message translates to:
+  /// **'No one follows you yet'**
+  String get followersEmptyTitle;
+
+  /// Explanation shown when the viewer's follower collection is empty.
+  ///
+  /// In en, this message translates to:
+  /// **'When someone follows you, they will appear here.'**
+  String get followersEmptySubtitle;
+
+  /// Title shown when the viewer's following collection is empty.
+  ///
+  /// In en, this message translates to:
+  /// **'You are not following anyone'**
+  String get followingEmptyTitle;
+
+  /// Explanation shown when the viewer's following collection is empty.
+  ///
+  /// In en, this message translates to:
+  /// **'Accounts you follow will appear here.'**
+  String get followingEmptySubtitle;
+
+  /// Title shown when a mutual-follower sheet opens after its summary became stale.
+  ///
+  /// In en, this message translates to:
+  /// **'No mutual followers'**
+  String get mutualFollowersEmptyTitle;
+
+  /// Explanation for a stale-empty mutual-follower list.
+  ///
+  /// In en, this message translates to:
+  /// **'This list may have changed since the profile loaded.'**
+  String get mutualFollowersEmptySubtitle;
 
   /// Settings row opening account settings.
   ///

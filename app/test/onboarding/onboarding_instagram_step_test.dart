@@ -248,7 +248,9 @@ void main() {
     expect(imports.refreshCalls, 1);
     expect(selectExport().onPressed, isNotNull);
 
-    await tester.tap(find.text('Enter handles'));
+    final enterHandles = find.text('Enter handles');
+    await tester.ensureVisible(enterHandles);
+    await tester.tap(enterHandles);
     await tester.pump();
     await tester.enterText(
       find.byKey(const Key('instagram-manual-handles')),

@@ -21,6 +21,17 @@ class _ReadyAccountDeletionController extends AccountDeletionController {
   String? confirmationDid(String jobId) => 'did:plc:alicefullidentifier';
 }
 
+class _StaleAccountDeletionController extends AccountDeletionController {
+  @override
+  FutureOr<void> build() => null;
+
+  @override
+  bool canComplete(String jobId) => false;
+
+  @override
+  String? confirmationDid(String jobId) => null;
+}
+
 void main() {
   testWidgets('back cancels an unsubmitted deletion intent', (tester) async {
     var cancelCalls = 0;
@@ -110,4 +121,44 @@ void main() {
     );
     expect(enabledButton.onPressed, isNotNull);
   });
+
+  for (final state in ['valid', 'stale']) {
+    testWidgets('$state confirmation content is centered and capped at 900', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1400, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            accountDeletionControllerProvider.overrideWith(
+              state == 'valid'
+                  ? _ReadyAccountDeletionController.new
+                  : _StaleAccountDeletionController.new,
+            ),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const AccountDeletionReauthCompletePage(
+              jobId: '10000000-0000-0000-0000-000000000001',
+              proof: 'one-time-proof',
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final bounds = tester.getRect(
+        find.byKey(const Key('account-deletion-confirmation-content')),
+      );
+      expect(bounds.width, 900);
+      expect(bounds.center.dx, 700);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

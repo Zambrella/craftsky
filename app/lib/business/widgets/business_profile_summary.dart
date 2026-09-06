@@ -5,6 +5,7 @@ import 'package:craftsky_app/business/models/business_labels.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -71,7 +72,7 @@ class BusinessProfileSummary extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  Icons.location_on_outlined,
+                  CraftskyIcons.location,
                   size: 18,
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
                 ),

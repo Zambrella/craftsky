@@ -3,6 +3,8 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/follower_growth.dart';
 import 'package:craftsky_app/profile/providers/follower_growth_provider.dart';
 import 'package:craftsky_app/settings/widgets/follower_growth_chart.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -192,9 +194,17 @@ class _GrowthContent extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (!hasHistory)
-          Text(l10n.growthNoHistory)
+          CraftskyEmptyState(
+            icon: CraftskyIcons.trending,
+            title: l10n.growthMetricLabel,
+            subtitle: l10n.growthNoHistory,
+          )
         else if (observedCount == 0)
-          Text(l10n.growthNoObservationsInPeriod),
+          CraftskyEmptyState(
+            icon: CraftskyIcons.trending,
+            title: l10n.growthTrendLabel,
+            subtitle: l10n.growthNoObservationsInPeriod,
+          ),
         if (observedCount > 0)
           FollowerGrowthChart(growth: growth, period: growth.period),
         if (growth.availableFrom case final availableFrom?) ...[

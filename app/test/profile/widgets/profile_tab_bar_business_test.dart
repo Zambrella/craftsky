@@ -69,7 +69,7 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(_tabLabels(tester), hasLength(4));
-      await tester.tap(find.text('Comments'));
+      await tester.tap(find.widgetWithText(Tab, 'Comments & replies'));
       await tester.pumpAndSettle();
 
       profile = Profile(
@@ -88,10 +88,10 @@ void main() {
 
       expect(tester.takeException(), isNull);
       expect(_tabLabels(tester), hasLength(7));
-      expect(_selectedTab(tester), 'Comments');
+      expect(_selectedTab(tester), 'Comments & replies');
       await tester.ensureVisible(find.text('Products'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Products'));
+      await tester.tap(find.widgetWithText(Tab, 'Products'));
       await tester.pumpAndSettle();
 
       profile = profile.copyWith(
@@ -126,7 +126,7 @@ void main() {
       'About',
       'Projects',
       'Posts',
-      'Comments',
+      'Comments & replies',
       'Reposts',
     ]);
     expect(_selectedTab(tester), 'About');
@@ -154,7 +154,7 @@ void main() {
       'About',
       'Projects',
       'Posts',
-      'Comments',
+      'Comments & replies',
       'Reposts',
     ]);
     expect(_selectedTab(tester), 'Upcoming Events');
@@ -181,12 +181,12 @@ void main() {
       'About',
       'Projects',
       'Posts',
-      'Comments',
+      'Comments & replies',
       'Reposts',
     ]);
     expect(_selectedTab(tester), 'Products');
 
-    await tester.tap(find.text('Products'));
+    await tester.tap(find.widgetWithText(Tab, 'Products'));
     await tester.pumpAndSettle();
     expect(
       find.text('Add featured products to help visitors find your work.'),
@@ -194,7 +194,7 @@ void main() {
     );
     expect(find.text('Manage products'), findsOneWidget);
 
-    await tester.tap(find.text('Upcoming Events'));
+    await tester.tap(find.widgetWithText(Tab, 'Upcoming Events'));
     await tester.pumpAndSettle();
     expect(
       find.text('Add an event appearance to share what’s coming up.'),
@@ -256,7 +256,7 @@ void main() {
     expect(_tabLabels(tester), [
       'Projects',
       'Posts',
-      'Comments',
+      'Comments & replies',
       'Reposts',
     ]);
     expect(find.text('About'), findsNothing);
@@ -267,20 +267,30 @@ void main() {
   testWidgets('REG-005 business tabs keep customization boundary and keys', (
     tester,
   ) async {
+    final repository = _EmptyBusinessRepository();
+    var profileFetches = 0;
+    final profile = Profile(
+      did: 'did:plc:maker',
+      handle: 'maker.test',
+      crafts: const [],
+      accountType: AccountType.business,
+      customisation: const ProfileCustomisation(colour: 'orchid'),
+      business: BusinessProfile(
+        cid: _cid,
+        products: const [BusinessProductView(title: 'Pattern')],
+      ),
+      hasUpcomingEvents: true,
+    );
     await _pumpProfile(
       tester,
-      Profile(
-        did: 'did:plc:maker',
-        handle: 'maker.test',
-        crafts: const [],
-        accountType: AccountType.business,
-        customisation: const ProfileCustomisation(colour: 'orchid'),
-        business: BusinessProfile(
-          cid: _cid,
-          products: const [BusinessProductView(title: 'Pattern')],
-        ),
-        hasUpcomingEvents: true,
+      profile,
+      profileRepository: FakeProfileRepository(
+        onFetch: (_) async {
+          profileFetches++;
+          return profile;
+        },
       ),
+      businessRepository: repository,
     );
 
     expect(
@@ -288,21 +298,50 @@ void main() {
       AppTheme.lightThemeData.colorScheme.primary,
     );
     for (final entry in const {
-      'Projects': 'projects',
-      'Posts': 'posts',
-      'Comments': 'comments',
-      'Reposts': 'reposts',
-      'Products': 'products',
-      'Upcoming Events': 'upcomingEvents',
-      'About': 'about',
+      'Projects': ('projects', true),
+      'Posts': ('posts', true),
+      'Comments & replies': ('comments', true),
+      'Reposts': ('reposts', false),
+      'Products': ('products', true),
+      'Upcoming Events': ('upcomingEvents', true),
+      'About': ('about', false),
     }.entries) {
       await tester.ensureVisible(find.text(entry.key));
-      await tester.tap(find.text(entry.key));
+      await tester.tap(find.widgetWithText(Tab, entry.key));
       await tester.pumpAndSettle();
+      final scrollViewFinder = find.byKey(
+        PageStorageKey<String>('profile_tab_${entry.value.$1}'),
+      );
       expect(
-        find.byKey(PageStorageKey<String>('profile_tab_${entry.value}')),
+        scrollViewFinder,
         findsOneWidget,
       );
+      expect(
+        find.byType(RefreshIndicator),
+        entry.value.$2 ? findsOneWidget : findsNothing,
+      );
+      if (entry.value.$2) {
+        expect(
+          tester.widget<CustomScrollView>(scrollViewFinder).physics,
+          isA<AlwaysScrollableScrollPhysics>(),
+        );
+      }
+      if (entry.key == 'Products') {
+        final callsBeforeRefresh = profileFetches;
+        await tester
+            .widget<RefreshIndicator>(find.byType(RefreshIndicator))
+            .onRefresh();
+        await tester.pumpAndSettle();
+        expect(profileFetches, callsBeforeRefresh + 1);
+      }
+      if (entry.key == 'Upcoming Events') {
+        final callsBeforeRefresh = repository.profileEventListCalls;
+        await tester
+            .widget<RefreshIndicator>(find.byType(RefreshIndicator))
+            .onRefresh();
+        await tester.pumpAndSettle();
+        expect(repository.profileEventListCalls, callsBeforeRefresh + 1);
+      }
     }
   });
 }
@@ -323,6 +362,7 @@ Future<void> _pumpProfile(
   WidgetTester tester,
   Profile profile, {
   BusinessRepository? businessRepository,
+  FakeProfileRepository? profileRepository,
   bool isOwnProfile = false,
 }) async {
   final posts = FakePostRepository(
@@ -335,7 +375,8 @@ Future<void> _pumpProfile(
       overrides: [
         authSessionProvider.overrideWith(SignedInAuthSession.new),
         profileRepositoryProvider.overrideWithValue(
-          FakeProfileRepository(onFetch: (_) async => profile),
+          profileRepository ??
+              FakeProfileRepository(onFetch: (_) async => profile),
         ),
         postRepositoryProvider.overrideWithValue(posts),
         businessRepositoryProvider.overrideWithValue(

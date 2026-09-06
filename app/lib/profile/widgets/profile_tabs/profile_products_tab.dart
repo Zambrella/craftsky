@@ -1,6 +1,8 @@
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/widgets/product_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -23,28 +25,16 @@ class ProfileProductsTab extends StatelessWidget {
       final l10n = AppLocalizations.of(context);
       return SliverFillRemaining(
         hasScrollBody: false,
-        child: Center(
-          child: Padding(
-            padding: EdgeInsets.all(spacing.sp6),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  isOwnProfile
-                      ? l10n.businessProductsOwnerEmpty
-                      : l10n.businessProductsVisitorEmpty,
-                  textAlign: TextAlign.center,
-                ),
-                if (isOwnProfile && onManage != null) ...[
-                  SizedBox(height: spacing.sp2),
-                  TextButton(
-                    onPressed: onManage,
-                    child: Text(l10n.businessProductsManageAction),
-                  ),
-                ],
-              ],
-            ),
-          ),
+        child: CraftskyEmptyState(
+          icon: CraftskyIcons.storefront,
+          title: l10n.businessProductsSettingsTitle,
+          subtitle: isOwnProfile
+              ? l10n.businessProductsOwnerEmpty
+              : l10n.businessProductsVisitorEmpty,
+          actionLabel: isOwnProfile && onManage != null
+              ? l10n.businessProductsManageAction
+              : null,
+          onAction: isOwnProfile ? onManage : null,
         ),
       );
     }

@@ -1,5 +1,6 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/errors/notification_destination_error.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -69,7 +70,7 @@ class NotificationDestinationErrorState extends StatelessWidget {
             else
               TextButton.icon(
                 onPressed: onRetry,
-                icon: const Icon(Icons.refresh),
+                icon: const Icon(CraftskyIconsBold.refresh),
                 label: Text(l10n.retryButton),
               ),
           ],

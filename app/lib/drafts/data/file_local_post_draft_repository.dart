@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
@@ -7,20 +8,25 @@ import 'package:craftsky_app/drafts/data/draft_file_store.dart';
 import 'package:craftsky_app/drafts/data/draft_storage_paths.dart';
 import 'package:craftsky_app/drafts/data/draft_update_plan.dart';
 import 'package:craftsky_app/drafts/data/local_post_draft_repository.dart';
+import 'package:craftsky_app/drafts/data/video_draft_quota.dart';
+import 'package:craftsky_app/drafts/data/video_draft_stream_store.dart';
 import 'package:craftsky_app/drafts/models/draft_manifest_codec.dart';
 import 'package:craftsky_app/drafts/models/draft_media_descriptor.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
+import 'package:craftsky_app/drafts/models/video_draft_descriptor.dart';
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
 import 'package:uuid/uuid.dart';
 
-final class FileLocalPostDraftRepository implements LocalPostDraftRepository {
+final class FileLocalPostDraftRepository
+    implements LocalPostDraftRepository, LocalVideoDraftRepository {
   FileLocalPostDraftRepository({
     required String documentsRoot,
     required AccountKey owner,
     DraftFileStore? fileStore,
     DateTime Function()? clock,
     String Function()? nextId,
+    this.videoSourceQuotaBytes = maxVideoDraftSourceBytesPerAccount,
   }) : _owner = owner,
        _paths = DraftStoragePaths(documentsRoot: documentsRoot, owner: owner),
        _files = fileStore ?? IoDraftFileStore(),
@@ -32,11 +38,12 @@ final class FileLocalPostDraftRepository implements LocalPostDraftRepository {
   final DraftFileStore _files;
   final DateTime Function() _clock;
   final String Function() _nextId;
+  final int videoSourceQuotaBytes;
   final Map<String, Future<void>> _draftTails = {};
 
   @override
   Future<LocalPostDraft> save(DraftWriteRequest request) =>
-      _synchronized(request.id, () => _saveLocked(request));
+      _synchronized('account-video-quota', () => _saveLocked(request));
 
   Future<LocalPostDraft> _saveLocked(DraftWriteRequest request) async {
     _validateRequest(request);
@@ -89,6 +96,12 @@ final class FileLocalPostDraftRepository implements LocalPostDraftRepository {
         }
       }
 
+      final nextVideo = await _prepareVideo(
+        request: request,
+        current: current,
+        newlyWritten: newlyWritten,
+      );
+
       final timestamp = _clock().toUtc();
       final next = LocalPostDraft(
         id: request.id,
@@ -100,6 +113,7 @@ final class FileLocalPostDraftRepository implements LocalPostDraftRepository {
         content: request.content,
         schedule: request.schedule,
         media: plan.nextMedia,
+        video: nextVideo,
         revision: (current?.revision ?? 0) + 1,
       );
       await _files.writeBytesFlushed(
@@ -114,6 +128,22 @@ final class FileLocalPostDraftRepository implements LocalPostDraftRepository {
       manifestSwitched = true;
 
       for (final fileName in plan.cleanupFileNames) {
+        try {
+          await _files.deleteFile(
+            await _verifiedMediaPath(request.id, fileName),
+          );
+        } on Object {
+          // The committed manifest is authoritative; reconciliation retries.
+        }
+      }
+      final retainedVideoFiles = {
+        ?nextVideo?.sourceStorageFileName,
+        ?nextVideo?.posterStorageFileName,
+      };
+      for (final fileName in {
+        ?current?.video?.sourceStorageFileName,
+        ?current?.video?.posterStorageFileName,
+      }.difference(retainedVideoFiles)) {
         try {
           await _files.deleteFile(
             await _verifiedMediaPath(request.id, fileName),
@@ -236,6 +266,53 @@ final class FileLocalPostDraftRepository implements LocalPostDraftRepository {
   }
 
   @override
+  Stream<List<int>> openVideoSource(String draftId) async* {
+    try {
+      final draft = await get(draftId);
+      final descriptor = draft.video;
+      if (descriptor == null ||
+          descriptor.availability != DraftVideoAvailability.available) {
+        throw const DraftRepositoryException(
+          DraftRepositoryFailureReason.unavailable,
+        );
+      }
+      final path = await _verifiedMediaPath(
+        draftId,
+        descriptor.sourceStorageFileName,
+      );
+      yield* File(path).openRead();
+    } on DraftRepositoryException {
+      rethrow;
+    } on Object {
+      throw const DraftRepositoryException(
+        DraftRepositoryFailureReason.unavailable,
+      );
+    }
+  }
+
+  @override
+  Future<Uint8List> readVideoPoster(String draftId) async {
+    try {
+      final draft = await get(draftId);
+      final descriptor = draft.video;
+      if (descriptor == null) {
+        throw const DraftRepositoryException(
+          DraftRepositoryFailureReason.unavailable,
+        );
+      }
+      return _files.readBytes(
+        await _verifiedMediaPath(draftId, descriptor.posterStorageFileName),
+      );
+    } on DraftRepositoryException {
+      rethrow;
+    } on Object {
+      throw const DraftRepositoryException(
+        DraftRepositoryFailureReason.unavailable,
+      );
+    }
+  }
+
+  @override
   Future<void> delete(String draftId) => _synchronized(draftId, () async {
     try {
       final directory = _paths.draftDirectory(draftId);
@@ -283,11 +360,35 @@ final class FileLocalPostDraftRepository implements LocalPostDraftRepository {
         ),
       );
     }
+    final video = draft.video;
+    VideoDraftDescriptor? verifiedVideo;
+    if (video != null) {
+      final sourceAvailable = await _matchesFile(
+        draft.id,
+        video.sourceStorageFileName,
+        video.sourceByteLength,
+        video.sourceSha256,
+      );
+      final posterAvailable = await _matchesFile(
+        draft.id,
+        video.posterStorageFileName,
+        video.posterByteLength,
+        video.posterSha256,
+      );
+      final available = sourceAvailable && posterAvailable;
+      if (!available) draftAvailable = false;
+      verifiedVideo = video.withAvailability(
+        available
+            ? DraftVideoAvailability.available
+            : DraftVideoAvailability.unavailable,
+      );
+    }
     return draft.withStorageState(
       availability: draftAvailable
           ? LocalPostDraftAvailability.available
           : LocalPostDraftAvailability.unavailable,
       media: media,
+      video: verifiedVideo,
     );
   }
 
@@ -302,6 +403,8 @@ final class FileLocalPostDraftRepository implements LocalPostDraftRepository {
     if (!await _files.directoryExists(mediaDirectory)) return;
     final referenced = {
       for (final descriptor in draft.media) descriptor.storageFileName,
+      ?draft.video?.sourceStorageFileName,
+      ?draft.video?.posterStorageFileName,
     };
     for (final filePath in await _files.listChildFiles(mediaDirectory)) {
       if (!_isDirectChild(mediaDirectory, filePath)) continue;
@@ -354,10 +457,168 @@ final class FileLocalPostDraftRepository implements LocalPostDraftRepository {
       (LocalPostDraftKind.project, ProjectDraftContent()) => true,
       _ => false,
     };
-    if (request.owner != _owner || !contentMatchesKind) {
+    if (request.owner != _owner ||
+        !contentMatchesKind ||
+        request.video != null && request.orderedMedia.isNotEmpty) {
       throw const DraftRepositoryException(
         DraftRepositoryFailureReason.invalidRequest,
       );
+    }
+  }
+
+  Future<VideoDraftDescriptor?> _prepareVideo({
+    required DraftWriteRequest request,
+    required LocalPostDraft? current,
+    required List<String> newlyWritten,
+  }) async {
+    final write = request.video;
+    if (write == null) return null;
+    switch (write) {
+      case ExistingStoredVideo():
+        final stored = current?.video;
+        if (stored == null ||
+            stored.storageRevision != write.storageRevision ||
+            stored.sourceSha256 != write.expectedSourceSha256 ||
+            stored.posterSha256 != write.expectedPosterSha256 ||
+            write.altText.length > 1000) {
+          throw const DraftRepositoryException(
+            DraftRepositoryFailureReason.invalidRequest,
+          );
+        }
+        return VideoDraftDescriptor(
+          storageRevision: stored.storageRevision,
+          sourceStorageFileName: stored.sourceStorageFileName,
+          posterStorageFileName: stored.posterStorageFileName,
+          displayFileName: stored.displayFileName,
+          mimeType: stored.mimeType,
+          sourceByteLength: stored.sourceByteLength,
+          sourceSha256: stored.sourceSha256,
+          posterByteLength: stored.posterByteLength,
+          posterSha256: stored.posterSha256,
+          posterMimeType: stored.posterMimeType,
+          width: stored.width,
+          height: stored.height,
+          duration: stored.duration,
+          altText: write.altText,
+        );
+      case PreparedDraftVideo():
+        await _checkVideoQuota(
+          replacingSourceBytes: current?.video?.sourceByteLength ?? 0,
+          nextSourceBytes: write.byteLength,
+        );
+        final revision = _nextId();
+        final sourceExtension = switch (write.mimeType) {
+          'video/mp4' => 'mp4',
+          'video/quicktime' => 'mov',
+          'video/webm' => 'webm',
+          _ => throw const DraftRepositoryException(
+            DraftRepositoryFailureReason.invalidRequest,
+          ),
+        };
+        final posterExtension = switch (write.posterMimeType) {
+          'image/jpeg' => 'jpg',
+          'image/png' => 'png',
+          _ => throw const DraftRepositoryException(
+            DraftRepositoryFailureReason.invalidRequest,
+          ),
+        };
+        final sourceName = 'video-$revision.$sourceExtension';
+        final posterName = 'video-poster-$revision.$posterExtension';
+        final sourcePath = _paths.mediaFilePath(request.id, sourceName);
+        final posterPath = _paths.mediaFilePath(request.id, posterName);
+        await _rejectSymbolicLinks([sourcePath, posterPath]);
+        final sourceResult = await writeVideoDraftStream(
+          source: write.openSource(),
+          targetPath: sourcePath,
+          maximumBytes: write.byteLength,
+        );
+        newlyWritten.add(sourcePath);
+        if (sourceResult.byteLength != write.byteLength) {
+          throw const DraftRepositoryException(
+            DraftRepositoryFailureReason.invalidRequest,
+          );
+        }
+        await _files.writeBytesFlushed(posterPath, write.posterBytes);
+        newlyWritten.add(posterPath);
+        final descriptor = VideoDraftDescriptor(
+          storageRevision: revision,
+          sourceStorageFileName: sourceName,
+          posterStorageFileName: posterName,
+          displayFileName: write.displayFileName,
+          mimeType: write.mimeType,
+          sourceByteLength: sourceResult.byteLength,
+          sourceSha256: sourceResult.sha256,
+          posterByteLength: write.posterBytes.length,
+          posterSha256: sha256.convert(write.posterBytes).toString(),
+          posterMimeType: write.posterMimeType,
+          width: write.width,
+          height: write.height,
+          duration: write.duration,
+          altText: write.altText,
+        )..validate();
+        if (!await _matchesFile(
+          request.id,
+          posterName,
+          descriptor.posterByteLength,
+          descriptor.posterSha256,
+        )) {
+          throw const DraftRepositoryException(
+            DraftRepositoryFailureReason.storageUnavailable,
+          );
+        }
+        return descriptor;
+    }
+  }
+
+  Future<void> _checkVideoQuota({
+    required int replacingSourceBytes,
+    required int nextSourceBytes,
+  }) async {
+    var used = 0;
+    if (await _files.directoryExists(_paths.accountRoot)) {
+      for (final directory in await _files.listChildDirectories(
+        _paths.accountRoot,
+      )) {
+        try {
+          final manifest = await _readExisting(
+            p.join(directory, 'manifest.json'),
+          );
+          used += manifest?.video?.sourceByteLength ?? 0;
+        } on Object {
+          // Unreadable drafts are retained and do not surrender quota.
+          used = videoSourceQuotaBytes;
+          break;
+        }
+      }
+    }
+    if (nextSourceBytes <= 0 ||
+        used - replacingSourceBytes + nextSourceBytes > videoSourceQuotaBytes) {
+      throw const DraftRepositoryException(
+        DraftRepositoryFailureReason.quotaExceeded,
+      );
+    }
+  }
+
+  Future<bool> _matchesFile(
+    String draftId,
+    String fileName,
+    int expectedLength,
+    String expectedSha256,
+  ) async {
+    try {
+      final path = await _verifiedMediaPath(draftId, fileName);
+      final digestOutput = _DraftDigestSink();
+      final digestInput = sha256.startChunkedConversion(digestOutput);
+      var length = 0;
+      await for (final chunk in File(path).openRead()) {
+        length += chunk.length;
+        digestInput.add(chunk);
+      }
+      digestInput.close();
+      return length == expectedLength &&
+          digestOutput.value.toString() == expectedSha256;
+    } on Object {
+      return false;
     }
   }
 
@@ -410,4 +671,16 @@ final class FileLocalPostDraftRepository implements LocalPostDraftRepository {
 
   @override
   String toString() => 'FileLocalPostDraftRepository(<redacted>)';
+}
+
+final class _DraftDigestSink implements Sink<Digest> {
+  Digest? _digest;
+
+  Digest get value => _digest ?? (throw StateError('Digest is not complete'));
+
+  @override
+  void add(Digest data) => _digest = data;
+
+  @override
+  void close() {}
 }

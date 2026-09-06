@@ -1,4 +1,5 @@
 import 'package:craftsky_app/bootstrap.dart';
+import 'package:craftsky_app/feed/models/create_post_video.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -570,6 +571,70 @@ void main() {
       expect(post.project, isNull);
       expect(post.toMap(), isNot(contains('project')));
       expect(post.toMap(), json);
+    });
+
+    test('UT-008 canonical video metadata round-trips additively', () {
+      final json = <String, dynamic>{
+        'cid': 'bafyvideo',
+        'mime': 'video/mp4',
+        'size': 1234,
+        'alt': 'Hands weaving blue cloth',
+        'aspectRatio': {'width': 16, 'height': 9},
+        'playlist': 'https://video.bsky.app/watch/did/bafy/playlist.m3u8',
+        'thumbnail': 'https://video.bsky.app/watch/did/bafy/thumbnail.jpg',
+        'captions': [
+          {
+            'lang': 'en',
+            'name': 'English',
+            'uri':
+                'https://appview.example/v1/posts/did/rkey/video-captions/cid',
+          },
+        ],
+        'futureField': true,
+      };
+
+      final video = PostVideoMapper.fromMap(json);
+
+      expect(video.cid, 'bafyvideo');
+      expect(video.aspectRatio?.width, 16);
+      expect(video.captions.single.lang, 'en');
+      expect(video.toMap(), isNot(contains('futureField')));
+      expect(
+        PostVideoMapper.fromMap({
+          'cid': 'bafyminimal',
+          'mime': 'video/mp4',
+          'size': 1,
+          'captions': <Object>[],
+        }).playlist,
+        isNull,
+      );
+    });
+
+    test('IT-019 canonical read preserves the created video identity once', () {
+      const created = CreatePostVideo(
+        jobId: 'job-one',
+        blob: CreatePostVideoBlob(
+          cid: 'bafyvideo',
+          mimeType: 'video/mp4',
+          size: 42,
+        ),
+      );
+      final read = PostVideoMapper.fromMap({
+        'cid': 'bafyvideo',
+        'mime': 'video/mp4',
+        'size': 42,
+        'playlist': 'https://video.bsky.app/watch/did/bafy/playlist.m3u8',
+        'captions': <Object?>[],
+      });
+
+      expect(
+        (read.cid, read.mime, read.size),
+        (created.blob.cid, created.blob.mimeType, created.blob.size),
+      );
+      expect(
+        [read].where((video) => video.cid == created.blob.cid),
+        hasLength(1),
+      );
     });
   });
 }

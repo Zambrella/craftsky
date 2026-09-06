@@ -85,8 +85,8 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Welcome page
 - [x] Onboarding
 - [x] Limit/compress images to 2MB (Bluesky max CDN size)
-- [ ] Update create project flow to be more streamlined
-- [ ] Iconography
+- [x] Update create project flow to be more streamlined
+- [x] Iconography
 - [ ] Be able to see who liked, reposted and quote reposted a post
 - [ ] Pro and Business subscriptions (Revenue Cat)
   - [ ] Front-end logic

@@ -50,6 +50,7 @@ class Post with PostMappable {
     this.viewerHasReplied = false,
     this.viewerSavedFolderId,
     this.images,
+    this.video,
     this.facets,
     this.reply,
     this.quote,
@@ -89,6 +90,7 @@ class Post with PostMappable {
   final bool viewerHasSaved;
   final String? viewerSavedFolderId;
   final List<PostImage>? images;
+  final PostVideo? video;
   final ModerationMetadata? moderation;
   final Project? project;
   final String? availability;
@@ -266,6 +268,42 @@ class PostImageAspectRatio with PostImageAspectRatioMappable {
 
   final int width;
   final int height;
+}
+
+@MappableClass(ignoreNull: true, includeCustomMappers: [CidMapper()])
+class PostVideo with PostVideoMappable {
+  PostVideo({
+    required String cid,
+    required this.mime,
+    required this.size,
+    this.alt,
+    this.aspectRatio,
+    this.playlist,
+    this.thumbnail,
+    this.captions = const [],
+  }) : cid = Cid.parse(cid);
+
+  final Cid cid;
+  final String mime;
+  final int size;
+  final String? alt;
+  final PostImageAspectRatio? aspectRatio;
+  final String? playlist;
+  final String? thumbnail;
+  final List<PostVideoCaption> captions;
+}
+
+@MappableClass()
+class PostVideoCaption with PostVideoCaptionMappable {
+  const PostVideoCaption({
+    required this.lang,
+    required this.name,
+    required this.uri,
+  });
+
+  final String lang;
+  final String name;
+  final String uri;
 }
 
 /// Author identity embedded in every [Post] response.

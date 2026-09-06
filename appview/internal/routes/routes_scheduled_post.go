@@ -58,12 +58,16 @@ type postRouteBundle struct {
 	moderationStore  *api.ModerationStore
 	languages        *languages.Store
 	mediaLimits      api.MediaLimits
+	videoVerifier    api.VideoCompletionVerifier
+	videoCaptions    api.VideoCaptionBlobFetcher
+	videoObserver    api.VideoOperationObserver
 	logger           *slog.Logger
 }
 
 func registerPostRoutes(routes postRouteBundle) {
-	routes.mux.Handle("POST /v1/posts", routes.middleware.wrap(mustPolicy("POST", "/v1/posts"), api.CreatePostHandler(routes.postStore, routes.newPDSEffects, routes.handleResolver, routes.mediaLimits, routes.logger)))
+	routes.mux.Handle("POST /v1/posts", routes.middleware.wrap(mustPolicy("POST", "/v1/posts"), api.CreatePostHandler(routes.postStore, routes.newPDSEffects, routes.handleResolver, routes.mediaLimits, routes.logger, api.CreatePostHandlerOptions{VideoCompletionVerifier: routes.videoVerifier})))
 	routes.mux.Handle("GET /v1/posts/{did}/{rkey}", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}"), api.GetPostHandler(routes.postStore, routes.handleResolver, routes.logger)))
+	routes.mux.Handle("GET /v1/posts/{did}/{rkey}/video-captions/{captionCid}", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/video-captions/{captionCid}"), api.VideoCaptionHandler(routes.postStore, routes.videoCaptions, routes.logger, routes.videoObserver)))
 	routes.mux.Handle("POST /v1/posts/{did}/{rkey}/saves", routes.middleware.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/saves"), api.SavePostHandler(routes.postStore, routes.savedPostStore)))
 	routes.mux.Handle("DELETE /v1/posts/{did}/{rkey}/saves", routes.middleware.wrap(mustPolicy("DELETE", "/v1/posts/{did}/{rkey}/saves"), api.UnsavePostHandler(routes.savedPostStore)))
 	routes.mux.Handle("GET /v1/profiles/me/pins", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/me/pins"), api.GetProfilePinsHandler(routes.profilePinStore)))

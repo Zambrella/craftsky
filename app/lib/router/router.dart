@@ -347,7 +347,7 @@ class AuthenticatedShellRoute extends ShellRouteData {
 
   @override
   Widget builder(BuildContext context, GoRouterState state, Widget navigator) {
-    return AuthenticatedShell(child: navigator);
+    return AuthenticatedShell(navigatorKey: $navigatorKey, child: navigator);
   }
 }
 

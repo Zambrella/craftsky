@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:craftsky_app/feed/models/create_post_external.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
+import 'package:craftsky_app/feed/models/create_post_video.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/link_preview.dart';
 import 'package:craftsky_app/feed/models/post.dart';
@@ -7,6 +10,7 @@ import 'package:craftsky_app/feed/models/post_comment_section.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
+import 'package:craftsky_app/feed/models/video_upload_limits.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/projects/models/project.dart';
@@ -24,6 +28,52 @@ class PostApiClient {
   const PostApiClient(this._dio);
 
   final Dio _dio;
+
+  Future<VideoUploadLimits> getVideoUploadLimits() => unwrapApi(() async {
+    final response = await _dio.get<Map<String, dynamic>>(
+      '/v1/blobs/videos/limits',
+    );
+    return VideoUploadLimits.fromMap(response.data!);
+  });
+
+  Future<VideoUploadAuthorization> authorizeVideoUpload() =>
+      unwrapApi(() async {
+        final response = await _dio.post<Map<String, dynamic>>(
+          '/v1/blobs/videos/authorization',
+        );
+        return VideoUploadAuthorization.fromMap(response.data!);
+      });
+
+  Future<String> downloadVideoCaption(String route) {
+    final uri = Uri.tryParse(route);
+    if (uri == null ||
+        uri.hasScheme ||
+        uri.hasAuthority ||
+        uri.hasQuery ||
+        uri.hasFragment ||
+        !_videoCaptionRoute.hasMatch(uri.path)) {
+      throw ArgumentError('Invalid AppView caption route');
+    }
+    return unwrapApi(() async {
+      final response = await _dio.get<Object?>(
+        uri.path,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      final bytes = switch (response.data) {
+        final List<int> value => value,
+        final String value => utf8.encode(value),
+        _ => throw const FormatException('Invalid video caption'),
+      };
+      if (bytes.length > 20000) {
+        throw const FormatException('Video caption exceeds limit');
+      }
+      final value = utf8.decode(bytes);
+      if (!value.startsWith('WEBVTT')) {
+        throw const FormatException('Invalid WebVTT caption');
+      }
+      return value;
+    });
+  }
 
   Future<LinkPreview> fetchLinkPreview(
     String url, {
@@ -65,6 +115,7 @@ class PostApiClient {
     Project? project,
     List<CreatePostImage>? images,
     CreatePostExternal? external,
+    CreatePostVideo? video,
     List<Map<String, dynamic>>? facets,
   }) => unwrapApi(() async {
     assertProjectCreateIsTopLevel(project: project, reply: reply);
@@ -85,6 +136,14 @@ class PostApiClient {
       images == null || images.isEmpty || external == null,
       'Images and external conflict',
     );
+    assert(
+      video == null ||
+          ((images == null || images.isEmpty) &&
+              quote == null &&
+              external == null &&
+              reply == null),
+      'Video conflicts with other media and replies',
+    );
     final res = await _dio.post<Map<String, dynamic>>(
       '/v1/posts',
       data: {
@@ -92,9 +151,10 @@ class PostApiClient {
         'langs': langs,
         'project': ?project?.toCreateMap(),
         'reply': ?reply?.toMap(),
-        'embed': ?switch ((quote, external)) {
-          (final quote?, _) => {'quote': quote.toMap()},
-          (_, final external?) => {'external': external.toMap()},
+        'embed': ?switch ((quote, external, video)) {
+          (final quote?, _, _) => {'quote': quote.toMap()},
+          (_, final external?, _) => {'external': external.toMap()},
+          (_, _, final video?) => {'video': video.toMap()},
           _ => null,
         },
         'images': ?images?.map((image) => image.toMap()).toList(),
@@ -290,6 +350,10 @@ class PostApiClient {
     );
   }
 }
+
+final _videoCaptionRoute = RegExp(
+  r'^/v1/posts/[^/]+/[^/]+/video-captions/[^/]+$',
+);
 
 void assertProjectCreateIsTopLevel({Project? project, PostReply? reply}) {
   if (project != null && reply != null) {

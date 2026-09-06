@@ -74,7 +74,10 @@ Both live under their respective feature folders (`auth/providers/`, `onboarding
 
 ## Auth Flow Shape
 
-Given the atproto architecture ([AGENTS.md](AGENTS.md) rule 2: Flutter app never holds PDS tokens; OAuth tokens live in the App View), there is no traditional register flow. Account creation happens on the user's chosen PDS, not in-app.
+Given the atproto architecture ([AGENTS.md](AGENTS.md) rule 2: OAuth access/refresh
+tokens and DPoP keys live in AppView), there is no traditional register flow.
+ADR 012's memory-only, purpose-bound video service JWT does not change account
+creation. Account creation happens on the user's chosen PDS, not in-app.
 
 - `/welcome` — landing screen with branding and "Sign in" / "Create account on a PDS" CTAs. Also hosts the dev-only auth toggle during development.
 - `/sign-in` — handle entry field + "Continue" button. Stub for now — real implementation will kick off the atproto OAuth flow against the user's PDS.

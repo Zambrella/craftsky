@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:craftsky_app/theme/craftsky_divider.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -21,6 +22,7 @@ class CraftskyContextMenuItem {
     required this.text,
     required this.icon,
     required this.onPressed,
+    this.key,
     this.description,
     this.semanticHint,
     this.isSelected = false,
@@ -30,6 +32,7 @@ class CraftskyContextMenuItem {
   final String text;
   final IconData icon;
   final FutureOr<void> Function()? onPressed;
+  final Key? key;
   final String? description;
   final String? semanticHint;
   final bool isSelected;
@@ -68,7 +71,7 @@ RelativeRect craftskyContextMenuAnchorPosition(BuildContext context) {
 class CraftskyContextMenuButton extends StatelessWidget {
   const CraftskyContextMenuButton({
     required this.groups,
-    this.icon = Icons.more_horiz,
+    this.icon = CraftskyIconsBold.more,
     this.tooltip,
     this.enabled = true,
     super.key,
@@ -385,12 +388,13 @@ class _CraftskyContextMenuRow extends StatelessWidget {
       child: Material(
         color: item.isSelected ? selectedBackground : Colors.transparent,
         child: ListTile(
+          key: item.key,
           enabled: !isDisabled,
           onTap: onTap,
           contentPadding: EdgeInsets.symmetric(horizontal: spacing.sp4),
           horizontalTitleGap: spacing.sp3,
           leading: Icon(
-            item.isSelected ? Icons.check_box : item.icon,
+            item.isSelected ? CraftskyIcons.selectedOption : item.icon,
             color: color,
           ),
           title: Text(

@@ -1,4 +1,5 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -30,7 +31,7 @@ class ScheduledPostCapacityWarning extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Icon(
-                Icons.warning_amber_rounded,
+                CraftskyIcons.warning,
                 color: semanticColors.warning,
               ),
               SizedBox(width: spacing.sp2),

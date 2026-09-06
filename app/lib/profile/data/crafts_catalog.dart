@@ -54,6 +54,21 @@ enum Craft {
   }
 }
 
+/// Crafts currently offered as profile and onboarding choices.
+///
+/// Keep this separate from [Craft.values]: the full enum remains the wire
+/// compatibility catalog for profiles saved by earlier app versions.
+const canonicalSelectableCrafts = <Craft>[
+  Craft.sewing,
+  Craft.knitting,
+  Craft.crochet,
+  Craft.quilting,
+  Craft.embroidery,
+];
+
+bool isCanonicalSelectableCraft(String id) =>
+    canonicalSelectableCrafts.any((craft) => craft.id == id);
+
 /// Localised display label for [craft]. Falls back to the wire id if
 /// the catalog ever drifts ahead of the ARB — a safer fail than
 /// crashing on a missing key.

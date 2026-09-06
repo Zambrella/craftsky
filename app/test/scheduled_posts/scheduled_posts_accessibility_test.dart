@@ -2,6 +2,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/scheduled_posts/models/schedule_time.dart';
 import 'package:craftsky_app/scheduled_posts/models/scheduled_post.dart';
 import 'package:craftsky_app/scheduled_posts/pages/scheduled_posts_page.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -43,7 +44,7 @@ void main() {
     expect(find.byTooltip('Edit scheduled post'), findsOneWidget);
     expect(find.byTooltip('Delete scheduled post'), findsOneWidget);
     await tester.scrollUntilVisible(find.text('Publishing'), 100);
-    final lock = find.byIcon(Icons.lock_outline);
+    final lock = find.byIcon(CraftskyIcons.lock);
     expect(lock, findsOneWidget);
     expect(tester.getSemantics(lock).label, contains('Publishing lock'));
     expect(

@@ -8,6 +8,7 @@ enum DraftRepositoryFailureReason {
   conflict,
   unavailable,
   storageUnavailable,
+  quotaExceeded,
 }
 
 final class DraftRepositoryException implements Exception {
@@ -72,6 +73,53 @@ final class PreparedDraftMedia extends DraftMediaWrite {
   String toString() => 'PreparedDraftMedia(<redacted>)';
 }
 
+sealed class DraftVideoWrite {
+  const DraftVideoWrite();
+}
+
+final class ExistingStoredVideo extends DraftVideoWrite {
+  const ExistingStoredVideo({
+    required this.storageRevision,
+    required this.expectedSourceSha256,
+    required this.expectedPosterSha256,
+    required this.altText,
+  });
+
+  final String storageRevision;
+  final String expectedSourceSha256;
+  final String expectedPosterSha256;
+  final String altText;
+}
+
+final class PreparedDraftVideo extends DraftVideoWrite {
+  const PreparedDraftVideo({
+    required this.displayFileName,
+    required this.mimeType,
+    required this.byteLength,
+    required this.openSource,
+    required this.width,
+    required this.height,
+    required this.duration,
+    required this.altText,
+    required this.posterMimeType,
+    required this.posterBytes,
+  });
+
+  final String displayFileName;
+  final String mimeType;
+  final int byteLength;
+  final Stream<List<int>> Function() openSource;
+  final int width;
+  final int height;
+  final Duration? duration;
+  final String altText;
+  final String posterMimeType;
+  final Uint8List posterBytes;
+
+  @override
+  String toString() => 'PreparedDraftVideo(<redacted>)';
+}
+
 final class DraftWriteRequest {
   DraftWriteRequest({
     required this.id,
@@ -80,6 +128,7 @@ final class DraftWriteRequest {
     required this.content,
     required this.schedule,
     required List<DraftMediaWrite> orderedMedia,
+    this.video,
     this.createdAt,
     this.expectedRevision,
   }) : orderedMedia = List.unmodifiable(orderedMedia);
@@ -92,6 +141,7 @@ final class DraftWriteRequest {
   final LocalDraftContent content;
   final DraftScheduleIntent schedule;
   final List<DraftMediaWrite> orderedMedia;
+  final DraftVideoWrite? video;
 
   @override
   String toString() => 'DraftWriteRequest(<redacted>)';
@@ -107,4 +157,10 @@ abstract interface class LocalPostDraftRepository {
   Future<Uint8List> readMedia(String draftId, String mediaId);
 
   Future<void> delete(String draftId);
+}
+
+abstract interface class LocalVideoDraftRepository {
+  Stream<List<int>> openVideoSource(String draftId);
+
+  Future<Uint8List> readVideoPoster(String draftId);
 }

@@ -101,7 +101,12 @@ class _PostReportRouteBody extends ConsumerWidget {
     });
 
     return ReportSubjectSheet(
-      subjectType: ReportSubjectType.post,
+      subjectType: switch (post.reply) {
+        null => ReportSubjectType.post,
+        final reply when reply.parent.uri == reply.root.uri =>
+          ReportSubjectType.comment,
+        _ => ReportSubjectType.reply,
+      },
       isSubmitting: submitState.isLoading,
       submitError: submitState.hasError
           ? AppLocalizations.of(context).reportSubmitError

@@ -10,6 +10,7 @@ import 'package:craftsky_app/projects/pages/projects_page.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/search/pages/search_page.dart';
 import 'package:craftsky_app/search/providers/search_repository_provider.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -73,6 +74,10 @@ void main() {
         ),
       );
       await tester.pump();
+
+      if (name == 'Projects') {
+        expect(find.byType(CraftIcon), findsNWidgets(5));
+      }
 
       await tester.tap(find.byTooltip('Open navigation menu'));
 

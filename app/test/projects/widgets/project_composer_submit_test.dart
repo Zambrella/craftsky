@@ -200,11 +200,20 @@ void main() {
     await _selectCraft(tester, 'Sewing');
     await tester.enterText(_patternNameTextField(), 'Garden dress');
     await tester.pumpAndSettle();
+    await _openDetail(
+      tester,
+      const Key('project-composer-pattern-details-action'),
+    );
     await tester.enterText(
       find.byKey(const Key('pattern-url-input')),
       'https://patterns.example/garden-dress',
     );
-    await _goNext(tester);
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
+    await _openDetail(
+      tester,
+      const Key('project-composer-common-details-action'),
+    );
 
     await tester.ensureVisible(_materialTextField());
     await tester.enterText(_materialTextField(), 'Cotton lawn');
@@ -248,7 +257,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await _goNext(tester);
+    await tester.tap(find.byTooltip('Back'));
+    await tester.pumpAndSettle();
     await tester.enterText(_bodyTextField(), 'Finished a dress');
     await _pumpUntilPostEnabled(tester);
 
@@ -663,7 +673,17 @@ Finder _materialTextField() {
 }
 
 Future<void> _goNext(WidgetTester tester) async {
-  await tester.tap(find.byKey(const Key('project-composer-primary-action')));
+  await tester.ensureVisible(
+    find.byKey(const Key('project-composer-body-editor')),
+  );
+  await tester.pumpAndSettle();
+}
+
+Future<void> _openDetail(WidgetTester tester, Key key) async {
+  final action = find.byKey(key);
+  await tester.ensureVisible(action);
+  await tester.pumpAndSettle();
+  await tester.tap(action);
   await tester.pumpAndSettle();
 }
 

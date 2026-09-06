@@ -141,8 +141,9 @@ type RelationshipPair struct {
 
 // PostStore is the Postgres-backed implementation.
 type PostStore struct {
-	pool     *pgxpool.Pool
-	observer *observability.Observer
+	pool          *pgxpool.Pool
+	observer      *observability.Observer
+	videoPlayback PlaybackURLBuilder
 }
 
 func NewPostStore(pool *pgxpool.Pool, observer ...*observability.Observer) *PostStore {
@@ -151,6 +152,16 @@ func NewPostStore(pool *pgxpool.Pool, observer ...*observability.Observer) *Post
 		store.observer = observer[0]
 	}
 	return store
+}
+
+func NewPostStoreWithPlayback(pool *pgxpool.Pool, observer *observability.Observer, playback PlaybackURLBuilder) *PostStore {
+	store := NewPostStore(pool, observer)
+	store.videoPlayback = playback
+	return store
+}
+
+func (s *PostStore) PostPlaybackURLBuilder() PlaybackURLBuilder {
+	return s.videoPlayback
 }
 
 const postSelectColumns = `

@@ -19,6 +19,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -47,6 +48,53 @@ void main() {
       tester.element(find.byType(NotificationsPage)),
     );
     expect(find.text(l10n.notificationsTitle), findsWidgets);
+  });
+
+  testWidgets('refresh indicator starts below the sliver app bar', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          notificationRepositoryProvider.overrideWithValue(
+            const _FakeNotificationRepository(NotificationPage(items: [])),
+          ),
+        ],
+        child: const _TestApp(
+          topPadding: 24,
+          home: NotificationsPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      tester.widget<RefreshIndicator>(find.byType(RefreshIndicator)).edgeOffset,
+      24 + kToolbarHeight,
+    );
+  });
+
+  testWidgets('pull to refresh reloads an empty notifications page', (
+    tester,
+  ) async {
+    final repo = _QueueNotificationRepository([
+      Future.value(const NotificationPage(items: [])),
+      Future.value(NotificationPage(items: [_follow('refreshed')])),
+    ]);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [notificationRepositoryProvider.overrideWithValue(repo)],
+        child: const _TestApp(home: NotificationsPage()),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('No notifications yet.'), findsOneWidget);
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, 400));
+    await tester.pumpAndSettle();
+
+    expect(repo.calls.map((call) => call.cursor), [null, null]);
+    expect(find.text('Alice followed you'), findsOneWidget);
   });
 
   testWidgets('renders empty state and mixed rows', (tester) async {
@@ -212,14 +260,14 @@ void main() {
         'https://cdn.example/avatar/alice.jpg',
       );
       for (final icon in [
-        Icons.person_add_alt_outlined,
-        Icons.favorite_outline,
-        Icons.repeat,
-        Icons.chat_bubble_outline,
-        Icons.alternate_email,
-        Icons.format_quote,
-        Icons.person_search_outlined,
-        Icons.notifications_none,
+        CraftskyIcons.follow,
+        CraftskyIcons.like,
+        CraftskyIcons.repost,
+        CraftskyIcons.comment,
+        CraftskyIcons.mention,
+        CraftskyIcons.quote,
+        CraftskyIcons.findPeople,
+        CraftskyIcons.notification,
       ]) {
         expect(find.byIcon(icon), findsOneWidget, reason: '$icon');
       }
@@ -281,8 +329,8 @@ void main() {
 
     expect(find.byType(PostSummary), findsNWidgets(5));
     expect(find.text('viewer post'), findsNWidgets(5));
-    expect(find.byIcon(Icons.bookmark), findsNothing);
-    expect(find.byIcon(Icons.bookmark_border), findsNothing);
+    expect(find.byIcon(CraftskyIcons.saved), findsNothing);
+    expect(find.byIcon(CraftskyIconsBold.unsaved), findsNothing);
   });
 
   testWidgets('UT-021 derives an actor avatar URL from an older CID response', (
@@ -726,9 +774,10 @@ void main() {
 }
 
 class _TestApp extends StatelessWidget {
-  const _TestApp({required this.home});
+  const _TestApp({required this.home, this.topPadding = 0});
 
   final Widget home;
+  final double topPadding;
 
   @override
   Widget build(BuildContext context) => ProviderScope(
@@ -736,7 +785,14 @@ class _TestApp extends StatelessWidget {
       theme: AppTheme.lightThemeData,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
-      home: home,
+      home: Builder(
+        builder: (context) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(padding: EdgeInsets.only(top: topPadding)),
+          child: home,
+        ),
+      ),
     ),
   );
 }

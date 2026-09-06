@@ -1,4 +1,5 @@
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 
 /// Gives top-level branch app bars access to the compact shell's drawer.
@@ -46,7 +47,7 @@ class AppShellDrawerButton extends StatelessWidget {
         focusNode: scope.menuButtonFocusNode,
         onPressed: scope.openDrawer,
         style: style,
-        icon: const Icon(Icons.menu),
+        icon: const Icon(CraftskyIconsBold.menu),
       ),
     );
   }

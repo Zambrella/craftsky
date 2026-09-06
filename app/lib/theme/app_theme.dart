@@ -1,4 +1,5 @@
 import 'package:craftsky_app/theme/brand_colors.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flex_color_scheme/flex_color_scheme.dart';
 import 'package:flutter/material.dart';
@@ -113,12 +114,15 @@ class AppTheme {
     );
     return base.copyWith(
       extensions: _extensions(base.colorScheme),
+      actionIconTheme: _actionIconTheme,
       appBarTheme: _appBarTheme(base),
       navigationBarTheme: _navigationBarTheme(base),
       navigationRailTheme: _navigationRailTheme(base),
       tabBarTheme: _tabBarTheme(base),
       segmentedButtonTheme: _segmentedButtonTheme(base.colorScheme),
       floatingActionButtonTheme: _floatingActionButtonTheme(base),
+      progressIndicatorTheme: _progressIndicatorTheme(base),
+      snackBarTheme: _snackBarTheme(base, swatches: const BrandSwatchTheme()),
       timePickerTheme: _timePickerTheme(base),
     );
   }
@@ -171,15 +175,25 @@ class AppTheme {
     );
     return base.copyWith(
       extensions: _extensions(base.colorScheme, dark: true),
+      actionIconTheme: _actionIconTheme,
       appBarTheme: _appBarTheme(base),
       navigationBarTheme: _navigationBarTheme(base),
       navigationRailTheme: _navigationRailTheme(base),
       tabBarTheme: _tabBarTheme(base),
       segmentedButtonTheme: _segmentedButtonTheme(base.colorScheme),
       floatingActionButtonTheme: _floatingActionButtonTheme(base),
+      progressIndicatorTheme: _progressIndicatorTheme(base),
+      snackBarTheme: _snackBarTheme(base, swatches: _darkSwatches),
       timePickerTheme: _timePickerTheme(base),
     );
   }
+
+  static final _actionIconTheme = ActionIconThemeData(
+    backButtonIconBuilder: (_) => const Icon(CraftskyIconsBold.back),
+    closeButtonIconBuilder: (_) => const Icon(CraftskyIconsBold.close),
+    drawerButtonIconBuilder: (_) => const Icon(CraftskyIconsBold.menu),
+    endDrawerButtonIconBuilder: (_) => const Icon(CraftskyIconsBold.menu),
+  );
 
   static TimePickerThemeData _timePickerTheme(ThemeData base) {
     final selectorStyle = base.textTheme.headlineLarge?.copyWith(
@@ -210,6 +224,39 @@ class AppTheme {
         color: colors.onPrimary,
         fontWeight: FontWeight.w800,
         letterSpacing: 0.2,
+      ),
+    );
+  }
+
+  static ProgressIndicatorThemeData _progressIndicatorTheme(ThemeData base) {
+    final swatches = base.brightness == Brightness.dark
+        ? _darkSwatches
+        : const BrandSwatchTheme();
+    return ProgressIndicatorThemeData(
+      color: base.colorScheme.primary,
+      refreshBackgroundColor: swatches.paper3,
+    );
+  }
+
+  static SnackBarThemeData _snackBarTheme(
+    ThemeData base, {
+    required BrandSwatchTheme swatches,
+  }) {
+    final colors = base.colorScheme;
+    return SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      backgroundColor: swatches.paper3,
+      contentTextStyle: base.textTheme.bodyMedium?.copyWith(
+        color: colors.onSurface,
+      ),
+      actionTextColor: colors.primary,
+      disabledActionTextColor: colors.outline,
+      closeIconColor: colors.onSurface,
+      elevation: 3,
+      insetPadding: const EdgeInsets.all(16),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(const RadiusTheme().r3),
+        side: BorderSide(color: colors.onSurface, width: 1.5),
       ),
     );
   }

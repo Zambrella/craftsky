@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/drafts/models/draft_manifest_error.dart';
 import 'package:craftsky_app/drafts/models/draft_media_descriptor.dart';
 import 'package:craftsky_app/drafts/models/local_post_draft.dart';
+import 'package:craftsky_app/drafts/models/video_draft_descriptor.dart';
 
 export 'package:craftsky_app/drafts/models/draft_manifest_error.dart';
 
@@ -13,6 +14,7 @@ abstract final class DraftManifestCodec {
 
   static String encode(LocalPostDraft draft) {
     _validateMediaList(draft.media);
+    draft.video?.validate();
     return jsonEncode({
       'schemaVersion': schemaVersion,
       'id': draft.id,
@@ -29,6 +31,7 @@ abstract final class DraftManifestCodec {
         'savedOffsetMinutes': ?draft.schedule.savedOffsetMinutes,
       },
       'media': draft.media.map(_encodeMedia).toList(growable: false),
+      if (draft.video case final video?) 'video': _encodeVideo(video),
     });
   }
 
@@ -54,6 +57,7 @@ abstract final class DraftManifestCodec {
         content: _decodeContent(content),
         schedule: _decodeSchedule(schedule),
         media: _decodeMediaList(media),
+        video: _decodeVideo(manifest['video']),
       );
     } on DraftManifestException {
       rethrow;
@@ -139,6 +143,59 @@ abstract final class DraftManifestCodec {
       order: media['order']! as int,
     )..validate();
     return descriptor;
+  }
+
+  static Map<String, Object?> _encodeVideo(VideoDraftDescriptor video) => {
+    'storageRevision': video.storageRevision,
+    'sourceStorageFileName': video.sourceStorageFileName,
+    'posterStorageFileName': video.posterStorageFileName,
+    'displayFileName': video.displayFileName,
+    'mimeType': video.mimeType,
+    'sourceByteLength': video.sourceByteLength,
+    'sourceSha256': video.sourceSha256,
+    'posterByteLength': video.posterByteLength,
+    'posterSha256': video.posterSha256,
+    'posterMimeType': video.posterMimeType,
+    'width': video.width,
+    'height': video.height,
+    if (video.duration case final duration?)
+      'durationMilliseconds': duration.inMilliseconds,
+    'altText': video.altText,
+  };
+
+  static VideoDraftDescriptor? _decodeVideo(Object? source) {
+    if (source == null) return null;
+    try {
+      final video = source as Map<String, Object?>;
+      return VideoDraftDescriptor(
+        storageRevision: video['storageRevision']! as String,
+        sourceStorageFileName: video['sourceStorageFileName']! as String,
+        posterStorageFileName: video['posterStorageFileName']! as String,
+        displayFileName: video['displayFileName']! as String,
+        mimeType: video['mimeType']! as String,
+        sourceByteLength: video['sourceByteLength']! as int,
+        sourceSha256: video['sourceSha256']! as String,
+        posterByteLength: video['posterByteLength']! as int,
+        posterSha256: video['posterSha256']! as String,
+        posterMimeType: video['posterMimeType']! as String,
+        width: video['width']! as int,
+        height: video['height']! as int,
+        duration: switch (video['durationMilliseconds']) {
+          final int milliseconds => Duration(milliseconds: milliseconds),
+          null => null,
+          _ => throw const DraftManifestException(
+            DraftManifestFailureReason.invalidMedia,
+          ),
+        },
+        altText: video['altText']! as String,
+      )..validate();
+    } on DraftManifestException {
+      rethrow;
+    } on Object {
+      throw const DraftManifestException(
+        DraftManifestFailureReason.invalidMedia,
+      );
+    }
   }
 
   static List<DraftMediaDescriptor> _decodeMediaList(List<Object?> source) {

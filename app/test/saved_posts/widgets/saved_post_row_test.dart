@@ -7,12 +7,38 @@ import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   setUpAll(initializeMappers);
+
+  testWidgets('AT-011 saved result renders the video thumbnail', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: SavedPostRow(
+              account: AccountKey('did:plc:alice'),
+              item: _item(video: true),
+              onOpen: () {},
+              onMove: () {},
+              onUnsave: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('post-summary-image')), findsOneWidget);
+  });
 
   testWidgets('AT-006 saved row keeps navigation and mutations parent-owned', (
     tester,
@@ -43,8 +69,8 @@ void main() {
     expect(find.text('Move'), findsNothing);
     expect(find.text('Unsave'), findsNothing);
     expect(find.byTooltip('Saved post actions'), findsOneWidget);
-    expect(find.byIcon(Icons.bookmark), findsNothing);
-    expect(find.byIcon(Icons.favorite_border), findsNothing);
+    expect(find.byIcon(CraftskyIcons.saved), findsNothing);
+    expect(find.byIcon(CraftskyIcons.like), findsNothing);
 
     await tester.tap(find.text('A saved reply'));
     await tester.tap(find.byTooltip('Saved post actions'));
@@ -165,6 +191,7 @@ void main() {
 SavedPostItem _item({
   String text = 'A saved reply',
   String handle = 'author.craftsky.social',
+  bool video = false,
 }) => SavedPostItemMapper.fromMap({
   'post': {
     'uri': 'at://did:plc:author/social.craftsky.feed.post/reply',
@@ -187,6 +214,15 @@ SavedPostItem _item({
       'did': 'did:plc:author',
       'handle': handle,
     },
+    if (video)
+      'video': {
+        'cid': 'bafyvideo',
+        'mime': 'video/mp4',
+        'size': 12,
+        'alt': 'Saved spinning video',
+        'playlist': 'https://video.example/playlist.m3u8',
+        'thumbnail': 'https://video.example/thumbnail.jpg',
+      },
   },
   'savedAt': '2026-07-21T12:00:00.000Z',
   'folderId': 'folder-a',

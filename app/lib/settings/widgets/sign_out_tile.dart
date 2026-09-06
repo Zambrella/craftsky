@@ -4,6 +4,7 @@ import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/settings/models/settings_row.dart';
 import 'package:craftsky_app/settings/widgets/settings_row_tile.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -19,7 +20,7 @@ class SignOutTile extends ConsumerWidget {
         kind: SettingsRowKind.destructiveAction,
       ),
       label: AppLocalizations.of(context).settingsSignOut,
-      leading: Icons.logout,
+      leading: CraftskyIconsBold.logout,
       onTap: state is AsyncLoading
           ? null
           : () async {
