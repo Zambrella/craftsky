@@ -46,7 +46,7 @@ It's an open, commentable doc covering the "why", the core post types (simple + 
 ## Tech Stack
 
 - **Client:** Flutter + Dart, using [atproto.dart](https://atprotodart.com)
-- **App View:** Go, using [indigo](https://github.com/bluesky-social/indigo), `pgx`, `sqlc`, `chi`
+- **App View:** Go, using [indigo](https://github.com/bluesky-social/indigo), `pgx`, and the standard library HTTP server
 - **Database:** Postgres 16
 - **Infrastructure:** Hetzner VPS + Docker Compose + Caddy
 - **Push:** FCM
