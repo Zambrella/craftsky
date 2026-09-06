@@ -1,6 +1,7 @@
 import 'package:craftsky_app/feed/data/post_repository.dart';
 import 'package:craftsky_app/feed/models/create_post_external.dart';
 import 'package:craftsky_app/feed/models/create_post_image.dart';
+import 'package:craftsky_app/feed/models/create_post_video.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
@@ -121,6 +122,7 @@ class FakePostRepository implements PostRepository {
 
   PostRef? lastCreateQuote;
   CreatePostExternal? lastCreateExternal;
+  CreatePostVideo? lastCreateVideo;
   List<String>? lastCreateLangs;
 
   @override
@@ -132,10 +134,12 @@ class FakePostRepository implements PostRepository {
     Project? project,
     List<CreatePostImage>? images,
     CreatePostExternal? external,
+    CreatePostVideo? video,
     List<Map<String, dynamic>>? facets,
   }) {
     lastCreateQuote = quote;
     lastCreateExternal = external;
+    lastCreateVideo = video;
     lastCreateLangs = List.unmodifiable(langs);
     return onCreateWithFacets?.call(
           text: text,

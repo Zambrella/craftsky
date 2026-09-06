@@ -14,8 +14,10 @@ authoritative remediation and acceptance detail is in
 
 ## 1. Security contract
 
-- The Flutter app holds only an opaque CraftSky session bearer. It never holds
-  an OAuth access token, refresh token, or DPoP private key.
+- Flutter authentication/session state holds only an opaque CraftSky session
+  bearer. It never holds an OAuth access token, refresh token, or DPoP private
+  key. ADR 012's separate memory-only video service JWT is not authentication
+  session state and grants no login, refresh, or general PDS authority.
 - The browser callback carries only a short-lived, single-use handoff code:
   `https://app.craftsky.social/auth/complete?code=...`.
 - Production authentication uses verified HTTPS Android App Links and iOS

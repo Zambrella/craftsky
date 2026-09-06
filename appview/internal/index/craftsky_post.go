@@ -4,14 +4,17 @@ package index
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/ipfs/go-cid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"golang.org/x/text/language"
 
 	"social.craftsky/appview/internal/languages"
 	craftskylex "social.craftsky/appview/internal/lexicon/craftsky"
@@ -82,6 +85,9 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 	var rec craftskylex.FeedPost
 	if err := json.Unmarshal(ev.Record, &rec); err != nil {
 		return fmt.Errorf("unmarshal %s: %w", ev.URI, err)
+	}
+	if err := validateIndexedVideo(rec.Embed); err != nil {
+		return fmt.Errorf("validate video embed %s: %w", ev.URI, err)
 	}
 	if err := languages.ValidatePostTags(rec.Langs); err != nil {
 		return fmt.Errorf("validate post languages %s: %w", ev.URI, err)
@@ -263,6 +269,36 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit upsert %s: %w", ev.URI, err)
+	}
+	return nil
+}
+
+func validateIndexedVideo(embed *craftskylex.FeedPost_Embed) error {
+	if embed == nil || embed.EmbedVideo == nil {
+		return nil
+	}
+	video := embed.EmbedVideo
+	if video.Video == nil || video.Video.MimeType != "video/mp4" || video.Video.Size <= 0 || video.Video.Size > 300_000_000 {
+		return errors.New("invalid video blob")
+	}
+	videoCID := cid.Cid(video.Video.Ref)
+	if !videoCID.Defined() {
+		return errors.New("invalid video cid")
+	}
+	if video.AspectRatio != nil && (video.AspectRatio.Width <= 0 || video.AspectRatio.Height <= 0) {
+		return errors.New("invalid video aspect ratio")
+	}
+	for _, caption := range video.Captions {
+		if caption == nil || caption.File == nil || caption.File.MimeType != "text/vtt" || caption.File.Size <= 0 || caption.File.Size > 20_000 {
+			return errors.New("invalid video caption blob")
+		}
+		captionCID := cid.Cid(caption.File.Ref)
+		if !captionCID.Defined() {
+			return errors.New("invalid video caption cid")
+		}
+		if _, err := language.Parse(caption.Lang); err != nil || strings.TrimSpace(caption.Lang) == "" {
+			return errors.New("invalid video caption language")
+		}
 	}
 	return nil
 }

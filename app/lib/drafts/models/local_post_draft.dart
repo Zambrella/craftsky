@@ -1,5 +1,6 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/drafts/models/draft_media_descriptor.dart';
+import 'package:craftsky_app/drafts/models/video_draft_descriptor.dart';
 
 enum LocalPostDraftKind { standard, project }
 
@@ -66,6 +67,7 @@ final class LocalPostDraft {
     required this.content,
     required this.schedule,
     required List<DraftMediaDescriptor> media,
+    this.video,
     this.availability = LocalPostDraftAvailability.available,
     this.revision = 1,
   }) : media = List.unmodifiable(media);
@@ -94,6 +96,7 @@ final class LocalPostDraft {
   final LocalDraftContent content;
   final DraftScheduleIntent schedule;
   final List<DraftMediaDescriptor> media;
+  final VideoDraftDescriptor? video;
   final LocalPostDraftAvailability availability;
   final int revision;
 
@@ -104,6 +107,7 @@ final class LocalPostDraft {
   LocalPostDraft withStorageState({
     required LocalPostDraftAvailability availability,
     required List<DraftMediaDescriptor> media,
+    VideoDraftDescriptor? video,
   }) => LocalPostDraft(
     id: id,
     owner: owner,
@@ -113,6 +117,7 @@ final class LocalPostDraft {
     content: content,
     schedule: schedule,
     media: media,
+    video: video ?? this.video,
     availability: availability,
     revision: revision,
   );

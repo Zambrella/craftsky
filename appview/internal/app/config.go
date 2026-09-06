@@ -281,13 +281,16 @@ type Config struct {
 
 	// Media policy. Defaults preserve the approved image-posting contract;
 	// env overrides may lower but not raise these ceilings.
-	JSONBodyLimitBytes  int64 // default 1 MiB
-	MaxPostImages       int   // default 4, maximum 4
-	MaxImageUploadBytes int64 // default 2,000,000 bytes, maximum 2,000,000 bytes
-	LinkPreviewsEnabled bool
-	ImageDecodeLimits   api.ImageDecodeLimits
-	RateLimits          middleware.RateLimitConfig
-	ScheduledPostsS3    scheduledposts.S3ObjectStoreConfig
+	JSONBodyLimitBytes        int64 // default 1 MiB
+	MaxPostImages             int   // default 4, maximum 4
+	MaxImageUploadBytes       int64 // default 2,000,000 bytes, maximum 2,000,000 bytes
+	LinkPreviewsEnabled       bool
+	ImageDecodeLimits         api.ImageDecodeLimits
+	VideoServiceURL           string
+	VideoPlaylistURLTemplate  string
+	VideoThumbnailURLTemplate string
+	RateLimits                middleware.RateLimitConfig
+	ScheduledPostsS3          scheduledposts.S3ObjectStoreConfig
 
 	// Observability. Sentry export/tracing stays disabled unless explicitly
 	// configured, and unsafe body logging is local-dev only.
@@ -326,9 +329,12 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	_ = godotenv.Load(envFilePath)
 
 	cfg := Config{
-		Env:         env,
-		DatabaseURL: os.Getenv("DATABASE_URL"),
-		DevDID:      os.Getenv("CRAFTSKY_DEV_DID"),
+		Env:                       env,
+		DatabaseURL:               os.Getenv("DATABASE_URL"),
+		DevDID:                    os.Getenv("CRAFTSKY_DEV_DID"),
+		VideoServiceURL:           getEnvWithDefault("VIDEO_SERVICE_URL", "https://video.bsky.app"),
+		VideoPlaylistURLTemplate:  getEnvWithDefault("VIDEO_PLAYLIST_URL_TEMPLATE", "https://video.bsky.app/watch/{did}/{cid}/playlist.m3u8"),
+		VideoThumbnailURLTemplate: getEnvWithDefault("VIDEO_THUMBNAIL_URL_TEMPLATE", "https://video.bsky.app/watch/{did}/{cid}/thumbnail.jpg"),
 	}
 
 	origins := os.Getenv("ALLOWED_ORIGINS")

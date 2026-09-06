@@ -45,6 +45,7 @@ final class PostSummaryData with PostSummaryDataMappable {
       createdAt: post.createdAt,
       projectTitle: post.project?.common.title,
       images: post.images,
+      video: post.video,
       externalImport: post.externalImport,
       external: post.external,
     );
@@ -93,6 +94,7 @@ final class PostSummaryData with PostSummaryDataMappable {
       createdAt: post.createdAt,
       projectTitle: post.project?.common.title,
       images: post.images,
+      video: post.video,
       externalImport: post.externalImport,
       external: post.external,
     );
@@ -103,6 +105,7 @@ final class PostSummaryData with PostSummaryDataMappable {
     required String text,
     required String? projectTitle,
     required List<PostImage>? images,
+    PostVideo? video,
     DateTime? createdAt,
     ExternalImport? externalImport,
     PostExternal? external,
@@ -115,9 +118,22 @@ final class PostSummaryData with PostSummaryDataMappable {
       final title? when title.isNotEmpty => title,
       _ => null,
     },
-    image: images?.firstOrNull,
+    image:
+        images?.firstOrNull ??
+        switch (video) {
+          PostVideo(:final thumbnail?) => PostImage(
+            cid: video.cid.toString(),
+            mime: 'image/jpeg',
+            size: 0,
+            alt: video.alt ?? '',
+            aspectRatio: video.aspectRatio,
+            thumb: thumbnail,
+            fullsize: thumbnail,
+          ),
+          _ => null,
+        },
     externalImport: externalImport,
-    external: images?.isNotEmpty == true ? null : external,
+    external: images?.isNotEmpty == true || video != null ? null : external,
   );
 
   final PostSummaryState state;

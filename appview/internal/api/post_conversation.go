@@ -138,7 +138,7 @@ func ListCommentRepliesHandler(
 				return
 			}
 			for _, row := range rows {
-				resp := BuildPostResponse(row, handles[row.DID])
+				resp := buildPostResponse(row, handles[row.DID], store)
 				applyEngagementSummary(resp, summaries[row.URI])
 				item := ReplyItem{Post: resp, Flattened: false}
 				if row.ReplyParentURI != nil && *row.ReplyParentURI != target.URI {
@@ -227,7 +227,7 @@ func GetPostCommentsHandler(
 			return
 		}
 		if rootRelationship.HasBlock() {
-			rootPost := BuildPostResponse(root, "")
+			rootPost := buildPostResponse(root, "", store)
 			ApplyPostRelationshipPolicy(rootPost, rootRelationship, relationships.SurfaceDirectPost)
 			writeJSON(w, http.StatusOK, &CommentSectionResponse{
 				Post: rootPost, Comments: CommentPage{Items: []CommentItem{}}, Sort: parseCommentSort(r.URL.Query().Get("sort")),
@@ -383,15 +383,15 @@ func GetPostCommentsHandler(
 			return
 		}
 
-		rootPost := BuildPostResponse(root, handles[root.DID])
+		rootPost := buildPostResponse(root, handles[root.DID], store)
 		applyEngagementSummary(rootPost, summaries[root.URI])
 		items := make([]CommentItem, 0, len(comments))
 		if focusedCommentRow != nil && !containsPostRow(comments, focusedCommentRow.URI) {
-			post := BuildPostResponse(focusedCommentRow, handles[focusedCommentRow.DID])
+			post := buildPostResponse(focusedCommentRow, handles[focusedCommentRow.DID], store)
 			applyEngagementSummary(post, summaries[focusedCommentRow.URI])
 			replies := ReplyPage{Loaded: false, Items: []ReplyItem{}}
 			if focusedReplyRow != nil {
-				replies = buildReplyPage(focusedBranchRows, focusedBranchCursor, focusedCommentRow, hydratedRows, handles, summaries)
+				replies = buildReplyPage(focusedBranchRows, focusedBranchCursor, focusedCommentRow, hydratedRows, handles, summaries, store)
 				replies.Items = shapeReplyItems(replies.Items, focusedBranchRows, states)
 			}
 			items = append(items, CommentItem{
@@ -401,7 +401,7 @@ func GetPostCommentsHandler(
 			})
 		}
 		for _, row := range comments {
-			post := BuildPostResponse(row, handles[row.DID])
+			post := buildPostResponse(row, handles[row.DID], store)
 			applyEngagementSummary(post, summaries[row.URI])
 			placement := "normal"
 			if focusedURI != "" && row.URI == focusedURI {
@@ -409,7 +409,7 @@ func GetPostCommentsHandler(
 			}
 			replies := ReplyPage{Loaded: false, Items: []ReplyItem{}}
 			if focusedReplyRow != nil && row.URI == focusedURI {
-				replies = buildReplyPage(focusedBranchRows, focusedBranchCursor, row, hydratedRows, handles, summaries)
+				replies = buildReplyPage(focusedBranchRows, focusedBranchCursor, row, hydratedRows, handles, summaries, store)
 				replies.Items = shapeReplyItems(replies.Items, focusedBranchRows, states)
 			}
 			items = append(items, CommentItem{
@@ -558,14 +558,14 @@ func resolveCommentAncestor(ctx context.Context, store postByURIReader, rootURI,
 	return nil, nil
 }
 
-func buildReplyPage(rows []*PostRow, cursor string, commentRow *PostRow, hydratedRows []*PostRow, handles map[string]syntax.Handle, summaries map[string]EngagementSummary) ReplyPage {
+func buildReplyPage(rows []*PostRow, cursor string, commentRow *PostRow, hydratedRows []*PostRow, handles map[string]syntax.Handle, summaries map[string]EngagementSummary, playbackSource any) ReplyPage {
 	items := make([]ReplyItem, 0, len(rows))
 	for _, row := range rows {
 		var parentRow *PostRow
 		if row.ReplyParentURI != nil && *row.ReplyParentURI != commentRow.URI {
 			parentRow, _ = findPostRow(hydratedRows, *row.ReplyParentURI)
 		}
-		items = append(items, buildReplyItem(row, parentRow, commentRow, handles, summaries))
+		items = append(items, buildReplyItem(row, parentRow, commentRow, handles, summaries, playbackSource))
 	}
 	return ReplyPage{Loaded: true, Items: items, Cursor: cursor}
 }
@@ -598,8 +598,8 @@ func collectReplyPagePostResponses(page ReplyPage) []*PostResponse {
 	return responses
 }
 
-func buildReplyItem(row, parentRow, commentRow *PostRow, handles map[string]syntax.Handle, summaries map[string]EngagementSummary) ReplyItem {
-	post := BuildPostResponse(row, handles[row.DID])
+func buildReplyItem(row, parentRow, commentRow *PostRow, handles map[string]syntax.Handle, summaries map[string]EngagementSummary, playbackSource any) ReplyItem {
+	post := buildPostResponse(row, handles[row.DID], playbackSource)
 	applyEngagementSummary(post, summaries[row.URI])
 	item := ReplyItem{Post: post, Flattened: false}
 	if parentRow != nil && commentRow != nil && parentRow.URI != commentRow.URI {

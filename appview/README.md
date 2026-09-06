@@ -367,8 +367,18 @@ Sentry-bound events, logs, spans, and metrics use bounded route patterns, operat
 
 The appview acts as a confidential Backend-for-Frontend (BFF) OAuth client
 against users' PDSes, using [indigo's `atproto/auth/oauth`](https://github.com/bluesky-social/indigo/tree/main/atproto/auth/oauth).
-All PDS tokens (access, refresh, DPoP key) stay server-side; clients
-present an opaque Craftsky bearer token on every authenticated request.
+OAuth access/refresh tokens and DPoP keys stay server-side; clients present an
+opaque Craftsky bearer token on authenticated AppView requests. The sole narrow
+exception is ADR 012: AppView may issue Flutter a short-lived, upload-only
+PDS-signed service JWT for direct upload to the exact configured Bluesky video
+endpoint. That credential is memory-only and is not a general OAuth/TMB handoff.
+
+Video completion verification uses the public, tokenless job-status endpoint at
+`VIDEO_SERVICE_URL` (default `https://video.bsky.app`). Canonical post responses
+derive HLS-only playback metadata from `VIDEO_PLAYLIST_URL_TEMPLATE` and
+`VIDEO_THUMBNAIL_URL_TEMPLATE`; both templates must be HTTPS and contain exactly
+one `{did}` and `{cid}` placeholder. Captions are available only through the
+authenticated, post-membership-checked route and are bounded to 20 KB WebVTT.
 
 See [docs/superpowers/specs/2026-04-18-appview-oauth-bff-design.md](../docs/superpowers/specs/2026-04-18-appview-oauth-bff-design.md)
 for the full design rationale.

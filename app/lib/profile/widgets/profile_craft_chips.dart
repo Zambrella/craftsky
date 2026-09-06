@@ -14,6 +14,8 @@ class ProfileCraftChips extends StatelessWidget {
   final List<String> crafts;
   final WrapAlignment alignment;
 
+  static const double iconSize = 16;
+
   @override
   Widget build(BuildContext context) {
     if (crafts.isEmpty) return const SizedBox.shrink();
@@ -48,7 +50,7 @@ class _CraftChip extends StatelessWidget {
       child: CraftIconLabel(
         craft: label,
         label: display,
-        iconSize: 16,
+        iconSize: ProfileCraftChips.iconSize,
         gap: spacing.sp1,
         flexibleLabel: true,
         style: theme.textTheme.labelMedium?.copyWith(

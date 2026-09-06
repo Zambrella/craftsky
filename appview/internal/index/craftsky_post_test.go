@@ -1378,6 +1378,53 @@ func TestCraftskyPost_Replay_PreservesIndexedAt(t *testing.T) {
 	}
 }
 
+func TestCraftskyPostVideoIndexingValidationAndIdempotence(t *testing.T) {
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	ctx := context.Background()
+	seedCraftskyMember(t, pool, "did:plc:video")
+	idx := index.NewCraftskyPost(pool, testLogger())
+	event := tap.Event{
+		URI: "at://did:plc:video/social.craftsky.feed.post/video", CID: "bafyVideo1",
+		DID: "did:plc:video", Rkey: "video", Collection: "social.craftsky.feed.post", Action: "create",
+		Record: json.RawMessage(`{"$type":"social.craftsky.feed.post","text":"video","createdAt":"` + fixedCreatedAt + `","embed":{"$type":"app.bsky.embed.video","video":{"$type":"blob","ref":{"$link":"bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"},"mimeType":"video/mp4","size":123},"alt":"description","aspectRatio":{"width":16,"height":9},"captions":[{"lang":"en","file":{"$type":"blob","ref":{"$link":"bafkreigxxxkul4e5rjz4fomqgn6ieeoxbcqeztmxjbrhnbpe7r44ya4ahe"},"mimeType":"text/vtt","size":20}}]}}`),
+	}
+	if err := idx.Handle(ctx, event); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	var firstIndexedAt time.Time
+	var rawEmbed json.RawMessage
+	if err := pool.QueryRow(ctx, `SELECT indexed_at, record -> 'embed' FROM craftsky_posts WHERE uri=$1`, event.URI).Scan(&firstIndexedAt, &rawEmbed); err != nil {
+		t.Fatal(err)
+	}
+	response := api.BuildPostResponse(&api.PostRow{DID: event.DID.String(), Rkey: event.Rkey.String(), RawEmbed: rawEmbed}, "video.example")
+	if response.Video == nil || response.Video.CID == "" || len(response.Video.Captions) != 1 {
+		t.Fatalf("video projection = %+v", response.Video)
+	}
+	if err := idx.Handle(ctx, event); err != nil {
+		t.Fatalf("replay: %v", err)
+	}
+	var replayIndexedAt time.Time
+	if err := pool.QueryRow(ctx, `SELECT indexed_at FROM craftsky_posts WHERE uri=$1`, event.URI).Scan(&replayIndexedAt); err != nil {
+		t.Fatal(err)
+	}
+	if !firstIndexedAt.Equal(replayIndexedAt) {
+		t.Fatalf("replay changed indexed_at: %s -> %s", firstIndexedAt, replayIndexedAt)
+	}
+
+	malformed := event
+	malformed.URI = "at://did:plc:video/social.craftsky.feed.post/bad-video"
+	malformed.Rkey = "bad-video"
+	malformed.CID = "bafyVideoBad"
+	malformed.Record = json.RawMessage(`{"$type":"social.craftsky.feed.post","text":"bad","createdAt":"` + fixedCreatedAt + `","embed":{"$type":"app.bsky.embed.video","video":{"ref":{"$link":"bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"},"mimeType":"video/mp4","size":123},"captions":[{"lang":"en","file":{"ref":{"$link":"bafkreigxxxkul4e5rjz4fomqgn6ieeoxbcqeztmxjbrhnbpe7r44ya4ahe"},"mimeType":"text/plain","size":20}}]}}`)
+	if err := idx.Handle(ctx, malformed); err == nil {
+		t.Fatal("malformed video indexed without error")
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM craftsky_posts WHERE uri=$1`, malformed.URI).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("malformed row count=%d err=%v", count, err)
+	}
+}
+
 func TestCraftskyPost_Replay_PreservesMentionIndexedAt(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, craftskyPostsDDL)

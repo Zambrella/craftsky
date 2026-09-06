@@ -7,7 +7,7 @@ import 'package:craftsky_app/drafts/models/local_post_draft.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('UT-019 draft manifest excludes all preview session state', () {
+  test('UT-019 draft manifest excludes preview and video session state', () {
     final draft = LocalPostDraft(
       id: '00000000-0000-4000-8000-000000000001',
       owner: AccountKey('did:plc:alice'),
@@ -33,6 +33,11 @@ void main() {
       'selectedIdentity',
       'dismissed',
       'suppressed',
+      'authorization',
+      'authorizationHeader',
+      'serviceToken',
+      'token',
+      'jobId',
     }) {
       expect(keys, isNot(contains(forbidden)));
     }

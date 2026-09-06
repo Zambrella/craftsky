@@ -61,6 +61,7 @@ class InstagramVerificationSnapshotMapper
   @override
   final Function instantiate = _instantiate;
 }
+
 mixin InstagramVerificationSnapshotMappable {
   InstagramVerificationSnapshotCopyWith<
     InstagramVerificationSnapshot,

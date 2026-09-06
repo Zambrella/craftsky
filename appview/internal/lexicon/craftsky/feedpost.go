@@ -24,7 +24,7 @@ type FeedPost struct {
 	LexiconTypeID string `json:"$type" cborgen:"$type,const=social.craftsky.feed.post"`
 	// createdAt: Client-declared creation timestamp.
 	CreatedAt string `json:"createdAt" cborgen:"createdAt"`
-	// embed: Optional embedded content. Open union supporting local quote embeds and standard external cards.
+	// embed: Optional embedded content. Open union supporting local quote embeds, standard external cards, and standard video.
 	Embed *FeedPost_Embed `json:"embed,omitempty" cborgen:"embed,omitempty"`
 	// externalImport: Optional self-asserted provenance for content created by an external-history importer. This metadata does not verify ownership of an external account or grant trust.
 	ExternalImport *FeedPost_ExternalImport `json:"externalImport,omitempty" cborgen:"externalImport,omitempty"`
@@ -50,10 +50,11 @@ type FeedPost_AspectRatio struct {
 	Width  int64 `json:"width" cborgen:"width"`
 }
 
-// Optional embedded content. Open union supporting local quote embeds and standard external cards.
+// Optional embedded content. Open union supporting local quote embeds, standard external cards, and standard video.
 type FeedPost_Embed struct {
 	FeedPost_QuoteEmbed *FeedPost_QuoteEmbed
 	EmbedExternal       *appbsky.EmbedExternal
+	EmbedVideo          *appbsky.EmbedVideo
 }
 
 func (t *FeedPost_Embed) MarshalJSON() ([]byte, error) {
@@ -64,6 +65,10 @@ func (t *FeedPost_Embed) MarshalJSON() ([]byte, error) {
 	if t.EmbedExternal != nil {
 		t.EmbedExternal.LexiconTypeID = "app.bsky.embed.external"
 		return json.Marshal(t.EmbedExternal)
+	}
+	if t.EmbedVideo != nil {
+		t.EmbedVideo.LexiconTypeID = "app.bsky.embed.video"
+		return json.Marshal(t.EmbedVideo)
 	}
 	return nil, fmt.Errorf("can not marshal empty union as JSON")
 }
@@ -81,6 +86,9 @@ func (t *FeedPost_Embed) UnmarshalJSON(b []byte) error {
 	case "app.bsky.embed.external":
 		t.EmbedExternal = new(appbsky.EmbedExternal)
 		return json.Unmarshal(b, t.EmbedExternal)
+	case "app.bsky.embed.video":
+		t.EmbedVideo = new(appbsky.EmbedVideo)
+		return json.Unmarshal(b, t.EmbedVideo)
 	default:
 		return nil
 	}
@@ -98,6 +106,9 @@ func (t *FeedPost_Embed) MarshalCBOR(w io.Writer) error {
 	if t.EmbedExternal != nil {
 		return t.EmbedExternal.MarshalCBOR(w)
 	}
+	if t.EmbedVideo != nil {
+		return t.EmbedVideo.MarshalCBOR(w)
+	}
 	return fmt.Errorf("can not marshal empty union as CBOR")
 }
 
@@ -114,6 +125,9 @@ func (t *FeedPost_Embed) UnmarshalCBOR(r io.Reader) error {
 	case "app.bsky.embed.external":
 		t.EmbedExternal = new(appbsky.EmbedExternal)
 		return t.EmbedExternal.UnmarshalCBOR(bytes.NewReader(b))
+	case "app.bsky.embed.video":
+		t.EmbedVideo = new(appbsky.EmbedVideo)
+		return t.EmbedVideo.UnmarshalCBOR(bytes.NewReader(b))
 	default:
 		return nil
 	}

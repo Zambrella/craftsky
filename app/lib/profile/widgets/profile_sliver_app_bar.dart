@@ -9,6 +9,7 @@ import 'package:craftsky_app/profile/widgets/profile_framed_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_header_background.dart';
 import 'package:craftsky_app/profile/widgets/profile_identity.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -153,7 +154,10 @@ class ProfileSliverAppBar extends StatelessWidget {
         textScaler: textScaler,
         maxLines: 1,
       )..layout();
-      final measuredWidth = painter.width + (spacing.sp3 * 2);
+      final iconWidth = CraftIcon.assetPathFor(craft) == null
+          ? 0.0
+          : ProfileCraftChips.iconSize + spacing.sp1;
+      final measuredWidth = painter.width + iconWidth + (spacing.sp3 * 2);
       final width = math.min(measuredWidth, availableWidth);
       chipHeight = math.max(chipHeight, painter.height + 12);
 
@@ -206,7 +210,6 @@ class _ProfileLeadingAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final swatches = theme.extension<BrandSwatchTheme>()!;
     final settings = context
         .dependOnInheritedWidgetOfExactType<FlexibleSpaceBarSettings>();
     final topPadding = MediaQuery.paddingOf(context).top;
@@ -220,20 +223,13 @@ class _ProfileLeadingAction extends StatelessWidget {
     final bundle =
         profileColourBundles[customisation.colour] ??
         profileColourBundles[ProfileCustomisation.defaults.colour]!;
-    final backgroundColor = showDrawer
-        ? Colors.transparent
-        : collapsed >= 1
-        ? Colors.transparent
-        : swatches.paper3.withValues(alpha: 1 - collapsed);
-    final foregroundColor = showDrawer
-        ? Color.lerp(
-            profileColour(bundle.foreground),
-            theme.colorScheme.onSurface,
-            collapsed,
-          )
-        : theme.colorScheme.onSurface;
+    final foregroundColor = Color.lerp(
+      profileColour(bundle.foreground),
+      theme.colorScheme.onSurface,
+      collapsed,
+    );
     final style = ButtonStyle(
-      backgroundColor: WidgetStatePropertyAll(backgroundColor),
+      backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
       foregroundColor: WidgetStatePropertyAll(foregroundColor),
     );
 

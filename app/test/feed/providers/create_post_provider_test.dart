@@ -5,6 +5,7 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/create_post_external.dart';
+import 'package:craftsky_app/feed/models/create_post_video.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
@@ -123,6 +124,33 @@ void main() {
       expect(transitions.first, isA<AsyncLoading<Post?>>());
       expect(transitions.last.value?.rkey, 'new');
     });
+
+    test(
+      'IT-005 forwards only the verified video proof to repository',
+      () async {
+        final fake = FakePostRepository(
+          onCreate: ({required text, reply, images}) async =>
+              _post(rkey: 'video'),
+        );
+        final container = ProviderContainer.test(
+          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        );
+        const proof = CreatePostVideo(
+          jobId: 'job-one',
+          blob: CreatePostVideoBlob(
+            cid: 'bafyvideo',
+            mimeType: 'video/mp4',
+            size: 8,
+          ),
+        );
+
+        await container
+            .read(createPostProvider.notifier)
+            .create(text: 'video', langs: _langs, video: proof);
+
+        expect(fake.lastCreateVideo, same(proof));
+      },
+    );
 
     test(
       'rejects submission work captured by a no-longer-active account',

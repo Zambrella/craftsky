@@ -137,6 +137,8 @@ lexgen:
     go run github.com/bluesky-social/indigo/cmd/lexgen@$INDIGO_VERSION \
       --build-file cmd/lexgen/build.json \
       --external-lexicons "$INDIGO_DIR/lexicons/app/bsky/embed/external.json" \
+      --external-lexicons "$INDIGO_DIR/lexicons/app/bsky/embed/video.json" \
+      --external-lexicons "$INDIGO_DIR/lexicons/app/bsky/embed/defs.json" \
       --external-lexicons "$INDIGO_DIR/lexicons/app/bsky/richtext/facet.json" \
       --external-lexicons "$INDIGO_DIR/lexicons/com/atproto/repo/strongRef.json" \
       ../lexicon/social/craftsky \

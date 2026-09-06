@@ -6,8 +6,11 @@ Uses [`atproto.dart`](https://github.com/myConsciousness/atproto.dart) for atpro
 
 - **Reads:** `app` → `appview` HTTP API → Postgres index
 - **Writes:** `app` → `appview` (which holds PDS OAuth tokens) → user's PDS → Relay → firehose → `appview` indexes it
+- **Video upload exception:** `app` streams to the exact configured Bluesky video endpoint with the ephemeral, memory-only service JWT constrained by ADR 012; AppView still verifies and creates the post
 
-The app never holds PDS access or refresh tokens. It holds a CraftSky session token issued by the App View.
+The app never holds OAuth access/refresh tokens or DPoP keys. It persists only a
+CraftSky session token issued by AppView; the video service JWT is never
+persisted.
 
 ## Development
 
