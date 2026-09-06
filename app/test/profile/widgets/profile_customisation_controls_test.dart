@@ -76,29 +76,40 @@ void main() {
           matching: find.byType(ChunkyButton),
         ),
       );
+      final primaryStyle = primary.defaultStyleOf(
+        tester.element(find.text('Primary')),
+      );
+      final secondaryStyle = secondary.defaultStyleOf(
+        tester.element(find.byIcon(CraftskyIcons.settings)),
+      );
       expect(
-        primary
-            .defaultStyleOf(tester.element(find.text('Primary')))
-            .foregroundColor
-            ?.resolve({}),
+        primaryStyle.foregroundColor?.resolve({}),
         foreground,
       );
       expect(
-        primary
-            .defaultStyleOf(tester.element(find.text('Primary')))
-            .overlayColor
-            ?.resolve({WidgetState.hovered}),
+        primaryStyle.iconColor?.resolve({}),
+        foreground,
+      );
+      expect(
+        primaryStyle.overlayColor?.resolve({WidgetState.hovered}),
         Colors.transparent,
       );
       expect(
-        secondary
-            .defaultStyleOf(
-              tester.element(find.byIcon(CraftskyIcons.settings)),
-            )
-            .foregroundColor
-            ?.resolve({}),
+        secondaryStyle.foregroundColor?.resolve({}),
         profileColour('#111318'),
       );
+      expect(
+        secondaryStyle.iconColor?.resolve({}),
+        profileColour('#111318'),
+      );
+      for (final state in [
+        WidgetState.pressed,
+        WidgetState.hovered,
+        WidgetState.focused,
+      ]) {
+        expect(secondaryStyle.foregroundColor?.resolve({state}), foreground);
+        expect(secondaryStyle.iconColor?.resolve({state}), foreground);
+      }
 
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
       addTearDown(mouse.removePointer);

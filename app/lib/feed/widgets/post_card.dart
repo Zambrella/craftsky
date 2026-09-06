@@ -30,6 +30,7 @@ import 'package:craftsky_app/shared/rich_text/faceted_text_model.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
+import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
@@ -199,6 +200,9 @@ class PostCard extends ConsumerWidget {
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final semanticColors = theme.extension<SemanticColorsTheme>()!;
     final colors = theme.colorScheme;
+    final replyAccent = theme.brightness == Brightness.dark
+        ? BrandColors.clay
+        : swatches.clay;
     final l10n = AppLocalizations.of(context);
     final authorHandle = ProfileHandle(post.author.handle);
     final displayName = authorHandle.displayLabel(
@@ -315,7 +319,9 @@ class PostCard extends ConsumerWidget {
         borderRadius: borderRadius,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
+          key: const Key('post-card-tap-target'),
           borderRadius: borderRadius,
+          onTap: onTap,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -412,23 +418,29 @@ class PostCard extends ConsumerWidget {
                     ],
                     if (post.images case final images?
                         when images.isNotEmpty) ...[
-                      PostImageCarousel(
-                        images: images,
-                        onImageTap: (index, heroTags) =>
-                            switch (imageInteractionMode) {
-                              PostCardImageInteractionMode.navigate =>
-                                onTap?.call(),
-                              PostCardImageInteractionMode.fullscreenGallery =>
-                                unawaited(
-                                  showPostImageGallery(
-                                    context,
-                                    images: images,
-                                    initialIndex: index,
-                                    heroTags: heroTags,
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        excludeFromSemantics: true,
+                        onTap: () {},
+                        child: PostImageCarousel(
+                          images: images,
+                          onImageTap: (index, heroTags) =>
+                              switch (imageInteractionMode) {
+                                PostCardImageInteractionMode.navigate =>
+                                  onTap?.call(),
+                                PostCardImageInteractionMode
+                                    .fullscreenGallery =>
+                                  unawaited(
+                                    showPostImageGallery(
+                                      context,
+                                      images: images,
+                                      initialIndex: index,
+                                      heroTags: heroTags,
+                                    ),
                                   ),
-                                ),
-                            },
-                        onImageDoubleTap: likeOnDoubleTap,
+                              },
+                          onImageDoubleTap: likeOnDoubleTap,
+                        ),
                       ),
                       SizedBox(height: spacing.sp3),
                     ],
@@ -478,7 +490,7 @@ class PostCard extends ConsumerWidget {
                               icon: CraftskyIconsBold.comment,
                               count: showReplyCount ? post.replyCount : 0,
                               isSelected: post.viewerHasReplied,
-                              selectedColor: swatches.clay,
+                              selectedColor: replyAccent,
                               tooltip: replyTooltip ?? responseAction,
                               label: showReplyLabel ? responseAction : null,
                               onPressed: onReply,

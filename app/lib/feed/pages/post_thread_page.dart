@@ -31,6 +31,7 @@ import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 class PostThreadPage extends ConsumerStatefulWidget {
   const PostThreadPage({
@@ -102,6 +103,9 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
           case (AsyncLoading(), AsyncData(:final value?)):
             context.showInfo(_deleteSuccessMessage(l10n, value));
             ref.read(deletePostProvider.notifier).reset();
+            if (value.author.did == widget.did && value.rkey == widget.rkey) {
+              _scheduleDeletedRootNavigation();
+            }
           case (AsyncLoading(), AsyncError()):
             context.showError(l10n.responseDeleteError);
             ref.read(deletePostProvider.notifier).reset();
@@ -235,6 +239,18 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
         _ => null,
       },
     );
+  }
+
+  void _scheduleDeletedRootNavigation() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final router = GoRouter.of(context);
+      if (router.canPop()) {
+        router.pop();
+      } else {
+        const FeedRoute().go(context);
+      }
+    });
   }
 
   void _scheduleInitialCreatedPostSeed(PostCommentSection? section) {

@@ -137,6 +137,7 @@ Future<void> _pump(
   Widget child, {
   EdgeInsets viewPadding = EdgeInsets.zero,
   List<dynamic> overrides = const [],
+  ThemeData? theme,
 }) {
   return tester.pumpWidget(
     ProviderScope(
@@ -144,7 +145,7 @@ Future<void> _pump(
       child: MessengerScope(
         messenger: RecordingMessenger(),
         child: MaterialApp(
-          theme: AppTheme.lightThemeData,
+          theme: theme ?? AppTheme.lightThemeData,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, routeChild) {
@@ -1307,6 +1308,35 @@ void main() {
       expect(replyLabel.style?.color, BrandColors.clay);
     });
 
+    testWidgets('uses bright clay for selected replies in dark mode', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(viewerHasReplied: true),
+          showReplyCount: false,
+          showReplyLabel: true,
+        ),
+        theme: AppTheme.darkThemeData,
+      );
+
+      final replyIcon = tester.widget<Icon>(
+        find.byIcon(CraftskyIconsBold.comment),
+      );
+      final replyLabel = tester.widget<Text>(find.text('Comment'));
+
+      expect(replyIcon.color, BrandColors.clay);
+      expect(replyLabel.style?.color, BrandColors.clay);
+      expect(
+        _contrastRatio(
+          BrandColors.clay,
+          AppTheme.darkThemeData.colorScheme.surface,
+        ),
+        greaterThanOrEqualTo(4.5),
+      );
+    });
+
     testWidgets('formats large engagement counts compactly', (tester) async {
       await _pump(
         tester,
@@ -1807,6 +1837,54 @@ void main() {
       await tester.pump(const Duration(milliseconds: 350));
 
       expect(taps, 1);
+    });
+
+    testWidgets('makes the full unused card surface tappable with InkWell', (
+      tester,
+    ) async {
+      var taps = 0;
+      await _pump(tester, PostCard(post: _post(), onTap: () => taps++));
+
+      final tapTarget = find.byKey(const Key('post-card-tap-target'));
+      final inkWell = tester.widget<InkWell>(tapTarget);
+      final rect = tester.getRect(tapTarget);
+
+      expect(inkWell.onTap, isNotNull);
+      await tester.tapAt(Offset(rect.left + 4, rect.center.dy));
+      await tester.pumpAndSettle();
+
+      expect(taps, 1);
+    });
+
+    testWidgets('keeps the full flat card surface tappable', (tester) async {
+      var taps = 0;
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(),
+          style: PostCardStyle.flat,
+          onTap: () => taps++,
+        ),
+      );
+
+      final tapTarget = find.byKey(const Key('post-card-tap-target'));
+      final rect = tester.getRect(tapTarget);
+      await tester.tapAt(Offset(rect.left + 4, rect.center.dy));
+      await tester.pumpAndSettle();
+
+      expect(taps, 1);
+    });
+
+    testWidgets('disables the card InkWell when navigation is unavailable', (
+      tester,
+    ) async {
+      await _pump(tester, PostCard(post: _post()));
+
+      final inkWell = tester.widget<InkWell>(
+        find.byKey(const Key('post-card-tap-target')),
+      );
+
+      expect(inkWell.onTap, isNull);
     });
 
     testWidgets('shows long post bodies in full by default', (tester) async {
@@ -2727,6 +2805,15 @@ void main() {
       expect(find.byType(PostImageGallery), findsNothing);
     });
   });
+}
+
+double _contrastRatio(Color first, Color second) {
+  final lighter = first.computeLuminance() > second.computeLuminance()
+      ? first
+      : second;
+  final darker = identical(lighter, first) ? second : first;
+  return (lighter.computeLuminance() + 0.05) /
+      (darker.computeLuminance() + 0.05);
 }
 
 final class _PostCardSavedRepository implements SavedPostRepository {

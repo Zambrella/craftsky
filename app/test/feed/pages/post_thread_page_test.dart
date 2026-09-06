@@ -44,30 +44,183 @@ final class _ThreadPinRegistryStorage implements SessionRegistryStorage {
 }
 
 PostCommentSection _section(String text) => PostCommentSection(
-  post: Post(
-    uri: 'at://did:plc:alice/social.craftsky.feed.post/root',
-    cid: 'bafyroot',
-    rkey: 'root',
-    text: text,
-    tags: const [],
-    createdAt: DateTime.utc(2026, 7, 16),
-    indexedAt: DateTime.utc(2026, 7, 16),
-    author: PostAuthor(
-      did: 'did:plc:alice',
-      handle: 'alice.craftsky.social',
-    ),
-    likeCount: 0,
-    repostCount: 0,
-    replyCount: 0,
-    viewerHasLiked: false,
-    viewerHasReposted: false,
-    viewerHasSaved: false,
-  ),
+  post: _post(rkey: 'root', text: text),
   sort: CommentSort.oldest,
   comments: const CommentPage(items: []),
 );
 
+Post _post({required String rkey, required String text, PostReply? reply}) =>
+    Post(
+      uri: 'at://did:plc:alice/social.craftsky.feed.post/$rkey',
+      cid: 'bafy$rkey',
+      rkey: rkey,
+      text: text,
+      tags: const [],
+      createdAt: DateTime.utc(2026, 7, 16),
+      indexedAt: DateTime.utc(2026, 7, 16),
+      author: PostAuthor(
+        did: 'did:plc:alice',
+        handle: 'alice.craftsky.social',
+      ),
+      likeCount: 0,
+      repostCount: 0,
+      replyCount: 0,
+      viewerHasLiked: false,
+      viewerHasReposted: false,
+      viewerHasSaved: false,
+      reply: reply,
+    );
+
+Future<GoRouter> _pumpThreadRoute(
+  WidgetTester tester, {
+  required FakePostRepository repository,
+  required RecordingMessenger messenger,
+}) async {
+  final router = GoRouter(
+    initialLocation: '/feed',
+    routes: [
+      GoRoute(
+        path: '/feed',
+        builder: (_, _) => const Scaffold(body: Text('Feed destination')),
+      ),
+      GoRoute(
+        path: '/posts/:did/:rkey',
+        builder: (_, state) => FormFactorWidget(
+          child: PostThreadPage(
+            did: Did.parse(state.pathParameters['did']!),
+            rkey: RecordKey.parse(state.pathParameters['rkey']!),
+          ),
+        ),
+      ),
+    ],
+  );
+  addTearDown(router.dispose);
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        postRepositoryProvider.overrideWithValue(repository),
+        authSessionProvider.overrideWith(
+          () => SignedInAuthSession(did: 'did:plc:alice'),
+        ),
+      ],
+      child: MessengerScope(
+        messenger: messenger,
+        child: MaterialApp.router(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
+      ),
+    ),
+  );
+  unawaited(router.push<void>('/posts/did:plc:alice/root'));
+  await tester.pumpAndSettle();
+  return router;
+}
+
 void main() {
+  testWidgets('successful root deletion returns to the previous route', (
+    tester,
+  ) async {
+    final messenger = RecordingMessenger();
+    final repository = FakePostRepository(
+      onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+          _section('thread root'),
+      onDelete: (did, rkey) async {},
+    );
+    await _pumpThreadRoute(
+      tester,
+      repository: repository,
+      messenger: messenger,
+    );
+
+    await tester.tap(find.byIcon(CraftskyIconsBold.more));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete post'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Feed destination'), findsOneWidget);
+    expect(messenger.calls.last.$2, 'Post deleted.');
+  });
+
+  testWidgets('failed root deletion keeps the thread open', (tester) async {
+    final messenger = RecordingMessenger();
+    final repository = FakePostRepository(
+      onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+          _section('thread root'),
+      onDelete: (did, rkey) async => throw Exception('delete failed'),
+    );
+    await _pumpThreadRoute(
+      tester,
+      repository: repository,
+      messenger: messenger,
+    );
+
+    await tester.tap(find.byIcon(CraftskyIconsBold.more));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete post'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('thread root'), findsOneWidget);
+    expect(find.text('Feed destination'), findsNothing);
+    expect(
+      messenger.calls.last.$2,
+      "Couldn't delete that comment or reply.",
+    );
+  });
+
+  testWidgets('successful comment deletion keeps the thread open', (
+    tester,
+  ) async {
+    final messenger = RecordingMessenger();
+    final initialSection = _section('thread root');
+    final rootRef = PostRef(
+      uri: initialSection.post.uri,
+      cid: initialSection.post.cid,
+    );
+    final section = initialSection.copyWith(
+      comments: CommentPage(
+        items: [
+          CommentItem(
+            post: _post(
+              rkey: 'comment',
+              text: 'owned comment',
+              reply: PostReply(root: rootRef, parent: rootRef),
+            ),
+            placement: CommentPlacement.viewerAuthored,
+            replies: const ReplyPage(loaded: false, items: []),
+          ),
+        ],
+      ),
+    );
+    final repository = FakePostRepository(
+      onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+          section,
+      onDelete: (did, rkey) async {},
+    );
+    await _pumpThreadRoute(
+      tester,
+      repository: repository,
+      messenger: messenger,
+    );
+
+    await tester.tap(find.byIcon(CraftskyIconsBold.more).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete comment'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('thread root'), findsOneWidget);
+    expect(find.text('Feed destination'), findsNothing);
+    expect(messenger.calls.last.$2, 'Comment deleted.');
+  });
+
   testWidgets('AT-002 pins the owner-authored thread root', (tester) async {
     final targets = <String>[];
     final messenger = RecordingMessenger();

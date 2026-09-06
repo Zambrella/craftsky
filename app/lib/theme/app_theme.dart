@@ -113,6 +113,11 @@ class AppTheme {
       ),
     );
     return base.copyWith(
+      splashFactory: NoSplash.splashFactory,
+      splashColor: Colors.transparent,
+      highlightColor: base.colorScheme.primary.withValues(alpha: 0.12),
+      hoverColor: base.colorScheme.primary.withValues(alpha: 0.08),
+      focusColor: base.colorScheme.primary.withValues(alpha: 0.10),
       extensions: _extensions(base.colorScheme),
       actionIconTheme: _actionIconTheme,
       appBarTheme: _appBarTheme(base),
@@ -174,6 +179,11 @@ class AppTheme {
       ),
     );
     return base.copyWith(
+      splashFactory: NoSplash.splashFactory,
+      splashColor: Colors.transparent,
+      highlightColor: base.colorScheme.primary.withValues(alpha: 0.12),
+      hoverColor: base.colorScheme.primary.withValues(alpha: 0.08),
+      focusColor: base.colorScheme.primary.withValues(alpha: 0.10),
       extensions: _extensions(base.colorScheme, dark: true),
       actionIconTheme: _actionIconTheme,
       appBarTheme: _appBarTheme(base),

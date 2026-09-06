@@ -561,14 +561,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                                   },
                             onRequestMore: isSaving
                                 ? null
-                                : () => unawaited(
-                                    confirmAndLaunchExternalLink(
-                                      context,
-                                      uri: settingsSupportUri,
-                                      launchUrl: widget.linkLauncher,
-                                      confirmOpenLink: widget.confirmOpenLink,
-                                    ),
-                                  ),
+                                : () => unawaited(_openSupport()),
                           );
                         },
                       ),
@@ -586,6 +579,15 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
         ),
       ),
     );
+  }
+
+  Future<void> _openSupport() async {
+    final opened = await tryLaunchSettingsLink(
+      settingsSupportUri,
+      widget.linkLauncher,
+    );
+    if (!mounted || opened) return;
+    context.showError(AppLocalizations.of(context).navigationLinkOpenError);
   }
 
   void _ensureUnsavedWorkRegistration() {
