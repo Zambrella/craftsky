@@ -45,8 +45,8 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
   - [x] CTA (e.g. to shop)
   - [x] Business info
   - [x] Upcoming events
-- [ ] Make sure to handle PDS migration
-- [ ] Video posts (including Instagram post importer)
+- [x] Make sure to handle PDS migration
+- [x] Video posts (including Instagram post importer)
 - [ ] Update to latest version of `Indigo` package and `Tap` service
 - [ ] CraftSky hosted CDN (maybe)
 - [ ] Pro and Business subscriptions (Revenue Cat)
