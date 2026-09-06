@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:16@sha256:11a9d238fbb48bab14599c57e41123254452b1a2d93c6c8595bce96f346bd082
+    image: postgres:16@sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94
     restart: unless-stopped
     environment:
       POSTGRES_USER: craftsky
@@ -71,7 +71,7 @@ services:
     restart: "no"
 
   tap:
-    image: ghcr.io/bluesky-social/indigo/tap:0.1.10
+    image: ghcr.io/bluesky-social/indigo/tap:0.1.10@sha256:5e20bfe416d29fcd215ed8bf99f10b2ab825a6de4e5599846dd33967ade2abeb
     restart: unless-stopped
     environment:
       TAP_RELAY_URL: https://relay1.us-east.bsky.network
@@ -108,7 +108,7 @@ services:
   #
   # Add dev DIDs here as needed; real users don't need an entry.
   tap-bootstrap:
-    image: curlimages/curl:8.9.1
+    image: curlimages/curl:8.22.0@sha256:58adaa4e8dca9c988bae2aba4ab3434a0bb2da16bbe3f92dec39ec7785166777
     depends_on:
       tap:
         condition: service_healthy

@@ -83,7 +83,7 @@ test:
       TEST_S3_ACCESS_KEY_ID="craftsky-minio" \
       TEST_S3_SECRET_ACCESS_KEY="craftsky-minio-dev-secret" \
       TEST_DATABASE_REQUIRED="true" \
-      GOTOOLCHAIN="go1.26.6" \
+      GOTOOLCHAIN="go1.27.1" \
       go test -p=1 -race ./...
 
 # Fast, explicitly incomplete AppView unit path. Real PostgreSQL and MinIO
@@ -102,7 +102,7 @@ appview-test-unit:
       -u TEST_S3_ACCESS_KEY_ID \
       -u TEST_S3_SECRET_ACCESS_KEY \
       TEST_DATABASE_REQUIRED="false" \
-      GOTOOLCHAIN="go1.26.6" \
+      GOTOOLCHAIN="go1.27.1" \
       go test ./...
 
 # Release-equivalent, fail-closed AppView gate. It uses an isolated Compose
