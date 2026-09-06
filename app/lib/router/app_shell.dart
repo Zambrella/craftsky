@@ -358,12 +358,7 @@ class _LargeShellNavigationFrameState
     context.showError(AppLocalizations.of(context).navigationLinkOpenError);
   }
 
-  Future<void> _openFeedback() => confirmAndLaunchExternalLink(
-    context,
-    uri: settingsSupportUri,
-    launchUrl: widget.linkLauncher,
-    confirmOpenLink: widget.confirmOpenLink,
-  );
+  Future<void> _openFeedback() => _openExternalLink(settingsSupportUri);
 
   void _openComposer(BuildContext anchorContext) {
     unawaited(
@@ -678,12 +673,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     context.showError(AppLocalizations.of(context).navigationLinkOpenError);
   }
 
-  Future<void> _openFeedback() => confirmAndLaunchExternalLink(
-    context,
-    uri: settingsSupportUri,
-    launchUrl: widget.linkLauncher,
-    confirmOpenLink: widget.confirmOpenLink,
-  );
+  Future<void> _openFeedback() => _openExternalLink(settingsSupportUri);
 
   Future<void> _showCompactSwitcher(AccountSwitcherState state) =>
       showAccountSwitcherSheet(

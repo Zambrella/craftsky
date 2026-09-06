@@ -124,6 +124,17 @@ class ChunkyButton extends ButtonStyleButton {
         (isSecondary
             ? localColours?.onSoftContainer ?? colors.onSurface
             : localColours?.foreground ?? colors.onPrimary);
+    final contentColor = WidgetStateProperty.resolveWith<Color>((states) {
+      if (foregroundColor != null || localColours == null || !isSecondary) {
+        return onSurface;
+      }
+      if (states.contains(WidgetState.pressed) ||
+          states.contains(WidgetState.hovered) ||
+          states.contains(WidgetState.focused)) {
+        return localColours.foreground;
+      }
+      return onSurface;
+    });
     final hoverSurface =
         localColours?.hover ??
         Color.alphaBlend(Colors.black.withValues(alpha: 0.08), surface);
@@ -145,17 +156,7 @@ class ChunkyButton extends ButtonStyleButton {
         ),
       ),
       backgroundColor: const WidgetStatePropertyAll(Colors.transparent),
-      foregroundColor: WidgetStateProperty.resolveWith((states) {
-        if (foregroundColor != null || localColours == null || !isSecondary) {
-          return onSurface;
-        }
-        if (states.contains(WidgetState.pressed) ||
-            states.contains(WidgetState.hovered) ||
-            states.contains(WidgetState.focused)) {
-          return localColours.foreground;
-        }
-        return onSurface;
-      }),
+      foregroundColor: contentColor,
       overlayColor: WidgetStateProperty.resolveWith((states) {
         // A scoped colour theme supplies exact audited interaction surfaces;
         // do not alter them with Material's translucent overlay.
@@ -185,7 +186,7 @@ class ChunkyButton extends ButtonStyleButton {
       minimumSize: const WidgetStatePropertyAll(Size(64, 44)),
       maximumSize: const WidgetStatePropertyAll(Size.infinite),
       side: const WidgetStatePropertyAll(BorderSide.none),
-      iconColor: WidgetStatePropertyAll(onSurface),
+      iconColor: contentColor,
       iconSize: const WidgetStatePropertyAll(18),
       mouseCursor: WidgetStateProperty.resolveWith((states) {
         if (states.contains(WidgetState.disabled)) {
@@ -198,7 +199,6 @@ class ChunkyButton extends ButtonStyleButton {
       animationDuration: durations.medium,
       enableFeedback: true,
       alignment: Alignment.center,
-      splashFactory: InkRipple.splashFactory,
 
       // Custom background paints the hard-offset shadow AND the coloured
       // surface, then positions the foreground child on top. We paint the

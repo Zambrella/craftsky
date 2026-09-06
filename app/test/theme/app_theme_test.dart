@@ -8,6 +8,27 @@ void main() {
     (name: 'light', loadTheme: () => AppTheme.lightThemeData),
     (name: 'dark', loadTheme: () => AppTheme.darkThemeData),
   ]) {
+    testWidgets('$name theme uses flat color interaction feedback', (
+      tester,
+    ) async {
+      final theme = loadTheme();
+
+      expect(theme.splashFactory, same(NoSplash.splashFactory));
+      expect(theme.splashColor, Colors.transparent);
+      expect(
+        theme.highlightColor,
+        theme.colorScheme.primary.withValues(alpha: 0.12),
+      );
+      expect(
+        theme.hoverColor,
+        theme.colorScheme.primary.withValues(alpha: 0.08),
+      );
+      expect(
+        theme.focusColor,
+        theme.colorScheme.primary.withValues(alpha: 0.10),
+      );
+    });
+
     testWidgets('$name theme gives segmented buttons the moss color contract', (
       tester,
     ) async {

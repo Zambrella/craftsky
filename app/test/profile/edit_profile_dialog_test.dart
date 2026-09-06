@@ -365,14 +365,14 @@ void main() {
     testWidgets(
       'Request more uses the safe support-link flow without changing state',
       (tester) async {
-        Uri? confirmedUri;
+        var confirmationCalls = 0;
         Uri? launchedUri;
         await _pumpEditDialog(
           tester,
           repo: FakeProfileRepository(onFetch: (_) async => _seedProfile),
           confirmOpenLink: (context, uri) async {
-            confirmedUri = uri;
-            return true;
+            confirmationCalls++;
+            return false;
           },
           linkLauncher: (uri) async {
             launchedUri = uri;
@@ -388,7 +388,7 @@ void main() {
         const expected =
             'https://userinput.app/s/did:plc:lmmx63zcns6gewgxqfdt4kof/'
             '3mpr5izppvt2k?lang=en';
-        expect(confirmedUri.toString(), expected);
+        expect(confirmationCalls, 0);
         expect(launchedUri.toString(), expected);
         expect(find.text("Couldn't open that link."), findsOneWidget);
         expect(find.text('Edit profile'), findsOneWidget);
