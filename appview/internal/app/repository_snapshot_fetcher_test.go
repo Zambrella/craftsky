@@ -156,6 +156,13 @@ type repositorySnapshotFixtureRecord struct {
 	record interface{ MarshalCBOR(io.Writer) error }
 }
 
+type indigoTestBlockstore struct {
+	blockstore.Blockstore
+}
+
+// Indigo's MST writer still requires the legacy method removed from Boxo.
+func (indigoTestBlockstore) HashOnRead(bool) {}
+
 func buildRepositorySnapshotCAR(t *testing.T, did syntax.DID, key atcrypto.PrivateKey) repositorySnapshotCAR {
 	return buildRepositorySnapshotCARWithRecords(t, did, key, "3aaaaaaaaaaa2", []repositorySnapshotFixtureRecord{{
 		path:   "social.craftsky.actor.profile/self",
@@ -172,7 +179,7 @@ func buildRepositorySnapshotCARWithRecords(
 ) repositorySnapshotCAR {
 	t.Helper()
 	ctx := context.Background()
-	store := blockstore.NewBlockstore(datastore.NewMapDatastore())
+	store := indigoTestBlockstore{Blockstore: blockstore.NewBlockstore(datastore.NewMapDatastore())}
 	tree := mst.NewEmptyTree()
 	recordCIDs := make([]cid.Cid, 0, len(records))
 	for _, fixture := range records {
@@ -315,7 +322,7 @@ func repositorySnapshotCARWithCommitData(t *testing.T, fixture repositorySnapsho
 	if err != nil {
 		t.Fatalf("read fixture CAR: %v", err)
 	}
-	store := blockstore.NewBlockstore(datastore.NewMapDatastore())
+	store := indigoTestBlockstore{Blockstore: blockstore.NewBlockstore(datastore.NewMapDatastore())}
 	var commit atrepo.Commit
 	for {
 		block, err := reader.Next()

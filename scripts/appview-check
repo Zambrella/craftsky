@@ -83,10 +83,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-export GOTOOLCHAIN="go1.26.6"
+export GOTOOLCHAIN="go1.27.1"
 actual_go_version=$(go env GOVERSION)
-if [[ "$actual_go_version" != "go1.26.6" ]]; then
-  echo "appview-check: Go version is $actual_go_version, want go1.26.6" >&2
+if [[ "$actual_go_version" != "go1.27.1" ]]; then
+  echo "appview-check: Go version is $actual_go_version, want go1.27.1" >&2
   exit 1
 fi
 toolchain_goroot=$(go env GOROOT)
@@ -110,10 +110,10 @@ if [[ -n "$unformatted" ]]; then
 fi
 go vet ./...
 
-GOBIN="$tool_bin_dir" go install honnef.co/go/tools/cmd/staticcheck@2026.1
+GOBIN="$tool_bin_dir" go install honnef.co/go/tools/cmd/staticcheck@2026.2.1
 GOBIN="$tool_bin_dir" go install golang.org/x/vuln/cmd/govulncheck@v1.7.0
 staticcheck_version=$("$staticcheck_bin" -version)
-if [[ "$staticcheck_version" != "staticcheck 2026.1 (v0.7.0)" ]]; then
+if [[ "$staticcheck_version" != "staticcheck 2026.2.1 (0.8.1)" ]]; then
   echo "appview-check: unexpected Staticcheck identity: $staticcheck_version" >&2
   exit 1
 fi
