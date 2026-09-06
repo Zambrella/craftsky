@@ -117,7 +117,7 @@ func TestLoadConfigVideoEndpoints(t *testing.T) {
 		}
 		if cfg.VideoServiceURL != "https://video.bsky.app" ||
 			cfg.VideoPlaylistURLTemplate != "https://video.bsky.app/watch/{did}/{cid}/playlist.m3u8" ||
-			cfg.VideoThumbnailURLTemplate != "https://video.bsky.app/watch/{did}/{cid}/thumbnail.jpg" {
+			cfg.VideoThumbnailURLTemplate != "https://video.cdn.bsky.app/hls/{did}/{cid}/thumbnail.jpg" {
 			t.Fatalf("video defaults = %q, %q, %q", cfg.VideoServiceURL, cfg.VideoPlaylistURLTemplate, cfg.VideoThumbnailURLTemplate)
 		}
 	})

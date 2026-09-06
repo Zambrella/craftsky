@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('AT-011 exposes video alt text as semantics and context', (
+  testWidgets('AT-011 exposes video alt text only through semantics', (
     tester,
   ) async {
     final semantics = tester.ensureSemantics();
@@ -31,7 +31,7 @@ void main() {
       tester.getSemantics(find.byType(NativeVideoPlayer)).label,
       contains('A wheel spinning blue wool'),
     );
-    expect(find.text('A wheel spinning blue wool'), findsOneWidget);
+    expect(find.text('A wheel spinning blue wool'), findsNothing);
     semantics.dispose();
   });
 }

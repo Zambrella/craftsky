@@ -5,10 +5,14 @@ import 'package:craftsky_app/feed/widgets/caption_uri_resource.dart';
 import 'package:craftsky_app/feed/widgets/native_video_controller.dart';
 import 'package:craftsky_app/feed/widgets/native_video_player.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:visibility_detector/visibility_detector.dart';
+
+import '../../fakes/image_cache_fakes.dart';
 
 void main() {
   testWidgets(
@@ -139,6 +143,46 @@ void main() {
 
   test('AT-008 production view uses shared themed controls', () {
     expect(nativeVideoControls, isNot(same(AdaptiveVideoControls)));
+  });
+
+  testWidgets('missing thumbnail keeps the neutral playable surface', (
+    tester,
+  ) async {
+    final cache = FakeBaseCacheManager()..nextStream = (_) => erroringStream();
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          feedImageCacheManagerProvider.overrideWithValue(cache),
+        ],
+        child: MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: NativeVideoPlayer(
+              video: PostVideo(
+                cid: 'bafyvideo',
+                mime: 'video/mp4',
+                size: 10,
+                playlist: 'https://video.example/playlist.m3u8',
+                thumbnail: 'https://video.example/missing.jpg',
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(
+      find.byKey(const Key('native-video-thumbnail-fallback')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('native-video-thumbnail-play')),
+      findsOneWidget,
+    );
+    expect(tester.takeException(), isNull);
   });
 }
 

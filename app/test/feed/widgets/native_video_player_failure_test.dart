@@ -30,7 +30,7 @@ void main() {
     );
 
     expect(find.text('Video is unavailable. Try again later.'), findsOneWidget);
-    expect(find.text('A wheel spinning yarn'), findsOneWidget);
+    expect(find.text('A wheel spinning yarn'), findsNothing);
     expect(tester.getSize(find.byType(AspectRatio)).height, greaterThan(0));
     final outline = tester.widget<DecoratedBox>(
       find.byKey(const Key('native-video-outline')),
