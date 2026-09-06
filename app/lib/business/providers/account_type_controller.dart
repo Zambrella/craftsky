@@ -20,11 +20,9 @@ AccountTypeReconciler accountTypeProfileReconciler(Ref ref) => (accountType) {
     accountType: accountType,
     business: accountType == AccountType.regular ? null : profile.business,
   );
-  for (final id in <String>{profile.handle.value, profile.did.value}) {
-    final provider = userProfileProvider(id);
-    if (ref.exists(provider)) {
-      ref.read(provider.notifier).setCached(updated);
-    }
+  final provider = userProfileProvider(profile.did);
+  if (ref.exists(provider)) {
+    ref.read(provider.notifier).setCached(updated);
   }
 };
 
@@ -33,10 +31,9 @@ AccountTypeReconciler accountTypeStateInvalidator(Ref ref) => (accountType) {
   final profile = ref.read(activeAccountIdentityProvider).value?.profile;
   if (profile == null) return;
 
-  for (final id in <String>{profile.handle.value, profile.did.value}) {
-    ref.invalidate(userProfileProvider(id));
-  }
-  ref.invalidate(activeAccountIdentityProvider);
+  ref
+    ..invalidate(userProfileProvider(profile.did))
+    ..invalidate(activeAccountIdentityProvider);
 };
 
 @Riverpod(keepAlive: true)

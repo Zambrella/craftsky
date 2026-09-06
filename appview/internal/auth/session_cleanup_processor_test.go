@@ -45,6 +45,36 @@ type blockingCredentialRevoker struct {
 	otherError   error
 }
 
+type recordedOAuthCleanup struct {
+	credentialKind string
+	result         string
+	reason         string
+}
+
+type recordingOAuthCleanupObserver struct {
+	mu     sync.Mutex
+	events []recordedOAuthCleanup
+}
+
+func (observer *recordingOAuthCleanupObserver) ObserveOAuthCleanup(
+	_ context.Context,
+	credentialKind string,
+	result string,
+	reason string,
+	_ time.Duration,
+	_ int,
+) {
+	observer.mu.Lock()
+	defer observer.mu.Unlock()
+	observer.events = append(observer.events, recordedOAuthCleanup{credentialKind, result, reason})
+}
+
+func (observer *recordingOAuthCleanupObserver) Events() []recordedOAuthCleanup {
+	observer.mu.Lock()
+	defer observer.mu.Unlock()
+	return append([]recordedOAuthCleanup(nil), observer.events...)
+}
+
 type cleanupRoundTripFunc func(*http.Request) (*http.Response, error)
 
 func (roundTrip cleanupRoundTripFunc) RoundTrip(request *http.Request) (*http.Response, error) {
@@ -250,6 +280,74 @@ func TestOAuthRevocationProcessorReclaimsExpiredLeaseAndFencesStaleWorker(t *tes
 	}
 	if rows != 0 || revoker.calls.Load() != 2 {
 		t.Fatalf("retained rows=%d revoke calls=%d, want 0 rows/2 idempotent calls", rows, revoker.calls.Load())
+	}
+}
+
+func TestOAuthRevocationProcessorCallbackLeaseRecoverySuppressesStaleOutcome(t *testing.T) {
+	pool := withAuthSchema(t)
+	now := time.Now().UTC().Truncate(time.Second)
+	clock := &testCleanupClock{at: now}
+	store := auth.NewPostgresAuthStore(pool, testStoreConfig())
+	owner := syntax.DID("did:plc:callback-reclaim")
+	seedActiveAuthOwner(t, pool, owner)
+	state := "callback-reclaim"
+	requestCtx := auth.WithLoginAuthRequest(
+		context.Background(), owner, 1, 1,
+		"https://pds.example.com", "https://auth.example.com",
+		auth.HandoffVerifiedLink, "callback-reclaim-device", "",
+	)
+	if err := store.SaveAuthRequestInfo(requestCtx, oauth.AuthRequestData{
+		State: state, RequestURI: "urn:request:" + state, AuthServerURL: "https://auth.example.com",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	attemptID, err := store.BeginExchange(context.Background(), state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	session := validOAuthSession(owner, state)
+	if err := store.QuarantineCallbackCredential(context.Background(), state, attemptID, session, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.MarkCallbackCredentialForCleanup(context.Background(), state, attemptID); err != nil {
+		t.Fatal(err)
+	}
+
+	revoker := &blockingCredentialRevoker{
+		firstStarted: make(chan struct{}),
+		releaseFirst: make(chan error, 1),
+	}
+	observer := &recordingOAuthCleanupObserver{}
+	newProcessor := func() *auth.OAuthRevocationProcessor {
+		processor, err := auth.NewOAuthRevocationProcessor(auth.OAuthRevocationProcessorOptions{
+			Pool: pool, Revoker: revoker, Observer: observer, Now: clock.Now, NewLeaseToken: uuid.New,
+			BatchSize: 1, LeaseDuration: time.Minute, OperationTimeout: 30 * time.Second,
+			MaxAttempts: 3, BaseBackoff: time.Minute, MaxBackoff: 10 * time.Minute,
+			MaxCredentialRetention: 24 * time.Hour,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return processor
+	}
+	first := newProcessor()
+	firstResult := make(chan error, 1)
+	go func() {
+		_, err := first.ProcessBatch(context.Background())
+		firstResult <- err
+	}()
+	<-revoker.firstStarted
+	clock.Set(now.Add(2 * time.Minute))
+	if processed, err := newProcessor().ProcessBatch(context.Background()); err != nil || processed != 1 {
+		t.Fatalf("replacement callback cleanup processed=%d err=%v", processed, err)
+	}
+	revoker.releaseFirst <- errors.New("stale callback worker failed after reclaim")
+	if err := <-firstResult; err != nil {
+		t.Fatalf("stale callback cleanup: %v", err)
+	}
+	events := observer.Events()
+	if len(events) != 1 || events[0] != (recordedOAuthCleanup{"callback", "success", "none"}) {
+		t.Fatalf("callback cleanup observations=%#v", events)
 	}
 }
 
@@ -801,10 +899,12 @@ func seedExpiredPendingHandoff(t *testing.T, pool *pgxpool.Pool, owner syntax.DI
 	if _, err := pool.Exec(context.Background(), `
 		INSERT INTO oauth_auth_requests(
 			state,data,handoff_mode,device_id,purpose,owner_did,owner_generation,
-			auth_epoch,request_uri,request_state,consumed_at
+			auth_epoch,request_uri,request_state,consumed_at,
+			resource_server_origin,authorization_server_issuer
 		) VALUES($1,'{}','verified_link','device-handoff','login',$2,1,1,
 		         'urn:request:pending-worker','consumed',
-		         $3::timestamptz-interval '2 hours')
+		         $3::timestamptz-interval '2 hours',
+		         'https://pds.example.com','https://auth.example.com')
 	`, sessionID, owner, now); err != nil {
 		t.Fatal(err)
 	}

@@ -15,6 +15,7 @@ import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/moderation_warning_banner.dart';
+import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
@@ -110,7 +111,7 @@ class PostCard extends ConsumerWidget {
     final account = auth is SignedIn ? AccountKey(auth.did.toString()) : null;
     final relationshipProvider = account == null || isViewerOwned
         ? null
-        : profileRelationshipProvider(account, post.author.did.toString());
+        : profileRelationshipProvider(account, post.author.did);
     final relationship = relationshipProvider == null
         ? null
         : ref.watch(relationshipProvider);
@@ -143,7 +144,7 @@ class PostCard extends ConsumerWidget {
         ? null
         : reposter.did == post.author.did
         ? relationshipProvider
-        : profileRelationshipProvider(account, reposter.did.toString());
+        : profileRelationshipProvider(account, reposter.did);
     final reposterRelationship = reposterRelationshipProvider == null
         ? null
         : reposterRelationshipProvider == relationshipProvider
@@ -187,7 +188,11 @@ class PostCard extends ConsumerWidget {
     final semanticColors = theme.extension<SemanticColorsTheme>()!;
     final colors = theme.colorScheme;
     final l10n = AppLocalizations.of(context);
-    final displayName = post.author.displayName ?? post.author.handle;
+    final authorHandle = ProfileHandle(post.author.handle);
+    final displayName = authorHandle.displayLabel(
+      displayName: post.author.displayName,
+      unavailableLabel: l10n.handleUnavailable,
+    );
     final isFlat = style == PostCardStyle.flat;
     final canShowShareAction = showRepostAction && post.reply == null;
     final pinSlot = classifyProfilePinSlot(
@@ -222,7 +227,7 @@ class PostCard extends ConsumerWidget {
     void openAuthorProfile() => unawaited(
       showUserProfileCard(
         context,
-        handleOrDid: post.author.handle.toString(),
+        did: post.author.did,
       ),
     );
     final quotedPost = post.quoteView?.post;
@@ -244,7 +249,7 @@ class PostCard extends ConsumerWidget {
             : () => unawaited(
                 showUserProfileCard(
                   context,
-                  handleOrDid: quotedPost.author.handle.toString(),
+                  did: quotedPost.author.did,
                 ),
               ));
     final openReposter =
@@ -254,7 +259,7 @@ class PostCard extends ConsumerWidget {
             : () => unawaited(
                 showUserProfileCard(
                   context,
-                  handleOrDid: repostReason!.by.handle.toString(),
+                  did: repostReason!.by.did,
                 ),
               ));
 
@@ -326,7 +331,9 @@ class PostCard extends ConsumerWidget {
                         Expanded(
                           child: _PostCardHeader(
                             displayName: displayName,
-                            handle: post.author.handle,
+                            handle: authorHandle.currentLabel(
+                              unavailableLabel: l10n.handleUnavailable,
+                            ),
                             onTap: openAuthorProfile,
                           ),
                         ),
@@ -604,7 +611,7 @@ class PostCard extends ConsumerWidget {
     if (auth is! SignedIn) return;
     final provider = profileRelationshipProvider(
       AccountKey(auth.did.toString()),
-      post.author.did.toString(),
+      post.author.did,
     );
     await ref.read(provider.notifier).mutate(action);
     if (!context.mounted) return;
@@ -644,7 +651,10 @@ class _RepostAttribution extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    final displayName = reason.by.displayName ?? reason.by.handle;
+    final displayName = ProfileHandle(reason.by.handle).displayLabel(
+      displayName: reason.by.displayName,
+      unavailableLabel: l10n.handleUnavailable,
+    );
     return Row(
       children: [
         Icon(Icons.repeat, size: 16, color: theme.colorScheme.outline),
@@ -724,7 +734,7 @@ class _PostCardHeader extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
           Text(
-            '@$handle',
+            handle,
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.outline,
             ),

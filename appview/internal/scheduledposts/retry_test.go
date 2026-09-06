@@ -59,3 +59,25 @@ func TestRetryAttemptAt(t *testing.T) {
 		}
 	}
 }
+
+func TestAutomaticPublicationCutoffIncludesExactlyThirtyMinutes(t *testing.T) {
+	t.Parallel()
+
+	due := time.Date(2026, time.September, 4, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name string
+		at   time.Time
+		want bool
+	}{
+		{name: "29:59 remains eligible", at: due.Add(29*time.Minute + 59*time.Second), want: true},
+		{name: "30:00 is the final eligible instant", at: due.Add(30 * time.Minute), want: true},
+		{name: "30:01 is too late", at: due.Add(30*time.Minute + time.Second), want: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := AutomaticPublicationEligible(due, test.at); got != test.want {
+				t.Fatalf("AutomaticPublicationEligible() = %t, want %t", got, test.want)
+			}
+		})
+	}
+}

@@ -15,16 +15,11 @@ List<ProfileSearchResult> appendUniqueProfiles(
   List<ProfileSearchResult> current,
   List<ProfileSearchResult> next,
 ) {
-  final seen = current.map((profile) => profile.did.toString()).toSet();
-  final seenHandles = current
-      .map((profile) => profile.handle.toString())
-      .toSet();
+  final seen = current.map((profile) => profile.did).toSet();
   return [
     ...current,
     for (final profile in next)
-      if (seen.add(profile.did.toString()) &&
-          seenHandles.add(profile.handle.toString()))
-        profile,
+      if (seen.add(profile.did)) profile,
   ];
 }
 

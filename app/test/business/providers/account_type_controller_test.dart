@@ -11,6 +11,7 @@ import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -123,18 +124,20 @@ void main() {
       );
       addTearDown(container.dispose);
       final subscription = container.listen(
-        userProfileProvider('alice.test'),
+        userProfileProvider(Did.parse('did:plc:alice')),
         (_, _) {},
         fireImmediately: true,
       );
       addTearDown(subscription.close);
-      await container.read(userProfileProvider('alice.test').future);
+      await container.read(
+        userProfileProvider(Did.parse('did:plc:alice')).future,
+      );
       await container.read(activeAccountIdentityProvider.future);
 
       container.read(accountTypeProfileReconcilerProvider)(AccountType.regular);
 
       final reconciled = container
-          .read(userProfileProvider('alice.test'))
+          .read(userProfileProvider(Did.parse('did:plc:alice')))
           .requireValue;
       expect(reconciled.accountType, AccountType.regular);
       expect(reconciled.business, isNull);

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/bluesky-social/indigo/api/bsky"
@@ -55,6 +56,16 @@ func (dispatcher *TransactionalDispatcher) Register(collection syntax.NSID, inde
 		panic("index.TransactionalDispatcher.Register: indexer must not be nil")
 	}
 	dispatcher.handlers[collection] = indexer
+}
+
+// Collections returns a deterministic snapshot of the registered collections.
+func (dispatcher *TransactionalDispatcher) Collections() []syntax.NSID {
+	collections := make([]syntax.NSID, 0, len(dispatcher.handlers))
+	for collection := range dispatcher.handlers {
+		collections = append(collections, collection)
+	}
+	slices.Sort(collections)
+	return collections
 }
 
 func (dispatcher *TransactionalDispatcher) Project(ctx context.Context, tx pgx.Tx, source ingestion.SourceRecord) (tap.Outcome, error) {

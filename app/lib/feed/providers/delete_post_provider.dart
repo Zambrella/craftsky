@@ -39,10 +39,9 @@ class DeletePost extends _$DeletePost {
       if (!isActiveAccountOperationCurrent(ref, ownership)) return null;
 
       if (post.project == null) {
-        for (final id in <String>{post.author.did, post.author.handle}) {
-          if (ref.exists(userPostsProvider(id))) {
-            ref.read(userPostsProvider(id).notifier).removeByRkey(post.rkey);
-          }
+        final provider = userPostsProvider(post.author.did);
+        if (ref.exists(provider)) {
+          ref.read(provider.notifier).removeByRkey(post.rkey);
         }
       } else {
         removeFromLiveUserProjectCaches(ref, post);

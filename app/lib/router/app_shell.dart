@@ -358,7 +358,7 @@ class _LargeShellNavigationFrameState
           0,
           (height, row) =>
               height +
-              (row.displayLabel == row.handle
+              ((row.displayName?.trim().isEmpty ?? true)
                   ? singleLineTileHeight
                   : twoLineTileHeight),
         ) +

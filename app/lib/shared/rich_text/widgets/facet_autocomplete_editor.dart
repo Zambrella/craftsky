@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/shared/rich_text/data/facet_suggestion_repository.dart';
 import 'package:craftsky_app/shared/rich_text/facet_autocomplete_controller.dart';
 import 'package:craftsky_app/shared/rich_text/facet_syntax.dart';
@@ -326,13 +328,14 @@ class _FacetAutocompleteEditorState
 
   void _selectMention(AccountSuggestion account) {
     final token = _activeToken;
-    if (token == null) {
+    final alias = ProfileHandle(account.handle).aliasInput;
+    if (token == null || alias == null) {
       return;
     }
     widget.controller.value = FacetAutocompleteController.replaceActiveToken(
       current: widget.controller.value,
       token: token,
-      replacementWithSingleTrailingSpace: '@${account.handle} ',
+      replacementWithSingleTrailingSpace: '@$alias ',
     );
     widget.onChanged?.call(widget.controller.text);
     _focusNode.requestFocus();
@@ -569,6 +572,12 @@ class _MentionSuggestionList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final unavailableHandleLabel =
+        Localizations.of<AppLocalizations>(
+          context,
+          AppLocalizations,
+        )?.handleUnavailable ??
+        'Handle unavailable';
     if (suggestions.isEmpty) {
       return Card(
         margin: EdgeInsets.zero,
@@ -586,18 +595,27 @@ class _MentionSuggestionList extends StatelessWidget {
         children: [
           for (final suggestion in suggestions)
             InkWell(
-              onTap: () => onSelected(suggestion),
+              onTap: ProfileHandle(suggestion.handle).isAliasEligible
+                  ? () => onSelected(suggestion)
+                  : null,
               child: Padding(
                 padding: const EdgeInsets.all(12),
                 child: Row(
                   children: [
                     Semantics(
-                      label: _avatarLabel(suggestion),
+                      label: _avatarLabel(
+                        suggestion,
+                        unavailableHandleLabel,
+                      ),
                       container: true,
                       child: ExcludeSemantics(
                         child: CircleAvatar(
                           child: Text(
-                            (suggestion.displayName ?? suggestion.handle)
+                            ProfileHandle(suggestion.handle)
+                                .displayLabel(
+                                  displayName: suggestion.displayName,
+                                  unavailableLabel: unavailableHandleLabel,
+                                )
                                 .characters
                                 .first
                                 .toUpperCase(),
@@ -610,8 +628,17 @@ class _MentionSuggestionList extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(suggestion.displayName ?? suggestion.handle),
-                          Text('@${suggestion.handle}'),
+                          Text(
+                            ProfileHandle(suggestion.handle).displayLabel(
+                              displayName: suggestion.displayName,
+                              unavailableLabel: unavailableHandleLabel,
+                            ),
+                          ),
+                          Text(
+                            ProfileHandle(suggestion.handle).currentLabel(
+                              unavailableLabel: unavailableHandleLabel,
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -624,8 +651,15 @@ class _MentionSuggestionList extends StatelessWidget {
     );
   }
 
-  String _avatarLabel(AccountSuggestion suggestion) {
-    return 'Avatar for ${suggestion.displayName ?? suggestion.handle}';
+  String _avatarLabel(
+    AccountSuggestion suggestion,
+    String unavailableHandleLabel,
+  ) {
+    final label = ProfileHandle(suggestion.handle).displayLabel(
+      displayName: suggestion.displayName,
+      unavailableLabel: unavailableHandleLabel,
+    );
+    return 'Avatar for $label';
   }
 }
 

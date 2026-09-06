@@ -1,5 +1,6 @@
 import 'package:craftsky_app/search/models/project_search_filters.dart';
 import 'package:craftsky_app/search/models/search_sort.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 
 part 'recent_search.mapper.dart';
@@ -32,7 +33,7 @@ sealed class RecentSearchPayload {
       tag: map['tag'] as String,
     ),
     RecentSearchType.profile => ProfileRecentSearchPayload(
-      did: map['did'] as String,
+      did: Did.parse(map['did'] as String),
       handle: map['handle'] as String,
       displayName: map['displayName'] as String?,
       avatar: map['avatar'] as String?,
@@ -83,14 +84,14 @@ class ProfileRecentSearchPayload extends RecentSearchPayload
     this.avatar,
   });
 
-  final String did;
+  final Did did;
   final String handle;
   final String? displayName;
   final String? avatar;
 
   @override
   Map<String, dynamic> toMap() => {
-    'did': did,
+    'did': did.toString(),
     'handle': handle,
     'displayName': ?displayName,
     'avatar': ?avatar,

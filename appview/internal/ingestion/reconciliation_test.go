@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -33,28 +32,18 @@ func TestReconciliationFailureClassifiesOtherErrorsAsStorageUnavailable(t *testi
 	}
 }
 
-func TestNewServiceRequiresLifecycleParticipants(t *testing.T) {
+func TestNewServiceRequiresProfileLifecycleParticipant(t *testing.T) {
 	base := ServiceConfig{
 		Store: &Store{}, Lifecycles: &ownerlifecycle.Store{},
 	}
 	if _, err := NewService(base); err == nil {
-		t.Fatal("service accepted missing profile and terminal lifecycle participants")
+		t.Fatal("service accepted missing profile lifecycle participant")
 	}
 	base.ProfileParticipant = func(context.Context, pgx.Tx, ownerlifecycle.Lifecycle, ownerlifecycle.Lifecycle) error {
 		return nil
 	}
-	if _, err := NewService(base); err == nil {
-		t.Fatal("service accepted missing terminal lifecycle participant")
-	}
-	base.TerminalParticipant = func(context.Context, pgx.Tx, *ownerlifecycle.Lifecycle, ownerlifecycle.Lifecycle) error {
-		return nil
-	}
-	if _, err := NewService(base); err == nil {
-		t.Fatal("service accepted a missing terminal commit timeout")
-	}
-	base.TerminalCommitTimeout = time.Second
 	if _, err := NewService(base); err != nil {
-		t.Fatalf("service rejected complete lifecycle participants: %v", err)
+		t.Fatalf("service rejected profile lifecycle participant: %v", err)
 	}
 }
 

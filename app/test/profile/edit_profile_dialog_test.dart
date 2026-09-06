@@ -380,7 +380,7 @@ void main() {
         tester.element(find.byType(EditProfileDialog)),
       );
       final sub = container.listen<AsyncValue<Profile>>(
-        userProfileProvider('test.bsky.social'),
+        userProfileProvider(Did.parse('did:plc:test')),
         (_, _) {},
       );
       addTearDown(sub.close);

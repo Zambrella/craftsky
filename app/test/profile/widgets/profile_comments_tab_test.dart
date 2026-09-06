@@ -5,6 +5,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_comments_tab.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -55,11 +56,11 @@ Future<void> _pump(WidgetTester tester, {required FakePostRepository repo}) {
           theme: AppTheme.lightThemeData,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: const Scaffold(
+          home: Scaffold(
             body: CustomScrollView(
               slivers: [
                 ProfileCommentsTab(
-                  handle: 'alice.craftsky.social',
+                  did: Did.parse('did:plc:alice'),
                   isOwnProfile: false,
                 ),
               ],

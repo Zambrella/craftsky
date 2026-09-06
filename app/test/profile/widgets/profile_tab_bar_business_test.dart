@@ -63,7 +63,7 @@ void main() {
             theme: AppTheme.lightThemeData,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const ProfilePage(handle: 'maker.test'),
+            home: ProfilePage(did: Did.parse('did:plc:maker')),
           ),
         ),
       );
@@ -83,7 +83,7 @@ void main() {
         ),
         hasUpcomingEvents: true,
       );
-      container.invalidate(userProfileProvider('maker.test'));
+      container.invalidate(userProfileProvider(Did.parse('did:plc:maker')));
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
@@ -98,7 +98,7 @@ void main() {
         accountType: AccountType.regular,
         business: null,
       );
-      container.invalidate(userProfileProvider('maker.test'));
+      container.invalidate(userProfileProvider(Did.parse('did:plc:maker')));
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
@@ -346,7 +346,9 @@ Future<void> _pumpProfile(
         theme: AppTheme.lightThemeData,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        home: ProfilePage(handle: isOwnProfile ? null : 'maker.test'),
+        home: ProfilePage(
+          did: isOwnProfile ? null : Did.parse('did:plc:maker'),
+        ),
       ),
     ),
   );

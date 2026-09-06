@@ -65,7 +65,7 @@ func TestOwnerLifecycleMigrationsUpDownUp(t *testing.T) {
 			next_attempt_at TIMESTAMPTZ,
 			error_category TEXT,
 			intent_proof_hash BYTEA,
-			confirmation_handle_hash BYTEA,
+			confirmation_did_hash BYTEA,
 			intent_expires_at TIMESTAMPTZ,
 			lease_owner TEXT,
 			lease_token UUID,

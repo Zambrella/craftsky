@@ -42,6 +42,7 @@ func newAuthorityWorkers(
 		OperationTimeout: cfg.OAuthRevocationOperationTimeout, MaxAttempts: cfg.OAuthRevocationMaxAttempts,
 		BaseBackoff: cfg.OAuthRevocationBackoffMin, MaxBackoff: cfg.OAuthRevocationBackoffMax,
 		MaxCredentialRetention: cfg.OAuthRevocationMaxCredentialRetention,
+		Observer:               observer,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("OAuth revocation processor: %w", err)

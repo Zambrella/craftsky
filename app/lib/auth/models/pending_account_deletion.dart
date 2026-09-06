@@ -1,5 +1,6 @@
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter/foundation.dart';
 
 /// Minimized local authority retained only until a deletion intent is
@@ -10,25 +11,26 @@ final class PendingAccountDeletion {
   const PendingAccountDeletion({
     required this.jobId,
     required this.lease,
-    required this.requiredHandle,
+    required this.confirmationDid,
     required this.expiresAt,
   });
 
   factory PendingAccountDeletion.capture({
     required String jobId,
     required ActiveAccountLease lease,
-    required String handle,
+    required String confirmationDid,
     required DateTime expiresAt,
   }) {
     final normalizedJobId = jobId.trim();
-    final normalizedHandle = handle.trim().replaceFirst(RegExp('^@'), '');
-    if (normalizedJobId.isEmpty || normalizedHandle.isEmpty) {
+    final parsedConfirmationDid = Did.parse(confirmationDid);
+    if (normalizedJobId.isEmpty ||
+        parsedConfirmationDid != lease.session.account.did) {
       throw const FormatException('Invalid pending account deletion');
     }
     return PendingAccountDeletion(
       jobId: normalizedJobId,
       lease: lease,
-      requiredHandle: '@$normalizedHandle',
+      confirmationDid: parsedConfirmationDid.value,
       expiresAt: expiresAt.toUtc(),
     );
   }
@@ -36,7 +38,7 @@ final class PendingAccountDeletion {
   factory PendingAccountDeletion.fromMap(Map<String, Object?> map) {
     final jobId = _requiredString(map, 'jobId');
     final did = _requiredString(map, 'did');
-    final requiredHandle = _requiredString(map, 'requiredHandle');
+    final confirmationDid = Did.parse(_requiredString(map, 'confirmationDid'));
     final sessionGeneration = _requiredPositiveInt(map, 'sessionGeneration');
     final activationGeneration = _requiredNonNegativeInt(
       map,
@@ -45,9 +47,7 @@ final class PendingAccountDeletion {
     final expiresAt = DateTime.parse(
       _requiredString(map, 'expiresAt'),
     ).toUtc();
-    if (jobId.trim().isEmpty ||
-        requiredHandle.length < 2 ||
-        !requiredHandle.startsWith('@')) {
+    if (jobId.trim().isEmpty || confirmationDid != Did.parse(did)) {
       throw const FormatException('Invalid pending account deletion');
     }
     return PendingAccountDeletion(
@@ -59,14 +59,14 @@ final class PendingAccountDeletion {
         ),
         activationGeneration: activationGeneration,
       ),
-      requiredHandle: requiredHandle,
+      confirmationDid: confirmationDid.value,
       expiresAt: expiresAt,
     );
   }
 
   final String jobId;
   final ActiveAccountLease lease;
-  final String requiredHandle;
+  final String confirmationDid;
   final DateTime expiresAt;
 
   bool isCurrent(ActiveAccountLease? current, {DateTime? now}) =>
@@ -81,14 +81,14 @@ final class PendingAccountDeletion {
     'did': lease.session.account.did.value,
     'sessionGeneration': lease.session.sessionGeneration,
     'activationGeneration': lease.activationGeneration,
-    'requiredHandle': requiredHandle,
+    'confirmationDid': confirmationDid,
     'expiresAt': expiresAt.toIso8601String(),
   };
 
   bool sameAs(PendingAccountDeletion other) =>
       jobId == other.jobId &&
       lease == other.lease &&
-      requiredHandle == other.requiredHandle &&
+      confirmationDid == other.confirmationDid &&
       expiresAt == other.expiresAt;
 
   @override

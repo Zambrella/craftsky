@@ -719,7 +719,7 @@ void main() {
       await _pumpRouter(
         tester,
         container,
-        initialLocation: '/profile/alice.test',
+        initialLocation: '/profiles/did:plc:alice',
         size: const Size(1200, 800),
       );
 

@@ -122,6 +122,15 @@ Future<ProviderContainer> _pumpShell(
                     avatar: initialActive?.cachedAvatarUrl,
                     crafts: const [],
                   ),
+              onFetchMe: () async =>
+                  activeProfile ??
+                  Profile(
+                    did: initialActive?.did.value ?? 'did:plc:alice',
+                    handle: initialActive?.handle.value ?? 'alice.test',
+                    displayName: initialActive?.cachedDisplayName,
+                    avatar: initialActive?.cachedAvatarUrl,
+                    crafts: const [],
+                  ),
             ),
       ),
     ],

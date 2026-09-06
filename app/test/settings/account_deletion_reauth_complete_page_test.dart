@@ -18,7 +18,7 @@ class _ReadyAccountDeletionController extends AccountDeletionController {
   bool canComplete(String jobId) => true;
 
   @override
-  String? requiredHandle(String jobId) => '@alice.test';
+  String? confirmationDid(String jobId) => 'did:plc:alicefullidentifier';
 }
 
 void main() {
@@ -83,21 +83,26 @@ void main() {
         (widget) =>
             widget is Text &&
             widget.textSpan?.toPlainText() ==
-                'Type @alice.test exactly to permanently delete this '
+                'Type did:plc:alicefullidentifier exactly to permanently '
+                    'delete this '
                     'CraftSky account.',
       ),
     );
-    final handleSpan = (prompt.textSpan! as TextSpan).children!
+    final didSpan = (prompt.textSpan! as TextSpan).children!
         .whereType<TextSpan>()
-        .singleWhere((span) => span.text == '@alice.test');
-    expect(handleSpan.style?.fontWeight, FontWeight.bold);
+        .singleWhere((span) => span.text == 'did:plc:alicefullidentifier');
+    expect(didSpan.style?.fontWeight, FontWeight.bold);
+    expect(find.text('Type your DID'), findsOneWidget);
     final button = tester.widget<ChunkyButton>(
       find.widgetWithText(ChunkyButton, 'Delete account'),
     );
     expect(button.backgroundColor, AppTheme.lightThemeData.colorScheme.error);
     expect(button.onPressed, isNull);
 
-    await tester.enterText(find.byType(BrandTextField), '@alice.test');
+    await tester.enterText(
+      find.byType(BrandTextField),
+      'did:plc:alicefullidentifier',
+    );
     await tester.pump();
 
     final enabledButton = tester.widget<ChunkyButton>(

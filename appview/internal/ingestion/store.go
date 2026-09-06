@@ -1080,10 +1080,12 @@ func (store *Store) ProjectionJob(ctx context.Context, uri syntax.ATURI) (Projec
 
 func enqueueRepositoryJob(ctx context.Context, tx pgx.Tx, did syntax.DID, kind string, now time.Time) error {
 	_, err := tx.Exec(ctx, `
-		INSERT INTO tap_repository_jobs(id,did,job_kind,state,next_attempt_at,created_at,updated_at)
+		INSERT INTO tap_repository_jobs AS job(id,did,job_kind,state,next_attempt_at,created_at,updated_at)
 		VALUES($1,$2,$3,'pending',$4,$4,$4)
 		ON CONFLICT(did,job_kind) DO UPDATE SET
 			state='pending',next_attempt_at=EXCLUDED.next_attempt_at,
+			attempts=CASE WHEN job.state='complete' THEN 0 ELSE job.attempts END,
+			created_at=CASE WHEN job.state='complete' THEN EXCLUDED.created_at ELSE job.created_at END,
 			lease_owner=NULL,lease_token=NULL,lease_expires_at=NULL,
 			last_reason_code=NULL,last_successful_at=NULL,updated_at=EXCLUDED.updated_at
 	`, uuid.New(), did, kind, now)

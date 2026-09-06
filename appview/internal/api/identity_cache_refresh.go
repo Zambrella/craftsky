@@ -9,10 +9,8 @@ import (
 )
 
 type IdentityCacheRefreshProcessorOptions struct {
-	Store    *IdentityCacheStore
-	Resolver interface {
-		ResolveHandle(context.Context, syntax.DID) (syntax.Handle, error)
-	}
+	Store               *IdentityCacheStore
+	Resolver            HandleResolver
 	BatchSize           int
 	OperationTimeout    time.Duration
 	RetryDelay          time.Duration
@@ -25,10 +23,8 @@ type IdentityInvalidator interface {
 }
 
 type IdentityCacheRefreshProcessor struct {
-	store    *IdentityCacheStore
-	resolver interface {
-		ResolveHandle(context.Context, syntax.DID) (syntax.Handle, error)
-	}
+	store               *IdentityCacheStore
+	resolver            HandleResolver
 	batchSize           int
 	operationTimeout    time.Duration
 	retryDelay          time.Duration
@@ -72,9 +68,9 @@ func (processor *IdentityCacheRefreshProcessor) ProcessBatch(ctx context.Context
 			age = now.Sub(*candidate.ResolvedAt)
 		}
 		operationCtx, cancel := context.WithTimeout(ctx, processor.operationTimeout)
-		handle, resolveErr := processor.resolver.ResolveHandle(operationCtx, did)
+		handle, valid, resolveErr := resolveAuthoritativeHandle(operationCtx, processor.resolver, did)
 		cancel()
-		if resolveErr != nil || handle == "" || handle.IsInvalidHandle() {
+		if resolveErr != nil {
 			deferred, err := processor.store.deferRefresh(ctx, candidate, now.Add(processor.retryDelay), now)
 			if err != nil {
 				return 0, err
@@ -84,24 +80,51 @@ func (processor *IdentityCacheRefreshProcessor) ProcessBatch(ctx context.Context
 			}
 			continue
 		}
-		completed, err := processor.store.completeRefresh(ctx, candidate, handle, now)
+		if !valid {
+			handle = syntax.HandleInvalid
+		}
+		commit, completed, err := processor.store.completeRefresh(ctx, candidate, handle, now)
 		if err != nil {
 			return 0, fmt.Errorf("identity cache refresh %s: %w", did, err)
 		}
 		if !completed {
 			continue
 		}
-		if processor.identityInvalidator != nil {
-			handles := make([]syntax.Handle, 0, 2)
-			if candidate.Handle != nil {
-				handles = append(handles, *candidate.Handle)
-			}
-			handles = append(handles, handle)
-			processor.identityInvalidator.InvalidateIdentity(ctx, did, handles...)
-		}
+		invalidateIdentityCommit(ctx, processor.identityInvalidator, commit)
 		if processor.store.observer != nil {
 			processor.store.observer.ObserveIdentityCache("refresh_success", age)
 		}
 	}
 	return len(candidates), nil
+}
+
+func resolveAuthoritativeHandle(ctx context.Context, resolver HandleResolver, did syntax.DID) (syntax.Handle, bool, error) {
+	handle, err := resolver.ResolveHandle(ctx, did)
+	if err != nil {
+		return "", false, err
+	}
+	if handle == "" || handle.IsInvalidHandle() {
+		return syntax.HandleInvalid, false, nil
+	}
+	resolvedDID, err := resolver.ResolveDID(ctx, handle)
+	if err != nil {
+		if isDefinitiveHandleResolutionError(err) {
+			return syntax.HandleInvalid, false, nil
+		}
+		return "", false, err
+	}
+	if resolvedDID != did {
+		return syntax.HandleInvalid, false, nil
+	}
+	return handle.Normalize(), true, nil
+}
+
+func invalidateIdentityCommit(ctx context.Context, invalidator IdentityInvalidator, commit identityRefreshCommit) {
+	if invalidator == nil {
+		return
+	}
+	invalidator.InvalidateIdentity(ctx, commit.DID, commit.Handles...)
+	for _, did := range commit.DisplacedDID {
+		invalidator.InvalidateIdentity(ctx, did, commit.Handles...)
+	}
 }

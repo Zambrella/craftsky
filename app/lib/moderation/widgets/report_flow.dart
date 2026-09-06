@@ -37,7 +37,7 @@ Future<void> showPostReportSheet(
 Future<void> showProfileReportSheet(
   BuildContext context,
   WidgetRef ref,
-  String handleOrDid,
+  Did did,
 ) {
   final successMessage = AppLocalizations.of(context).reportSubmitSuccess;
   ref.read(reportProfileProvider.notifier).reset();
@@ -47,7 +47,7 @@ Future<void> showProfileReportSheet(
       builder: (routeContext) => _ProfileReportRouteBody(
         parentContext: context,
         successMessage: successMessage,
-        handleOrDid: handleOrDid,
+        did: did,
       ),
     ),
   );
@@ -128,12 +128,12 @@ class _ProfileReportRouteBody extends ConsumerWidget {
   const _ProfileReportRouteBody({
     required this.parentContext,
     required this.successMessage,
-    required this.handleOrDid,
+    required this.did,
   });
 
   final BuildContext parentContext;
   final String successMessage;
-  final String handleOrDid;
+  final Did did;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -161,7 +161,7 @@ class _ProfileReportRouteBody extends ConsumerWidget {
         unawaited(
           ref
               .read(reportProfileProvider.notifier)
-              .submit(handleOrDid: handleOrDid, submission: submission),
+              .submit(did: did, submission: submission),
         );
       },
     );

@@ -1,5 +1,6 @@
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/settings/models/settings_row.dart';
 import 'package:craftsky_app/settings/widgets/settings_row_tile.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -29,10 +30,13 @@ class SignOutTile extends ConsumerWidget {
                   .signOut();
               if (result == null) return;
               final activeHandle = result.activeHandle;
+              final alias = ProfileHandle(activeHandle).aliasInput;
               messenger.info(
                 activeHandle == null
                     ? l10n.signOutSuccess
-                    : l10n.signOutSuccessWithAccount(activeHandle),
+                    : alias == null
+                    ? '${l10n.signOutSuccess} ${l10n.handleUnavailable}.'
+                    : l10n.signOutSuccessWithAccount(alias),
               );
             },
     );

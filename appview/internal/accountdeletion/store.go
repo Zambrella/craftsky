@@ -1,9 +1,9 @@
 package accountdeletion
 
 import (
-	"bytes"
 	"context"
 	"crypto/sha256"
+	"crypto/subtle"
 	"errors"
 	"fmt"
 	"time"
@@ -37,18 +37,22 @@ func HashSecret(value string) []byte {
 	return append([]byte(nil), hash[:]...)
 }
 
+func equalHash(left, right []byte) bool {
+	return len(left) == len(right) && subtle.ConstantTimeCompare(left, right) == 1
+}
+
 type IntentRecord struct {
-	JobID                  uuid.UUID
-	Owner                  syntax.DID
-	ConfirmationHandleHash []byte
-	ExpiresAt              time.Time
+	JobID               uuid.UUID
+	Owner               syntax.DID
+	ConfirmationDIDHash []byte
+	ExpiresAt           time.Time
 }
 
 type AcceptanceRequest struct {
-	JobID              uuid.UUID
-	Owner              syntax.DID
-	ReauthProof        string
-	ConfirmationHandle string
+	JobID           uuid.UUID
+	Owner           syntax.DID
+	ReauthProof     string
+	ConfirmationDID syntax.DID
 }
 
 type Operation struct {
@@ -71,7 +75,7 @@ func (store *Store) CreateIntentParticipant(intent IntentRecord) ownerlifecycle.
 		after ownerlifecycle.Lifecycle,
 	) error {
 		if store == nil || intent.JobID == uuid.Nil || intent.Owner == "" ||
-			len(intent.ConfirmationHandleHash) == 0 || intent.ExpiresAt.IsZero() ||
+			len(intent.ConfirmationDIDHash) == 0 || intent.ExpiresAt.IsZero() ||
 			before.Owner != intent.Owner || after.Owner != intent.Owner ||
 			before.State != ownerlifecycle.StateActive || after.State != ownerlifecycle.StateDeletionPending {
 			return errors.New("invalid account deletion intent transition")
@@ -79,10 +83,10 @@ func (store *Store) CreateIntentParticipant(intent IntentRecord) ownerlifecycle.
 		_, err := tx.Exec(ctx, `
 			INSERT INTO account_deletion_operations(
 				id,owner_did,owner_generation,state,
-				confirmation_handle_hash,intent_expires_at
+				confirmation_did_hash,intent_expires_at
 			) VALUES($1,$2,$3,'intent',$4,$5)
 		`, intent.JobID, intent.Owner, before.Generation,
-			intent.ConfirmationHandleHash, intent.ExpiresAt.UTC())
+			intent.ConfirmationDIDHash, intent.ExpiresAt.UTC())
 		if err != nil {
 			var postgresError *pgconn.PgError
 			if errors.As(err, &postgresError) && postgresError.Code == "23505" {
@@ -432,16 +436,16 @@ func (store *Store) AcceptanceBinding(
 ) (auth.DeletionCredentialBinding, error) {
 	var binding auth.DeletionCredentialBinding
 	var status Status
-	var proofHash, handleHash []byte
+	var proofHash, didHash []byte
 	var expiresAt *time.Time
 	err := store.pool.QueryRow(ctx, `
 		SELECT state,reauth_oauth_session_id,deletion_credential_generation,
-		       intent_proof_hash,confirmation_handle_hash,intent_expires_at
+		       intent_proof_hash,confirmation_did_hash,intent_expires_at
 		FROM account_deletion_operations
 		WHERE id=$1 AND owner_did=$2
 	`, request.JobID, request.Owner).Scan(
 		&status, &binding.SessionID, &binding.CredentialGeneration,
-		&proofHash, &handleHash, &expiresAt,
+		&proofHash, &didHash, &expiresAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return binding, ErrOperationNotFound
@@ -452,11 +456,11 @@ func (store *Store) AcceptanceBinding(
 	binding.OperationID = request.JobID
 	now := store.now().UTC()
 	if status != StatusIntent || expiresAt == nil || !now.Before(*expiresAt) ||
-		!bytes.Equal(proofHash, HashSecret(request.ReauthProof)) {
+		!equalHash(proofHash, HashSecret(request.ReauthProof)) {
 		return auth.DeletionCredentialBinding{}, ErrReauthenticationRequired
 	}
-	if !bytes.Equal(handleHash, HashSecret(request.ConfirmationHandle)) {
-		return auth.DeletionCredentialBinding{}, ErrConfirmationHandleMismatch
+	if !equalHash(didHash, HashSecret(request.ConfirmationDID.String())) {
+		return auth.DeletionCredentialBinding{}, ErrConfirmationDIDMismatch
 	}
 	return binding, nil
 }
@@ -480,35 +484,35 @@ func (store *Store) AcceptParticipant(
 		var ownerGeneration int64
 		var reauthSession string
 		var credentialGeneration int64
-		var proofHash, handleHash []byte
+		var proofHash, didHash []byte
 		var expiresAt time.Time
 		if err := tx.QueryRow(ctx, `
 			SELECT state,owner_generation,reauth_oauth_session_id,
 			       deletion_credential_generation,intent_proof_hash,
-			       confirmation_handle_hash,intent_expires_at
+			       confirmation_did_hash,intent_expires_at
 			FROM account_deletion_operations
 			WHERE id=$1 AND owner_did=$2 FOR UPDATE
 		`, request.JobID, request.Owner).Scan(
 			&status, &ownerGeneration, &reauthSession, &credentialGeneration,
-			&proofHash, &handleHash, &expiresAt,
+			&proofHash, &didHash, &expiresAt,
 		); err != nil {
 			return err
 		}
 		now := store.now().UTC()
 		if status != StatusIntent || reauthSession != binding.SessionID ||
 			credentialGeneration != binding.CredentialGeneration || !now.Before(expiresAt) ||
-			!bytes.Equal(proofHash, HashSecret(request.ReauthProof)) {
+			!equalHash(proofHash, HashSecret(request.ReauthProof)) {
 			return ErrReauthenticationRequired
 		}
-		if !bytes.Equal(handleHash, HashSecret(request.ConfirmationHandle)) {
-			return ErrConfirmationHandleMismatch
+		if !equalHash(didHash, HashSecret(request.ConfirmationDID.String())) {
+			return ErrConfirmationDIDMismatch
 		}
 		command, err := tx.Exec(ctx, `
 			UPDATE account_deletion_operations
 			SET state='active',accepted_at=$3,
 			    deletion_oauth_session_id=reauth_oauth_session_id,
 			    reauth_oauth_session_id=NULL,intent_proof_hash=NULL,
-			    confirmation_handle_hash=NULL,intent_expires_at=NULL,
+			    confirmation_did_hash=NULL,intent_expires_at=NULL,
 			    attempt_count=0,next_attempt_at=$3,error_category=NULL,updated_at=$3
 			WHERE id=$1 AND owner_did=$2 AND state='intent'
 		`, request.JobID, request.Owner, now)
@@ -526,7 +530,7 @@ func (store *Store) AcceptParticipant(
 
 func (store *Store) CreateIntent(ctx context.Context, intent IntentRecord) error {
 	if store == nil || store.pool == nil || intent.JobID == uuid.Nil || intent.Owner == "" ||
-		len(intent.ConfirmationHandleHash) == 0 || intent.ExpiresAt.IsZero() {
+		len(intent.ConfirmationDIDHash) == 0 || intent.ExpiresAt.IsZero() {
 		return errors.New("invalid account deletion intent")
 	}
 	err := pgx.BeginFunc(ctx, store.pool, func(tx pgx.Tx) error {
@@ -571,12 +575,12 @@ func (store *Store) CreateIntent(ctx context.Context, intent IntentRecord) error
 		result, err := tx.Exec(ctx, `
 			INSERT INTO account_deletion_operations(
 				id,owner_did,owner_generation,state,
-				confirmation_handle_hash,intent_expires_at
+				confirmation_did_hash,intent_expires_at
 			)
 			SELECT $1,$2,lifecycle.generation,'intent',$3,$4
 			FROM owner_lifecycles lifecycle
 			WHERE lifecycle.owner_did=$2 AND lifecycle.state='active'
-		`, intent.JobID, intent.Owner, intent.ConfirmationHandleHash, intent.ExpiresAt.UTC())
+		`, intent.JobID, intent.Owner, intent.ConfirmationDIDHash, intent.ExpiresAt.UTC())
 		if err != nil {
 			return err
 		}
@@ -672,17 +676,17 @@ func (store *Store) Accept(ctx context.Context, request AcceptanceRequest) (Oper
 			boundSession    *string
 			reauthSession   *string
 			proofHash       []byte
-			handleHash      []byte
+			didHash         []byte
 			intentExpiresAt *time.Time
 		)
 		if err := tx.QueryRow(ctx, `
 			SELECT state,owner_generation,accepted_at,deletion_oauth_session_id,reauth_oauth_session_id,
-			       intent_proof_hash,confirmation_handle_hash,intent_expires_at
+			       intent_proof_hash,confirmation_did_hash,intent_expires_at
 			FROM account_deletion_operations
 			WHERE id=$1 AND owner_did=$2 FOR UPDATE
 		`, request.JobID, request.Owner).Scan(
 			&status, &ownerGeneration, &acceptedAt, &boundSession, &reauthSession,
-			&proofHash, &handleHash, &intentExpiresAt,
+			&proofHash, &didHash, &intentExpiresAt,
 		); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrOperationNotFound
@@ -702,11 +706,11 @@ func (store *Store) Accept(ctx context.Context, request AcceptanceRequest) (Oper
 
 		now := store.now().UTC()
 		if intentExpiresAt == nil || !now.Before(*intentExpiresAt) || reauthSession == nil ||
-			!bytes.Equal(proofHash, HashSecret(request.ReauthProof)) {
+			!equalHash(proofHash, HashSecret(request.ReauthProof)) {
 			return ErrReauthenticationRequired
 		}
-		if !bytes.Equal(handleHash, HashSecret(request.ConfirmationHandle)) {
-			return ErrConfirmationHandleMismatch
+		if !equalHash(didHash, HashSecret(request.ConfirmationDID.String())) {
+			return ErrConfirmationDIDMismatch
 		}
 		var oauthExists bool
 		if err := tx.QueryRow(ctx, `
@@ -725,7 +729,7 @@ func (store *Store) Accept(ctx context.Context, request AcceptanceRequest) (Oper
 			SET state='active',accepted_at=$3,
 			    deletion_oauth_session_id=reauth_oauth_session_id,
 			    reauth_oauth_session_id=NULL,intent_proof_hash=NULL,
-			    confirmation_handle_hash=NULL,intent_expires_at=NULL,
+			    confirmation_did_hash=NULL,intent_expires_at=NULL,
 			    attempt_count=0,next_attempt_at=$3,error_category=NULL,updated_at=$3
 			WHERE id=$1 AND owner_did=$2
 		`, request.JobID, request.Owner, now); err != nil {

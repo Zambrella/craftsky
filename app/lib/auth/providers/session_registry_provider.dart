@@ -5,6 +5,7 @@ import 'package:craftsky_app/auth/models/session_registry.dart' as registry;
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'session_registry_provider.g.dart';
@@ -96,6 +97,9 @@ class SessionRegistry extends _$SessionRegistry {
       customisation: customisation,
     ),
   );
+
+  Future<void> updateHandle(AccountSessionLease lease, Handle handle) =>
+      _mutate((current) => current.updateHandle(lease, handle));
 
   Future<void> updateCachedCustomisation(
     AccountSessionLease lease,

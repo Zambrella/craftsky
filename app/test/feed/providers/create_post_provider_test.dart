@@ -16,10 +16,13 @@ import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../fakes/fake_post_repository.dart';
+
+final _aliceDid = Did.parse('did:plc:alice');
 
 Map<String, dynamic> _postMap({
   required String rkey,
@@ -354,42 +357,40 @@ void main() {
       expect(capturedReply!.parent.cid, target.cid);
     });
 
-    test('success prepends into live userPostsProvider entries '
-        '(both did and handle keys)', () async {
-      final fake = FakePostRepository(
-        onListByAuthor: (id, {cursor, limit}) async =>
-            PostPage(items: [_post(rkey: 'old')]),
-        onCreate: ({required text, reply, images}) async => _post(rkey: 'new'),
-      );
-      final container = ProviderContainer.test(
-        overrides: [
-          activeLanguagePreferencesProvider.overrideWith(
-            (ref) => const LanguagePreferences(
-              primaryLanguage: 'en',
-              contentLanguages: ['en'],
+    test(
+      'success prepends into the live DID userPostsProvider entry',
+      () async {
+        final fake = FakePostRepository(
+          onListByAuthor: (id, {cursor, limit}) async =>
+              PostPage(items: [_post(rkey: 'old')]),
+          onCreate: ({required text, reply, images}) async =>
+              _post(rkey: 'new'),
+        );
+        final container = ProviderContainer.test(
+          overrides: [
+            activeLanguagePreferencesProvider.overrideWith(
+              (ref) => const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
             ),
-          ),
-          postRepositoryProvider.overrideWithValue(fake),
-        ],
-      );
+            postRepositoryProvider.overrideWithValue(fake),
+          ],
+        );
 
-      // Pre-instantiate both family entries so they are "live".
-      await container.read(userPostsProvider('did:plc:alice').future);
-      await container.read(userPostsProvider('alice.craftsky.social').future);
+        // Pre-instantiate both family entries so they are "live".
+        await container.read(userPostsProvider(_aliceDid).future);
 
-      await container
-          .read(createPostProvider.notifier)
-          .create(text: 'hi', langs: _langs);
+        await container
+            .read(createPostProvider.notifier)
+            .create(text: 'hi', langs: _langs);
 
-      final didEntry = container
-          .read(userPostsProvider('did:plc:alice'))
-          .value!;
-      final handleEntry = container
-          .read(userPostsProvider('alice.craftsky.social'))
-          .value!;
-      expect(didEntry.items.map((p) => p.rkey), ['new', 'old']);
-      expect(handleEntry.items.map((p) => p.rkey), ['new', 'old']);
-    });
+        final didEntry = container.read(userPostsProvider(_aliceDid)).value!;
+        final handleEntry = container.read(userPostsProvider(_aliceDid)).value!;
+        expect(didEntry.items.map((p) => p.rkey), ['new', 'old']);
+        expect(handleEntry.items.map((p) => p.rkey), ['new', 'old']);
+      },
+    );
 
     test('does not instantiate a non-live family entry', () async {
       final calls = <String>[];
@@ -477,8 +478,7 @@ void main() {
       );
 
       await container.read(timelineProvider.future);
-      await container.read(userPostsProvider('did:plc:alice').future);
-      await container.read(userPostsProvider('alice.craftsky.social').future);
+      await container.read(userPostsProvider(_aliceDid).future);
 
       await container
           .read(createPostProvider.notifier)
@@ -497,7 +497,7 @@ void main() {
       );
       expect(
         container
-            .read(userPostsProvider('did:plc:alice'))
+            .read(userPostsProvider(_aliceDid))
             .value!
             .items
             .map((p) => p.rkey),
@@ -505,7 +505,7 @@ void main() {
       );
       expect(
         container
-            .read(userPostsProvider('alice.craftsky.social'))
+            .read(userPostsProvider(_aliceDid))
             .value!
             .items
             .map((p) => p.rkey),
@@ -590,14 +590,14 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider('did:plc:alice').future);
+      await container.read(userPostsProvider(_aliceDid).future);
 
       await container
           .read(createPostProvider.notifier)
           .create(text: 'hi', langs: _langs);
 
       expect(container.read(createPostProvider).hasError, isTrue);
-      final list = container.read(userPostsProvider('did:plc:alice')).value!;
+      final list = container.read(userPostsProvider(_aliceDid)).value!;
       expect(list.items.map((p) => p.rkey), ['old']);
     });
 
@@ -644,7 +644,7 @@ void main() {
     );
 
     test(
-      'IT-007 project create updates timeline and did/handle project caches only',
+      'IT-007 project create updates timeline and the DID project cache only',
       () async {
         final fake = FakePostRepository(
           onListTimeline: ({cursor, limit}) async =>
@@ -670,12 +670,8 @@ void main() {
           ],
         );
         await container.read(timelineProvider.future);
-        await container.read(userPostsProvider('did:plc:alice').future);
-        await container.read(userPostsProvider('alice.craftsky.social').future);
-        await container.read(userProjectsProvider('did:plc:alice').future);
-        await container.read(
-          userProjectsProvider('alice.craftsky.social').future,
-        );
+        await container.read(userPostsProvider(_aliceDid).future);
+        await container.read(userProjectsProvider(_aliceDid).future);
 
         await container
             .read(createPostProvider.notifier)
@@ -694,7 +690,7 @@ void main() {
         );
         expect(
           container
-              .read(userProjectsProvider('did:plc:alice'))
+              .read(userProjectsProvider(_aliceDid))
               .value!
               .items
               .map((p) => p.rkey),
@@ -705,7 +701,7 @@ void main() {
         );
         expect(
           container
-              .read(userProjectsProvider('alice.craftsky.social'))
+              .read(userProjectsProvider(_aliceDid))
               .value!
               .items
               .map((p) => p.rkey),
@@ -716,7 +712,7 @@ void main() {
         );
         expect(
           container
-              .read(userPostsProvider('did:plc:alice'))
+              .read(userPostsProvider(_aliceDid))
               .value!
               .items
               .map((p) => p.rkey),
@@ -726,7 +722,7 @@ void main() {
         );
         expect(
           container
-              .read(userPostsProvider('alice.craftsky.social'))
+              .read(userPostsProvider(_aliceDid))
               .value!
               .items
               .map((p) => p.rkey),
@@ -759,7 +755,7 @@ void main() {
           ],
         );
         await container.read(
-          userProjectsProvider('alice.craftsky.social').future,
+          userProjectsProvider(_aliceDid).future,
         );
 
         await container
@@ -769,7 +765,7 @@ void main() {
         expect(container.read(createPostProvider).value?.project, _project);
         expect(
           container
-              .read(userProjectsProvider('alice.craftsky.social'))
+              .read(userProjectsProvider(_aliceDid))
               .value!
               .items
               .single

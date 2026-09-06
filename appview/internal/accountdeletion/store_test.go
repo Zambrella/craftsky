@@ -38,16 +38,31 @@ func TestAcceptanceBindsFreshOAuthBeforeRevokingOrdinaryAccessAndFinalizesWithou
 	}
 	if err := store.CreateIntent(ctx, IntentRecord{
 		JobID: jobID, Owner: owner,
-		ConfirmationHandleHash: HashSecret("@alice.test"),
-		ExpiresAt:              now.Add(10 * time.Minute),
+		ConfirmationDIDHash: HashSecret(owner.String()),
+		ExpiresAt:           now.Add(10 * time.Minute),
 	}); err != nil {
 		t.Fatal(err)
 	}
 	if err := store.CompleteReauthentication(ctx, jobID, owner, "deletion-oauth", HashSecret("proof")); err != nil {
 		t.Fatal(err)
 	}
+	var storedConfirmationHash []byte
+	if err := pool.QueryRow(ctx, `
+		SELECT confirmation_did_hash FROM account_deletion_operations WHERE id=$1
+	`, jobID).Scan(&storedConfirmationHash); err != nil {
+		t.Fatal(err)
+	}
+	if string(storedConfirmationHash) == owner.String() || len(storedConfirmationHash) != 32 {
+		t.Fatal("confirmation DID was not stored as a one-way hash")
+	}
+	if _, err := store.Accept(ctx, AcceptanceRequest{
+		JobID: jobID, Owner: owner, ReauthProof: "proof",
+		ConfirmationDID: syntax.DID("did:plc:alicf"),
+	}); !errors.Is(err, ErrConfirmationDIDMismatch) {
+		t.Fatalf("near-match DID error = %v", err)
+	}
 	accepted, err := store.Accept(ctx, AcceptanceRequest{
-		JobID: jobID, Owner: owner, ReauthProof: "proof", ConfirmationHandle: "@alice.test",
+		JobID: jobID, Owner: owner, ReauthProof: "proof", ConfirmationDID: owner,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -105,8 +120,8 @@ func TestAcceptanceAtomicallyAdoptsKnownUncertainPDSAttempt(t *testing.T) {
 	}
 	if err := store.CreateIntent(ctx, IntentRecord{
 		JobID: jobID, Owner: owner,
-		ConfirmationHandleHash: HashSecret("@alice.test"),
-		ExpiresAt:              now.Add(10 * time.Minute),
+		ConfirmationDIDHash: HashSecret(owner.String()),
+		ExpiresAt:           now.Add(10 * time.Minute),
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +150,7 @@ func TestAcceptanceAtomicallyAdoptsKnownUncertainPDSAttempt(t *testing.T) {
 
 	if _, err := store.Accept(ctx, AcceptanceRequest{
 		JobID: jobID, Owner: owner,
-		ReauthProof: "proof", ConfirmationHandle: "@alice.test",
+		ReauthProof: "proof", ConfirmationDID: owner,
 	}); err != nil {
 		t.Fatal(err)
 	}

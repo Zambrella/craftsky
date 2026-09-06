@@ -15,6 +15,7 @@ import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
+import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/projects/widgets/project_card.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -1005,8 +1006,12 @@ class _ReplyPrompt extends StatelessWidget {
           label: Text(
             isRootPrompt ? l10n.postCommentAction : l10n.postThreadReplyAction,
             semanticsLabel: isRootPrompt
-                ? l10n.postCommentOnAuthor(_threadAuthorLabel(post))
-                : l10n.postThreadReplyToAuthor(_threadAuthorLabel(post)),
+                ? l10n.postCommentOnAuthor(
+                    _threadAuthorLabel(post, l10n.handleUnavailable),
+                  )
+                : l10n.postThreadReplyToAuthor(
+                    _threadAuthorLabel(post, l10n.handleUnavailable),
+                  ),
           ),
         ),
       ),
@@ -1014,10 +1019,16 @@ class _ReplyPrompt extends StatelessWidget {
   }
 }
 
-String _threadAuthorLabel(craftsky_post.Post post) {
+String _threadAuthorLabel(
+  craftsky_post.Post post,
+  String unavailableHandleLabel,
+) {
   final displayName = post.author.displayName;
+  final handle = ProfileHandle(
+    post.author.handle,
+  ).currentLabel(unavailableLabel: unavailableHandleLabel);
   if (displayName != null && displayName.trim().isNotEmpty) {
-    return '$displayName (@${post.author.handle})';
+    return '$displayName ($handle)';
   }
-  return '@${post.author.handle}';
+  return handle;
 }

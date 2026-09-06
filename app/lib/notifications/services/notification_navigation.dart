@@ -32,7 +32,7 @@ void navigateToNotificationOutcome(
     case ProfileDestination(:final did):
       unawaited(
         UserProfileRoute(
-          handle: did.toString(),
+          did: did,
         ).push<void>(navigationContext),
       );
     case final PostDestination destination:

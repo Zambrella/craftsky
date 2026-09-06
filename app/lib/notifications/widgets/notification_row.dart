@@ -51,7 +51,7 @@ class NotificationRow extends ConsumerWidget {
         ? null
         : profileRelationshipProvider(
             account,
-            actorNotification.actor.did.toString(),
+            actorNotification.actor.did,
           );
     final cachedRelationship = actorRelationshipProvider == null
         ? null
@@ -83,7 +83,7 @@ class NotificationRow extends ConsumerWidget {
     }
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final actor = actorNotification.actor.displayLabel;
+    final actor = actorNotification.actor.displayLabel(l10n.handleUnavailable);
     final actionColor = _actionColor(actorNotification, theme.colorScheme);
     final (title, subjectPost) = switch (actorNotification) {
       FollowNotification() => (l10n.notificationFollowRow(actor), null),
@@ -144,7 +144,7 @@ class NotificationRow extends ConsumerWidget {
         ? () => unawaited(
             showUserProfileCard(
               context,
-              handleOrDid: actorNotification.actor.handle.toString(),
+              did: actorNotification.actor.did,
             ),
           )
         : null;
@@ -289,7 +289,7 @@ class NotificationRow extends ConsumerWidget {
       case FollowNotification(:final actor):
       case InstagramMatchNotification(:final actor):
         unawaited(
-          UserProfileRoute(handle: actor.handle.toString()).push<void>(context),
+          UserProfileRoute(did: actor.did).push<void>(context),
         );
       case LikeNotification(:final subjectPost):
       case RepostNotification(:final subjectPost):
@@ -395,9 +395,7 @@ class _NotificationFollowButtonState
           : await repository.follow(widget.actor.did.toString());
       if (!mounted || !_isOwnerCurrent()) return;
       setState(() => _isFollowing = updated.viewerIsFollowing);
-      ref
-        ..invalidate(userProfileProvider(widget.actor.did.toString()))
-        ..invalidate(userProfileProvider(widget.actor.handle.toString()));
+      ref.invalidate(userProfileProvider(widget.actor.did));
     } on Object {
       if (!mounted || !_isOwnerCurrent()) return;
       setState(() => _isFollowing = previous);

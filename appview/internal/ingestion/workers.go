@@ -86,7 +86,15 @@ type RepositoryWorkerConfig struct {
 	BatchSize     int
 	BackoffMin    time.Duration
 	BackoffMax    time.Duration
+	AlertAge      time.Duration
+	AlertAttempts int
 	Logger        *slog.Logger
+	Observer      RepositoryRepairObserver
+}
+
+type RepositoryRepairObserver interface {
+	ObserveRepositoryRepair(jobKind, result, reason string, duration time.Duration, attempt int)
+	ObserveRepositoryRepairQueue(pending int, oldestAge time.Duration, maxAttempts int, alert bool)
 }
 
 type RepositoryWorker struct {
@@ -181,6 +189,15 @@ func NewRepositoryWorker(config RepositoryWorkerConfig) (*RepositoryWorker, erro
 	if config.Handler == nil {
 		return nil, errors.New("repository worker requires a handler")
 	}
+	if config.AlertAge == 0 {
+		config.AlertAge = 15 * time.Minute
+	}
+	if config.AlertAttempts == 0 {
+		config.AlertAttempts = 5
+	}
+	if config.AlertAge < 0 || config.AlertAttempts < 0 {
+		return nil, errors.New("repository worker alert thresholds must be positive")
+	}
 	logger := config.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -201,6 +218,7 @@ func (worker *RepositoryWorker) Run(ctx context.Context) error {
 }
 
 func (worker *RepositoryWorker) RunOnce(ctx context.Context) (int, error) {
+	worker.observeRepositoryHealth(ctx)
 	claims, err := worker.config.Store.ClaimRepositoryJobs(ctx, RepositoryClaimRequest{
 		Worker: worker.config.WorkerID, LeaseToken: uuid.New(),
 		LeaseDuration: worker.config.LeaseDuration, Limit: worker.config.BatchSize,
@@ -210,12 +228,45 @@ func (worker *RepositoryWorker) RunOnce(ctx context.Context) (int, error) {
 	}
 	var batchErr error
 	for _, claim := range claims {
+		started := time.Now()
 		delay := exponentialBackoff(claim.Attempts, worker.config.BackoffMin, worker.config.BackoffMax)
-		if err := worker.config.Store.runRepositoryJob(ctx, claim, worker.config.Handler, delay); err != nil {
-			batchErr = errors.Join(batchErr, err)
+		runErr := worker.config.Store.runRepositoryJob(ctx, claim, worker.config.Handler, delay)
+		if worker.config.Observer != nil {
+			result, reason := "success", "none"
+			if runErr != nil {
+				result, reason = "retry", repositoryJobFailureReason(runErr)
+			}
+			worker.config.Observer.ObserveRepositoryRepair(string(claim.Kind), result, reason, time.Since(started), claim.Attempts)
+		}
+		if runErr != nil {
+			batchErr = errors.Join(batchErr, runErr)
 		}
 	}
+	worker.observeRepositoryHealth(ctx)
 	return len(claims), batchErr
+}
+
+func (worker *RepositoryWorker) observeRepositoryHealth(ctx context.Context) {
+	if worker.config.Observer == nil {
+		return
+	}
+	health, err := worker.config.Store.RepositoryBacklogHealth(ctx)
+	if err != nil {
+		return
+	}
+	alert := health.OldestAge >= worker.config.AlertAge || health.MaxAttempts >= worker.config.AlertAttempts
+	worker.config.Observer.ObserveRepositoryRepairQueue(health.Pending, health.OldestAge, health.MaxAttempts, alert)
+}
+
+func repositoryJobFailureReason(err error) string {
+	if errors.Is(err, ErrProjectionLeaseLost) {
+		return "lease_lost"
+	}
+	var reasoned interface{ ReasonCode() string }
+	if errors.As(err, &reasoned) && strings.TrimSpace(reasoned.ReasonCode()) != "" {
+		return reasoned.ReasonCode()
+	}
+	return "store_failed"
 }
 
 func validateWorkerConfig(store *Store, workerID string, poll, lease time.Duration, batch int, backoffMin, backoffMax time.Duration) error {

@@ -89,7 +89,6 @@ services:
       # fast first-boot path but is now redundant for real users.
       TAP_SIGNAL_COLLECTION: "social.craftsky.actor.profile"
       TAP_LOG_LEVEL: info
-      TAP_NO_REPLAY: "true"
     volumes:
       - tapdata:/data
     healthcheck:

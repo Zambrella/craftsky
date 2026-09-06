@@ -29,6 +29,7 @@ import 'package:craftsky_app/saved_posts/models/saved_post_folder.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_post_repository_provider.dart';
 import 'package:craftsky_app/saved_posts/widgets/save_post_dialog.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_action_providers.dart';
@@ -413,7 +414,7 @@ void main() {
       },
     );
 
-    testWidgets('TDD-005A author identity opens the compact profile route', (
+    testWidgets('AT-003 author identity opens the compact DID profile route', (
       tester,
     ) async {
       GoRouterState? destination;
@@ -426,7 +427,7 @@ void main() {
             ),
           ),
           GoRoute(
-            path: '/profile/:handle',
+            path: '/profiles/:did',
             builder: (_, state) {
               destination = state;
               return const Scaffold(body: Text('Profile'));
@@ -454,7 +455,7 @@ void main() {
       await tester.tap(find.text('Alice'));
       await tester.pumpAndSettle();
 
-      expect(destination?.uri.path, '/profile/alice.craftsky.social');
+      expect(destination?.uri.path, '/profiles/did%3Aplc%3Aalice');
       expect(
         (destination?.extra as ProfilePresentationRequest?)?.startsCompact,
         isTrue,
@@ -1915,7 +1916,10 @@ void main() {
       unawaited(
         container
             .read(
-              profileRelationshipProvider(account, 'did:plc:bob').notifier,
+              profileRelationshipProvider(
+                account,
+                Did.parse('did:plc:bob'),
+              ).notifier,
             )
             .mutate(ProfileRelationshipAction.mute),
       );

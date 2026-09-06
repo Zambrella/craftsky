@@ -22,11 +22,11 @@ func TestAccountDeletionReauthenticationIsFreshOwnerBoundAndSingleUse(t *testing
 
 	now := time.Date(2026, 8, 10, 15, 0, 0, 0, time.UTC)
 	intent := AccountDeletionReauthIntent{
-		JobID:          "job-alice",
-		Owner:          syntax.DID("did:plc:alice"),
-		ExpectedHandle: "alice.test",
-		IssuedAt:       now,
-		ExpiresAt:      now.Add(10 * time.Minute),
+		JobID:       "job-alice",
+		Owner:       syntax.DID("did:plc:alice"),
+		ExpectedDID: syntax.DID("did:plc:alice"),
+		IssuedAt:    now,
+		ExpiresAt:   now.Add(10 * time.Minute),
 	}
 	completion, err := CompleteAccountDeletionReauth(
 		intent,
@@ -45,11 +45,11 @@ func TestAccountDeletionReauthenticationIsFreshOwnerBoundAndSingleUse(t *testing
 		t.Fatal("reauthentication proof must be stored only as a one-way hash")
 	}
 
-	sessionID, err := ConsumeAccountDeletionReauth(intent, &completion, "one-time-proof-secret", "alice.test", now.Add(2*time.Minute))
+	sessionID, err := ConsumeAccountDeletionReauth(intent, &completion, "one-time-proof-secret", "did:plc:alice", now.Add(2*time.Minute))
 	if err != nil || sessionID != completion.OAuthSessionID {
 		t.Fatalf("matching proof consumption = (%q, %v)", sessionID, err)
 	}
-	if _, err := ConsumeAccountDeletionReauth(intent, &completion, "one-time-proof-secret", "alice.test", now.Add(2*time.Minute)); !errors.Is(err, ErrDeletionReauthReplayed) {
+	if _, err := ConsumeAccountDeletionReauth(intent, &completion, "one-time-proof-secret", "did:plc:alice", now.Add(2*time.Minute)); !errors.Is(err, ErrDeletionReauthReplayed) {
 		t.Fatalf("replayed proof error = %v", err)
 	}
 
@@ -57,11 +57,11 @@ func TestAccountDeletionReauthenticationIsFreshOwnerBoundAndSingleUse(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ConsumeAccountDeletionReauth(intent, &fresh, "proof-2", "Alice.test", now.Add(2*time.Minute)); !errors.Is(err, ErrDeletionConfirmationHandleMismatch) {
-		t.Fatalf("handle mismatch error = %v", err)
+	if _, err := ConsumeAccountDeletionReauth(intent, &fresh, "proof-2", "did:plc:alicf", now.Add(2*time.Minute)); !errors.Is(err, ErrDeletionConfirmationDIDMismatch) {
+		t.Fatalf("DID mismatch error = %v", err)
 	}
 	if fresh.Consumed {
-		t.Fatal("handle mismatch must not consume or advance the proof")
+		t.Fatal("DID mismatch must not consume or advance the proof")
 	}
 
 	for _, test := range []struct {
@@ -73,7 +73,7 @@ func TestAccountDeletionReauthenticationIsFreshOwnerBoundAndSingleUse(t *testing
 		{name: "wrong DID", intent: intent, callbackDID: syntax.DID("did:plc:bob"), at: now.Add(time.Minute)},
 		{name: "stale", intent: intent, callbackDID: intent.Owner, at: now.Add(-time.Second)},
 		{name: "expired", intent: intent, callbackDID: intent.Owner, at: intent.ExpiresAt},
-		{name: "canceled", intent: AccountDeletionReauthIntent{JobID: intent.JobID, Owner: intent.Owner, ExpectedHandle: intent.ExpectedHandle, IssuedAt: intent.IssuedAt, ExpiresAt: intent.ExpiresAt, Canceled: true}, callbackDID: intent.Owner, at: now.Add(time.Minute)},
+		{name: "canceled", intent: AccountDeletionReauthIntent{JobID: intent.JobID, Owner: intent.Owner, ExpectedDID: intent.ExpectedDID, IssuedAt: intent.IssuedAt, ExpiresAt: intent.ExpiresAt, Canceled: true}, callbackDID: intent.Owner, at: now.Add(time.Minute)},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			if _, err := CompleteAccountDeletionReauth(test.intent, test.callbackDID, "oauth-rejected", "proof-rejected", test.at); !errors.Is(err, ErrDeletionReauthenticationRequired) {

@@ -8,10 +8,13 @@ import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../fakes/fake_post_repository.dart';
+
+final _aliceDid = Did.parse('did:plc:alice');
 
 Map<String, dynamic> _postMap({
   required String rkey,
@@ -69,8 +72,7 @@ void main() {
       expect(container.read(deletePostProvider).value, isNull);
     });
 
-    test('successful delete removes from live family entries '
-        '(both did and handle keys)', () async {
+    test('successful delete removes from the live DID family entry', () async {
       final deleted = <(String, String)>[];
       final fake = FakePostRepository(
         onListByAuthor: (id, {cursor, limit}) async => PostPage(
@@ -95,8 +97,7 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider('did:plc:alice').future);
-      await container.read(userPostsProvider('alice.craftsky.social').future);
+      await container.read(userPostsProvider(_aliceDid).future);
 
       await container
           .read(deletePostProvider.notifier)
@@ -104,10 +105,8 @@ void main() {
 
       expect(deleted, [('did:plc:alice', 'a')]);
 
-      final didList = container.read(userPostsProvider('did:plc:alice')).value!;
-      final handleList = container
-          .read(userPostsProvider('alice.craftsky.social'))
-          .value!;
+      final didList = container.read(userPostsProvider(_aliceDid)).value!;
+      final handleList = container.read(userPostsProvider(_aliceDid)).value!;
       expect(didList.items.map((p) => p.rkey), ['b']);
       expect(handleList.items.map((p) => p.rkey), ['b']);
     });
@@ -130,14 +129,14 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider('did:plc:alice').future);
+      await container.read(userPostsProvider(_aliceDid).future);
 
       await container
           .read(deletePostProvider.notifier)
           .delete(post: _post(rkey: 'a'));
 
       expect(container.read(deletePostProvider).hasError, isTrue);
-      final list = container.read(userPostsProvider('did:plc:alice')).value!;
+      final list = container.read(userPostsProvider(_aliceDid)).value!;
       expect(list.items.map((p) => p.rkey), ['a']);
     });
 
@@ -165,7 +164,7 @@ void main() {
     });
 
     test(
-      'IT-008 removes project posts from did/handle project caches only',
+      'IT-008 removes project posts from the DID project cache only',
       () async {
         final fake = FakePostRepository(
           onListByAuthor: (id, {cursor, limit}) async =>
@@ -186,12 +185,8 @@ void main() {
             postRepositoryProvider.overrideWithValue(fake),
           ],
         );
-        await container.read(userPostsProvider('did:plc:alice').future);
-        await container.read(userPostsProvider('alice.craftsky.social').future);
-        await container.read(userProjectsProvider('did:plc:alice').future);
-        await container.read(
-          userProjectsProvider('alice.craftsky.social').future,
-        );
+        await container.read(userPostsProvider(_aliceDid).future);
+        await container.read(userProjectsProvider(_aliceDid).future);
 
         await container
             .read(deletePostProvider.notifier)
@@ -200,19 +195,16 @@ void main() {
             );
 
         expect(
-          container.read(userProjectsProvider('did:plc:alice')).value!.items,
+          container.read(userProjectsProvider(_aliceDid)).value!.items,
+          isEmpty,
+        );
+        expect(
+          container.read(userProjectsProvider(_aliceDid)).value!.items,
           isEmpty,
         );
         expect(
           container
-              .read(userProjectsProvider('alice.craftsky.social'))
-              .value!
-              .items,
-          isEmpty,
-        );
-        expect(
-          container
-              .read(userPostsProvider('did:plc:alice'))
+              .read(userPostsProvider(_aliceDid))
               .value!
               .items
               .map((post) => post.rkey),
@@ -220,7 +212,7 @@ void main() {
         );
         expect(
           container
-              .read(userPostsProvider('alice.craftsky.social'))
+              .read(userPostsProvider(_aliceDid))
               .value!
               .items
               .map((post) => post.rkey),

@@ -107,8 +107,8 @@ type Dependencies struct {
 	CraftskyProfileProjector auth.CraftskyProfileProjector
 	LoginCompleteURL         string
 	DeletionCompleteURL      string
-	IdentityCacheUpdater     auth.IdentityCacheUpdater
-	RepositoryTracker        auth.RepositoryTracker
+	IdentityCacheUpdater     auth.IdentityCacheRefresher
+	IdentityInvalidator      api.IdentityInvalidator
 
 	HandleResolver              api.HandleResolver
 	AuthoritativeHandleResolver api.HandleResolver

@@ -8,18 +8,18 @@ part of 'user_comments_provider.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Cursor-accumulating authored comments/replies list, keyed by `handleOrDid`.
+/// Cursor-accumulating authored comments/replies list, keyed by DID.
 
 @ProviderFor(UserComments)
 final userCommentsProvider = UserCommentsFamily._();
 
-/// Cursor-accumulating authored comments/replies list, keyed by `handleOrDid`.
+/// Cursor-accumulating authored comments/replies list, keyed by DID.
 final class UserCommentsProvider
     extends $AsyncNotifierProvider<UserComments, UserPostsState> {
-  /// Cursor-accumulating authored comments/replies list, keyed by `handleOrDid`.
+  /// Cursor-accumulating authored comments/replies list, keyed by DID.
   UserCommentsProvider._({
     required UserCommentsFamily super.from,
-    required String super.argument,
+    required Did super.argument,
   }) : super(
          retry: null,
          name: r'userCommentsProvider',
@@ -53,9 +53,9 @@ final class UserCommentsProvider
   }
 }
 
-String _$userCommentsHash() => r'e5fb590a08b26e5f0024c0333901dfb119d91d8c';
+String _$userCommentsHash() => r'9c89193e73a93816f209b7ba6d871a89183ad217';
 
-/// Cursor-accumulating authored comments/replies list, keyed by `handleOrDid`.
+/// Cursor-accumulating authored comments/replies list, keyed by DID.
 
 final class UserCommentsFamily extends $Family
     with
@@ -64,7 +64,7 @@ final class UserCommentsFamily extends $Family
           AsyncValue<UserPostsState>,
           UserPostsState,
           FutureOr<UserPostsState>,
-          String
+          Did
         > {
   UserCommentsFamily._()
     : super(
@@ -75,22 +75,22 @@ final class UserCommentsFamily extends $Family
         isAutoDispose: true,
       );
 
-  /// Cursor-accumulating authored comments/replies list, keyed by `handleOrDid`.
+  /// Cursor-accumulating authored comments/replies list, keyed by DID.
 
-  UserCommentsProvider call(String handleOrDid) =>
-      UserCommentsProvider._(argument: handleOrDid, from: this);
+  UserCommentsProvider call(Did did) =>
+      UserCommentsProvider._(argument: did, from: this);
 
   @override
   String toString() => r'userCommentsProvider';
 }
 
-/// Cursor-accumulating authored comments/replies list, keyed by `handleOrDid`.
+/// Cursor-accumulating authored comments/replies list, keyed by DID.
 
 abstract class _$UserComments extends $AsyncNotifier<UserPostsState> {
-  late final _$args = ref.$arg as String;
-  String get handleOrDid => _$args;
+  late final _$args = ref.$arg as Did;
+  Did get did => _$args;
 
-  FutureOr<UserPostsState> build(String handleOrDid);
+  FutureOr<UserPostsState> build(Did did);
   @$mustCallSuper
   @override
   void runBuild() {

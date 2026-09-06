@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/external_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
@@ -281,11 +282,16 @@ class _PostSummaryAuthor extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     final displayName = author.displayName;
+    final handle = ProfileHandle(author.handle);
     return Row(
       children: [
         ProfileAvatar(
-          seed: displayName ?? author.handle,
+          seed: handle.displayLabel(
+            displayName: displayName,
+            unavailableLabel: l10n.handleUnavailable,
+          ),
           avatarUrl: author.avatar,
           size: ProfileAvatarSize.small,
           customisation: author.customisation,
@@ -303,7 +309,7 @@ class _PostSummaryAuthor extends StatelessWidget {
                   style: theme.textTheme.titleSmall,
                 ),
               Text(
-                '@${author.handle}',
+                handle.currentLabel(unavailableLabel: l10n.handleUnavailable),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: theme.textTheme.bodySmall?.copyWith(

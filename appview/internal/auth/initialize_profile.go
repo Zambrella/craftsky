@@ -11,12 +11,8 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
 
-type IdentityCacheUpdater interface {
-	UpsertCurrentHandle(ctx context.Context, did syntax.DID) error
-}
-
-type RepositoryTracker interface {
-	AddRepo(context.Context, syntax.DID) error
+type IdentityCacheRefresher interface {
+	RefreshCurrentHandle(ctx context.Context, did syntax.DID) error
 }
 
 type BlueskyProfileProjector interface {
@@ -153,9 +149,8 @@ func InitializeProfileAndIdentityCache(
 	writer OnboardingProfileWriter,
 	blueskyProjector BlueskyProfileProjector,
 	craftskyProjector CraftskyProfileProjector,
-	updater IdentityCacheUpdater,
+	updater IdentityCacheRefresher,
 	logger *slog.Logger,
-	repositoryTrackers ...RepositoryTracker,
 ) error {
 	profiles, err := initializeProfile(ctx, client, attempt, writer)
 	if err != nil {
@@ -183,19 +178,10 @@ func InitializeProfileAndIdentityCache(
 				authLogErrorAttrs("", "profile_init.bluesky_projection", "store")...)
 		}
 	}
-	for _, tracker := range repositoryTrackers {
-		if tracker == nil {
-			continue
-		}
-		if err := tracker.AddRepo(ctx, did); err != nil && logger != nil {
-			logger.Warn("Tap repository tracking request after profile initialization failed",
-				authLogErrorAttrs("", "profile_init.repository_tracking", "tap")...)
-		}
-	}
 	if updater == nil {
 		return nil
 	}
-	if err := updater.UpsertCurrentHandle(ctx, did); err != nil {
+	if err := updater.RefreshCurrentHandle(ctx, did); err != nil {
 		if logger != nil {
 			logger.Warn("identity cache upsert after profile initialization failed",
 				authLogErrorAttrs("", "profile_init.identity_cache", "store")...)

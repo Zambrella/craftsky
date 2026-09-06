@@ -116,6 +116,9 @@ func (p *PublicationProcessor) Process(ctx context.Context, item WorkItem) (proc
 	if startLatency < 0 {
 		startLatency = 0
 	}
+	if !item.Manual && !AutomaticPublicationEligible(snapshot.ScheduledAt, p.now().UTC()) {
+		return p.recordFailure(ctx, claim, ErrAutomaticCutoffExceeded, false)
+	}
 	payload, err := DecodePayload(snapshot.Payload)
 	if err != nil {
 		return p.recordFailure(ctx, claim, ErrPolicyInvalid, item.Manual)

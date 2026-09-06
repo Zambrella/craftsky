@@ -111,10 +111,9 @@ type Deps struct {
 	ProfileStore *api.ProfileStore
 	// ProfileCustomisationStore owns AppView-only public appearance choices.
 	ProfileCustomisationStore *api.ProfileCustomisationStore
-	// IdentityCacheUpdater upserts authenticated users' current handles after profile initialization.
-	IdentityCacheUpdater auth.IdentityCacheUpdater
-	// RepositoryTracker requests ordinary Tap tracking/backfill on membership and OAuth initialization.
-	RepositoryTracker auth.RepositoryTracker
+	// IdentityCacheUpdater refreshes authenticated users' current handles after profile initialization.
+	IdentityCacheUpdater auth.IdentityCacheRefresher
+	IdentityInvalidator  api.IdentityInvalidator
 	// FollowStore serves follow graph read/write operations for /v1/profiles/*/follows.
 	FollowStore *api.FollowStore
 	// RelationshipStore owns private mutes and reads the Tap-owned block projection.
@@ -228,9 +227,14 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		return nil, nil, err
 	}
 	scheduledStore := scheduledStorage.store
+	ingestionStore, err := newTapIngestionStore(pool)
+	if err != nil {
+		return nil, nil, err
+	}
+	observer := newObservabilityDependencies(cfg, logger, resources)
 
 	authCapability, err := newAuthDependencies(
-		pool, federated, owners, oauthArtifacts, handoffReceiptKey, cfg, logger,
+		pool, federated, owners, oauthArtifacts, handoffReceiptKey, cfg, logger, ingestionStore, observer,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -245,7 +249,6 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 
 	// Identity and every metadata/PDS request share one hardened outbound
 	// boundary. There is no process-default HTTP client fallback.
-	observer := newObservabilityDependencies(cfg, logger, resources)
 	identities := newIdentityResolutionDependencies(
 		federated.directory, federated.authoritativeDirectory, pool, cfg.Env, observer,
 	)
@@ -290,6 +293,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		identities.invalidator,
 		cfg,
 		logger,
+		ingestionStore,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -337,7 +341,6 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		NewPDSEffects:               pdsEffects.ordinary,
 		LoginCompleteURL:            loginCompleteURL.String(),
 		DeletionCompleteURL:         deletionCompleteURL.String(),
-		RepositoryTracker:           tapCapability.repositoryTracker,
 		HandleResolver:              identities.cached,
 		AuthoritativeHandleResolver: identities.authoritative,
 		TapProjectionWorker:         tapCapability.projectionWorker,
@@ -392,6 +395,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		return nil, nil, err
 	}
 	deps.IdentityCacheUpdater = contentRuntime.identityCache
+	deps.IdentityInvalidator = identities.invalidator
 	deps.IdentityCacheRefresh = contentRuntime.identityRefresh
 	deps.RelationshipMutations = contentRuntime.relationshipMutations
 	deletion, err := newAccountDeletionDependencies(
@@ -403,8 +407,6 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		instagramPrivateData,
 		scheduledAccountDeletion,
 		scheduledDepartureParticipant,
-		deps.AuthoritativeHandleResolver,
-		observer,
 		cfg,
 		logger,
 	)

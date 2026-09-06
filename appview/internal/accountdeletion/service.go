@@ -9,10 +9,10 @@ import (
 )
 
 var (
-	ErrReauthenticationRequired   = errors.New("account deletion reauthentication required")
-	ErrConfirmationHandleMismatch = errors.New("account deletion confirmation handle mismatch")
-	ErrDeletionAlreadyPending     = errors.New("account deletion already pending")
-	ErrIdentityUnavailable        = errors.New("account deletion identity unavailable")
+	ErrReauthenticationRequired = errors.New("account deletion reauthentication required")
+	ErrConfirmationDIDMismatch  = errors.New("account deletion confirmation DID mismatch")
+	ErrDeletionAlreadyPending   = errors.New("account deletion already pending")
+	ErrIdentityUnavailable      = errors.New("account deletion identity unavailable")
 )
 
 type CreateIntentParams struct {
@@ -21,16 +21,17 @@ type CreateIntentParams struct {
 }
 
 type IntentResult struct {
-	JobID     string    `json:"jobId"`
-	AuthURL   string    `json:"authUrl"`
-	ExpiresAt time.Time `json:"expiresAt"`
+	JobID           string     `json:"jobId"`
+	AuthURL         string     `json:"authUrl"`
+	ConfirmationDID syntax.DID `json:"confirmationDid"`
+	ExpiresAt       time.Time  `json:"expiresAt"`
 }
 
 type AcceptParams struct {
-	JobID              string
-	Owner              syntax.DID
-	ReauthProof        string
-	ConfirmationHandle string
+	JobID           string
+	Owner           syntax.DID
+	ReauthProof     string
+	ConfirmationDID syntax.DID
 }
 
 type Service interface {

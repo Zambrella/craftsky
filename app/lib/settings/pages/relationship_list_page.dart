@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
+import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/settings/providers/relationship_list_provider.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -138,17 +139,27 @@ class _RelationshipListBody extends StatelessWidget {
         }
         final account = state.items[index];
         final did = account.did.toString();
+        final handle = ProfileHandle(account.handle);
         return ListTile(
           title: Text(
-            account.displayName?.isNotEmpty ?? false
-                ? account.displayName!
-                : account.handle.toString(),
+            handle.displayLabel(
+              displayName: account.displayName,
+              unavailableLabel: l10n.handleUnavailable,
+            ),
           ),
-          subtitle: Text('@${account.handle}'),
+          subtitle:
+              handle.isAvailable ||
+                  (account.displayName?.trim().isNotEmpty ?? false)
+              ? Text(
+                  handle.currentLabel(
+                    unavailableLabel: l10n.handleUnavailable,
+                  ),
+                )
+              : null,
           onTap: () => unawaited(
             showUserProfileCard(
               context,
-              handleOrDid: account.handle.toString(),
+              did: account.did,
             ),
           ),
           trailing: TextButton(

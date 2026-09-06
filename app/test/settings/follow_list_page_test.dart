@@ -171,7 +171,7 @@ void main() {
               const FollowListPage(kind: FollowListKind.following),
         ),
         GoRoute(
-          path: '/profile/:handle',
+          path: '/profiles/:did',
           builder: (_, state) {
             destination = state;
             return const Scaffold(body: Text('Profile'));
@@ -197,7 +197,7 @@ void main() {
     await tester.tap(find.text('Dana'));
     await tester.pumpAndSettle();
 
-    expect(destination?.uri.path, '/profile/dana.craftsky.social');
+    expect(destination?.uri.path, '/profiles/did%3Aplc%3Adana');
     expect(
       (destination?.extra as ProfilePresentationRequest?)?.startsCompact,
       isTrue,

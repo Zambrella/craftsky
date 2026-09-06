@@ -64,6 +64,47 @@ void main() {
     expect(first.headers['Authorization'], 'Bearer token-a');
     expect(second.headers['Authorization'], 'Bearer token-a');
   });
+
+  test('UT-017 transmits only the Craftsky bearer credential', () async {
+    final options = RequestOptions(
+      path: '/v1/profile',
+      method: 'POST',
+      headers: {
+        'Authorization': 'DPoP pds-access-token-canary',
+        'DPoP': 'dpop-proof-canary',
+        'X-PDS-Refresh-Token': 'pds-refresh-token-canary',
+        'X-PDS-Endpoint': 'https://obsolete-pds.example',
+      },
+    );
+
+    SessionAuthInterceptor.fixed(
+      token: 'craftsky-session-canary',
+      readDeviceId: () async => 'device-abc',
+    ).onRequest(options, _CapturingHandler());
+    await _pumpEventLoop();
+
+    expect(options.headers, {
+      'Authorization': 'Bearer craftsky-session-canary',
+      'X-Craftsky-Device-Id': 'device-abc',
+    });
+  });
+
+  test('UT-017 anonymous requests strip attempted credentials', () async {
+    final options = RequestOptions(
+      path: '/v1/auth/login',
+      headers: {
+        'Authorization': 'Bearer pds-access-token-canary',
+        'dpop': 'dpop-proof-canary',
+      },
+    );
+
+    SessionAuthInterceptor.anonymous(
+      readDeviceId: () async => 'device-abc',
+    ).onRequest(options, _CapturingHandler());
+    await _pumpEventLoop();
+
+    expect(options.headers, {'X-Craftsky-Device-Id': 'device-abc'});
+  });
 }
 
 Future<void> _pumpEventLoop() async {

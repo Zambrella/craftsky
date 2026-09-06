@@ -1,6 +1,7 @@
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -117,7 +118,7 @@ void main() {
           showSheet: (context, ref) => showProfileReportSheet(
             context,
             ref,
-            'bob.craftsky.social',
+            Did.parse('did:plc:bob'),
           ),
         );
         rootObserver.pushedRoutes.clear();

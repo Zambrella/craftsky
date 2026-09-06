@@ -35,8 +35,7 @@ type HTTPHandlers struct {
 	AllowDevScheme            bool
 	Pool                      *pgxpool.Pool // for handoff read/write
 	Logger                    *slog.Logger
-	IdentityCacheUpdater      IdentityCacheUpdater
-	RepositoryTracker         RepositoryTracker
+	IdentityCacheUpdater      IdentityCacheRefresher
 	NotificationSubscriptions NotificationSubscriptionCleaner
 	DeletionOAuthCallbacks    AccountDeletionOAuthCallbacks
 	DeletionPendingLogin      AccountDeletionPendingLoginPolicy
@@ -53,9 +52,9 @@ func NewHTTPHandlers(
 	craftskyStore *CraftskySessionStore,
 	pool *pgxpool.Pool,
 	logger *slog.Logger,
-	identityCacheUpdater ...IdentityCacheUpdater,
+	identityCacheUpdater ...IdentityCacheRefresher,
 ) *HTTPHandlers {
-	var updater IdentityCacheUpdater
+	var updater IdentityCacheRefresher
 	if len(identityCacheUpdater) > 0 {
 		updater = identityCacheUpdater[0]
 	}
@@ -149,7 +148,7 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 				if err := InitializeProfileAndIdentityCache(
 					callbackCtx, pdsClient, callbackResult.Attempt, h.OnboardingProfile,
 					h.BlueskyProfileProjector, h.CraftskyProfileProjector,
-					h.IdentityCacheUpdater, h.Logger, h.RepositoryTracker,
+					h.IdentityCacheUpdater, h.Logger,
 				); err != nil {
 					return err
 				}

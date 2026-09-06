@@ -12,6 +12,7 @@ import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -23,18 +24,18 @@ const _autoLoadMoreThreshold = 3;
 
 class ProfileCommentsTab extends ConsumerWidget {
   const ProfileCommentsTab({
-    required this.handle,
+    required this.did,
     required this.isOwnProfile,
     super.key,
   });
 
-  final String handle;
+  final Did did;
   final bool isOwnProfile;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final commentsAsync = ref.watch(userCommentsProvider(handle));
+    final commentsAsync = ref.watch(userCommentsProvider(did));
 
     ref
       ..listen(deletePostProvider, (previous, next) {
@@ -58,7 +59,7 @@ class ProfileCommentsTab extends ConsumerWidget {
 
     return switch (commentsAsync) {
       AsyncValue(:final value?) => _ProfileCommentsLoadedSlivers(
-        handle: handle,
+        did: did,
         comments: value.items,
         hasMore: value.hasMore,
         isLoadingMore: commentsAsync.isLoading,
@@ -67,7 +68,7 @@ class ProfileCommentsTab extends ConsumerWidget {
       ),
       AsyncError(:final error) => _ProfileCommentsErrorSliver(
         error: error,
-        onRetry: () => ref.invalidate(userCommentsProvider(handle)),
+        onRetry: () => ref.invalidate(userCommentsProvider(did)),
       ),
       _ => const SliverFillRemaining(
         hasScrollBody: false,
@@ -79,7 +80,7 @@ class ProfileCommentsTab extends ConsumerWidget {
 
 class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
   const _ProfileCommentsLoadedSlivers({
-    required this.handle,
+    required this.did,
     required this.comments,
     required this.hasMore,
     required this.isLoadingMore,
@@ -87,7 +88,7 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
     required this.isOwnProfile,
   });
 
-  final String handle;
+  final Did did;
   final List<Post> comments;
   final bool hasMore;
   final bool isLoadingMore;
@@ -121,9 +122,7 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (context.mounted) {
                     unawaited(
-                      ref
-                          .read(userCommentsProvider(handle).notifier)
-                          .loadMore(),
+                      ref.read(userCommentsProvider(did).notifier).loadMore(),
                     );
                   }
                 });
@@ -174,9 +173,8 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
                 child: switch ((isLoadingMore, hasLoadMoreError)) {
                   (true, _) => const StitchProgressIndicator(),
                   (_, true) => TextButton.icon(
-                    onPressed: () => ref
-                        .read(userCommentsProvider(handle).notifier)
-                        .loadMore(),
+                    onPressed: () =>
+                        ref.read(userCommentsProvider(did).notifier).loadMore(),
                     icon: const Icon(Icons.refresh),
                     label: Text(l10n.retryButton),
                   ),
@@ -213,7 +211,7 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
     final created = await showPostComposerSheet(context, replyTarget: post);
     if (created == null) return;
     ref
-        .read(userCommentsProvider(handle).notifier)
+        .read(userCommentsProvider(did).notifier)
         .replace(
           post.copyWith(
             replyCount: post.replyCount + 1,

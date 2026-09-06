@@ -37,14 +37,14 @@ class AccountSwitcherContent extends StatelessWidget {
                 enabled: !busy && !row.isCurrent,
                 leading: AccountAvatar(
                   avatarUrl: row.avatarUrl,
-                  seed: row.displayLabel,
+                  seed: row.displayLabel(l10n.handleUnavailable),
                   customisation: row.customisation,
                   selected: row.isCurrent,
                 ),
-                title: Text(row.displayLabel),
-                subtitle: row.displayLabel == row.handle
+                title: Text(row.displayLabel(l10n.handleUnavailable)),
+                subtitle: row.displayName?.trim().isEmpty ?? true
                     ? null
-                    : Text('@${row.handle}'),
+                    : Text(row.currentHandleLabel(l10n.handleUnavailable)),
                 trailing: row.lease == activating
                     ? const SizedBox.square(
                         dimension: 24,

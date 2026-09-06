@@ -65,15 +65,15 @@ func TestAccountDeletionAcceptanceRouteIsAuthenticatedOwnerScopedAndStrict(t *te
 
 	jobID := "10000000-0000-0000-0000-000000000001"
 	path := "/v1/account-deletions/" + jobID
-	response := serveAccountDeletionRequest(mux, path, `{"reauthProof":"proof","confirmationHandle":"alice.test"}`, "", "device-alice", "status-token")
+	response := serveAccountDeletionRequest(mux, path, `{"reauthProof":"proof","confirmationDid":"did:plc:alice"}`, "", "device-alice", "status-token")
 	if response.Code != http.StatusUnauthorized || service.acceptCalls != 0 {
 		t.Fatalf("unauthorized status = %d calls = %d body = %s", response.Code, service.acceptCalls, response.Body.String())
 	}
 
 	for _, body := range []string{
 		`{"reauthProof":`,
-		`{"reauthProof":"proof","confirmationHandle":"alice.test","targetDid":"did:plc:bob"}`,
-		`{"reauthProof":"","confirmationHandle":"alice.test"}`,
+		`{"reauthProof":"proof","confirmationDid":"did:plc:alice","targetDid":"did:plc:bob"}`,
+		`{"reauthProof":"","confirmationDid":"did:plc:alice"}`,
 	} {
 		response = serveAccountDeletionRequest(mux, path, body, "bearer", "device-alice", "status-token")
 		assertCanonicalDeletionError(t, response, http.StatusBadRequest, "invalid_request")
@@ -82,13 +82,13 @@ func TestAccountDeletionAcceptanceRouteIsAuthenticatedOwnerScopedAndStrict(t *te
 		t.Fatalf("invalid requests mutated service %d times", service.acceptCalls)
 	}
 
-	response = serveAccountDeletionRequest(mux, path, `{"reauthProof":"stale","confirmationHandle":"alice.test"}`, "bearer", "device-alice", "status-token")
+	response = serveAccountDeletionRequest(mux, path, `{"reauthProof":"stale","confirmationDid":"did:plc:alice"}`, "bearer", "device-alice", "status-token")
 	assertCanonicalDeletionError(t, response, http.StatusUnauthorized, "reauthentication_required")
 	if service.last.Owner != owner {
 		t.Fatalf("service owner = %q, want authenticated Alice", service.last.Owner)
 	}
 
-	validBody := `{"reauthProof":"proof","confirmationHandle":"alice.test"}`
+	validBody := `{"reauthProof":"proof","confirmationDid":"did:plc:alice"}`
 	response = serveAccountDeletionRequest(mux, path, validBody, "bearer", "device-alice", "status-token")
 	if response.Code != http.StatusAccepted || response.Body.Len() != 0 {
 		t.Fatalf("valid acceptance status = %d body = %s", response.Code, response.Body.String())

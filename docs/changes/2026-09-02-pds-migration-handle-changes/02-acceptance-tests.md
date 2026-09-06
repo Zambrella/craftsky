@@ -43,6 +43,7 @@ All acceptance, unit, integration, contract, and regression cases are intended t
 | FR-029 | AC-053 | AT-011, IT-014 | Acceptance / Integration | Yes |
 | FR-030 | AC-054 | AT-011, REG-006 | Acceptance / Regression | Yes |
 | FR-031 | AC-055 | AT-009, UT-002, IT-016 | Acceptance / Unit / Integration | Yes |
+| FR-032 | AC-056 | UT-019, IT-018 | Unit / Integration | Yes |
 | NFR-001 | AC-015, AC-018, AC-024, AC-027 | UT-003, UT-012, IT-002, IT-006, IT-007, IT-008, IT-012 | Unit / Integration | Yes |
 | NFR-002 | AC-010, AC-028 | UT-001, IT-001, IT-005 | Unit / Integration | Yes |
 | NFR-003 | AC-016, AC-029 | AT-010, IT-006, IT-008 | Acceptance / Integration | Yes |
@@ -339,6 +340,8 @@ Feature: Cold-start migration discovery
 | UT-016 | NFR-005 | AC-031 | Redact migration/auth/reconciliation fields from structured errors and telemetry. | Access/refresh tokens, DPoP key/proof, bearer token, confirmation hash, raw session JSON embedded in errors. | Output contains bounded reason codes and IDs but none of the supplied secrets. | `appview/internal/observability/secret_scan_test.go`, `app/test/observability/secret_scan_test.dart` |
 | UT-017 | RULE-004 | AC-034 | Enforce Flutter's credential model in storage and request interceptors. | Craftsky token plus attempted PDS token, endpoint, refresh token, and DPoP fields. | Only opaque Craftsky session credentials are represented, stored, or attached to AppView requests. | `app/test/auth/providers/secure_token_storage_test.dart`, `app/test/shared/api/providers/session_auth_interceptor_test.dart` |
 | UT-018 | RULE-007 | AC-035 | Inventory source route/provider/cache identity APIs for obsolete handle-keyed compatibility branches and require focused coverage for each known identity surface. | Flutter route declarations plus own profile, post, notification, search, follow list, relationship list, suggestion, recent search, mention, account switcher, and deletion call sites. | Canonical known-identity contracts require DID; no fallback branch preserves an obsolete handle-based identity path without a requirement; every inventoried surface is paired with a focused provider or widget test. | `app/test/router/router_usage_test.dart`, `app/test/profile/did_first_identity_inventory_test.dart` |
+| UT-019 | FR-032, NFR-001, NFR-002 | AC-056 | Cache validated OAuth metadata by canonical origin with fixed insertion expiry, bounded capacity, and coalesced concurrent misses. | Same/variant origins, exact TTL boundary, capacity pressure, concurrent callers, canceled waiter, unsafe/malformed/non-200/error responses. | Successes hit until fixed expiry; access does not extend lifetime; failures never cache; capacity remains bounded; same-key misses coalesce without context leaks or races. | `appview/internal/app/oauth_authority_metadata_cache_test.go` |
+| UT-020 | FR-032, NFR-005 | AC-031, AC-056 | Emit bounded effect-time metadata-cache telemetry. | Hit, miss, coalesced, and error outcomes containing TD-009 canaries in excluded values. | Metrics contain only bounded stage/result labels and no DID, handle, origin, credential, or raw error. | `appview/internal/observability/pds_migration_test.go`, `appview/internal/observability/secret_scan_test.go` |
 
 ## 5. Integration Test Cases
 
@@ -361,6 +364,7 @@ Feature: Cold-start migration discovery
 | IT-015 | FR-005, FR-023 | AC-038, AC-045 | Verify backend protection when Flutter has not completed validation. | Flutter/API harness with pending cold-start validation and stale or current parent. | Invoke a write endpoint. | Current authority proceeds; stale authority returns standard 401 and existing invalid-session recovery; no client-wide migration gate or obsolete-PDS request occurs. | `app/test/auth/cold_start_write_behavior_test.dart`, `appview/internal/api/profile_test.go` |
 | IT-016 | FR-003, FR-031 | AC-012, AC-055 | Persist no session when migration occurs during ordinary OAuth callback. | OAuth begins at A; A returns valid tokens for D after uncached authority moves to B. | Complete callback and run cleanup. | No mixed session/child is committed, no A credential reaches B, and cleanup targets only A. | `appview/internal/auth/oauth_test.go`, `appview/internal/auth/handoff_handlers_test.go` |
 | IT-017 | NFR-005 | AC-031 | Inspect emitted logs, metrics labels, traces, and API errors across migration outcomes. | Secret-bearing test values injected into success, stale, transient, repair, and cleanup paths. | Exercise all paths and scan captured telemetry. | Secrets and raw session JSON are absent; bounded operation/reason/result labels and request/run IDs remain. | `appview/internal/observability/pds_migration_test.go` |
+| IT-018 | FR-001, FR-031, FR-032, NFR-002 | AC-009, AC-036, AC-055, AC-056 | Exercise separate cached effect and fresh callback authority verifiers through production wiring. | Controllable clock, warm A metadata, DID/PDS A-to-B transition, same-PDS issuer transition, callback, registration, and request counters. | Run repeated operations, migration, expiry, callback, and registration paths. | Warm operations still resolve DID but skip metadata fetches; a PDS move is immediate; issuer-only movement is bounded by TTL; callback/registration remain fresh; no credential reaches an unverified destination. | `appview/internal/app/federated_real_flow_integration_test.go` |
 
 ## 6. Regression Tests
 
@@ -374,6 +378,7 @@ Feature: Cold-start migration discovery
 | REG-006 | Tap reconnect/replay and ordinary at-least-once ingestion. | FR-030, NFR-006 | AC-032, AC-054 | Run Tap replay, consumer, ingestion lease/replay, and repository-job suites with replay enabled and durable cursor assertions. |
 | REG-007 | Authenticated permanent deletion remains the only terminal purge path. | FR-029, RULE-006, NFR-006 | AC-032, AC-053 | Run account-deletion and terminal-purge acceptance suites; verify explicit deletion still terminalizes while federation status does not. |
 | REG-008 | Existing security boundary and secret redaction. | NFR-005, RULE-004, NFR-006 | AC-031, AC-032, AC-034 | Run Go/Flutter secret scans, federated HTTP policy tests, secure storage, and auth interceptor tests. |
+| REG-009 | OAuth start, registration, and callback discovery remain fully fresh while ordinary effect metadata is cached. | FR-031, FR-032 | AC-055, AC-056 | Run OAuth flow and federated real-flow request-count tests with a warm effect cache. |
 
 ## 7. Test Data
 
@@ -417,6 +422,7 @@ Feature: Cold-start migration discovery
 - Backward-compatibility tests for unshipped handle-based routes, stale Flutter persistence, or superseded API shapes.
 - Lexicon migration or record-shape tests because no lexicon change is expected.
 - Generic or cross-DID PDS mutation through reconciliation; repair is read-only against the PDS and DID-scoped in AppView.
+- Persisted or distributed OAuth metadata caching, DID-document caching at the protected-effect boundary, and cache use during OAuth start, registration, or callback verification.
 
 ## 11. Handoff To Document Review
 

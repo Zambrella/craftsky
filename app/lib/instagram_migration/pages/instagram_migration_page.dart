@@ -15,6 +15,7 @@ import 'package:craftsky_app/instagram_migration/services/instagram_import_parse
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
@@ -124,7 +125,7 @@ class _InstagramMigrationBody extends ConsumerWidget {
                                 lease: lease,
                                 onSuggestionTap: (suggestion) => unawaited(
                                   UserProfileRoute(
-                                    handle: suggestion.target.handle,
+                                    did: Did.parse(suggestion.target.did),
                                   ).push<void>(context),
                                 ),
                               ),

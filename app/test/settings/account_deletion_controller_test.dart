@@ -43,7 +43,7 @@ void main() {
       PendingAccountDeletion.capture(
         jobId: jobId,
         lease: initial.activeLease!,
-        handle: 'alice.test',
+        confirmationDid: 'did:plc:alice',
         expiresAt: DateTime.now().toUtc().add(const Duration(minutes: 10)),
       ),
     );
@@ -54,7 +54,7 @@ void main() {
       (server) => server.reply(202, null),
       data: {
         'reauthProof': 'one-time-proof',
-        'confirmationHandle': '@alice.test',
+        'confirmationDid': 'did:plc:alice',
       },
     );
     final router = GoRouter(
@@ -81,7 +81,7 @@ void main() {
         .confirm(
           jobId: jobId,
           reauthProof: 'one-time-proof',
-          confirmationHandle: '@alice.test',
+          confirmationDid: 'did:plc:alice',
         );
 
     expect(accepted, isTrue);
@@ -90,7 +90,7 @@ void main() {
   });
 
   test(
-    'REG-019 controller restores exact-handle confirmation from the durable '
+    'UT-013 controller restores exact-DID confirmation from the durable '
     'pending intent',
     () async {
       final initial = SessionRegistry.empty().upsertAndActivate(
@@ -106,6 +106,7 @@ void main() {
           (server) => server.reply(201, {
             'jobId': '10000000-0000-4000-8000-000000000001',
             'authUrl': 'https://pds.invalid/oauth',
+            'confirmationDid': 'did:plc:alice',
             'expiresAt': DateTime.now()
                 .toUtc()
                 .add(const Duration(minutes: 10))
@@ -150,7 +151,7 @@ void main() {
         accountDeletionControllerProvider.notifier,
       );
       expect(controller.canComplete(jobId!), isTrue);
-      expect(controller.requiredHandle(jobId), '@alice.test');
+      expect(controller.confirmationDid(jobId), 'did:plc:alice');
 
       await controller.cancelPendingIntent(jobId);
 

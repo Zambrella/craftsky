@@ -54,6 +54,12 @@ type MetricRecorder interface {
 	TerminalPurge(ctx context.Context, operation, result, errorCategory, component, didRole string, claims int, rowsAffected, remaining int64, complete bool)
 	IdentityResolution(ctx context.Context, mode, direction, result string, duration time.Duration)
 	IdentityCache(ctx context.Context, result string, age time.Duration)
+	AuthorityVerification(ctx context.Context, operation, result, reason string, duration time.Duration)
+	OAuthMetadataCache(ctx context.Context, stage, result string)
+	OAuthCleanup(ctx context.Context, credentialKind, result, reason string, duration time.Duration, attempt int)
+	RepositoryRepair(ctx context.Context, jobKind, result, reason string, duration time.Duration, attempt int)
+	RepositoryRepairQueue(ctx context.Context, pending int, oldestAge time.Duration, maxAttempts int, alert bool)
+	RepositorySnapshotVerification(ctx context.Context, result, reason string, duration time.Duration)
 	FollowerGrowthCapture(ctx context.Context, result, errorCategory string, duration time.Duration, capturedProfileCount int64, latestSuccessfulRunAge *time.Duration)
 }
 
@@ -98,6 +104,17 @@ func (noopMetricRecorder) TerminalPurge(context.Context, string, string, string,
 func (noopMetricRecorder) IdentityResolution(context.Context, string, string, string, time.Duration) {
 }
 func (noopMetricRecorder) IdentityCache(context.Context, string, time.Duration) {}
+func (noopMetricRecorder) AuthorityVerification(context.Context, string, string, string, time.Duration) {
+}
+func (noopMetricRecorder) OAuthMetadataCache(context.Context, string, string) {}
+func (noopMetricRecorder) OAuthCleanup(context.Context, string, string, string, time.Duration, int) {
+}
+func (noopMetricRecorder) RepositoryRepair(context.Context, string, string, string, time.Duration, int) {
+}
+func (noopMetricRecorder) RepositoryRepairQueue(context.Context, int, time.Duration, int, bool) {
+}
+func (noopMetricRecorder) RepositorySnapshotVerification(context.Context, string, string, time.Duration) {
+}
 func (noopMetricRecorder) FollowerGrowthCapture(context.Context, string, string, time.Duration, int64, *time.Duration) {
 }
 

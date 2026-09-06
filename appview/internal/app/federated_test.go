@@ -23,11 +23,11 @@ func TestNewFederatedClientsBuildsDistinctPurposeClients(t *testing.T) {
 	}
 	defer clients.boundary.CloseIdleConnections()
 	if clients.metadata == nil || clients.oauth == nil || clients.pdsJSON == nil ||
-		clients.pdsBlob == nil || clients.directory == nil {
+		clients.pdsBlob == nil || clients.pdsRepository == nil || clients.directory == nil {
 		t.Fatal("federated client set is incomplete")
 	}
 	if clients.metadata == clients.oauth || clients.oauth == clients.pdsJSON ||
-		clients.pdsJSON == clients.pdsBlob {
+		clients.pdsJSON == clients.pdsBlob || clients.pdsBlob == clients.pdsRepository {
 		t.Fatal("purpose clients unexpectedly share an http.Client wrapper")
 	}
 }

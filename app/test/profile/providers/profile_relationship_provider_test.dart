@@ -11,6 +11,7 @@ import 'package:craftsky_app/notifications/providers/notifications_provider.dart
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -20,7 +21,7 @@ void main() {
   setUpAll(initializeMappers);
 
   final alice = AccountKey('did:plc:alice');
-  const subject = 'bob.craftsky.social';
+  final subject = Did.parse('did:plc:bob');
 
   test('UT-011 applies optimistic state and rolls back on failure', () async {
     final completer = Completer<ProfileRelationship>();
@@ -119,7 +120,10 @@ void main() {
       onMute: (_) async => const ProfileRelationship(muted: true),
     );
     final countRepository = _CountingNewnessRepository(2);
-    final provider = profileRelationshipProvider(alice, 'did:plc:bob');
+    final provider = profileRelationshipProvider(
+      alice,
+      Did.parse('did:plc:bob'),
+    );
     final container = ProviderContainer.test(
       overrides: [
         accountRelationshipRepositoryProvider(
@@ -202,7 +206,10 @@ void main() {
       addTearDown(container.dispose);
       await container.read(notificationsProvider.future);
       await container.read(notificationNewCountProvider.future);
-      final provider = profileRelationshipProvider(alice, 'did:plc:bob');
+      final provider = profileRelationshipProvider(
+        alice,
+        Did.parse('did:plc:bob'),
+      );
       container
           .read(provider.notifier)
           .seed(const ProfileRelationship(initialized: true));

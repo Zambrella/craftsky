@@ -86,21 +86,21 @@ class EditProfileDialog extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authSessionProvider);
-    final myHandle = switch (auth) {
-      AsyncData(value: SignedIn(:final handle)) => handle,
+    final myDid = switch (auth) {
+      AsyncData(value: SignedIn(:final did)) => did,
       _ => null,
     };
 
-    if (myHandle == null) return const _EditProfileLoadingScaffold();
+    if (myDid == null) return const _EditProfileLoadingScaffold();
 
-    final profileAsync = ref.watch(userProfileProvider(myHandle));
+    final profileAsync = ref.watch(userProfileProvider(myDid));
     return switch (profileAsync) {
       AsyncValue(:final value?) => _EditProfileForm(profile: value),
       AsyncError(:final error) => Scaffold(
         appBar: AppBar(),
         body: ProfilePageError(
           error: error,
-          onRetry: () => ref.invalidate(userProfileProvider(myHandle)),
+          onRetry: () => ref.invalidate(userProfileProvider(myDid)),
         ),
       ),
       _ => const _EditProfileLoadingScaffold(),

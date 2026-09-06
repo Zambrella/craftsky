@@ -278,10 +278,9 @@ class ProductsController extends _$ProductsController {
     final profile = ref.read(activeAccountIdentityProvider).value?.profile;
     if (profile == null) return;
     final accepted = profile.copyWith(business: business);
-    for (final id in <String>{profile.handle.value, profile.did.value}) {
-      if (ref.exists(userProfileProvider(id))) {
-        ref.read(userProfileProvider(id).notifier).setCached(accepted);
-      }
+    final provider = userProfileProvider(profile.did);
+    if (ref.exists(provider)) {
+      ref.read(provider.notifier).setCached(accepted);
     }
   }
 

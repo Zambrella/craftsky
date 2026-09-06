@@ -13,9 +13,9 @@ import (
 )
 
 var (
-	ErrDeletionReauthenticationRequired   = errors.New("deletion reauthentication required")
-	ErrDeletionReauthReplayed             = errors.New("deletion reauthentication replayed")
-	ErrDeletionConfirmationHandleMismatch = errors.New("deletion confirmation handle mismatch")
+	ErrDeletionReauthenticationRequired = errors.New("deletion reauthentication required")
+	ErrDeletionReauthReplayed           = errors.New("deletion reauthentication replayed")
+	ErrDeletionConfirmationDIDMismatch  = errors.New("deletion confirmation DID mismatch")
 )
 
 type OAuthPurpose string
@@ -57,6 +57,8 @@ type AuthRequestMetadata struct {
 	DeviceID                   string
 	RequestState               AuthRequestState
 	ExchangeAttemptID          uuid.UUID
+	ResourceServerOrigin       string
+	AuthorizationServerIssuer  string
 	RegistrationProviderOrigin string
 	RegistrationIssuer         string
 	ExpiresAt                  time.Time
@@ -85,18 +87,22 @@ func WithLoginAuthRequest(
 	owner syntax.DID,
 	ownerGeneration int64,
 	authEpoch int64,
+	resourceServerOrigin string,
+	authorizationServerIssuer string,
 	mode HandoffMode,
 	deviceID string,
 	loopbackURI string,
 ) context.Context {
 	return context.WithValue(ctx, authRequestMetadataContextKey{}, AuthRequestMetadata{
-		Purpose:         LoginOAuthPurpose,
-		Owner:           owner,
-		OwnerGeneration: ownerGeneration,
-		AuthEpoch:       authEpoch,
-		HandoffMode:     mode,
-		LoopbackURI:     loopbackURI,
-		DeviceID:        deviceID,
+		Purpose:                   LoginOAuthPurpose,
+		Owner:                     owner,
+		OwnerGeneration:           ownerGeneration,
+		AuthEpoch:                 authEpoch,
+		ResourceServerOrigin:      resourceServerOrigin,
+		AuthorizationServerIssuer: authorizationServerIssuer,
+		HandoffMode:               mode,
+		LoopbackURI:               loopbackURI,
+		DeviceID:                  deviceID,
 	})
 }
 
@@ -155,6 +161,8 @@ func (metadata AuthRequestMetadata) valid() bool {
 	switch metadata.Purpose {
 	case LoginOAuthPurpose:
 		return metadata.JobID == uuid.Nil && metadata.hasOwnerAuthority() &&
+			strings.TrimSpace(metadata.ResourceServerOrigin) != "" &&
+			strings.TrimSpace(metadata.AuthorizationServerIssuer) != "" &&
 			metadata.RegistrationProviderOrigin == "" && metadata.RegistrationIssuer == ""
 	case AccountDeletionOAuthPurpose:
 		return metadata.JobID != uuid.Nil && metadata.HandoffMode == HandoffVerifiedLink &&
@@ -215,12 +223,12 @@ type AccountDeletionOAuthAttemptCallbacks interface {
 }
 
 type AccountDeletionReauthIntent struct {
-	JobID          string
-	Owner          syntax.DID
-	ExpectedHandle string
-	IssuedAt       time.Time
-	ExpiresAt      time.Time
-	Canceled       bool
+	JobID       string
+	Owner       syntax.DID
+	ExpectedDID syntax.DID
+	IssuedAt    time.Time
+	ExpiresAt   time.Time
+	Canceled    bool
 }
 
 type AccountDeletionReauthCompletion struct {
@@ -258,7 +266,7 @@ func ConsumeAccountDeletionReauth(
 	intent AccountDeletionReauthIntent,
 	completion *AccountDeletionReauthCompletion,
 	proof string,
-	confirmationHandle string,
+	confirmationDID string,
 	now time.Time,
 ) (string, error) {
 	if completion == nil || intent.Canceled || completion.JobID != intent.JobID || completion.Owner != intent.Owner ||
@@ -268,8 +276,8 @@ func ConsumeAccountDeletionReauth(
 	if completion.Consumed {
 		return "", ErrDeletionReauthReplayed
 	}
-	if confirmationHandle != intent.ExpectedHandle {
-		return "", ErrDeletionConfirmationHandleMismatch
+	if confirmationDID != intent.ExpectedDID.String() {
+		return "", ErrDeletionConfirmationDIDMismatch
 	}
 	want := sha256.Sum256([]byte(proof))
 	if subtle.ConstantTimeCompare(completion.ProofHash[:], want[:]) != 1 {

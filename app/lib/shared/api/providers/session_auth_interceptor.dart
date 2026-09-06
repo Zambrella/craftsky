@@ -38,6 +38,12 @@ class SessionAuthInterceptor extends Interceptor {
     RequestOptions options,
     RequestInterceptorHandler handler,
   ) async {
+    options.headers.removeWhere((name, _) {
+      final normalized = name.toLowerCase();
+      return normalized == 'authorization' ||
+          normalized == 'dpop' ||
+          normalized.startsWith('x-pds-');
+    });
     final deviceId = await _readDeviceId();
     options.headers['X-Craftsky-Device-Id'] = deviceId;
 

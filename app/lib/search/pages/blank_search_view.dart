@@ -8,7 +8,7 @@ class _BlankSearchView {
     required WidgetRef ref,
     required ValueChanged<String> onOpenQuery,
     required ValueChanged<String> onOpenHashtag,
-    required ValueChanged<String> onOpenProfile,
+    required ValueChanged<Did> onOpenProfile,
   }) {
     final l10n = AppLocalizations.of(context);
     final spacing =
@@ -64,7 +64,7 @@ class _RecentSearchSection extends ConsumerWidget {
   final BlankSearchData data;
   final ValueChanged<String> onOpenQuery;
   final ValueChanged<String> onOpenHashtag;
-  final ValueChanged<String> onOpenProfile;
+  final ValueChanged<Did> onOpenProfile;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -101,8 +101,8 @@ class _RecentSearchSection extends ConsumerWidget {
         onOpenQuery(q);
       case HashtagRecentSearchPayload(:final tag):
         onOpenHashtag(tag);
-      case ProfileRecentSearchPayload(:final handle):
-        onOpenProfile(handle);
+      case ProfileRecentSearchPayload(:final did):
+        onOpenProfile(did);
       case PostRecentSearchPayload(:final q):
         onOpenQuery(q);
       case ProjectRecentSearchPayload(:final q):

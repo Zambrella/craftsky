@@ -6,22 +6,19 @@ import 'package:flutter/foundation.dart';
 
 @immutable
 final class AccountDeletionLeaseFence {
-  const AccountDeletionLeaseFence._(this.lease, this.requiredHandle);
+  const AccountDeletionLeaseFence._(this.lease);
 
   factory AccountDeletionLeaseFence.capture(SessionRegistry registry) {
     final active = registry.activeLease;
     if (active == null) throw StateError('No active account');
-    final stored = registry.sessions[active.session.account.did];
-    if (stored == null) throw StateError('Active account unavailable');
-    return AccountDeletionLeaseFence._(active, '@${stored.handle.value}');
+    return AccountDeletionLeaseFence._(active);
   }
 
   factory AccountDeletionLeaseFence.fromPending(
     PendingAccountDeletion pending,
-  ) => AccountDeletionLeaseFence._(pending.lease, pending.requiredHandle);
+  ) => AccountDeletionLeaseFence._(pending.lease);
 
   final ActiveAccountLease lease;
-  final String requiredHandle;
 
   AccountKey get account => lease.session.account;
 
@@ -29,11 +26,12 @@ final class AccountDeletionLeaseFence {
 
   PendingAccountDeletion pending({
     required String jobId,
+    required String confirmationDid,
     required DateTime expiresAt,
   }) => PendingAccountDeletion.capture(
     jobId: jobId,
     lease: lease,
-    handle: requiredHandle,
+    confirmationDid: confirmationDid,
     expiresAt: expiresAt,
   );
 

@@ -9,14 +9,14 @@ import 'package:go_router/go_router.dart';
 
 void main() {
   group('FacetedText actions', () {
-    testWidgets('AT-006 tapping a mention navigates by visible handle', (
+    testWidgets('UT-009 tapping a mention navigates by its facet DID', (
       tester,
     ) async {
       final router = _router(
         FacetedText(
-          text: '@alice.craftsky.social',
+          text: '@old.example',
           facets: [
-            _facet(0, 22, {
+            _facet(0, 12, {
               r'$type': 'app.bsky.richtext.facet#mention',
               'did': 'did:plc:alice',
             }),
@@ -25,10 +25,11 @@ void main() {
       );
 
       await _pump(tester, router: router);
-      await tester.tap(find.text('@alice.craftsky.social'));
+      expect(find.text('@old.example'), findsOneWidget);
+      await tester.tap(find.text('@old.example'));
       await tester.pumpAndSettle();
 
-      expect(find.text('profile:alice.craftsky.social'), findsOneWidget);
+      expect(find.text('profile:did:plc:alice'), findsOneWidget);
     });
 
     testWidgets('AT-006 tapping a link confirms before launching', (
@@ -155,9 +156,9 @@ GoRouter _router(Widget home) {
         builder: (context, state) => Scaffold(body: home),
       ),
       GoRoute(
-        path: '/profile/:handle',
+        path: '/profiles/:did',
         builder: (context, state) => Scaffold(
-          body: Text('profile:${state.pathParameters['handle']}'),
+          body: Text('profile:${state.pathParameters['did']}'),
         ),
       ),
       GoRoute(

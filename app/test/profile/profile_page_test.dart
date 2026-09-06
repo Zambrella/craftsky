@@ -26,6 +26,7 @@ import 'package:craftsky_app/profile/widgets/profile_stats.dart';
 import 'package:craftsky_app/profile/widgets/profile_tab_bar.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
@@ -88,6 +89,72 @@ void main() {
       expect(find.byIcon(Icons.settings_outlined), findsWidgets);
     });
 
+    testWidgets(
+      'UT-010 equal handles with different DIDs render visitor actions',
+      (tester) async {
+        final profile = Profile(
+          did: 'did:plc:other',
+          handle: 'test.bsky.social',
+          displayName: 'Other Test User',
+          crafts: const [],
+        );
+        final repo = FakeProfileRepository(onFetch: (_) async => profile);
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              authSessionProvider.overrideWith(SignedInAuthSession.new),
+              profileRepositoryProvider.overrideWithValue(repo),
+              postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+            ],
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: ProfilePage(did: Did.parse('did:plc:test')),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Follow'), findsOneWidget);
+        expect(find.text('Edit profile'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'UT-010 same DID with changed handle renders self actions',
+      (tester) async {
+        final profile = Profile(
+          did: 'did:plc:test',
+          handle: 'test.changed.example',
+          displayName: 'Test User',
+          crafts: const [],
+        );
+        final repo = FakeProfileRepository(onFetch: (_) async => profile);
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              authSessionProvider.overrideWith(SignedInAuthSession.new),
+              profileRepositoryProvider.overrideWithValue(repo),
+              postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+            ],
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: ProfilePage(did: Did.parse('did:plc:other')),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Edit profile'), findsOneWidget);
+        expect(find.text('Follow'), findsNothing);
+      },
+    );
+
     testWidgets('visitor profile renders Follow + Mute actions', (
       tester,
     ) async {
@@ -119,7 +186,7 @@ void main() {
               theme: AppTheme.lightThemeData,
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
-              home: const ProfilePage(handle: 'alice.bsky.social'),
+              home: ProfilePage(did: Did.parse('did:plc:alice')),
             ),
           ),
         ),
@@ -166,7 +233,7 @@ void main() {
             theme: AppTheme.lightThemeData,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const ProfilePage(handle: 'alice.bsky.social'),
+            home: ProfilePage(did: Did.parse('did:plc:other')),
           ),
         ),
       );
@@ -513,7 +580,7 @@ void main() {
               theme: AppTheme.lightThemeData,
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
-              home: const ProfilePage(handle: 'alice.bsky.social'),
+              home: ProfilePage(did: Did.parse('did:plc:other')),
             ),
           ),
         );
@@ -567,7 +634,7 @@ void main() {
               theme: AppTheme.lightThemeData,
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
-              home: const ProfilePage(handle: 'alice.bsky.social'),
+              home: ProfilePage(did: Did.parse('did:plc:alice')),
             ),
           ),
         );
@@ -640,7 +707,7 @@ void main() {
               theme: AppTheme.lightThemeData,
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
-              home: const ProfilePage(handle: 'alice.bsky.social'),
+              home: ProfilePage(did: Did.parse('did:plc:alice')),
             ),
           ),
         );
@@ -698,7 +765,7 @@ void main() {
               theme: AppTheme.lightThemeData,
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
-              home: const ProfilePage(handle: 'alice.bsky.social'),
+              home: ProfilePage(did: Did.parse('did:plc:alice')),
             ),
           ),
         ),
@@ -756,7 +823,7 @@ void main() {
               theme: AppTheme.lightThemeData,
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
-              home: const ProfilePage(handle: 'alice.bsky.social'),
+              home: ProfilePage(did: Did.parse('did:plc:alice')),
             ),
           ),
         ),
@@ -793,7 +860,7 @@ void main() {
             theme: AppTheme.lightThemeData,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const ProfilePage(handle: 'alice.bsky.social'),
+            home: ProfilePage(did: Did.parse('did:plc:alice')),
           ),
         ),
       );
@@ -825,7 +892,7 @@ void main() {
             theme: AppTheme.lightThemeData,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const ProfilePage(handle: 'alice.bsky.social'),
+            home: ProfilePage(did: Did.parse('did:plc:alice')),
           ),
         ),
       );
@@ -858,7 +925,7 @@ void main() {
             theme: AppTheme.lightThemeData,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const ProfilePage(handle: 'missing.bsky.social'),
+            home: ProfilePage(did: Did.parse('did:plc:missing')),
           ),
         ),
       );
@@ -910,14 +977,16 @@ void main() {
             theme: AppTheme.lightThemeData,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const ProfilePage(handle: 'alice.bsky.social'),
+            home: ProfilePage(did: Did.parse('did:plc:alice')),
           ),
         ),
       );
       await tester.pumpAndSettle();
       expect(find.text('Previously loaded private profile'), findsWidgets);
 
-      container.invalidate(userProfileProvider('alice.bsky.social'));
+      container.invalidate(
+        userProfileProvider(Did.parse('did:plc:alice')),
+      );
       await tester.pumpAndSettle();
 
       expect(calls, 2);
@@ -953,7 +1022,7 @@ void main() {
             theme: AppTheme.lightThemeData,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const ProfilePage(handle: 'alice.bsky.social'),
+            home: ProfilePage(did: Did.parse('did:plc:alice')),
           ),
         ),
       );
@@ -1010,14 +1079,16 @@ void main() {
             theme: AppTheme.lightThemeData,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const ProfilePage(handle: 'alice.bsky.social'),
+            home: ProfilePage(did: Did.parse('did:plc:alice')),
           ),
         ),
       );
       await tester.pumpAndSettle();
       expect(find.text('Authenticated cached profile'), findsWidgets);
 
-      container.invalidate(userProfileProvider('alice.bsky.social'));
+      container.invalidate(
+        userProfileProvider(Did.parse('did:plc:alice')),
+      );
       await tester.pumpAndSettle();
 
       expect(calls, 2);
@@ -1057,8 +1128,8 @@ void main() {
                       unawaited(
                         Navigator.of(context).push<void>(
                           MaterialPageRoute(
-                            builder: (_) => const ProfilePage(
-                              handle: 'missing.bsky.social',
+                            builder: (_) => ProfilePage(
+                              did: Did.parse('did:plc:missing'),
                             ),
                           ),
                         ),
@@ -1121,7 +1192,7 @@ void main() {
               theme: AppTheme.lightThemeData,
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
-              home: const ProfilePage(handle: 'alice.bsky.social'),
+              home: ProfilePage(did: Did.parse('did:plc:alice')),
             ),
           ),
         ),
@@ -1137,7 +1208,7 @@ void main() {
       await tester.tap(find.widgetWithText(TextButton, 'Submit'));
       await tester.pumpAndSettle();
 
-      expect(submittedTarget, 'alice.bsky.social');
+      expect(submittedTarget, 'did:plc:other');
       expect(submitted?.reasonType, 'spam');
       expect(find.text('Report profile'), findsNothing);
       expect(
@@ -1150,6 +1221,7 @@ void main() {
       tester,
     ) async {
       final cursors = <String?>[];
+      String? mutualFollowersTarget;
       final profile = Profile(
         did: 'did:plc:other',
         handle: 'bob.bsky.social',
@@ -1159,7 +1231,8 @@ void main() {
       );
       final repo = FakeProfileRepository(
         onFetch: (_) async => profile,
-        onListMutualFollowers: (_, {cursor, limit}) async {
+        onListMutualFollowers: (target, {cursor, limit}) async {
+          mutualFollowersTarget = target;
           cursors.add(cursor);
           if (cursor == 'next-mutuals') {
             return ProfileAccountPage(
@@ -1200,7 +1273,7 @@ void main() {
             theme: AppTheme.lightThemeData,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const ProfilePage(handle: 'bob.bsky.social'),
+            home: ProfilePage(did: Did.parse('did:plc:bob')),
           ),
         ),
       );
@@ -1212,6 +1285,7 @@ void main() {
       expect(find.text('Mutual followers'), findsOneWidget);
       expect(find.text('Carol'), findsOneWidget);
       expect(find.text('@carol.craftsky.social'), findsOneWidget);
+      expect(mutualFollowersTarget, 'did:plc:other');
       expect(cursors, [isNull]);
       expect(find.text('Load more'), findsOneWidget);
 
@@ -1247,7 +1321,7 @@ void main() {
             theme: AppTheme.lightThemeData,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const ProfilePage(handle: 'alice.bsky.social'),
+            home: ProfilePage(did: Did.parse('did:plc:other')),
           ),
         ),
       );
@@ -1280,7 +1354,7 @@ void main() {
             theme: AppTheme.lightThemeData,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const ProfilePage(handle: 'carol.bsky.social'),
+            home: ProfilePage(did: Did.parse('did:plc:carol')),
           ),
         ),
       );
@@ -1323,7 +1397,7 @@ void main() {
             theme: AppTheme.lightThemeData,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const ProfilePage(handle: 'alice.bsky.social'),
+            home: ProfilePage(did: Did.parse('did:plc:other')),
           ),
         ),
       );
@@ -1367,7 +1441,7 @@ void main() {
             theme: AppTheme.lightThemeData,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const ProfilePage(handle: 'alice.bsky.social'),
+            home: ProfilePage(did: Did.parse('did:plc:other')),
           ),
         ),
       );
@@ -1411,7 +1485,7 @@ void main() {
             theme: AppTheme.lightThemeData,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const ProfilePage(handle: 'alice.bsky.social'),
+            home: ProfilePage(did: Did.parse('did:plc:other')),
           ),
         ),
       );
@@ -1456,7 +1530,7 @@ void main() {
               theme: AppTheme.lightThemeData,
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
-              home: const ProfilePage(handle: 'alice.bsky.social'),
+              home: ProfilePage(did: Did.parse('did:plc:other')),
             ),
           ),
         ),
@@ -1498,7 +1572,7 @@ void main() {
               theme: AppTheme.lightThemeData,
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
-              home: const ProfilePage(handle: 'alice.bsky.social'),
+              home: ProfilePage(did: Did.parse('did:plc:alice')),
             ),
           ),
         ),

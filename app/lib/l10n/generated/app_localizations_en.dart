@@ -29,6 +29,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get navigationProfile => 'Profile';
 
   @override
+  String get handleUnavailable => 'Handle unavailable';
+
+  @override
   String get navigationSaved => 'Saved';
 
   @override
@@ -2651,11 +2654,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get deleteAccountConfirmTitle => 'Confirm account deletion';
 
   @override
-  String get deleteAccountTypeHandleLabel => 'Type your handle';
+  String get deleteAccountTypeDidLabel => 'Type your DID';
 
   @override
-  String deleteAccountConfirmationPrompt(String handle) {
-    return 'Type $handle exactly to permanently delete this CraftSky account.';
+  String deleteAccountDidConfirmationPrompt(String did) {
+    return 'Type $did exactly to permanently delete this CraftSky account.';
   }
 
   @override
@@ -2663,8 +2666,8 @@ class AppLocalizationsEn extends AppLocalizations {
       'Your CraftSky account deletion is already in progress. You cannot sign in again until it has finished.';
 
   @override
-  String deleteAccountBoundary(String handle) {
-    return 'Deleting $handle permanently removes all your CraftSky data from your PDS and all private data held by CraftSky. It won’t delete your PDS, DID, or wider AT Protocol account.\n\nTo continue, you’ll need to authenticate with your PDS again.';
+  String deleteAccountDidBoundary(String did) {
+    return 'Deleting the CraftSky account identified by $did permanently removes all your CraftSky data from your PDS and all private data held by CraftSky. It won’t delete your PDS, DID, or wider AT Protocol account.\n\nTo continue, you’ll need to authenticate with your PDS again.';
   }
 
   @override

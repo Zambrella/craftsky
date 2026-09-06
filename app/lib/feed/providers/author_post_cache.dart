@@ -1,8 +1,7 @@
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
-Iterable<String> authorPostCacheIds(Post post) {
-  return <String>{post.author.did, post.author.handle};
-}
+Iterable<Did> authorPostCacheIds(Post post) => [post.author.did];
 
 List<Post> prependPostIfAbsent(List<Post> items, Post post) {
   if (items.any((item) => item.uri == post.uri)) return items;

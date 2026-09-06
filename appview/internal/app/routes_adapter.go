@@ -63,7 +63,7 @@ func RouteDependencies(deps *Deps) *routes.Dependencies {
 		LoginCompleteURL:            deps.LoginCompleteURL,
 		DeletionCompleteURL:         deps.DeletionCompleteURL,
 		IdentityCacheUpdater:        deps.IdentityCacheUpdater,
-		RepositoryTracker:           deps.RepositoryTracker,
+		IdentityInvalidator:         deps.IdentityInvalidator,
 		HandleResolver:              deps.HandleResolver,
 		AuthoritativeHandleResolver: deps.AuthoritativeHandleResolver,
 		Consumer:                    deps.Consumer,

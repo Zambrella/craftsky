@@ -131,37 +131,69 @@ func (s *PostgresAuthStore) QuarantineRegistrationCredential(
 	session oauth.ClientSessionData,
 	eligibleAt time.Time,
 ) error {
+	return s.quarantineCallbackCredential(ctx, state, attemptID, session, eligibleAt, RegistrationOAuthPurpose)
+}
+
+func (s *PostgresAuthStore) QuarantineCallbackCredential(
+	ctx context.Context,
+	state string,
+	attemptID uuid.UUID,
+	session oauth.ClientSessionData,
+	eligibleAt time.Time,
+) error {
+	return s.quarantineCallbackCredential(ctx, state, attemptID, session, eligibleAt, LoginOAuthPurpose)
+}
+
+func (s *PostgresAuthStore) quarantineCallbackCredential(
+	ctx context.Context,
+	state string,
+	attemptID uuid.UUID,
+	session oauth.ClientSessionData,
+	eligibleAt time.Time,
+	purpose OAuthPurpose,
+) error {
 	if state == "" || attemptID == uuid.Nil || session.SessionID != state || eligibleAt.IsZero() {
 		return ErrCallbackAttemptInvalid
 	}
 	data, err := json.Marshal(session)
 	if err != nil {
-		return fmt.Errorf("marshal registration credential: %w", err)
+		return fmt.Errorf("marshal callback credential: %w", err)
 	}
 	expiresAt := eligibleAt.Add(s.cfg.AuthRequestTerminalRetention)
 	err = pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
-		var purpose OAuthPurpose
+		var requestPurpose OAuthPurpose
 		var requestState AuthRequestState
 		var requestAttempt uuid.UUID
-		var issuer string
+		var registrationIssuer, resourceOrigin, issuer *string
 		if err := tx.QueryRow(ctx, `
-			SELECT purpose,request_state,exchange_attempt_id,registration_issuer
+			SELECT purpose,request_state,exchange_attempt_id,registration_issuer,
+			       resource_server_origin,authorization_server_issuer
 			FROM oauth_auth_requests WHERE state=$1 FOR UPDATE
-		`, state).Scan(&purpose, &requestState, &requestAttempt, &issuer); err != nil {
+		`, state).Scan(
+			&requestPurpose, &requestState, &requestAttempt, &registrationIssuer,
+			&resourceOrigin, &issuer,
+		); err != nil {
 			return err
 		}
-		if purpose != RegistrationOAuthPurpose || requestState != AuthRequestExchangeStarted ||
-			requestAttempt != attemptID || issuer != session.AuthServerURL {
+		if requestPurpose != purpose || requestState != AuthRequestExchangeStarted || requestAttempt != attemptID {
 			return ErrCallbackAttemptInvalid
 		}
-		_, err := tx.Exec(ctx, `
+		if purpose == RegistrationOAuthPurpose {
+			if registrationIssuer == nil || *registrationIssuer != session.AuthServerURL {
+				return ErrCallbackAttemptInvalid
+			}
+		} else if resourceOrigin == nil || issuer == nil ||
+			*resourceOrigin != session.HostURL || *issuer != session.AuthServerURL {
+			return ErrCallbackAttemptInvalid
+		}
+		_, err = tx.Exec(ctx, `
 			INSERT INTO oauth_unverified_credentials(request_state,data,status,eligible_at,expires_at)
 			VALUES($1,$2,'held',$3,$4)
 		`, state, data, eligibleAt, expiresAt)
 		return err
 	})
 	if err != nil {
-		return fmt.Errorf("quarantine registration credential: %w", err)
+		return fmt.Errorf("quarantine callback credential: %w", err)
 	}
 	return nil
 }
@@ -171,16 +203,33 @@ func (s *PostgresAuthStore) MarkRegistrationCredentialForCleanup(
 	state string,
 	attemptID uuid.UUID,
 ) error {
+	return s.markCallbackCredentialForCleanup(ctx, state, attemptID, RegistrationOAuthPurpose)
+}
+
+func (s *PostgresAuthStore) MarkCallbackCredentialForCleanup(
+	ctx context.Context,
+	state string,
+	attemptID uuid.UUID,
+) error {
+	return s.markCallbackCredentialForCleanup(ctx, state, attemptID, LoginOAuthPurpose)
+}
+
+func (s *PostgresAuthStore) markCallbackCredentialForCleanup(
+	ctx context.Context,
+	state string,
+	attemptID uuid.UUID,
+	purpose OAuthPurpose,
+) error {
 	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
 		var credentialStatus string
 		if err := tx.QueryRow(ctx, `
 			SELECT credential.status
 			FROM oauth_auth_requests request
 			JOIN oauth_unverified_credentials credential ON credential.request_state=request.state
-			WHERE request.state=$1 AND request.purpose='registration'
+			WHERE request.state=$1 AND request.purpose=$3
 			  AND request.request_state='exchange_started' AND request.exchange_attempt_id=$2
 			FOR UPDATE OF request,credential
-		`, state, attemptID).Scan(&credentialStatus); err != nil {
+		`, state, attemptID, purpose).Scan(&credentialStatus); err != nil {
 			return err
 		}
 		if credentialStatus != "held" {
@@ -196,9 +245,9 @@ func (s *PostgresAuthStore) MarkRegistrationCredentialForCleanup(
 		command, err := tx.Exec(ctx, `
 			UPDATE oauth_auth_requests
 			SET request_state='cleanup_pending',exchange_finished_at=now()
-			WHERE state=$1 AND purpose='registration' AND request_state='exchange_started'
+			WHERE state=$1 AND purpose=$3 AND request_state='exchange_started'
 			  AND exchange_attempt_id=$2
-		`, state, attemptID)
+		`, state, attemptID, purpose)
 		if err != nil {
 			return err
 		}
@@ -208,7 +257,7 @@ func (s *PostgresAuthStore) MarkRegistrationCredentialForCleanup(
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("mark registration credential for cleanup: %w", err)
+		return fmt.Errorf("mark callback credential for cleanup: %w", err)
 	}
 	return nil
 }
@@ -259,7 +308,23 @@ func (s *PostgresAuthStore) SaveSession(ctx context.Context, sess oauth.ClientSe
 		if requestPurpose != attempt.Purpose || requestState != AuthRequestExchangeStarted || requestAttempt != attempt.AttemptID {
 			return ErrCallbackAttemptInvalid
 		}
-		_, err := tx.Exec(ctx, `
+		var credentialData []byte
+		var credentialStatus string
+		err := tx.QueryRow(ctx, `
+			SELECT data,status FROM oauth_unverified_credentials
+			WHERE request_state=$1 FOR UPDATE
+		`, attempt.State).Scan(&credentialData, &credentialStatus)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return err
+		}
+		if err == nil {
+			var credential oauth.ClientSessionData
+			if json.Unmarshal(credentialData, &credential) != nil ||
+				credentialStatus != "held" || !reflect.DeepEqual(credential, sess) {
+				return ErrCallbackAttemptInvalid
+			}
+		}
+		_, err = tx.Exec(ctx, `
 			INSERT INTO oauth_sessions(
 				account_did,session_id,data,lifecycle_state,owner_generation,auth_epoch,
 				row_version,absolute_expires_at,created_at,updated_at
@@ -267,6 +332,15 @@ func (s *PostgresAuthStore) SaveSession(ctx context.Context, sess oauth.ClientSe
 		`, sess.AccountDID, sess.SessionID, data, generation, epoch, lifetime.Seconds())
 		if err != nil {
 			return fmt.Errorf("insert pending OAuth session: %w", err)
+		}
+		if credentialData != nil {
+			command, err := tx.Exec(ctx, `
+				DELETE FROM oauth_unverified_credentials
+				WHERE request_state=$1 AND status='held'
+			`, attempt.State)
+			if err != nil || command.RowsAffected() != 1 {
+				return ErrCallbackAttemptInvalid
+			}
 		}
 		return nil
 	})
@@ -1004,7 +1078,7 @@ func insertAuthRequest(
 	data []byte,
 	metadata AuthRequestMetadata,
 ) error {
-	var deletionOwner, deletionJob, owner, generation, epoch, provider, issuer any
+	var deletionOwner, deletionJob, owner, generation, epoch, resource, authIssuer, provider, issuer any
 	if metadata.Purpose == RegistrationOAuthPurpose {
 		provider = metadata.RegistrationProviderOrigin
 		issuer = metadata.RegistrationIssuer
@@ -1012,6 +1086,10 @@ func insertAuthRequest(
 		owner = metadata.Owner
 		generation = metadata.OwnerGeneration
 		epoch = metadata.AuthEpoch
+		if metadata.Purpose == LoginOAuthPurpose {
+			resource = metadata.ResourceServerOrigin
+			authIssuer = metadata.AuthorizationServerIssuer
+		}
 		if metadata.Purpose == AccountDeletionOAuthPurpose {
 			deletionOwner = metadata.Owner
 			deletionJob = metadata.JobID
@@ -1022,12 +1100,13 @@ func insertAuthRequest(
 			state,data,purpose,account_deletion_owner_did,account_deletion_job_id,
 			owner_did,owner_generation,auth_epoch,request_uri,request_state,
 			handoff_mode,loopback_redirect_uri,device_id,
+			resource_server_origin,authorization_server_issuer,
 			registration_provider_origin,registration_issuer
-		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'ready',$10,$11,$12,$13,$14)
+		) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'ready',$10,$11,$12,$13,$14,$15,$16)
 	`, info.State, data, metadata.Purpose, deletionOwner, deletionJob,
 		owner, generation, epoch, info.RequestURI,
 		metadata.HandoffMode, nullableString(metadata.LoopbackURI), metadata.DeviceID,
-		provider, issuer)
+		resource, authIssuer, provider, issuer)
 	return err
 }
 
@@ -1101,15 +1180,19 @@ func (s *PostgresAuthStore) LoadAuthRequestMetadata(ctx context.Context, state s
 	var authEpoch *int64
 	var registrationProvider *string
 	var registrationIssuer *string
+	var resourceOrigin *string
+	var authorizationIssuer *string
 	err := s.pool.QueryRow(ctx, `
 		SELECT purpose,owner_did,owner_generation,auth_epoch,account_deletion_job_id,
 		       handoff_mode,loopback_redirect_uri,device_id,request_state,exchange_attempt_id,
+		       resource_server_origin,authorization_server_issuer,
 		       registration_provider_origin,registration_issuer,created_at
 		FROM oauth_auth_requests WHERE state=$1
 	`, state).Scan(
 		&metadata.Purpose, &owner, &ownerGeneration, &authEpoch,
 		&jobID, &metadata.HandoffMode, &loopback, &metadata.DeviceID,
-		&metadata.RequestState, &attemptID, &registrationProvider, &registrationIssuer, &createdAt,
+		&metadata.RequestState, &attemptID, &resourceOrigin, &authorizationIssuer,
+		&registrationProvider, &registrationIssuer, &createdAt,
 	)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return AuthRequestMetadata{}, ErrOAuthSessionNotFound
@@ -1137,6 +1220,12 @@ func (s *PostgresAuthStore) LoadAuthRequestMetadata(ctx context.Context, state s
 	}
 	if registrationProvider != nil {
 		metadata.RegistrationProviderOrigin = *registrationProvider
+	}
+	if resourceOrigin != nil {
+		metadata.ResourceServerOrigin = *resourceOrigin
+	}
+	if authorizationIssuer != nil {
+		metadata.AuthorizationServerIssuer = *authorizationIssuer
 	}
 	if registrationIssuer != nil {
 		metadata.RegistrationIssuer = *registrationIssuer

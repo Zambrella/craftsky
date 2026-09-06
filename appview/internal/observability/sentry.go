@@ -31,6 +31,8 @@ var allowedEventContextKeys = map[string]struct{}{
 	"failure_stage":     {},
 	"duration":          {},
 	"result":            {},
+	"reason":            {},
+	"retryable":         {},
 	"nsid":              {},
 	"tap_connected":     {},
 	"reconnect_attempt": {},
@@ -80,6 +82,11 @@ func sanitizeEventContextValue(key string, value any) any {
 		return safeMetricStage(fmt.Sprint(value))
 	case "result":
 		return safeMetricResult(fmt.Sprint(value))
+	case "reason":
+		return safeMigrationReason(fmt.Sprint(value))
+	case "retryable":
+		retryable, ok := value.(bool)
+		return ok && retryable
 	default:
 		return value
 	}

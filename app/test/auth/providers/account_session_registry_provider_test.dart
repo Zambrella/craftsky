@@ -47,7 +47,7 @@ void main() {
       final pending = PendingAccountDeletion.capture(
         jobId: '10000000-0000-4000-8000-000000000001',
         lease: original.activeLease!,
-        handle: 'alice.test',
+        confirmationDid: 'did:plc:alice',
         expiresAt: DateTime.utc(2027),
       );
 
