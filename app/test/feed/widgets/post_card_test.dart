@@ -137,6 +137,7 @@ Future<void> _pump(
   Widget child, {
   EdgeInsets viewPadding = EdgeInsets.zero,
   List<dynamic> overrides = const [],
+  ThemeData? theme,
 }) {
   return tester.pumpWidget(
     ProviderScope(
@@ -144,7 +145,7 @@ Future<void> _pump(
       child: MessengerScope(
         messenger: RecordingMessenger(),
         child: MaterialApp(
-          theme: AppTheme.lightThemeData,
+          theme: theme ?? AppTheme.lightThemeData,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           builder: (context, routeChild) {
@@ -1305,6 +1306,35 @@ void main() {
 
       expect(replyIcon.color, BrandColors.clay);
       expect(replyLabel.style?.color, BrandColors.clay);
+    });
+
+    testWidgets('uses bright clay for selected replies in dark mode', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        PostCard(
+          post: _post(viewerHasReplied: true),
+          showReplyCount: false,
+          showReplyLabel: true,
+        ),
+        theme: AppTheme.darkThemeData,
+      );
+
+      final replyIcon = tester.widget<Icon>(
+        find.byIcon(CraftskyIconsBold.comment),
+      );
+      final replyLabel = tester.widget<Text>(find.text('Comment'));
+
+      expect(replyIcon.color, BrandColors.clay);
+      expect(replyLabel.style?.color, BrandColors.clay);
+      expect(
+        _contrastRatio(
+          BrandColors.clay,
+          AppTheme.darkThemeData.colorScheme.surface,
+        ),
+        greaterThanOrEqualTo(4.5),
+      );
     });
 
     testWidgets('formats large engagement counts compactly', (tester) async {
@@ -2775,6 +2805,15 @@ void main() {
       expect(find.byType(PostImageGallery), findsNothing);
     });
   });
+}
+
+double _contrastRatio(Color first, Color second) {
+  final lighter = first.computeLuminance() > second.computeLuminance()
+      ? first
+      : second;
+  final darker = identical(lighter, first) ? second : first;
+  return (lighter.computeLuminance() + 0.05) /
+      (darker.computeLuminance() + 0.05);
 }
 
 final class _PostCardSavedRepository implements SavedPostRepository {
