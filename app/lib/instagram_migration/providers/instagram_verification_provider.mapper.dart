@@ -67,7 +67,6 @@ class InstagramVerificationViewStateMapper
   @override
   final Function instantiate = _instantiate;
 }
-
 mixin InstagramVerificationViewStateMappable {
   InstagramVerificationViewStateCopyWith<
     InstagramVerificationViewState,

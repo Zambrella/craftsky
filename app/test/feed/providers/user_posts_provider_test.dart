@@ -8,10 +8,13 @@ import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../fakes/fake_post_repository.dart';
+
+final _aliceDid = Did.parse('did:plc:alice');
 
 Map<String, dynamic> _samplePostMap({required String rkey, String? did}) => {
   'uri': 'at://${did ?? 'did:plc:alice'}/social.craftsky.feed.post/$rkey',
@@ -64,7 +67,7 @@ void main() {
       );
 
       final state = await container.read(
-        userPostsProvider('alice.craftsky.social').future,
+        userPostsProvider(_aliceDid).future,
       );
       expect(state.items.map((p) => p.rkey), ['a', 'b']);
       expect(state.cursor, 'next');
@@ -90,7 +93,7 @@ void main() {
       );
 
       final state = await container.read(
-        userPostsProvider('alice.craftsky.social').future,
+        userPostsProvider(_aliceDid).future,
       );
       expect(state.items, isEmpty);
       expect(state.cursor, isNull);
@@ -136,7 +139,7 @@ void main() {
             postRepositoryProvider.overrideWithValue(fake),
           ],
         );
-        final provider = userPostsProvider('alice.craftsky.social');
+        final provider = userPostsProvider(_aliceDid);
         final subscription = container.listen(provider, (_, _) {});
         addTearDown(subscription.close);
 
@@ -184,15 +187,11 @@ void main() {
       );
 
       // First build to populate the state.
-      await container.read(userPostsProvider('alice.craftsky.social').future);
+      await container.read(userPostsProvider(_aliceDid).future);
 
-      await container
-          .read(userPostsProvider('alice.craftsky.social').notifier)
-          .loadMore();
+      await container.read(userPostsProvider(_aliceDid).notifier).loadMore();
 
-      final state = container
-          .read(userPostsProvider('alice.craftsky.social'))
-          .value!;
+      final state = container.read(userPostsProvider(_aliceDid)).value!;
       expect(state.items.map((p) => p.rkey), ['a', 'b']);
       expect(state.cursor, isNull);
       expect(state.hasMore, isFalse);
@@ -219,12 +218,10 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider('alice.craftsky.social').future);
+      await container.read(userPostsProvider(_aliceDid).future);
       expect(calls, 1);
 
-      await container
-          .read(userPostsProvider('alice.craftsky.social').notifier)
-          .loadMore();
+      await container.read(userPostsProvider(_aliceDid).notifier).loadMore();
       expect(calls, 1, reason: 'loadMore must not call repo when !hasMore');
     });
 
@@ -260,14 +257,12 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider('alice.craftsky.social').future);
+      await container.read(userPostsProvider(_aliceDid).future);
 
       // First loadMore fails.
-      await container
-          .read(userPostsProvider('alice.craftsky.social').notifier)
-          .loadMore();
+      await container.read(userPostsProvider(_aliceDid).notifier).loadMore();
 
-      final mid = container.read(userPostsProvider('alice.craftsky.social'));
+      final mid = container.read(userPostsProvider(_aliceDid));
       expect(mid.hasError, isTrue, reason: 'state is AsyncError after failure');
       expect(
         mid.value?.items.map((p) => p.rkey),
@@ -277,13 +272,9 @@ void main() {
       expect(mid.value?.cursor, 'c1', reason: 'cursor unchanged on failure');
 
       // Retry uses the same cursor and succeeds.
-      await container
-          .read(userPostsProvider('alice.craftsky.social').notifier)
-          .loadMore();
+      await container.read(userPostsProvider(_aliceDid).notifier).loadMore();
 
-      final after = container
-          .read(userPostsProvider('alice.craftsky.social'))
-          .value!;
+      final after = container.read(userPostsProvider(_aliceDid)).value!;
       expect(after.items.map((p) => p.rkey), ['a', 'b']);
     });
 
@@ -320,18 +311,18 @@ void main() {
       // Keep a persistent subscription so the provider is never auto-disposed
       // between the unawaited loadMore() and the assertions that follow.
       final sub = container.listen(
-        userPostsProvider('alice.craftsky.social'),
+        userPostsProvider(_aliceDid),
         (_, _) {},
       );
       addTearDown(sub.close);
 
       // Initial build (call 1 to the repo).
-      await container.read(userPostsProvider('alice.craftsky.social').future);
+      await container.read(userPostsProvider(_aliceDid).future);
       expect(calls, 1);
 
       // Fire loadMore but don't await — it triggers call 2 (gated).
       final inFlight = container
-          .read(userPostsProvider('alice.craftsky.social').notifier)
+          .read(userPostsProvider(_aliceDid).notifier)
           .loadMore();
       // Yield once so the loadMore method enters the AsyncLoading branch.
       await Future<void>.delayed(Duration.zero);
@@ -340,9 +331,7 @@ void main() {
       // Fire a second loadMore while the first is still pending. The
       // state.isLoading guard should swallow it without contacting the
       // repo.
-      await container
-          .read(userPostsProvider('alice.craftsky.social').notifier)
-          .loadMore();
+      await container.read(userPostsProvider(_aliceDid).notifier).loadMore();
       expect(
         calls,
         2,
@@ -353,9 +342,7 @@ void main() {
       firstPageGate.complete(PostPage(items: [_samplePost(rkey: 'b')]));
       await inFlight;
 
-      final state = container
-          .read(userPostsProvider('alice.craftsky.social'))
-          .value!;
+      final state = container.read(userPostsProvider(_aliceDid)).value!;
       expect(state.items.map((p) => p.rkey), ['a', 'b']);
     });
   });
@@ -379,15 +366,13 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider('alice.craftsky.social').future);
+      await container.read(userPostsProvider(_aliceDid).future);
 
       container
-          .read(userPostsProvider('alice.craftsky.social').notifier)
+          .read(userPostsProvider(_aliceDid).notifier)
           .prepend(_samplePost(rkey: 'new'));
 
-      final state = container
-          .read(userPostsProvider('alice.craftsky.social'))
-          .value!;
+      final state = container.read(userPostsProvider(_aliceDid)).value!;
       expect(state.items.map((p) => p.rkey), ['new', 'a']);
     });
 
@@ -409,16 +394,14 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider('alice.craftsky.social').future);
+      await container.read(userPostsProvider(_aliceDid).future);
 
       // Same uri as 'a' — must not double-insert.
       container
-          .read(userPostsProvider('alice.craftsky.social').notifier)
+          .read(userPostsProvider(_aliceDid).notifier)
           .prepend(_samplePost(rkey: 'a'));
 
-      final state = container
-          .read(userPostsProvider('alice.craftsky.social'))
-          .value!;
+      final state = container.read(userPostsProvider(_aliceDid)).value!;
       expect(state.items.map((p) => p.rkey), ['a']);
     });
 
@@ -445,10 +428,10 @@ void main() {
       // Read the notifier without awaiting — state is AsyncLoading,
       // state.value is null.
       final notifier = container.read(
-        userPostsProvider('alice.craftsky.social').notifier,
+        userPostsProvider(_aliceDid).notifier,
       );
       expect(
-        container.read(userPostsProvider('alice.craftsky.social')).isLoading,
+        container.read(userPostsProvider(_aliceDid)).isLoading,
         isTrue,
       );
 
@@ -456,12 +439,12 @@ void main() {
       notifier.prepend(_samplePost(rkey: 'new'));
 
       expect(
-        container.read(userPostsProvider('alice.craftsky.social')).isLoading,
+        container.read(userPostsProvider(_aliceDid)).isLoading,
         isTrue,
         reason: 'prepend must be a no-op when state has no data',
       );
       expect(
-        container.read(userPostsProvider('alice.craftsky.social')).value,
+        container.read(userPostsProvider(_aliceDid)).value,
         isNull,
       );
     });
@@ -491,15 +474,11 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider('alice.craftsky.social').future);
+      await container.read(userPostsProvider(_aliceDid).future);
 
-      container
-          .read(userPostsProvider('alice.craftsky.social').notifier)
-          .removeByRkey('b');
+      container.read(userPostsProvider(_aliceDid).notifier).removeByRkey('b');
 
-      final state = container
-          .read(userPostsProvider('alice.craftsky.social'))
-          .value!;
+      final state = container.read(userPostsProvider(_aliceDid)).value!;
       expect(state.items.map((p) => p.rkey), ['a', 'c']);
     });
 
@@ -521,15 +500,13 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider('alice.craftsky.social').future);
+      await container.read(userPostsProvider(_aliceDid).future);
 
       container
-          .read(userPostsProvider('alice.craftsky.social').notifier)
+          .read(userPostsProvider(_aliceDid).notifier)
           .removeByRkey('not-here');
 
-      final state = container
-          .read(userPostsProvider('alice.craftsky.social'))
-          .value!;
+      final state = container.read(userPostsProvider(_aliceDid)).value!;
       expect(state.items.map((p) => p.rkey), ['a']);
     });
 
@@ -553,10 +530,10 @@ void main() {
       );
 
       final notifier = container.read(
-        userPostsProvider('alice.craftsky.social').notifier,
+        userPostsProvider(_aliceDid).notifier,
       );
       expect(
-        container.read(userPostsProvider('alice.craftsky.social')).isLoading,
+        container.read(userPostsProvider(_aliceDid)).isLoading,
         isTrue,
       );
 
@@ -564,12 +541,12 @@ void main() {
       notifier.removeByRkey('anything');
 
       expect(
-        container.read(userPostsProvider('alice.craftsky.social')).isLoading,
+        container.read(userPostsProvider(_aliceDid)).isLoading,
         isTrue,
         reason: 'removeByRkey must be a no-op when state has no data',
       );
       expect(
-        container.read(userPostsProvider('alice.craftsky.social')).value,
+        container.read(userPostsProvider(_aliceDid)).value,
         isNull,
       );
     });

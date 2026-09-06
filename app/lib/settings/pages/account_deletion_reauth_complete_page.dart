@@ -46,8 +46,8 @@ class _AccountDeletionReauthCompletePageState
     final l10n = AppLocalizations.of(context);
     final colors = Theme.of(context).colorScheme;
     final deletion = ref.read(accountDeletionControllerProvider.notifier);
-    final requiredHandle = deletion.requiredHandle(widget.jobId);
-    if (requiredHandle == null || !deletion.canComplete(widget.jobId)) {
+    final confirmationDid = deletion.confirmationDid(widget.jobId);
+    if (confirmationDid == null || !deletion.canComplete(widget.jobId)) {
       return _guardIntent(
         Scaffold(
           appBar: AppBar(title: Text(l10n.deleteAccountConfirmTitle)),
@@ -57,14 +57,14 @@ class _AccountDeletionReauthCompletePageState
         ),
       );
     }
-    final matches = matchesDeletionConfirmationHandle(
-      requiredHandle: requiredHandle,
+    final matches = matchesDeletionConfirmationDid(
+      confirmationDid: confirmationDid,
       input: _controller.text,
     );
-    final confirmationPrompt = l10n.deleteAccountConfirmationPrompt(
-      requiredHandle,
+    final confirmationPrompt = l10n.deleteAccountDidConfirmationPrompt(
+      confirmationDid,
     );
-    final handleOffset = confirmationPrompt.indexOf(requiredHandle);
+    final didOffset = confirmationPrompt.indexOf(confirmationDid);
     return _guardIntent(
       Scaffold(
         appBar: AppBar(title: Text(l10n.deleteAccountConfirmTitle)),
@@ -74,19 +74,19 @@ class _AccountDeletionReauthCompletePageState
             children: [
               Text.rich(
                 TextSpan(
-                  children: handleOffset < 0
+                  children: didOffset < 0
                       ? [TextSpan(text: confirmationPrompt)]
                       : [
                           TextSpan(
-                            text: confirmationPrompt.substring(0, handleOffset),
+                            text: confirmationPrompt.substring(0, didOffset),
                           ),
                           TextSpan(
-                            text: requiredHandle,
+                            text: confirmationDid,
                             style: const TextStyle(fontWeight: FontWeight.bold),
                           ),
                           TextSpan(
                             text: confirmationPrompt.substring(
-                              handleOffset + requiredHandle.length,
+                              didOffset + confirmationDid.length,
                             ),
                           ),
                         ],
@@ -94,7 +94,7 @@ class _AccountDeletionReauthCompletePageState
               ),
               const SizedBox(height: 16),
               BrandTextField(
-                label: l10n.deleteAccountTypeHandleLabel,
+                label: l10n.deleteAccountTypeDidLabel,
                 controller: _controller,
                 autocorrect: false,
                 enableSuggestions: false,
@@ -105,7 +105,7 @@ class _AccountDeletionReauthCompletePageState
                 backgroundColor: colors.error,
                 foregroundColor: colors.onError,
                 onPressed: !_busy && matches
-                    ? () => _confirm(requiredHandle)
+                    ? () => _confirm(confirmationDid)
                     : null,
                 child: _busy
                     ? StitchProgressIndicator(size: 18, color: colors.onError)
@@ -133,7 +133,7 @@ class _AccountDeletionReauthCompletePageState
     child: child,
   );
 
-  Future<void> _confirm(String handle) async {
+  Future<void> _confirm(String confirmationDid) async {
     setState(() {
       _busy = true;
       _submissionStarted = true;
@@ -143,7 +143,7 @@ class _AccountDeletionReauthCompletePageState
         .confirm(
           jobId: widget.jobId,
           reauthProof: widget.proof,
-          confirmationHandle: handle,
+          confirmationDid: confirmationDid,
         );
     if (!mounted) return;
     if (!succeeded) {

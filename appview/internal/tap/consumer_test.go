@@ -117,7 +117,7 @@ func (s *durableIngestorSpy) IngestIdentity(ctx context.Context, event tap.Ident
 	return outcome, err
 }
 
-func TestWSConsumer_TerminalIdentityOverProcessingDeadlineIsNeverAcked(t *testing.T) {
+func TestWSConsumer_IdentityOverProcessingDeadlineIsNeverAcked(t *testing.T) {
 	frames := []string{
 		`{"id":910,"type":"identity","identity":{"did":"did:plc:in-budget","status":"deleted"}}`,
 		`{"id":911,"type":"identity","identity":{"did":"did:plc:over-budget","status":"deleted"}}`,
@@ -146,11 +146,11 @@ func TestWSConsumer_TerminalIdentityOverProcessingDeadlineIsNeverAcked(t *testin
 			t.Fatalf("first ACK id=%d, want in-budget identity 910", id)
 		}
 	case <-time.After(250 * time.Millisecond):
-		t.Fatal("in-budget terminal identity was not acknowledged")
+		t.Fatal("in-budget identity was not acknowledged")
 	}
 	select {
 	case id := <-ft.acks:
-		t.Fatalf("over-budget terminal identity was acknowledged: id=%d", id)
+		t.Fatalf("over-budget identity was acknowledged: id=%d", id)
 	case <-time.After(120 * time.Millisecond):
 	}
 	if got := ingestor.identityEvents(); len(got) != 2 {
@@ -326,8 +326,9 @@ func TestWSConsumer_DurablyIngestsEverySupportedIdentityEventBeforeAck(t *testin
 	frames := []string{
 		`{"id":1,"type":"identity","identity":{"did":"did:plc:actor","status":"active"}}`,
 		`{"id":2,"type":"identity","identity":{"did":"did:plc:actor","status":"deactivated"}}`,
-		`{"id":3,"type":"identity","identity":{"did":"did:plc:actor","status":"takendown"}}`,
-		`{"id":4,"type":"identity","identity":{"did":"did:plc:actor","status":"deleted"}}`,
+		`{"id":3,"type":"identity","identity":{"did":"did:plc:actor","status":"suspended"}}`,
+		`{"id":4,"type":"identity","identity":{"did":"did:plc:actor","status":"takendown"}}`,
+		`{"id":5,"type":"identity","identity":{"did":"did:plc:actor","status":"deleted"}}`,
 	}
 	ft := newFakeTap(frames)
 	srv := httptest.NewServer(ft.handler(t))
@@ -352,7 +353,7 @@ func TestWSConsumer_DurablyIngestsEverySupportedIdentityEventBeforeAck(t *testin
 	if len(got) != len(frames) {
 		t.Fatalf("identity events=%v, want %d durable events", got, len(frames))
 	}
-	for i, wantStatus := range []string{"active", "deactivated", "takendown", "deleted"} {
+	for i, wantStatus := range []string{"active", "deactivated", "suspended", "takendown", "deleted"} {
 		if got[i].DID != "did:plc:actor" || got[i].Status != wantStatus {
 			t.Fatalf("identity event %d = %+v, want DID did:plc:actor and status %q", i, got[i], wantStatus)
 		}

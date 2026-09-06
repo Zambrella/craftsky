@@ -1,15 +1,20 @@
 package app
 
 import (
+	"context"
 	"crypto/rand"
 	"fmt"
 	"log/slog"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
+	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/ingestion"
+	"social.craftsky/appview/internal/observability"
 )
 
 // authDependencies owns persisted OAuth parents, CraftSky child sessions, and
@@ -33,6 +38,8 @@ func newAuthDependencies(
 	handoffReceiptKey []byte,
 	cfg Config,
 	logger *slog.Logger,
+	repositoryJobs *ingestion.Store,
+	observer *observability.Observer,
 ) (*authDependencies, error) {
 	oauthStore := auth.NewPostgresAuthStore(pool, auth.StoreConfig{
 		SessionExpiry:                cfg.OAuthSessionAbsoluteLifetime,
@@ -54,6 +61,17 @@ func newAuthDependencies(
 	// choose the DID/PDS that receives credentials. Ordinary display reads keep
 	// using federated.directory.
 	oauthApp.Dir = federated.authoritativeDirectory
+	freshAuthorityVerifier, operationAuthorityVerifier, err := newOAuthAuthorityVerifiers(
+		federated.authoritativeDirectory,
+		oauthApp.Resolver,
+		cfg.FederatedHTTP.OAuthAuthorityMetadataCacheTTL,
+		cfg.FederatedHTTP.OAuthAuthorityMetadataCacheCapacity,
+		cfg.FederatedHTTP.OAuthMetadata.TotalTimeout,
+		observer,
+	)
+	if err != nil {
+		return nil, fmt.Errorf("OAuth authority verifier: %w", err)
+	}
 	registrationOAuth, err := auth.NewRegistrationOAuthAdapter(oauthApp)
 	if err != nil {
 		return nil, fmt.Errorf("registration OAuth adapter: %w", err)
@@ -73,13 +91,16 @@ func newAuthDependencies(
 		DeletionRequests:           owners.deletionStore,
 		RegistrationProviderOrigin: cfg.OAuthRegistrationProviderOrigin.String(),
 		RegistrationOAuth:          registrationOAuth,
+		AuthorityVerifier:          freshAuthorityVerifier,
+		Observer:                   observer,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("OAuth flow service: %w", err)
 	}
 	handoffs, err := auth.NewHandoffService(auth.HandoffServiceOptions{
 		Pool: pool, Owners: owners.lifecycles, Sessions: craftskyStore,
-		ExchangeTTL: cfg.OAuthHandoffExchangeTTL, ConfirmationTTL: cfg.OAuthHandoffConfirmationTTL,
+		RepositoryJobs: authRepositoryJobAdapter{store: repositoryJobs},
+		ExchangeTTL:    cfg.OAuthHandoffExchangeTTL, ConfirmationTTL: cfg.OAuthHandoffConfirmationTTL,
 		ReceiptKey: handoffReceiptKey, ReceiptKeyVersion: cfg.OAuthHandoffReceiptKeyVersion,
 		Random: rand.Reader, Now: time.Now,
 	})
@@ -96,7 +117,9 @@ func newAuthDependencies(
 	}
 	oauthSessionCoordinator, err := auth.NewOAuthSessionCoordinator(auth.OAuthSessionCoordinatorOptions{
 		App: oauthApp, Store: oauthStore, Owners: owners.lifecycles,
-		OperationTimeout: cfg.OAuthSessionOperationTimeout,
+		AuthorityVerifier: operationAuthorityVerifier,
+		Observer:          observer,
+		OperationTimeout:  cfg.OAuthSessionOperationTimeout,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("OAuth session coordinator: %w", err)
@@ -106,4 +129,17 @@ func newAuthDependencies(
 		flow: oauthFlow, handoffs: handoffs, sessionLifecycle: sessionLifecycle,
 		sessionCoordinator: oauthSessionCoordinator,
 	}, nil
+}
+
+type authRepositoryJobAdapter struct {
+	store *ingestion.Store
+}
+
+func (adapter authRepositoryJobAdapter) EnqueueRepositoryJobTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	did syntax.DID,
+	kind auth.RepositoryJobKind,
+) error {
+	return adapter.store.EnqueueRepositoryJobTx(ctx, tx, did, ingestion.RepositoryJobKind(kind))
 }

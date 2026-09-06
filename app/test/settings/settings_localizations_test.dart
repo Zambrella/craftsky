@@ -6,6 +6,7 @@ void main() {
     final l10n = AppLocalizationsEn();
     final values = <String>[
       l10n.settingsTitle,
+      l10n.handleUnavailable,
       l10n.appearanceTitle,
       l10n.appearanceUseDeviceSetting,
       l10n.appearanceLight,
@@ -31,8 +32,8 @@ void main() {
       l10n.deleteAccountAction,
       l10n.deleteAccountContinue,
       l10n.deleteAccountConfirmTitle,
-      l10n.deleteAccountTypeHandleLabel,
-      l10n.deleteAccountConfirmationPrompt('@alice.test'),
+      l10n.deleteAccountTypeDidLabel,
+      l10n.deleteAccountDidConfirmationPrompt('did:plc:alice'),
       l10n.actionCancel,
       l10n.accountDeletionAlreadyInProgress,
     ];

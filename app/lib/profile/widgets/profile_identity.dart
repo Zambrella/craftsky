@@ -1,3 +1,5 @@
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
@@ -24,7 +26,13 @@ class ProfileIdentity extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
-    final name = (displayName?.isNotEmpty ?? false) ? displayName! : '@$handle';
+    final l10n = AppLocalizations.of(context);
+    final profileHandle = ProfileHandle(handle);
+    final name = profileHandle.displayLabel(
+      displayName: displayName,
+      unavailableLabel: l10n.handleUnavailable,
+      includeAtSignWhenNoDisplayName: true,
+    );
 
     // `outline` carries the brand's ink3 (tertiary text) per the
     // ColorScheme override in app_theme.dart.
@@ -75,7 +83,9 @@ class ProfileIdentity extends StatelessWidget {
         if (displayName?.isNotEmpty ?? false) ...[
           const SizedBox(height: 2),
           Text(
-            '@$handle',
+            profileHandle.currentLabel(
+              unavailableLabel: l10n.handleUnavailable,
+            ),
             // `onSurfaceVariant` (ink2) rather than `outline` (ink3) —
             // the @handle reads as a secondary identifier paired with
             // the display name, not tertiary metadata, so it wants

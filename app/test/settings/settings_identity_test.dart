@@ -27,6 +27,7 @@ void main() {
         final identity = projectSettingsIdentity(
           lease: aliceLease,
           session: aliceSession,
+          unavailableHandleLabel: 'Handle unavailable',
           loaded: ActiveAccountIdentity(
             lease: aliceLease,
             profile: Profile(
@@ -51,6 +52,7 @@ void main() {
       final identity = projectSettingsIdentity(
         lease: aliceLease,
         session: aliceSession,
+        unavailableHandleLabel: 'Handle unavailable',
         loaded: ActiveAccountIdentity(
           lease: aliceLease,
           profile: Profile(
@@ -72,6 +74,7 @@ void main() {
       final identity = projectSettingsIdentity(
         lease: aliceLease,
         session: aliceSession,
+        unavailableHandleLabel: 'Handle unavailable',
         loaded: ActiveAccountIdentity(
           lease: AccountSessionLease(
             account: AccountKey('did:plc:bob'),

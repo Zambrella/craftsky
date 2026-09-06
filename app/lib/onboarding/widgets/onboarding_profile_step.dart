@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
 import 'package:craftsky_app/profile/data/profile_field_constraints.dart';
+import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:flutter/material.dart';
@@ -132,7 +133,13 @@ class _OnboardingProfileStepState extends State<OnboardingProfileStep> {
           ),
         ],
         const SizedBox(height: 12),
-        Center(child: Text(l10n.onboardingHandleLabel(profile.handle.value))),
+        Center(
+          child: Text(
+            ProfileHandle(profile.handle).isAvailable
+                ? l10n.onboardingHandleLabel(profile.handle.value)
+                : l10n.handleUnavailable,
+          ),
+        ),
         const SizedBox(height: 24),
         CraftskyTextInput(
           label: l10n.editProfileDisplayNameLabel,

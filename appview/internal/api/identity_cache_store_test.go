@@ -130,6 +130,15 @@ CREATE TABLE atproto_identity_cache (
     resolved_at  TIMESTAMPTZ NOT NULL,
     updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE atproto_identity_refresh_state (
+    did             TEXT        NOT NULL PRIMARY KEY,
+    next_attempt_at TIMESTAMPTZ NOT NULL,
+    attempt_count   INTEGER     NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+    last_result     TEXT        NOT NULL CHECK (last_result IN ('pending','retry')),
+    tap_event_id    BIGINT,
+    refresh_version BIGINT      NOT NULL DEFAULT 1 CHECK (refresh_version > 0),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
 CREATE TABLE moderation_outputs (
     id                  TEXT        NOT NULL PRIMARY KEY,
     source_did          TEXT        NOT NULL,
@@ -278,6 +287,40 @@ func TestFacetStoreSearchMentionSuggestionsTreatsWildcardQueryLiterally(t *testi
 	}
 }
 
+func TestFacetStoreInvalidHandleIsPresentationOnlyNotSearchAlias(t *testing.T) {
+	pool := testdb.WithSchema(t, facetStoreDDL)
+	ctx := context.Background()
+	now := time.Date(2026, 9, 3, 12, 0, 0, 0, time.UTC)
+	did := syntax.DID("did:plc:invalid-handle")
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'profile')`, did); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO bluesky_profiles(did,display_name,record_cid) VALUES($1,'Alice','bsky-profile')`, did); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO atproto_identity_cache(did,handle,handle_lower,resolved_at)
+		VALUES($1,'handle.invalid','handle.invalid',$2)
+	`, did, now); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := api.NewFacetStore(pool).SearchMentionSuggestions(ctx, "did:plc:viewer", "handle.invalid", 10, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 0 {
+		t.Fatalf("sentinel alias search rows=%+v, want none", rows)
+	}
+	rows, err = api.NewFacetStore(pool).SearchMentionSuggestions(ctx, "did:plc:viewer", "Alice", 10, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 1 || rows[0].DID != did.String() || rows[0].Handle != syntax.HandleInvalid.String() {
+		t.Fatalf("display identity rows=%+v, want DID with sentinel wire handle", rows)
+	}
+}
+
 func TestFacetStoreResolveMentionRefreshesCacheAndFiltersCraftskyProfiles(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, facetStoreDDL)
@@ -345,7 +388,7 @@ func TestFacetStoreResolveMentionRefreshesCacheAndFiltersCraftskyProfiles(t *tes
 	}
 }
 
-func TestIdentityCacheUpsertRejectsKnownTerminalTarget(t *testing.T) {
+func TestIdentityCacheAuthoritativeRefreshRejectsKnownTerminalTarget(t *testing.T) {
 	pool := testdb.WithSchema(t, facetStoreDDL)
 	ctx := context.Background()
 	target := syntax.DID("did:plc:terminal-cache-target")
@@ -356,14 +399,13 @@ func TestIdentityCacheUpsertRejectsKnownTerminalTarget(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := api.NewIdentityCacheStore(pool).Upsert(
-		ctx,
-		target,
-		syntax.Handle("terminal.example"),
-		time.Now().UTC(),
-	)
+	resolver := exactResolveFakeResolver{
+		didByHandle: map[string]syntax.DID{"terminal.example": target},
+		handleByDID: map[string]syntax.Handle{target.String(): "terminal.example"},
+	}
+	err := api.NewIdentityCacheService(pool, resolver, time.Now, nil).RefreshCurrentHandle(ctx, target)
 	if !errors.Is(err, ownerlifecycle.ErrTerminalOwner) {
-		t.Fatalf("Upsert error = %v, want ErrTerminalOwner", err)
+		t.Fatalf("RefreshCurrentHandle error = %v, want ErrTerminalOwner", err)
 	}
 	var count int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM atproto_identity_cache`).Scan(&count); err != nil {
@@ -374,42 +416,44 @@ func TestIdentityCacheUpsertRejectsKnownTerminalTarget(t *testing.T) {
 	}
 }
 
-func TestIdentityCacheUpsertReusesPreheldOwnerFence(t *testing.T) {
+func TestIdentityCacheAuthoritativeRefreshReusesExistingAuthFence(t *testing.T) {
 	pool := testdb.WithSchema(t, facetStoreDDL)
-	owner := syntax.DID("did:plc:fenced-cache-owner")
-	if _, err := pool.Exec(context.Background(), `
+	ctx := context.Background()
+	target := syntax.DID("did:plc:fenced-cache-target")
+	if _, err := pool.Exec(ctx, `
 		INSERT INTO owner_lifecycles(owner_did,state,generation)
-		VALUES($1,'active',3)
-	`, owner); err != nil {
+		VALUES($1,'active',1)
+	`, target); err != nil {
 		t.Fatal(err)
 	}
-	fencer, err := ownerlifecycle.NewFencer(pool, time.Second)
+	fencer, err := ownerlifecycle.NewFencer(pool, 100*time.Millisecond)
 	if err != nil {
 		t.Fatal(err)
 	}
-	lifecycles, err := ownerlifecycle.NewStore(pool, fencer, time.Now)
+	owners, err := ownerlifecycle.NewStore(pool, fencer, time.Now)
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	resolver := exactResolveFakeResolver{
+		didByHandle: map[string]syntax.DID{"fenced.example": target},
+		handleByDID: map[string]syntax.Handle{target.String(): "fenced.example"},
+	}
+	service := api.NewIdentityCacheService(pool, resolver, time.Now, nil)
+	refreshCtx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
-	err = lifecycles.WithExistingAuth(ctx, owner, func(fenceCtx context.Context, _ ownerlifecycle.Lifecycle) error {
-		return api.NewIdentityCacheStore(pool).Upsert(
-			fenceCtx,
-			owner,
-			syntax.Handle("fenced-cache-owner.example"),
-			time.Now().UTC(),
-		)
+
+	err = owners.WithExistingAuth(refreshCtx, target, func(fenceCtx context.Context, _ ownerlifecycle.Lifecycle) error {
+		return service.RefreshCurrentHandle(fenceCtx, target)
 	})
 	if err != nil {
-		t.Fatalf("upsert inside pre-held owner fence: %v", err)
+		t.Fatalf("RefreshCurrentHandle under existing auth fence: %v", err)
 	}
-	var count int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM atproto_identity_cache WHERE did=$1`, owner).Scan(&count); err != nil {
+	var handle string
+	if err := pool.QueryRow(ctx, `SELECT handle FROM atproto_identity_cache WHERE did=$1`, target).Scan(&handle); err != nil {
 		t.Fatal(err)
 	}
-	if count != 1 {
-		t.Fatalf("identity cache rows = %d, want 1", count)
+	if handle != "fenced.example" {
+		t.Fatalf("handle = %q, want fenced.example", handle)
 	}
 }
 

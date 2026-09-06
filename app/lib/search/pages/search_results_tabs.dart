@@ -282,7 +282,7 @@ class _ProfileResultsSliver extends ConsumerWidget {
             onTap: () => unawaited(
               showUserProfileCard(
                 context,
-                handleOrDid: profile.handle.toString(),
+                did: profile.did,
               ),
             ),
           );

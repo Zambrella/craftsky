@@ -8,18 +8,18 @@ part of 'user_posts_provider.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Cursor-accumulating list-by-author provider, keyed by `handleOrDid`.
+/// Cursor-accumulating list-by-author provider, keyed by DID.
 
 @ProviderFor(UserPosts)
 final userPostsProvider = UserPostsFamily._();
 
-/// Cursor-accumulating list-by-author provider, keyed by `handleOrDid`.
+/// Cursor-accumulating list-by-author provider, keyed by DID.
 final class UserPostsProvider
     extends $AsyncNotifierProvider<UserPosts, UserPostsState> {
-  /// Cursor-accumulating list-by-author provider, keyed by `handleOrDid`.
+  /// Cursor-accumulating list-by-author provider, keyed by DID.
   UserPostsProvider._({
     required UserPostsFamily super.from,
-    required String super.argument,
+    required Did super.argument,
   }) : super(
          retry: null,
          name: r'userPostsProvider',
@@ -53,9 +53,9 @@ final class UserPostsProvider
   }
 }
 
-String _$userPostsHash() => r'71fbcec1d12a30a45b2744c5039bfb4ba351e3de';
+String _$userPostsHash() => r'6584df0973f108f1fae2bc8f8b68a4707267317e';
 
-/// Cursor-accumulating list-by-author provider, keyed by `handleOrDid`.
+/// Cursor-accumulating list-by-author provider, keyed by DID.
 
 final class UserPostsFamily extends $Family
     with
@@ -64,7 +64,7 @@ final class UserPostsFamily extends $Family
           AsyncValue<UserPostsState>,
           UserPostsState,
           FutureOr<UserPostsState>,
-          String
+          Did
         > {
   UserPostsFamily._()
     : super(
@@ -75,22 +75,22 @@ final class UserPostsFamily extends $Family
         isAutoDispose: true,
       );
 
-  /// Cursor-accumulating list-by-author provider, keyed by `handleOrDid`.
+  /// Cursor-accumulating list-by-author provider, keyed by DID.
 
-  UserPostsProvider call(String handleOrDid) =>
-      UserPostsProvider._(argument: handleOrDid, from: this);
+  UserPostsProvider call(Did did) =>
+      UserPostsProvider._(argument: did, from: this);
 
   @override
   String toString() => r'userPostsProvider';
 }
 
-/// Cursor-accumulating list-by-author provider, keyed by `handleOrDid`.
+/// Cursor-accumulating list-by-author provider, keyed by DID.
 
 abstract class _$UserPosts extends $AsyncNotifier<UserPostsState> {
-  late final _$args = ref.$arg as String;
-  String get handleOrDid => _$args;
+  late final _$args = ref.$arg as Did;
+  Did get did => _$args;
 
-  FutureOr<UserPostsState> build(String handleOrDid);
+  FutureOr<UserPostsState> build(Did did);
   @$mustCallSuper
   @override
   void runBuild() {

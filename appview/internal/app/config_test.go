@@ -267,9 +267,11 @@ func testConfigFile(t *testing.T, contents string) string {
 		"FEDERATED_HTTP_RESPONSE_HEADER_TIMEOUT", "FEDERATED_HTTP_EXPECT_CONTINUE_TIMEOUT",
 		"FEDERATED_HTTP_IDLE_CONN_TIMEOUT", "FEDERATED_HTTP_MAX_RESPONSE_HEADER_BYTES",
 		"FEDERATED_OAUTH_METADATA_TIMEOUT", "FEDERATED_OAUTH_REQUEST_TIMEOUT",
-		"FEDERATED_PDS_JSON_TIMEOUT", "FEDERATED_PDS_UPLOAD_TIMEOUT",
+		"FEDERATED_PDS_JSON_TIMEOUT", "FEDERATED_PDS_UPLOAD_TIMEOUT", "FEDERATED_PDS_REPOSITORY_TIMEOUT",
 		"FEDERATED_OAUTH_METADATA_RESPONSE_LIMIT_BYTES", "FEDERATED_OAUTH_RESPONSE_LIMIT_BYTES",
 		"FEDERATED_PDS_JSON_RESPONSE_LIMIT_BYTES", "FEDERATED_PDS_UPLOAD_RESPONSE_LIMIT_BYTES",
+		"FEDERATED_PDS_REPOSITORY_RESPONSE_LIMIT_BYTES", "OAUTH_AUTHORITY_METADATA_CACHE_TTL",
+		"OAUTH_AUTHORITY_METADATA_CACHE_CAPACITY",
 		"INSTAGRAM_DATA_HMAC_KEY", "INSTAGRAM_META_ENABLED",
 		"INSTAGRAM_META_APP_SECRET", "INSTAGRAM_META_VERIFY_TOKEN",
 		"INSTAGRAM_META_ACCESS_TOKEN", "INSTAGRAM_META_ACCOUNT_ID",
@@ -368,19 +370,27 @@ func TestLoadConfigFederatedHTTPBudgetsArePositiveAndLowerOnly(t *testing.T) {
 	}
 	if cfg.FederatedHTTP.Transport.DialTimeout != 5*time.Second ||
 		cfg.FederatedHTTP.OAuthMetadata.TotalTimeout != 10*time.Second ||
-		cfg.FederatedHTTP.PDSUpload.TotalTimeout != 20*time.Second {
+		cfg.FederatedHTTP.OAuthAuthorityMetadataCacheTTL != 5*time.Minute ||
+		cfg.FederatedHTTP.OAuthAuthorityMetadataCacheCapacity != 10_000 ||
+		cfg.FederatedHTTP.PDSUpload.TotalTimeout != 20*time.Second ||
+		cfg.FederatedHTTP.PDSRepository.TotalTimeout != 2*time.Minute ||
+		cfg.FederatedHTTP.PDSRepository.ResponseLimit != 64<<20 {
 		t.Fatalf("federated defaults = %+v", cfg.FederatedHTTP)
 	}
 
 	cfg, err = LoadConfig(EnvDev, testConfigFile(t, base+
 		"FEDERATED_HTTP_DIAL_TIMEOUT=2s\n"+
 		"FEDERATED_OAUTH_METADATA_TIMEOUT=4s\n"+
+		"OAUTH_AUTHORITY_METADATA_CACHE_TTL=30s\n"+
+		"OAUTH_AUTHORITY_METADATA_CACHE_CAPACITY=100\n"+
 		"FEDERATED_PDS_JSON_RESPONSE_LIMIT_BYTES=1048576\n"))
 	if err != nil {
 		t.Fatalf("LoadConfig lower budgets: %v", err)
 	}
 	if cfg.FederatedHTTP.Transport.DialTimeout != 2*time.Second ||
 		cfg.FederatedHTTP.OAuthMetadata.TotalTimeout != 4*time.Second ||
+		cfg.FederatedHTTP.OAuthAuthorityMetadataCacheTTL != 30*time.Second ||
+		cfg.FederatedHTTP.OAuthAuthorityMetadataCacheCapacity != 100 ||
 		cfg.FederatedHTTP.PDSJSON.ResponseLimit != 1<<20 {
 		t.Fatalf("lowered federated budgets = %+v", cfg.FederatedHTTP)
 	}
@@ -389,6 +399,12 @@ func TestLoadConfigFederatedHTTPBudgetsArePositiveAndLowerOnly(t *testing.T) {
 		"FEDERATED_HTTP_DIAL_TIMEOUT=6s\n",
 		"FEDERATED_OAUTH_METADATA_TIMEOUT=0s\n",
 		"FEDERATED_PDS_JSON_RESPONSE_LIMIT_BYTES=4194305\n",
+		"FEDERATED_PDS_REPOSITORY_TIMEOUT=121s\n",
+		"FEDERATED_PDS_REPOSITORY_RESPONSE_LIMIT_BYTES=67108865\n",
+		"OAUTH_AUTHORITY_METADATA_CACHE_TTL=0s\n",
+		"OAUTH_AUTHORITY_METADATA_CACHE_TTL=5m1ns\n",
+		"OAUTH_AUTHORITY_METADATA_CACHE_CAPACITY=0\n",
+		"OAUTH_AUTHORITY_METADATA_CACHE_CAPACITY=250001\n",
 	} {
 		if _, err := LoadConfig(EnvDev, testConfigFile(t, base+override)); err == nil {
 			t.Fatalf("LoadConfig accepted unsafe override %q", override)
@@ -797,7 +813,9 @@ func TestLoadConfig_TapFields(t *testing.T) {
 		"TAP_REPOSITORY_LEASE_DURATION=30s\n" +
 		"TAP_REPOSITORY_BATCH_SIZE=3\n" +
 		"TAP_REPOSITORY_BACKOFF_MIN=3s\n" +
-		"TAP_REPOSITORY_BACKOFF_MAX=2m\n"
+		"TAP_REPOSITORY_BACKOFF_MAX=2m\n" +
+		"TAP_REPOSITORY_ALERT_AGE=20m\n" +
+		"TAP_REPOSITORY_ALERT_ATTEMPTS=7\n"
 	if err := os.WriteFile(envPath, []byte(contents), 0o600); err != nil {
 		t.Fatal(err)
 	}
@@ -809,7 +827,7 @@ func TestLoadConfig_TapFields(t *testing.T) {
 		"TAP_PROJECTION_POLL_INTERVAL", "TAP_PROJECTION_LEASE_DURATION", "TAP_PROJECTION_BATCH_SIZE",
 		"TAP_PROJECTION_BACKOFF_MIN", "TAP_PROJECTION_BACKOFF_MAX",
 		"TAP_REPOSITORY_POLL_INTERVAL", "TAP_REPOSITORY_LEASE_DURATION", "TAP_REPOSITORY_BATCH_SIZE",
-		"TAP_REPOSITORY_BACKOFF_MIN", "TAP_REPOSITORY_BACKOFF_MAX",
+		"TAP_REPOSITORY_BACKOFF_MIN", "TAP_REPOSITORY_BACKOFF_MAX", "TAP_REPOSITORY_ALERT_AGE", "TAP_REPOSITORY_ALERT_ATTEMPTS",
 		"MAX_POST_IMAGES", "MAX_IMAGE_UPLOAD_BYTES"} {
 		prior, had := os.LookupEnv(k)
 		_ = os.Unsetenv(k)
@@ -840,7 +858,8 @@ func TestLoadConfig_TapFields(t *testing.T) {
 		t.Errorf("projection config = %+v", cfg)
 	}
 	if cfg.TapRepositoryPollInterval != 2*time.Second || cfg.TapRepositoryLeaseDuration != 30*time.Second ||
-		cfg.TapRepositoryBatchSize != 3 || cfg.TapRepositoryBackoffMin != 3*time.Second || cfg.TapRepositoryBackoffMax != 2*time.Minute {
+		cfg.TapRepositoryBatchSize != 3 || cfg.TapRepositoryBackoffMin != 3*time.Second || cfg.TapRepositoryBackoffMax != 2*time.Minute ||
+		cfg.TapRepositoryAlertAge != 20*time.Minute || cfg.TapRepositoryAlertAttempts != 7 {
 		t.Errorf("repository config = %+v", cfg)
 	}
 }
@@ -865,8 +884,9 @@ func TestLoadConfig_TapDefaults(t *testing.T) {
 		cfg.TapProjectionBatchSize != 32 || cfg.TapProjectionBackoffMin != time.Second || cfg.TapProjectionBackoffMax != 5*time.Minute {
 		t.Errorf("default projection config = %+v", cfg)
 	}
-	if cfg.TapRepositoryPollInterval != time.Second || cfg.TapRepositoryLeaseDuration != 45*time.Second ||
-		cfg.TapRepositoryBatchSize != 8 || cfg.TapRepositoryBackoffMin != 2*time.Second || cfg.TapRepositoryBackoffMax != 5*time.Minute {
+	if cfg.TapRepositoryPollInterval != time.Second || cfg.TapRepositoryLeaseDuration != 3*time.Minute ||
+		cfg.TapRepositoryBatchSize != 8 || cfg.TapRepositoryBackoffMin != 2*time.Second || cfg.TapRepositoryBackoffMax != 5*time.Minute ||
+		cfg.TapRepositoryAlertAge != 15*time.Minute || cfg.TapRepositoryAlertAttempts != 5 {
 		t.Errorf("default repository config = %+v", cfg)
 	}
 }

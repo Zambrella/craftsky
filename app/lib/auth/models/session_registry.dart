@@ -56,6 +56,17 @@ class SessionRegistry {
     if (decoded['schemaVersion'] != currentSchemaVersion) {
       throw const FormatException('Unsupported session registry version');
     }
+    _requireOnlyKeys(decoded, const {
+      'schemaVersion',
+      'nextSessionGeneration',
+      'nextUseOrdinal',
+      'activationGeneration',
+      'activeDid',
+      'routingBindings',
+      'pendingHandoff',
+      'pendingAccountDeletion',
+      'sessions',
+    });
 
     final rawSessions = decoded['sessions'];
     if (rawSessions is! Map<String, Object?>) {
@@ -66,6 +77,16 @@ class SessionRegistry {
       if (value is! Map<String, Object?> || value['did'] != did) {
         throw const FormatException('Invalid session registry entry');
       }
+      _requireOnlyKeys(value, const {
+        'token',
+        'did',
+        'handle',
+        'sessionGeneration',
+        'lastUsedOrdinal',
+        'cachedDisplayName',
+        'cachedAvatarUrl',
+        'cachedCustomisation',
+      });
       sessions[did] = StoredSession(
         token: _requiredString(value, 'token'),
         did: did,
@@ -165,7 +186,7 @@ class SessionRegistry {
     );
   }
 
-  static const currentSchemaVersion = 1;
+  static const currentSchemaVersion = 2;
   static const maxRetainedAccounts = 5;
   static const _unchanged = Object();
 
@@ -413,6 +434,30 @@ class SessionRegistry {
     );
   }
 
+  SessionRegistry updateHandle(AccountSessionLease lease, Handle handle) {
+    final stored = sessions[lease.account.did];
+    if (stored == null ||
+        stored.sessionGeneration != lease.sessionGeneration ||
+        stored.handle == handle) {
+      return this;
+    }
+    return _copyWith(
+      sessions: {
+        ...sessions,
+        lease.account.did: StoredSession(
+          token: stored.token,
+          did: stored.did.value,
+          handle: handle.value,
+          sessionGeneration: stored.sessionGeneration,
+          lastUsedOrdinal: stored.lastUsedOrdinal,
+          cachedDisplayName: stored.cachedDisplayName,
+          cachedAvatarUrl: stored.cachedAvatarUrl,
+          cachedCustomisation: stored.cachedCustomisation,
+        ),
+      },
+    );
+  }
+
   SessionRegistry updateCachedCustomisation(
     AccountSessionLease lease,
     ProfileCustomisation customisation,
@@ -523,6 +568,15 @@ class SessionRegistry {
       throw FormatException('Invalid $key');
     }
     return value as String?;
+  }
+
+  static void _requireOnlyKeys(
+    Map<String, Object?> map,
+    Set<String> allowed,
+  ) {
+    if (map.keys.any((key) => !allowed.contains(key))) {
+      throw const FormatException('Unsupported session registry field');
+    }
   }
 
   static ProfileCustomisation _cachedCustomisation(Object? value) {

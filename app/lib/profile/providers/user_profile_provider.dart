@@ -1,16 +1,18 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/providers/business_projection_overlay_provider.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'user_profile_provider.g.dart';
 
-/// Single source of truth for a user's profile, keyed by handle or DID.
+/// Single source of truth for a user's profile, keyed by DID.
 ///
 /// Holds both read and write logic so mutation methods can perform
 /// optimistic updates against the cached `AsyncData` and roll back on
@@ -19,19 +21,21 @@ part 'user_profile_provider.g.dart';
 /// callers should only invoke them on the family entry that matches
 /// the signed-in user.
 ///
-/// Mixing handle and DID for the same user produces separate cache
-/// entries; pick one form per call site.
 @riverpod
 class UserProfile extends _$UserProfile {
   @override
-  Future<Profile> build(String handleOrDid) async {
+  Future<Profile> build(Did did) async {
     final ownership = captureActiveAccountOperation(ref);
     final lease = ownership?.session;
     final overlay = ref.read(businessProjectionOverlayProvider.notifier);
     final readFence = lease == null ? null : overlay.captureRead(lease);
     late final Profile profile;
     try {
-      profile = await ref.watch(profileRepositoryProvider).fetch(handleOrDid);
+      final repository = ref.watch(profileRepositoryProvider);
+      final activeDid = ref.watch(sessionRegistryProvider).value?.activeDid;
+      profile = activeDid == did
+          ? await repository.fetchMe()
+          : await repository.fetch(did);
     } on Object {
       if (readFence != null &&
           !overlay.isReadCurrent(readFence) &&

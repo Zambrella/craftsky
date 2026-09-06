@@ -6,6 +6,7 @@ import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/models/user_projects_state.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'user_projects_provider.g.dart';
@@ -17,11 +18,11 @@ class UserProjects extends _$UserProjects {
   static String formatLogValue(Object? value) => value.toString();
 
   @override
-  Future<UserProjectsState> build(String handleOrDid) async {
+  Future<UserProjectsState> build(Did did) async {
     ref.watch(activeContentLanguagePolicyProvider);
     final repo = ref.watch(postRepositoryProvider);
     final page = await repo.listProjectsByAuthor(
-      handleOrDid,
+      did,
       limit: userProjectsPageLimit,
     );
     return UserProjectsState(
@@ -44,14 +45,14 @@ class UserProjects extends _$UserProjects {
       late final PostPage page;
       try {
         page = await repo.listProjectsByAuthor(
-          handleOrDid,
+          did,
           cursor: current.cursor,
           limit: userProjectsPageLimit,
         );
       } on ApiBadRequest catch (error) {
         if (error.code != 'invalid_cursor') rethrow;
         final restarted = await repo.listProjectsByAuthor(
-          handleOrDid,
+          did,
           limit: userProjectsPageLimit,
         );
         return UserProjectsState(

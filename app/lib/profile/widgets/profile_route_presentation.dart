@@ -9,6 +9,7 @@ import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.da
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_card.dart';
 import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -19,12 +20,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// Owns both visual states of a profile route.
 class ProfileRoutePresentation extends ConsumerStatefulWidget {
   const ProfileRoutePresentation({
-    required this.handle,
+    required this.did,
     required this.startsCompact,
     super.key,
   });
 
-  final String handle;
+  final Did did;
   final bool startsCompact;
 
   static const expansionDuration = Duration(milliseconds: 600);
@@ -76,7 +77,7 @@ class _ProfileRoutePresentationState
       );
     }
 
-    final profileAsync = ref.watch(userProfileProvider(widget.handle));
+    final profileAsync = ref.watch(userProfileProvider(widget.did));
     final toggleState = ref.watch(toggleFollowProfileProvider);
     final auth = ref.watch(authSessionProvider).value;
     ref.listen(toggleFollowProfileProvider, (previous, next) {
@@ -127,7 +128,7 @@ class _ProfileRoutePresentationState
     );
   }
 
-  Widget _fullProfile() => ProfilePage(handle: widget.handle);
+  Widget _fullProfile() => ProfilePage(did: widget.did);
 
   Widget _compactProfile({
     required AsyncValue<Profile> profileAsync,
@@ -139,7 +140,7 @@ class _ProfileRoutePresentationState
     return switch (profileAsync) {
       AsyncValue(:final value?) => ProfileCard(
         profile: value,
-        isOwnProfile: _isOwnProfile(auth, value.did.toString()),
+        isOwnProfile: _isOwnProfile(auth, value.did),
         isPrimaryActionBusy: toggleState.isLoading,
         expansionProgress: expansionProgress,
         transitionProgress: transitionProgress,
@@ -151,7 +152,7 @@ class _ProfileRoutePresentationState
           unawaited(
             ref
                 .read(toggleFollowProfileProvider.notifier)
-                .toggle(cacheKey: widget.handle, profile: value),
+                .toggle(cacheKey: value.did, profile: value),
           );
         },
       ),
@@ -167,8 +168,9 @@ class _ProfileRoutePresentationState
               ),
             ),
             ChunkyButton(
-              onPressed: () =>
-                  ref.invalidate(userProfileProvider(widget.handle)),
+              onPressed: () => ref.invalidate(
+                userProfileProvider(widget.did),
+              ),
               child: Text(
                 AppLocalizations.of(context).profileLoadErrorRetry,
               ),
@@ -193,9 +195,9 @@ class _ProfileRoutePresentationState
     unawaited(_controller.forward());
   }
 
-  bool _isOwnProfile(AuthState? auth, String profileDid) {
+  bool _isOwnProfile(AuthState? auth, Did profileDid) {
     return switch (auth) {
-      SignedIn(:final did) => did.toString() == profileDid,
+      SignedIn(:final did) => did == profileDid,
       _ => false,
     };
   }

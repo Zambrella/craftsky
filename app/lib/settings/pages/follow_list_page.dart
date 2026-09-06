@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
+import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
@@ -121,6 +122,7 @@ class _FollowListBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final unavailable = l10n.handleUnavailable;
     return RefreshIndicator(
       onRefresh: onRefresh,
       child: CustomScrollView(
@@ -159,18 +161,25 @@ class _FollowListBody extends StatelessWidget {
                   );
                 }
                 final account = items[index];
-                final title = account.displayName?.isNotEmpty ?? false
-                    ? account.displayName!
-                    : account.handle.toString();
+                final handle = ProfileHandle(account.handle);
+                final title = handle.displayLabel(
+                  displayName: account.displayName,
+                  unavailableLabel: unavailable,
+                );
                 return ListTile(
                   title: Text(title),
-                  subtitle: Text('@${account.handle}'),
+                  subtitle:
+                      handle.isAvailable ||
+                          (account.displayName?.trim().isNotEmpty ?? false)
+                      ? Text(
+                          handle.currentLabel(
+                            unavailableLabel: unavailable,
+                          ),
+                        )
+                      : null,
                   trailing: const Icon(CraftskyIconsBold.next),
                   onTap: () => unawaited(
-                    showUserProfileCard(
-                      context,
-                      handleOrDid: account.handle.toString(),
-                    ),
+                    showUserProfileCard(context, did: account.did),
                   ),
                 );
               },

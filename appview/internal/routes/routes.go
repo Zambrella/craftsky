@@ -208,7 +208,6 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 		app: deps.OAuthApp, artifacts: deps.OAuthArtifacts,
 		sessionStore: deps.CraftskySessionStore, db: deps.DB, logger: deps.Logger,
 		identityCacheUpdater: deps.IdentityCacheUpdater,
-		repositoryTracker:    deps.RepositoryTracker,
 		deletionOAuth:        deps.AccountDeletionOAuth,
 		deletionPendingLogin: deps.AccountDeletionPendingLogin,
 		oauthFlow:            deps.OAuthFlow, handoffs: deps.HandoffCoordinator,
@@ -254,7 +253,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 	scheduledImageValidator := newScheduledImageValidator(deps.Config.ImageDecodeLimits, observer)
 	registerSearchRoutes(searchRouteBundle{
 		mux: mux, middleware: v1mw,
-		facetStore:     api.NewFacetStore(deps.DB, deps.AuthoritativeHandleResolver),
+		facetStore:     api.NewFacetStoreWithInvalidator(deps.DB, deps.AuthoritativeHandleResolver, deps.IdentityInvalidator),
 		searchStore:    api.NewSearchStoreWithPlayback(deps.DB, observer, deps.VideoPlayback),
 		handleResolver: deps.HandleResolver, languages: deps.LanguagePreferences,
 		logger: deps.Logger,

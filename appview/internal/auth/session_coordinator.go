@@ -24,10 +24,16 @@ const (
 var ErrOAuthSessionPersistenceIndeterminate = errors.New("OAuth session credential persistence is indeterminate")
 
 type OAuthSessionCoordinatorOptions struct {
-	App              *oauth.ClientApp
-	Store            *PostgresAuthStore
-	Owners           *ownerlifecycle.Store
-	OperationTimeout time.Duration
+	App               *oauth.ClientApp
+	Store             *PostgresAuthStore
+	Owners            *ownerlifecycle.Store
+	AuthorityVerifier OAuthAuthorityVerifier
+	Observer          AuthorityVerificationObserver
+	OperationTimeout  time.Duration
+}
+
+type AuthorityVerificationObserver interface {
+	ObserveAuthorityVerification(operation, result, reason string, duration time.Duration)
 }
 
 // OAuthSessionCoordinator is the only ordinary parent-resume boundary. It
@@ -35,17 +41,19 @@ type OAuthSessionCoordinatorOptions struct {
 // authenticated PDS operation, and turns Indigo's error-blind persistence
 // callback into a result the caller cannot accidentally ignore.
 type OAuthSessionCoordinator struct {
-	app              *oauth.ClientApp
-	store            *PostgresAuthStore
-	owners           *ownerlifecycle.Store
-	operationTimeout time.Duration
+	app               *oauth.ClientApp
+	store             *PostgresAuthStore
+	owners            *ownerlifecycle.Store
+	authorityVerifier OAuthAuthorityVerifier
+	observer          AuthorityVerificationObserver
+	operationTimeout  time.Duration
 }
 
 type OAuthSessionOperation func(context.Context, *oauth.ClientSession) error
 
 func NewOAuthSessionCoordinator(options OAuthSessionCoordinatorOptions) (*OAuthSessionCoordinator, error) {
 	if options.App == nil || options.App.Client == nil || options.App.Config == nil ||
-		options.Store == nil || options.Owners == nil {
+		options.Store == nil || options.Owners == nil || options.AuthorityVerifier == nil {
 		return nil, errors.New("OAuth session coordinator dependencies are unavailable")
 	}
 	timeout, err := normalizeOAuthOperationTimeout(
@@ -57,7 +65,9 @@ func NewOAuthSessionCoordinator(options OAuthSessionCoordinatorOptions) (*OAuthS
 		return nil, fmt.Errorf("OAuth session operation timeout: %w", err)
 	}
 	return &OAuthSessionCoordinator{
-		app: options.App, store: options.Store, owners: options.Owners, operationTimeout: timeout,
+		app: options.App, store: options.Store, owners: options.Owners,
+		authorityVerifier: options.AuthorityVerifier, observer: options.Observer,
+		operationTimeout: timeout,
 	}, nil
 }
 
@@ -150,6 +160,9 @@ func (coordinator *OAuthSessionCoordinator) withFencedSession(
 	for attempt := 0; attempt < 2; attempt++ {
 		record, err := coordinator.loadFencedSession(ctx, authority, sessionID)
 		if err != nil {
+			if errors.Is(err, ErrPDSSessionExpired) {
+				coordinator.observeAuthority("mismatch", "already_stale", 0)
+			}
 			return err
 		}
 		if err := coordinator.store.validateSessionEndpoints(ctx, record.Data); err != nil {
@@ -164,6 +177,27 @@ func (coordinator *OAuthSessionCoordinator) withFencedSession(
 			}
 			return err
 		}
+		authorityStarted := time.Now()
+		currentAuthority, err := coordinator.authorityVerifier.ResolveCurrent(ctx, authority.Owner)
+		if err != nil {
+			coordinator.observeAuthority("error", "resolve_failed", time.Since(authorityStarted))
+			return err
+		}
+		expectedAuthority := expectedOAuthAuthority(record.Data)
+		if err := verifyOAuthAuthority(currentAuthority, expectedAuthority); err != nil {
+			coordinator.observeAuthority("mismatch", oauthAuthorityMismatchReason(currentAuthority, expectedAuthority), time.Since(authorityStarted))
+			if !errors.Is(err, ErrOAuthAuthorityStale) {
+				return err
+			}
+			terminalErr := coordinator.markTerminalVersion(
+				ctx, authority, sessionID, record.RowVersion,
+			)
+			if errors.Is(terminalErr, ErrSessionVersionChanged) && attempt == 0 {
+				continue
+			}
+			return errors.Join(ErrPDSSessionExpired, err, terminalErr)
+		}
+		coordinator.observeAuthority("success", "none", time.Since(authorityStarted))
 		session, persistence, err := coordinator.clientSession(
 			authority,
 			record,
@@ -198,6 +232,35 @@ func (coordinator *OAuthSessionCoordinator) withFencedSession(
 		return translated
 	}
 	return ErrSessionVersionChanged
+}
+
+func (coordinator *OAuthSessionCoordinator) observeAuthority(result, reason string, duration time.Duration) {
+	if coordinator.observer != nil {
+		coordinator.observer.ObserveAuthorityVerification("session_select", result, reason, duration)
+	}
+}
+
+func oauthAuthorityMismatchReason(current, expected OAuthAuthority) string {
+	if current.DID != expected.DID {
+		return "did_mismatch"
+	}
+	currentPDS, currentPDSErr := canonicalAuthorityURL(current.PDSOrigin)
+	expectedPDS, expectedPDSErr := canonicalAuthorityURL(expected.PDSOrigin)
+	if currentPDSErr != nil || expectedPDSErr != nil {
+		return "metadata_invalid"
+	}
+	if currentPDS != expectedPDS {
+		return "pds_changed"
+	}
+	currentIssuer, currentIssuerErr := canonicalAuthorityURL(current.IssuerOrigin)
+	expectedIssuer, expectedIssuerErr := canonicalAuthorityURL(expected.IssuerOrigin)
+	if currentIssuerErr != nil || expectedIssuerErr != nil {
+		return "metadata_invalid"
+	}
+	if currentIssuer != expectedIssuer {
+		return "issuer_changed"
+	}
+	return "metadata_invalid"
 }
 
 func (coordinator *OAuthSessionCoordinator) withFencedDeletionSession(
@@ -278,18 +341,38 @@ func (coordinator *OAuthSessionCoordinator) loadFencedSession(
 	var record StoredOAuthSession
 	err := coordinator.owners.WithAuthTransaction(ctx, func(tx pgx.Tx) error {
 		var ownerState ownerlifecycle.State
-		var authEpoch int64
+		var generation, authEpoch int64
 		if err := tx.QueryRow(ctx, `
-			SELECT state,auth_epoch FROM owner_lifecycles
+			SELECT state,generation,auth_epoch FROM owner_lifecycles
 			WHERE owner_did=$1 FOR SHARE
-		`, authority.Owner).Scan(&ownerState, &authEpoch); err != nil {
+		`, authority.Owner).Scan(&ownerState, &generation, &authEpoch); err != nil {
 			return err
 		}
-		if ownerState != ownerlifecycle.StateActive || authEpoch != authority.AuthEpoch {
+		if ownerState != ownerlifecycle.StateActive || generation != authority.Generation ||
+			authEpoch != authority.AuthEpoch {
 			return ErrOAuthSessionNotFound
 		}
 		var err error
 		record, err = coordinator.store.loadActiveSessionTx(ctx, tx, authority.Owner, sessionID)
+		if errors.Is(err, ErrOAuthSessionNotFound) {
+			var state string
+			var parentGeneration, parentEpoch int64
+			terminalErr := tx.QueryRow(ctx, `
+				SELECT lifecycle_state,owner_generation,auth_epoch
+				FROM oauth_sessions
+				WHERE account_did=$1 AND session_id=$2
+			`, authority.Owner, sessionID).Scan(&state, &parentGeneration, &parentEpoch)
+			if terminalErr == nil && state == "revocation_pending" &&
+				parentGeneration == authority.Generation && parentEpoch == authority.AuthEpoch {
+				return ErrPDSSessionExpired
+			}
+			if terminalErr != nil && !errors.Is(terminalErr, pgx.ErrNoRows) {
+				return terminalErr
+			}
+		}
+		if err == nil && (record.OwnerGeneration != authority.Generation || record.AuthEpoch != authority.AuthEpoch) {
+			return ErrOAuthSessionNotFound
+		}
 		return err
 	})
 	return record, err
@@ -549,22 +632,24 @@ func (coordinator *OAuthSessionCoordinator) markTerminalVersion(
 ) error {
 	return coordinator.owners.WithAuthTransaction(ctx, func(tx pgx.Tx) error {
 		var ownerState ownerlifecycle.State
-		var authEpoch int64
+		var generation, authEpoch int64
 		if err := tx.QueryRow(ctx, `
-			SELECT state,auth_epoch FROM owner_lifecycles
+			SELECT state,generation,auth_epoch FROM owner_lifecycles
 			WHERE owner_did=$1 FOR SHARE
-		`, authority.Owner).Scan(&ownerState, &authEpoch); err != nil {
+		`, authority.Owner).Scan(&ownerState, &generation, &authEpoch); err != nil {
 			return err
 		}
-		if ownerState != ownerlifecycle.StateActive || authEpoch != authority.AuthEpoch {
+		if ownerState != ownerlifecycle.StateActive || generation != authority.Generation ||
+			authEpoch != authority.AuthEpoch {
 			return ErrSessionVersionChanged
 		}
 		var currentVersion int64
 		if err := tx.QueryRow(ctx, `
 			SELECT row_version FROM oauth_sessions
 			WHERE account_did=$1 AND session_id=$2 AND lifecycle_state='active'
+			  AND owner_generation=$3 AND auth_epoch=$4
 			FOR UPDATE
-		`, authority.Owner, sessionID).Scan(&currentVersion); err != nil {
+		`, authority.Owner, sessionID, authority.Generation, authority.AuthEpoch).Scan(&currentVersion); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return ErrSessionVersionChanged
 			}
@@ -593,19 +678,25 @@ func (coordinator *OAuthSessionCoordinator) markTerminalVersion(
 			return err
 		}
 		rows.Close()
-		if _, err := tx.Exec(ctx, `
+		parent, err := tx.Exec(ctx, `
 			UPDATE oauth_sessions
 			SET lifecycle_state='revocation_pending',revocation_requested_at=now(),
 			    cleanup_next_attempt_at=now(),row_version=row_version+1,updated_at=now()
 			WHERE account_did=$1 AND session_id=$2 AND row_version=$3
-		`, authority.Owner, sessionID, expectedVersion); err != nil {
+			  AND lifecycle_state='active' AND owner_generation=$4 AND auth_epoch=$5
+		`, authority.Owner, sessionID, expectedVersion, authority.Generation, authority.AuthEpoch)
+		if err != nil {
 			return err
+		}
+		if parent.RowsAffected() != 1 {
+			return ErrSessionVersionChanged
 		}
 		_, err = tx.Exec(ctx, `
 			UPDATE craftsky_sessions
 			SET lifecycle_state='revoked',revoked_at=COALESCE(revoked_at,now())
-			WHERE account_did=$1 AND oauth_session_id=$2 AND lifecycle_state<>'revoked'
-		`, authority.Owner, sessionID)
+			WHERE account_did=$1 AND oauth_session_id=$2 AND auth_epoch=$3
+			  AND lifecycle_state<>'revoked'
+		`, authority.Owner, sessionID, authority.AuthEpoch)
 		return err
 	})
 }

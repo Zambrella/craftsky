@@ -3,11 +3,12 @@ import 'package:craftsky_app/auth/models/session_registry.dart' as registry;
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 typedef _ActiveIdentityTarget = ({
   AccountSessionLease lease,
-  String handle,
+  Did did,
 });
 
 final class ActiveAccountIdentity {
@@ -33,7 +34,7 @@ final activeAccountIdentityProvider =
         if (target == null) return null;
 
         final profile = await ref.watch(
-          userProfileProvider(target.handle).future,
+          userProfileProvider(target.did).future,
         );
         final current = ref.read(sessionRegistryProvider).value;
         if (current?.activeLease?.session != target.lease) return null;
@@ -59,7 +60,6 @@ _ActiveIdentityTarget? _activeIdentityTarget(
   final value = state.value;
   final lease = value?.activeLease?.session;
   if (value == null || lease == null) return null;
-  final session = value.sessions[lease.account.did];
-  if (session == null) return null;
-  return (lease: lease, handle: session.handle.value);
+  if (!value.sessions.containsKey(lease.account.did)) return null;
+  return (lease: lease, did: lease.account.did);
 }

@@ -14,6 +14,7 @@ import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/providers/account_type_controller.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/settings/models/settings_identity.dart';
 import 'package:craftsky_app/settings/models/settings_row.dart';
@@ -47,12 +48,15 @@ class SettingsPage extends ConsumerWidget {
       identity = projectSettingsIdentity(
         lease: activeLease,
         session: activeSession,
+        unavailableHandleLabel: l10n.handleUnavailable,
         loaded: loadedIdentity,
       );
     } else if (auth is SignedIn) {
       final profile = loadedIdentity?.profile;
       final displayName = profile?.displayName?.trim();
-      final handleLabel = '@${auth.handle.value}';
+      final handleLabel = ProfileHandle(
+        profile?.handle ?? auth.handle,
+      ).currentLabel(unavailableLabel: l10n.handleUnavailable);
       identity = SettingsIdentity(
         primaryLabel: displayName == null || displayName.isEmpty
             ? handleLabel

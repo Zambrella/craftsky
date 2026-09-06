@@ -8,7 +8,7 @@ part of 'user_profile_provider.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Single source of truth for a user's profile, keyed by handle or DID.
+/// Single source of truth for a user's profile, keyed by DID.
 ///
 /// Holds both read and write logic so mutation methods can perform
 /// optimistic updates against the cached `AsyncData` and roll back on
@@ -17,13 +17,11 @@ part of 'user_profile_provider.dart';
 /// callers should only invoke them on the family entry that matches
 /// the signed-in user.
 ///
-/// Mixing handle and DID for the same user produces separate cache
-/// entries; pick one form per call site.
 
 @ProviderFor(UserProfile)
 final userProfileProvider = UserProfileFamily._();
 
-/// Single source of truth for a user's profile, keyed by handle or DID.
+/// Single source of truth for a user's profile, keyed by DID.
 ///
 /// Holds both read and write logic so mutation methods can perform
 /// optimistic updates against the cached `AsyncData` and roll back on
@@ -32,11 +30,9 @@ final userProfileProvider = UserProfileFamily._();
 /// callers should only invoke them on the family entry that matches
 /// the signed-in user.
 ///
-/// Mixing handle and DID for the same user produces separate cache
-/// entries; pick one form per call site.
 final class UserProfileProvider
     extends $AsyncNotifierProvider<UserProfile, Profile> {
-  /// Single source of truth for a user's profile, keyed by handle or DID.
+  /// Single source of truth for a user's profile, keyed by DID.
   ///
   /// Holds both read and write logic so mutation methods can perform
   /// optimistic updates against the cached `AsyncData` and roll back on
@@ -45,11 +41,9 @@ final class UserProfileProvider
   /// callers should only invoke them on the family entry that matches
   /// the signed-in user.
   ///
-  /// Mixing handle and DID for the same user produces separate cache
-  /// entries; pick one form per call site.
   UserProfileProvider._({
     required UserProfileFamily super.from,
-    required String super.argument,
+    required Did super.argument,
   }) : super(
          retry: null,
          name: r'userProfileProvider',
@@ -83,9 +77,9 @@ final class UserProfileProvider
   }
 }
 
-String _$userProfileHash() => r'de6a40fd924860c962ef596e87c1aeed7a0bd0b4';
+String _$userProfileHash() => r'c26afb60f507054e1f9b14b63d8f4a15ba804c80';
 
-/// Single source of truth for a user's profile, keyed by handle or DID.
+/// Single source of truth for a user's profile, keyed by DID.
 ///
 /// Holds both read and write logic so mutation methods can perform
 /// optimistic updates against the cached `AsyncData` and roll back on
@@ -94,8 +88,6 @@ String _$userProfileHash() => r'de6a40fd924860c962ef596e87c1aeed7a0bd0b4';
 /// callers should only invoke them on the family entry that matches
 /// the signed-in user.
 ///
-/// Mixing handle and DID for the same user produces separate cache
-/// entries; pick one form per call site.
 
 final class UserProfileFamily extends $Family
     with
@@ -104,7 +96,7 @@ final class UserProfileFamily extends $Family
           AsyncValue<Profile>,
           Profile,
           FutureOr<Profile>,
-          String
+          Did
         > {
   UserProfileFamily._()
     : super(
@@ -115,7 +107,7 @@ final class UserProfileFamily extends $Family
         isAutoDispose: true,
       );
 
-  /// Single source of truth for a user's profile, keyed by handle or DID.
+  /// Single source of truth for a user's profile, keyed by DID.
   ///
   /// Holds both read and write logic so mutation methods can perform
   /// optimistic updates against the cached `AsyncData` and roll back on
@@ -124,17 +116,15 @@ final class UserProfileFamily extends $Family
   /// callers should only invoke them on the family entry that matches
   /// the signed-in user.
   ///
-  /// Mixing handle and DID for the same user produces separate cache
-  /// entries; pick one form per call site.
 
-  UserProfileProvider call(String handleOrDid) =>
-      UserProfileProvider._(argument: handleOrDid, from: this);
+  UserProfileProvider call(Did did) =>
+      UserProfileProvider._(argument: did, from: this);
 
   @override
   String toString() => r'userProfileProvider';
 }
 
-/// Single source of truth for a user's profile, keyed by handle or DID.
+/// Single source of truth for a user's profile, keyed by DID.
 ///
 /// Holds both read and write logic so mutation methods can perform
 /// optimistic updates against the cached `AsyncData` and roll back on
@@ -143,14 +133,12 @@ final class UserProfileFamily extends $Family
 /// callers should only invoke them on the family entry that matches
 /// the signed-in user.
 ///
-/// Mixing handle and DID for the same user produces separate cache
-/// entries; pick one form per call site.
 
 abstract class _$UserProfile extends $AsyncNotifier<Profile> {
-  late final _$args = ref.$arg as String;
-  String get handleOrDid => _$args;
+  late final _$args = ref.$arg as Did;
+  Did get did => _$args;
 
-  FutureOr<Profile> build(String handleOrDid);
+  FutureOr<Profile> build(Did did);
   @$mustCallSuper
   @override
   void runBuild() {

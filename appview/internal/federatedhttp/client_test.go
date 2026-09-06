@@ -20,13 +20,15 @@ func TestBoundaryClientUsesFinitePurposeProfileAndHardenedTransport(t *testing.T
 	}
 
 	tests := []struct {
-		purpose Purpose
-		limit   int64
+		purpose    Purpose
+		limit      int64
+		maxTimeout time.Duration
 	}{
-		{purpose: PurposeOAuthMetadata, limit: MaxOAuthMetadataResponseBytes},
-		{purpose: PurposeOAuthRequest, limit: MaxOAuthResponseBytes},
-		{purpose: PurposePDSJSON, limit: MaxPDSJSONResponseBytes},
-		{purpose: PurposePDSUpload, limit: MaxPDSUploadResponseBytes},
+		{purpose: PurposeOAuthMetadata, limit: MaxOAuthMetadataResponseBytes, maxTimeout: 10 * time.Second},
+		{purpose: PurposeOAuthRequest, limit: MaxOAuthResponseBytes, maxTimeout: 15 * time.Second},
+		{purpose: PurposePDSJSON, limit: MaxPDSJSONResponseBytes, maxTimeout: 15 * time.Second},
+		{purpose: PurposePDSUpload, limit: MaxPDSUploadResponseBytes, maxTimeout: 20 * time.Second},
+		{purpose: PurposePDSRepository, limit: MaxPDSRepositoryResponseBytes, maxTimeout: 2 * time.Minute},
 	}
 
 	for _, tt := range tests {
@@ -36,7 +38,7 @@ func TestBoundaryClientUsesFinitePurposeProfileAndHardenedTransport(t *testing.T
 			if err != nil {
 				t.Fatalf("DefaultProfile(): %v", err)
 			}
-			if profile.TotalTimeout <= 0 || profile.TotalTimeout > 30*time.Second {
+			if profile.TotalTimeout <= 0 || profile.TotalTimeout > tt.maxTimeout {
 				t.Fatalf("TotalTimeout = %v, want finite hard maximum", profile.TotalTimeout)
 			}
 			if profile.ResponseLimit != tt.limit {

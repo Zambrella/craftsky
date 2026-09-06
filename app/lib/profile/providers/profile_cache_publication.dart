@@ -3,9 +3,8 @@ import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 void publishProfileCache(Ref ref, Profile profile) {
-  for (final id in <String>{profile.handle, profile.did}) {
-    if (ref.exists(userProfileProvider(id))) {
-      ref.read(userProfileProvider(id).notifier).setCached(profile);
-    }
+  final provider = userProfileProvider(profile.did);
+  if (ref.exists(provider)) {
+    ref.read(provider.notifier).setCached(profile);
   }
 }

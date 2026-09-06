@@ -83,10 +83,11 @@ func TestSessionLifecycleRevokeAllAdvancesEpochAndInvalidatesEveryArtifact(t *te
 	if _, err := pool.Exec(context.Background(), `
 		INSERT INTO oauth_auth_requests(
 			state,data,handoff_mode,purpose,device_id,owner_did,owner_generation,
-			auth_epoch,request_uri,request_state
+			auth_epoch,request_uri,request_state,resource_server_origin,
+			authorization_server_issuer
 		) VALUES(
 			'pending-auth','{}','verified_link','login','device-all',$1,1,1,
-			'urn:request:pending-all','ready'
+			'urn:request:pending-all','ready','https://pds.example.com','https://auth.example.com'
 		);
 	`, owner); err != nil {
 		t.Fatal(err)

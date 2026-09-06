@@ -97,7 +97,7 @@ type IdentityDeletionHandler interface {
 }
 
 // WSConsumer connects to Tap's /channel WebSocket and sends ACKs only after a
-// durable source, lifecycle, or quarantine outcome has committed.
+// durable source, identity refresh hint, or quarantine outcome has committed.
 type WSConsumer struct {
 	cfg    WSConsumerConfig
 	logger *slog.Logger

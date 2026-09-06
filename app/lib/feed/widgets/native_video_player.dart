@@ -193,7 +193,6 @@ final class _NativeVideoPlayerState extends State<NativeVideoPlayer>
                 child: ClipRRect(
                   key: const Key('native-video-clip'),
                   borderRadius: BorderRadius.circular(radius),
-                  clipBehavior: Clip.antiAlias,
                   child: AspectRatio(
                     aspectRatio: ratio,
                     child: _failed

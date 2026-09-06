@@ -33,7 +33,7 @@ final class ProfileRelationshipControllerProvider
   /// provider instance and therefore cannot see or complete this overlay.
   ProfileRelationshipControllerProvider._({
     required ProfileRelationshipControllerFamily super.from,
-    required (AccountKey, String) super.argument,
+    required (AccountKey, Did) super.argument,
   }) : super(
          retry: null,
          name: r'profileRelationshipControllerProvider',
@@ -77,7 +77,7 @@ final class ProfileRelationshipControllerProvider
 }
 
 String _$profileRelationshipControllerHash() =>
-    r'dbd08ba6b0f5c627c03ec9bbfd46515f58a76165';
+    r'f01bbadc4bf5b7f3053dbe13dec4dfecc84b3c56';
 
 /// Account-owned relationship overlay for one target.
 ///
@@ -92,7 +92,7 @@ final class ProfileRelationshipControllerFamily extends $Family
           ProfileRelationship,
           ProfileRelationship,
           ProfileRelationship,
-          (AccountKey, String)
+          (AccountKey, Did)
         > {
   ProfileRelationshipControllerFamily._()
     : super(
@@ -109,13 +109,11 @@ final class ProfileRelationshipControllerFamily extends $Family
   /// Tap exposes the same policy state. A different account gets a different
   /// provider instance and therefore cannot see or complete this overlay.
 
-  ProfileRelationshipControllerProvider call(
-    AccountKey account,
-    String handleOrDid,
-  ) => ProfileRelationshipControllerProvider._(
-    argument: (account, handleOrDid),
-    from: this,
-  );
+  ProfileRelationshipControllerProvider call(AccountKey account, Did did) =>
+      ProfileRelationshipControllerProvider._(
+        argument: (account, did),
+        from: this,
+      );
 
   @override
   String toString() => r'profileRelationshipControllerProvider';
@@ -129,11 +127,11 @@ final class ProfileRelationshipControllerFamily extends $Family
 
 abstract class _$ProfileRelationshipController
     extends $Notifier<ProfileRelationship> {
-  late final _$args = ref.$arg as (AccountKey, String);
+  late final _$args = ref.$arg as (AccountKey, Did);
   AccountKey get account => _$args.$1;
-  String get handleOrDid => _$args.$2;
+  Did get did => _$args.$2;
 
-  ProfileRelationship build(AccountKey account, String handleOrDid);
+  ProfileRelationship build(AccountKey account, Did did);
   @$mustCallSuper
   @override
   void runBuild() {

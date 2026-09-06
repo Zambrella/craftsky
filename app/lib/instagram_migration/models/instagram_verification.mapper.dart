@@ -81,7 +81,6 @@ class InstagramVerificationStateMapper
     }
   }
 }
-
 extension InstagramVerificationStateMapperExtension
     on InstagramVerificationState {
   String toValue() {

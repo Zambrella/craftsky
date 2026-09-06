@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_craft_chips.dart';
 import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
@@ -96,7 +97,13 @@ class ProfileSliverAppBar extends StatelessWidget {
     );
     final textScaler = MediaQuery.textScalerOf(context);
     final direction = Directionality.of(context);
-    final name = (displayName?.isNotEmpty ?? false) ? displayName! : '@$handle';
+    final profileHandle = ProfileHandle(handle);
+    final unavailable = AppLocalizations.of(context).handleUnavailable;
+    final name = profileHandle.displayLabel(
+      displayName: displayName,
+      unavailableLabel: unavailable,
+      includeAtSignWhenNoDisplayName: true,
+    );
     final nameHeight = _measureTextHeight(
       text: name,
       style: theme.textTheme.headlineMedium,
@@ -106,7 +113,7 @@ class ProfileSliverAppBar extends StatelessWidget {
     );
     final handleHeight = (displayName?.isNotEmpty ?? false)
         ? _measureTextHeight(
-            text: '@$handle',
+            text: profileHandle.currentLabel(unavailableLabel: unavailable),
             style: theme.textTheme.bodyMedium,
             textScaler: textScaler,
             direction: direction,
@@ -479,7 +486,12 @@ class _CollapsedTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final name = (displayName?.isNotEmpty ?? false) ? displayName! : '@$handle';
+    final l10n = AppLocalizations.of(context);
+    final profileHandle = ProfileHandle(handle);
+    final name = profileHandle.displayLabel(
+      displayName: displayName,
+      unavailableLabel: l10n.handleUnavailable,
+    );
     final showSubtitle = displayName?.isNotEmpty ?? false;
 
     return Align(
@@ -496,7 +508,9 @@ class _CollapsedTitle extends StatelessWidget {
           ),
           if (showSubtitle)
             Text(
-              '@$handle',
+              profileHandle.currentLabel(
+                unavailableLabel: l10n.handleUnavailable,
+              ),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

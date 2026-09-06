@@ -12,6 +12,7 @@ void main() {
         (server) => server.reply(201, {
           'jobId': '10000000-0000-0000-0000-000000000001',
           'authUrl': 'https://pds.invalid/oauth',
+          'confirmationDid': 'did:plc:alicefullidentifier',
           'expiresAt': '2026-08-11T12:10:00Z',
         }),
       )
@@ -20,7 +21,7 @@ void main() {
         (server) => server.reply(202, null),
         data: const {
           'reauthProof': 'fresh-proof',
-          'confirmationHandle': '@alice.test',
+          'confirmationDid': 'did:plc:alicefullidentifier',
         },
       );
     final client = AccountDeletionApiClient(dio);
@@ -29,10 +30,11 @@ void main() {
     await client.accept(
       jobId: intent.jobId,
       reauthProof: 'fresh-proof',
-      confirmationHandle: '@alice.test',
+      confirmationDid: intent.confirmationDid,
     );
 
     expect(intent.authUrl.host, 'pds.invalid');
+    expect(intent.confirmationDid, 'did:plc:alicefullidentifier');
     expect(intent.toString(), isNot(contains('fresh-proof')));
   });
 

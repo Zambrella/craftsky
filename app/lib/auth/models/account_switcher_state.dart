@@ -2,6 +2,7 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:flutter/foundation.dart';
 
 @immutable
@@ -22,10 +23,17 @@ final class AccountSwitcherRow {
   final ProfileCustomisation customisation;
   final bool isCurrent;
 
-  String get displayLabel {
-    final candidate = displayName?.trim();
-    return candidate == null || candidate.isEmpty ? handle : candidate;
-  }
+  String displayLabel(String unavailableHandleLabel) =>
+      ProfileHandle(
+        handle,
+      ).displayLabel(
+        displayName: displayName,
+        unavailableLabel: unavailableHandleLabel,
+      );
+
+  String currentHandleLabel(String unavailableHandleLabel) => ProfileHandle(
+    handle,
+  ).currentLabel(unavailableLabel: unavailableHandleLabel);
 
   @override
   String toString() => 'AccountSwitcherRow(<redacted>)';

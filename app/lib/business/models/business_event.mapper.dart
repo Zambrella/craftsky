@@ -207,7 +207,6 @@ class BusinessEventMapper extends ClassMapperBase<BusinessEvent> {
     return ensureInitialized().decodeJson<BusinessEvent>(json);
   }
 }
-
 mixin BusinessEventMappable {
   String toJson() {
     return BusinessEventMapper.ensureInitialized().encodeJson<BusinessEvent>(

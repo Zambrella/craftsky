@@ -9,6 +9,7 @@ import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/providers/profile_customisation_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -57,11 +58,13 @@ void main() {
       addTearDown(container.dispose);
       await container.read(sessionRegistryProvider.future);
       final profileSubscription = container.listen(
-        userProfileProvider('alice.example'),
+        userProfileProvider(Did.parse('did:plc:alice')),
         (_, _) {},
       );
       addTearDown(profileSubscription.close);
-      await container.read(userProfileProvider('alice.example').future);
+      await container.read(
+        userProfileProvider(Did.parse('did:plc:alice')).future,
+      );
 
       final initial = await container.read(
         profileCustomisationEditorProvider.future,
@@ -120,7 +123,7 @@ void main() {
       );
       expect(
         container
-            .read(userProfileProvider('alice.example'))
+            .read(userProfileProvider(Did.parse('did:plc:alice')))
             .value
             ?.customisation,
         authoritative,

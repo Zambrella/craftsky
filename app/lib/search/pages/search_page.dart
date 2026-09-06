@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
@@ -23,6 +24,7 @@ import 'package:craftsky_app/search/providers/profile_search_provider.dart';
 import 'package:craftsky_app/search/providers/project_search_provider.dart';
 import 'package:craftsky_app/search/providers/recent_searches_provider.dart';
 import 'package:craftsky_app/search/providers/search_suggestions_provider.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
@@ -157,14 +159,17 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   }
 
   Future<void> _openProfile(ProfileSearchResult profile) async {
+    final handle = ProfileHandle(profile.handle);
     await ref
         .read(saveRecentSearchProvider.notifier)
         .save(
           SaveRecentSearchRequest(
             type: RecentSearchType.profile,
-            displayLabel: '@${profile.handle}',
+            displayLabel: handle.currentLabel(
+              unavailableLabel: AppLocalizations.of(context).handleUnavailable,
+            ),
             payload: ProfileRecentSearchPayload(
-              did: profile.did.toString(),
+              did: profile.did,
               handle: profile.handle.toString(),
               displayName: profile.displayName,
               avatar: profile.avatar,
@@ -172,7 +177,7 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           ),
         );
     if (!mounted) return;
-    await showUserProfileCard(context, handleOrDid: profile.handle.toString());
+    await showUserProfileCard(context, did: profile.did);
   }
 
   Future<void> _openHashtag(String tag) async {
@@ -262,8 +267,9 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         ref: ref,
         onOpenQuery: (query) => SearchRoute(q: query).go(context),
         onOpenHashtag: (tag) => TagSearchRoute(tag: tag).push<void>(context),
-        onOpenProfile: (handle) =>
-            unawaited(showUserProfileCard(context, handleOrDid: handle)),
+        onOpenProfile: (did) => unawaited(
+          showUserProfileCard(context, did: did),
+        ),
       ),
     };
 
@@ -446,12 +452,19 @@ class _ProfileResultTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final title = '@${profile.handle}';
+    final l10n = AppLocalizations.of(context);
+    final handle = ProfileHandle(profile.handle);
+    final title = handle.currentLabel(
+      unavailableLabel: l10n.handleUnavailable,
+    );
     final subtitle = profile.subtitle(context);
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: ProfileAvatar(
-        seed: profile.displayName ?? profile.handle,
+        seed: handle.displayLabel(
+          displayName: profile.displayName,
+          unavailableLabel: l10n.handleUnavailable,
+        ),
         size: ProfileAvatarSize.small,
         customisation: profile.customisation,
       ),

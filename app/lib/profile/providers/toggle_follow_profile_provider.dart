@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'toggle_follow_profile_provider.g.dart';
@@ -14,7 +15,7 @@ class ToggleFollowProfile extends _$ToggleFollowProfile {
   FutureOr<Profile?> build() => null;
 
   Future<void> toggle({
-    required String cacheKey,
+    required Did cacheKey,
     required Profile profile,
   }) async {
     final ownership = captureActiveAccountOperation(ref);

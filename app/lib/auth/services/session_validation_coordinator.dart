@@ -1,6 +1,7 @@
 import 'package:craftsky_app/auth/data/auth_api_client.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_boundary_provider.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/dio_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -39,9 +40,13 @@ class AppSessionValidationLauncher {
     try {
       final dio = await ref.read(accountDioProvider(lease.account).future);
       final who = await AuthApiClient(dio).whoami();
-      return who.did == lease.account.did
-          ? SessionValidationResult.valid
-          : SessionValidationResult.identityMismatch;
+      if (who.did != lease.account.did) {
+        return SessionValidationResult.identityMismatch;
+      }
+      await ref
+          .read(sessionRegistryProvider.notifier)
+          .updateHandle(lease, who.handle);
+      return SessionValidationResult.valid;
     } on ApiUnauthorized {
       return SessionValidationResult.unauthorized;
     } on ApiNetworkError {

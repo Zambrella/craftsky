@@ -5,6 +5,7 @@ import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/widgets/business_profile_summary.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_bio.dart';
 import 'package:craftsky_app/profile/widgets/profile_craft_chips.dart';
@@ -393,8 +394,14 @@ class _ProfileCardSurface extends StatelessWidget {
                                 top: avatarTop,
                                 child: ProfileFramedAvatar(
                                   seed:
-                                      profile.displayName ??
-                                      profile.handle.toString(),
+                                      ProfileHandle(
+                                        profile.handle,
+                                      ).displayLabel(
+                                        displayName: profile.displayName,
+                                        unavailableLabel: AppLocalizations.of(
+                                          context,
+                                        ).handleUnavailable,
+                                      ),
                                   avatarUrl: profile.avatar,
                                   customisation: profile.customisation,
                                 ),

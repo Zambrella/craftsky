@@ -81,7 +81,7 @@ class ProfileMetaSection extends StatelessWidget {
             SizedBox(height: spacing.sp3),
             ProfileMutualFollowersLink(
               count: profile.mutualFollowerCount!,
-              targetHandleOrDid: profile.handle.toString(),
+              targetDid: profile.did,
             ),
           ],
           if (hasBio) ...[

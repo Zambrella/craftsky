@@ -15,6 +15,7 @@ import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -501,7 +502,10 @@ void main() {
     unawaited(
       container
           .read(
-            profileRelationshipProvider(account, 'did:plc:alice').notifier,
+            profileRelationshipProvider(
+              account,
+              Did.parse('did:plc:alice'),
+            ).notifier,
           )
           .mutate(ProfileRelationshipAction.mute),
     );
@@ -564,7 +568,7 @@ void main() {
           builder: (context, state) => const NotificationsPage(),
         ),
         GoRoute(
-          path: '/profile/:handle',
+          path: '/profiles/:did',
           builder: (context, state) {
             profileState = state;
             return const Scaffold(body: Text('Profile route'));
@@ -609,7 +613,7 @@ void main() {
 
     await tester.tap(find.text('Alice followed you'));
     await tester.pumpAndSettle();
-    expect(profileState?.pathParameters['handle'], 'alice.craftsky.social');
+    expect(profileState?.pathParameters['did'], 'did:plc:alice');
     router.go('/');
     await tester.pumpAndSettle();
 

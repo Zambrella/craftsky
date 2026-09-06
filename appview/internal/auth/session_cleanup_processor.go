@@ -68,6 +68,7 @@ func (revoker *IndigoOAuthCredentialRevoker) RevokeSession(
 type OAuthRevocationProcessorOptions struct {
 	Pool                   *pgxpool.Pool
 	Revoker                OAuthCredentialRevoker
+	Observer               OAuthCleanupObserver
 	Now                    func() time.Time
 	NewLeaseToken          func() uuid.UUID
 	BatchSize              int
@@ -79,9 +80,14 @@ type OAuthRevocationProcessorOptions struct {
 	MaxCredentialRetention time.Duration
 }
 
+type OAuthCleanupObserver interface {
+	ObserveOAuthCleanup(ctx context.Context, credentialKind, result, reason string, duration time.Duration, attempt int)
+}
+
 type OAuthRevocationProcessor struct {
 	pool                   *pgxpool.Pool
 	revoker                OAuthCredentialRevoker
+	observer               OAuthCleanupObserver
 	now                    func() time.Time
 	newLeaseToken          func() uuid.UUID
 	batchSize              int
@@ -120,7 +126,7 @@ func NewOAuthRevocationProcessor(
 		options.NewLeaseToken = uuid.New
 	}
 	return &OAuthRevocationProcessor{
-		pool: options.Pool, revoker: options.Revoker, now: options.Now,
+		pool: options.Pool, revoker: options.Revoker, observer: options.Observer, now: options.Now,
 		newLeaseToken: options.NewLeaseToken, batchSize: options.BatchSize,
 		leaseDuration: options.LeaseDuration, operationTimeout: options.OperationTimeout,
 		maxAttempts: options.MaxAttempts, baseBackoff: options.BaseBackoff,
@@ -143,14 +149,14 @@ func (processor *OAuthRevocationProcessor) ProcessBatch(ctx context.Context) (in
 			processingErrors = append(processingErrors, err)
 		}
 	}
-	registrationCount, registrationErr := processor.processRegistrationCredentials(ctx, now)
-	if registrationErr != nil {
-		processingErrors = append(processingErrors, registrationErr)
+	callbackCount, callbackErr := processor.processCallbackCredentials(ctx, now)
+	if callbackErr != nil {
+		processingErrors = append(processingErrors, callbackErr)
 	}
-	return len(claims) + registrationCount, errors.Join(processingErrors...)
+	return len(claims) + callbackCount, errors.Join(processingErrors...)
 }
 
-type registrationCredentialClaim struct {
+type callbackCredentialClaim struct {
 	State      string
 	Data       []byte
 	Attempts   int
@@ -158,37 +164,71 @@ type registrationCredentialClaim struct {
 	LeaseToken uuid.UUID
 }
 
-func (processor *OAuthRevocationProcessor) processRegistrationCredentials(
+func (processor *OAuthRevocationProcessor) processCallbackCredentials(
 	ctx context.Context,
 	now time.Time,
 ) (int, error) {
-	claims, err := processor.claimRegistrationCredentials(ctx, now)
+	claims, err := processor.claimCallbackCredentials(ctx, now)
 	if err != nil {
 		return 0, err
 	}
 	var processingErrors []error
 	for _, claim := range claims {
+		started := time.Now()
 		var data oauth.ClientSessionData
 		if err := json.Unmarshal(claim.Data, &data); err != nil {
-			processingErrors = append(processingErrors, processor.finishRegistrationCredential(
+			applied, finishErr := processor.finishCallbackCredential(
 				ctx, claim, now, false, "invalid_credential",
-			))
+			)
+			exhausted := claim.Attempts+1 >= processor.maxAttempts ||
+				!claim.CreatedAt.Add(processor.maxCredentialRetention).After(now)
+			reason := "invalid_credential"
+			if finishErr == nil && exhausted {
+				if !claim.CreatedAt.Add(processor.maxCredentialRetention).After(now) {
+					reason = "retention_expired"
+				} else {
+					reason = "attempts_exhausted"
+				}
+			}
+			if applied || finishErr != nil {
+				processor.observeCleanup(ctx, "callback", cleanupResult(finishErr, false, exhausted), cleanupReason(finishErr, reason), started, claim.Attempts+1)
+			}
+			processingErrors = append(processingErrors, finishErr)
 			continue
 		}
 		operationCtx, cancel := context.WithTimeout(ctx, processor.operationTimeout)
 		revokeErr := processor.revoker.RevokeSession(operationCtx, data)
 		cancel()
-		processingErrors = append(processingErrors, processor.finishRegistrationCredential(
-			ctx, claim, now, revokeErr == nil, cleanupFailureCategory(revokeErr),
-		))
+		revokeReason := "none"
+		if revokeErr != nil {
+			revokeReason = cleanupFailureCategory(revokeErr)
+		}
+		applied, finishErr := processor.finishCallbackCredential(
+			ctx, claim, now, revokeErr == nil, revokeReason,
+		)
+		exhausted := claim.Attempts+1 >= processor.maxAttempts ||
+			!claim.CreatedAt.Add(processor.maxCredentialRetention).After(now)
+		result := cleanupResult(finishErr, revokeErr == nil, exhausted)
+		reason := cleanupReason(finishErr, revokeReason)
+		if finishErr == nil && revokeErr != nil && exhausted {
+			if !claim.CreatedAt.Add(processor.maxCredentialRetention).After(now) {
+				reason = "retention_expired"
+			} else {
+				reason = "attempts_exhausted"
+			}
+		}
+		if applied || finishErr != nil {
+			processor.observeCleanup(ctx, "callback", result, reason, started, claim.Attempts+1)
+		}
+		processingErrors = append(processingErrors, finishErr)
 	}
 	return len(claims), errors.Join(processingErrors...)
 }
 
-func (processor *OAuthRevocationProcessor) claimRegistrationCredentials(
+func (processor *OAuthRevocationProcessor) claimCallbackCredentials(
 	ctx context.Context,
 	now time.Time,
-) ([]registrationCredentialClaim, error) {
+) ([]callbackCredentialClaim, error) {
 	tx, err := processor.pool.Begin(ctx)
 	if err != nil {
 		return nil, err
@@ -198,7 +238,7 @@ func (processor *OAuthRevocationProcessor) claimRegistrationCredentials(
 		SELECT request.state,credential.data,credential.cleanup_attempts,credential.created_at
 		FROM oauth_auth_requests request
 		JOIN oauth_unverified_credentials credential ON credential.request_state=request.state
-		WHERE request.purpose='registration'
+		WHERE request.purpose IN ('login','registration')
 		  AND request.request_state IN ('exchange_started','cleanup_pending')
 		  AND credential.status IN ('held','pending')
 		  AND credential.eligible_at<=$1
@@ -209,11 +249,11 @@ func (processor *OAuthRevocationProcessor) claimRegistrationCredentials(
 		FOR UPDATE OF request,credential SKIP LOCKED
 	`, now, processor.batchSize)
 	if err != nil {
-		return nil, fmt.Errorf("claim registration credentials: %w", err)
+		return nil, fmt.Errorf("claim callback credentials: %w", err)
 	}
-	var claims []registrationCredentialClaim
+	var claims []callbackCredentialClaim
 	for rows.Next() {
-		var claim registrationCredentialClaim
+		var claim callbackCredentialClaim
 		if err := rows.Scan(&claim.State, &claim.Data, &claim.Attempts, &claim.CreatedAt); err != nil {
 			rows.Close()
 			return nil, err
@@ -221,7 +261,7 @@ func (processor *OAuthRevocationProcessor) claimRegistrationCredentials(
 		claim.LeaseToken = processor.newLeaseToken()
 		if claim.LeaseToken == uuid.Nil {
 			rows.Close()
-			return nil, errors.New("registration credential lease token is invalid")
+			return nil, errors.New("callback credential lease token is invalid")
 		}
 		claims = append(claims, claim)
 	}
@@ -234,7 +274,7 @@ func (processor *OAuthRevocationProcessor) claimRegistrationCredentials(
 		if _, err := tx.Exec(ctx, `
 			UPDATE oauth_auth_requests
 			SET request_state='cleanup_pending',exchange_finished_at=COALESCE(exchange_finished_at,$2)
-			WHERE state=$1 AND purpose='registration'
+			WHERE state=$1 AND purpose IN ('login','registration')
 			  AND request_state IN ('exchange_started','cleanup_pending')
 		`, claim.State, now); err != nil {
 			return nil, err
@@ -257,21 +297,25 @@ func (processor *OAuthRevocationProcessor) claimRegistrationCredentials(
 	return claims, nil
 }
 
-func (processor *OAuthRevocationProcessor) finishRegistrationCredential(
+func (processor *OAuthRevocationProcessor) finishCallbackCredential(
 	ctx context.Context,
-	claim registrationCredentialClaim,
+	claim callbackCredentialClaim,
 	now time.Time,
 	revoked bool,
 	category string,
-) error {
+) (bool, error) {
 	finalCtx, cancel := finalizationContext(ctx, processor.operationTimeout)
 	defer cancel()
-	return pgx.BeginFunc(finalCtx, processor.pool, func(tx pgx.Tx) error {
+	applied := false
+	err := pgx.BeginFunc(finalCtx, processor.pool, func(tx pgx.Tx) error {
 		var requestState string
 		if err := tx.QueryRow(finalCtx, `
-			SELECT request_state FROM oauth_auth_requests WHERE state=$1 FOR UPDATE
-		`, claim.State).Scan(&requestState); err != nil {
+				SELECT request_state FROM oauth_auth_requests WHERE state=$1 FOR UPDATE
+			`, claim.State).Scan(&requestState); err != nil {
 			return err
+		}
+		if requestState != string(AuthRequestCleanupPending) {
+			return nil
 		}
 		var leaseToken *uuid.UUID
 		if err := tx.QueryRow(finalCtx, `
@@ -280,7 +324,7 @@ func (processor *OAuthRevocationProcessor) finishRegistrationCredential(
 		`, claim.State).Scan(&leaseToken); err != nil {
 			return err
 		}
-		if requestState != string(AuthRequestCleanupPending) || leaseToken == nil || *leaseToken != claim.LeaseToken {
+		if leaseToken == nil || *leaseToken != claim.LeaseToken {
 			return nil
 		}
 		exhausted := claim.Attempts+1 >= processor.maxAttempts ||
@@ -296,14 +340,17 @@ func (processor *OAuthRevocationProcessor) finishRegistrationCredential(
 			if !revoked {
 				finalState = AuthRequestExchangeAmbiguous
 			}
-			_, err := tx.Exec(finalCtx, `
+			command, err := tx.Exec(finalCtx, `
 				UPDATE oauth_auth_requests
 				SET request_state=$2,exchange_finished_at=COALESCE(exchange_finished_at,$3)
 				WHERE state=$1 AND request_state='cleanup_pending'
 			`, claim.State, finalState, now)
+			if err == nil {
+				applied = command.RowsAffected() == 1
+			}
 			return err
 		}
-		_, err := tx.Exec(finalCtx, `
+		command, err := tx.Exec(finalCtx, `
 			UPDATE oauth_unverified_credentials
 			SET cleanup_attempts=$2,cleanup_next_attempt_at=$3,
 			    cleanup_lease_token=NULL,cleanup_lease_expires_at=NULL,
@@ -312,8 +359,12 @@ func (processor *OAuthRevocationProcessor) finishRegistrationCredential(
 		`, claim.State, claim.Attempts+1,
 			now.Add(cleanupBackoff(processor.baseBackoff, processor.maxBackoff, claim.Attempts+1)),
 			category, now, claim.LeaseToken)
+		if err == nil {
+			applied = command.RowsAffected() == 1
+		}
 		return err
 	})
+	return applied, err
 }
 
 func (processor *OAuthRevocationProcessor) claim(
@@ -390,16 +441,33 @@ func (processor *OAuthRevocationProcessor) processClaim(
 	claim oauthRevocationClaim,
 	claimedAt time.Time,
 ) error {
+	started := time.Now()
 	retentionExpired := !claim.RequestedAt.Add(processor.maxCredentialRetention).After(claimedAt)
 	if retentionExpired || claim.Attempts >= processor.maxAttempts {
 		finalCtx, cancel := finalizationContext(ctx, processor.operationTimeout)
 		defer cancel()
-		_, err := processor.deleteClaim(finalCtx, claim)
+		applied, err := processor.deleteClaim(finalCtx, claim)
+		reason := "attempts_exhausted"
+		if retentionExpired {
+			reason = "retention_expired"
+		}
+		if applied || err != nil {
+			processor.observeCleanup(ctx, "parent", cleanupResult(err, false, true), cleanupReason(err, reason), started, claim.Attempts)
+		}
 		return err
 	}
 	var data oauth.ClientSessionData
 	if err := json.Unmarshal(claim.Data, &data); err != nil {
-		return processor.retryClaim(ctx, claim, claimedAt, "invalid_credential")
+		applied, retryErr := processor.retryClaim(ctx, claim, claimedAt, "invalid_credential")
+		exhausted := claim.Attempts+1 >= processor.maxAttempts
+		reason := "invalid_credential"
+		if retryErr == nil && exhausted {
+			reason = "attempts_exhausted"
+		}
+		if applied || retryErr != nil {
+			processor.observeCleanup(ctx, "parent", cleanupResult(retryErr, false, exhausted), cleanupReason(retryErr, reason), started, claim.Attempts+1)
+		}
+		return retryErr
 	}
 	operationCtx, cancel := context.WithTimeout(ctx, processor.operationTimeout)
 	err := processor.revoker.RevokeSession(operationCtx, data)
@@ -407,10 +475,55 @@ func (processor *OAuthRevocationProcessor) processClaim(
 	if err == nil {
 		finalCtx, finalCancel := finalizationContext(ctx, processor.operationTimeout)
 		defer finalCancel()
-		_, deleteErr := processor.deleteClaim(finalCtx, claim)
+		applied, deleteErr := processor.deleteClaim(finalCtx, claim)
+		if applied || deleteErr != nil {
+			processor.observeCleanup(ctx, "parent", cleanupResult(deleteErr, true, false), cleanupReason(deleteErr, "none"), started, claim.Attempts+1)
+		}
 		return deleteErr
 	}
-	return processor.retryClaim(ctx, claim, claimedAt, cleanupFailureCategory(err))
+	reason := cleanupFailureCategory(err)
+	applied, retryErr := processor.retryClaim(ctx, claim, claimedAt, reason)
+	exhausted := claim.Attempts+1 >= processor.maxAttempts
+	if retryErr == nil && exhausted {
+		reason = "attempts_exhausted"
+	}
+	if applied || retryErr != nil {
+		processor.observeCleanup(ctx, "parent", cleanupResult(retryErr, false, exhausted), cleanupReason(retryErr, reason), started, claim.Attempts+1)
+	}
+	return retryErr
+}
+
+func (processor *OAuthRevocationProcessor) observeCleanup(
+	ctx context.Context,
+	credentialKind string,
+	result string,
+	reason string,
+	started time.Time,
+	attempt int,
+) {
+	if processor.observer != nil {
+		processor.observer.ObserveOAuthCleanup(ctx, credentialKind, result, reason, time.Since(started), attempt)
+	}
+}
+
+func cleanupResult(err error, success, exhausted bool) string {
+	if err != nil {
+		return "error"
+	}
+	if success {
+		return "success"
+	}
+	if exhausted {
+		return "discarded"
+	}
+	return "retry"
+}
+
+func cleanupReason(err error, reason string) string {
+	if err != nil {
+		return "store_failed"
+	}
+	return reason
 }
 
 func (processor *OAuthRevocationProcessor) retryClaim(
@@ -418,14 +531,13 @@ func (processor *OAuthRevocationProcessor) retryClaim(
 	claim oauthRevocationClaim,
 	now time.Time,
 	category string,
-) error {
+) (bool, error) {
 	nextAttempts := claim.Attempts + 1
 	finalCtx, cancel := finalizationContext(ctx, processor.operationTimeout)
 	defer cancel()
 	if nextAttempts >= processor.maxAttempts ||
 		!claim.RequestedAt.Add(processor.maxCredentialRetention).After(now) {
-		_, err := processor.deleteClaim(finalCtx, claim)
-		return err
+		return processor.deleteClaim(finalCtx, claim)
 	}
 	command, err := processor.pool.Exec(finalCtx, `
 		UPDATE oauth_sessions
@@ -438,10 +550,9 @@ func (processor *OAuthRevocationProcessor) retryClaim(
 		nextAttempts, now.Add(cleanupBackoff(processor.baseBackoff, processor.maxBackoff, nextAttempts)),
 		category, now)
 	if err != nil {
-		return fmt.Errorf("schedule OAuth revocation retry: %w", err)
+		return false, fmt.Errorf("schedule OAuth revocation retry: %w", err)
 	}
-	_ = command.RowsAffected() // Zero means a newer lease/state fenced this worker.
-	return nil
+	return command.RowsAffected() == 1, nil
 }
 
 func (processor *OAuthRevocationProcessor) deleteClaim(

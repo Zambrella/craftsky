@@ -28,6 +28,7 @@ type recordingIdentityInvalidator struct {
 type blockingIdentityRefreshResolver struct {
 	started chan struct{}
 	release chan struct{}
+	did     syntax.DID
 	handle  syntax.Handle
 	err     error
 }
@@ -40,6 +41,23 @@ func (resolver *blockingIdentityRefreshResolver) ResolveHandle(ctx context.Conte
 	case <-ctx.Done():
 		return "", ctx.Err()
 	}
+}
+
+func (resolver *blockingIdentityRefreshResolver) ResolveDID(context.Context, syntax.Handle) (syntax.DID, error) {
+	return resolver.did, nil
+}
+
+type staticIdentityRefreshResolver struct {
+	did    syntax.DID
+	handle syntax.Handle
+}
+
+func (resolver staticIdentityRefreshResolver) ResolveHandle(context.Context, syntax.DID) (syntax.Handle, error) {
+	return resolver.handle, nil
+}
+
+func (resolver staticIdentityRefreshResolver) ResolveDID(context.Context, syntax.Handle) (syntax.DID, error) {
+	return resolver.did, nil
 }
 
 func (invalidator *recordingIdentityInvalidator) InvalidateIdentity(_ context.Context, did syntax.DID, handles ...syntax.Handle) {
@@ -131,6 +149,95 @@ func TestOrdinaryIdentityReceiptAndImmediateRefreshTriggerCommitAtomicallyAndRed
 	})
 }
 
+func TestAllTapIdentityStatusesCoalesceAcrossRestartWithoutChangingPresentation(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 9, 3, 10, 0, 0, 0, time.UTC)
+	owner := syntax.DID("did:plc:identity-status-hints")
+	pool := identityRefreshTriggerPool(t)
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO owner_lifecycles(
+			owner_did,state,generation,auth_epoch,transition_reason,
+			transitioned_at,created_at,updated_at
+		) VALUES($1,'active',7,3,'test',$2,$2,$2)
+	`, owner, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'profile-cid')
+	`, owner); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO atproto_identity_cache(did,handle,handle_lower,resolved_at)
+		VALUES($1,'verified.example','verified.example',$2)
+	`, owner, now.Add(-time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+
+	statuses := []string{"active", "deactivated", "suspended", "takendown", "deleted"}
+	service := identityRefreshTriggerService(t, pool, now)
+	for index, status := range statuses {
+		event := tap.IdentityEvent{
+			ID: uint64(800 + index), DID: owner, Handle: status + ".example",
+			IsActive: status == "active", Status: status,
+		}
+		if outcome, err := service.IngestIdentity(ctx, event); err != nil || outcome.Kind != tap.OutcomeApplied {
+			t.Fatalf("ingest %s identity outcome=%+v err=%v", status, outcome, err)
+		}
+	}
+
+	// Recreate the service to model an AppView restart, then redeliver a
+	// duplicate and an older hint. Tap IDs are local to Tap and may reset, so
+	// they coalesce work but never establish identity authority.
+	service = identityRefreshTriggerService(t, pool, now.Add(time.Second))
+	duplicate := tap.IdentityEvent{ID: 804, DID: owner, Handle: "deleted.example", Status: "deleted"}
+	if outcome, err := service.IngestIdentity(ctx, duplicate); err != nil || outcome.Kind != tap.OutcomeApplied {
+		t.Fatalf("redeliver duplicate identity outcome=%+v err=%v", outcome, err)
+	}
+	outOfOrder := tap.IdentityEvent{ID: 12, DID: owner, Handle: "older.example", Status: "deactivated"}
+	if outcome, err := service.IngestIdentity(ctx, outOfOrder); err != nil || outcome.Kind != tap.OutcomeApplied {
+		t.Fatalf("ingest out-of-order identity outcome=%+v err=%v", outcome, err)
+	}
+
+	assertIdentityReceiptCount(t, pool, len(statuses)+1)
+	assertIdentityRefreshState(t, pool, owner, 12, "pending", 0, now.Add(time.Second))
+	var refreshRows int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM atproto_identity_refresh_state WHERE did=$1`, owner).Scan(&refreshRows); err != nil || refreshRows != 1 {
+		t.Fatalf("coalesced refresh rows=%d err=%v, want one", refreshRows, err)
+	}
+	var handle syntax.Handle
+	if err := pool.QueryRow(ctx, `SELECT handle FROM atproto_identity_cache WHERE did=$1`, owner).Scan(&handle); err != nil || handle != "verified.example" {
+		t.Fatalf("verified presentation handle=%s err=%v, want unchanged", handle, err)
+	}
+	lifecycle, err := ownerLifecycleAt(t, pool, owner)
+	if err != nil || lifecycle.State != ownerlifecycle.StateActive || lifecycle.Generation != 7 || lifecycle.AuthEpoch != 3 {
+		t.Fatalf("owner lifecycle=%+v err=%v, want unchanged active owner", lifecycle, err)
+	}
+	var profileRows, purgeRows int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM craftsky_profiles WHERE did=$1`, owner).Scan(&profileRows); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM owner_purge_components WHERE owner_did=$1`, owner).Scan(&purgeRows); err != nil {
+		t.Fatal(err)
+	}
+	if profileRows != 1 || purgeRows != 0 {
+		t.Fatalf("owner data profileRows=%d purgeRows=%d, want 1/0", profileRows, purgeRows)
+	}
+}
+
+func ownerLifecycleAt(t *testing.T, pool *pgxpool.Pool, owner syntax.DID) (ownerlifecycle.Lifecycle, error) {
+	t.Helper()
+	fencer, err := ownerlifecycle.NewFencer(pool, time.Second)
+	if err != nil {
+		return ownerlifecycle.Lifecycle{}, err
+	}
+	store, err := ownerlifecycle.NewStore(pool, fencer, time.Now)
+	if err != nil {
+		return ownerlifecycle.Lifecycle{}, err
+	}
+	return store.Get(context.Background(), owner)
+}
+
 func TestNewerTapIdentityEventSupersedesInFlightRefreshFinalization(t *testing.T) {
 	for _, testCase := range []struct {
 		name       string
@@ -174,7 +281,7 @@ func TestNewerTapIdentityEventSupersedesInFlightRefreshFinalization(t *testing.T
 
 			resolver := &blockingIdentityRefreshResolver{
 				started: make(chan struct{}), release: make(chan struct{}),
-				handle: testCase.resolved, err: testCase.resolveErr,
+				did: owner, handle: testCase.resolved, err: testCase.resolveErr,
 			}
 			processor, err := api.NewIdentityCacheRefreshProcessor(api.IdentityCacheRefreshProcessorOptions{
 				Store: api.NewIdentityCacheStore(pool), Resolver: resolver,
@@ -204,7 +311,12 @@ func TestNewerTapIdentityEventSupersedesInFlightRefreshFinalization(t *testing.T
 			}); err != nil || outcome.Kind != tap.OutcomeApplied {
 				t.Fatalf("ingest event 701 outcome=%+v err=%v", outcome, err)
 			}
-			if err := api.NewIdentityCacheStore(pool).Upsert(ctx, owner, "verified-701.example", now.Add(time.Second)); err != nil {
+			if err := api.NewIdentityCacheService(
+				pool,
+				staticIdentityRefreshResolver{did: owner, handle: "verified-701.example"},
+				func() time.Time { return now.Add(time.Second) },
+				nil,
+			).RefreshCurrentHandle(ctx, owner); err != nil {
 				t.Fatalf("write newer verified mapping: %v", err)
 			}
 
@@ -218,7 +330,10 @@ func TestNewerTapIdentityEventSupersedesInFlightRefreshFinalization(t *testing.T
 				t.Fatal("older refresh did not finish")
 			}
 
-			assertIdentityRefreshState(t, pool, owner, 701, "pending", 0, now)
+			var refreshStates int
+			if err := pool.QueryRow(ctx, `SELECT count(*) FROM atproto_identity_refresh_state WHERE did=$1`, owner).Scan(&refreshStates); err != nil || refreshStates != 0 {
+				t.Fatalf("refresh state rows=%d err=%v, want committed authoritative refresh", refreshStates, err)
+			}
 			var verified syntax.Handle
 			if err := pool.QueryRow(ctx, `SELECT handle FROM atproto_identity_cache WHERE did=$1`, owner).Scan(&verified); err != nil {
 				t.Fatal(err)
@@ -263,11 +378,7 @@ func identityRefreshTriggerService(
 		ProfileParticipant: func(context.Context, pgx.Tx, ownerlifecycle.Lifecycle, ownerlifecycle.Lifecycle) error {
 			return nil
 		},
-		TerminalParticipant: func(context.Context, pgx.Tx, *ownerlifecycle.Lifecycle, ownerlifecycle.Lifecycle) error {
-			return nil
-		},
-		TerminalCommitTimeout: time.Second,
-		IdentityInvalidator:   invalidator,
+		IdentityInvalidator: invalidator,
 	})
 	if err != nil {
 		t.Fatal(err)

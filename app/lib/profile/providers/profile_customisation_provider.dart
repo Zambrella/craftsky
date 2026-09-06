@@ -6,6 +6,7 @@ import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/providers/profile_identity_cache_invalidator.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'profile_customisation_provider.g.dart';
@@ -39,14 +40,12 @@ final class ProfileCustomisationEditorState {
 
 @riverpod
 class ProfileCustomisationEditor extends _$ProfileCustomisationEditor {
-  String? _profileDid;
-  String? _profileHandle;
+  Did? _profileDid;
 
   @override
   Future<ProfileCustomisationEditorState> build() async {
     final profile = await ref.watch(profileRepositoryProvider).fetchMe();
     _profileDid = profile.did;
-    _profileHandle = profile.handle;
     return ProfileCustomisationEditorState(
       confirmed: profile.customisation,
       draft: profile.customisation,
@@ -97,7 +96,7 @@ class ProfileCustomisationEditor extends _$ProfileCustomisationEditor {
       if (!isActiveAccountOperationCurrent(ref, ownership)) return;
 
       state = AsyncData(current.copyWith(confirmed: saved, draft: saved));
-      for (final id in <String?>{_profileDid, _profileHandle}) {
+      for (final id in <Did?>{_profileDid}) {
         if (id == null) continue;
         final profileProvider = userProfileProvider(id);
         if (ref.exists(profileProvider)) {

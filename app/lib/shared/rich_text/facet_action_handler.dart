@@ -1,7 +1,7 @@
 import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
-import 'package:craftsky_app/shared/rich_text/facet_syntax.dart';
 import 'package:craftsky_app/shared/rich_text/faceted_text_model.dart';
 import 'package:flutter/material.dart';
 
@@ -30,10 +30,8 @@ class FacetActionHandler {
   }) async {
     try {
       switch (feature) {
-        case MentionFacetFeature():
-          final handle = _visibleMentionHandle(visibleText);
-          if (handle == null) return;
-          await showUserProfileCard(context, handleOrDid: handle);
+        case MentionFacetFeature(:final did):
+          await showUserProfileCard(context, did: Did.parse(did));
         case LinkFacetFeature(uri: final uriText):
           final uri = normalizeExternalLinkUri(uriText);
           if (uri == null) return;
@@ -51,10 +49,4 @@ class FacetActionHandler {
       // Destination failures must not crash rendered text surfaces.
     }
   }
-}
-
-String? _visibleMentionHandle(String visibleText) {
-  if (!visibleText.startsWith('@')) return null;
-  final handle = visibleText.substring(1);
-  return isValidMentionHandle(handle) ? handle : null;
 }

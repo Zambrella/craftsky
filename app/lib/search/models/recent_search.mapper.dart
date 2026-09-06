@@ -345,8 +345,8 @@ class ProfileRecentSearchPayloadMapper
   @override
   final String id = 'ProfileRecentSearchPayload';
 
-  static String _$did(ProfileRecentSearchPayload v) => v.did;
-  static const Field<ProfileRecentSearchPayload, String> _f$did = Field(
+  static Did _$did(ProfileRecentSearchPayload v) => v.did;
+  static const Field<ProfileRecentSearchPayload, Did> _f$did = Field(
     'did',
     _$did,
   );
@@ -459,7 +459,7 @@ abstract class ProfileRecentSearchPayloadCopyWith<
   $Out
 >
     implements ClassCopyWith<$R, $In, $Out> {
-  $R call({String? did, String? handle, String? displayName, String? avatar});
+  $R call({Did? did, String? handle, String? displayName, String? avatar});
   ProfileRecentSearchPayloadCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   );
@@ -480,7 +480,7 @@ class _ProfileRecentSearchPayloadCopyWithImpl<$R, $Out>
       ProfileRecentSearchPayloadMapper.ensureInitialized();
   @override
   $R call({
-    String? did,
+    Did? did,
     String? handle,
     Object? displayName = $none,
     Object? avatar = $none,

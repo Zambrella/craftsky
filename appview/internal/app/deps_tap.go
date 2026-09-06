@@ -20,16 +20,22 @@ import (
 	"social.craftsky/appview/internal/tap"
 )
 
-// tapDependencies is the complete durable ingestion pipeline. The anonymous
-// PDS client is retained only inside the repository-reconciliation handler.
+// tapDependencies is the complete durable ingestion pipeline.
 type tapDependencies struct {
-	repositoryTracker        *tap.AdminClient
 	profileProjector         auth.BlueskyProfileProjector
 	craftskyProfileProjector auth.CraftskyProfileProjector
 	projectionWorker         *ingestion.ProjectionWorker
 	repositoryWorker         *ingestion.RepositoryWorker
 	quarantineWorker         *ingestion.QuarantineReplayWorker
 	consumer                 tap.Consumer
+}
+
+func newTapIngestionStore(pool *pgxpool.Pool) (*ingestion.Store, error) {
+	store, err := ingestion.NewStore(pool, time.Now)
+	if err != nil {
+		return nil, fmt.Errorf("tap ingestion store: %w", err)
+	}
+	return store, nil
 }
 
 func newTapDependencies(
@@ -44,14 +50,14 @@ func newTapDependencies(
 	identityInvalidator ingestion.IdentityInvalidator,
 	cfg Config,
 	logger *slog.Logger,
+	store *ingestion.Store,
 ) (*tapDependencies, error) {
-	anonPDS, err := auth.NewAnonymousPDSClient(
-		federated.directory,
-		federated.pdsJSON,
-		federated.boundary,
+	snapshotFetcher, err := newRepositorySnapshotFetcher(
+		federated.authoritativeDirectory,
+		federated.pdsRepository,
 	)
 	if err != nil {
-		return nil, fmt.Errorf("anonymous PDS client: %w", err)
+		return nil, fmt.Errorf("repository snapshot fetcher: %w", err)
 	}
 	repositoryTracker, err := tap.NewAdminClient(
 		cfg.TapWSURL,
@@ -74,10 +80,6 @@ func newTapDependencies(
 		content.notificationLifecycle,
 		profileDeletion,
 	)
-	store, err := ingestion.NewStore(pool, time.Now)
-	if err != nil {
-		return nil, fmt.Errorf("tap ingestion store: %w", err)
-	}
 	departureParticipant := scheduledAccountDeletion.DepartureParticipant()
 	profileDepartureParticipant := authCapability.sessionLifecycle.OwnerTransitionParticipant(
 		nil,
@@ -98,31 +100,10 @@ func newTapDependencies(
 		}
 		return profileDepartureParticipant(ctx, tx, before, after)
 	}
-	terminalAuthParticipant := authCapability.sessionLifecycle.OwnerTransitionParticipant(
-		nil,
-		departureParticipant,
-	)
-	terminalPDSAttemptParticipant := store.PDSAttemptTerminalParticipant()
-	terminalParticipant := func(
-		ctx context.Context,
-		tx pgx.Tx,
-		before *ownerlifecycle.Lifecycle,
-		terminal ownerlifecycle.Lifecycle,
-	) error {
-		prior := ownerlifecycle.Lifecycle{Owner: terminal.Owner}
-		if before != nil {
-			prior = *before
-		}
-		if err := terminalAuthParticipant(ctx, tx, prior, terminal); err != nil {
-			return err
-		}
-		return terminalPDSAttemptParticipant(ctx, tx, before, terminal)
-	}
 	service, err := ingestion.NewService(ingestion.ServiceConfig{
 		Store: store, Lifecycles: owners.lifecycles,
-		ProfileParticipant: profileParticipant, TerminalParticipant: terminalParticipant,
-		TerminalCommitTimeout: cfg.tapTerminalCommitTimeout(),
-		IdentityInvalidator:   identityInvalidator,
+		ProfileParticipant:  profileParticipant,
+		IdentityInvalidator: identityInvalidator,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("tap ingestion service: %w", err)
@@ -137,13 +118,20 @@ func newTapDependencies(
 	if err != nil {
 		return nil, fmt.Errorf("tap projection worker: %w", err)
 	}
+	repair, err := ingestion.NewRepositoryRepair(ingestion.RepositoryRepairConfig{
+		Store: store, Ingestor: service, Projector: dispatcher.Project,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("repository repair: %w", err)
+	}
 	repositoryWorker, err := ingestion.NewRepositoryWorker(ingestion.RepositoryWorkerConfig{
 		Store:    store,
-		Handler:  newTapRepositoryJobHandler(store, service, repositoryTracker, anonPDS),
+		Handler:  newTapRepositoryJobHandler(repositoryTracker, snapshotFetcher, dispatcher, repair, observer),
 		WorkerID: "appview-tap-repository", PollInterval: cfg.TapRepositoryPollInterval,
 		LeaseDuration: cfg.TapRepositoryLeaseDuration, BatchSize: cfg.TapRepositoryBatchSize,
 		BackoffMin: cfg.TapRepositoryBackoffMin, BackoffMax: cfg.TapRepositoryBackoffMax,
-		Logger: logger,
+		AlertAge: cfg.TapRepositoryAlertAge, AlertAttempts: cfg.TapRepositoryAlertAttempts,
+		Logger: logger, Observer: observer,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("tap repository worker: %w", err)
@@ -167,7 +155,6 @@ func newTapDependencies(
 		Logger: logger, Observer: observer,
 	})
 	return &tapDependencies{
-		repositoryTracker: repositoryTracker,
 		profileProjector: oauthBlueskyProfileProjection{
 			handler: index.NewBlueskyProfile(pool),
 		},

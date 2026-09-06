@@ -355,7 +355,8 @@ func TestSweepAuthRequestsIsBoundedAndPreservesInFlightAndAmbiguousEvidence(t *t
 		owner := syntax.DID(fmt.Sprintf("did:plc:sweep-%02d", index))
 		seedAuthOwner(t, pool, owner)
 		requestContext := auth.WithLoginAuthRequest(
-			context.Background(), owner, 1, 1, auth.HandoffVerifiedLink,
+			context.Background(), owner, 1, 1, "https://pds.example.com", "https://auth.example.com",
+			auth.HandoffVerifiedLink,
 			fmt.Sprintf("device-sweep-%02d", index), "",
 		)
 		if err := store.SaveAuthRequestInfo(requestContext, oauth.AuthRequestData{
@@ -460,7 +461,8 @@ func TestProviderRegistrationPreservesLoginAndDeletionAmbiguityRetentionAndCapac
 	seedAuthOwner(t, pool, loginOwner)
 	seedOwnerLifecycle(t, pool, deletionOwner, "deletion_pending")
 	loginContext := auth.WithLoginAuthRequest(
-		ctx, loginOwner, 1, 1, auth.HandoffVerifiedLink, "device-retained-login", "",
+		ctx, loginOwner, 1, 1, "https://pds.example.com", "https://auth.example.com",
+		auth.HandoffVerifiedLink, "device-retained-login", "",
 	)
 	deletionContext := auth.WithAccountDeletionAuthRequestAuthority(
 		ctx, deletionOwner, 1, 1,
@@ -546,7 +548,8 @@ func TestProviderRegistrationPreservesLoginAndDeletionAmbiguityRetentionAndCapac
 
 func saveAdmissionAuthRequest(store *auth.PostgresAuthStore, owner syntax.DID, index int) error {
 	ctx := auth.WithLoginAuthRequest(
-		context.Background(), owner, 1, 1, auth.HandoffVerifiedLink,
+		context.Background(), owner, 1, 1, "https://pds.example.com", "https://auth.example.com",
+		auth.HandoffVerifiedLink,
 		fmt.Sprintf("device-capacity-%02d", index), "",
 	)
 	return store.SaveAuthRequestInfo(ctx, oauth.AuthRequestData{

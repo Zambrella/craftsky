@@ -1,5 +1,3 @@
-import 'dart:ui';
-
 import 'package:craftsky_app/feed/widgets/native_video_controller.dart';
 import 'package:craftsky_app/feed/widgets/native_video_player.dart';
 import 'package:flutter/material.dart';
@@ -94,6 +92,6 @@ void main() {
     final style = nativeVideoTimestampStyle(const TextStyle());
 
     expect(style.fontFamily, 'monospace');
-    expect(style.fontFeatures, [FontFeature.tabularFigures()]);
+    expect(style.fontFeatures, const [FontFeature.tabularFigures()]);
   });
 }

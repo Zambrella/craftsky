@@ -12,6 +12,7 @@ import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/pages/edit_profile_dialog.dart';
 import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
@@ -42,35 +43,35 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 /// Unified profile screen. Used by the bottom-nav `Profile` branch
-/// (no [handle], resolves to the signed-in user) and by
-/// `/profile/:handle` deep links. Self-vs-visitor differs only in the
+/// (no [did], resolves to the signed-in user) and by
+/// `/profiles/:did` deep links. Self-vs-visitor differs only in the
 /// action row — the rest of the chrome is shared.
 class ProfilePage extends ConsumerWidget {
   const ProfilePage({
-    this.handle,
+    this.did,
     super.key,
   });
 
-  /// Handle of the profile to render. `null` resolves to the signed-in
+  /// DID of the profile to render. `null` resolves to the signed-in
   /// user from `authSessionProvider`.
-  final String? handle;
+  final Did? did;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authSessionProvider).value;
-    final myHandle = switch (auth) {
-      SignedIn(:final handle) => handle,
-      _ => null,
-    };
     final viewerAccount = switch (auth) {
       SignedIn(:final did) => AccountKey(did.toString()),
       _ => null,
     };
+    final myDid = switch (auth) {
+      SignedIn(:final did) => did,
+      _ => null,
+    };
 
-    final targetHandle = handle ?? myHandle;
-    if (targetHandle == null) {
+    final targetDid = did ?? myDid;
+    if (targetDid == null) {
       // Either auth is still loading or a visitor route somehow
-      // landed here without a handle. Both are transient — show a
+      // landed here without a DID. Both are transient — show a
       // neutral progress state and let the router redirect resolve.
       return const Scaffold(
         body: Center(child: StitchProgressIndicator()),
@@ -78,8 +79,8 @@ class ProfilePage extends ConsumerWidget {
     }
 
     return _ProfileScaffold(
-      handle: targetHandle,
-      isOwnProfile: targetHandle == myHandle,
+      did: targetDid,
+      viewerDid: myDid,
       viewerAccount: viewerAccount,
     );
   }
@@ -87,39 +88,37 @@ class ProfilePage extends ConsumerWidget {
 
 class _ProfileScaffold extends ConsumerWidget {
   const _ProfileScaffold({
-    required this.handle,
-    required this.isOwnProfile,
+    required this.did,
+    required this.viewerDid,
     required this.viewerAccount,
   });
 
-  final String handle;
-  final bool isOwnProfile;
+  final Did did;
+  final Did? viewerDid;
   final AccountKey? viewerAccount;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final profileAsync = ref.watch(userProfileProvider(handle));
-    if (isOwnProfile) {
-      ref.listen(userProfileProvider(handle), (previous, next) {
-        final profile = next.value;
-        final lease = ref
-            .read(sessionRegistryProvider)
-            .value
-            ?.activeLease
-            ?.session;
-        if (profile == null || lease == null) return;
-        unawaited(
-          ref
-              .read(sessionRegistryProvider.notifier)
-              .updateCachedIdentity(
-                lease,
-                displayName: profile.displayName,
-                avatarUrl: profile.avatar,
-                customisation: profile.customisation,
-              ),
-        );
-      });
-    }
+    final profileAsync = ref.watch(userProfileProvider(did));
+    ref.listen(userProfileProvider(did), (previous, next) {
+      final profile = next.value;
+      final lease = ref
+          .read(sessionRegistryProvider)
+          .value
+          ?.activeLease
+          ?.session;
+      if (profile == null || profile.did != viewerDid || lease == null) return;
+      unawaited(
+        ref
+            .read(sessionRegistryProvider.notifier)
+            .updateCachedIdentity(
+              lease,
+              displayName: profile.displayName,
+              avatarUrl: profile.avatar,
+              customisation: profile.customisation,
+            ),
+      );
+    });
     final destinationError = profileAsync.error;
     if (destinationError != null &&
         classifyNotificationDestinationError(destinationError) ==
@@ -139,7 +138,7 @@ class _ProfileScaffold extends ConsumerWidget {
               Expanded(
                 child: _ProfileBody(
                   profile: value,
-                  isOwnProfile: isOwnProfile,
+                  isOwnProfile: value.did == viewerDid,
                   viewerAccount: viewerAccount,
                 ),
               ),
@@ -147,7 +146,7 @@ class _ProfileScaffold extends ConsumerWidget {
           ),
           null => _ProfileBody(
             profile: value,
-            isOwnProfile: isOwnProfile,
+            isOwnProfile: value.did == viewerDid,
             viewerAccount: viewerAccount,
           ),
         },
@@ -169,7 +168,7 @@ class _ProfileScaffold extends ConsumerWidget {
     Object error,
   ) => NotificationDestinationErrorState(
     error: error,
-    onRetry: () => ref.invalidate(userProfileProvider(handle)),
+    onRetry: () => ref.invalidate(userProfileProvider(did)),
     onBack: () {
       final navigator = Navigator.of(context);
       if (navigator.canPop()) {
@@ -221,7 +220,7 @@ class _ProfileBody extends ConsumerWidget {
     final account = viewerAccount;
     final provider = account == null || isOwnProfile
         ? null
-        : profileRelationshipProvider(account, profile.did.toString());
+        : profileRelationshipProvider(account, profile.did);
     final cached = provider == null ? null : ref.watch(provider);
     if (provider != null && !(cached?.initialized ?? false)) {
       unawaited(
@@ -278,13 +277,13 @@ class _ProfileBody extends ConsumerWidget {
           ref
               .read(toggleFollowProfileProvider.notifier)
               .toggle(
-                cacheKey: profile.handle.toString(),
+                cacheKey: profile.did,
                 profile: profile,
               ),
         );
       },
       onShare: () => context.showInfo(l10n.profileShareComingSoon),
-      onReport: () => showProfileReportSheet(context, ref, profile.handle),
+      onReport: () => showProfileReportSheet(context, ref, profile.did),
       onMuteToggle: () => unawaited(
         _mutateRelationship(
           context,
@@ -352,7 +351,7 @@ class _ProfileBody extends ConsumerWidget {
     if (account == null) return;
     final provider = profileRelationshipProvider(
       account,
-      profile.did.toString(),
+      profile.did,
     );
     await ref.read(provider.notifier).mutate(action);
     if (!context.mounted) return;
@@ -545,7 +544,11 @@ class _ProfileScrollView extends StatelessWidget {
                 : () => _openProfileImage(
                     context,
                     url: profile.avatar!,
-                    alt: _profileImageAlt(profile, 'profile picture'),
+                    alt: _profileImageAlt(
+                      context,
+                      profile,
+                      'profile picture',
+                    ),
                   ),
           ),
         ),
@@ -599,10 +602,15 @@ class _ProfileScrollView extends StatelessWidget {
     );
   }
 
-  String _profileImageAlt(Profile profile, String imageLabel) {
-    final name = (profile.displayName?.isNotEmpty ?? false)
-        ? profile.displayName!
-        : '@${profile.handle}';
+  String _profileImageAlt(
+    BuildContext context,
+    Profile profile,
+    String imageLabel,
+  ) {
+    final name = ProfileHandle(profile.handle).displayLabel(
+      displayName: profile.displayName,
+      unavailableLabel: AppLocalizations.of(context).handleUnavailable,
+    );
     return '$name $imageLabel';
   }
 }
@@ -693,21 +701,21 @@ class _ProfileTabScrollView extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final onRefresh = switch (tab) {
       ProfileTab.posts => () async {
-        final _ = await ref.refresh(userPostsProvider(profile.handle).future);
+        final _ = await ref.refresh(userPostsProvider(profile.did).future);
       },
       ProfileTab.projects => () async {
         final _ = await ref.refresh(
-          userProjectsProvider(profile.handle).future,
+          userProjectsProvider(profile.did).future,
         );
       },
       ProfileTab.comments => () async {
         final _ = await ref.refresh(
-          userCommentsProvider(profile.handle).future,
+          userCommentsProvider(profile.did).future,
         );
       },
       ProfileTab.products => () async {
         final _ = await ref.refresh(
-          userProfileProvider(profile.handle).future,
+          userProfileProvider(profile.did).future,
         );
       },
       ProfileTab.upcomingEvents when viewerAccount != null =>
@@ -741,15 +749,15 @@ class _ProfileTabScrollView extends ConsumerWidget {
   ) {
     return switch (tab) {
       ProfileTab.posts => ProfilePostsTab(
-        handle: profile.handle,
+        did: profile.did,
         isOwnProfile: isOwnProfile,
       ),
       ProfileTab.comments => ProfileCommentsTab(
-        handle: profile.handle,
+        did: profile.did,
         isOwnProfile: isOwnProfile,
       ),
       ProfileTab.projects => ProfileProjectsTab(
-        handle: profile.handle,
+        did: profile.did,
         isOwnProfile: isOwnProfile,
       ),
       ProfileTab.reposts => ProfileEmptyTab(

@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
+import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -12,11 +14,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class ProfileMutualFollowersSheet extends ConsumerStatefulWidget {
   const ProfileMutualFollowersSheet({
-    required this.targetHandleOrDid,
+    required this.targetDid,
     super.key,
   });
 
-  final String targetHandleOrDid;
+  final Did targetDid;
 
   @override
   ConsumerState<ProfileMutualFollowersSheet> createState() =>
@@ -64,7 +66,7 @@ class _ProfileMutualFollowersSheetState
   Future<ProfileAccountPage> _fetchPage({String? cursor}) {
     return ref
         .read(profileRepositoryProvider)
-        .listMutualFollowers(widget.targetHandleOrDid, cursor: cursor);
+        .listMutualFollowers(widget.targetDid.toString(), cursor: cursor);
   }
 
   @override
@@ -107,6 +109,7 @@ class _ProfileMutualFollowersBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final unavailable = AppLocalizations.of(context).handleUnavailable;
     if (items.isEmpty) {
       final l10n = AppLocalizations.of(context);
       return CraftskyEmptyState(
@@ -132,12 +135,18 @@ class _ProfileMutualFollowersBody extends StatelessWidget {
           );
         }
         final account = items[index];
-        final title = account.displayName?.isNotEmpty ?? false
-            ? account.displayName!
-            : account.handle.toString();
+        final handle = ProfileHandle(account.handle);
+        final title = handle.displayLabel(
+          displayName: account.displayName,
+          unavailableLabel: unavailable,
+        );
         return ListTile(
           title: Text(title),
-          subtitle: Text('@${account.handle}'),
+          subtitle:
+              handle.isAvailable ||
+                  (account.displayName?.trim().isNotEmpty ?? false)
+              ? Text(handle.currentLabel(unavailableLabel: unavailable))
+              : null,
         );
       },
     );

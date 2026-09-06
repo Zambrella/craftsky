@@ -22,7 +22,6 @@ type DeletionOAuthFlowStarter interface {
 	StartAccountDeletion(
 		context.Context,
 		syntax.DID,
-		syntax.Handle,
 		uuid.UUID,
 		string,
 	) (string, error)
@@ -35,20 +34,10 @@ type AppServiceOptions struct {
 	Owners               *ownerlifecycle.Store
 	Sessions             *auth.SessionLifecycleService
 	OAuthStore           *auth.PostgresAuthStore
-	IdentityResolver     DeletionIdentityResolver
-	IdentityIndex        DeletionIdentityIndex
 	DepartureParticipant ownerlifecycle.TransitionParticipant
 	Now                  func() time.Time
 	Random               io.Reader
 	IntentTTL            time.Duration
-}
-
-type DeletionIdentityResolver interface {
-	ResolveHandle(context.Context, syntax.DID) (syntax.Handle, error)
-}
-
-type DeletionIdentityIndex interface {
-	Upsert(context.Context, syntax.DID, syntax.Handle, time.Time) error
 }
 
 type AppService struct {
@@ -58,8 +47,6 @@ type AppService struct {
 	owners     *ownerlifecycle.Store
 	sessions   *auth.SessionLifecycleService
 	oauthStore *auth.PostgresAuthStore
-	identity   DeletionIdentityResolver
-	index      DeletionIdentityIndex
 	departure  ownerlifecycle.TransitionParticipant
 	now        func() time.Time
 	random     io.Reader
@@ -69,7 +56,6 @@ type AppService struct {
 func NewAppService(options AppServiceOptions) (*AppService, error) {
 	if options.Pool == nil || options.Store == nil || options.OAuth == nil ||
 		options.Owners == nil || options.Sessions == nil || options.OAuthStore == nil ||
-		options.IdentityResolver == nil || options.IdentityIndex == nil ||
 		options.DepartureParticipant == nil {
 		return nil, errors.New("account deletion service dependencies are unavailable")
 	}
@@ -85,7 +71,6 @@ func NewAppService(options AppServiceOptions) (*AppService, error) {
 	return &AppService{
 		pool: options.Pool, store: options.Store, oauth: options.OAuth,
 		owners: options.Owners, sessions: options.Sessions, oauthStore: options.OAuthStore,
-		identity: options.IdentityResolver, index: options.IdentityIndex,
 		departure: options.DepartureParticipant,
 		now:       options.Now, random: options.Random, intentTTL: options.IntentTTL,
 	}, nil
@@ -96,19 +81,12 @@ func (service *AppService) CreateIntent(ctx context.Context, params CreateIntent
 		return IntentResult{}, errors.New("invalid account deletion intent scope")
 	}
 	now := service.now().UTC()
-	handle, err := service.identity.ResolveHandle(ctx, params.Owner)
-	if err != nil || handle == "" || handle.IsInvalidHandle() {
-		return IntentResult{}, fmt.Errorf("%w: resolve canonical handle", ErrIdentityUnavailable)
-	}
-	if err := service.index.Upsert(ctx, params.Owner, handle, now); err != nil {
-		return IntentResult{}, fmt.Errorf("%w: persist canonical handle: %v", ErrIdentityUnavailable, err)
-	}
 	jobID := uuid.New()
 	expiresAt := now.Add(service.intentTTL)
 	intent := IntentRecord{
 		JobID: jobID, Owner: params.Owner,
-		ConfirmationHandleHash: HashSecret("@" + handle.String()),
-		ExpiresAt:              expiresAt,
+		ConfirmationDIDHash: HashSecret(params.Owner.String()),
+		ExpiresAt:           expiresAt,
 	}
 	current, err := service.owners.Get(ctx, params.Owner)
 	if err != nil {
@@ -134,9 +112,7 @@ func (service *AppService) CreateIntent(ctx context.Context, params CreateIntent
 	}); err != nil {
 		return IntentResult{}, err
 	}
-	authURL, err := service.oauth.StartAccountDeletion(
-		ctx, params.Owner, handle, jobID, params.DeviceID,
-	)
+	authURL, err := service.oauth.StartAccountDeletion(ctx, params.Owner, jobID, params.DeviceID)
 	if err != nil {
 		rollbackErr := service.cancelIntent(ctx, jobID, params.Owner, "accountDeletionStartFailed")
 		if rollbackErr != nil {
@@ -144,7 +120,10 @@ func (service *AppService) CreateIntent(ctx context.Context, params CreateIntent
 		}
 		return IntentResult{}, fmt.Errorf("start account deletion OAuth: %w", err)
 	}
-	return IntentResult{JobID: jobID.String(), AuthURL: authURL, ExpiresAt: expiresAt}, nil
+	return IntentResult{
+		JobID: jobID.String(), AuthURL: authURL,
+		ConfirmationDID: params.Owner, ExpiresAt: expiresAt,
+	}, nil
 }
 
 func (service *AppService) Accept(ctx context.Context, params AcceptParams) error {
@@ -154,7 +133,7 @@ func (service *AppService) Accept(ctx context.Context, params AcceptParams) erro
 	}
 	request := AcceptanceRequest{
 		JobID: jobID, Owner: params.Owner,
-		ReauthProof: params.ReauthProof, ConfirmationHandle: params.ConfirmationHandle,
+		ReauthProof: params.ReauthProof, ConfirmationDID: params.ConfirmationDID,
 	}
 	binding, err := service.store.AcceptanceBinding(ctx, request)
 	if err != nil {

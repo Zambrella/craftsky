@@ -137,7 +137,7 @@ void main() {
           fireImmediately: true,
         ),
         container.listen<AsyncValue<Profile>>(
-          userProfileProvider('alice.test'),
+          userProfileProvider(Did.parse('did:plc:alice')),
           (_, _) {},
           fireImmediately: true,
         ),
@@ -166,6 +166,7 @@ void main() {
           .loadMore();
       await Future<void>.delayed(Duration.zero);
 
+      profileRepository.serveBob = true;
       await _switch(container, AccountKey('did:plc:bob'));
       final bobTarget = ProfileBusinessEventsTarget(
         account: AccountKey('did:plc:bob'),
@@ -193,7 +194,7 @@ void main() {
         )
         ..add(
           container.listen<AsyncValue<Profile>>(
-            userProfileProvider('bob.test'),
+            userProfileProvider(Did.parse('did:plc:bob')),
             (_, _) {},
             fireImmediately: true,
           ),
@@ -208,7 +209,7 @@ void main() {
         businessEventDetailProvider(bobDetailTarget).future,
       );
       final bobProfile = await container.read(
-        userProfileProvider('bob.test').future,
+        userProfileProvider(Did.parse('did:plc:bob')).future,
       );
 
       alicePublicMore.complete(
@@ -237,6 +238,7 @@ void main() {
         'bob-public',
       );
 
+      profileRepository.serveBob = false;
       await _switch(container, AccountKey('did:plc:alice'));
       final authoritativePublic = await container.read(
         profileBusinessEventsProvider(aliceTarget).future,
@@ -248,7 +250,7 @@ void main() {
         businessEventDetailProvider(aliceDetailTarget).future,
       );
       final authoritativeProfile = await container.read(
-        userProfileProvider('alice.test').future,
+        userProfileProvider(Did.parse('did:plc:alice')).future,
       );
 
       expect(
@@ -656,6 +658,21 @@ final class _ReadProfileRepository extends Fake implements ProfileRepository {
 
   final Completer<Profile> aliceProfile;
   int aliceCalls = 0;
+  bool serveBob = false;
+
+  @override
+  Future<Profile> fetchMe() {
+    aliceCalls++;
+    if (aliceCalls == 1) return aliceProfile.future;
+    if (serveBob) {
+      return Future.value(
+        _profile('bob', tagline: 'Bob authoritative profile'),
+      );
+    }
+    return Future.value(
+      _profile('alice', tagline: 'Alice authoritative profile'),
+    );
+  }
 
   @override
   Future<Profile> fetch(String handleOrDid) {

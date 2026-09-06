@@ -58,3 +58,10 @@ Every Must requirement links to acceptance criteria and at least one automated t
 - Keep Flutter route, provider, cache, ownership, mention, recent-search, and deletion identities DID-first. Handles remain presentation or explicit external alias input only.
 - No lexicon change is expected. If implementation discovers one, stop and use the lexicon/ADR workflow before proceeding.
 - Preserve the test commands and release gates listed in `02-acceptance-tests.md`; use `just appview-check` for release-equivalent AppView evidence and focused Flutter suites before `just app-test`.
+
+## Approved Performance Addendum
+
+Status: Approved
+Date: 2026-09-04
+
+The approved FR-032/AC-056 addendum permits a five-minute, bounded, process-local cache of successfully validated OAuth metadata for ordinary authenticated operations only. DID-to-PDS resolution remains uncached before every effect, so a PDS-origin migration is detected immediately. OAuth start, registration, and callback verification remain fully fresh. The accepted residual risk is that an issuer-only change at an unchanged PDS may remain unseen until fixed insertion expiry. UT-019, UT-020, IT-018, and REG-009 cover cache bounds, concurrency, fresh security boundaries, migration behavior, and secret-free telemetry. Explicit approval to implement this high-risk auth optimization was provided on 2026-09-04.

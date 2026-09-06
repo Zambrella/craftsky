@@ -178,10 +178,10 @@ void main() {
     ]);
   });
 
-  testWidgets('Delete account requires both warning and exact typed handle', (
+  testWidgets('Delete account requires both warning and exact typed DID', (
     tester,
   ) async {
-    String? confirmedHandle;
+    String? confirmedDid;
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -192,7 +192,7 @@ void main() {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: AccountPage(
-            onDeleteConfirmed: (handle) async => confirmedHandle = handle,
+            onDeleteConfirmed: (did) async => confirmedDid = did,
           ),
         ),
       ),
@@ -217,19 +217,19 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(CraftskyDialog), findsOneWidget);
     expect(find.byType(AlertDialog), findsNothing);
-    await tester.enterText(find.byType(TextField), '@Test.bsky.social');
+    await tester.enterText(find.byType(TextField), 'did:plc:tesu');
     await tester.pump();
     ChunkyButton deleteButton() => tester.widget<ChunkyButton>(
       find.widgetWithText(ChunkyButton, 'Delete account'),
     );
     expect(deleteButton().onPressed, isNull);
 
-    await tester.enterText(find.byType(TextField), '@test.bsky.social');
+    await tester.enterText(find.byType(TextField), 'did:plc:test');
     await tester.pump();
     expect(deleteButton().onPressed, isNotNull);
     await tester.tap(find.widgetWithText(ChunkyButton, 'Delete account'));
     await tester.pumpAndSettle();
-    expect(confirmedHandle, '@test.bsky.social');
+    expect(confirmedDid, 'did:plc:test');
   });
 }
 

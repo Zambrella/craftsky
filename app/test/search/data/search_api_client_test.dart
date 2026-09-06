@@ -8,6 +8,7 @@ import 'package:craftsky_app/search/models/search_sort.dart';
 import 'package:craftsky_app/search/models/search_suggestions.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http_mock_adapter/http_mock_adapter.dart';
@@ -532,11 +533,11 @@ void main() {
           ),
         ),
         await client.saveRecentSearch(
-          const SaveRecentSearchRequest(
+          SaveRecentSearchRequest(
             type: RecentSearchType.profile,
             displayLabel: 'Alice',
             payload: ProfileRecentSearchPayload(
-              did: 'did:plc:alice',
+              did: Did.parse('did:plc:alice'),
               handle: 'alice.craftsky.social',
               displayName: 'Alice',
             ),

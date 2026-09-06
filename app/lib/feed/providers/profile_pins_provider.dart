@@ -59,7 +59,7 @@ class ProfilePins extends _$ProfilePins {
     required Did did,
     required RecordKey rkey,
     required ProfilePinSlot slot,
-    Iterable<String> authorCacheIds = const [],
+    Iterable<Did> authorCacheIds = const [],
   }) => _mutate(
     did: did,
     rkey: rkey,
@@ -72,7 +72,7 @@ class ProfilePins extends _$ProfilePins {
     required Did did,
     required RecordKey rkey,
     required ProfilePinSlot slot,
-    Iterable<String> authorCacheIds = const [],
+    Iterable<Did> authorCacheIds = const [],
   }) => _mutate(
     did: did,
     rkey: rkey,
@@ -86,7 +86,7 @@ class ProfilePins extends _$ProfilePins {
     required RecordKey rkey,
     required ProfilePinSlot slot,
     required bool isPin,
-    required Iterable<String> authorCacheIds,
+    required Iterable<Did> authorCacheIds,
   }) async {
     final current = state.value;
     if (current == null || current.isPending(slot)) return null;
@@ -140,9 +140,9 @@ class ProfilePins extends _$ProfilePins {
   void _refreshAffectedProfileLists({
     required ProfilePinSlot slot,
     required Did did,
-    required Iterable<String> authorCacheIds,
+    required Iterable<Did> authorCacheIds,
   }) {
-    for (final id in <String>{did.value, ...authorCacheIds}) {
+    for (final id in <Did>{did, ...authorCacheIds}) {
       switch (slot) {
         case ProfilePinSlot.standard:
           final provider = userPostsProvider(id);

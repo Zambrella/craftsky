@@ -8,6 +8,7 @@ import 'package:craftsky_app/notifications/providers/notification_new_count_prov
 import 'package:craftsky_app/notifications/providers/notification_permission_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_runtime_provider.dart';
 import 'package:craftsky_app/notifications/services/notification_navigation.dart';
+import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
@@ -82,9 +83,16 @@ class _NotificationEffectHostState extends ConsumerState<NotificationEffectHost>
         :final resolution,
         :final recipient,
       ):
+        final recipientHandle = recipient == null
+            ? null
+            : ProfileHandle(
+                recipient.handle,
+              ).currentLabel(unavailableLabel: l10n.handleUnavailable);
+        final recipientLabel = recipientHandle == null
+            ? ''
+            : '\nFor $recipientHandle';
         context.showInfo(
-          '${event.title}\n${event.body}'
-          '${recipient == null ? '' : '\nFor @${recipient.handle}'}',
+          '${event.title}\n${event.body}$recipientLabel',
           action: MessageAction(
             label: l10n.notificationBannerOpen,
             onPressed: () => unawaited(

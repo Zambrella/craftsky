@@ -21,13 +21,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 class AccountPage extends ConsumerWidget {
   const AccountPage({this.onDeleteConfirmed, super.key});
 
-  final Future<void> Function(String handle)? onDeleteConfirmed;
+  final Future<void> Function(String did)? onDeleteConfirmed;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final auth = ref.watch(authSessionProvider).value;
-    final handle = auth is SignedIn ? '@${auth.handle.value}' : null;
+    final did = auth is SignedIn ? auth.did.value : null;
     final profileType = ref
         .watch(activeAccountIdentityProvider)
         .value
@@ -80,7 +80,7 @@ class AccountPage extends ConsumerWidget {
             ),
             label: l10n.deleteAccountAction,
             leading: CraftskyIconsBold.deleteForever,
-            onTap: handle == null ? null : () => _begin(context, ref, handle),
+            onTap: did == null ? null : () => _begin(context, ref, did),
           ),
         ],
       ),
@@ -103,19 +103,19 @@ class AccountPage extends ConsumerWidget {
   Future<void> _begin(
     BuildContext context,
     WidgetRef ref,
-    String handle,
+    String did,
   ) async {
     final l10n = AppLocalizations.of(context);
     final proceed = await showCraftskyDestructiveConfirmDialog(
       context,
       title: l10n.deleteAccountTitle,
-      message: l10n.deleteAccountBoundary(handle),
+      message: l10n.deleteAccountDidBoundary(did),
       confirmLabel: l10n.deleteAccountContinue,
       cancelLabel: l10n.actionCancel,
     );
     if (!proceed || !context.mounted) return;
     if (onDeleteConfirmed case final callback?) {
-      await _confirmHandle(context, handle, callback);
+      await _confirmDid(context, did, callback);
       return;
     }
     final jobId = await ref
@@ -126,30 +126,29 @@ class AccountPage extends ConsumerWidget {
     }
   }
 
-  Future<void> _confirmHandle(
+  Future<void> _confirmDid(
     BuildContext context,
-    String handle,
-    Future<void> Function(String handle) callback,
+    String did,
+    Future<void> Function(String did) callback,
   ) async {
     final confirmed = await showCraftskyModal<bool>(
       context,
-      builder: (_) => _HandleConfirmationDialog(requiredHandle: handle),
+      builder: (_) => _DidConfirmationDialog(confirmationDid: did),
     );
-    if (confirmed == true) await callback(handle);
+    if (confirmed == true) await callback(did);
   }
 }
 
-class _HandleConfirmationDialog extends StatefulWidget {
-  const _HandleConfirmationDialog({required this.requiredHandle});
+class _DidConfirmationDialog extends StatefulWidget {
+  const _DidConfirmationDialog({required this.confirmationDid});
 
-  final String requiredHandle;
+  final String confirmationDid;
 
   @override
-  State<_HandleConfirmationDialog> createState() =>
-      _HandleConfirmationDialogState();
+  State<_DidConfirmationDialog> createState() => _DidConfirmationDialogState();
 }
 
-class _HandleConfirmationDialogState extends State<_HandleConfirmationDialog> {
+class _DidConfirmationDialogState extends State<_DidConfirmationDialog> {
   final _controller = TextEditingController();
 
   @override
@@ -166,14 +165,16 @@ class _HandleConfirmationDialogState extends State<_HandleConfirmationDialog> {
       body: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(l10n.deleteAccountConfirmationPrompt(widget.requiredHandle)),
+          Text(
+            l10n.deleteAccountDidConfirmationPrompt(widget.confirmationDid),
+          ),
           const SizedBox(height: 16),
           TextField(
             controller: _controller,
             autocorrect: false,
             enableSuggestions: false,
             decoration: InputDecoration(
-              labelText: l10n.deleteAccountTypeHandleLabel,
+              labelText: l10n.deleteAccountTypeDidLabel,
             ),
             onChanged: (_) => setState(() {}),
           ),
@@ -187,8 +188,8 @@ class _HandleConfirmationDialogState extends State<_HandleConfirmationDialog> {
         ChunkyButton(
           backgroundColor: BrandColors.red,
           onPressed:
-              matchesDeletionConfirmationHandle(
-                requiredHandle: widget.requiredHandle,
+              matchesDeletionConfirmationDid(
+                confirmationDid: widget.confirmationDid,
                 input: _controller.text,
               )
               ? () => Navigator.pop(context, true)
