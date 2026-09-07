@@ -71,10 +71,14 @@ func New(cfg Config) *Observer {
 			Release:          cfg.Release,
 			EnableTracing:    cfg.TracingEnabled,
 			TracesSampleRate: cfg.TracesSampleRate,
-			SendDefaultPII:   false,
-			DisableLogs:      !cfg.LogsEnabled,
-			DisableMetrics:   !cfg.MetricsEnabled,
-			Transport:        cfg.SentryTransport,
+			DataCollection: &sentry.DataCollection{
+				UserInfo:    sentry.Set(false),
+				Cookies:     &sentry.KeyValueCollectionBehavior{Mode: sentry.CollectionOff},
+				HTTPHeaders: &sentry.HeaderCollectionConfig{Request: &sentry.KeyValueCollectionBehavior{Mode: sentry.CollectionOff}, Response: &sentry.KeyValueCollectionBehavior{Mode: sentry.CollectionOff}},
+				HTTPBodies:  []sentry.BodyType{},
+				QueryParams: &sentry.KeyValueCollectionBehavior{Mode: sentry.CollectionOff},
+			},
+			Transport: cfg.SentryTransport,
 		})
 		if err == nil {
 			sentryClient = client

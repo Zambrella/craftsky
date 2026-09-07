@@ -20,6 +20,7 @@ import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -182,7 +183,7 @@ void main() {
       final pending = PendingAccountDeletion.capture(
         jobId: '10000000-0000-4000-8000-000000000001',
         lease: initial.activeLease!,
-        handle: 'alice.test',
+        confirmationDid: 'did:plc:alice',
         expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
       );
       initial = initial.stageAccountDeletion(pending);
@@ -215,7 +216,7 @@ void main() {
     final pending = PendingAccountDeletion.capture(
       jobId: '10000000-0000-4000-8000-000000000001',
       lease: initial.activeLease!,
-      handle: 'alice.test',
+      confirmationDid: 'did:plc:alice',
       expiresAt: DateTime.now().toUtc().add(const Duration(hours: 1)),
     );
     initial = initial
@@ -303,7 +304,7 @@ void main() {
         fireImmediately: true,
       );
       final userPostsSubscription = container.listen(
-        userPostsProvider('author.test'),
+        userPostsProvider(Did.parse('did:plc:author')),
         (_, _) {},
         fireImmediately: true,
       );
@@ -354,7 +355,7 @@ void main() {
       );
       expect(
         container
-            .read(userPostsProvider('author.test'))
+            .read(userPostsProvider(Did.parse('did:plc:author')))
             .requireValue
             .items
             .map((post) => post.rkey),
@@ -379,7 +380,7 @@ void main() {
       );
       expect(
         container
-            .read(userPostsProvider('author.test'))
+            .read(userPostsProvider(Did.parse('did:plc:author')))
             .requireValue
             .items
             .map((post) => post.rkey),

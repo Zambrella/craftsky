@@ -14,6 +14,7 @@ const (
 	PurposeOAuthRequest  Purpose = "oauth_request"
 	PurposePDSJSON       Purpose = "pds_json"
 	PurposePDSUpload     Purpose = "pds_upload"
+	PurposePDSRepository Purpose = "pds_repository"
 )
 
 const (
@@ -21,9 +22,9 @@ const (
 	MaxOAuthResponseBytes         int64 = 256 << 10
 	MaxPDSJSONResponseBytes       int64 = 4 << 20
 	MaxPDSUploadResponseBytes     int64 = 256 << 10
+	MaxPDSRepositoryResponseBytes int64 = 64 << 20
 
-	maxTotalTimeout = 30 * time.Second
-	maxRedirects    = 3
+	maxRedirects = 3
 )
 
 // Profile contains the tunable values for one purpose. Callers may lower the
@@ -55,6 +56,9 @@ func DefaultProfile(purpose Purpose) (Profile, error) {
 	case PurposePDSUpload:
 		profile.TotalTimeout = 20 * time.Second
 		profile.ResponseLimit = MaxPDSUploadResponseBytes
+	case PurposePDSRepository:
+		profile.TotalTimeout = 2 * time.Minute
+		profile.ResponseLimit = MaxPDSRepositoryResponseBytes
 	default:
 		return Profile{}, fmt.Errorf("federated http: unknown purpose")
 	}
@@ -66,8 +70,8 @@ func validateProfile(profile Profile) error {
 	if err != nil {
 		return err
 	}
-	if profile.TotalTimeout <= 0 || profile.TotalTimeout > maxTotalTimeout {
-		return fmt.Errorf("federated http: total timeout must be positive and at most %s", maxTotalTimeout)
+	if profile.TotalTimeout <= 0 || profile.TotalTimeout > defaults.TotalTimeout {
+		return fmt.Errorf("federated http: total timeout exceeds purpose ceiling")
 	}
 	if profile.ResponseLimit <= 0 || profile.ResponseLimit > defaults.ResponseLimit {
 		return fmt.Errorf("federated http: response limit exceeds purpose ceiling")

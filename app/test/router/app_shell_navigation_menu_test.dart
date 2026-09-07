@@ -32,6 +32,7 @@ void main() {
     'compact shell drawer opens the shared Feedback destination',
     (tester) async {
       Uri? openedUri;
+      var confirmationCalls = 0;
       final router = await _pumpShell(
         tester,
         const Size(500, 800),
@@ -39,7 +40,10 @@ void main() {
           openedUri = uri;
           return true;
         },
-        confirmOpenLink: (_, _) async => true,
+        confirmOpenLink: (_, _) async {
+          confirmationCalls++;
+          return false;
+        },
       );
 
       await tester.dragFrom(
@@ -79,6 +83,7 @@ void main() {
       expect(router.state.matchedLocation, '/feed');
       expect(find.byType(Drawer), findsNothing);
       expect(openedUri, settingsSupportUri);
+      expect(confirmationCalls, 0);
     },
   );
 
@@ -749,6 +754,7 @@ void main() {
     tester,
   ) async {
     Uri? openedUri;
+    var confirmationCalls = 0;
     final router = await _pumpShell(
       tester,
       const Size(1200, 800),
@@ -756,7 +762,10 @@ void main() {
         openedUri = uri;
         return true;
       },
-      confirmOpenLink: (_, _) async => true,
+      confirmOpenLink: (_, _) async {
+        confirmationCalls++;
+        return false;
+      },
     );
     final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
 
@@ -772,10 +781,12 @@ void main() {
     expect(router.state.matchedLocation, '/feed');
     expect(find.byType(NavigationRail), findsOneWidget);
     expect(openedUri, settingsSupportUri);
+    expect(confirmationCalls, 0);
   });
 
-  testWidgets('cancelling Feedback does not call the launcher', (tester) async {
+  testWidgets('Feedback ignores the external-link confirmer', (tester) async {
     var launcherCalled = false;
+    var confirmationCalls = 0;
     final router = await _pumpShell(
       tester,
       const Size(1200, 800),
@@ -783,14 +794,18 @@ void main() {
         launcherCalled = true;
         return true;
       },
-      confirmOpenLink: (_, _) async => false,
+      confirmOpenLink: (_, _) async {
+        confirmationCalls++;
+        return false;
+      },
     );
 
     await tester.ensureVisible(find.text('Feedback'));
     await tester.tap(find.text('Feedback'));
     await tester.pumpAndSettle();
 
-    expect(launcherCalled, isFalse);
+    expect(launcherCalled, isTrue);
+    expect(confirmationCalls, 0);
     expect(router.state.matchedLocation, '/feed');
     expect(find.byType(NavigationRail), findsOneWidget);
   });

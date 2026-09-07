@@ -14,6 +14,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/auth"
@@ -34,7 +35,8 @@ func TestHandoffExchangeIsHashOnlyReplayableUntilConfirmation(t *testing.T) {
 	}
 	handoffs, err := auth.NewHandoffService(auth.HandoffServiceOptions{
 		Pool: pool, Owners: owners, Sessions: children,
-		ExchangeTTL: 5 * time.Minute, ConfirmationTTL: 2 * time.Minute,
+		RepositoryJobs: auth.RepositoryJobTxEnqueuerFunc(func(context.Context, pgx.Tx, syntax.DID, auth.RepositoryJobKind) error { return nil }),
+		ExchangeTTL:    5 * time.Minute, ConfirmationTTL: 2 * time.Minute,
 		ReceiptKey: []byte("0123456789abcdef0123456789abcdef"), ReceiptKeyVersion: 1,
 		Now: time.Now,
 	})
@@ -48,6 +50,7 @@ func TestHandoffExchangeIsHashOnlyReplayableUntilConfirmation(t *testing.T) {
 	err = owners.WithOnboardingAuth(context.Background(), owner, func(authCtx context.Context, authority ownerlifecycle.Lifecycle) error {
 		requestContext := auth.WithLoginAuthRequest(
 			authCtx, owner, authority.Generation, authority.AuthEpoch,
+			"https://pds.example.com", "https://auth.example.com",
 			auth.HandoffVerifiedLink, "device-handoff", "",
 		)
 		request := oauth.AuthRequestData{

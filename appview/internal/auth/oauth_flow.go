@@ -38,6 +38,8 @@ type OAuthFlowServiceOptions struct {
 	DeletionRequests           DeletionOAuthRequestVerifier
 	RegistrationProviderOrigin string
 	RegistrationOAuth          *RegistrationOAuthAdapter
+	AuthorityVerifier          OAuthAuthorityVerifier
+	Observer                   AuthorityVerificationObserver
 }
 
 type OAuthFlowService struct {
@@ -49,11 +51,14 @@ type OAuthFlowService struct {
 	deletionRequests           DeletionOAuthRequestVerifier
 	registrationProviderOrigin string
 	registrationOAuth          *RegistrationOAuthAdapter
+	authorityVerifier          OAuthAuthorityVerifier
+	observer                   AuthorityVerificationObserver
 }
 
 func NewOAuthFlowService(options OAuthFlowServiceOptions) (*OAuthFlowService, error) {
 	if options.App == nil || options.App.Config == nil || options.App.Resolver == nil ||
-		options.App.Dir == nil || options.Store == nil || options.Owners == nil {
+		options.App.Dir == nil || options.Store == nil || options.Owners == nil ||
+		options.AuthorityVerifier == nil {
 		return nil, errors.New("OAuth flow service dependencies are unavailable")
 	}
 	startTimeout, err := normalizeOAuthOperationTimeout(
@@ -78,6 +83,8 @@ func NewOAuthFlowService(options OAuthFlowServiceOptions) (*OAuthFlowService, er
 		deletionRequests:           options.DeletionRequests,
 		registrationProviderOrigin: options.RegistrationProviderOrigin,
 		registrationOAuth:          options.RegistrationOAuth,
+		authorityVerifier:          options.AuthorityVerifier,
+		observer:                   options.Observer,
 	}, nil
 }
 
@@ -219,6 +226,7 @@ func (service *OAuthFlowService) StartLogin(
 		requestInfo.AccountDID = &identity.DID
 		requestCtx := WithLoginAuthRequest(
 			authCtx, identity.DID, authority.Generation, authority.AuthEpoch,
+			identity.PDSEndpoint(), serverMetadata.Issuer,
 			mode, deviceID, loopbackURI,
 		)
 		if err := service.store.SaveAuthRequestInfo(requestCtx, *requestInfo); err != nil {
@@ -240,21 +248,16 @@ func (service *OAuthFlowService) StartLogin(
 func (service *OAuthFlowService) StartAccountDeletion(
 	ctx context.Context,
 	owner syntax.DID,
-	handle syntax.Handle,
 	jobID uuid.UUID,
 	deviceID string,
 ) (string, error) {
 	operationCtx, cancel := oauthOperationContext(ctx, service.startOperationTimeout)
 	defer cancel()
 	ctx = operationCtx
-	if owner == "" || handle == "" || jobID == uuid.Nil || deviceID == "" || service.deletionRequests == nil {
+	if owner == "" || jobID == uuid.Nil || deviceID == "" || service.deletionRequests == nil {
 		return "", ErrOAuthFlowInvalid
 	}
-	identifier, err := syntax.ParseAtIdentifier(handle.String())
-	if err != nil {
-		return "", ErrOAuthFlowInvalid
-	}
-	identity, err := service.app.Dir.Lookup(ctx, identifier)
+	identity, err := service.app.Dir.Lookup(ctx, syntax.AtIdentifier(owner.String()))
 	if err != nil {
 		return "", fmt.Errorf("resolve deletion identity: %w", err)
 	}
@@ -634,14 +637,9 @@ func (service *OAuthFlowService) processInitialCallback(
 		_ = service.store.MarkExchangeAmbiguous(ctx, attempt.State, attempt.AttemptID)
 		return OAuthCallbackResult{}, ErrOAuthFlowInvalid
 	}
-	identity, err := service.app.Dir.LookupDID(ctx, metadata.Owner)
-	if err != nil || identity == nil || identity.Handle == "" || identity.PDSEndpoint() == "" {
-		_ = service.store.MarkExchangeAmbiguous(ctx, attempt.State, attempt.AttemptID)
-		return OAuthCallbackResult{}, ErrOAuthFlowInvalid
-	}
 	session := oauth.ClientSessionData{
 		AccountDID: metadata.Owner, SessionID: attempt.State,
-		HostURL: identity.PDSEndpoint(), AuthServerURL: info.AuthServerURL,
+		HostURL: metadata.ResourceServerOrigin, AuthServerURL: metadata.AuthorizationServerIssuer,
 		AuthServerTokenEndpoint:      info.AuthServerTokenEndpoint,
 		AuthServerRevocationEndpoint: info.AuthServerRevocationEndpoint,
 		Scopes:                       strings.Fields(tokenResponse.Scope), AccessToken: tokenResponse.AccessToken,
@@ -649,18 +647,56 @@ func (service *OAuthFlowService) processInitialCallback(
 		DPoPAuthServerNonce: info.DPoPAuthServerNonce, DPoPHostNonce: info.DPoPAuthServerNonce,
 		DPoPPrivateKeyMultibase: info.DPoPPrivateKeyMultibase,
 	}
+	if err := service.store.QuarantineCallbackCredential(
+		ctx, attempt.State, attempt.AttemptID, session, time.Now().Add(service.callbackOperationTimeout),
+	); err != nil {
+		return OAuthCallbackResult{}, fmt.Errorf("quarantine initial OAuth credential: %w", err)
+	}
+	authorityStarted := time.Now()
+	currentAuthority, err := service.authorityVerifier.ResolveCurrent(ctx, metadata.Owner)
+	if err != nil {
+		service.observeAuthority("error", "resolve_failed", time.Since(authorityStarted))
+		service.markCallbackCredentialForCleanup(ctx, attempt.State, attempt.AttemptID)
+		return OAuthCallbackResult{}, err
+	}
+	expectedAuthority := OAuthAuthority{
+		DID: metadata.Owner, PDSOrigin: metadata.ResourceServerOrigin,
+		IssuerOrigin: metadata.AuthorizationServerIssuer,
+	}
+	if err := verifyOAuthAuthority(currentAuthority, expectedAuthority); err != nil {
+		service.observeAuthority("mismatch", oauthAuthorityMismatchReason(currentAuthority, expectedAuthority), time.Since(authorityStarted))
+		service.markCallbackCredentialForCleanup(ctx, attempt.State, attempt.AttemptID)
+		return OAuthCallbackResult{}, err
+	}
+	service.observeAuthority("success", "none", time.Since(authorityStarted))
+	identity, err := service.app.Dir.LookupDID(ctx, metadata.Owner)
+	if err != nil || identity == nil || identity.Handle == "" {
+		service.markCallbackCredentialForCleanup(ctx, attempt.State, attempt.AttemptID)
+		return OAuthCallbackResult{}, ErrOAuthFlowInvalid
+	}
 	if err := service.store.SaveSession(ctx, session); err != nil {
-		revocationErr := service.revokeInMemorySession(ctx, session)
-		if revocationErr == nil {
-			_ = service.store.MarkExchangeFailed(ctx, attempt.State, attempt.AttemptID)
-		} else {
-			_ = service.store.MarkExchangeAmbiguous(ctx, attempt.State, attempt.AttemptID)
-		}
+		service.markCallbackCredentialForCleanup(ctx, attempt.State, attempt.AttemptID)
 		return OAuthCallbackResult{}, fmt.Errorf("persist initial OAuth session: %w", err)
 	}
 	return OAuthCallbackResult{
 		Session: session, Metadata: metadata, Attempt: attempt, Handle: identity.Handle,
 	}, nil
+}
+
+func (service *OAuthFlowService) observeAuthority(result, reason string, duration time.Duration) {
+	if service.observer != nil {
+		service.observer.ObserveAuthorityVerification("callback", result, reason, duration)
+	}
+}
+
+func (service *OAuthFlowService) markCallbackCredentialForCleanup(
+	ctx context.Context,
+	state string,
+	attemptID uuid.UUID,
+) {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), service.callbackOperationTimeout)
+	defer cancel()
+	_ = service.store.MarkCallbackCredentialForCleanup(cleanupCtx, state, attemptID)
 }
 
 func (service *OAuthFlowService) revokeInMemorySession(ctx context.Context, data oauth.ClientSessionData) error {

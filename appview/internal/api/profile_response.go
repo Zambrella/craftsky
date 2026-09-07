@@ -32,6 +32,7 @@ type ProfileResponse struct {
 	ProjectCount        *int                     `json:"projectCount,omitempty"`
 	DisplayName         *string                  `json:"displayName,omitempty"`
 	Description         *string                  `json:"description,omitempty"`
+	Pronouns            *string                  `json:"pronouns,omitempty"`
 	Avatar              *string                  `json:"avatar,omitempty"`
 	Banner              *string                  `json:"banner,omitempty"`
 	Crafts              []string                 `json:"crafts"`
@@ -215,6 +216,7 @@ func BuildProfileResponse(row *ProfileRow, handle syntax.Handle, includeCreatedA
 		ProjectCount:        row.ProjectCount,
 		DisplayName:         row.DisplayName,
 		Description:         row.Description,
+		Pronouns:            row.Pronouns,
 		Crafts:              crafts,
 	}
 	if row.IsCraftskyProfile {

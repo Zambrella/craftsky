@@ -17,6 +17,7 @@ import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/moderation_warning_banner.dart';
+import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
@@ -29,6 +30,7 @@ import 'package:craftsky_app/shared/rich_text/faceted_text_model.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
+import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
@@ -124,7 +126,7 @@ class PostCard extends ConsumerWidget {
     final account = auth is SignedIn ? AccountKey(auth.did.toString()) : null;
     final relationshipProvider = account == null || isViewerOwned
         ? null
-        : profileRelationshipProvider(account, post.author.did.toString());
+        : profileRelationshipProvider(account, post.author.did);
     final relationship = relationshipProvider == null
         ? null
         : ref.watch(relationshipProvider);
@@ -157,7 +159,7 @@ class PostCard extends ConsumerWidget {
         ? null
         : reposter.did == post.author.did
         ? relationshipProvider
-        : profileRelationshipProvider(account, reposter.did.toString());
+        : profileRelationshipProvider(account, reposter.did);
     final reposterRelationship = reposterRelationshipProvider == null
         ? null
         : reposterRelationshipProvider == relationshipProvider
@@ -200,8 +202,15 @@ class PostCard extends ConsumerWidget {
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final semanticColors = theme.extension<SemanticColorsTheme>()!;
     final colors = theme.colorScheme;
+    final replyAccent = theme.brightness == Brightness.dark
+        ? BrandColors.clay
+        : swatches.clay;
     final l10n = AppLocalizations.of(context);
-    final displayName = post.author.displayName ?? post.author.handle;
+    final authorHandle = ProfileHandle(post.author.handle);
+    final displayName = authorHandle.displayLabel(
+      displayName: post.author.displayName,
+      unavailableLabel: l10n.handleUnavailable,
+    );
     final isFlat = style == PostCardStyle.flat;
     final canShowShareAction = showRepostAction && post.reply == null;
     void likeOnDoubleTap() {
@@ -263,7 +272,7 @@ class PostCard extends ConsumerWidget {
         ? BorderRadius.zero
         : BorderRadius.circular(radii.r3);
     void openAuthorProfile() => unawaited(
-      showUserProfileCard(context, handleOrDid: post.author.handle.toString()),
+      showUserProfileCard(context, did: post.author.did),
     );
     final quotedPost = post.quoteView?.post;
     final quotedPostParts = quotedPost == null
@@ -284,7 +293,7 @@ class PostCard extends ConsumerWidget {
             : () => unawaited(
                 showUserProfileCard(
                   context,
-                  handleOrDid: quotedPost.author.handle.toString(),
+                  did: quotedPost.author.did,
                 ),
               ));
     final openReposter =
@@ -294,7 +303,7 @@ class PostCard extends ConsumerWidget {
             : () => unawaited(
                 showUserProfileCard(
                   context,
-                  handleOrDid: repostReason!.by.handle.toString(),
+                  did: repostReason!.by.did,
                 ),
               ));
 
@@ -312,7 +321,9 @@ class PostCard extends ConsumerWidget {
         borderRadius: borderRadius,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
+          key: const Key('post-card-tap-target'),
           borderRadius: borderRadius,
+          onTap: onTap,
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -358,17 +369,14 @@ class PostCard extends ConsumerWidget {
                         ),
                         SizedBox(width: spacing.sp3),
                         Expanded(
-                          child: GestureDetector(
-                            behavior: HitTestBehavior.opaque,
-                            onTap: onTap,
-                            onDoubleTap: likeOnDoubleTap,
-                            child: Align(
-                              alignment: AlignmentDirectional.centerStart,
-                              child: _PostCardHeader(
-                                displayName: displayName,
-                                handle: post.author.handle,
-                                onTap: openAuthorProfile,
+                          child: Align(
+                            alignment: AlignmentDirectional.centerStart,
+                            child: _PostCardHeader(
+                              displayName: displayName,
+                              handle: authorHandle.currentLabel(
+                                unavailableLabel: l10n.handleUnavailable,
                               ),
+                              onTap: openAuthorProfile,
                             ),
                           ),
                         ),
@@ -412,23 +420,29 @@ class PostCard extends ConsumerWidget {
                     ],
                     if (post.images case final images?
                         when images.isNotEmpty) ...[
-                      PostImageCarousel(
-                        images: images,
-                        onImageTap: (index, heroTags) =>
-                            switch (imageInteractionMode) {
-                              PostCardImageInteractionMode.navigate =>
-                                onTap?.call(),
-                              PostCardImageInteractionMode.fullscreenGallery =>
-                                unawaited(
-                                  showPostImageGallery(
-                                    context,
-                                    images: images,
-                                    initialIndex: index,
-                                    heroTags: heroTags,
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        excludeFromSemantics: true,
+                        onTap: () {},
+                        child: PostImageCarousel(
+                          images: images,
+                          onImageTap: (index, heroTags) =>
+                              switch (imageInteractionMode) {
+                                PostCardImageInteractionMode.navigate =>
+                                  onTap?.call(),
+                                PostCardImageInteractionMode
+                                    .fullscreenGallery =>
+                                  unawaited(
+                                    showPostImageGallery(
+                                      context,
+                                      images: images,
+                                      initialIndex: index,
+                                      heroTags: heroTags,
+                                    ),
                                   ),
-                                ),
-                            },
-                        onImageDoubleTap: likeOnDoubleTap,
+                              },
+                          onImageDoubleTap: likeOnDoubleTap,
+                        ),
                       ),
                       SizedBox(height: spacing.sp3),
                     ],
@@ -478,7 +492,7 @@ class PostCard extends ConsumerWidget {
                               icon: CraftskyIconsBold.comment,
                               count: showReplyCount ? post.replyCount : 0,
                               isSelected: post.viewerHasReplied,
-                              selectedColor: swatches.clay,
+                              selectedColor: replyAccent,
                               tooltip: replyTooltip ?? responseAction,
                               label: showReplyLabel ? responseAction : null,
                               onPressed: onReply,
@@ -672,7 +686,7 @@ class PostCard extends ConsumerWidget {
     if (auth is! SignedIn) return;
     final provider = profileRelationshipProvider(
       AccountKey(auth.did.toString()),
-      post.author.did.toString(),
+      post.author.did,
     );
     await ref.read(provider.notifier).mutate(action);
     if (!context.mounted) return;
@@ -796,7 +810,10 @@ class _RepostAttribution extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
-    final displayName = reason.by.displayName ?? reason.by.handle;
+    final displayName = ProfileHandle(reason.by.handle).displayLabel(
+      displayName: reason.by.displayName,
+      unavailableLabel: l10n.handleUnavailable,
+    );
     return Row(
       children: [
         Icon(CraftskyIcons.repost, size: 16, color: theme.colorScheme.outline),
@@ -872,7 +889,7 @@ class _PostCardHeader extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
           ),
           Text(
-            '@$handle',
+            handle,
             style: theme.textTheme.bodySmall?.copyWith(
               color: theme.colorScheme.outline,
             ),

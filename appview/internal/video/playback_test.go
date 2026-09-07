@@ -19,8 +19,8 @@ func TestPlaybackURLBuilderUsesConfiguredTemplatesAndPathEscaping(t *testing.T) 
 		t.Fatalf("NewPlaybackURLBuilder: %v", err)
 	}
 	playlist, thumbnail := builder.URLs(syntax.DID("did:web:example.com:user"), syntax.CID(testVideoCID))
-	if playlist != "https://media.example/watch/did:web:example.com:user/"+testVideoCID+"/master.m3u8" ||
-		thumbnail != "https://media.example/watch/did:web:example.com:user/"+testVideoCID+"/poster.jpg" {
+	if playlist != "https://media.example/watch/did%3Aweb%3Aexample.com%3Auser/"+testVideoCID+"/master.m3u8" ||
+		thumbnail != "https://media.example/watch/did%3Aweb%3Aexample.com%3Auser/"+testVideoCID+"/poster.jpg" {
 		t.Fatalf("URLs = %q %q", playlist, thumbnail)
 	}
 	if strings.Contains(playlist, "blob") || strings.Contains(playlist, "mp4") {
@@ -35,8 +35,8 @@ func TestPlaybackURLBuilderDefaultsAndRejectsUnsafeConfiguration(t *testing.T) {
 		t.Fatalf("defaults: %v", err)
 	}
 	playlist, thumbnail := builder.URLs("did:plc:alice", syntax.CID(testVideoCID))
-	if playlist != "https://video.bsky.app/watch/did:plc:alice/"+testVideoCID+"/playlist.m3u8" ||
-		thumbnail != "https://video.bsky.app/watch/did:plc:alice/"+testVideoCID+"/thumbnail.jpg" {
+	if playlist != "https://video.bsky.app/watch/did%3Aplc%3Aalice/"+testVideoCID+"/playlist.m3u8" ||
+		thumbnail != "https://video.cdn.bsky.app/hls/did%3Aplc%3Aalice/"+testVideoCID+"/thumbnail.jpg" {
 		t.Fatalf("default URLs = %q %q", playlist, thumbnail)
 	}
 	for _, template := range []string{"http://media.example/{did}/{cid}", "https://media.example/{did}", "https://user:pass@media.example/{did}/{cid}"} {

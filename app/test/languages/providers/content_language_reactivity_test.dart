@@ -18,6 +18,7 @@ import 'package:craftsky_app/search/providers/hashtag_search_provider.dart';
 import 'package:craftsky_app/search/providers/post_search_provider.dart';
 import 'package:craftsky_app/search/providers/project_search_provider.dart';
 import 'package:craftsky_app/search/providers/search_repository_provider.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -27,6 +28,7 @@ import '../../search/fakes/fake_search_repository.dart';
 
 final _preferencesProvider =
     NotifierProvider<_Preferences, LanguagePreferences>(_Preferences.new);
+final _aliceDid = Did.parse('did:plc:alice');
 
 final class _Preferences extends Notifier<LanguagePreferences> {
   @override
@@ -116,13 +118,13 @@ void main() {
           hashtagSearchProvider(const HashtagSearchQuery(tag: 'tag')),
           (_, _) {},
         ),
-        container.listen<Object?>(userPostsProvider('alice.test'), (_, _) {}),
+        container.listen<Object?>(userPostsProvider(_aliceDid), (_, _) {}),
         container.listen<Object?>(
-          userProjectsProvider('alice.test'),
+          userProjectsProvider(_aliceDid),
           (_, _) {},
         ),
         container.listen<Object?>(
-          userCommentsProvider('alice.test'),
+          userCommentsProvider(_aliceDid),
           (_, _) {},
         ),
       ];
@@ -146,9 +148,9 @@ void main() {
         container.read(
           hashtagSearchProvider(const HashtagSearchQuery(tag: 'tag')).future,
         ),
-        container.read(userPostsProvider('alice.test').future),
-        container.read(userProjectsProvider('alice.test').future),
-        container.read(userCommentsProvider('alice.test').future),
+        container.read(userPostsProvider(_aliceDid).future),
+        container.read(userProjectsProvider(_aliceDid).future),
+        container.read(userCommentsProvider(_aliceDid).future),
       ]);
       expect(calls.values, everyElement(1));
       expect(calls, hasLength(8));

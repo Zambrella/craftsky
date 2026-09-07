@@ -62,6 +62,7 @@ class ProfileApiClient {
   /// Avatar and banner are not writable in v1.
   Future<Profile> updateMyProfile({
     String? displayName,
+    String? pronouns,
     String? description,
     List<String>? crafts,
     UploadedBlob? avatar,
@@ -71,6 +72,7 @@ class ProfileApiClient {
   }) => unwrapApi(() async {
     final body = <String, dynamic>{
       'displayName': ?displayName,
+      'pronouns': ?pronouns,
       'description': ?description,
       'crafts': ?crafts,
     };

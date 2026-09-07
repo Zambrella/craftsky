@@ -31,9 +31,10 @@ type IdentityCacheObserver interface {
 }
 
 type IdentityCacheService struct {
-	store    *IdentityCacheStore
-	resolver HandleResolver
-	now      func() time.Time
+	store       *IdentityCacheStore
+	resolver    HandleResolver
+	now         func() time.Time
+	invalidator IdentityInvalidator
 }
 
 func NewIdentityCacheStore(pool *pgxpool.Pool, observers ...IdentityCacheObserver) *IdentityCacheStore {
@@ -44,28 +45,43 @@ func NewIdentityCacheStore(pool *pgxpool.Pool, observers ...IdentityCacheObserve
 	return &IdentityCacheStore{pool: pool, observer: observer}
 }
 
-func NewIdentityCacheService(pool *pgxpool.Pool, resolver HandleResolver, now func() time.Time, observers ...IdentityCacheObserver) *IdentityCacheService {
+func NewIdentityCacheService(pool *pgxpool.Pool, resolver HandleResolver, now func() time.Time, invalidator IdentityInvalidator, observers ...IdentityCacheObserver) *IdentityCacheService {
 	if now == nil {
 		now = time.Now
 	}
-	return &IdentityCacheService{store: NewIdentityCacheStore(pool, observers...), resolver: resolver, now: now}
+	return &IdentityCacheService{store: NewIdentityCacheStore(pool, observers...), resolver: resolver, now: now, invalidator: invalidator}
 }
 
-func (s *IdentityCacheService) UpsertCurrentHandle(ctx context.Context, did syntax.DID) error {
+func (s *IdentityCacheService) RefreshCurrentHandle(ctx context.Context, did syntax.DID) error {
 	if s == nil || s.resolver == nil || s.store == nil {
 		return fmt.Errorf("identity cache service unavailable")
 	}
-	handle, err := s.resolver.ResolveHandle(ctx, did)
-	if err != nil || handle.String() == "" {
-		if err == nil {
-			err = fmt.Errorf("empty handle")
-		}
+	now := s.now().UTC()
+	candidate, err := s.store.claimRefresh(ctx, did, now)
+	if err != nil {
+		return err
+	}
+	handle, valid, err := resolveAuthoritativeHandle(ctx, s.resolver, did)
+	if err != nil {
 		return fmt.Errorf("resolve current handle %s: %w", did.String(), err)
 	}
-	return s.store.Upsert(ctx, did, handle, s.now().UTC())
+	if !valid {
+		handle = syntax.HandleInvalid
+	}
+	commit, completed, err := s.store.completeRefresh(ctx, candidate, handle, now)
+	if err != nil {
+		return err
+	}
+	if completed {
+		invalidateIdentityCommit(ctx, s.invalidator, commit)
+	}
+	return nil
 }
 
 func (s *IdentityCacheStore) FreshByHandle(ctx context.Context, handle syntax.Handle, now time.Time) (*IdentityCacheRow, error) {
+	if handle == "" || handle.IsInvalidHandle() {
+		return nil, nil
+	}
 	var row IdentityCacheRow
 	err := s.pool.QueryRow(ctx, `
 		SELECT ic.did, ic.handle, ic.resolved_at
@@ -89,76 +105,55 @@ func (s *IdentityCacheStore) FreshByHandle(ctx context.Context, handle syntax.Ha
 	return nil, fmt.Errorf("identity cache fresh by handle: %w", err)
 }
 
-func (s *IdentityCacheStore) Upsert(ctx context.Context, did syntax.DID, handle syntax.Handle, resolvedAt time.Time) error {
-	if used, err := ownerlifecycle.WithPreheldNonTerminalOwnerTx(ctx, did, func(tx pgx.Tx) error {
-		return s.upsertAuthorizedTx(ctx, tx, did, handle, resolvedAt)
-	}); used {
-		if err != nil {
-			return fmt.Errorf("identity cache fenced upsert %s: %w", did.String(), err)
-		}
-		return nil
-	}
-	return s.upsert(ctx, did, handle, resolvedAt, func(tx pgx.Tx) error {
-		return ownerlifecycle.GuardNonTerminalTargetsTx(ctx, tx, []syntax.DID{did})
-	})
+type identityRefreshCommit struct {
+	DID          syntax.DID
+	Handles      []syntax.Handle
+	DisplacedDID []syntax.DID
 }
 
-func (s *IdentityCacheStore) upsertForViewer(
-	ctx context.Context,
-	viewer syntax.DID,
-	did syntax.DID,
-	handle syntax.Handle,
-	resolvedAt time.Time,
-) error {
-	return s.upsert(ctx, did, handle, resolvedAt, func(tx pgx.Tx) error {
-		return ownerlifecycle.GuardPrivateMutationTx(ctx, tx, viewer, []syntax.DID{did})
-	})
-}
-
-func (s *IdentityCacheStore) upsert(
-	ctx context.Context,
-	did syntax.DID,
-	handle syntax.Handle,
-	resolvedAt time.Time,
-	authorize func(pgx.Tx) error,
-) error {
-	if authorize == nil {
-		return fmt.Errorf("identity cache authorization missing")
-	}
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("identity cache begin upsert %s: %w", did.String(), err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	if err := authorize(tx); err != nil {
-		return fmt.Errorf("identity cache authorize upsert: %w", err)
-	}
-	if err := s.upsertAuthorizedTx(ctx, tx, did, handle, resolvedAt); err != nil {
-		return err
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("identity cache commit upsert %s: %w", did.String(), err)
-	}
-	return nil
-}
-
-func (s *IdentityCacheStore) upsertAuthorizedTx(
+func (s *IdentityCacheStore) writeAuthoritativeTx(
 	ctx context.Context,
 	tx pgx.Tx,
 	did syntax.DID,
 	handle syntax.Handle,
 	resolvedAt time.Time,
+	commit *identityRefreshCommit,
 ) error {
 	handleLower := strings.ToLower(handle.String())
-	deleted, err := tx.Exec(ctx, `
-		DELETE FROM atproto_identity_cache
-		WHERE handle_lower = $2 AND did <> $1
-	`, did.String(), handleLower)
-	if err != nil {
-		return fmt.Errorf("identity cache delete stale handle owner %s: %w", did.String(), err)
+	var oldHandle *syntax.Handle
+	if err := tx.QueryRow(ctx, `SELECT handle FROM atproto_identity_cache WHERE did=$1 FOR UPDATE`, did).Scan(&oldHandle); err != nil && err != pgx.ErrNoRows {
+		return fmt.Errorf("identity cache read old handle %s: %w", did.String(), err)
 	}
-	if deleted.RowsAffected() > 0 && s.observer != nil {
-		s.observer.ObserveIdentityCache("reassigned", 0)
+	if oldHandle != nil {
+		commit.Handles = append(commit.Handles, *oldHandle)
+	}
+
+	if !handle.IsInvalidHandle() {
+		rows, err := tx.Query(ctx, `
+			UPDATE atproto_identity_cache
+			SET handle=$3,handle_lower=$3,resolved_at=$4,updated_at=now()
+			WHERE handle_lower=$2 AND did<>$1
+			RETURNING did
+		`, did, handleLower, syntax.HandleInvalid.String(), resolvedAt)
+		if err != nil {
+			return fmt.Errorf("identity cache release reassigned handle %s: %w", did.String(), err)
+		}
+		for rows.Next() {
+			var displaced syntax.DID
+			if err := rows.Scan(&displaced); err != nil {
+				rows.Close()
+				return fmt.Errorf("identity cache reassigned owner scan: %w", err)
+			}
+			commit.DisplacedDID = append(commit.DisplacedDID, displaced)
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return fmt.Errorf("identity cache reassigned owner rows: %w", err)
+		}
+		rows.Close()
+		if len(commit.DisplacedDID) > 0 && s.observer != nil {
+			s.observer.ObserveIdentityCache("reassigned", 0)
+		}
 	}
 
 	if _, err := tx.Exec(ctx, `
@@ -172,6 +167,8 @@ func (s *IdentityCacheStore) upsertAuthorizedTx(
 	`, did.String(), handle.String(), handleLower, resolvedAt); err != nil {
 		return fmt.Errorf("identity cache upsert %s: %w", did.String(), err)
 	}
+	commit.DID = did
+	commit.Handles = append(commit.Handles, handle)
 	return nil
 }
 
@@ -225,6 +222,48 @@ type identityRefreshCandidate struct {
 	ResolvedAt *time.Time
 	TapEventID *int64
 	Version    int64
+}
+
+func (s *IdentityCacheStore) claimRefresh(ctx context.Context, did syntax.DID, now time.Time) (identityRefreshCandidate, error) {
+	candidate := identityRefreshCandidate{DID: did}
+	err := s.withNonTerminalOwnerTx(ctx, did, func(tx pgx.Tx) error {
+		if err := tx.QueryRow(ctx, `SELECT handle,resolved_at FROM atproto_identity_cache WHERE did=$1`, did).Scan(&candidate.Handle, &candidate.ResolvedAt); err != nil && err != pgx.ErrNoRows {
+			return fmt.Errorf("identity cache claim current handle %s: %w", did, err)
+		}
+		if err := tx.QueryRow(ctx, `
+			INSERT INTO atproto_identity_refresh_state(
+				did,next_attempt_at,attempt_count,last_result,updated_at
+			) VALUES($1,$2,0,'pending',$2)
+			ON CONFLICT(did) DO UPDATE SET
+				next_attempt_at=EXCLUDED.next_attempt_at,
+				attempt_count=0,
+				last_result='pending',
+				updated_at=EXCLUDED.updated_at,
+				refresh_version=atproto_identity_refresh_state.refresh_version+1
+			RETURNING tap_event_id,refresh_version
+		`, did, now).Scan(&candidate.TapEventID, &candidate.Version); err != nil {
+			return fmt.Errorf("identity cache claim refresh %s: %w", did, err)
+		}
+		return nil
+	})
+	return candidate, err
+}
+
+func (s *IdentityCacheStore) withNonTerminalOwnerTx(
+	ctx context.Context,
+	did syntax.DID,
+	callback func(pgx.Tx) error,
+) error {
+	used, err := ownerlifecycle.WithPreheldNonTerminalOwnerTx(ctx, did, callback)
+	if used {
+		return err
+	}
+	return pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+		if err := ownerlifecycle.GuardNonTerminalTargetsTx(ctx, tx, []syntax.DID{did}); err != nil {
+			return fmt.Errorf("authorize identity cache refresh %s: %w", did, err)
+		}
+		return callback(tx)
+	})
 }
 
 func (s *IdentityCacheStore) refreshCandidates(ctx context.Context, limit int, now time.Time) ([]identityRefreshCandidate, error) {
@@ -343,46 +382,53 @@ func (s *IdentityCacheStore) completeRefresh(
 	candidate identityRefreshCandidate,
 	handle syntax.Handle,
 	resolvedAt time.Time,
-) (bool, error) {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return false, fmt.Errorf("identity cache complete refresh begin %s: %w", candidate.DID, err)
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-	if err := ownerlifecycle.GuardNonTerminalTargetsTx(ctx, tx, []syntax.DID{candidate.DID}); err != nil {
-		return false, fmt.Errorf("identity cache complete refresh authorize %s: %w", candidate.DID, err)
-	}
-	var currentVersion int64
-	err = tx.QueryRow(ctx, `
-		SELECT refresh_version
-		FROM atproto_identity_refresh_state
-		WHERE did=$1
-		FOR UPDATE
-	`, candidate.DID).Scan(&currentVersion)
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return false, nil
+	authorize ...func(pgx.Tx) error,
+) (identityRefreshCommit, bool, error) {
+	var commit identityRefreshCommit
+	completed := false
+	complete := func(tx pgx.Tx) error {
+		var currentVersion int64
+		err := tx.QueryRow(ctx, `
+			SELECT refresh_version
+			FROM atproto_identity_refresh_state
+			WHERE did=$1
+			FOR UPDATE
+		`, candidate.DID).Scan(&currentVersion)
+		if err != nil {
+			if err == pgx.ErrNoRows {
+				return nil
+			}
+			return fmt.Errorf("identity cache complete refresh state %s: %w", candidate.DID, err)
 		}
-		return false, fmt.Errorf("identity cache complete refresh state %s: %w", candidate.DID, err)
+		if currentVersion != candidate.Version {
+			return nil
+		}
+		if err := s.writeAuthoritativeTx(ctx, tx, candidate.DID, handle, resolvedAt, &commit); err != nil {
+			return err
+		}
+		result, err := tx.Exec(ctx, `
+			DELETE FROM atproto_identity_refresh_state
+			WHERE did=$1 AND refresh_version=$2
+		`, candidate.DID, candidate.Version)
+		if err != nil {
+			return fmt.Errorf("identity cache complete refresh clear %s: %w", candidate.DID, err)
+		}
+		if result.RowsAffected() != 1 {
+			return fmt.Errorf("identity cache complete refresh state changed for %s", candidate.DID)
+		}
+		completed = true
+		return nil
 	}
-	if currentVersion != candidate.Version {
-		return false, nil
+	var err error
+	if len(authorize) > 0 && authorize[0] != nil {
+		err = pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+			if err := authorize[0](tx); err != nil {
+				return fmt.Errorf("identity cache complete refresh authorize %s: %w", candidate.DID, err)
+			}
+			return complete(tx)
+		})
+	} else {
+		err = s.withNonTerminalOwnerTx(ctx, candidate.DID, complete)
 	}
-	if err := s.upsertAuthorizedTx(ctx, tx, candidate.DID, handle, resolvedAt); err != nil {
-		return false, err
-	}
-	result, err := tx.Exec(ctx, `
-		DELETE FROM atproto_identity_refresh_state
-		WHERE did=$1 AND refresh_version=$2
-	`, candidate.DID, candidate.Version)
-	if err != nil {
-		return false, fmt.Errorf("identity cache complete refresh clear %s: %w", candidate.DID, err)
-	}
-	if result.RowsAffected() != 1 {
-		return false, fmt.Errorf("identity cache complete refresh state changed for %s", candidate.DID)
-	}
-	if err := tx.Commit(ctx); err != nil {
-		return false, fmt.Errorf("identity cache complete refresh commit %s: %w", candidate.DID, err)
-	}
-	return true, nil
+	return commit, completed, err
 }

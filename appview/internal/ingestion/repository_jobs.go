@@ -47,14 +47,31 @@ type RepositoryClaim struct {
 
 type RepositoryJobHandler func(context.Context, RepositoryClaim) (authoritativeRevision string, err error)
 
+type RepositoryBacklogHealth struct {
+	Pending     int
+	OldestAge   time.Duration
+	MaxAttempts int
+}
+
 func (store *Store) EnqueueRepositoryJob(ctx context.Context, did syntax.DID, kind RepositoryJobKind) error {
 	if did == "" || !validRepositoryJobKind(kind) {
 		return errors.New("invalid Tap repository job")
 	}
-	now := store.now().UTC().Truncate(time.Microsecond)
 	return pgx.BeginFunc(ctx, store.pool, func(tx pgx.Tx) error {
-		return enqueueRepositoryJob(ctx, tx, did, string(kind), now)
+		return store.EnqueueRepositoryJobTx(ctx, tx, did, kind)
 	})
+}
+
+func (store *Store) EnqueueRepositoryJobTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	did syntax.DID,
+	kind RepositoryJobKind,
+) error {
+	if tx == nil || did == "" || !validRepositoryJobKind(kind) {
+		return errors.New("invalid Tap repository job")
+	}
+	return enqueueRepositoryJob(ctx, tx, did, string(kind), store.now().UTC().Truncate(time.Microsecond))
 }
 
 func validRepositoryJobKind(kind RepositoryJobKind) bool {
@@ -120,7 +137,12 @@ func (store *Store) runRepositoryJob(ctx context.Context, claim RepositoryClaim,
 	revision, handlerErr := handler(ctx, claim)
 	now := store.now().UTC().Truncate(time.Microsecond)
 	if handlerErr != nil {
-		rescheduleErr := store.rescheduleRepositoryJob(ctx, claim, now.Add(retryDelay), "remote_unavailable")
+		reason := "remote_unavailable"
+		var reasoned interface{ ReasonCode() string }
+		if errors.As(handlerErr, &reasoned) && strings.TrimSpace(reasoned.ReasonCode()) != "" && len(reasoned.ReasonCode()) <= 64 {
+			reason = reasoned.ReasonCode()
+		}
+		rescheduleErr := store.rescheduleRepositoryJob(ctx, claim, now.Add(retryDelay), reason)
 		return errors.Join(handlerErr, rescheduleErr)
 	}
 	result, err := store.pool.Exec(ctx, `
@@ -167,6 +189,27 @@ func (store *Store) RepositoryJob(ctx context.Context, did syntax.DID, kind Repo
 		       authoritative_revision,last_successful_at
 		FROM tap_repository_jobs WHERE did=$1 AND job_kind=$2
 	`, did, kind))
+}
+
+func (store *Store) RepositoryBacklogHealth(ctx context.Context) (RepositoryBacklogHealth, error) {
+	if store == nil || store.pool == nil {
+		return RepositoryBacklogHealth{}, errors.New("tap repository store is unavailable")
+	}
+	var health RepositoryBacklogHealth
+	var oldestSeconds float64
+	now := store.now().UTC().Truncate(time.Microsecond)
+	err := store.pool.QueryRow(ctx, `
+		SELECT count(*),
+		       COALESCE(EXTRACT(EPOCH FROM ($1-MIN(created_at))),0),
+		       COALESCE(MAX(attempts),0)
+		FROM tap_repository_jobs
+		WHERE state IN ('pending','processing')
+	`, now).Scan(&health.Pending, &oldestSeconds, &health.MaxAttempts)
+	if err != nil {
+		return RepositoryBacklogHealth{}, fmt.Errorf("inspect Tap repository backlog health: %w", err)
+	}
+	health.OldestAge = max(time.Duration(oldestSeconds*float64(time.Second)), 0)
+	return health, nil
 }
 
 func scanRepositoryClaim(row rowScanner) (RepositoryClaim, error) {

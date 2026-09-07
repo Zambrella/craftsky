@@ -74,7 +74,12 @@ void main() {
     expect(page.items[2], isA<RepostNotification>());
     expect(page.items[3], isA<ReplyNotification>());
     expect(page.items[4], isA<MentionNotification>());
-    expect((page.items[0] as SocialNotification).actor.displayLabel, 'Alice');
+    expect(
+      (page.items[0] as SocialNotification).actor.displayLabel(
+        'Handle unavailable',
+      ),
+      'Alice',
+    );
     expect((page.items[1] as LikeNotification).subjectPost.text, 'viewer post');
     expect(
       (page.items[3] as ReplyNotification).reply!.rkey.toString(),

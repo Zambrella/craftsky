@@ -193,7 +193,6 @@ final class _NativeVideoPlayerState extends State<NativeVideoPlayer>
                 child: ClipRRect(
                   key: const Key('native-video-clip'),
                   borderRadius: BorderRadius.circular(radius),
-                  clipBehavior: Clip.antiAlias,
                   child: AspectRatio(
                     aspectRatio: ratio,
                     child: _failed
@@ -235,11 +234,6 @@ final class _NativeVideoPlayerState extends State<NativeVideoPlayer>
               ),
             ),
           ),
-          if (widget.video.alt?.trim().isNotEmpty ?? false)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(widget.video.alt!),
-            ),
           if (_captions.isNotEmpty)
             Align(
               alignment: AlignmentDirectional.centerEnd,
@@ -298,6 +292,9 @@ class _NativeVideoThumbnail extends ConsumerWidget {
               imageUrl: uri.toString(),
               cacheManager: ref.watch(feedImageCacheManagerProvider),
               fit: BoxFit.cover,
+              errorWidget: (_, _, _) => const SizedBox(
+                key: Key('native-video-thumbnail-fallback'),
+              ),
             ),
           Center(
             child: loading

@@ -40,6 +40,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/languages/widgets/post_language_selector.dart';
+import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/scheduled_posts/composer/schedule_capacity_state.dart';
@@ -264,7 +265,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       }
     }
     if (widget.replyTarget?.reply != null) {
-      _text = '@${widget.replyTarget!.author.handle} ';
+      final alias = ProfileHandle(widget.replyTarget!.author.handle).aliasInput;
+      _text = alias == null ? '' : '@$alias ';
       _controller.text = _text;
       _controller.selection = TextSelection.collapsed(offset: _text.length);
     }
@@ -1011,6 +1013,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
           ({
             required authorizationHeader,
             required cancelToken,
+            required bypassDeduplication,
             required onProgress,
           }) => service.upload(
             source: VideoUploadSource(
@@ -1019,13 +1022,14 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
             ),
             ownerDid: owner.session.account.did.value,
             authorizationHeader: authorizationHeader,
+            bypassDeduplication: bypassDeduplication,
             cancelToken: cancelToken,
             onProgress: onProgress,
           ),
       poll: (jobId, cancelToken) =>
           service.getJobStatus(jobId, cancelToken: cancelToken),
       wait: Future<void>.delayed,
-      publish: (video) async {
+      publish: (video, {required allowBlobRecovery}) async {
         final created = await ref
             .read(createPostProvider.notifier)
             .create(
@@ -1034,8 +1038,10 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
               video: video,
               facets: facets.isEmpty ? null : facets,
               ownership: owner,
+              allowVideoBlobRecovery: allowBlobRecovery,
             );
-        _submissionSucceeded = created != null;
+        if (created == null) throw const VideoPublicationException(null);
+        _submissionSucceeded = true;
       },
       onProgress: (progress) {
         if (mounted) setState(() => _videoProgress = progress);
@@ -1740,6 +1746,7 @@ class _ComposerTargetPreview extends StatelessWidget {
     final theme = Theme.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final swatches = theme.extension<BrandSwatchTheme>()!;
+    final l10n = AppLocalizations.of(context);
     final displayName = post.author.displayName;
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -1755,7 +1762,9 @@ class _ComposerTargetPreview extends StatelessWidget {
             if (displayName != null && displayName.trim().isNotEmpty)
               Text(displayName, style: theme.textTheme.titleSmall),
             Text(
-              '@${post.author.handle}',
+              ProfileHandle(post.author.handle).currentLabel(
+                unavailableLabel: l10n.handleUnavailable,
+              ),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.outline,
               ),

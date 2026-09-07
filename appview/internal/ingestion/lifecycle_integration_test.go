@@ -213,7 +213,7 @@ func TestProfileSourceWinnerAndLifecycleTransitionCommitAtomically(t *testing.T)
 	assertLifecycleState(t, lifecycles, owner, ownerlifecycle.StateActive)
 }
 
-func TestTerminalIdentityReceiptAndLifecycleDenialCommitAtomically(t *testing.T) {
+func TestTapDeletedIdentityIsOnlyARefreshHint(t *testing.T) {
 	pool := lifecycleIngestionPool(t)
 	fencer, err := ownerlifecycle.NewFencer(pool, time.Second)
 	if err != nil {
@@ -227,49 +227,30 @@ func TestTerminalIdentityReceiptAndLifecycleDenialCommitAtomically(t *testing.T)
 	if err != nil {
 		t.Fatalf("new ingestion store: %v", err)
 	}
-	owner := syntax.DID("did:plc:terminal-owner")
+	owner := syntax.DID("did:plc:status-hint-owner")
 	identity := tap.IdentityEvent{ID: 90, DID: owner, Status: "deleted"}
-
-	failing := newLifecycleIngestionService(t, store, lifecycles, nil,
-		func(context.Context, pgx.Tx, *ownerlifecycle.Lifecycle, ownerlifecycle.Lifecycle) error {
-			return errInjectedLifecycleParticipant
-		})
-	if _, err := failing.IngestIdentity(context.Background(), identity); !errors.Is(err, errInjectedLifecycleParticipant) {
-		t.Fatalf("failed terminal identity error=%v", err)
+	active, err := lifecycles.EnsureOnboardingOwner(context.Background(), owner)
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, err := lifecycles.Get(context.Background(), owner); !errors.Is(err, pgx.ErrNoRows) {
-		t.Fatalf("lifecycle after failed terminal identity error=%v", err)
+	if _, err := lifecycles.Transition(context.Background(), ownerlifecycle.TransitionRequest{
+		Owner: owner, ExpectedGeneration: active.Generation,
+		To: ownerlifecycle.StateActive, Reason: "testActive",
+	}); err != nil {
+		t.Fatal(err)
 	}
-	assertIdentityReceiptCount(t, pool, 0)
 
 	service := newLifecycleIngestionService(t, store, lifecycles, nil, nil)
 	if outcome, err := service.IngestIdentity(context.Background(), identity); err != nil || outcome.Kind != tap.OutcomeApplied {
-		t.Fatalf("terminal identity outcome=%+v err=%v", outcome, err)
+		t.Fatalf("deleted identity hint outcome=%+v err=%v", outcome, err)
 	}
-	assertLifecycleState(t, lifecycles, owner, ownerlifecycle.StateTerminal)
+	assertLifecycleState(t, lifecycles, owner, ownerlifecycle.StateActive)
 	assertIdentityReceiptCount(t, pool, 1)
 	var components int
 	if err := pool.QueryRow(context.Background(), `
 		SELECT count(*) FROM owner_purge_components WHERE owner_did=$1
-	`, owner).Scan(&components); err != nil || components != len(ownerlifecycle.TerminalPurgeCatalogue()) {
-		t.Fatalf("terminal purge components=%d err=%v", components, err)
-	}
-
-	profile := tap.Event{
-		ID: 91, URI: "at://did:plc:terminal-owner/social.craftsky.actor.profile/self",
-		DID: owner, Collection: "social.craftsky.actor.profile", Rkey: "self",
-		Rev: "3aaaaaaaaaaab", CID: "bafy-terminal-profile", Action: "create",
-		Record: json.RawMessage(`{"crafts":["sewing"]}`),
-	}
-	if outcome, err := service.IngestRecord(context.Background(), profile); err != nil || outcome.Kind != tap.OutcomeApplied {
-		t.Fatalf("terminal profile denial outcome=%+v err=%v", outcome, err)
-	}
-	var addRepoJobs int
-	if err := pool.QueryRow(context.Background(), `
-		SELECT count(*) FROM tap_repository_jobs
-		WHERE did=$1 AND job_kind='tap_add_repo'
-	`, owner).Scan(&addRepoJobs); err != nil || addRepoJobs != 0 {
-		t.Fatalf("terminal profile enqueued Tap AddRepo jobs=%d err=%v", addRepoJobs, err)
+	`, owner).Scan(&components); err != nil || components != 0 {
+		t.Fatalf("status hint purge components=%d err=%v", components, err)
 	}
 }
 
@@ -278,7 +259,7 @@ func newLifecycleIngestionService(
 	store *ingestion.Store,
 	lifecycles *ownerlifecycle.Store,
 	profileParticipant ownerlifecycle.TransitionParticipant,
-	terminalParticipant ownerlifecycle.TerminalParticipant,
+	_ ownerlifecycle.TerminalParticipant,
 ) *ingestion.Service {
 	t.Helper()
 	if profileParticipant == nil {
@@ -286,16 +267,9 @@ func newLifecycleIngestionService(
 			return nil
 		}
 	}
-	if terminalParticipant == nil {
-		terminalParticipant = func(context.Context, pgx.Tx, *ownerlifecycle.Lifecycle, ownerlifecycle.Lifecycle) error {
-			return nil
-		}
-	}
 	service, err := ingestion.NewService(ingestion.ServiceConfig{
 		Store: store, Lifecycles: lifecycles,
-		ProfileParticipant:    profileParticipant,
-		TerminalParticipant:   terminalParticipant,
-		TerminalCommitTimeout: time.Second,
+		ProfileParticipant: profileParticipant,
 	})
 	if err != nil {
 		t.Fatalf("new ingestion service: %v", err)

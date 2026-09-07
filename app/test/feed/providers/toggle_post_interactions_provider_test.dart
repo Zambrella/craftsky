@@ -12,10 +12,13 @@ import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../fakes/fake_post_repository.dart';
+
+final _aliceDid = Did.parse('did:plc:alice');
 
 Map<String, dynamic> _postMap({
   required String rkey,
@@ -149,17 +152,16 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider('alice.craftsky.social').future);
-      await container.read(userPostsProvider('did:plc:alice').future);
+      await container.read(userPostsProvider(_aliceDid).future);
       await container.read(toggleLikePostProvider.notifier).toggle(post: post);
 
       final handleUpdated = container
-          .read(userPostsProvider('alice.craftsky.social'))
+          .read(userPostsProvider(_aliceDid))
           .value!
           .items
           .single;
       final didUpdated = container
-          .read(userPostsProvider('did:plc:alice'))
+          .read(userPostsProvider(_aliceDid))
           .value!
           .items
           .single;
@@ -189,11 +191,11 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider('alice.craftsky.social').future);
+      await container.read(userPostsProvider(_aliceDid).future);
       await container.read(toggleLikePostProvider.notifier).toggle(post: post);
 
       final updated = container
-          .read(userPostsProvider('alice.craftsky.social'))
+          .read(userPostsProvider(_aliceDid))
           .value!
           .items
           .single;
@@ -220,11 +222,11 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider('alice.craftsky.social').future);
+      await container.read(userPostsProvider(_aliceDid).future);
       await container.read(toggleLikePostProvider.notifier).toggle(post: post);
 
       final current = container
-          .read(userPostsProvider('alice.craftsky.social'))
+          .read(userPostsProvider(_aliceDid))
           .value!
           .items
           .single;
@@ -274,7 +276,7 @@ void main() {
     });
 
     test(
-      'IT-009 patches and rolls back project like caches for did/handle keys',
+      'IT-009 patches and rolls back the DID project like cache',
       () async {
         final post = _post(rkey: 'a', likeCount: 2, project: _project);
         var failLike = false;
@@ -300,12 +302,8 @@ void main() {
             postRepositoryProvider.overrideWithValue(fake),
           ],
         );
-        await container.read(userPostsProvider('did:plc:alice').future);
-        await container.read(userPostsProvider('alice.craftsky.social').future);
-        await container.read(userProjectsProvider('did:plc:alice').future);
-        await container.read(
-          userProjectsProvider('alice.craftsky.social').future,
-        );
+        await container.read(userPostsProvider(_aliceDid).future);
+        await container.read(userProjectsProvider(_aliceDid).future);
 
         await container
             .read(toggleLikePostProvider.notifier)
@@ -315,7 +313,7 @@ void main() {
         _expectProfilePostCachesUnchanged(container);
 
         final liked = container
-            .read(userProjectsProvider('alice.craftsky.social'))
+            .read(userProjectsProvider(_aliceDid))
             .value!
             .items
             .single;
@@ -327,7 +325,7 @@ void main() {
         _expectProfilePostCachesUnchanged(container);
 
         final unliked = container
-            .read(userProjectsProvider('alice.craftsky.social'))
+            .read(userProjectsProvider(_aliceDid))
             .value!
             .items
             .single;
@@ -366,13 +364,13 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider('alice.craftsky.social').future);
+      await container.read(userPostsProvider(_aliceDid).future);
       await container
           .read(toggleRepostPostProvider.notifier)
           .toggle(post: post);
 
       final updated = container
-          .read(userPostsProvider('alice.craftsky.social'))
+          .read(userPostsProvider(_aliceDid))
           .value!
           .items
           .single;
@@ -400,13 +398,13 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider('alice.craftsky.social').future);
+      await container.read(userPostsProvider(_aliceDid).future);
       await container
           .read(toggleRepostPostProvider.notifier)
           .toggle(post: post);
 
       final updated = container
-          .read(userPostsProvider('alice.craftsky.social'))
+          .read(userPostsProvider(_aliceDid))
           .value!
           .items
           .single;
@@ -433,13 +431,13 @@ void main() {
         ],
       );
 
-      await container.read(userPostsProvider('alice.craftsky.social').future);
+      await container.read(userPostsProvider(_aliceDid).future);
       await container
           .read(toggleRepostPostProvider.notifier)
           .toggle(post: post);
 
       final current = container
-          .read(userPostsProvider('alice.craftsky.social'))
+          .read(userPostsProvider(_aliceDid))
           .value!
           .items
           .single;
@@ -523,7 +521,7 @@ void main() {
     );
 
     test(
-      'IT-009 patches and rolls back project repost caches for did/handle keys',
+      'IT-009 patches and rolls back the DID project repost cache',
       () async {
         final post = _post(rkey: 'a', repostCount: 1, project: _project);
         var failRepost = false;
@@ -549,12 +547,8 @@ void main() {
             postRepositoryProvider.overrideWithValue(fake),
           ],
         );
-        await container.read(userPostsProvider('did:plc:alice').future);
-        await container.read(userPostsProvider('alice.craftsky.social').future);
-        await container.read(userProjectsProvider('did:plc:alice').future);
-        await container.read(
-          userProjectsProvider('alice.craftsky.social').future,
-        );
+        await container.read(userPostsProvider(_aliceDid).future);
+        await container.read(userProjectsProvider(_aliceDid).future);
 
         await container
             .read(toggleRepostPostProvider.notifier)
@@ -564,7 +558,7 @@ void main() {
         _expectProfilePostCachesUnchanged(container);
 
         final reposted = container
-            .read(userProjectsProvider('alice.craftsky.social'))
+            .read(userProjectsProvider(_aliceDid))
             .value!
             .items
             .single;
@@ -576,7 +570,7 @@ void main() {
         _expectProfilePostCachesUnchanged(container);
 
         final unreposted = container
-            .read(userProjectsProvider('alice.craftsky.social'))
+            .read(userProjectsProvider(_aliceDid))
             .value!
             .items
             .single;
@@ -598,24 +592,20 @@ void _expectProjectLikeCaches(
   required bool liked,
   required int likeCount,
 }) {
-  for (final id in const ['did:plc:alice', 'alice.craftsky.social']) {
-    final project = container
-        .read(userProjectsProvider(id))
-        .value!
-        .items
-        .single;
-    expect(project.viewerHasLiked, liked);
-    expect(project.likeCount, likeCount);
-  }
+  final project = container
+      .read(userProjectsProvider(_aliceDid))
+      .value!
+      .items
+      .single;
+  expect(project.viewerHasLiked, liked);
+  expect(project.likeCount, likeCount);
 }
 
 void _expectProfilePostCachesUnchanged(ProviderContainer container) {
-  for (final id in const ['did:plc:alice', 'alice.craftsky.social']) {
-    expect(
-      container.read(userPostsProvider(id)).value!.items.single.rkey,
-      'general',
-    );
-  }
+  expect(
+    container.read(userPostsProvider(_aliceDid)).value!.items.single.rkey,
+    'general',
+  );
 }
 
 void _expectProjectRepostCaches(
@@ -623,13 +613,11 @@ void _expectProjectRepostCaches(
   required bool reposted,
   required int repostCount,
 }) {
-  for (final id in const ['did:plc:alice', 'alice.craftsky.social']) {
-    final project = container
-        .read(userProjectsProvider(id))
-        .value!
-        .items
-        .single;
-    expect(project.viewerHasReposted, reposted);
-    expect(project.repostCount, repostCount);
-  }
+  final project = container
+      .read(userProjectsProvider(_aliceDid))
+      .value!
+      .items
+      .single;
+  expect(project.viewerHasReposted, reposted);
+  expect(project.repostCount, repostCount);
 }

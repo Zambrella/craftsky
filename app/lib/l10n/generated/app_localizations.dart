@@ -136,6 +136,12 @@ abstract class AppLocalizations {
   /// **'Profile'**
   String get navigationProfile;
 
+  /// Current identity label shown when an account has no bidirectionally valid handle.
+  ///
+  /// In en, this message translates to:
+  /// **'Handle unavailable'**
+  String get handleUnavailable;
+
   /// Compact label for the Saved posts navigation destination.
   ///
   /// In en, this message translates to:
@@ -2878,6 +2884,18 @@ abstract class AppLocalizations {
   /// **'How your name appears on your profile'**
   String get editProfileDisplayNameHint;
 
+  /// Label above the optional pronouns field in profile forms.
+  ///
+  /// In en, this message translates to:
+  /// **'Pronouns'**
+  String get editProfilePronounsLabel;
+
+  /// Hint text inside the free-form pronouns field in profile forms.
+  ///
+  /// In en, this message translates to:
+  /// **'For example, she/her or they/them'**
+  String get editProfilePronounsHint;
+
   /// Label above the bio field on the profile-edit page.
   ///
   /// In en, this message translates to:
@@ -2895,6 +2913,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Display name must be 64 characters or fewer'**
   String get editProfileDisplayNameTooLong;
+
+  /// Form-validation error shown below the pronouns field when the user exceeds the Bluesky profile lexicon's 20-grapheme limit.
+  ///
+  /// In en, this message translates to:
+  /// **'Pronouns must be 20 characters or fewer'**
+  String get editProfilePronounsTooLong;
 
   /// Form-validation error shown below the bio field on the profile-edit page when the user enters more than 256 characters (the AppView profile lexicon's grapheme limit).
   ///
@@ -5259,17 +5283,17 @@ abstract class AppLocalizations {
   /// **'Confirm account deletion'**
   String get deleteAccountConfirmTitle;
 
-  /// Label for exact-handle deletion confirmation input.
+  /// Label for exact-DID deletion confirmation input.
   ///
   /// In en, this message translates to:
-  /// **'Type your handle'**
-  String get deleteAccountTypeHandleLabel;
+  /// **'Type your DID'**
+  String get deleteAccountTypeDidLabel;
 
-  /// Prompt for exact-handle deletion confirmation.
+  /// Prompt for exact-DID deletion confirmation.
   ///
   /// In en, this message translates to:
-  /// **'Type {handle} exactly to permanently delete this CraftSky account.'**
-  String deleteAccountConfirmationPrompt(String handle);
+  /// **'Type {did} exactly to permanently delete this CraftSky account.'**
+  String deleteAccountDidConfirmationPrompt(String did);
 
   /// Coarse sign-in outcome while durable account deletion is active.
   ///
@@ -5277,11 +5301,11 @@ abstract class AppLocalizations {
   /// **'Your CraftSky account deletion is already in progress. You cannot sign in again until it has finished.'**
   String get accountDeletionAlreadyInProgress;
 
-  /// Permanent CraftSky deletion boundary shown before typed-handle confirmation.
+  /// Permanent CraftSky deletion boundary shown before typed-DID confirmation.
   ///
   /// In en, this message translates to:
-  /// **'Deleting {handle} permanently removes all your CraftSky data from your PDS and all private data held by CraftSky. It won’t delete your PDS, DID, or wider AT Protocol account.\n\nTo continue, you’ll need to authenticate with your PDS again.'**
-  String deleteAccountBoundary(String handle);
+  /// **'Deleting the CraftSky account identified by {did} permanently removes all your CraftSky data from your PDS and all private data held by CraftSky. It won’t delete your PDS, DID, or wider AT Protocol account.\n\nTo continue, you’ll need to authenticate with your PDS again.'**
+  String deleteAccountDidBoundary(String did);
 
   /// Accessible label while the composer fetches a link preview.
   ///
@@ -5436,7 +5460,7 @@ abstract class AppLocalizations {
   /// No description provided for @onboardingProfileDescription.
   ///
   /// In en, this message translates to:
-  /// **'Add a name, bio, and photo so other crafters can recognize you.'**
+  /// **'Add a name, pronouns, bio, and photo so other crafters can recognize you.'**
   String get onboardingProfileDescription;
 
   /// No description provided for @onboardingAvatarUploading.

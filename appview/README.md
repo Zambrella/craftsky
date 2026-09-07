@@ -102,7 +102,7 @@ Exit codes for `cli request`:
 
 ## Key Dependencies
 
-- [`github.com/bluesky-social/indigo`](https://github.com/bluesky-social/indigo) — source of the Tap sidecar image; indigo Go SDK will be adopted for OAuth (TMB) when that lands
+- [`github.com/bluesky-social/indigo`](https://github.com/bluesky-social/indigo) — atproto identifiers, identity resolution, OAuth/DPoP sessions, XRPC clients, repository verification, generated Bluesky types, and the Tap sidecar source
 - [`github.com/coder/websocket`](https://github.com/coder/websocket) — WebSocket client for the Tap `/channel` stream
 - [`pgx/v5`](https://github.com/jackc/pgx) — Postgres driver + pool
 - [`sqlc`](https://sqlc.dev) — SQL → Go codegen — to be adopted once first queries land
@@ -316,7 +316,7 @@ operation.
 
 ## Observability
 
-AppView emits structured JSON logs with a per-request `run_id`, safe route-pattern fields, and no request or response bodies by default. Sensitive headers such as `Authorization`, `Cookie`, `DPoP`, and Craftsky device/session token headers are redacted in request logs.
+AppView emits structured JSON logs with a per-request `run_id`, safe route-pattern fields, and no request or response bodies by default. Sensitive headers such as `Authorization`, `Cookie`, `DPoP`, and Craftsky device/session token headers are redacted in request logs. Sentry automatic collection of user information, cookies, HTTP headers and bodies, and query parameters is disabled explicitly.
 
 AppView does not expose a local `/metrics` endpoint. Metrics are recorded through AppView-domain methods and are sent to Sentry Application Metrics only when Sentry metrics are explicitly enabled. With no Sentry DSN, or with metrics disabled, runtime metric calls use a no-op recorder; tests can inject an in-memory recorder.
 

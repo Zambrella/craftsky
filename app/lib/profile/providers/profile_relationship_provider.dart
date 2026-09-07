@@ -12,6 +12,7 @@ import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/search/providers/blank_search_provider.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -48,7 +49,7 @@ class ProfileRelationshipController extends _$ProfileRelationshipController {
   void Function()? _cancelReconciliation;
 
   @override
-  ProfileRelationship build(AccountKey account, String handleOrDid) {
+  ProfileRelationship build(AccountKey account, Did did) {
     ref.onDispose(() => _cancelReconciliation?.call());
     return const ProfileRelationship();
   }
@@ -121,15 +122,15 @@ class ProfileRelationshipController extends _$ProfileRelationshipController {
     ProfileRepository repository,
     ProfileRelationshipAction action,
   ) => switch (action) {
-    ProfileRelationshipAction.mute => repository.mute(handleOrDid),
-    ProfileRelationshipAction.unmute => repository.unmute(handleOrDid),
-    ProfileRelationshipAction.block => repository.block(handleOrDid),
-    ProfileRelationshipAction.unblock => repository.unblock(handleOrDid),
+    ProfileRelationshipAction.mute => repository.mute(did),
+    ProfileRelationshipAction.unmute => repository.unmute(did),
+    ProfileRelationshipAction.block => repository.block(did),
+    ProfileRelationshipAction.unblock => repository.unblock(did),
   };
 
   void _invalidateAffectedSurfaces() {
     ref
-      ..invalidate(userProfileProvider(handleOrDid))
+      ..invalidate(userProfileProvider(did))
       ..invalidate(timelineProvider)
       ..invalidate(blankSearchProvider)
       ..invalidate(accountNotificationsProvider(account))
@@ -144,19 +145,17 @@ class ProfileRelationshipController extends _$ProfileRelationshipController {
       return;
     }
     if (ref.exists(timelineProvider)) {
-      ref.read(timelineProvider.notifier).suppressActor(handleOrDid);
+      ref.read(timelineProvider.notifier).suppressActor(did);
     }
     var removed = 0;
     final accountNotifications = accountNotificationsProvider(account);
     if (ref.exists(accountNotifications)) {
-      removed = ref
-          .read(accountNotifications.notifier)
-          .suppressActor(handleOrDid);
+      removed = ref.read(accountNotifications.notifier).suppressActor(did);
     }
     if (ref.exists(notificationsProvider)) {
       final legacyRemoved = ref
           .read(notificationsProvider.notifier)
-          .suppressActor(handleOrDid);
+          .suppressActor(did);
       if (legacyRemoved > removed) removed = legacyRemoved;
     }
     final accountCount = accountNotificationNewCountProvider(account);

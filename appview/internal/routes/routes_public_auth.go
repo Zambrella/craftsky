@@ -39,8 +39,7 @@ type oauthRouteDependencies struct {
 	sessionStore             *auth.CraftskySessionStore
 	db                       *pgxpool.Pool
 	logger                   *slog.Logger
-	identityCacheUpdater     auth.IdentityCacheUpdater
-	repositoryTracker        auth.RepositoryTracker
+	identityCacheUpdater     auth.IdentityCacheRefresher
 	deletionOAuth            auth.AccountDeletionOAuthCallbacks
 	deletionPendingLogin     auth.AccountDeletionPendingLoginPolicy
 	oauthFlow                auth.OAuthFlowCoordinator
@@ -64,7 +63,6 @@ func newOAuthHandlers(deps oauthRouteDependencies) *auth.HTTPHandlers {
 		deps.logger,
 		deps.identityCacheUpdater,
 	)
-	handlers.RepositoryTracker = deps.repositoryTracker
 	handlers.DeletionOAuthCallbacks = deps.deletionOAuth
 	handlers.DeletionPendingLogin = deps.deletionPendingLogin
 	handlers.OAuthFlow = deps.oauthFlow

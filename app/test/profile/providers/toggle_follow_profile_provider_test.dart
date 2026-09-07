@@ -4,12 +4,14 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../fakes/fake_profile_repository.dart';
 
 void main() {
+  final bobDid = Did.parse('did:plc:bob');
   group('ToggleFollowProfile', () {
     test(
       'sets loading and optimistic cache while request is in flight',
@@ -30,23 +32,26 @@ void main() {
         final container = ProviderContainer.test(
           overrides: [profileRepositoryProvider.overrideWithValue(repo)],
         );
+        final subscription = container.listen(
+          userProfileProvider(bobDid),
+          (_, _) {},
+        );
+        addTearDown(subscription.close);
 
-        await container.read(userProfileProvider('bob.craftsky.social').future);
+        await container.read(userProfileProvider(bobDid).future);
 
         final toggle = container.read(toggleFollowProfileProvider.notifier);
         final pending = toggle.toggle(
-          cacheKey: 'bob.craftsky.social',
+          cacheKey: bobDid,
           profile: seed,
         );
 
         expect(container.read(toggleFollowProfileProvider).isLoading, isTrue);
         expect(
-          container.read(userProfileProvider('bob.craftsky.social')).value,
+          container.read(userProfileProvider(bobDid)).value,
           isNotNull,
         );
-        final optimistic = container
-            .read(userProfileProvider('bob.craftsky.social'))
-            .value!;
+        final optimistic = container.read(userProfileProvider(bobDid)).value!;
         expect(optimistic.viewerIsFollowing, isTrue);
         expect(optimistic.followerCount, 5);
 
@@ -55,9 +60,7 @@ void main() {
         );
         await pending;
 
-        final confirmed = container
-            .read(userProfileProvider('bob.craftsky.social'))
-            .value!;
+        final confirmed = container.read(userProfileProvider(bobDid)).value!;
         expect(confirmed.viewerIsFollowing, isTrue);
         expect(confirmed.followerCount, 9);
       },
@@ -79,18 +82,21 @@ void main() {
       final container = ProviderContainer.test(
         overrides: [profileRepositoryProvider.overrideWithValue(repo)],
       );
+      final subscription = container.listen(
+        userProfileProvider(bobDid),
+        (_, _) {},
+      );
+      addTearDown(subscription.close);
 
-      await container.read(userProfileProvider('bob.craftsky.social').future);
+      await container.read(userProfileProvider(bobDid).future);
       await container
           .read(toggleFollowProfileProvider.notifier)
           .toggle(
-            cacheKey: 'bob.craftsky.social',
+            cacheKey: bobDid,
             profile: seed,
           );
 
-      final current = container
-          .read(userProfileProvider('bob.craftsky.social'))
-          .value!;
+      final current = container.read(userProfileProvider(bobDid)).value!;
       expect(current.viewerIsFollowing, isFalse);
       expect(current.followerCount, 4);
       expect(container.read(toggleFollowProfileProvider).hasError, isTrue);
@@ -116,18 +122,21 @@ void main() {
         final container = ProviderContainer.test(
           overrides: [profileRepositoryProvider.overrideWithValue(repo)],
         );
+        final subscription = container.listen(
+          userProfileProvider(bobDid),
+          (_, _) {},
+        );
+        addTearDown(subscription.close);
 
-        await container.read(userProfileProvider('bob.craftsky.social').future);
+        await container.read(userProfileProvider(bobDid).future);
         final pending = container
             .read(toggleFollowProfileProvider.notifier)
             .toggle(
-              cacheKey: 'bob.craftsky.social',
+              cacheKey: bobDid,
               profile: seed,
             );
 
-        final optimistic = container
-            .read(userProfileProvider('bob.craftsky.social'))
-            .value!;
+        final optimistic = container.read(userProfileProvider(bobDid)).value!;
         expect(optimistic.viewerIsFollowing, isFalse);
         expect(optimistic.followerCount, 3);
 
@@ -136,9 +145,7 @@ void main() {
         );
         await pending;
 
-        final confirmed = container
-            .read(userProfileProvider('bob.craftsky.social'))
-            .value!;
+        final confirmed = container.read(userProfileProvider(bobDid)).value!;
         expect(confirmed.viewerIsFollowing, isFalse);
         expect(confirmed.followerCount, 1);
       },

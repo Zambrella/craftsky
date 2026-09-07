@@ -22,45 +22,38 @@ var (
 )
 
 type ServiceConfig struct {
-	Store                 *Store
-	Lifecycles            *ownerlifecycle.Store
-	ProfileParticipant    ownerlifecycle.TransitionParticipant
-	TerminalParticipant   ownerlifecycle.TerminalParticipant
-	TerminalCommitTimeout time.Duration
-	IdentityInvalidator   IdentityInvalidator
+	Store               *Store
+	Lifecycles          *ownerlifecycle.Store
+	ProfileParticipant  ownerlifecycle.TransitionParticipant
+	IdentityInvalidator IdentityInvalidator
 }
 
 type IdentityInvalidator interface {
 	InvalidateIdentity(context.Context, syntax.DID, ...syntax.Handle)
 }
 
-// Service is the production Tap DurableIngestor. Profile and terminal identity
-// events compose durable source/receipt state into the owner lifecycle's
-// fenced transaction; ordinary records use Store's source-first transaction.
+// Service is the production Tap DurableIngestor. Profile events compose durable
+// source/receipt state into the owner lifecycle's fenced transaction; ordinary
+// records and identity refresh hints use Store's source-first transactions.
 type Service struct {
-	store                 *Store
-	lifecycles            *ownerlifecycle.Store
-	profileParticipant    ownerlifecycle.TransitionParticipant
-	terminalParticipant   ownerlifecycle.TerminalParticipant
-	terminalCommitTimeout time.Duration
-	identityInvalidator   IdentityInvalidator
+	store               *Store
+	lifecycles          *ownerlifecycle.Store
+	profileParticipant  ownerlifecycle.TransitionParticipant
+	identityInvalidator IdentityInvalidator
 }
 
 var _ tap.DurableIngestor = (*Service)(nil)
 
 func NewService(config ServiceConfig) (*Service, error) {
-	if config.Store == nil || config.Lifecycles == nil || config.ProfileParticipant == nil ||
-		config.TerminalParticipant == nil || config.TerminalCommitTimeout <= 0 {
-		return nil, errors.New("ingestion service requires store, lifecycle store, lifecycle participants, and terminal purge catalogue")
+	if config.Store == nil || config.Lifecycles == nil || config.ProfileParticipant == nil {
+		return nil, errors.New("ingestion service requires store, lifecycle store, and profile lifecycle participant")
 	}
 	config.Store.lifecycleAware = true
 	return &Service{
-		store:                 config.Store,
-		lifecycles:            config.Lifecycles,
-		profileParticipant:    config.ProfileParticipant,
-		terminalParticipant:   config.TerminalParticipant,
-		terminalCommitTimeout: config.TerminalCommitTimeout,
-		identityInvalidator:   config.IdentityInvalidator,
+		store:               config.Store,
+		lifecycles:          config.Lifecycles,
+		profileParticipant:  config.ProfileParticipant,
+		identityInvalidator: config.IdentityInvalidator,
 	}, nil
 }
 
@@ -209,31 +202,14 @@ func (service *Service) IngestIdentity(ctx context.Context, event tap.IdentityEv
 	if event.ID == 0 || event.DID == "" {
 		return tap.Retryable(tap.ReasonInvalidIdentity), errors.New("invalid Tap identity event")
 	}
-	if event.Status != "deleted" {
-		return service.store.ingestOrdinaryIdentity(ctx, event, service.identityInvalidator)
-	}
-	fingerprint, err := identityFingerprint(event)
+	policy, err := classifyIdentityEvent(event)
 	if err != nil {
 		return tap.Retryable(tap.ReasonInvalidIdentity), err
 	}
-	now := service.store.now().UTC().Truncate(time.Microsecond)
-	terminalCtx, cancel := context.WithTimeout(ctx, service.terminalCommitTimeout)
-	defer cancel()
-	_, err = service.lifecycles.TerminalizeWith(terminalCtx, ownerlifecycle.TerminalizeRequest{
-		Owner: event.DID, Reason: "tapIdentityDeleted",
-	}, func(ctx context.Context, tx pgx.Tx, before *ownerlifecycle.Lifecycle, terminal ownerlifecycle.Lifecycle) error {
-		if err := insertReceipt(ctx, tx, fingerprint, event.ID, "identity", tap.Applied(), "", tap.ReasonNone, now); err != nil {
-			return err
-		}
-		if service.terminalParticipant != nil {
-			return service.terminalParticipant(ctx, tx, before, terminal)
-		}
-		return nil
-	})
-	if err != nil {
-		return tap.Retryable(tap.ReasonStorageUnavailable), err
+	if policy.enqueueRefresh {
+		return service.store.ingestOrdinaryIdentity(ctx, event, service.identityInvalidator)
 	}
-	return tap.Applied(), nil
+	return tap.Retryable(tap.ReasonInvalidIdentity), errors.New("tap identity event produced no refresh hint")
 }
 
 func (service *Service) Quarantine(ctx context.Context, event tap.InvalidEvent) (tap.Outcome, error) {

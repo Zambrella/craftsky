@@ -30,6 +30,7 @@ import 'package:craftsky_app/settings/pages/follower_growth_page.dart';
 import 'package:craftsky_app/settings/pages/profile_customisation_page.dart';
 import 'package:craftsky_app/settings/pages/relationship_list_page.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -185,7 +186,7 @@ void main() {
         expect(find.byType(AppearancePage), findsOneWidget);
         unawaited(
           router.push(
-            const UserProfileRoute(handle: 'detail.bsky.social').location,
+            UserProfileRoute(did: Did.parse('did:plc:detail')).location,
           ),
         );
         await tester.pumpAndSettle();

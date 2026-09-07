@@ -20,6 +20,7 @@ import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
 import 'package:craftsky_app/profile/widgets/profile_route_presentation.dart';
 import 'package:craftsky_app/profile/widgets/profile_stats.dart';
 import 'package:craftsky_app/profile/widgets/profile_tab_bar.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
@@ -95,11 +96,15 @@ Widget _wrap(
 
 Profile _profile({
   ProfileCustomisation customisation = ProfileCustomisation.defaults,
+  String handle = 'alice.craftsky.social',
+  String? displayName = 'Alice',
+  String? pronouns,
 }) {
   return Profile(
     did: 'did:plc:alice',
-    handle: 'alice.craftsky.social',
-    displayName: 'Alice',
+    handle: handle,
+    displayName: displayName,
+    pronouns: pronouns,
     description: 'A maker bio.',
     crafts: const ['knitting', 'sewing'],
     createdAt: DateTime.now().subtract(const Duration(days: 370)),
@@ -141,6 +146,68 @@ Map<String, double> _profileVerticalGaps(
 
 void main() {
   group('ProfileCard', () {
+    testWidgets('shows free-form pronouns with the profile identity', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          ProfileCard(
+            profile: _profile(pronouns: 'she/they'),
+            isOwnProfile: false,
+            onClose: () {},
+            onVisitProfile: () {},
+            onPrimaryAction: () {},
+          ),
+        ),
+      );
+
+      expect(find.text('she/they'), findsOneWidget);
+    });
+
+    testWidgets(
+      'UT-014 renders unavailable copy instead of the sentinel',
+      (tester) async {
+        await tester.pumpWidget(
+          _wrap(
+            ProfileCard(
+              profile: _profile(handle: 'handle.invalid'),
+              isOwnProfile: false,
+              onClose: () {},
+              onVisitProfile: () {},
+              onPrimaryAction: () {},
+            ),
+          ),
+        );
+
+        expect(find.text('Alice'), findsOneWidget);
+        expect(find.text('Handle unavailable'), findsOneWidget);
+        expect(find.textContaining('handle.invalid'), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'UT-014 uses unavailable copy when no display identity is available',
+      (tester) async {
+        await tester.pumpWidget(
+          _wrap(
+            ProfileCard(
+              profile: _profile(
+                handle: 'handle.invalid',
+                displayName: null,
+              ),
+              isOwnProfile: false,
+              onClose: () {},
+              onVisitProfile: () {},
+              onPrimaryAction: () {},
+            ),
+          ),
+        );
+
+        expect(find.text('Handle unavailable'), findsOneWidget);
+        expect(find.textContaining('handle.invalid'), findsNothing);
+      },
+    );
+
     testWidgets(
       'TDD-001 scopes the profile colour and defaults the texture off',
       (tester) async {
@@ -481,8 +548,8 @@ void main() {
 
       await tester.pumpWidget(
         _wrap(
-          const ProfileRoutePresentation(
-            handle: 'alice.craftsky.social',
+          ProfileRoutePresentation(
+            did: Did.parse('did:plc:alice'),
             startsCompact: true,
           ),
           overrides: [
@@ -494,7 +561,7 @@ void main() {
 
       await tester.pumpAndSettle();
 
-      expect(fetchedKey, 'alice.craftsky.social');
+      expect(fetchedKey, 'did:plc:alice');
       expect(find.byType(ProfileCard), findsOneWidget);
       expect(
         find.byKey(const Key('profile-card-transition-surface')),
@@ -515,8 +582,8 @@ void main() {
 
       await tester.pumpWidget(
         _wrap(
-          const ProfileRoutePresentation(
-            handle: 'alice.craftsky.social',
+          ProfileRoutePresentation(
+            did: Did.parse('did:plc:alice'),
             startsCompact: true,
           ),
           overrides: [
@@ -530,39 +597,70 @@ void main() {
       await tester.tap(find.text('Follow'));
       await tester.pumpAndSettle();
 
-      expect(followedKey, 'alice.craftsky.social');
+      expect(followedKey, 'did:plc:alice');
       expect(find.text('Unfollow'), findsOneWidget);
     });
 
-    testWidgets('TDD-004C own profile card only offers profile navigation', (
-      tester,
-    ) async {
-      final repository = FakeProfileRepository(
-        onFetch: (_) async => _profile(),
-      );
+    testWidgets(
+      'UT-010 own profile card recognizes viewer by DID after handle change',
+      (tester) async {
+        final repository = FakeProfileRepository(
+          onFetch: (_) async => _profile(),
+        );
 
-      await tester.pumpWidget(
-        _wrap(
-          const ProfileRoutePresentation(
-            handle: 'alice.craftsky.social',
-            startsCompact: true,
-          ),
-          overrides: [
-            profileRepositoryProvider.overrideWithValue(repository),
-            authSessionProvider.overrideWith(
-              () => SignedInAuthSession(did: 'did:plc:alice'),
+        await tester.pumpWidget(
+          _wrap(
+            ProfileRoutePresentation(
+              did: Did.parse('did:plc:alice'),
+              startsCompact: true,
             ),
-          ],
-        ),
-      );
+            overrides: [
+              profileRepositoryProvider.overrideWithValue(repository),
+              authSessionProvider.overrideWith(
+                () => SignedInAuthSession(did: 'did:plc:alice'),
+              ),
+            ],
+          ),
+        );
 
-      await tester.pumpAndSettle();
+        await tester.pumpAndSettle();
 
-      expect(find.byType(ProfileCard), findsOneWidget);
-      expect(find.text('Visit profile'), findsOneWidget);
-      expect(find.text('Edit profile'), findsNothing);
-      expect(find.byType(ChunkyButton), findsNothing);
-    });
+        expect(find.byType(ProfileCard), findsOneWidget);
+        expect(find.text('Visit profile'), findsOneWidget);
+        expect(find.text('Edit profile'), findsNothing);
+        expect(find.byType(ChunkyButton), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'UT-010 profile card treats equal handle with different DID as visitor',
+      (tester) async {
+        final repository = FakeProfileRepository(
+          onFetch: (_) async => _profile().copyWith(
+            did: Did.parse('did:plc:other'),
+            handle: 'test.bsky.social',
+          ),
+        );
+
+        await tester.pumpWidget(
+          _wrap(
+            ProfileRoutePresentation(
+              did: Did.parse('did:plc:other'),
+              startsCompact: true,
+            ),
+            overrides: [
+              profileRepositoryProvider.overrideWithValue(repository),
+              authSessionProvider.overrideWith(SignedInAuthSession.new),
+            ],
+          ),
+        );
+
+        await tester.pumpAndSettle();
+
+        expect(find.byType(ProfileCard), findsOneWidget);
+        expect(find.text('Follow'), findsOneWidget);
+      },
+    );
 
     testWidgets('TDD-005A opening a summary enters the profile route', (
       tester,
@@ -581,7 +679,7 @@ void main() {
                 child: TextButton(
                   onPressed: () => showUserProfileCard(
                     context,
-                    handleOrDid: 'alice.craftsky.social',
+                    did: Did.parse('did:plc:alice'),
                   ),
                   child: const Text('Open card'),
                 ),
@@ -589,7 +687,7 @@ void main() {
             ),
           ),
           GoRoute(
-            path: '/profile/:handle',
+            path: '/profiles/:did',
             builder: (context, state) {
               navigationExtra = state.extra;
               return const Scaffold(body: Text('Profile route'));
@@ -619,7 +717,7 @@ void main() {
 
       expect(
         router.state.uri.path,
-        '/profile/alice.craftsky.social',
+        '/profiles/did%3Aplc%3Aalice',
       );
       expect(navigationExtra, isNotNull);
     });
@@ -642,7 +740,7 @@ void main() {
                   child: TextButton(
                     onPressed: () => showUserProfileCard(
                       context,
-                      handleOrDid: 'alice.craftsky.social',
+                      did: Did.parse('did:plc:alice'),
                     ),
                     child: const Text('Open card'),
                   ),
@@ -650,7 +748,7 @@ void main() {
               ),
             ),
             GoRoute(
-              path: '/profile/:handle',
+              path: '/profiles/:did',
               pageBuilder: (context, state) {
                 navigationExtra = state.extra;
                 final request = state.extra as ProfilePresentationRequest?;
@@ -658,7 +756,7 @@ void main() {
                   key: state.pageKey,
                   startsCompact: request?.startsCompact ?? false,
                   child: ProfileRoutePresentation(
-                    handle: state.pathParameters['handle']!,
+                    did: Did.parse(state.pathParameters['did']!),
                     startsCompact: request?.startsCompact ?? false,
                   ),
                 );
@@ -909,8 +1007,8 @@ void main() {
           theme: AppTheme.lightThemeData,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: const ProfileRoutePresentation(
-            handle: 'alice.craftsky.social',
+          home: ProfileRoutePresentation(
+            did: Did.parse('did:plc:alice'),
             startsCompact: false,
           ),
         ),
@@ -958,8 +1056,8 @@ void main() {
             theme: AppTheme.lightThemeData,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
-            home: const ProfileRoutePresentation(
-              handle: 'alice.craftsky.social',
+            home: ProfileRoutePresentation(
+              did: Did.parse('did:plc:alice'),
               startsCompact: true,
             ),
           ),
@@ -1040,8 +1138,8 @@ void main() {
             ).copyWith(textScaler: const TextScaler.linear(2)),
             child: child!,
           ),
-          home: const ProfileRoutePresentation(
-            handle: 'alice.craftsky.social',
+          home: ProfileRoutePresentation(
+            did: Did.parse('did:plc:alice'),
             startsCompact: true,
           ),
         ),

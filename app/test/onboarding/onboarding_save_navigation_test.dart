@@ -117,6 +117,7 @@ Future<void> _pumpPage(
     onUpdateMe:
         ({
           displayName,
+          pronouns,
           description,
           crafts,
           avatar,

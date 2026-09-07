@@ -3,9 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('deletion confirmation explains the permanent CraftSky boundary', () {
-    final copy = AppLocalizationsEn().deleteAccountBoundary('@alice.test');
+    final copy = AppLocalizationsEn().deleteAccountDidBoundary('did:plc:alice');
 
-    expect(copy, contains('@alice.test'));
+    expect(copy, contains('did:plc:alice'));
     expect(copy, contains('all your CraftSky data from your PDS'));
     expect(copy, contains('all private data held by CraftSky'));
     expect(copy, contains('won’t delete your PDS, DID'));

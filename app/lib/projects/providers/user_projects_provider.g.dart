@@ -16,7 +16,7 @@ final class UserProjectsProvider
     extends $AsyncNotifierProvider<UserProjects, UserProjectsState> {
   UserProjectsProvider._({
     required UserProjectsFamily super.from,
-    required String super.argument,
+    required Did super.argument,
   }) : super(
          retry: null,
          name: r'userProjectsProvider',
@@ -50,7 +50,7 @@ final class UserProjectsProvider
   }
 }
 
-String _$userProjectsHash() => r'827b6c32b16f6411ef2af2cb8fa41148c740fe76';
+String _$userProjectsHash() => r'1c2d7e836ebdd738f002625404747a7c104d4ca8';
 
 final class UserProjectsFamily extends $Family
     with
@@ -59,7 +59,7 @@ final class UserProjectsFamily extends $Family
           AsyncValue<UserProjectsState>,
           UserProjectsState,
           FutureOr<UserProjectsState>,
-          String
+          Did
         > {
   UserProjectsFamily._()
     : super(
@@ -70,18 +70,18 @@ final class UserProjectsFamily extends $Family
         isAutoDispose: true,
       );
 
-  UserProjectsProvider call(String handleOrDid) =>
-      UserProjectsProvider._(argument: handleOrDid, from: this);
+  UserProjectsProvider call(Did did) =>
+      UserProjectsProvider._(argument: did, from: this);
 
   @override
   String toString() => r'userProjectsProvider';
 }
 
 abstract class _$UserProjects extends $AsyncNotifier<UserProjectsState> {
-  late final _$args = ref.$arg as String;
-  String get handleOrDid => _$args;
+  late final _$args = ref.$arg as Did;
+  Did get did => _$args;
 
-  FutureOr<UserProjectsState> build(String handleOrDid);
+  FutureOr<UserProjectsState> build(Did did);
   @$mustCallSuper
   @override
   void runBuild() {

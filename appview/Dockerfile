@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
-FROM golang:1.26.6-alpine@sha256:af8d6740070b8906d12eae1c3e3ea0957fb63f492051ea05e354c38ef9fe88df AS build
+FROM golang:1.27.1-alpine@sha256:cf6fca6641884b8433441b2b0652976f975e1d0fdd26d177eaaf8596087f3125 AS build
 WORKDIR /src
-RUN test "$(go env GOVERSION)" = "go1.26.6"
+RUN test "$(go env GOVERSION)" = "go1.27.1"
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .

@@ -46,6 +46,7 @@ func (s *BackgroundSessionSelector) Select(ctx context.Context, owner syntax.DID
 		  AND oauth.lifecycle_state = 'active'
 		  AND oauth.absolute_expires_at > now()
 		  AND owner.state = 'active'
+		  AND owner.generation = oauth.owner_generation
 		  AND owner.auth_epoch = oauth.auth_epoch
 		ORDER BY activity.last_seen_at DESC,
 		         oauth.updated_at DESC,

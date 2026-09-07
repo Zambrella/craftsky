@@ -91,9 +91,8 @@ func (outcome Outcome) Acknowledgable() bool {
 	}
 }
 
-// IdentityEvent is the validated Tap v0.1.10 identity envelope. Deleted is
-// the irreversible terminal action; the other documented statuses remain
-// durable ordinary identity observations.
+// IdentityEvent is the validated Tap v0.1.10 identity envelope. Every status
+// is a synchronization hint; authoritative identity refresh owns presentation.
 type IdentityEvent struct {
 	ID       uint64
 	DID      syntax.DID

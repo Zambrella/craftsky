@@ -76,14 +76,17 @@ func (r DirectoryHandleResolver) ResolveHandle(ctx context.Context, did syntax.D
 	if err != nil {
 		return "", fmt.Errorf("%w: lookup: %w", ErrHandleUnavailable, err)
 	}
-	if id.Handle == "" || id.Handle == syntax.HandleInvalid {
-		return "", fmt.Errorf("%w: empty handle for %s", ErrHandleUnavailable, did)
+	if id.Handle == "" {
+		return syntax.HandleInvalid, nil
 	}
 	return id.Handle, nil
 }
 
 // ResolveDID returns the DID for handle.
 func (r DirectoryHandleResolver) ResolveDID(ctx context.Context, handle syntax.Handle) (syntax.DID, error) {
+	if handle == "" || handle.IsInvalidHandle() {
+		return "", fmt.Errorf("%w: invalid handle input", ErrHandleUnavailable)
+	}
 	id, err := r.Directory.LookupHandle(ctx, handle)
 	if err != nil {
 		return "", fmt.Errorf("%w: lookup: %w", ErrHandleUnavailable, err)

@@ -1,6 +1,7 @@
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_post_feed_slivers.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
@@ -10,18 +11,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// [CustomScrollView] without nesting another scrollable.
 class ProfilePostsTab extends ConsumerWidget {
   const ProfilePostsTab({
-    required this.handle,
+    required this.did,
     required this.isOwnProfile,
     super.key,
   });
 
-  final String handle;
+  final Did did;
   final bool isOwnProfile;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
-    final postsAsync = ref.watch(userPostsProvider(handle));
+    final postsAsync = ref.watch(userPostsProvider(did));
 
     listenToProfilePostActions(context, ref);
 
@@ -38,15 +39,14 @@ class ProfilePostsTab extends ConsumerWidget {
           title: l10n.profileTabPosts,
           subtitle: l10n.profilePostsEmpty,
         ),
-        onLoadMore: () =>
-            ref.read(userPostsProvider(handle).notifier).loadMore(),
+        onLoadMore: () => ref.read(userPostsProvider(did).notifier).loadMore(),
         onReplacePost: (post) =>
-            ref.read(userPostsProvider(handle).notifier).replace(post),
+            ref.read(userPostsProvider(did).notifier).replace(post),
       ),
       AsyncError() => ProfileTabErrorSliver(
         message: l10n.profilePostsLoadError,
         showErrorIcon: true,
-        onRetry: () => ref.invalidate(userPostsProvider(handle)),
+        onRetry: () => ref.invalidate(userPostsProvider(did)),
       ),
       _ => const ProfileTabLoadingSliver(),
     };

@@ -72,9 +72,9 @@ func TestHandleResolver_ResolveHandle_EmptyHandle(t *testing.T) {
 	r := DirectoryHandleResolver{Directory: &fakeDirectory{
 		didResult: &identity.Identity{Handle: syntax.HandleInvalid},
 	}}
-	_, err := r.ResolveHandle(context.Background(), syntax.DID("did:plc:abc"))
-	if !errors.Is(err, ErrHandleUnavailable) {
-		t.Errorf("want ErrHandleUnavailable; got %v", err)
+	handle, err := r.ResolveHandle(context.Background(), syntax.DID("did:plc:abc"))
+	if err != nil || handle != syntax.HandleInvalid {
+		t.Errorf("handle=%q err=%v, want handle.invalid", handle, err)
 	}
 }
 

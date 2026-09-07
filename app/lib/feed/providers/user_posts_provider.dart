@@ -6,23 +6,24 @@ import 'package:craftsky_app/feed/providers/author_post_cache.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'user_posts_provider.g.dart';
 
 const userPostsPageLimit = 10;
 
-/// Cursor-accumulating list-by-author provider, keyed by `handleOrDid`.
+/// Cursor-accumulating list-by-author provider, keyed by DID.
 @riverpod
 class UserPosts extends _$UserPosts {
   static String formatLogValue(Object? value) => value.toString();
 
   @override
-  Future<UserPostsState> build(String handleOrDid) async {
+  Future<UserPostsState> build(Did did) async {
     ref.watch(activeContentLanguagePolicyProvider);
     final repo = ref.watch(postRepositoryProvider);
     final page = await repo.listByAuthor(
-      handleOrDid,
+      did,
       limit: userPostsPageLimit,
     );
     return UserPostsState(
@@ -53,14 +54,14 @@ class UserPosts extends _$UserPosts {
       late final PostPage page;
       try {
         page = await repo.listByAuthor(
-          handleOrDid,
+          did,
           cursor: current.cursor,
           limit: userPostsPageLimit,
         );
       } on ApiBadRequest catch (error) {
         if (error.code != 'invalid_cursor') rethrow;
         final restarted = await repo.listByAuthor(
-          handleOrDid,
+          did,
           limit: userPostsPageLimit,
         );
         return UserPostsState(

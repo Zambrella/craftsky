@@ -11,6 +11,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_posts_tab.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
@@ -94,7 +95,7 @@ Future<void> _pump(
             body: CustomScrollView(
               slivers: [
                 ProfilePostsTab(
-                  handle: 'alice.craftsky.social',
+                  did: Did.parse('did:plc:alice'),
                   isOwnProfile: isOwnProfile,
                 ),
               ],
@@ -410,11 +411,11 @@ void main() {
         routes: [
           GoRoute(
             path: '/',
-            builder: (context, state) => const Scaffold(
+            builder: (context, state) => Scaffold(
               body: CustomScrollView(
                 slivers: [
                   ProfilePostsTab(
-                    handle: 'alice.craftsky.social',
+                    did: Did.parse('did:plc:alice'),
                     isOwnProfile: false,
                   ),
                 ],

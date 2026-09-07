@@ -44,8 +44,8 @@ func CreateAccountDeletionIntentHandler(service accountdeletion.Service) http.Ha
 
 func AcceptAccountDeletionHandler(service accountdeletion.Service) http.Handler {
 	type requestBody struct {
-		ReauthProof        string `json:"reauthProof"`
-		ConfirmationHandle string `json:"confirmationHandle"`
+		ReauthProof     string     `json:"reauthProof"`
+		ConfirmationDID syntax.DID `json:"confirmationDid"`
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
@@ -61,7 +61,7 @@ func AcceptAccountDeletionHandler(service accountdeletion.Service) http.Handler 
 		var body requestBody
 		decoder := json.NewDecoder(r.Body)
 		decoder.DisallowUnknownFields()
-		if decoder.Decode(&body) != nil || body.ReauthProof == "" || body.ConfirmationHandle == "" {
+		if decoder.Decode(&body) != nil || body.ReauthProof == "" || body.ConfirmationDID == "" {
 			envelope.WriteError(w, http.StatusBadRequest, "invalid_request", "invalid account deletion request", runID, nil)
 			return
 		}
@@ -74,10 +74,10 @@ func AcceptAccountDeletionHandler(service accountdeletion.Service) http.Handler 
 			return
 		}
 		err := service.Accept(r.Context(), accountdeletion.AcceptParams{
-			JobID:              jobID,
-			Owner:              owner,
-			ReauthProof:        body.ReauthProof,
-			ConfirmationHandle: body.ConfirmationHandle,
+			JobID:           jobID,
+			Owner:           owner,
+			ReauthProof:     body.ReauthProof,
+			ConfirmationDID: body.ConfirmationDID,
 		})
 		if err != nil {
 			writeAccountDeletionError(w, runID, err)
@@ -124,8 +124,8 @@ func writeAccountDeletionError(w http.ResponseWriter, runID string, err error) {
 	switch {
 	case errors.Is(err, accountdeletion.ErrReauthenticationRequired):
 		envelope.WriteError(w, http.StatusUnauthorized, "reauthentication_required", "fresh account reauthentication is required", runID, nil)
-	case errors.Is(err, accountdeletion.ErrConfirmationHandleMismatch):
-		envelope.WriteError(w, http.StatusBadRequest, "confirmation_handle_mismatch", "confirmation handle does not match", runID, nil)
+	case errors.Is(err, accountdeletion.ErrConfirmationDIDMismatch):
+		envelope.WriteError(w, http.StatusBadRequest, "confirmation_did_mismatch", "confirmation DID does not match", runID, nil)
 	case errors.Is(err, accountdeletion.ErrDeletionAlreadyPending):
 		envelope.WriteError(w, http.StatusConflict, "deletion_already_pending", "account deletion is already pending", runID, nil)
 	case errors.Is(err, accountdeletion.ErrIdentityUnavailable):

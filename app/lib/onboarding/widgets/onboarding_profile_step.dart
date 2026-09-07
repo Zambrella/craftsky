@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
 import 'package:craftsky_app/profile/data/profile_field_constraints.dart';
+import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ class OnboardingProfileStep extends StatefulWidget {
   const OnboardingProfileStep({
     required this.state,
     required this.onDisplayNameChanged,
+    required this.onPronounsChanged,
     required this.onBioChanged,
     required this.onPickAvatar,
     super.key,
@@ -18,6 +20,7 @@ class OnboardingProfileStep extends StatefulWidget {
 
   final OnboardingFlowState state;
   final ValueChanged<String> onDisplayNameChanged;
+  final ValueChanged<String> onPronounsChanged;
   final ValueChanged<String> onBioChanged;
   final VoidCallback onPickAvatar;
 
@@ -27,12 +30,14 @@ class OnboardingProfileStep extends StatefulWidget {
 
 class _OnboardingProfileStepState extends State<OnboardingProfileStep> {
   late final TextEditingController _name;
+  late final TextEditingController _pronouns;
   late final TextEditingController _bio;
 
   @override
   void initState() {
     super.initState();
     _name = TextEditingController(text: widget.state.identity.displayName);
+    _pronouns = TextEditingController(text: widget.state.identity.pronouns);
     _bio = TextEditingController(text: widget.state.identity.bio);
   }
 
@@ -40,6 +45,7 @@ class _OnboardingProfileStepState extends State<OnboardingProfileStep> {
   void didUpdateWidget(covariant OnboardingProfileStep oldWidget) {
     super.didUpdateWidget(oldWidget);
     _syncController(_name, widget.state.identity.displayName);
+    _syncController(_pronouns, widget.state.identity.pronouns);
     _syncController(_bio, widget.state.identity.bio);
   }
 
@@ -54,6 +60,7 @@ class _OnboardingProfileStepState extends State<OnboardingProfileStep> {
   @override
   void dispose() {
     _name.dispose();
+    _pronouns.dispose();
     _bio.dispose();
     super.dispose();
   }
@@ -132,7 +139,13 @@ class _OnboardingProfileStepState extends State<OnboardingProfileStep> {
           ),
         ],
         const SizedBox(height: 12),
-        Center(child: Text(l10n.onboardingHandleLabel(profile.handle.value))),
+        Center(
+          child: Text(
+            ProfileHandle(profile.handle).isAvailable
+                ? l10n.onboardingHandleLabel(profile.handle.value)
+                : l10n.handleUnavailable,
+          ),
+        ),
         const SizedBox(height: 24),
         CraftskyTextInput(
           label: l10n.editProfileDisplayNameLabel,
@@ -142,6 +155,17 @@ class _OnboardingProfileStepState extends State<OnboardingProfileStep> {
           maxLength: profileDisplayNameMaxLength,
           textInputAction: TextInputAction.next,
           onChanged: widget.onDisplayNameChanged,
+        ),
+        const SizedBox(height: 12),
+        CraftskyTextInput(
+          label: l10n.editProfilePronounsLabel,
+          hintText: l10n.editProfilePronounsHint,
+          textFieldKey: const Key('onboarding-pronouns'),
+          controller: _pronouns,
+          enabled: !widget.state.saving,
+          maxLength: profilePronounsMaxLength,
+          textInputAction: TextInputAction.next,
+          onChanged: widget.onPronounsChanged,
         ),
         const SizedBox(height: 12),
         CraftskyMultilineTextInput(

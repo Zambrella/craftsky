@@ -75,9 +75,9 @@ func (s *SearchStore) searchProfilesObserved(ctx context.Context, viewerDID stri
 			CASE WHEN EXISTS (SELECT 1 FROM atproto_follows f WHERE f.did = $2 AND f.subject_did = cp.did
 			                 AND NOT appview_owner_is_terminal(f.did) AND NOT appview_owner_is_terminal(f.subject_did)) THEN 0 ELSE 1 END AS followed_rank,
 			CASE
-				WHEN ic.handle_lower = $1 THEN 0
-				WHEN ic.handle_lower LIKE $1 || '%' THEN 1
-				WHEN ic.handle_lower LIKE '%' || $1 || '%' THEN 2
+				WHEN ic.handle_lower <> 'handle.invalid' AND ic.handle_lower = $1 THEN 0
+				WHEN ic.handle_lower <> 'handle.invalid' AND ic.handle_lower LIKE $1 || '%' THEN 1
+				WHEN ic.handle_lower <> 'handle.invalid' AND ic.handle_lower LIKE '%' || $1 || '%' THEN 2
 				WHEN lower(coalesce(bp.display_name, '')) LIKE '%' || $1 || '%' THEN 3
 				WHEN lower(coalesce(bp.description, '')) LIKE '%' || $1 || '%' THEN 4
 				ELSE 99
@@ -86,12 +86,12 @@ func (s *SearchStore) searchProfilesObserved(ctx context.Context, viewerDID stri
 		JOIN atproto_identity_cache ic ON ic.did = cp.did
 		LEFT JOIN bluesky_profiles bp ON bp.did = cp.did
 		WHERE (
-			ic.handle_lower LIKE '%' || $1 || '%'
+			(ic.handle_lower <> 'handle.invalid' AND ic.handle_lower LIKE '%' || $1 || '%')
 			OR lower(coalesce(bp.display_name, '')) LIKE '%' || $1 || '%'
 			OR lower(coalesce(bp.description, '')) LIKE '%' || $1 || '%'
 		)
 		AND (
-			ic.handle_lower = $1
+			(ic.handle_lower <> 'handle.invalid' AND ic.handle_lower = $1)
 			OR NOT EXISTS (
 				SELECT 1 FROM atproto_blocks b
 				WHERE ((b.blocker_did = $2 AND b.subject_did = cp.did)

@@ -77,6 +77,8 @@ const (
 	maxIdentityCacheRefreshOperationTimeout       = time.Minute
 	maxIdentityCacheRefreshRetryDelay             = 24 * time.Hour
 	maxIdentityCacheRefreshBatch                  = 1000
+	maxOAuthAuthorityMetadataCacheTTL             = 5 * time.Minute
+	maxOAuthAuthorityMetadataCacheCapacity        = 250_000
 	httpWriteResponseSafetyMargin                 = 5 * time.Second
 )
 
@@ -119,11 +121,14 @@ type OAuthDeployment struct {
 // federatedhttp package owns the hard security ceilings; configuration cannot
 // disable or enlarge them.
 type FederatedHTTPConfig struct {
-	Transport     federatedhttp.TransportProfile
-	OAuthMetadata federatedhttp.Profile
-	OAuthRequest  federatedhttp.Profile
-	PDSJSON       federatedhttp.Profile
-	PDSUpload     federatedhttp.Profile
+	Transport                           federatedhttp.TransportProfile
+	OAuthMetadata                       federatedhttp.Profile
+	OAuthRequest                        federatedhttp.Profile
+	PDSJSON                             federatedhttp.Profile
+	PDSUpload                           federatedhttp.Profile
+	PDSRepository                       federatedhttp.Profile
+	OAuthAuthorityMetadataCacheTTL      time.Duration
+	OAuthAuthorityMetadataCacheCapacity int
 }
 
 // Env identifies which deployment environment the process is running in.
@@ -233,6 +238,8 @@ type Config struct {
 	TapRepositoryBatchSize        int
 	TapRepositoryBackoffMin       time.Duration
 	TapRepositoryBackoffMax       time.Duration
+	TapRepositoryAlertAge         time.Duration
+	TapRepositoryAlertAttempts    int
 	TapQuarantinePollInterval     time.Duration
 	TapQuarantineLeaseDuration    time.Duration
 	TapQuarantineOperationTimeout time.Duration
@@ -334,7 +341,7 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		DevDID:                    os.Getenv("CRAFTSKY_DEV_DID"),
 		VideoServiceURL:           getEnvWithDefault("VIDEO_SERVICE_URL", "https://video.bsky.app"),
 		VideoPlaylistURLTemplate:  getEnvWithDefault("VIDEO_PLAYLIST_URL_TEMPLATE", "https://video.bsky.app/watch/{did}/{cid}/playlist.m3u8"),
-		VideoThumbnailURLTemplate: getEnvWithDefault("VIDEO_THUMBNAIL_URL_TEMPLATE", "https://video.bsky.app/watch/{did}/{cid}/thumbnail.jpg"),
+		VideoThumbnailURLTemplate: getEnvWithDefault("VIDEO_THUMBNAIL_URL_TEMPLATE", "https://video.cdn.bsky.app/hls/{did}/{cid}/thumbnail.jpg"),
 	}
 
 	origins := os.Getenv("ALLOWED_ORIGINS")
@@ -384,7 +391,7 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	if cfg.TapRepositoryPollInterval, err = boundedPositiveDurationEnv("TAP_REPOSITORY_POLL_INTERVAL", time.Second, maxTapWorkerPollInterval); err != nil {
 		return Config{}, err
 	}
-	if cfg.TapRepositoryLeaseDuration, err = boundedPositiveDurationEnv("TAP_REPOSITORY_LEASE_DURATION", 45*time.Second, maxTapWorkerLeaseDuration); err != nil {
+	if cfg.TapRepositoryLeaseDuration, err = boundedPositiveDurationEnv("TAP_REPOSITORY_LEASE_DURATION", 3*time.Minute, maxTapWorkerLeaseDuration); err != nil {
 		return Config{}, err
 	}
 	if cfg.TapRepositoryBatchSize, err = boundedIntEnv("TAP_REPOSITORY_BATCH_SIZE", 8, 1, 1000); err != nil {
@@ -394,6 +401,12 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		return Config{}, err
 	}
 	if cfg.TapRepositoryBackoffMax, err = boundedPositiveDurationEnv("TAP_REPOSITORY_BACKOFF_MAX", 5*time.Minute, maxTapWorkerBackoff); err != nil {
+		return Config{}, err
+	}
+	if cfg.TapRepositoryAlertAge, err = boundedPositiveDurationEnv("TAP_REPOSITORY_ALERT_AGE", 15*time.Minute, maxTapWorkerBackoff); err != nil {
+		return Config{}, err
+	}
+	if cfg.TapRepositoryAlertAttempts, err = boundedIntEnv("TAP_REPOSITORY_ALERT_ATTEMPTS", 5, 1, 100); err != nil {
 		return Config{}, err
 	}
 	if cfg.TapQuarantinePollInterval, err = boundedPositiveDurationEnv("TAP_QUARANTINE_POLL_INTERVAL", time.Second, maxTapWorkerPollInterval); err != nil {
@@ -1097,6 +1110,7 @@ func federatedHTTPConfigFromEnv() (FederatedHTTPConfig, error) {
 		{key: "FEDERATED_OAUTH_REQUEST_TIMEOUT", value: &config.OAuthRequest.TotalTimeout, secure: config.OAuthRequest.TotalTimeout},
 		{key: "FEDERATED_PDS_JSON_TIMEOUT", value: &config.PDSJSON.TotalTimeout, secure: config.PDSJSON.TotalTimeout},
 		{key: "FEDERATED_PDS_UPLOAD_TIMEOUT", value: &config.PDSUpload.TotalTimeout, secure: config.PDSUpload.TotalTimeout},
+		{key: "FEDERATED_PDS_REPOSITORY_TIMEOUT", value: &config.PDSRepository.TotalTimeout, secure: config.PDSRepository.TotalTimeout},
 	}
 	for _, setting := range durationSettings {
 		parsed, err := boundedPositiveDurationEnv(setting.key, setting.secure, setting.secure)
@@ -1116,6 +1130,7 @@ func federatedHTTPConfigFromEnv() (FederatedHTTPConfig, error) {
 		{key: "FEDERATED_OAUTH_RESPONSE_LIMIT_BYTES", value: &config.OAuthRequest.ResponseLimit, secure: config.OAuthRequest.ResponseLimit},
 		{key: "FEDERATED_PDS_JSON_RESPONSE_LIMIT_BYTES", value: &config.PDSJSON.ResponseLimit, secure: config.PDSJSON.ResponseLimit},
 		{key: "FEDERATED_PDS_UPLOAD_RESPONSE_LIMIT_BYTES", value: &config.PDSUpload.ResponseLimit, secure: config.PDSUpload.ResponseLimit},
+		{key: "FEDERATED_PDS_REPOSITORY_RESPONSE_LIMIT_BYTES", value: &config.PDSRepository.ResponseLimit, secure: config.PDSRepository.ResponseLimit},
 	}
 	for _, setting := range limitSettings {
 		parsed, err := boundedInt64Env(setting.key, setting.secure, 1, setting.secure)
@@ -1123,6 +1138,23 @@ func federatedHTTPConfigFromEnv() (FederatedHTTPConfig, error) {
 			return FederatedHTTPConfig{}, err
 		}
 		*setting.value = parsed
+	}
+	config.OAuthAuthorityMetadataCacheTTL, err = boundedPositiveDurationEnv(
+		"OAUTH_AUTHORITY_METADATA_CACHE_TTL",
+		config.OAuthAuthorityMetadataCacheTTL,
+		maxOAuthAuthorityMetadataCacheTTL,
+	)
+	if err != nil {
+		return FederatedHTTPConfig{}, err
+	}
+	config.OAuthAuthorityMetadataCacheCapacity, err = boundedIntEnv(
+		"OAUTH_AUTHORITY_METADATA_CACHE_CAPACITY",
+		config.OAuthAuthorityMetadataCacheCapacity,
+		1,
+		maxOAuthAuthorityMetadataCacheCapacity,
+	)
+	if err != nil {
+		return FederatedHTTPConfig{}, err
 	}
 	return config, nil
 }
@@ -1144,12 +1176,19 @@ func defaultFederatedHTTPConfig() (FederatedHTTPConfig, error) {
 	if err != nil {
 		return FederatedHTTPConfig{}, err
 	}
+	pdsRepository, err := federatedhttp.DefaultProfile(federatedhttp.PurposePDSRepository)
+	if err != nil {
+		return FederatedHTTPConfig{}, err
+	}
 	config := FederatedHTTPConfig{
-		Transport:     federatedhttp.DefaultTransportProfile(),
-		OAuthMetadata: metadata,
-		OAuthRequest:  oauthRequest,
-		PDSJSON:       pdsJSON,
-		PDSUpload:     pdsUpload,
+		Transport:                           federatedhttp.DefaultTransportProfile(),
+		OAuthMetadata:                       metadata,
+		OAuthRequest:                        oauthRequest,
+		PDSJSON:                             pdsJSON,
+		PDSUpload:                           pdsUpload,
+		PDSRepository:                       pdsRepository,
+		OAuthAuthorityMetadataCacheTTL:      5 * time.Minute,
+		OAuthAuthorityMetadataCacheCapacity: 10_000,
 	}
 	return config, nil
 }

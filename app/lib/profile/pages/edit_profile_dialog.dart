@@ -38,6 +38,7 @@ import 'package:form_builder_validators/form_builder_validators.dart';
 /// build site, the validators, and the save-time reads can't drift
 /// from one another.
 const _fieldDisplayName = 'displayName';
+const _fieldPronouns = 'pronouns';
 const _fieldBio = 'bio';
 const _fieldCrafts = 'crafts';
 
@@ -102,14 +103,14 @@ class EditProfileDialog extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final auth = ref.watch(authSessionProvider);
-    final myHandle = switch (auth) {
-      AsyncData(value: SignedIn(:final handle)) => handle,
+    final myDid = switch (auth) {
+      AsyncData(value: SignedIn(:final did)) => did,
       _ => null,
     };
 
-    if (myHandle == null) return const _EditProfileLoadingScaffold();
+    if (myDid == null) return const _EditProfileLoadingScaffold();
 
-    final profileAsync = ref.watch(userProfileProvider(myHandle));
+    final profileAsync = ref.watch(userProfileProvider(myDid));
     return switch (profileAsync) {
       AsyncValue(:final value?) => _EditProfileForm(
         profile: value,
@@ -120,7 +121,7 @@ class EditProfileDialog extends ConsumerWidget {
         appBar: AppBar(),
         body: ProfilePageError(
           error: error,
-          onRetry: () => ref.invalidate(userProfileProvider(myHandle)),
+          onRetry: () => ref.invalidate(userProfileProvider(myDid)),
         ),
       ),
       _ => const _EditProfileLoadingScaffold(),
@@ -171,6 +172,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   /// an `initialValue` parameter. The form value is kept in sync via
   /// each field's `onChanged: field.didChange`.
   late final TextEditingController _displayNameController;
+  late final TextEditingController _pronounsController;
   late final TextEditingController _bioController;
 
   /// Focus nodes are owned at the page level and handed to **both** the
@@ -183,6 +185,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   /// they're disjoint, and every keystroke that fails validation steals
   /// focus mid-typing.
   late final FocusNode _displayNameFocusNode;
+  late final FocusNode _pronounsFocusNode;
   late final FocusNode _bioFocusNode;
 
   /// Initial set of selected crafts — captured once at mount and used
@@ -212,10 +215,10 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     _displayNameController = TextEditingController(
       text: widget.profile.displayName,
     );
-    _bioController = TextEditingController(
-      text: widget.profile.description,
-    );
+    _pronounsController = TextEditingController(text: widget.profile.pronouns);
+    _bioController = TextEditingController(text: widget.profile.description);
     _displayNameFocusNode = FocusNode(debugLabel: _fieldDisplayName);
+    _pronounsFocusNode = FocusNode(debugLabel: _fieldPronouns);
     _bioFocusNode = FocusNode(debugLabel: _fieldBio);
 
     final selected = <Craft>{};
@@ -236,8 +239,10 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
   void dispose() {
     _unsavedGuard.unregister(_unsavedRegistration);
     _displayNameController.dispose();
+    _pronounsController.dispose();
     _bioController.dispose();
     _displayNameFocusNode.dispose();
+    _pronounsFocusNode.dispose();
     _bioFocusNode.dispose();
     super.dispose();
   }
@@ -253,8 +258,12 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     if (values.isEmpty) return false;
 
     final initialDisplayName = _ordinaryBaseline.displayName ?? '';
+    final initialPronouns = _ordinaryBaseline.pronouns ?? '';
     final initialBio = _ordinaryBaseline.description ?? '';
     if ((values[_fieldDisplayName] as String? ?? '') != initialDisplayName) {
+      return true;
+    }
+    if ((values[_fieldPronouns] as String? ?? '') != initialPronouns) {
       return true;
     }
     if ((values[_fieldBio] as String? ?? '') != initialBio) return true;
@@ -311,6 +320,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
       ..._preservedCrafts,
     ];
     final description = (values[_fieldBio] as String? ?? '').trim();
+    final pronounsValue = (values[_fieldPronouns] as String? ?? '').trim();
 
     unawaited(
       ref
@@ -321,6 +331,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
             businessChanged: businessChanged,
             businessDraft: businessDraft,
             displayName: (values[_fieldDisplayName] as String? ?? '').trim(),
+            pronouns: pronounsValue.isEmpty ? null : pronounsValue,
             description: description,
             crafts: craftsPayload,
             avatar: _avatarDraft.uploaded?.blob,
@@ -504,6 +515,28 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                       ),
                       SizedBox(height: spacing.sp5),
                       FormBuilderField<String>(
+                        name: _fieldPronouns,
+                        focusNode: _pronounsFocusNode,
+                        initialValue: widget.profile.pronouns ?? '',
+                        validator: (value) =>
+                            (value?.characters.length ?? 0) >
+                                profilePronounsMaxLength
+                            ? l10n.editProfilePronounsTooLong
+                            : null,
+                        builder: (field) => BrandTextField(
+                          label: l10n.editProfilePronounsLabel,
+                          controller: _pronounsController,
+                          focusNode: _pronounsFocusNode,
+                          hintText: l10n.editProfilePronounsHint,
+                          maxLength: profilePronounsMaxLength,
+                          textInputAction: TextInputAction.next,
+                          enabled: !isSaving,
+                          onChanged: field.didChange,
+                          errorText: field.errorText,
+                        ),
+                      ),
+                      SizedBox(height: spacing.sp5),
+                      FormBuilderField<String>(
                         name: _fieldBio,
                         focusNode: _bioFocusNode,
                         initialValue: widget.profile.description ?? '',
@@ -561,14 +594,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                                   },
                             onRequestMore: isSaving
                                 ? null
-                                : () => unawaited(
-                                    confirmAndLaunchExternalLink(
-                                      context,
-                                      uri: settingsSupportUri,
-                                      launchUrl: widget.linkLauncher,
-                                      confirmOpenLink: widget.confirmOpenLink,
-                                    ),
-                                  ),
+                                : () => unawaited(_openSupport()),
                           );
                         },
                       ),
@@ -586,6 +612,15 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
         ),
       ),
     );
+  }
+
+  Future<void> _openSupport() async {
+    final opened = await tryLaunchSettingsLink(
+      settingsSupportUri,
+      widget.linkLauncher,
+    );
+    if (!mounted || opened) return;
+    context.showError(AppLocalizations.of(context).navigationLinkOpenError);
   }
 
   void _ensureUnsavedWorkRegistration() {

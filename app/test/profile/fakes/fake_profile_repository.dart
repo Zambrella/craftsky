@@ -18,7 +18,7 @@ import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 /// ```dart
 /// final repo = FakeProfileRepository(
 ///   onFetch: (id) async => somePlaceholder.copyWith(handle: id),
-///   onUpdateMe: ({displayName, description, crafts}) async {...},
+///   onUpdateMe: ({displayName, pronouns, description, crafts}) async {...},
 /// );
 /// final container = ProviderContainer.test(
 ///   overrides: [profileRepositoryProvider.overrideWithValue(repo)],
@@ -51,6 +51,7 @@ class FakeProfileRepository implements ProfileRepository {
   onFetchFollowerGrowth;
   final Future<Profile> Function({
     String? displayName,
+    String? pronouns,
     String? description,
     List<String>? crafts,
     UploadedBlob? avatar,
@@ -107,6 +108,7 @@ class FakeProfileRepository implements ProfileRepository {
   @override
   Future<Profile> updateMe({
     String? displayName,
+    String? pronouns,
     String? description,
     List<String>? crafts,
     UploadedBlob? avatar,
@@ -116,6 +118,7 @@ class FakeProfileRepository implements ProfileRepository {
   }) =>
       onUpdateMe?.call(
         displayName: displayName,
+        pronouns: pronouns,
         description: description,
         crafts: crafts,
         avatar: avatar,
@@ -184,11 +187,7 @@ class FakeProfileRepository implements ProfileRepository {
     int? limit,
     String? cursor,
   }) =>
-      onListMutualFollowers?.call(
-        handleOrDid,
-        limit: limit,
-        cursor: cursor,
-      ) ??
+      onListMutualFollowers?.call(handleOrDid, limit: limit, cursor: cursor) ??
       Future<ProfileAccountPage>.error(
         UnimplementedError('listMutualFollowers not stubbed'),
       );

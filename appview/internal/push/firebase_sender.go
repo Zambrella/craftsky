@@ -72,6 +72,7 @@ func (s *FirebaseSender) buildMessage(request SendRequest) (*messaging.Message, 
 	}
 	data["notificationId"] = request.RoutingFacts.NotificationID
 	message := &messaging.Message{
+		//lint:ignore SA1019 request.Token is an FCM registration token; Fid requires a different client registration contract.
 		Token: request.Token,
 		Data:  data,
 		Notification: &messaging.Notification{

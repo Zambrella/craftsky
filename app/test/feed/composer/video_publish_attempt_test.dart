@@ -94,11 +94,12 @@ VideoPublicationCoordinator _coordinator({
       ({
         required authorizationHeader,
         required cancelToken,
+        required bypassDeduplication,
         required onProgress,
       }) => upload(),
   poll: poll,
   wait: (_) async {},
-  publish: (_) async {},
+  publish: (_, {required allowBlobRecovery}) async {},
   onProgress: (_) {},
   clock: () => DateTime.utc(2026),
 );

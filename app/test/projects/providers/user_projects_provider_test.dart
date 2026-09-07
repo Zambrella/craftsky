@@ -8,10 +8,13 @@ import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../feed/fakes/fake_post_repository.dart';
+
+final _aliceDid = Did.parse('did:plc:alice');
 
 Map<String, dynamic> _postMap({
   required String rkey,
@@ -84,7 +87,7 @@ void main() {
             ),
           ],
         );
-        final provider = userProjectsProvider('alice.craftsky.social');
+        final provider = userProjectsProvider(_aliceDid);
         final subscription = container.listen(provider, (_, _) {});
         addTearDown(subscription.close);
 
@@ -131,13 +134,13 @@ void main() {
             ),
           ],
         );
-        final provider = userProjectsProvider('alice.craftsky.social');
+        final provider = userProjectsProvider(_aliceDid);
         final subscription = container.listen(provider, (_, _) {});
         addTearDown(subscription.close);
 
         final state = await container.read(provider.future);
 
-        expect(seenId, 'alice.craftsky.social');
+        expect(seenId, 'did:plc:alice');
         expect(seenLimit, userProjectsPageLimit);
         expect(state.items.map((post) => post.rkey), ['project', 'unexpected']);
         expect(state.items.last.project, isNull);
@@ -176,26 +179,33 @@ void main() {
             ),
           ],
         );
-        final sub = container.listen(userProjectsProvider('alice'), (_, _) {});
+        final sub = container.listen(
+          userProjectsProvider(_aliceDid),
+          (_, _) {},
+        );
         addTearDown(sub.close);
 
-        await container.read(userProjectsProvider('alice').future);
-        await container.read(userProjectsProvider('alice').notifier).loadMore();
-        final failed = container.read(userProjectsProvider('alice'));
+        await container.read(userProjectsProvider(_aliceDid).future);
+        await container
+            .read(userProjectsProvider(_aliceDid).notifier)
+            .loadMore();
+        final failed = container.read(userProjectsProvider(_aliceDid));
         expect(failed.hasError, isTrue);
         expect(failed.value?.items.map((post) => post.rkey), ['a']);
         expect(failed.value?.cursor, 'c1');
 
         final inFlight = container
-            .read(userProjectsProvider('alice').notifier)
+            .read(userProjectsProvider(_aliceDid).notifier)
             .loadMore();
         await Future<void>.delayed(Duration.zero);
-        await container.read(userProjectsProvider('alice').notifier).loadMore();
+        await container
+            .read(userProjectsProvider(_aliceDid).notifier)
+            .loadMore();
         expect(calls, 3);
         gate.complete(PostPage(items: [_post(rkey: 'b')]));
         await inFlight;
 
-        final state = container.read(userProjectsProvider('alice')).value!;
+        final state = container.read(userProjectsProvider(_aliceDid)).value!;
         expect(state.items.map((post) => post.rkey), ['a', 'b']);
       },
     );
@@ -220,10 +230,10 @@ void main() {
         );
 
         await container.read(
-          userProjectsProvider('alice.craftsky.social').future,
+          userProjectsProvider(_aliceDid).future,
         );
         final notifier = container.read(
-          userProjectsProvider('alice.craftsky.social').notifier,
+          userProjectsProvider(_aliceDid).notifier,
         );
         // Exercise helper calls one-by-one to assert the resulting cache state.
         // ignore: cascade_invocations
@@ -233,9 +243,7 @@ void main() {
           ..replace(_post(rkey: 'a').copyWith(text: 'updated'))
           ..removeByRkey('b');
 
-        final state = container
-            .read(userProjectsProvider('alice.craftsky.social'))
-            .value!;
+        final state = container.read(userProjectsProvider(_aliceDid)).value!;
         expect(state.items.map((post) => post.rkey), ['a']);
         expect(state.items.single.text, 'updated');
       },

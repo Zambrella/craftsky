@@ -5,6 +5,7 @@ final class AccountDeletionIntent {
   const AccountDeletionIntent({
     required this.jobId,
     required this.authUrl,
+    required this.confirmationDid,
     required this.expiresAt,
   });
 
@@ -12,11 +13,13 @@ final class AccountDeletionIntent {
       AccountDeletionIntent(
         jobId: _requiredString(map, 'jobId'),
         authUrl: Uri.parse(_requiredString(map, 'authUrl')),
+        confirmationDid: _requiredString(map, 'confirmationDid'),
         expiresAt: DateTime.parse(_requiredString(map, 'expiresAt')).toUtc(),
       );
 
   final String jobId;
   final Uri authUrl;
+  final String confirmationDid;
   final DateTime expiresAt;
 
   @override
@@ -38,13 +41,13 @@ final class AccountDeletionApiClient {
   Future<void> accept({
     required String jobId,
     required String reauthProof,
-    required String confirmationHandle,
+    required String confirmationDid,
   }) => unwrapApi(() async {
     await _dio.post<void>(
       '/v1/account-deletions/$jobId',
       data: {
         'reauthProof': reauthProof,
-        'confirmationHandle': confirmationHandle,
+        'confirmationDid': confirmationDid,
       },
     );
   });

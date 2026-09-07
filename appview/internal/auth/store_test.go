@@ -107,6 +107,7 @@ func withAuthSchema(t *testing.T) *pgxpool.Pool {
 		"../../migrations/000038_owner_auth_lifecycle.up.sql",
 		"../../migrations/000052_dev_oauth_scheme.up.sql",
 		"../../migrations/000064_provider_first_registration.up.sql",
+		"../../migrations/000066_pds_migration_identity.up.sql",
 	} {
 		migration, err := os.ReadFile(path)
 		if err != nil {
@@ -197,7 +198,8 @@ func TestStoreInitialSessionIsAttemptBoundPendingAndVersioned(t *testing.T) {
 	owner := syntax.DID("did:plc:pending-parent")
 	seedAuthOwner(t, pool, owner)
 	requestContext := auth.WithLoginAuthRequest(
-		context.Background(), owner, 1, 1, auth.HandoffVerifiedLink, "device-pending", "",
+		context.Background(), owner, 1, 1, "https://pds.example.com", "https://bsky.social",
+		auth.HandoffVerifiedLink, "device-pending", "",
 	)
 	request := oauth.AuthRequestData{
 		State: "pending-parent-state", RequestURI: "urn:request:pending-parent",
@@ -469,7 +471,8 @@ func TestStore_SaveGetAuthRequest(t *testing.T) {
 	owner := syntax.DID("did:plc:request-owner")
 	seedAuthOwner(t, pool, owner)
 	ctx := auth.WithLoginAuthRequest(
-		context.Background(), owner, 1, 1, auth.HandoffVerifiedLink, "device-request", "",
+		context.Background(), owner, 1, 1, "https://pds.example.com", "https://bsky.social",
+		auth.HandoffVerifiedLink, "device-request", "",
 	)
 
 	info := oauth.AuthRequestData{
@@ -725,7 +728,8 @@ func TestStoreSavesDevSchemeAuthRequestWithoutClientRedirect(t *testing.T) {
 	owner := syntax.DID("did:plc:dev-request-owner")
 	seedAuthOwner(t, pool, owner)
 	ctx := auth.WithLoginAuthRequest(
-		context.Background(), owner, 1, 1, auth.HandoffDevScheme, "device-dev", "",
+		context.Background(), owner, 1, 1, "https://pds.example.com", "https://bsky.social",
+		auth.HandoffDevScheme, "device-dev", "",
 	)
 	info := oauth.AuthRequestData{
 		State: "state-dev-scheme", RequestURI: "urn:request:dev-scheme",
@@ -768,7 +772,7 @@ func TestStoreStagesExchangeAndLogicallyConsumesWithoutLosingEvidence(t *testing
 	owner := syntax.DID("did:plc:exchange-owner")
 	seedAuthOwner(t, pool, owner)
 	ctx := auth.WithLoginAuthRequest(
-		context.Background(), owner, 1, 1, auth.HandoffLoopback,
+		context.Background(), owner, 1, 1, "https://pds.example.com", "https://bsky.social", auth.HandoffLoopback,
 		"device-exchange", "http://127.0.0.1:31001/callback",
 	)
 	info := oauth.AuthRequestData{
@@ -845,7 +849,8 @@ func TestStore_DeleteAuthRequest(t *testing.T) {
 	owner := syntax.DID("did:plc:delete-request")
 	seedAuthOwner(t, pool, owner)
 	ctx := auth.WithLoginAuthRequest(
-		context.Background(), owner, 1, 1, auth.HandoffVerifiedLink, "device-delete", "",
+		context.Background(), owner, 1, 1, "https://pds.example.com", "https://bsky.social",
+		auth.HandoffVerifiedLink, "device-delete", "",
 	)
 
 	info := oauth.AuthRequestData{
@@ -951,7 +956,8 @@ func TestStore_ExpiredAuthRequestsCleanedUp(t *testing.T) {
 	owner := syntax.DID("did:plc:expired-auth-request")
 	seedAuthOwner(t, pool, owner)
 	requestCtx := auth.WithLoginAuthRequest(
-		ctx, owner, 1, 1, auth.HandoffVerifiedLink, "device-expired", "",
+		ctx, owner, 1, 1, "https://pds.example.com", "https://bsky.social",
+		auth.HandoffVerifiedLink, "device-expired", "",
 	)
 	if err := store.SaveAuthRequestInfo(requestCtx, oauth.AuthRequestData{
 		State: "state-expired", RequestURI: "urn:request:state-expired",

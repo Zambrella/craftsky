@@ -23,12 +23,15 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atcrypto"
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/auth"
@@ -41,10 +44,15 @@ import (
 	"social.craftsky/appview/internal/testdb"
 )
 
+var discardRepositoryJobs = auth.RepositoryJobTxEnqueuerFunc(
+	func(context.Context, pgx.Tx, syntax.DID, auth.RepositoryJobKind) error { return nil },
+)
+
 const (
-	realFlowPDSOrigin       = "https://pds.real-flow.test"
-	realFlowSecondPDSOrigin = "https://pds-second.real-flow.test"
-	realFlowAuthOrigin      = "https://auth.real-flow.test"
+	realFlowPDSOrigin        = "https://pds.real-flow.test"
+	realFlowSecondPDSOrigin  = "https://pds-second.real-flow.test"
+	realFlowAuthOrigin       = "https://auth.real-flow.test"
+	realFlowSecondAuthOrigin = "https://auth-second.real-flow.test"
 )
 
 const realFlowAuthSchemaDDL = `
@@ -123,6 +131,7 @@ func withRealFlowAuthSchema(t *testing.T) *pgxpool.Pool {
 	for _, name := range []string{
 		"000038_owner_auth_lifecycle.up.sql",
 		"000064_provider_first_registration.up.sql",
+		"000066_pds_migration_identity.up.sql",
 	} {
 		migration, err := os.ReadFile("../../migrations/" + name)
 		if err != nil {
@@ -266,7 +275,7 @@ func (trap *realFlowTrap) count() int {
 type realFlowRequest struct {
 	host, method, path, operation string
 	form                          url.Values
-	dpop                          string
+	authorization, dpop           string
 }
 
 type realFlowOAuthEndpoints struct {
@@ -390,7 +399,8 @@ func (server *realFlowServer) serve(
 	server.requests = append(server.requests, realFlowRequest{
 		host: request.Host, method: request.Method,
 		path: request.URL.Path, operation: operation,
-		form: request.Form, dpop: request.Header.Get("DPoP"),
+		form: request.Form, authorization: request.Header.Get("Authorization"),
+		dpop: request.Header.Get("DPoP"),
 	})
 	server.mu.Unlock()
 
@@ -412,8 +422,18 @@ func (server *realFlowServer) serve(
 		promptValues := append([]string(nil), server.promptValues...)
 		metadataScopes := append([]string(nil), server.metadataScopes...)
 		server.mu.Unlock()
+		issuer := realFlowAuthOrigin
+		if request.Host == "auth-second.real-flow.test" {
+			issuer = realFlowSecondAuthOrigin
+			endpoints = realFlowOAuthEndpoints{
+				authorization: issuer + "/oauth/authorize",
+				token:         issuer + "/oauth/token",
+				par:           issuer + "/oauth/par",
+				revocation:    issuer + "/oauth/revoke",
+			}
+		}
 		document := map[string]any{
-			"issuer":                                           realFlowAuthOrigin,
+			"issuer":                                           issuer,
 			"authorization_endpoint":                           endpoints.authorization,
 			"token_endpoint":                                   endpoints.token,
 			"response_types_supported":                         []string{"code"},
@@ -636,10 +656,15 @@ func newRealRegistrationFlowForProvider(
 	if err != nil {
 		t.Fatal(err)
 	}
+	authorityVerifier, err := newAuthoritativeOAuthVerifier(oauthApp.Dir, oauthApp.Resolver)
+	if err != nil {
+		t.Fatal(err)
+	}
 	flow, err := auth.NewOAuthFlowService(auth.OAuthFlowServiceOptions{
 		App: oauthApp, Store: store, Owners: owners,
 		StartOperationTimeout: startTimeout, CallbackOperationTimeout: callbackTimeout,
 		RegistrationProviderOrigin: providerOrigin, RegistrationOAuth: registrationOAuth,
+		AuthorityVerifier: authorityVerifier,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -826,10 +851,15 @@ func TestProviderRegistrationAdvertisedCreatePromptDoesNotDowngrade(t *testing.T
 			if err != nil {
 				t.Fatal(err)
 			}
+			authorityVerifier, err := newAuthoritativeOAuthVerifier(oauthApp.Dir, oauthApp.Resolver)
+			if err != nil {
+				t.Fatal(err)
+			}
 			flow, err := auth.NewOAuthFlowService(auth.OAuthFlowServiceOptions{
 				App: oauthApp, Store: store, Owners: owners,
 				StartOperationTimeout: 5 * time.Second, CallbackOperationTimeout: 5 * time.Second,
 				RegistrationProviderOrigin: realFlowPDSOrigin, RegistrationOAuth: registrationOAuth,
+				AuthorityVerifier: authorityVerifier,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -916,12 +946,17 @@ func TestProviderRegistrationServerFirstDiscoveryAndPAR(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	authorityVerifier, err := newAuthoritativeOAuthVerifier(oauthApp.Dir, oauthApp.Resolver)
+	if err != nil {
+		t.Fatal(err)
+	}
 	flow, err := auth.NewOAuthFlowService(auth.OAuthFlowServiceOptions{
 		App: oauthApp, Store: store, Owners: owners,
 		StartOperationTimeout:      5 * time.Second,
 		CallbackOperationTimeout:   5 * time.Second,
 		RegistrationProviderOrigin: realFlowPDSOrigin,
 		RegistrationOAuth:          registrationOAuth,
+		AuthorityVerifier:          authorityVerifier,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -2040,6 +2075,7 @@ func TestProviderRegistrationCompletesSharedOnboardingAndConfirmedHandoff(t *tes
 			did TEXT PRIMARY KEY,
 			display_name TEXT,
 			description TEXT,
+			pronouns TEXT,
 			avatar_cid TEXT,
 			avatar_mime TEXT,
 			banner_cid TEXT,
@@ -2073,7 +2109,8 @@ func TestProviderRegistrationCompletesSharedOnboardingAndConfirmedHandoff(t *tes
 	}
 	handoffs, err := auth.NewHandoffService(auth.HandoffServiceOptions{
 		Pool: pool, Owners: owners, Sessions: children,
-		ExchangeTTL: 5 * time.Minute, ConfirmationTTL: 2 * time.Minute,
+		RepositoryJobs: discardRepositoryJobs,
+		ExchangeTTL:    5 * time.Minute, ConfirmationTTL: 2 * time.Minute,
 		ReceiptKey: []byte("0123456789abcdef0123456789abcdef"), ReceiptKeyVersion: 1,
 		Now: time.Now,
 	})
@@ -2093,7 +2130,6 @@ func TestProviderRegistrationCompletesSharedOnboardingAndConfirmedHandoff(t *tes
 	}
 	pds := &registrationOnboardingPDS{blueskyCID: profileCID, blueskyRecord: profileRecord}
 	cache := &registrationOnboardingEffects{}
-	tracker := &registrationOnboardingEffects{}
 	profileHandler := index.NewBlueskyProfile(pool)
 	profileProjector := oauthBlueskyProfileProjection{handler: profileHandler}
 	craftskyProjector := oauthCraftskyProfileProjection{
@@ -2118,7 +2154,7 @@ func TestProviderRegistrationCompletesSharedOnboardingAndConfirmedHandoff(t *tes
 		if err := auth.InitializeProfileAndIdentityCache(
 			callbackCtx, pds, result.Attempt, registrationOnboardingWriter{},
 			profileProjector, craftskyProjector, cache,
-			slog.New(slog.NewTextHandler(io.Discard, nil)), tracker,
+			slog.New(slog.NewTextHandler(io.Discard, nil)),
 		); err != nil {
 			return err
 		}
@@ -2151,8 +2187,8 @@ func TestProviderRegistrationCompletesSharedOnboardingAndConfirmedHandoff(t *tes
 	if err != nil {
 		t.Fatalf("CompleteCallback: %v", err)
 	}
-	if code == "" || pds.craftskyWrites != 1 || cache.calls != 1 || tracker.calls != 1 {
-		t.Fatalf("onboarding code=%q writes=%d cache=%d tracker=%d", code, pds.craftskyWrites, cache.calls, tracker.calls)
+	if code == "" || pds.craftskyWrites != 1 || cache.calls != 1 {
+		t.Fatalf("onboarding code=%q writes=%d cache=%d", code, pds.craftskyWrites, cache.calls)
 	}
 	if pds.blueskyReads != 1 || pds.craftskyReads != 1 {
 		t.Fatalf("profile reads bluesky=%d craftsky=%d", pds.blueskyReads, pds.craftskyReads)
@@ -2256,7 +2292,8 @@ func TestProviderRegistrationCredentialBoundaryInventory(t *testing.T) {
 	}
 	handoffs, err := auth.NewHandoffService(auth.HandoffServiceOptions{
 		Pool: pool, Owners: owners, Sessions: children,
-		ExchangeTTL: 5 * time.Minute, ConfirmationTTL: 2 * time.Minute,
+		RepositoryJobs: discardRepositoryJobs,
+		ExchangeTTL:    5 * time.Minute, ConfirmationTTL: 2 * time.Minute,
 		ReceiptKey: []byte("0123456789abcdef0123456789abcdef"), ReceiptKeyVersion: 1,
 		Now: time.Now,
 	})
@@ -2378,7 +2415,8 @@ func TestProviderRegistrationAcceptsExistingOwnerAsNormalSignIn(t *testing.T) {
 			}
 			handoffs, err := auth.NewHandoffService(auth.HandoffServiceOptions{
 				Pool: pool, Owners: owners, Sessions: children,
-				ExchangeTTL: 5 * time.Minute, ConfirmationTTL: 2 * time.Minute,
+				RepositoryJobs: discardRepositoryJobs,
+				ExchangeTTL:    5 * time.Minute, ConfirmationTTL: 2 * time.Minute,
 				ReceiptKey: []byte("0123456789abcdef0123456789abcdef"), ReceiptKeyVersion: 1,
 				Now: time.Now,
 			})
@@ -2474,7 +2512,8 @@ func TestProviderRegistrationLifecycleAndHandoffAreNeutralAcrossConfiguredOrigin
 			}
 			handoffs, err := auth.NewHandoffService(auth.HandoffServiceOptions{
 				Pool: pool, Owners: owners, Sessions: children,
-				ExchangeTTL: 5 * time.Minute, ConfirmationTTL: 2 * time.Minute,
+				RepositoryJobs: discardRepositoryJobs,
+				ExchangeTTL:    5 * time.Minute, ConfirmationTTL: 2 * time.Minute,
 				ReceiptKey: []byte("0123456789abcdef0123456789abcdef"), ReceiptKeyVersion: 1,
 				Now: time.Now,
 			})
@@ -2495,7 +2534,6 @@ func TestProviderRegistrationLifecycleAndHandoffAreNeutralAcrossConfiguredOrigin
 			}
 			pds := &registrationOnboardingPDS{}
 			cache := &registrationOnboardingEffects{}
-			tracker := &registrationOnboardingEffects{}
 			var code string
 			err = flow.CompleteCallback(context.Background(), url.Values{
 				"state": {state}, "iss": {realFlowAuthOrigin}, "code": {"provider-neutral-code"},
@@ -2508,7 +2546,7 @@ func TestProviderRegistrationLifecycleAndHandoffAreNeutralAcrossConfiguredOrigin
 				}
 				if err := auth.InitializeProfileAndIdentityCache(
 					callbackCtx, pds, result.Attempt, registrationOnboardingWriter{}, nil, nil, cache,
-					slog.New(slog.NewTextHandler(io.Discard, nil)), tracker,
+					slog.New(slog.NewTextHandler(io.Discard, nil)),
 				); err != nil {
 					return err
 				}
@@ -2554,9 +2592,9 @@ func TestProviderRegistrationLifecycleAndHandoffAreNeutralAcrossConfiguredOrigin
 				t.Fatal(err)
 			}
 			if ownerState != ownerlifecycle.StateActive || parentState != "active" || childState != "active" ||
-				pds.craftskyWrites != 1 || cache.calls != 1 || tracker.calls != 1 {
-				t.Fatalf("provider-neutral outcome owner/parent/child=%s/%s/%s effects=%d/%d/%d",
-					ownerState, parentState, childState, pds.craftskyWrites, cache.calls, tracker.calls)
+				pds.craftskyWrites != 1 || cache.calls != 1 {
+				t.Fatalf("provider-neutral outcome owner/parent/child=%s/%s/%s effects=%d/%d",
+					ownerState, parentState, childState, pds.craftskyWrites, cache.calls)
 			}
 			if providerOrigin == realFlowSecondPDSOrigin && strings.Contains(string(parentData), providerOrigin) {
 				t.Fatalf("configured start provider entered provider-neutral OAuth session: %s", parentData)
@@ -2820,12 +2858,7 @@ func (registrationOnboardingWriter) PutOnboardingProfile(
 
 type registrationOnboardingEffects struct{ calls int }
 
-func (effects *registrationOnboardingEffects) UpsertCurrentHandle(context.Context, syntax.DID) error {
-	effects.calls++
-	return nil
-}
-
-func (effects *registrationOnboardingEffects) AddRepo(context.Context, syntax.DID) error {
+func (effects *registrationOnboardingEffects) RefreshCurrentHandle(context.Context, syntax.DID) error {
 	effects.calls++
 	return nil
 }
@@ -2860,6 +2893,7 @@ func realFlowCertificate(t *testing.T) (tls.Certificate, *x509.CertPool) {
 		NotBefore: now.Add(-time.Minute), NotAfter: now.Add(time.Hour),
 		DNSNames: []string{
 			"pds.real-flow.test", "pds-second.real-flow.test", "auth.real-flow.test",
+			"auth-second.real-flow.test",
 		},
 		ExtKeyUsage: []x509.ExtKeyUsage{x509.ExtKeyUsageServerAuth},
 		KeyUsage:    x509.KeyUsageDigitalSignature,
@@ -2980,9 +3014,10 @@ func newRealFlowClients(
 		federatedhttp.DefaultTransportProfile(),
 		federatedhttp.TestNetworkDependencies{
 			Resolver: realFlowResolver{
-				"pds.real-flow.test":        {netip.MustParseAddr("93.184.216.34")},
-				"pds-second.real-flow.test": {netip.MustParseAddr("93.184.216.36")},
-				"auth.real-flow.test":       {netip.MustParseAddr("93.184.216.35")},
+				"pds.real-flow.test":         {netip.MustParseAddr("93.184.216.34")},
+				"pds-second.real-flow.test":  {netip.MustParseAddr("93.184.216.36")},
+				"auth.real-flow.test":        {netip.MustParseAddr("93.184.216.35")},
+				"auth-second.real-flow.test": {netip.MustParseAddr("93.184.216.37")},
 			},
 			Dialer: dialer, TLSRootCAs: server.roots,
 		},
@@ -3007,13 +3042,14 @@ func newRealFlowClients(
 		{federatedhttp.PurposeOAuthRequest, config.OAuthRequest, clients.oauth},
 		{federatedhttp.PurposePDSJSON, config.PDSJSON, clients.pdsJSON},
 		{federatedhttp.PurposePDSUpload, config.PDSUpload, clients.pdsBlob},
+		{federatedhttp.PurposePDSRepository, config.PDSRepository, clients.pdsRepository},
 	}
 	for _, observed := range observedClients {
 		profile := observed.profile
 		if profile.ResponseLimit <= 0 {
 			t.Fatalf("%s client response limit = %d", observed.purpose, profile.ResponseLimit)
 		}
-		if observed.client.Timeout <= 0 || observed.client.Timeout > 30*time.Second {
+		if observed.client.Timeout != profile.TotalTimeout {
 			t.Fatalf("%s client timeout = %s", observed.purpose, observed.client.Timeout)
 		}
 		observed.client.Transport = observer.wrap(observed.purpose, observed.client.Transport)
@@ -3144,9 +3180,14 @@ func TestHandleFirstOAuthRejectsMismatchedTokenSubject(t *testing.T) {
 	oauthApp.Client = clients.oauth
 	oauthApp.Resolver.Client = clients.metadata
 	oauthApp.Dir = clients.directory
+	authorityVerifier, err := newAuthoritativeOAuthVerifier(oauthApp.Dir, oauthApp.Resolver)
+	if err != nil {
+		t.Fatal(err)
+	}
 	flow, err := auth.NewOAuthFlowService(auth.OAuthFlowServiceOptions{
 		App: oauthApp, Store: store, Owners: owners,
 		StartOperationTimeout: 5 * time.Second, CallbackOperationTimeout: 5 * time.Second,
+		AuthorityVerifier: authorityVerifier,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -3217,9 +3258,14 @@ func TestRealFederatedOAuthSessionAndPDSFlowsUsePurposeClients(t *testing.T) {
 	oauthApp.Client = clients.oauth
 	oauthApp.Resolver.Client = clients.metadata
 	oauthApp.Dir = clients.directory
+	authorityVerifier, err := newAuthoritativeOAuthVerifier(oauthApp.Dir, oauthApp.Resolver)
+	if err != nil {
+		t.Fatal(err)
+	}
 	flow, err := auth.NewOAuthFlowService(auth.OAuthFlowServiceOptions{
 		App: oauthApp, Store: store, Owners: owners,
 		StartOperationTimeout: 5 * time.Second, CallbackOperationTimeout: 5 * time.Second,
+		AuthorityVerifier: authorityVerifier,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -3312,7 +3358,8 @@ func TestRealFederatedOAuthSessionAndPDSFlowsUsePurposeClients(t *testing.T) {
 		t.Fatal(err)
 	}
 	coordinator, err := auth.NewOAuthSessionCoordinator(auth.OAuthSessionCoordinatorOptions{
-		App: oauthApp, Store: store, Owners: owners, OperationTimeout: 5 * time.Second,
+		App: oauthApp, Store: store, Owners: owners, AuthorityVerifier: authorityVerifier,
+		OperationTimeout: 5 * time.Second,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -3364,7 +3411,7 @@ func TestRealFederatedOAuthSessionAndPDSFlowsUsePurposeClients(t *testing.T) {
 	}
 	if _, err := pool.Exec(context.Background(), `
 		CREATE TABLE bluesky_profiles (
-			did TEXT PRIMARY KEY,display_name TEXT,description TEXT,
+			did TEXT PRIMARY KEY,display_name TEXT,description TEXT,pronouns TEXT,
 			avatar_cid TEXT,avatar_mime TEXT,banner_cid TEXT,banner_mime TEXT,
 			record_cid TEXT NOT NULL,indexed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 		)
@@ -3423,8 +3470,8 @@ func TestRealFederatedOAuthSessionAndPDSFlowsUsePurposeClients(t *testing.T) {
 		}
 	}
 	wantOperations := map[string]int{
-		"/.well-known/oauth-protected-resource":   1,
-		"/.well-known/oauth-authorization-server": 1,
+		"/.well-known/oauth-protected-resource":   3,
+		"/.well-known/oauth-authorization-server": 3,
 		"/oauth/par":                        1,
 		"/oauth/token:authorization_code":   1,
 		"/oauth/revoke":                     2,
@@ -3446,8 +3493,8 @@ func TestRealFederatedOAuthSessionAndPDSFlowsUsePurposeClients(t *testing.T) {
 	}
 	wantPurposeOperations := map[federatedhttp.Purpose]map[string]int{
 		federatedhttp.PurposeOAuthMetadata: {
-			"/.well-known/oauth-protected-resource":   1,
-			"/.well-known/oauth-authorization-server": 1,
+			"/.well-known/oauth-protected-resource":   3,
+			"/.well-known/oauth-authorization-server": 3,
 		},
 		federatedhttp.PurposeOAuthRequest: {
 			"/oauth/par": 1, "/oauth/token": 1, "/oauth/revoke": 2,
@@ -3471,5 +3518,446 @@ func TestRealFederatedOAuthSessionAndPDSFlowsUsePurposeClients(t *testing.T) {
 	}
 	if len(requests) != wantRequestCount {
 		t.Fatalf("listener request count = %d, want %d", len(requests), wantRequestCount)
+	}
+}
+
+func TestOAuthAuthorityMetadataCacheLeavesOAuthFlowsFresh(t *testing.T) {
+	pool := withRealFlowAuthSchema(t)
+	owner := syntax.DID("did:plc:metadatafreshflows")
+	handle := syntax.Handle("metadata-fresh.real-flow.test")
+	upstream := newRealFlowServer(t, owner)
+	clients, _, observer := newRealFlowClients(t, upstream)
+	t.Cleanup(func() {
+		clients.boundary.CloseIdleConnections()
+		upstream.close(t)
+	})
+
+	var didLookups atomic.Int32
+	directory := realFlowDirectory{
+		identity: &identity.Identity{
+			DID: owner, Handle: handle,
+			Services: map[string]identity.ServiceEndpoint{
+				"atproto_pds": {Type: "AtprotoPersonalDataServer", URL: realFlowPDSOrigin},
+			},
+		},
+		beforeDIDLookup: func() { didLookups.Add(1) },
+	}
+	owners := newRealFlowOwnerStore(t, pool)
+	storeConfig := realFlowStoreConfig()
+	storeConfig.OwnerLifecycles = owners
+	storeConfig.EndpointValidator = clients.boundary
+	store := auth.NewPostgresAuthStore(pool, storeConfig)
+	artifacts, err := auth.BuildClientArtifacts(auth.ClientConfigInput{
+		Mode:        auth.ClientModeLocalhost,
+		CallbackURL: realFlowURL(t, "http://127.0.0.1:18080/oauth/callback"),
+		Scopes:      []string{"atproto", "transition:generic"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	oauthApp := oauth.NewClientApp(&artifacts.Config, store)
+	oauthApp.Client = clients.oauth
+	oauthApp.Resolver.Client = clients.metadata
+	oauthApp.Dir = directory
+	fresh, operations, err := newOAuthAuthorityVerifiers(
+		directory, oauthApp.Resolver, 5*time.Minute, 100, clients.metadata.Timeout, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for range 2 {
+		if _, err := operations.ResolveCurrent(context.Background(), owner); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if got := didLookups.Load(); got != 2 {
+		t.Fatalf("warm operation DID lookups = %d, want 2", got)
+	}
+	if protected := observer.count(federatedhttp.PurposeOAuthMetadata, "/.well-known/oauth-protected-resource"); protected != 1 {
+		t.Fatalf("warm operation protected-resource requests = %d, want 1", protected)
+	}
+	if authorization := observer.count(federatedhttp.PurposeOAuthMetadata, "/.well-known/oauth-authorization-server"); authorization != 1 {
+		t.Fatalf("warm operation authorization-server requests = %d, want 1", authorization)
+	}
+
+	registrationOAuth, err := auth.NewRegistrationOAuthAdapter(oauthApp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	flow, err := auth.NewOAuthFlowService(auth.OAuthFlowServiceOptions{
+		App: oauthApp, Store: store, Owners: owners,
+		StartOperationTimeout:      5 * time.Second,
+		CallbackOperationTimeout:   5 * time.Second,
+		RegistrationProviderOrigin: realFlowPDSOrigin,
+		RegistrationOAuth:          registrationOAuth,
+		AuthorityVerifier:          fresh,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := flow.StartLogin(
+		context.Background(), handle, auth.HandoffVerifiedLink, "", "metadata-login-device",
+	); err != nil {
+		t.Fatalf("StartLogin: %v", err)
+	}
+	var loginState string
+	if err := pool.QueryRow(
+		context.Background(), `SELECT state FROM oauth_auth_requests WHERE purpose='login'`,
+	).Scan(&loginState); err != nil {
+		t.Fatal(err)
+	}
+	if err := flow.CompleteCallback(context.Background(), url.Values{
+		"state": {loginState}, "iss": {realFlowAuthOrigin}, "code": {"metadata-login-code"},
+	}, func(context.Context, auth.OAuthCallbackResult) error { return nil }); err != nil {
+		t.Fatalf("CompleteCallback: %v", err)
+	}
+	upstream.setRegistrationPAR(
+		nil,
+		http.StatusCreated,
+		`{"request_uri":"urn:ietf:params:oauth:request_uri:metadata-registration","expires_in":60}`,
+	)
+	if _, err := flow.StartRegistration(
+		context.Background(), auth.HandoffVerifiedLink, "", "metadata-registration-device",
+	); err != nil {
+		t.Fatalf("StartRegistration: %v", err)
+	}
+
+	if protected := observer.count(federatedhttp.PurposeOAuthMetadata, "/.well-known/oauth-protected-resource"); protected != 4 {
+		t.Fatalf("operation/start/callback/registration protected-resource requests = %d, want 4", protected)
+	}
+	if authorization := observer.count(federatedhttp.PurposeOAuthMetadata, "/.well-known/oauth-authorization-server"); authorization != 4 {
+		t.Fatalf("operation/start/callback/registration authorization-server requests = %d, want 4", authorization)
+	}
+}
+
+// IT-001 / IT-004 / IT-005: the concrete uncached verifier protects the real
+// coordinator-to-PDS effect boundary and leaves cleanup bound to its issuer.
+func TestAuthoritativeOAuthVerifierProtectsFederatedEffect(t *testing.T) {
+	const (
+		accessCanary  = "phase-five-old-access-canary"
+		refreshCanary = "phase-five-old-refresh-canary"
+	)
+
+	type fixture struct {
+		pool        *pgxpool.Pool
+		owner       syntax.DID
+		sessionID   string
+		clients     *federatedClients
+		upstream    *realFlowServer
+		coordinator *auth.OAuthSessionCoordinator
+		lookups     *atomic.Int64
+	}
+	newFixture := func(
+		t *testing.T,
+		currentPDS string,
+		currentIssuer string,
+		lookup func(context.Context, syntax.DID) (*identity.Identity, error),
+		operationTimeout time.Duration,
+	) fixture {
+		t.Helper()
+		pool := withRealFlowAuthSchema(t)
+		owner := syntax.DID("did:plc:phasefiveauthority")
+		sessionID := "phase-five-parent"
+		upstream := newRealFlowServer(t, owner)
+		upstream.setProtectedIssuer(currentIssuer)
+		clients, _, _ := newRealFlowClients(t, upstream)
+		t.Cleanup(func() {
+			clients.boundary.CloseIdleConnections()
+			upstream.close(t)
+		})
+		lookups := &atomic.Int64{}
+		clients.authoritativeDirectory = realFlowDirectory{lookupDID: func(ctx context.Context, did syntax.DID) (*identity.Identity, error) {
+			lookups.Add(1)
+			if lookup != nil {
+				return lookup(ctx, did)
+			}
+			return &identity.Identity{
+				DID: did, Handle: syntax.Handle("phase-five.real-flow.test"),
+				Services: map[string]identity.ServiceEndpoint{
+					"atproto_pds": {Type: "AtprotoPersonalDataServer", URL: currentPDS},
+				},
+			}, nil
+		}}
+
+		owners := newRealFlowOwnerStore(t, pool)
+		storeConfig := realFlowStoreConfig()
+		storeConfig.OwnerLifecycles = owners
+		storeConfig.EndpointValidator = clients.boundary
+		store := auth.NewPostgresAuthStore(pool, storeConfig)
+		if _, err := pool.Exec(context.Background(), `
+			INSERT INTO craftsky_profiles(did) VALUES($1)
+		`, owner); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(context.Background(), `
+			INSERT INTO owner_lifecycles(
+				owner_did,state,generation,auth_epoch,transition_reason,
+				transitioned_at,created_at,updated_at
+			) VALUES($1,'active',1,1,'phase five fixture',now(),now(),now())
+		`, owner); err != nil {
+			t.Fatal(err)
+		}
+		privateKey, err := atcrypto.GeneratePrivateKeyP256()
+		if err != nil {
+			t.Fatal(err)
+		}
+		data := oauth.ClientSessionData{
+			AccountDID: owner, SessionID: sessionID,
+			HostURL: realFlowPDSOrigin, AuthServerURL: realFlowAuthOrigin,
+			AuthServerTokenEndpoint:      realFlowAuthOrigin + "/oauth/token",
+			AuthServerRevocationEndpoint: realFlowAuthOrigin + "/oauth/revoke",
+			Scopes:                       []string{"atproto"}, AccessToken: accessCanary, RefreshToken: refreshCanary,
+			DPoPPrivateKeyMultibase: privateKey.Multibase(),
+		}
+		if _, err := pool.Exec(context.Background(), `
+			INSERT INTO oauth_sessions(
+				account_did,session_id,data,lifecycle_state,owner_generation,auth_epoch,
+				row_version,absolute_expires_at,created_at,updated_at
+			) VALUES($1,$2,$3,'active',1,1,1,now()+interval '1 day',now(),now())
+		`, owner, sessionID, data); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(context.Background(), `
+			INSERT INTO craftsky_sessions(
+				token_hash,account_did,oauth_session_id,lifecycle_state,auth_epoch,
+				last_seen_at,idle_expires_at
+			) VALUES(convert_to('phase-five-child','UTF8'),$1,$2,'active',1,now(),now()+interval '1 day')
+		`, owner, sessionID); err != nil {
+			t.Fatal(err)
+		}
+		config := oauth.NewPublicConfig(
+			"https://appview.example/oauth/client-metadata.json",
+			"https://appview.example/oauth/callback",
+			[]string{"atproto"},
+		)
+		oauthApp := oauth.NewClientApp(&config, store)
+		oauthApp.Client = clients.oauth
+		oauthApp.Resolver.Client = clients.metadata
+		oauthApp.Dir = clients.authoritativeDirectory
+		_, verifier, err := newOAuthAuthorityVerifiers(
+			clients.authoritativeDirectory,
+			oauthApp.Resolver,
+			5*time.Minute,
+			100,
+			clients.metadata.Timeout,
+			nil,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		coordinator, err := auth.NewOAuthSessionCoordinator(auth.OAuthSessionCoordinatorOptions{
+			App: oauthApp, Store: store, Owners: owners, AuthorityVerifier: verifier,
+			OperationTimeout: operationTimeout,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return fixture{
+			pool: pool, owner: owner, sessionID: sessionID, clients: clients,
+			upstream: upstream, coordinator: coordinator, lookups: lookups,
+		}
+	}
+	runEffect := func(f fixture) (bool, error) {
+		effectCalled := false
+		err := f.coordinator.WithActiveSession(
+			context.Background(), f.owner, f.sessionID,
+			func(ctx context.Context, session *oauth.ClientSession) error {
+				effectCalled = true
+				pds, err := f.clients.newPDSClient(ctx, session, nil)
+				if err != nil {
+					return err
+				}
+				return pds.PutRecord(
+					ctx, f.owner, "social.craftsky.actor.profile", "self",
+					map[string]any{"crafts": []string{"knitting"}},
+				)
+			},
+		)
+		return effectCalled, err
+	}
+	assertActiveState := func(t *testing.T, f fixture) {
+		t.Helper()
+		var ownerState, parentState, childState string
+		var profiles int
+		if err := f.pool.QueryRow(context.Background(), `
+			SELECT owner.state,parent.lifecycle_state,child.lifecycle_state,
+			       (SELECT count(*) FROM craftsky_profiles WHERE did=$1)
+			FROM owner_lifecycles owner
+			JOIN oauth_sessions parent ON parent.account_did=owner.owner_did
+			JOIN craftsky_sessions child
+			  ON child.account_did=parent.account_did AND child.oauth_session_id=parent.session_id
+			WHERE owner.owner_did=$1 AND parent.session_id=$2
+		`, f.owner, f.sessionID).Scan(&ownerState, &parentState, &childState, &profiles); err != nil {
+			t.Fatal(err)
+		}
+		if ownerState != "active" || parentState != "active" || childState != "active" || profiles != 1 {
+			t.Fatalf("preserved owner/parent/child/profile = %s/%s/%s/%d", ownerState, parentState, childState, profiles)
+		}
+	}
+	containsCanary := func(request realFlowRequest) bool {
+		wire := request.authorization + " " + request.dpop + " " + request.form.Encode()
+		return strings.Contains(wire, accessCanary) || strings.Contains(wire, refreshCanary)
+	}
+
+	t.Run("matching authority keeps DID fresh and reuses validated metadata", func(t *testing.T) {
+		f := newFixture(t, realFlowPDSOrigin, realFlowAuthOrigin, nil, 5*time.Second)
+		for range 2 {
+			called, err := runEffect(f)
+			if err != nil || !called {
+				t.Fatalf("matching effect called=%t err=%v", called, err)
+			}
+		}
+		if f.lookups.Load() != 2 {
+			t.Fatalf("uncached DID lookups=%d, want 2", f.lookups.Load())
+		}
+		requests, _ := f.upstream.observations()
+		writes, protectedMetadata, authorizationMetadata := 0, 0, 0
+		for _, request := range requests {
+			if request.path == "/.well-known/oauth-protected-resource" {
+				protectedMetadata++
+			}
+			if request.path == "/.well-known/oauth-authorization-server" {
+				authorizationMetadata++
+			}
+			if request.path == "/xrpc/com.atproto.repo.putRecord" {
+				writes++
+				if request.host != "pds.real-flow.test" || !strings.Contains(request.authorization, accessCanary) {
+					t.Fatalf("protected write destination/authorization = %s/%q", request.host, request.authorization)
+				}
+			}
+		}
+		if writes != 2 || protectedMetadata != 1 || authorizationMetadata != 1 {
+			t.Fatalf(
+				"writes/protected metadata/authorization metadata=%d/%d/%d, want 2/1/1; requests=%+v",
+				writes, protectedMetadata, authorizationMetadata, requests,
+			)
+		}
+		assertActiveState(t, f)
+	})
+
+	t.Run("mismatching authority fences before effect and cleans up only at original issuer", func(t *testing.T) {
+		f := newFixture(t, realFlowSecondPDSOrigin, realFlowSecondAuthOrigin, nil, 5*time.Second)
+		called, err := runEffect(f)
+		if called || !errors.Is(err, auth.ErrPDSSessionExpired) {
+			t.Fatalf("stale effect called=%t err=%v", called, err)
+		}
+		var ownerState, parentState, childState string
+		if err := f.pool.QueryRow(context.Background(), `
+			SELECT owner.state,parent.lifecycle_state,child.lifecycle_state
+			FROM owner_lifecycles owner
+			JOIN oauth_sessions parent ON parent.account_did=owner.owner_did
+			JOIN craftsky_sessions child
+			  ON child.account_did=parent.account_did AND child.oauth_session_id=parent.session_id
+			WHERE owner.owner_did=$1 AND parent.session_id=$2
+		`, f.owner, f.sessionID).Scan(&ownerState, &parentState, &childState); err != nil {
+			t.Fatal(err)
+		}
+		if ownerState != "active" || parentState != "revocation_pending" || childState != "revoked" {
+			t.Fatalf("stale owner/parent/child = %s/%s/%s", ownerState, parentState, childState)
+		}
+
+		storeConfig := realFlowStoreConfig()
+		storeConfig.EndpointValidator = f.clients.boundary
+		store := auth.NewPostgresAuthStore(f.pool, storeConfig)
+		config := oauth.NewPublicConfig(
+			"https://appview.example/oauth/client-metadata.json",
+			"https://appview.example/oauth/callback",
+			[]string{"atproto"},
+		)
+		oauthApp := &oauth.ClientApp{Client: f.clients.oauth, Config: &config}
+		revoker, err := auth.NewIndigoOAuthCredentialRevoker(oauthApp, store)
+		if err != nil {
+			t.Fatal(err)
+		}
+		processor, err := auth.NewOAuthRevocationProcessor(auth.OAuthRevocationProcessorOptions{
+			Pool: f.pool, Revoker: revoker, BatchSize: 1, LeaseDuration: time.Minute,
+			OperationTimeout: 5 * time.Second, MaxAttempts: 2,
+			BaseBackoff: time.Second, MaxBackoff: time.Minute, MaxCredentialRetention: time.Hour,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if processed, err := processor.ProcessBatch(context.Background()); err != nil || processed != 1 {
+			t.Fatalf("original-issuer cleanup processed=%d err=%v", processed, err)
+		}
+		requests, _ := f.upstream.observations()
+		revocations := 0
+		for _, request := range requests {
+			if request.host == "pds-second.real-flow.test" || request.host == "auth-second.real-flow.test" {
+				if request.authorization != "" || request.dpop != "" || containsCanary(request) {
+					t.Fatalf("old credential or DPoP proof reached current authority: %+v", request)
+				}
+			}
+			if request.path == "/oauth/revoke" {
+				revocations++
+				if request.host != "auth.real-flow.test" || !containsCanary(request) {
+					t.Fatalf("revocation destination/credential = %+v", request)
+				}
+			}
+		}
+		if revocations != 2 {
+			t.Fatalf("revocations=%d, want access and refresh at original issuer; requests=%+v", revocations, requests)
+		}
+	})
+
+	for _, test := range []struct {
+		name          string
+		currentPDS    string
+		lookup        func(context.Context, syntax.DID) (*identity.Identity, error)
+		configure     func(*realFlowServer)
+		timeout       time.Duration
+		wantNoRequest bool
+	}{
+		{
+			name: "DID timeout", timeout: 25 * time.Millisecond, wantNoRequest: true,
+			lookup: func(ctx context.Context, _ syntax.DID) (*identity.Identity, error) {
+				<-ctx.Done()
+				return nil, ctx.Err()
+			},
+		},
+		{
+			name: "DID DNS failure", timeout: time.Second, wantNoRequest: true,
+			lookup: func(context.Context, syntax.DID) (*identity.Identity, error) {
+				return nil, &net.DNSError{Err: "no such host", Name: "plc.directory.test"}
+			},
+		},
+		{
+			name: "OAuth metadata outage", currentPDS: realFlowPDSOrigin, timeout: time.Second,
+			configure: func(server *realFlowServer) {
+				server.mu.Lock()
+				server.protectedStatus = http.StatusServiceUnavailable
+				server.mu.Unlock()
+			},
+		},
+		{
+			name: "outbound policy rejection", currentPDS: "https://127.0.0.1", timeout: time.Second,
+			wantNoRequest: true,
+		},
+	} {
+		t.Run(test.name+" is retryable and preserves lifecycle", func(t *testing.T) {
+			currentPDS := test.currentPDS
+			if currentPDS == "" {
+				currentPDS = realFlowPDSOrigin
+			}
+			f := newFixture(t, currentPDS, realFlowAuthOrigin, test.lookup, test.timeout)
+			if test.configure != nil {
+				test.configure(f.upstream)
+			}
+			called, err := runEffect(f)
+			if err == nil || errors.Is(err, auth.ErrPDSSessionExpired) || called {
+				t.Fatalf("retryable effect called=%t err=%v", called, err)
+			}
+			assertActiveState(t, f)
+			requests, _ := f.upstream.observations()
+			if test.wantNoRequest && len(requests) != 0 {
+				t.Fatalf("forbidden transient destination received requests: %+v", requests)
+			}
+			for _, request := range requests {
+				if containsCanary(request) {
+					t.Fatalf("retryable authority check sent credentials: %+v", request)
+				}
+			}
+		})
 	}
 }

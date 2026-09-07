@@ -11,6 +11,7 @@ var (
 	ErrRecordConflict          = errors.New("scheduled publication record conflict")
 	ErrPublicationAmbiguous    = errors.New("scheduled publication outcome is ambiguous")
 	ErrManualPublicationFailed = errors.New("manual scheduled publication failed")
+	ErrAutomaticCutoffExceeded = errors.New("scheduled publication automatic cutoff exceeded")
 )
 
 type FailureDisposition string
@@ -33,6 +34,8 @@ func ClassifyPublicationFailure(err error) FailureDecision {
 		return FailureDecision{Disposition: FailureNeedsAttention, SafeCode: "media_invalid"}
 	case errors.Is(err, ErrRecordConflict):
 		return FailureDecision{Disposition: FailureNeedsAttention, SafeCode: "record_conflict"}
+	case errors.Is(err, ErrAutomaticCutoffExceeded):
+		return FailureDecision{Disposition: FailureNeedsAttention, SafeCode: "automatic_cutoff_exceeded"}
 	case errors.Is(err, ErrAuthUnavailable):
 		return FailureDecision{Disposition: FailureRetry, SafeCode: "auth_unavailable"}
 	case errors.Is(err, ErrObjectUnavailable):

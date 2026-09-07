@@ -14,6 +14,7 @@ import 'package:craftsky_app/onboarding/widgets/onboarding_progress.dart';
 import 'package:craftsky_app/profile/data/profile_field_constraints.dart';
 import 'package:craftsky_app/settings/settings_links.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
+import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -91,6 +92,15 @@ class _OnboardingFlowScaffold extends ConsumerWidget {
   final ExternalLinkLauncher linkLauncher;
   final ExternalLinkConfirmer confirmOpenLink;
 
+  Future<void> _openSupport(BuildContext context) async {
+    final opened = await tryLaunchSettingsLink(
+      settingsSupportUri,
+      linkLauncher,
+    );
+    if (!context.mounted || opened) return;
+    context.showError(AppLocalizations.of(context).navigationLinkOpenError);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
@@ -103,6 +113,7 @@ class _OnboardingFlowScaffold extends ConsumerWidget {
     };
     final valid =
         state.identity.displayName.length <= profileDisplayNameMaxLength &&
+        state.identity.pronouns.characters.length <= profilePronounsMaxLength &&
         state.identity.bio.length <= profileBioMaxLength &&
         !state.uploadingAvatar &&
         !state.avatarUploadFailed;
@@ -172,6 +183,8 @@ class _OnboardingFlowScaffold extends ConsumerWidget {
                                 state: state,
                                 onDisplayNameChanged: (value) =>
                                     notifier.updateIdentity(displayName: value),
+                                onPronounsChanged: (value) =>
+                                    notifier.updateIdentity(pronouns: value),
                                 onBioChanged: (value) =>
                                     notifier.updateIdentity(bio: value),
                                 onPickAvatar: () =>
@@ -181,14 +194,8 @@ class _OnboardingFlowScaffold extends ConsumerWidget {
                                 state: state,
                                 onToggle: (craft) =>
                                     notifier.toggleCraft(craft.id),
-                                onRequestMore: () => unawaited(
-                                  confirmAndLaunchExternalLink(
-                                    context,
-                                    uri: settingsSupportUri,
-                                    launchUrl: linkLauncher,
-                                    confirmOpenLink: confirmOpenLink,
-                                  ),
-                                ),
+                                onRequestMore: () =>
+                                    unawaited(_openSupport(context)),
                               ),
                               OnboardingStep.instagram =>
                                 OnboardingInstagramStep(lease: lease),

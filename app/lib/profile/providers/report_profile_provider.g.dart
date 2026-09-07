@@ -33,7 +33,7 @@ final class ReportProfileProvider
   ReportProfile create() => ReportProfile();
 }
 
-String _$reportProfileHash() => r'f5df40530da4dc368f7beaf10934ade24bc65f9a';
+String _$reportProfileHash() => r'12bcc64a5d4c7d3c0c135ba67e4dc0326078e8ca';
 
 abstract class _$ReportProfile extends $AsyncNotifier<ReportResult?> {
   FutureOr<ReportResult?> build();

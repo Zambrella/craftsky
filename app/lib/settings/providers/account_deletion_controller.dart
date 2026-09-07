@@ -42,6 +42,7 @@ class AccountDeletionController extends _$AccountDeletionController {
             .stageAccountDeletion(
               fence.pending(
                 jobId: intent.jobId,
+                confirmationDid: intent.confirmationDid,
                 expiresAt: intent.expiresAt,
               ),
             );
@@ -79,12 +80,12 @@ class AccountDeletionController extends _$AccountDeletionController {
         pending.isCurrent(sessions?.activeLease);
   }
 
-  String? requiredHandle(String jobId) {
+  String? confirmationDid(String jobId) {
     final pending = ref
         .read(sessionRegistryProvider)
         .value
         ?.pendingAccountDeletion;
-    return pending?.jobId == jobId ? pending?.requiredHandle : null;
+    return pending?.jobId == jobId ? pending?.confirmationDid : null;
   }
 
   Future<void> cancelPendingIntent(String jobId) async {
@@ -110,7 +111,7 @@ class AccountDeletionController extends _$AccountDeletionController {
   Future<bool> confirm({
     required String jobId,
     required String reauthProof,
-    required String confirmationHandle,
+    required String confirmationDid,
   }) async {
     var accepted = false;
     state = const AsyncLoading();
@@ -122,12 +123,15 @@ class AccountDeletionController extends _$AccountDeletionController {
           !pending.isCurrent(sessions.activeLease)) {
         throw const AccountDeletionFlowException('staleAccountLease');
       }
+      if (confirmationDid != pending.confirmationDid) {
+        throw const AccountDeletionFlowException('confirmationDidMismatch');
+      }
       final fence = AccountDeletionLeaseFence.fromPending(pending);
       final dio = await ref.read(accountDioProvider(fence.account).future);
       await AccountDeletionApiClient(dio).accept(
         jobId: jobId,
         reauthProof: reauthProof,
-        confirmationHandle: confirmationHandle,
+        confirmationDid: pending.confirmationDid,
       );
       final coordinator = AccountDeletionAcceptanceCoordinator(
         readRegistry: () => ref.read(sessionRegistryProvider.future),

@@ -1,6 +1,7 @@
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 
@@ -354,8 +355,12 @@ final class NotificationActor with NotificationActorMappable {
   bool get hasViewerState =>
       muted != null || blocking != null || blockedBy != null;
 
-  String get displayLabel =>
-      available ? displayName ?? handle.toString() : 'Unavailable account';
+  String displayLabel(String unavailableHandleLabel) => available
+      ? ProfileHandle(handle).displayLabel(
+          displayName: displayName,
+          unavailableLabel: unavailableHandleLabel,
+        )
+      : 'Unavailable account';
 
   /// Prefer the AppView's display-ready URL, while supporting notification
   /// responses from an older local AppView that expose only the public CID.

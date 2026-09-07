@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:craftsky_app/feed/media/video_source_validator.dart';
 import 'package:craftsky_app/feed/models/video_service_result.dart';
@@ -6,8 +8,8 @@ import 'package:dio/dio.dart';
 
 const _uploadPath = '/xrpc/app.bsky.video.uploadVideo';
 const _statusPath = '/xrpc/app.bsky.video.getJobStatus';
-const _uploadName = 'video.mp4';
 const _maxResponseBytes = 65536;
+const _freeBoxLength = 16;
 
 final class VideoUploadSource {
   const VideoUploadSource({required this.length, required this.openRead});
@@ -88,6 +90,7 @@ final class VideoServiceClient {
     required VideoUploadSource source,
     required String ownerDid,
     required String authorizationHeader,
+    bool bypassDeduplication = false,
     ProgressCallback? onProgress,
     CancelToken? cancelToken,
   }) async {
@@ -95,13 +98,19 @@ final class VideoServiceClient {
     if (source.length <= 0 || source.length > maxVideoSourceBytes) {
       throw const VideoTransportException(VideoTransportFailure.invalidSource);
     }
+    if (bypassDeduplication &&
+        source.length > maxVideoSourceBytes - _freeBoxLength) {
+      throw const VideoTransportException(VideoTransportFailure.invalidSource);
+    }
+    final suffix = bypassDeduplication ? _freshFreeBox() : Uint8List(0);
+    final uploadLength = source.length + suffix.length;
     final uri = _uploadEndpoint.replace(
-      queryParameters: {'did': ownerDid, 'name': _uploadName},
+      queryParameters: {'did': ownerDid, 'name': _freshUploadName()},
     );
     try {
       final response = await _dio.postUri<Map<String, dynamic>>(
         uri,
-        data: _boundedSource(source),
+        data: _boundedSource(source, suffix),
         options: Options(
           contentType: 'video/mp4',
           followRedirects: false,
@@ -111,19 +120,33 @@ final class VideoServiceClient {
               ((status >= 200 && status < 300) || status == 409),
           headers: {
             'authorization': authorizationHeader,
-            Headers.contentLengthHeader: source.length,
+            Headers.contentLengthHeader: uploadLength,
           },
         ),
         cancelToken: cancelToken,
         onSendProgress: onProgress,
       );
       _requireUnredirected(response);
+      final status = _jobStatus(response.data!);
       final result = VideoServiceResult.fromJson(
-        response.data!,
+        status,
       ).withRetryAfter(_parseRetryAfter(response));
-      if (response.statusCode == 409 &&
-          result.outcome != VideoServiceOutcome.completed) {
-        throw const VideoTransportException(VideoTransportFailure.unavailable);
+      if (response.statusCode == 409) {
+        if (status['error'] == 'already_exists' &&
+            result.outcome != VideoServiceOutcome.completed &&
+            result.jobId.isNotEmpty) {
+          return VideoServiceResult(
+            outcome: VideoServiceOutcome.processing,
+            jobId: result.jobId,
+            progress: result.progress,
+            retryAfter: result.retryAfter,
+          );
+        }
+        if (result.outcome == VideoServiceOutcome.processing) {
+          throw const VideoTransportException(
+            VideoTransportFailure.unavailable,
+          );
+        }
       }
       return result;
     } on VideoTransportException {
@@ -145,16 +168,22 @@ final class VideoServiceClient {
     try {
       final response = await _dio.getUri<Map<String, dynamic>>(
         uri,
-        options: Options(followRedirects: false, maxRedirects: 0),
+        options: Options(
+          followRedirects: false,
+          maxRedirects: 0,
+          validateStatus: (status) =>
+              status != null &&
+              ((status >= 200 && status < 300) || status == 409),
+        ),
         cancelToken: cancelToken,
       );
       _requireUnredirected(response);
-      final jobStatus = response.data!['jobStatus'];
-      if (jobStatus is! Map<String, dynamic>) {
+      final responseData = response.data!;
+      if (responseData['jobStatus'] is! Map<String, dynamic>) {
         throw const FormatException('Invalid video job status response');
       }
       return VideoServiceResult.fromJson(
-        jobStatus,
+        _jobStatus(responseData),
       ).withRetryAfter(_parseRetryAfter(response));
     } on DioException catch (error) {
       if (CancelToken.isCancel(error)) rethrow;
@@ -162,7 +191,10 @@ final class VideoServiceClient {
     }
   }
 
-  Stream<List<int>> _boundedSource(VideoUploadSource source) async* {
+  Stream<List<int>> _boundedSource(
+    VideoUploadSource source,
+    Uint8List suffix,
+  ) async* {
     var sent = 0;
     await for (final chunk in source.openRead()) {
       sent += chunk.length;
@@ -176,6 +208,7 @@ final class VideoServiceClient {
     if (sent != source.length) {
       throw const VideoTransportException(VideoTransportFailure.invalidSource);
     }
+    if (suffix.isNotEmpty) yield suffix;
   }
 
   void _requireUnredirected(Response<Object?> response) {
@@ -195,6 +228,34 @@ final class VideoServiceClient {
 Duration? _parseRetryAfter(Response<Object?> response) {
   final seconds = int.tryParse(response.headers.value('retry-after') ?? '');
   return seconds != null && seconds >= 0 ? Duration(seconds: seconds) : null;
+}
+
+Map<String, Object?> _jobStatus(Map<String, Object?> response) {
+  final jobStatus = response['jobStatus'];
+  if (jobStatus is! Map<String, Object?>) return response;
+  final error = response['error'];
+  return error is String && jobStatus['error'] == null
+      ? {...jobStatus, 'error': error}
+      : jobStatus;
+}
+
+String _freshUploadName() {
+  final random = Random.secure();
+  final suffix = List.generate(
+    16,
+    (_) => random.nextInt(256).toRadixString(16).padLeft(2, '0'),
+  ).join();
+  return 'craftsky-$suffix.mp4';
+}
+
+Uint8List _freshFreeBox() {
+  final box = Uint8List(_freeBoxLength)
+    ..setRange(0, 8, const [0, 0, 0, _freeBoxLength, 102, 114, 101, 101]);
+  final random = Random.secure();
+  for (var index = 8; index < box.length; index++) {
+    box[index] = random.nextInt(256);
+  }
+  return box;
 }
 
 void _requireApprovedEndpoint(Uri endpoint) {

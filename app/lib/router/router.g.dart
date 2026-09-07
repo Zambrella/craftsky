@@ -283,7 +283,12 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
       factory: $BusinessEventRoute._fromState,
     ),
     GoRouteData.$route(
-      path: '/profile/:handle',
+      path: '/profiles/@:handle',
+      name: 'profile-alias',
+      factory: $ProfileAliasRoute._fromState,
+    ),
+    GoRouteData.$route(
+      path: '/profiles/:did',
       name: 'user-profile',
       factory: $UserProfileRoute._fromState,
     ),
@@ -1008,17 +1013,44 @@ mixin $BusinessEventRoute on GoRouteData {
   void replace(BuildContext context) => context.replace(location);
 }
 
+mixin $ProfileAliasRoute on GoRouteData {
+  static ProfileAliasRoute _fromState(GoRouterState state) => ProfileAliasRoute(
+    handle: _decodeHandleRouteParameter(state.pathParameters['handle']!),
+  );
+
+  ProfileAliasRoute get _self => this as ProfileAliasRoute;
+
+  @override
+  String get location => GoRouteData.$location(
+    '/profiles/@${Uri.encodeComponent(_encodeHandleRouteParameter(_self.handle))}',
+  );
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
 mixin $UserProfileRoute on GoRouteData {
   static UserProfileRoute _fromState(GoRouterState state) => UserProfileRoute(
-    handle: state.pathParameters['handle']!,
+    did: _decodeDidRouteParameter(state.pathParameters['did']!),
     $extra: state.extra as ProfilePresentationRequest?,
   );
 
   UserProfileRoute get _self => this as UserProfileRoute;
 
   @override
-  String get location =>
-      GoRouteData.$location('/profile/${Uri.encodeComponent(_self.handle)}');
+  String get location => GoRouteData.$location(
+    '/profiles/${Uri.encodeComponent(_encodeDidRouteParameter(_self.did))}',
+  );
 
   @override
   void go(BuildContext context) => context.go(location, extra: _self.$extra);

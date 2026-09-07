@@ -1,17 +1,18 @@
 import 'dart:async';
 
 import 'package:craftsky_app/profile/widgets/profile_mutual_followers_sheet.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter/material.dart';
 
 class ProfileMutualFollowersLink extends StatelessWidget {
   const ProfileMutualFollowersLink({
     required this.count,
-    required this.targetHandleOrDid,
+    required this.targetDid,
     super.key,
   });
 
   final int count;
-  final String targetHandleOrDid;
+  final Did targetDid;
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +28,7 @@ class ProfileMutualFollowersLink extends StatelessWidget {
             builder: (context) => FractionallySizedBox(
               heightFactor: 0.9,
               child: ProfileMutualFollowersSheet(
-                targetHandleOrDid: targetHandleOrDid,
+                targetDid: targetDid,
               ),
             ),
           ),

@@ -90,6 +90,15 @@ func TestSentryPillarGatesDefaultToErrorsOnlyWithDSN(t *testing.T) {
 	if observer.sentryClient == nil {
 		t.Fatal("sentryClient = nil, want configured client when DSN is present")
 	}
+	dataCollection := observer.sentryClient.Options().DataCollection
+	if dataCollection == nil || !dataCollection.UserInfo.IsSet || dataCollection.UserInfo.Value ||
+		dataCollection.Cookies == nil || dataCollection.Cookies.Mode != sentry.CollectionOff ||
+		dataCollection.HTTPHeaders == nil || dataCollection.HTTPHeaders.Request == nil ||
+		dataCollection.HTTPHeaders.Request.Mode != sentry.CollectionOff || dataCollection.HTTPHeaders.Response == nil ||
+		dataCollection.HTTPHeaders.Response.Mode != sentry.CollectionOff || dataCollection.HTTPBodies == nil || len(dataCollection.HTTPBodies) != 0 ||
+		dataCollection.QueryParams == nil || dataCollection.QueryParams.Mode != sentry.CollectionOff {
+		t.Fatalf("Sentry data collection = %#v, want all automatic HTTP and user collection disabled", dataCollection)
+	}
 	if observer.tracingEnabled {
 		t.Fatal("tracingEnabled = true, want false for DSN-only config")
 	}

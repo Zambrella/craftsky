@@ -358,6 +358,17 @@ func (s *PostStore) viewerSavedStates(ctx context.Context, viewerDID string, pos
 }
 
 func (s *PostStore) engagementSummariesObserved(ctx context.Context, viewerDID string, contentLanguages, postURIs []string) (map[string]EngagementSummary, error) {
+	uniqueURIs := make([]string, 0, len(postURIs))
+	seen := make(map[string]struct{}, len(postURIs))
+	for _, uri := range postURIs {
+		if _, exists := seen[uri]; exists {
+			continue
+		}
+		seen[uri] = struct{}{}
+		uniqueURIs = append(uniqueURIs, uri)
+	}
+	postURIs = uniqueURIs
+
 	out := make(map[string]EngagementSummary, len(postURIs))
 	for _, uri := range postURIs {
 		out[uri] = EngagementSummary{}

@@ -27,6 +27,7 @@ abstract interface class ProfileRepository {
   /// PDS — see `ProfileApiClient.updateMyProfile` for the gory detail.
   Future<Profile> updateMe({
     String? displayName,
+    String? pronouns,
     String? description,
     List<String>? crafts,
     UploadedBlob? avatar,
@@ -55,10 +56,7 @@ abstract interface class ProfileRepository {
   Future<ProfileRelationship> unblock(String handleOrDid);
 
   /// POST /v1/profiles/{handleOrDid}/reports.
-  Future<ReportResult> report(
-    String handleOrDid,
-    ReportSubmission submission,
-  );
+  Future<ReportResult> report(String handleOrDid, ReportSubmission submission);
 
   Future<ProfileAccountPage> listMutualFollowers(
     String handleOrDid, {

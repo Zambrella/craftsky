@@ -29,3 +29,7 @@ func RetryAttemptAt(due time.Time, attempt int, jitter time.Duration) (time.Time
 	}
 	return at, true
 }
+
+func AutomaticPublicationEligible(due, at time.Time) bool {
+	return !due.IsZero() && !at.After(due.Add(retryOffsets[len(retryOffsets)-1]))
+}

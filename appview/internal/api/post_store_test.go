@@ -1327,7 +1327,9 @@ func TestPostStore_EngagementSummaries_ActiveOnlyAndViewerStates(t *testing.T) {
 	seedSavedPost(t, pool, "did:plc:alice", post2, nil, base.Add(6*time.Hour))
 
 	store := api.NewPostStore(pool)
-	summaries, err := store.EngagementSummaries(context.Background(), "did:plc:bob", []string{}, []string{post1, post2})
+	// Timeline pages may contain both an authored post and a repost of the same
+	// subject. Duplicate hydration inputs must not multiply engagement counts.
+	summaries, err := store.EngagementSummaries(context.Background(), "did:plc:bob", []string{}, []string{post1, post2, post1})
 	if err != nil {
 		t.Fatalf("EngagementSummaries: %v", err)
 	}

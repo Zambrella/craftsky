@@ -531,13 +531,13 @@ func PutMeProfileHandler(
 }
 
 // mergeBlueskyRecord returns a fresh record body formed from `existing`
-// with displayName and description overridden by the request. avatar/banner
-// are tri-state: omitted preserves, null clears, blob replaces.
+// with displayName, description, and pronouns replaced by the request.
+// avatar/banner are tri-state: omitted preserves, null clears, blob replaces.
 func mergeBlueskyRecord(existing map[string]any, req ProfilePutRequest) map[string]any {
 	out := map[string]any{"$type": blueskyProfileNSID}
 	for k, v := range existing {
 		switch k {
-		case "$type", "displayName", "description":
+		case "$type", "displayName", "description", "pronouns":
 			continue
 		default:
 			out[k] = v
@@ -548,6 +548,9 @@ func mergeBlueskyRecord(existing map[string]any, req ProfilePutRequest) map[stri
 	}
 	if req.Description != nil {
 		out["description"] = *req.Description
+	}
+	if req.Pronouns != nil {
+		out["pronouns"] = *req.Pronouns
 	}
 	applyProfileImageUpdate(out, "avatar", req.Avatar)
 	applyProfileImageUpdate(out, "banner", req.Banner)
@@ -574,6 +577,9 @@ func syntheticRow(did string, bsky map[string]any, crafts []string) *ProfileRow 
 	}
 	if desc, ok := bsky["description"].(string); ok {
 		row.Description = &desc
+	}
+	if pronouns, ok := bsky["pronouns"].(string); ok {
+		row.Pronouns = &pronouns
 	}
 	if av, ok := bsky["avatar"].(map[string]any); ok {
 		if cid := blobCID(av); cid != "" {

@@ -55,6 +55,12 @@ class ProfileMapper extends ClassMapperBase<Profile> {
     _$displayName,
     opt: true,
   );
+  static String? _$pronouns(Profile v) => v.pronouns;
+  static const Field<Profile, String> _f$pronouns = Field(
+    'pronouns',
+    _$pronouns,
+    opt: true,
+  );
   static String? _$description(Profile v) => v.description;
   static const Field<Profile, String> _f$description = Field(
     'description',
@@ -189,6 +195,7 @@ class ProfileMapper extends ClassMapperBase<Profile> {
     #handle: _f$handle,
     #crafts: _f$crafts,
     #displayName: _f$displayName,
+    #pronouns: _f$pronouns,
     #description: _f$description,
     #avatar: _f$avatar,
     #banner: _f$banner,
@@ -217,6 +224,7 @@ class ProfileMapper extends ClassMapperBase<Profile> {
       handle: data.dec(_f$handle),
       crafts: data.dec(_f$crafts),
       displayName: data.dec(_f$displayName),
+      pronouns: data.dec(_f$pronouns),
       description: data.dec(_f$description),
       avatar: data.dec(_f$avatar),
       banner: data.dec(_f$banner),
@@ -306,6 +314,7 @@ abstract class ProfileCopyWith<$R, $In extends Profile, $Out>
     String? handle,
     List<String>? crafts,
     String? displayName,
+    String? pronouns,
     String? description,
     String? avatar,
     String? banner,
@@ -358,6 +367,7 @@ class _ProfileCopyWithImpl<$R, $Out>
     String? handle,
     List<String>? crafts,
     Object? displayName = $none,
+    Object? pronouns = $none,
     Object? description = $none,
     Object? avatar = $none,
     Object? banner = $none,
@@ -384,6 +394,7 @@ class _ProfileCopyWithImpl<$R, $Out>
       if (handle != null) #handle: handle,
       if (crafts != null) #crafts: crafts,
       if (displayName != $none) #displayName: displayName,
+      if (pronouns != $none) #pronouns: pronouns,
       if (description != $none) #description: description,
       if (avatar != $none) #avatar: avatar,
       if (banner != $none) #banner: banner,
@@ -413,6 +424,7 @@ class _ProfileCopyWithImpl<$R, $Out>
     handle: data.get(#handle, or: $value.handle),
     crafts: data.get(#crafts, or: $value.crafts),
     displayName: data.get(#displayName, or: $value.displayName),
+    pronouns: data.get(#pronouns, or: $value.pronouns),
     description: data.get(#description, or: $value.description),
     avatar: data.get(#avatar, or: $value.avatar),
     banner: data.get(#banner, or: $value.banner),

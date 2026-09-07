@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/spf13/cobra"
 
 	"social.craftsky/appview/internal/api"
@@ -17,6 +18,14 @@ type identityCacheBackfillStats struct {
 }
 
 type identityCacheBackfillRunner func(context.Context, int) (identityCacheBackfillStats, error)
+
+type identityCacheBackfillCandidates interface {
+	BackfillCandidateDIDs(context.Context, int, time.Time) ([]syntax.DID, error)
+}
+
+type authoritativeIdentityRefresher interface {
+	RefreshCurrentHandle(context.Context, syntax.DID) error
+}
 
 func newIdentityCacheCmd(runBackfill identityCacheBackfillRunner) *cobra.Command {
 	cmd := &cobra.Command{
@@ -51,24 +60,27 @@ func init() {
 			return identityCacheBackfillStats{}, err
 		}
 		defer cleanup()
-		return runIdentityCacheBackfill(ctx, api.NewIdentityCacheStore(deps.DB), deps.AuthoritativeHandleResolver, limit, time.Now().UTC())
+		now := time.Now().UTC()
+		return runIdentityCacheBackfill(
+			ctx,
+			api.NewIdentityCacheStore(deps.DB),
+			api.NewIdentityCacheService(deps.DB, deps.AuthoritativeHandleResolver, func() time.Time { return now }, nil),
+			limit,
+			now,
+		)
 	}))
 }
 
-func runIdentityCacheBackfill(ctx context.Context, store *api.IdentityCacheStore, resolver api.HandleResolver, limit int, now time.Time) (identityCacheBackfillStats, error) {
+func runIdentityCacheBackfill(ctx context.Context, store identityCacheBackfillCandidates, refresher authoritativeIdentityRefresher, limit int, now time.Time) (identityCacheBackfillStats, error) {
 	dids, err := store.BackfillCandidateDIDs(ctx, limit, now)
 	if err != nil {
 		return identityCacheBackfillStats{}, err
 	}
 	stats := identityCacheBackfillStats{Candidates: len(dids)}
 	for _, did := range dids {
-		handle, err := resolver.ResolveHandle(ctx, did)
-		if err != nil || handle.String() == "" {
+		if err := refresher.RefreshCurrentHandle(ctx, did); err != nil {
 			stats.Failed++
 			continue
-		}
-		if err := store.Upsert(ctx, did, handle, now); err != nil {
-			return stats, err
 		}
 		stats.Upserted++
 	}

@@ -22,6 +22,7 @@ type federatedClients struct {
 	oauth                  *http.Client
 	pdsJSON                *http.Client
 	pdsBlob                *http.Client
+	pdsRepository          *http.Client
 	directory              identity.Directory
 	authoritativeDirectory identity.Directory
 }
@@ -60,6 +61,10 @@ func newFederatedClientsWithBoundary(
 	if err != nil {
 		return nil, fmt.Errorf("build PDS upload client: %w", err)
 	}
+	pdsRepository, err := boundary.Client(config.PDSRepository)
+	if err != nil {
+		return nil, fmt.Errorf("build PDS repository client: %w", err)
+	}
 
 	dnsDialer := &net.Dialer{Timeout: 3 * time.Second}
 	baseDirectory := &identity.BaseDirectory{
@@ -88,12 +93,13 @@ func newFederatedClientsWithBoundary(
 		5*time.Minute,
 	)
 	return &federatedClients{
-		boundary:  boundary,
-		metadata:  metadata,
-		oauth:     oauth,
-		pdsJSON:   pdsJSON,
-		pdsBlob:   pdsBlob,
-		directory: directory, authoritativeDirectory: authoritativeDirectory,
+		boundary:      boundary,
+		metadata:      metadata,
+		oauth:         oauth,
+		pdsJSON:       pdsJSON,
+		pdsBlob:       pdsBlob,
+		pdsRepository: pdsRepository,
+		directory:     directory, authoritativeDirectory: authoritativeDirectory,
 	}, nil
 }
 

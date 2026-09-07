@@ -177,10 +177,9 @@ void main() {
   );
 
   test(
-    'IT-016 refreshes only the affected live profile-list families',
+    'IT-016 refreshes only the affected DID profile-list families',
     () async {
       const did = 'did:plc:alice';
-      const handle = 'alice.test';
       const pinnedUri =
           'at://did:plc:alice/social.craftsky.feed.post/standard-b';
       final standardCalls = <String, int>{};
@@ -217,9 +216,10 @@ void main() {
           ),
         ],
       );
-      final standardDid = userPostsProvider(did);
-      final standardHandle = userPostsProvider(handle);
-      final projectsHandle = userProjectsProvider(handle);
+      final authorDid = Did.parse(did);
+      final standardDid = userPostsProvider(authorDid);
+      final standardHandle = userPostsProvider(authorDid);
+      final projectsHandle = userProjectsProvider(authorDid);
       final subscriptions = [
         container.listen(standardDid, (_, _) {}),
         container.listen(standardHandle, (_, _) {}),
@@ -244,7 +244,7 @@ void main() {
             did: Did.parse(did),
             rkey: RecordKey.parse('standard-b'),
             slot: ProfilePinSlot.standard,
-            authorCacheIds: const [did, handle],
+            authorCacheIds: [authorDid],
           );
       await Future.wait([
         container.read(standardDid.future),
@@ -256,8 +256,8 @@ void main() {
         container.read(pins).requireValue.confirmed.standardPostUri,
         pinnedUri,
       );
-      expect(standardCalls, {did: 2, handle: 2});
-      expect(projectCalls, {handle: 1});
+      expect(standardCalls, {did: 2});
+      expect(projectCalls, {did: 1});
     },
   );
 

@@ -21,7 +21,7 @@ func TestReleaseGatesUseFixturesInsteadOfLiveBluesky(t *testing.T) {
 		"appview/internal/auth/auth_request_admission_test.go|https://auth.bsky.app":        2,
 		"appview/internal/auth/auth_request_admission_test.go|https://bsky.social":          2,
 		"appview/internal/auth/store_test.go|https://auth.bsky.app":                         3,
-		"appview/internal/auth/store_test.go|https://bsky.social":                           10,
+		"appview/internal/auth/store_test.go|https://bsky.social":                           16,
 		"appview/internal/db/provider_registration_migration_test.go|https://auth.bsky.app": 4,
 		"appview/internal/db/provider_registration_migration_test.go|https://bsky.social":   4,
 	}
@@ -91,9 +91,9 @@ func TestReleaseGatesUseFixturesInsteadOfLiveBluesky(t *testing.T) {
 		"flutter test {{ARGS}}",
 	)
 	assertFileContains(t, "federated_real_flow_integration_test.go",
-		`realFlowPDSOrigin       = "https://pds.real-flow.test"`,
-		`realFlowSecondPDSOrigin = "https://pds-second.real-flow.test"`,
-		`realFlowAuthOrigin      = "https://auth.real-flow.test"`,
+		`realFlowPDSOrigin        = "https://pds.real-flow.test"`,
+		`realFlowSecondPDSOrigin  = "https://pds-second.real-flow.test"`,
+		`realFlowAuthOrigin       = "https://auth.real-flow.test"`,
 		`return nil, errors.New("unknown test hostname")`,
 	)
 }

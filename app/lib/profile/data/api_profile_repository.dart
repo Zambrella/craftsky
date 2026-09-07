@@ -28,6 +28,7 @@ class ApiProfileRepository implements ProfileRepository {
   @override
   Future<Profile> updateMe({
     String? displayName,
+    String? pronouns,
     String? description,
     List<String>? crafts,
     UploadedBlob? avatar,
@@ -36,6 +37,7 @@ class ApiProfileRepository implements ProfileRepository {
     bool clearBanner = false,
   }) => _api.updateMyProfile(
     displayName: displayName,
+    pronouns: pronouns,
     description: description,
     crafts: crafts,
     avatar: avatar,

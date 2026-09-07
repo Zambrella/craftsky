@@ -22,6 +22,9 @@ func TestSentryImportBoundary(t *testing.T) {
 		filepath.Join(root, "internal", "tap") + string(filepath.Separator),
 		filepath.Join(root, "internal", "api") + string(filepath.Separator),
 	}
+	allowedTestFiles := []string{
+		filepath.Join(root, "internal", "app", "pds_migration_observability_integration_test.go"),
+	}
 
 	var violations []string
 	err := filepath.WalkDir(root, func(path string, entry os.DirEntry, err error) error {
@@ -51,7 +54,7 @@ func TestSentryImportBoundary(t *testing.T) {
 			return err
 		}
 		if strings.HasSuffix(path, "_test.go") {
-			if hasPathPrefix(path, allowedTestPrefixes) {
+			if hasPathPrefix(path, allowedTestPrefixes) || slices.Contains(allowedTestFiles, path) {
 				return nil
 			}
 			violations = append(violations, rel+" imports sentry-go from an unapproved test package")

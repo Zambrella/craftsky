@@ -25,6 +25,7 @@ class RouteLocations {
   static const postQuotesChild = 'quotes';
   static const businessEvent = '/events/:did/:rkey';
   static const profile = '/profile';
+  static const profiles = '/profiles';
   static const settingsChild = 'settings';
   static const settings = '$profile/$settingsChild';
   static const growthChild = 'growth';

@@ -4,6 +4,7 @@ import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/report_profile_provider.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -17,7 +18,8 @@ void main() {
       var calls = 0;
       final completer = Completer<ReportResult>();
       final repo = FakeProfileRepository(
-        onReport: (_, _) {
+        onReport: (target, _) {
+          expect(target, 'did:plc:bob');
           calls++;
           return completer.future;
         },
@@ -29,11 +31,11 @@ void main() {
 
       final notifier = container.read(reportProfileProvider.notifier);
       final first = notifier.submit(
-        handleOrDid: 'bob.craftsky.social',
+        did: Did.parse('did:plc:bob'),
         submission: submission,
       );
       await notifier.submit(
-        handleOrDid: 'bob.craftsky.social',
+        did: Did.parse('did:plc:bob'),
         submission: submission,
       );
 

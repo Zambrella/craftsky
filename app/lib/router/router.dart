@@ -26,7 +26,9 @@ import 'package:craftsky_app/languages/pages/languages_page.dart';
 import 'package:craftsky_app/notifications/pages/notification_settings_page.dart';
 import 'package:craftsky_app/notifications/pages/notifications_page.dart';
 import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
+import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/pages/profile_page.dart';
+import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
 import 'package:craftsky_app/profile/widgets/profile_route_presentation.dart';
 import 'package:craftsky_app/projects/pages/projects_page.dart';
@@ -344,8 +346,12 @@ class AccountDeletionReauthCompleteRoute extends GoRouteData
       path: RouteLocations.businessEvent,
       name: 'business-event',
     ),
+    TypedGoRoute<ProfileAliasRoute>(
+      path: '${RouteLocations.profiles}/@:handle',
+      name: 'profile-alias',
+    ),
     TypedGoRoute<UserProfileRoute>(
-      path: '${RouteLocations.profile}/:handle',
+      path: '${RouteLocations.profiles}/:did',
       name: 'user-profile',
     ),
   ],
@@ -907,28 +913,17 @@ String _validatedEventRecordKey(String value) {
 }
 
 class UserProfileRoute extends GoRouteData with $UserProfileRoute {
-  const UserProfileRoute({required this.handle, this.$extra});
+  const UserProfileRoute({
+    @TypedQueryParameter<Did>(
+      encoder: _encodeDidRouteParameter,
+      decoder: _decodeDidRouteParameter,
+    )
+    required this.did,
+    this.$extra,
+  });
 
-  final String handle;
+  final Did did;
   final ProfilePresentationRequest? $extra;
-
-  /// `/profile/me` is a soft alias — resolves to the signed-in user's
-  /// real handle so deep links remain shareable. When the user is
-  /// signed out, the top-level redirect handles bouncing them to
-  /// `/welcome`.
-  @override
-  FutureOr<String?> redirect(BuildContext context, GoRouterState state) {
-    if (handle != 'me') return null;
-    final auth = ProviderScope.containerOf(
-      context,
-    ).read(authSessionProvider).value;
-    return switch (auth) {
-      SignedIn(handle: final myHandle) => UserProfileRoute(
-        handle: myHandle,
-      ).location,
-      _ => null,
-    };
-  }
 
   @override
   Page<void> buildPage(BuildContext context, GoRouterState state) {
@@ -937,9 +932,41 @@ class UserProfileRoute extends GoRouteData with $UserProfileRoute {
       key: state.pageKey,
       startsCompact: request?.startsCompact ?? false,
       child: ProfileRoutePresentation(
-        handle: handle,
+        did: did,
         startsCompact: request?.startsCompact ?? false,
       ),
     );
   }
 }
+
+class ProfileAliasRoute extends GoRouteData with $ProfileAliasRoute {
+  const ProfileAliasRoute({
+    @TypedQueryParameter<Handle>(
+      encoder: _encodeHandleRouteParameter,
+      decoder: _decodeHandleRouteParameter,
+    )
+    required this.handle,
+  });
+
+  final Handle handle;
+
+  @override
+  Future<String> redirect(BuildContext context, GoRouterState state) async {
+    final alias = ProfileHandle(handle).aliasInput;
+    if (alias == null) {
+      throw const FormatException('Unavailable handle is not a profile alias');
+    }
+    final profile = await ProviderScope.containerOf(
+      context,
+    ).read(profileRepositoryProvider).fetch(alias);
+    return UserProfileRoute(did: profile.did).location;
+  }
+}
+
+Did _decodeDidRouteParameter(String value) => Did.parse(value);
+
+String _encodeDidRouteParameter(Did value) => value.toString();
+
+Handle _decodeHandleRouteParameter(String value) => Handle.parse(value);
+
+String _encodeHandleRouteParameter(Handle value) => value.toString();

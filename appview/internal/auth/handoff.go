@@ -26,6 +26,7 @@ type HandoffServiceOptions struct {
 	Pool              *pgxpool.Pool
 	Owners            *ownerlifecycle.Store
 	Sessions          *CraftskySessionStore
+	RepositoryJobs    RepositoryJobTxEnqueuer
 	ExchangeTTL       time.Duration
 	ConfirmationTTL   time.Duration
 	ReceiptKey        []byte
@@ -38,12 +39,35 @@ type HandoffService struct {
 	pool              *pgxpool.Pool
 	owners            *ownerlifecycle.Store
 	sessions          *CraftskySessionStore
+	repositoryJobs    RepositoryJobTxEnqueuer
 	exchangeTTL       time.Duration
 	confirmationTTL   time.Duration
 	receiptAEAD       cipher.AEAD
 	receiptKeyVersion int
 	random            io.Reader
 	now               func() time.Time
+}
+
+type RepositoryJobKind string
+
+const (
+	RepositoryJobTapAddRepo   RepositoryJobKind = "tap_add_repo"
+	RepositoryJobPDSReconcile RepositoryJobKind = "pds_reconcile"
+)
+
+type RepositoryJobTxEnqueuer interface {
+	EnqueueRepositoryJobTx(context.Context, pgx.Tx, syntax.DID, RepositoryJobKind) error
+}
+
+type RepositoryJobTxEnqueuerFunc func(context.Context, pgx.Tx, syntax.DID, RepositoryJobKind) error
+
+func (enqueue RepositoryJobTxEnqueuerFunc) EnqueueRepositoryJobTx(
+	ctx context.Context,
+	tx pgx.Tx,
+	did syntax.DID,
+	kind RepositoryJobKind,
+) error {
+	return enqueue(ctx, tx, did, kind)
 }
 
 type HandoffExchangeResult struct {
@@ -55,8 +79,8 @@ type HandoffExchangeResult struct {
 }
 
 func NewHandoffService(options HandoffServiceOptions) (*HandoffService, error) {
-	if options.Pool == nil || options.Owners == nil || options.Sessions == nil {
-		return nil, errors.New("handoff service requires database, owner lifecycle, and child sessions")
+	if options.Pool == nil || options.Owners == nil || options.Sessions == nil || options.RepositoryJobs == nil {
+		return nil, errors.New("handoff service requires database, owner lifecycle, child sessions, and repository jobs")
 	}
 	if options.ExchangeTTL <= 0 || options.ConfirmationTTL <= 0 || options.ConfirmationTTL >= options.ExchangeTTL {
 		return nil, errors.New("handoff confirmation TTL must be positive and shorter than exchange TTL")
@@ -80,7 +104,8 @@ func NewHandoffService(options HandoffServiceOptions) (*HandoffService, error) {
 	}
 	return &HandoffService{
 		pool: options.Pool, owners: options.Owners, sessions: options.Sessions,
-		exchangeTTL: options.ExchangeTTL, confirmationTTL: options.ConfirmationTTL,
+		repositoryJobs: options.RepositoryJobs,
+		exchangeTTL:    options.ExchangeTTL, confirmationTTL: options.ConfirmationTTL,
 		receiptAEAD: aead, receiptKeyVersion: options.ReceiptKeyVersion,
 		random: options.Random, now: options.Now,
 	}, nil
@@ -424,6 +449,27 @@ func (service *HandoffService) Confirm(
 				WHERE id=$1 AND state='pending'
 			`, receiptID, now); err != nil {
 				return err
+			}
+			var hasPriorParent bool
+			if err := tx.QueryRow(authCtx, `
+				SELECT EXISTS(
+					SELECT 1 FROM oauth_sessions
+					WHERE account_did=$1 AND session_id<>$2
+				)
+			`, discovery.Owner, discovery.OAuthSessionID).Scan(&hasPriorParent); err != nil {
+				return err
+			}
+			if err := service.repositoryJobs.EnqueueRepositoryJobTx(
+				authCtx, tx, discovery.Owner, RepositoryJobTapAddRepo,
+			); err != nil {
+				return err
+			}
+			if hasPriorParent {
+				if err := service.repositoryJobs.EnqueueRepositoryJobTx(
+					authCtx, tx, discovery.Owner, RepositoryJobPDSReconcile,
+				); err != nil {
+					return err
+				}
 			}
 			return nil
 		})

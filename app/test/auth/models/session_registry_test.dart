@@ -10,8 +10,24 @@ import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('UT-013 rejects the superseded handle-bound storage schema', () {
+    expect(
+      () => SessionRegistry.fromJson(
+        jsonEncode({
+          'schemaVersion': 1,
+          'nextSessionGeneration': 1,
+          'nextUseOrdinal': 1,
+          'activationGeneration': 0,
+          'activeDid': null,
+          'sessions': <String, Object?>{},
+        }),
+      ),
+      throwsFormatException,
+    );
+  });
+
   test(
-    'REG-019 pending deletion fence survives reconstruction and account '
+    'UT-013 pending DID deletion fence survives reconstruction and account '
     'switching stays stale',
     () {
       var registry = SessionRegistry.empty().upsertAndActivate(
@@ -22,7 +38,7 @@ void main() {
       final pending = PendingAccountDeletion.capture(
         jobId: '10000000-0000-4000-8000-000000000001',
         lease: registry.activeLease!,
-        handle: 'alice.test',
+        confirmationDid: 'did:plc:alice',
         expiresAt: DateTime.utc(2027),
       );
 
@@ -31,7 +47,9 @@ void main() {
       );
 
       expect(registry.pendingAccountDeletion?.jobId, pending.jobId);
-      expect(registry.pendingAccountDeletion?.requiredHandle, '@alice.test');
+      expect(registry.pendingAccountDeletion?.confirmationDid, 'did:plc:alice');
+      final encoded = jsonDecode(registry.toJson()) as Map<String, dynamic>;
+      expect(encoded['schemaVersion'], 2);
       expect(
         registry.pendingAccountDeletion?.isCurrent(
           registry.activeLease,
@@ -152,7 +170,7 @@ void main() {
     expect(
       () => SessionRegistry.fromJson(
         jsonEncode({
-          'schemaVersion': 1,
+          'schemaVersion': 2,
           'nextSessionGeneration': 13,
           'nextUseOrdinal': 21,
           'activationGeneration': 5,
@@ -182,7 +200,7 @@ void main() {
   test('older session snapshots default absent cached customisation', () {
     final restored = SessionRegistry.fromJson(
       jsonEncode({
-        'schemaVersion': 1,
+        'schemaVersion': 2,
         'nextSessionGeneration': 2,
         'nextUseOrdinal': 2,
         'activationGeneration': 1,

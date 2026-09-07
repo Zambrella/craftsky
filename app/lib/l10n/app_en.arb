@@ -25,6 +25,9 @@
   "navigationProfile": "Profile",
   "@navigationProfile": { "description": "Label for the signed-in member's Profile navigation destination." },
 
+  "handleUnavailable": "Handle unavailable",
+  "@handleUnavailable": { "description": "Current identity label shown when an account has no bidirectionally valid handle." },
+
   "navigationSaved": "Saved",
   "@navigationSaved": { "description": "Compact label for the Saved posts navigation destination." },
 
@@ -1450,6 +1453,12 @@
   "editProfileDisplayNameHint": "How your name appears on your profile",
   "@editProfileDisplayNameHint": { "description": "Hint text inside the display-name field on the profile-edit page." },
 
+  "editProfilePronounsLabel": "Pronouns",
+  "@editProfilePronounsLabel": { "description": "Label above the optional pronouns field in profile forms." },
+
+  "editProfilePronounsHint": "For example, she/her or they/them",
+  "@editProfilePronounsHint": { "description": "Hint text inside the free-form pronouns field in profile forms." },
+
   "editProfileBioLabel": "Bio",
   "@editProfileBioLabel": { "description": "Label above the bio field on the profile-edit page." },
 
@@ -1458,6 +1467,9 @@
 
   "editProfileDisplayNameTooLong": "Display name must be 64 characters or fewer",
   "@editProfileDisplayNameTooLong": { "description": "Form-validation error shown below the display-name field on the profile-edit page when the user enters more than 64 characters (the AppView profile lexicon's grapheme limit)." },
+
+  "editProfilePronounsTooLong": "Pronouns must be 20 characters or fewer",
+  "@editProfilePronounsTooLong": { "description": "Form-validation error shown below the pronouns field when the user exceeds the Bluesky profile lexicon's 20-grapheme limit." },
 
   "editProfileBioTooLong": "Bio must be 256 characters or fewer",
   "@editProfileBioTooLong": { "description": "Form-validation error shown below the bio field on the profile-edit page when the user enters more than 256 characters (the AppView profile lexicon's grapheme limit)." },
@@ -2507,23 +2519,23 @@
   "@deleteAccountContinue": { "description": "Action continuing to fresh reauthentication." },
   "deleteAccountConfirmTitle": "Confirm account deletion",
   "@deleteAccountConfirmTitle": { "description": "Typed-handle confirmation dialog title." },
-  "deleteAccountTypeHandleLabel": "Type your handle",
-  "@deleteAccountTypeHandleLabel": { "description": "Label for exact-handle deletion confirmation input." },
-  "deleteAccountConfirmationPrompt": "Type {handle} exactly to permanently delete this CraftSky account.",
-  "@deleteAccountConfirmationPrompt": {
-    "description": "Prompt for exact-handle deletion confirmation.",
+  "deleteAccountTypeDidLabel": "Type your DID",
+  "@deleteAccountTypeDidLabel": { "description": "Label for exact-DID deletion confirmation input." },
+  "deleteAccountDidConfirmationPrompt": "Type {did} exactly to permanently delete this CraftSky account.",
+  "@deleteAccountDidConfirmationPrompt": {
+    "description": "Prompt for exact-DID deletion confirmation.",
     "placeholders": {
-      "handle": { "type": "String", "example": "@alice.test" }
+      "did": { "type": "String", "example": "did:plc:alice" }
     }
   },
   "accountDeletionAlreadyInProgress": "Your CraftSky account deletion is already in progress. You cannot sign in again until it has finished.",
   "@accountDeletionAlreadyInProgress": { "description": "Coarse sign-in outcome while durable account deletion is active." },
 
-  "deleteAccountBoundary": "Deleting {handle} permanently removes all your CraftSky data from your PDS and all private data held by CraftSky. It won’t delete your PDS, DID, or wider AT Protocol account.\n\nTo continue, you’ll need to authenticate with your PDS again.",
-  "@deleteAccountBoundary": {
-    "description": "Permanent CraftSky deletion boundary shown before typed-handle confirmation.",
+  "deleteAccountDidBoundary": "Deleting the CraftSky account identified by {did} permanently removes all your CraftSky data from your PDS and all private data held by CraftSky. It won’t delete your PDS, DID, or wider AT Protocol account.\n\nTo continue, you’ll need to authenticate with your PDS again.",
+  "@deleteAccountDidBoundary": {
+    "description": "Permanent CraftSky deletion boundary shown before typed-DID confirmation.",
     "placeholders": {
-      "handle": { "type": "String", "example": "@alice.test" }
+      "did": { "type": "String", "example": "did:plc:alice" }
     }
   },
 
@@ -2603,7 +2615,7 @@
   "onboardingStepProgress": "Step {current} of {total}",
   "@onboardingStepProgress": {"placeholders": {"current": {"type": "int"}, "total": {"type": "int"}}},
   "onboardingProfileTitle": "Make it yours",
-  "onboardingProfileDescription": "Add a name, bio, and photo so other crafters can recognize you.",
+  "onboardingProfileDescription": "Add a name, pronouns, bio, and photo so other crafters can recognize you.",
   "onboardingAvatarUploading": "Uploading photo...",
   "onboardingAvatarUploadFailed": "Photo upload failed. Try again.",
   "onboardingHandleLabel": "Signed in as @{handle}",

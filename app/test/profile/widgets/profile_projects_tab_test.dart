@@ -6,6 +6,7 @@ import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_projects_tab.dart';
 import 'package:craftsky_app/projects/models/project.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
@@ -70,7 +71,7 @@ Future<void> _pump(
             body: CustomScrollView(
               slivers: [
                 ProfileProjectsTab(
-                  handle: 'alice.craftsky.social',
+                  did: Did.parse('did:plc:alice'),
                   isOwnProfile: isOwnProfile,
                 ),
               ],
@@ -116,7 +117,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(calls, [
-        (handleOrDid: 'alice.craftsky.social', cursor: null, limit: 10),
+        (handleOrDid: 'did:plc:alice', cursor: null, limit: 10),
       ]);
       expect(find.text('Project a'), findsOneWidget);
       expect(find.text('project post a'), findsOneWidget);

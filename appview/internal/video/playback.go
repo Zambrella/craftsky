@@ -10,7 +10,7 @@ import (
 
 const (
 	defaultPlaylistTemplate  = "https://video.bsky.app/watch/{did}/{cid}/playlist.m3u8"
-	defaultThumbnailTemplate = "https://video.bsky.app/watch/{did}/{cid}/thumbnail.jpg"
+	defaultThumbnailTemplate = "https://video.cdn.bsky.app/hls/{did}/{cid}/thumbnail.jpg"
 )
 
 var ErrPlaybackConfig = errors.New("invalid video playback configuration")
@@ -42,8 +42,12 @@ func (builder *PlaybackURLBuilder) URLs(did syntax.DID, cid syntax.CID) (string,
 	if builder == nil || did == "" || cid == "" {
 		return "", ""
 	}
-	replacer := strings.NewReplacer("{did}", url.PathEscape(did.String()), "{cid}", url.PathEscape(cid.String()))
+	replacer := strings.NewReplacer("{did}", escapePathSegment(did.String()), "{cid}", escapePathSegment(cid.String()))
 	return replacer.Replace(builder.playlistTemplate), replacer.Replace(builder.thumbnailTemplate)
+}
+
+func escapePathSegment(value string) string {
+	return strings.ReplaceAll(url.QueryEscape(value), "+", "%20")
 }
 
 func validPlaybackTemplate(template string) bool {

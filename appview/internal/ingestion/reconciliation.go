@@ -155,7 +155,7 @@ func (service *Service) ReconcileSource(ctx context.Context, reconciled Reconcil
 			var outcome tap.Outcome
 			_, err := service.lifecycles.TransitionWith(ctx, ownerlifecycle.TransitionRequest{
 				Owner: reconciled.DID, ExpectedGeneration: lifecycle.Generation,
-				To: target, Reason: "profilePDSReconciled",
+				To: target, Reason: profileTransitionReason(event.Action),
 			}, func(ctx context.Context, tx pgx.Tx, before, after ownerlifecycle.Lifecycle) error {
 				var reconcileErr error
 				outcome, reconcileErr = service.store.reconcileSourceTx(

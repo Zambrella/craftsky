@@ -146,14 +146,14 @@ Grouped by resource. Each line is an endpoint; response/request body details bel
 
 ### 4.2 Profiles
 
-- `GET /v1/profiles/@{handleOrDid}` — profile summary (display name, avatar, bio, Craftsky-specific fields, counts).
+- `GET /v1/profiles/@{handleOrDid}` — profile summary (display name, avatar, bio, preferred pronouns, Craftsky-specific fields, counts). Preferred pronouns come from standard `app.bsky.actor.profile.pronouns`, not the Craftsky profile record, and are omitted from blocked profile shells.
 - `GET /v1/profiles/@{handleOrDid}/posts` — a user's own posts, newest first.
 - `PATCH /v1/profiles/me` — partial profile update. Body contains only the fields to change.
 - `PUT /v1/profiles/me` — full profile replace. Body must contain the complete profile; missing fields are cleared.
 - `POST /v1/profiles/@{handleOrDid}/follows` — follow this profile. Writes an `app.bsky.graph.follow` record to the caller's PDS.
 - `DELETE /v1/profiles/@{handleOrDid}/follows` — unfollow.
 
-**Why one profile endpoint for two lexicons:** the Flutter app thinks of "a profile" as a single unit. The AppView splits the body into `app.bsky.actor.profile` (display name, avatar, bio) and `social.craftsky.actor.profile` (craft-specific fields) writes to the caller's PDS. Client sends one body; AppView does two PDS writes.
+**Why one profile endpoint for two lexicons:** the Flutter app thinks of "a profile" as a single unit. The AppView splits the body into `app.bsky.actor.profile` (display name, avatar, bio, preferred pronouns) and `social.craftsky.actor.profile` (craft-specific fields) writes to the caller's PDS. Client sends one body; AppView does two PDS writes.
 
 **Partial-success handling on `PATCH`/`PUT`:**
 

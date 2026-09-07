@@ -35,7 +35,7 @@ type contentDependencies struct {
 }
 
 type contentRuntimeDependencies struct {
-	identityCache         auth.IdentityCacheUpdater
+	identityCache         auth.IdentityCacheRefresher
 	identityRefresh       *api.IdentityCacheRefreshProcessor
 	relationshipMutations api.RelationshipMutationService
 }
@@ -92,7 +92,7 @@ func newContentRuntimeDependencies(
 		return nil, fmt.Errorf("identity cache refresh processor: %w", err)
 	}
 	return &contentRuntimeDependencies{
-		identityCache:   api.NewIdentityCacheService(pool, handleResolver, time.Now, observer),
+		identityCache:   api.NewIdentityCacheService(pool, handleResolver, time.Now, identityInvalidator, observer),
 		identityRefresh: identityRefresh,
 		relationshipMutations: relationships.NewMutationServiceWithRestoration(
 			content.relationships,

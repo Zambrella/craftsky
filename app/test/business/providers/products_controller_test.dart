@@ -218,12 +218,14 @@ void main() {
       addTearDown(container.dispose);
       await container.read(sessionRegistryProvider.future);
       final subscription = container.listen(
-        userProfileProvider('owner.test'),
+        userProfileProvider(Did.parse('did:plc:owner')),
         (_, _) {},
         fireImmediately: true,
       );
       addTearDown(subscription.close);
-      await container.read(userProfileProvider('owner.test').future);
+      await container.read(
+        userProfileProvider(Did.parse('did:plc:owner')).future,
+      );
       final initial = await container.read(productsControllerProvider.future);
       final first = initial.products.first;
       final previewBytes = Uint8List.fromList([5, 6, 7]);
@@ -243,9 +245,9 @@ void main() {
           currency: first.currency,
         ),
       ];
-      container.invalidate(userProfileProvider('owner.test'));
+      container.invalidate(userProfileProvider(Did.parse('did:plc:owner')));
       final staleProfileRead = container.read(
-        userProfileProvider('owner.test').future,
+        userProfileProvider(Did.parse('did:plc:owner')).future,
       );
       await Future<void>.delayed(Duration.zero);
       expect(profileRepository.fetches, 2);
@@ -260,7 +262,7 @@ void main() {
       expect(profileRepository.fetches, 2);
 
       final reconciled = await container.read(
-        userProfileProvider('owner.test').future,
+        userProfileProvider(Did.parse('did:plc:owner')).future,
       );
       expect(
         reconciled.business?.products.map((product) => product.title),
@@ -278,7 +280,7 @@ void main() {
       );
       expect(
         container
-            .read(userProfileProvider('owner.test'))
+            .read(userProfileProvider(Did.parse('did:plc:owner')))
             .requireValue
             .business
             ?.products
@@ -362,6 +364,9 @@ final class _ProfileRepository extends Fake implements ProfileRepository {
   final Profile initial;
   final Completer<Profile> laggingRead;
   int fetches = 0;
+
+  @override
+  Future<Profile> fetchMe() => fetch(initial.did);
 
   @override
   Future<Profile> fetch(String handleOrDid) {

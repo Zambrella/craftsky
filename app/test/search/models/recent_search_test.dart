@@ -1,6 +1,8 @@
+import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/search/models/project_search_filters.dart';
 import 'package:craftsky_app/search/models/recent_search.dart';
 import 'package:craftsky_app/search/models/search_sort.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -32,11 +34,11 @@ void main() {
     );
 
     expect(
-      const SaveRecentSearchRequest(
+      SaveRecentSearchRequest(
         type: RecentSearchType.profile,
         displayLabel: 'Alice',
         payload: ProfileRecentSearchPayload(
-          did: 'did:plc:alice',
+          did: Did.parse('did:plc:alice'),
           handle: 'alice.craftsky.social',
           displayName: 'Alice',
         ),
@@ -174,5 +176,18 @@ void main() {
       page.items.first.updatedAt.toUtc().toIso8601String(),
       '2026-06-20T09:00:00.000Z',
     );
+  });
+
+  test('UT-009 stale recent-profile handle routes by stored DID', () {
+    final payload = ProfileRecentSearchPayload(
+      did: Did.parse('did:plc:alice'),
+      handle: 'old.example',
+    );
+
+    expect(
+      UserProfileRoute(did: payload.did).location,
+      '/profiles/did%3Aplc%3Aalice',
+    );
+    expect(payload.handle, 'old.example');
   });
 }

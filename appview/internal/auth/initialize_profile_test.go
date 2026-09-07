@@ -22,11 +22,6 @@ type fakeIdentityCacheUpdater struct {
 	err  error
 }
 
-type fakeRepositoryTracker struct {
-	dids []syntax.DID
-	err  error
-}
-
 type recordingBlueskyProfileProjector struct {
 	did    syntax.DID
 	cid    syntax.CID
@@ -71,26 +66,14 @@ func (p *recordingBlueskyProfileProjector) ProjectBlueskyProfile(
 	return p.err
 }
 
-type orderedRepositoryTracker struct{ order *[]string }
-
-func (t orderedRepositoryTracker) AddRepo(context.Context, syntax.DID) error {
-	*t.order = append(*t.order, "track")
-	return nil
-}
-
 type orderedIdentityCacheUpdater struct{ order *[]string }
 
-func (u orderedIdentityCacheUpdater) UpsertCurrentHandle(context.Context, syntax.DID) error {
+func (u orderedIdentityCacheUpdater) RefreshCurrentHandle(context.Context, syntax.DID) error {
 	*u.order = append(*u.order, "cache")
 	return nil
 }
 
-func (f *fakeRepositoryTracker) AddRepo(_ context.Context, did syntax.DID) error {
-	f.dids = append(f.dids, did)
-	return f.err
-}
-
-func (f *fakeIdentityCacheUpdater) UpsertCurrentHandle(_ context.Context, did syntax.DID) error {
+func (f *fakeIdentityCacheUpdater) RefreshCurrentHandle(_ context.Context, did syntax.DID) error {
 	f.dids = append(f.dids, did)
 	return f.err
 }
@@ -183,12 +166,11 @@ func TestInitializeProfileAndIdentityCacheProjectsNewCraftskyProfileBeforeAuxili
 		testOnboardingProfileWriter{}, nil, projector,
 		orderedIdentityCacheUpdater{order: &order},
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
-		orderedRepositoryTracker{order: &order},
 	)
 	if err != nil {
 		t.Fatalf("InitializeProfileAndIdentityCache: %v", err)
 	}
-	if got, want := order, []string{"craftsky-project", "track", "cache"}; !slices.Equal(got, want) {
+	if got, want := order, []string{"craftsky-project", "cache"}; !slices.Equal(got, want) {
 		t.Fatalf("effect order = %v; want %v", got, want)
 	}
 	if projector.did != "did:plc:new" || projector.cid != "new-craftsky-cid" {
@@ -222,7 +204,6 @@ func TestInitializeProfileAndIdentityCacheFailsBeforeHandoffEffectsWhenCraftskyP
 		testOnboardingProfileWriter{}, nil, projector,
 		orderedIdentityCacheUpdater{order: &order},
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
-		orderedRepositoryTracker{order: &order},
 	)
 	if !errors.Is(err, auth.ErrProfileInitFailed) {
 		t.Fatalf("error = %v; want ErrProfileInitFailed", err)
@@ -356,7 +337,6 @@ func TestInitializeProfileAndIdentityCacheProjectsFetchedBlueskyProfileBeforeAux
 		context.Background(), m, loginAttempt(did), testOnboardingProfileWriter{},
 		projector, nil, orderedIdentityCacheUpdater{order: &order},
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
-		orderedRepositoryTracker{order: &order},
 	)
 	if err != nil {
 		t.Fatalf("InitializeProfileAndIdentityCache: %v", err)
@@ -367,7 +347,7 @@ func TestInitializeProfileAndIdentityCacheProjectsFetchedBlueskyProfileBeforeAux
 	if projector.record["displayName"] != "Alice" || projector.record["description"] != "Maker" {
 		t.Fatalf("projected record = %#v", projector.record)
 	}
-	wantOrder := []string{"project", "track", "cache"}
+	wantOrder := []string{"project", "cache"}
 	if len(order) != len(wantOrder) {
 		t.Fatalf("effect order = %v, want %v", order, wantOrder)
 	}
@@ -429,13 +409,12 @@ func TestInitializeProfileAndIdentityCacheProjectionIsOptionalAndBestEffort(t *t
 			context.Background(), m, loginAttempt(syntax.DID("did:plc:projection-failure")),
 			testOnboardingProfileWriter{}, projector, nil,
 			orderedIdentityCacheUpdater{order: &order}, logger,
-			orderedRepositoryTracker{order: &order},
 		)
 		if err != nil {
 			t.Fatalf("projection failure should not fail initialization: %v", err)
 		}
-		if got := strings.Join(order, ","); got != "project,track,cache" {
-			t.Fatalf("effect order = %q, want project,track,cache", got)
+		if got := strings.Join(order, ","); got != "project,cache" {
+			t.Fatalf("effect order = %q, want project,cache", got)
 		}
 		logged := logs.String()
 		if !strings.Contains(logged, "profile_init.bluesky_projection") {
@@ -471,33 +450,6 @@ func TestInitializeProfileAndIdentityCacheLogsAndContinuesWhenUpsertFails(t *tes
 	}
 }
 
-func TestInitializeProfileAndIdentityCacheRequestsRepositoryTrackingOnEverySuccess(t *testing.T) {
-	t.Parallel()
-	m := &mockPDS{
-		getRecord: func(coll, _ string, out any) (string, error) {
-			if coll == bskyNSID {
-				*(out.(*map[string]any)) = map[string]any{"displayName": "Alice"}
-				return "", nil
-			}
-			*(out.(*map[string]any)) = map[string]any{"crafts": []any{"sewing"}}
-			return "", nil
-		},
-		putRecord: func(_, _ string, _ any) error { return nil },
-	}
-	tracker := &fakeRepositoryTracker{err: errors.New("Tap temporarily unavailable")}
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	did := syntax.DID("did:plc:returning")
-
-	for i := 0; i < 2; i++ {
-		if err := auth.InitializeProfileAndIdentityCache(context.Background(), m, loginAttempt(did), testOnboardingProfileWriter{}, nil, nil, nil, logger, tracker); err != nil {
-			t.Fatalf("InitializeProfileAndIdentityCache retry %d: %v", i, err)
-		}
-	}
-	if len(tracker.dids) != 2 || tracker.dids[0] != did || tracker.dids[1] != did {
-		t.Fatalf("tracking requests = %v, want DID twice", tracker.dids)
-	}
-}
-
 func TestOrdinaryOnboardingPreservesProfileAndAuxiliaryEffectSeverity(t *testing.T) {
 	for _, purpose := range []auth.OAuthPurpose{auth.LoginOAuthPurpose, auth.RegistrationOAuthPurpose} {
 		t.Run(string(purpose)+" profile failure is fatal", func(t *testing.T) {
@@ -510,16 +462,15 @@ func TestOrdinaryOnboardingPreservesProfileAndAuxiliaryEffectSeverity(t *testing
 			attempt := loginAttempt(syntax.DID("did:plc:severity-fatal"))
 			attempt.Purpose = purpose
 			cache := &fakeIdentityCacheUpdater{}
-			tracker := &fakeRepositoryTracker{}
 			err := auth.InitializeProfileAndIdentityCache(
 				context.Background(), pds, attempt, testOnboardingProfileWriter{}, nil, nil, cache,
-				slog.New(slog.NewTextHandler(io.Discard, nil)), tracker,
+				slog.New(slog.NewTextHandler(io.Discard, nil)),
 			)
-			if !errors.Is(err, auth.ErrProfileInitFailed) || len(cache.dids) != 0 || len(tracker.dids) != 0 {
-				t.Fatalf("profile failure err=%v cache=%v tracker=%v", err, cache.dids, tracker.dids)
+			if !errors.Is(err, auth.ErrProfileInitFailed) || len(cache.dids) != 0 {
+				t.Fatalf("profile failure err=%v cache=%v", err, cache.dids)
 			}
 		})
-		t.Run(string(purpose)+" cache and tracker failures warn only", func(t *testing.T) {
+		t.Run(string(purpose)+" cache failure warns only", func(t *testing.T) {
 			pds := &mockPDS{
 				getRecord: func(collection, _ string, out any) (string, error) {
 					if collection == bskyNSID {
@@ -533,13 +484,12 @@ func TestOrdinaryOnboardingPreservesProfileAndAuxiliaryEffectSeverity(t *testing
 			attempt := loginAttempt(syntax.DID("did:plc:severity-warning"))
 			attempt.Purpose = purpose
 			cache := &fakeIdentityCacheUpdater{err: errors.New("cache unavailable")}
-			tracker := &fakeRepositoryTracker{err: errors.New("tracker unavailable")}
 			err := auth.InitializeProfileAndIdentityCache(
 				context.Background(), pds, attempt, testOnboardingProfileWriter{}, nil, nil, cache,
-				slog.New(slog.NewTextHandler(io.Discard, nil)), tracker,
+				slog.New(slog.NewTextHandler(io.Discard, nil)),
 			)
-			if err != nil || len(cache.dids) != 1 || len(tracker.dids) != 1 {
-				t.Fatalf("warning effects err=%v cache=%v tracker=%v", err, cache.dids, tracker.dids)
+			if err != nil || len(cache.dids) != 1 {
+				t.Fatalf("warning effect err=%v cache=%v", err, cache.dids)
 			}
 		})
 	}

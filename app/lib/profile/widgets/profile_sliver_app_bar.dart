@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
 import 'package:craftsky_app/profile/widgets/profile_craft_chips.dart';
 import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
@@ -25,6 +26,7 @@ class ProfileSliverAppBar extends StatelessWidget {
     required this.actions,
     this.crafts = const [],
     this.displayName,
+    this.pronouns,
     this.avatarUrl,
     this.customisation = ProfileCustomisation.defaults,
     this.isBusiness = false,
@@ -36,6 +38,7 @@ class ProfileSliverAppBar extends StatelessWidget {
   final ProfileActionSet actions;
   final List<String> crafts;
   final String? displayName;
+  final String? pronouns;
   final String? avatarUrl;
   final ProfileCustomisation customisation;
   final bool isBusiness;
@@ -74,6 +77,7 @@ class ProfileSliverAppBar extends StatelessWidget {
         handle: handle,
         crafts: crafts,
         displayName: displayName,
+        pronouns: pronouns,
         avatarUrl: avatarUrl,
         customisation: customisation,
         isBusiness: isBusiness,
@@ -96,7 +100,13 @@ class ProfileSliverAppBar extends StatelessWidget {
     );
     final textScaler = MediaQuery.textScalerOf(context);
     final direction = Directionality.of(context);
-    final name = (displayName?.isNotEmpty ?? false) ? displayName! : '@$handle';
+    final profileHandle = ProfileHandle(handle);
+    final unavailable = AppLocalizations.of(context).handleUnavailable;
+    final name = profileHandle.displayLabel(
+      displayName: displayName,
+      unavailableLabel: unavailable,
+      includeAtSignWhenNoDisplayName: true,
+    );
     final nameHeight = _measureTextHeight(
       text: name,
       style: theme.textTheme.headlineMedium,
@@ -106,7 +116,7 @@ class ProfileSliverAppBar extends StatelessWidget {
     );
     final handleHeight = (displayName?.isNotEmpty ?? false)
         ? _measureTextHeight(
-            text: '@$handle',
+            text: profileHandle.currentLabel(unavailableLabel: unavailable),
             style: theme.textTheme.bodyMedium,
             textScaler: textScaler,
             direction: direction,
@@ -257,6 +267,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
     required this.handle,
     required this.crafts,
     required this.displayName,
+    required this.pronouns,
     required this.avatarUrl,
     required this.customisation,
     required this.isBusiness,
@@ -271,6 +282,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
   final String handle;
   final List<String> crafts;
   final String? displayName;
+  final String? pronouns;
   final String? avatarUrl;
   final ProfileCustomisation customisation;
   final bool isBusiness;
@@ -344,6 +356,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
                     child: ProfileIdentity(
                       handle: handle,
                       displayName: displayName,
+                      pronouns: pronouns,
                       businessLabel: isBusiness
                           ? AppLocalizations.of(context).businessProfileLabel
                           : null,
@@ -479,7 +492,12 @@ class _CollapsedTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final name = (displayName?.isNotEmpty ?? false) ? displayName! : '@$handle';
+    final l10n = AppLocalizations.of(context);
+    final profileHandle = ProfileHandle(handle);
+    final name = profileHandle.displayLabel(
+      displayName: displayName,
+      unavailableLabel: l10n.handleUnavailable,
+    );
     final showSubtitle = displayName?.isNotEmpty ?? false;
 
     return Align(
@@ -496,7 +514,9 @@ class _CollapsedTitle extends StatelessWidget {
           ),
           if (showSubtitle)
             Text(
-              '@$handle',
+              profileHandle.currentLabel(
+                unavailableLabel: l10n.handleUnavailable,
+              ),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),

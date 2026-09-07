@@ -1,4 +1,4 @@
-bool matchesDeletionConfirmationHandle({
-  required String requiredHandle,
+bool matchesDeletionConfirmationDid({
+  required String confirmationDid,
   required String input,
-}) => requiredHandle.isNotEmpty && input == requiredHandle;
+}) => confirmationDid.isNotEmpty && input == confirmationDid;

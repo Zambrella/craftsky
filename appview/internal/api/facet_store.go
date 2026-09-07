@@ -10,8 +10,10 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/identity"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/relationships"
 )
 
@@ -19,6 +21,7 @@ type FacetStore struct {
 	pool          *pgxpool.Pool
 	resolver      HandleResolver
 	identityCache *IdentityCacheStore
+	invalidator   IdentityInvalidator
 }
 
 func NewFacetStore(pool *pgxpool.Pool, resolver ...HandleResolver) *FacetStore {
@@ -27,6 +30,12 @@ func NewFacetStore(pool *pgxpool.Pool, resolver ...HandleResolver) *FacetStore {
 		handleResolver = resolver[0]
 	}
 	return &FacetStore{pool: pool, resolver: handleResolver, identityCache: NewIdentityCacheStore(pool)}
+}
+
+func NewFacetStoreWithInvalidator(pool *pgxpool.Pool, resolver HandleResolver, invalidator IdentityInvalidator) *FacetStore {
+	return &FacetStore{
+		pool: pool, resolver: resolver, identityCache: NewIdentityCacheStore(pool), invalidator: invalidator,
+	}
 }
 
 func RankMentionSuggestionRows(rows []MentionSuggestionRow, query string) {
@@ -124,7 +133,7 @@ func (s *FacetStore) SearchMentionSuggestions(ctx context.Context, viewerDID syn
 			  AND NOT appview_owner_is_terminal(b.subject_did)
 		  )
 		  AND (
-			ic.handle_lower LIKE '%' || $4 || '%' ESCAPE '\'
+			(ic.handle_lower <> 'handle.invalid' AND ic.handle_lower LIKE '%' || $4 || '%' ESCAPE '\')
 			OR lower(coalesce(bp.display_name, '')) LIKE '%' || $4 || '%' ESCAPE '\'
 			OR lower(coalesce(bp.description, '')) LIKE '%' || $4 || '%' ESCAPE '\'
 		  )
@@ -136,9 +145,9 @@ func (s *FacetStore) SearchMentionSuggestions(ctx context.Context, viewerDID syn
 				  AND NOT appview_owner_is_terminal(f.subject_did)
 			) DESC,
 			CASE
-				WHEN ic.handle_lower = $3 THEN 0
-				WHEN ic.handle_lower LIKE $4 || '%' ESCAPE '\' THEN 1
-				WHEN ic.handle_lower LIKE '%' || $4 || '%' ESCAPE '\' THEN 2
+				WHEN ic.handle_lower <> 'handle.invalid' AND ic.handle_lower = $3 THEN 0
+				WHEN ic.handle_lower <> 'handle.invalid' AND ic.handle_lower LIKE $4 || '%' ESCAPE '\' THEN 1
+				WHEN ic.handle_lower <> 'handle.invalid' AND ic.handle_lower LIKE '%' || $4 || '%' ESCAPE '\' THEN 2
 				WHEN lower(coalesce(bp.display_name, '')) LIKE '%' || $4 || '%' ESCAPE '\' THEN 3
 				WHEN lower(coalesce(bp.description, '')) LIKE '%' || $4 || '%' ESCAPE '\' THEN 4
 				ELSE 99
@@ -224,6 +233,9 @@ func (s *FacetStore) ResolveMention(ctx context.Context, viewerDID syntax.DID, h
 	if s.resolver == nil {
 		return IdentityCacheRow{}, ErrMentionNotFound
 	}
+	if handle == "" || handle.IsInvalidHandle() {
+		return IdentityCacheRow{}, ErrMentionNotFound
+	}
 	did, err := s.resolver.ResolveDID(ctx, handle)
 	if err != nil {
 		if isDefinitiveHandleResolutionError(err) {
@@ -244,17 +256,28 @@ func (s *FacetStore) ResolveMention(ctx context.Context, viewerDID syntax.DID, h
 	if err := s.authorizeMention(ctx, viewerDID, did); err != nil {
 		return IdentityCacheRow{}, err
 	}
+	candidate, err := s.identityCache.claimRefresh(ctx, did, now)
+	if err != nil {
+		return IdentityCacheRow{}, err
+	}
 	canonicalHandle, err := s.resolver.ResolveHandle(ctx, did)
 	if err != nil {
 		return IdentityCacheRow{}, fmt.Errorf("%w: %v", ErrMentionIdentityUnavailable, err)
 	}
-	if canonicalHandle.String() == "" {
+	if canonicalHandle.String() == "" || canonicalHandle.IsInvalidHandle() || canonicalHandle.Normalize() != handle.Normalize() {
 		return IdentityCacheRow{}, ErrMentionNotFound
 	}
-	if err := s.identityCache.upsertForViewer(ctx, viewerDID, did, canonicalHandle, now); err != nil {
+	commit, completed, err := s.identityCache.completeRefresh(ctx, candidate, canonicalHandle.Normalize(), now, func(tx pgx.Tx) error {
+		return ownerlifecycle.GuardPrivateMutationTx(ctx, tx, viewerDID, []syntax.DID{did})
+	})
+	if err != nil {
 		return IdentityCacheRow{}, err
 	}
-	return IdentityCacheRow{DID: did, Handle: canonicalHandle, ResolvedAt: now}, nil
+	if !completed {
+		return IdentityCacheRow{}, ErrMentionIdentityUnavailable
+	}
+	invalidateIdentityCommit(ctx, s.invalidator, commit)
+	return IdentityCacheRow{DID: did, Handle: canonicalHandle.Normalize(), ResolvedAt: now}, nil
 }
 
 func isDefinitiveHandleResolutionError(err error) bool {

@@ -3,32 +3,31 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test(
-    'deletion confirmation accepts only the exact captured handle label',
+    'UT-013 deletion confirmation accepts only the exact full DID',
     () {
-      const requiredHandle = '@alice.test';
+      const confirmationDid = 'did:plc:alicefullidentifier';
 
       expect(
-        matchesDeletionConfirmationHandle(
-          requiredHandle: requiredHandle,
-          input: '@alice.test',
+        matchesDeletionConfirmationDid(
+          confirmationDid: confirmationDid,
+          input: confirmationDid,
         ),
         isTrue,
       );
 
       for (final mismatch in [
-        'alice.test',
-        '@Alice.test',
-        '@alice.test ',
-        ' @alice.test',
-        'Alice',
+        'did:plc:alicefullidentifieq',
+        'did:plc:alicefullidentifier ',
+        ' did:plc:alicefullidentifier',
+        'DID:plc:alicefullidentifier',
         'did:plc:alice',
-        '@alice.example',
-        '@bob.test',
+        '@alice.test',
+        'did:plc:bob',
         '',
       ]) {
         expect(
-          matchesDeletionConfirmationHandle(
-            requiredHandle: requiredHandle,
+          matchesDeletionConfirmationDid(
+            confirmationDid: confirmationDid,
             input: mismatch,
           ),
           isFalse,

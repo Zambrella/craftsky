@@ -263,7 +263,7 @@ void main() {
       ),
     ).copyWith(step: OnboardingStep.crafts);
     final flow = _Flow(initial);
-    Uri? confirmedUri;
+    var confirmationCalls = 0;
     Uri? launchedUri;
     await tester.pumpWidget(
       ProviderScope(
@@ -286,8 +286,8 @@ void main() {
           supportedLocales: AppLocalizations.supportedLocales,
           home: OnboardingPage(
             confirmOpenLink: (context, uri) async {
-              confirmedUri = uri;
-              return true;
+              confirmationCalls++;
+              return false;
             },
             linkLauncher: (uri) async {
               launchedUri = uri;
@@ -305,7 +305,7 @@ void main() {
     const expected =
         'https://userinput.app/s/did:plc:lmmx63zcns6gewgxqfdt4kof/'
         '3mpr5izppvt2k?lang=en';
-    expect(confirmedUri.toString(), expected);
+    expect(confirmationCalls, 0);
     expect(launchedUri.toString(), expected);
     expect(flow.state.requireValue.selectedCraftIds, initial.selectedCraftIds);
     expect(find.text('What do you make?'), findsOneWidget);
