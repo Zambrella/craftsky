@@ -1393,6 +1393,12 @@
   "editProfileDisplayNameHint": "How your name appears on your profile",
   "@editProfileDisplayNameHint": { "description": "Hint text inside the display-name field on the profile-edit page." },
 
+  "editProfilePronounsLabel": "Pronouns",
+  "@editProfilePronounsLabel": { "description": "Label above the optional pronouns field in profile forms." },
+
+  "editProfilePronounsHint": "For example, she/her or they/them",
+  "@editProfilePronounsHint": { "description": "Hint text inside the free-form pronouns field in profile forms." },
+
   "editProfileBioLabel": "Bio",
   "@editProfileBioLabel": { "description": "Label above the bio field on the profile-edit page." },
 
@@ -1401,6 +1407,9 @@
 
   "editProfileDisplayNameTooLong": "Display name must be 64 characters or fewer",
   "@editProfileDisplayNameTooLong": { "description": "Form-validation error shown below the display-name field on the profile-edit page when the user enters more than 64 characters (the AppView profile lexicon's grapheme limit)." },
+
+  "editProfilePronounsTooLong": "Pronouns must be 20 characters or fewer",
+  "@editProfilePronounsTooLong": { "description": "Form-validation error shown below the pronouns field when the user exceeds the Bluesky profile lexicon's 20-grapheme limit." },
 
   "editProfileBioTooLong": "Bio must be 256 characters or fewer",
   "@editProfileBioTooLong": { "description": "Form-validation error shown below the bio field on the profile-edit page when the user enters more than 256 characters (the AppView profile lexicon's grapheme limit)." },
@@ -2546,7 +2555,7 @@
   "onboardingStepProgress": "Step {current} of {total}",
   "@onboardingStepProgress": {"placeholders": {"current": {"type": "int"}, "total": {"type": "int"}}},
   "onboardingProfileTitle": "Make it yours",
-  "onboardingProfileDescription": "Add a name, bio, and photo so other crafters can recognize you.",
+  "onboardingProfileDescription": "Add a name, pronouns, bio, and photo so other crafters can recognize you.",
   "onboardingAvatarUploading": "Uploading photo...",
   "onboardingAvatarUploadFailed": "Photo upload failed. Try again.",
   "onboardingHandleLabel": "Signed in as @{handle}",

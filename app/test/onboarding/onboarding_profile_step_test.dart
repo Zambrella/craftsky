@@ -18,11 +18,13 @@ void main() {
         did: 'did:plc:alice',
         handle: 'alice.test',
         displayName: 'Alice',
+        pronouns: 'she/her',
         description: 'Textile maker',
         crafts: const [],
       ),
     );
     String? changedName;
+    String? changedPronouns;
     String? changedBio;
     var avatarPicks = 0;
 
@@ -36,6 +38,7 @@ void main() {
             child: OnboardingProfileStep(
               state: state,
               onDisplayNameChanged: (value) => changedName = value,
+              onPronounsChanged: (value) => changedPronouns = value,
               onBioChanged: (value) => changedBio = value,
               onPickAvatar: () => avatarPicks++,
             ),
@@ -46,6 +49,7 @@ void main() {
 
     expect(find.text('Signed in as @alice.test'), findsOneWidget);
     expect(find.text('Alice'), findsOneWidget);
+    expect(find.text('she/her'), findsOneWidget);
     expect(find.text('Textile maker'), findsOneWidget);
     expect(
       find.ancestor(
@@ -62,6 +66,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('5/64'), findsOneWidget);
+    expect(find.text('7/20'), findsOneWidget);
     expect(find.text('13/256'), findsOneWidget);
     expect(
       find.descendant(
@@ -76,9 +81,15 @@ void main() {
     );
     await tester.pump();
     expect(find.text('6/64'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const Key('onboarding-pronouns')),
+      'she/they',
+    );
     await tester.enterText(find.byKey(const Key('onboarding-bio')), 'New bio');
+    await tester.ensureVisible(find.bySemanticsLabel('Change avatar'));
     await tester.tap(find.bySemanticsLabel('Change avatar'));
     expect(changedName, 'Alicia');
+    expect(changedPronouns, 'she/they');
     expect(changedBio, 'New bio');
     expect(avatarPicks, 1);
     expect(find.byIcon(CraftskyIcons.camera), findsNothing);
@@ -124,12 +135,20 @@ void main() {
           did: 'did:plc:alice',
           handle: 'alice.test',
           displayName: 'Alice',
+          pronouns: 'they/them',
           description: 'Textile maker',
           crafts: const [],
         ),
       ),
     );
 
+    expect(
+      tester
+          .widget<TextField>(find.byKey(const Key('onboarding-pronouns')))
+          .controller
+          ?.text,
+      'they/them',
+    );
     expect(
       tester
           .widget<TextField>(
@@ -162,6 +181,7 @@ Future<void> _pumpStep(
         child: OnboardingProfileStep(
           state: state,
           onDisplayNameChanged: (_) {},
+          onPronounsChanged: (_) {},
           onBioChanged: (_) {},
           onPickAvatar: () {},
         ),

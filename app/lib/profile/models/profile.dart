@@ -25,6 +25,7 @@ class Profile with ProfileMappable {
     required String handle,
     required this.crafts,
     this.displayName,
+    this.pronouns,
     this.description,
     this.avatar,
     this.banner,
@@ -51,6 +52,7 @@ class Profile with ProfileMappable {
   final Did did;
   final Handle handle;
   final String? displayName;
+  final String? pronouns;
   final String? description;
   final String? avatar;
   final String? banner;

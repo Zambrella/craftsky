@@ -44,6 +44,7 @@ type ProfileRow struct {
 	IsCraftskyProfile     bool
 	DisplayName           *string
 	Description           *string
+	Pronouns              *string
 	AvatarCID             *string
 	AvatarMime            *string
 	BannerCID             *string
@@ -299,7 +300,7 @@ func (s *ProfileStore) Read(ctx context.Context, profileDID string, viewerDID st
 					  AND NOT appview_owner_is_terminal(b.subject_did)
 				)
 			END AS blocked_by,
-			bp.display_name, bp.description,
+			bp.display_name, bp.description, bp.pronouns,
 			bp.avatar_cid, bp.avatar_mime,
 			bp.banner_cid, bp.banner_mime,
 			CASE
@@ -346,7 +347,7 @@ func (s *ProfileStore) Read(ctx context.Context, profileDID string, viewerDID st
 		&postCount, &postsLast7Days, &projectCount,
 		&out.ViewerIsFollowing,
 		&out.Muted, &out.Blocking, &out.BlockedBy,
-		&out.DisplayName, &out.Description,
+		&out.DisplayName, &out.Description, &out.Pronouns,
 		&out.AvatarCID, &out.AvatarMime,
 		&out.BannerCID, &out.BannerMime,
 		&out.ModerationWarningKind,

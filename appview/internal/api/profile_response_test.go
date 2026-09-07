@@ -20,6 +20,7 @@ func TestBuildProfileResponse_FullRow(t *testing.T) {
 		CreatedAt:   time.Date(2026, 4, 23, 10, 0, 0, 0, time.UTC),
 		DisplayName: strPtr("Alice"),
 		Description: strPtr("textile person"),
+		Pronouns:    strPtr("she/her"),
 		AvatarCID:   strPtr("bafav"),
 		AvatarMime:  strPtr("image/jpeg"),
 		BannerCID:   strPtr("bafbn"),
@@ -31,6 +32,9 @@ func TestBuildProfileResponse_FullRow(t *testing.T) {
 	}
 	if out.DisplayName == nil || *out.DisplayName != "Alice" {
 		t.Errorf("displayName = %v", out.DisplayName)
+	}
+	if out.Pronouns == nil || *out.Pronouns != "she/her" {
+		t.Errorf("pronouns = %v", out.Pronouns)
 	}
 	if out.Avatar == nil ||
 		*out.Avatar != "https://cdn.bsky.app/img/avatar/plain/did:plc:xyz/bafav@jpeg" {
@@ -305,7 +309,7 @@ func TestBuildProfileResponseStripsBlockedProfileToMinimumShell(t *testing.T) {
 	count := 12
 	row := &api.ProfileRow{
 		DID: "did:plc:bob", Crafts: []string{"sewing"}, CreatedAt: time.Now(),
-		DisplayName: strPtr("Bob"), Description: strPtr("private across a block"),
+		DisplayName: strPtr("Bob"), Description: strPtr("private across a block"), Pronouns: strPtr("they/them"),
 		AvatarCID: strPtr("baf-avatar"), AvatarMime: strPtr("image/jpeg"),
 		BannerCID: strPtr("baf-banner"), BannerMime: strPtr("image/png"),
 		FollowerCount: &count, FollowingCount: &count, MutualFollowerCount: &count,
@@ -328,7 +332,7 @@ func TestBuildProfileResponseStripsBlockedProfileToMinimumShell(t *testing.T) {
 		}
 	}
 	for _, key := range []string{
-		"description", "banner", "crafts", "createdAt", "viewerIsFollowing",
+		"description", "pronouns", "banner", "crafts", "createdAt", "viewerIsFollowing",
 		"followerCount", "followingCount", "mutualFollowerCount",
 		"postCount", "postsLast7Days", "projectCount", "moderation",
 	} {

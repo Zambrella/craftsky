@@ -2075,6 +2075,7 @@ func TestProviderRegistrationCompletesSharedOnboardingAndConfirmedHandoff(t *tes
 			did TEXT PRIMARY KEY,
 			display_name TEXT,
 			description TEXT,
+			pronouns TEXT,
 			avatar_cid TEXT,
 			avatar_mime TEXT,
 			banner_cid TEXT,
@@ -3410,7 +3411,7 @@ func TestRealFederatedOAuthSessionAndPDSFlowsUsePurposeClients(t *testing.T) {
 	}
 	if _, err := pool.Exec(context.Background(), `
 		CREATE TABLE bluesky_profiles (
-			did TEXT PRIMARY KEY,display_name TEXT,description TEXT,
+			did TEXT PRIMARY KEY,display_name TEXT,description TEXT,pronouns TEXT,
 			avatar_cid TEXT,avatar_mime TEXT,banner_cid TEXT,banner_mime TEXT,
 			record_cid TEXT NOT NULL,indexed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 		)

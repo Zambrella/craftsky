@@ -2794,6 +2794,18 @@ abstract class AppLocalizations {
   /// **'How your name appears on your profile'**
   String get editProfileDisplayNameHint;
 
+  /// Label above the optional pronouns field in profile forms.
+  ///
+  /// In en, this message translates to:
+  /// **'Pronouns'**
+  String get editProfilePronounsLabel;
+
+  /// Hint text inside the free-form pronouns field in profile forms.
+  ///
+  /// In en, this message translates to:
+  /// **'For example, she/her or they/them'**
+  String get editProfilePronounsHint;
+
   /// Label above the bio field on the profile-edit page.
   ///
   /// In en, this message translates to:
@@ -2811,6 +2823,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Display name must be 64 characters or fewer'**
   String get editProfileDisplayNameTooLong;
+
+  /// Form-validation error shown below the pronouns field when the user exceeds the Bluesky profile lexicon's 20-grapheme limit.
+  ///
+  /// In en, this message translates to:
+  /// **'Pronouns must be 20 characters or fewer'**
+  String get editProfilePronounsTooLong;
 
   /// Form-validation error shown below the bio field on the profile-edit page when the user enters more than 256 characters (the AppView profile lexicon's grapheme limit).
   ///
@@ -5352,7 +5370,7 @@ abstract class AppLocalizations {
   /// No description provided for @onboardingProfileDescription.
   ///
   /// In en, this message translates to:
-  /// **'Add a name, bio, and photo so other crafters can recognize you.'**
+  /// **'Add a name, pronouns, bio, and photo so other crafters can recognize you.'**
   String get onboardingProfileDescription;
 
   /// No description provided for @onboardingAvatarUploading.

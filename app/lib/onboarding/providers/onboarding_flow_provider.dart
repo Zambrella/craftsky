@@ -106,13 +106,14 @@ class OnboardingFlow extends _$OnboardingFlow {
     state = AsyncData(OnboardingFlowState.fromProfile(profile));
   }
 
-  void updateIdentity({String? displayName, String? bio}) {
+  void updateIdentity({String? displayName, String? pronouns, String? bio}) {
     final current = state.value;
     if (current == null || current.saving) return;
     state = AsyncData(
       current.copyWith(
         identity: current.identity.copyWith(
           displayName: displayName,
+          pronouns: pronouns,
           bio: bio,
         ),
       ),
@@ -202,6 +203,7 @@ class OnboardingFlow extends _$OnboardingFlow {
       );
       final updated = await repository.updateMe(
         displayName: payload.displayName,
+        pronouns: payload.pronouns,
         description: payload.description,
         crafts: payload.crafts,
         avatar: payload.avatar,
@@ -240,6 +242,7 @@ class OnboardingFlow extends _$OnboardingFlow {
 
   static bool _hasIdentity(Profile profile) =>
       (profile.displayName?.isNotEmpty ?? false) ||
+      (profile.pronouns?.isNotEmpty ?? false) ||
       (profile.description?.isNotEmpty ?? false) ||
       (profile.avatar?.isNotEmpty ?? false);
 }

@@ -146,6 +146,7 @@ void main() {
         did: 'did:plc:test',
         handle: 'test.bsky.social',
         displayName: 'Test User',
+        pronouns: 'they/them',
         description: 'Sewist in Bristol',
         crafts: ['sewing', 'quilting'],
       );
@@ -167,6 +168,8 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+
+      expect(find.text('they/them'), findsOneWidget);
 
       // 'Test User' appears in the (faded) collapsed app-bar title
       // as well as the identity block — both are in the tree at all

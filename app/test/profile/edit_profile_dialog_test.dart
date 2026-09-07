@@ -27,6 +27,7 @@ final _seedProfile = Profile(
   did: 'did:plc:test',
   handle: 'test.bsky.social',
   displayName: 'Test User',
+  pronouns: 'they/them',
   description: 'Sewist in Bristol',
   crafts: ['sewing', 'quilting'],
 );
@@ -279,6 +280,7 @@ void main() {
 
     testWidgets('saving sends the full current form state', (tester) async {
       String? capturedDisplayName;
+      String? capturedPronouns;
       String? capturedDescription;
       List<String>? capturedCrafts;
       var updateCallCount = 0;
@@ -288,6 +290,7 @@ void main() {
         onUpdateMe:
             ({
               displayName,
+              pronouns,
               description,
               crafts,
               avatar,
@@ -297,6 +300,7 @@ void main() {
             }) async {
               updateCallCount++;
               capturedDisplayName = displayName;
+              capturedPronouns = pronouns;
               capturedDescription = description;
               capturedCrafts = crafts;
               return _seedProfile.copyWith(displayName: displayName);
@@ -319,8 +323,87 @@ void main() {
 
       expect(updateCallCount, 1);
       expect(capturedDisplayName, 'Renamed');
+      expect(capturedPronouns, 'they/them');
       expect(capturedDescription, 'Sewist in Bristol');
       expect(capturedCrafts, ['sewing', 'quilting']);
+    });
+
+    testWidgets('clearing pronouns sends null with the full profile snapshot', (
+      tester,
+    ) async {
+      String? capturedPronouns = 'not-called';
+      String? capturedDescription;
+      List<String>? capturedCrafts;
+      final repo = FakeProfileRepository(
+        onFetch: (_) async => _seedProfile,
+        onUpdateMe:
+            ({
+              displayName,
+              pronouns,
+              description,
+              crafts,
+              avatar,
+              clearAvatar = false,
+              banner,
+              clearBanner = false,
+            }) async {
+              capturedPronouns = pronouns;
+              capturedDescription = description;
+              capturedCrafts = crafts;
+              return _seedProfile.copyWith(pronouns: pronouns);
+            },
+      );
+      await _pumpEditDialog(tester, repo: repo);
+
+      await tester.enterText(
+        find.widgetWithText(TextField, 'they/them'),
+        '   ',
+      );
+      await tester.pump();
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      expect(capturedPronouns, isNull);
+      expect(capturedDescription, 'Sewist in Bristol');
+      expect(capturedCrafts, ['sewing', 'quilting']);
+    });
+
+    testWidgets('accepts pronouns at the 20-grapheme boundary', (tester) async {
+      final pronouns = List.filled(20, 'e\u0301').join();
+      final profile = _seedProfile.copyWith(pronouns: pronouns);
+      var updateCallCount = 0;
+      final repo = FakeProfileRepository(
+        onFetch: (_) async => profile,
+        onUpdateMe:
+            ({
+              displayName,
+              pronouns,
+              description,
+              crafts,
+              avatar,
+              clearAvatar = false,
+              banner,
+              clearBanner = false,
+            }) async {
+              updateCallCount++;
+              return profile.copyWith(
+                displayName: displayName,
+                pronouns: pronouns,
+              );
+            },
+      );
+      await _pumpEditDialog(tester, repo: repo);
+
+      expect(find.text('20/20'), findsOneWidget);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Test User'),
+        'Renamed',
+      );
+      await tester.pump();
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+
+      expect(updateCallCount, 1);
     });
 
     testWidgets('save invisibly preserves legacy and unknown crafts', (
@@ -335,6 +418,7 @@ void main() {
         onUpdateMe:
             ({
               displayName,
+              pronouns,
               description,
               crafts,
               avatar,
@@ -343,7 +427,11 @@ void main() {
               clearBanner = false,
             }) async {
               capturedCrafts = crafts;
-              return profile.copyWith(displayName: displayName, crafts: crafts);
+              return profile.copyWith(
+                displayName: displayName,
+                pronouns: pronouns,
+                crafts: crafts,
+              );
             },
       );
 
@@ -409,6 +497,7 @@ void main() {
         onUpdateMe:
             ({
               displayName,
+              pronouns,
               description,
               crafts,
               avatar,
@@ -417,6 +506,7 @@ void main() {
               clearBanner = false,
             }) async => _seedProfile.copyWith(
               displayName: displayName ?? 'Test User',
+              pronouns: pronouns,
             ),
       );
       await _pumpEditDialog(tester, repo: repo);
@@ -449,13 +539,17 @@ void main() {
         onUpdateMe:
             ({
               displayName,
+              pronouns,
               description,
               crafts,
               avatar,
               clearAvatar = false,
               banner,
               clearBanner = false,
-            }) async => _seedProfile.copyWith(displayName: displayName),
+            }) async => _seedProfile.copyWith(
+              displayName: displayName,
+              pronouns: pronouns,
+            ),
       );
       await _pumpEditDialog(tester, repo: repo);
 
@@ -495,6 +589,7 @@ void main() {
         onUpdateMe:
             ({
               displayName,
+              pronouns,
               description,
               crafts,
               avatar,
@@ -534,6 +629,7 @@ void main() {
         onUpdateMe:
             ({
               displayName,
+              pronouns,
               description,
               crafts,
               avatar,
@@ -543,7 +639,10 @@ void main() {
             }) async {
               ordinaryCalls++;
               if (ordinaryCalls == 1) throw StateError('ordinary failed');
-              return profile.copyWith(displayName: displayName);
+              return profile.copyWith(
+                displayName: displayName,
+                pronouns: pronouns,
+              );
             },
       );
       final businessRepository = _RecordingBusinessRepository();
@@ -591,6 +690,7 @@ void main() {
         onUpdateMe:
             ({
               displayName,
+              pronouns,
               description,
               crafts,
               avatar,
@@ -599,7 +699,10 @@ void main() {
               clearBanner = false,
             }) async {
               ordinaryCalls++;
-              return profile.copyWith(displayName: displayName);
+              return profile.copyWith(
+                displayName: displayName,
+                pronouns: pronouns,
+              );
             },
       );
       final businessRepository = _RecordingBusinessRepository(failFirst: true);

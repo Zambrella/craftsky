@@ -31,6 +31,7 @@ CREATE TABLE bluesky_profiles (
     did          TEXT        NOT NULL PRIMARY KEY,
     display_name TEXT,
     description  TEXT,
+    pronouns     TEXT,
     avatar_cid   TEXT,
     avatar_mime  TEXT,
     banner_cid   TEXT,

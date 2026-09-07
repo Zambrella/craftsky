@@ -98,11 +98,13 @@ Profile _profile({
   ProfileCustomisation customisation = ProfileCustomisation.defaults,
   String handle = 'alice.craftsky.social',
   String? displayName = 'Alice',
+  String? pronouns,
 }) {
   return Profile(
     did: 'did:plc:alice',
     handle: handle,
     displayName: displayName,
+    pronouns: pronouns,
     description: 'A maker bio.',
     crafts: const ['knitting', 'sewing'],
     createdAt: DateTime.now().subtract(const Duration(days: 370)),
@@ -144,6 +146,24 @@ Map<String, double> _profileVerticalGaps(
 
 void main() {
   group('ProfileCard', () {
+    testWidgets('shows free-form pronouns with the profile identity', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        _wrap(
+          ProfileCard(
+            profile: _profile(pronouns: 'she/they'),
+            isOwnProfile: false,
+            onClose: () {},
+            onVisitProfile: () {},
+            onPrimaryAction: () {},
+          ),
+        ),
+      );
+
+      expect(find.text('she/they'), findsOneWidget);
+    });
+
     testWidgets(
       'UT-014 renders unavailable copy instead of the sentinel',
       (tester) async {

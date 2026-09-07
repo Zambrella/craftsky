@@ -1532,6 +1532,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'How your name appears on your profile';
 
   @override
+  String get editProfilePronounsLabel => 'Pronouns';
+
+  @override
+  String get editProfilePronounsHint => 'For example, she/her or they/them';
+
+  @override
   String get editProfileBioLabel => 'Bio';
 
   @override
@@ -1540,6 +1546,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get editProfileDisplayNameTooLong =>
       'Display name must be 64 characters or fewer';
+
+  @override
+  String get editProfilePronounsTooLong =>
+      'Pronouns must be 20 characters or fewer';
 
   @override
   String get editProfileBioTooLong => 'Bio must be 256 characters or fewer';
@@ -2996,7 +3006,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get onboardingProfileDescription =>
-      'Add a name, bio, and photo so other crafters can recognize you.';
+      'Add a name, pronouns, bio, and photo so other crafters can recognize you.';
 
   @override
   String get onboardingAvatarUploading => 'Uploading photo...';
