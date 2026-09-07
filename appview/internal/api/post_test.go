@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api"
@@ -1581,6 +1582,37 @@ func TestCreatePost_PDSWriteFailed_502(t *testing.T) {
 	body := rr.Body.String()
 	if !strings.Contains(body, "pds_write_failed") {
 		t.Errorf("expected pds_write_failed in body, got: %s", body)
+	}
+}
+
+func TestCreatePost_MissingVerifiedVideoBlobReturnsRecoverableError(t *testing.T) {
+	t.Parallel()
+	const videoCID = "bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"
+	pds := &fakePostEffectState{createErr: &atclient.APIError{
+		StatusCode: http.StatusBadRequest,
+		Name:       "BlobNotFound",
+	}}
+	handler := api.CreatePostHandler(
+		&fakePostStore{},
+		newPDSEffectsFactory(pds),
+		fakeResolver{handleFor: "alice.example"},
+		api.DefaultMediaLimits(),
+		nilLogger(),
+		api.CreatePostHandlerOptions{VideoCompletionVerifier: &fakeVideoCompletionVerifier{}},
+	)
+	body := `{"text":"video post","embed":{"video":{"jobId":"job-1","blob":{"$type":"blob","ref":{"$link":"` + videoCID + `"},"mimeType":"video/mp4","size":123}}}}`
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, authedReq(http.MethodPost, "/v1/posts", body, "did:plc:alice"))
+
+	if recorder.Code != http.StatusBadGateway {
+		t.Fatalf("status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	var response envelope.Error
+	if err := json.NewDecoder(recorder.Body).Decode(&response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if response.Error != "video_blob_missing" || strings.Contains(recorder.Body.String(), videoCID) {
+		t.Fatalf("unsafe or incorrect response: %s", recorder.Body.String())
 	}
 }
 
