@@ -111,7 +111,7 @@ func (f *fakeSavedPostHydrator) ReadEligiblePostsByURI(context.Context, syntax.D
 	return f.rows, nil
 }
 
-func (f *fakeSavedPostHydrator) EngagementSummaries(context.Context, string, []string) (map[string]api.EngagementSummary, error) {
+func (f *fakeSavedPostHydrator) EngagementSummaries(context.Context, string, []string, []string) (map[string]api.EngagementSummary, error) {
 	return f.summaries, nil
 }
 

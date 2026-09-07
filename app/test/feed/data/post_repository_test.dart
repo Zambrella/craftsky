@@ -5,7 +5,9 @@ import 'package:craftsky_app/feed/data/post_repository.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
+import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/projects/models/project.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http_mock_adapter/http_mock_adapter.dart';
@@ -195,5 +197,96 @@ void main() {
       expect(seenLimit, 20);
       expect(page.cursor, 'next');
     });
+  });
+
+  group('PostRepository interaction lists', () {
+    final did = Did.parse('did:plc:bob');
+    final rkey = RecordKey.parse('response:1');
+
+    test('IT-009 ApiPostRepository delegates all list arguments', () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://appview.example.com'));
+      final query = {'cursor': 'opaque:next', 'limit': '12'};
+      DioAdapter(dio: dio)
+        ..onGet(
+          '/v1/posts/did%3Aplc%3Abob/response%3A1/likes',
+          (server) => server.reply(200, {
+            'items': <Map<String, dynamic>>[],
+            'totalCount': 3,
+          }),
+          queryParameters: query,
+        )
+        ..onGet(
+          '/v1/posts/did%3Aplc%3Abob/response%3A1/reposts',
+          (server) => server.reply(200, {
+            'items': <Map<String, dynamic>>[],
+            'totalCount': 2,
+          }),
+          queryParameters: query,
+        )
+        ..onGet(
+          '/v1/posts/did%3Aplc%3Abob/response%3A1/quotes',
+          (server) => server.reply(200, {
+            'items': <Map<String, dynamic>>[],
+            'cursor': 'quotes-next',
+          }),
+          queryParameters: query,
+        );
+      final repository = ApiPostRepository(PostApiClient(dio));
+
+      final likes = await repository.listLikes(
+        did,
+        rkey,
+        cursor: 'opaque:next',
+        limit: 12,
+      );
+      final reposts = await repository.listReposts(
+        did,
+        rkey,
+        cursor: 'opaque:next',
+        limit: 12,
+      );
+      final quotes = await repository.listQuotes(
+        did,
+        rkey,
+        cursor: 'opaque:next',
+        limit: 12,
+      );
+
+      expect(likes.totalCount, 3);
+      expect(reposts.totalCount, 2);
+      expect(quotes.cursor, 'quotes-next');
+    });
+
+    test(
+      'IT-009 fake exposes programmable callbacks for upcoming tests',
+      () async {
+        final calls = <String>[];
+        final repository = FakePostRepository(
+          onListLikes: (seenDid, seenRkey, {cursor, limit}) async {
+            calls.add('likes:$seenDid:$seenRkey:$cursor:$limit');
+            return const ProfileAccountPage(items: [], totalCount: 1);
+          },
+          onListReposts: (seenDid, seenRkey, {cursor, limit}) async {
+            calls.add('reposts:$seenDid:$seenRkey:$cursor:$limit');
+            return const ProfileAccountPage(items: [], totalCount: 2);
+          },
+          onListQuotes: (seenDid, seenRkey, {cursor, limit}) async {
+            calls.add('quotes:$seenDid:$seenRkey:$cursor:$limit');
+            return const PostPage(items: [], cursor: 'next');
+          },
+        );
+        final asInterface = repository as PostRepository;
+
+        await asInterface.listLikes(did, rkey, cursor: 'c1', limit: 7);
+        await asInterface.listReposts(did, rkey, cursor: 'c2', limit: 8);
+        await asInterface.listQuotes(did, rkey, cursor: 'c3', limit: 9);
+
+        expect(calls, [
+          'likes:did:plc:bob:response:1:c1:7',
+          'reposts:did:plc:bob:response:1:c2:8',
+          'quotes:did:plc:bob:response:1:c3:9',
+        ]);
+      },
+    );
   });
 }

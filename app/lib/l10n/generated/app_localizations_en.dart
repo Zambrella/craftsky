@@ -591,6 +591,79 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postUnavailablePlaceholder => 'Post unavailable';
 
   @override
+  String get postInteractionLikesTitle => 'Likes';
+
+  @override
+  String postInteractionLikesTitleWithCount(int count) {
+    return 'Likes ($count)';
+  }
+
+  @override
+  String get postInteractionRepostsTitle => 'Reposts';
+
+  @override
+  String postInteractionRepostsTitleWithCount(int count) {
+    return 'Reposts ($count)';
+  }
+
+  @override
+  String postInteractionLikesSummary(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Likes',
+      one: '1 Like',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get postInteractionLikesSummaryHint => 'Open Likes for this post';
+
+  @override
+  String postInteractionRepostsSummary(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Reposts',
+      one: '1 Repost',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get postInteractionRepostsSummaryHint => 'Open Reposts for this post';
+
+  @override
+  String postInteractionQuotesSummary(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Quotes',
+      one: '1 Quote',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get postInteractionQuotesSummaryHint => 'Open Quotes for this post';
+
+  @override
+  String get postInteractionLikesEmpty => 'No likes yet.';
+
+  @override
+  String get postInteractionViewLikesAction => 'View likes';
+
+  @override
+  String get postInteractionRepostsEmpty => 'No reposts yet.';
+
+  @override
+  String get postInteractionQuotesTitle => 'Quotes';
+
+  @override
+  String get postInteractionQuotesEmpty => 'No quotes yet.';
+
+  @override
   String get postRevealAction => 'Show post';
 
   @override

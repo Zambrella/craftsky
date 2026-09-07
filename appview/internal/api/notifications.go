@@ -19,7 +19,7 @@ import (
 type NotificationReader interface {
 	ListNotifications(ctx context.Context, viewerDID string, limit int, cursor string) ([]*NotificationRow, string, error)
 	NotificationHandles(ctx context.Context, dids []string) (map[string]syntax.Handle, error)
-	EngagementSummaries(ctx context.Context, viewerDID string, postURIs []string) (map[string]EngagementSummary, error)
+	EngagementSummaries(ctx context.Context, viewerDID string, contentLanguages, postURIs []string) (map[string]EngagementSummary, error)
 }
 
 type NotificationPage struct {
@@ -101,7 +101,7 @@ func ListNotificationsHandler(store NotificationReader, _ HandleResolver, logger
 			}
 			summaries := map[string]EngagementSummary{}
 			if len(postURIs) > 0 {
-				summaries, err = store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
+				summaries, err = store.EngagementSummaries(r.Context(), viewerDID.String(), []string{}, postURIs)
 				if err != nil {
 					logger.Error("notifications: EngagementSummaries failed",
 						apiLogErrorAttrs(runID, "notifications.list", "engagement")...)

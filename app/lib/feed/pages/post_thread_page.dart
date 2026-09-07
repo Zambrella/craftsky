@@ -13,6 +13,7 @@ import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
+import 'package:craftsky_app/feed/widgets/post_interaction_summary.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/projects/widgets/project_card.dart';
@@ -503,23 +504,49 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
         SliverToBoxAdapter(
           child: Padding(
             padding: EdgeInsets.symmetric(vertical: spacing.sp2),
-            child: PostCard(
-              post: widget.section.post,
-              allowProfilePinAction: true,
-              projectVariant: ProjectCardVariant.detail,
-              replyTooltip: l10n.postCommentAction,
-              onReply: () => showPostComposerSheet(
-                context,
-                replyTarget: widget.section.post,
-              ),
-              onLike: () => ref
-                  .read(toggleLikePostProvider.notifier)
-                  .toggle(post: widget.section.post),
-              onRepost: () => ref
-                  .read(toggleRepostPostProvider.notifier)
-                  .toggle(post: widget.section.post),
-              onDelete: _deleteIfViewerOwned(widget.section.post),
-              onReport: _reportIfViewerNotOwner(widget.section.post),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                PostCard(
+                  post: widget.section.post,
+                  allowProfilePinAction: true,
+                  projectVariant: ProjectCardVariant.detail,
+                  replyTooltip: l10n.postCommentAction,
+                  onReply: () => showPostComposerSheet(
+                    context,
+                    replyTarget: widget.section.post,
+                  ),
+                  onLike: () => ref
+                      .read(toggleLikePostProvider.notifier)
+                      .toggle(post: widget.section.post),
+                  onRepost: () => ref
+                      .read(toggleRepostPostProvider.notifier)
+                      .toggle(post: widget.section.post),
+                  onDelete: _deleteIfViewerOwned(widget.section.post),
+                  onReport: _reportIfViewerNotOwner(widget.section.post),
+                ),
+                if (widget.section.post.likeCount > 0 ||
+                    widget.section.post.repostCount > 0 ||
+                    widget.section.post.quoteCount > 0)
+                  Padding(
+                    padding: EdgeInsets.symmetric(horizontal: spacing.sp4),
+                    child: PostInteractionSummary(
+                      post: widget.section.post,
+                      onLikes: () => PostLikesRoute(
+                        did: widget.section.post.author.did.toString(),
+                        rkey: widget.section.post.rkey.toString(),
+                      ).push<void>(context),
+                      onReposts: () => PostRepostsRoute(
+                        did: widget.section.post.author.did.toString(),
+                        rkey: widget.section.post.rkey.toString(),
+                      ).push<void>(context),
+                      onQuotes: () => PostQuotesRoute(
+                        did: widget.section.post.author.did.toString(),
+                        rkey: widget.section.post.rkey.toString(),
+                      ).push<void>(context),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),
@@ -669,6 +696,12 @@ class _CommentCard extends ConsumerWidget {
           onReply: () => showPostComposerSheet(context, replyTarget: item.post),
           onLike: () =>
               ref.read(toggleLikePostProvider.notifier).toggle(post: item.post),
+          onViewLikes: item.post.likeCount > 0
+              ? () => PostLikesRoute(
+                  did: item.post.author.did.toString(),
+                  rkey: item.post.rkey.toString(),
+                ).push<void>(context)
+              : null,
           deleteLabel: l10n.commentDeleteAction,
           onDelete: _deleteIfViewerOwned(
             context,
@@ -712,6 +745,12 @@ class _CommentCard extends ConsumerWidget {
                     onLike: () => ref
                         .read(toggleLikePostProvider.notifier)
                         .toggle(post: reply.post),
+                    onViewLikes: reply.post.likeCount > 0
+                        ? () => PostLikesRoute(
+                            did: reply.post.author.did.toString(),
+                            rkey: reply.post.rkey.toString(),
+                          ).push<void>(context)
+                        : null,
                     deleteLabel: l10n.replyDeleteAction,
                     onDelete: _deleteIfViewerOwned(
                       context,

@@ -66,7 +66,7 @@ type postRouteBundle struct {
 
 func registerPostRoutes(routes postRouteBundle) {
 	routes.mux.Handle("POST /v1/posts", routes.middleware.wrap(mustPolicy("POST", "/v1/posts"), api.CreatePostHandler(routes.postStore, routes.newPDSEffects, routes.handleResolver, routes.mediaLimits, routes.logger, api.CreatePostHandlerOptions{VideoCompletionVerifier: routes.videoVerifier})))
-	routes.mux.Handle("GET /v1/posts/{did}/{rkey}", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}"), api.GetPostHandler(routes.postStore, routes.handleResolver, routes.logger)))
+	routes.mux.Handle("GET /v1/posts/{did}/{rkey}", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}"), api.GetPostHandler(routes.postStore, routes.handleResolver, routes.logger, routes.languages)))
 	routes.mux.Handle("GET /v1/posts/{did}/{rkey}/video-captions/{captionCid}", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/video-captions/{captionCid}"), api.VideoCaptionHandler(routes.postStore, routes.videoCaptions, routes.logger, routes.videoObserver)))
 	routes.mux.Handle("POST /v1/posts/{did}/{rkey}/saves", routes.middleware.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/saves"), api.SavePostHandler(routes.postStore, routes.savedPostStore)))
 	routes.mux.Handle("DELETE /v1/posts/{did}/{rkey}/saves", routes.middleware.wrap(mustPolicy("DELETE", "/v1/posts/{did}/{rkey}/saves"), api.UnsavePostHandler(routes.savedPostStore)))
@@ -78,12 +78,15 @@ func registerPostRoutes(routes postRouteBundle) {
 	routes.mux.Handle("POST /v1/saved-post-folders", routes.middleware.wrap(mustPolicy("POST", "/v1/saved-post-folders"), api.CreateSavedPostFolderHandler(routes.savedPostStore)))
 	routes.mux.Handle("PATCH /v1/saved-post-folders/{folderId}", routes.middleware.wrap(mustPolicy("PATCH", "/v1/saved-post-folders/{folderId}"), api.RenameSavedPostFolderHandler(routes.savedPostStore)))
 	routes.mux.Handle("DELETE /v1/saved-post-folders/{folderId}", routes.middleware.wrap(mustPolicy("DELETE", "/v1/saved-post-folders/{folderId}"), api.DeleteSavedPostFolderHandler(routes.savedPostStore)))
-	routes.mux.Handle("GET /v1/posts/{did}/{rkey}/replies", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/replies"), api.ListCommentRepliesHandler(routes.postStore, routes.handleResolver, routes.logger)))
-	routes.mux.Handle("GET /v1/posts/{did}/{rkey}/comments", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/comments"), api.GetPostCommentsHandler(routes.postStore, routes.handleResolver, routes.logger)))
+	routes.mux.Handle("GET /v1/posts/{did}/{rkey}/replies", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/replies"), api.ListCommentRepliesHandler(routes.postStore, routes.handleResolver, routes.logger, routes.languages)))
+	routes.mux.Handle("GET /v1/posts/{did}/{rkey}/comments", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/comments"), api.GetPostCommentsHandler(routes.postStore, routes.handleResolver, routes.logger, routes.languages)))
+	routes.mux.Handle("GET /v1/posts/{did}/{rkey}/likes", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/likes"), api.ListPostLikesHandler(routes.postStore, routes.logger)))
 	routes.mux.Handle("POST /v1/posts/{did}/{rkey}/likes", routes.middleware.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/likes"), api.LikePostHandler(routes.postStore, routes.newPDSEffects, routes.logger)))
 	routes.mux.Handle("DELETE /v1/posts/{did}/{rkey}/likes", routes.middleware.wrap(mustPolicy("DELETE", "/v1/posts/{did}/{rkey}/likes"), api.UnlikePostHandler(routes.postStore, routes.newPDSEffects, routes.logger)))
+	routes.mux.Handle("GET /v1/posts/{did}/{rkey}/reposts", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/reposts"), api.ListPostRepostsHandler(routes.postStore, routes.logger)))
 	routes.mux.Handle("POST /v1/posts/{did}/{rkey}/reposts", routes.middleware.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/reposts"), api.RepostPostHandler(routes.postStore, routes.newPDSEffects, routes.logger)))
 	routes.mux.Handle("DELETE /v1/posts/{did}/{rkey}/reposts", routes.middleware.wrap(mustPolicy("DELETE", "/v1/posts/{did}/{rkey}/reposts"), api.UnrepostPostHandler(routes.postStore, routes.newPDSEffects, routes.logger)))
+	routes.mux.Handle("GET /v1/posts/{did}/{rkey}/quotes", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/quotes"), api.ListPostQuotesHandler(routes.postStore, routes.handleResolver, routes.logger, routes.languages)))
 	routes.mux.Handle("DELETE /v1/posts/{did}/{rkey}", routes.middleware.wrap(mustPolicy("DELETE", "/v1/posts/{did}/{rkey}"), api.DeletePostHandler(routes.newPDSEffects, routes.logger)))
 	routes.mux.Handle("POST /v1/posts/{did}/{rkey}/reports", routes.middleware.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/reports"), api.ReportPostHandler(routes.postStore, routes.reportStore, routes.reportForwarder, routes.logger)))
 	if routes.moderation.env == EnvDev && routes.moderation.enabled && routes.moderation.token != "" {

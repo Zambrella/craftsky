@@ -49,7 +49,7 @@ type relationshipStateReader interface {
 }
 
 type engagementSummaryReader interface {
-	EngagementSummaries(context.Context, string, []string) (map[string]EngagementSummary, error)
+	EngagementSummaries(context.Context, string, []string, []string) (map[string]EngagementSummary, error)
 }
 
 func authorizeDirectedInteraction(

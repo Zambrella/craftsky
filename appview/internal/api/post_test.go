@@ -155,78 +155,79 @@ func failingPDSEffectsFactory(err error) pdseffects.ExecutorFactory {
 
 // fakePostStore implements the post handler capability interfaces used here.
 type fakePostStore struct {
-	authorizationErr       error
-	authorizationCalls     []authorizationCall
-	relationshipStates     map[syntax.DID]relationships.State
-	relationshipStateErr   error
-	blockedPairs           map[api.RelationshipPair]bool
-	one                    *api.PostRow
-	oneErr                 error
-	listRows               []*api.PostRow
-	listCursor             string
-	listErr                error
-	projectListRows        []*api.PostRow
-	projectListCursor      string
-	projectListErr         error
-	commentListRows        []*api.PostRow
-	commentListCursor      string
-	commentListErr         error
-	commentRows            []*api.PostRow
-	commentCursor          string
-	commentErr             error
-	postByURI              *api.PostRow
-	postsByURI             map[string]*api.PostRow
-	postByURIErr           error
-	replyRows              []*api.PostRow
-	replyCursor            string
-	replyErr               error
-	aroundReplyRows        []*api.PostRow
-	aroundReplyCursor      string
-	aroundReplyErr         error
-	author                 *api.PostAuthorRow
-	authorErr              error
-	engagement             map[string]api.EngagementSummary
-	engagementErr          error
-	quoteViews             map[string]*api.QuoteViewRow
-	quoteViewsErr          error
-	target                 *api.PostTargetRef
-	targetErr              error
-	shareTarget            *api.ShareTargetRef
-	shareTargetErr         error
-	activeLike             *api.InteractionRow
-	activeLikeErr          error
-	activeRepost           *api.InteractionRow
-	activeRepostErr        error
-	lastDID                string
-	lastRkey               string
-	lastListCommentsDID    string
-	lastListCommentsLimit  int
-	lastListCommentsCursor string
-	lastListProjectsDID    string
-	lastListProjectsLimit  int
-	lastListProjectsCursor string
-	lastEngagementViewer   string
-	lastEngagementURIs     []string
-	lastQuoteViewRefs      []api.ResponseStrongRef
-	engagementCalls        int
-	lastTargetDID          string
-	lastTargetRkey         string
-	lastShareTargetDID     string
-	lastShareTargetRkey    string
-	lastActiveLikeDID      string
-	lastActiveLikeURI      string
-	lastActiveRepostDID    string
-	lastActiveRepostURI    string
-	lastCommentRootURI     string
-	lastCommentViewerDID   string
-	lastCommentSort        string
-	lastCommentLimit       int
-	lastCommentCursor      string
-	lastReplyParentURI     string
-	lastReplyRootURI       string
-	lastReplyLimit         int
-	lastReplyCursor        string
-	lastReplyFocusURI      string
+	authorizationErr        error
+	authorizationCalls      []authorizationCall
+	relationshipStates      map[syntax.DID]relationships.State
+	relationshipStateErr    error
+	blockedPairs            map[api.RelationshipPair]bool
+	one                     *api.PostRow
+	oneErr                  error
+	listRows                []*api.PostRow
+	listCursor              string
+	listErr                 error
+	projectListRows         []*api.PostRow
+	projectListCursor       string
+	projectListErr          error
+	commentListRows         []*api.PostRow
+	commentListCursor       string
+	commentListErr          error
+	commentRows             []*api.PostRow
+	commentCursor           string
+	commentErr              error
+	postByURI               *api.PostRow
+	postsByURI              map[string]*api.PostRow
+	postByURIErr            error
+	replyRows               []*api.PostRow
+	replyCursor             string
+	replyErr                error
+	aroundReplyRows         []*api.PostRow
+	aroundReplyCursor       string
+	aroundReplyErr          error
+	author                  *api.PostAuthorRow
+	authorErr               error
+	engagement              map[string]api.EngagementSummary
+	engagementErr           error
+	quoteViews              map[string]*api.QuoteViewRow
+	quoteViewsErr           error
+	target                  *api.PostTargetRef
+	targetErr               error
+	shareTarget             *api.ShareTargetRef
+	shareTargetErr          error
+	activeLike              *api.InteractionRow
+	activeLikeErr           error
+	activeRepost            *api.InteractionRow
+	activeRepostErr         error
+	lastDID                 string
+	lastRkey                string
+	lastListCommentsDID     string
+	lastListCommentsLimit   int
+	lastListCommentsCursor  string
+	lastListProjectsDID     string
+	lastListProjectsLimit   int
+	lastListProjectsCursor  string
+	lastEngagementViewer    string
+	lastEngagementURIs      []string
+	lastEngagementLanguages []string
+	lastQuoteViewRefs       []api.ResponseStrongRef
+	engagementCalls         int
+	lastTargetDID           string
+	lastTargetRkey          string
+	lastShareTargetDID      string
+	lastShareTargetRkey     string
+	lastActiveLikeDID       string
+	lastActiveLikeURI       string
+	lastActiveRepostDID     string
+	lastActiveRepostURI     string
+	lastCommentRootURI      string
+	lastCommentViewerDID    string
+	lastCommentSort         string
+	lastCommentLimit        int
+	lastCommentCursor       string
+	lastReplyParentURI      string
+	lastReplyRootURI        string
+	lastReplyLimit          int
+	lastReplyCursor         string
+	lastReplyFocusURI       string
 }
 
 type authorizationCall struct {
@@ -379,9 +380,10 @@ func (f *fakePostStore) FindActiveRepost(_ context.Context, did, subjectURI stri
 	return f.activeRepost, nil
 }
 
-func (f *fakePostStore) EngagementSummaries(_ context.Context, viewerDID string, postURIs []string) (map[string]api.EngagementSummary, error) {
+func (f *fakePostStore) EngagementSummaries(_ context.Context, viewerDID string, contentLanguages []string, postURIs []string) (map[string]api.EngagementSummary, error) {
 	f.engagementCalls++
 	f.lastEngagementViewer = viewerDID
+	f.lastEngagementLanguages = append([]string(nil), contentLanguages...)
 	f.lastEngagementURIs = append([]string(nil), postURIs...)
 	if f.engagementErr != nil {
 		return nil, f.engagementErr
@@ -2176,6 +2178,36 @@ func TestGetPost_HappyPath(t *testing.T) {
 	}
 }
 
+func TestGetPost_IR002UsesAuthoritativeContentLanguagesForCounts(t *testing.T) {
+	row := &api.PostRow{
+		URI: "at://did:plc:alice/social.craftsky.feed.post/rk1",
+		DID: "did:plc:alice", Rkey: "rk1", CID: "bafy", Text: "hi",
+	}
+	store := &fakePostStore{one: row}
+	preferences := &fakeLanguagePreferenceReader{preferences: languages.Preferences{
+		PrimaryLanguage:  "fr",
+		ContentLanguages: []string{"en", "de"},
+	}}
+	h := api.GetPostHandler(
+		store,
+		fakeResolver{handleFor: "alice.example"},
+		nilLogger(),
+		preferences,
+	)
+	req := authedReq(http.MethodGet, "/v1/posts/did:plc:alice/rk1", "", "did:plc:viewer")
+	req.SetPathValue("did", "did:plc:alice")
+	req.SetPathValue("rkey", "rk1")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if got, want := store.lastEngagementLanguages, []string{"en", "de"}; !slices.Equal(got, want) {
+		t.Fatalf("content languages = %v, want %v", got, want)
+	}
+}
+
 func TestGetPostIncludesAuthorViewerRelationshipState(t *testing.T) {
 	t.Parallel()
 	row := &api.PostRow{
@@ -2559,6 +2591,38 @@ func TestListCommentReplies_CapsPageSizeAtTen(t *testing.T) {
 	}
 }
 
+func TestListCommentReplies_IR002UsesAuthoritativeContentLanguagesForCounts(t *testing.T) {
+	rootURI := "at://did:plc:alice/social.craftsky.feed.post/root"
+	comment := testReplyRow("did:plc:alice", "comment", "comment", rootURI, rootURI, time.Now())
+	reply := testReplyRow("did:plc:bob", "reply", "reply", rootURI, comment.URI, time.Now())
+	store := &fakePostStore{one: comment, replyRows: []*api.PostRow{reply}}
+	preferences := &fakeLanguagePreferenceReader{preferences: languages.Preferences{
+		PrimaryLanguage:  "fr",
+		ContentLanguages: []string{"en", "de"},
+	}}
+	h := api.ListCommentRepliesHandler(
+		store,
+		fakeResolver{handlesByDID: map[string]syntax.Handle{
+			"did:plc:alice": "alice.example",
+			"did:plc:bob":   "bob.example",
+		}},
+		nilLogger(),
+		preferences,
+	)
+	req := authedReq(http.MethodGet, "/v1/posts/did:plc:alice/comment/replies", "", "did:plc:viewer")
+	req.SetPathValue("did", "did:plc:alice")
+	req.SetPathValue("rkey", "comment")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if got, want := store.lastEngagementLanguages, []string{"en", "de"}; !slices.Equal(got, want) {
+		t.Fatalf("content languages = %v, want %v", got, want)
+	}
+}
+
 func TestGetPostComments_ReturnsRootAndCommentsOnly(t *testing.T) {
 	t.Parallel()
 	base := time.Date(2026, 5, 1, 12, 0, 0, 0, time.UTC)
@@ -2617,6 +2681,35 @@ func TestGetPostComments_ReturnsRootAndCommentsOnly(t *testing.T) {
 	}
 	if store.lastCommentRootURI != root.URI || store.lastCommentLimit != 10 || store.lastCommentCursor != "" || store.lastCommentSort != "oldest" || store.lastCommentViewerDID != "did:plc:viewer" {
 		t.Fatalf("comment lookup = root:%q limit:%d cursor:%q sort:%q viewer:%q", store.lastCommentRootURI, store.lastCommentLimit, store.lastCommentCursor, store.lastCommentSort, store.lastCommentViewerDID)
+	}
+}
+
+func TestGetPostComments_IR002UsesAuthoritativeContentLanguagesForCounts(t *testing.T) {
+	root := testPostRow("did:plc:alice", "root", "root", time.Now())
+	comment := testReplyRow("did:plc:bob", "comment", "comment", root.URI, root.URI, time.Now())
+	store := &fakePostStore{one: root, commentRows: []*api.PostRow{comment}}
+	preferences := &fakeLanguagePreferenceReader{preferences: languages.Preferences{
+		PrimaryLanguage:  "fr",
+		ContentLanguages: []string{"en", "de"},
+	}}
+	h := api.GetPostCommentsHandler(
+		store,
+		fakeResolver{handlesByDID: map[string]syntax.Handle{
+			"did:plc:alice": "alice.example",
+			"did:plc:bob":   "bob.example",
+		}},
+		nilLogger(),
+		preferences,
+	)
+	req := authedPostPathReq(http.MethodGet, "/v1/posts/did:plc:alice/root/comments", "", "did:plc:viewer")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if got, want := store.lastEngagementLanguages, []string{"en", "de"}; !slices.Equal(got, want) {
+		t.Fatalf("content languages = %v, want %v", got, want)
 	}
 }
 

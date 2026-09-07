@@ -63,5 +63,60 @@ void main() {
       expect(absent.toMap().containsKey('isPinned'), isFalse);
       expect(explicitNull.toMap().containsKey('isPinned'), isFalse);
     });
+
+    test('UT-007 decodes quote post pages without pin metadata', () {
+      Map<String, dynamic> quotePost(String rkey) => {
+        'uri': 'at://did:plc:alice/social.craftsky.feed.post/$rkey',
+        'cid': 'bafy$rkey',
+        'rkey': rkey,
+        'text': 'A quote post',
+        'tags': ['knitting'],
+        'createdAt': '2026-09-06T10:00:00.000Z',
+        'indexedAt': '2026-09-06T10:00:01.000Z',
+        'author': {
+          'did': 'did:plc:alice',
+          'handle': 'alice.craftsky.social',
+          'displayName': 'Alice',
+        },
+        'likeCount': 3,
+        'repostCount': 1,
+        'quoteCount': 2,
+        'replyCount': 4,
+        'viewerHasLiked': true,
+        'viewerHasReposted': false,
+        'viewerHasReplied': true,
+        'viewerHasSaved': false,
+      };
+
+      final firstPage = PostPageMapper.fromMap({
+        'items': [quotePost('quote-first')],
+        'cursor': 'opaque-quotes-next',
+      });
+      final finalPage = PostPageMapper.fromMap({
+        'items': [quotePost('quote-final')],
+      });
+
+      expect(firstPage.cursor, 'opaque-quotes-next');
+      expect(firstPage.pinnedPostUri, isNull);
+      final post = firstPage.items.single;
+      expect(
+        post.uri.toString(),
+        'at://did:plc:alice/social.craftsky.feed.post/quote-first',
+      );
+      expect(post.author.did.toString(), 'did:plc:alice');
+      expect(post.author.handle.toString(), 'alice.craftsky.social');
+      expect(post.likeCount, 3);
+      expect(post.repostCount, 1);
+      expect(post.quoteCount, 2);
+      expect(post.replyCount, 4);
+      expect(post.viewerHasLiked, isTrue);
+      expect(post.viewerHasReplied, isTrue);
+
+      expect(finalPage.cursor, isNull);
+      expect(finalPage.pinnedPostUri, isNull);
+      expect(finalPage.items.single.rkey.toString(), 'quote-final');
+      expect(firstPage.toMap().containsKey('pinnedPostUri'), isFalse);
+      expect(finalPage.toMap().containsKey('pinnedPostUri'), isFalse);
+    });
   });
 }

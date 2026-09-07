@@ -84,7 +84,7 @@ type SavedPostRefReader interface {
 
 type SavedPostHydrator interface {
 	ReadEligiblePostsByURI(context.Context, syntax.DID, []syntax.ATURI) (map[syntax.ATURI]*PostRow, error)
-	EngagementSummaries(context.Context, string, []string) (map[string]EngagementSummary, error)
+	EngagementSummaries(context.Context, string, []string, []string) (map[string]EngagementSummary, error)
 	QuoteViewRows(context.Context, []ResponseStrongRef) (map[string]*QuoteViewRow, error)
 }
 
@@ -162,7 +162,7 @@ func (s *SavedPostService) ListSavedPosts(ctx context.Context, owner syntax.DID,
 	if err != nil {
 		return SavedPostPage{}, ErrSavedPostIdentityUnavailable
 	}
-	summaries, err := s.hydrator.EngagementSummaries(ctx, owner.String(), postURIs)
+	summaries, err := s.hydrator.EngagementSummaries(ctx, owner.String(), []string{}, postURIs)
 	if err != nil {
 		return SavedPostPage{}, err
 	}

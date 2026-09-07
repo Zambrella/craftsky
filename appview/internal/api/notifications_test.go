@@ -38,7 +38,7 @@ func (f *fakeNotificationStore) ListNotifications(_ context.Context, viewerDID s
 	return f.rows, f.cursor, f.err
 }
 
-func (f *fakeNotificationStore) EngagementSummaries(_ context.Context, _ string, postURIs []string) (map[string]api.EngagementSummary, error) {
+func (f *fakeNotificationStore) EngagementSummaries(_ context.Context, _ string, _ []string, postURIs []string) (map[string]api.EngagementSummary, error) {
 	f.engagementIn = append([]string(nil), postURIs...)
 	out := make(map[string]api.EngagementSummary, len(postURIs))
 	for _, uri := range postURIs {

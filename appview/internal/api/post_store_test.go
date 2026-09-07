@@ -1327,7 +1327,7 @@ func TestPostStore_EngagementSummaries_ActiveOnlyAndViewerStates(t *testing.T) {
 	seedSavedPost(t, pool, "did:plc:alice", post2, nil, base.Add(6*time.Hour))
 
 	store := api.NewPostStore(pool)
-	summaries, err := store.EngagementSummaries(context.Background(), "did:plc:bob", []string{post1, post2})
+	summaries, err := store.EngagementSummaries(context.Background(), "did:plc:bob", []string{}, []string{post1, post2})
 	if err != nil {
 		t.Fatalf("EngagementSummaries: %v", err)
 	}
@@ -1338,7 +1338,7 @@ func TestPostStore_EngagementSummaries_ActiveOnlyAndViewerStates(t *testing.T) {
 		t.Fatalf("post2 summary = %+v", got)
 	}
 
-	aliceSummaries, err := store.EngagementSummaries(context.Background(), "did:plc:alice", []string{post1, post2})
+	aliceSummaries, err := store.EngagementSummaries(context.Background(), "did:plc:alice", []string{}, []string{post1, post2})
 	if err != nil {
 		t.Fatalf("Alice EngagementSummaries: %v", err)
 	}
@@ -1363,7 +1363,7 @@ func TestPostStore_EngagementSummaries_ViewerHasRepliedIsDirectChildOnly(t *test
 	seedReplyPost(t, pool, "did:plc:bob", "nested", "nested", root, reply, base.Add(3*time.Minute))
 
 	store := api.NewPostStore(pool)
-	summaries, err := store.EngagementSummaries(context.Background(), "did:plc:bob", []string{root, comment, reply})
+	summaries, err := store.EngagementSummaries(context.Background(), "did:plc:bob", []string{}, []string{root, comment, reply})
 	if err != nil {
 		t.Fatalf("EngagementSummaries: %v", err)
 	}
@@ -1387,7 +1387,7 @@ func TestPostStore_EngagementSummaries_QuoteOnlyViewerDoesNotSetReposted(t *test
 	subject := seedPost(t, pool, "did:plc:alice", "subject", "subject", base)
 	seedQuotePost(t, pool, "did:plc:bob", "quote-subject", "quote commentary", subject, "bafysubject", base.Add(time.Minute))
 
-	summaries, err := api.NewPostStore(pool).EngagementSummaries(context.Background(), "did:plc:bob", []string{subject})
+	summaries, err := api.NewPostStore(pool).EngagementSummaries(context.Background(), "did:plc:bob", []string{}, []string{subject})
 	if err != nil {
 		t.Fatalf("EngagementSummaries: %v", err)
 	}

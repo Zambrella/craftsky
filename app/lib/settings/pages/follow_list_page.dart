@@ -4,7 +4,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
-import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
+import 'package:craftsky_app/profile/widgets/profile_account_list_tile.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -158,21 +158,7 @@ class _FollowListBody extends StatelessWidget {
                     ),
                   );
                 }
-                final account = items[index];
-                final title = account.displayName?.isNotEmpty ?? false
-                    ? account.displayName!
-                    : account.handle.toString();
-                return ListTile(
-                  title: Text(title),
-                  subtitle: Text('@${account.handle}'),
-                  trailing: const Icon(CraftskyIconsBold.next),
-                  onTap: () => unawaited(
-                    showUserProfileCard(
-                      context,
-                      handleOrDid: account.handle.toString(),
-                    ),
-                  ),
-                );
+                return ProfileAccountListTile(account: items[index]);
               },
             ),
         ],

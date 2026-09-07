@@ -43,6 +43,7 @@ func ListCommentRepliesHandler(
 	store commentRepliesStore,
 	resolver HandleResolver,
 	logger *slog.Logger,
+	preferenceReaders ...LanguagePreferenceReader,
 ) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
@@ -121,7 +122,13 @@ func ListCommentRepliesHandler(
 					"internal_error", "reply relationship lookup failed", runID, nil)
 				return
 			}
-			summaries, serr := store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
+			contentLanguages, preferenceErr := authoritativeContentLanguages(r.Context(), viewerDID, preferenceReaders)
+			if preferenceErr != nil {
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "language preference lookup failed", runID, nil)
+				return
+			}
+			summaries, serr := store.EngagementSummaries(r.Context(), viewerDID.String(), contentLanguages, postURIs)
 			if serr != nil {
 				logger.Error("post replies: EngagementSummaries failed",
 					apiLogErrorAttrs(runID, "post.replies.list", "engagement")...)
@@ -185,6 +192,7 @@ func GetPostCommentsHandler(
 	store postCommentsStore,
 	resolver HandleResolver,
 	logger *slog.Logger,
+	preferenceReaders ...LanguagePreferenceReader,
 ) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
@@ -366,7 +374,13 @@ func GetPostCommentsHandler(
 		for _, row := range hydratedRows {
 			postURIs = append(postURIs, row.URI)
 		}
-		summaries, err := store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
+		contentLanguages, err := authoritativeContentLanguages(r.Context(), viewerDID, preferenceReaders)
+		if err != nil {
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "language preference lookup failed", runID, nil)
+			return
+		}
+		summaries, err := store.EngagementSummaries(r.Context(), viewerDID.String(), contentLanguages, postURIs)
 		if err != nil {
 			logger.Error("post comments: EngagementSummaries failed",
 				apiLogErrorAttrs(runID, "post.comments.list", "engagement")...)

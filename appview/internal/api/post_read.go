@@ -22,7 +22,12 @@ type readPostStore interface {
 }
 
 // GetPostHandler serves GET /v1/posts/{did}/{rkey}.
-func GetPostHandler(store readPostStore, resolver HandleResolver, logger *slog.Logger) http.Handler {
+func GetPostHandler(
+	store readPostStore,
+	resolver HandleResolver,
+	logger *slog.Logger,
+	preferenceReaders ...LanguagePreferenceReader,
+) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
 		did, err := syntax.ParseDID(r.PathValue("did"))
@@ -65,7 +70,13 @@ func GetPostHandler(store readPostStore, resolver HandleResolver, logger *slog.L
 			writeJSON(w, http.StatusOK, resp)
 			return
 		}
-		summaries, err := store.EngagementSummaries(r.Context(), viewerDID.String(), []string{row.URI})
+		contentLanguages, err := authoritativeContentLanguages(r.Context(), viewerDID, preferenceReaders)
+		if err != nil {
+			envelope.WriteError(w, http.StatusInternalServerError,
+				"internal_error", "language preference lookup failed", runID, nil)
+			return
+		}
+		summaries, err := store.EngagementSummaries(r.Context(), viewerDID.String(), contentLanguages, []string{row.URI})
 		if err != nil {
 			logger.Error("post: EngagementSummaries failed",
 				apiLogErrorAttrs(runID, "post.get", "engagement")...)

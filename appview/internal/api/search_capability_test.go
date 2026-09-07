@@ -58,6 +58,7 @@ func (searchPostHydrationCapability) EngagementSummaries(
 	context.Context,
 	string,
 	[]string,
+	[]string,
 ) (map[string]api.EngagementSummary, error) {
 	return map[string]api.EngagementSummary{}, nil
 }

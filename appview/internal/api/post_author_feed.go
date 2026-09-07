@@ -264,7 +264,7 @@ func listAuthorPostsHandler(
 			for _, row := range rows {
 				postURIs = append(postURIs, row.URI)
 			}
-			summaries, serr := store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
+			summaries, serr := store.EngagementSummaries(r.Context(), viewerDID.String(), contentLanguages, postURIs)
 			if serr != nil {
 				logger.Error(logLabel+": EngagementSummaries failed",
 					apiLogErrorAttrs(runID, operation, "engagement")...)

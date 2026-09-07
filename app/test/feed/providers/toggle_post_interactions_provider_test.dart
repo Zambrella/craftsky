@@ -82,6 +82,50 @@ InteractionWriteResponse _interaction(Post post) => InteractionWriteResponse(
 void main() {
   setUpAll(initializeMappers);
 
+  test(
+    'REG-001 toggle providers keep writes separate from interaction lists',
+    () async {
+      final post = _post(rkey: 'a');
+      var likes = 0;
+      var reposts = 0;
+      var listCalls = 0;
+      final fake = FakePostRepository(
+        onLike: (did, rkey) async {
+          likes++;
+          return _interaction(post);
+        },
+        onRepost: (did, rkey) async {
+          reposts++;
+          return _interaction(post);
+        },
+        onListLikes: (did, rkey, {cursor, limit}) async {
+          listCalls++;
+          throw StateError('like list must not replace mutation');
+        },
+        onListReposts: (did, rkey, {cursor, limit}) async {
+          listCalls++;
+          throw StateError('repost list must not replace mutation');
+        },
+        onListQuotes: (did, rkey, {cursor, limit}) async {
+          listCalls++;
+          throw StateError('quote list must not replace mutation');
+        },
+      );
+      final container = ProviderContainer.test(
+        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+      );
+
+      await container.read(toggleLikePostProvider.notifier).toggle(post: post);
+      await container
+          .read(toggleRepostPostProvider.notifier)
+          .toggle(post: post);
+
+      expect(likes, 1);
+      expect(reposts, 1);
+      expect(listCalls, 0);
+    },
+  );
+
   group('ToggleLikePost', () {
     test('optimistically patches live user post lists', () async {
       final post = _post(rkey: 'a', likeCount: 2);

@@ -13,6 +13,7 @@ import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/models/video_upload_limits.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
+import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/shared/api/api_unwrap.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -276,6 +277,57 @@ class PostApiClient {
   /// DELETE /v1/posts/{did}/{rkey}/reposts.
   Future<void> unrepostPost(Did did, RecordKey rkey) => unwrapApi(() async {
     await _dio.delete<void>('/v1/posts/$did/$rkey/reposts');
+  });
+
+  /// GET /v1/posts/{did}/{rkey}/likes.
+  Future<ProfileAccountPage> listLikes(
+    Did did,
+    RecordKey rkey, {
+    String? cursor,
+    int? limit,
+  }) => unwrapApi(() async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/v1/posts/${Uri.encodeComponent(did)}/${Uri.encodeComponent(rkey)}/likes',
+      queryParameters: {
+        'cursor': ?cursor,
+        'limit': ?limit?.toString(),
+      },
+    );
+    return ProfileAccountPageMapper.fromMap(res.data!);
+  });
+
+  /// GET /v1/posts/{did}/{rkey}/reposts.
+  Future<ProfileAccountPage> listReposts(
+    Did did,
+    RecordKey rkey, {
+    String? cursor,
+    int? limit,
+  }) => unwrapApi(() async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/v1/posts/${Uri.encodeComponent(did)}/${Uri.encodeComponent(rkey)}/reposts',
+      queryParameters: {
+        'cursor': ?cursor,
+        'limit': ?limit?.toString(),
+      },
+    );
+    return ProfileAccountPageMapper.fromMap(res.data!);
+  });
+
+  /// GET /v1/posts/{did}/{rkey}/quotes.
+  Future<PostPage> listQuotes(
+    Did did,
+    RecordKey rkey, {
+    String? cursor,
+    int? limit,
+  }) => unwrapApi(() async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/v1/posts/${Uri.encodeComponent(did)}/${Uri.encodeComponent(rkey)}/quotes',
+      queryParameters: {
+        'cursor': ?cursor,
+        'limit': ?limit?.toString(),
+      },
+    );
+    return PostPageMapper.fromMap(res.data!);
   });
 
   /// GET /v1/profiles/@{handleOrDid}/posts — newest-first.

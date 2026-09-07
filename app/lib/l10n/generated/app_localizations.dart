@@ -1114,6 +1114,96 @@ abstract class AppLocalizations {
   /// **'Post unavailable'**
   String get postUnavailablePlaceholder;
 
+  /// Title of the accounts that liked a post page before its total is available.
+  ///
+  /// In en, this message translates to:
+  /// **'Likes'**
+  String get postInteractionLikesTitle;
+
+  /// Title of the accounts that liked a post page with its authoritative total.
+  ///
+  /// In en, this message translates to:
+  /// **'Likes ({count})'**
+  String postInteractionLikesTitleWithCount(int count);
+
+  /// Title of the accounts that reposted a post page before its total is available.
+  ///
+  /// In en, this message translates to:
+  /// **'Reposts'**
+  String get postInteractionRepostsTitle;
+
+  /// Title of the accounts that reposted a post page with its authoritative total.
+  ///
+  /// In en, this message translates to:
+  /// **'Reposts ({count})'**
+  String postInteractionRepostsTitleWithCount(int count);
+
+  /// Exact like count link in the post detail interaction summary.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 Like} other{{count} Likes}}'**
+  String postInteractionLikesSummary(int count);
+
+  /// Accessible destination hint for the post detail Likes summary link.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Likes for this post'**
+  String get postInteractionLikesSummaryHint;
+
+  /// Exact repost count link in the post detail interaction summary.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 Repost} other{{count} Reposts}}'**
+  String postInteractionRepostsSummary(int count);
+
+  /// Accessible destination hint for the post detail Reposts summary link.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Reposts for this post'**
+  String get postInteractionRepostsSummaryHint;
+
+  /// Exact quote count link in the post detail interaction summary.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 Quote} other{{count} Quotes}}'**
+  String postInteractionQuotesSummary(int count);
+
+  /// Accessible destination hint for the post detail Quotes summary link.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Quotes for this post'**
+  String get postInteractionQuotesSummaryHint;
+
+  /// Empty state for the accounts that liked a post page.
+  ///
+  /// In en, this message translates to:
+  /// **'No likes yet.'**
+  String get postInteractionLikesEmpty;
+
+  /// Menu action for viewing the accounts that liked a comment or reply.
+  ///
+  /// In en, this message translates to:
+  /// **'View likes'**
+  String get postInteractionViewLikesAction;
+
+  /// Empty state for the accounts that reposted a post page.
+  ///
+  /// In en, this message translates to:
+  /// **'No reposts yet.'**
+  String get postInteractionRepostsEmpty;
+
+  /// Plain title of the posts quoting a post page.
+  ///
+  /// In en, this message translates to:
+  /// **'Quotes'**
+  String get postInteractionQuotesTitle;
+
+  /// Empty state for the posts quoting a post page.
+  ///
+  /// In en, this message translates to:
+  /// **'No quotes yet.'**
+  String get postInteractionQuotesEmpty;
+
   /// Temporary reveal action for muted content.
   ///
   /// In en, this message translates to:

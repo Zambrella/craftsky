@@ -259,6 +259,23 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
       path: '/posts/:did/:rkey',
       name: 'post-thread',
       factory: $PostThreadRoute._fromState,
+      routes: [
+        GoRouteData.$route(
+          path: 'likes',
+          name: 'post-likes',
+          factory: $PostLikesRoute._fromState,
+        ),
+        GoRouteData.$route(
+          path: 'reposts',
+          name: 'post-reposts',
+          factory: $PostRepostsRoute._fromState,
+        ),
+        GoRouteData.$route(
+          path: 'quotes',
+          name: 'post-quotes',
+          factory: $PostQuotesRoute._fromState,
+        ),
+      ],
     ),
     GoRouteData.$route(
       path: '/events/:did/:rkey',
@@ -880,6 +897,87 @@ mixin $PostThreadRoute on GoRouteData {
   @override
   void replace(BuildContext context) =>
       context.replace(location, extra: _self.$extra);
+}
+
+mixin $PostLikesRoute on GoRouteData {
+  static PostLikesRoute _fromState(GoRouterState state) => PostLikesRoute(
+    did: state.pathParameters['did']!,
+    rkey: state.pathParameters['rkey']!,
+  );
+
+  PostLikesRoute get _self => this as PostLikesRoute;
+
+  @override
+  String get location => GoRouteData.$location(
+    '/posts/${Uri.encodeComponent(_self.did)}/${Uri.encodeComponent(_self.rkey)}/likes',
+  );
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $PostRepostsRoute on GoRouteData {
+  static PostRepostsRoute _fromState(GoRouterState state) => PostRepostsRoute(
+    did: state.pathParameters['did']!,
+    rkey: state.pathParameters['rkey']!,
+  );
+
+  PostRepostsRoute get _self => this as PostRepostsRoute;
+
+  @override
+  String get location => GoRouteData.$location(
+    '/posts/${Uri.encodeComponent(_self.did)}/${Uri.encodeComponent(_self.rkey)}/reposts',
+  );
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $PostQuotesRoute on GoRouteData {
+  static PostQuotesRoute _fromState(GoRouterState state) => PostQuotesRoute(
+    did: state.pathParameters['did']!,
+    rkey: state.pathParameters['rkey']!,
+  );
+
+  PostQuotesRoute get _self => this as PostQuotesRoute;
+
+  @override
+  String get location => GoRouteData.$location(
+    '/posts/${Uri.encodeComponent(_self.did)}/${Uri.encodeComponent(_self.rkey)}/quotes',
+  );
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
 }
 
 mixin $BusinessEventRoute on GoRouteData {

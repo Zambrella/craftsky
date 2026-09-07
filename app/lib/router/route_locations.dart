@@ -20,6 +20,9 @@ class RouteLocations {
   static const notifications = '/notifications';
   static const notificationSettingsChild = 'settings';
   static const postThread = '/posts/:did/:rkey';
+  static const postLikesChild = 'likes';
+  static const postRepostsChild = 'reposts';
+  static const postQuotesChild = 'quotes';
   static const businessEvent = '/events/:did/:rkey';
   static const profile = '/profile';
   static const settingsChild = 'settings';
