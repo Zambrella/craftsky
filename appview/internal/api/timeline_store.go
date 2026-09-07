@@ -35,7 +35,7 @@ type TimelineRepostReasonRow struct {
 
 // ListTimeline returns a viewer's home timeline from indexed AppView rows.
 // Eligible authored posts and straight repost activity are authored by the
-// viewer or by accounts actively followed by the viewer, are ordered by AppView
+// viewer or by accounts actively followed by the viewer, are ordered by clamped
 // activity chronology, and use ItemKey as the stable feed-item identity.
 func (s *PostStore) ListTimeline(ctx context.Context, viewerDID string, limit int, cursor string) ([]*TimelineFeedItemRow, string, error) {
 	return s.ListTimelineWithLanguages(ctx, viewerDID, []string{}, limit, cursor)
@@ -102,7 +102,7 @@ func (s *PostStore) listTimelineObserved(
 			SELECT
 				'post'::text AS item_kind,
 				'post:' || p.uri AS item_key,
-				p.indexed_at AS activity_at,
+				LEAST(p.created_at, p.indexed_at) AS activity_at,
 				p.uri AS post_uri,
 				NULL::text AS repost_uri,
 				NULL::text AS repost_cid,
@@ -122,7 +122,7 @@ func (s *PostStore) listTimelineObserved(
 			SELECT
 				'repost'::text AS item_kind,
 				'repost:' || r.uri AS item_key,
-				r.indexed_at AS activity_at,
+				LEAST(r.created_at, r.indexed_at) AS activity_at,
 				r.subject_uri AS post_uri,
 				r.uri AS repost_uri,
 				r.cid AS repost_cid,

@@ -418,7 +418,7 @@ func TestTimelineStore_ListTimeline_IncludesFollowedRepostActivityWithReasonAndE
 	}
 }
 
-func TestTimelineStore_ListTimeline_OrdersByIndexedAtThenURIDesc(t *testing.T) {
+func TestTimelineStore_ListTimeline_OrdersByActivityAtThenItemKeyDesc(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, timelineStoreDDL)
 	base := time.Date(2026, 5, 28, 14, 0, 0, 0, time.UTC)
@@ -441,6 +441,48 @@ func TestTimelineStore_ListTimeline_OrdersByIndexedAtThenURIDesc(t *testing.T) {
 	want := []string{newest, tiedHighURI, tiedLowURI, oldest}
 	if !slices.Equal(got, want) {
 		t.Fatalf("timeline URIs = %v, want %v", got, want)
+	}
+}
+
+func TestTimelineStore_ListTimeline_OrdersBackfilledItemsByClampedActivityTime(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, timelineStoreDDL)
+	base := time.Date(2026, 5, 28, 14, 30, 0, 0, time.UTC)
+
+	for _, did := range []string{"did:plc:viewer", "did:plc:alice", "did:plc:bob"} {
+		seedMember(t, pool, did)
+	}
+	seedFollow(t, pool, "did:plc:viewer", "did:plc:alice", "follow-alice")
+
+	oldSubject := seedPost(t, pool, "did:plc:bob", "old-subject", "old subject", base.Add(-48*time.Hour))
+	repost := seedInteraction(t, pool, "repost", "did:plc:alice", "old-repost", oldSubject, false)
+	newPost := seedPost(t, pool, "did:plc:alice", "new-post", "new post", base.Add(-2*time.Hour))
+
+	// A repository replay may index records by collection rather than by their
+	// original activity time. Simulate the old repost being indexed last.
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE craftsky_posts SET created_at = $1, indexed_at = $2 WHERE uri = $3
+	`, base.Add(-2*time.Hour), base.Add(time.Minute), newPost); err != nil {
+		t.Fatalf("simulate backfilled post: %v", err)
+	}
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE craftsky_reposts SET created_at = $1, indexed_at = $2 WHERE uri = $3
+	`, base.Add(-24*time.Hour), base.Add(2*time.Minute), repost); err != nil {
+		t.Fatalf("simulate backfilled repost: %v", err)
+	}
+
+	items, _, err := api.NewPostStore(pool).ListTimeline(context.Background(), "did:plc:viewer", 20, "")
+	if err != nil {
+		t.Fatalf("ListTimeline: %v", err)
+	}
+	if len(items) != 2 {
+		t.Fatalf("timeline items = %d, want 2", len(items))
+	}
+	if items[0].ItemKey != "post:"+newPost || items[1].ItemKey != "repost:"+repost {
+		t.Fatalf("timeline item keys = [%s %s], want new post before old repost", items[0].ItemKey, items[1].ItemKey)
+	}
+	if !items[0].ActivityAt.Equal(base.Add(-2*time.Hour)) || !items[1].ActivityAt.Equal(base.Add(-24*time.Hour)) {
+		t.Fatalf("activity times = [%s %s], want clamped record times", items[0].ActivityAt, items[1].ActivityAt)
 	}
 }
 
