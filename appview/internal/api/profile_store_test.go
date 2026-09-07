@@ -30,6 +30,7 @@ CREATE TABLE bluesky_profiles (
     did          TEXT        NOT NULL PRIMARY KEY,
     display_name TEXT,
     description  TEXT,
+    pronouns     TEXT,
     avatar_cid   TEXT,
     avatar_mime  TEXT,
     banner_cid   TEXT,
@@ -495,9 +496,9 @@ func TestProfileStore_ReadByDID_MemberWithBothRows(t *testing.T) {
 		t.Fatal(err)
 	}
 	_, err = pool.Exec(ctx, `
-		INSERT INTO bluesky_profiles (did, display_name, avatar_cid, avatar_mime, record_cid)
-		VALUES ($1, $2, $3, $4, $5)`,
-		"did:plc:a", "Alice", "bafav", "image/jpeg", "cid2")
+		INSERT INTO bluesky_profiles (did, display_name, pronouns, avatar_cid, avatar_mime, record_cid)
+		VALUES ($1, $2, $3, $4, $5, $6)`,
+		"did:plc:a", "Alice", "she/her", "bafav", "image/jpeg", "cid2")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -512,6 +513,9 @@ func TestProfileStore_ReadByDID_MemberWithBothRows(t *testing.T) {
 	}
 	if got.DisplayName == nil || *got.DisplayName != "Alice" {
 		t.Errorf("DisplayName = %v", got.DisplayName)
+	}
+	if got.Pronouns == nil || *got.Pronouns != "she/her" {
+		t.Errorf("Pronouns = %v", got.Pronouns)
 	}
 	if got.AvatarCID == nil || *got.AvatarCID != "bafav" {
 		t.Errorf("AvatarCID = %v", got.AvatarCID)

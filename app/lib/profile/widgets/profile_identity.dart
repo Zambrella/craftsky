@@ -4,8 +4,7 @@ import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
 /// Display name (DM Serif Display) + optional pronouns + `@handle` block,
-/// matching the order from the design mockup. Pronouns are currently a
-/// placeholder — there's no wire field for them yet.
+/// matching the order from the design mockup.
 class ProfileIdentity extends StatelessWidget {
   const ProfileIdentity({
     required this.handle,
@@ -28,6 +27,7 @@ class ProfileIdentity extends StatelessWidget {
     final spacing = theme.extension<SpacingTheme>()!;
     final l10n = AppLocalizations.of(context);
     final profileHandle = ProfileHandle(handle);
+    final visiblePronouns = pronouns?.trim();
     final name = profileHandle.displayLabel(
       displayName: displayName,
       unavailableLabel: l10n.handleUnavailable,
@@ -60,11 +60,14 @@ class ProfileIdentity extends StatelessWidget {
                 textAlign: centered ? TextAlign.center : TextAlign.start,
               ),
             ),
-            if (pronouns != null) ...[
+            if (visiblePronouns?.isNotEmpty ?? false) ...[
               SizedBox(width: spacing.sp2),
-              Text(
-                pronouns!,
-                style: theme.textTheme.bodySmall?.copyWith(color: mutedInk),
+              Flexible(
+                child: Text(
+                  visiblePronouns!,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall?.copyWith(color: mutedInk),
+                ),
               ),
             ],
           ],

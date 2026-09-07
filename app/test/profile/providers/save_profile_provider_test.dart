@@ -193,6 +193,7 @@ final class _ProfileRepository extends Fake implements ProfileRepository {
   @override
   Future<Profile> updateMe({
     String? displayName,
+    String? pronouns,
     String? description,
     List<String>? crafts,
     UploadedBlob? avatar,
@@ -204,6 +205,7 @@ final class _ProfileRepository extends Fake implements ProfileRepository {
     if (updateError case final error?) throw error;
     return _profile.copyWith(
       displayName: displayName,
+      pronouns: pronouns,
       description: description,
       crafts: crafts,
     );

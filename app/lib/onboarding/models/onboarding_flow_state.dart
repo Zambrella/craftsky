@@ -14,17 +14,23 @@ extension OnboardingStepProgress on OnboardingStep {
 final class OnboardingIdentityDraft {
   const OnboardingIdentityDraft({
     required this.displayName,
+    required this.pronouns,
     required this.bio,
   });
 
   final String displayName;
+  final String pronouns;
   final String bio;
 
-  OnboardingIdentityDraft copyWith({String? displayName, String? bio}) =>
-      OnboardingIdentityDraft(
-        displayName: displayName ?? this.displayName,
-        bio: bio ?? this.bio,
-      );
+  OnboardingIdentityDraft copyWith({
+    String? displayName,
+    String? pronouns,
+    String? bio,
+  }) => OnboardingIdentityDraft(
+    displayName: displayName ?? this.displayName,
+    pronouns: pronouns ?? this.pronouns,
+    bio: bio ?? this.bio,
+  );
 }
 
 final class OnboardingFlowState {
@@ -58,6 +64,7 @@ final class OnboardingFlowState {
       baseline: profile,
       identity: OnboardingIdentityDraft(
         displayName: profile.displayName ?? '',
+        pronouns: profile.pronouns ?? '',
         bio: profile.description ?? '',
       ),
       selectedCraftIds: known,
@@ -79,13 +86,12 @@ final class OnboardingFlowState {
 
   bool get identityDirty =>
       identity.displayName != (baseline.displayName ?? '') ||
+      identity.pronouns != (baseline.pronouns ?? '') ||
       identity.bio != (baseline.description ?? '') ||
       avatarBlob != null;
 
   bool get craftsDirty {
-    final baselineKnown = baseline.crafts.where(
-      isCanonicalSelectableCraft,
-    );
+    final baselineKnown = baseline.crafts.where(isCanonicalSelectableCraft);
     return baselineKnown.toSet().length != selectedCraftIds.length ||
         !selectedCraftIds.containsAll(baselineKnown);
   }

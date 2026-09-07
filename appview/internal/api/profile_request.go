@@ -9,12 +9,15 @@ import (
 	"math"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/rivo/uniseg"
 )
 
 // ProfilePutRequest is the decoded request body for PUT /v1/profiles/me.
 type ProfilePutRequest struct {
 	DisplayName *string            `json:"displayName,omitempty"`
 	Description *string            `json:"description,omitempty"`
+	Pronouns    *string            `json:"pronouns,omitempty"`
 	Crafts      []string           `json:"crafts,omitempty"`
 	Avatar      ProfileImageUpdate `json:"-"`
 	Banner      ProfileImageUpdate `json:"-"`
@@ -61,6 +64,7 @@ func DecodeProfilePut(body io.Reader) (ProfilePutRequest, error) {
 	allowed := map[string]struct{}{
 		"displayName": {},
 		"description": {},
+		"pronouns":    {},
 		"crafts":      {},
 		"avatar":      {},
 		"banner":      {},
@@ -81,10 +85,11 @@ func DecodeProfilePut(body io.Reader) (ProfilePutRequest, error) {
 	type scalarProfilePutRequest struct {
 		DisplayName *string  `json:"displayName,omitempty"`
 		Description *string  `json:"description,omitempty"`
+		Pronouns    *string  `json:"pronouns,omitempty"`
 		Crafts      []string `json:"crafts,omitempty"`
 	}
 	scalarMap := map[string]json.RawMessage{}
-	for _, k := range []string{"displayName", "description", "crafts"} {
+	for _, k := range []string{"displayName", "description", "pronouns", "crafts"} {
 		if v, ok := rawMap[k]; ok {
 			scalarMap[k] = v
 		}
@@ -108,6 +113,7 @@ func DecodeProfilePut(body io.Reader) (ProfilePutRequest, error) {
 	out := ProfilePutRequest{
 		DisplayName: scalars.DisplayName,
 		Description: scalars.Description,
+		Pronouns:    scalars.Pronouns,
 		Crafts:      scalars.Crafts,
 	}
 	if rawAvatar, present := rawMap["avatar"]; present {
@@ -148,10 +154,6 @@ func decodeProfileImageUpdate(field string, raw json.RawMessage) (ProfileImageUp
 }
 
 // ValidateProfilePut enforces the length/count constraints from spec §5.3.
-// NOTE: "graphemes" per spec are strictly Unicode extended grapheme clusters,
-// which the stdlib can't count without golang.org/x/text. For v1 we accept
-// `utf8.RuneCountInString` as a slightly stricter upper bound (combining
-// marks count as extra runes), matching how other atproto clients ship.
 func ValidateProfilePut(req ProfilePutRequest) error {
 	return ValidateProfilePutWithLimits(req, DefaultMediaLimits())
 }
@@ -167,6 +169,11 @@ func ValidateProfilePutWithLimits(req ProfilePutRequest, limits MediaLimits) err
 	if req.Description != nil {
 		if len(*req.Description) > 2560 || utf8.RuneCountInString(*req.Description) > 256 {
 			fields["description"] = "exceeds 256 graphemes / 2560 bytes"
+		}
+	}
+	if req.Pronouns != nil {
+		if len(*req.Pronouns) > 200 || uniseg.GraphemeClusterCount(*req.Pronouns) > 20 {
+			fields["pronouns"] = "exceeds 20 graphemes / 200 bytes"
 		}
 	}
 	if req.Crafts != nil {

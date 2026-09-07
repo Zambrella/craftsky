@@ -10,7 +10,7 @@ import (
 
 func TestDecodeProfilePut_HappyPath(t *testing.T) {
 	t.Parallel()
-	body := `{"displayName":"Alice","description":"textile","crafts":["sewing"]}`
+	body := `{"displayName":"Alice","description":"textile","pronouns":"she/her","crafts":["sewing"]}`
 	req, err := api.DecodeProfilePut(strings.NewReader(body))
 	if err != nil {
 		t.Fatal(err)
@@ -18,8 +18,20 @@ func TestDecodeProfilePut_HappyPath(t *testing.T) {
 	if req.DisplayName == nil || *req.DisplayName != "Alice" {
 		t.Errorf("displayName = %v", req.DisplayName)
 	}
+	if req.Pronouns == nil || *req.Pronouns != "she/her" {
+		t.Errorf("pronouns = %v", req.Pronouns)
+	}
 	if req.Crafts == nil || len(req.Crafts) != 1 || req.Crafts[0] != "sewing" {
 		t.Errorf("crafts = %v", req.Crafts)
+	}
+}
+
+func TestDecodeProfilePut_RejectsNonStringPronouns(t *testing.T) {
+	t.Parallel()
+	_, err := api.DecodeProfilePut(strings.NewReader(`{"pronouns":["they/them"]}`))
+	var fe *api.FieldError
+	if !asFieldErr(err, &fe) || fe.Code != "unexpected_field" {
+		t.Fatalf("want unexpected_field; got %v", err)
 	}
 }
 
@@ -62,6 +74,27 @@ func TestValidateProfilePut_OversizeDisplayName(t *testing.T) {
 	}
 	if _, ok := fe.Fields["displayName"]; !ok {
 		t.Errorf("fields = %v", fe.Fields)
+	}
+}
+
+func TestValidateProfilePut_PronounLimits(t *testing.T) {
+	t.Parallel()
+	combining := strings.Repeat("e\u0301", 20)
+	if err := api.ValidateProfilePut(api.ProfilePutRequest{Pronouns: &combining}); err != nil {
+		t.Fatalf("20 graphemes rejected: %v", err)
+	}
+
+	for name, pronouns := range map[string]string{
+		"graphemes": strings.Repeat("x", 21),
+		"bytes":     strings.Repeat("\u00e9", 101),
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := api.ValidateProfilePut(api.ProfilePutRequest{Pronouns: &pronouns})
+			var fe *api.FieldError
+			if !asFieldErr(err, &fe) || fe.Fields["pronouns"] == "" {
+				t.Fatalf("want FieldError on pronouns; got %v", err)
+			}
+		})
 	}
 }
 

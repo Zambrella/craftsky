@@ -27,6 +27,7 @@ final class _Storage implements SessionRegistryStorage {
 final class _Update {
   const _Update({
     required this.displayName,
+    required this.pronouns,
     required this.description,
     required this.crafts,
     required this.avatar,
@@ -36,6 +37,7 @@ final class _Update {
   });
 
   final String? displayName;
+  final String? pronouns;
   final String? description;
   final List<String>? crafts;
   final UploadedBlob? avatar;
@@ -53,6 +55,7 @@ void main() {
       onUpdate:
           ({
             displayName,
+            pronouns,
             description,
             crafts,
             avatar,
@@ -62,6 +65,7 @@ void main() {
           }) async {
             sent = _Update(
               displayName: displayName,
+              pronouns: pronouns,
               description: description,
               crafts: crafts,
               avatar: avatar,
@@ -73,6 +77,7 @@ void main() {
               did: profile.did,
               handle: profile.handle,
               displayName: displayName,
+              pronouns: pronouns,
               description: description,
               avatar: profile.avatar,
               banner: profile.banner,
@@ -86,10 +91,15 @@ void main() {
     await _waitForPrefill(harness);
 
     final notifier = harness.container.read(harness.provider.notifier)
-      ..updateIdentity(displayName: 'Alicia', bio: 'New bio');
+      ..updateIdentity(
+        displayName: 'Alicia',
+        pronouns: ' she/they ',
+        bio: 'New bio',
+      );
     await notifier.saveAndNext();
 
     expect(sent?.displayName, 'Alicia');
+    expect(sent?.pronouns, 'she/they');
     expect(sent?.description, 'New bio');
     expect(sent?.crafts, ['sewing', 'weaving', 'future-craft']);
     expect(sent?.avatar, isNull);
@@ -106,6 +116,7 @@ void main() {
       onUpdate:
           ({
             displayName,
+            pronouns,
             description,
             crafts,
             avatar,
@@ -115,6 +126,7 @@ void main() {
           }) async {
             sent = _Update(
               displayName: displayName,
+              pronouns: pronouns,
               description: description,
               crafts: crafts,
               avatar: avatar,
@@ -126,6 +138,7 @@ void main() {
               did: profile.did,
               handle: profile.handle,
               displayName: displayName,
+              pronouns: pronouns,
               description: description,
               avatar: profile.avatar,
               banner: profile.banner,
@@ -145,6 +158,7 @@ void main() {
     await notifier.saveAndNext();
 
     expect(sent?.displayName, 'Alice');
+    expect(sent?.pronouns, 'they/them');
     expect(sent?.description, 'Bio');
     expect(sent?.crafts, ['quilting', 'weaving', 'future-craft']);
     expect(sent?.avatar, isNull);
@@ -158,6 +172,7 @@ void main() {
       did: 'did:plc:alice',
       handle: 'alice.test',
       displayName: 'Alice',
+      pronouns: 'they/them',
       description: 'Bio',
       avatar: 'https://example/avatar',
       banner: 'https://example/banner',
@@ -166,6 +181,7 @@ void main() {
     final identityState = OnboardingFlowState.fromProfile(profile).copyWith(
       identity: const OnboardingIdentityDraft(
         displayName: 'Alicia',
+        pronouns: '  she/her  ',
         bio: 'New bio',
       ),
       selectedCraftIds: const {'quilting'},
@@ -173,6 +189,7 @@ void main() {
 
     final identityPayload = OnboardingProfilePayload.fromState(identityState);
     expect(identityPayload.displayName, 'Alicia');
+    expect(identityPayload.pronouns, 'she/her');
     expect(identityPayload.description, 'New bio');
     expect(identityPayload.crafts, ['sewing', 'future-craft']);
 
@@ -180,11 +197,29 @@ void main() {
       identityState.copyWith(step: OnboardingStep.crafts),
     );
     expect(craftsPayload.displayName, 'Alice');
+    expect(craftsPayload.pronouns, 'they/them');
     expect(craftsPayload.description, 'Bio');
     expect(craftsPayload.crafts, ['quilting', 'future-craft']);
     expect(craftsPayload.clearAvatar, isFalse);
     expect(craftsPayload.clearBanner, isFalse);
     expect(craftsPayload.avatar, isNull);
+  });
+
+  test('an empty identity-step value clears existing pronouns', () {
+    final state = OnboardingFlowState.fromProfile(_fullProfile()).copyWith(
+      identity: const OnboardingIdentityDraft(
+        displayName: 'Alice',
+        pronouns: '   ',
+        bio: 'Bio',
+      ),
+    );
+
+    final payload = OnboardingProfilePayload.fromState(state);
+
+    expect(payload.pronouns, isNull);
+    expect(payload.displayName, 'Alice');
+    expect(payload.description, 'Bio');
+    expect(payload.crafts, ['sewing', 'weaving', 'future-craft']);
   });
 }
 
@@ -196,6 +231,7 @@ _flowHarness(
   Profile profile, {
   required Future<Profile> Function({
     String? displayName,
+    String? pronouns,
     String? description,
     List<String>? crafts,
     UploadedBlob? avatar,
@@ -234,6 +270,7 @@ Profile _fullProfile() => Profile(
   did: 'did:plc:alice',
   handle: 'alice.test',
   displayName: 'Alice',
+  pronouns: 'they/them',
   description: 'Bio',
   avatar: 'https://example/avatar',
   banner: 'https://example/banner',

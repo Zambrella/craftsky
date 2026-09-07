@@ -103,6 +103,7 @@ class _OnboardingFlowScaffold extends ConsumerWidget {
     };
     final valid =
         state.identity.displayName.length <= profileDisplayNameMaxLength &&
+        state.identity.pronouns.characters.length <= profilePronounsMaxLength &&
         state.identity.bio.length <= profileBioMaxLength &&
         !state.uploadingAvatar &&
         !state.avatarUploadFailed;
@@ -172,6 +173,8 @@ class _OnboardingFlowScaffold extends ConsumerWidget {
                                 state: state,
                                 onDisplayNameChanged: (value) =>
                                     notifier.updateIdentity(displayName: value),
+                                onPronounsChanged: (value) =>
+                                    notifier.updateIdentity(pronouns: value),
                                 onBioChanged: (value) =>
                                     notifier.updateIdentity(bio: value),
                                 onPickAvatar: () =>

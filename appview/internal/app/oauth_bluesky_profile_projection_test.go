@@ -23,6 +23,7 @@ func TestOAuthBlueskyProfileProjectionIsIdempotentWithCanonicalReplay(t *testing
 			did TEXT PRIMARY KEY,
 			display_name TEXT,
 			description TEXT,
+			pronouns TEXT,
 			avatar_cid TEXT,
 			avatar_mime TEXT,
 			banner_cid TEXT,
@@ -37,6 +38,7 @@ func TestOAuthBlueskyProfileProjectionIsIdempotentWithCanonicalReplay(t *testing
 	record := map[string]any{
 		"displayName": "Alice",
 		"description": "Textile maker",
+		"pronouns":    "she/her",
 		"avatar": map[string]any{
 			"ref": map[string]any{"$link": "bafkavatar"}, "mimeType": "image/jpeg",
 		},
@@ -61,18 +63,18 @@ func TestOAuthBlueskyProfileProjectionIsIdempotentWithCanonicalReplay(t *testing
 	}
 
 	var count int
-	var displayName, description, avatarCID, bannerCID, recordCID string
+	var displayName, description, pronouns, avatarCID, bannerCID, recordCID string
 	err = pool.QueryRow(context.Background(), `
-		SELECT count(*) OVER (), display_name, description, avatar_cid, banner_cid, record_cid
+		SELECT count(*) OVER (), display_name, description, pronouns, avatar_cid, banner_cid, record_cid
 		FROM bluesky_profiles WHERE did = $1`, did).
-		Scan(&count, &displayName, &description, &avatarCID, &bannerCID, &recordCID)
+		Scan(&count, &displayName, &description, &pronouns, &avatarCID, &bannerCID, &recordCID)
 	if err != nil {
 		t.Fatalf("read projection: %v", err)
 	}
-	if count != 1 || displayName != "Alice" || description != "Textile maker" ||
+	if count != 1 || displayName != "Alice" || description != "Textile maker" || pronouns != "she/her" ||
 		avatarCID != "bafkavatar" || bannerCID != "bafkbanner" || recordCID != cid.String() {
-		t.Fatalf("projection = count:%d display:%q description:%q avatar:%q banner:%q cid:%q",
-			count, displayName, description, avatarCID, bannerCID, recordCID)
+		t.Fatalf("projection = count:%d display:%q description:%q pronouns:%q avatar:%q banner:%q cid:%q",
+			count, displayName, description, pronouns, avatarCID, bannerCID, recordCID)
 	}
 }
 

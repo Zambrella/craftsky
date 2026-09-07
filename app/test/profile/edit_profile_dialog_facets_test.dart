@@ -35,6 +35,7 @@ void main() {
           onUpdateMe:
               ({
                 displayName,
+                pronouns,
                 description,
                 crafts,
                 avatar,
@@ -45,7 +46,10 @@ void main() {
                 capturedDisplayName = displayName;
                 capturedDescription = description;
                 capturedCrafts = crafts;
-                return _seedProfile.copyWith(description: description);
+                return _seedProfile.copyWith(
+                  pronouns: pronouns,
+                  description: description,
+                );
               },
         );
 

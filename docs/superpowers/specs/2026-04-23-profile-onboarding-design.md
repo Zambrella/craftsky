@@ -6,7 +6,7 @@
 
 ## Summary
 
-A Craftsky profile is split across two atproto records on the user's PDS: `app.bsky.actor.profile` (display name, bio, avatar, banner) and `social.craftsky.actor.profile` (craft list, with room to grow later). Onboarding is not a separate flow: during the OAuth callback, the AppView initialises both records if they don't exist and reads them if they do, so every logged-in user has both a Bluesky-profile row and a Craftsky-profile row in Postgres by the time the callback returns. The Flutter app then treats "onboarded" as a client-side UX state (`crafts.length > 0`) rather than a server-side flag.
+A Craftsky profile is split across two atproto records on the user's PDS: `app.bsky.actor.profile` (display name, bio, pronouns, avatar, banner) and `social.craftsky.actor.profile` (craft list, with room to grow later). Onboarding is not a separate flow: during the OAuth callback, the AppView initialises both records if they don't exist and reads them if they do, so every logged-in user has both a Bluesky-profile row and a Craftsky-profile row in Postgres by the time the callback returns. The Flutter app then treats "onboarded" as a client-side UX state (`crafts.length > 0`) rather than a server-side flag.
 
 Reads and writes flow through three authenticated v1 endpoints: `GET /v1/profiles/@{handleOrDid}`, `GET /v1/profiles/me`, and `PUT /v1/profiles/me`. The AppView writes both records in parallel on PUT, returns a combined representation on GET, and drops the throwaway `bluesky_posts_sample` indexer now that the first real `social.craftsky.*` indexer is landing.
 
@@ -32,11 +32,11 @@ Reads and writes flow through three authenticated v1 endpoints: `GET /v1/profile
 
 ## 1. Lexicon
 
-No lexicon changes. The existing `social.craftsky.actor.profile` — literal `self` record key, `crafts: array<string>` with open `knownValues` sourced from `social.craftsky.feed.defs` — is the v1 shape. All Bluesky-side fields (display name, bio, avatar, banner) stay on `app.bsky.actor.profile`; we do not mirror them.
+No lexicon changes. The existing `social.craftsky.actor.profile` — literal `self` record key, `crafts: array<string>` with open `knownValues` sourced from `social.craftsky.feed.defs` — is the v1 shape. All Bluesky-side fields (display name, bio, pronouns, avatar, banner) stay on `app.bsky.actor.profile`; we do not mirror them.
 
 This spec therefore does not need an ADR under AGENTS.md rule #4 (ADRs gate *changes* to lexicon).
 
-Future additions to `social.craftsky.actor.profile` — per-craft skill levels, external links (Ravelry, Etsy), pronouns, location — are all additive under atproto evolution rules and can be deferred until real usage motivates them.
+Future additions to `social.craftsky.actor.profile` — per-craft skill levels, external links (Ravelry, Etsy), location — are all additive under atproto evolution rules and can be deferred until real usage motivates them. Preferred pronouns use the standard optional `app.bsky.actor.profile.pronouns` field instead and require no Craftsky lexicon change.
 
 ## 2. Data model
 
@@ -66,6 +66,7 @@ CREATE TABLE bluesky_profiles (
     did          TEXT        NOT NULL PRIMARY KEY,
     display_name TEXT,
     description  TEXT,
+    pronouns     TEXT,
     avatar_cid   TEXT,
     avatar_mime  TEXT,
     banner_cid   TEXT,
@@ -93,6 +94,7 @@ Numbered relative to the current head (`000006`). The implementer verifies the h
 - `000007_drop_bluesky_posts_sample.up.sql` / `.down.sql` — drops the `bluesky_posts_sample` table; up symmetrical with migration `000001`.
 - `000008_craftsky_profiles.up.sql` / `.down.sql` — creates `craftsky_profiles`.
 - `000009_bluesky_profiles.up.sql` / `.down.sql` — creates `bluesky_profiles`.
+- `000068_preferred_pronouns.up.sql` / `.down.sql` — adds/removes nullable `bluesky_profiles.pronouns`. No historical backfill is required because there are no production users.
 
 No indexes beyond the primary key on either table in v1. Handle-based reads resolve to a DID first (via the identity directory), then hit the PK; no handle index needed.
 
@@ -130,12 +132,13 @@ File: `appview/internal/index/bluesky_profile.go`.
 
   ```sql
   INSERT INTO bluesky_profiles
-      (did, display_name, description, avatar_cid, avatar_mime,
+      (did, display_name, description, pronouns, avatar_cid, avatar_mime,
        banner_cid, banner_mime, record_cid)
-  VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
   ON CONFLICT (did) DO UPDATE SET
       display_name = EXCLUDED.display_name,
       description = EXCLUDED.description,
+      pronouns = EXCLUDED.pronouns,
       avatar_cid = EXCLUDED.avatar_cid,
       avatar_mime = EXCLUDED.avatar_mime,
       banner_cid = EXCLUDED.banner_cid,
@@ -294,13 +297,12 @@ Per API architecture spec §2.2, `me` is the preferred self-referential form; a 
 {
   "displayName": "Alice",
   "description": "textile person",
+  "pronouns": "she/her",
   "crafts": ["knitting", "sewing"]
 }
 ```
 
-All three fields optional. Missing = cleared (per full-replace PUT semantics from the API architecture spec §2.3). Avatar and banner are **not** accepted in v1:
-
-- If the body contains `avatar` or `banner`, return `400 unexpected_field` with a `fields` map pointing to the offending keys. Explicit rejection (rather than silent ignore) so clients don't believe they succeeded.
+All four scalar/collection fields are optional. Missing = cleared (per full-replace PUT semantics from the API architecture spec §2.3). Avatar and banner use the tri-state update semantics documented in §5.4.
 
 **Validation:**
 
@@ -308,6 +310,7 @@ All three fields optional. Missing = cleared (per full-replace PUT semantics fro
 |---|---|
 | `displayName` | ≤ 64 graphemes / 640 bytes (Bluesky convention). |
 | `description` | ≤ 256 graphemes / 2560 bytes (Bluesky convention). |
+| `pronouns` | Freeform; ≤ 20 graphemes / 200 UTF-8 bytes (standard Bluesky convention). |
 | `crafts` | `maxLength: 10`; each item ≤ 50 graphemes / 50 bytes (matches `social.craftsky.actor.profile`). |
 
 Failures → `422 validation_failed` with a `fields` map.
@@ -316,7 +319,7 @@ Failures → `422 validation_failed` with a `fields` map.
 
 1. Resume the user's OAuth session; get an indigo `APIClient`.
 2. **Read-before-write on the Bluesky side.** Call `com.atproto.repo.getRecord` for `app.bsky.actor.profile`. We need current avatar/banner blob refs to preserve them on the full-replace `putRecord` (the client didn't send them in v1, but we must not blow them away). On PDS error → `502 pds_read_failed`. On 404 → treat as empty record; we're writing a fresh one.
-3. Merge: take avatar + banner from the fetched record (if present), take displayName + description from the request (or clear to null if missing), produce the new Bluesky record body.
+3. Merge: preserve unrelated fields from the fetched record, replace displayName + description + pronouns from the request (or clear them if missing/null), and apply the avatar/banner tri-state updates to produce the new Bluesky record body.
 4. Parallel writes: `putRecord app.bsky.actor.profile` with the merged body and `putRecord social.craftsky.actor.profile` with `{crafts: <request value or []>}`.
 5. Aggregate results per API architecture spec §4.2:
 
@@ -348,6 +351,7 @@ Used by all three endpoints' success responses:
   "handle": "alice.bsky.social",
   "displayName": "Alice",
   "description": "textile person",
+  "pronouns": "she/her",
   "avatar": "https://cdn.bsky.app/img/avatar/plain/did:plc:xyz/bafk...@jpeg",
   "banner": "https://cdn.bsky.app/img/banner/plain/did:plc:xyz/bafk...@jpeg",
   "crafts": ["knitting", "sewing"],
@@ -356,7 +360,7 @@ Used by all three endpoints' success responses:
 ```
 
 - `did`, `handle` — always present.
-- `displayName`, `description`, `avatar`, `banner` — nullable; **omitted from the JSON when absent** (not emitted as `null`), matching REST convention.
+- `displayName`, `description`, `pronouns`, `avatar`, `banner` — nullable; **omitted from the JSON when absent** (not emitted as `null`), matching REST convention. `pronouns` is also omitted from the minimum profile shell returned across a block.
 - `crafts` — always an array, possibly empty.
 - `createdAt` — `craftsky_profiles.created_at`, always present.
 

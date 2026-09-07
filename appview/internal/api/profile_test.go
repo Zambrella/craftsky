@@ -467,10 +467,13 @@ func newPutHandler(
 func TestPutProfile_HappyPathMergesBlueskyExtras(t *testing.T) {
 	t.Parallel()
 	captured := map[string]any{}
+	var capturedCraftsky map[string]any
 	pds := &fakePDSForPut{
 		getBsky: func() (map[string]any, error) {
 			return map[string]any{
 				"displayName": "old",
+				"pronouns":    "he/him",
+				"labels":      map[string]any{"values": []any{}},
 				"avatar": map[string]any{
 					"$type":    "blob",
 					"ref":      map[string]any{"$link": "bafav"},
@@ -485,7 +488,10 @@ func TestPutProfile_HappyPathMergesBlueskyExtras(t *testing.T) {
 			}
 			return nil
 		},
-		putCraftsky: func(_ map[string]any) error { return nil },
+		putCraftsky: func(body map[string]any) error {
+			capturedCraftsky = body
+			return nil
+		},
 	}
 	row := &api.ProfileRow{DID: "did:plc:me", Crafts: []string{"sewing"}, CreatedAt: time.Now()}
 	h := newPutHandler(t,
@@ -493,7 +499,7 @@ func TestPutProfile_HappyPathMergesBlueskyExtras(t *testing.T) {
 		pds,
 		fakeResolver{handleFor: "alice.example"},
 	)
-	body := `{"displayName":"new","crafts":["sewing","quilting"]}`
+	body := `{"displayName":"new","pronouns":"they/them","crafts":["sewing","quilting"]}`
 	req := httptest.NewRequest(http.MethodPut, "/v1/profiles/me", strings.NewReader(body))
 	req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:me"))
 	rr := httptest.NewRecorder()
@@ -507,6 +513,61 @@ func TestPutProfile_HappyPathMergesBlueskyExtras(t *testing.T) {
 	}
 	if _, ok := captured["avatar"]; !ok {
 		t.Error("avatar must be preserved from existing record")
+	}
+	if captured["pronouns"] != "they/them" {
+		t.Errorf("bluesky pronouns = %v", captured["pronouns"])
+	}
+	if _, ok := captured["labels"]; !ok {
+		t.Error("unrelated Bluesky field must be preserved")
+	}
+	if len(capturedCraftsky) != 2 || capturedCraftsky["$type"] != "social.craftsky.actor.profile" {
+		t.Fatalf("Craftsky profile body changed: %#v", capturedCraftsky)
+	}
+	if _, ok := capturedCraftsky["pronouns"]; ok {
+		t.Fatalf("Craftsky profile contains pronouns: %#v", capturedCraftsky)
+	}
+	var resp api.ProfileResponse
+	if err := json.Unmarshal(rr.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if resp.Pronouns == nil || *resp.Pronouns != "they/them" {
+		t.Fatalf("response pronouns = %v", resp.Pronouns)
+	}
+}
+
+func TestPutProfile_NullPronounsClearsBlueskyField(t *testing.T) {
+	t.Parallel()
+	var captured map[string]any
+	pds := &fakePDSForPut{
+		getBsky: func() (map[string]any, error) {
+			return map[string]any{"pronouns": "she/her", "labels": "preserve-me"}, nil
+		},
+		putBsky: func(body map[string]any) error {
+			captured = body
+			return nil
+		},
+		putCraftsky: func(_ map[string]any) error { return nil },
+	}
+	h := newPutHandler(t, &fakeStore{}, pds, fakeResolver{handleFor: "alice.example"})
+	req := httptest.NewRequest(http.MethodPut, "/v1/profiles/me", strings.NewReader(`{"pronouns":null}`))
+	req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:me"))
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", rr.Code, rr.Body.String())
+	}
+	if _, ok := captured["pronouns"]; ok {
+		t.Fatalf("pronouns should be cleared: %#v", captured)
+	}
+	if captured["labels"] != "preserve-me" {
+		t.Fatalf("unrelated field not preserved: %#v", captured)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rr.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := body["pronouns"]; ok {
+		t.Fatalf("cleared pronouns present in response: %s", rr.Body.String())
 	}
 }
 
