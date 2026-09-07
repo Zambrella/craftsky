@@ -77,6 +77,11 @@ CREATE TABLE atproto_blocks (
     blocker_did TEXT NOT NULL,
     subject_did TEXT NOT NULL
 );
+CREATE TABLE craftsky_post_mentions (
+    post_uri TEXT NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
+    mentioned_did TEXT NOT NULL,
+    PRIMARY KEY (post_uri, mentioned_did)
+);
 CREATE TABLE owner_lifecycles (
 	owner_did TEXT PRIMARY KEY,
 	state TEXT NOT NULL,

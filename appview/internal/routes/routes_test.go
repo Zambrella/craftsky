@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"image"
 	"image/color"
 	"image/jpeg"
@@ -12,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -24,9 +26,11 @@ import (
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/ctxkeys"
+	"social.craftsky/appview/internal/languages"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -1577,6 +1581,183 @@ func TestRoutes_DeletePostLikesRequiresAuth(t *testing.T) {
 	mux.ServeHTTP(rr, req)
 	if rr.Code != http.StatusUnauthorized {
 		t.Errorf("DELETE /v1/posts/{did}/{rkey}/likes without auth: status = %d, want 401", rr.Code)
+	}
+}
+
+// IT-007, REG-004: FR-002, FR-008, NFR-004; AC-009, AC-014, AC-021.
+func TestPostInteractionReadRoutesAreRegisteredAndProtected(t *testing.T) {
+	wantPolicies := map[string]struct{}{
+		"GET /v1/posts/{did}/{rkey}/likes":   {},
+		"GET /v1/posts/{did}/{rkey}/reposts": {},
+		"GET /v1/posts/{did}/{rkey}/quotes":  {},
+	}
+	var readPolicies []RoutePolicy
+	for _, policy := range V1RoutePolicies(EnvDev, Config{Env: EnvDev}) {
+		key := policy.Method + " " + policy.PathPattern
+		if _, ok := wantPolicies[key]; !ok {
+			continue
+		}
+		if policy.AccessClass != AccessCurrentMember || policy.RateClass != RateClassRead || policy.BodyKind != BodyNoBody {
+			t.Fatalf("%s policy = %+v, want current-member/read/no-body", key, policy)
+		}
+		readPolicies = append(readPolicies, policy)
+		delete(wantPolicies, key)
+	}
+	if len(wantPolicies) != 0 {
+		t.Fatalf("missing post interaction read policies: %v", wantPolicies)
+	}
+	for _, policy := range readPolicies {
+		mw := v1Middleware{
+			authCurrentMember: middleware.Authenticated(
+				&auth.MockAuthService{DefaultDID: "did:plc:test"},
+				slog.Default(),
+				middleware.DevAuthPolicy{Mode: middleware.DevAuthLocal},
+			),
+			deviceID: middleware.DeviceID(nil, slog.Default()),
+			member: func(next http.Handler) http.Handler {
+				return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					if _, ok := middleware.GetDID(r.Context()); !ok {
+						t.Fatal("current-member middleware did not receive authenticated DID")
+					}
+					next.ServeHTTP(w, r)
+				})
+			},
+			rateLimit: map[RateClass]func(http.Handler) http.Handler{},
+			observer:  observability.New(observability.Config{}),
+		}
+		handler := mw.wrap(policy, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.WriteHeader(http.StatusNoContent)
+		}))
+		request := httptest.NewRequest(http.MethodGet, samplePath(policy.PathPattern), nil)
+		request.Header.Set("Authorization", "Bearer interaction-test")
+		request.Header.Set("X-Craftsky-Device-Id", "interaction-test-device")
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != http.StatusNoContent {
+			t.Fatalf("%s valid current-member status = %d, want 204", policy.PathPattern, response.Code)
+		}
+	}
+
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, testDeps())
+	for _, target := range []struct {
+		name string
+		path string
+	}{
+		{name: "likes", path: "/v1/posts/did:plc:alice/root/likes"},
+		{name: "reposts", path: "/v1/posts/did:plc:alice/root/reposts"},
+		{name: "quotes", path: "/v1/posts/did:plc:alice/root/quotes"},
+	} {
+		t.Run(target.name+" method coexistence", func(t *testing.T) {
+			for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodDelete} {
+				if target.name == "quotes" && method != http.MethodGet {
+					continue
+				}
+				_, pattern := mux.Handler(httptest.NewRequest(method, target.path, nil))
+				if pattern == "" || pattern == "/" {
+					t.Fatalf("%s %s pattern = %q, want registered route", method, target.path, pattern)
+				}
+			}
+		})
+
+		t.Run(target.name+" rejects missing auth", func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, target.path, nil)
+			request.Header.Set("X-Craftsky-Device-Id", "interaction-test-device")
+			response := httptest.NewRecorder()
+			mux.ServeHTTP(response, request)
+			if response.Code != http.StatusUnauthorized {
+				t.Fatalf("status = %d, want 401; body=%s", response.Code, response.Body.String())
+			}
+		})
+
+		t.Run(target.name+" rejects missing device", func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, target.path, nil)
+			request.Header.Set("Authorization", "Bearer interaction-test")
+			response := httptest.NewRecorder()
+			mux.ServeHTTP(response, request)
+			if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "missing_device_id") {
+				t.Fatalf("status/body = %d/%s, want missing_device_id", response.Code, response.Body.String())
+			}
+		})
+
+		t.Run(target.name+" rejects unexpected body", func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, target.path, strings.NewReader(`{"unexpected":true}`))
+			request.Header.Set("Authorization", "Bearer interaction-test")
+			request.Header.Set("X-Craftsky-Device-Id", "interaction-test-device")
+			response := httptest.NewRecorder()
+			mux.ServeHTTP(response, request)
+			if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "request_body_not_allowed") {
+				t.Fatalf("status/body = %d/%s, want request_body_not_allowed", response.Code, response.Body.String())
+			}
+		})
+	}
+}
+
+// REG-004: successful production-mux interaction reads cannot reach PDS effects.
+func TestPostInteractionReadRoutesSucceedWithoutPDSEffects(t *testing.T) {
+	databaseURL := os.Getenv("TEST_DATABASE_URL")
+	if databaseURL == "" {
+		databaseURL = os.Getenv("DATABASE_URL")
+	}
+	if databaseURL == "" {
+		t.Skip("TEST_DATABASE_URL and DATABASE_URL both unset")
+	}
+
+	ctx := context.Background()
+	pool, err := pgxpool.New(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("connect test database: %v", err)
+	}
+	t.Cleanup(pool.Close)
+	suffix := strconv.FormatInt(time.Now().UnixNano(), 10)
+	viewer := "did:plc:interactionrouteviewer" + suffix
+	owner := "did:plc:interactionrouteowner" + suffix
+	rkey := "route" + suffix
+	uri := "at://" + owner + "/social.craftsky.feed.post/" + rkey
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `DELETE FROM craftsky_posts WHERE uri = $1`, uri)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM account_language_preferences WHERE account_did = $1`, viewer)
+		_, _ = pool.Exec(context.Background(), `DELETE FROM owner_lifecycles WHERE owner_did = ANY($1)`, []string{viewer, owner})
+		_, _ = pool.Exec(context.Background(), `DELETE FROM craftsky_profiles WHERE did = ANY($1)`, []string{viewer, owner})
+	})
+	statements := []struct {
+		query string
+		args  []any
+	}{
+		{`INSERT INTO craftsky_profiles (did, record_cid) VALUES ($1, 'viewer-cid'), ($2, 'owner-cid')`, []any{viewer, owner}},
+		{`INSERT INTO owner_lifecycles (owner_did, state, generation, auth_epoch, transition_reason, transitioned_at) VALUES ($1, 'active', 1, 1, 'test', now()), ($2, 'active', 1, 1, 'test', now()) ON CONFLICT (owner_did) DO NOTHING`, []any{viewer, owner}},
+		{`INSERT INTO account_language_preferences (account_did, primary_language, content_languages) VALUES ($1, 'en', ARRAY['en'])`, []any{viewer}},
+		{`INSERT INTO craftsky_posts (uri, did, rkey, cid, text, record, created_at) VALUES ($1, $2, $3, 'route-cid', 'route target', '{}', now())`, []any{uri, owner, rkey}},
+	}
+	for _, statement := range statements {
+		if _, err := pool.Exec(ctx, statement.query, statement.args...); err != nil {
+			t.Fatalf("seed production route fixture: %v", err)
+		}
+	}
+
+	pdsCalls := 0
+	deps := testDeps()
+	deps.DB = pool
+	deps.LanguagePreferences = languages.NewStore(pool)
+	deps.NewPDSEffects = func(context.Context, syntax.DID, string) (pdseffects.EffectExecutor, error) {
+		pdsCalls++
+		return nil, errors.New("PDS effects must not be constructed for reads")
+	}
+	mux := http.NewServeMux()
+	AddRoutes(ctx, mux, deps)
+	for _, suffix := range []string{"likes", "reposts", "quotes"} {
+		request := httptest.NewRequest(http.MethodGet, "/v1/posts/"+owner+"/"+rkey+"/"+suffix, nil)
+		request.Header.Set("Authorization", "Bearer interaction-test")
+		request.Header.Set("X-Craftsky-Device-Id", "interaction-test-device")
+		request.Header.Set("X-Dev-DID", viewer)
+		response := httptest.NewRecorder()
+		mux.ServeHTTP(response, request)
+		if response.Code != http.StatusOK {
+			t.Fatalf("GET %s status/body = %d/%s, want 200", suffix, response.Code, response.Body.String())
+		}
+	}
+	if pdsCalls != 0 {
+		t.Fatalf("PDS effect factory calls = %d, want 0", pdsCalls)
 	}
 }
 

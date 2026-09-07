@@ -10,6 +10,7 @@ import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
+import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
@@ -1152,6 +1153,191 @@ void main() {
       await client.unrepostPost(aliceDid, postRkey);
 
       expect(repost.subject.cid, 'bafy123');
+    });
+  });
+
+  group('PostApiClient interaction lists', () {
+    Map<String, dynamic> accountPage({String? cursor}) => {
+      'items': [
+        {
+          'did': 'did:plc:bob',
+          'handle': 'bob.craftsky.social',
+          'displayName': 'Bob',
+          'isCraftskyProfile': true,
+        },
+      ],
+      'totalCount': 1,
+      'cursor': ?cursor,
+    };
+
+    test(
+      'UT-005 REG-004 GETs exact encoded /v1 paths and omits optional query parameters',
+      () async {
+        final dio = buildDio();
+        final requests = <RequestOptions>[];
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              requests.add(options);
+              handler.next(options);
+            },
+          ),
+        );
+        DioAdapter(dio: dio)
+          ..onGet(
+            '/v1/posts/did%3Aweb%3Aexample.com%3Aalice/post%3A1/likes',
+            (server) => server.reply(200, accountPage(cursor: 'likes-next')),
+          )
+          ..onGet(
+            '/v1/posts/did%3Aweb%3Aexample.com%3Aalice/post%3A1/reposts',
+            (server) => server.reply(200, accountPage()),
+          )
+          ..onGet(
+            '/v1/posts/did%3Aweb%3Aexample.com%3Aalice/post%3A1/quotes',
+            (server) => server.reply(200, {
+              'items': [samplePost(text: 'quoted')],
+              'cursor': 'quotes-next',
+            }),
+          );
+        final client = PostApiClient(dio);
+        final did = Did.parse('did:web:example.com:alice');
+        final rkey = RecordKey.parse('post:1');
+
+        final likes = await client.listLikes(did, rkey);
+        final reposts = await client.listReposts(did, rkey);
+        final quotes = await client.listQuotes(did, rkey);
+
+        expect(likes, isA<ProfileAccountPage>());
+        expect(likes.items.single.displayName, 'Bob');
+        expect(likes.totalCount, 1);
+        expect(likes.cursor, 'likes-next');
+        expect(reposts.cursor, isNull);
+        expect(quotes.items.single.text, 'quoted');
+        expect(quotes.cursor, 'quotes-next');
+        expect(requests, hasLength(3));
+        expect(
+          requests,
+          everyElement(
+            isA<RequestOptions>().having(
+              (request) => request.method,
+              'method',
+              'GET',
+            ),
+          ),
+        );
+        expect(
+          requests.map((request) => request.path),
+          [
+            '/v1/posts/did%3Aweb%3Aexample.com%3Aalice/post%3A1/likes',
+            '/v1/posts/did%3Aweb%3Aexample.com%3Aalice/post%3A1/reposts',
+            '/v1/posts/did%3Aweb%3Aexample.com%3Aalice/post%3A1/quotes',
+          ],
+        );
+        expect(
+          requests,
+          everyElement(
+            isA<RequestOptions>()
+                .having((request) => request.path, 'path', startsWith('/v1/'))
+                .having(
+                  (request) => request.queryParameters,
+                  'query parameters',
+                  isEmpty,
+                ),
+          ),
+        );
+      },
+    );
+
+    test(
+      'IT-009 sends cursor and limit for every list and keeps selected '
+      'response identity',
+      () async {
+        final dio = buildDio();
+        final responseDid = Did.parse('did:plc:bob');
+        final responseRkey = RecordKey.parse('response:1');
+        final query = {'cursor': 'opaque:next', 'limit': '25'};
+        DioAdapter(dio: dio)
+          ..onGet(
+            '/v1/posts/did%3Aplc%3Abob/response%3A1/likes',
+            (server) => server.reply(200, accountPage()),
+            queryParameters: query,
+          )
+          ..onGet(
+            '/v1/posts/did%3Aplc%3Abob/response%3A1/reposts',
+            (server) => server.reply(200, accountPage()),
+            queryParameters: query,
+          )
+          ..onGet(
+            '/v1/posts/did%3Aplc%3Abob/response%3A1/quotes',
+            (server) => server.reply(200, {'items': <Map<String, dynamic>>[]}),
+            queryParameters: query,
+          );
+        final client = PostApiClient(dio);
+
+        await client.listLikes(
+          responseDid,
+          responseRkey,
+          cursor: 'opaque:next',
+          limit: 25,
+        );
+        await client.listReposts(
+          responseDid,
+          responseRkey,
+          cursor: 'opaque:next',
+          limit: 25,
+        );
+        final quotes = await client.listQuotes(
+          responseDid,
+          responseRkey,
+          cursor: 'opaque:next',
+          limit: 25,
+        );
+
+        expect(quotes.cursor, isNull);
+      },
+    );
+
+    test('UT-005 maps invalid_cursor and post_not_found envelopes', () async {
+      final invalidCursorDio = buildDio();
+      DioAdapter(dio: invalidCursorDio).onGet(
+        '/v1/posts/did%3Aplc%3Aalice/3lf2abc/likes',
+        (server) => server.reply(400, {
+          'error': 'invalid_cursor',
+          'message': 'Invalid interaction cursor.',
+          'requestId': 'request-invalid-cursor',
+        }),
+        queryParameters: {'cursor': 'wrong-target'},
+      );
+      final invalidCursor = await _captureApiException(
+        () => PostApiClient(invalidCursorDio).listLikes(
+          aliceDid,
+          postRkey,
+          cursor: 'wrong-target',
+        ),
+      );
+
+      expect(invalidCursor, isA<ApiBadRequest>());
+      expect((invalidCursor as ApiBadRequest).code, 'invalid_cursor');
+      expect(invalidCursor.details.statusCode, 400);
+      expect(invalidCursor.details.requestId, 'request-invalid-cursor');
+
+      final missingDio = buildDio();
+      DioAdapter(dio: missingDio).onGet(
+        '/v1/posts/did%3Aplc%3Aalice/missing/quotes',
+        (server) => server.reply(404, {
+          'error': 'post_not_found',
+          'message': 'Post not found.',
+          'requestId': 'request-post-not-found',
+        }),
+      );
+      final missing = await _captureApiException(
+        () => PostApiClient(missingDio).listQuotes(aliceDid, missingRkey),
+      );
+
+      expect(missing, isA<ApiBadRequest>());
+      expect((missing as ApiBadRequest).code, 'post_not_found');
+      expect(missing.details.statusCode, 404);
+      expect(missing.details.requestId, 'request-post-not-found');
     });
   });
 

@@ -866,7 +866,7 @@ func TestSearchPostsHandlerIncludesAuthenticatedViewerSavedState(t *testing.T) {
 	}
 
 	var authorSummary map[string]api.EngagementSummary
-	authorSummary, err := api.NewPostStore(pool).EngagementSummaries(ctx, "did:plc:alice", []string{postURI})
+	authorSummary, err := api.NewPostStore(pool).EngagementSummaries(ctx, "did:plc:alice", []string{}, []string{postURI})
 	if err != nil {
 		t.Fatalf("author summary: %v", err)
 	}

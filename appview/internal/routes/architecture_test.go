@@ -127,6 +127,40 @@ func TestHandleTargetedMutationsUseAuthoritativeIdentityResolver(t *testing.T) {
 	}
 }
 
+// REG-004: interaction list reads stay on AppView and cannot invoke PDS effects.
+func TestPostInteractionReadRoutesUseOnlyReadDependencies(t *testing.T) {
+	t.Parallel()
+
+	raw, err := os.ReadFile("routes_scheduled_post.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := string(raw)
+	wantCalls := []string{
+		`api.ListPostLikesHandler(routes.postStore, routes.logger)`,
+		`api.ListPostRepostsHandler(routes.postStore, routes.logger)`,
+		`api.ListPostQuotesHandler(routes.postStore, routes.handleResolver, routes.logger, routes.languages)`,
+	}
+	for _, call := range wantCalls {
+		if !strings.Contains(source, call) {
+			t.Errorf("missing read-only post interaction route wiring %s", call)
+		}
+	}
+	for _, constructor := range []string{"ListPostLikesHandler", "ListPostRepostsHandler", "ListPostQuotesHandler"} {
+		start := strings.Index(source, constructor+"(")
+		if start < 0 {
+			continue
+		}
+		end := strings.Index(source[start:], "))")
+		if end < 0 {
+			end = min(len(source)-start, 300)
+		}
+		if call := source[start : start+end]; strings.Contains(call, "newPDSEffects") {
+			t.Errorf("%s receives PDS effects dependency: %s", constructor, call)
+		}
+	}
+}
+
 func productionRouteFiles(t *testing.T) []string {
 	t.Helper()
 	entries, err := os.ReadDir(".")

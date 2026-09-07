@@ -51,6 +51,8 @@ func (s *PostStore) ReadEligiblePostsByURI(ctx context.Context, viewer syntax.DI
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
 		WHERE p.uri = ANY($1::text[])
 		  AND NOT ` + postAuthorBlockedPredicate("p", "$2") + `
+		  AND NOT ` + postReplyAuthorBlockedPredicate("p") + `
+		  AND NOT ` + postMentionAuthorBlockedPredicate("p") + `
 		` + postVisibleModerationPredicate + `
 	`
 	rows, err := s.pool.Query(ctx, q, values, viewer)
@@ -109,6 +111,8 @@ func (s *PostStore) RequiredContextStates(ctx context.Context, viewer syntax.DID
 			  AND walk.depth < 64
 			  AND NOT parent.uri = ANY(walk.path)
 			  AND NOT ` + postAuthorBlockedPredicate("parent", "$2") + `
+			  AND NOT ` + postReplyAuthorBlockedPredicate("parent") + `
+			  AND NOT ` + postMentionAuthorBlockedPredicate("parent") + `
 			  ` + parentModeration + `
 		), valid_replies AS (
 			SELECT DISTINCT walk.target_uri

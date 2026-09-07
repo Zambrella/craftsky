@@ -11,6 +11,7 @@ import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
+import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
@@ -120,6 +121,30 @@ class ApiPostRepository implements PostRepository {
   @override
   Future<void> unrepost(Did did, RecordKey rkey) =>
       _api.unrepostPost(did, rkey);
+
+  @override
+  Future<ProfileAccountPage> listLikes(
+    Did did,
+    RecordKey rkey, {
+    String? cursor,
+    int? limit,
+  }) => _api.listLikes(did, rkey, cursor: cursor, limit: limit);
+
+  @override
+  Future<ProfileAccountPage> listReposts(
+    Did did,
+    RecordKey rkey, {
+    String? cursor,
+    int? limit,
+  }) => _api.listReposts(did, rkey, cursor: cursor, limit: limit);
+
+  @override
+  Future<PostPage> listQuotes(
+    Did did,
+    RecordKey rkey, {
+    String? cursor,
+    int? limit,
+  }) => _api.listQuotes(did, rkey, cursor: cursor, limit: limit);
 
   @override
   Future<PostPage> listByAuthor(

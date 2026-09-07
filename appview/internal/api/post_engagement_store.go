@@ -88,6 +88,91 @@ func (s *PostStore) CountVisibleQuotes(ctx context.Context, postURIs []string) (
 	return out, nil
 }
 
+func (s *PostStore) countEligibleAccountInteractions(ctx context.Context, kind PostInteractionKind, viewerDID string, postURIs []string) (map[string]int, error) {
+	var table, label string
+	switch kind {
+	case PostInteractionLikes:
+		table, label = "craftsky_likes", "like"
+	case PostInteractionReposts:
+		table, label = "craftsky_reposts", "repost"
+	default:
+		return nil, fmt.Errorf("unsupported account interaction kind %q", kind)
+	}
+	out := make(map[string]int, len(postURIs))
+	for _, uri := range postURIs {
+		out[uri] = 0
+	}
+	if len(postURIs) == 0 {
+		return out, nil
+	}
+	query := `
+		SELECT interaction.subject_uri, count(*)::int
+		FROM ` + table + ` interaction
+		JOIN craftsky_profiles actor ON actor.did = interaction.did
+		JOIN craftsky_posts target ON target.uri = interaction.subject_uri
+		WHERE interaction.deleted_at IS NULL
+		  AND interaction.subject_uri = ANY($1::text[])
+		  ` + eligibleAccountInteractionPredicate("actor", "target.did", "$2") + `
+		GROUP BY interaction.subject_uri
+	`
+	rows, err := s.pool.Query(ctx, query, postURIs, viewerDID)
+	if err != nil {
+		return nil, fmt.Errorf("%s count eligible: %w", label, err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var uri string
+		var count int
+		if err := rows.Scan(&uri, &count); err != nil {
+			return nil, fmt.Errorf("%s eligible count scan: %w", label, err)
+		}
+		out[uri] = count
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("%s eligible count iter: %w", label, err)
+	}
+	return out, nil
+}
+
+func (s *PostStore) countEligibleQuotes(ctx context.Context, viewerDID string, contentLanguages, postURIs []string) (map[string]int, error) {
+	out := make(map[string]int, len(postURIs))
+	for _, uri := range postURIs {
+		out[uri] = 0
+	}
+	if len(postURIs) == 0 {
+		return out, nil
+	}
+	if contentLanguages == nil {
+		contentLanguages = []string{}
+	}
+	query := `
+		SELECT p.quote_uri, count(*)::int
+		FROM craftsky_posts p
+		WHERE p.quote_uri = ANY($1::text[])
+		  AND p.reply_root_uri IS NULL
+		  AND p.reply_parent_uri IS NULL
+		  ` + eligibleQuotePredicate("p", "$2", "$3") + `
+		GROUP BY p.quote_uri
+	`
+	rows, err := s.pool.Query(ctx, query, postURIs, viewerDID, contentLanguages)
+	if err != nil {
+		return nil, fmt.Errorf("quote count eligible: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var uri string
+		var count int
+		if err := rows.Scan(&uri, &count); err != nil {
+			return nil, fmt.Errorf("quote eligible count scan: %w", err)
+		}
+		out[uri] = count
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("quote eligible count iter: %w", err)
+	}
+	return out, nil
+}
+
 // CountDescendantReplies returns all descendant reply counts keyed by ancestor
 // post URI. Traversal is depth-capped to match branch rendering.
 func (s *PostStore) CountDescendantReplies(ctx context.Context, postURIs []string) (map[string]int, error) {
@@ -236,11 +321,11 @@ func (s *PostStore) ViewerReplyStates(ctx context.Context, viewerDID string, pos
 }
 
 // EngagementSummaries returns counts and current-viewer state keyed by post URI.
-func (s *PostStore) EngagementSummaries(ctx context.Context, viewerDID string, postURIs []string) (map[string]EngagementSummary, error) {
+func (s *PostStore) EngagementSummaries(ctx context.Context, viewerDID string, contentLanguages, postURIs []string) (map[string]EngagementSummary, error) {
 	var summaries map[string]EngagementSummary
 	err := s.observeDB(ctx, "post.engagement_summaries", "unmatched", func(ctx context.Context) error {
 		var err error
-		summaries, err = s.engagementSummariesObserved(ctx, viewerDID, postURIs)
+		summaries, err = s.engagementSummariesObserved(ctx, viewerDID, contentLanguages, postURIs)
 		return err
 	})
 	return summaries, err
@@ -272,7 +357,7 @@ func (s *PostStore) viewerSavedStates(ctx context.Context, viewerDID string, pos
 	return out, nil
 }
 
-func (s *PostStore) engagementSummariesObserved(ctx context.Context, viewerDID string, postURIs []string) (map[string]EngagementSummary, error) {
+func (s *PostStore) engagementSummariesObserved(ctx context.Context, viewerDID string, contentLanguages, postURIs []string) (map[string]EngagementSummary, error) {
 	uniqueURIs := make([]string, 0, len(postURIs))
 	seen := make(map[string]struct{}, len(postURIs))
 	for _, uri := range postURIs {
@@ -291,15 +376,15 @@ func (s *PostStore) engagementSummariesObserved(ctx context.Context, viewerDID s
 	if len(postURIs) == 0 {
 		return out, nil
 	}
-	likeCounts, err := s.CountActiveLikes(ctx, postURIs)
+	likeCounts, err := s.countEligibleAccountInteractions(ctx, PostInteractionLikes, viewerDID, postURIs)
 	if err != nil {
 		return nil, err
 	}
-	repostCounts, err := s.CountActiveReposts(ctx, postURIs)
+	repostCounts, err := s.countEligibleAccountInteractions(ctx, PostInteractionReposts, viewerDID, postURIs)
 	if err != nil {
 		return nil, err
 	}
-	quoteCounts, err := s.CountVisibleQuotes(ctx, postURIs)
+	quoteCounts, err := s.countEligibleQuotes(ctx, viewerDID, contentLanguages, postURIs)
 	if err != nil {
 		return nil, err
 	}

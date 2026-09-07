@@ -10,6 +10,7 @@ import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
+import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
@@ -46,6 +47,9 @@ class FakePostRepository implements PostRepository {
     this.onUnlike,
     this.onRepost,
     this.onUnrepost,
+    this.onListLikes,
+    this.onListReposts,
+    this.onListQuotes,
     this.onListByAuthor,
     this.onListProjectsByAuthor,
     this.onListTimeline,
@@ -99,6 +103,27 @@ class FakePostRepository implements PostRepository {
   final Future<InteractionWriteResponse> Function(Did did, RecordKey rkey)?
   onRepost;
   final Future<void> Function(Did did, RecordKey rkey)? onUnrepost;
+  final Future<ProfileAccountPage> Function(
+    Did did,
+    RecordKey rkey, {
+    String? cursor,
+    int? limit,
+  })?
+  onListLikes;
+  final Future<ProfileAccountPage> Function(
+    Did did,
+    RecordKey rkey, {
+    String? cursor,
+    int? limit,
+  })?
+  onListReposts;
+  final Future<PostPage> Function(
+    Did did,
+    RecordKey rkey, {
+    String? cursor,
+    int? limit,
+  })?
+  onListQuotes;
   final Future<PostPage> Function(
     String handleOrDid, {
     String? cursor,
@@ -253,6 +278,40 @@ class FakePostRepository implements PostRepository {
   Future<void> unrepost(Did did, RecordKey rkey) =>
       onUnrepost?.call(did, rkey) ??
       Future<void>.error(UnimplementedError('unrepost not stubbed'));
+
+  @override
+  Future<ProfileAccountPage> listLikes(
+    Did did,
+    RecordKey rkey, {
+    String? cursor,
+    int? limit,
+  }) =>
+      onListLikes?.call(did, rkey, cursor: cursor, limit: limit) ??
+      Future<ProfileAccountPage>.error(
+        UnimplementedError('listLikes not stubbed'),
+      );
+
+  @override
+  Future<ProfileAccountPage> listReposts(
+    Did did,
+    RecordKey rkey, {
+    String? cursor,
+    int? limit,
+  }) =>
+      onListReposts?.call(did, rkey, cursor: cursor, limit: limit) ??
+      Future<ProfileAccountPage>.error(
+        UnimplementedError('listReposts not stubbed'),
+      );
+
+  @override
+  Future<PostPage> listQuotes(
+    Did did,
+    RecordKey rkey, {
+    String? cursor,
+    int? limit,
+  }) =>
+      onListQuotes?.call(did, rkey, cursor: cursor, limit: limit) ??
+      Future<PostPage>.error(UnimplementedError('listQuotes not stubbed'));
 
   @override
   Future<PostPage> listByAuthor(

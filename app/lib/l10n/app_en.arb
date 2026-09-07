@@ -517,6 +517,66 @@
   "postUnavailablePlaceholder": "Post unavailable",
   "@postUnavailablePlaceholder": { "description": "Generic content-free placeholder for blocked or unavailable content." },
 
+  "postInteractionLikesTitle": "Likes",
+  "@postInteractionLikesTitle": { "description": "Title of the accounts that liked a post page before its total is available." },
+
+  "postInteractionLikesTitleWithCount": "Likes ({count})",
+  "@postInteractionLikesTitleWithCount": {
+    "description": "Title of the accounts that liked a post page with its authoritative total.",
+    "placeholders": { "count": { "type": "int", "example": "12" } }
+  },
+
+  "postInteractionRepostsTitle": "Reposts",
+  "@postInteractionRepostsTitle": { "description": "Title of the accounts that reposted a post page before its total is available." },
+
+  "postInteractionRepostsTitleWithCount": "Reposts ({count})",
+  "@postInteractionRepostsTitleWithCount": {
+    "description": "Title of the accounts that reposted a post page with its authoritative total.",
+    "placeholders": { "count": { "type": "int", "example": "12" } }
+  },
+
+  "postInteractionLikesSummary": "{count, plural, =1{1 Like} other{{count} Likes}}",
+  "@postInteractionLikesSummary": {
+    "description": "Exact like count link in the post detail interaction summary.",
+    "placeholders": { "count": { "type": "int", "example": "12" } }
+  },
+
+  "postInteractionLikesSummaryHint": "Open Likes for this post",
+  "@postInteractionLikesSummaryHint": { "description": "Accessible destination hint for the post detail Likes summary link." },
+
+  "postInteractionRepostsSummary": "{count, plural, =1{1 Repost} other{{count} Reposts}}",
+  "@postInteractionRepostsSummary": {
+    "description": "Exact repost count link in the post detail interaction summary.",
+    "placeholders": { "count": { "type": "int", "example": "3" } }
+  },
+
+  "postInteractionRepostsSummaryHint": "Open Reposts for this post",
+  "@postInteractionRepostsSummaryHint": { "description": "Accessible destination hint for the post detail Reposts summary link." },
+
+  "postInteractionQuotesSummary": "{count, plural, =1{1 Quote} other{{count} Quotes}}",
+  "@postInteractionQuotesSummary": {
+    "description": "Exact quote count link in the post detail interaction summary.",
+    "placeholders": { "count": { "type": "int", "example": "2" } }
+  },
+
+  "postInteractionQuotesSummaryHint": "Open Quotes for this post",
+  "@postInteractionQuotesSummaryHint": { "description": "Accessible destination hint for the post detail Quotes summary link." },
+
+  "postInteractionLikesEmpty": "No likes yet.",
+  "@postInteractionLikesEmpty": { "description": "Empty state for the accounts that liked a post page." },
+
+  "postInteractionViewLikesAction": "View likes",
+  "@postInteractionViewLikesAction": { "description": "Menu action for viewing the accounts that liked a comment or reply." },
+
+  "postInteractionRepostsEmpty": "No reposts yet.",
+  "@postInteractionRepostsEmpty": { "description": "Empty state for the accounts that reposted a post page." },
+
+  "postInteractionQuotesTitle": "Quotes",
+  "@postInteractionQuotesTitle": { "description": "Plain title of the posts quoting a post page." },
+
+  "postInteractionQuotesEmpty": "No quotes yet.",
+  "@postInteractionQuotesEmpty": { "description": "Empty state for the posts quoting a post page." },
+
   "postRevealAction": "Show post",
   "@postRevealAction": { "description": "Temporary reveal action for muted content." },
 

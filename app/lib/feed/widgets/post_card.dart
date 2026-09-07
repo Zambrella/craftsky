@@ -55,6 +55,7 @@ class PostCard extends ConsumerWidget {
     this.onReply,
     this.onTap,
     this.onLike,
+    this.onViewLikes,
     this.onRepost,
     this.onQuote,
     this.onQuotedPostTap,
@@ -87,6 +88,7 @@ class PostCard extends ConsumerWidget {
   final VoidCallback? onReply;
   final VoidCallback? onTap;
   final VoidCallback? onLike;
+  final VoidCallback? onViewLikes;
   final VoidCallback? onRepost;
   final VoidCallback? onQuote;
   final VoidCallback? onQuotedPostTap;
@@ -514,6 +516,12 @@ class PostCard extends ConsumerWidget {
                         if (account != null)
                           SavedPostBookmarkButton(account: account, post: post),
                         _PostCardMenu(
+                          onViewLikes:
+                              post.reply != null &&
+                                  post.likeCount > 0 &&
+                                  onViewLikes != null
+                              ? onViewLikes
+                              : null,
                           pinLabel: pinPresentation == null
                               ? null
                               : isCurrentPin
@@ -915,6 +923,7 @@ class _PostCardAuthorTapTarget extends StatelessWidget {
 
 class _PostCardMenu extends StatelessWidget {
   const _PostCardMenu({
+    required this.onViewLikes,
     required this.pinLabel,
     required this.isPinned,
     required this.onPinToggle,
@@ -930,6 +939,7 @@ class _PostCardMenu extends StatelessWidget {
     this.reportLabel,
   });
 
+  final VoidCallback? onViewLikes;
   final String? pinLabel;
   final bool isPinned;
   final VoidCallback? onPinToggle;
@@ -952,6 +962,16 @@ class _PostCardMenu extends StatelessWidget {
       child: CraftskyContextMenuButton(
         tooltip: tooltip ?? l10n.postMoreActions,
         groups: [
+          if (onViewLikes != null)
+            CraftskyContextMenuGroup(
+              items: [
+                CraftskyContextMenuItem(
+                  text: l10n.postInteractionViewLikesAction,
+                  icon: CraftskyIcons.people,
+                  onPressed: onViewLikes,
+                ),
+              ],
+            ),
           CraftskyContextMenuGroup(
             items: [
               if (pinLabel != null)
