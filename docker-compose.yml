@@ -152,7 +152,6 @@ services:
       DATABASE_URL: postgres://craftsky:dev@postgres:5432/craftsky_dev?sslmode=disable
       TAP_WS_URL: ws://tap:2480/channel
       TAP_ACK_TIMEOUT: "10s"
-      TAP_TERMINAL_TRANSACTION_BUDGET: "1s"
       TAP_ACK_SAFETY_MARGIN: "500ms"
       TAP_RECONNECT_MAX: "30s"
       ALLOWED_ORIGINS: "*"

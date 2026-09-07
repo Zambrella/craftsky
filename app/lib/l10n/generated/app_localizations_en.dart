@@ -670,6 +670,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postRevealAction => 'Show post';
 
   @override
+  String get postRevealError => 'Couldn\'t show this post.';
+
+  @override
   String get profileFollowAction => 'Follow';
 
   @override
@@ -1413,6 +1416,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get postUnrepostAction => 'Unrepost';
+
+  @override
+  String get postRepostError => 'Couldn\'t update repost.';
 
   @override
   String get postQuoteAction => 'Quote';

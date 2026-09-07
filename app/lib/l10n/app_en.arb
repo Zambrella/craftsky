@@ -580,6 +580,9 @@
   "postRevealAction": "Show post",
   "@postRevealAction": { "description": "Temporary reveal action for muted content." },
 
+  "postRevealError": "Couldn't show this post.",
+  "@postRevealError": { "description": "Error feedback shown when temporarily revealing a muted post fails." },
+
   "profileFollowAction": "Follow",
   "@profileFollowAction": { "description": "Label on the follow button on a visitor profile when the viewer is not yet following them." },
 
@@ -1261,6 +1264,9 @@
 
   "postUnrepostAction": "Unrepost",
   "@postUnrepostAction": { "description": "Tooltip for removing a repost." },
+
+  "postRepostError": "Couldn't update repost.",
+  "@postRepostError": { "description": "Error feedback shown when reposting or removing a repost fails and the previous state is restored." },
 
   "postQuoteAction": "Quote",
   "@postQuoteAction": { "description": "Menu label for creating a quote post." },

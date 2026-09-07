@@ -29,6 +29,7 @@ class _FollowListPageState extends ConsumerState<FollowListPage> {
   var _isInitialLoading = true;
   var _isLoadingMore = false;
   var _isRefreshing = false;
+  Object? _initialError;
   var _loadGeneration = 0;
 
   @override
@@ -39,11 +40,30 @@ class _FollowListPageState extends ConsumerState<FollowListPage> {
 
   Future<void> _loadFirstPage() async {
     final generation = ++_loadGeneration;
-    _isRefreshing = true;
-    if (!_isInitialLoading && mounted) {
-      setState(() => _isLoadingMore = false);
+    final isInitialRequest = _isInitialLoading || _initialError != null;
+    if (mounted) {
+      setState(() {
+        _isRefreshing = true;
+        _isLoadingMore = false;
+        if (isInitialRequest) {
+          _isInitialLoading = true;
+          _initialError = null;
+        }
+      });
     }
-    final page = await _fetchPage();
+    late final ProfileAccountPage page;
+    try {
+      page = await _fetchPage();
+    } on Object catch (error) {
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() {
+        _isInitialLoading = false;
+        _isRefreshing = false;
+        if (isInitialRequest) _initialError = error;
+      });
+      if (!isInitialRequest) _showLoadError();
+      return;
+    }
     if (!mounted || generation != _loadGeneration) return;
     setState(() {
       _items
@@ -53,6 +73,7 @@ class _FollowListPageState extends ConsumerState<FollowListPage> {
       _totalCount = page.totalCount;
       _isInitialLoading = false;
       _isRefreshing = false;
+      _initialError = null;
     });
   }
 
@@ -61,7 +82,15 @@ class _FollowListPageState extends ConsumerState<FollowListPage> {
     if (cursor == null || _isLoadingMore || _isRefreshing) return;
     final generation = _loadGeneration;
     setState(() => _isLoadingMore = true);
-    final page = await _fetchPage(cursor: cursor);
+    late final ProfileAccountPage page;
+    try {
+      page = await _fetchPage(cursor: cursor);
+    } on Object {
+      if (!mounted || generation != _loadGeneration) return;
+      setState(() => _isLoadingMore = false);
+      _showLoadError();
+      return;
+    }
     if (!mounted || generation != _loadGeneration) return;
     setState(() {
       _items.addAll(page.items);
@@ -69,6 +98,14 @@ class _FollowListPageState extends ConsumerState<FollowListPage> {
       _totalCount = page.totalCount;
       _isLoadingMore = false;
     });
+  }
+
+  void _showLoadError() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(AppLocalizations.of(context).errorBackgroundLoadFailed),
+      ),
+    );
   }
 
   Future<ProfileAccountPage> _fetchPage({String? cursor}) {
@@ -89,6 +126,8 @@ class _FollowListPageState extends ConsumerState<FollowListPage> {
       appBar: AppBar(title: Text('$title ($_totalCount)')),
       body: _isInitialLoading
           ? const Center(child: StitchProgressIndicator())
+          : _initialError != null
+          ? _FollowListError(onRetry: _loadFirstPage)
           : _FollowListBody(
               kind: widget.kind,
               items: _items,
@@ -97,6 +136,26 @@ class _FollowListPageState extends ConsumerState<FollowListPage> {
               onLoadMore: _loadMore,
               onRefresh: _loadFirstPage,
             ),
+    );
+  }
+}
+
+class _FollowListError extends StatelessWidget {
+  const _FollowListError({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(l10n.errorBackgroundLoadFailed),
+          TextButton(onPressed: onRetry, child: Text(l10n.retryButton)),
+        ],
+      ),
     );
   }
 }
@@ -153,7 +212,7 @@ class _FollowListBody extends StatelessWidget {
                           ? const StitchProgressIndicator()
                           : TextButton(
                               onPressed: onLoadMore,
-                              child: const Text('Load more'),
+                              child: Text(l10n.relationshipListLoadMore),
                             ),
                     ),
                   );

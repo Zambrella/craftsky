@@ -219,7 +219,7 @@ final class _AlreadyExistsAdapter implements HttpClientAdapter {
   ) async {
     await requestStream?.drain<void>();
     return ResponseBody.fromString(
-      '{"error":"already_exists","message":"Video already processed","jobStatus":{"jobId":"job-one","state":"JOB_STATE_FAILED","blob":{"\$type":"blob","ref":{"\$link":"bafy"},"mimeType":"video/mp4","size":8}}}',
+      r'{"error":"already_exists","message":"Video already processed","jobStatus":{"jobId":"job-one","state":"JOB_STATE_FAILED","blob":{"$type":"blob","ref":{"$link":"bafy"},"mimeType":"video/mp4","size":8}}}',
       409,
       headers: {
         Headers.contentTypeHeader: [Headers.jsonContentType],
@@ -261,7 +261,7 @@ final class _AlreadyExistsStatusAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     return ResponseBody.fromString(
-      '{"error":"already_exists","message":"Video already processed","jobStatus":{"jobId":"job-one","state":"JOB_STATE_FAILED","blob":{"\$type":"blob","ref":{"\$link":"bafy"},"mimeType":"video/mp4","size":8}}}',
+      r'{"error":"already_exists","message":"Video already processed","jobStatus":{"jobId":"job-one","state":"JOB_STATE_FAILED","blob":{"$type":"blob","ref":{"$link":"bafy"},"mimeType":"video/mp4","size":8}}}',
       409,
       headers: {
         Headers.contentTypeHeader: [Headers.jsonContentType],

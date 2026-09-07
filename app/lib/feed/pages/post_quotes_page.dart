@@ -71,7 +71,7 @@ class PostQuotesPage extends ConsumerWidget {
               onRevealPost:
                   post.availability == 'muted' &&
                       post.relationship?.revealable == true
-                  ? () => unawaited(_reveal(ref, provider, post))
+                  ? () => unawaited(_reveal(context, ref, provider, post))
                   : null,
               collapseBody: true,
               imageInteractionMode: PostCardImageInteractionMode.navigate,
@@ -84,7 +84,8 @@ class PostQuotesPage extends ConsumerWidget {
               replyTooltip: l10n.postCommentAction,
               onLike: () =>
                   unawaited(_toggleLike(context, ref, provider, post)),
-              onRepost: () => unawaited(_toggleRepost(ref, provider, post)),
+              onRepost: () =>
+                  unawaited(_toggleRepost(context, ref, provider, post)),
               onQuote: () => unawaited(
                 showPostComposerSheet(context, quoteTarget: post),
               ),
@@ -122,26 +123,44 @@ class PostQuotesPage extends ConsumerWidget {
   }
 
   Future<void> _reveal(
+    BuildContext context,
     WidgetRef ref,
     PostQuotesProvider provider,
     Post post,
   ) async {
-    final revealed = await ref
-        .read(postRepositoryProvider)
-        .fetch(post.author.did, post.rkey);
-    ref.read(provider.notifier).replace(revealed);
+    try {
+      final revealed = await ref
+          .read(postRepositoryProvider)
+          .fetch(post.author.did, post.rkey);
+      ref.read(provider.notifier).replace(revealed);
+    } on Object {
+      if (context.mounted) {
+        context.showError(AppLocalizations.of(context).postRevealError);
+      }
+    }
   }
 
   Future<void> _toggleRepost(
+    BuildContext context,
     WidgetRef ref,
     PostQuotesProvider provider,
     Post post,
   ) async {
-    await ref.read(toggleRepostPostProvider.notifier).toggle(post: post);
-    final result = ref.read(toggleRepostPostProvider);
-    if (result.hasError) return;
-    if (result.value case final updated?) {
-      ref.read(provider.notifier).replace(updated);
+    final notifier = ref.read(toggleRepostPostProvider.notifier);
+    try {
+      await notifier.toggle(post: post);
+      final result = ref.read(toggleRepostPostProvider);
+      if (result.hasError) {
+        if (context.mounted) {
+          context.showError(AppLocalizations.of(context).postRepostError);
+        }
+        return;
+      }
+      if (result.value case final updated?) {
+        ref.read(provider.notifier).replace(updated);
+      }
+    } finally {
+      notifier.reset();
     }
   }
 

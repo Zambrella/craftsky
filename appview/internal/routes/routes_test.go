@@ -13,7 +13,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -1693,39 +1692,109 @@ func TestPostInteractionReadRoutesAreRegisteredAndProtected(t *testing.T) {
 	}
 }
 
+const postInteractionReadRouteDDL = `
+CREATE TABLE craftsky_profiles (
+	did TEXT PRIMARY KEY,
+	record_cid TEXT NOT NULL
+);
+CREATE TABLE bluesky_profiles (
+	did TEXT PRIMARY KEY,
+	display_name TEXT,
+	description TEXT,
+	avatar_cid TEXT,
+	avatar_mime TEXT
+);
+CREATE TABLE craftsky_posts (
+	uri TEXT PRIMARY KEY,
+	did TEXT NOT NULL,
+	rkey TEXT NOT NULL,
+	cid TEXT NOT NULL,
+	text TEXT NOT NULL,
+	facets JSONB,
+	images JSONB,
+	record JSONB NOT NULL,
+	reply_root_uri TEXT,
+	reply_root_cid TEXT,
+	reply_parent_uri TEXT,
+	reply_parent_cid TEXT,
+	quote_uri TEXT,
+	quote_cid TEXT,
+	tags TEXT[] NOT NULL DEFAULT '{}',
+	langs TEXT[] NOT NULL DEFAULT '{}',
+	created_at TIMESTAMPTZ NOT NULL,
+	indexed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	external_import_source TEXT,
+	profile_sort_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+	is_project BOOLEAN NOT NULL DEFAULT false,
+	project_craft_type TEXT
+);
+CREATE TABLE craftsky_project_posts (
+	uri TEXT PRIMARY KEY,
+	raw_project JSONB NOT NULL
+);
+CREATE TABLE craftsky_post_mentions (
+	post_uri TEXT NOT NULL,
+	mentioned_did TEXT NOT NULL
+);
+CREATE TABLE craftsky_likes (
+	uri TEXT PRIMARY KEY,
+	did TEXT NOT NULL,
+	subject_uri TEXT NOT NULL,
+	created_at TIMESTAMPTZ NOT NULL,
+	deleted_at TIMESTAMPTZ
+);
+CREATE TABLE craftsky_reposts (
+	uri TEXT PRIMARY KEY,
+	did TEXT NOT NULL,
+	subject_uri TEXT NOT NULL,
+	created_at TIMESTAMPTZ NOT NULL,
+	deleted_at TIMESTAMPTZ
+);
+CREATE TABLE actor_mutes (
+	owner_did TEXT NOT NULL,
+	subject_did TEXT NOT NULL,
+	PRIMARY KEY (owner_did, subject_did)
+);
+CREATE TABLE atproto_blocks (
+	uri TEXT PRIMARY KEY,
+	blocker_did TEXT NOT NULL,
+	subject_did TEXT NOT NULL
+);
+CREATE TABLE atproto_identity_cache (
+	did TEXT PRIMARY KEY,
+	handle TEXT NOT NULL
+);
+CREATE TABLE moderation_outputs (
+	id TEXT PRIMARY KEY,
+	source_did TEXT NOT NULL,
+	subject_type TEXT NOT NULL,
+	subject_did TEXT NOT NULL,
+	subject_uri TEXT,
+	value TEXT NOT NULL,
+	action TEXT NOT NULL,
+	expires_at TIMESTAMPTZ,
+	indexed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE account_language_preferences (
+	account_did TEXT PRIMARY KEY,
+	primary_language TEXT NOT NULL,
+	content_languages TEXT[] NOT NULL
+);
+`
+
 // REG-004: successful production-mux interaction reads cannot reach PDS effects.
 func TestPostInteractionReadRoutesSucceedWithoutPDSEffects(t *testing.T) {
-	databaseURL := os.Getenv("TEST_DATABASE_URL")
-	if databaseURL == "" {
-		databaseURL = os.Getenv("DATABASE_URL")
-	}
-	if databaseURL == "" {
-		t.Skip("TEST_DATABASE_URL and DATABASE_URL both unset")
-	}
-
 	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, databaseURL)
-	if err != nil {
-		t.Fatalf("connect test database: %v", err)
-	}
-	t.Cleanup(pool.Close)
-	suffix := strconv.FormatInt(time.Now().UnixNano(), 10)
-	viewer := "did:plc:interactionrouteviewer" + suffix
-	owner := "did:plc:interactionrouteowner" + suffix
-	rkey := "route" + suffix
+	pool := testdb.WithSchema(t, postInteractionReadRouteDDL)
+	viewer := "did:plc:interactionrouteviewer"
+	owner := "did:plc:interactionrouteowner"
+	rkey := "route"
 	uri := "at://" + owner + "/social.craftsky.feed.post/" + rkey
-	t.Cleanup(func() {
-		_, _ = pool.Exec(context.Background(), `DELETE FROM craftsky_posts WHERE uri = $1`, uri)
-		_, _ = pool.Exec(context.Background(), `DELETE FROM account_language_preferences WHERE account_did = $1`, viewer)
-		_, _ = pool.Exec(context.Background(), `DELETE FROM owner_lifecycles WHERE owner_did = ANY($1)`, []string{viewer, owner})
-		_, _ = pool.Exec(context.Background(), `DELETE FROM craftsky_profiles WHERE did = ANY($1)`, []string{viewer, owner})
-	})
 	statements := []struct {
 		query string
 		args  []any
 	}{
 		{`INSERT INTO craftsky_profiles (did, record_cid) VALUES ($1, 'viewer-cid'), ($2, 'owner-cid')`, []any{viewer, owner}},
-		{`INSERT INTO owner_lifecycles (owner_did, state, generation, auth_epoch, transition_reason, transitioned_at) VALUES ($1, 'active', 1, 1, 'test', now()), ($2, 'active', 1, 1, 'test', now()) ON CONFLICT (owner_did) DO NOTHING`, []any{viewer, owner}},
 		{`INSERT INTO account_language_preferences (account_did, primary_language, content_languages) VALUES ($1, 'en', ARRAY['en'])`, []any{viewer}},
 		{`INSERT INTO craftsky_posts (uri, did, rkey, cid, text, record, created_at) VALUES ($1, $2, $3, 'route-cid', 'route target', '{}', now())`, []any{uri, owner, rkey}},
 	}

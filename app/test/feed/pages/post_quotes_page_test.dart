@@ -8,6 +8,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/pages/post_quotes_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
@@ -15,6 +16,7 @@ import 'package:craftsky_app/languages/providers/language_preferences_provider.d
 import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -24,6 +26,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../fakes/auth_session_fakes.dart';
+import '../../fakes/recording_messenger.dart';
 import '../fakes/fake_post_repository.dart';
 
 const _subjectDid = 'did:plc:alice';
@@ -95,7 +98,7 @@ void main() {
             ),
           ),
           GoRoute(
-            path: '/profile/:handle',
+            path: '/profiles/:did',
             builder: (_, state) {
               destinations.add(state.uri);
               extras.add(state.extra);
@@ -118,7 +121,7 @@ void main() {
 
       _tapGestureForText(tester, 'Dana');
       await tester.pumpAndSettle();
-      expect(destinations.last.path, '/profile/dana.craftsky.social');
+      expect(destinations.last.path, '/profiles/did%3Aplc%3Adana');
       expect(
         (extras.last! as ProfilePresentationRequest).startsCompact,
         isTrue,
@@ -128,7 +131,7 @@ void main() {
 
       _tapGestureForText(tester, 'Alice');
       await tester.pumpAndSettle();
-      expect(destinations.last.path, '/profile/alice.craftsky.social');
+      expect(destinations.last.path, '/profiles/did%3Aplc%3Aalice');
       router.pop();
       await tester.pumpAndSettle();
 
@@ -237,6 +240,64 @@ void main() {
       expect(find.text('Post from a muted account'), findsNothing);
     },
   );
+
+  testWidgets('muted reveal failure keeps placeholder and shows feedback', (
+    tester,
+  ) async {
+    final muted = _quote('muted', 'Muted').copyWith(
+      availability: 'muted',
+      relationship: const ContentRelationship(
+        state: 'muted',
+        revealable: true,
+      ),
+    );
+    final messenger = RecordingMessenger();
+    final repository = FakePostRepository(
+      onListQuotes: (did, rkey, {cursor, limit}) async =>
+          PostPage(items: [muted]),
+      onFetch: (did, rkey) async => throw const ApiNetworkError('offline'),
+    );
+
+    await _pumpPage(tester, repository, messenger: messenger);
+    await tester.pumpAndSettle();
+
+    tester.widget<PostCard>(find.byType(PostCard)).onRevealPost!();
+    await tester.pumpAndSettle();
+
+    expect(find.text('Post from a muted account'), findsOneWidget);
+    expect(messenger.calls, [
+      ('error', "Couldn't show this post.", null),
+    ]);
+  });
+
+  testWidgets('repost failure shows feedback and resets mutation state', (
+    tester,
+  ) async {
+    final post = _quote('dana-one', 'Dana');
+    final messenger = RecordingMessenger();
+    final repository = FakePostRepository(
+      onListQuotes: (did, rkey, {cursor, limit}) async =>
+          PostPage(items: [post]),
+      onRepost: (did, rkey) async => throw const ApiNetworkError('offline'),
+    );
+
+    await _pumpPage(tester, repository, messenger: messenger);
+    await tester.pumpAndSettle();
+
+    tester.widget<PostCard>(find.byType(PostCard)).onRepost!();
+    await tester.pumpAndSettle();
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(PostQuotesPage)),
+    );
+    final repostState = container.read(toggleRepostPostProvider);
+    expect(find.text('Quote dana-one'), findsOneWidget);
+    expect(messenger.calls, [
+      ('error', "Couldn't update repost.", null),
+    ]);
+    expect(repostState.hasError, isFalse);
+    expect(repostState.value, isNull);
+  });
 
   testWidgets('AT-006 Quotes shows loading then its empty state', (
     tester,
@@ -444,17 +505,21 @@ Future<void> _pumpPage(
   WidgetTester tester,
   FakePostRepository repository, {
   String signedInDid = 'did:plc:test',
+  RecordingMessenger? messenger,
 }) => tester.pumpWidget(
   ProviderScope(
     overrides: List.from(_overrides(repository, signedInDid)),
     retry: (_, _) => null,
-    child: MaterialApp(
-      theme: AppTheme.lightThemeData,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: PostQuotesPage(
-        did: Did.parse(_subjectDid),
-        rkey: RecordKey.parse(_subjectRkey),
+    child: MessengerScope(
+      messenger: messenger ?? RecordingMessenger(),
+      child: MaterialApp(
+        theme: AppTheme.lightThemeData,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: PostQuotesPage(
+          did: Did.parse(_subjectDid),
+          rkey: RecordKey.parse(_subjectRkey),
+        ),
       ),
     ),
   ),
@@ -468,11 +533,14 @@ Future<void> _pumpRouter(
   ProviderScope(
     overrides: List.from(_overrides(repository, 'did:plc:test')),
     retry: (_, _) => null,
-    child: MaterialApp.router(
-      theme: AppTheme.lightThemeData,
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      routerConfig: router,
+    child: MessengerScope(
+      messenger: RecordingMessenger(),
+      child: MaterialApp.router(
+        theme: AppTheme.lightThemeData,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        routerConfig: router,
+      ),
     ),
   ),
 );

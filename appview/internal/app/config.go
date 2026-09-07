@@ -26,7 +26,6 @@ import (
 const (
 	defaultJSONBodyLimitBytes               int64 = 1024 * 1024
 	maxTapAckTimeout                              = 2 * time.Minute
-	maxTapTerminalTransactionBudget               = 30 * time.Second
 	maxTapAckSafetyMargin                         = 30 * time.Second
 	maxTapReconnect                               = 10 * time.Minute
 	maxTapWorkerPollInterval                      = time.Minute
@@ -225,7 +224,6 @@ type Config struct {
 
 	TapWSURL                      string
 	TapAckTimeout                 time.Duration
-	TapTerminalTransactionBudget  time.Duration
 	TapAckSafetyMargin            time.Duration
 	TapReconnectMax               time.Duration
 	TapProjectionPollInterval     time.Duration
@@ -358,9 +356,6 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 
 	var err error
 	if cfg.TapAckTimeout, err = boundedPositiveDurationEnv("TAP_ACK_TIMEOUT", 10*time.Second, maxTapAckTimeout); err != nil {
-		return Config{}, err
-	}
-	if cfg.TapTerminalTransactionBudget, err = boundedPositiveDurationEnv("TAP_TERMINAL_TRANSACTION_BUDGET", time.Second, maxTapTerminalTransactionBudget); err != nil {
 		return Config{}, err
 	}
 	if cfg.TapAckSafetyMargin, err = boundedPositiveDurationEnv("TAP_ACK_SAFETY_MARGIN", 500*time.Millisecond, maxTapAckSafetyMargin); err != nil {
@@ -1007,8 +1002,8 @@ func (cfg Config) Validate() error {
 		return fmt.Errorf("TAP_QUARANTINE_LEASE_DURATION must exceed TAP_QUARANTINE_POLL_INTERVAL")
 	case cfg.TapQuarantineOperationTimeout >= cfg.TapQuarantineLeaseDuration:
 		return fmt.Errorf("TAP_QUARANTINE_OPERATION_TIMEOUT must be shorter than TAP_QUARANTINE_LEASE_DURATION")
-	case cfg.TapAckTimeout <= cfg.OwnerFenceAcquireTimeout+cfg.TapTerminalTransactionBudget+cfg.TapAckSafetyMargin:
-		return fmt.Errorf("OWNER_FENCE_ACQUIRE_TIMEOUT plus TAP_TERMINAL_TRANSACTION_BUDGET plus TAP_ACK_SAFETY_MARGIN must be shorter than TAP_ACK_TIMEOUT")
+	case cfg.TapAckTimeout <= cfg.TapAckSafetyMargin:
+		return fmt.Errorf("TAP_ACK_SAFETY_MARGIN must be shorter than TAP_ACK_TIMEOUT")
 	case cfg.OAuthAuthRequestExpiry >= cfg.OAuthSessionAbsoluteLifetime:
 		return fmt.Errorf("OAUTH_AUTH_REQUEST_EXPIRY must be shorter than OAUTH_SESSION_ABSOLUTE_LIFETIME")
 	case cfg.CraftskySessionActivityWriteInterval >= cfg.CraftskySessionInactivity:
@@ -1076,10 +1071,6 @@ func (cfg Config) Validate() error {
 
 func (cfg Config) tapIngestionTimeout() time.Duration {
 	return cfg.TapAckTimeout - cfg.TapAckSafetyMargin
-}
-
-func (cfg Config) tapTerminalCommitTimeout() time.Duration {
-	return cfg.OwnerFenceAcquireTimeout + cfg.TapTerminalTransactionBudget
 }
 
 func decodeHandoffReceiptKey(secret Secret) ([]byte, error) {

@@ -241,11 +241,8 @@ for `HTTP_WRITE_TIMEOUT`. The current shared relationships are:
 - Tap projection and repository leases must exceed their poll intervals;
   backoff maxima must not be shorter than their minima. The repository lease
   must also cover the bounded PDS read deadline plus finalization margin.
-- `TAP_ACK_TIMEOUT` must be longer than `OWNER_FENCE_ACQUIRE_TIMEOUT` plus
-  `TAP_TERMINAL_TRANSACTION_BUDGET` plus `TAP_ACK_SAFETY_MARGIN`. The first
-  two bound the fixed-size tombstone/auth-epoch/component-ledger commit; the
-  final margin is reserved for sending the Tap ACK. None covers an unbounded
-  physical purge.
+- `TAP_ACK_SAFETY_MARGIN` must be shorter than `TAP_ACK_TIMEOUT`; the margin is
+  reserved for sending the Tap ACK after the ingestion timeout expires.
 - `HTTP_MAX_IN_FLIGHT_REQUESTS` cannot exceed `HTTP_MAX_CONNECTIONS`.
 - `HTTP_READ_HEADER_TIMEOUT`, `HTTP_JSON_BODY_READ_TIMEOUT`, and
   `HTTP_UPLOAD_BODY_READ_TIMEOUT` cannot exceed `HTTP_READ_TIMEOUT`.

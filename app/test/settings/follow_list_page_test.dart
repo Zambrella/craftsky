@@ -122,6 +122,99 @@ void main() {
     expect(find.text('Dana'), findsOneWidget);
   });
 
+  testWidgets('initial failure shows feedback and retries without escaping', (
+    tester,
+  ) async {
+    var calls = 0;
+    final repo = FakeProfileRepository(
+      onListFollowersMe: ({cursor, limit}) async {
+        calls++;
+        if (calls == 1) throw Exception('offline');
+        return ProfileAccountPage(
+          totalCount: 1,
+          items: [
+            ProfileAccountSummary(
+              did: 'did:plc:dana',
+              handle: 'dana.craftsky.social',
+              displayName: 'Dana',
+              isCraftskyProfile: true,
+            ),
+          ],
+        );
+      },
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [profileRepositoryProvider.overrideWithValue(repo)],
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: FollowListPage(kind: FollowListKind.followers),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text("This didn't load. Please try again."), findsOneWidget);
+    expect(find.text('Retry'), findsOneWidget);
+
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+
+    expect(calls, 2);
+    expect(find.text('Dana'), findsOneWidget);
+  });
+
+  testWidgets('refresh failure retains rows and can refresh again', (
+    tester,
+  ) async {
+    var calls = 0;
+    final repo = FakeProfileRepository(
+      onListFollowersMe: ({cursor, limit}) async {
+        calls++;
+        if (calls == 2) throw Exception('offline');
+        return ProfileAccountPage(
+          totalCount: 1,
+          items: [
+            ProfileAccountSummary(
+              did: 'did:plc:dana',
+              handle: 'dana.craftsky.social',
+              displayName: calls == 1 ? 'Dana' : 'Dana refreshed',
+              isCraftskyProfile: true,
+            ),
+          ],
+        );
+      },
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [profileRepositoryProvider.overrideWithValue(repo)],
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: FollowListPage(kind: FollowListKind.followers),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final indicator = tester.widget<RefreshIndicator>(
+      find.byType(RefreshIndicator),
+    );
+    await indicator.onRefresh();
+    await tester.pump();
+
+    expect(find.text('Dana'), findsOneWidget);
+    expect(find.text("This didn't load. Please try again."), findsOneWidget);
+
+    await indicator.onRefresh();
+    await tester.pumpAndSettle();
+    expect(calls, 3);
+    expect(find.text('Dana refreshed'), findsOneWidget);
+  });
+
   testWidgets('followers page loads and appends cursor pages', (tester) async {
     final cursors = <String?>[];
     final repo = FakeProfileRepository(
@@ -188,6 +281,69 @@ void main() {
       lessThan(tester.getTopLeft(find.text('Bob')).dy),
     );
     expect(find.text('Load more'), findsNothing);
+  });
+
+  testWidgets('pagination failure retains rows and allows retry', (
+    tester,
+  ) async {
+    var continuationCalls = 0;
+    final repo = FakeProfileRepository(
+      onListFollowersMe: ({cursor, limit}) async {
+        if (cursor == null) {
+          return ProfileAccountPage(
+            totalCount: 2,
+            cursor: 'next',
+            items: [
+              ProfileAccountSummary(
+                did: 'did:plc:dana',
+                handle: 'dana.craftsky.social',
+                displayName: 'Dana',
+                isCraftskyProfile: true,
+              ),
+            ],
+          );
+        }
+        continuationCalls++;
+        if (continuationCalls == 1) throw Exception('offline');
+        return ProfileAccountPage(
+          totalCount: 2,
+          items: [
+            ProfileAccountSummary(
+              did: 'did:plc:carol',
+              handle: 'carol.craftsky.social',
+              displayName: 'Carol',
+              isCraftskyProfile: true,
+            ),
+          ],
+        );
+      },
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [profileRepositoryProvider.overrideWithValue(repo)],
+        child: const MaterialApp(
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: FollowListPage(kind: FollowListKind.followers),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Load more'));
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text('Dana'), findsOneWidget);
+    expect(find.text("This didn't load. Please try again."), findsOneWidget);
+    expect(find.text('Load more'), findsOneWidget);
+
+    await tester.tap(find.text('Load more'));
+    await tester.pumpAndSettle();
+    expect(continuationCalls, 2);
+    expect(find.text('Dana'), findsOneWidget);
+    expect(find.text('Carol'), findsOneWidget);
   });
 
   testWidgets('refresh ignores an older in-flight pagination result', (

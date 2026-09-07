@@ -41,9 +41,9 @@ void main() {
       didContracts: ['did: profile.did'],
     ),
     'follow list': (
-      source: 'lib/settings/pages/follow_list_page.dart',
+      source: 'lib/profile/widgets/profile_account_list_tile.dart',
       behaviorTest: 'test/settings/follow_list_page_test.dart',
-      didContracts: ['did: account.did'],
+      didContracts: ['showUserProfileCard(context, did: account.did)'],
     ),
     'relationship list': (
       source: 'lib/settings/pages/relationship_list_page.dart',

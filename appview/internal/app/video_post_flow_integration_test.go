@@ -211,7 +211,7 @@ func TestVideoPostCreateTapReadConvergence(t *testing.T) {
 	if !reflect.DeepEqual(eventual.Video, created.Video) {
 		t.Fatalf("eventual video = %+v, create video = %+v", eventual.Video, created.Video)
 	}
-	if eventual.Video.CID != videoCID.String() || eventual.Video.Playlist != "https://media.example/watch/did:plc:alice/"+videoCID.String()+"/playlist.m3u8" {
+	if eventual.Video.CID != videoCID.String() || eventual.Video.Playlist != "https://media.example/watch/did%3Aplc%3Aalice/"+videoCID.String()+"/playlist.m3u8" {
 		t.Fatalf("eventual normalized video = %+v", eventual.Video)
 	}
 	var indexedCount int

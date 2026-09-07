@@ -1216,6 +1216,12 @@ abstract class AppLocalizations {
   /// **'Show post'**
   String get postRevealAction;
 
+  /// Error feedback shown when temporarily revealing a muted post fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t show this post.'**
+  String get postRevealError;
+
   /// Label on the follow button on a visitor profile when the viewer is not yet following them.
   ///
   /// In en, this message translates to:
@@ -2517,6 +2523,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Unrepost'**
   String get postUnrepostAction;
+
+  /// Error feedback shown when reposting or removing a repost fails and the previous state is restored.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t update repost.'**
+  String get postRepostError;
 
   /// Menu label for creating a quote post.
   ///
