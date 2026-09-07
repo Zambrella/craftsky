@@ -15,13 +15,19 @@ import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/text_scale_factor_clamper.dart';
 import 'package:craftsky_app/theme/theme_notifier.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:logging/logging.dart';
 
 final _log = Logger('App');
 
 class App extends ConsumerStatefulWidget {
-  const App({super.key});
+  const App({
+    this.onInitializationResolved = FlutterNativeSplash.remove,
+    super.key,
+  });
+
+  final VoidCallback onInitializationResolved;
 
   @override
   ConsumerState<App> createState() => _AppState();
@@ -32,6 +38,7 @@ class _AppState extends ConsumerState<App> {
   _coldStartAccountInitialization;
   bool _coldStartComplete = false;
   bool _hasBuilt = false;
+  bool _initializationResolutionScheduled = false;
 
   @override
   void initState() {
@@ -70,6 +77,12 @@ class _AppState extends ConsumerState<App> {
     });
 
     final depsAsync = ref.watch(appDependenciesProvider);
+    final initializationResolved = switch (depsAsync) {
+      AsyncData() => _coldStartComplete,
+      AsyncError() => true,
+      _ => false,
+    };
+    if (initializationResolved) _scheduleInitializationResolved();
 
     return switch (depsAsync) {
       AsyncData() when _coldStartComplete => const _ReadyApp(),
@@ -77,6 +90,14 @@ class _AppState extends ConsumerState<App> {
       AsyncError(:final error) => _ErrorApp(error: error),
       _ => const _LoadingApp(),
     };
+  }
+
+  void _scheduleInitializationResolved() {
+    if (_initializationResolutionScheduled) return;
+    _initializationResolutionScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) widget.onInitializationResolved();
+    });
   }
 }
 

@@ -13,6 +13,7 @@ import 'package:craftsky_app/shared/observability/sentry_config.dart';
 import 'package:craftsky_app/shared/observability/sentry_error_reporter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_native_splash/flutter_native_splash.dart';
 import 'package:logging/logging.dart';
 import 'package:media_kit/media_kit.dart';
 
@@ -23,6 +24,7 @@ Future<void> main() async {
   await runZonedGuarded(
     () async {
       final binding = WidgetsFlutterBinding.ensureInitialized();
+      FlutterNativeSplash.preserve(widgetsBinding: binding);
       MediaKit.ensureInitialized();
 
       // Configure logging before anything else so error handlers and
@@ -53,6 +55,7 @@ Future<void> main() async {
       await bootstrap(binding, reporter: reporter);
     },
     (error, stack) {
+      FlutterNativeSplash.remove();
       // Last-resort sink: use dart:developer log because logging may not be
       // fully wired yet depending on where the crash originates.
       developer.log(
