@@ -122,6 +122,7 @@ void main() {
         final dependencies = Completer<AppDependencies>();
         final accountInitialization = Completer<ActiveAccountInitialization?>();
         var accountInitializationStarts = 0;
+        var initializationResolutions = 0;
 
         await tester.pumpWidget(
           ProviderScope(
@@ -138,7 +139,9 @@ void main() {
                 _RegistryStorage(),
               ),
             ],
-            child: const App(),
+            child: App(
+              onInitializationResolved: () => initializationResolutions++,
+            ),
           ),
         );
         await tester.pump();
@@ -147,12 +150,14 @@ void main() {
           find.byType(InitializationLoadingScreen),
         );
         expect(accountInitializationStarts, 1);
+        expect(initializationResolutions, 0);
 
         dependencies.complete(stubDeps());
         await tester.pump();
         await tester.pump();
 
         expect(accountInitializationStarts, 1);
+        expect(initializationResolutions, 0);
         expect(find.byType(InitializationLoadingScreen), findsOneWidget);
         expect(
           tester.element(find.byType(InitializationLoadingScreen)),
@@ -165,6 +170,10 @@ void main() {
 
         expect(find.byType(InitializationLoadingScreen), findsNothing);
         expect(find.byType(WelcomePage), findsOneWidget);
+        expect(initializationResolutions, 1);
+
+        await tester.pump();
+        expect(initializationResolutions, 1);
       },
     );
 
@@ -288,6 +297,7 @@ void main() {
     testWidgets('error state renders InitializationErrorScreen', (
       tester,
     ) async {
+      var initializationResolutions = 0;
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
@@ -295,7 +305,9 @@ void main() {
               (ref) async => throw Exception('boot failed'),
             ),
           ],
-          child: const App(),
+          child: App(
+            onInitializationResolved: () => initializationResolutions++,
+          ),
         ),
       );
       await tester.pumpAndSettle();
@@ -308,6 +320,7 @@ void main() {
       );
       expect(find.text('Exception: boot failed'), findsNothing);
       expect(find.widgetWithText(ElevatedButton, 'Retry'), findsOneWidget);
+      expect(initializationResolutions, 1);
     });
 
     testWidgets('retry invalidates the provider and recovers to WelcomePage', (
