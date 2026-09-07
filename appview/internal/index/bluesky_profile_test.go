@@ -40,6 +40,7 @@ func TestBlueskyProfile_CreateForMember(t *testing.T) {
 		Record: json.RawMessage(`{
 			"displayName": "Mallory",
 			"description": "sews things",
+			"pronouns": "she/her",
 			"avatar":   {"$type":"blob","ref":{"$link":"bafkavatar"},"mimeType":"image/jpeg","size":1},
 			"banner":   {"$type":"blob","ref":{"$link":"bafkbanner"},"mimeType":"image/png","size":1}
 		}`),
@@ -48,12 +49,12 @@ func TestBlueskyProfile_CreateForMember(t *testing.T) {
 		t.Fatalf("Handle: %v", err)
 	}
 
-	var displayName, description, avatarCID, avatarMime, bannerCID, bannerMime, recordCID string
+	var displayName, description, pronouns, avatarCID, avatarMime, bannerCID, bannerMime, recordCID string
 	err := pool.QueryRow(context.Background(), `
-		SELECT display_name, description, avatar_cid, avatar_mime,
+		SELECT display_name, description, pronouns, avatar_cid, avatar_mime,
 		       banner_cid, banner_mime, record_cid
 		FROM bluesky_profiles WHERE did = $1`, ev.DID).
-		Scan(&displayName, &description, &avatarCID, &avatarMime,
+		Scan(&displayName, &description, &pronouns, &avatarCID, &avatarMime,
 			&bannerCID, &bannerMime, &recordCID)
 	if err != nil {
 		t.Fatalf("select: %v", err)
@@ -63,6 +64,9 @@ func TestBlueskyProfile_CreateForMember(t *testing.T) {
 	}
 	if description != "sews things" {
 		t.Errorf("description = %q", description)
+	}
+	if pronouns != "she/her" {
+		t.Errorf("pronouns = %q", pronouns)
 	}
 	if avatarCID != "bafkavatar" || avatarMime != "image/jpeg" {
 		t.Errorf("avatar = (%q, %q)", avatarCID, avatarMime)
@@ -111,7 +115,7 @@ func TestBlueskyProfile_UpdateReplacesFields(t *testing.T) {
 		URI: "at://did:plc:u/app.bsky.actor.profile/self", CID: "c1",
 		DID: "did:plc:u", Rkey: "self",
 		Collection: "app.bsky.actor.profile", Action: "create",
-		Record: json.RawMessage(`{"displayName":"old"}`),
+		Record: json.RawMessage(`{"displayName":"old","pronouns":"they/them"}`),
 	}
 	update := create
 	update.CID = "c2"
@@ -125,13 +129,17 @@ func TestBlueskyProfile_UpdateReplacesFields(t *testing.T) {
 		t.Fatal(err)
 	}
 	var dn, cid string
+	var pronouns *string
 	if err := pool.QueryRow(ctx,
-		`SELECT display_name, record_cid FROM bluesky_profiles WHERE did = $1`, create.DID).
-		Scan(&dn, &cid); err != nil {
+		`SELECT display_name, pronouns, record_cid FROM bluesky_profiles WHERE did = $1`, create.DID).
+		Scan(&dn, &pronouns, &cid); err != nil {
 		t.Fatalf("select: %v", err)
 	}
 	if dn != "new" || cid != "c2" {
 		t.Errorf("after update: display_name=%q record_cid=%q; want new, c2", dn, cid)
+	}
+	if pronouns != nil {
+		t.Errorf("pronouns = %q, want NULL after omission", *pronouns)
 	}
 }
 

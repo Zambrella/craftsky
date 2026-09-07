@@ -43,6 +43,7 @@ void main() {
         onUpdateMe:
             ({
               displayName,
+              pronouns,
               description,
               crafts,
               avatar,
@@ -55,6 +56,7 @@ void main() {
                 did: baseline.did,
                 handle: baseline.handle,
                 displayName: displayName,
+                pronouns: pronouns,
                 crafts: const ['sewing'],
               );
             },

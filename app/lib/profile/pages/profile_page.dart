@@ -535,6 +535,7 @@ class _ProfileScrollView extends StatelessWidget {
             handle: profile.handle,
             crafts: profile.crafts,
             displayName: profile.displayName,
+            pronouns: profile.pronouns,
             avatarUrl: profile.avatar,
             isBusiness: profile.accountType == AccountType.business,
             customisation: profile.customisation,

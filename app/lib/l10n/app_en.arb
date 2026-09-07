@@ -517,6 +517,66 @@
   "postUnavailablePlaceholder": "Post unavailable",
   "@postUnavailablePlaceholder": { "description": "Generic content-free placeholder for blocked or unavailable content." },
 
+  "postInteractionLikesTitle": "Likes",
+  "@postInteractionLikesTitle": { "description": "Title of the accounts that liked a post page before its total is available." },
+
+  "postInteractionLikesTitleWithCount": "Likes ({count})",
+  "@postInteractionLikesTitleWithCount": {
+    "description": "Title of the accounts that liked a post page with its authoritative total.",
+    "placeholders": { "count": { "type": "int", "example": "12" } }
+  },
+
+  "postInteractionRepostsTitle": "Reposts",
+  "@postInteractionRepostsTitle": { "description": "Title of the accounts that reposted a post page before its total is available." },
+
+  "postInteractionRepostsTitleWithCount": "Reposts ({count})",
+  "@postInteractionRepostsTitleWithCount": {
+    "description": "Title of the accounts that reposted a post page with its authoritative total.",
+    "placeholders": { "count": { "type": "int", "example": "12" } }
+  },
+
+  "postInteractionLikesSummary": "{count, plural, =1{1 Like} other{{count} Likes}}",
+  "@postInteractionLikesSummary": {
+    "description": "Exact like count link in the post detail interaction summary.",
+    "placeholders": { "count": { "type": "int", "example": "12" } }
+  },
+
+  "postInteractionLikesSummaryHint": "Open Likes for this post",
+  "@postInteractionLikesSummaryHint": { "description": "Accessible destination hint for the post detail Likes summary link." },
+
+  "postInteractionRepostsSummary": "{count, plural, =1{1 Repost} other{{count} Reposts}}",
+  "@postInteractionRepostsSummary": {
+    "description": "Exact repost count link in the post detail interaction summary.",
+    "placeholders": { "count": { "type": "int", "example": "3" } }
+  },
+
+  "postInteractionRepostsSummaryHint": "Open Reposts for this post",
+  "@postInteractionRepostsSummaryHint": { "description": "Accessible destination hint for the post detail Reposts summary link." },
+
+  "postInteractionQuotesSummary": "{count, plural, =1{1 Quote} other{{count} Quotes}}",
+  "@postInteractionQuotesSummary": {
+    "description": "Exact quote count link in the post detail interaction summary.",
+    "placeholders": { "count": { "type": "int", "example": "2" } }
+  },
+
+  "postInteractionQuotesSummaryHint": "Open Quotes for this post",
+  "@postInteractionQuotesSummaryHint": { "description": "Accessible destination hint for the post detail Quotes summary link." },
+
+  "postInteractionLikesEmpty": "No likes yet.",
+  "@postInteractionLikesEmpty": { "description": "Empty state for the accounts that liked a post page." },
+
+  "postInteractionViewLikesAction": "View likes",
+  "@postInteractionViewLikesAction": { "description": "Menu action for viewing the accounts that liked a comment or reply." },
+
+  "postInteractionRepostsEmpty": "No reposts yet.",
+  "@postInteractionRepostsEmpty": { "description": "Empty state for the accounts that reposted a post page." },
+
+  "postInteractionQuotesTitle": "Quotes",
+  "@postInteractionQuotesTitle": { "description": "Plain title of the posts quoting a post page." },
+
+  "postInteractionQuotesEmpty": "No quotes yet.",
+  "@postInteractionQuotesEmpty": { "description": "Empty state for the posts quoting a post page." },
+
   "postRevealAction": "Show post",
   "@postRevealAction": { "description": "Temporary reveal action for muted content." },
 
@@ -1393,6 +1453,12 @@
   "editProfileDisplayNameHint": "How your name appears on your profile",
   "@editProfileDisplayNameHint": { "description": "Hint text inside the display-name field on the profile-edit page." },
 
+  "editProfilePronounsLabel": "Pronouns",
+  "@editProfilePronounsLabel": { "description": "Label above the optional pronouns field in profile forms." },
+
+  "editProfilePronounsHint": "For example, she/her or they/them",
+  "@editProfilePronounsHint": { "description": "Hint text inside the free-form pronouns field in profile forms." },
+
   "editProfileBioLabel": "Bio",
   "@editProfileBioLabel": { "description": "Label above the bio field on the profile-edit page." },
 
@@ -1401,6 +1467,9 @@
 
   "editProfileDisplayNameTooLong": "Display name must be 64 characters or fewer",
   "@editProfileDisplayNameTooLong": { "description": "Form-validation error shown below the display-name field on the profile-edit page when the user enters more than 64 characters (the AppView profile lexicon's grapheme limit)." },
+
+  "editProfilePronounsTooLong": "Pronouns must be 20 characters or fewer",
+  "@editProfilePronounsTooLong": { "description": "Form-validation error shown below the pronouns field when the user exceeds the Bluesky profile lexicon's 20-grapheme limit." },
 
   "editProfileBioTooLong": "Bio must be 256 characters or fewer",
   "@editProfileBioTooLong": { "description": "Form-validation error shown below the bio field on the profile-edit page when the user enters more than 256 characters (the AppView profile lexicon's grapheme limit)." },
@@ -2546,7 +2615,7 @@
   "onboardingStepProgress": "Step {current} of {total}",
   "@onboardingStepProgress": {"placeholders": {"current": {"type": "int"}, "total": {"type": "int"}}},
   "onboardingProfileTitle": "Make it yours",
-  "onboardingProfileDescription": "Add a name, bio, and photo so other crafters can recognize you.",
+  "onboardingProfileDescription": "Add a name, pronouns, bio, and photo so other crafters can recognize you.",
   "onboardingAvatarUploading": "Uploading photo...",
   "onboardingAvatarUploadFailed": "Photo upload failed. Try again.",
   "onboardingHandleLabel": "Signed in as @{handle}",

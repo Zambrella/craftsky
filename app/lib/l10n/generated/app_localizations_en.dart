@@ -594,6 +594,79 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postUnavailablePlaceholder => 'Post unavailable';
 
   @override
+  String get postInteractionLikesTitle => 'Likes';
+
+  @override
+  String postInteractionLikesTitleWithCount(int count) {
+    return 'Likes ($count)';
+  }
+
+  @override
+  String get postInteractionRepostsTitle => 'Reposts';
+
+  @override
+  String postInteractionRepostsTitleWithCount(int count) {
+    return 'Reposts ($count)';
+  }
+
+  @override
+  String postInteractionLikesSummary(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Likes',
+      one: '1 Like',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get postInteractionLikesSummaryHint => 'Open Likes for this post';
+
+  @override
+  String postInteractionRepostsSummary(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Reposts',
+      one: '1 Repost',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get postInteractionRepostsSummaryHint => 'Open Reposts for this post';
+
+  @override
+  String postInteractionQuotesSummary(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count Quotes',
+      one: '1 Quote',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get postInteractionQuotesSummaryHint => 'Open Quotes for this post';
+
+  @override
+  String get postInteractionLikesEmpty => 'No likes yet.';
+
+  @override
+  String get postInteractionViewLikesAction => 'View likes';
+
+  @override
+  String get postInteractionRepostsEmpty => 'No reposts yet.';
+
+  @override
+  String get postInteractionQuotesTitle => 'Quotes';
+
+  @override
+  String get postInteractionQuotesEmpty => 'No quotes yet.';
+
+  @override
   String get postRevealAction => 'Show post';
 
   @override
@@ -1532,6 +1605,12 @@ class AppLocalizationsEn extends AppLocalizations {
       'How your name appears on your profile';
 
   @override
+  String get editProfilePronounsLabel => 'Pronouns';
+
+  @override
+  String get editProfilePronounsHint => 'For example, she/her or they/them';
+
+  @override
   String get editProfileBioLabel => 'Bio';
 
   @override
@@ -1540,6 +1619,10 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get editProfileDisplayNameTooLong =>
       'Display name must be 64 characters or fewer';
+
+  @override
+  String get editProfilePronounsTooLong =>
+      'Pronouns must be 20 characters or fewer';
 
   @override
   String get editProfileBioTooLong => 'Bio must be 256 characters or fewer';
@@ -2996,7 +3079,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get onboardingProfileDescription =>
-      'Add a name, bio, and photo so other crafters can recognize you.';
+      'Add a name, pronouns, bio, and photo so other crafters can recognize you.';
 
   @override
   String get onboardingAvatarUploading => 'Uploading photo...';

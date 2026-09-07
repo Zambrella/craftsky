@@ -315,6 +315,7 @@ void main() {
               onUpdateMe:
                   ({
                     displayName,
+                    pronouns,
                     description,
                     crafts,
                     avatar,

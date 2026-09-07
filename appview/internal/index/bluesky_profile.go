@@ -41,6 +41,7 @@ type blueskyBlobRef struct {
 type blueskyProfileRecord struct {
 	DisplayName *string         `json:"displayName,omitempty"`
 	Description *string         `json:"description,omitempty"`
+	Pronouns    *string         `json:"pronouns,omitempty"`
 	Avatar      *blueskyBlobRef `json:"avatar,omitempty"`
 	Banner      *blueskyBlobRef `json:"banner,omitempty"`
 }
@@ -58,12 +59,13 @@ func (b *BlueskyProfile) Handle(ctx context.Context, ev tap.Event) error {
 		}
 		const q = `
 			INSERT INTO bluesky_profiles
-				(did, display_name, description,
+				(did, display_name, description, pronouns,
 				 avatar_cid, avatar_mime, banner_cid, banner_mime, record_cid)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 			ON CONFLICT (did) DO UPDATE SET
 				display_name = EXCLUDED.display_name,
 				description  = EXCLUDED.description,
+				pronouns     = EXCLUDED.pronouns,
 				avatar_cid   = EXCLUDED.avatar_cid,
 				avatar_mime  = EXCLUDED.avatar_mime,
 				banner_cid   = EXCLUDED.banner_cid,
@@ -85,7 +87,7 @@ func (b *BlueskyProfile) Handle(ctx context.Context, ev tap.Event) error {
 			bannerMime = &rec.Banner.MimeType
 		}
 		if _, err := b.database().Exec(ctx, q,
-			ev.DID, rec.DisplayName, rec.Description,
+			ev.DID, rec.DisplayName, rec.Description, rec.Pronouns,
 			avatarCID, avatarMime, bannerCID, bannerMime, ev.CID); err != nil {
 			return fmt.Errorf("upsert %s: %w", ev.URI, err)
 		}

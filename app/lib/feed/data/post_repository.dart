@@ -9,6 +9,7 @@ import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
+import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
@@ -81,6 +82,30 @@ abstract interface class PostRepository {
 
   /// DELETE /v1/posts/{did}/{rkey}/reposts.
   Future<void> unrepost(Did did, RecordKey rkey);
+
+  /// GET /v1/posts/{did}/{rkey}/likes — newest-first, paginated.
+  Future<ProfileAccountPage> listLikes(
+    Did did,
+    RecordKey rkey, {
+    String? cursor,
+    int? limit,
+  });
+
+  /// GET /v1/posts/{did}/{rkey}/reposts — newest-first, paginated.
+  Future<ProfileAccountPage> listReposts(
+    Did did,
+    RecordKey rkey, {
+    String? cursor,
+    int? limit,
+  });
+
+  /// GET /v1/posts/{did}/{rkey}/quotes — newest-first, paginated.
+  Future<PostPage> listQuotes(
+    Did did,
+    RecordKey rkey, {
+    String? cursor,
+    int? limit,
+  });
 
   /// GET /v1/profiles/@{handleOrDid}/posts — newest-first, paginated.
   Future<PostPage> listByAuthor(

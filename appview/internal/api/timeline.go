@@ -20,7 +20,7 @@ import (
 // TimelineReader is the read-side boundary for the home timeline handler.
 type TimelineReader interface {
 	ListTimeline(ctx context.Context, viewerDID string, limit int, cursor string) ([]*TimelineFeedItemRow, string, error)
-	EngagementSummaries(ctx context.Context, viewerDID string, postURIs []string) (map[string]EngagementSummary, error)
+	EngagementSummaries(ctx context.Context, viewerDID string, contentLanguages, postURIs []string) (map[string]EngagementSummary, error)
 	QuoteViewRows(ctx context.Context, refs []ResponseStrongRef) (map[string]*QuoteViewRow, error)
 }
 
@@ -77,14 +77,16 @@ func ListTimelineHandler(
 		limit := parseTimelineLimit(r.URL.Query().Get("limit"))
 		cursor := r.URL.Query().Get("cursor")
 		var (
-			rows       []*TimelineFeedItemRow
-			nextCursor string
-			err        error
+			rows             []*TimelineFeedItemRow
+			nextCursor       string
+			contentLanguages = []string{}
+			err              error
 		)
 		if len(preferenceReaders) == 0 {
 			rows, nextCursor, err = store.ListTimeline(r.Context(), viewerDID.String(), limit, cursor)
 		} else {
-			contentLanguages, preferenceErr := authoritativeContentLanguages(r.Context(), viewerDID, preferenceReaders)
+			var preferenceErr error
+			contentLanguages, preferenceErr = authoritativeContentLanguages(r.Context(), viewerDID, preferenceReaders)
 			if preferenceErr != nil {
 				logger.Error("timeline: language preferences failed",
 					apiLogErrorAttrs(runID, "timeline.list", "language_preferences")...)
@@ -130,7 +132,7 @@ func ListTimelineHandler(
 			for _, row := range rows {
 				postURIs = append(postURIs, row.Post.URI)
 			}
-			summaries, err := store.EngagementSummaries(r.Context(), viewerDID.String(), postURIs)
+			summaries, err := store.EngagementSummaries(r.Context(), viewerDID.String(), contentLanguages, postURIs)
 			if err != nil {
 				logger.Error("timeline: EngagementSummaries failed",
 					apiLogErrorAttrs(runID, "timeline.list", "engagement")...)

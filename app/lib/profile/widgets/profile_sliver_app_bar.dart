@@ -26,6 +26,7 @@ class ProfileSliverAppBar extends StatelessWidget {
     required this.actions,
     this.crafts = const [],
     this.displayName,
+    this.pronouns,
     this.avatarUrl,
     this.customisation = ProfileCustomisation.defaults,
     this.isBusiness = false,
@@ -37,6 +38,7 @@ class ProfileSliverAppBar extends StatelessWidget {
   final ProfileActionSet actions;
   final List<String> crafts;
   final String? displayName;
+  final String? pronouns;
   final String? avatarUrl;
   final ProfileCustomisation customisation;
   final bool isBusiness;
@@ -75,6 +77,7 @@ class ProfileSliverAppBar extends StatelessWidget {
         handle: handle,
         crafts: crafts,
         displayName: displayName,
+        pronouns: pronouns,
         avatarUrl: avatarUrl,
         customisation: customisation,
         isBusiness: isBusiness,
@@ -264,6 +267,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
     required this.handle,
     required this.crafts,
     required this.displayName,
+    required this.pronouns,
     required this.avatarUrl,
     required this.customisation,
     required this.isBusiness,
@@ -278,6 +282,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
   final String handle;
   final List<String> crafts;
   final String? displayName;
+  final String? pronouns;
   final String? avatarUrl;
   final ProfileCustomisation customisation;
   final bool isBusiness;
@@ -351,6 +356,7 @@ class _ProfileFlexibleSpace extends StatelessWidget {
                     child: ProfileIdentity(
                       handle: handle,
                       displayName: displayName,
+                      pronouns: pronouns,
                       businessLabel: isBusiness
                           ? AppLocalizations.of(context).businessProfileLabel
                           : null,

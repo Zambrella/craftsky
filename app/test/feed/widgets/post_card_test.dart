@@ -13,6 +13,7 @@ import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/external_card.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
+import 'package:craftsky_app/feed/widgets/post_interaction_summary.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/moderation_metadata.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
@@ -37,6 +38,7 @@ import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
+import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -932,6 +934,20 @@ void main() {
       expect(find.text('3'), findsNothing);
     });
 
+    testWidgets('AT-008 shared cards do not render interaction summaries', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        PostCard(post: _post(likeCount: 3, repostCount: 2, quoteCount: 1)),
+      );
+
+      expect(find.byType(PostInteractionSummary), findsNothing);
+      expect(find.text('3 Likes'), findsNothing);
+      expect(find.text('2 Reposts'), findsNothing);
+      expect(find.text('1 Quote'), findsNothing);
+    });
+
     testWidgets('renders tappable repost attribution inside the card', (
       tester,
     ) async {
@@ -1804,30 +1820,131 @@ void main() {
       expect(find.byIcon(CraftskyIconsBold.repost), findsNothing);
     });
 
-    testWidgets('invokes interaction callbacks', (tester) async {
-      var replies = 0;
-      var likes = 0;
-      var reposts = 0;
-      await _pump(
+    testWidgets(
+      'UT-006 liked response puts localized View likes first in its own '
+      'non-destructive menu group',
+      (tester) async {
+        var views = 0;
+        final root = PostRef(
+          uri: 'at://did:plc:root/social.craftsky.feed.post/root',
+          cid: 'bafyroot',
+        );
+        await _pump(
+          tester,
+          PostCard(
+            post: _post(
+              likeCount: 2,
+              reply: PostReply(root: root, parent: root),
+            ),
+            onViewLikes: () => views++,
+            onDelete: () {},
+          ),
+        );
+
+        final menu = tester.widget<CraftskyContextMenuButton>(
+          find.byType(CraftskyContextMenuButton),
+        );
+        expect(menu.groups, hasLength(2));
+        expect(menu.groups.first.items, hasLength(1));
+        expect(menu.groups.first.items.single.text, 'View likes');
+        expect(
+          menu.groups.first.items.single.style,
+          CraftskyContextMenuItemStyle.normal,
+        );
+        expect(menu.groups.last.items.single.text, 'Delete post');
+        final labels = menu.groups
+            .expand((group) => group.items)
+            .map((item) => item.text);
+        expect(labels, isNot(contains('View reposts')));
+        expect(labels, isNot(contains('View quotes')));
+        expect(find.byType(PostInteractionSummary), findsNothing);
+
+        await menu.groups.first.items.single.onPressed!();
+        expect(views, 1);
+      },
+    );
+
+    for (final variant in [
+      (name: 'zero-like response', likeCount: 0, isReply: true, callback: true),
+      (
+        name: 'response without callback',
+        likeCount: 2,
+        isReply: true,
+        callback: false,
+      ),
+      (name: 'root post', likeCount: 2, isReply: false, callback: true),
+    ]) {
+      testWidgets('UT-006 omits View likes for ${variant.name}', (
         tester,
-        PostCard(
-          post: _post(),
-          onReply: () => replies++,
-          onLike: () => likes++,
-          onRepost: () => reposts++,
-        ),
-      );
+      ) async {
+        final root = PostRef(
+          uri: 'at://did:plc:root/social.craftsky.feed.post/root',
+          cid: 'bafyroot',
+        );
+        await _pump(
+          tester,
+          PostCard(
+            post: _post(
+              likeCount: variant.likeCount,
+              reply: variant.isReply
+                  ? PostReply(root: root, parent: root)
+                  : null,
+            ),
+            onViewLikes: variant.callback ? () {} : null,
+          ),
+        );
 
-      await tester.tap(find.byIcon(CraftskyIconsBold.like));
-      await tester.tap(find.byIcon(CraftskyIconsBold.comment));
-      await tester.tap(find.byIcon(CraftskyIconsBold.repost));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Repost'));
+        final menu = tester.widget<CraftskyContextMenuButton>(
+          find.byType(CraftskyContextMenuButton),
+        );
+        expect(
+          menu.groups.expand((group) => group.items).map((item) => item.text),
+          isNot(contains('View likes')),
+        );
+        expect(find.byType(PostInteractionSummary), findsNothing);
+      });
+    }
 
-      expect(replies, 1);
-      expect(likes, 1);
-      expect(reposts, 1);
-    });
+    testWidgets(
+      'REG-001 list navigation never replaces like or combined share actions',
+      (tester) async {
+        var replies = 0;
+        var likes = 0;
+        var reposts = 0;
+        var quotes = 0;
+        var listViews = 0;
+        await _pump(
+          tester,
+          PostCard(
+            post: _post(repostCount: 2, quoteCount: 3),
+            onReply: () => replies++,
+            onLike: () => likes++,
+            onViewLikes: () => listViews++,
+            onRepost: () => reposts++,
+            onQuote: () => quotes++,
+          ),
+        );
+
+        expect(find.text('5'), findsOneWidget);
+        await tester.tap(find.byIcon(CraftskyIconsBold.like));
+        await tester.tap(find.byIcon(CraftskyIconsBold.comment));
+        await tester.tap(find.byIcon(CraftskyIconsBold.repost));
+        await tester.pumpAndSettle();
+        expect(find.text('Repost'), findsOneWidget);
+        expect(find.text('Quote'), findsOneWidget);
+        await tester.tap(find.text('Repost'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byIcon(CraftskyIconsBold.repost));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Quote'));
+
+        expect(replies, 1);
+        expect(likes, 1);
+        expect(reposts, 1);
+        expect(quotes, 1);
+        expect(listViews, 0);
+      },
+    );
 
     testWidgets('invokes card tap from body', (tester) async {
       var taps = 0;

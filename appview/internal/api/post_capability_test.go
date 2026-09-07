@@ -79,7 +79,7 @@ func (readPostCapability) RelationshipState(context.Context, syntax.DID, syntax.
 	return relationships.State{}, nil
 }
 
-func (readPostCapability) EngagementSummaries(context.Context, string, []string) (map[string]api.EngagementSummary, error) {
+func (readPostCapability) EngagementSummaries(context.Context, string, []string, []string) (map[string]api.EngagementSummary, error) {
 	return nil, nil
 }
 
@@ -111,7 +111,7 @@ func (conversationCapability) RelationshipState(context.Context, syntax.DID, syn
 	return relationships.State{}, nil
 }
 
-func (conversationCapability) EngagementSummaries(context.Context, string, []string) (map[string]api.EngagementSummary, error) {
+func (conversationCapability) EngagementSummaries(context.Context, string, []string, []string) (map[string]api.EngagementSummary, error) {
 	return nil, nil
 }
 
@@ -171,7 +171,7 @@ func (authorFeedHydrationCapability) RelationshipState(context.Context, syntax.D
 	return relationships.State{}, nil
 }
 
-func (authorFeedHydrationCapability) EngagementSummaries(context.Context, string, []string) (map[string]api.EngagementSummary, error) {
+func (authorFeedHydrationCapability) EngagementSummaries(context.Context, string, []string, []string) (map[string]api.EngagementSummary, error) {
 	return nil, nil
 }
 

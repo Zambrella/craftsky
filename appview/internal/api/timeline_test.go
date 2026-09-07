@@ -214,7 +214,7 @@ func (f *fakeLanguagePreferenceReader) Get(_ context.Context, did syntax.DID) (l
 	return f.preferences, f.err
 }
 
-func (f *fakeTimelineStore) EngagementSummaries(_ context.Context, viewerDID string, postURIs []string) (map[string]api.EngagementSummary, error) {
+func (f *fakeTimelineStore) EngagementSummaries(_ context.Context, viewerDID string, _ []string, postURIs []string) (map[string]api.EngagementSummary, error) {
 	f.lastEngagementViewer = viewerDID
 	f.lastEngagementPostURI = append([]string(nil), postURIs...)
 	if f.engagementErr != nil {

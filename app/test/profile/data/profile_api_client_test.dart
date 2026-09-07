@@ -21,9 +21,33 @@ void main() {
     'did': 'did:plc:alice',
     'handle': 'alice.craftsky.social',
     'displayName': 'Alice',
+    'pronouns': 'she/her',
     'description': 'textile person',
     'crafts': ['sewing'],
   };
+
+  test('decodes and serializes free-form pronouns', () async {
+    final dio = buildDio();
+    DioAdapter(dio: dio).onPut(
+      '/v1/profiles/me',
+      (server) => server.reply(200, sampleProfile()),
+      data: {
+        'displayName': 'Alice',
+        'pronouns': 'she/they',
+        'description': 'textile person',
+        'crafts': ['sewing'],
+      },
+    );
+
+    final profile = await ProfileApiClient(dio).updateMyProfile(
+      displayName: 'Alice',
+      pronouns: 'she/they',
+      description: 'textile person',
+      crafts: ['sewing'],
+    );
+
+    expect(profile.pronouns, 'she/her');
+  });
 
   test('decodes upcoming event availability from a profile response', () async {
     final dio = buildDio();

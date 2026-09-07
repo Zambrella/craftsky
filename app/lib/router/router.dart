@@ -17,7 +17,10 @@ import 'package:craftsky_app/design_playground/pages/design_playground_page.dart
 import 'package:craftsky_app/drafts/pages/drafts_page.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/pages/feed_page.dart';
+import 'package:craftsky_app/feed/pages/post_interaction_accounts_page.dart';
+import 'package:craftsky_app/feed/pages/post_quotes_page.dart';
 import 'package:craftsky_app/feed/pages/post_thread_page.dart';
+import 'package:craftsky_app/feed/providers/post_interaction_lists_provider.dart';
 import 'package:craftsky_app/instagram_migration/pages/instagram_migration_page.dart';
 import 'package:craftsky_app/languages/pages/languages_page.dart';
 import 'package:craftsky_app/notifications/pages/notification_settings_page.dart';
@@ -324,6 +327,20 @@ class AccountDeletionReauthCompleteRoute extends GoRouteData
     TypedGoRoute<PostThreadRoute>(
       path: RouteLocations.postThread,
       name: 'post-thread',
+      routes: [
+        TypedGoRoute<PostLikesRoute>(
+          path: RouteLocations.postLikesChild,
+          name: 'post-likes',
+        ),
+        TypedGoRoute<PostRepostsRoute>(
+          path: RouteLocations.postRepostsChild,
+          name: 'post-reposts',
+        ),
+        TypedGoRoute<PostQuotesRoute>(
+          path: RouteLocations.postQuotesChild,
+          name: 'post-quotes',
+        ),
+      ],
     ),
     TypedGoRoute<BusinessEventRoute>(
       path: RouteLocations.businessEvent,
@@ -816,6 +833,49 @@ class PostThreadRoute extends GoRouteData with $PostThreadRoute {
     rkey: RecordKey.parse(rkey),
     focus: focus == null ? null : AtUri.parse(focus!),
     initialCreatedPost: $extra,
+  );
+}
+
+class PostLikesRoute extends GoRouteData with $PostLikesRoute {
+  const PostLikesRoute({required this.did, required this.rkey});
+
+  final String did;
+  final String rkey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      PostInteractionAccountsPage(
+        did: Did.parse(did),
+        rkey: RecordKey.parse(rkey),
+        kind: PostInteractionAccountKind.likes,
+      );
+}
+
+class PostRepostsRoute extends GoRouteData with $PostRepostsRoute {
+  const PostRepostsRoute({required this.did, required this.rkey});
+
+  final String did;
+  final String rkey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      PostInteractionAccountsPage(
+        did: Did.parse(did),
+        rkey: RecordKey.parse(rkey),
+        kind: PostInteractionAccountKind.reposts,
+      );
+}
+
+class PostQuotesRoute extends GoRouteData with $PostQuotesRoute {
+  const PostQuotesRoute({required this.did, required this.rkey});
+
+  final String did;
+  final String rkey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) => PostQuotesPage(
+    did: Did.parse(did),
+    rkey: RecordKey.parse(rkey),
   );
 }
 

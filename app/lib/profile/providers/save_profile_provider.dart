@@ -44,6 +44,7 @@ class SaveProfile extends _$SaveProfile {
     BusinessDeclarationDraft? businessDraft,
     bool businessChanged = false,
     String? displayName,
+    String? pronouns,
     String? description,
     List<String>? crafts,
     UploadedBlob? avatar,
@@ -82,6 +83,7 @@ class SaveProfile extends _$SaveProfile {
             final repo = ref.read(profileRepositoryProvider);
             return repo.updateMe(
               displayName: displayName,
+              pronouns: pronouns,
               description: description,
               crafts: crafts,
               avatar: avatar,

@@ -297,6 +297,7 @@ class _ProfileCardSurface extends StatelessWidget {
                                             child: ProfileIdentity(
                                               handle: profile.handle.toString(),
                                               displayName: profile.displayName,
+                                              pronouns: profile.pronouns,
                                               businessLabel: isBusiness
                                                   ? AppLocalizations.of(
                                                       context,

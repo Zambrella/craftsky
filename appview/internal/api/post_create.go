@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api/envelope"
@@ -234,8 +235,17 @@ func CreatePostHandler(
 			Collection: syntax.NSID(craftskyPostNSID), Rkey: rkey, Record: body,
 		})
 		if err != nil {
+			attrs := pdsLogErrorAttrs(runID, pdsOperationPostCreate, pdsStagePDSRequest, err)
+			if errorName := boundedPDSAPIErrorName(err); errorName != "" {
+				attrs = append(attrs, "pds_error_name", errorName)
+			}
 			logger.Warn("post: durable PDS put failed",
-				pdsLogErrorAttrs(runID, pdsOperationPostCreate, pdsStagePDSRequest, err)...)
+				attrs...)
+			if verifiedVideo != nil && pdsAPIErrorName(err) == "BlobNotFound" {
+				envelope.WriteError(w, http.StatusBadGateway,
+					"video_blob_missing", "processed video blob is unavailable", runID, nil)
+				return
+			}
 			writePDSError(w, http.StatusBadGateway,
 				"pds_write_failed", "could not write post", runID, err)
 			return
@@ -273,6 +283,27 @@ func CreatePostHandler(
 		w.WriteHeader(http.StatusCreated)
 		_ = json.NewEncoder(w).Encode(resp)
 	})
+}
+
+func boundedPDSAPIErrorName(err error) string {
+	name := pdsAPIErrorName(err)
+	if name == "" {
+		return ""
+	}
+	switch name {
+	case "BlobNotFound", "InvalidMimeType", "InvalidSize", "InvalidRecord":
+		return name
+	default:
+		return "other"
+	}
+}
+
+func pdsAPIErrorName(err error) string {
+	var apiErr *atclient.APIError
+	if !errors.As(err, &apiErr) {
+		return ""
+	}
+	return apiErr.Name
 }
 
 func validateQuoteShareTarget(ctx context.Context, store shareTargetReader, ref StrongRef) (*ShareTargetRef, error) {

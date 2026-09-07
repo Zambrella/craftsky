@@ -49,7 +49,7 @@ type searchSuggestionReader interface {
 // capabilities used by the canonical post response builder. Keeping these
 // seams separate prevents query consumers from depending on PostStore.
 type searchEngagementReader interface {
-	EngagementSummaries(context.Context, string, []string) (map[string]EngagementSummary, error)
+	EngagementSummaries(context.Context, string, []string, []string) (map[string]EngagementSummary, error)
 }
 
 type searchQuoteReader interface {
@@ -193,7 +193,7 @@ func SearchHashtagPostsHandler(
 			envelope.WriteError(w, http.StatusInternalServerError, "search_unavailable", "search unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}
-		items, err := buildSearchPostResponses(r.Context(), rows, viewerDID.String(), store, resolver)
+		items, err := buildSearchPostResponses(r.Context(), rows, viewerDID.String(), contentLanguages, store, resolver)
 		if err != nil {
 			logger.Error("hashtag search response failed",
 				apiLogErrorAttrs(middleware.GetRunID(r.Context()), "search.hashtag_posts", "response_build")...)
@@ -356,7 +356,7 @@ func SearchPostsHandler(
 			envelope.WriteError(w, http.StatusInternalServerError, "search_unavailable", "search unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}
-		items, err := buildSearchPostResponses(r.Context(), rows, viewerDID.String(), store, resolver)
+		items, err := buildSearchPostResponses(r.Context(), rows, viewerDID.String(), contentLanguages, store, resolver)
 		if err != nil {
 			logger.Error("post search response failed",
 				apiLogErrorAttrs(middleware.GetRunID(r.Context()), "search.posts", "response_build")...)
@@ -408,7 +408,7 @@ func SearchProjectsHandler(
 			envelope.WriteError(w, http.StatusInternalServerError, "search_unavailable", "search unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}
-		items, err := buildSearchPostResponses(r.Context(), rows, viewerDID.String(), store, resolver)
+		items, err := buildSearchPostResponses(r.Context(), rows, viewerDID.String(), contentLanguages, store, resolver)
 		if err != nil {
 			logger.Error("project search response failed",
 				apiLogErrorAttrs(middleware.GetRunID(r.Context()), "search.projects", "response_build")...)
@@ -466,7 +466,7 @@ func ListProjectsHandler(
 			envelope.WriteError(w, http.StatusInternalServerError, "projects_unavailable", "projects unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}
-		items, err := buildSearchPostResponses(r.Context(), rows, viewerDID.String(), store, resolver)
+		items, err := buildSearchPostResponses(r.Context(), rows, viewerDID.String(), contentLanguages, store, resolver)
 		if err != nil {
 			logger.Error("project list response failed",
 				apiLogErrorAttrs(middleware.GetRunID(r.Context()), "projects.list", "response_build")...)
@@ -568,13 +568,13 @@ func DeleteRecentSearchHandler(store recentSearchDeleter, logger *slog.Logger) h
 	})
 }
 
-func buildSearchPostResponses(ctx context.Context, rows []SearchPostRow, viewerDID string, store searchPostHydrationReader, resolver HandleResolver) ([]*PostResponse, error) {
+func buildSearchPostResponses(ctx context.Context, rows []SearchPostRow, viewerDID string, contentLanguages []string, store searchPostHydrationReader, resolver HandleResolver) ([]*PostResponse, error) {
 	items := make([]*PostResponse, 0, len(rows))
 	uris := make([]string, 0, len(rows))
 	for _, row := range rows {
 		uris = append(uris, row.Post.URI)
 	}
-	summaries, err := store.EngagementSummaries(ctx, viewerDID, uris)
+	summaries, err := store.EngagementSummaries(ctx, viewerDID, contentLanguages, uris)
 	if err != nil {
 		return nil, err
 	}

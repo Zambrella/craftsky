@@ -691,6 +691,7 @@ final class _ReadProfileRepository extends Fake implements ProfileRepository {
   @override
   Future<Profile> updateMe({
     String? displayName,
+    String? pronouns,
     String? description,
     List<String>? crafts,
     UploadedBlob? avatar,

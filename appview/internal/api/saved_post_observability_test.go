@@ -168,7 +168,7 @@ func TestSavedPostMutationIsPrivateAndAuthorSeesNoSignal(t *testing.T) {
 	postStore := api.NewPostStore(pool)
 	savedStore := api.NewSavedPostStore(pool, api.SavedPostStoreOptions{Now: func() time.Time { return createdAt }})
 
-	before, err := postStore.EngagementSummaries(context.Background(), "did:plc:bob", []string{postURI})
+	before, err := postStore.EngagementSummaries(context.Background(), "did:plc:bob", []string{}, []string{postURI})
 	if err != nil {
 		t.Fatalf("author summary before save: %v", err)
 	}
@@ -177,11 +177,11 @@ func TestSavedPostMutationIsPrivateAndAuthorSeesNoSignal(t *testing.T) {
 	if err != nil || !result.Created {
 		t.Fatalf("private save result = %+v, err %v", result, err)
 	}
-	authorAfter, err := postStore.EngagementSummaries(context.Background(), "did:plc:bob", []string{postURI})
+	authorAfter, err := postStore.EngagementSummaries(context.Background(), "did:plc:bob", []string{}, []string{postURI})
 	if err != nil {
 		t.Fatalf("author summary after save: %v", err)
 	}
-	aliceAfter, err := postStore.EngagementSummaries(context.Background(), "did:plc:alice", []string{postURI})
+	aliceAfter, err := postStore.EngagementSummaries(context.Background(), "did:plc:alice", []string{}, []string{postURI})
 	if err != nil {
 		t.Fatalf("owner summary after save: %v", err)
 	}
@@ -212,7 +212,7 @@ func TestSavedPostMutationIsPrivateAndAuthorSeesNoSignal(t *testing.T) {
 	); err != nil {
 		t.Fatalf("delete private folder and saves: %v", err)
 	}
-	authorAfterDelete, err := postStore.EngagementSummaries(context.Background(), "did:plc:bob", []string{postURI})
+	authorAfterDelete, err := postStore.EngagementSummaries(context.Background(), "did:plc:bob", []string{}, []string{postURI})
 	if err != nil {
 		t.Fatalf("author summary after private delete: %v", err)
 	}

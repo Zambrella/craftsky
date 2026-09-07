@@ -12,6 +12,7 @@ import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'create_post_provider.g.dart';
@@ -47,6 +48,7 @@ class CreatePost extends _$CreatePost {
     CreatePostVideo? video,
     List<Map<String, dynamic>>? facets,
     ActiveAccountLease? ownership,
+    bool allowVideoBlobRecovery = false,
   }) async {
     final operationOwnership = ownership ?? captureActiveAccountOperation(ref);
     if (!isActiveAccountOperationCurrent(ref, operationOwnership)) return null;
@@ -110,6 +112,12 @@ class CreatePost extends _$CreatePost {
       return post;
     });
     if (!isActiveAccountOperationCurrent(ref, operationOwnership)) return null;
+    final error = result.error;
+    if (allowVideoBlobRecovery &&
+        error is ApiException &&
+        error.details.appViewError == 'video_blob_missing') {
+      Error.throwWithStackTrace(error, result.stackTrace ?? StackTrace.current);
+    }
     state = result;
     return result.value;
   }

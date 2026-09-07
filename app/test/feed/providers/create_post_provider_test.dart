@@ -17,6 +17,7 @@ import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -152,6 +153,49 @@ void main() {
             .create(text: 'video', langs: _langs, video: proof);
 
         expect(fake.lastCreateVideo, same(proof));
+      },
+    );
+
+    test(
+      'recoverable missing video blob remains loading and rethrows',
+      () async {
+        const failure = ApiServerError(
+          'http_502',
+          details: ApiFailureDetails(appViewError: 'video_blob_missing'),
+        );
+        final fake = FakePostRepository(
+          onCreate: ({required text, reply, images}) async => throw failure,
+        );
+        final container = ProviderContainer.test(
+          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        );
+        final transitions = <AsyncValue<Post?>>[];
+        container.listen(
+          createPostProvider,
+          (_, next) => transitions.add(next),
+        );
+
+        await expectLater(
+          container
+              .read(createPostProvider.notifier)
+              .create(
+                text: 'video',
+                langs: _langs,
+                video: const CreatePostVideo(
+                  jobId: 'job-one',
+                  blob: CreatePostVideoBlob(
+                    cid: 'bafyvideo',
+                    mimeType: 'video/mp4',
+                    size: 8,
+                  ),
+                ),
+                allowVideoBlobRecovery: true,
+              ),
+          throwsA(same(failure)),
+        );
+
+        expect(container.read(createPostProvider).isLoading, isTrue);
+        expect(transitions.whereType<AsyncError<Post?>>(), isEmpty);
       },
     );
 

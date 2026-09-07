@@ -83,8 +83,8 @@ func scanPostRowWithExtraScore(scanner pgx.Row) (SearchPostRow, error) {
 	return SearchPostRow{Post: post, Score: score}, nil
 }
 
-func (s *SearchStore) EngagementSummaries(ctx context.Context, viewerDID string, postURIs []string) (map[string]EngagementSummary, error) {
-	return s.engagementReader.EngagementSummaries(ctx, viewerDID, postURIs)
+func (s *SearchStore) EngagementSummaries(ctx context.Context, viewerDID string, contentLanguages, postURIs []string) (map[string]EngagementSummary, error) {
+	return s.engagementReader.EngagementSummaries(ctx, viewerDID, contentLanguages, postURIs)
 }
 
 func (s *SearchStore) QuoteViewRows(ctx context.Context, refs []ResponseStrongRef) (map[string]*QuoteViewRow, error) {

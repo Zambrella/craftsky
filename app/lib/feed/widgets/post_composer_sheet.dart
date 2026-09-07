@@ -1013,6 +1013,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
           ({
             required authorizationHeader,
             required cancelToken,
+            required bypassDeduplication,
             required onProgress,
           }) => service.upload(
             source: VideoUploadSource(
@@ -1021,13 +1022,14 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
             ),
             ownerDid: owner.session.account.did.value,
             authorizationHeader: authorizationHeader,
+            bypassDeduplication: bypassDeduplication,
             cancelToken: cancelToken,
             onProgress: onProgress,
           ),
       poll: (jobId, cancelToken) =>
           service.getJobStatus(jobId, cancelToken: cancelToken),
       wait: Future<void>.delayed,
-      publish: (video) async {
+      publish: (video, {required allowBlobRecovery}) async {
         final created = await ref
             .read(createPostProvider.notifier)
             .create(
@@ -1036,8 +1038,10 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
               video: video,
               facets: facets.isEmpty ? null : facets,
               ownership: owner,
+              allowVideoBlobRecovery: allowBlobRecovery,
             );
-        _submissionSucceeded = created != null;
+        if (created == null) throw const VideoPublicationException(null);
+        _submissionSucceeded = true;
       },
       onProgress: (progress) {
         if (mounted) setState(() => _videoProgress = progress);

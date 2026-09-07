@@ -173,12 +173,12 @@ func TestTerminalOwnerIsInvisibleAndIneffectiveBeforePhysicalPurge(t *testing.T)
 	if _, err := posts.ReadOne(ctx, other.String(), "other-post"); !errors.Is(err, api.ErrPostNotFound) {
 		t.Fatalf("pre-terminal moderation fixture did not hide other post: %v", err)
 	}
-	preTerminalEngagement, err := posts.EngagementSummaries(ctx, viewer.String(), []string{otherURI})
+	preTerminalEngagement, err := posts.EngagementSummaries(ctx, viewer.String(), []string{}, []string{otherURI})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := preTerminalEngagement[otherURI]; got.LikeCount != 1 || got.RepostCount != 1 || got.ReplyCount != 1 {
-		t.Fatalf("pre-terminal engagement fixture = %+v, want one like/repost/reply", got)
+	if got := preTerminalEngagement[otherURI]; got.LikeCount != 0 || got.RepostCount != 0 || got.ReplyCount != 1 {
+		t.Fatalf("pre-terminal engagement fixture = %+v, want blocked interactions hidden and one reply", got)
 	}
 	preTerminalOther, err := profiles.Read(ctx, other.String(), viewer.String())
 	if err != nil {
@@ -295,7 +295,7 @@ func TestTerminalOwnerIsInvisibleAndIneffectiveBeforePhysicalPurge(t *testing.T)
 	if _, err := posts.ReadOne(ctx, other.String(), "other-post"); err != nil {
 		t.Fatalf("terminal moderation source remained effective: %v", err)
 	}
-	engagement, err := posts.EngagementSummaries(ctx, viewer.String(), []string{otherURI})
+	engagement, err := posts.EngagementSummaries(ctx, viewer.String(), []string{}, []string{otherURI})
 	if err != nil {
 		t.Fatal(err)
 	}
