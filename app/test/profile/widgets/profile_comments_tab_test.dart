@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
@@ -7,6 +9,7 @@ import 'package:craftsky_app/languages/providers/language_preferences_provider.d
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_comments_tab.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -74,6 +77,21 @@ Future<void> _pump(WidgetTester tester, {required FakePostRepository repo}) {
 
 void main() {
   group('ProfileCommentsTab', () {
+    testWidgets('shows comment skeletons during the initial load', (
+      tester,
+    ) async {
+      final pending = Completer<PostPage>();
+      final repo = FakePostRepository(
+        onListCommentsByAuthor: (_, {cursor, limit}) => pending.future,
+      );
+
+      await _pump(tester, repo: repo);
+      await tester.pump();
+
+      expect(find.byType(CraftskySkeletonSliverList), findsOneWidget);
+      expect(find.byType(CommentRowSkeleton), findsWidgets);
+    });
+
     testWidgets('scrolling near the end appends the next page', (tester) async {
       final calls = <({String? cursor, int? limit})>[];
       final repo = FakePostRepository(

@@ -12,6 +12,7 @@ import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
@@ -66,7 +67,9 @@ void main() {
         await _pumpPage(tester, repository, kind: testCase.kind);
         await tester.pump();
 
-        expect(find.byType(StitchProgressIndicator), findsOneWidget);
+        expect(find.byType(CraftskySkeletonList), findsOneWidget);
+        expect(find.byType(AccountRowSkeleton), findsWidgets);
+        expect(find.byType(StitchProgressIndicator), findsNothing);
         expect(find.text(testCase.title), findsOneWidget);
         expect(find.text('${testCase.title} (0)'), findsNothing);
 

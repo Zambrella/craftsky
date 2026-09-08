@@ -18,11 +18,11 @@ import 'package:craftsky_app/languages/providers/language_preferences_provider.d
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -395,7 +395,20 @@ void main() {
     );
 
     expect(find.text('Feed'), findsOneWidget);
-    expect(find.byType(StitchProgressIndicator), findsOneWidget);
+    expect(
+      tester
+          .widget<CraftskySkeletonSliverList>(
+            find.byType(CraftskySkeletonSliverList),
+          )
+          .itemCount,
+      3,
+    );
+    expect(
+      tester
+          .widget<PostCardSkeleton>(find.byType(PostCardSkeleton).first)
+          .showMedia,
+      isTrue,
+    );
     expect(find.text('timeline post a'), findsNothing);
 
     gate.complete(const TimelinePage(items: []));

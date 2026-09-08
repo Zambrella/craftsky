@@ -23,6 +23,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/errors/notification_destination_error.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
 import 'package:craftsky_app/shared/widgets/sort_menu_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -229,7 +230,11 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
                   ),
                 ),
               ),
-              _ => const Center(child: StitchProgressIndicator()),
+              _ => CraftskySkeletonList(
+                itemBuilder: (context, index) => CommentRowSkeleton(
+                  indent: index == 0 ? 0 : 24,
+                ),
+              ),
             },
       bottomNavigationBar: switch (visibleSection) {
         final value? when formFactor.isSmall => _ReplyPrompt(

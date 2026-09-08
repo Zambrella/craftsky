@@ -17,6 +17,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -194,6 +195,37 @@ Future<GoRouter> _pumpThreadRoute(
 }
 
 void main() {
+  testWidgets('shows comment skeletons during the initial thread load', (
+    tester,
+  ) async {
+    final pending = Completer<PostCommentSection>();
+    final repository = FakePostRepository(
+      onCommentSection: (did, rkey, {cursor, sort, focus, limit}) =>
+          pending.future,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [postRepositoryProvider.overrideWithValue(repository)],
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: FormFactorWidget(
+            child: PostThreadPage(
+              did: Did.parse('did:plc:alice'),
+              rkey: RecordKey.parse('root'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byType(CraftskySkeletonList), findsOneWidget);
+    expect(find.byType(CommentRowSkeleton), findsWidgets);
+  });
+
   testWidgets(
     'AT-001 renders only nonzero root summary links immediately after the card',
     (tester) async {

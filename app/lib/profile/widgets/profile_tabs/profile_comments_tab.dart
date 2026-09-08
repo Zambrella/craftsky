@@ -15,6 +15,7 @@ import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -77,9 +78,10 @@ class ProfileCommentsTab extends ConsumerWidget {
         error: error,
         onRetry: () => ref.invalidate(userCommentsProvider(did)),
       ),
-      _ => const SliverFillRemaining(
-        hasScrollBody: false,
-        child: Center(child: StitchProgressIndicator()),
+      _ => CraftskySkeletonSliverList(
+        itemBuilder: (context, index) => CommentRowSkeleton(
+          indent: index.isOdd ? 24 : 0,
+        ),
       ),
     };
   }

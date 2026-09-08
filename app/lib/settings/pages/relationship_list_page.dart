@@ -6,6 +6,7 @@ import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/settings/providers/relationship_list_provider.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
@@ -48,7 +49,7 @@ class RelationshipListPage extends ConsumerWidget {
           },
           onRetry: () => ref.invalidate(provider),
         ),
-        _ => const Center(child: StitchProgressIndicator()),
+        _ => const CraftskySkeletonList(itemBuilder: _buildAccountSkeleton),
       },
     );
   }
@@ -95,6 +96,9 @@ class RelationshipListPage extends ConsumerWidget {
     }
   }
 }
+
+Widget _buildAccountSkeleton(BuildContext context, int index) =>
+    const AccountRowSkeleton();
 
 class _RelationshipListBody extends StatelessWidget {
   const _RelationshipListBody({

@@ -17,10 +17,9 @@ class _SuggestionList {
     final spacing =
         Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
     if (isWaitingForDebounce || query.isEmpty) {
-      return const [
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: Center(child: StitchProgressIndicator()),
+      return [
+        CraftskySkeletonSliverList(
+          itemBuilder: (context, index) => const AccountRowSkeleton(),
         ),
       ];
     }
@@ -61,10 +60,9 @@ class _SuggestionList {
           ),
         ),
       ],
-      _ => const [
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: Center(child: StitchProgressIndicator()),
+      _ => [
+        CraftskySkeletonSliverList(
+          itemBuilder: (context, index) => const AccountRowSkeleton(),
         ),
       ],
     };

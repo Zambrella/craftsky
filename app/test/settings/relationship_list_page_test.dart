@@ -7,6 +7,7 @@ import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/settings/pages/relationship_list_page.dart';
 import 'package:craftsky_app/settings/providers/relationship_list_provider.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,6 +27,19 @@ Widget _app(FakeProfileRepository repo, RelationshipListKind kind) =>
     );
 
 void main() {
+  testWidgets('initial loading uses account row skeletons', (tester) async {
+    final page = Completer<ProfileAccountPage>();
+    final repo = FakeProfileRepository(
+      onListMutedProfiles: ({limit, cursor}) => page.future,
+    );
+
+    await tester.pumpWidget(_app(repo, RelationshipListKind.muted));
+    await tester.pump();
+
+    expect(find.byType(CraftskySkeletonList), findsOneWidget);
+    expect(find.byType(AccountRowSkeleton), findsNWidgets(6));
+  });
+
   test('provider owns pagination and row mutation state', () async {
     final unmute = Completer<ProfileRelationship>();
     final cursors = <String?>[];

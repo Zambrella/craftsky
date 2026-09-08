@@ -71,13 +71,14 @@ void main() {
       ..error = const ApiBadRequest('pds_record_conflict');
     final current = _profile('bafy-current');
     final reloaded = _profile('bafy-new', tagline: 'Changed elsewhere');
+    final reloadCompleter = Completer<Profile>();
     var reloads = 0;
     final container = _container(
       repository,
       current,
       loader: () async {
         reloads++;
-        return reloaded;
+        return reloadCompleter.future;
       },
     );
     addTearDown(container.dispose);
@@ -93,7 +94,14 @@ void main() {
     expect(await controller.replaceProducts(currentProducts), isFalse);
     expect(repository.bodies, hasLength(1));
 
-    await controller.reloadAfterConflict();
+    final reload = controller.reloadAfterConflict();
+    await Future<void>.delayed(Duration.zero);
+    final loading = container.read(productsControllerProvider);
+    expect(loading.isLoading, isTrue);
+    expect(loading.requireValue.products, currentProducts);
+
+    reloadCompleter.complete(reloaded);
+    await reload;
     final state = container.read(productsControllerProvider).requireValue;
     expect(reloads, 1);
     expect(state.declaration.expectedCid.toString(), 'bafy-new');

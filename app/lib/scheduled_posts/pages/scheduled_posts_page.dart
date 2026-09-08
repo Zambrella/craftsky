@@ -10,6 +10,7 @@ import 'package:craftsky_app/scheduled_posts/providers/scheduled_post_repository
 import 'package:craftsky_app/scheduled_posts/providers/scheduled_posts_provider.dart';
 import 'package:craftsky_app/scheduled_posts/widgets/scheduled_media_thumbnail.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
@@ -31,7 +32,9 @@ class ScheduledPostsPage extends ConsumerWidget {
           ),
           title: Text(l10n.scheduledPostsTitle),
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const CraftskySkeletonList(
+          itemBuilder: _buildScheduledPostSkeleton,
+        ),
       );
     }
     final scheduled = ref.watch(scheduledPostsProvider(account));
@@ -97,11 +100,16 @@ class ScheduledPostsPage extends ConsumerWidget {
         AsyncError() => _ScheduledPostsError(
           onRetry: ref.read(scheduledPostsProvider(account).notifier).refresh,
         ),
-        _ => const Center(child: CircularProgressIndicator()),
+        _ => const CraftskySkeletonList(
+          itemBuilder: _buildScheduledPostSkeleton,
+        ),
       },
     );
   }
 }
+
+Widget _buildScheduledPostSkeleton(BuildContext context, int index) =>
+    const ManagementRowSkeleton();
 
 bool _isActiveLeaseCurrent(WidgetRef ref, ActiveAccountLease lease) =>
     ref.read(sessionRegistryProvider).value?.isCurrent(lease) ?? false;

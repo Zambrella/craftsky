@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
@@ -27,8 +29,10 @@ final class _RegistryStorage implements SessionRegistryStorage {
 }
 
 final class _RequestHandler extends RequestInterceptorHandler {
+  bool nextCalled = false;
+
   @override
-  void next(RequestOptions options) {}
+  void next(RequestOptions options) => nextCalled = true;
 }
 
 final class _ErrorHandler extends ErrorInterceptorHandler {
@@ -46,7 +50,40 @@ void main() {
     // Signed-out startup gets device identity and error mapping only. Once a
     // registry account is active, the provider rebuilds with lease-scoped 401
     // invalidation as well.
-    expect(dio.interceptors, hasLength(3));
+    const configuredDelay = int.fromEnvironment('CRAFTSKY_API_DELAY_MS');
+    final delayInterceptors = dio.interceptors
+        .whereType<DebugApiDelayInterceptor>();
+    if (configuredDelay > 0) {
+      expect(delayInterceptors, hasLength(1));
+      expect(
+        delayInterceptors.single.delay.inMilliseconds,
+        configuredDelay,
+      );
+    } else {
+      expect(delayInterceptors, isEmpty);
+    }
+    expect(dio.interceptors.whereType<SessionAuthInterceptor>(), hasLength(1));
+  });
+
+  test('debug API delay holds a request for the configured duration', () async {
+    final gate = Completer<void>();
+    Duration? requestedDelay;
+    final interceptor = DebugApiDelayInterceptor(
+      const Duration(seconds: 3),
+      wait: (delay) {
+        requestedDelay = delay;
+        return gate.future;
+      },
+    );
+    final handler = _RequestHandler();
+
+    interceptor.onRequest(RequestOptions(path: '/v1/feed'), handler);
+    expect(requestedDelay, const Duration(seconds: 3));
+    expect(handler.nextCalled, isFalse);
+
+    gate.complete();
+    await Future<void>.delayed(Duration.zero);
+    expect(handler.nextCalled, isTrue);
   });
 
   test(

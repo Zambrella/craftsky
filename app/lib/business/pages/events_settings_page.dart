@@ -11,6 +11,7 @@ import 'package:craftsky_app/business/providers/profile_business_events_provider
 import 'package:craftsky_app/business/widgets/event_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
@@ -29,10 +30,10 @@ class EventsSettingsPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: Text(l10n.businessEventsSettingsTitle)),
       body: identity.when(
-        loading: () => Center(
-          child: CircularProgressIndicator(
-            semanticsLabel: l10n.businessLoading,
-          ),
+        loading: () => const CraftskySkeletonList(
+          itemBuilder: _buildEventSkeleton,
+          itemCount: 3,
+          padding: EdgeInsets.all(16),
         ),
         error: (_, _) => _InitialError(
           onRetry: () => ref.invalidate(activeAccountIdentityProvider),
@@ -115,10 +116,10 @@ class _EventView extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final events = ref.watch(ownerBusinessEventsProvider(filter));
     return events.when(
-      loading: () => Center(
-        child: CircularProgressIndicator(
-          semanticsLabel: AppLocalizations.of(context).businessLoading,
-        ),
+      loading: () => const CraftskySkeletonList(
+        itemBuilder: _buildEventSkeleton,
+        itemCount: 3,
+        padding: EdgeInsets.all(16),
       ),
       error: (_, _) => _InitialError(
         onRetry: () => unawaited(
@@ -129,6 +130,9 @@ class _EventView extends ConsumerWidget {
     );
   }
 }
+
+Widget _buildEventSkeleton(BuildContext context, int index) =>
+    EventCardSkeleton(showMedia: index == 0);
 
 class _EventList extends ConsumerWidget {
   const _EventList({required this.filter, required this.state});
