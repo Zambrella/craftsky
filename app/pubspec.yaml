@@ -91,7 +91,6 @@ flutter:
   uses-material-design: true
   generate: true
   assets:
-    - assets/design/paper-grain.svg
     - assets/design/logo/
     - assets/design/icons/
     - assets/profile_backgrounds/
