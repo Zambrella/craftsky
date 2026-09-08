@@ -12,6 +12,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -184,9 +185,11 @@ class ProfileTabLoadingSliver extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SliverFillRemaining(
-      hasScrollBody: false,
-      child: Center(child: StitchProgressIndicator()),
+    return CraftskySkeletonSliverList(
+      itemCount: 3,
+      itemBuilder: (context, index) => PostCardSkeleton(
+        showMedia: index == 0,
+      ),
     );
   }
 }

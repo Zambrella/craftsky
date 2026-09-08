@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
@@ -13,6 +15,7 @@ import 'package:craftsky_app/languages/providers/language_preferences_provider.d
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_posts_tab.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -109,6 +112,19 @@ Future<void> _pump(
 
 void main() {
   group('ProfilePostsTab', () {
+    testWidgets('shows post skeletons during the initial load', (tester) async {
+      final pending = Completer<PostPage>();
+      final repo = FakePostRepository(
+        onListByAuthor: (_, {cursor, limit}) => pending.future,
+      );
+
+      await _pump(tester, repo: repo, isOwnProfile: false);
+      await tester.pump();
+
+      expect(find.byType(CraftskySkeletonSliverList), findsOneWidget);
+      expect(find.byType(PostCardSkeleton), findsWidgets);
+    });
+
     testWidgets('IT-014 renders a full external card on profile posts', (
       tester,
     ) async {

@@ -18,9 +18,9 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -42,7 +42,12 @@ class PostQuotesPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: Text(l10n.postInteractionQuotesTitle)),
       body: switch ((data, quotes.error)) {
-        (null, null) => const Center(child: StitchProgressIndicator()),
+        (null, null) => CraftskySkeletonList(
+          itemCount: 3,
+          itemBuilder: (context, index) => PostCardSkeleton(
+            showMedia: index == 0,
+          ),
+        ),
         (null, final error?) => _InitialError(
           error: error,
           onRetry: () => unawaited(ref.read(provider.notifier).refresh()),

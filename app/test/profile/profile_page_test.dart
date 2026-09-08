@@ -32,6 +32,7 @@ import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -54,6 +55,29 @@ final _emptyPostRepository = FakePostRepository(
 
 void main() {
   group('ProfilePage', () {
+    testWidgets('shows a profile shell skeleton during the initial fetch', (
+      tester,
+    ) async {
+      final pending = Completer<Profile>();
+      final repo = FakeProfileRepository(onFetch: (_) => pending.future);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [profileRepositoryProvider.overrideWithValue(repo)],
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: ProfilePage(did: Did.parse('did:plc:alice')),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.byType(CraftskySkeleton), findsOneWidget);
+      expect(find.byType(PostCardSkeleton), findsOneWidget);
+    });
+
     testWidgets('remote collection tabs refresh the profile, except Reposts', (
       tester,
     ) async {

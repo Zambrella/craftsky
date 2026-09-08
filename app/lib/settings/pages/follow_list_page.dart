@@ -6,6 +6,7 @@ import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_account_list_tile.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
@@ -125,7 +126,7 @@ class _FollowListPageState extends ConsumerState<FollowListPage> {
     return Scaffold(
       appBar: AppBar(title: Text('$title ($_totalCount)')),
       body: _isInitialLoading
-          ? const Center(child: StitchProgressIndicator())
+          ? const CraftskySkeletonList(itemBuilder: _buildAccountSkeleton)
           : _initialError != null
           ? _FollowListError(onRetry: _loadFirstPage)
           : _FollowListBody(
@@ -139,6 +140,9 @@ class _FollowListPageState extends ConsumerState<FollowListPage> {
     );
   }
 }
+
+Widget _buildAccountSkeleton(BuildContext context, int index) =>
+    const AccountRowSkeleton();
 
 class _FollowListError extends StatelessWidget {
   const _FollowListError({required this.onRetry});

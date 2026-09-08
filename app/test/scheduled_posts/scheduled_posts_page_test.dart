@@ -12,6 +12,8 @@ import 'package:craftsky_app/scheduled_posts/models/schedule_time.dart';
 import 'package:craftsky_app/scheduled_posts/models/scheduled_post.dart';
 import 'package:craftsky_app/scheduled_posts/pages/scheduled_posts_page.dart';
 import 'package:craftsky_app/scheduled_posts/providers/scheduled_post_repository_provider.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
+import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -112,6 +114,7 @@ void main() {
         UncontrolledProviderScope(
           container: container,
           child: MaterialApp(
+            theme: AppTheme.lightThemeData,
             navigatorObservers: [observer],
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             supportedLocales: AppLocalizations.supportedLocales,
@@ -119,6 +122,8 @@ void main() {
           ),
         ),
       );
+      expect(find.byType(CraftskySkeletonList), findsOneWidget);
+      expect(find.byType(ManagementRowSkeleton), findsWidgets);
       await tester.pumpAndSettle();
 
       await tester.tap(find.byTooltip('Edit scheduled post'));

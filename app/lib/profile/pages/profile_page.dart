@@ -36,11 +36,13 @@ import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/errors/notification_destination_error.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:skeletonizer/skeletonizer.dart';
 
 /// Unified profile screen. Used by the bottom-nav `Profile` branch
 /// (no [did], resolves to the signed-in user) and by
@@ -157,7 +159,7 @@ class _ProfileScaffold extends ConsumerWidget {
       ),
       _ => Scaffold(
         appBar: _profileNavigationAppBar(context),
-        body: const Center(child: StitchProgressIndicator()),
+        body: const _ProfileShellSkeleton(),
       ),
     };
   }
@@ -179,6 +181,67 @@ class _ProfileScaffold extends ConsumerWidget {
     },
     onViewNotifications: () => const NotificationsRoute().go(context),
   );
+}
+
+class _ProfileShellSkeleton extends StatelessWidget {
+  const _ProfileShellSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return CraftskySkeleton(
+      child: ListView(
+        physics: const NeverScrollableScrollPhysics(),
+        children: [
+          const Bone(height: 128),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Bone.circle(size: 88),
+                    Spacer(),
+                    Bone(width: 112, height: 40, uniRadius: 20),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Bone.text(width: 176, style: textTheme.headlineSmall),
+                const SizedBox(height: 6),
+                Bone.text(width: 128, style: textTheme.bodyMedium),
+                const SizedBox(height: 16),
+                Bone.multiText(style: textTheme.bodyMedium),
+                const SizedBox(height: 16),
+                const Row(
+                  children: [
+                    Bone(width: 84, height: 24, uniRadius: 12),
+                    SizedBox(width: 8),
+                    Bone(width: 96, height: 24, uniRadius: 12),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                Bone(width: 64, height: 20, uniRadius: 10),
+                Bone(width: 72, height: 20, uniRadius: 10),
+                Bone(width: 68, height: 20, uniRadius: 10),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          const PostCardSkeleton(showMedia: true),
+        ],
+      ),
+    );
+  }
 }
 
 PreferredSizeWidget? _profileNavigationAppBar(BuildContext context) {
@@ -788,9 +851,12 @@ class _ProfileTabScrollView extends ConsumerWidget {
               ? () => const BusinessEventsRoute().go(context)
               : null,
         ),
-        null => const SliverFillRemaining(
-          hasScrollBody: false,
-          child: Center(child: StitchProgressIndicator()),
+        null => CraftskySkeletonSliverList(
+          itemCount: 3,
+          itemBuilder: (context, index) => Padding(
+            padding: const EdgeInsets.all(12),
+            child: EventCardSkeleton(showMedia: index == 0),
+          ),
         ),
       },
       ProfileTab.about => ProfileAboutTab(profile: profile),

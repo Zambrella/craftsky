@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/bootstrap.dart';
@@ -10,6 +12,7 @@ import 'package:craftsky_app/saved_posts/pages/saved_posts_page.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_post_repository_provider.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_sort_button.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
@@ -66,10 +69,41 @@ void main() {
         unfiled: const SavedPostPage(items: []),
       ),
     );
+    expect(find.byType(CraftskySkeletonList), findsOneWidget);
+    expect(find.byType(ManagementRowSkeleton), findsWidgets);
     await tester.pumpAndSettle();
 
     expect(find.text('Nothing saved yet'), findsOneWidget);
     expect(find.text('Unfiled'), findsNothing);
+  });
+
+  testWidgets('skeletonizes only the unresolved overview section', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final repository = _PartialLoadingRepository();
+    await _pump(tester, repository, disableAnimations: true);
+    for (var pump = 0; pump < 20 && repository.folderCalls == 0; pump++) {
+      await tester.pump(const Duration(milliseconds: 1));
+    }
+    expect(repository.folderCalls, 1);
+    expect(find.byType(CraftskySkeletonSliverList), findsOneWidget);
+    expect(find.bySemanticsLabel('Loading'), findsOneWidget);
+    repository.folders.complete(
+      SavedPostFolderPage(items: [_folder('folder-a', 'Ideas')]),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Ideas'), findsOneWidget);
+    expect(find.byType(CraftskySkeletonSliverList), findsOneWidget);
+    expect(find.byType(ManagementRowSkeleton), findsWidgets);
+
+    repository.unfiled.complete(const SavedPostPage(items: []));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CraftskySkeletonSliverList), findsNothing);
+    expect(find.text('Ideas'), findsOneWidget);
+    semantics.dispose();
   });
 
   testWidgets('IT-008 refreshes a fully empty overview into hierarchy', (
@@ -244,8 +278,9 @@ void main() {
 
 Future<void> _pump(
   WidgetTester tester,
-  SavedPostRepository repository,
-) => tester.pumpWidget(
+  SavedPostRepository repository, {
+  bool disableAnimations = false,
+}) => tester.pumpWidget(
   ProviderScope(
     overrides: [
       authSessionProvider.overrideWith(SignedInAuthSession.new),
@@ -255,6 +290,12 @@ Future<void> _pump(
     ],
     child: MaterialApp(
       theme: AppTheme.lightThemeData,
+      builder: disableAnimations
+          ? (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(disableAnimations: true),
+              child: child!,
+            )
+          : null,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
       supportedLocales: AppLocalizations.supportedLocales,
       home: const SavedPostsPage(),
@@ -364,6 +405,27 @@ final class _OverviewRepository implements SavedPostRepository {
     String folderId, {
     required bool deleteSaves,
   }) => throw UnimplementedError();
+}
+
+final class _PartialLoadingRepository extends Fake
+    implements SavedPostRepository {
+  final folders = Completer<SavedPostFolderPage>();
+  final unfiled = Completer<SavedPostPage>();
+  int folderCalls = 0;
+
+  @override
+  Future<SavedPostFolderPage> listFolders({String? cursor, int? limit}) {
+    folderCalls++;
+    return folders.future;
+  }
+
+  @override
+  Future<SavedPostPage> list({
+    required SavedPostScope scope,
+    required SavedPostSort sort,
+    String? cursor,
+    int? limit,
+  }) => unfiled.future;
 }
 
 final class _OverviewRefreshRepository implements SavedPostRepository {

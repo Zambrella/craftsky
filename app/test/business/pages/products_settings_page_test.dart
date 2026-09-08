@@ -13,6 +13,7 @@ import 'package:craftsky_app/business/widgets/product_editor.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
@@ -38,7 +39,7 @@ void main() {
         await tester.pumpWidget(_app(_identity(_profile(withProducts: true))));
 
         expect(
-          tester.getSemantics(find.byType(CircularProgressIndicator)).label,
+          tester.getSemantics(find.byType(CraftskySkeleton)).label,
           contains('Loading'),
         );
         await tester.pumpAndSettle();
@@ -62,7 +63,8 @@ void main() {
     await tester.pumpWidget(
       _app(_identity(_profile(withProducts: true)), repository: _Repository()),
     );
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byType(CraftskySkeletonList), findsOneWidget);
+    expect(find.byType(ManagementRowSkeleton), findsWidgets);
     await tester.pumpAndSettle();
 
     expect(find.text('One'), findsOneWidget);
@@ -159,10 +161,11 @@ void main() {
             (_) async => throw StateError('failed'),
           ),
         ],
-        child: const MaterialApp(
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: ProductsSettingsPage(),
+          home: const ProductsSettingsPage(),
         ),
       ),
     );

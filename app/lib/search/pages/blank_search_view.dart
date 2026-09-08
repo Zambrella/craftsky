@@ -43,10 +43,9 @@ class _BlankSearchView {
           onRetry: () => ref.invalidate(blankSearchProvider),
         ),
       ],
-      _ => const [
-        SliverFillRemaining(
-          hasScrollBody: false,
-          child: Center(child: StitchProgressIndicator()),
+      _ => [
+        CraftskySkeletonSliverList(
+          itemBuilder: (context, index) => const AccountRowSkeleton(),
         ),
       ],
     };

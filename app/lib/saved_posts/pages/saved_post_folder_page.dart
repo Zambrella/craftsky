@@ -13,6 +13,7 @@ import 'package:craftsky_app/saved_posts/widgets/saved_post_row.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_row_actions.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_sort_button.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
@@ -152,11 +153,16 @@ class _SavedPostFolderScreenState extends ConsumerState<SavedPostFolderScreen> {
             onRetry: () => ref.invalidate(savedPostsProvider(key)),
           ),
         ),
-        _ => const Center(child: CircularProgressIndicator()),
+        _ => const CraftskySkeletonList(
+          itemBuilder: _buildSavedPostSkeleton,
+        ),
       },
     );
   }
 }
+
+Widget _buildSavedPostSkeleton(BuildContext context, int index) =>
+    const ManagementRowSkeleton();
 
 class _SavedPostListFailure extends StatelessWidget {
   const _SavedPostListFailure({required this.error, required this.onRetry});

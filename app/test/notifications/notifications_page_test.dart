@@ -17,6 +17,7 @@ import 'package:craftsky_app/profile/providers/profile_repository_provider.dart'
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -48,6 +49,25 @@ void main() {
       tester.element(find.byType(NotificationsPage)),
     );
     expect(find.text(l10n.notificationsTitle), findsWidgets);
+  });
+
+  testWidgets('initial loading uses activity row skeletons', (tester) async {
+    final page = Completer<NotificationPage>();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          notificationRepositoryProvider.overrideWithValue(
+            _QueueNotificationRepository([page.future]),
+          ),
+        ],
+        child: const _TestApp(home: NotificationsPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byType(CraftskySkeletonSliverList), findsOneWidget);
+    expect(find.byType(ActivityRowSkeleton), findsNWidgets(6));
+    expect(find.byType(StitchProgressIndicator), findsNothing);
   });
 
   testWidgets('refresh indicator starts below the sliver app bar', (

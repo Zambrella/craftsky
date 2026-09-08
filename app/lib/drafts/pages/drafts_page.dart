@@ -13,6 +13,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
@@ -37,7 +38,9 @@ final class DraftsPage extends ConsumerWidget {
           ),
           title: Text(l10n.draftsTitle),
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const CraftskySkeletonList(
+          itemBuilder: _buildDraftSkeleton,
+        ),
       );
     }
     final drafts = ref.watch(localPostDraftsProvider(account));
@@ -91,7 +94,9 @@ final class DraftsPage extends ConsumerWidget {
         AsyncError() => _DraftsError(
           onRetry: ref.read(localPostDraftsProvider(account).notifier).refresh,
         ),
-        _ => const Center(child: CircularProgressIndicator()),
+        _ => const CraftskySkeletonList(
+          itemBuilder: _buildDraftSkeleton,
+        ),
       },
     );
   }
@@ -134,6 +139,9 @@ final class DraftsPage extends ConsumerWidget {
     }
   }
 }
+
+Widget _buildDraftSkeleton(BuildContext context, int index) =>
+    const ManagementRowSkeleton();
 
 bool _isActiveLeaseCurrent(WidgetRef ref, ActiveAccountLease lease) =>
     ref.read(sessionRegistryProvider).value?.isCurrent(lease) ?? false;

@@ -62,6 +62,17 @@ for that run; the remaining local settings still come from the config file.
 Release builds **require** a config file with `CRAFTSKY_API_BASE_URL`; the app
 throws on first API call if it's missing.
 
+To keep initial loading UI visible for inspection, add a delay in milliseconds
+to `config/local.env` and `config/local-android.env` as needed:
+
+```env
+CRAFTSKY_API_DELAY_MS=3000
+```
+
+The delay applies only to AppView requests in debug builds. It does not affect
+release builds or direct video uploads. Remove the setting or set it to `0` to
+restore normal request timing.
+
 `just app-run-android` also installs an ADB reverse mapping from the emulator's
 loopback address to the same worktree-specific host port. The app uses
 `10.0.2.2:<port>` for normal API requests, but atproto's localhost OAuth client

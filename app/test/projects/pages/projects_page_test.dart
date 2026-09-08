@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
@@ -8,6 +10,7 @@ import 'package:craftsky_app/languages/providers/language_preferences_provider.d
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/projects/pages/projects_page.dart';
 import 'package:craftsky_app/projects/providers/project_repository_provider.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -64,6 +67,36 @@ Future<void> _pumpProjects(
 
 void main() {
   setUpAll(initializeMappers);
+
+  testWidgets('shows three project post skeletons while initially loading', (
+    tester,
+  ) async {
+    final gate = Completer<PostPage>();
+    await _pumpProjects(
+      tester,
+      FakeProjectRepository(
+        onListProjects: ({required query, limit, cursor}) => gate.future,
+      ),
+    );
+
+    expect(
+      tester
+          .widget<CraftskySkeletonSliverList>(
+            find.byType(CraftskySkeletonSliverList),
+          )
+          .itemCount,
+      3,
+    );
+    expect(
+      tester
+          .widget<PostCardSkeleton>(find.byType(PostCardSkeleton).first)
+          .showMedia,
+      isTrue,
+    );
+
+    gate.complete(const PostPage(items: []));
+    await tester.pumpAndSettle();
+  });
 
   testWidgets('shows Filters as an extended floating action', (tester) async {
     await _pumpProjects(

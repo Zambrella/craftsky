@@ -8,6 +8,7 @@ import 'package:craftsky_app/business/widgets/product_editor.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/image/craftsky_image_attachment_preview.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -27,10 +28,9 @@ class ProductsSettingsPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: Text(l10n.businessProductsSettingsTitle)),
       body: identity.when(
-        loading: () => Center(
-          child: CircularProgressIndicator(
-            semanticsLabel: l10n.businessLoading,
-          ),
+        loading: () => const CraftskySkeletonList(
+          itemBuilder: _buildProductSkeleton,
+          itemCount: businessProductLimit,
         ),
         error: (_, _) => _LoadError(
           onRetry: () => ref.invalidate(activeAccountIdentityProvider),
@@ -57,19 +57,21 @@ class _ProductsManager extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final products = ref.watch(productsControllerProvider);
-    return products.when(
-      loading: () => Center(
-        child: CircularProgressIndicator(
-          semanticsLabel: AppLocalizations.of(context).businessLoading,
-        ),
-      ),
-      error: (_, _) => _LoadError(
+    return switch (products) {
+      AsyncValue(:final value?) => _ProductsContent(state: value),
+      AsyncError() => _LoadError(
         onRetry: () => ref.invalidate(productsControllerProvider),
       ),
-      data: (state) => _ProductsContent(state: state),
-    );
+      _ => const CraftskySkeletonList(
+        itemBuilder: _buildProductSkeleton,
+        itemCount: businessProductLimit,
+      ),
+    };
   }
 }
+
+Widget _buildProductSkeleton(BuildContext context, int index) =>
+    const ManagementRowSkeleton(imageSize: 88);
 
 class _ProductsContent extends ConsumerWidget {
   const _ProductsContent({required this.state});

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -18,6 +20,7 @@ import 'package:craftsky_app/search/pages/search_page.dart';
 import 'package:craftsky_app/search/pages/tag_search_page.dart';
 import 'package:craftsky_app/search/providers/search_repository_provider.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -27,6 +30,99 @@ import 'fakes/fake_search_repository.dart';
 
 void main() {
   setUpAll(initializeMappers);
+
+  testWidgets(
+    'SearchPage shows compact skeletons for blank discovery loading',
+    (
+      tester,
+    ) async {
+      final recentGate = Completer<RecentSearchPage>();
+      final hashtagGate = Completer<TopHashtagsResponse>();
+      await tester.pumpWidget(
+        _searchPageApp(
+          repository: FakeSearchRepository(
+            onListRecentSearches: () => recentGate.future,
+            onTopHashtags: ({craftTypes, limit}) => hashtagGate.future,
+          ),
+          home: const SearchPage(),
+        ),
+      );
+
+      expect(find.byType(AccountRowSkeleton), findsNWidgets(6));
+
+      recentGate.complete(const RecentSearchPage(items: []));
+      hashtagGate.complete(const TopHashtagsResponse(groups: []));
+      await tester.pumpAndSettle();
+    },
+  );
+
+  testWidgets('SearchPage shows post skeletons for submitted result loading', (
+    tester,
+  ) async {
+    final postGate = Completer<SearchPostPage>();
+    await tester.pumpWidget(
+      _searchPageApp(
+        repository: FakeSearchRepository(
+          onSearchPosts: ({required q, limit, cursor}) => postGate.future,
+          onSearchProjects: ({required q, limit, cursor}) async =>
+              const SearchPostPage(items: []),
+          onSearchProfiles: ({required q, limit, cursor}) async =>
+              const ProfileSearchPage(items: []),
+          onSearchHashtags: ({required q, limit, cursor}) async =>
+              const HashtagSearchPage(items: []),
+        ),
+        home: const SearchPage(q: 'alpaca'),
+      ),
+    );
+
+    expect(
+      tester
+          .widget<CraftskySkeletonSliverList>(
+            find.byType(CraftskySkeletonSliverList),
+          )
+          .itemCount,
+      3,
+    );
+    expect(
+      tester
+          .widget<PostCardSkeleton>(find.byType(PostCardSkeleton).first)
+          .showMedia,
+      isTrue,
+    );
+
+    postGate.complete(const SearchPostPage(items: []));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('TagSearchPage shows three post skeletons while loading', (
+    tester,
+  ) async {
+    final gate = Completer<SearchPostPage>();
+    await tester.pumpWidget(
+      _searchPageApp(
+        repository: FakeSearchRepository(
+          onSearchHashtagPosts: (tag, {sort, limit, cursor}) => gate.future,
+        ),
+        home: const TagSearchPage(tag: 'knitting'),
+      ),
+    );
+
+    expect(
+      tester
+          .widget<CraftskySkeletonList>(find.byType(CraftskySkeletonList))
+          .itemCount,
+      3,
+    );
+    expect(
+      tester
+          .widget<PostCardSkeleton>(find.byType(PostCardSkeleton).first)
+          .showMedia,
+      isTrue,
+    );
+
+    gate.complete(const SearchPostPage(items: []));
+    await tester.pumpAndSettle();
+  });
 
   testWidgets('SearchPage renders blank discovery content', (tester) async {
     await tester.pumpWidget(_searchPageApp(home: const SearchPage()));
