@@ -13,6 +13,7 @@ import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
@@ -61,6 +62,25 @@ final class _RegistryStorage implements SessionRegistryStorage {
 
 void main() {
   setUpAll(initializeMappers);
+
+  testWidgets('renders the craft icon scaffold background', (tester) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authControllerProvider.overrideWith(_RecordingAuthController.new),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const WelcomePage(),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('welcome-craft-background')), findsOneWidget);
+    expect(find.byType(CraftIcon), findsNWidgets(5));
+  });
 
   testWidgets('IR-004 HTTP 502 registration_incomplete is visible on Welcome', (
     tester,
