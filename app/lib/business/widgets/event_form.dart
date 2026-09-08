@@ -18,9 +18,11 @@ import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 typedef EventImagePicker =
     Future<PreparedProfileImage?> Function(
+      ImageSource source,
       void Function(Uint8List bytes) onPreviewReady,
     );
 
@@ -216,10 +218,8 @@ class EventFormState extends ConsumerState<EventForm> {
                           .read(businessTimeZoneServiceProvider)
                           .names
                           .map(
-                            (zone) => CraftskySelectOption(
-                              value: zone,
-                              label: zone,
-                            ),
+                            (zone) =>
+                                CraftskySelectOption(value: zone, label: zone),
                           )
                           .toList(),
                       onChanged: widget.enabled
@@ -348,14 +348,15 @@ class EventFormState extends ConsumerState<EventForm> {
                       maxImages: 1,
                       keyPrefix: 'event',
                       imageUrlFor: (_) => _image.previewUrl,
-                      onAddImages: _pickImage,
+                      onAddImages: () => _pickImage(ImageSource.gallery),
+                      onTakePhoto: () => _pickImage(ImageSource.camera),
                       onAltTextChanged: (_, value) {
                         setState(() => _alt.text = value);
                         _notifyChanged();
                       },
                       onRemove: (_) => _removeImage(),
-                      onReplace: (_) => _pickImage(),
-                      onReplaceUnavailable: (_) => _pickImage(),
+                      onReplace: (_, source) => _pickImage(source),
+                      onReplaceUnavailable: (_, source) => _pickImage(source),
                       onReorder: (_, _) {},
                       validationErrorText: _uploadError,
                     ),
@@ -491,10 +492,7 @@ class EventFormState extends ConsumerState<EventForm> {
       enabled: widget.enabled,
       options: items
           .map(
-            (item) => CraftskySelectOption(
-              value: item,
-              label: itemLabel(item),
-            ),
+            (item) => CraftskySelectOption(value: item, label: itemLabel(item)),
           )
           .toList(),
       onChanged: widget.enabled
@@ -615,21 +613,21 @@ class EventFormState extends ConsumerState<EventForm> {
     );
   }
 
-  Future<void> _pickImage() async {
+  Future<void> _pickImage(ImageSource source) async {
     final ownership = _captureOwnership();
     final previousPending = _pendingImage;
     final previousPreview = _preview;
     final picker =
         widget.pickImage ??
-        (onPreviewReady) => ref
+        (source, onPreviewReady) => ref
             .read(profileImagePickerProvider)
-            .pickAndPrepare(onPreviewReady: onPreviewReady);
+            .pickAndPrepare(source: source, onPreviewReady: onPreviewReady);
     setState(() {
       _preparingImage = true;
       _uploadError = null;
     });
     try {
-      final result = await picker((bytes) {
+      final result = await picker(source, (bytes) {
         if (_isCurrent(ownership)) setState(() => _preview = bytes);
       });
       if (!_isCurrent(ownership)) return;

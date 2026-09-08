@@ -19,6 +19,7 @@ import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dar
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../profile/fakes/fake_profile_repository.dart';
 
@@ -153,7 +154,9 @@ void main() {
     final subscription = container.listen(provider, (_, _) {});
     addTearDown(subscription.close);
     await container.read(provider.future);
-    final operation = container.read(provider.notifier).pickAvatar();
+    final operation = container
+        .read(provider.notifier)
+        .pickAvatar(ImageSource.gallery);
     await Future<void>.delayed(Duration.zero);
 
     await container.read(sessionRegistryProvider.notifier).activate(bobSession);

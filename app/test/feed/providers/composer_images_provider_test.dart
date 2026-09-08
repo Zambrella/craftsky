@@ -156,9 +156,77 @@ void main() {
         picker.lastSingleMaxHeight,
         mediaConfig.maxImageHeight.toDouble(),
       );
+      expect(picker.lastSource, ImageSource.gallery);
     },
   );
   group('ComposerImages', () {
+    test('camera capture enters the existing preparation pipeline', () async {
+      final picker = _FakeImagePicker(
+        () async => const [],
+        pickSingle: () async => XFile.fromData(
+          _pngBytes(width: 3, height: 2),
+          name: 'camera.png',
+          mimeType: 'image/png',
+        ),
+      );
+      final container = _containerWithPicker(picker);
+      addTearDown(container.dispose);
+      final sub = _listenComposer(container);
+      addTearDown(sub.close);
+
+      await container
+          .read(composerImagesProvider('composer').notifier)
+          .takePhoto();
+      final state = await _waitForState(
+        container,
+        (state) => state.images.singleOrNull?.phase is ImageReady,
+      );
+
+      expect(picker.lastSource, ImageSource.camera);
+      expect(picker.lastSingleMaxWidth, mediaConfig.maxImageWidth.toDouble());
+      expect(picker.lastSingleMaxHeight, mediaConfig.maxImageHeight.toDouble());
+      expect(state.images, hasLength(1));
+      final ready = state.images.single.phase as ImageReady;
+      expect(ready.width, 3);
+      expect(ready.height, 2);
+    });
+
+    test('camera cancellation leaves the composer unchanged', () async {
+      final picker = _FakeImagePicker(
+        () async => const [],
+        pickSingle: () async => null,
+      );
+      final container = _containerWithPicker(picker);
+      addTearDown(container.dispose);
+
+      await container
+          .read(composerImagesProvider('composer').notifier)
+          .takePhoto();
+
+      expect(
+        container.read(composerImagesProvider('composer')).images,
+        isEmpty,
+      );
+      expect(picker.lastSource, ImageSource.camera);
+    });
+
+    test('surfaces camera failures without changing the draft', () async {
+      final picker = _FakeImagePicker(
+        () async => const [],
+        pickSingle: () async => throw Exception('permission denied'),
+      );
+      final container = _containerWithPicker(picker);
+      addTearDown(container.dispose);
+
+      await container
+          .read(composerImagesProvider('composer').notifier)
+          .takePhoto();
+
+      final state = container.read(composerImagesProvider('composer'));
+      expect(state.images, isEmpty);
+      expect(state.notice, isA<ImagePickerFailedNotice>());
+    });
+
     test('surfaces picker failures without changing the draft', () async {
       final container = _containerWithPicker(
         _FakeImagePicker(() async => throw Exception('permission denied')),
@@ -615,6 +683,7 @@ class _FakeImagePicker extends ImagePicker {
   double? lastMultiMaxHeight;
   double? lastSingleMaxWidth;
   double? lastSingleMaxHeight;
+  ImageSource? lastSource;
 
   @override
   Future<List<XFile>> pickMultiImage({
@@ -639,6 +708,7 @@ class _FakeImagePicker extends ImagePicker {
     CameraDevice preferredCameraDevice = CameraDevice.rear,
     bool requestFullMetadata = true,
   }) {
+    lastSource = source;
     lastSingleMaxWidth = maxWidth;
     lastSingleMaxHeight = maxHeight;
     return pickSingle?.call() ?? Future<XFile?>.value();

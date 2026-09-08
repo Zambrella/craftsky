@@ -23,6 +23,7 @@ import 'package:craftsky_app/profile/widgets/profile_page_error.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/settings/settings_links.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
+import 'package:craftsky_app/shared/media/image_source_menu.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
@@ -33,6 +34,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:form_builder_validators/form_builder_validators.dart';
+import 'package:image_picker/image_picker.dart';
 
 /// Field names used by the [FormBuilder] state. Centralised so the
 /// build site, the validators, and the save-time reads can't drift
@@ -339,13 +341,14 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
     );
   }
 
-  Future<void> _pickProfileImage() async {
+  Future<void> _pickProfileImage(ImageSource source) async {
     if (_imageUploadInFlight) return;
     final l10n = AppLocalizations.of(context);
     try {
       final result = await ref
           .read(profileImagePickerProvider)
           .pickAndUpload(
+            source: source,
             onPreviewReady: (bytes) {
               if (!mounted) return;
               setState(
@@ -366,6 +369,13 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
       context.showError(l10n.editProfilePhotoUploadError);
     }
   }
+
+  Future<void> _chooseProfileImageSource() => showImageSourceMenu(
+    context,
+    keyPrefix: 'profile-avatar',
+    onChoosePhotos: () => _pickProfileImage(ImageSource.gallery),
+    onTakePhoto: () => _pickProfileImage(ImageSource.camera),
+  );
 
   Future<bool> _confirmDiscard() async {
     final l10n = AppLocalizations.of(context);
@@ -474,7 +484,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                   avatarError: _avatarDraft.hasError,
                   onPickAvatar: isSaving
                       ? null
-                      : () => unawaited(_pickProfileImage()),
+                      : () => unawaited(_chooseProfileImageSource()),
                 ),
                 Padding(
                   padding: EdgeInsets.fromLTRB(

@@ -14,12 +14,14 @@ import 'package:craftsky_app/onboarding/widgets/onboarding_progress.dart';
 import 'package:craftsky_app/profile/data/profile_field_constraints.dart';
 import 'package:craftsky_app/settings/settings_links.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
+import 'package:craftsky_app/shared/media/image_source_menu.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 
 class OnboardingPage extends ConsumerWidget {
   const OnboardingPage({
@@ -128,6 +130,13 @@ class _OnboardingFlowScaffold extends ConsumerWidget {
       if (action.canGoBack) notifier.previous();
     }
 
+    Future<void> chooseAvatarSource() => showImageSourceMenu(
+      context,
+      keyPrefix: 'onboarding-avatar',
+      onChoosePhotos: () => notifier.pickAvatar(ImageSource.gallery),
+      onTakePhoto: () => notifier.pickAvatar(ImageSource.camera),
+    );
+
     return PopScope<Object?>(
       canPop: false,
       onPopInvokedWithResult: (didPop, _) {
@@ -188,7 +197,7 @@ class _OnboardingFlowScaffold extends ConsumerWidget {
                                 onBioChanged: (value) =>
                                     notifier.updateIdentity(bio: value),
                                 onPickAvatar: () =>
-                                    unawaited(notifier.pickAvatar()),
+                                    unawaited(chooseAvatarSource()),
                               ),
                               OnboardingStep.crafts => OnboardingCraftsStep(
                                 state: state,

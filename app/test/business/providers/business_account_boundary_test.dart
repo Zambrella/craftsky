@@ -492,14 +492,19 @@ void main() {
             home: Scaffold(
               body: ProductEditor(
                 initial: _productDraft('Alice saved product'),
-                pickImage: (_) => upload.future,
+                pickImage: (_, _) => upload.future,
                 onSave: (value) => submitted = value,
               ),
             ),
           ),
         ),
       );
+      await tester.ensureVisible(find.text('Replace image'));
       await tester.tap(find.text('Replace image'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('product-replace-choose-photos')),
+      );
       await tester.pump();
 
       await container

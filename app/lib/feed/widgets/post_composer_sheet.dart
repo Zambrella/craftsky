@@ -656,15 +656,17 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                               enabled: !createState.isLoading,
                               onAddImages: () =>
                                   ref.read(imagesProvider.notifier).addImages(),
+                              onTakePhoto: () =>
+                                  ref.read(imagesProvider.notifier).takePhoto(),
                               onAltTextChanged: (imageId, value) => ref
                                   .read(imagesProvider.notifier)
                                   .setAltText(imageId, value),
                               onRemove: (imageId) => ref
                                   .read(imagesProvider.notifier)
                                   .remove(imageId),
-                              onReplaceUnavailable: (imageId) => ref
+                              onReplaceUnavailable: (imageId, source) => ref
                                   .read(imagesProvider.notifier)
-                                  .replaceUnavailable(imageId),
+                                  .replaceUnavailable(imageId, source: source),
                               onReorder: (fromIndex, toIndex) => ref
                                   .read(imagesProvider.notifier)
                                   .reorder(
