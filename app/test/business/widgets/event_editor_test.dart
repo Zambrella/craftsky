@@ -18,6 +18,7 @@ import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../accessibility_test_helpers.dart';
 
@@ -288,12 +289,14 @@ void main() {
   ) async {
     final prepared = _preparedImage();
     var uploadCount = 0;
+    ImageSource? selectedSource;
     BusinessEventDraft? submitted;
     await tester.pumpWidget(
       _app(
         EventEditorDialog(
           initialDraft: _draft(),
-          pickImage: (onPreviewReady) async {
+          pickImage: (source, onPreviewReady) async {
+            selectedSource = source;
             onPreviewReady(prepared.bytes);
             return prepared;
           },
@@ -314,8 +317,11 @@ void main() {
     await tester.ensureVisible(addImage);
     await tester.tap(addImage);
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('event-take-photo')));
+    await tester.pumpAndSettle();
 
     expect(uploadCount, 0);
+    expect(selectedSource, ImageSource.camera);
     expect(find.byKey(const Key('event-preview-image')), findsOneWidget);
 
     await tester.tap(find.byKey(const ValueKey('event-submit')));
@@ -338,7 +344,7 @@ void main() {
       _app(
         EventEditorDialog(
           initialDraft: _draft(),
-          pickImage: (_) async => prepared,
+          pickImage: (_, _) async => prepared,
           uploadImage: (_) async {
             uploadCount++;
             if (uploadCount == 1) throw Exception('upload failed');
@@ -355,6 +361,8 @@ void main() {
     final addImage = find.byKey(const Key('event-add-image'));
     await tester.ensureVisible(addImage);
     await tester.tap(addImage);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('event-choose-photos')));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('event-submit')));
     await tester.pumpAndSettle();
@@ -381,7 +389,7 @@ void main() {
       _app(
         EventEditorDialog(
           initialDraft: _draft(),
-          pickImage: (_) async => prepared,
+          pickImage: (_, _) async => prepared,
           uploadImage: (_) async {
             uploadCount++;
             return _uploadedImage('bafy-reusable-event-image');
@@ -397,6 +405,8 @@ void main() {
     final addImage = find.byKey(const Key('event-add-image'));
     await tester.ensureVisible(addImage);
     await tester.tap(addImage);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('event-choose-photos')));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const ValueKey('event-submit')));

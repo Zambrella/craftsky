@@ -18,6 +18,7 @@ import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart';
 
 void main() {
   testWidgets('AT-005 failed replacement keeps the saved image', (
@@ -39,11 +40,15 @@ void main() {
       ),
     );
     ProductDraft? saved;
+    ImageSource? selectedSource;
     await tester.pumpWidget(
       _app(
         ProductEditor(
           initial: initial,
-          pickImage: (_) async => throw Exception('upload failed'),
+          pickImage: (source, _) async {
+            selectedSource = source;
+            throw Exception('upload failed');
+          },
           onSave: (value) => saved = value,
         ),
       ),
@@ -66,6 +71,9 @@ void main() {
     );
     await tester.tap(find.text('Replace image'));
     await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('product-replace-take-photo')));
+    await tester.pumpAndSettle();
+    expect(selectedSource, ImageSource.camera);
     expect(
       find.text('The image could not be uploaded. Try again.'),
       findsOneWidget,
@@ -78,7 +86,7 @@ void main() {
 
   testWidgets('AT-005 validates required product fields', (tester) async {
     await tester.pumpWidget(
-      _app(ProductEditor(onSave: (_) {}, pickImage: (_) async => null)),
+      _app(ProductEditor(onSave: (_) {}, pickImage: (_, _) async => null)),
     );
 
     await tester.tap(find.text('Save product'));
@@ -137,7 +145,7 @@ void main() {
 
   testWidgets('dirty product editor confirms before closing', (tester) async {
     await tester.pumpWidget(
-      _app(ProductEditor(onSave: (_) {}, pickImage: (_) async => null)),
+      _app(ProductEditor(onSave: (_) {}, pickImage: (_, _) async => null)),
     );
 
     await tester.enterText(
@@ -215,7 +223,7 @@ void main() {
     await tester.pumpWidget(
       _app(
         ProductEditor(
-          pickImage: (onPreviewReady) async {
+          pickImage: (_, onPreviewReady) async {
             final result = _uploadedPick('bafy-product');
             onPreviewReady(result.previewBytes);
             return result;
@@ -226,10 +234,7 @@ void main() {
       ),
     );
 
-    await tester.enterText(
-      find.byKey(const ValueKey('product-title')),
-      'Yarn',
-    );
+    await tester.enterText(find.byKey(const ValueKey('product-title')), 'Yarn');
     await tester.enterText(
       find.byKey(const ValueKey('product-destination')),
       'https://shop.example/yarn',
@@ -237,6 +242,8 @@ void main() {
     final addImage = find.byKey(const Key('product-add-image'));
     await tester.ensureVisible(addImage);
     await tester.tap(addImage);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('product-choose-photos')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Save product'));
     await tester.pumpAndSettle();

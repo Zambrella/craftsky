@@ -15,12 +15,14 @@ import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:l10n_currencies/l10n_currencies.dart';
 import 'package:sealed_countries/sealed_countries.dart';
 import 'package:uuid/uuid.dart';
 
 typedef ProductImagePicker =
     Future<ProfileImagePickResult?> Function(
+      ImageSource source,
       void Function(Uint8List bytes) onPreviewReady,
     );
 
@@ -239,14 +241,16 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
                           maxImages: 1,
                           keyPrefix: 'product',
                           imageUrlFor: (_) => _image.previewUrl,
-                          onAddImages: _pickImage,
+                          onAddImages: () => _pickImage(ImageSource.gallery),
+                          onTakePhoto: () => _pickImage(ImageSource.camera),
                           onAltTextChanged: (_, value) {
                             _alt.text = value;
                             _markDirty();
                           },
                           onRemove: (_) => _removeImage(),
-                          onReplace: (_) => _pickImage(),
-                          onReplaceUnavailable: (_) => _pickImage(),
+                          onReplace: (_, source) => _pickImage(source),
+                          onReplaceUnavailable: (_, source) =>
+                              _pickImage(source),
                           onReorder: (_, _) {},
                           validationErrorText:
                               _uploadError ??
@@ -385,27 +389,25 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
     }
   }
 
-  Future<void> _pickImage() async {
+  Future<void> _pickImage(ImageSource source) async {
     final l10n = AppLocalizations.of(context);
     final ownership = _owner;
     final picker =
         widget.pickImage ??
-        (onPreviewReady) => ref
+        (source, onPreviewReady) => ref
             .read(profileImagePickerProvider)
-            .pickAndUpload(onPreviewReady: onPreviewReady);
+            .pickAndUpload(source: source, onPreviewReady: onPreviewReady);
     setState(() {
       _uploading = true;
       _uploadError = null;
       _pendingPreview = null;
     });
     try {
-      final result = await picker(
-        (bytes) {
-          if (_isCurrent(ownership)) {
-            setState(() => _pendingPreview = bytes);
-          }
-        },
-      );
+      final result = await picker(source, (bytes) {
+        if (_isCurrent(ownership)) {
+          setState(() => _pendingPreview = bytes);
+        }
+      });
       if (!_isCurrent(ownership)) return;
       if (result != null) {
         setState(() {

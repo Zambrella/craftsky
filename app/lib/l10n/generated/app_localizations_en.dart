@@ -1254,6 +1254,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postComposeChoosePhotos => 'Choose photos';
 
   @override
+  String get postComposeTakePhoto => 'Take a photo';
+
+  @override
   String get postComposeChooseVideo => 'Choose a video';
 
   @override

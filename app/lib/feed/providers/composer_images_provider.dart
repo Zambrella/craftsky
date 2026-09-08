@@ -68,6 +68,40 @@ class ComposerImages extends _$ComposerImages {
     }
     if (files.isEmpty) return;
 
+    _addSelectedFiles(files);
+  }
+
+  Future<void> takePhoto() async {
+    if (state.images.length >= _media.maxImages) {
+      _setNotice(
+        ImageSelectionLimitNotice(
+          id: _nextNoticeId(),
+          maxImages: _media.maxImages,
+          acceptedCount: 0,
+        ),
+      );
+      return;
+    }
+
+    final XFile? file;
+    try {
+      file = await _picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: _media.config.maxImageWidth.toDouble(),
+        maxHeight: _media.config.maxImageHeight.toDouble(),
+      );
+    } on Object {
+      _setNotice(ImagePickerFailedNotice(id: _nextNoticeId()));
+      return;
+    }
+    if (file == null || !ref.mounted) return;
+
+    _addSelectedFiles([file]);
+  }
+
+  void _addSelectedFiles(List<XFile> files) {
+    if (!ref.mounted) return;
+
     final incoming = [
       for (final file in files)
         _SelectedComposerImage(
@@ -132,14 +166,17 @@ class ComposerImages extends _$ComposerImages {
     _startPipeline(jobs);
   }
 
-  Future<void> replaceUnavailable(String imageId) async {
+  Future<void> replaceUnavailable(
+    String imageId, {
+    ImageSource source = ImageSource.gallery,
+  }) async {
     final index = state.images.indexWhere((image) => image.id == imageId);
     if (index < 0 || state.images[index].phase is! ImageUnavailable) return;
 
     final XFile? file;
     try {
       file = await _picker.pickImage(
-        source: ImageSource.gallery,
+        source: source,
         maxWidth: _media.config.maxImageWidth.toDouble(),
         maxHeight: _media.config.maxImageHeight.toDouble(),
       );
@@ -163,10 +200,7 @@ class ComposerImages extends _$ComposerImages {
       existing: [
         for (final image in state.images)
           if (image.id != imageId)
-            LocalImageSelection(
-              name: image.fileName,
-              mimeType: image.mimeType,
-            ),
+            LocalImageSelection(name: image.fileName, mimeType: image.mimeType),
       ],
       incoming: [selection],
     );
@@ -311,14 +345,8 @@ class ComposerImages extends _$ComposerImages {
 
   List<PipelineStep<_ComposerImagePipelineItem>> _imagePipelineSteps() {
     return [
-      PipelineStep(
-        name: _ImagePipelineStepNames.read,
-        run: _readImageBytes,
-      ),
-      PipelineStep(
-        name: _ImagePipelineStepNames.prepare,
-        run: _prepareImage,
-      ),
+      PipelineStep(name: _ImagePipelineStepNames.read, run: _readImageBytes),
+      PipelineStep(name: _ImagePipelineStepNames.prepare, run: _prepareImage),
       PipelineStep(
         name: _ImagePipelineStepNames.validatePrepared,
         run: _validatePreparedImage,
@@ -456,10 +484,7 @@ class ComposerImages extends _$ComposerImages {
       case _ImagePipelineStepNames.read:
         _fail(imageId, const ImagePreparationFailed());
       case _ImagePipelineStepNames.prepare:
-        _fail(
-          imageId,
-          const ImagePreparationFailed(retryable: true),
-        );
+        _fail(imageId, const ImagePreparationFailed(retryable: true));
       case _ImagePipelineStepNames.validatePrepared:
         _fail(imageId, ImageTooLarge(_media.maxImageBytes));
     }

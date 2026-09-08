@@ -5,11 +5,12 @@ import 'package:animated_list_plus/transitions.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/image/craftsky_image_attachment_preview.dart';
+import 'package:craftsky_app/shared/media/image_source_menu.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
-import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 
 class ComposerImageAttachmentSection extends StatelessWidget {
   const ComposerImageAttachmentSection({
@@ -30,6 +31,8 @@ class ComposerImageAttachmentSection extends StatelessWidget {
     this.keyPrefix = 'composer',
     this.supportsVideo = false,
     this.onAddVideo,
+    this.onTakePhoto,
+    this.cameraSupported,
   });
 
   static const _imageListAnimationDuration = Duration(milliseconds: 220);
@@ -39,17 +42,20 @@ class ComposerImageAttachmentSection extends StatelessWidget {
   final Future<void> Function()? onAddImages;
   final void Function(String imageId, String value) onAltTextChanged;
   final void Function(String imageId) onRemove;
-  final Future<void> Function(String imageId) onReplaceUnavailable;
+  final Future<void> Function(String imageId, ImageSource source)
+  onReplaceUnavailable;
   final void Function(int fromIndex, int toIndex) onReorder;
   final String? validationErrorText;
   final bool required;
   final String requiredLabel;
   final int maxImages;
   final String? Function(ComposerImageDraft image)? imageUrlFor;
-  final Future<void> Function(String imageId)? onReplace;
+  final Future<void> Function(String imageId, ImageSource source)? onReplace;
   final String keyPrefix;
   final bool supportsVideo;
   final Future<void> Function()? onAddVideo;
+  final Future<void> Function()? onTakePhoto;
+  final bool? cameraSupported;
 
   @override
   Widget build(BuildContext context) {
@@ -106,10 +112,15 @@ class ComposerImageAttachmentSection extends StatelessWidget {
                     canMoveDown: index < imagesState.images.length - 1,
                     onAltChanged: (value) => onAltTextChanged(image.id, value),
                     onRemove: () => onRemove(image.id),
-                    onReplaceUnavailable: () => onReplaceUnavailable(image.id),
+                    onReplaceUnavailable: () => _chooseReplacement(
+                      context,
+                      image.id,
+                      onReplaceUnavailable,
+                    ),
                     onReplace: onReplace == null
                         ? null
-                        : () => onReplace!(image.id),
+                        : () =>
+                              _chooseReplacement(context, image.id, onReplace!),
                     onMoveUp: () => onReorder(index, index - 1),
                     onMoveDown: () => onReorder(index, index + 1),
                   ),
@@ -155,9 +166,7 @@ class ComposerImageAttachmentSection extends StatelessWidget {
             supportsVideo: supportsVideo && imagesState.images.isEmpty,
             onPressed: enabled && onAddImages != null
                 ? () => unawaited(
-                    supportsVideo && imagesState.images.isEmpty
-                        ? _chooseMedia(context)
-                        : onAddImages!(),
+                    _hasSourceChoice ? _chooseMedia(context) : onAddImages!(),
                   )
                 : null,
           ),
@@ -175,30 +184,34 @@ class ComposerImageAttachmentSection extends StatelessWidget {
   }
 
   Future<void> _chooseMedia(BuildContext context) async {
-    final l10n = AppLocalizations.of(context);
-    await showCraftskyContextMenu(
+    await showImageSourceMenu(
       context,
-      position: craftskyContextMenuAnchorPosition(context),
-      groups: [
-        CraftskyContextMenuGroup(
-          items: [
-            CraftskyContextMenuItem(
-              key: const Key('composer-choose-photos'),
-              text: l10n.postComposeChoosePhotos,
-              icon: Icons.photo_library_outlined,
-              onPressed: onAddImages,
-            ),
-            CraftskyContextMenuItem(
-              key: const Key('composer-choose-video'),
-              text: l10n.postComposeChooseVideo,
-              icon: Icons.video_library_outlined,
-              onPressed: onAddVideo,
-            ),
-          ],
-        ),
-      ],
+      keyPrefix: keyPrefix,
+      cameraSupported: cameraSupported,
+      onChoosePhotos: onAddImages,
+      onTakePhoto: onTakePhoto,
+      onChooseVideo: supportsVideo && imagesState.images.isEmpty
+          ? onAddVideo
+          : null,
     );
   }
+
+  Future<void> _chooseReplacement(
+    BuildContext context,
+    String imageId,
+    Future<void> Function(String imageId, ImageSource source) replace,
+  ) => showImageSourceMenu(
+    context,
+    keyPrefix: '$keyPrefix-replace',
+    cameraSupported: cameraSupported,
+    onChoosePhotos: () => replace(imageId, ImageSource.gallery),
+    onTakePhoto: () => replace(imageId, ImageSource.camera),
+  );
+
+  bool get _hasSourceChoice =>
+      ((cameraSupported ?? cameraImageSourceSupported) &&
+          onTakePhoto != null) ||
+      (supportsVideo && imagesState.images.isEmpty && onAddVideo != null);
 }
 
 class _PhotosHeader extends StatelessWidget {
@@ -241,10 +254,7 @@ class _PhotosHeader extends StatelessWidget {
             children: [
               TextSpan(text: l10n.postComposePhotosTitle),
               if (required)
-                TextSpan(
-                  text: '  $requiredLabel',
-                  style: requiredLabelStyle,
-                ),
+                TextSpan(text: '  $requiredLabel', style: requiredLabelStyle),
             ],
           ),
           style: titleStyle,
@@ -270,10 +280,7 @@ class _PhotosHeader extends StatelessWidget {
         Text(
           imageCount == 0
               ? l10n.postComposePhotosLimitHelper(maxImages)
-              : l10n.postComposePhotosReorderHelper(
-                  imageCount,
-                  maxImages,
-                ),
+              : l10n.postComposePhotosReorderHelper(imageCount, maxImages),
           style: theme.textTheme.bodyMedium?.copyWith(
             color: colors.outline,
             fontWeight: FontWeight.w700,

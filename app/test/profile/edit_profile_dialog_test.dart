@@ -88,6 +88,27 @@ Future<void> _pumpEditDialog(
 
 void main() {
   group('EditProfileDialog', () {
+    testWidgets('avatar action offers camera and gallery sources', (
+      tester,
+    ) async {
+      await _pumpEditDialog(
+        tester,
+        repo: FakeProfileRepository(onFetch: (_) async => _seedProfile),
+      );
+
+      await tester.tap(find.byTooltip('Change avatar'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('profile-avatar-take-photo')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('profile-avatar-choose-photos')),
+        findsOneWidget,
+      );
+    });
+
     for (final constraint in businessAccessibilityMatrix) {
       testWidgets(
         'R12 AT-012 REG-010 business editor fits and remains reachable '

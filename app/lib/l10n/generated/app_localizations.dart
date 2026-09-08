@@ -2260,6 +2260,12 @@ abstract class AppLocalizations {
   /// **'Choose photos'**
   String get postComposeChoosePhotos;
 
+  /// Camera choice in an image source picker.
+  ///
+  /// In en, this message translates to:
+  /// **'Take a photo'**
+  String get postComposeTakePhoto;
+
   /// Existing-video choice in the composer media picker.
   ///
   /// In en, this message translates to:

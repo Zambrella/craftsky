@@ -85,9 +85,9 @@ Answer: A localized `Step X of 3` label plus a non-interactive linear progress b
 Decision / implication: The presentation is compact, clear, and does not imply tappability.
 
 ### Q14: Which existing profile and craft controls are reused?
-Answer: The current 22-item localized craft chip grid and gallery-only avatar picker. Step 1 also shows the active `@handle` as read-only context.
+Answer: The current 22-item localized craft chip grid and avatar picker. Step 1 also shows the active `@handle` as read-only context.
 
-Decision / implication: Camera capture, avatar removal, banner editing, craft search/grouping, and account switching/sign-out controls are not added to onboarding.
+Decision / implication: Avatar selection supports the shared gallery-or-camera source choice on iOS, Android, and web. Avatar removal, banner editing, craft search/grouping, and account switching/sign-out controls are not added to onboarding.
 
 ### Q15: How is delayed Bluesky prefill handled?
 Answer: Retry automatically for up to 5 seconds, once per onboarding session.
@@ -150,7 +150,7 @@ New CraftSky members currently encounter a placeholder gate that provides no hel
 - NG-004: Persisting the current onboarding step or unsaved drafts across process restarts.
 - NG-005: Requiring any profile field, craft selection, or Instagram connection before entering the main app.
 - NG-006: Versioning onboarding completion or forcing completed members through future onboarding revisions.
-- NG-007: Adding camera capture, avatar removal, banner editing, account switching/sign-out, suggestion-to-profile navigation, import history, or Instagram revocation to onboarding.
+- NG-007: Adding avatar removal, banner editing, account switching/sign-out, suggestion-to-profile navigation, import history, or Instagram revocation to onboarding.
 - NG-008: Adding client-supplied profile concurrency control, pre-save refresh/merge, or conflict-resolution UI; existing AppView `ExpectedCID` behavior remains intact.
 - NG-009: Removing Tap tracking/backfill or making direct OAuth projection the sole source of Bluesky profile indexing.
 
@@ -200,7 +200,7 @@ The app bar offers a text `Skip` action for the whole flow and communicates prog
 | FR-020 | Functional | Must | If cold-start completion status cannot be read, the app shall show a retryable initialization gate and shall not guess complete or incomplete status. | Avoids incorrectly gating new members or re-onboarding completed members. | User answer | AC-034 |
 | FR-021 | Functional | Must | Once per onboarding session, when the profile exists but all expected Bluesky identity fields are absent, Flutter shall retry the AppView profile read for up to 5 seconds before presenting optional empty fields. | Gives eager profile indexing a bounded convergence window without trapping accounts that have no Bluesky profile. | User answer, Codebase | AC-035, AC-036 |
 | FR-022 | Functional | Must | While a submitted profile save is in flight, the system shall disable Skip, Back, and duplicate submission; it shall restore applicable controls if the save fails. | Prevents navigation from ambiguously abandoning an uncancellable committed write. | User answer | AC-027 |
-| FR-023 | Functional | Must | Step 1 shall show the active `@handle` as read-only context and shall reuse the existing gallery-only avatar replacement flow. | Confirms account identity and avoids new camera permission behavior. | User answer, Codebase | AC-037 |
+| FR-023 | Functional | Must | Step 1 shall show the active `@handle` as read-only context and shall offer avatar replacement from the gallery or camera on iOS, Android, and web. Desktop apps remain gallery-only. | Confirms account identity while using the shared image-source behavior. | User answer, Codebase | AC-037 |
 | FR-024 | Functional | Must | When the OAuth login/registration callback fetches an existing `app.bsky.actor.profile`, it shall attempt to project the fetched record and its CID directly into `bluesky_profiles` before creating the Flutter handoff. | Makes existing identity data available without waiting for Tap indexing. | User answer, Codebase | AC-041, AC-042 |
 | NFR-001 | Non-functional | Must | Onboarding shall remain usable without overflow or inaccessible primary actions on supported compact mobile layouts and larger layouts. | The flow is full-screen and must work across Flutter form factors. | Project frontend constraints | AC-019 |
 | NFR-002 | Non-functional | Must | All new user-visible onboarding text and semantics shall use the app localization system and expose meaningful accessibility labels, selected states, and disabled states. | Maintains localization and assistive-technology support. | Codebase conventions | AC-020 |
@@ -253,7 +253,7 @@ The app bar offers a text `Skip` action for the whole flow and communicates prog
 | AC-034 | FR-020 | Given cold-start onboarding status loading fails, then a retryable initialization gate is shown and neither onboarding nor the main app is selected until status is known. |
 | AC-035 | FR-021 | Given the profile exists but all Bluesky identity fields are initially absent, when step 1 initializes, then AppView profile reads are retried with bounded backoff for no more than 5 seconds and only once in that onboarding session. |
 | AC-036 | FR-021 | Given the bounded prefill wait expires without Bluesky identity fields, then optional empty fields become editable and progression remains available; a true profile-read error instead shows retry UI. |
-| AC-037 | FR-023 | Given step 1 is ready, then it shows the active `@handle`, offers avatar replacement from the gallery, and does not offer handle editing, camera capture, avatar removal, banner editing, account switching, or sign-out. |
+| AC-037 | FR-023 | Given step 1 is ready, then it shows the active `@handle`, offers avatar replacement from the gallery or camera where supported, and does not offer handle editing, avatar removal, banner editing, account switching, or sign-out. |
 | AC-038 | RULE-004 | Given an account has completed any onboarding revision, when a later client revision is installed, then permanent completion remains true and the router does not force onboarding again. |
 | AC-039 | RULE-005 | Given an incomplete member closes the app on step 2 or 3, when they return, then onboarding opens at step 1 with persisted profile/Instagram data pre-filled and no prior unsaved draft. |
 | AC-040 | RULE-006 | Given profile data changes in another client after onboarding loads its snapshot, when onboarding later saves, then the existing last-write-wins endpoint behavior applies without a new conflict prompt, client-supplied precondition, or pre-save merge request. |

@@ -1143,6 +1143,8 @@
   "@postComposePhotosOrVideoHelper": { "description": "Media options shown by a video-capable composer." },
   "postComposeChoosePhotos": "Choose photos",
   "@postComposeChoosePhotos": { "description": "Photo choice in the composer media picker." },
+  "postComposeTakePhoto": "Take a photo",
+  "@postComposeTakePhoto": { "description": "Camera choice in an image source picker." },
   "postComposeChooseVideo": "Choose a video",
   "@postComposeChooseVideo": { "description": "Existing-video choice in the composer media picker." },
   "postComposeVideoSelected": "Selected video",

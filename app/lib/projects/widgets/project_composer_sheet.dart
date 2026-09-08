@@ -74,6 +74,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 
 Future<Post?> showProjectComposerSheet(
@@ -595,6 +596,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                                   onAddImages: () => ref
                                       .read(imagesProvider.notifier)
                                       .addImages(),
+                                  onTakePhoto: () => ref
+                                      .read(imagesProvider.notifier)
+                                      .takePhoto(),
                                   onAddVideo: _selectVideo,
                                   onAltTextChanged: (imageId, value) => ref
                                       .read(imagesProvider.notifier)
@@ -602,9 +606,12 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                                   onRemoveImage: (imageId) => ref
                                       .read(imagesProvider.notifier)
                                       .remove(imageId),
-                                  onReplaceUnavailable: (imageId) => ref
+                                  onReplaceUnavailable: (imageId, source) => ref
                                       .read(imagesProvider.notifier)
-                                      .replaceUnavailable(imageId),
+                                      .replaceUnavailable(
+                                        imageId,
+                                        source: source,
+                                      ),
                                   onReorderImages: (fromIndex, toIndex) => ref
                                       .read(imagesProvider.notifier)
                                       .reorder(
@@ -1298,10 +1305,12 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     required bool controlsEnabled,
     required String? photoErrorText,
     required Future<void> Function()? onAddImages,
+    required Future<void> Function()? onTakePhoto,
     required Future<void> Function() onAddVideo,
     required void Function(String imageId, String value) onAltTextChanged,
     required ValueChanged<String> onRemoveImage,
-    required Future<void> Function(String imageId) onReplaceUnavailable,
+    required Future<void> Function(String imageId, ImageSource source)
+    onReplaceUnavailable,
     required void Function(int fromIndex, int toIndex) onReorderImages,
   }) {
     return Column(
@@ -1343,6 +1352,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
             required: true,
             requiredLabel: l10n.projectComposerRequiredLabel,
             onAddImages: onAddImages,
+            onTakePhoto: onTakePhoto,
             onAltTextChanged: onAltTextChanged,
             onRemove: onRemoveImage,
             onReplaceUnavailable: onReplaceUnavailable,

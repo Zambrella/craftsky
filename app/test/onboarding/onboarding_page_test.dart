@@ -15,6 +15,7 @@ import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart';
 
 final _lease = ActiveAccountLease(
   session: AccountSessionLease(
@@ -28,12 +29,16 @@ final class _Flow extends OnboardingFlow {
   _Flow(this.initial);
   final OnboardingFlowState initial;
   int completionCalls = 0;
+  ImageSource? avatarSource;
 
   @override
   Future<OnboardingFlowState> build(ActiveAccountLease lease) async => initial;
 
   @override
   Future<void> complete() async => completionCalls++;
+
+  @override
+  Future<void> pickAvatar(ImageSource source) async => avatarSource = source;
 }
 
 final class _PendingFlow extends OnboardingFlow {
@@ -146,6 +151,12 @@ void main() {
     expect(find.text('Step 1 of 3'), findsOneWidget);
     expect(find.text('Signed in as @alice.test'), findsOneWidget);
     expect(find.byType(LinearProgressIndicator), findsOneWidget);
+
+    await tester.tap(find.bySemanticsLabel('Change avatar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('onboarding-avatar-take-photo')));
+    await tester.pumpAndSettle();
+    expect(flow.avatarSource, ImageSource.camera);
 
     await tester.tap(find.text('Next'));
     await tester.pump();

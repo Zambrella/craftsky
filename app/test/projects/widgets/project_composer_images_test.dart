@@ -6,6 +6,7 @@ import 'package:craftsky_app/languages/providers/language_preferences_provider.d
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -84,6 +85,51 @@ void main() {
     },
   );
 
+  testWidgets('camera action uses the composer camera provider path', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    const composerId = 'camera-image-composer';
+    final imagesNotifier = _FakeComposerImages();
+    final container = ProviderContainer.test(
+      overrides: [
+        activeLanguagePreferencesProvider.overrideWith(
+          (ref) => const LanguagePreferences(
+            primaryLanguage: 'en',
+            contentLanguages: ['en'],
+          ),
+        ),
+        composerImagesProvider(
+          composerId,
+        ).overrideWith(() => imagesNotifier),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MessengerScope(
+          messenger: RecordingMessenger(),
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProjectComposerSheet(composerId: composerId),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('composer-add-image')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('composer-take-photo')));
+    await tester.pumpAndSettle();
+    debugDefaultTargetPlatformOverride = null;
+
+    expect(imagesNotifier.takePhotoCalls, 1);
+  });
+
   testWidgets('IT-005 shows image selection limit notices', (tester) async {
     final messenger = RecordingMessenger();
 
@@ -153,6 +199,7 @@ Future<ComposerImagesState> _waitForImageState(
 
 class _FakeComposerImages extends ComposerImages {
   int addImagesCalls = 0;
+  int takePhotoCalls = 0;
 
   @override
   ComposerImagesState build(String composerId) {
@@ -179,6 +226,11 @@ class _FakeComposerImages extends ComposerImages {
         ),
       ],
     );
+  }
+
+  @override
+  Future<void> takePhoto() async {
+    takePhotoCalls += 1;
   }
 
   @override

@@ -46,9 +46,13 @@ class ProfileImagePicker {
   final BlobApiClient _blobApi;
 
   Future<ProfileImagePickResult?> pickAndUpload({
+    required ImageSource source,
     required void Function(Uint8List bytes) onPreviewReady,
   }) async {
-    final prepared = await pickAndPrepare(onPreviewReady: onPreviewReady);
+    final prepared = await pickAndPrepare(
+      source: source,
+      onPreviewReady: onPreviewReady,
+    );
     if (prepared == null) return null;
 
     final uploaded = await _blobApi.uploadImage(
@@ -62,9 +66,10 @@ class ProfileImagePicker {
   }
 
   Future<PreparedProfileImage?> pickAndPrepare({
+    required ImageSource source,
     required void Function(Uint8List bytes) onPreviewReady,
   }) async {
-    final file = await _picker.pickImage(source: ImageSource.gallery);
+    final file = await _picker.pickImage(source: source);
     if (file == null) return null;
 
     final mimeType = file.mimeType ?? _media.mimeTypeForFileName(file.name);

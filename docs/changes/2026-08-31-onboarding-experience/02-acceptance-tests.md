@@ -7,7 +7,7 @@ Use a test-first split aligned with the existing repository:
 - Dart unit/provider tests cover action-state derivation, bounded prefill retries, optimistic completion, in-memory retry ownership, and session-scoped drafts with fake time where timing is involved.
 - Go integration tests cover the authenticated `/v1/` completion contract, private Postgres persistence, idempotency, per-DID isolation, migration behavior, route policy, owner-deletion cleanup, and OAuth-time Bluesky profile projection before Flutter handoff.
 - Existing profile and Instagram suites provide regression coverage for behavior moved into shared widgets.
-- Manual checks are limited to real operating-system gallery behavior and visual/touch behavior that widget tests cannot fully represent.
+- Manual checks are limited to real operating-system gallery/camera behavior and visual/touch behavior that widget tests cannot fully represent.
 
 Risk remains **Medium**. The highest-risk paths are atomic profile preservation, optimistic completion reconciliation, startup gating, account isolation, private cleanup, canonical OAuth/Tap projection idempotency, and regression of the established Instagram settings page.
 
@@ -107,9 +107,9 @@ Feature: Profile identity setup
     When step 1 loads
     Then the avatar, display name, bio, and read-only @handle are shown
     And no direct PDS read is attempted by Flutter
-    When the member edits a field or selects a gallery image
+    When the member edits a field or selects an image from the gallery or camera
     Then the step becomes dirty and its primary action becomes Save & next
-    And camera, avatar removal, banner, account switching, and sign-out controls are absent
+    And avatar removal, banner, account switching, and sign-out controls are absent
 ```
 
 ### AT-004: Invalid Or Incomplete Profile Draft Cannot Save
@@ -515,20 +515,20 @@ Feature: OAuth-time Bluesky profile projection
 ## 8. Manual Checks
 | ID | Requirement IDs | Check | Steps | Expected Result |
 |---|---|---|---|---|
-| MAN-001 | FR-023 | Real gallery picker on supported mobile platforms | Run onboarding on iOS and Android; open gallery; cancel once; select a valid image once; deny/restrict photo access where supported. | Cancel leaves draft clean; valid image previews/uploads; permission or picker failures are recoverable; no camera permission is requested. |
+| MAN-001 | FR-023 | Real gallery and camera pickers on supported platforms | Run onboarding on iOS and Android; open gallery and camera; cancel each once; select or capture a valid image; deny/restrict access where supported. Verify browser camera behavior on web. | Cancellation leaves the draft clean; valid images preview/upload; permission or picker failures are recoverable. |
 | MAN-002 | NFR-001, NFR-002 | Touch, keyboard, safe-area, and long-content usability | Exercise all steps on a small phone and tablet/desktop with large system text, software keyboard, long Instagram content, and screen reader enabled. | No obscured content or action, scrolling is natural, focus order is logical, and announced labels/states match visible behavior. |
 
 ## 9. Test Gaps And Risks
 | ID | Gap / Risk | Affected Requirement IDs | Reason | Follow-Up |
 |---|---|---|---|---|
 | GAP-001 | True cross-device cold-start behavior is not covered by one automated Flutter process. | FR-018, RULE-004 | Current test harness is process-local and has no device farm. | Cover server authority through Go integration tests and reconstruct Flutter containers with empty local state; optionally verify on two devices before release. |
-| GAP-002 | Real OS gallery permission and picker behavior cannot be proven by widget mocks. | FR-023 | `image_picker` platform channels are outside widget-test scope. | Execute MAN-001 on iOS and Android; retain media-service unit tests for validation/preparation. |
+| GAP-002 | Real OS gallery/camera permission and picker behavior cannot be proven by widget mocks. | FR-023 | `image_picker` platform channels are outside widget-test scope. | Execute MAN-001 on iOS, Android, and web; retain media-service unit tests for validation/preparation. |
 | GAP-003 | Visual quality across every locale is not exhaustively automated. | NFR-001, NFR-002 | Generated localization and arbitrary string expansion exceed practical matrix size. | Automate English large-text/viewport cases and perform MAN-002 with representative long strings. |
 | GAP-004 | Last-write-wins can overwrite a concurrent external profile edit by design. | RULE-006 | Conflict control was explicitly excluded. | Keep regression coverage proving no accidental concurrency contract was introduced; retain RISK-009 in implementation review. |
 
 ## 10. Out Of Scope
 - Tests for onboarding analytics, event instrumentation, or metrics.
-- Tests for camera capture, avatar removal, banner editing, account switching/sign-out within onboarding, or suggestion-to-profile navigation.
+- Tests for avatar removal, banner editing, account switching/sign-out within onboarding, or suggestion-to-profile navigation.
 - Tests for persisting drafts/current step, durable completion retry markers, versioned completion, or future onboarding revisions.
 - New profile conflict detection, client-supplied preconditions, pre-save refresh/merge, or conflict UI tests.
 - New Instagram backend behavior; existing backend/provider tests remain authoritative.

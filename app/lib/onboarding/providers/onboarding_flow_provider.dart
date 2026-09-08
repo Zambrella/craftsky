@@ -11,6 +11,7 @@ import 'package:craftsky_app/profile/providers/profile_cache_publication.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'onboarding_flow_provider.g.dart';
@@ -57,9 +58,9 @@ class OnboardingFlow extends _$OnboardingFlow {
       accountProfileRepositoryProvider(lease).future,
     );
     unawaited(
-      Future<void>.delayed(Duration.zero).then(
-        (_) => _startPrefill(initial, repository),
-      ),
+      Future<void>.delayed(
+        Duration.zero,
+      ).then((_) => _startPrefill(initial, repository)),
     );
     return initial;
   }
@@ -128,7 +129,7 @@ class OnboardingFlow extends _$OnboardingFlow {
     state = AsyncData(current.copyWith(selectedCraftIds: selected));
   }
 
-  Future<void> pickAvatar() async {
+  Future<void> pickAvatar(ImageSource source) async {
     final current = state.value;
     if (current == null || current.saving || current.uploadingAvatar) return;
     try {
@@ -136,6 +137,7 @@ class OnboardingFlow extends _$OnboardingFlow {
         accountProfileImagePickerProvider(lease).future,
       );
       final result = await picker.pickAndUpload(
+        source: source,
         onPreviewReady: (bytes) {
           if (!_isCurrent()) return;
           state = AsyncData(
@@ -184,9 +186,7 @@ class OnboardingFlow extends _$OnboardingFlow {
       0,
       OnboardingStep.values.length - 1,
     );
-    state = AsyncData(
-      current.copyWith(step: OnboardingStep.values[previous]),
-    );
+    state = AsyncData(current.copyWith(step: OnboardingStep.values[previous]));
   }
 
   Future<void> saveAndNext() async {
