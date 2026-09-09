@@ -66,11 +66,11 @@ cd craftsky
 just dev
 ```
 
-This brings up the full compose stack — `postgres`, `migrate`, `tap`, `tap-bootstrap`, `appview`. On a cold start allow ~60s for the tap sidecar to finish replaying. Then verify:
+This brings up the full compose stack — `postgres`, `migrate`, `tap`, `tap-bootstrap`, `appview`. On a cold start Tap resumes its durable relay cursor; a stale development volume can take longer than 60 seconds to catch up. Then verify:
 
 ```
-curl localhost:18080/healthz  # expect {"status":"ok",...} with tap.connected: true
-just tap-status               # prints tap connection state from the CLI
+curl localhost:18080/healthz  # expect {"status":"ok",...} after the first Tap event
+just tap-status               # prints connection, last event, and durable firehose cursor
 just psql                     # psql shell; try: SELECT count(*) FROM bluesky_posts_sample;
 ```
 

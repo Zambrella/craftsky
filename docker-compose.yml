@@ -102,9 +102,9 @@ services:
   # record. We keep it as a backfill helper for repos that wrote their
   # profile record BEFORE signal-collection was configured — Tap only
   # discovers on live firehose events, so pre-existing records don't get
-  # ingested until the user writes again. Explicitly POSTing a DID to
-  # /repos/add triggers a one-time resync that pulls their existing
-  # records.
+  # ingested until the user writes again. POSTing a new DID to /repos/add
+  # tracks and initially syncs it; posting an already-active DID is a no-op.
+  # Use `cli tap reconcile DID` when an active repo needs PDS reconciliation.
   #
   # Add dev DIDs here as needed; real users don't need an entry.
   tap-bootstrap:
