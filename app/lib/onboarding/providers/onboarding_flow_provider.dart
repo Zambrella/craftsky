@@ -218,11 +218,11 @@ class OnboardingFlow extends _$OnboardingFlow {
           unknownCraftIds: current.unknownCraftIds,
         ),
         OnboardingStep.crafts => saved.copyWith(
-          step: OnboardingStep.instagram,
+          step: OnboardingStep.guidelines,
           identity: current.identity,
         ),
-        OnboardingStep.instagram => saved.copyWith(
-          step: OnboardingStep.instagram,
+        OnboardingStep.guidelines => saved.copyWith(
+          step: OnboardingStep.guidelines,
         ),
       };
       state = AsyncData(next);

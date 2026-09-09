@@ -14,7 +14,7 @@ void main() {
     final edited = initial.copyWith(
       identity: initial.identity.copyWith(displayName: 'Alicia'),
       selectedCraftIds: const {'quilting'},
-      step: OnboardingStep.instagram,
+      step: OnboardingStep.guidelines,
     );
     final returned = edited.copyWith(step: OnboardingStep.profile);
 

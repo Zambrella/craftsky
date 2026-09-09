@@ -10,12 +10,15 @@ import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
 import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_flow_provider.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
+
+import '../fakes/recording_messenger.dart';
 
 final _lease = ActiveAccountLease(
   session: AccountSessionLease(
@@ -64,55 +67,48 @@ final class _ErrorFlow extends OnboardingFlow {
 }
 
 void main() {
-  testWidgets(
-    'AT-007 Skip remains available during prefill loading and error',
-    (
-      tester,
-    ) async {
-      Future<void> pump(OnboardingFlow flow) => tester.pumpWidget(
-        ProviderScope(
-          retry: (_, _) => null,
-          overrides: [
-            activeAccountInitializationProvider.overrideWith(
-              (ref) => ActiveAccountInitialization(
-                lease: _lease,
-                languagePreferences: const LanguagePreferences(
-                  primaryLanguage: 'en',
-                  contentLanguages: ['en'],
-                ),
-                onboardingComplete: false,
+  testWidgets('Skip is absent during prefill loading and error', (
+    tester,
+  ) async {
+    Future<void> pump(OnboardingFlow flow) => tester.pumpWidget(
+      ProviderScope(
+        retry: (_, _) => null,
+        overrides: [
+          activeAccountInitializationProvider.overrideWith(
+            (ref) => ActiveAccountInitialization(
+              lease: _lease,
+              languagePreferences: const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
               ),
+              onboardingComplete: false,
             ),
-            onboardingFlowProvider.overrideWith2((_) => flow),
-          ],
-          child: MaterialApp(
-            theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: const OnboardingPage(),
           ),
+          onboardingFlowProvider.overrideWith2((_) => flow),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const OnboardingPage(),
         ),
-      );
+      ),
+    );
 
-      final pending = _PendingFlow();
-      await pump(pending);
-      await tester.pump();
-      expect(find.text('Skip'), findsOneWidget);
-      await tester.tap(find.text('Skip'));
-      await tester.pump();
-      expect(pending.completionCalls, 1);
+    final pending = _PendingFlow();
+    await pump(pending);
+    await tester.pump();
+    expect(find.text('Skip'), findsNothing);
+    expect(pending.completionCalls, 0);
 
-      await tester.pumpWidget(const SizedBox.shrink());
-      final failed = _ErrorFlow();
-      await pump(failed);
-      await tester.pump();
-      await tester.pump();
-      expect(find.text('Skip'), findsOneWidget);
-      await tester.tap(find.text('Skip'));
-      await tester.pump();
-      expect(failed.completionCalls, 1);
-    },
-  );
+    await tester.pumpWidget(const SizedBox.shrink());
+    final failed = _ErrorFlow();
+    await pump(failed);
+    await tester.pump();
+    await tester.pump();
+    expect(find.text('Skip'), findsNothing);
+    expect(failed.completionCalls, 0);
+  });
 
   testWidgets('shows localized sequential progress and deterministic Back', (
     tester,
@@ -168,16 +164,10 @@ void main() {
     expect(find.text('Step 1 of 3'), findsOneWidget);
   });
 
-  testWidgets('Skip completes immediately without writing a draft', (
-    tester,
-  ) async {
+  testWidgets('Skip is absent from the loaded flow', (tester) async {
     final flow = _Flow(
       OnboardingFlowState.fromProfile(
-        Profile(
-          did: 'did:plc:alice',
-          handle: 'alice.test',
-          crafts: const [],
-        ),
+        Profile(did: 'did:plc:alice', handle: 'alice.test', crafts: const []),
       ),
     );
     await tester.pumpWidget(
@@ -204,13 +194,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('onboarding-display-name')),
-      'Unsaved',
-    );
-    await tester.tap(find.text('Skip'));
-    await tester.pump();
-    expect(flow.completionCalls, 1);
+    expect(find.text('Skip'), findsNothing);
+    expect(flow.completionCalls, 0);
   });
 
   testWidgets('complete flow content is centered and capped at tablet width', (
@@ -222,11 +207,7 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     final flow = _Flow(
       OnboardingFlowState.fromProfile(
-        Profile(
-          did: 'did:plc:alice',
-          handle: 'alice.test',
-          crafts: const [],
-        ),
+        Profile(did: 'did:plc:alice', handle: 'alice.test', crafts: const []),
       ),
     );
 
@@ -274,7 +255,6 @@ void main() {
       ),
     ).copyWith(step: OnboardingStep.crafts);
     final flow = _Flow(initial);
-    var confirmationCalls = 0;
     Uri? launchedUri;
     await tester.pumpWidget(
       ProviderScope(
@@ -296,10 +276,6 @@ void main() {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
           home: OnboardingPage(
-            confirmOpenLink: (context, uri) async {
-              confirmationCalls++;
-              return false;
-            },
             linkLauncher: (uri) async {
               launchedUri = uri;
               return true;
@@ -316,9 +292,69 @@ void main() {
     const expected =
         'https://userinput.app/s/did:plc:lmmx63zcns6gewgxqfdt4kof/'
         '3mpr5izppvt2k?lang=en';
-    expect(confirmationCalls, 0);
     expect(launchedUri.toString(), expected);
     expect(flow.state.requireValue.selectedCraftIds, initial.selectedCraftIds);
     expect(find.text('What do you make?'), findsOneWidget);
   });
+
+  testWidgets(
+    'View full guidelines opens the trusted draft document directly',
+    (tester) async {
+      final flow = _Flow(
+        OnboardingFlowState.fromProfile(
+          Profile(did: 'did:plc:alice', handle: 'alice.test', crafts: const []),
+        ).copyWith(step: OnboardingStep.guidelines),
+      );
+      Uri? launchedUri;
+      final messenger = RecordingMessenger();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            activeAccountInitializationProvider.overrideWith(
+              (ref) => ActiveAccountInitialization(
+                lease: _lease,
+                languagePreferences: const LanguagePreferences(
+                  primaryLanguage: 'en',
+                  contentLanguages: ['en'],
+                ),
+                onboardingComplete: false,
+              ),
+            ),
+            onboardingFlowProvider.overrideWith2((_) => flow),
+          ],
+          child: MessengerScope(
+            messenger: messenger,
+            child: MaterialApp(
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: OnboardingPage(
+                linkLauncher: (uri) async {
+                  launchedUri = uri;
+                  return false;
+                },
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final action = find.text('View full guidelines');
+      await tester.ensureVisible(action);
+      await tester.tap(action);
+      await tester.pump();
+
+      expect(
+        launchedUri.toString(),
+        'https://docs.google.com/document/d/'
+        '1BXqycv4IvnsVGWAhK1FZ94XF6hrNiW4FVFFtfjGyT94/edit?usp=sharing',
+      );
+      expect(find.text('Open link?'), findsNothing);
+      expect(
+        messenger.calls,
+        [('error', "Couldn't open that link.", null)],
+      );
+    },
+  );
 }
