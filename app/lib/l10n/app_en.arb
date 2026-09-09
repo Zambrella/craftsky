@@ -994,6 +994,15 @@
   "projectComposerPatternDifficultyLabel": "Difficulty",
   "@projectComposerPatternDifficultyLabel": { "description": "Label for the optional pattern difficulty field in the project composer." },
 
+  "projectComposerPatternSelfDraftedTitle": "Self-drafted pattern",
+  "@projectComposerPatternSelfDraftedTitle": { "description": "Title for the switch that marks a project pattern as drafted by the post author." },
+
+  "projectComposerPatternSelfDraftedDescription": "I drafted this pattern",
+  "@projectComposerPatternSelfDraftedDescription": { "description": "Description for the self-drafted pattern switch." },
+
+  "projectPatternSelfDraftedLabel": "Self-drafted",
+  "@projectPatternSelfDraftedLabel": { "description": "Metadata label shown on a project card for a pattern drafted by the post author." },
+
   "projectComposerPatternDesignerLabel": "Designer",
   "@projectComposerPatternDesignerLabel": { "description": "Label for the optional pattern designer field in the project composer." },
 
@@ -1011,6 +1020,15 @@
 
   "postComposeBodyHint": "Pattern, fabric, what went right, what didn't...",
   "@postComposeBodyHint": { "description": "Hint text inside the main post composer text field." },
+
+  "postSponsoredToggleTitle": "Sponsored",
+  "@postSponsoredToggleTitle": { "description": "Title for the sponsorship disclosure switch in top-level post composers." },
+
+  "postSponsoredToggleDescription": "This post includes sponsorship or other commercial consideration",
+  "@postSponsoredToggleDescription": { "description": "Description for the sponsorship disclosure switch." },
+
+  "postSponsoredLabel": "Sponsored",
+  "@postSponsoredLabel": { "description": "Accessible disclosure label shown on sponsored full post cards and quote previews." },
 
   "postComposeReplyTitle": "Reply",
   "@postComposeReplyTitle": { "description": "Title of the reply composer sheet." },

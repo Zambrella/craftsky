@@ -31,71 +31,81 @@ type scheduledPostPublicationRequest struct {
 }
 
 type scheduledPostPayloadRequest struct {
-	Kind     scheduledposts.PostKind         `json:"kind"`
-	Text     string                          `json:"text"`
-	Facets   json.RawMessage                 `json:"facets,omitempty"`
-	Langs    []string                        `json:"langs,omitempty"`
-	Project  json.RawMessage                 `json:"project,omitempty"`
-	Media    []scheduledposts.PayloadMedia   `json:"media,omitempty"`
-	Reply    json.RawMessage                 `json:"reply,omitempty"`
-	Embed    json.RawMessage                 `json:"embed,omitempty"`
-	External *scheduledposts.PayloadExternal `json:"external,omitempty"`
+	Kind      scheduledposts.PostKind         `json:"kind"`
+	Text      string                          `json:"text"`
+	Sponsored bool                            `json:"sponsored"`
+	Facets    json.RawMessage                 `json:"facets,omitempty"`
+	Langs     []string                        `json:"langs,omitempty"`
+	Project   json.RawMessage                 `json:"project,omitempty"`
+	Media     []scheduledposts.PayloadMedia   `json:"media,omitempty"`
+	Reply     json.RawMessage                 `json:"reply,omitempty"`
+	Embed     json.RawMessage                 `json:"embed,omitempty"`
+	External  *scheduledposts.PayloadExternal `json:"external,omitempty"`
 }
 
 func (payload scheduledPostPayloadRequest) canonical() scheduledposts.Payload {
 	return scheduledposts.Payload{
-		Kind: payload.Kind, Text: payload.Text, Facets: payload.Facets,
+		Kind: payload.Kind, Text: payload.Text, Sponsored: payload.Sponsored, Facets: payload.Facets,
 		Langs: payload.Langs, Project: payload.Project, Media: payload.Media,
 		External: payload.External,
 	}
 }
 
 func decodeScheduledPostCreate(body io.Reader) (scheduledPostCreateRequest, error) {
-	decoder := json.NewDecoder(body)
-	decoder.DisallowUnknownFields()
 	var request scheduledPostCreateRequest
-	if err := decoder.Decode(&request); err != nil {
-		return scheduledPostCreateRequest{}, err
-	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		if err == nil {
-			return scheduledPostCreateRequest{}, errors.New("request contains multiple values")
-		}
+	if err := decodeScheduledRequest(body, &request); err != nil {
 		return scheduledPostCreateRequest{}, err
 	}
 	return request, nil
 }
 
 func decodeScheduledPostUpdate(body io.Reader) (scheduledPostUpdateRequest, error) {
-	decoder := json.NewDecoder(body)
-	decoder.DisallowUnknownFields()
 	var request scheduledPostUpdateRequest
-	if err := decoder.Decode(&request); err != nil {
-		return scheduledPostUpdateRequest{}, err
-	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		if err == nil {
-			return scheduledPostUpdateRequest{}, errors.New("request contains multiple values")
-		}
+	if err := decodeScheduledRequest(body, &request); err != nil {
 		return scheduledPostUpdateRequest{}, err
 	}
 	return request, nil
 }
 
 func decodeScheduledPostPublication(body io.Reader) (scheduledPostPublicationRequest, error) {
-	decoder := json.NewDecoder(body)
-	decoder.DisallowUnknownFields()
 	var request scheduledPostPublicationRequest
-	if err := decoder.Decode(&request); err != nil {
-		return scheduledPostPublicationRequest{}, err
-	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		if err == nil {
-			return scheduledPostPublicationRequest{}, errors.New("request contains multiple values")
-		}
+	if err := decodeScheduledRequest(body, &request); err != nil {
 		return scheduledPostPublicationRequest{}, err
 	}
 	return request, nil
+}
+
+func decodeScheduledRequest(body io.Reader, destination any) error {
+	raw, err := io.ReadAll(body)
+	if err != nil {
+		return err
+	}
+	var envelope struct {
+		Payload map[string]json.RawMessage `json:"payload"`
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		return err
+	}
+	sponsoredRaw, present := envelope.Payload["sponsored"]
+	var sponsoredValue any
+	if present {
+		_ = json.Unmarshal(sponsoredRaw, &sponsoredValue)
+	}
+	if _, valid := sponsoredValue.(bool); !present || !valid {
+		return errors.New("payload.sponsored must be an explicit boolean")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(destination); err != nil {
+		return err
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		if err == nil {
+			return errors.New("request contains multiple values")
+		}
+		return err
+	}
+	return nil
 }
 
 func validateScheduledPostRequest(
@@ -122,9 +132,10 @@ func validateScheduledPostRequest(
 	}
 
 	postRequest := PostCreateRequest{
-		Text:   request.Payload.Text,
-		Facets: request.Payload.Facets,
-		Langs:  request.Payload.Langs,
+		Text:      request.Payload.Text,
+		Sponsored: request.Payload.Sponsored,
+		Facets:    request.Payload.Facets,
+		Langs:     request.Payload.Langs,
 	}
 	if len(request.Payload.Project) > 0 {
 		if err := json.Unmarshal(request.Payload.Project, &postRequest.Project); err != nil {

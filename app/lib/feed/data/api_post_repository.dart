@@ -25,6 +25,7 @@ class ApiPostRepository implements PostRepository {
   Future<Post> create({
     required String text,
     required List<String> langs,
+    required bool sponsored,
     PostReply? reply,
     PostRef? quote,
     Project? project,
@@ -48,6 +49,7 @@ class ApiPostRepository implements PostRepository {
     return _api.createPost(
       text: text,
       langs: langs,
+      sponsored: sponsored,
       reply: reply,
       quote: quote,
       project: project,

@@ -34,6 +34,7 @@ import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
 import 'package:craftsky_app/feed/providers/video_service_client_provider.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
 import 'package:craftsky_app/feed/widgets/composer_link_preview_carousel.dart';
+import 'package:craftsky_app/feed/widgets/composer_sponsored_switch.dart';
 import 'package:craftsky_app/feed/widgets/composer_video_attachment_card.dart';
 import 'package:craftsky_app/feed/widgets/submission_blocking_overlay.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -177,6 +178,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
   var _usesStoredDraftVideo = false;
   var _isSubmitting = false;
   var _isSavingDraft = false;
+  var _sponsored = false;
+  var _initialSponsored = false;
   var _submissionSucceeded = false;
   late final DraftSubmissionOrigin _origin;
   List<String>? _initialLanguages;
@@ -219,6 +222,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
           _languages = PostLanguageSelection.fromValues(content.languages);
           _initialLanguages = List.of(content.languages);
         }
+        _sponsored = content.sponsored;
       }
       final restored = restoreDraftSchedule(
         seed.draft.schedule,
@@ -249,6 +253,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       if (langs.isNotEmpty) {
         _languages = PostLanguageSelection.fromValues(langs);
       }
+      _sponsored = scheduled.payload['sponsored'] == true;
       if (scheduled.status == ScheduledPostStatus.needsAttention) {
         _scheduleChoice = ScheduleChoice.now;
         _missedScheduledAtLocal = scheduled.scheduledAt.utc.toLocal();
@@ -271,6 +276,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       _controller.selection = TextSelection.collapsed(offset: _text.length);
     }
     _initialText = _text;
+    _initialSponsored = _sponsored;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       _focusNode.requestFocus();
@@ -563,6 +569,21 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                           onChanged: (value) =>
                               setState(() => _languages = value),
                         ),
+                        if (!isResponse) ...[
+                          SizedBox(height: spacing.sp4),
+                          ComposerSponsoredSwitch(
+                            key: const Key('post-composer-sponsored-switch'),
+                            value: _sponsored,
+                            title: l10n.postSponsoredToggleTitle,
+                            description: l10n.postSponsoredToggleDescription,
+                            onChanged:
+                                !createState.isLoading &&
+                                    !_isSubmitting &&
+                                    !_isScheduling
+                                ? (value) => setState(() => _sponsored = value)
+                                : null,
+                          ),
+                        ],
                         if (isSchedulable) ...[
                           SizedBox(height: spacing.sp4),
                           Builder(
@@ -775,6 +796,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         !listEquals(_languages?.values, _initialLanguages) ||
         _scheduleChoice != _initialScheduleChoice ||
         _scheduledAtLocal != _initialScheduledAtLocal ||
+        _sponsored != _initialSponsored ||
         mediaChanged ||
         _videoController.selection != null;
   }
@@ -819,6 +841,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       owner: owner,
       text: _text,
       languages: _languages!.values,
+      sponsored: _sponsored,
       schedule: schedule,
       images: imagesState.images,
       video: _draftVideoWrite(),
@@ -999,6 +1022,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
           .create(
             text: trimmedText,
             langs: _languages!.values,
+            sponsored: _sponsored,
             video: video,
             facets: facets.isEmpty ? null : facets,
             ownership: owner,
@@ -1037,6 +1061,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
             .create(
               text: trimmedText,
               langs: _languages!.values,
+              sponsored: _sponsored,
               video: video,
               facets: facets.isEmpty ? null : facets,
               ownership: owner,
@@ -1183,6 +1208,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
           .create(
             text: trimmedText,
             langs: _languages!.values,
+            sponsored: widget.replyTarget == null && _sponsored,
             reply: _replyFor(widget.replyTarget),
             quote: _quoteFor(widget.quoteTarget),
             images: images,
@@ -1420,6 +1446,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         'kind': 'standard',
         'text': trimmedText,
         'langs': _languages!.values,
+        'sponsored': _sponsored,
         'facets': ?facets.isEmpty ? null : facets,
         'media': media,
         'external': ?external,
@@ -1510,6 +1537,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
           ...existing.payload,
           'text': trimmedText,
           'langs': _languages!.values,
+          'sponsored': _sponsored,
           'facets': ?facets.isEmpty ? null : facets,
           'media': media,
           'external': ?external,

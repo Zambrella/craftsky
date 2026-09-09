@@ -37,6 +37,7 @@ void main() {
       viewerHasLiked: false,
       viewerHasReposted: false,
       viewerHasSaved: false,
+      sponsored: false,
       external: const PostExternal(
         uri: 'https://example.com/feed-pattern?token=final#section',
         title: 'Feed pattern',

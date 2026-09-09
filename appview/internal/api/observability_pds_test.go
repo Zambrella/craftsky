@@ -162,7 +162,7 @@ func TestPDSWriteHandlersEmitObservedOperations(t *testing.T) {
 
 	postPDS := &fakePostEffectState{createURI: "at://did:plc:alice/social.craftsky.feed.post/post1", createCID: "bafyPost"}
 	createPostHandler := api.CreatePostHandler(&fakePostStore{}, observedTestEffectFactory(newPDSEffectsFactory(postPDS), recorder), fakeResolver{handleFor: "alice.example"}, api.DefaultMediaLimits(), nilLogger())
-	serveObservedPDSRequest(t, createPostHandler, withOAuthSession(authedReq(http.MethodPost, "/v1/posts", `{"text":"hello"}`, "did:plc:alice")), http.StatusCreated)
+	serveObservedPDSRequest(t, createPostHandler, withOAuthSession(authedReq(http.MethodPost, "/v1/posts", `{"text":"hello","sponsored":false}`, "did:plc:alice")), http.StatusCreated)
 
 	deletePostHandler := api.DeletePostHandler(observedTestEffectFactory(newPDSEffectsFactory(&fakePostEffectState{}), recorder), nilLogger())
 	deletePostReq := withOAuthSession(authedReq(http.MethodDelete, "/v1/posts/did:plc:alice/post1", "", "did:plc:alice"))
@@ -301,7 +301,7 @@ func TestPDSWriteHandlerLogsUseBoundedContextWithoutRawIdentitySessionOrContent(
 		api.DefaultMediaLimits(),
 		logger,
 	)
-	serveObservedPDSRequest(t, createPostHandler, loggedWriteReq(http.MethodPost, "/v1/posts", `{"text":"secret body"}`), http.StatusCreated)
+	serveObservedPDSRequest(t, createPostHandler, loggedWriteReq(http.MethodPost, "/v1/posts", `{"text":"secret body","sponsored":false}`), http.StatusCreated)
 
 	deletePostHandler := api.DeletePostHandler(newPDSEffectsFactory(&fakePostEffectState{deleteErr: errors.New("pds down")}), logger)
 	deleteReq := loggedWriteReq(http.MethodDelete, "/v1/posts/did:plc:alice/post1", "")

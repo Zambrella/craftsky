@@ -35,6 +35,8 @@ Map<String, dynamic> hydrateScheduledProjectComposer(
       ..[ProjectComposerFields.patternUrl] = pattern['url']
       ..[ProjectComposerFields.patternName] = pattern['name']
       ..[ProjectComposerFields.patternDifficulty] = pattern['difficulty']
+      ..[ProjectComposerFields.patternSelfDrafted] =
+          pattern['selfDrafted'] == true
       ..[ProjectComposerFields.patternDesigner] = pattern['designer']
       ..[ProjectComposerFields.patternPublisher] = pattern['publisher'];
   }

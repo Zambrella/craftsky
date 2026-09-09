@@ -115,7 +115,7 @@ void main() {
   });
 
   testWidgets(
-    'AT-007 hides pattern fields until pattern tag or name is filled',
+    'AT-007 pattern details are available without a pattern name',
     (
       tester,
     ) async {
@@ -142,23 +142,11 @@ void main() {
       );
 
       expect(find.text('Pattern tag or name'), findsOneWidget);
-      expect(find.text('Pattern details'), findsNothing);
+      expect(find.text('Pattern details'), findsOneWidget);
       expect(find.text('Link'), findsNothing);
       expect(find.text('Difficulty'), findsNothing);
       expect(find.text('Designer'), findsNothing);
       expect(find.text('Publisher'), findsNothing);
-
-      await tester.enterText(
-        find.descendant(
-          of: find.byKey(const Key('project-composer-pattern-name-editor')),
-          matching: find.byType(TextField),
-        ),
-        '#SockKAL',
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Pattern details'), findsOneWidget);
-      expect(find.text('Designer'), findsNothing);
 
       await _openDetail(
         tester,
@@ -169,6 +157,7 @@ void main() {
       expect(find.text('Publisher'), findsOneWidget);
       expect(find.text('Link'), findsOneWidget);
       expect(find.text('Difficulty'), findsOneWidget);
+      expect(find.text('Self-drafted pattern'), findsOneWidget);
     },
   );
 

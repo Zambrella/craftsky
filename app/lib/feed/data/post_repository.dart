@@ -22,6 +22,7 @@ abstract interface class PostRepository {
   Future<Post> create({
     required String text,
     required List<String> langs,
+    required bool sponsored,
     PostReply? reply,
     PostRef? quote,
     Project? project,

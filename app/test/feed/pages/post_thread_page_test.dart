@@ -74,6 +74,7 @@ Post _rootPost(
   viewerHasLiked: viewerHasLiked,
   viewerHasReposted: viewerHasReposted,
   viewerHasSaved: false,
+  sponsored: false,
 );
 
 PostCommentSection _section(
@@ -143,6 +144,7 @@ Post _post({required String rkey, required String text, PostReply? reply}) =>
       viewerHasLiked: false,
       viewerHasReposted: false,
       viewerHasSaved: false,
+      sponsored: false,
       reply: reply,
     );
 

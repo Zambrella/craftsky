@@ -50,6 +50,7 @@ void main() {
       'viewerHasLiked': true,
       'viewerHasReposted': false,
       'viewerHasSaved': false,
+      'sponsored': false,
       'viewerHasReplied': true,
       'createdAt': '2026-05-04T18:23:45.000Z',
       'indexedAt': '2026-05-04T18:23:47.000Z',
@@ -148,12 +149,12 @@ void main() {
       DioAdapter(dio: dio).onPost(
         '/v1/posts',
         (server) => server.reply(201, samplePost(text: 'hi')),
-        data: {'text': 'hi', 'langs': createLangs},
+        data: {'text': 'hi', 'langs': createLangs, 'sponsored': true},
       );
 
       final post = await PostApiClient(
         dio,
-      ).createPost(text: 'hi', langs: createLangs);
+      ).createPost(text: 'hi', langs: createLangs, sponsored: true);
       expect(post.text, 'hi');
       expect(post.rkey, '3lf2abc');
       expect(post.viewerHasReplied, isTrue);
@@ -164,12 +165,12 @@ void main() {
       DioAdapter(dio: dio).onPost(
         '/v1/posts',
         (server) => server.reply(201, samplePost(text: 'top-level')),
-        data: {'text': 'top-level', 'langs': createLangs},
+        data: {'text': 'top-level', 'langs': createLangs, 'sponsored': false},
       );
 
       final post = await PostApiClient(
         dio,
-      ).createPost(text: 'top-level', langs: createLangs);
+      ).createPost(text: 'top-level', langs: createLangs, sponsored: false);
       expect(post.text, 'top-level');
     });
 
@@ -186,12 +187,23 @@ void main() {
       DioAdapter(dio: dio).onPost(
         '/v1/posts',
         (server) => server.reply(201, samplePost(text: '#Mending')),
-        data: {'text': '#Mending', 'langs': createLangs, 'facets': facets},
+        data: {
+          'text': '#Mending',
+          'langs': createLangs,
+          'sponsored': false,
+          'facets': facets,
+        },
       );
 
-      final post = await PostApiClient(
-        dio,
-      ).createPost(text: '#Mending', langs: createLangs, facets: facets);
+      final post =
+          await PostApiClient(
+            dio,
+          ).createPost(
+            text: '#Mending',
+            langs: createLangs,
+            sponsored: false,
+            facets: facets,
+          );
 
       expect(post.text, '#Mending');
     });
@@ -208,6 +220,7 @@ void main() {
         data: {
           'text': 'quote commentary',
           'langs': createLangs,
+          'sponsored': false,
           'embed': {
             'quote': {
               'uri': 'at://did:plc:bob/social.craftsky.feed.post/target',
@@ -223,6 +236,7 @@ void main() {
           ).createPost(
             text: 'quote commentary',
             langs: createLangs,
+            sponsored: false,
             quote: quote,
           );
 
@@ -247,6 +261,7 @@ void main() {
         data: {
           'text': 'reply',
           'langs': createLangs,
+          'sponsored': false,
           'reply': {
             'root': {
               'uri': 'at://did:plc:alice/social.craftsky.feed.post/root',
@@ -260,9 +275,15 @@ void main() {
         },
       );
 
-      final post = await PostApiClient(
-        dio,
-      ).createPost(text: 'reply', langs: createLangs, reply: reply);
+      final post =
+          await PostApiClient(
+            dio,
+          ).createPost(
+            text: 'reply',
+            langs: createLangs,
+            sponsored: false,
+            reply: reply,
+          );
       expect(post.text, 'reply');
     });
 
@@ -276,6 +297,7 @@ void main() {
           data: {
             'text': 'with images',
             'langs': createLangs,
+            'sponsored': false,
             'images': [
               {
                 'image': {
@@ -303,6 +325,7 @@ void main() {
         final post = await PostApiClient(dio).createPost(
           text: 'with images',
           langs: createLangs,
+          sponsored: false,
           images: [
             const CreatePostImage(
               blob: CreatePostBlob(
@@ -339,6 +362,7 @@ void main() {
         data: {
           'text': 'with image',
           'langs': createLangs,
+          'sponsored': false,
           'images': [
             {
               'image': {
@@ -355,6 +379,7 @@ void main() {
       final post = await PostApiClient(dio).createPost(
         text: 'with image',
         langs: createLangs,
+        sponsored: false,
         images: [
           const CreatePostImage(
             blob: CreatePostBlob(
@@ -374,11 +399,13 @@ void main() {
       DioAdapter(dio: dio).onPost(
         '/v1/posts',
         (server) => server.reply(422, {'error': 'validation_failed'}),
-        data: {'text': '', 'langs': createLangs},
+        data: {'text': '', 'langs': createLangs, 'sponsored': false},
       );
 
       await expectLater(
-        () => PostApiClient(dio).createPost(text: '', langs: createLangs),
+        () => PostApiClient(
+          dio,
+        ).createPost(text: '', langs: createLangs, sponsored: false),
         throwsA(
           isA<ApiBadRequest>().having(
             (e) => e.code,
@@ -397,6 +424,7 @@ void main() {
         data: {
           'text': 'ordered images',
           'langs': createLangs,
+          'sponsored': false,
           'images': [
             {
               'image': {
@@ -424,6 +452,7 @@ void main() {
       final post = await PostApiClient(dio).createPost(
         text: 'ordered images',
         langs: createLangs,
+        sponsored: false,
         images: [
           const CreatePostImage(
             blob: CreatePostBlob(
@@ -459,13 +488,20 @@ void main() {
         data: {
           'text': 'project',
           'langs': createLangs,
+          'sponsored': false,
           'project': project.toCreateMap(),
         },
       );
 
-      final post = await PostApiClient(
-        dio,
-      ).createPost(text: 'project', langs: createLangs, project: project);
+      final post =
+          await PostApiClient(
+            dio,
+          ).createPost(
+            text: 'project',
+            langs: createLangs,
+            sponsored: false,
+            project: project,
+          );
 
       expect(post.text, 'project');
       expect(
@@ -479,12 +515,12 @@ void main() {
       DioAdapter(dio: dio).onPost(
         '/v1/posts',
         (server) => server.reply(201, samplePost(text: 'plain')),
-        data: {'text': 'plain', 'langs': createLangs},
+        data: {'text': 'plain', 'langs': createLangs, 'sponsored': false},
       );
 
       final post = await PostApiClient(
         dio,
-      ).createPost(text: 'plain', langs: createLangs);
+      ).createPost(text: 'plain', langs: createLangs, sponsored: false);
 
       expect(post.project, isNull);
     });
@@ -509,6 +545,7 @@ void main() {
             ).createPost(
               text: 'invalid',
               langs: createLangs,
+              sponsored: false,
               project: commonOnlyProject(),
               reply: reply,
             ),
@@ -525,12 +562,12 @@ void main() {
           201,
           samplePost(text: 'bonjour', langs: langs),
         ),
-        data: {'text': 'bonjour', 'langs': langs},
+        data: {'text': 'bonjour', 'langs': langs, 'sponsored': false},
       );
 
       final post = await PostApiClient(
         dio,
-      ).createPost(text: 'bonjour', langs: langs);
+      ).createPost(text: 'bonjour', langs: langs, sponsored: false);
 
       expect(post.langs, langs);
     });

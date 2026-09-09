@@ -415,6 +415,9 @@ func (f *fakePostStore) QuoteViewRows(_ context.Context, refs []api.ResponseStro
 }
 
 func authedReq(method, path, body string, did string) *http.Request {
+	if method == http.MethodPost && path == "/v1/posts" && body != "" && !strings.Contains(body, `"sponsored"`) {
+		body = strings.Replace(body, "{", `{"sponsored":false,`, 1)
+	}
 	var r *http.Request
 	if body == "" {
 		r = httptest.NewRequest(method, path, nil)
@@ -1334,7 +1337,7 @@ func TestCreatePost_HappyPath(t *testing.T) {
 	store := &fakePostStore{}
 	resolver := fakeResolver{handleFor: "alice.example"}
 	h := api.CreatePostHandler(store, newPDSEffectsFactory(pds), resolver, api.DefaultMediaLimits(), nilLogger())
-	req := authedReq(http.MethodPost, "/v1/posts", `{"text":"hello"}`, "did:plc:alice")
+	req := authedReq(http.MethodPost, "/v1/posts", `{"text":"hello","sponsored":true}`, "did:plc:alice")
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
 
@@ -1347,6 +1350,9 @@ func TestCreatePost_HappyPath(t *testing.T) {
 	}
 	if resp.Text != "hello" || resp.URI == "" || resp.CID == "" {
 		t.Errorf("resp = %+v", resp)
+	}
+	if !resp.Sponsored {
+		t.Error("response sponsored = false, want true")
 	}
 	if resp.Rkey != "rkSrv" {
 		t.Errorf("rkey not derived from PDS uri: %q", resp.Rkey)
@@ -1364,6 +1370,9 @@ func TestCreatePost_HappyPath(t *testing.T) {
 	}
 	if _, ok := body["createdAt"].(string); !ok {
 		t.Errorf("createdAt missing or non-string: %v", body["createdAt"])
+	}
+	if body["sponsored"] != true {
+		t.Errorf("sponsored = %#v, want true", body["sponsored"])
 	}
 }
 

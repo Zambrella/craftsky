@@ -60,9 +60,12 @@ abstract final class ProjectOptionCatalogs {
 
   static const patternDifficulties = <ProjectOption>[
     ProjectOption(value: '$feedDefsPrefix#beginner', label: 'Beginner'),
+    ProjectOption(
+      value: '$feedDefsPrefix#confidentBeginner',
+      label: 'Confident beginner',
+    ),
     ProjectOption(value: '$feedDefsPrefix#intermediate', label: 'Intermediate'),
     ProjectOption(value: '$feedDefsPrefix#advanced', label: 'Advanced'),
-    ProjectOption(value: '$feedDefsPrefix#expert', label: 'Expert'),
   ];
 
   static const projectTypes = <ProjectOption>[

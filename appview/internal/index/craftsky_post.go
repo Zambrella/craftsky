@@ -179,15 +179,16 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 
 	const q = `
 		INSERT INTO craftsky_posts
-			(uri, did, rkey, cid, text, facets, images,
+			(uri, did, rkey, cid, text, sponsored, facets, images,
 			 reply_root_uri, reply_root_cid, reply_parent_uri, reply_parent_cid,
 			 quote_uri, quote_cid, tags, langs, is_project, project_craft_type, record, created_at,
 			 external_import_source, profile_sort_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19,
-		        $20, COALESCE($21::timestamptz, now()))
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
+		        $21, COALESCE($22::timestamptz, now()))
 		ON CONFLICT (uri) DO UPDATE SET
 			cid              = EXCLUDED.cid,
 			text             = EXCLUDED.text,
+			sponsored        = EXCLUDED.sponsored,
 			facets           = EXCLUDED.facets,
 			images           = EXCLUDED.images,
 			reply_root_uri   = EXCLUDED.reply_root_uri,
@@ -210,6 +211,7 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 	_, err = tx.Exec(ctx, q,
 		ev.URI, ev.DID, ev.Rkey, ev.CID,
 		rec.Text,
+		rec.Sponsored,
 		facetsJSON, imagesJSON,
 		replyRootURI, replyRootCID,
 		replyParentURI, replyParentCID,

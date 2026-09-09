@@ -39,7 +39,7 @@ void main() {
   testWidgets('pattern details are disclosed as a subpage', (tester) async {
     await _pumpComposer(tester);
 
-    expect(find.text('Pattern details'), findsNothing);
+    expect(find.text('Pattern details'), findsOneWidget);
 
     await tester.enterText(
       find.descendant(
@@ -111,7 +111,7 @@ void main() {
     );
   });
 
-  testWidgets('removing a pattern clears populated pattern details', (
+  testWidgets('clearing a pattern name retains independent pattern details', (
     tester,
   ) async {
     final messenger = RecordingMessenger();
@@ -143,11 +143,22 @@ void main() {
     await tester.enterText(patternName, '#');
     await tester.pumpAndSettle();
 
-    expect(action, findsNothing);
+    expect(action, findsOneWidget);
     expect(
       messenger.calls,
-      contains(('info', 'Pattern details cleared.', null)),
+      isNot(contains(('info', 'Pattern details cleared.', null))),
     );
+
+    await tester.ensureVisible(action);
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    final designer = tester.widget<TextField>(
+      find.descendant(
+        of: find.byKey(const Key('project-composer-pattern-designer-editor')),
+        matching: find.byType(TextField),
+      ),
+    );
+    expect(designer.controller?.text, '@alice.example');
   });
 }
 

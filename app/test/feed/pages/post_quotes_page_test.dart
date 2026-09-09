@@ -451,6 +451,7 @@ Post _quote(String rkey, String displayName) => Post(
   viewerHasLiked: false,
   viewerHasReposted: false,
   viewerHasSaved: false,
+  sponsored: false,
   quoteView: QuoteView(
     state: 'visible',
     post: QuotePreviewPost(
@@ -463,6 +464,7 @@ Post _quote(String rkey, String displayName) => Post(
         displayName: 'Alice',
       ),
       createdAt: DateTime.utc(2026, 9, 5),
+      sponsored: false,
     ),
   ),
 );

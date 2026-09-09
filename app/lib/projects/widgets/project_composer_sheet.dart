@@ -29,6 +29,7 @@ import 'package:craftsky_app/feed/providers/image_picker_existing_video.dart';
 import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
 import 'package:craftsky_app/feed/providers/video_service_client_provider.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
+import 'package:craftsky_app/feed/widgets/composer_sponsored_switch.dart';
 import 'package:craftsky_app/feed/widgets/composer_video_attachment_card.dart';
 import 'package:craftsky_app/feed/widgets/submission_blocking_overlay.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -144,6 +145,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     ProjectComposerFields.patternPublisher,
     ProjectComposerFields.patternUrl,
     ProjectComposerFields.patternDifficulty,
+    ProjectComposerFields.patternSelfDrafted,
   ];
   static const List<String> _commonDetailFieldNames = [
     ProjectComposerFields.materials,
@@ -211,7 +213,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   );
   late final String _composerId;
   String _bodyText = '';
-  String _patternNameText = '';
   String? _activeCraftType;
   String? _sewingProjectType;
   String? _knittingProjectType;
@@ -244,6 +245,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   var _usesStoredDraftVideo = false;
   bool _isSubmitting = false;
   bool _isSavingDraft = false;
+  bool _sponsored = false;
+  bool _initialSponsored = false;
   bool _submissionSucceeded = false;
   late final DraftSubmissionOrigin _origin;
   String _initialBodyText = '';
@@ -284,8 +287,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     _patternPublisherController.text =
         _initialFormValues[ProjectComposerFields.patternPublisher] as String? ??
         '';
-    _patternNameText =
-        _initialFormValues[ProjectComposerFields.patternName] as String? ?? '';
     _activeCraftType =
         _initialFormValues[ProjectComposerFields.craftType] as String?;
     _sewingProjectType =
@@ -319,6 +320,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         _languages = PostLanguageSelection.fromValues(draftContent.languages);
         _initialLanguages = List.of(draftContent.languages);
       }
+      _sponsored = draftContent.sponsored;
       final restored = restoreDraftSchedule(
         widget.draftSeed!.draft.schedule,
         now: DateTime.now(),
@@ -347,6 +349,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       if (langs.isNotEmpty) {
         _languages = PostLanguageSelection.fromValues(langs);
       }
+      _sponsored = scheduled.payload['sponsored'] == true;
       if (scheduled.status == ScheduledPostStatus.needsAttention) {
         _scheduleChoice = ScheduleChoice.now;
         _missedScheduledAtLocal = scheduled.scheduledAt.utc.toLocal();
@@ -361,6 +364,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         });
       }
     }
+    _initialSponsored = _sponsored;
   }
 
   @override
@@ -479,7 +483,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         ) ||
         !listEquals(_languages?.values, _initialLanguages) ||
         _scheduleChoice != _initialScheduleChoice ||
-        _scheduledAtLocal != _initialScheduledAtLocal;
+        _scheduledAtLocal != _initialScheduledAtLocal ||
+        _sponsored != _initialSponsored;
     final canSaveDraft =
         widget.scheduledPost == null &&
         hasDraft &&
@@ -644,23 +649,22 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                             ),
                           ),
                           SizedBox(height: spacing.sp2),
-                          if (_hasMeaningfulPatternName(_patternNameText))
-                            _ProjectDetailActionTile(
-                              key: const Key(
-                                'project-composer-pattern-details-action',
-                              ),
-                              focusNode: _patternDetailsFocusNode,
-                              icon: CraftskyIcons.pattern,
-                              title: l10n.projectComposerPatternDetailsTitle,
-                              subtitle: _detailSummary(
-                                _patternDetailFieldNames,
-                                empty: l10n
-                                    .projectComposerPatternDetailsDescription,
-                                l10n: l10n,
-                              ),
-                              enabled: controlsEnabled,
-                              onTap: _openPatternDetails,
+                          _ProjectDetailActionTile(
+                            key: const Key(
+                              'project-composer-pattern-details-action',
                             ),
+                            focusNode: _patternDetailsFocusNode,
+                            icon: CraftskyIcons.pattern,
+                            title: l10n.projectComposerPatternDetailsTitle,
+                            subtitle: _detailSummary(
+                              _patternDetailFieldNames,
+                              empty:
+                                  l10n.projectComposerPatternDetailsDescription,
+                              l10n: l10n,
+                            ),
+                            enabled: controlsEnabled,
+                            onTap: _openPatternDetails,
+                          ),
                           _ProjectDetailActionTile(
                             key: const Key(
                               'project-composer-common-details-action',
@@ -702,6 +706,16 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                             enabled: controlsEnabled,
                             onChanged: (value) =>
                                 setState(() => _languages = value),
+                          ),
+                          SizedBox(height: spacing.sp4),
+                          ComposerSponsoredSwitch(
+                            key: const Key('project-composer-sponsored-switch'),
+                            value: _sponsored,
+                            title: l10n.postSponsoredToggleTitle,
+                            description: l10n.postSponsoredToggleDescription,
+                            onChanged: controlsEnabled
+                                ? (value) => setState(() => _sponsored = value)
+                                : null,
                           ),
                           SizedBox(height: spacing.sp4),
                           Builder(
@@ -930,6 +944,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       owner: owner,
       body: _bodyText,
       languages: _languages!.values,
+      sponsored: _sponsored,
       schedule: schedule,
       formValues: _combinedFormValues(saved: true),
       images: imagesState.images,
@@ -1041,6 +1056,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         !listEquals(_languages?.values, _initialLanguages) ||
         _scheduleChoice != _initialScheduleChoice ||
         _scheduledAtLocal != _initialScheduledAtLocal ||
+        _sponsored != _initialSponsored ||
         _draftVideoChanged();
   }
 
@@ -1116,6 +1132,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       final String value => value.trim().isNotEmpty,
       final Iterable<Object?> values => values.isNotEmpty,
       final num value => value > 0,
+      true => true,
       _ => false,
     },
   );
@@ -1131,6 +1148,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         final String text => text.trim().isNotEmpty,
         final Iterable<Object?> values => values.isNotEmpty,
         final num number => number > 0,
+        true => true,
         _ => false,
       };
     }).length;
@@ -1291,6 +1309,18 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           name: ProjectComposerFields.patternDifficulty,
           label: l10n.projectComposerPatternDifficultyLabel,
           options: _selectOptions(ProjectOptionCatalogs.patternDifficulties),
+        ),
+        SizedBox(height: spacing.sp4),
+        FormBuilderField<bool>(
+          name: ProjectComposerFields.patternSelfDrafted,
+          builder: (field) => SwitchListTile.adaptive(
+            key: const Key('project-composer-self-drafted-switch'),
+            contentPadding: EdgeInsets.zero,
+            title: Text(l10n.projectComposerPatternSelfDraftedTitle),
+            subtitle: Text(l10n.projectComposerPatternSelfDraftedDescription),
+            value: field.value ?? false,
+            onChanged: field.didChange,
+          ),
         ),
       ],
     );
@@ -1524,26 +1554,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   }
 
   void _onPatternNameChanged(String value) {
-    final nextValue = _patternFormValue(value);
-    final hasDetails = _hasMeaningfulPatternName(nextValue ?? '');
-    setState(() => _patternNameText = nextValue ?? '');
-    if (!hasDetails && _hasAnyDetail(_patternDetailFieldNames)) {
-      _patternDesignerController.clear();
-      _patternPublisherController.clear();
-      setState(() {
-        for (final name in _patternDetailFieldNames) {
-          _detailFormValues[name] = null;
-        }
-      });
-      context.showInfo(
-        AppLocalizations.of(context).projectComposerPatternCleared,
-      );
-    }
-  }
-
-  static bool _hasMeaningfulPatternName(String value) {
-    final trimmed = value.trim();
-    return trimmed.isNotEmpty && trimmed != '#';
+    setState(() {});
   }
 
   static String _patternDisplayText(Object? value) {
@@ -2035,6 +2046,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           .create(
             text: args.text,
             langs: args.langs,
+            sponsored: _sponsored,
             reply: args.reply,
             project: args.project,
             images: images,
@@ -2060,6 +2072,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           .create(
             text: text,
             langs: _languages!.values,
+            sponsored: _sponsored,
             project: project,
             video: video,
             facets: facets,
@@ -2099,6 +2112,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
             .create(
               text: text,
               langs: _languages!.values,
+              sponsored: _sponsored,
               project: project,
               video: video,
               facets: facets,
@@ -2343,6 +2357,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         'kind': 'project',
         'text': args.text,
         'langs': args.langs,
+        'sponsored': _sponsored,
         'facets': ?args.facets,
         'project': args.project.toCreateMap(),
         'media': media,
@@ -2424,6 +2439,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           ...existing.payload,
           'text': args.text,
           'langs': args.langs,
+          'sponsored': _sponsored,
           'facets': ?args.facets,
           'project': args.project.toCreateMap(),
           'media': media,

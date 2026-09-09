@@ -65,6 +65,7 @@ void main() {
     const adapter = ProjectDraftSnapshotAdapter();
 
     final request = adapter.toWriteRequest(
+      sponsored: false,
       id: '96ad7199-292f-4388-a6cd-b4f74230116b',
       owner: AccountKey('did:plc:alice'),
       body: '',

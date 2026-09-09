@@ -54,6 +54,7 @@ void main() {
       content: const StandardDraftContent(
         text: 'A private draft',
         languages: ['en', 'cy'],
+        sponsored: true,
       ),
       schedule: DraftScheduleIntent.later(
         scheduledAtUtc: DateTime.utc(2026, 8, 4, 18),
@@ -94,6 +95,7 @@ void main() {
       (decoded.content as StandardDraftContent).languages,
       ['en', 'cy'],
     );
+    expect((decoded.content as StandardDraftContent).sponsored, isTrue);
     expect(decoded.schedule.choice, DraftScheduleChoice.later);
     expect(decoded.schedule.scheduledAtUtc, DateTime.utc(2026, 8, 4, 18));
     expect(decoded.schedule.savedOffsetMinutes, 60);
@@ -123,6 +125,7 @@ void main() {
           ],
           'unfinishedOptionalValue': null,
         },
+        sponsored: true,
       ),
       schedule: const DraftScheduleIntent.now(),
       media: const [],
@@ -134,6 +137,7 @@ void main() {
     final content = decoded.content as ProjectDraftContent;
     expect(content.body, 'Work in progress');
     expect(content.languages, ['en']);
+    expect(content.sponsored, isTrue);
     expect(content.knownProjectFieldValues['title'], 'Blue jumper');
     expect(content.knownProjectFieldValues['materials'], [
       {'text': 'Wool'},
@@ -142,6 +146,17 @@ void main() {
       content.knownProjectFieldValues,
       contains('unfinishedOptionalValue'),
     );
+  });
+
+  test('defaults sponsorship to false when reading an older draft', () {
+    final manifest =
+        jsonDecode(DraftManifestCodec.encode(_emptyDraft()))
+            as Map<String, Object?>;
+    (manifest['content']! as Map<String, Object?>).remove('sponsored');
+
+    final decoded = DraftManifestCodec.decode(jsonEncode(manifest));
+
+    expect((decoded.content as StandardDraftContent).sponsored, isFalse);
   });
 
   test('rejects a future schema with a content-free typed error', () {

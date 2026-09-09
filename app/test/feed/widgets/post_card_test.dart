@@ -66,6 +66,7 @@ Post _post({
   bool viewerHasReposted = false,
   bool viewerHasReplied = false,
   bool viewerHasSaved = false,
+  bool sponsored = false,
   String? viewerSavedFolderId,
   List<PostImage>? images,
   DateTime? createdAt,
@@ -95,6 +96,7 @@ Post _post({
     viewerHasReposted: viewerHasReposted,
     viewerHasReplied: viewerHasReplied,
     viewerHasSaved: viewerHasSaved,
+    sponsored: sponsored,
     viewerSavedFolderId: viewerSavedFolderId,
     reply: reply,
     images: images,
@@ -547,7 +549,10 @@ void main() {
       await _pump(
         tester,
         PostCard(
-          post: _post(viewerHasSaved: true, viewerSavedFolderId: 'folder-a'),
+          post: _post(
+            viewerHasSaved: true,
+            viewerSavedFolderId: 'folder-a',
+          ),
         ),
         overrides: [
           authSessionProvider.overrideWith(SignedInAuthSession.new),
@@ -619,7 +624,10 @@ void main() {
       await _pump(
         tester,
         PostCard(
-          post: _post(viewerHasSaved: true, viewerSavedFolderId: 'folder-a'),
+          post: _post(
+            viewerHasSaved: true,
+            viewerSavedFolderId: 'folder-a',
+          ),
         ),
         overrides: [
           authSessionProvider.overrideWith(SignedInAuthSession.new),
@@ -982,6 +990,17 @@ void main() {
       expect(reposterTaps, 1);
     });
 
+    testWidgets('renders an accessible disclosure on a sponsored post', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+
+      await _pump(tester, PostCard(post: _post(sponsored: true)));
+
+      expect(find.bySemanticsLabel('Sponsored'), findsOneWidget);
+      semantics.dispose();
+    });
+
     testWidgets('AT-009 IT-015 renders accessible Instagram provenance '
         'in a quote preview', (tester) async {
       final semantics = tester.ensureSemantics();
@@ -1001,6 +1020,7 @@ void main() {
                   handle: 'bob.craftsky.social',
                 ),
                 createdAt: DateTime(2020, 5, 22, 12),
+                sponsored: true,
                 externalImport: const ExternalImport(source: 'instagram'),
               ),
             ),
@@ -1010,6 +1030,7 @@ void main() {
 
       expect(find.text('Imported from Instagram'), findsOneWidget);
       expect(find.bySemanticsLabel('Imported from Instagram'), findsOneWidget);
+      expect(find.bySemanticsLabel('Sponsored'), findsOneWidget);
       semantics.dispose();
     });
 
@@ -1035,6 +1056,7 @@ void main() {
                       handle: 'bob.craftsky.social',
                     ),
                     createdAt: DateTime(2020, 5, 22, 12),
+                    sponsored: false,
                     externalImport: provenance,
                   ),
                 ),
@@ -1078,6 +1100,7 @@ void main() {
                   ),
                 ),
                 createdAt: DateTime(2026, 5, 22, 12),
+                sponsored: false,
               ),
             ),
           ),
@@ -1148,6 +1171,7 @@ void main() {
                   ),
                 ],
                 createdAt: DateTime(2026, 5, 22, 12),
+                sponsored: false,
               ),
             ),
           ),
@@ -1216,6 +1240,7 @@ void main() {
                     ),
                   ),
                   createdAt: DateTime(2026, 5, 22, 12),
+                  sponsored: false,
                 ),
               ),
             ),
@@ -1293,6 +1318,7 @@ void main() {
     ) async {
       final post = PostMapper.fromMap({
         'availability': 'blocked',
+        'sponsored': false,
         'relationship': {'state': 'blocked', 'revealable': false},
       });
       await _pump(tester, PostCard(post: post));

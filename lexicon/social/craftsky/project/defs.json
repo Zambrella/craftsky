@@ -187,8 +187,12 @@
     },
     "pattern": {
       "type": "object",
-      "description": "Optional reference to the pattern used. Every field optional — 'Simplicity 8265' (name only), 'https://ravelry.com/patterns/library/hitchhiker' (URL only), or both plus difficulty are all valid.",
+      "description": "Optional metadata for the pattern used. Every field is optional. Self-drafted patterns may still carry a name, difficulty, URL, designer, or publisher.",
       "properties": {
+        "selfDrafted": {
+          "type": "boolean",
+          "description": "True when the author identifies the pattern as self-drafted. Omit when false. This may coexist with other pattern metadata."
+        },
         "url": {
           "type": "string",
           "format": "uri",
@@ -212,12 +216,12 @@
           "type": "string",
           "maxLength": 100,
           "maxGraphemes": 100,
-          "description": "Pattern difficulty as rated by the designer. A property of the pattern, not the post — self-drafted or free-formed projects should leave this empty. knownValues are tokens.",
+          "description": "Pattern difficulty. A property of the pattern, not the post. Self-drafted patterns may include the author's own rating. knownValues are tokens.",
           "knownValues": [
             "social.craftsky.feed.defs#beginner",
+            "social.craftsky.feed.defs#confidentBeginner",
             "social.craftsky.feed.defs#intermediate",
-            "social.craftsky.feed.defs#advanced",
-            "social.craftsky.feed.defs#expert"
+            "social.craftsky.feed.defs#advanced"
           ]
         },
         "designer": {

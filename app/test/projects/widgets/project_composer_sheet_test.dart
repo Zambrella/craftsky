@@ -81,8 +81,8 @@ void main() {
     await _selectCraft(tester, 'Embroidery');
 
     final bodyField = _bodyTextField();
-    final detailsAction = find.byKey(
-      const Key('project-composer-common-details-action'),
+    final patternAction = find.byKey(
+      const Key('project-composer-pattern-details-action'),
     );
     await tester.ensureVisible(bodyField);
     await tester.pumpAndSettle();
@@ -96,7 +96,7 @@ void main() {
     expect(
       tester
           .widget<ListTile>(
-            find.descendant(of: detailsAction, matching: find.byType(ListTile)),
+            find.descendant(of: patternAction, matching: find.byType(ListTile)),
           )
           .focusNode
           ?.hasFocus,

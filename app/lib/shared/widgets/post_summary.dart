@@ -27,6 +27,7 @@ final class PostSummaryData with PostSummaryDataMappable {
     this.image,
     this.externalImport,
     this.external,
+    this.sponsored = false,
     this.revealable = false,
   });
 
@@ -64,6 +65,7 @@ final class PostSummaryData with PostSummaryDataMappable {
       images: post.images,
       externalImport: post.externalImport,
       external: post.external,
+      sponsored: post.sponsored,
     ),
     ('muted', _) => PostSummaryData(
       state: PostSummaryState.muted,
@@ -110,6 +112,7 @@ final class PostSummaryData with PostSummaryDataMappable {
     DateTime? createdAt,
     ExternalImport? externalImport,
     PostExternal? external,
+    bool sponsored = false,
   }) => PostSummaryData(
     state: PostSummaryState.visible,
     author: author,
@@ -135,6 +138,7 @@ final class PostSummaryData with PostSummaryDataMappable {
         },
     externalImport: externalImport,
     external: images?.isNotEmpty == true || video != null ? null : external,
+    sponsored: sponsored,
   );
 
   final PostSummaryState state;
@@ -145,6 +149,7 @@ final class PostSummaryData with PostSummaryDataMappable {
   final PostImage? image;
   final ExternalImport? externalImport;
   final PostExternal? external;
+  final bool sponsored;
   final bool revealable;
 
   @override
@@ -204,6 +209,11 @@ class PostSummary extends StatelessWidget {
               if (data.externalImport?.isInstagram ?? false) ...[
                 if (data.author != null) const SizedBox(height: 8),
                 const ImportedPostLabel(),
+              ],
+              if (data.sponsored) ...[
+                if (data.author != null || data.externalImport != null)
+                  const SizedBox(height: 8),
+                const SponsoredLabel(),
               ],
               if (data.image case final image?) ...[
                 const SizedBox(height: 8),
@@ -283,6 +293,29 @@ class ImportedPostLabel extends StatelessWidget {
           label,
           style: theme.textTheme.labelSmall?.copyWith(
             color: theme.colorScheme.outline,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class SponsoredLabel extends StatelessWidget {
+  const SponsoredLabel({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final label = AppLocalizations.of(context).postSponsoredLabel;
+    return Semantics(
+      container: true,
+      label: label,
+      child: ExcludeSemantics(
+        child: Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.outline,
+            fontWeight: FontWeight.w700,
           ),
         ),
       ),

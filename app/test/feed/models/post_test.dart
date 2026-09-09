@@ -25,6 +25,7 @@ void main() {
           'viewerHasReposted': false,
           'viewerHasReplied': false,
           'viewerHasSaved': false,
+          'sponsored': false,
           'createdAt': '2026-07-29T10:00:00.000Z',
           'indexedAt': '2026-07-29T10:00:01.000Z',
           'author': {
@@ -72,21 +73,25 @@ void main() {
       final foldered = PostMapper.fromMap({
         ...base,
         'viewerHasSaved': true,
+        'sponsored': false,
         'viewerSavedFolderId': '018f-folder-opaque',
       });
       final unfiled = PostMapper.fromMap({
         ...base,
         'viewerHasSaved': true,
+        'sponsored': false,
         'viewerSavedFolderId': null,
       });
       final unsaved = PostMapper.fromMap({
         ...base,
         'viewerHasSaved': false,
+        'sponsored': false,
         'viewerSavedFolderId': null,
       });
       final protected = PostMapper.fromMap({
         'uri': 'at://did:plc:bob/social.craftsky.feed.post/protected',
         'availability': 'blocked',
+        'sponsored': false,
         'relationship': {'state': 'blocked', 'revealable': false},
       });
 
@@ -118,6 +123,7 @@ void main() {
         () => PostMapper.fromMap({
           ...base,
           'viewerHasSaved': true,
+          'sponsored': false,
           'viewerSavedFolderId': <String, dynamic>{},
         }),
         throwsA(anything),
@@ -128,10 +134,12 @@ void main() {
       final muted = PostMapper.fromMap({
         'uri': 'at://did:plc:bob/social.craftsky.feed.post/muted',
         'availability': 'muted',
+        'sponsored': false,
         'relationship': {'state': 'muted', 'revealable': true},
       });
       final blocked = PostMapper.fromMap({
         'availability': 'blocked',
+        'sponsored': false,
         'relationship': {'state': 'blocked', 'revealable': false},
       });
 
@@ -168,6 +176,7 @@ void main() {
         'viewerHasReposted': false,
         'viewerHasReplied': true,
         'viewerHasSaved': false,
+        'sponsored': false,
         'reply': {
           'root': {'uri': 'at://x/y/1', 'cid': 'bafyR'},
           'parent': {'uri': 'at://x/y/2', 'cid': 'bafyP'},
@@ -252,6 +261,7 @@ void main() {
         'viewerHasReposted': false,
         'viewerHasReplied': false,
         'viewerHasSaved': false,
+        'sponsored': false,
         'createdAt': '2026-05-04T18:23:45.000Z',
         'indexedAt': '2026-05-04T18:23:47.000Z',
         'author': {
@@ -293,6 +303,7 @@ void main() {
         'viewerHasReposted': false,
         'viewerHasReplied': false,
         'viewerHasSaved': false,
+        'sponsored': false,
         'createdAt': '2020-05-04T18:23:45.000Z',
         'indexedAt': '2026-07-23T10:00:00.000Z',
         'author': {
@@ -322,6 +333,7 @@ void main() {
         'viewerHasReposted': false,
         'viewerHasReplied': false,
         'viewerHasSaved': false,
+        'sponsored': false,
         'createdAt': '2020-05-04T18:23:45.000Z',
         'indexedAt': '2026-07-23T10:00:00.000Z',
         'author': {
@@ -334,6 +346,7 @@ void main() {
         'uri': 'at://did:plc:carol/social.craftsky.feed.post/future',
         'cid': 'bafyfuturequote',
         'text': 'Quoted from a future source.',
+        'sponsored': false,
         'createdAt': '2020-05-04T18:20:00.000Z',
         'author': {
           'did': 'did:plc:carol',
@@ -379,6 +392,7 @@ void main() {
         'viewerHasReposted': false,
         'viewerHasReplied': false,
         'viewerHasSaved': false,
+        'sponsored': false,
         'quote': {
           'uri': 'at://did:plc:carol/social.craftsky.feed.post/root',
           'cid': 'bafyroot',
@@ -389,6 +403,7 @@ void main() {
             'uri': 'at://did:plc:carol/social.craftsky.feed.post/root',
             'cid': 'bafyroot',
             'text': 'Original post',
+            'sponsored': false,
             'createdAt': '2026-05-04T18:20:00.000Z',
             'author': {
               'did': 'did:plc:carol',
@@ -453,6 +468,7 @@ void main() {
         'viewerHasReposted': false,
         'viewerHasReplied': false,
         'viewerHasSaved': false,
+        'sponsored': false,
         'createdAt': '2026-05-04T18:23:45.000Z',
         'indexedAt': '2026-05-04T18:23:47.000Z',
         'author': {
@@ -477,6 +493,7 @@ void main() {
         'uri': 'at://did:plc:carol/social.craftsky.feed.post/root',
         'cid': 'bafyroot',
         'text': 'Original imported post',
+        'sponsored': false,
         'createdAt': '2020-05-04T18:20:00.000Z',
         'author': {
           'did': 'did:plc:carol',
@@ -506,6 +523,7 @@ void main() {
         'viewerHasReposted': false,
         'viewerHasReplied': false,
         'viewerHasSaved': false,
+        'sponsored': false,
         'createdAt': '2026-05-04T18:23:45.000Z',
         'indexedAt': '2026-05-04T18:23:47.000Z',
         'author': {
@@ -553,6 +571,7 @@ void main() {
         'viewerHasReposted': false,
         'viewerHasReplied': false,
         'viewerHasSaved': false,
+        'sponsored': false,
         'createdAt': '2026-05-04T18:23:45.000Z',
         'indexedAt': '2026-05-04T18:23:47.000Z',
         'author': {

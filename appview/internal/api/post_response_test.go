@@ -48,6 +48,10 @@ func TestBuildPostResponse_MinimalPost(t *testing.T) {
 	if resp.Text != "hello" {
 		t.Errorf("text = %q", resp.Text)
 	}
+	raw, err := json.Marshal(resp)
+	if err != nil || !strings.Contains(string(raw), `"sponsored":false`) {
+		t.Fatalf("response JSON = %s, err = %v", raw, err)
+	}
 	if !resp.CreatedAt.Equal(baseRow().CreatedAt) {
 		t.Errorf("createdAt = %v", resp.CreatedAt)
 	}
@@ -70,6 +74,19 @@ func TestBuildPostResponse_MinimalPost(t *testing.T) {
 	b, _ := json.Marshal(resp.Tags)
 	if string(b) != "[]" {
 		t.Errorf("tags = %s", b)
+	}
+}
+
+func TestBuildPostResponse_PropagatesSponsoredToFullAndQuote(t *testing.T) {
+	t.Parallel()
+	row := baseRow()
+	row.Sponsored = true
+	if response := api.BuildPostResponse(row, "alice.example"); !response.Sponsored {
+		t.Fatal("full response sponsored = false, want true")
+	}
+	quote := api.BuildQuoteView(&api.QuoteViewRow{State: "visible", Post: row}, "alice.example")
+	if quote.Post == nil || !quote.Post.Sponsored {
+		t.Fatalf("quote response = %#v, want sponsored true", quote)
 	}
 }
 

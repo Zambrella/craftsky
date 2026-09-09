@@ -1103,6 +1103,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerPatternDifficultyLabel => 'Difficulty';
 
   @override
+  String get projectComposerPatternSelfDraftedTitle => 'Self-drafted pattern';
+
+  @override
+  String get projectComposerPatternSelfDraftedDescription =>
+      'I drafted this pattern';
+
+  @override
+  String get projectPatternSelfDraftedLabel => 'Self-drafted';
+
+  @override
   String get projectComposerPatternDesignerLabel => 'Designer';
 
   @override
@@ -1120,6 +1130,16 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get postComposeBodyHint =>
       'Pattern, fabric, what went right, what didn\'t...';
+
+  @override
+  String get postSponsoredToggleTitle => 'Sponsored';
+
+  @override
+  String get postSponsoredToggleDescription =>
+      'This post includes sponsorship or other commercial consideration';
+
+  @override
+  String get postSponsoredLabel => 'Sponsored';
 
   @override
   String get postComposeReplyTitle => 'Reply';

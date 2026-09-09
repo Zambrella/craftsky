@@ -2799,7 +2799,7 @@ func (t *FeedPost) MarshalCBOR(w io.Writer) error {
 	}
 
 	cw := cbg.NewCborWriter(w)
-	fieldCount := 10
+	fieldCount := 11
 
 	if t.Embed == nil {
 		fieldCount--
@@ -3046,6 +3046,22 @@ func (t *FeedPost) MarshalCBOR(w io.Writer) error {
 		return err
 	}
 	if _, err := cw.WriteString(string(t.CreatedAt)); err != nil {
+		return err
+	}
+
+	// t.Sponsored (bool) (bool)
+	if len("sponsored") > 1000000 {
+		return xerrors.Errorf("Value in field \"sponsored\" was too long")
+	}
+
+	if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("sponsored"))); err != nil {
+		return err
+	}
+	if _, err := cw.WriteString(string("sponsored")); err != nil {
+		return err
+	}
+
+	if err := cbg.WriteBool(w, t.Sponsored); err != nil {
 		return err
 	}
 
@@ -3341,6 +3357,24 @@ func (t *FeedPost) UnmarshalCBOR(r io.Reader) (err error) {
 				}
 
 				t.CreatedAt = string(sval)
+			}
+			// t.Sponsored (bool) (bool)
+		case "sponsored":
+
+			maj, extra, err = cr.ReadHeader()
+			if err != nil {
+				return err
+			}
+			if maj != cbg.MajOther {
+				return fmt.Errorf("booleans must be major type 7")
+			}
+			switch extra {
+			case 20:
+				t.Sponsored = false
+			case 21:
+				t.Sponsored = true
+			default:
+				return fmt.Errorf("booleans are either major type 7, value 20 or 21 (got %d)", extra)
 			}
 			// t.ExternalImport (craftsky.FeedPost_ExternalImport) (struct)
 		case "externalImport":
@@ -4994,7 +5028,7 @@ func (t *ProjectDefs_Pattern) MarshalCBOR(w io.Writer) error {
 	}
 
 	cw := cbg.NewCborWriter(w)
-	fieldCount := 8
+	fieldCount := 9
 
 	if t.Designer == nil {
 		fieldCount--
@@ -5021,6 +5055,10 @@ func (t *ProjectDefs_Pattern) MarshalCBOR(w io.Writer) error {
 	}
 
 	if t.PublisherFacets == nil {
+		fieldCount--
+	}
+
+	if t.SelfDrafted == nil {
 		fieldCount--
 	}
 
@@ -5218,6 +5256,31 @@ func (t *ProjectDefs_Pattern) MarshalCBOR(w io.Writer) error {
 				return err
 			}
 
+		}
+	}
+
+	// t.SelfDrafted (bool) (bool)
+	if t.SelfDrafted != nil {
+
+		if len("selfDrafted") > 1000000 {
+			return xerrors.Errorf("Value in field \"selfDrafted\" was too long")
+		}
+
+		if err := cw.WriteMajorTypeHeader(cbg.MajTextString, uint64(len("selfDrafted"))); err != nil {
+			return err
+		}
+		if _, err := cw.WriteString(string("selfDrafted")); err != nil {
+			return err
+		}
+
+		if t.SelfDrafted == nil {
+			if _, err := cw.Write(cbg.CborNull); err != nil {
+				return err
+			}
+		} else {
+			if err := cbg.WriteBool(w, *t.SelfDrafted); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -5474,6 +5537,39 @@ func (t *ProjectDefs_Pattern) UnmarshalCBOR(r io.Reader) (err error) {
 
 					}
 
+				}
+			}
+			// t.SelfDrafted (bool) (bool)
+		case "selfDrafted":
+
+			{
+				b, err := cr.ReadByte()
+				if err != nil {
+					return err
+				}
+				if b != cbg.CborNull[0] {
+					if err := cr.UnreadByte(); err != nil {
+						return err
+					}
+
+					maj, extra, err = cr.ReadHeader()
+					if err != nil {
+						return err
+					}
+					if maj != cbg.MajOther {
+						return fmt.Errorf("booleans must be major type 7")
+					}
+
+					var val bool
+					switch extra {
+					case 20:
+						val = false
+					case 21:
+						val = true
+					default:
+						return fmt.Errorf("booleans are either major type 7, value 20 or 21 (got %d)", extra)
+					}
+					t.SelfDrafted = &val
 				}
 			}
 			// t.DesignerFacets ([]*bsky.RichtextFacet) (slice)

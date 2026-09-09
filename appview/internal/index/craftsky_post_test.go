@@ -34,8 +34,9 @@ CREATE TABLE craftsky_posts (
     rkey             TEXT        NOT NULL,
     cid              TEXT        NOT NULL,
 
-    text             TEXT        NOT NULL,
-    facets           JSONB,
+	text             TEXT        NOT NULL,
+	sponsored        BOOLEAN     NOT NULL DEFAULT false,
+	facets           JSONB,
     images           JSONB,
 
     reply_root_uri   TEXT,
@@ -264,6 +265,7 @@ func TestCraftskyPost_Create_PlainText(t *testing.T) {
 		Record: json.RawMessage(`{
 			"$type": "social.craftsky.feed.post",
 			"text": "first post",
+			"sponsored": true,
 			"createdAt": "` + fixedCreatedAt + `"
 		}`),
 	}
@@ -273,6 +275,7 @@ func TestCraftskyPost_Create_PlainText(t *testing.T) {
 
 	var (
 		uri, did, rkey, cid, text string
+		sponsored                 bool
 		facets, images            *string
 		replyRoot, replyParent    *string
 		quoteURI, quoteCID        *string
@@ -280,13 +283,13 @@ func TestCraftskyPost_Create_PlainText(t *testing.T) {
 		createdAt                 time.Time
 	)
 	err := pool.QueryRow(context.Background(), `
-		SELECT uri, did, rkey, cid, text,
+		SELECT uri, did, rkey, cid, text, sponsored,
 		       facets::text, images::text,
 		       reply_root_uri, reply_parent_uri,
 		       quote_uri, quote_cid,
 		       tags, created_at
 		FROM craftsky_posts WHERE uri = $1`, ev.URI).
-		Scan(&uri, &did, &rkey, &cid, &text,
+		Scan(&uri, &did, &rkey, &cid, &text, &sponsored,
 			&facets, &images,
 			&replyRoot, &replyParent,
 			&quoteURI, &quoteCID,
@@ -302,6 +305,9 @@ func TestCraftskyPost_Create_PlainText(t *testing.T) {
 	}
 	if text != "first post" {
 		t.Errorf("text = %q", text)
+	}
+	if !sponsored {
+		t.Error("sponsored = false, want true")
 	}
 	if facets != nil || images != nil {
 		t.Errorf("facets/images should be NULL on plain text post; got facets=%v images=%v", facets, images)

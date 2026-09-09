@@ -21,7 +21,7 @@ func TestScheduledExternalSourceURIUsesNormalizedComposerIdentity(t *testing.T) 
 
 	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
 	body := func(sourceURI string) string {
-		return `{"operationId":"00000000-0000-4000-8000-000000000620","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"standard","text":"link","external":{"sourceUri":"` + sourceURI + `","uri":"https://final.example/pattern","title":"Pattern","description":"Description"}}}`
+		return `{"operationId":"00000000-0000-4000-8000-000000000620","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"standard","text":"link","sponsored":false,"external":{"sourceUri":"` + sourceURI + `","uri":"https://final.example/pattern","title":"Pattern","description":"Description"}}}`
 	}
 
 	t.Run("canonicalizes scheme host and default port", func(t *testing.T) {
@@ -67,10 +67,22 @@ func TestScheduledExternalSourceURIUsesNormalizedComposerIdentity(t *testing.T) 
 	}
 }
 
+func TestScheduledPostDecodeRequiresExplicitSponsored(t *testing.T) {
+	t.Parallel()
+	for _, body := range []string{
+		`{"operationId":"00000000-0000-4000-8000-000000000620","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"standard","text":"missing"}}`,
+		`{"operationId":"00000000-0000-4000-8000-000000000620","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"standard","text":"null","sponsored":null}}`,
+	} {
+		if _, err := decodeScheduledPostCreate(strings.NewReader(body)); err == nil {
+			t.Fatalf("body %s decoded without explicit sponsored boolean", body)
+		}
+	}
+}
+
 func TestScheduledExternalThumbnailPassesPostBlobShapeValidation(t *testing.T) {
 	t.Parallel()
 
-	const body = `{"operationId":"00000000-0000-4000-8000-000000000621","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"standard","text":"link","external":{"sourceUri":"https://source.example/pattern","uri":"https://final.example/pattern","title":"Pattern","description":"Description","thumbMediaId":"55555555-5555-4555-8555-555555555555"}}}`
+	const body = `{"operationId":"00000000-0000-4000-8000-000000000621","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"standard","text":"link","sponsored":false,"external":{"sourceUri":"https://source.example/pattern","uri":"https://final.example/pattern","title":"Pattern","description":"Description","thumbMediaId":"55555555-5555-4555-8555-555555555555"}}}`
 	request, err := decodeScheduledPostCreate(strings.NewReader(body))
 	if err != nil {
 		t.Fatalf("decode: %v", err)
@@ -198,6 +210,7 @@ func scheduledExternalCreateBody(operationID string, mediaID uuid.UUID) string {
 		"payload":{
 			"kind":"standard",
 			"text":"Use https://source.example/pattern ",
+			"sponsored":false,
 			"external":{
 				"sourceUri":"https://source.example/pattern",
 				"uri":"https://final.example/pattern",

@@ -91,12 +91,19 @@ void main() {
       data: {
         'text': 'Pattern link',
         'langs': ['en'],
+        'sponsored': false,
         'embed': {'external': external.toMap()},
       },
     );
-    final created = await PostApiClient(
-      dio,
-    ).createPost(text: 'Pattern link', langs: const ['en'], external: external);
+    final created =
+        await PostApiClient(
+          dio,
+        ).createPost(
+          text: 'Pattern link',
+          langs: const ['en'],
+          sponsored: false,
+          external: external,
+        );
     expect(created.external?.thumb?.cid.toString(), 'bafythumb');
     expect(created.external?.uri, 'https://final.example/pattern#section');
 
@@ -108,6 +115,7 @@ void main() {
             'uri': 'at://did:plc:bob/social.craftsky.feed.post/quoted',
             'cid': 'bafyquoted',
             'text': 'quoted',
+            'sponsored': false,
             'createdAt': '2026-08-25T12:00:00Z',
             'author': {'did': 'did:plc:bob', 'handle': 'bob.example'},
             'external': _externalMap,
@@ -153,6 +161,7 @@ Map<String, dynamic> _postMap({
   'viewerHasReposted': false,
   'viewerHasReplied': false,
   'viewerHasSaved': false,
+  'sponsored': false,
   'createdAt': '2026-08-25T12:00:00Z',
   'indexedAt': '2026-08-25T12:00:01Z',
   'author': {'did': 'did:plc:alice', 'handle': 'alice.example'},

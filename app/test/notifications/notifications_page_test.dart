@@ -963,6 +963,7 @@ Map<String, dynamic> _post() => {
   'viewerHasReposted': false,
   'viewerHasReplied': false,
   'viewerHasSaved': false,
+  'sponsored': false,
   'createdAt': '2026-05-28T12:00:00Z',
   'indexedAt': '2026-05-28T12:00:01Z',
   'author': {'did': 'did:plc:viewer', 'handle': 'viewer.craftsky.social'},

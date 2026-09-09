@@ -48,6 +48,7 @@ Post _post(
   viewerHasLiked: false,
   viewerHasReposted: false,
   viewerHasSaved: false,
+  sponsored: false,
   external: external,
 );
 
@@ -1212,6 +1213,7 @@ void main() {
         viewerHasLiked: false,
         viewerHasReposted: false,
         viewerHasSaved: false,
+        sponsored: false,
         reply: PostReply(
           root: PostRef(uri: root.uri, cid: root.cid),
           parent: PostRef(uri: comment.uri, cid: comment.cid),

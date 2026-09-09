@@ -44,6 +44,7 @@ Map<String, dynamic> _postMap({
   'viewerHasLiked': false,
   'viewerHasReposted': false,
   'viewerHasSaved': false,
+  'sponsored': false,
   'createdAt': '2026-05-04T18:23:45.000Z',
   'indexedAt': '2026-05-04T18:23:47.000Z',
   'author': {'did': did, 'handle': handle},
@@ -123,10 +124,11 @@ void main() {
 
       await container
           .read(createPostProvider.notifier)
-          .create(text: 'hi', langs: _langs);
+          .create(text: 'hi', langs: _langs, sponsored: true);
 
       expect(transitions.first, isA<AsyncLoading<Post?>>());
       expect(transitions.last.value?.rkey, 'new');
+      expect(fake.lastCreateSponsored, isTrue);
     });
 
     test(
@@ -150,7 +152,12 @@ void main() {
 
         await container
             .read(createPostProvider.notifier)
-            .create(text: 'video', langs: _langs, video: proof);
+            .create(
+              text: 'video',
+              langs: _langs,
+              sponsored: false,
+              video: proof,
+            );
 
         expect(fake.lastCreateVideo, same(proof));
       },
@@ -181,6 +188,7 @@ void main() {
               .create(
                 text: 'video',
                 langs: _langs,
+                sponsored: false,
                 video: const CreatePostVideo(
                   jobId: 'job-one',
                   blob: CreatePostVideoBlob(
@@ -246,6 +254,7 @@ void main() {
             .create(
               text: 'must remain Alice-owned',
               langs: _langs,
+              sponsored: false,
               ownership: aliceOwnership,
             );
 
@@ -273,7 +282,7 @@ void main() {
 
       await container
           .read(createPostProvider.notifier)
-          .create(text: 'bonjour', langs: selected);
+          .create(text: 'bonjour', langs: selected, sponsored: false);
 
       expect(fake.lastCreateLangs, selected);
       expect(container.read(createPostProvider).value?.langs, selected);
@@ -294,7 +303,12 @@ void main() {
 
       await container
           .read(createPostProvider.notifier)
-          .create(text: 'Pattern link', langs: _langs, external: external);
+          .create(
+            text: 'Pattern link',
+            langs: _langs,
+            sponsored: false,
+            external: external,
+          );
 
       expect(fake.lastCreateExternal, same(external));
     });
@@ -333,6 +347,7 @@ void main() {
           .create(
             text: '#Mending',
             langs: _langs,
+            sponsored: false,
             facets: facets,
           );
 
@@ -365,6 +380,7 @@ void main() {
           .create(
             text: 'hi',
             langs: _langs,
+            sponsored: false,
             reply: PostReply(
               root: PostRef(uri: target.uri, cid: target.cid),
               parent: PostRef(uri: target.uri, cid: target.cid),
@@ -416,6 +432,7 @@ void main() {
           .create(
             text: 'hi',
             langs: _langs,
+            sponsored: false,
             reply: PostReply(
               root: target.reply!.root,
               parent: PostRef(uri: target.uri, cid: target.cid),
@@ -455,7 +472,7 @@ void main() {
 
         await container
             .read(createPostProvider.notifier)
-            .create(text: 'hi', langs: _langs);
+            .create(text: 'hi', langs: _langs, sponsored: false);
 
         final didEntry = container.read(userPostsProvider(_aliceDid)).value!;
         final handleEntry = container.read(userPostsProvider(_aliceDid)).value!;
@@ -487,7 +504,7 @@ void main() {
 
       await container
           .read(createPostProvider.notifier)
-          .create(text: 'hi', langs: _langs);
+          .create(text: 'hi', langs: _langs, sponsored: false);
 
       expect(
         calls,
@@ -520,7 +537,7 @@ void main() {
 
       await container
           .read(createPostProvider.notifier)
-          .create(text: 'hi', langs: _langs);
+          .create(text: 'hi', langs: _langs, sponsored: false);
 
       final timeline = container.read(timelineProvider).value!;
       expect(timeline.items.map((item) => item.post.rkey), ['new', 'old']);
@@ -554,7 +571,12 @@ void main() {
 
       await container
           .read(createPostProvider.notifier)
-          .create(text: 'quote commentary', langs: _langs, quote: quote);
+          .create(
+            text: 'quote commentary',
+            langs: _langs,
+            sponsored: false,
+            quote: quote,
+          );
 
       expect(fake.lastCreateQuote?.uri, quote.uri);
       expect(fake.lastCreateQuote?.cid, quote.cid);
@@ -612,7 +634,12 @@ void main() {
 
       await container
           .read(createPostProvider.notifier)
-          .create(text: 'reply', langs: _langs, reply: replyRef);
+          .create(
+            text: 'reply',
+            langs: _langs,
+            sponsored: false,
+            reply: replyRef,
+          );
 
       final timeline = container.read(timelineProvider).value!;
       expect(timeline.items.map((item) => item.post.rkey), ['target']);
@@ -636,7 +663,7 @@ void main() {
 
       await container
           .read(createPostProvider.notifier)
-          .create(text: 'hi', langs: _langs);
+          .create(text: 'hi', langs: _langs, sponsored: false);
       expect(container.read(createPostProvider).value?.rkey, 'new');
 
       container.read(createPostProvider.notifier).reset();
@@ -666,7 +693,7 @@ void main() {
 
       await container
           .read(createPostProvider.notifier)
-          .create(text: 'hi', langs: _langs);
+          .create(text: 'hi', langs: _langs, sponsored: false);
 
       expect(container.read(createPostProvider).hasError, isTrue);
       final list = container.read(userPostsProvider(_aliceDid)).value!;
@@ -706,6 +733,7 @@ void main() {
             .create(
               text: 'invalid',
               langs: _langs,
+              sponsored: false,
               project: _project,
               reply: reply,
             );
@@ -747,7 +775,12 @@ void main() {
 
         await container
             .read(createPostProvider.notifier)
-            .create(text: 'project', langs: _langs, project: _project);
+            .create(
+              text: 'project',
+              langs: _langs,
+              sponsored: false,
+              project: _project,
+            );
 
         expect(
           container
@@ -832,7 +865,12 @@ void main() {
 
         await container
             .read(createPostProvider.notifier)
-            .create(text: 'project', langs: _langs, project: _project);
+            .create(
+              text: 'project',
+              langs: _langs,
+              sponsored: false,
+              project: _project,
+            );
 
         expect(container.read(createPostProvider).value?.project, _project);
         expect(

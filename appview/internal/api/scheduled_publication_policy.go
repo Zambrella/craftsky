@@ -34,9 +34,10 @@ func ValidateScheduledPublication(
 		return err
 	}
 	request := PostCreateRequest{
-		Text:   payload.Text,
-		Facets: payload.Facets,
-		Langs:  payload.Langs,
+		Text:      payload.Text,
+		Sponsored: payload.Sponsored,
+		Facets:    payload.Facets,
+		Langs:     payload.Langs,
 	}
 	if len(payload.Project) > 0 {
 		if err := json.Unmarshal(payload.Project, &request.Project); err != nil {

@@ -58,6 +58,7 @@ Post _post(String rkey, {PostExternal? external}) {
     viewerHasLiked: false,
     viewerHasReposted: false,
     viewerHasSaved: false,
+    sponsored: false,
     external: external,
     createdAt: DateTime.now().subtract(const Duration(minutes: 3)),
     indexedAt: DateTime.now().subtract(const Duration(minutes: 2)),

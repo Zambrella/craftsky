@@ -562,7 +562,7 @@ func upsertDemoInteraction(ctx context.Context, tx pgx.Tx, collection, did, rkey
 }
 
 func demoPostRecord(post demoPost, facetsJSON, imagesJSON json.RawMessage) (json.RawMessage, json.RawMessage, error) {
-	record := map[string]any{"$type": fakePostCollection, "text": post.Text, "createdAt": post.CreatedAt.UTC().Format(time.RFC3339)}
+	record := map[string]any{"$type": fakePostCollection, "text": post.Text, "sponsored": false, "createdAt": post.CreatedAt.UTC().Format(time.RFC3339)}
 	if len(facetsJSON) > 0 {
 		var facets any
 		if err := json.Unmarshal(facetsJSON, &facets); err != nil {

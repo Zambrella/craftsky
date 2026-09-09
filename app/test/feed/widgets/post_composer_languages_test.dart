@@ -67,6 +67,7 @@ void main() {
 
     expect(find.text('When'), findsOneWidget);
     expect(find.text('Now'), findsOneWidget);
+    expect(find.text('Sponsored'), findsOneWidget);
     expect(find.text('Schedule'), findsNothing);
   });
 
@@ -95,6 +96,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('When'), findsNothing);
     expect(find.text('Save draft'), findsNothing);
+    expect(find.text('Sponsored'), findsNothing);
 
     await tester.pumpWidget(
       _testApp(
@@ -106,6 +108,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('When'), findsNothing);
     expect(find.text('Save draft'), findsNothing);
+    expect(find.text('Sponsored'), findsOneWidget);
   });
 
   testWidgets('AT-007 Needs attention edit shows recovery and delete actions', (
@@ -251,6 +254,7 @@ Post _post({required List<String> langs}) => Post(
   viewerHasLiked: false,
   viewerHasReposted: false,
   viewerHasSaved: false,
+  sponsored: false,
   createdAt: DateTime(2026),
   indexedAt: DateTime(2026),
   author: PostAuthor(did: 'did:plc:alice', handle: 'alice.test'),

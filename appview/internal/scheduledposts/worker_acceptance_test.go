@@ -58,7 +58,7 @@ func TestHealthyDueSchedulePublishesExactlyOnceWithoutFlutter(t *testing.T) {
 	if err != nil || processed != 1 {
 		t.Fatalf("due batch: processed=%d err=%v", processed, err)
 	}
-	if pds.putCalls != 1 || pds.rkey == "" || pds.record["createdAt"] != current.Format(time.RFC3339) {
+	if pds.putCalls != 1 || pds.rkey == "" || pds.record["createdAt"] != current.Format(time.RFC3339) || pds.record["sponsored"] != false {
 		t.Fatalf("publication puts=%d rkey=%q record=%#v", pds.putCalls, pds.rkey, pds.record)
 	}
 	if _, err := store.Get(ctx, "did:plc:alice", created.ID); !errors.Is(err, ErrScheduleNotFound) {

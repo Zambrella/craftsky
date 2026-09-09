@@ -12,6 +12,7 @@ final class StandardDraftSnapshotAdapter {
     required AccountKey owner,
     required String text,
     required List<String> languages,
+    required bool sponsored,
     required DraftScheduleIntent schedule,
     required List<ComposerImageDraft> images,
     DraftVideoWrite? video,
@@ -27,6 +28,7 @@ final class StandardDraftSnapshotAdapter {
       content: StandardDraftContent(
         text: text,
         languages: List.unmodifiable(languages),
+        sponsored: sponsored,
       ),
       schedule: schedule,
       orderedMedia: draftMediaWritesFromComposer(images),

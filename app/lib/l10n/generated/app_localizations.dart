@@ -1996,6 +1996,24 @@ abstract class AppLocalizations {
   /// **'Difficulty'**
   String get projectComposerPatternDifficultyLabel;
 
+  /// Title for the switch that marks a project pattern as drafted by the post author.
+  ///
+  /// In en, this message translates to:
+  /// **'Self-drafted pattern'**
+  String get projectComposerPatternSelfDraftedTitle;
+
+  /// Description for the self-drafted pattern switch.
+  ///
+  /// In en, this message translates to:
+  /// **'I drafted this pattern'**
+  String get projectComposerPatternSelfDraftedDescription;
+
+  /// Metadata label shown on a project card for a pattern drafted by the post author.
+  ///
+  /// In en, this message translates to:
+  /// **'Self-drafted'**
+  String get projectPatternSelfDraftedLabel;
+
   /// Label for the optional pattern designer field in the project composer.
   ///
   /// In en, this message translates to:
@@ -2031,6 +2049,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Pattern, fabric, what went right, what didn\'t...'**
   String get postComposeBodyHint;
+
+  /// Title for the sponsorship disclosure switch in top-level post composers.
+  ///
+  /// In en, this message translates to:
+  /// **'Sponsored'**
+  String get postSponsoredToggleTitle;
+
+  /// Description for the sponsorship disclosure switch.
+  ///
+  /// In en, this message translates to:
+  /// **'This post includes sponsorship or other commercial consideration'**
+  String get postSponsoredToggleDescription;
+
+  /// Accessible disclosure label shown on sponsored full post cards and quote previews.
+  ///
+  /// In en, this message translates to:
+  /// **'Sponsored'**
+  String get postSponsoredLabel;
 
   /// Title of the reply composer sheet.
   ///

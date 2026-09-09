@@ -34,6 +34,7 @@ Map<String, dynamic> _postMap({
   'viewerHasReposted': false,
   'viewerHasReplied': false,
   'viewerHasSaved': false,
+  'sponsored': false,
   'createdAt': '2026-05-04T18:23:45.000Z',
   'indexedAt': '2026-05-04T18:23:47.000Z',
   'author': {'did': did, 'handle': handle},
