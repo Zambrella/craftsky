@@ -339,7 +339,7 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		DevDID:                    os.Getenv("CRAFTSKY_DEV_DID"),
 		VideoServiceURL:           getEnvWithDefault("VIDEO_SERVICE_URL", "https://video.bsky.app"),
 		VideoPlaylistURLTemplate:  getEnvWithDefault("VIDEO_PLAYLIST_URL_TEMPLATE", "https://video.bsky.app/watch/{did}/{cid}/playlist.m3u8"),
-		VideoThumbnailURLTemplate: getEnvWithDefault("VIDEO_THUMBNAIL_URL_TEMPLATE", "https://video.cdn.bsky.app/hls/{did}/{cid}/thumbnail.jpg"),
+		VideoThumbnailURLTemplate: getEnvWithDefault("VIDEO_THUMBNAIL_URL_TEMPLATE", "https://video.bsky.app/watch/{did}/{cid}/thumbnail.jpg"),
 	}
 
 	origins := os.Getenv("ALLOWED_ORIGINS")
