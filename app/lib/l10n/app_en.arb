@@ -1024,6 +1024,9 @@
   "postComposeRequiredLabel": "required",
   "@postComposeRequiredLabel": { "description": "Small marker shown beside required text fields in the regular post composer." },
 
+  "postComposeBodyRequiredError": "Add something to your post.",
+  "@postComposeBodyRequiredError": { "description": "Validation error shown after submitting a regular post without body text." },
+
   "postSponsoredToggleTitle": "Sponsored",
   "@postSponsoredToggleTitle": { "description": "Title for the sponsorship disclosure switch in top-level post composers." },
 

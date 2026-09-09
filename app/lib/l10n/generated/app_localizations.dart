@@ -2056,6 +2056,12 @@ abstract class AppLocalizations {
   /// **'required'**
   String get postComposeRequiredLabel;
 
+  /// Validation error shown after submitting a regular post without body text.
+  ///
+  /// In en, this message translates to:
+  /// **'Add something to your post.'**
+  String get postComposeBodyRequiredError;
+
   /// Title for the sponsorship disclosure switch in top-level post composers.
   ///
   /// In en, this message translates to:

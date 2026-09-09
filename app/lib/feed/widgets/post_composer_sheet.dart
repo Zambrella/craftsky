@@ -177,6 +177,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
   var _usesStoredDraftVideo = false;
   var _isSubmitting = false;
   var _isSavingDraft = false;
+  var _attemptedSubmit = false;
   var _sponsored = false;
   var _initialSponsored = false;
   var _submissionSucceeded = false;
@@ -394,12 +395,15 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         !_isScheduling &&
         !_isLoadingScheduledMedia &&
         !_scheduledMediaLoadFailed &&
-        trimmedText.isNotEmpty &&
-        !tooLong &&
         _languages != null &&
-        imagesState.canSubmitImages() &&
+        imagesState.isSubmitReady &&
         (selectedVideo == null || _scheduleChoice == ScheduleChoice.now) &&
         (_scheduleChoice == ScheduleChoice.now || capacity.scheduleEnabled);
+    final bodyErrorText = switch ((_attemptedSubmit, trimmedText.isEmpty)) {
+      (true, true) => l10n.postComposeBodyRequiredError,
+      _ when tooLong => l10n.postComposeTooLong,
+      _ => null,
+    };
     final submitLabel = _scheduleChoice == ScheduleChoice.later
         ? l10n.scheduledPostAction
         : isComment
@@ -526,7 +530,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                           textInputAction: TextInputAction.newline,
                           keyboardType: TextInputType.multiline,
                           enabled: !createState.isLoading,
-                          errorText: tooLong ? l10n.postComposeTooLong : null,
+                          errorText: bodyErrorText,
                           helperText:
                               '${_text.length}/${PostComposerSheet.maxCharacters}',
                           helperAlignment: AlignmentDirectional.centerEnd,
@@ -1076,6 +1080,19 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
 
   Future<void> _submitPost({required String trimmedText}) async {
     final imagesState = ref.read(composerImagesProvider(_composerId));
+    setState(() => _attemptedSubmit = true);
+    if (trimmedText.isEmpty ||
+        _text.length > PostComposerSheet.maxCharacters ||
+        !imagesState.canSubmitImages()) {
+      if (trimmedText.isEmpty ||
+          _text.length > PostComposerSheet.maxCharacters) {
+        _focusNode.requestFocus();
+        if (_focusNode.context case final bodyContext?) {
+          await Scrollable.ensureVisible(bodyContext);
+        }
+      }
+      return;
+    }
     final activeLease = ref.read(sessionRegistryProvider).value?.activeLease;
     SelectedLinkPreview? previewSelection;
     var scheduledExternalDisposition = _ScheduledExternalDisposition.remove;

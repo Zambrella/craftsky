@@ -1135,6 +1135,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postComposeRequiredLabel => 'required';
 
   @override
+  String get postComposeBodyRequiredError => 'Add something to your post.';
+
+  @override
   String get postSponsoredToggleTitle => 'Sponsored';
 
   @override

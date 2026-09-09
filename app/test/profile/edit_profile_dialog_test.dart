@@ -824,7 +824,7 @@ void main() {
 
     testWidgets(
       'display name longer than 64 characters surfaces a validator error '
-      'and disables save',
+      'without disabling dirty save',
       (tester) async {
         final repo = FakeProfileRepository(onFetch: (_) async => _seedProfile);
         await _pumpEditDialog(tester, repo: repo);
@@ -842,12 +842,19 @@ void main() {
           findsOneWidget,
         );
 
-        // Save is disabled even though the form is dirty — invalid
-        // fields fail the canSave gate.
+        // Save remains available so pressing it can run validation and direct
+        // the user to any invalid fields.
         final saveButton = tester.widget<TextButton>(
           find.widgetWithText(TextButton, 'Save'),
         );
-        expect(saveButton.onPressed, isNull);
+        expect(saveButton.onPressed, isNotNull);
+
+        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.pump();
+        expect(
+          find.text('Display name must be 64 characters or fewer'),
+          findsOneWidget,
+        );
       },
     );
 

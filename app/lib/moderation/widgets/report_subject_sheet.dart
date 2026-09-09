@@ -41,8 +41,7 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
   String _details = '';
 
   bool get _detailsTooLong => _details.length > _detailsMaxLength;
-  bool get _canSubmit =>
-      _reason != null && !_detailsTooLong && !widget.isSubmitting;
+  bool get _canSubmit => !widget.isSubmitting;
 
   @override
   void dispose() {
@@ -161,7 +160,9 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
   }
 
   void _submit() {
-    if (!_canSubmit) return;
+    if (widget.isSubmitting) return;
+    final formValid = _formKey.currentState?.saveAndValidate() ?? false;
+    if (!formValid || _detailsTooLong) return;
 
     final trimmed = _details.trim();
     widget.onSubmit(
