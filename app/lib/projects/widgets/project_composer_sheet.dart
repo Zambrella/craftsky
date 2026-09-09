@@ -1266,7 +1266,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   }
 
   Widget _patternDetailFields(AppLocalizations l10n) {
-    final spacing = Theme.of(context).extension<SpacingTheme>()!;
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1308,13 +1309,15 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         SizedBox(height: spacing.sp4),
         FormBuilderField<bool>(
           name: ProjectComposerFields.patternSelfDrafted,
-          builder: (field) => SwitchListTile.adaptive(
+          builder: (field) => SwitchListTile(
             key: const Key('project-composer-self-drafted-switch'),
             contentPadding: EdgeInsets.zero,
             title: Text(l10n.projectComposerPatternSelfDraftedTitle),
             subtitle: Text(l10n.projectComposerPatternSelfDraftedDescription),
             value: field.value ?? false,
             onChanged: field.didChange,
+            activeTrackColor: theme.colorScheme.primary,
+            activeThumbColor: theme.colorScheme.onPrimary,
           ),
         ),
       ],

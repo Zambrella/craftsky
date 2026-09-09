@@ -17,6 +17,7 @@ import 'package:craftsky_app/shared/rich_text/data/mock_facet_suggestion_reposit
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -132,7 +133,9 @@ void main() {
           child: MessengerScope(
             messenger: RecordingMessenger(),
             child: MaterialApp(
-              theme: AppTheme.lightThemeData,
+              theme: AppTheme.lightThemeData.copyWith(
+                platform: TargetPlatform.iOS,
+              ),
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: const ProjectComposerSheet(),
@@ -158,6 +161,31 @@ void main() {
       expect(find.text('Link'), findsOneWidget);
       expect(find.text('Difficulty'), findsOneWidget);
       expect(find.text('Self-drafted pattern'), findsOneWidget);
+      final selfDrafted = find.byKey(
+        const Key('project-composer-self-drafted-switch'),
+      );
+      expect(
+        find.descendant(of: selfDrafted, matching: find.byType(Switch)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: selfDrafted,
+          matching: find.byType(CupertinoSwitch),
+        ),
+        findsNothing,
+      );
+      final themedSwitch = tester.widget<Switch>(
+        find.descendant(of: selfDrafted, matching: find.byType(Switch)),
+      );
+      expect(
+        themedSwitch.activeTrackColor,
+        AppTheme.lightThemeData.colorScheme.primary,
+      );
+      expect(
+        themedSwitch.activeThumbColor,
+        AppTheme.lightThemeData.colorScheme.onPrimary,
+      );
     },
   );
 
