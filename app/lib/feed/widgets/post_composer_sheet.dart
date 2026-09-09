@@ -519,6 +519,8 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                               : l10n.postComposeBodyHint,
                           controller: _controller,
                           focusNode: _focusNode,
+                          required: true,
+                          requiredLabel: l10n.postComposeRequiredLabel,
                           minLines: isResponse ? 5 : 3,
                           maxLines: 12,
                           textInputAction: TextInputAction.newline,

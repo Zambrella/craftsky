@@ -2041,14 +2041,20 @@ abstract class AppLocalizations {
   /// Label above the text field in the text-only post composer.
   ///
   /// In en, this message translates to:
-  /// **'What are you making?'**
+  /// **'What would you like to share?'**
   String get postComposeHint;
 
   /// Hint text inside the main post composer text field.
   ///
   /// In en, this message translates to:
-  /// **'Pattern, fabric, what went right, what didn\'t...'**
+  /// **'Share what you\'re making, learning, or thinking...'**
   String get postComposeBodyHint;
+
+  /// Small marker shown beside required text fields in the regular post composer.
+  ///
+  /// In en, this message translates to:
+  /// **'required'**
+  String get postComposeRequiredLabel;
 
   /// Title for the sponsorship disclosure switch in top-level post composers.
   ///

@@ -1015,11 +1015,14 @@
   "projectComposerPatternPublisherHint": "Add pattern publisher",
   "@projectComposerPatternPublisherHint": { "description": "Placeholder text for the optional pattern publisher field in the project composer." },
 
-  "postComposeHint": "What are you making?",
+  "postComposeHint": "What would you like to share?",
   "@postComposeHint": { "description": "Label above the text field in the text-only post composer." },
 
-  "postComposeBodyHint": "Pattern, fabric, what went right, what didn't...",
+  "postComposeBodyHint": "Share what you're making, learning, or thinking...",
   "@postComposeBodyHint": { "description": "Hint text inside the main post composer text field." },
+
+  "postComposeRequiredLabel": "required",
+  "@postComposeRequiredLabel": { "description": "Small marker shown beside required text fields in the regular post composer." },
 
   "postSponsoredToggleTitle": "Sponsored",
   "@postSponsoredToggleTitle": { "description": "Title for the sponsorship disclosure switch in top-level post composers." },

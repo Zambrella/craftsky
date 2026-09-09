@@ -1125,11 +1125,14 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerPatternPublisherHint => 'Add pattern publisher';
 
   @override
-  String get postComposeHint => 'What are you making?';
+  String get postComposeHint => 'What would you like to share?';
 
   @override
   String get postComposeBodyHint =>
-      'Pattern, fabric, what went right, what didn\'t...';
+      'Share what you\'re making, learning, or thinking...';
+
+  @override
+  String get postComposeRequiredLabel => 'required';
 
   @override
   String get postSponsoredToggleTitle => 'Sponsored';
