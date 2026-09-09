@@ -160,6 +160,9 @@ Scoped but not urgent. Ordered roughly by expected sequence, not strictly priori
 
 - [ ] **Web version**
 - [ ] **Stash Hub integration**
+- [ ] **Custom feeds**
+- [ ] **Polls**
+- [ ] **Visibility and interaction rules** - See Bluesky's "Post interactionsettings" for an example
 
 ### Ops / infra
 
