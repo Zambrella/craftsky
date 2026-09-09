@@ -1142,6 +1142,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postSponsoredLabel => 'Sponsored';
 
   @override
+  String get postSponsoredExplanation =>
+      'The creator marked this post as sponsored because they received money, products, or another benefit.';
+
+  @override
   String get postComposeReplyTitle => 'Reply';
 
   @override

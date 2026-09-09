@@ -2068,6 +2068,12 @@ abstract class AppLocalizations {
   /// **'Sponsored'**
   String get postSponsoredLabel;
 
+  /// Tooltip explaining what the Sponsored disclosure means.
+  ///
+  /// In en, this message translates to:
+  /// **'The creator marked this post as sponsored because they received money, products, or another benefit.'**
+  String get postSponsoredExplanation;
+
   /// Title of the reply composer sheet.
   ///
   /// In en, this message translates to:

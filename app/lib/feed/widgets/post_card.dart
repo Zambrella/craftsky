@@ -402,7 +402,6 @@ class PostCard extends ConsumerWidget {
                       const ImportedPostLabel(),
                     ],
                     if (post.sponsored) ...[
-                      SizedBox(height: spacing.sp2),
                       const SponsoredLabel(),
                     ],
                     SizedBox(height: spacing.sp3),

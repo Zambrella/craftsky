@@ -6,6 +6,7 @@ import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:flutter/material.dart';
@@ -211,8 +212,6 @@ class PostSummary extends StatelessWidget {
                 const ImportedPostLabel(),
               ],
               if (data.sponsored) ...[
-                if (data.author != null || data.externalImport != null)
-                  const SizedBox(height: 8),
                 const SponsoredLabel(),
               ],
               if (data.image case final image?) ...[
@@ -306,16 +305,37 @@ class SponsoredLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final label = AppLocalizations.of(context).postSponsoredLabel;
-    return Semantics(
-      container: true,
-      label: label,
-      child: ExcludeSemantics(
-        child: Text(
-          label,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.outline,
-            fontWeight: FontWeight.w700,
+    final l10n = AppLocalizations.of(context);
+    final label = l10n.postSponsoredLabel;
+    final color = theme.colorScheme.outline;
+    return Tooltip(
+      message: l10n.postSponsoredExplanation,
+      triggerMode: TooltipTriggerMode.tap,
+      showDuration: const Duration(seconds: 6),
+      excludeFromSemantics: true,
+      child: Semantics(
+        container: true,
+        button: true,
+        label: label,
+        hint: l10n.postSponsoredExplanation,
+        child: ExcludeSemantics(
+          child: SizedBox(
+            key: const Key('sponsored-info-tooltip-trigger'),
+            height: 28,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(CraftskyIcons.info, size: 14, color: color),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

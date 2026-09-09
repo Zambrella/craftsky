@@ -1030,6 +1030,9 @@
   "postSponsoredLabel": "Sponsored",
   "@postSponsoredLabel": { "description": "Accessible disclosure label shown on sponsored full post cards and quote previews." },
 
+  "postSponsoredExplanation": "The creator marked this post as sponsored because they received money, products, or another benefit.",
+  "@postSponsoredExplanation": { "description": "Tooltip explaining what the Sponsored disclosure means." },
+
   "postComposeReplyTitle": "Reply",
   "@postComposeReplyTitle": { "description": "Title of the reply composer sheet." },
 

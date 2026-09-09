@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:ui' show Tristate;
+import 'dart:ui' show PointerDeviceKind, Tristate;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
@@ -998,7 +998,59 @@ void main() {
       await _pump(tester, PostCard(post: _post(sponsored: true)));
 
       expect(find.bySemanticsLabel('Sponsored'), findsOneWidget);
+      final target = find.byKey(
+        const Key('sponsored-info-tooltip-trigger'),
+      );
+      expect(target, findsOneWidget);
+      expect(
+        tester.getCenter(find.byIcon(CraftskyIcons.info)).dx,
+        lessThan(tester.getCenter(find.text('Sponsored')).dx),
+      );
+      expect(
+        tester.getTopLeft(target).dy,
+        closeTo(
+          tester.getBottomLeft(find.byType(ProfileAvatar).first).dy,
+          0.5,
+        ),
+      );
       semantics.dispose();
+    });
+
+    testWidgets('explains sponsored content when the info icon is tapped', (
+      tester,
+    ) async {
+      await _pump(tester, PostCard(post: _post(sponsored: true)));
+
+      await tester.tap(find.text('Sponsored'));
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(
+        find.text(
+          'The creator marked this post as sponsored because they received '
+          'money, products, or another benefit.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('explains sponsored content when the label is hovered', (
+      tester,
+    ) async {
+      await _pump(tester, PostCard(post: _post(sponsored: true)));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer();
+
+      await mouse.moveTo(tester.getCenter(find.text('Sponsored')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'The creator marked this post as sponsored because they received '
+          'money, products, or another benefit.',
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('AT-009 IT-015 renders accessible Instagram provenance '
