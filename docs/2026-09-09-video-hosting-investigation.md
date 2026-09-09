@@ -376,6 +376,43 @@ https://video.craftsky.social/watch/{did}/{cid}/playlist.m3u8
 The raw PDS MP4 remains the portability and disaster-recovery fallback if the
 private mapping or managed provider becomes unavailable.
 
+## Atmosphere Community Research
+
+A targeted search of the Atmosphere Community forum found no discussion of
+`video.bsky.app`, `app.bsky.embed.video`, custom-record video retention, or HLS
+assets disappearing while the source PDS blob remains available. The forum does
+not confirm or disprove the suspected Bluesky cleanup behavior.
+
+The relevant discussions do support the architecture recommended here:
+
+- The Media PDS / Service proposal separates object storage, media processing,
+  metadata, and distribution. Its proposed API allows playback URLs to be
+  supplied by external providers while retaining an AT Protocol control plane.
+- Participants describe Bluesky's video uploader as supplemental processing
+  infrastructure rather than an authoritative PDS. A Bluesky team member agreed
+  that blob storage and baseline video/streaming guidance remain underspecified
+  for production PDS deployments.
+- The VOD discussion repeatedly recommends decoupling content metadata from
+  distribution. Suggested delivery backends include Cloudflare Stream, Bunny
+  Stream, Backblaze B2 with a CDN, Vimeo, PeerTube, and Streamplace.
+- VidSky currently uses Bunny Stream while it works toward publishing records to
+  users' PDSes. Streamplace similarly hosts its VOD data separately for now,
+  while making it content-addressed and public as a basis for future cooperative
+  storage.
+- The storage-limits discussion favors keeping repositories small and using
+  specialized storage for large files. It also notes that applications must
+  handle each PDS provider's limits and capabilities rather than assuming
+  unlimited media storage or high-performance delivery.
+- A community Lexicon discussion quotes the AT Protocol blob specification:
+  applications should proxy blobs through an independent CDN or media service
+  before browser delivery, and PDSes should not perform media transcoding without
+  strong sandboxing.
+
+These discussions are architectural evidence, not evidence about Bluesky's
+private retention implementation. They reinforce using the retained PDS MP4 as
+the portable source of truth while making Craftsky responsible for dependable
+playback delivery and derivative retention.
+
 ## Recommended Direction
 
 The pragmatic sequence is:
@@ -421,6 +458,11 @@ The pragmatic sequence is:
 - [Cloudflare Stream webhooks](https://developers.cloudflare.com/stream/manage-video-library/using-webhooks/)
 - [Cloudflare Stream downloadable MP4](https://developers.cloudflare.com/stream/viewing-videos/download-videos/)
 - [Cloudflare Stream upload by URL](https://developers.cloudflare.com/stream/uploading-videos/upload-via-link/)
+- [Atmosphere: Media PDS / Service](https://discourse.atmosphere.community/t/media-pds-service/297)
+- [Atmosphere: Video on Demand options for ATProto](https://discourse.atmosphere.community/t/video-on-demand-vod-options-for-atproto/259)
+- [Atmosphere: Storage-Heavy Applications and PDS Limits](https://discourse.atmosphere.community/t/storage-heavy-applications-and-pds-limits/825)
+- [Atmosphere: VidSky](https://discourse.atmosphere.community/t/vidsky-an-atproto-powered-video-platform/918)
+- [Atmosphere: standalone image Lexicon discussion](https://discourse.atmosphere.community/t/proposal-a-community-lexicon-for-standalone-images/1091/28)
 - `adr/012-ephemeral-video-service-token-handoff.md`
 - `adr/013-standard-video-embed.md`
 - `docs/changes/2026-09-03-video-posts/01-requirements.md`
