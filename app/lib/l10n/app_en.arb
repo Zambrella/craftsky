@@ -2254,6 +2254,15 @@
   "scheduledPostLater": "Schedule for later",
   "@scheduledPostLater": { "description": "Option to choose a future publication time." },
 
+  "scheduledPostCompactTime": "{date}, {time}",
+  "@scheduledPostCompactTime": {
+    "description": "Compact local date and time shown on an active composer schedule control.",
+    "placeholders": {
+      "date": { "type": "String", "example": "Sep 15" },
+      "time": { "type": "String", "example": "2:30 PM" }
+    }
+  },
+
   "scheduledPostTimeRangeError": "Choose a whole-minute time from 5 minutes through 28 days from now",
   "@scheduledPostTimeRangeError": { "description": "Error shown when a selected schedule time falls outside the supported window." },
 

@@ -85,7 +85,7 @@ void main() {
     expect(find.text('Manage scheduled posts'), findsOneWidget);
     expect(_button(tester, 'Post').onPressed, isNotNull);
 
-    await tester.tap(find.text('When'));
+    await tester.tap(find.byKey(const Key('composer-schedule-control')));
     await tester.pumpAndSettle();
     final laterTile = find.ancestor(
       of: find.text('Schedule for later'),
@@ -112,7 +112,7 @@ ChunkyButton _button(WidgetTester tester, String label) =>
     tester.widget<ChunkyButton>(find.widgetWithText(ChunkyButton, label));
 
 Future<void> _selectLater(WidgetTester tester) async {
-  await tester.tap(find.text('When'));
+  await tester.tap(find.byKey(const Key('composer-schedule-control')));
   await tester.pumpAndSettle();
   await tester.tap(find.text('Schedule for later'));
   await tester.pumpAndSettle();

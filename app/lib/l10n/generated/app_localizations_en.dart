@@ -2658,6 +2658,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get scheduledPostLater => 'Schedule for later';
 
   @override
+  String scheduledPostCompactTime(String date, String time) {
+    return '$date, $time';
+  }
+
+  @override
   String get scheduledPostTimeRangeError =>
       'Choose a whole-minute time from 5 minutes through 28 days from now';
 

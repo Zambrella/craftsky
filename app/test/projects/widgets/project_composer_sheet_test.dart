@@ -81,8 +81,8 @@ void main() {
     await _selectCraft(tester, 'Embroidery');
 
     final bodyField = _bodyTextField();
-    final patternAction = find.byKey(
-      const Key('project-composer-pattern-details-action'),
+    final languageAction = find.byKey(
+      const Key('composer-language-control'),
     );
     await tester.ensureVisible(bodyField);
     await tester.pumpAndSettle();
@@ -93,14 +93,14 @@ void main() {
     await tester.pump();
 
     expect(tester.widget<TextField>(bodyField).focusNode?.hasFocus, isFalse);
+    final focusedWidget = FocusManager.instance.primaryFocus?.context?.widget;
+    expect(focusedWidget, isNotNull);
     expect(
-      tester
-          .widget<ListTile>(
-            find.descendant(of: patternAction, matching: find.byType(ListTile)),
-          )
-          .focusNode
-          ?.hasFocus,
-      isTrue,
+      find.ancestor(
+        of: find.byWidget(focusedWidget!),
+        matching: languageAction,
+      ),
+      findsOneWidget,
     );
   });
 }

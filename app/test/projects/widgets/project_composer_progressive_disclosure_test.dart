@@ -31,7 +31,16 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Add more details'), findsOneWidget);
     expect(find.text('Materials and style'), findsOneWidget);
-    expect(find.text('When'), findsOneWidget);
+    expect(find.byKey(const Key('composer-schedule-control')), findsOneWidget);
+    final bodyBottom = tester
+        .getBottomLeft(find.byKey(const Key('project-composer-body-editor')))
+        .dy;
+    final metadataTop = tester
+        .getTopLeft(find.byKey(const Key('composer-metadata-controls')))
+        .dy;
+    final detailsTop = tester.getTopLeft(find.text('Add more details')).dy;
+    expect(metadataTop, greaterThanOrEqualTo(bodyBottom));
+    expect(metadataTop, lessThan(detailsTop));
     expect(find.widgetWithText(ChunkyButton, 'Post'), findsOneWidget);
     expect(find.widgetWithText(ChunkyButton, 'Next'), findsNothing);
   });

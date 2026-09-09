@@ -29,13 +29,12 @@ import 'package:craftsky_app/feed/providers/image_picker_existing_video.dart';
 import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
 import 'package:craftsky_app/feed/providers/video_service_client_provider.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
-import 'package:craftsky_app/feed/widgets/composer_sponsored_switch.dart';
+import 'package:craftsky_app/feed/widgets/composer_metadata_controls.dart';
 import 'package:craftsky_app/feed/widgets/composer_video_attachment_card.dart';
 import 'package:craftsky_app/feed/widgets/submission_blocking_overlay.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
-import 'package:craftsky_app/languages/widgets/post_language_selector.dart';
 import 'package:craftsky_app/projects/composer/project_composer_draft_state.dart';
 import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
 import 'package:craftsky_app/projects/composer/project_composer_hydrator.dart';
@@ -627,14 +626,78 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                                 SizedBox(height: spacing.sp4),
                                 _pageThree(
                                   l10n: l10n,
-                                  spacing: spacing,
                                   controlsEnabled: controlsEnabled,
                                   bodyErrorText: bodyErrorText,
                                 ),
+                                ComposerMetadataControls(
+                                  languages: _languages!,
+                                  onLanguagesChanged: controlsEnabled
+                                      ? (value) =>
+                                            setState(() => _languages = value)
+                                      : null,
+                                  sponsored: _sponsored,
+                                  onSponsoredChanged: controlsEnabled
+                                      ? (value) =>
+                                            setState(() => _sponsored = value)
+                                      : null,
+                                  scheduledAtLocal: _scheduledAtLocal,
+                                  onSchedulePressed: controlsEnabled
+                                      ? (menuContext) => _chooseWhen(
+                                          menuContext,
+                                          scheduleEnabled:
+                                              capacity.scheduleEnabled,
+                                        )
+                                      : null,
+                                ),
+                                if (capacity.showCapacityWarning)
+                                  const ScheduledPostCapacityWarning(),
+                                if (capacity.showManageLink)
+                                  Align(
+                                    alignment: AlignmentDirectional.centerStart,
+                                    child: TextButton(
+                                      onPressed: () =>
+                                          const ScheduledPostsRoute().go(
+                                            context,
+                                          ),
+                                      child: Text(
+                                        l10n.scheduledPostManageAction,
+                                      ),
+                                    ),
+                                  ),
+                                if (_missedScheduledAtLocal case final missed?)
+                                  Text(
+                                    l10n.scheduledPostMissedTime(
+                                      _projectLocalTimeLabel(context, missed),
+                                    ),
+                                  ),
+                                if (_isScheduling &&
+                                    (_stagedImageTotal > 0 ||
+                                        _isSavingSchedule)) ...[
+                                  SizedBox(height: spacing.sp3),
+                                  ScheduledStagingProgress(
+                                    completed: _stagedImageCount,
+                                    total: _stagedImageTotal,
+                                    creating: _isSavingSchedule,
+                                  ),
+                                ],
+                                if (widget.scheduledPost != null)
+                                  Align(
+                                    alignment: AlignmentDirectional.centerStart,
+                                    child: TextButton.icon(
+                                      onPressed: _isScheduling
+                                          ? null
+                                          : _deleteExistingSchedule,
+                                      icon: const Icon(
+                                        CraftskyIconsBold.delete,
+                                      ),
+                                      label: Text(
+                                        l10n.scheduledPostsDeleteTooltip,
+                                      ),
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
-                          SizedBox(height: spacing.sp6),
                           Text(
                             l10n.projectComposerMoreDetailsHeading,
                             style: theme.textTheme.titleLarge?.copyWith(
@@ -701,74 +764,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                               onTap: _openCraftDetails,
                             ),
                           SizedBox(height: spacing.sp4),
-                          PostLanguageSelector(
-                            selection: _languages!,
-                            enabled: controlsEnabled,
-                            onChanged: (value) =>
-                                setState(() => _languages = value),
-                          ),
-                          SizedBox(height: spacing.sp4),
-                          ComposerSponsoredSwitch(
-                            key: const Key('project-composer-sponsored-switch'),
-                            value: _sponsored,
-                            title: l10n.postSponsoredToggleTitle,
-                            description: l10n.postSponsoredToggleDescription,
-                            onChanged: controlsEnabled
-                                ? (value) => setState(() => _sponsored = value)
-                                : null,
-                          ),
-                          SizedBox(height: spacing.sp4),
-                          Builder(
-                            builder: (menuContext) => ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: const Icon(CraftskyIcons.schedule),
-                              title: Text(l10n.scheduledPostWhenTitle),
-                              subtitle: Text(_whenLabel(context)),
-                              trailing: const Icon(CraftskyIconsBold.next),
-                              enabled: controlsEnabled,
-                              onTap: () => _chooseWhen(
-                                menuContext,
-                                scheduleEnabled: capacity.scheduleEnabled,
-                              ),
-                            ),
-                          ),
-                          if (capacity.showCapacityWarning)
-                            const ScheduledPostCapacityWarning(),
-                          if (capacity.showManageLink)
-                            Align(
-                              alignment: AlignmentDirectional.centerStart,
-                              child: TextButton(
-                                onPressed: () =>
-                                    const ScheduledPostsRoute().go(context),
-                                child: Text(l10n.scheduledPostManageAction),
-                              ),
-                            ),
-                          if (_missedScheduledAtLocal case final missed?)
-                            Text(
-                              l10n.scheduledPostMissedTime(
-                                _projectLocalTimeLabel(context, missed),
-                              ),
-                            ),
-                          if (_isScheduling &&
-                              (_stagedImageTotal > 0 || _isSavingSchedule)) ...[
-                            SizedBox(height: spacing.sp3),
-                            ScheduledStagingProgress(
-                              completed: _stagedImageCount,
-                              total: _stagedImageTotal,
-                              creating: _isSavingSchedule,
-                            ),
-                          ],
-                          if (widget.scheduledPost != null)
-                            Align(
-                              alignment: AlignmentDirectional.centerStart,
-                              child: TextButton.icon(
-                                onPressed: _isScheduling
-                                    ? null
-                                    : _deleteExistingSchedule,
-                                icon: const Icon(CraftskyIconsBold.delete),
-                                label: Text(l10n.scheduledPostsDeleteTooltip),
-                              ),
-                            ),
                           SizedBox(
                             key: const Key(
                               'project-composer-bottom-safe-space',
@@ -1501,7 +1496,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
 
   Widget _pageThree({
     required AppLocalizations l10n,
-    required SpacingTheme spacing,
     required bool controlsEnabled,
     required String? bodyErrorText,
   }) {
@@ -1527,7 +1521,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           helperAlignment: AlignmentDirectional.centerEnd,
           onChanged: (value) => setState(() => _bodyText = value),
         ),
-        SizedBox(height: spacing.sp4),
       ],
     );
   }
@@ -2249,15 +2242,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     final value = widget.scheduledPost?.payload['project'];
     if (value is! Map<String, dynamic>) return null;
     return ProjectMapper.fromMap(value);
-  }
-
-  String _whenLabel(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final scheduledAt = _scheduledAtLocal;
-    if (_scheduleChoice == ScheduleChoice.now || scheduledAt == null) {
-      return l10n.scheduledPostNow;
-    }
-    return _projectLocalTimeLabel(context, scheduledAt);
   }
 
   String _projectLocalTimeLabel(BuildContext context, DateTime value) {

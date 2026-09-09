@@ -55,7 +55,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Now'), findsOneWidget);
+    expect(find.byKey(const Key('composer-schedule-control')), findsOneWidget);
+    expect(find.text('Now'), findsNothing);
     expect(find.widgetWithText(ChunkyButton, 'Post'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Post'), findsNothing);
     expect(

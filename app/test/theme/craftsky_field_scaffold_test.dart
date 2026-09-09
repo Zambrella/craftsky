@@ -56,6 +56,24 @@ void main() {
       shadowOffset,
     );
   });
+
+  testWidgets('keeps character counters close to their field', (tester) async {
+    await tester.pumpWidget(
+      const _Harness(
+        child: CraftskyFieldScaffold(
+          label: 'Field',
+          counterText: '0/5',
+          child: SizedBox(height: 48, width: 160),
+        ),
+      ),
+    );
+
+    final fieldBottom = tester.getBottomLeft(find.byType(CraftskyFocusLift)).dy;
+    final counterTop = tester.getTopLeft(find.text('0/5')).dy;
+    final spacing = AppTheme.lightThemeData.extension<SpacingTheme>()!;
+
+    expect(counterTop - fieldBottom, spacing.sp1);
+  });
 }
 
 class _Harness extends StatelessWidget {

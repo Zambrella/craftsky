@@ -34,13 +34,12 @@ import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
 import 'package:craftsky_app/feed/providers/video_service_client_provider.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
 import 'package:craftsky_app/feed/widgets/composer_link_preview_carousel.dart';
-import 'package:craftsky_app/feed/widgets/composer_sponsored_switch.dart';
+import 'package:craftsky_app/feed/widgets/composer_metadata_controls.dart';
 import 'package:craftsky_app/feed/widgets/composer_video_attachment_card.dart';
 import 'package:craftsky_app/feed/widgets/submission_blocking_overlay.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
-import 'package:craftsky_app/languages/widgets/post_language_selector.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
 import 'package:craftsky_app/router/router.dart';
@@ -536,70 +535,29 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                             previewController?.updateText(value);
                           },
                         ),
-                        if (selectedVideo == null &&
-                            previewController != null &&
-                            previewState != null &&
-                            !previewState.dismissed &&
-                            !previewState.suppressed) ...[
-                          SizedBox(height: spacing.sp4),
-                          ComposerLinkPreviewCarousel(
-                            selected: selectedPreview,
-                            current: selectedPreview == null
-                                ? 0
-                                : availablePreviews.indexWhere(
-                                        (item) =>
-                                            item.candidate.identity ==
-                                            selectedPreview.candidate.identity,
-                                      ) +
-                                      1,
-                            total: availablePreviews.length,
-                            loading: previewState.inFlightIdentity != null,
-                            onPrevious: previewController.selectPrevious,
-                            onNext: previewController.selectNext,
-                            onDismiss: () => _dismissLinkPreviews(
-                              previewController,
-                              l10n,
-                            ),
-                          ),
-                        ],
-                        SizedBox(height: spacing.sp4),
-                        PostLanguageSelector(
-                          selection: _languages!,
-                          enabled: !createState.isLoading,
-                          onChanged: (value) =>
-                              setState(() => _languages = value),
+                        ComposerMetadataControls(
+                          languages: _languages!,
+                          onLanguagesChanged: createState.isLoading
+                              ? null
+                              : (value) => setState(() => _languages = value),
+                          sponsored: _sponsored,
+                          onSponsoredChanged:
+                              !createState.isLoading &&
+                                  !_isSubmitting &&
+                                  !_isScheduling
+                              ? (value) => setState(() => _sponsored = value)
+                              : null,
+                          showSponsored: !isResponse,
+                          scheduledAtLocal: _scheduledAtLocal,
+                          showSchedule: isSchedulable,
+                          onSchedulePressed: isSchedulable && !_isScheduling
+                              ? (menuContext) => _chooseWhen(
+                                  menuContext,
+                                  scheduleEnabled: capacity.scheduleEnabled,
+                                )
+                              : null,
                         ),
-                        if (!isResponse) ...[
-                          SizedBox(height: spacing.sp4),
-                          ComposerSponsoredSwitch(
-                            key: const Key('post-composer-sponsored-switch'),
-                            value: _sponsored,
-                            title: l10n.postSponsoredToggleTitle,
-                            description: l10n.postSponsoredToggleDescription,
-                            onChanged:
-                                !createState.isLoading &&
-                                    !_isSubmitting &&
-                                    !_isScheduling
-                                ? (value) => setState(() => _sponsored = value)
-                                : null,
-                          ),
-                        ],
                         if (isSchedulable) ...[
-                          SizedBox(height: spacing.sp4),
-                          Builder(
-                            builder: (menuContext) => ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: const Icon(CraftskyIcons.schedule),
-                              title: Text(l10n.scheduledPostWhenTitle),
-                              subtitle: Text(_whenLabel(context)),
-                              trailing: const Icon(CraftskyIconsBold.next),
-                              enabled: !_isScheduling,
-                              onTap: () => _chooseWhen(
-                                menuContext,
-                                scheduleEnabled: capacity.scheduleEnabled,
-                              ),
-                            ),
-                          ),
                           if (capacity.showCapacityWarning)
                             const ScheduledPostCapacityWarning(),
                           if (capacity.showManageLink)
@@ -638,8 +596,32 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                             ),
                           ],
                         ],
+                        if (selectedVideo == null &&
+                            previewController != null &&
+                            previewState != null &&
+                            !previewState.dismissed &&
+                            !previewState.suppressed) ...[
+                          ComposerLinkPreviewCarousel(
+                            selected: selectedPreview,
+                            current: selectedPreview == null
+                                ? 0
+                                : availablePreviews.indexWhere(
+                                        (item) =>
+                                            item.candidate.identity ==
+                                            selectedPreview.candidate.identity,
+                                      ) +
+                                      1,
+                            total: availablePreviews.length,
+                            loading: previewState.inFlightIdentity != null,
+                            onPrevious: previewController.selectPrevious,
+                            onNext: previewController.selectNext,
+                            onDismiss: () => _dismissLinkPreviews(
+                              previewController,
+                              l10n,
+                            ),
+                          ),
+                        ],
                         if (!isResponse) ...[
-                          SizedBox(height: spacing.sp6),
                           if (_isLoadingScheduledMedia)
                             const Center(child: CircularProgressIndicator())
                           else if (_scheduledMediaLoadFailed)
@@ -1329,15 +1311,6 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
           .toList(growable: false);
     }
     return ref.read(facetGeneratorProvider).generate(text);
-  }
-
-  String _whenLabel(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final scheduledAt = _scheduledAtLocal;
-    if (_scheduleChoice == ScheduleChoice.now || scheduledAt == null) {
-      return l10n.scheduledPostNow;
-    }
-    return _localTimeLabel(context, scheduledAt);
   }
 
   String _localTimeLabel(BuildContext context, DateTime value) {

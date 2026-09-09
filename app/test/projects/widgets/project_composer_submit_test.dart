@@ -111,11 +111,13 @@ void main() {
     );
     await _pumpUntilPostEnabled(tester);
     await tester.ensureVisible(
-      find.byKey(const Key('project-composer-sponsored-switch')),
+      find.byKey(const Key('composer-sponsored-control')),
     );
     await tester.tap(
-      find.byKey(const Key('project-composer-sponsored-switch')),
+      find.byKey(const Key('composer-sponsored-control')),
     );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sponsored'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));

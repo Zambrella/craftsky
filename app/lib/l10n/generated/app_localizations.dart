@@ -4732,6 +4732,12 @@ abstract class AppLocalizations {
   /// **'Schedule for later'**
   String get scheduledPostLater;
 
+  /// Compact local date and time shown on an active composer schedule control.
+  ///
+  /// In en, this message translates to:
+  /// **'{date}, {time}'**
+  String scheduledPostCompactTime(String date, String time);
+
   /// Error shown when a selected schedule time falls outside the supported window.
   ///
   /// In en, this message translates to:

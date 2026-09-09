@@ -6,6 +6,7 @@ import 'package:craftsky_app/languages/providers/language_preferences_provider.d
 import 'package:craftsky_app/scheduled_posts/models/schedule_time.dart';
 import 'package:craftsky_app/scheduled_posts/models/scheduled_post.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/rich_text/widgets/facet_autocomplete_editor.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -44,6 +45,7 @@ void main() {
       _testApp(container, key: const ValueKey('ready')),
     );
     await tester.pumpAndSettle();
+    await _openLanguages(tester);
     expect(find.text('French'), findsOneWidget);
   });
 
@@ -65,10 +67,19 @@ void main() {
     await tester.pumpWidget(_testApp(container, key: const ValueKey('top')));
     await tester.pumpAndSettle();
 
-    expect(find.text('When'), findsOneWidget);
-    expect(find.text('Now'), findsOneWidget);
-    expect(find.text('Sponsored'), findsOneWidget);
+    expect(find.byKey(const Key('composer-language-control')), findsOneWidget);
+    expect(find.byKey(const Key('composer-sponsored-control')), findsOneWidget);
+    expect(find.byKey(const Key('composer-schedule-control')), findsOneWidget);
+    expect(find.text('When'), findsNothing);
+    expect(find.text('Now'), findsNothing);
+    expect(find.text('Sponsored'), findsNothing);
     expect(find.text('Schedule'), findsNothing);
+    expect(
+      tester.getTopLeft(find.byKey(const Key('composer-metadata-controls'))).dy,
+      greaterThanOrEqualTo(
+        tester.getBottomLeft(find.byType(FacetAutocompleteEditor)).dy,
+      ),
+    );
   });
 
   testWidgets('AT-001 scheduling is absent for replies and quotes', (
@@ -94,9 +105,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('When'), findsNothing);
+    expect(find.byKey(const Key('composer-language-control')), findsOneWidget);
+    expect(find.byKey(const Key('composer-schedule-control')), findsNothing);
     expect(find.text('Save draft'), findsNothing);
-    expect(find.text('Sponsored'), findsNothing);
+    expect(find.byKey(const Key('composer-sponsored-control')), findsNothing);
 
     await tester.pumpWidget(
       _testApp(
@@ -106,9 +118,10 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('When'), findsNothing);
+    expect(find.byKey(const Key('composer-language-control')), findsOneWidget);
+    expect(find.byKey(const Key('composer-schedule-control')), findsNothing);
     expect(find.text('Save draft'), findsNothing);
-    expect(find.text('Sponsored'), findsOneWidget);
+    expect(find.byKey(const Key('composer-sponsored-control')), findsOneWidget);
   });
 
   testWidgets('AT-007 Needs attention edit shows recovery and delete actions', (
@@ -145,7 +158,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Now'), findsOneWidget);
+    expect(find.byKey(const Key('composer-schedule-control')), findsOneWidget);
+    expect(find.text('Now'), findsNothing);
     expect(find.textContaining('Missed schedule:'), findsOneWidget);
     expect(find.text('Delete scheduled post'), findsOneWidget);
     expect(find.text('Save draft'), findsNothing);
@@ -171,15 +185,20 @@ void main() {
 
       await tester.pumpWidget(_testApp(container, key: const ValueKey('en')));
       await tester.pumpAndSettle();
+      await _openLanguages(tester);
       expect(find.text('English'), findsOneWidget);
+      await _dismissContext(tester);
 
       container.read(_primaryProvider.notifier).value = 'fr';
       await tester.pumpAndSettle();
+      await _openLanguages(tester);
       expect(find.text('English'), findsOneWidget);
       expect(find.text('French'), findsNothing);
+      await _dismissContext(tester);
 
       await tester.pumpWidget(_testApp(container, key: const ValueKey('fr')));
       await tester.pumpAndSettle();
+      await _openLanguages(tester);
       expect(find.text('French'), findsOneWidget);
       expect(find.text('English'), findsNothing);
     },
@@ -209,10 +228,21 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    await _openLanguages(tester);
     expect(find.text('English'), findsOneWidget);
     expect(find.text('French'), findsNothing);
     expect(find.text('Welsh'), findsNothing);
   });
+}
+
+Future<void> _openLanguages(WidgetTester tester) async {
+  await tester.tap(find.byKey(const Key('composer-language-control')));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _dismissContext(WidgetTester tester) async {
+  await tester.tapAt(const Offset(1, 1));
+  await tester.pumpAndSettle();
 }
 
 Widget _testApp(

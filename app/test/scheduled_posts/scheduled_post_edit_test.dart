@@ -510,7 +510,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byTooltip('Dismiss link previews'));
+      final dismissPreview = find.byTooltip('Dismiss link previews');
+      await tester.ensureVisible(dismissPreview);
+      await tester.pumpAndSettle();
+      await tester.tap(dismissPreview);
       await tester.pumpAndSettle();
       tester
           .widget<ChunkyButton>(
@@ -1029,7 +1032,7 @@ void main() {
       ),
       'published front',
     );
-    await tester.tap(find.text('When'));
+    await tester.tap(find.byKey(const Key('composer-schedule-control')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Now').last);
     await tester.pumpAndSettle();
@@ -1292,7 +1295,7 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('When'));
+    await tester.tap(find.byKey(const Key('composer-schedule-control')));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Now').last);
     await tester.pumpAndSettle();
