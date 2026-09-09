@@ -3067,9 +3067,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get onboardingTitle => 'Set up your CraftSky profile';
 
   @override
-  String get onboardingSkip => 'Skip';
-
-  @override
   String get onboardingNext => 'Next';
 
   @override
@@ -3109,11 +3106,40 @@ class AppLocalizationsEn extends AppLocalizations {
       'Choose as many crafts as you like. You can change these later.';
 
   @override
-  String get onboardingInstagramTitle => 'Find your crafting community';
+  String get onboardingGuidelinesTitle => 'Our community guidelines';
 
   @override
-  String get onboardingInstagramDescription =>
-      'Connecting Instagram is optional. CraftSky uses your choices only to help match accounts and import who you follow.';
+  String get onboardingGuidelinesWelcomeHeading =>
+      'A welcoming place to make and share';
+
+  @override
+  String get onboardingGuidelinesWelcomeBody =>
+      'CraftSky exists to be a welcoming, inspiring home for the textile crafting community. We want it to be a place where people feel comfortable sharing projects, asking questions, celebrating each other\'s successes and learning from the community.';
+
+  @override
+  String get onboardingGuidelinesRespectHeading =>
+      'Be kind and keep CraftSky safe';
+
+  @override
+  String get onboardingGuidelinesRespectBody =>
+      'Respect other people and help keep CraftSky safe for everyone. We do not allow harassment, hate speech, scams, spam, sexually explicit content or content materially created by generative AI. Businesses are welcome when they are transparent about commercial relationships and follow the same rules as everyone else.';
+
+  @override
+  String get onboardingGuidelinesCraftHeading => 'Keep it craft-focused';
+
+  @override
+  String get onboardingGuidelinesCraftBody =>
+      'Most posts should relate to textile and fibre craft projects, materials, techniques, tools or the wider crafting community. Occasional off-topic posts are fine, but should remain secondary. Political discussion belongs here only when it directly affects textile crafting or the craft community.';
+
+  @override
+  String get onboardingGuidelinesCheckHeading => 'A useful check';
+
+  @override
+  String get onboardingGuidelinesCheckBody =>
+      'If you are unsure whether something belongs on CraftSky, ask: Does this make the community a better place? If the answer is yes, you are probably on the right track.';
+
+  @override
+  String get onboardingGuidelinesViewFull => 'View full guidelines';
 
   @override
   String get onboardingSaveError =>

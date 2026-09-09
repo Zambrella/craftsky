@@ -50,14 +50,7 @@ void main() {
     await tester.pump();
 
     expect(saveCalls, 1);
-    expect(
-      tester
-          .widget<TextButton>(
-            find.widgetWithText(TextButton, 'Skip'),
-          )
-          .onPressed,
-      isNull,
-    );
+    expect(find.text('Skip'), findsNothing);
     expect(find.text('Step 1 of 3'), findsOneWidget);
 
     save.complete(_profile(displayName: 'Alicia'));
@@ -92,14 +85,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Save & next'), findsOneWidget);
-    expect(
-      tester
-          .widget<TextButton>(
-            find.widgetWithText(TextButton, 'Skip'),
-          )
-          .onPressed,
-      isNotNull,
-    );
+    expect(find.text('Skip'), findsNothing);
   });
 }
 

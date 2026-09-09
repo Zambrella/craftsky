@@ -7,7 +7,7 @@ void main() {
     expect(OnboardingStep.profile.progress, closeTo(1 / 3, 0.001));
     expect(OnboardingStep.crafts.number, 2);
     expect(OnboardingStep.crafts.progress, closeTo(2 / 3, 0.001));
-    expect(OnboardingStep.instagram.number, 3);
-    expect(OnboardingStep.instagram.progress, 1);
+    expect(OnboardingStep.guidelines.number, 3);
+    expect(OnboardingStep.guidelines.progress, 1);
   });
 }

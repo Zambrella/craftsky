@@ -26,6 +26,10 @@ final _lease = ActiveAccountLease(
 );
 
 final class _Flow extends OnboardingFlow {
+  _Flow({this.step = OnboardingStep.profile});
+
+  final OnboardingStep step;
+
   @override
   Future<OnboardingFlowState> build(ActiveAccountLease lease) async =>
       OnboardingFlowState.fromProfile(
@@ -36,7 +40,7 @@ final class _Flow extends OnboardingFlow {
           description: 'A long profile description for layout verification.',
           crafts: const [],
         ),
-      );
+      ).copyWith(step: step);
 }
 
 void main() {
@@ -54,7 +58,6 @@ void main() {
             state: const OnboardingActionState(
               kind: OnboardingActionKind.saveAndNext,
               canSubmit: false,
-              canSkip: false,
               canGoBack: false,
               busy: true,
             ),
@@ -117,11 +120,81 @@ void main() {
     final progress = tester.getSemantics(find.text('Step 1 of 3'));
     expect(progress.label, 'Onboarding step 1 of 3');
     expect(progress.value, 'Step 1 of 3');
-    expect(find.text('Skip'), findsOneWidget);
+    expect(find.text('Skip'), findsNothing);
     expect(find.text('Next'), findsOneWidget);
     await tester.tap(find.text('Next'));
     await tester.pump();
     expect(find.text('Step 2 of 3'), findsOneWidget);
+    semantics.dispose();
+  });
+
+  testWidgets('guidelines remain scrollable and operable with large text', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(320, 480);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final semantics = tester.ensureSemantics();
+    var launchCalls = 0;
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          activeAccountInitializationProvider.overrideWith(
+            (ref) => ActiveAccountInitialization(
+              lease: _lease,
+              languagePreferences: const LanguagePreferences(
+                primaryLanguage: 'en',
+                contentLanguages: ['en'],
+              ),
+              onboardingComplete: false,
+            ),
+          ),
+          onboardingFlowProvider.overrideWith2(
+            (_) => _Flow(step: OnboardingStep.guidelines),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: const TextScaler.linear(2)),
+            child: child!,
+          ),
+          home: OnboardingPage(
+            linkLauncher: (_) async {
+              launchCalls++;
+              return true;
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Step 3 of 3'), findsOneWidget);
+    expect(find.text('Finish'), findsOneWidget);
+    final action = find.widgetWithText(OutlinedButton, 'View full guidelines');
+    await tester.scrollUntilVisible(
+      action,
+      200,
+      scrollable: find.descendant(
+        of: find.byType(SingleChildScrollView),
+        matching: find.byType(Scrollable),
+      ),
+    );
+    expect(tester.takeException(), isNull);
+    final actionSemantics = tester.getSemantics(action);
+    expect(actionSemantics.label, 'View full guidelines');
+    expect(actionSemantics.flagsCollection.isButton, isTrue);
+    expect(actionSemantics.flagsCollection.isEnabled, Tristate.isTrue);
+    await tester.tap(action);
+    await tester.pump();
+    expect(launchCalls, 1);
     semantics.dispose();
   });
 }

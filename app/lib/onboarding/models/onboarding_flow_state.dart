@@ -4,7 +4,7 @@ import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 
-enum OnboardingStep { profile, crafts, instagram }
+enum OnboardingStep { profile, crafts, guidelines }
 
 extension OnboardingStepProgress on OnboardingStep {
   int get number => index + 1;

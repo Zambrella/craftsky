@@ -5439,12 +5439,6 @@ abstract class AppLocalizations {
   /// **'Set up your CraftSky profile'**
   String get onboardingTitle;
 
-  /// No description provided for @onboardingSkip.
-  ///
-  /// In en, this message translates to:
-  /// **'Skip'**
-  String get onboardingSkip;
-
   /// No description provided for @onboardingNext.
   ///
   /// In en, this message translates to:
@@ -5511,17 +5505,65 @@ abstract class AppLocalizations {
   /// **'Choose as many crafts as you like. You can change these later.'**
   String get onboardingCraftsDescription;
 
-  /// No description provided for @onboardingInstagramTitle.
+  /// No description provided for @onboardingGuidelinesTitle.
   ///
   /// In en, this message translates to:
-  /// **'Find your crafting community'**
-  String get onboardingInstagramTitle;
+  /// **'Our community guidelines'**
+  String get onboardingGuidelinesTitle;
 
-  /// No description provided for @onboardingInstagramDescription.
+  /// No description provided for @onboardingGuidelinesWelcomeHeading.
   ///
   /// In en, this message translates to:
-  /// **'Connecting Instagram is optional. CraftSky uses your choices only to help match accounts and import who you follow.'**
-  String get onboardingInstagramDescription;
+  /// **'A welcoming place to make and share'**
+  String get onboardingGuidelinesWelcomeHeading;
+
+  /// No description provided for @onboardingGuidelinesWelcomeBody.
+  ///
+  /// In en, this message translates to:
+  /// **'CraftSky exists to be a welcoming, inspiring home for the textile crafting community. We want it to be a place where people feel comfortable sharing projects, asking questions, celebrating each other\'s successes and learning from the community.'**
+  String get onboardingGuidelinesWelcomeBody;
+
+  /// No description provided for @onboardingGuidelinesRespectHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Be kind and keep CraftSky safe'**
+  String get onboardingGuidelinesRespectHeading;
+
+  /// No description provided for @onboardingGuidelinesRespectBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Respect other people and help keep CraftSky safe for everyone. We do not allow harassment, hate speech, scams, spam, sexually explicit content or content materially created by generative AI. Businesses are welcome when they are transparent about commercial relationships and follow the same rules as everyone else.'**
+  String get onboardingGuidelinesRespectBody;
+
+  /// No description provided for @onboardingGuidelinesCraftHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep it craft-focused'**
+  String get onboardingGuidelinesCraftHeading;
+
+  /// No description provided for @onboardingGuidelinesCraftBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Most posts should relate to textile and fibre craft projects, materials, techniques, tools or the wider crafting community. Occasional off-topic posts are fine, but should remain secondary. Political discussion belongs here only when it directly affects textile crafting or the craft community.'**
+  String get onboardingGuidelinesCraftBody;
+
+  /// No description provided for @onboardingGuidelinesCheckHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'A useful check'**
+  String get onboardingGuidelinesCheckHeading;
+
+  /// No description provided for @onboardingGuidelinesCheckBody.
+  ///
+  /// In en, this message translates to:
+  /// **'If you are unsure whether something belongs on CraftSky, ask: Does this make the community a better place? If the answer is yes, you are probably on the right track.'**
+  String get onboardingGuidelinesCheckBody;
+
+  /// No description provided for @onboardingGuidelinesViewFull.
+  ///
+  /// In en, this message translates to:
+  /// **'View full guidelines'**
+  String get onboardingGuidelinesViewFull;
 
   /// No description provided for @onboardingSaveError.
   ///
