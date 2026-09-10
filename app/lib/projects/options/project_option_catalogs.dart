@@ -2,6 +2,7 @@ import 'package:craftsky_app/projects/models/project_browse_filters.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 
 abstract final class ProjectOptionCatalogs {
+  static const maxFilterValuesPerFamily = 10;
   static const feedDefsPrefix = 'social.craftsky.feed.defs';
   static const projectDefsPrefix = 'social.craftsky.project.defs';
   static const knittingDefsPrefix = 'social.craftsky.project.knitting.defs';
@@ -332,6 +333,28 @@ abstract final class ProjectOptionCatalogs {
     return projectSubtypesForCraft(
       craftToken,
     ).where((option) => option.parentValue == projectTypeToken).toList();
+  }
+
+  static List<ProjectOption> projectSubtypesForTypes({
+    required String craftToken,
+    required Iterable<String> projectTypeTokens,
+  }) {
+    final parents = projectTypeTokens.toSet();
+    return projectSubtypesForCraft(
+      craftToken,
+    ).where((option) => parents.contains(option.parentValue)).toList();
+  }
+
+  static List<String> retainValidSubtypes({
+    required String craftToken,
+    required Iterable<String> projectTypeTokens,
+    required Iterable<String> subtypeTokens,
+  }) {
+    final valid = projectSubtypesForTypes(
+      craftToken: craftToken,
+      projectTypeTokens: projectTypeTokens,
+    ).map((option) => option.value).toSet();
+    return subtypeTokens.where(valid.contains).toList();
   }
 
   static bool isSubtypeSelectionEnabled({

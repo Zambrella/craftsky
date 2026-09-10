@@ -2056,25 +2056,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectsFilterProjectType => 'Project type';
 
   @override
+  String get projectsFilterStatus => 'Status';
+
+  @override
+  String get projectsFilterProjectSubtype => 'Project subtype';
+
+  @override
   String get projectsFilterDifficulty => 'Pattern difficulty';
 
   @override
   String get projectsFilterColor => 'Color';
 
   @override
-  String get projectsFilterDesignTag => 'Design tag';
+  String get projectsFilterDesignTag => 'Design';
 
   @override
-  String get projectsFilterMaterial => 'Material';
+  String get projectsFilterYarnWeight => 'Yarn weight';
 
   @override
-  String get projectsFilterProjectTag => 'Project tag';
+  String get projectsFilterPiecingTechnique => 'Piecing technique';
 
   @override
-  String get projectsFreeTextHint => 'Add a value';
+  String get projectsFilterQuiltingMethod => 'Quilting method';
 
   @override
-  String get projectsAddFilterValueAction => 'Add';
+  String get projectsFilterSelfDrafted => 'Self drafted';
 
   @override
   String get projectsApplyFiltersAction => 'Apply filters';

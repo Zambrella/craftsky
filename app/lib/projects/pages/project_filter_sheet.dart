@@ -31,6 +31,15 @@ class _ProjectFilterSheetState extends State<_ProjectFilterSheet> {
       ProjectOptionCatalogs.craftTypes,
       widget.craftType,
     );
+    final subtypeOptions = ProjectOptionCatalogs.projectSubtypesForTypes(
+      craftToken: widget.craftType,
+      projectTypeTokens: _filters.projectType,
+    );
+    final usesYarn =
+        widget.craftType == ProjectOptionCatalogs.knittingCraftToken ||
+        widget.craftType == ProjectOptionCatalogs.crochetCraftToken;
+    final isQuilting =
+        widget.craftType == ProjectOptionCatalogs.quiltingCraftToken;
     return SizedBox.expand(
       child: Scaffold(
         appBar: AppBar(
@@ -49,12 +58,20 @@ class _ProjectFilterSheetState extends State<_ProjectFilterSheet> {
           children: [
             _OptionFilterGroup(
               title: l10n.projectsFilterProjectType,
-              options: ProjectOptionCatalogs.projectTypesForCraft(
-                widget.craftType,
+              options: _alphabetizedOptions(
+                ProjectOptionCatalogs.projectTypesForCraft(widget.craftType),
               ),
               selectedValues: _filters.projectType,
+              onChanged: _replaceProjectTypes,
+            ),
+            _OptionFilterGroup(
+              title: l10n.projectsFilterProjectSubtype,
+              options: _alphabetizedOptions(subtypeOptions),
+              selectedValues: _filters.projectSubtype,
+              enabled: subtypeOptions.isNotEmpty,
+              showWhenEmpty: true,
               onChanged: (values) => _replaceValues(
-                ProjectBrowseFilterFamily.projectType,
+                ProjectBrowseFilterFamily.projectSubtype,
                 values,
               ),
             ),
@@ -69,7 +86,7 @@ class _ProjectFilterSheetState extends State<_ProjectFilterSheet> {
             ),
             _OptionFilterGroup(
               title: l10n.projectsFilterColor,
-              options: ProjectOptionCatalogs.colours,
+              options: _alphabetizedOptions(ProjectOptionCatalogs.colours),
               selectedValues: _filters.color,
               onChanged: (values) => _replaceValues(
                 ProjectBrowseFilterFamily.color,
@@ -78,27 +95,66 @@ class _ProjectFilterSheetState extends State<_ProjectFilterSheet> {
             ),
             _OptionFilterGroup(
               title: l10n.projectsFilterDesignTag,
-              options: ProjectOptionCatalogs.designTags,
+              options: _alphabetizedOptions(ProjectOptionCatalogs.designTags),
               selectedValues: _filters.designTag,
               onChanged: (values) => _replaceValues(
                 ProjectBrowseFilterFamily.designTag,
                 values,
               ),
             ),
-            _FreeTextFilterGroup(
-              title: l10n.projectsFilterMaterial,
-              values: _filters.material,
+            if (usesYarn)
+              _OptionFilterGroup(
+                title: l10n.projectsFilterYarnWeight,
+                options: ProjectOptionCatalogs.yarnWeights,
+                selectedValues: _filters.yarnWeight,
+                onChanged: (values) => _replaceValues(
+                  ProjectBrowseFilterFamily.yarnWeight,
+                  values,
+                ),
+              ),
+            if (isQuilting) ...[
+              _OptionFilterGroup(
+                title: l10n.projectsFilterPiecingTechnique,
+                options: _alphabetizedOptions(
+                  ProjectOptionCatalogs.quiltingPiecingTechniques,
+                ),
+                selectedValues: _filters.piecingTechnique,
+                onChanged: (values) => _replaceValues(
+                  ProjectBrowseFilterFamily.piecingTechnique,
+                  values,
+                ),
+              ),
+              _OptionFilterGroup(
+                title: l10n.projectsFilterQuiltingMethod,
+                options: _alphabetizedOptions(
+                  ProjectOptionCatalogs.quiltingMethods,
+                ),
+                selectedValues: _filters.quiltingMethod,
+                onChanged: (values) => _replaceValues(
+                  ProjectBrowseFilterFamily.quiltingMethod,
+                  values,
+                ),
+              ),
+            ],
+            _OptionFilterGroup(
+              title: l10n.projectsFilterStatus,
+              options: ProjectOptionCatalogs.statuses,
+              selectedValues: _filters.status,
               onChanged: (values) => _replaceValues(
-                ProjectBrowseFilterFamily.material,
+                ProjectBrowseFilterFamily.status,
                 values,
               ),
             ),
-            _FreeTextFilterGroup(
-              title: l10n.projectsFilterProjectTag,
-              values: _filters.projectTag,
-              onChanged: (values) => _replaceValues(
-                ProjectBrowseFilterFamily.projectTag,
-                values,
+            _FilterFieldPadding(
+              child: CheckboxListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(l10n.projectsFilterSelfDrafted),
+                value: _filters.selfDrafted,
+                onChanged: (value) => setState(
+                  () => _filters = _filters.copyWith(
+                    selfDrafted: value ?? false,
+                  ),
+                ),
               ),
             ),
           ],
@@ -129,6 +185,21 @@ class _ProjectFilterSheetState extends State<_ProjectFilterSheet> {
   void _replaceValues(ProjectBrowseFilterFamily family, List<String> values) {
     setState(() => _filters = _filters.withValues(family, values));
   }
+
+  void _replaceProjectTypes(List<String> values) {
+    setState(() {
+      _filters = _filters
+          .withValues(ProjectBrowseFilterFamily.projectType, values)
+          .withValues(
+            ProjectBrowseFilterFamily.projectSubtype,
+            ProjectOptionCatalogs.retainValidSubtypes(
+              craftToken: widget.craftType,
+              projectTypeTokens: values,
+              subtypeTokens: _filters.projectSubtype,
+            ),
+          );
+    });
+  }
 }
 
 class _OptionFilterGroup extends StatelessWidget {
@@ -137,47 +208,31 @@ class _OptionFilterGroup extends StatelessWidget {
     required this.options,
     required this.selectedValues,
     required this.onChanged,
+    this.enabled = true,
+    this.showWhenEmpty = false,
   });
 
   final String title;
   final List<ProjectOption> options;
   final List<String> selectedValues;
   final ValueChanged<List<String>> onChanged;
+  final bool enabled;
+  final bool showWhenEmpty;
 
   @override
   Widget build(BuildContext context) {
-    if (options.isEmpty) return const SizedBox.shrink();
+    if (options.isEmpty && !showWhenEmpty) return const SizedBox.shrink();
+    final l10n = AppLocalizations.of(context);
     return _FilterFieldPadding(
       child: CraftskySearchableMultiSelectInput<String>(
         label: title,
         options: _selectOptions(options),
         values: selectedValues,
-        onChanged: onChanged,
-      ),
-    );
-  }
-}
-
-class _FreeTextFilterGroup extends StatelessWidget {
-  const _FreeTextFilterGroup({
-    required this.title,
-    required this.values,
-    required this.onChanged,
-  });
-
-  final String title;
-  final List<String> values;
-  final ValueChanged<List<String>> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    return _FilterFieldPadding(
-      child: CraftskyTokenInput(
-        label: title,
-        values: values,
-        inputHintText: l10n.projectsFreeTextHint,
-        addButtonLabel: l10n.projectsAddFilterValueAction,
+        enabled: enabled,
+        maxSelected: ProjectOptionCatalogs.maxFilterValuesPerFamily,
+        maxSelectedErrorText: l10n.projectComposerMultiSelectMaxSelectedError(
+          ProjectOptionCatalogs.maxFilterValuesPerFamily,
+        ),
         onChanged: onChanged,
       ),
     );
@@ -209,4 +264,9 @@ List<CraftskySelectOption<String>> _selectOptions(List<ProjectOption> options) {
         description: option.description,
       ),
   ];
+}
+
+List<ProjectOption> _alphabetizedOptions(Iterable<ProjectOption> options) {
+  return options.toList()
+    ..sort((left, right) => left.label.compareTo(right.label));
 }

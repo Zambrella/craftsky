@@ -1878,26 +1878,32 @@
   "projectsFilterProjectType": "Project type",
   "@projectsFilterProjectType": { "description": "Project filter group label for project type." },
 
+  "projectsFilterStatus": "Status",
+  "@projectsFilterStatus": { "description": "Project filter group label for project status." },
+
+  "projectsFilterProjectSubtype": "Project subtype",
+  "@projectsFilterProjectSubtype": { "description": "Project filter group label for project subtype." },
+
   "projectsFilterDifficulty": "Pattern difficulty",
   "@projectsFilterDifficulty": { "description": "Project filter group label for pattern difficulty." },
 
   "projectsFilterColor": "Color",
   "@projectsFilterColor": { "description": "Project filter group label for colors." },
 
-  "projectsFilterDesignTag": "Design tag",
+  "projectsFilterDesignTag": "Design",
   "@projectsFilterDesignTag": { "description": "Project filter group label for design tags." },
 
-  "projectsFilterMaterial": "Material",
-  "@projectsFilterMaterial": { "description": "Project filter group label for material free-text filters." },
+  "projectsFilterYarnWeight": "Yarn weight",
+  "@projectsFilterYarnWeight": { "description": "Project filter group label for yarn weight." },
 
-  "projectsFilterProjectTag": "Project tag",
-  "@projectsFilterProjectTag": { "description": "Project filter group label for project tag free-text filters." },
+  "projectsFilterPiecingTechnique": "Piecing technique",
+  "@projectsFilterPiecingTechnique": { "description": "Quilting project filter group label for piecing technique." },
 
-  "projectsFreeTextHint": "Add a value",
-  "@projectsFreeTextHint": { "description": "Hint text for adding a free-text project filter chip." },
+  "projectsFilterQuiltingMethod": "Quilting method",
+  "@projectsFilterQuiltingMethod": { "description": "Quilting project filter group label for quilting method." },
 
-  "projectsAddFilterValueAction": "Add",
-  "@projectsAddFilterValueAction": { "description": "Button label for adding a free-text project filter value." },
+  "projectsFilterSelfDrafted": "Self drafted",
+  "@projectsFilterSelfDrafted": { "description": "Project filter label for self-drafted patterns." },
 
   "projectsApplyFiltersAction": "Apply filters",
   "@projectsApplyFiltersAction": { "description": "Primary action in the project filters sheet." },

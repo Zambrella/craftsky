@@ -49,12 +49,16 @@ void main() {
             ProjectOptionCatalogs.knittingCraftToken,
             ProjectOptionCatalogs.crochetCraftToken,
           ],
+          'status': [ProjectOptionCatalogs.finishedStatusToken],
           'projectType': ['social.craftsky.project.defs#garment'],
+          'projectSubtype': [
+            'social.craftsky.project.knitting.defs#sweater',
+          ],
           'patternDifficulty': ['social.craftsky.feed.defs#beginner'],
           'color': ['blue'],
-          'material': ['alpaca'],
           'designTag': ['social.craftsky.project.defs#stripes'],
-          'projectTag': ['gift'],
+          'yarnWeight': ['social.craftsky.project.defs#dk'],
+          'selfDrafted': true,
           'sort': 'popular',
           'limit': '25',
           'cursor': 'opaque:start',
@@ -67,19 +71,17 @@ void main() {
             ProjectOptionCatalogs.knittingCraftFilterToken,
             ProjectOptionCatalogs.crochetCraftFilterToken,
           ],
-          filters: ProjectBrowseFilters.tokens(
-            projectType: const [
-              ProjectOptionCatalogs.garmentProjectTypeFilterToken,
+          filters: const ProjectBrowseFilters(
+            status: [ProjectOptionCatalogs.finishedStatusToken],
+            projectType: ['social.craftsky.project.defs#garment'],
+            projectSubtype: [
+              'social.craftsky.project.knitting.defs#sweater',
             ],
-            patternDifficulty: const [
-              ProjectOptionCatalogs.beginnerPatternDifficultyFilterToken,
-            ],
+            patternDifficulty: ['social.craftsky.feed.defs#beginner'],
             color: ['blue'],
-            material: ['alpaca'],
-            designTag: const [
-              ProjectOptionCatalogs.stripesDesignTagFilterToken,
-            ],
-            projectTag: ['gift'],
+            designTag: ['social.craftsky.project.defs#stripes'],
+            yarnWeight: ['social.craftsky.project.defs#dk'],
+            selfDrafted: true,
           ),
           sort: SearchSort.popular,
         ),

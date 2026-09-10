@@ -56,8 +56,8 @@ func (s *SearchStore) searchProjectsObserved(
 	var cursorWhere string
 	var cursorArgs []any
 	var rankedAt time.Time
-	relationshipParam := "$13"
-	languagesParam := "$14"
+	relationshipParam := "$17"
+	languagesParam := "$18"
 	if req.Sort == SearchSortPopular {
 		cur, err := DecodePopularityCursor(req.Cursor)
 		if err != nil {
@@ -67,16 +67,16 @@ func (s *SearchStore) searchProjectsObserved(
 		if !cur.RankedAt.IsZero() {
 			rankedAt = cur.RankedAt
 		}
-		cursorWhere = `AND ($11::double precision IS NULL OR (popularity_score, p.created_at, p.uri) < ($11::double precision, $12::timestamptz, $13::text))`
+		cursorWhere = `AND ($15::double precision IS NULL OR (popularity_score, p.created_at, p.uri) < ($15::double precision, $16::timestamptz, $17::text))`
 		cursorArgs = []any{cur.ScorePtr(), cur.CreatedAtPtr(), cur.URIPtr()}
-		relationshipParam = "$14"
-		languagesParam = "$15"
+		relationshipParam = "$18"
+		languagesParam = "$19"
 	} else {
 		curCreatedAt, curURI, err := DecodeChronologicalSearchCursor(req.Cursor)
 		if err != nil {
 			return nil, "", err
 		}
-		cursorWhere = `AND ($11::timestamptz IS NULL OR (p.created_at, p.uri) < ($11::timestamptz, $12::text))`
+		cursorWhere = `AND ($15::timestamptz IS NULL OR (p.created_at, p.uri) < ($15::timestamptz, $16::text))`
 		cursorArgs = []any{curCreatedAt, curURI}
 	}
 	orderBy := `ORDER BY p.created_at DESC, p.uri DESC`
@@ -90,7 +90,7 @@ func (s *SearchStore) searchProjectsObserved(
 			COALESCE(r.repost_count, 0)::int AS repost_count,
 			COALESCE(re.reply_count, 0)::int AS reply_count,
 			(COALESCE(l.like_count, 0) + (2 * COALESCE(re.reply_count, 0)) + (3 * COALESCE(r.repost_count, 0))) /
-				pow(1 + greatest(extract(epoch from ($10::timestamptz - p.created_at)) / 3600, 0) / 72, 1.5) AS popularity_score
+				pow(1 + greatest(extract(epoch from ($14::timestamptz - p.created_at)) / 3600, 0) / 72, 1.5) AS popularity_score
 		FROM craftsky_posts p
 		JOIN craftsky_project_posts pp ON pp.uri = p.uri
 		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
@@ -114,15 +114,19 @@ func (s *SearchStore) searchProjectsObserved(
 		WHERE p.is_project = true
 		  AND p.reply_root_uri IS NULL AND p.reply_parent_uri IS NULL AND p.quote_uri IS NULL
 		  AND (cardinality($2::text[]) = 0 OR lower(pp.common_craft_type) = ANY($2::text[]))
-		  AND (cardinality($3::text[]) = 0 OR lower(coalesce(pp.pattern_difficulty, '')) = ANY($3::text[]))
-		  AND (cardinality($4::text[]) = 0 OR lower(coalesce(pp.knitting_project_type, '')) = ANY($4::text[]) OR lower(coalesce(pp.crochet_project_type, '')) = ANY($4::text[]) OR lower(coalesce(pp.quilting_project_type, '')) = ANY($4::text[]) OR lower(coalesce(pp.sewing_project_type, '')) = ANY($4::text[]))
-		  AND (cardinality($5::text[]) = 0 OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.colors, '{}')) AS v WHERE lower(v) = ANY($5::text[])))
-		  AND (cardinality($6::text[]) = 0 OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.materials, '{}')) AS v WHERE lower(v) = ANY($6::text[])))
-		  AND (cardinality($7::text[]) = 0 OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.design_tags, '{}')) AS v WHERE lower(v) = ANY($7::text[])))
-		  AND (cardinality($8::text[]) = 0 OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.project_tags, '{}')) AS v WHERE lower(v) = ANY($8::text[])))
-		  AND ($9 = '' OR (
-			to_tsvector('simple', coalesce(p.text, '')) @@ plainto_tsquery('simple', $9)
-			OR to_tsvector('simple', coalesce(pp.common_title, '') || ' ' || coalesce(pp.pattern_name, '') || ' ' || coalesce(craftsky_text_array_to_string(pp.materials, ' '), '') || ' ' || coalesce(craftsky_text_array_to_string(pp.project_tags, ' '), '') || ' ' || coalesce(craftsky_text_array_to_string(pp.design_tags, ' '), '')) @@ plainto_tsquery('simple', $9)
+		  AND (cardinality($3::text[]) = 0 OR lower(coalesce(pp.common_status, '')) = ANY($3::text[]))
+		  AND (cardinality($4::text[]) = 0 OR lower(coalesce(pp.pattern_difficulty, '')) = ANY($4::text[]))
+		  AND (cardinality($5::text[]) = 0 OR lower(coalesce(pp.knitting_project_type, '')) = ANY($5::text[]) OR lower(coalesce(pp.crochet_project_type, '')) = ANY($5::text[]) OR lower(coalesce(pp.quilting_project_type, '')) = ANY($5::text[]) OR lower(coalesce(pp.sewing_project_type, '')) = ANY($5::text[]))
+		  AND (cardinality($6::text[]) = 0 OR lower(coalesce(pp.knitting_project_subtype, '')) = ANY($6::text[]) OR lower(coalesce(pp.crochet_project_subtype, '')) = ANY($6::text[]) OR lower(coalesce(pp.quilting_project_subtype, '')) = ANY($6::text[]) OR lower(coalesce(pp.sewing_project_subtype, '')) = ANY($6::text[]))
+		  AND (cardinality($7::text[]) = 0 OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.colors, '{}')) AS v WHERE lower(v) = ANY($7::text[])))
+		  AND (cardinality($8::text[]) = 0 OR EXISTS (SELECT 1 FROM unnest(coalesce(pp.design_tags, '{}')) AS v WHERE lower(v) = ANY($8::text[])))
+		  AND (cardinality($9::text[]) = 0 OR lower(coalesce(pp.knitting_yarn_weight, '')) = ANY($9::text[]) OR lower(coalesce(pp.crochet_yarn_weight, '')) = ANY($9::text[]))
+		  AND (cardinality($10::text[]) = 0 OR lower(coalesce(pp.quilting_piecing_technique, '')) = ANY($10::text[]))
+		  AND (cardinality($11::text[]) = 0 OR lower(coalesce(pp.quilting_quilting_method, '')) = ANY($11::text[]))
+		  AND (NOT $12::boolean OR pp.pattern_self_drafted IS TRUE)
+		  AND ($13 = '' OR (
+			to_tsvector('simple', coalesce(p.text, '')) @@ plainto_tsquery('simple', $13)
+			OR to_tsvector('simple', coalesce(pp.common_title, '') || ' ' || coalesce(pp.pattern_name, '') || ' ' || coalesce(craftsky_text_array_to_string(pp.materials, ' '), '') || ' ' || coalesce(craftsky_text_array_to_string(pp.project_tags, ' '), '') || ' ' || coalesce(craftsky_text_array_to_string(pp.design_tags, ' '), '')) @@ plainto_tsquery('simple', $13)
 		  ))
 		` + relationshipTopLevelPredicate(relationshipParam) + `
 		` + postVisibleModerationPredicate + `
@@ -136,7 +140,7 @@ func (s *SearchStore) searchProjectsObserved(
 		` + orderBy + `
 		LIMIT $1`
 	args := []any{queryLimit,
-		projectFilterValues(req, "craftType"), projectFilterValues(req, "patternDifficulty"), projectFilterValues(req, "projectType"), projectFilterValues(req, "color"), projectFilterValues(req, "material"), projectFilterValues(req, "designTag"), projectFilterValues(req, "projectTag"), fts, rankedAt,
+		projectFilterValues(req, "craftType"), projectFilterValues(req, "status"), projectFilterValues(req, "patternDifficulty"), projectFilterValues(req, "projectType"), projectFilterValues(req, "projectSubtype"), projectFilterValues(req, "color"), projectFilterValues(req, "designTag"), projectFilterValues(req, "yarnWeight"), projectFilterValues(req, "piecingTechnique"), projectFilterValues(req, "quiltingMethod"), req.SelfDrafted, fts, rankedAt,
 	}
 	args = append(args, cursorArgs...)
 	args = append(args, viewerDID, contentLanguages)
