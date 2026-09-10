@@ -1,6 +1,27 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:craftsky_app/projects/models/project.dart';
+import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+Set<String> _knownSubtypeValues(String craft) {
+  final schema =
+      jsonDecode(
+            File(
+              '../lexicon/social/craftsky/project/$craft.json',
+            ).readAsStringSync(),
+          )
+          as Map<String, dynamic>;
+  final defs = schema['defs'] as Map<String, dynamic>;
+  final details = defs['details'] as Map<String, dynamic>;
+  final properties = details['properties'] as Map<String, dynamic>;
+  final projectSubtype = properties['projectSubtype'] as Map<String, dynamic>;
+  return (projectSubtype['knownValues'] as List<dynamic>)
+      .cast<String>()
+      .toSet();
+}
 
 void main() {
   group('ProjectOptionCatalogs', () {
@@ -77,20 +98,52 @@ void main() {
       );
     });
 
-    test(
-      'UT-006 keeps catalogs UI-only and DTO fields string-backed',
-      () {
-        const project = Project(
-          common: ProjectCommon(
-            craftType: ProjectOptionCatalogs.knittingCraftToken,
-            status: ProjectOptionCatalogs.finishedStatusToken,
-          ),
-        );
+    test('UT-006 keeps catalogs UI-only and DTO fields string-backed', () {
+      const project = Project(
+        common: ProjectCommon(
+          craftType: ProjectOptionCatalogs.knittingCraftToken,
+          status: ProjectOptionCatalogs.finishedStatusToken,
+        ),
+      );
 
-        expect(project.common.craftType, isA<String>());
-        expect(project.common.status, isA<String>());
-        expect(project.common.craftType, 'social.craftsky.feed.defs#knitting');
-      },
-    );
+      expect(project.common.craftType, isA<String>());
+      expect(project.common.status, isA<String>());
+      expect(project.common.craftType, 'social.craftsky.feed.defs#knitting');
+    });
+
+    test('UT-006 includes every craft subtype known by the lexicons', () {
+      final catalogs = <String, List<ProjectOption>>{
+        'sewing': ProjectOptionCatalogs.sewingProjectSubtypes,
+        'knitting': ProjectOptionCatalogs.knittingProjectSubtypes,
+        'crochet': ProjectOptionCatalogs.crochetProjectSubtypes,
+        'quilting': ProjectOptionCatalogs.quiltingProjectSubtypes,
+      };
+      final craftTokens = <String, String>{
+        'sewing': ProjectOptionCatalogs.sewingCraftToken,
+        'knitting': ProjectOptionCatalogs.knittingCraftToken,
+        'crochet': ProjectOptionCatalogs.crochetCraftToken,
+        'quilting': ProjectOptionCatalogs.quiltingCraftToken,
+      };
+
+      for (final MapEntry(key: craft, value: options) in catalogs.entries) {
+        final validParents = ProjectOptionCatalogs.projectTypesForCraft(
+          craftTokens[craft]!,
+        ).map((option) => option.value).toSet();
+        expect(
+          options.map((option) => option.value).toSet(),
+          _knownSubtypeValues(craft),
+          reason: '$craft subtype catalog must match its lexicon',
+        );
+        expect(
+          options.map((option) => option.value).toSet(),
+          hasLength(options.length),
+        );
+        expect(options.every((option) => option.label.isNotEmpty), isTrue);
+        expect(
+          options.every((option) => validParents.contains(option.parentValue)),
+          isTrue,
+        );
+      }
+    });
   });
 }

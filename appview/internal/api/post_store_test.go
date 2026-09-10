@@ -106,6 +106,7 @@ CREATE TABLE craftsky_project_posts (
     pattern_designer_facets JSONB,
     pattern_publisher TEXT,
     pattern_publisher_facets JSONB,
+    pattern_self_drafted BOOLEAN,
     materials TEXT[] NOT NULL DEFAULT '{}',
     colors TEXT[] NOT NULL DEFAULT '{}',
     design_tags TEXT[] NOT NULL DEFAULT '{}',

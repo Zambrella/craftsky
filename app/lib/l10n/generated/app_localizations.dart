@@ -3694,6 +3694,18 @@ abstract class AppLocalizations {
   /// **'Project type'**
   String get projectsFilterProjectType;
 
+  /// Project filter group label for project status.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get projectsFilterStatus;
+
+  /// Project filter group label for project subtype.
+  ///
+  /// In en, this message translates to:
+  /// **'Project subtype'**
+  String get projectsFilterProjectSubtype;
+
   /// Project filter group label for pattern difficulty.
   ///
   /// In en, this message translates to:
@@ -3709,32 +3721,32 @@ abstract class AppLocalizations {
   /// Project filter group label for design tags.
   ///
   /// In en, this message translates to:
-  /// **'Design tag'**
+  /// **'Design'**
   String get projectsFilterDesignTag;
 
-  /// Project filter group label for material free-text filters.
+  /// Project filter group label for yarn weight.
   ///
   /// In en, this message translates to:
-  /// **'Material'**
-  String get projectsFilterMaterial;
+  /// **'Yarn weight'**
+  String get projectsFilterYarnWeight;
 
-  /// Project filter group label for project tag free-text filters.
+  /// Quilting project filter group label for piecing technique.
   ///
   /// In en, this message translates to:
-  /// **'Project tag'**
-  String get projectsFilterProjectTag;
+  /// **'Piecing technique'**
+  String get projectsFilterPiecingTechnique;
 
-  /// Hint text for adding a free-text project filter chip.
+  /// Quilting project filter group label for quilting method.
   ///
   /// In en, this message translates to:
-  /// **'Add a value'**
-  String get projectsFreeTextHint;
+  /// **'Quilting method'**
+  String get projectsFilterQuiltingMethod;
 
-  /// Button label for adding a free-text project filter value.
+  /// Project filter label for self-drafted patterns.
   ///
   /// In en, this message translates to:
-  /// **'Add'**
-  String get projectsAddFilterValueAction;
+  /// **'Self drafted'**
+  String get projectsFilterSelfDrafted;
 
   /// Primary action in the project filters sheet.
   ///

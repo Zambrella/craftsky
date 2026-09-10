@@ -85,6 +85,7 @@ CREATE TABLE craftsky_project_posts (
     pattern_designer_facets JSONB,
     pattern_publisher TEXT,
     pattern_publisher_facets JSONB,
+    pattern_self_drafted BOOLEAN,
     materials TEXT[] NOT NULL DEFAULT '{}',
     colors TEXT[] NOT NULL DEFAULT '{}',
     design_tags TEXT[] NOT NULL DEFAULT '{}',
@@ -216,6 +217,8 @@ func TestRunDemoSeedCreatesScreenshotDatasetAndIsIdempotent(t *testing.T) {
 		AND p.facets IS NOT NULL
 		AND p.record ? 'facets'
 		AND p.facets::text LIKE '%app.bsky.richtext.facet#tag%'
+		AND COALESCE(pp.knitting_project_type, pp.sewing_project_type) IS NOT NULL
+		AND COALESCE(pp.knitting_project_subtype, pp.sewing_project_subtype) IS NOT NULL
 		AND (
 			p.images::text LIKE '%lobster-socks-alma%' OR
 			p.images::text LIKE '%fruity-top-yvette%' OR
@@ -227,6 +230,18 @@ func TestRunDemoSeedCreatesScreenshotDatasetAndIsIdempotent(t *testing.T) {
 	}
 	if realProjects != 4 {
 		t.Fatalf("real projects = %d, want 4", realProjects)
+	}
+
+	var selfDraftedProjects int
+	if err := pool.QueryRow(ctx, `
+		SELECT count(*)
+		FROM craftsky_project_posts
+		WHERE pattern_self_drafted IS TRUE
+	`).Scan(&selfDraftedProjects); err != nil {
+		t.Fatalf("count self-drafted projects: %v", err)
+	}
+	if selfDraftedProjects != 1 {
+		t.Fatalf("self-drafted projects = %d, want 1", selfDraftedProjects)
 	}
 }
 

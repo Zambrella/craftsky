@@ -72,8 +72,8 @@ void main() {
       const query = ProjectBrowseQuery(
         craftTypes: [ProjectOptionCatalogs.knittingCraftToken],
         filters: ProjectBrowseFilters(
-          material: ['alpaca'],
-          projectTag: ['gift'],
+          yarnWeight: ['social.craftsky.project.defs#fingering'],
+          selfDrafted: true,
         ),
         sort: SearchSort.popular,
       );

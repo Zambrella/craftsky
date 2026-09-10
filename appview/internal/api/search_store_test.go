@@ -962,6 +962,17 @@ func TestSearchStore_SearchProjectsAppliesFilterSemantics(t *testing.T) {
 	seedProjectDetails(t, pool, socks, []string{"Alpaca"}, []string{"Blue"}, []string{"Cables"}, []string{"KAL"})
 	seedProjectDetails(t, pool, shawl, []string{"Wool"}, []string{"Green"}, []string{"Lace"}, []string{"Gift"})
 	seedProjectDetails(t, pool, crochet, []string{"Cotton"}, []string{"Blue"}, []string{"Granny"}, []string{"KAL"})
+	if _, err := pool.Exec(ctx, `
+		UPDATE craftsky_project_posts
+		SET common_status = 'social.craftsky.feed.defs#finished',
+			pattern_difficulty = 'social.craftsky.feed.defs#intermediate',
+			pattern_self_drafted = true,
+			knitting_project_type = 'social.craftsky.project.defs#accessory',
+			knitting_project_subtype = 'social.craftsky.project.knitting.defs#socks',
+			knitting_yarn_weight = 'social.craftsky.project.defs#fingering'
+		WHERE uri = $1`, socks); err != nil {
+		t.Fatalf("seed structured project filters: %v", err)
+	}
 
 	store := api.NewSearchStore(pool, nil)
 	orRows, _, err := store.SearchProjects(ctx, api.ProjectSearchRequest{Sort: api.SearchSortChronological, Limit: 10, Filters: map[string][]string{"craftType": {"knitting", "crochet"}}}, base)
@@ -982,12 +993,33 @@ func TestSearchStore_SearchProjectsAppliesFilterSemantics(t *testing.T) {
 	if !slices.Equal(searchURIs(page1), []string{socks}) || cursor == "" || !slices.Equal(searchURIs(page2), []string{shawl}) || cursor2 != "" {
 		t.Fatalf("pagination page1=%v cursor=%q page2=%v cursor2=%q", searchURIs(page1), cursor, searchURIs(page2), cursor2)
 	}
-	andRows, _, err := store.SearchProjects(ctx, api.ProjectSearchRequest{Sort: api.SearchSortChronological, Limit: 10, Filters: map[string][]string{"craftType": {"knitting"}, "color": {"blue"}, "material": {"alpaca"}}}, base)
+	andRows, _, err := store.SearchProjects(ctx, api.ProjectSearchRequest{
+		Sort:        api.SearchSortChronological,
+		Limit:       10,
+		SelfDrafted: true,
+		Filters: map[string][]string{
+			"craftType":         {"knitting"},
+			"status":            {"social.craftsky.feed.defs#finished"},
+			"patternDifficulty": {"social.craftsky.feed.defs#intermediate"},
+			"projectType":       {"social.craftsky.project.defs#accessory"},
+			"projectSubtype":    {"social.craftsky.project.knitting.defs#socks"},
+			"color":             {"blue"},
+			"designTag":         {"cables"},
+			"yarnWeight":        {"social.craftsky.project.defs#fingering"},
+		},
+	}, base)
 	if err != nil {
 		t.Fatalf("SearchProjects AND filters: %v", err)
 	}
 	if got := searchURIs(andRows); !slices.Equal(got, []string{socks}) {
 		t.Fatalf("AND filter URIs = %v", got)
+	}
+	missingStatusRows, _, err := store.SearchProjects(ctx, api.ProjectSearchRequest{Sort: api.SearchSortChronological, Limit: 10, Filters: map[string][]string{"status": {"social.craftsky.feed.defs#wip"}}}, base)
+	if err != nil {
+		t.Fatalf("SearchProjects missing status: %v", err)
+	}
+	if len(missingStatusRows) != 0 {
+		t.Fatalf("missing status matched active status filter: %v", searchURIs(missingStatusRows))
 	}
 }
 

@@ -457,6 +457,7 @@ type indexedProjectPattern struct {
 	Name            *string         `json:"name"`
 	NameFacets      json.RawMessage `json:"nameFacets"`
 	Difficulty      *string         `json:"difficulty"`
+	SelfDrafted     *bool           `json:"selfDrafted"`
 	Designer        *string         `json:"designer"`
 	DesignerFacets  json.RawMessage `json:"designerFacets"`
 	Publisher       *string         `json:"publisher"`
@@ -569,11 +570,13 @@ func stringPtrValue(value *string) string {
 func upsertProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATURI, project *indexedProject, tags []string) error {
 	common := project.Common
 	var patternURL, patternName, patternDifficulty, patternDesigner, patternPublisher *string
+	var patternSelfDrafted *bool
 	var patternNameFacets, patternDesignerFacets, patternPublisherFacets json.RawMessage
 	if common.Pattern != nil {
 		patternURL = common.Pattern.URL
 		patternName = common.Pattern.Name
 		patternDifficulty = common.Pattern.Difficulty
+		patternSelfDrafted = common.Pattern.SelfDrafted
 		patternDesigner = common.Pattern.Designer
 		patternPublisher = common.Pattern.Publisher
 		patternNameFacets = common.Pattern.NameFacets
@@ -584,7 +587,7 @@ func upsertProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATU
 	const q = `
 		INSERT INTO craftsky_project_posts (
 			uri, raw_project, common_craft_type, common_status, common_title, common_duration,
-			pattern_url, pattern_name, pattern_name_facets, pattern_difficulty, pattern_designer, pattern_designer_facets, pattern_publisher, pattern_publisher_facets,
+			pattern_url, pattern_name, pattern_name_facets, pattern_difficulty, pattern_designer, pattern_designer_facets, pattern_publisher, pattern_publisher_facets, pattern_self_drafted,
 			materials, colors, design_tags, project_tags, details_type, raw_details,
 			knitting_project_type, knitting_project_subtype, knitting_yarn_weight, knitting_needle_size_mm, knitting_gauge, knitting_finished_size,
 			crochet_project_type, crochet_project_subtype, crochet_yarn_weight, crochet_hook_size_mm, crochet_gauge, crochet_finished_size,
@@ -593,12 +596,12 @@ func upsertProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATU
 		)
 		VALUES (
 			$1, $2, $3, $4, $5, $6,
-			$7, $8, $9, $10, $11, $12, $13, $14,
-			$15, $16, $17, $18, $19, $20,
-			$21, $22, $23, $24, $25, $26,
-			$27, $28, $29, $30, $31, $32,
-			$33, $34, $35, $36, $37,
-			$38, $39, $40, $41
+			$7, $8, $9, $10, $11, $12, $13, $14, $15,
+			$16, $17, $18, $19, $20, $21,
+			$22, $23, $24, $25, $26, $27,
+			$28, $29, $30, $31, $32, $33,
+			$34, $35, $36, $37, $38,
+			$39, $40, $41, $42
 		)
 		ON CONFLICT (uri) DO UPDATE SET
 			raw_project = EXCLUDED.raw_project,
@@ -614,6 +617,7 @@ func upsertProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATU
 			pattern_designer_facets = EXCLUDED.pattern_designer_facets,
 			pattern_publisher = EXCLUDED.pattern_publisher,
 			pattern_publisher_facets = EXCLUDED.pattern_publisher_facets,
+			pattern_self_drafted = EXCLUDED.pattern_self_drafted,
 			materials = EXCLUDED.materials,
 			colors = EXCLUDED.colors,
 			design_tags = EXCLUDED.design_tags,
@@ -647,7 +651,7 @@ func upsertProjectMaterialization(ctx context.Context, tx pgx.Tx, uri syntax.ATU
 	`
 	_, err := tx.Exec(ctx, q,
 		uri, project.RawProject, common.CraftType, common.Status, common.Title, common.Duration,
-		patternURL, patternName, nullableJSON(patternNameFacets), patternDifficulty, patternDesigner, nullableJSON(patternDesignerFacets), patternPublisher, nullableJSON(patternPublisherFacets),
+		patternURL, patternName, nullableJSON(patternNameFacets), patternDifficulty, patternDesigner, nullableJSON(patternDesignerFacets), patternPublisher, nullableJSON(patternPublisherFacets), patternSelfDrafted,
 		materialTexts(common.Materials), nonNilStrings(common.Colors), nonNilStrings(common.DesignTags), nonNilStrings(tags), nullableString(project.Details.Type), nullableJSON(project.RawDetails),
 		detailCols.knittingProjectType, detailCols.knittingProjectSubtype, detailCols.knittingYarnWeight, detailCols.knittingNeedleSizeMM, detailCols.knittingGauge, detailCols.knittingFinishedSize,
 		detailCols.crochetProjectType, detailCols.crochetProjectSubtype, detailCols.crochetYarnWeight, detailCols.crochetHookSizeMM, detailCols.crochetGauge, detailCols.crochetFinishedSize,
