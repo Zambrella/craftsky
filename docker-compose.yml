@@ -76,6 +76,9 @@ services:
     environment:
       TAP_RELAY_URL: https://relay1.us-east.bsky.network
       TAP_DATABASE_URL: sqlite:///data/tap.db
+      # Local restarts should resume at the firehose head; tracked repos
+      # self-heal through Tap's resync path when their next event arrives.
+      TAP_NO_REPLAY: "true"
       # Deliver only the record types our indexers register — see
       # appview/internal/app/deps.go (dispatcher.Register calls).
       # Widening this requires a matching indexer on the appview side,

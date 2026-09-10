@@ -308,7 +308,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	loginCompleteURL := resolveOriginPath(cfg.VerifiedLinkOrigin, "/auth/complete")
 	deletionCompleteURL := resolveOriginPath(cfg.VerifiedLinkOrigin, "/account-deletion/reauth-complete")
 	pdsEffects, err := newPDSEffectDependencies(
-		authCapability, federated, owners, observer, cfg,
+		authCapability, federated, owners, observer, ingestionStore, cfg, logger,
 	)
 	if err != nil {
 		return nil, nil, err
