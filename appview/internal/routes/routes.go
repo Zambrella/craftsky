@@ -224,6 +224,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 		mux: mux, inFlight: inFlight, handlers: oauthHandlers,
 		instagramWebhook: deps.InstagramWebhook,
 	})
+	registerRevenueCatWebhookRoute(mux, inFlight, deps.RevenueCatWebhook)
 
 	profileCustomisationStore := deps.ProfileCustomisationStore
 	if profileCustomisationStore == nil && deps.DB != nil {
@@ -261,6 +262,9 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 	registerLogoutRoute(logoutRouteBundle{mux: mux, middleware: v1mw, handlers: oauthHandlers})
 	registerAccountDeletionRoutes(accountDeletionRouteBundle{
 		mux: mux, middleware: v1mw, service: deps.AccountDeletion,
+	})
+	registerSubscriptionRoutes(subscriptionRouteBundle{
+		mux: mux, middleware: v1mw, store: deps.Subscriptions, now: deps.Now,
 	})
 	registerMigrationRoutes(migrationRouteBundle{
 		mux: mux, middleware: v1mw, limits: deps.Config.InstagramLimits,

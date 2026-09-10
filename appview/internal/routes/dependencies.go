@@ -21,6 +21,7 @@ import (
 	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/relationships"
 	"social.craftsky/appview/internal/scheduledposts"
+	"social.craftsky/appview/internal/subscriptions"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -123,6 +124,7 @@ type Dependencies struct {
 	InstagramRateLimiter  *instagram.PostgresRateLimiter
 	InstagramVerification *instagram.VerificationService
 	InstagramWebhook      http.Handler
+	RevenueCatWebhook     http.Handler
 	InstagramSuggestions  *instagram.SuggestionService
 	InstagramAccount      *instagram.AccountStore
 	InstagramImports      *instagram.ImportService
@@ -139,6 +141,7 @@ type Dependencies struct {
 	LanguagePreferences       *languages.Store
 	NewPDSEffects             pdseffects.ExecutorFactory
 	BusinessStore             *business.Store
+	Subscriptions             *subscriptions.Store
 	EventCursorCodec          *api.EventCursorCodec
 	Now                       func() time.Time
 

@@ -266,6 +266,7 @@ type Config struct {
 	InstagramMeta       InstagramMetaConfig
 	InstagramLimits     InstagramLimits
 	InstagramDeployment InstagramDeploymentConfig
+	RevenueCat          RevenueCatConfig
 
 	// OAuth-related.
 	OAuth                                OAuthDeployment
@@ -854,6 +855,10 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		cfg.ScheduledPostsS3.SecretAccessKey = "not-configured"
 	}
 	cfg.InstagramData, cfg.InstagramMeta, cfg.InstagramLimits, cfg.InstagramDeployment, err = loadInstagramConfig(env)
+	if err != nil {
+		return Config{}, err
+	}
+	cfg.RevenueCat, err = loadRevenueCatConfig()
 	if err != nil {
 		return Config{}, err
 	}

@@ -16,6 +16,7 @@ import (
 
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/subscriptions"
 )
 
 type DeletionOAuthFlowStarter interface {
@@ -35,6 +36,8 @@ type AppServiceOptions struct {
 	Sessions             *auth.SessionLifecycleService
 	OAuthStore           *auth.PostgresAuthStore
 	DepartureParticipant ownerlifecycle.TransitionParticipant
+	BillingDeletion      BillingDeletionParticipant
+	BillingObserver      subscriptions.BillingObserver
 	Now                  func() time.Time
 	Random               io.Reader
 	IntentTTL            time.Duration
@@ -48,6 +51,8 @@ type AppService struct {
 	sessions   *auth.SessionLifecycleService
 	oauthStore *auth.PostgresAuthStore
 	departure  ownerlifecycle.TransitionParticipant
+	billing    BillingDeletionParticipant
+	observer   subscriptions.BillingObserver
 	now        func() time.Time
 	random     io.Reader
 	intentTTL  time.Duration
@@ -72,6 +77,8 @@ func NewAppService(options AppServiceOptions) (*AppService, error) {
 		pool: options.Pool, store: options.Store, oauth: options.OAuth,
 		owners: options.Owners, sessions: options.Sessions, oauthStore: options.OAuthStore,
 		departure: options.DepartureParticipant,
+		billing:   options.BillingDeletion,
+		observer:  options.BillingObserver,
 		now:       options.Now, random: options.Random, intentTTL: options.IntentTTL,
 	}, nil
 }
@@ -96,6 +103,7 @@ func (service *AppService) CreateIntent(ctx context.Context, params CreateIntent
 		return IntentResult{}, ErrDeletionAlreadyPending
 	}
 	intentParticipant := service.store.CreateIntentParticipant(intent)
+	var billingOwner bool
 	if _, err := service.owners.TransitionWith(ctx, ownerlifecycle.TransitionRequest{
 		Owner: params.Owner, ExpectedGeneration: current.Generation,
 		To: ownerlifecycle.StateDeletionPending, Reason: "accountDeletionIntent",
@@ -107,6 +115,12 @@ func (service *AppService) CreateIntent(ctx context.Context, params CreateIntent
 	) error {
 		if err := intentParticipant(participantCtx, tx, before, after); err != nil {
 			return err
+		}
+		if service.billing != nil {
+			billingOwner, err = service.billing.BeginDeletion(participantCtx, tx, params.Owner, now)
+			if err != nil {
+				return err
+			}
 		}
 		return service.departure(participantCtx, tx, before, after)
 	}); err != nil {
@@ -120,10 +134,17 @@ func (service *AppService) CreateIntent(ctx context.Context, params CreateIntent
 		}
 		return IntentResult{}, fmt.Errorf("start account deletion OAuth: %w", err)
 	}
-	return IntentResult{
+	result := IntentResult{
 		JobID: jobID.String(), AuthURL: authURL,
 		ConfirmationDID: params.Owner, ExpiresAt: expiresAt,
-	}, nil
+	}
+	if billingOwner {
+		result.Warning = &DeletionWarning{
+			Code:    "provider_billing_not_canceled",
+			Message: "Deleting your CraftSky account does not cancel provider billing and may end CraftSky access.",
+		}
+	}
+	return result, nil
 }
 
 func (service *AppService) Accept(ctx context.Context, params AcceptParams) error {
@@ -143,14 +164,34 @@ func (service *AppService) Accept(ctx context.Context, params AcceptParams) erro
 	if err != nil {
 		return err
 	}
-	participant := service.sessions.OwnerTransitionParticipant(
+	sessionParticipant := service.sessions.OwnerTransitionParticipant(
 		&binding,
 		service.store.AcceptParticipant(request, binding),
 	)
+	participant := sessionParticipant
+	billingClosed := false
+	if service.billing != nil {
+		participant = func(participantCtx context.Context, tx pgx.Tx, before, after ownerlifecycle.Lifecycle) error {
+			var err error
+			billingClosed, err = service.billing.ConfirmDeletion(participantCtx, tx, params.Owner, service.now().UTC())
+			if err != nil {
+				return err
+			}
+			return sessionParticipant(participantCtx, tx, before, after)
+		}
+	}
 	_, err = service.owners.TransitionWith(ctx, ownerlifecycle.TransitionRequest{
 		Owner: params.Owner, ExpectedGeneration: current.Generation,
 		To: ownerlifecycle.StateDeleting, Reason: "accountDeletionAccepted",
 	}, participant)
+	if service.observer != nil {
+		switch {
+		case err == nil && billingClosed:
+			service.observer.ObserveBillingClosure(ctx, "closed")
+		case errors.Is(err, ErrProviderBillingMustBeResolved):
+			service.observer.ObserveBillingClosure(ctx, "blocked")
+		}
+	}
 	return err
 }
 

@@ -1,9 +1,12 @@
 package accountdeletion
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"log/slog"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -13,7 +16,9 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/subscriptions"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -54,6 +59,9 @@ func TestAppServiceOwnsDeletionCredentialAcrossLifecycle(t *testing.T) {
 		EndpointValidator:       deletionTestEndpointValidator{},
 	})
 	starter := &recordingDeletionOAuthStarter{authURL: "https://auth.example/authorize"}
+	metrics := observability.NewInMemoryMetricRecorder()
+	var billingLogs bytes.Buffer
+	billingObserver := observability.New(observability.Config{MetricRecorder: metrics, Logger: slog.New(slog.NewJSONHandler(&billingLogs, nil))})
 	departureCalled := false
 	service, err := NewAppService(AppServiceOptions{
 		Pool: pool, Store: deletionStore, OAuth: starter,
@@ -71,7 +79,9 @@ func TestAppServiceOwnsDeletionCredentialAcrossLifecycle(t *testing.T) {
 			departureCalled = true
 			return nil
 		},
-		Now: func() time.Time { return now }, IntentTTL: 10 * time.Minute,
+		BillingDeletion: subscriptions.NewDeletionParticipant(),
+		BillingObserver: billingObserver,
+		Now:             func() time.Time { return now }, IntentTTL: 10 * time.Minute,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -103,6 +113,24 @@ func TestAppServiceOwnsDeletionCredentialAcrossLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id)
+		VALUES('11000000-0000-4000-8000-000000000001',$1,'21000000-0000-4000-8000-000000000001')
+	`, owner); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO provider_subscriptions(id,billing_account_id,project_id,revenuecat_subscription_id,product_id,app_id,store,environment,status,gives_access,auto_renewal_status,mapped_tier,accepted_generation)
+		VALUES('31000000-0000-4000-8000-000000000001','11000000-0000-4000-8000-000000000001','project','self-sub','plus','app','app_store','production','active',true,'will_renew','plus',0)
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO billing_licenses(id,provider_subscription_id,tier,assigned_did,assigned_at)
+		VALUES('41000000-0000-4000-8000-000000000001','31000000-0000-4000-8000-000000000001','plus',$1,$2)
+	`, owner, now); err != nil {
+		t.Fatal(err)
+	}
 
 	intent, err := service.CreateIntent(ctx, CreateIntentParams{Owner: owner, DeviceID: "device-delete"})
 	if err != nil {
@@ -118,6 +146,10 @@ func TestAppServiceOwnsDeletionCredentialAcrossLifecycle(t *testing.T) {
 	if starter.owner != owner || starter.jobID != jobID || starter.deviceID != "device-delete" {
 		t.Fatalf("OAuth start scope = owner %s job %s device %q", starter.owner, starter.jobID, starter.deviceID)
 	}
+	if intent.Warning == nil {
+		t.Fatal("billing owner deletion intent omitted warning")
+	}
+	assertCount(t, pool, `SELECT count(*) FROM billing_licenses WHERE assigned_did=$1`, owner, 1)
 	assertDeletionLifecycle(t, pool, owner, "deletion_pending", 2, 1)
 	assertDeletionAuthState(t, pool, owner, "ordinary-parent", "active")
 	if _, err := children.Lookup(ctx, ordinaryToken); !errors.Is(err, auth.ErrCraftskySessionNotFound) {
@@ -191,13 +223,82 @@ func TestAppServiceOwnsDeletionCredentialAcrossLifecycle(t *testing.T) {
 		t.Fatalf("credential generation = %d, want 1", credentialGeneration)
 	}
 
-	if err := service.Accept(ctx, AcceptParams{
+	accept := AcceptParams{
 		JobID: jobID.String(), Owner: owner,
 		ReauthProof: proof, ConfirmationDID: owner,
-	}); err != nil {
+	}
+	if err := service.Accept(ctx, accept); !errors.Is(err, ErrProviderBillingMustBeResolved) {
+		t.Fatalf("blocked billing acceptance = %v", err)
+	}
+	assertDeletionLifecycle(t, pool, owner, "deletion_pending", 2, 1)
+	assertCount(t, pool, `SELECT count(*) FROM billing_licenses WHERE assigned_did=$1`, owner, 1)
+	for _, test := range []struct {
+		name   string
+		status any
+	}{
+		{name: "missing", status: nil},
+		{name: "empty", status: ""},
+		{name: "unknown", status: "future_provider_state"},
+		{name: "will renew", status: "will_renew"},
+		{name: "will change product", status: "will_change_product"},
+		{name: "will pause", status: "will_pause"},
+		{name: "requires price increase consent", status: "requires_price_increase_consent"},
+		{name: "has already renewed", status: "has_already_renewed"},
+	} {
+		if _, err := pool.Exec(ctx, `
+				UPDATE provider_subscriptions
+				SET status='expired',gives_access=false,pending_payment=false,
+					auto_renewal_status=$1,accepted_generation=1
+				WHERE billing_account_id='11000000-0000-4000-8000-000000000001'
+			`, test.status); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(ctx, `
+				UPDATE billing_accounts SET reconciled_generation=deletion_requested_generation,reconciled_at=$1
+				WHERE id='11000000-0000-4000-8000-000000000001'
+		`, now); err != nil {
+			t.Fatal(err)
+		}
+		if err := service.Accept(ctx, accept); !errors.Is(err, ErrProviderBillingMustBeResolved) {
+			t.Fatalf("%s auto-renewal acceptance = %v, want provider billing blocker", test.name, err)
+		}
+		assertDeletionLifecycle(t, pool, owner, "deletion_pending", 2, 1)
+		assertCount(t, pool, `SELECT count(*) FROM billing_accounts WHERE id='11000000-0000-4000-8000-000000000001' AND state='active' AND owner_did=$1`, owner, 1)
+		assertCount(t, pool, `SELECT count(*) FROM provider_subscriptions WHERE billing_account_id=$1`, uuid.MustParse("11000000-0000-4000-8000-000000000001"), 1)
+		assertCount(t, pool, `SELECT count(*) FROM billing_licenses WHERE assigned_did=$1`, owner, 1)
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE provider_subscriptions SET status='active',gives_access=true,pending_payment=false,auto_renewal_status='will_not_renew',accepted_generation=1
+		WHERE billing_account_id='11000000-0000-4000-8000-000000000001'
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE billing_accounts SET reconciled_generation=deletion_requested_generation,reconciled_at=$1
+		WHERE id='11000000-0000-4000-8000-000000000001'
+	`, now); err != nil {
+		t.Fatal(err)
+	}
+	if err := service.Accept(ctx, accept); err != nil {
 		t.Fatal(err)
 	}
 	assertDeletionLifecycle(t, pool, owner, "deleting", 3, 2)
+	assertCount(t, pool, `SELECT count(*) FROM billing_licenses WHERE assigned_did=$1`, owner, 0)
+	assertCount(t, pool, `SELECT count(*) FROM billing_accounts WHERE id=$1 AND state='closed' AND owner_did IS NULL`, uuid.MustParse("11000000-0000-4000-8000-000000000001"), 1)
+	closureMetrics := 0
+	for _, call := range metrics.Calls() {
+		if call.Name == "craftsky_appview_billing_closures_total" {
+			closureMetrics++
+		}
+	}
+	if closureMetrics != 10 {
+		t.Fatalf("billing closure observations = %d, want nine blocked and one closed", closureMetrics)
+	}
+	for _, canary := range []string{owner.String(), "11000000-0000-4000-8000-000000000001", "21000000-0000-4000-8000-000000000001", "self-sub", "plus"} {
+		if strings.Contains(billingLogs.String(), canary) {
+			t.Fatalf("billing closure observation leaked %q: %s", canary, billingLogs.String())
+		}
+	}
 	assertDeletionAuthState(t, pool, owner, "ordinary-parent", "revocation_pending")
 	assertDeletionAuthState(t, pool, owner, attempt.State, "deletion_only")
 	var boundSession string
@@ -284,6 +385,7 @@ func TestCancelDeletionIntentRestoresOrdinarySessionAndRevokesOnlyDeletionCreden
 		OAuth:  &recordingDeletionOAuthStarter{authURL: "https://auth.example/authorize"},
 		Owners: owners, Sessions: sessions, OAuthStore: authStore,
 		DepartureParticipant: noOpDeletionDepartureParticipant,
+		BillingDeletion:      subscriptions.NewDeletionParticipant(),
 		Now:                  func() time.Time { return now }, IntentTTL: 10 * time.Minute,
 	})
 	if err != nil {
@@ -321,10 +423,44 @@ func TestCancelDeletionIntentRestoresOrdinarySessionAndRevokesOnlyDeletionCreden
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id)
+		VALUES('11000000-0000-4000-8000-000000000002','did:plc:other-billing-owner','21000000-0000-4000-8000-000000000002')
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO provider_subscriptions(id,billing_account_id,project_id,revenuecat_subscription_id,product_id,app_id,store,environment,status,gives_access,mapped_tier,accepted_generation)
+		VALUES('31000000-0000-4000-8000-000000000002','11000000-0000-4000-8000-000000000002','project','target-sub','plus','app','app_store','production','active',true,'plus',0)
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO billing_licenses(id,provider_subscription_id,tier,assigned_did,assigned_at)
+		VALUES('41000000-0000-4000-8000-000000000002','31000000-0000-4000-8000-000000000002','plus',$1,$2)
+	`, owner, now); err != nil {
+		t.Fatal(err)
+	}
+	failedService, err := NewAppService(AppServiceOptions{
+		Pool: pool, Store: deletionStore, OAuth: &recordingDeletionOAuthStarter{err: errors.New("oauth unavailable")},
+		Owners: owners, Sessions: sessions, OAuthStore: authStore,
+		DepartureParticipant: noOpDeletionDepartureParticipant,
+		BillingDeletion:      subscriptions.NewDeletionParticipant(),
+		Now:                  func() time.Time { return now }, IntentTTL: 10 * time.Minute,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := failedService.CreateIntent(ctx, CreateIntentParams{Owner: owner, DeviceID: "device-cancel"}); err == nil {
+		t.Fatal("OAuth start failure unexpectedly succeeded")
+	}
+	assertDeletionLifecycle(t, pool, owner, "active", 3, 1)
+	assertCount(t, pool, `SELECT count(*) FROM billing_licenses WHERE assigned_did=$1`, owner, 1)
 	intent, err := service.CreateIntent(ctx, CreateIntentParams{Owner: owner, DeviceID: "device-cancel"})
 	if err != nil {
 		t.Fatal(err)
 	}
+	assertCount(t, pool, `SELECT count(*) FROM billing_licenses WHERE assigned_did=$1`, owner, 1)
 	jobID := uuid.MustParse(intent.JobID)
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO oauth_sessions(
@@ -348,13 +484,14 @@ func TestCancelDeletionIntentRestoresOrdinarySessionAndRevokesOnlyDeletionCreden
 		t.Fatal(err)
 	}
 
-	assertDeletionLifecycle(t, pool, owner, "active", 3, 1)
+	assertDeletionLifecycle(t, pool, owner, "active", 5, 1)
 	assertDeletionAuthState(t, pool, owner, "ordinary-parent", "active")
 	assertDeletionAuthState(t, pool, owner, "deletion-parent", "revocation_pending")
 	if info, err := children.Lookup(ctx, ordinaryToken); err != nil || info.DID != owner {
 		t.Fatalf("ordinary session after cancellation = %+v, %v", info, err)
 	}
 	assertCount(t, pool, `SELECT count(*) FROM account_deletion_operations WHERE id=$1`, jobID, 0)
+	assertCount(t, pool, `SELECT count(*) FROM billing_licenses WHERE assigned_did=$1`, owner, 1)
 
 	secondIntent, err := service.CreateIntent(ctx, CreateIntentParams{Owner: owner, DeviceID: "device-cancel"})
 	if err != nil {
@@ -367,7 +504,8 @@ func TestCancelDeletionIntentRestoresOrdinarySessionAndRevokesOnlyDeletionCreden
 	if err := service.ExpireIntent(ctx, uuid.MustParse(secondIntent.JobID), owner); err != nil {
 		t.Fatal(err)
 	}
-	assertDeletionLifecycle(t, pool, owner, "departed", 5, 2)
+	assertDeletionLifecycle(t, pool, owner, "departed", 7, 2)
+	assertCount(t, pool, `SELECT count(*) FROM billing_licenses WHERE assigned_did=$1`, owner, 1)
 	assertDeletionAuthState(t, pool, owner, "ordinary-parent", "revocation_pending")
 	if _, err := children.LookupRecovery(ctx, ordinaryToken); !errors.Is(err, auth.ErrCraftskySessionNotFound) {
 		t.Fatalf("departed canceled session lookup = %v, want unavailable", err)
@@ -388,6 +526,7 @@ type recordingDeletionOAuthStarter struct {
 	owner    syntax.DID
 	jobID    uuid.UUID
 	deviceID string
+	err      error
 }
 
 func (starter *recordingDeletionOAuthStarter) StartAccountDeletion(
@@ -399,6 +538,9 @@ func (starter *recordingDeletionOAuthStarter) StartAccountDeletion(
 	starter.owner = owner
 	starter.jobID = jobID
 	starter.deviceID = deviceID
+	if starter.err != nil {
+		return "", starter.err
+	}
 	return starter.authURL, nil
 }
 

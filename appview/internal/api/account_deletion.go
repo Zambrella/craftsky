@@ -132,6 +132,8 @@ func writeAccountDeletionError(w http.ResponseWriter, runID string, err error) {
 		envelope.WriteError(w, http.StatusServiceUnavailable, "identity_unavailable", "identity verification is temporarily unavailable", runID, nil)
 	case errors.Is(err, accountdeletion.ErrPointOfNoReturn):
 		envelope.WriteError(w, http.StatusConflict, "deletion_already_accepted", "account deletion has already been accepted", runID, nil)
+	case errors.Is(err, accountdeletion.ErrProviderBillingMustBeResolved):
+		envelope.WriteError(w, http.StatusConflict, "provider_billing_must_be_resolved", "Resolve provider billing and refresh subscription status before deleting this account.", runID, nil)
 	default:
 		envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "account deletion operation failed", runID, nil)
 	}

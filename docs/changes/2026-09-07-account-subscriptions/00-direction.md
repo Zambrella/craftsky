@@ -4,6 +4,13 @@ Status: Chosen direction before detailed discovery and requirements
 
 Date: 2026-09-07
 
+Terminology note (2026-09-08): The detailed requirements commit `Plus` as the
+lower paid tier name. Every `Pro` reference in this direction is provisional and
+is superseded by `Plus`; the underlying one-lower-tier-license design is
+unchanged. The detailed decisions in `01-requirements.md` section 3 also
+supersede the deferred questions in section 12 and the softer assignment-overlap
+wording in section 7; this artifact remains the record of the initial direction.
+
 ## 1. Purpose
 
 CraftSky will offer paid benefits for individual CraftSky accounts while

@@ -9,18 +9,19 @@ import (
 const redactedValue = "[REDACTED]"
 
 var sensitiveHeaderNames = map[string]struct{}{
-	"authorization":             {},
-	"cookie":                    {},
-	"dpop":                      {},
-	"x-craftsky-device-id":      {},
-	"x-craftsky-session-token":  {},
-	"x-forwarded-authorization": {},
-	"x-forwarded-access-token":  {},
-	"x-forwarded-refresh-token": {},
-	"x-oauth-access-token":      {},
-	"x-oauth-refresh-token":     {},
-	"x-pds-token":               {},
-	"x-session-token":           {},
+	"authorization":                  {},
+	"cookie":                         {},
+	"dpop":                           {},
+	"x-craftsky-device-id":           {},
+	"x-craftsky-session-token":       {},
+	"x-forwarded-authorization":      {},
+	"x-forwarded-access-token":       {},
+	"x-forwarded-refresh-token":      {},
+	"x-oauth-access-token":           {},
+	"x-oauth-refresh-token":          {},
+	"x-pds-token":                    {},
+	"x-session-token":                {},
+	"x-revenuecat-webhook-signature": {},
 }
 
 // RedactHeaders returns a copy of headers with secrets and raw identity-like
