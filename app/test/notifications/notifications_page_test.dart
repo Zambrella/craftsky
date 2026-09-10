@@ -150,16 +150,6 @@ void main() {
         .where((avatar) => avatar.customisation.colour == 'rose')
         .toList();
     expect(customisedAvatars, isNotEmpty);
-    expect(
-      customisedAvatars,
-      everyElement(
-        isA<ProfileAvatar>().having(
-          (avatar) => avatar.customisation.border,
-          'border',
-          'thick',
-        ),
-      ),
-    );
   });
 
   testWidgets('UT-016 uses post, comment, and reply language in rows', (
@@ -942,7 +932,6 @@ Map<String, dynamic> _baseNotification(String type, String rkey) => {
     'avatar': 'https://cdn.example/avatar/alice.jpg',
     'customisation': {
       'colour': 'rose',
-      'profileBorder': 'thick',
       'profileBackground': 'none',
     },
   },

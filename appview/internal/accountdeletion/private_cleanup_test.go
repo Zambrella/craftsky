@@ -101,8 +101,8 @@ func TestDatabasePrivateCleanupDeletesOnlyOwnerPrivateState(t *testing.T) {
 		INSERT INTO actor_mutes(owner_did,subject_did) VALUES($1,$2),($2,$1);
 		INSERT INTO account_language_preferences(account_did,primary_language) VALUES($1,'en'),($2,'en');
 		INSERT INTO account_onboarding_completions(account_did,completed_at) VALUES($1,$3),($2,$3);
-		INSERT INTO profile_customisations(owner_did,colour,profile_border,profile_background)
-		VALUES($1,'blue','none','plain'),($2,'red','none','plain');
+		INSERT INTO profile_customisations(owner_did,colour,profile_background)
+		VALUES($1,'blue','plain'),($2,'red','plain');
 		INSERT INTO profile_pins(owner_did,slot,post_uri,state_token,created_at,updated_at)
 		VALUES($1,'standard','at://did:plc:alice/social.craftsky.feed.post/a',gen_random_uuid(),$3,$3),
 		      ($2,'standard','at://did:plc:bob/social.craftsky.feed.post/b',gen_random_uuid(),$3,$3);

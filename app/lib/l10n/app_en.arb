@@ -616,8 +616,11 @@
   "profileStatsFollowers": "followers",
   "@profileStatsFollowers": { "description": "Lower-case label paired with the follower-count on the profile stats row." },
 
-  "profileStatsProjects": "projects",
-  "@profileStatsProjects": { "description": "Lower-case label paired with the project-count on the profile stats row." },
+  "profileStatsProjects": "{count, plural, =1{Project} other{Projects}}",
+  "@profileStatsProjects": {
+    "description": "Label paired with the project-count on the profile stats row.",
+    "placeholders": { "count": { "type": "int", "example": "2" } }
+  },
 
   "profileLoadErrorTitle": "That didn't load.",
   "@profileLoadErrorTitle": { "description": "Headline on the full-screen profile-page error fallback when the profile fetch fails." },
@@ -1623,9 +1626,6 @@
   "profileCustomisationColour": "Colour",
   "@profileCustomisationColour": { "description": "Heading for the fixed profile colour choices." },
 
-  "profileCustomisationBorder": "Profile border",
-  "@profileCustomisationBorder": { "description": "Heading for profile picture border thickness choices." },
-
   "profileCustomisationBackground": "Profile background",
   "@profileCustomisationBackground": { "description": "Heading for profile background texture choices." },
 
@@ -1673,15 +1673,6 @@
 
   "profileCustomisationColourInk": "Ink",
   "@profileCustomisationColourInk": { "description": "Label for the profile colour that uses the CraftSky theme Ink colour." },
-
-  "profileCustomisationBorderThin": "Thin",
-  "@profileCustomisationBorderThin": { "description": "Label for the thin profile picture border." },
-
-  "profileCustomisationBorderMedium": "Medium",
-  "@profileCustomisationBorderMedium": { "description": "Label for the medium profile picture border." },
-
-  "profileCustomisationBorderThick": "Thick",
-  "@profileCustomisationBorderThick": { "description": "Label for the thick profile picture border." },
 
   "profileCustomisationBackgroundDither": "Dither",
   "@profileCustomisationBackgroundDither": { "description": "Label for the bayerdark profile texture." },

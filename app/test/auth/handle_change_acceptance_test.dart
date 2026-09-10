@@ -48,7 +48,6 @@ void main() {
             cachedAvatarUrl: 'https://cdn.example/member.jpg',
             cachedCustomisation: const ProfileCustomisation(
               colour: 'teal',
-              border: 'thin',
               background: 'cubedark',
             ),
           );

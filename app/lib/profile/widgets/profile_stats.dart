@@ -1,3 +1,4 @@
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -23,6 +24,7 @@ class ProfileStats extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final radius = theme.extension<RadiusTheme>()!;
     final stats = <_ProfileStatData>[
@@ -30,19 +32,19 @@ class ProfileStats extends StatelessWidget {
         _ProfileStatData(
           icon: CraftskyIcons.date,
           value: formatJoinedAge(profile.createdAt!),
-          label: 'here',
+          label: 'Joined',
         ),
       if (profile.postsLast7Days != null)
         _ProfileStatData(
           icon: CraftskyIcons.edit,
           value: '${_formatCount(profile.postsLast7Days!)} posts',
-          label: '7 days',
+          label: 'Last 7 days',
         ),
       if (profile.projectCount != null)
         _ProfileStatData(
           icon: CraftskyIcons.projectCount,
           value: _formatCount(profile.projectCount!),
-          label: 'projects',
+          label: l10n.profileStatsProjects(profile.projectCount!),
         ),
     ];
     if (stats.isEmpty) {

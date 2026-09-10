@@ -52,7 +52,6 @@ SessionRegistry _registryFixture() {
         cachedAvatarUrl: 'https://cdn.example/alice.jpg',
         cachedCustomisation: const ProfileCustomisation(
           colour: 'orchid',
-          border: 'thick',
           background: 'x2',
         ),
       );

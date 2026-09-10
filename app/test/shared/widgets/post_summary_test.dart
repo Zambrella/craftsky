@@ -100,7 +100,6 @@ void main() {
     expect(find.byIcon(CraftskyIcons.like), findsNothing);
     final avatar = tester.widget<ProfileAvatar>(find.byType(ProfileAvatar));
     expect(avatar.customisation.colour, 'lime');
-    expect(avatar.customisation.border, 'thick');
     await tester.tap(find.text(post.text));
     await tester.tap(find.text('@alice.craftsky.social'));
     expect((postTaps, authorTaps), (1, 1));
@@ -199,7 +198,6 @@ Post _post({bool sponsored = false}) => Post(
     handle: 'alice.craftsky.social',
     customisation: const ProfileCustomisation(
       colour: 'lime',
-      border: 'thick',
     ),
   ),
   likeCount: 0,

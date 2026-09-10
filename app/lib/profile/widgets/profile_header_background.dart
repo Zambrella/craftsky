@@ -1,5 +1,6 @@
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:flutter/material.dart';
 
 const profileBackgroundAssets = <String, String>{
@@ -30,24 +31,72 @@ class ProfileHeaderBackground extends StatelessWidget {
         profileColourBundles[customisation.colour] ??
         profileColourBundles[ProfileCustomisation.defaults.colour]!;
     final asset = profileBackgroundAssets[customisation.background];
+    final craft = profileCraftBackgrounds[customisation.background];
+    final tint = profileColour(
+      bundle.textureTint,
+    ).withValues(alpha: bundle.textureOpacity);
     return ClipRect(
       child: ColoredBox(
         key: backgroundKey,
         color: profileColour(bundle.base),
-        child: asset == null
-            ? null
-            : Image.asset(
-                asset,
-                key: textureKey,
-                fit: BoxFit.none,
-                repeat: ImageRepeat.repeat,
-                color: profileColour(
-                  bundle.textureTint,
-                ).withValues(alpha: bundle.textureOpacity),
-                colorBlendMode: BlendMode.srcIn,
-                filterQuality: FilterQuality.none,
-              ),
+        child: switch ((asset, craft)) {
+          (final asset?, _) => Image.asset(
+            asset,
+            key: textureKey,
+            fit: BoxFit.none,
+            repeat: ImageRepeat.repeat,
+            color: tint,
+            colorBlendMode: BlendMode.srcIn,
+            filterQuality: FilterQuality.none,
+          ),
+          (_, final craft?) => _CraftIconTile(
+            key: textureKey,
+            craft: craft,
+            color: tint,
+          ),
+          _ => null,
+        },
       ),
     );
   }
+}
+
+class _CraftIconTile extends StatelessWidget {
+  const _CraftIconTile({
+    required this.craft,
+    required this.color,
+    super.key,
+  });
+
+  static const _tileSize = 40.0;
+  static const _iconSize = 20.0;
+
+  final String craft;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final columns = (constraints.maxWidth / _tileSize).ceil() + 1;
+      final rows = (constraints.maxHeight / _tileSize).ceil() + 1;
+      return Stack(
+        children: [
+          for (var row = 0; row < rows; row++)
+            for (var column = 0; column < columns; column++)
+              Positioned(
+                left:
+                    column * _tileSize +
+                    (row.isOdd ? _tileSize / 2 : 0) -
+                    _iconSize / 2,
+                top: row * _tileSize - _iconSize / 2,
+                child: CraftIcon(
+                  craft: craft,
+                  size: _iconSize,
+                  color: color,
+                ),
+              ),
+        ],
+      );
+    },
+  );
 }

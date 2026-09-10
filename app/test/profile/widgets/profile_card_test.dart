@@ -255,7 +255,6 @@ void main() {
               profile: _profile(
                 customisation: const ProfileCustomisation(
                   background: 'bayerdark',
-                  border: 'thick',
                 ),
               ),
               isOwnProfile: false,
@@ -406,11 +405,11 @@ void main() {
         expect(find.text('Sewing'), findsOneWidget);
         expect(find.byType(CraftIcon), findsNWidgets(2));
         expect(find.text('1y'), findsOneWidget);
-        expect(find.text('here'), findsOneWidget);
+        expect(find.text('Joined'), findsOneWidget);
         expect(find.text('3 posts'), findsOneWidget);
-        expect(find.text('7 days'), findsOneWidget);
+        expect(find.text('Last 7 days'), findsOneWidget);
         expect(find.text('12'), findsOneWidget);
-        expect(find.text('projects'), findsOneWidget);
+        expect(find.text('Projects'), findsOneWidget);
 
         await tester.tap(find.text('Visit profile'));
         await tester.tap(find.text('Follow'));

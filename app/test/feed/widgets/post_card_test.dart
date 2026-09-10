@@ -1133,7 +1133,6 @@ void main() {
             text: 'My take on this pattern.',
             customisation: const ProfileCustomisation(
               colour: 'teal',
-              border: 'thick',
             ),
             quoteView: QuoteView(
               state: 'visible',
@@ -1148,7 +1147,6 @@ void main() {
                   avatar: 'https://cdn.example.com/bob.jpg',
                   customisation: const ProfileCustomisation(
                     colour: 'orchid',
-                    border: 'thin',
                   ),
                 ),
                 createdAt: DateTime(2026, 5, 22, 12),
@@ -1175,9 +1173,7 @@ void main() {
           .widgetList<ProfileAvatar>(find.byType(ProfileAvatar))
           .toList();
       expect(avatars.first.customisation.colour, 'teal');
-      expect(avatars.first.customisation.border, 'thick');
       expect(avatars.last.customisation.colour, 'orchid');
-      expect(avatars.last.customisation.border, 'thin');
 
       await tester.tap(find.text('Bob'));
       expect(quotedAuthorTaps, 1);
