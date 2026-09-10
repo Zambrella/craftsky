@@ -10,6 +10,7 @@ import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
 import 'package:craftsky_app/profile/widgets/profile_header_background.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
@@ -138,6 +139,7 @@ class _LoadedCustomisationPageState
                 values: profileColourCatalogue,
                 selected: draft.colour,
                 labels: _colourLabels(l10n),
+                selectedColourBundles: profileColourBundles,
                 orderStart: 10,
                 onSelected: notifier.selectColour,
               ),
@@ -153,7 +155,7 @@ class _LoadedCustomisationPageState
               const SizedBox(height: 28),
               FocusTraversalOrder(
                 order: const NumericFocusOrder(30),
-                child: FilledButton(
+                child: ChunkyButton(
                   onPressed: widget.value.isDirty && !widget.isSaving
                       ? () => unawaited(notifier.save())
                       : null,
@@ -210,6 +212,7 @@ class _ChoiceGroup extends StatelessWidget {
     required this.onSelected,
     required this.orderStart,
     this.labels = const {},
+    this.selectedColourBundles,
   });
 
   final String label;
@@ -218,6 +221,7 @@ class _ChoiceGroup extends StatelessWidget {
   final ValueChanged<String> onSelected;
   final double orderStart;
   final Map<String, String> labels;
+  final Map<String, ProfileColourBundle>? selectedColourBundles;
 
   @override
   Widget build(BuildContext context) => Semantics(
@@ -238,6 +242,7 @@ class _ChoiceGroup extends StatelessWidget {
                 child: ChoiceChip(
                   label: Text(labels[value] ?? value),
                   selected: selected == value,
+                  color: _colour(context, value),
                   onSelected: (_) => onSelected(value),
                 ),
               ),
@@ -246,6 +251,30 @@ class _ChoiceGroup extends StatelessWidget {
       ],
     ),
   );
+
+  WidgetStateProperty<Color?>? _colour(BuildContext context, String value) {
+    final bundle = selectedColourBundles?[value];
+    if (bundle == null) return null;
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    final base = profileColour(dark ? bundle.darkAccent : bundle.base);
+    final hover = profileColour(dark ? bundle.darkHover : bundle.hover);
+    final pressed = profileColour(dark ? bundle.darkPressed : bundle.pressed);
+    return WidgetStateProperty.resolveWith((states) {
+      if (!states.contains(WidgetState.selected)) {
+        return theme.chipTheme.color?.resolve(states);
+      }
+      if (states.contains(WidgetState.disabled)) {
+        return base.withValues(alpha: 0.38);
+      }
+      if (states.contains(WidgetState.pressed)) return pressed;
+      if (states.contains(WidgetState.hovered) ||
+          states.contains(WidgetState.focused)) {
+        return hover;
+      }
+      return base;
+    });
+  }
 }
 
 Map<String, String> _colourLabels(AppLocalizations l10n) => {

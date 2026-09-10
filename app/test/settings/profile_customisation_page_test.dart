@@ -7,10 +7,12 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
 import 'package:craftsky_app/settings/pages/profile_customisation_page.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -142,6 +144,14 @@ void main() {
       tester.widget<ProfileAvatar>(find.byType(ProfileAvatar)).showShadow,
       isFalse,
     );
+    expect(find.widgetWithText(ChunkyButton, 'Save'), findsOneWidget);
+    final cobaltChip = tester.widget<ChoiceChip>(
+      find.widgetWithText(ChoiceChip, 'Cobalt'),
+    );
+    expect(
+      cobaltChip.color?.resolve({WidgetState.selected}),
+      profileColour(profileColourBundles['cobalt']!.base),
+    );
     await _tapChoice(tester, 'Ink');
     final scrollable = find.byType(Scrollable).first;
     await tester.scrollUntilVisible(
@@ -170,11 +180,11 @@ void main() {
     );
 
     await tester.scrollUntilVisible(
-      find.widgetWithText(FilledButton, 'Save'),
+      find.widgetWithText(ChunkyButton, 'Save'),
       300,
       scrollable: scrollable,
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
     await tester.pumpAndSettle();
 
     expect(
@@ -220,11 +230,11 @@ void main() {
 
     await _tapChoice(tester, 'Rose');
     await tester.scrollUntilVisible(
-      find.widgetWithText(FilledButton, 'Save'),
+      find.widgetWithText(ChunkyButton, 'Save'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
     await tester.pumpAndSettle();
 
     expect(find.widgetWithText(ChoiceChip, 'Rose'), findsOneWidget);
@@ -257,11 +267,11 @@ void main() {
     await tester.pumpAndSettle();
     await _tapChoice(tester, 'Rose');
     await tester.scrollUntilVisible(
-      find.widgetWithText(FilledButton, 'Save'),
+      find.widgetWithText(ChunkyButton, 'Save'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
     await tester.pumpAndSettle();
     await tester.pageBack();
     await tester.pumpAndSettle();
@@ -313,12 +323,12 @@ void main() {
     await tester.pumpAndSettle();
     await _tapChoice(tester, 'Teal');
     await tester.scrollUntilVisible(
-      find.widgetWithText(FilledButton, 'Save'),
+      find.widgetWithText(ChunkyButton, 'Save'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
-    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
     await tester.pump();
 
     expect(calls, 1);
@@ -410,7 +420,7 @@ void main() {
     );
     final saveOrder = tester.widget<FocusTraversalOrder>(
       find.ancestor(
-        of: find.widgetWithText(FilledButton, 'Save'),
+        of: find.widgetWithText(ChunkyButton, 'Save'),
         matching: find.byType(FocusTraversalOrder),
       ),
     );
