@@ -153,12 +153,13 @@ Scoped but not urgent. Ordered roughly by expected sequence, not strictly priori
 
 ### Flutter app
 
-- [ ] **Image composition** — cropping, multi-image layouts, camera roll picker.
+- [ ] **Image composition** — cropping, multi-image layouts
 - [ ] **Accessibility audit** — screen reader, dynamic type, contrast.
 
 ### Product
 
 - [ ] **Web version**
+- [ ] **Video support**
 - [ ] **Stash Hub integration**
 - [ ] **Custom feeds**
 - [ ] **Polls**
@@ -170,6 +171,7 @@ Scoped but not urgent. Ordered roughly by expected sequence, not strictly priori
 - [ ] **Secondary relay / fallback** — what do we do when bsky.network goes down?
 - [ ] **Horizontal scaling story** — do we ever need it? If so, what does it look like?
 - [ ] **Data export for users** — "download everything you've posted" — worth offering even though the data is already portable via atproto.
+- [ ] **CraftSky owned CDN** - For both images and video
 
 ### Governance
 
