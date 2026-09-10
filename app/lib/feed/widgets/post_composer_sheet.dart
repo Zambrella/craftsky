@@ -32,6 +32,7 @@ import 'package:craftsky_app/feed/providers/create_post_provider.dart';
 import 'package:craftsky_app/feed/providers/image_picker_existing_video.dart';
 import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
 import 'package:craftsky_app/feed/providers/video_service_client_provider.dart';
+import 'package:craftsky_app/feed/providers/video_upload_feature_provider.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
 import 'package:craftsky_app/feed/widgets/composer_link_preview_carousel.dart';
 import 'package:craftsky_app/feed/widgets/composer_metadata_controls.dart';
@@ -312,6 +313,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
     final spacing = theme.extension<SpacingTheme>()!;
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final createState = ref.watch(createPostProvider);
+    final videoUploadsEnabled = ref.watch(videoUploadsEnabledProvider);
     final preferences = ref.watch(activeLanguagePreferencesProvider);
     _languages ??= PostLanguageSelection.fromPrimary(
       preferences.primaryLanguage,
@@ -683,6 +685,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                                     toIndex: toIndex,
                                   ),
                               supportsVideo:
+                                  videoUploadsEnabled &&
                                   isSchedulable &&
                                   _scheduleChoice == ScheduleChoice.now &&
                                   widget.scheduledPost == null,

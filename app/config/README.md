@@ -22,6 +22,10 @@ cp app/config/staging.env.example app/config/staging.env
 cp app/config/production.env.example app/config/production.env
 ```
 
+`CRAFTSKY_ENABLE_VIDEO_UPLOADS` controls whether post composers offer video
+selection. It defaults to `false` when omitted; set it to `true` only when the
+configured video infrastructure is dependable.
+
 `SENTRY_DSN` is public client configuration once the app is shipped, but keep it
 out of committed examples. `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, and
 `SENTRY_PROJECT` are build/upload credentials for Sentry symbolication and must
