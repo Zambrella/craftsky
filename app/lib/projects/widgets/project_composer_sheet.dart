@@ -28,6 +28,7 @@ import 'package:craftsky_app/feed/providers/create_post_provider.dart';
 import 'package:craftsky_app/feed/providers/image_picker_existing_video.dart';
 import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
 import 'package:craftsky_app/feed/providers/video_service_client_provider.dart';
+import 'package:craftsky_app/feed/providers/video_upload_feature_provider.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
 import 'package:craftsky_app/feed/widgets/composer_metadata_controls.dart';
 import 'package:craftsky_app/feed/widgets/composer_video_attachment_card.dart';
@@ -406,6 +407,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     final spacing = theme.extension<SpacingTheme>()!;
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final createState = ref.watch(createPostProvider);
+    final videoUploadsEnabled = ref.watch(videoUploadsEnabledProvider);
     final preferences = ref.watch(activeLanguagePreferencesProvider);
     _languages ??= PostLanguageSelection.fromPrimary(
       preferences.primaryLanguage,
@@ -595,6 +597,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                                   spacing: spacing,
                                   imagesState: imagesState,
                                   selectedVideo: selectedVideo,
+                                  videoUploadsEnabled: videoUploadsEnabled,
                                   controlsEnabled: controlsEnabled,
                                   photoErrorText: photoErrorText,
                                   onAddImages: () => ref
@@ -1330,6 +1333,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     required SpacingTheme spacing,
     required ComposerImagesState imagesState,
     required LocalVideoSelection? selectedVideo,
+    required bool videoUploadsEnabled,
     required bool controlsEnabled,
     required String? photoErrorText,
     required Future<void> Function()? onAddImages,
@@ -1386,6 +1390,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
             onReplaceUnavailable: onReplaceUnavailable,
             onReorder: onReorderImages,
             supportsVideo:
+                videoUploadsEnabled &&
                 widget.scheduledPost == null &&
                 _scheduleChoice == ScheduleChoice.now,
             onAddVideo: onAddVideo,

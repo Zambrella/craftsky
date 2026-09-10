@@ -4,6 +4,7 @@ import 'package:craftsky_app/feed/models/video_upload_limits.dart';
 import 'package:craftsky_app/feed/providers/composer_image_state.dart';
 import 'package:craftsky_app/feed/providers/composer_images_provider.dart';
 import 'package:craftsky_app/feed/providers/composer_video_controller.dart';
+import 'package:craftsky_app/feed/providers/video_upload_feature_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
@@ -18,6 +19,37 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../fakes/recording_messenger.dart';
 
 void main() {
+  testWidgets('standard composer hides video selection by default', (
+    tester,
+  ) async {
+    await _pumpComposer(
+      tester,
+      messenger: RecordingMessenger(),
+      limits: const VideoUploadLimits(canUpload: true),
+      videoUploadsEnabled: null,
+    );
+
+    expect(find.text('Add a photo'), findsOneWidget);
+    expect(find.text('Add photos or a video'), findsNothing);
+    expect(find.byKey(const Key('composer-choose-video')), findsNothing);
+  });
+
+  testWidgets('project composer hides video selection by default', (
+    tester,
+  ) async {
+    await _pumpComposer(
+      tester,
+      messenger: RecordingMessenger(),
+      limits: const VideoUploadLimits(canUpload: true),
+      project: true,
+      videoUploadsEnabled: null,
+    );
+
+    expect(find.text('Add a photo'), findsOneWidget);
+    expect(find.text('Add photos or a video'), findsNothing);
+    expect(find.byKey(const Key('composer-choose-video')), findsNothing);
+  });
+
   testWidgets('AT-003 standard composer shows exact video quota threshold', (
     tester,
   ) async {
@@ -104,6 +136,7 @@ Future<void> _pumpComposer(
   required RecordingMessenger messenger,
   required VideoUploadLimits limits,
   bool project = false,
+  bool? videoUploadsEnabled = true,
 }) async {
   final controller = ComposerVideoController(
     picker: _VideoPicker(),
@@ -112,6 +145,8 @@ Future<void> _pumpComposer(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (videoUploadsEnabled != null)
+          videoUploadsEnabledProvider.overrideWithValue(videoUploadsEnabled),
         activeLanguagePreferencesProvider.overrideWith(
           (ref) => const LanguagePreferences(
             primaryLanguage: 'en',
@@ -146,11 +181,15 @@ Future<void> _pumpComposer(
 }
 
 Future<void> _chooseVideo(WidgetTester tester) async {
+  await _openMediaMenu(tester);
+  await tester.tap(find.byKey(const Key('composer-choose-video')));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _openMediaMenu(WidgetTester tester) async {
   final addMedia = find.byKey(const Key('composer-add-image'));
   await tester.ensureVisible(addMedia);
   await tester.tap(addMedia);
-  await tester.pumpAndSettle();
-  await tester.tap(find.byKey(const Key('composer-choose-video')));
   await tester.pumpAndSettle();
 }
 
