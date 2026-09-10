@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/providers/profile_customisation_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
@@ -154,7 +155,7 @@ class _LoadedCustomisationPageState
               ),
               const SizedBox(height: 28),
               FocusTraversalOrder(
-                order: const NumericFocusOrder(30),
+                order: const NumericFocusOrder(40),
                 child: ChunkyButton(
                   onPressed: widget.value.isDirty && !widget.isSaving
                       ? () => unawaited(notifier.save())
@@ -295,4 +296,9 @@ Map<String, String> _backgroundLabels(AppLocalizations l10n) => {
   'scallopdark': l10n.profileCustomisationBackgroundScallops,
   'skewdark': l10n.profileCustomisationBackgroundDiagonalWeave,
   'x2': l10n.profileCustomisationBackgroundCrosshatch,
+  'craft-sewing': craftLabel(Craft.sewing, l10n),
+  'craft-knitting': craftLabel(Craft.knitting, l10n),
+  'craft-crochet': craftLabel(Craft.crochet, l10n),
+  'craft-quilting': craftLabel(Craft.quilting, l10n),
+  'craft-embroidery': craftLabel(Craft.embroidery, l10n),
 };

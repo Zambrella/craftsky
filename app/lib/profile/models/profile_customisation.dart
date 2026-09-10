@@ -19,7 +19,20 @@ const profileBackgroundCatalogue = <String>[
   'scallopdark',
   'skewdark',
   'x2',
+  'craft-sewing',
+  'craft-knitting',
+  'craft-crochet',
+  'craft-quilting',
+  'craft-embroidery',
 ];
+
+const profileCraftBackgrounds = <String, String>{
+  'craft-sewing': 'sewing',
+  'craft-knitting': 'knitting',
+  'craft-crochet': 'crochet',
+  'craft-quilting': 'quilting',
+  'craft-embroidery': 'embroidery',
+};
 
 @immutable
 class ProfileColourBundle {

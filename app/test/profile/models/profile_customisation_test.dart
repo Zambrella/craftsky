@@ -32,10 +32,22 @@ void main() {
         'scallopdark',
         'skewdark',
         'x2',
+        'craft-sewing',
+        'craft-knitting',
+        'craft-crochet',
+        'craft-quilting',
+        'craft-embroidery',
       ]);
 
       expect(profileColourCatalogue.toSet(), hasLength(7));
-      expect(profileBackgroundCatalogue.toSet(), hasLength(7));
+      expect(profileBackgroundCatalogue.toSet(), hasLength(12));
+      expect(profileCraftBackgrounds, {
+        'craft-sewing': 'sewing',
+        'craft-knitting': 'knitting',
+        'craft-crochet': 'crochet',
+        'craft-quilting': 'quilting',
+        'craft-embroidery': 'embroidery',
+      });
       expect(ProfileCustomisation.defaults.toMap(), {
         'colour': 'cobalt',
         'profileBackground': 'none',

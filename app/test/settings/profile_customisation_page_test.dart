@@ -155,13 +155,13 @@ void main() {
     await _tapChoice(tester, 'Ink');
     final scrollable = find.byType(Scrollable).first;
     await tester.scrollUntilVisible(
-      find.widgetWithText(ChoiceChip, 'Crosshatch'),
+      find.widgetWithText(ChoiceChip, 'Crochet'),
       300,
       scrollable: scrollable,
     );
     await tester.drag(scrollable, const Offset(0, -120));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ChoiceChip, 'Crosshatch'));
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Crochet'));
     await tester.drag(
       scrollable,
       const Offset(0, 1000),
@@ -191,7 +191,7 @@ void main() {
       submitted,
       const ProfileCustomisation(
         colour: 'ink',
-        background: 'x2',
+        background: 'craft-crochet',
       ),
     );
     expect(messenger.calls.last.$2, 'Profile customisation saved');
@@ -410,7 +410,12 @@ void main() {
         24,
         25,
         26,
+        27,
+        28,
+        29,
         30,
+        31,
+        40,
       ]),
     );
     await tester.scrollUntilVisible(
@@ -424,7 +429,7 @@ void main() {
         matching: find.byType(FocusTraversalOrder),
       ),
     );
-    expect((saveOrder.order as NumericFocusOrder).order, 30);
+    expect((saveOrder.order as NumericFocusOrder).order, 40);
     semantics.dispose();
   });
 

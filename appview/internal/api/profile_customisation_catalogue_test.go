@@ -27,6 +27,11 @@ func TestProfileCustomisationCatalogueIsClosedAndStable(t *testing.T) {
 		"scallopdark",
 		"skewdark",
 		"x2",
+		"craft-sewing",
+		"craft-knitting",
+		"craft-crochet",
+		"craft-quilting",
+		"craft-embroidery",
 	})
 
 	wantDefault := api.ProfileCustomisation{
