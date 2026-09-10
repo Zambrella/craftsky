@@ -24,7 +24,6 @@ void main() {
         'teal',
         'ink',
       ]);
-      expect(profileBorderCatalogue, ['thin', 'medium', 'thick']);
       expect(profileBackgroundCatalogue, [
         'none',
         'bayerdark',
@@ -36,11 +35,9 @@ void main() {
       ]);
 
       expect(profileColourCatalogue.toSet(), hasLength(7));
-      expect(profileBorderCatalogue.toSet(), hasLength(3));
       expect(profileBackgroundCatalogue.toSet(), hasLength(7));
       expect(ProfileCustomisation.defaults.toMap(), {
         'colour': 'cobalt',
-        'profileBorder': 'medium',
         'profileBackground': 'none',
       });
     },
@@ -212,18 +209,17 @@ void main() {
     () {
       final customisation = ProfileCustomisation.fromMap(const {
         'colour': 'future-colour',
-        'profileBorder': 'thick',
+        'profileBorder': 'retired-value',
         'profileBackground': 'cubedark',
       });
 
       expect(
         customisation,
-        const ProfileCustomisation(border: 'thick', background: 'cubedark'),
+        const ProfileCustomisation(background: 'cubedark'),
       );
       expect(
         ProfileCustomisation.fromMap(const {
           'colour': 'teal',
-          'profileBorder': 'future-border',
           'profileBackground': 'x2',
         }),
         const ProfileCustomisation(colour: 'teal', background: 'x2'),
@@ -231,10 +227,9 @@ void main() {
       expect(
         ProfileCustomisation.fromMap(const {
           'colour': 'rose',
-          'profileBorder': 'thin',
           'profileBackground': 'future-background',
         }),
-        const ProfileCustomisation(colour: 'rose', border: 'thin'),
+        const ProfileCustomisation(colour: 'rose'),
       );
     },
   );
@@ -280,7 +275,6 @@ void main() {
       'crafts': <String>[],
       'customisation': {
         'colour': 'teal',
-        'profileBorder': 'future-border',
         'profileBackground': 'x2',
       },
     });

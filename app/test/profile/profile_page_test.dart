@@ -794,7 +794,6 @@ void main() {
           crafts: const [],
           customisation: const ProfileCustomisation(
             background: 'x2',
-            border: 'thick',
           ),
         );
         final repo = FakeProfileRepository(onFetch: (_) async => profile);

@@ -208,7 +208,6 @@ void main() {
           'avatarCid': 'bafyA',
           'customisation': {
             'colour': 'cobalt',
-            'profileBorder': 'medium',
             'profileBackground': 'none',
           },
         },
@@ -269,7 +268,6 @@ void main() {
           'handle': 'alice.craftsky.social',
           'customisation': {
             'colour': 'cobalt',
-            'profileBorder': 'medium',
             'profileBackground': 'none',
           },
         },
@@ -411,7 +409,6 @@ void main() {
               'displayName': 'Carol',
               'customisation': {
                 'colour': 'cobalt',
-                'profileBorder': 'medium',
                 'profileBackground': 'none',
               },
             },
@@ -432,7 +429,6 @@ void main() {
           'handle': 'bob.craftsky.social',
           'customisation': {
             'colour': 'cobalt',
-            'profileBorder': 'medium',
             'profileBackground': 'none',
           },
         },
@@ -476,7 +472,6 @@ void main() {
           'handle': 'alice.craftsky.social',
           'customisation': {
             'colour': 'cobalt',
-            'profileBorder': 'medium',
             'profileBackground': 'none',
           },
         },
@@ -531,7 +526,6 @@ void main() {
           'handle': 'alice.craftsky.social',
           'customisation': {
             'colour': 'cobalt',
-            'profileBorder': 'medium',
             'profileBackground': 'none',
           },
         },
@@ -579,7 +573,6 @@ void main() {
           'handle': 'alice.craftsky.social',
           'customisation': {
             'colour': 'cobalt',
-            'profileBorder': 'medium',
             'profileBackground': 'none',
           },
         },

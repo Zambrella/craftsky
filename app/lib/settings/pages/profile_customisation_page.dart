@@ -143,25 +143,16 @@ class _LoadedCustomisationPageState
               ),
               const SizedBox(height: 20),
               _ChoiceGroup(
-                label: l10n.profileCustomisationBorder,
-                values: profileBorderCatalogue,
-                selected: draft.border,
-                labels: _borderLabels(l10n),
-                orderStart: 20,
-                onSelected: notifier.selectBorder,
-              ),
-              const SizedBox(height: 20),
-              _ChoiceGroup(
                 label: l10n.profileCustomisationBackground,
                 values: profileBackgroundCatalogue,
                 selected: draft.background,
                 labels: _backgroundLabels(l10n),
-                orderStart: 30,
+                orderStart: 20,
                 onSelected: notifier.selectBackground,
               ),
               const SizedBox(height: 28),
               FocusTraversalOrder(
-                order: const NumericFocusOrder(40),
+                order: const NumericFocusOrder(30),
                 child: FilledButton(
                   onPressed: widget.value.isDirty && !widget.isSaving
                       ? () => unawaited(notifier.save())
@@ -265,12 +256,6 @@ Map<String, String> _colourLabels(AppLocalizations l10n) => {
   'lime': l10n.profileCustomisationColourGreen,
   'teal': l10n.profileCustomisationColourTeal,
   'ink': l10n.profileCustomisationColourInk,
-};
-
-Map<String, String> _borderLabels(AppLocalizations l10n) => {
-  'thin': l10n.profileCustomisationBorderThin,
-  'medium': l10n.profileCustomisationBorderMedium,
-  'thick': l10n.profileCustomisationBorderThick,
 };
 
 Map<String, String> _backgroundLabels(AppLocalizations l10n) => {

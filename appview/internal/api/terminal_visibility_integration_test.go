@@ -71,8 +71,8 @@ func TestTerminalOwnerIsInvisibleAndIneffectiveBeforePhysicalPurge(t *testing.T)
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO profile_customisations(
-			owner_did,colour,profile_border,profile_background
-		) VALUES($1,'orchid','thin','skewdark')
+			owner_did,colour,profile_background
+		) VALUES($1,'orchid','skewdark')
 	`, terminal); err != nil {
 		t.Fatal(err)
 	}

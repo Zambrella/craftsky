@@ -58,6 +58,67 @@ void main() {
       );
     });
 
+    testWidgets('$name theme gives chips the global craft picker treatment', (
+      tester,
+    ) async {
+      final theme = loadTheme();
+      final swatches = theme.extension<BrandSwatchTheme>()!;
+      final chip = theme.chipTheme;
+      final side = chip.side! as WidgetStateBorderSide;
+
+      expect(chip.shape, isA<StadiumBorder>());
+      expect(chip.showCheckmark, isFalse);
+      expect(chip.labelPadding, EdgeInsets.zero);
+      expect(chip.padding, const EdgeInsets.symmetric(horizontal: 12));
+      expect(chip.color?.resolve({}), swatches.paper3);
+      expect(
+        chip.color?.resolve({WidgetState.selected}),
+        theme.colorScheme.primary,
+      );
+      expect(
+        WidgetStateProperty.resolveAs(chip.labelStyle?.color, {}),
+        theme.colorScheme.onSurface,
+      );
+      expect(
+        WidgetStateProperty.resolveAs(chip.labelStyle?.color, {
+          WidgetState.selected,
+        }),
+        theme.colorScheme.onPrimary,
+      );
+      expect(side.resolve({})!.color, theme.colorScheme.onSurface);
+      expect(side.resolve({})!.width, 1.5);
+      expect(
+        chip.color?.resolve({WidgetState.hovered}),
+        Color.alphaBlend(
+          theme.colorScheme.primary.withValues(alpha: 0.08),
+          swatches.paper3,
+        ),
+      );
+      expect(
+        chip.color?.resolve({WidgetState.selected, WidgetState.pressed}),
+        Color.alphaBlend(
+          theme.colorScheme.onPrimary.withValues(alpha: 0.12),
+          theme.colorScheme.primary,
+        ),
+      );
+      expect(
+        WidgetStateProperty.resolveAs(chip.iconTheme?.color, {
+          WidgetState.disabled,
+        }),
+        theme.colorScheme.onSurface.withValues(alpha: 0.38),
+      );
+      expect(
+        WidgetStateProperty.resolveAs(chip.deleteIconColor, {
+          WidgetState.selected,
+        }),
+        theme.colorScheme.onPrimary,
+      );
+      expect(
+        side.resolve({WidgetState.disabled})!.color,
+        theme.colorScheme.onSurface.withValues(alpha: 0.38),
+      );
+    });
+
     testWidgets('$name theme keeps time picker selector typography compact', (
       tester,
     ) async {

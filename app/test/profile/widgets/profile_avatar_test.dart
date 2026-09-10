@@ -25,16 +25,10 @@ Widget _wrap(Widget child, {List<dynamic> overrides = const []}) {
 
 void main() {
   group('ProfileAvatar', () {
-    test('uses the approved border-width table at every avatar size', () {
-      expect(ProfileAvatarSize.small.borderWidthFor('thin'), 1.5);
-      expect(ProfileAvatarSize.small.borderWidthFor('medium'), 2.5);
-      expect(ProfileAvatarSize.small.borderWidthFor('thick'), 4);
-      expect(ProfileAvatarSize.medium.borderWidthFor('thin'), 2);
-      expect(ProfileAvatarSize.medium.borderWidthFor('medium'), 3.5);
-      expect(ProfileAvatarSize.medium.borderWidthFor('thick'), 5);
-      expect(ProfileAvatarSize.large.borderWidthFor('thin'), 3);
-      expect(ProfileAvatarSize.large.borderWidthFor('medium'), 5);
-      expect(ProfileAvatarSize.large.borderWidthFor('thick'), 8);
+    test('uses the fixed border width at every avatar size', () {
+      expect(ProfileAvatarSize.small.borderWidth, 2.5);
+      expect(ProfileAvatarSize.medium.borderWidth, 3.5);
+      expect(ProfileAvatarSize.large.borderWidth, 5);
     });
 
     testWidgets('renders the initial-letter fallback when avatarUrl is null', (
@@ -148,7 +142,6 @@ void main() {
             seed: 'F',
             customisation: ProfileCustomisation(
               colour: 'rose',
-              border: 'thick',
             ),
           ),
         ),
@@ -160,7 +153,7 @@ void main() {
       final decoration = avatar.decoration! as BoxDecoration;
       final border = decoration.border! as Border;
       expect(border.top.color, const Color(0xFFD61535));
-      expect(border.top.width, 5);
+      expect(border.top.width, 3.5);
       expect(avatar.padding, isNull);
       final borderedLayers = tester
           .widgetList<Container>(

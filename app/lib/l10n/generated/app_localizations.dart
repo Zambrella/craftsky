@@ -3226,12 +3226,6 @@ abstract class AppLocalizations {
   /// **'Colour'**
   String get profileCustomisationColour;
 
-  /// Heading for profile picture border thickness choices.
-  ///
-  /// In en, this message translates to:
-  /// **'Profile border'**
-  String get profileCustomisationBorder;
-
   /// Heading for profile background texture choices.
   ///
   /// In en, this message translates to:
@@ -3327,24 +3321,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Ink'**
   String get profileCustomisationColourInk;
-
-  /// Label for the thin profile picture border.
-  ///
-  /// In en, this message translates to:
-  /// **'Thin'**
-  String get profileCustomisationBorderThin;
-
-  /// Label for the medium profile picture border.
-  ///
-  /// In en, this message translates to:
-  /// **'Medium'**
-  String get profileCustomisationBorderMedium;
-
-  /// Label for the thick profile picture border.
-  ///
-  /// In en, this message translates to:
-  /// **'Thick'**
-  String get profileCustomisationBorderThick;
 
   /// Label for the bayerdark profile texture.
   ///

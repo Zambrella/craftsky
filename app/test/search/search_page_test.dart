@@ -159,7 +159,6 @@ void main() {
                         viewerIsFollowing: false,
                         customisation: const ProfileCustomisation(
                           colour: 'amber',
-                          border: 'thin',
                         ),
                         crafts: const [
                           ProjectOptionCatalogs.knittingCraftToken,
@@ -199,7 +198,6 @@ void main() {
     expect(find.text('View all'), findsNWidgets(2));
     final avatar = tester.widget<ProfileAvatar>(find.byType(ProfileAvatar));
     expect(avatar.customisation.colour, 'amber');
-    expect(avatar.customisation.border, 'thin');
   });
 
   testWidgets('SearchPage renders submitted result tabs and post results', (

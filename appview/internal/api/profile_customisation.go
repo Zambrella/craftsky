@@ -21,7 +21,6 @@ const maxProfileCustomisationBodyBytes = 1024
 // The client renders these stable keys using its bundled visual catalogue.
 type ProfileCustomisation struct {
 	Colour     string `json:"colour"`
-	Border     string `json:"profileBorder"`
 	Background string `json:"profileBackground"`
 }
 
@@ -39,11 +38,6 @@ var (
 		"teal",
 		"ink",
 	}
-	ProfileBorderCatalogue = []string{
-		"thin",
-		"medium",
-		"thick",
-	}
 	ProfileBackgroundCatalogue = []string{
 		"none",
 		"bayerdark",
@@ -57,7 +51,6 @@ var (
 
 var DefaultProfileCustomisation = ProfileCustomisation{
 	Colour:     "cobalt",
-	Border:     "medium",
 	Background: "none",
 }
 
@@ -71,9 +64,6 @@ func defaultProfileCustomisationPointer() *ProfileCustomisation {
 func EffectiveProfileCustomisation(value ProfileCustomisation) ProfileCustomisation {
 	if !catalogueContains(ProfileColourCatalogue, value.Colour) {
 		value.Colour = DefaultProfileCustomisation.Colour
-	}
-	if !catalogueContains(ProfileBorderCatalogue, value.Border) {
-		value.Border = DefaultProfileCustomisation.Border
 	}
 	if !catalogueContains(ProfileBackgroundCatalogue, value.Background) {
 		value.Background = DefaultProfileCustomisation.Background
@@ -103,7 +93,6 @@ func DecodeProfileCustomisationPut(body io.Reader) (ProfileCustomisation, error)
 
 	allowed := map[string]struct{}{
 		"colour":            {},
-		"profileBorder":     {},
 		"profileBackground": {},
 	}
 	unexpected := make(map[string]string)
@@ -123,7 +112,6 @@ func DecodeProfileCustomisationPut(body io.Reader) (ProfileCustomisation, error)
 	invalid := make(map[string]string)
 	unsupported := make(map[string]string)
 	decodeProfileCustomisationKey(fields, "colour", ProfileColourCatalogue, &value.Colour, invalid, unsupported)
-	decodeProfileCustomisationKey(fields, "profileBorder", ProfileBorderCatalogue, &value.Border, invalid, unsupported)
 	decodeProfileCustomisationKey(fields, "profileBackground", ProfileBackgroundCatalogue, &value.Background, invalid, unsupported)
 	if len(invalid) > 0 {
 		return ProfileCustomisation{}, &FieldError{

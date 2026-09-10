@@ -255,7 +255,6 @@ void main() {
               profile: _profile(
                 customisation: const ProfileCustomisation(
                   background: 'bayerdark',
-                  border: 'thick',
                 ),
               ),
               isOwnProfile: false,

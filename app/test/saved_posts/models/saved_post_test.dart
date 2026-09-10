@@ -31,7 +31,6 @@ void main() {
         'handle': 'alice.craftsky.social',
         'customisation': {
           'colour': 'cobalt',
-          'profileBorder': 'medium',
           'profileBackground': 'none',
         },
       },

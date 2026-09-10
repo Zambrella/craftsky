@@ -80,8 +80,15 @@ Future<void> _pumpRoutedPage(
   await tester.pumpAndSettle();
 }
 
+Future<void> _tapChoice(WidgetTester tester, String label) async {
+  final choice = find.widgetWithText(ChoiceChip, label);
+  await tester.ensureVisible(choice);
+  await tester.tap(choice);
+  await tester.pump();
+}
+
 void main() {
-  testWidgets('edits a live local preview and saves all three choices', (
+  testWidgets('edits a live local preview and saves both choices', (
     tester,
   ) async {
     ProfileCustomisation? submitted;
@@ -121,7 +128,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Colour'), findsOneWidget);
-    expect(find.text('Profile border'), findsOneWidget);
+    expect(find.text('Profile border'), findsNothing);
     expect(find.text('Profile background'), findsOneWidget);
     expect(find.text('Green'), findsOneWidget);
     expect(find.text('Lime'), findsNothing);
@@ -135,8 +142,7 @@ void main() {
       tester.widget<ProfileAvatar>(find.byType(ProfileAvatar)).showShadow,
       isFalse,
     );
-    await tester.tap(find.text('Ink'));
-    await tester.tap(find.text('Thick'));
+    await _tapChoice(tester, 'Ink');
     final scrollable = find.byType(Scrollable).first;
     await tester.scrollUntilVisible(
       find.widgetWithText(ChoiceChip, 'Crosshatch'),
@@ -157,25 +163,24 @@ void main() {
     );
     final border = (avatar.decoration! as BoxDecoration).border! as Border;
     expect(border.top.color, const Color(0xFF161210));
-    expect(border.top.width, 8);
+    expect(border.top.width, 5);
     expect(
       find.byKey(const Key('profile-header-background-texture')),
       findsOneWidget,
     );
 
     await tester.scrollUntilVisible(
-      find.text('Save'),
+      find.widgetWithText(FilledButton, 'Save'),
       300,
       scrollable: scrollable,
     );
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 
     expect(
       submitted,
       const ProfileCustomisation(
         colour: 'ink',
-        border: 'thick',
         background: 'x2',
       ),
     );
@@ -213,13 +218,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Rose'));
+    await _tapChoice(tester, 'Rose');
     await tester.scrollUntilVisible(
-      find.text('Save'),
+      find.widgetWithText(FilledButton, 'Save'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
 
     expect(find.widgetWithText(ChoiceChip, 'Rose'), findsOneWidget);
@@ -241,8 +246,8 @@ void main() {
 
     await tester.tap(find.text('Open customisation'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Rose'));
-    await tester.tap(find.text('Cobalt'));
+    await _tapChoice(tester, 'Rose');
+    await _tapChoice(tester, 'Cobalt');
     await tester.pageBack();
     await tester.pumpAndSettle();
     expect(find.text('Open customisation'), findsOneWidget);
@@ -250,13 +255,13 @@ void main() {
 
     await tester.tap(find.text('Open customisation'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Rose'));
+    await _tapChoice(tester, 'Rose');
     await tester.scrollUntilVisible(
-      find.text('Save'),
+      find.widgetWithText(FilledButton, 'Save'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pumpAndSettle();
     await tester.pageBack();
     await tester.pumpAndSettle();
@@ -268,7 +273,7 @@ void main() {
     tester,
   ) async {
     await _pumpRoutedPage(tester);
-    await tester.tap(find.text('Rose'));
+    await _tapChoice(tester, 'Rose');
     await tester.pump();
 
     await tester.pageBack();
@@ -306,14 +311,14 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Teal'));
+    await _tapChoice(tester, 'Teal');
     await tester.scrollUntilVisible(
-      find.text('Save'),
+      find.widgetWithText(FilledButton, 'Save'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.text('Save'));
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Save'));
     await tester.pump();
 
     expect(calls, 1);
@@ -391,13 +396,11 @@ void main() {
         20,
         21,
         22,
+        23,
+        24,
+        25,
+        26,
         30,
-        31,
-        32,
-        33,
-        34,
-        35,
-        36,
       ]),
     );
     await tester.scrollUntilVisible(
@@ -411,7 +414,7 @@ void main() {
         matching: find.byType(FocusTraversalOrder),
       ),
     );
-    expect((saveOrder.order as NumericFocusOrder).order, 40);
+    expect((saveOrder.order as NumericFocusOrder).order, 30);
     semantics.dispose();
   });
 

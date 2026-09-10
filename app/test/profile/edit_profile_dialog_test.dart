@@ -865,11 +865,7 @@ void main() {
       await _pumpEditDialog(tester, repo: repo);
 
       // 'Knitting' starts unselected (seed has only sewing + quilting).
-      // Use the Semantics' selected flag rather than colour to verify
-      // toggle, since colours are theme-dependent.
-      final knittingFinder = find.byWidgetPredicate(
-        (w) => w is Semantics && w.properties.label == 'Knitting',
-      );
+      final knittingFinder = find.widgetWithText(FilterChip, 'Knitting');
       expect(knittingFinder, findsOneWidget);
 
       // The crafts grid is below the fold in the default 800x600 test
@@ -877,16 +873,16 @@ void main() {
       await tester.ensureVisible(knittingFinder);
       await tester.pumpAndSettle();
 
-      Semantics knitting() => tester.widget<Semantics>(knittingFinder);
-      expect(knitting().properties.selected, isFalse);
+      FilterChip knitting() => tester.widget<FilterChip>(knittingFinder);
+      expect(knitting().selected, isFalse);
 
       await tester.tap(knittingFinder);
       await tester.pump();
-      expect(knitting().properties.selected, isTrue);
+      expect(knitting().selected, isTrue);
 
       await tester.tap(knittingFinder);
       await tester.pump();
-      expect(knitting().properties.selected, isFalse);
+      expect(knitting().selected, isFalse);
     });
   });
 }

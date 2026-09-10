@@ -58,6 +58,16 @@ void main() {
       ['sewing', 'knitting', 'crochet', 'quilting', 'embroidery'],
     );
     expect(find.byType(CraftIcon), findsNWidgets(5));
+    expect(find.byType(FilterChip), findsNWidgets(5));
+    final sewingChip = tester.widget<FilterChip>(
+      find.widgetWithText(FilterChip, 'Sewing'),
+    );
+    expect(sewingChip.selected, isTrue);
+    expect(sewingChip.showCheckmark, isNull);
+    expect(sewingChip.backgroundColor, isNull);
+    expect(sewingChip.selectedColor, isNull);
+    expect(sewingChip.side, isNull);
+    expect(sewingChip.shape, isNull);
     expect(find.text('Weaving'), findsNothing);
     await tester.tap(find.text('Sewing'));
     expect(toggled, Craft.sewing);

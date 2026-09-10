@@ -137,7 +137,6 @@ void main() {
           lastUsedOrdinal: 19,
           cachedCustomisation: const ProfileCustomisation(
             colour: 'teal',
-            border: 'thick',
           ),
         ),
       },
@@ -157,7 +156,7 @@ void main() {
     });
     expect(
       restored.sessions[AccountKey('did:plc:bob').did]?.cachedCustomisation,
-      const ProfileCustomisation(colour: 'teal', border: 'thick'),
+      const ProfileCustomisation(colour: 'teal'),
     );
     final diagnostic = '$restored ${restored.sessions.values.join(' ')}';
     expect(diagnostic, isNot(contains('secret-token')));

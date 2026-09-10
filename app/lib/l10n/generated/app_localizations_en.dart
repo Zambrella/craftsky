@@ -1793,9 +1793,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileCustomisationColour => 'Colour';
 
   @override
-  String get profileCustomisationBorder => 'Profile border';
-
-  @override
   String get profileCustomisationBackground => 'Profile background';
 
   @override
@@ -1846,15 +1843,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get profileCustomisationColourInk => 'Ink';
-
-  @override
-  String get profileCustomisationBorderThin => 'Thin';
-
-  @override
-  String get profileCustomisationBorderMedium => 'Medium';
-
-  @override
-  String get profileCustomisationBorderThick => 'Thick';
 
   @override
   String get profileCustomisationBackgroundDither => 'Dither';
