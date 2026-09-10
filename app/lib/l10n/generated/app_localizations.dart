@@ -1288,11 +1288,11 @@ abstract class AppLocalizations {
   /// **'followers'**
   String get profileStatsFollowers;
 
-  /// Lower-case label paired with the project-count on the profile stats row.
+  /// Label paired with the project-count on the profile stats row.
   ///
   /// In en, this message translates to:
-  /// **'projects'**
-  String get profileStatsProjects;
+  /// **'{count, plural, =1{Project} other{Projects}}'**
+  String profileStatsProjects(int count);
 
   /// Headline on the full-screen profile-page error fallback when the profile fetch fails.
   ///

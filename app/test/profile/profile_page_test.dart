@@ -319,9 +319,15 @@ void main() {
       expect(find.text('followers'), findsNothing);
       await tester.ensureVisible(find.text('2 posts'));
       expect(find.text('2 posts'), findsOneWidget);
-      expect(find.text('7 days'), findsOneWidget);
+      expect(find.text('Last 7 days'), findsOneWidget);
       expect(find.text('0'), findsOneWidget);
-      expect(find.text('projects'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(ProfileStats),
+          matching: find.text('Projects'),
+        ),
+        findsOneWidget,
+      );
       expect(find.text('12 mutual followers'), findsOneWidget);
       expect(find.text('Non CraftSky profile'), findsNothing);
     });

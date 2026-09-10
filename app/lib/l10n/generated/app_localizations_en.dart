@@ -706,7 +706,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileStatsFollowers => 'followers';
 
   @override
-  String get profileStatsProjects => 'projects';
+  String profileStatsProjects(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Projects',
+      one: 'Project',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get profileLoadErrorTitle => 'That didn\'t load.';

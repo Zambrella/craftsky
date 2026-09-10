@@ -616,8 +616,11 @@
   "profileStatsFollowers": "followers",
   "@profileStatsFollowers": { "description": "Lower-case label paired with the follower-count on the profile stats row." },
 
-  "profileStatsProjects": "projects",
-  "@profileStatsProjects": { "description": "Lower-case label paired with the project-count on the profile stats row." },
+  "profileStatsProjects": "{count, plural, =1{Project} other{Projects}}",
+  "@profileStatsProjects": {
+    "description": "Label paired with the project-count on the profile stats row.",
+    "placeholders": { "count": { "type": "int", "example": "2" } }
+  },
 
   "profileLoadErrorTitle": "That didn't load.",
   "@profileLoadErrorTitle": { "description": "Headline on the full-screen profile-page error fallback when the profile fetch fails." },
