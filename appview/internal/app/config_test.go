@@ -239,6 +239,9 @@ func testConfigFile(t *testing.T, contents string) string {
 		"APPVIEW_ENABLE_DEV_MODERATION",
 		"APPVIEW_DEV_MODERATION_TOKEN", "CRAFTSKY_DEV_LABELER_DID",
 		"APPVIEW_TRUSTED_MODERATION_SOURCE_DIDS",
+		"MODERATION_ADMIN_ENABLED", "MODERATION_ADMIN_BEARER_TOKEN",
+		"MODERATION_ADMIN_ACTOR_ID", "MODERATION_SOURCE_DID",
+		"MODERATION_EXPIRY_POLL_INTERVAL", "MODERATION_EXPIRY_BATCH_SIZE",
 		"PUSH_ENABLED", "FIREBASE_PROJECT_ID", "PUSH_BATCH_SIZE", "PUSH_CONCURRENCY", "PUSH_POLL_INTERVAL", "PUSH_LEASE_DURATION", "PUSH_SEND_TIMEOUT", "PUSH_FINALIZATION_MARGIN",
 		"OWNER_FENCE_ACQUIRE_TIMEOUT", "PDS_EFFECT_TIMEOUT", "SCHEDULED_MEDIA_PUT_TIMEOUT",
 		"HTTP_MAX_CONNECTIONS", "HTTP_MAX_IN_FLIGHT_REQUESTS", "HTTP_READ_HEADER_TIMEOUT",
@@ -606,6 +609,22 @@ func TestLoadConfig_DevModerationConfig(t *testing.T) {
 	}
 	if got := cfg.TrustedModerationSourceDIDs; len(got) != 2 || got[0] != "did:plc:ozone" || got[1] != "did:plc:labeler" {
 		t.Fatalf("TrustedModerationSourceDIDs = %v", got)
+	}
+}
+
+func TestLoadConfig_ValidatesEnabledModerationAdmin(t *testing.T) {
+	path := testConfigFile(t, withProductionOAuth("DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://a.example\nTAP_WS_URL=ws://tap:2480/channel\nMODERATION_ADMIN_ENABLED=true\n"))
+	if _, err := LoadConfig(EnvProd, path); err == nil || !strings.Contains(err.Error(), "MODERATION_ADMIN_BEARER_TOKEN") {
+		t.Fatalf("error = %v, want missing moderation admin token", err)
+	}
+
+	path = testConfigFile(t, withProductionOAuth("DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://a.example\nTAP_WS_URL=ws://tap:2480/channel\nMODERATION_ADMIN_ENABLED=true\nMODERATION_ADMIN_BEARER_TOKEN=admin-secret\nMODERATION_ADMIN_ACTOR_ID=primary-moderator\nMODERATION_SOURCE_DID=did:plc:moderation\n"))
+	cfg, err := LoadConfig(EnvProd, path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !cfg.ModerationAdminEnabled || cfg.ModerationAdminBearerToken.Reveal() != "admin-secret" || cfg.ModerationAdminActorID != "primary-moderator" || cfg.ModerationSourceDID != "did:plc:moderation" {
+		t.Fatalf("moderation admin config = %+v", cfg)
 	}
 }
 

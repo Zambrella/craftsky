@@ -14,12 +14,19 @@ void main() {
     expect(NotificationCategory.quote.toValue(), 'quote');
   });
 
-  test('preference categories include Instagram matches', () {
-    expect(NotificationCategory.preferenceValues, hasLength(8));
+  test('preference categories include fixed-scope private categories', () {
+    expect(NotificationCategory.preferenceValues, hasLength(9));
     expect(
       NotificationCategory.fromWireValue('instagramMatch'),
       NotificationCategory.instagramMatch,
     );
+    expect(
+      NotificationCategory.fromWireValue('moderation'),
+      NotificationCategory.moderation,
+    );
+    expect(NotificationCategory.instagramMatch.hasFixedScope, isTrue);
+    expect(NotificationCategory.moderation.hasFixedScope, isTrue);
+    expect(NotificationCategory.like.hasFixedScope, isFalse);
     expect(
       NotificationCategory.preferenceValues,
       isNot(contains(NotificationCategory.unknown)),

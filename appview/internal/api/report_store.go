@@ -8,8 +8,10 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/moderation"
 	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
@@ -70,11 +72,23 @@ type ReportRow struct {
 
 // ReportStore persists AppView-private moderation report intake rows.
 type ReportStore struct {
-	pool *pgxpool.Pool
+	pool         *pgxpool.Pool
+	caseAttacher AcceptedReportAttacher
 }
 
-func NewReportStore(pool *pgxpool.Pool) *ReportStore {
-	return &ReportStore{pool: pool}
+type AcceptedReportAttacher interface {
+	AttachAcceptedReportTx(context.Context, pgx.Tx, moderation.AcceptedReport) (moderation.Case, error)
+}
+
+func NewReportStore(pool *pgxpool.Pool, caseAttacher ...AcceptedReportAttacher) *ReportStore {
+	if len(caseAttacher) > 1 {
+		panic("NewReportStore accepts at most one case attacher")
+	}
+	store := &ReportStore{pool: pool}
+	if len(caseAttacher) == 1 {
+		store.caseAttacher = caseAttacher[0]
+	}
+	return store
 }
 
 // CreateReport inserts a private report row. Duplicate reports are allowed by
@@ -172,9 +186,33 @@ func (s *ReportStore) CreateReport(ctx context.Context, input CreateReportInput)
 	if err != nil {
 		return nil, fmt.Errorf("report create: %w", err)
 	}
+	out.SubjectType = ReportSubjectType(subjectType)
+	if s.caseAttacher != nil {
+		subjectURI := syntax.ATURI("")
+		if out.SubjectURI != nil {
+			subjectURI, err = syntax.ParseATURI(*out.SubjectURI)
+			if err != nil {
+				return nil, fmt.Errorf("report canonical subject URI: %w", err)
+			}
+		}
+		if _, err := s.caseAttacher.AttachAcceptedReportTx(ctx, tx, moderation.AcceptedReport{
+			ID: out.ID, SubjectType: moderation.SubjectType(out.SubjectType), SubjectDID: subject,
+			SubjectCollection: stringValue(out.SubjectCollection), SubjectRkey: stringValue(out.SubjectRkey),
+			SubjectURI: subjectURI, SubjectCIDSnapshot: stringValue(out.SubjectCIDSnapshot),
+			SubmittedHandleSnapshot: stringValue(out.SubmittedHandleSnapshot), CreatedAt: out.CreatedAt,
+		}); err != nil {
+			return nil, fmt.Errorf("report case attachment: %w", err)
+		}
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return nil, fmt.Errorf("report create commit: %w", err)
 	}
-	out.SubjectType = ReportSubjectType(subjectType)
 	return out, nil
+}
+
+func stringValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }

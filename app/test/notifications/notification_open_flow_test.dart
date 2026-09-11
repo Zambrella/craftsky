@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/account_activation_coordinator.dart';
+import 'package:craftsky_app/moderation/models/account_moderation.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/models/foreground_notification_event.dart';
 import 'package:craftsky_app/notifications/models/notification_destination.dart';
@@ -155,9 +156,131 @@ void main() {
       expect(effect.outcome.destination, const NotificationsDestination());
     },
   );
+
+  test(
+    'AT-004 IT-026 activates another retained account before moderation '
+    'navigation',
+    () async {
+      var registry = _registry();
+      final operations = <String>[];
+      final effects = StreamController<NotificationEffect>.broadcast();
+      final runtime = _runtime(
+        routing: NotificationRoutingStorage(() => registry),
+        effects: effects,
+        activate: (lease) async {
+          operations.add('activate:${lease.account.did.value}');
+          registry = registry.activate(lease);
+          return AccountActivationResult.activated;
+        },
+      );
+      addTearDown(runtime.dispose);
+      addTearDown(effects.close);
+      await runtime.updateReadiness(
+        did: Did.parse('did:plc:alice'),
+        onboarded: true,
+      );
+
+      final effectFuture = effects.stream.first;
+      await runtime.receiveOpen(_moderationAttempt('bob_binding'));
+      final effect = await effectFuture as NotificationNavigationEffect;
+      operations.add('navigate');
+
+      expect(operations, ['activate:did:plc:bob', 'navigate']);
+      expect(registry.activeDid?.value, 'did:plc:bob');
+      expect(
+        effect.outcome.destination,
+        ModerationHistoryDestination(
+          ModerationCaseReference.parse(_caseReference),
+        ),
+      );
+    },
+  );
+
+  test('IT-026 rejects invalid, ambiguous, and removed bindings', () async {
+    for (final testCase
+        in <({SessionRegistry registry, String? binding, Type effect})>[
+          (
+            registry: _registry(),
+            binding: null,
+            effect: NotificationUnavailableEffect,
+          ),
+          (
+            registry: _registry(),
+            binding: 'contains spaces',
+            effect: NotificationUnavailableEffect,
+          ),
+          (
+            registry: _registry(
+              bindings: const {
+                'did:plc:alice': 'shared_binding',
+                'did:plc:bob': 'shared_binding',
+              },
+            ),
+            binding: 'shared_binding',
+            effect: NotificationUnavailableEffect,
+          ),
+          (
+            registry: _registry(),
+            binding: 'removed_binding',
+            effect: NotificationRemovedAccountEffect,
+          ),
+        ]) {
+      final effects = StreamController<NotificationEffect>.broadcast();
+      final runtime = _runtime(
+        routing: NotificationRoutingStorage(() => testCase.registry),
+        effects: effects,
+      );
+      await runtime.updateReadiness(
+        did: Did.parse('did:plc:alice'),
+        onboarded: true,
+      );
+
+      final effectFuture = effects.stream.first;
+      await runtime.receiveOpen(_moderationAttempt(testCase.binding));
+      expect((await effectFuture).runtimeType, testCase.effect);
+
+      await runtime.dispose();
+      await effects.close();
+    }
+  });
+
+  test('IT-026 rejects a stale post-activation moderation lease', () async {
+    var registry = _registry();
+    final effects = StreamController<NotificationEffect>.broadcast();
+    final runtime = _runtime(
+      routing: NotificationRoutingStorage(() => registry),
+      effects: effects,
+      activate: (lease) async {
+        registry = registry.upsertAndActivate(
+          token: 'bob-reauthed-token',
+          did: lease.account.did.value,
+          handle: 'bob.test',
+        );
+        return AccountActivationResult.activated;
+      },
+    );
+    addTearDown(runtime.dispose);
+    addTearDown(effects.close);
+    await runtime.updateReadiness(
+      did: Did.parse('did:plc:alice'),
+      onboarded: true,
+    );
+
+    final effectFuture = effects.stream.first;
+    await runtime.receiveOpen(_moderationAttempt('bob_binding'));
+
+    expect(await effectFuture, isA<NotificationRemovedAccountEffect>());
+  });
 }
 
-SessionRegistry _registry() {
+const _caseReference = 'MOD-550e8400-e29b-41d4-a716-446655440000';
+
+SessionRegistry _registry({
+  Map<String, String> bindings = const {
+    'did:plc:alice': 'alice_binding',
+    'did:plc:bob': 'bob_binding',
+  },
+}) {
   final base = SessionRegistry.empty()
       .upsertAndActivate(
         token: 'bob-token',
@@ -177,10 +300,7 @@ SessionRegistry _registry() {
     sessions: {
       for (final entry in base.sessions.entries) entry.key.value: entry.value,
     },
-    routingBindings: const {
-      'did:plc:alice': 'alice_binding',
-      'did:plc:bob': 'bob_binding',
-    },
+    routingBindings: bindings,
   );
 }
 
@@ -197,6 +317,14 @@ NotificationOpenAttempt _retiredInstagramAttempt(String? binding) =>
       'type': 'instagramMatch',
       'accountSubscriptionId': ?binding,
       'notificationId': '00000000-0000-0000-0000-000000000321',
+    });
+
+NotificationOpenAttempt _moderationAttempt(String? binding) =>
+    NotificationOpenAttempt.fromProviderData({
+      'payloadVersion': '1',
+      'type': 'moderation',
+      'accountSubscriptionId': ?binding,
+      'caseReference': _caseReference,
     });
 
 NotificationRuntime _runtime({

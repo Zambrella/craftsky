@@ -145,6 +145,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notificationGenericRow => 'New activity';
 
   @override
+  String get notificationModerationRow =>
+      'Review an update to your account standing';
+
+  @override
   String get notificationUnavailableRow => 'Activity unavailable';
 
   @override
@@ -194,6 +198,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get notificationInstagramMatchPreferenceDescription =>
       'Push alerts are based on your private Instagram matches and never name the matched account.';
+
+  @override
+  String get notificationCategoryModeration => 'Moderation';
+
+  @override
+  String get notificationModerationPreferenceDescription =>
+      'Push alerts notify you about changes to your account standing. Turning them off does not change your standing, moderation history, or enforcement.';
 
   @override
   String get notificationCategoryEverythingElse => 'Everything else';
@@ -3823,4 +3834,201 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get businessEventDeleteConfirmAction => 'Delete';
+
+  @override
+  String get accountStandingTitle => 'Account standing';
+
+  @override
+  String get moderationStandingGood => 'Your account is in good standing';
+
+  @override
+  String get moderationStandingActionRequired =>
+      'Your account has active moderation action';
+
+  @override
+  String get moderationStandingSuspended => 'Your account is suspended';
+
+  @override
+  String moderationStandingCount(int count, int threshold) {
+    return 'Active strikes: $count of the $threshold strike suspension threshold.';
+  }
+
+  @override
+  String get moderationStandingThresholdDetail =>
+      'The account is suspended because the active-strike threshold has been reached.';
+
+  @override
+  String get moderationStandingSevereDetail =>
+      'The account is suspended because of a severe policy decision.';
+
+  @override
+  String get moderationStandingLoadError =>
+      'Account standing could not be loaded.';
+
+  @override
+  String get moderationHistoryTitle => 'Moderation history';
+
+  @override
+  String get moderationHistoryEmptyTitle => 'No moderation history';
+
+  @override
+  String get moderationHistoryEmptyBody =>
+      'There are no moderation decisions to show for this account.';
+
+  @override
+  String get moderationHistoryLoadError =>
+      'Moderation history could not be loaded.';
+
+  @override
+  String get moderationRetryAction => 'Try again';
+
+  @override
+  String get moderationHistoryLoadMore => 'Load more';
+
+  @override
+  String get moderationHistoryLoadingMore => 'Loading…';
+
+  @override
+  String get moderationHistoryRetryMore => 'Try loading more again';
+
+  @override
+  String moderationHistoryEntrySemantics(String reference) {
+    return 'Moderation history entry $reference';
+  }
+
+  @override
+  String moderationHistoryOccurredAt(String date, String time) {
+    return '$date at $time';
+  }
+
+  @override
+  String get moderationConsequencesTitle => 'Consequences';
+
+  @override
+  String moderationEffectWithExpiry(String effect, String state, String date) {
+    return '$effect · $state · Until $date';
+  }
+
+  @override
+  String get moderationEffectFormalWarning => 'Formal warning';
+
+  @override
+  String get moderationEffectViewerWarning => 'Viewer warning';
+
+  @override
+  String get moderationEffectHidden => 'Content hidden';
+
+  @override
+  String get moderationEffectRemoved => 'Content removed from CraftSky';
+
+  @override
+  String get moderationEffectStrike => 'Account strike';
+
+  @override
+  String get moderationEffectSevereSuspension => 'Severe suspension';
+
+  @override
+  String get moderationEffectPolicyAction => 'Policy action';
+
+  @override
+  String get moderationEffectActive => 'Active';
+
+  @override
+  String get moderationEffectApplied => 'Applied';
+
+  @override
+  String get moderationEffectExpired => 'Expired';
+
+  @override
+  String get moderationEffectOverturned => 'Overturned';
+
+  @override
+  String get moderationEffectRestored => 'Access restored';
+
+  @override
+  String get moderationEffectNoLongerActive => 'No longer active';
+
+  @override
+  String get moderationReasonHarassment => 'Harassment';
+
+  @override
+  String get moderationReasonHate => 'Hate or hateful conduct';
+
+  @override
+  String get moderationReasonSpam => 'Spam';
+
+  @override
+  String get moderationReasonMisleading => 'Misleading content';
+
+  @override
+  String get moderationReasonSuspectedAi => 'Suspected AI-generated content';
+
+  @override
+  String get moderationReasonAdultOrGraphic => 'Adult or graphic content';
+
+  @override
+  String get moderationReasonImpersonation => 'Impersonation';
+
+  @override
+  String get moderationReasonOffTopic => 'Off-topic content';
+
+  @override
+  String get moderationReasonIntellectualProperty => 'Intellectual property';
+
+  @override
+  String get moderationReasonOther => 'Other policy issue';
+
+  @override
+  String get moderationReasonPolicy => 'Policy decision';
+
+  @override
+  String get moderationSubjectAccount => 'Account';
+
+  @override
+  String get moderationSubjectPost => 'Post';
+
+  @override
+  String get moderationViewPost => 'View post';
+
+  @override
+  String get moderationSubjectEvent => 'Event';
+
+  @override
+  String get moderationSubjectUnavailable => 'Subject reference unavailable';
+
+  @override
+  String get moderationAppealAction => 'Appeal by email';
+
+  @override
+  String get moderationCopyAppealAddress => 'Copy email address';
+
+  @override
+  String get moderationCopyCaseReference => 'Copy case reference';
+
+  @override
+  String get moderationAppealAvailable =>
+      'An appeal can be requested by email.';
+
+  @override
+  String get moderationAppealPending => 'Appeal under review';
+
+  @override
+  String get moderationAppealUpheld => 'Decision upheld after appeal';
+
+  @override
+  String get moderationAppealChanged => 'Decision changed after appeal';
+
+  @override
+  String get moderationAppealUpdated => 'Appeal status updated';
+
+  @override
+  String get moderationAppealError =>
+      'No email app opened. You can copy the address and case reference instead.';
+
+  @override
+  String get moderationCopied => 'Copied';
+
+  @override
+  String get moderationCopyError =>
+      'Could not copy. The text remains selectable.';
 }

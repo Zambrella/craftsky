@@ -20,12 +20,13 @@ func TestAccountDeletionAcceptanceRouteIsAuthenticatedOwnerScopedAndStrict(t *te
 	t.Parallel()
 
 	wantPolicies := map[string]struct {
-		bodyKind    BodyKind
-		accessClass AccessClass
+		bodyKind        BodyKind
+		accessClass     AccessClass
+		suspensionClass SuspensionClass
 	}{
-		"POST /v1/account-deletion/intents":           {BodyNoBody, AccessCurrentMember},
-		"DELETE /v1/account-deletion/intents/{jobId}": {BodyNoBody, AccessAuthenticatedRecovery},
-		"POST /v1/account-deletions/{jobId}":          {BodyDefaultJSON, AccessAuthenticatedRecovery},
+		"POST /v1/account-deletion/intents":           {BodyNoBody, AccessCurrentMember, SuspensionAllowed},
+		"DELETE /v1/account-deletion/intents/{jobId}": {BodyNoBody, AccessAuthenticatedRecovery, SuspensionAllowed},
+		"POST /v1/account-deletions/{jobId}":          {BodyDefaultJSON, AccessAuthenticatedRecovery, SuspensionAllowed},
 	}
 	for _, policy := range V1RoutePolicies(EnvDev, Config{Env: EnvDev}) {
 		key := policy.Method + " " + policy.PathPattern
@@ -33,7 +34,7 @@ func TestAccountDeletionAcceptanceRouteIsAuthenticatedOwnerScopedAndStrict(t *te
 		if !ok {
 			continue
 		}
-		if policy.AccessClass != want.accessClass || policy.RateClass != RateClassWrite || policy.BodyKind != want.bodyKind {
+		if policy.AccessClass != want.accessClass || policy.SuspensionClass != want.suspensionClass || policy.RateClass != RateClassWrite || policy.BodyKind != want.bodyKind {
 			t.Fatalf("%s policy = %+v", key, policy)
 		}
 		delete(wantPolicies, key)

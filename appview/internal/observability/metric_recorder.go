@@ -277,6 +277,25 @@ func (r *InMemoryMetricRecorder) PushQueue(_ context.Context, pending int, age t
 	r.record(MetricCall{Name: "craftsky_appview_push_oldest_pending_age_seconds", Kind: MetricKindGauge, Unit: "second", Value: age.Seconds()})
 }
 
+func (r *InMemoryMetricRecorder) ModerationAuth(_ context.Context, result string) {
+	r.record(MetricCall{Name: "craftsky_appview_moderation_admin_auth_total", Kind: MetricKindCounter, Value: 1, Attributes: map[string]string{"result": safeModerationAuthResult(result)}})
+}
+
+func (r *InMemoryMetricRecorder) ModerationOperation(_ context.Context, operation, result string) {
+	r.record(MetricCall{Name: "craftsky_appview_moderation_operations_total", Kind: MetricKindCounter, Value: 1, Attributes: map[string]string{"operation": safeModerationOperation(operation), "result": safeModerationResult(result)}})
+}
+
+func (r *InMemoryMetricRecorder) ModerationWork(_ context.Context, kind string, pending int, oldestAge time.Duration, alert bool) {
+	attrs := map[string]string{"kind": safeModerationWorkKind(kind)}
+	r.record(MetricCall{Name: "craftsky_appview_moderation_work_pending", Kind: MetricKindGauge, Unit: "item", Value: float64(max(pending, 0)), Attributes: attrs})
+	r.record(MetricCall{Name: "craftsky_appview_moderation_work_oldest_age_seconds", Kind: MetricKindGauge, Unit: "second", Value: nonNegativeDuration(oldestAge).Seconds(), Attributes: attrs})
+	alertValue := float64(0)
+	if alert {
+		alertValue = 1
+	}
+	r.record(MetricCall{Name: "craftsky_appview_moderation_alert_active", Kind: MetricKindGauge, Value: alertValue, Attributes: attrs})
+}
+
 func (r *InMemoryMetricRecorder) ScheduledQueue(
 	_ context.Context,
 	status string,
@@ -649,6 +668,22 @@ func (r *sentryMetricRecorder) PushQueue(ctx context.Context, pending int, age t
 	r.gauge(ctx, "craftsky_appview_push_pending", float64(pending), "", nil)
 	r.gauge(ctx, "craftsky_appview_push_oldest_pending_age_seconds", age.Seconds(), "second", nil)
 }
+func (r *sentryMetricRecorder) ModerationAuth(ctx context.Context, result string) {
+	r.count(ctx, "craftsky_appview_moderation_admin_auth_total", 1, "", map[string]string{"result": safeModerationAuthResult(result)})
+}
+func (r *sentryMetricRecorder) ModerationOperation(ctx context.Context, operation, result string) {
+	r.count(ctx, "craftsky_appview_moderation_operations_total", 1, "", map[string]string{"operation": safeModerationOperation(operation), "result": safeModerationResult(result)})
+}
+func (r *sentryMetricRecorder) ModerationWork(ctx context.Context, kind string, pending int, oldestAge time.Duration, alert bool) {
+	attrs := map[string]string{"kind": safeModerationWorkKind(kind)}
+	r.gauge(ctx, "craftsky_appview_moderation_work_pending", float64(max(pending, 0)), "item", attrs)
+	r.gauge(ctx, "craftsky_appview_moderation_work_oldest_age_seconds", nonNegativeDuration(oldestAge).Seconds(), "second", attrs)
+	alertValue := float64(0)
+	if alert {
+		alertValue = 1
+	}
+	r.gauge(ctx, "craftsky_appview_moderation_alert_active", alertValue, "", attrs)
+}
 func (r *sentryMetricRecorder) ScheduledQueue(ctx context.Context, status string, count, due, overdue int, oldestDueAge time.Duration) {
 	status = safeScheduledStatus(status)
 	r.gauge(ctx, "craftsky_appview_scheduled_posts_status", float64(count), "", map[string]string{"status": status})
@@ -774,6 +809,24 @@ func safeIdentityCacheResult(result string) string {
 		return result
 	default:
 		return "other"
+	}
+}
+
+func safeModerationAuthResult(result string) string {
+	switch strings.TrimSpace(result) {
+	case "success", "failure":
+		return strings.TrimSpace(result)
+	default:
+		return "unknown"
+	}
+}
+
+func safeModerationWorkKind(kind string) string {
+	switch strings.TrimSpace(kind) {
+	case "strike_expiry", "notification_delivery":
+		return strings.TrimSpace(kind)
+	default:
+		return "unknown"
 	}
 }
 

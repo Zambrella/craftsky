@@ -16,6 +16,7 @@ import (
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/languages"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/moderation"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/pdseffects"
@@ -77,6 +78,11 @@ type Config struct {
 	DevModerationToken            string
 	DevLabelerDID                 string
 	TrustedModerationSourceDIDs   []string
+	ModerationAdminEnabled        bool
+	ModerationAdminToken          Secret
+	ModerationAdminActorID        string
+	ModerationAdminSourceSystem   string
+	ModerationSourceDID           string
 }
 
 // Dependencies is the route-composition boundary. AddRoutes is the only
@@ -136,6 +142,9 @@ type Dependencies struct {
 	ReportStore               *api.ReportStore
 	ReportForwarder           api.ReportForwarder
 	ModerationStore           *api.ModerationStore
+	ModerationCases           *moderation.Store
+	ModerationCommands        api.ModerationCommander
+	SuspensionReader          middleware.SuspensionReader
 	LanguagePreferences       *languages.Store
 	NewPDSEffects             pdseffects.ExecutorFactory
 	BusinessStore             *business.Store
@@ -145,4 +154,6 @@ type Dependencies struct {
 	ScheduledPosts           *scheduledposts.Store
 	ScheduledMedia           *scheduledposts.PrivateMediaService
 	ScheduledManualPublisher scheduledposts.ManualPublisher
+
+	routeHandlerDecorator func(RoutePolicy, http.Handler) http.Handler
 }

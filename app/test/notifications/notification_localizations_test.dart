@@ -8,6 +8,8 @@ void main() {
 
     expect(l10n.notificationSettingsAction, isNotEmpty);
     expect(l10n.notificationCategoryEverythingElse, isNotEmpty);
+    expect(l10n.notificationCategoryModeration, 'Moderation');
+    expect(l10n.notificationModerationPreferenceDescription, isNotEmpty);
     expect(l10n.notificationUnavailableRow, isNotEmpty);
     expect(l10n.notificationNewActivityCount(1), '1 new activity');
     expect(l10n.notificationNewActivityCount(100), '100 new activities');

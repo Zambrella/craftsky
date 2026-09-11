@@ -236,10 +236,16 @@ class NotificationRow extends ConsumerWidget {
   ) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final title = l10n.notificationGenericRow;
+    final title = switch (system) {
+      ModerationNotification() => l10n.notificationModerationRow,
+      GenericSystemNotification() => l10n.notificationGenericRow,
+    };
     return Material(
       type: MaterialType.transparency,
       child: InkWell(
+        onTap: system is ModerationNotification
+            ? () => _open(context, ref)
+            : null,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
@@ -300,6 +306,10 @@ class NotificationRow extends ConsumerWidget {
         break;
       case GenericSystemNotification():
         break;
+      case ModerationNotification():
+        unawaited(
+          const AccountStandingRoute().push<void>(context),
+        );
       case UnavailableNotification():
         context.showWarning(
           AppLocalizations.of(context).notificationUnavailableRow,
@@ -429,6 +439,7 @@ Color _actionColor(
   MentionNotification() || QuoteNotification() => colors.secondary,
   GenericNotification() => colors.outline,
   GenericSystemNotification() => colors.outline,
+  ModerationNotification() => colors.primary,
   UnavailableNotification() => colors.error,
 };
 

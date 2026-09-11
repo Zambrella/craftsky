@@ -398,7 +398,7 @@ void main() {
       expect(find.text(label), findsOneWidget, reason: label);
     }
     expect(find.text('Clear image cache'), findsNothing);
-    expect(find.byIcon(CraftskyIconsBold.next), findsNWidgets(13));
+    expect(find.byIcon(CraftskyIconsBold.next), findsNWidgets(14));
     final signOut = tester.widget<Text>(find.text('Sign out'));
     expect(
       signOut.style?.color,

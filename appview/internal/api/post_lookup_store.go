@@ -179,6 +179,32 @@ func (s *PostStore) ReadOne(ctx context.Context, did, rkey string) (*PostRow, er
 	return row, nil
 }
 
+// ReadOneForViewer returns a direct post detail while allowing an author to
+// inspect their own moderation-hidden post. Terminal repositories remain hidden.
+func (s *PostStore) ReadOneForViewer(ctx context.Context, did, rkey, viewerDID string) (*PostRow, error) {
+	row, err := s.ReadOne(ctx, did, rkey)
+	if !errors.Is(err, ErrPostNotFound) || did != viewerDID {
+		return row, err
+	}
+
+	q := `
+		SELECT ` + postSelectColumns + `
+		FROM craftsky_posts p
+		LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
+		LEFT JOIN bluesky_profiles bp ON bp.did = p.did
+		WHERE p.did = $1 AND p.rkey = $2
+		  AND NOT appview_owner_is_terminal(p.did)
+	`
+	row, err = scanPostRow(s.pool.QueryRow(ctx, q, did, rkey))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrPostNotFound
+	}
+	if err != nil {
+		return nil, fmt.Errorf("post viewer read %s/%s: %w", did, rkey, err)
+	}
+	return row, nil
+}
+
 // ReadAuthor returns the bluesky_profiles display fields for did.
 // Returns (&PostAuthorRow{nil, nil}, nil) — not an error — when the
 // user has no bluesky_profiles row yet. The post-create path uses this

@@ -24,6 +24,7 @@ const (
 	NotificationTypeQuote          NotificationType = "quote"
 	NotificationTypeEverythingElse NotificationType = "everythingElse"
 	NotificationTypeInstagramMatch NotificationType = "instagramMatch"
+	NotificationTypeModeration     NotificationType = "moderation"
 )
 
 type NotificationReplyRef struct {
@@ -60,6 +61,7 @@ type NotificationRow struct {
 	ActorAvatarCID         *string
 	ActorAvatarMime        *string
 	ActorViewerIsFollowing bool
+	CaseReference          string
 
 	CreatedAt time.Time
 	IndexedAt time.Time
@@ -112,16 +114,18 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			WHERE e.recipient_did = $1
 			  AND e.state = 'active'
 			  AND NOT appview_owner_is_terminal(e.recipient_did)
-			  AND NOT appview_owner_is_terminal(e.actor_did)
-			  AND NOT EXISTS (
-				SELECT 1 FROM actor_mutes mute
-				WHERE mute.owner_did = $1 AND mute.subject_did = e.actor_did
-			  )
-			  AND NOT EXISTS (
-				SELECT 1 FROM atproto_blocks block
-				WHERE (block.blocker_did = $1 AND block.subject_did = e.actor_did)
-				   OR (block.blocker_did = e.actor_did AND block.subject_did = $1)
-			  )
+			  AND (e.actor_did IS NULL OR (
+				NOT appview_owner_is_terminal(e.actor_did)
+				AND NOT EXISTS (
+					SELECT 1 FROM actor_mutes mute
+					WHERE mute.owner_did = $1 AND mute.subject_did = e.actor_did
+				)
+				AND NOT EXISTS (
+					SELECT 1 FROM atproto_blocks block
+					WHERE (block.blocker_did = $1 AND block.subject_did = e.actor_did)
+					   OR (block.blocker_did = e.actor_did AND block.subject_did = $1)
+				)
+			  ))
 			  AND ($2::timestamptz IS NULL
 			       OR (e.indexed_at, e.id) < ($2::timestamptz, $3::uuid))
 			  AND NOT EXISTS (
@@ -204,7 +208,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			e.root_uri,e.root_cid,(e.root_uri IS NOT NULL AND root_post.uri IS NOT NULL AND blocked_reference.id IS NULL),
 			e.quoted_uri,e.quoted_cid,(e.quoted_uri IS NOT NULL AND quoted_post.uri IS NOT NULL AND blocked_reference.id IS NULL),
 			CASE WHEN sp.quote_uri IS NULL THEN true ELSE subject_quote.uri IS NOT NULL END,
-			e.actor_did,
+			e.actor_did,to_jsonb(e)->>'moderation_case_reference',
 			actor_bp.display_name AS actor_display_name,
 			actor_bp.avatar_cid AS actor_avatar_cid,
 			actor_bp.avatar_mime AS actor_avatar_mime,
@@ -249,7 +253,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 		row := &NotificationRow{}
 		var eventType string
 		var subject notificationSubjectScan
-		var sourceURI, sourceCID, sourceRkey, actorDID sql.NullString
+		var sourceURI, sourceCID, sourceRkey, actorDID, caseReference sql.NullString
 		var sourceAvailable, subjectAvailable, parentAvailable, rootAvailable, quotedAvailable, subjectQuoteAvailable bool
 		var subjectURI, subjectCID, parentURI, parentCID, rootURI, rootCID, quotedURI, quotedCID sql.NullString
 		if err := rows.Scan(
@@ -261,7 +265,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			&rootURI, &rootCID, &rootAvailable,
 			&quotedURI, &quotedCID, &quotedAvailable,
 			&subjectQuoteAvailable,
-			&actorDID, &row.ActorDisplayName, &row.ActorAvatarCID, &row.ActorAvatarMime, &row.ActorViewerIsFollowing,
+			&actorDID, &caseReference, &row.ActorDisplayName, &row.ActorAvatarCID, &row.ActorAvatarMime, &row.ActorViewerIsFollowing,
 			&row.CreatedAt, &row.IndexedAt,
 			&subject.URI, &subject.DID, &subject.Rkey, &subject.CID, &subject.Text, &subject.Sponsored, &subject.Facets, &subject.Images,
 			&subject.ReplyRootURI, &subject.ReplyRootCID, &subject.ReplyParentURI, &subject.ReplyParentCID,
@@ -274,8 +278,13 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 		}
 		row.Type = NotificationType(eventType)
 		row.ActorDID = actorDID.String
+		row.CaseReference = caseReference.String
+		sourceReference := notificationReference(sourceURI, sourceCID, sourceRkey.String, sourceAvailable)
+		if sourceReference == nil {
+			sourceReference = &NotificationReference{}
+		}
 		row.References = NotificationReferences{
-			Source:  *notificationReference(sourceURI, sourceCID, sourceRkey.String, sourceAvailable),
+			Source:  *sourceReference,
 			Subject: notificationReference(subjectURI, subjectCID, "", subjectAvailable),
 			Parent:  notificationReference(parentURI, parentCID, "", parentAvailable),
 			Root:    notificationReference(rootURI, rootCID, "", rootAvailable),

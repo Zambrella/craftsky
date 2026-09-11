@@ -683,6 +683,39 @@ func TestPostStore_ReadOne_HiddenPostOrHiddenAuthorReturnsNotFound(t *testing.T)
 	}
 }
 
+func TestPostStore_ReadOneForViewer_HiddenPostIsVisibleOnlyToItsAuthor(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	seedMember(t, pool, "did:plc:alice")
+	now := time.Date(2026, 9, 11, 12, 0, 0, 0, time.UTC)
+	uri := seedPost(t, pool, "did:plc:alice", "hidden-post", "hidden", now)
+	seedModerationOutput(t, pool, "post", "did:plc:alice", uri, "hide", now.Add(time.Minute))
+	store := api.NewPostStore(pool)
+
+	row, err := store.ReadOneForViewer(
+		context.Background(),
+		"did:plc:alice",
+		"hidden-post",
+		"did:plc:alice",
+	)
+	if err != nil {
+		t.Fatalf("author read: %v", err)
+	}
+	if row.URI != uri || row.Text != "hidden" {
+		t.Fatalf("author row = %+v", row)
+	}
+
+	_, err = store.ReadOneForViewer(
+		context.Background(),
+		"did:plc:alice",
+		"hidden-post",
+		"did:plc:bob",
+	)
+	if !errors.Is(err, api.ErrPostNotFound) {
+		t.Fatalf("other viewer error = %v, want ErrPostNotFound", err)
+	}
+}
+
 func TestPostStore_ReadPostByURI_HiddenPostReturnsNotFound(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, postStoreDDL)

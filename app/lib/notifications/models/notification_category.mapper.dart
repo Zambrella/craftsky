@@ -41,12 +41,14 @@ class NotificationCategoryMapper extends EnumMapper<NotificationCategory> {
         return NotificationCategory.repost;
       case r'instagramMatch':
         return NotificationCategory.instagramMatch;
+      case r'moderation':
+        return NotificationCategory.moderation;
       case r'everythingElse':
         return NotificationCategory.everythingElse;
       case r'unknown':
         return NotificationCategory.unknown;
       default:
-        return NotificationCategory.values[8];
+        return NotificationCategory.values[9];
     }
   }
 
@@ -67,6 +69,8 @@ class NotificationCategoryMapper extends EnumMapper<NotificationCategory> {
         return r'repost';
       case NotificationCategory.instagramMatch:
         return r'instagramMatch';
+      case NotificationCategory.moderation:
+        return r'moderation';
       case NotificationCategory.everythingElse:
         return r'everythingElse';
       case NotificationCategory.unknown:

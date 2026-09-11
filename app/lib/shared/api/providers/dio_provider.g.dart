@@ -47,7 +47,7 @@ final class AnonymousDioProvider extends $FunctionalProvider<Dio, Dio, Dio>
   }
 }
 
-String _$anonymousDioHash() => r'8efed6e64602251abed3c8795bd49bf320f142ed';
+String _$anonymousDioHash() => r'52cb91b88d5e577ad2094eceb63670047afd3219';
 
 @ProviderFor(accountDio)
 final accountDioProvider = AccountDioFamily._();
@@ -98,7 +98,7 @@ final class AccountDioProvider
   }
 }
 
-String _$accountDioHash() => r'fa36b810c3bd2635c07103228fe5972b154cb312';
+String _$accountDioHash() => r'8816f33ed9739baa416412fb858a3d71582fa50b';
 
 final class AccountDioFamily extends $Family
     with $FunctionalFamilyOverride<FutureOr<Dio>, AccountKey> {
@@ -156,4 +156,4 @@ final class DioProvider extends $FunctionalProvider<Dio, Dio, Dio>
   }
 }
 
-String _$dioHash() => r'bf4ca0666e82318894216ccb8ba0b290289de9b5';
+String _$dioHash() => r'8f66433de4d3cddc766330a6d1b95fd3dce3e5a4';

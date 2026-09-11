@@ -18,7 +18,24 @@ const (
 	OAuthSessionIDKey contextKey = "oauth_session_id"
 	DeviceIDKey       contextKey = "device_id"
 	RunIDKey          contextKey = "run_id"
+	ModeratorKey      contextKey = "moderator"
 )
+
+// Moderator is the server-derived identity attached only by production
+// moderator authentication. Request bodies cannot supply these values.
+type Moderator struct {
+	ActorID      string
+	SourceSystem string
+}
+
+func GetModerator(ctx context.Context) (Moderator, bool) {
+	moderator, ok := ctx.Value(ModeratorKey).(Moderator)
+	return moderator, ok
+}
+
+func WithModerator(ctx context.Context, moderator Moderator) context.Context {
+	return context.WithValue(ctx, ModeratorKey, moderator)
+}
 
 // GetDID extracts the authenticated DID from ctx.
 // Returns ("", false) if not present.

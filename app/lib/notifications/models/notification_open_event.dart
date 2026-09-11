@@ -1,4 +1,5 @@
 import 'package:at_primitives/at_uri.dart' as at_uri;
+import 'package:craftsky_app/moderation/models/account_moderation.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -22,6 +23,7 @@ final class ValidNotificationFacts extends NotificationFactOutcome {
     this.subjectUri,
     this.rootUri,
     this.sourceUri,
+    this.caseReference,
   });
 
   final NotificationCategory category;
@@ -29,6 +31,7 @@ final class ValidNotificationFacts extends NotificationFactOutcome {
   final AtUri? subjectUri;
   final AtUri? rootUri;
   final AtUri? sourceUri;
+  final ModerationCaseReference? caseReference;
 
   @override
   String toString() => 'ValidNotificationFacts(category: $category)';
@@ -130,6 +133,17 @@ final class NotificationOpenAttempt {
         NotificationCategory.instagramMatch => const ValidNotificationFacts._(
           category: NotificationCategory.instagramMatch,
         ),
+        NotificationCategory.moderation => switch (_parseCaseReference(
+          data['caseReference'],
+        )) {
+          final caseReference? => ValidNotificationFacts._(
+            category: category,
+            caseReference: caseReference,
+          ),
+          null => const InvalidNotificationFacts(
+            NotificationFactFailureClass.missingOrMalformedRequiredFacts,
+          ),
+        },
         NotificationCategory.unknown => const UnknownNotificationFacts(),
       };
     }
@@ -183,6 +197,15 @@ final class NotificationOpenAttempt {
       Did.parse(parts[0]);
       return AtUri.parse(value);
     } on Object {
+      return null;
+    }
+  }
+
+  static ModerationCaseReference? _parseCaseReference(Object? value) {
+    if (value is! String || !_isBoundedAscii(value, 1024)) return null;
+    try {
+      return ModerationCaseReference.parse(value);
+    } on FormatException {
       return null;
     }
   }

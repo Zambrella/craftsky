@@ -56,6 +56,7 @@ type DispatcherObserver interface {
 	ObservePushDelivery(string, string)
 	ObservePushQueue(int, time.Duration)
 }
+type ModerationQueueObserver interface{ ObserveModerationNotificationQueue(int, time.Duration) bool }
 
 // DispatcherOperationObserver is the optional detailed counterpart to
 // DispatcherObserver. Every argument is a closed, low-cardinality class;
@@ -181,6 +182,7 @@ type claimedDelivery struct {
 	routingID, token, platform                         string
 	leaseToken                                         string
 	actorName                                          sql.NullString
+	caseReference                                      sql.NullString
 	attempts                                           int
 	deadline, leaseExpiresAt                           time.Time
 }
@@ -236,7 +238,7 @@ func (d *Dispatcher) claimOne(
 				WHEN target.reply_parent_uri = target.reply_root_uri THEN 'comment'
 				ELSE 'reply'
 			END,
-			s.routing_id,i.fcm_token,i.platform,b.display_name,
+			s.routing_id,i.fcm_token,i.platform,b.display_name,to_jsonb(n)->>'moderation_case_reference',
 			d.attempts,d.deadline_at
 		FROM push_deliveries d
 		JOIN notification_events n ON n.id=d.notification_id
@@ -249,16 +251,18 @@ func (d *Dispatcher) claimOne(
 		  AND n.state='active'
 		  AND s.active AND i.active
 		  AND NOT appview_owner_is_terminal(n.recipient_did)
-		  AND NOT appview_owner_is_terminal(n.actor_did)
-		  AND NOT EXISTS (
-			SELECT 1 FROM actor_mutes mute
-			WHERE mute.owner_did = n.recipient_did AND mute.subject_did = n.actor_did
-		  )
-		  AND NOT EXISTS (
-			SELECT 1 FROM atproto_blocks block
-			WHERE (block.blocker_did = n.recipient_did AND block.subject_did = n.actor_did)
-			   OR (block.blocker_did = n.actor_did AND block.subject_did = n.recipient_did)
-		  )
+		  AND (n.actor_did IS NULL OR (
+			NOT appview_owner_is_terminal(n.actor_did)
+			AND NOT EXISTS (
+				SELECT 1 FROM actor_mutes mute
+				WHERE mute.owner_did = n.recipient_did AND mute.subject_did = n.actor_did
+			)
+			AND NOT EXISTS (
+				SELECT 1 FROM atproto_blocks block
+				WHERE (block.blocker_did = n.recipient_did AND block.subject_did = n.actor_did)
+				   OR (block.blocker_did = n.actor_did AND block.subject_did = n.recipient_did)
+			)
+		  ))
 		ORDER BY d.next_attempt_at,d.id FOR UPDATE OF d SKIP LOCKED LIMIT 1`, now)
 	if err != nil {
 		return nil, err
@@ -356,6 +360,7 @@ func scanClaimedDeliveries(rows claimedDeliveryRows) ([]claimedDelivery, error) 
 			&claim.actorDID, &claim.item.sourceURI, &claim.item.subjectURI,
 			&claim.item.rootURI, &claim.item.targetRole, &claim.item.routingID,
 			&claim.item.token, &claim.item.platform, &claim.item.actorName,
+			&claim.item.caseReference,
 			&claim.item.attempts, &claim.item.deadline,
 		); err != nil {
 			return nil, fmt.Errorf("scan push delivery claim: %w", err)
@@ -422,6 +427,13 @@ func (d *Dispatcher) ProcessBatch(ctx context.Context, worker string) (int, erro
 			return 0, err
 		}
 		d.options.Observer.ObservePushQueue(pending, oldestAge)
+		if observer, ok := d.options.Observer.(ModerationQueueObserver); ok {
+			moderationPending, moderationAge, err := d.moderationQueueStats(ctx, d.options.Now().UTC())
+			if err != nil {
+				return 0, err
+			}
+			observer.ObserveModerationNotificationQueue(moderationPending, moderationAge)
+		}
 	}
 	now := d.options.Now().UTC()
 	if err := d.recoverExpiredLeases(ctx, now); err != nil {
@@ -552,6 +564,7 @@ func (d *Dispatcher) processClaimFenced(ctx context.Context, item claimedDeliver
 			RootURI:        syntax.ATURI(item.rootURI.String),
 			TargetRole:     item.targetRole,
 			NotificationID: item.notificationID.String(),
+			CaseReference:  item.caseReference.String,
 		},
 		ActorDisplayName: item.actorName.String,
 		Platform:         item.platform,
@@ -657,6 +670,34 @@ func (d *Dispatcher) queueStats(ctx context.Context, now time.Time) (int, time.D
 	return pending, time.Duration(oldestSeconds * float64(time.Second)), err
 }
 
+func (d *Dispatcher) moderationQueueStats(ctx context.Context, now time.Time) (int, time.Duration, error) {
+	var pending int
+	var oldestSeconds float64
+	err := d.pool.QueryRow(ctx, `
+		SELECT count(*)::int,
+			COALESCE(EXTRACT(EPOCH FROM ($1::timestamptz-min(d.created_at))),0)::float8
+		FROM push_deliveries d
+		JOIN notification_events n ON n.id=d.notification_id
+		JOIN push_account_subscriptions s
+			ON s.id=d.account_subscription_id
+			AND s.account_did=n.recipient_did
+			AND s.active
+		JOIN push_installations i ON i.id=s.installation_id AND i.active
+		LEFT JOIN notification_preferences preference
+			ON preference.account_did=n.recipient_did
+			AND preference.category=n.category
+		WHERE d.status IN ('pending','retry','leased')
+			AND n.category='moderation'
+			AND n.state='active'
+			AND COALESCE(preference.push_enabled,TRUE)
+			AND NOT appview_owner_is_terminal(n.recipient_did)
+	`, now).Scan(&pending, &oldestSeconds)
+	if oldestSeconds < 0 {
+		oldestSeconds = 0
+	}
+	return pending, time.Duration(oldestSeconds * float64(time.Second)), err
+}
+
 type currentDeliveryState struct {
 	routeOwned bool
 	eligible   bool
@@ -694,29 +735,31 @@ func (d *Dispatcher) currentDeliveryStatus(
 				 AND preference.category=claim.category
 				WHERE claim.state='active'
 				  AND NOT appview_owner_is_terminal(claim.recipient_did)
-				  AND NOT appview_owner_is_terminal(claim.actor_did)
 				  AND COALESCE(preference.push_enabled, TRUE)
-				  AND (
-					COALESCE(preference.scope, 'everyone')='everyone'
-					OR (
-						preference.scope='peopleIFollow'
-						AND EXISTS (
-							SELECT 1 FROM atproto_follows follow
-							WHERE follow.did=claim.recipient_did
-							  AND follow.subject_did=claim.actor_did
+				  AND (claim.actor_did IS NULL OR (
+					NOT appview_owner_is_terminal(claim.actor_did)
+					AND (
+						COALESCE(preference.scope, 'everyone')='everyone'
+						OR (
+							preference.scope='peopleIFollow'
+							AND EXISTS (
+								SELECT 1 FROM atproto_follows follow
+								WHERE follow.did=claim.recipient_did
+								  AND follow.subject_did=claim.actor_did
+							)
 						)
 					)
-				  )
-				  AND NOT EXISTS (
-					SELECT 1 FROM actor_mutes mute
-					WHERE mute.owner_did=claim.recipient_did
-					  AND mute.subject_did=claim.actor_did
-				  )
-				  AND NOT EXISTS (
-					SELECT 1 FROM atproto_blocks block
-					WHERE (block.blocker_did=claim.recipient_did AND block.subject_did=claim.actor_did)
-					   OR (block.blocker_did=claim.actor_did AND block.subject_did=claim.recipient_did)
-				  )
+					AND NOT EXISTS (
+						SELECT 1 FROM actor_mutes mute
+						WHERE mute.owner_did=claim.recipient_did
+						  AND mute.subject_did=claim.actor_did
+					)
+					AND NOT EXISTS (
+						SELECT 1 FROM atproto_blocks block
+						WHERE (block.blocker_did=claim.recipient_did AND block.subject_did=claim.actor_did)
+						   OR (block.blocker_did=claim.actor_did AND block.subject_did=claim.recipient_did)
+					)
+				  ))
 			)
 	`, item.id, item.leaseToken, item.subscriptionID, item.installationID, item.token, now, item.leaseExpiresAt).Scan(
 		&state.routeOwned,

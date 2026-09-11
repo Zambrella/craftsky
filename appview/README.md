@@ -475,6 +475,57 @@ for example `./scripts/compose-dev exec appview /app/cli request GET
 /v1/whoami --env dev`, so the credential stays in configuration rather than
 shell arguments.
 
+### Testing moderation in development
+
+The local stack enables a dev-only moderator account. The `moderation-*`
+recipes call the real report, owner, and admin routes, discover the current
+worktree's AppView port, generate idempotency keys, and fetch the latest case
+revision automatically. They require `curl` and `jq` on the host.
+
+Create a case by reporting an indexed account, post, or event from a current
+member:
+
+```bash
+just moderation-report-account REPORTER_DID TARGET_DID spam "Local test report"
+just moderation-report-post REPORTER_DID OWNER_DID POST_RKEY spam "Local test report"
+just moderation-report-event REPORTER_DID OWNER_DID EVENT_RKEY spam "Local test report"
+```
+
+List and inspect cases, then apply a decision:
+
+```bash
+just moderation-cases 'state=open'
+just moderation-case MOD-CASE_UUID
+just moderation-decision MOD-CASE_UUID strike spam "This content violated the spam policy."
+just moderation-decision MOD-CASE_UUID 'formalWarning,strike' spam "Repeated spam behavior."
+```
+
+Exercise later state transitions:
+
+```bash
+just moderation-effects MOD-CASE_UUID strike '' "Strike applied in error"
+just moderation-effects MOD-CASE_UUID '' strike "Reapply the strike"
+just moderation-appeal-confirm MOD-CASE_UUID
+just moderation-appeal-uphold MOD-CASE_UUID
+just moderation-appeal-change MOD-CASE_UUID strike
+just moderation-restore MOD-CASE_UUID
+```
+
+View the affected member's owner-safe state:
+
+```bash
+just moderation-standing OWNER_DID
+just moderation-history OWNER_DID
+just moderation-history OWNER_DID MOD-CASE_UUID
+```
+
+Run `just moderation-help` for the underlying helper syntax. Effect lists are
+comma-separated and use `formalWarning`, `visibilityWarn`, `visibilityHide`,
+`visibilityTakedown`, `strike`, or `severeSuspension`. A severe suspension also
+requires an eligible reason and a non-empty `SEVERITY` argument. Override the
+local moderator identity or token in ignored `.env.local`, then recreate the
+AppView container.
+
 ## Smoke testing the indexer
 
 End-to-end sanity check: write a record to your real PDS and confirm it

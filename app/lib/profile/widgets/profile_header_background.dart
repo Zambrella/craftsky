@@ -91,7 +91,6 @@ class _CraftIconTile extends StatelessWidget {
                 top: row * _tileSize - _iconSize / 2,
                 child: CraftIcon(
                   craft: craft,
-                  size: _iconSize,
                   color: color,
                 ),
               ),

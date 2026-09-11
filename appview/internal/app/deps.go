@@ -21,6 +21,7 @@ import (
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/languages"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/moderation"
 	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
@@ -130,7 +131,10 @@ type Deps struct {
 	// ReportForwarder prepares future report forwarding metadata without live PDS/Ozone submission.
 	ReportForwarder api.ReportForwarder
 	// ModerationStore persists dev/test synthetic moderation outputs for enforcement.
-	ModerationStore *api.ModerationStore
+	ModerationStore    *api.ModerationStore
+	ModerationCases    *moderation.Store
+	ModerationCommands *moderation.Service
+	ModerationExpiry   *moderation.ExpiryWorker
 	// LanguagePreferences owns private per-account posting and content-language preferences.
 	LanguagePreferences *languages.Store
 	// NewPDSEffects is the only ordinary authenticated PDS mutation
@@ -305,6 +309,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	}
 	instagramRestoration := instagramStorage.restoration
 	moderationStore := instagramStorage.moderationStore
+	moderationCapability := newModerationDependencies(pool, moderationStore, observer, cfg.ModerationExpiryBatchSize)
 	loginCompleteURL := resolveOriginPath(cfg.VerifiedLinkOrigin, "/auth/complete")
 	deletionCompleteURL := resolveOriginPath(cfg.VerifiedLinkOrigin, "/account-deletion/reauth-complete")
 	pdsEffects, err := newPDSEffectDependencies(
@@ -378,6 +383,9 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		InstagramPrivateData:        instagramPrivateData,
 		InstagramRestoration:        instagramRestoration,
 		ModerationStore:             moderationStore,
+		ModerationCases:             moderationCapability.store,
+		ModerationCommands:          moderationCapability.service,
+		ModerationExpiry:            moderationCapability.expiry,
 		ScheduledPosts:              scheduledStore,
 		ScheduledMedia:              scheduledLifecycle.media,
 		ScheduledCleanup:            scheduledLifecycle.cleanup,

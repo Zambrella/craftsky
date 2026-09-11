@@ -55,6 +55,7 @@ class ComposerImagesStateMapper extends ClassMapperBase<ComposerImagesState> {
     return ensureInitialized().decodeJson<ComposerImagesState>(json);
   }
 }
+
 mixin ComposerImagesStateMappable {
   String toJson() {
     return ComposerImagesStateMapper.ensureInitialized()

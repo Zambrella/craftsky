@@ -200,6 +200,7 @@ type fakePostStore struct {
 	activeRepostErr         error
 	lastDID                 string
 	lastRkey                string
+	lastViewerDID           string
 	lastListCommentsDID     string
 	lastListCommentsLimit   int
 	lastListCommentsCursor  string
@@ -271,6 +272,12 @@ func (f *fakePostStore) BlockedPairs(_ context.Context, pairs []api.Relationship
 func (f *fakePostStore) ReadOne(_ context.Context, did, rkey string) (*api.PostRow, error) {
 	f.lastDID = did
 	f.lastRkey = rkey
+	return f.one, f.oneErr
+}
+func (f *fakePostStore) ReadOneForViewer(_ context.Context, did, rkey, viewerDID string) (*api.PostRow, error) {
+	f.lastDID = did
+	f.lastRkey = rkey
+	f.lastViewerDID = viewerDID
 	return f.one, f.oneErr
 }
 func (f *fakePostStore) ListByAuthor(_ context.Context, _ string, _ int, _ string) ([]*api.PostRow, string, error) {
@@ -2219,6 +2226,29 @@ func TestGetPost_HappyPath(t *testing.T) {
 	}
 }
 
+func TestGetPostReadsDirectPostForAuthenticatedViewer(t *testing.T) {
+	t.Parallel()
+	row := &api.PostRow{
+		URI: "at://did:plc:alice/social.craftsky.feed.post/rk1",
+		DID: "did:plc:alice", Rkey: "rk1", CID: "bafy", Text: "hidden",
+	}
+	store := &fakePostStore{one: row}
+	h := api.GetPostHandler(store, fakeResolver{handleFor: "alice.example"}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/posts/did:plc:alice/rk1", "", "did:plc:alice")
+	req.SetPathValue("did", "did:plc:alice")
+	req.SetPathValue("rkey", "rk1")
+	rr := httptest.NewRecorder()
+
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	if store.lastViewerDID != "did:plc:alice" {
+		t.Fatalf("viewer DID = %q, want did:plc:alice", store.lastViewerDID)
+	}
+}
+
 func TestGetPost_IR002UsesAuthoritativeContentLanguagesForCounts(t *testing.T) {
 	row := &api.PostRow{
 		URI: "at://did:plc:alice/social.craftsky.feed.post/rk1",
@@ -2722,6 +2752,9 @@ func TestGetPostComments_ReturnsRootAndCommentsOnly(t *testing.T) {
 	}
 	if store.lastCommentRootURI != root.URI || store.lastCommentLimit != 10 || store.lastCommentCursor != "" || store.lastCommentSort != "oldest" || store.lastCommentViewerDID != "did:plc:viewer" {
 		t.Fatalf("comment lookup = root:%q limit:%d cursor:%q sort:%q viewer:%q", store.lastCommentRootURI, store.lastCommentLimit, store.lastCommentCursor, store.lastCommentSort, store.lastCommentViewerDID)
+	}
+	if store.lastViewerDID != "did:plc:viewer" {
+		t.Fatalf("root viewer DID = %q, want did:plc:viewer", store.lastViewerDID)
 	}
 }
 

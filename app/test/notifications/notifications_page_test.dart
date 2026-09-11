@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/moderation/models/account_moderation.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
 import 'package:craftsky_app/notifications/models/notification_page.dart';
@@ -781,6 +782,118 @@ void main() {
       expect(messenger.calls.single.$2, 'Activity unavailable');
     },
   );
+
+  testWidgets('moderation row explains the update and opens full history', (
+    tester,
+  ) async {
+    var openedModeration = false;
+    final notification = ModerationNotification(
+      SystemNotificationCommon(
+        id: '00000000-0000-4000-8000-000000000325',
+        createdAt: DateTime.utc(2026, 9, 11, 12),
+        indexedAt: DateTime.utc(2026, 9, 11, 12, 0, 1),
+      ),
+      caseReference: ModerationCaseReference.parse(
+        'MOD-550e8400-e29b-41d4-a716-446655440000',
+      ),
+    );
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) => Scaffold(
+            body: NotificationRow(notification: notification),
+          ),
+        ),
+        GoRoute(
+          path: '/profile/settings/moderation',
+          builder: (_, _) {
+            openedModeration = true;
+            return const Scaffold(body: Text('Moderation case'));
+          },
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp.router(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Review an update to your account standing'),
+      findsOneWidget,
+    );
+    expect(find.byIcon(CraftskyIcons.privacy), findsOneWidget);
+
+    await tester.tap(find.text('Review an update to your account standing'));
+    await tester.pumpAndSettle();
+
+    expect(openedModeration, isTrue);
+  });
+
+  testWidgets('moderation history needs one back action to leave', (
+    tester,
+  ) async {
+    final notification = ModerationNotification(
+      SystemNotificationCommon(
+        id: '00000000-0000-4000-8000-000000000326',
+        createdAt: DateTime.utc(2026, 9, 11, 12),
+        indexedAt: DateTime.utc(2026, 9, 11, 12, 0, 1),
+      ),
+      caseReference: ModerationCaseReference.parse(
+        'MOD-550e8400-e29b-41d4-a716-446655440000',
+      ),
+    );
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) => Scaffold(
+            body: NotificationRow(notification: notification),
+          ),
+        ),
+        GoRoute(
+          path: '/profile/settings/moderation',
+          builder: (_, _) => const Scaffold(body: Text('Moderation case')),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp.router(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Review an update to your account standing'));
+    await tester.pumpAndSettle();
+    expect(find.text('Moderation case'), findsOneWidget);
+
+    router.pop();
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Review an update to your account standing'),
+      findsOneWidget,
+    );
+    expect(find.text('Moderation case'), findsNothing);
+  });
 }
 
 class _TestApp extends StatelessWidget {

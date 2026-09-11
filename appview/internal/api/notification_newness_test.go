@@ -104,6 +104,83 @@ func TestNotificationNewCountUsesAccountMarkerAndListVisibility(t *testing.T) {
 	}
 }
 
+func TestActorlessModerationNotificationIsListedCountedAndHasNoActorDTO(t *testing.T) {
+	pool := testdb.WithSchema(t, timelineStoreDDL)
+	ctx := context.Background()
+	for _, path := range []string{
+		"../../migrations/000021_appview_notifications.up.sql",
+		"../../migrations/000022_notification_newness.up.sql",
+	} {
+		migration, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read migration %s: %v", path, err)
+		}
+		if _, err := pool.Exec(ctx, string(migration)); err != nil {
+			t.Fatalf("apply migration %s: %v", path, err)
+		}
+	}
+	if _, err := pool.Exec(ctx, `
+		ALTER TABLE notification_events
+			DROP CONSTRAINT notification_events_category_check,
+			ALTER COLUMN actor_did DROP NOT NULL,
+			ALTER COLUMN source_uri DROP NOT NULL,
+			ALTER COLUMN source_cid DROP NOT NULL,
+			ALTER COLUMN source_rkey DROP NOT NULL,
+			ADD COLUMN moderation_case_reference TEXT,
+			ADD CONSTRAINT notification_events_category_check CHECK (category IN (
+				'like','follow','reply','mention','quote','repost','everythingElse','moderation'
+			));
+		CREATE OR REPLACE FUNCTION appview_owner_is_terminal(candidate_did TEXT)
+		RETURNS BOOLEAN LANGUAGE SQL IMMUTABLE
+		AS $$ SELECT candidate_did IS NULL $$;
+		INSERT INTO notification_events(
+			id,recipient_did,category,subject_key,moderation_case_reference,
+			eligibility_scope,recipient_followed_actor,push_enabled_snapshot,state,
+			first_activity_at,activity_at,indexed_at,initial_push_evaluated_at
+		) VALUES(
+			'00000000-0000-4000-8000-000000000001','did:plc:viewer','moderation','event-1',
+			'MOD-550e8400-e29b-41d4-a716-446655440000','everyone',false,true,'active',
+			now(),now(),now(),now()
+		)
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	store := api.NewPostStore(pool)
+	count, err := store.NotificationNewCount(ctx, "did:plc:viewer")
+	if err != nil || count != 1 {
+		t.Fatalf("new count=%d err=%v", count, err)
+	}
+	rows, _, err := store.ListNotifications(ctx, "did:plc:viewer", 20, "")
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("listed=%d err=%v", len(rows), err)
+	}
+	if rows[0].ActorDID != "" || rows[0].CaseReference != "MOD-550e8400-e29b-41d4-a716-446655440000" {
+		t.Fatalf("moderation row=%+v", rows[0])
+	}
+
+	recorder := httptest.NewRecorder()
+	handler := api.ListNotificationsHandler(store, nil, nilLogger())
+	handler.ServeHTTP(recorder, authedReq(http.MethodGet, "/v1/notifications", "", "did:plc:viewer"))
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+	}
+	var body struct {
+		Items []struct {
+			Type          string          `json:"type"`
+			Actor         json.RawMessage `json:"actor"`
+			CaseReference string          `json:"caseReference"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Items) != 1 || body.Items[0].Type != "moderation" || len(body.Items[0].Actor) != 0 ||
+		body.Items[0].CaseReference != "MOD-550e8400-e29b-41d4-a716-446655440000" {
+		t.Fatalf("moderation DTO=%s", recorder.Body.String())
+	}
+}
+
 func TestNotificationMarkSeenUsesStatementSnapshot(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
 	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)

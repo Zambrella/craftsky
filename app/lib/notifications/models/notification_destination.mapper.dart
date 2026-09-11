@@ -18,11 +18,16 @@ class NotificationDestinationMapper
       MapperContainer.globals.use(
         _instance = NotificationDestinationMapper._(),
       );
-      MapperContainer.globals.useAll([DidMapper(), AtUriMapper()]);
+      MapperContainer.globals.useAll([
+        DidMapper(),
+        AtUriMapper(),
+        ModerationCaseReferenceMapper(),
+      ]);
       NotificationsDestinationMapper.ensureInitialized();
       InstagramMigrationDestinationMapper.ensureInitialized();
       ProfileDestinationMapper.ensureInitialized();
       PostDestinationMapper.ensureInitialized();
+      ModerationHistoryDestinationMapper.ensureInitialized();
     }
     return _instance!;
   }
@@ -609,5 +614,157 @@ class _PostDestinationCopyWithImpl<$R, $Out>
   PostDestinationCopyWith<$R2, PostDestination, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   ) => _PostDestinationCopyWithImpl<$R2, $Out2>($value, $cast, t);
+}
+
+class ModerationHistoryDestinationMapper
+    extends SubClassMapperBase<ModerationHistoryDestination> {
+  ModerationHistoryDestinationMapper._();
+
+  static ModerationHistoryDestinationMapper? _instance;
+  static ModerationHistoryDestinationMapper ensureInitialized() {
+    if (_instance == null) {
+      MapperContainer.globals.use(
+        _instance = ModerationHistoryDestinationMapper._(),
+      );
+      NotificationDestinationMapper.ensureInitialized().addSubMapper(
+        _instance!,
+      );
+    }
+    return _instance!;
+  }
+
+  @override
+  final String id = 'ModerationHistoryDestination';
+
+  static ModerationCaseReference _$caseReference(
+    ModerationHistoryDestination v,
+  ) => v.caseReference;
+  static const Field<ModerationHistoryDestination, ModerationCaseReference>
+  _f$caseReference = Field('caseReference', _$caseReference);
+
+  @override
+  final MappableFields<ModerationHistoryDestination> fields = const {
+    #caseReference: _f$caseReference,
+  };
+
+  @override
+  final String discriminatorKey = 'type';
+  @override
+  final dynamic discriminatorValue = 'ModerationHistoryDestination';
+  @override
+  late final ClassMapperBase superMapper =
+      NotificationDestinationMapper.ensureInitialized();
+
+  static ModerationHistoryDestination _instantiate(DecodingData data) {
+    return ModerationHistoryDestination(data.dec(_f$caseReference));
+  }
+
+  @override
+  final Function instantiate = _instantiate;
+
+  static ModerationHistoryDestination fromMap(Map<String, dynamic> map) {
+    return ensureInitialized().decodeMap<ModerationHistoryDestination>(map);
+  }
+
+  static ModerationHistoryDestination fromJson(String json) {
+    return ensureInitialized().decodeJson<ModerationHistoryDestination>(json);
+  }
+}
+
+mixin ModerationHistoryDestinationMappable {
+  String toJson() {
+    return ModerationHistoryDestinationMapper.ensureInitialized()
+        .encodeJson<ModerationHistoryDestination>(
+          this as ModerationHistoryDestination,
+        );
+  }
+
+  Map<String, dynamic> toMap() {
+    return ModerationHistoryDestinationMapper.ensureInitialized()
+        .encodeMap<ModerationHistoryDestination>(
+          this as ModerationHistoryDestination,
+        );
+  }
+
+  ModerationHistoryDestinationCopyWith<
+    ModerationHistoryDestination,
+    ModerationHistoryDestination,
+    ModerationHistoryDestination
+  >
+  get copyWith =>
+      _ModerationHistoryDestinationCopyWithImpl<
+        ModerationHistoryDestination,
+        ModerationHistoryDestination
+      >(this as ModerationHistoryDestination, $identity, $identity);
+  @override
+  bool operator ==(Object other) {
+    return ModerationHistoryDestinationMapper.ensureInitialized().equalsValue(
+      this as ModerationHistoryDestination,
+      other,
+    );
+  }
+
+  @override
+  int get hashCode {
+    return ModerationHistoryDestinationMapper.ensureInitialized().hashValue(
+      this as ModerationHistoryDestination,
+    );
+  }
+}
+
+extension ModerationHistoryDestinationValueCopy<$R, $Out>
+    on ObjectCopyWith<$R, ModerationHistoryDestination, $Out> {
+  ModerationHistoryDestinationCopyWith<$R, ModerationHistoryDestination, $Out>
+  get $asModerationHistoryDestination => $base.as(
+    (v, t, t2) => _ModerationHistoryDestinationCopyWithImpl<$R, $Out>(v, t, t2),
+  );
+}
+
+abstract class ModerationHistoryDestinationCopyWith<
+  $R,
+  $In extends ModerationHistoryDestination,
+  $Out
+>
+    implements NotificationDestinationCopyWith<$R, $In, $Out> {
+  @override
+  $R call({ModerationCaseReference? caseReference});
+  ModerationHistoryDestinationCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
+    Then<$Out2, $R2> t,
+  );
+}
+
+class _ModerationHistoryDestinationCopyWithImpl<$R, $Out>
+    extends ClassCopyWithBase<$R, ModerationHistoryDestination, $Out>
+    implements
+        ModerationHistoryDestinationCopyWith<
+          $R,
+          ModerationHistoryDestination,
+          $Out
+        > {
+  _ModerationHistoryDestinationCopyWithImpl(
+    super.value,
+    super.then,
+    super.then2,
+  );
+
+  @override
+  late final ClassMapperBase<ModerationHistoryDestination> $mapper =
+      ModerationHistoryDestinationMapper.ensureInitialized();
+  @override
+  $R call({ModerationCaseReference? caseReference}) => $apply(
+    FieldCopyWithData({
+      if (caseReference != null) #caseReference: caseReference,
+    }),
+  );
+  @override
+  ModerationHistoryDestination $make(CopyWithData data) =>
+      ModerationHistoryDestination(
+        data.get(#caseReference, or: $value.caseReference),
+      );
+
+  @override
+  ModerationHistoryDestinationCopyWith<$R2, ModerationHistoryDestination, $Out2>
+  $chain<$R2, $Out2>(Then<$Out2, $R2> t) =>
+      _ModerationHistoryDestinationCopyWithImpl<$R2, $Out2>($value, $cast, t);
 }
 
