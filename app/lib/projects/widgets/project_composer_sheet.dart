@@ -1085,8 +1085,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   List<CraftskySelectOption<String>> _selectOptions(
     List<ProjectOption> options, {
     bool includeCraftIcons = false,
+    bool alphabetize = true,
   }) {
-    return [
+    final selectOptions = [
       for (final option in options)
         CraftskySelectOption<String>(
           value: option.value,
@@ -1097,6 +1098,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
               : null,
         ),
     ];
+    return alphabetize
+        ? alphabetizedSelectOptions(selectOptions)
+        : selectOptions;
   }
 
   Map<String, dynamic> _combinedFormValues({bool saved = false}) => {
@@ -1307,7 +1311,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         CraftskyFormBuilderDropdownField<String>(
           name: ProjectComposerFields.patternDifficulty,
           label: l10n.projectComposerPatternDifficultyLabel,
-          options: _selectOptions(ProjectOptionCatalogs.patternDifficulties),
+          options: _selectOptions(
+            ProjectOptionCatalogs.patternDifficulties,
+            alphabetize: false,
+          ),
         ),
         SizedBox(height: spacing.sp4),
         FormBuilderField<bool>(
@@ -1713,14 +1720,20 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       CraftskyFormBuilderDropdownField<String>(
         name: ProjectComposerFields.knittingYarnWeight,
         label: l10n.projectComposerYarnWeightLabel,
-        options: _selectOptions(ProjectOptionCatalogs.yarnWeights),
+        options: _selectOptions(
+          ProjectOptionCatalogs.yarnWeights,
+          alphabetize: false,
+        ),
         enabled: controlsEnabled,
       ),
       SizedBox(height: spacing.sp4),
       CraftskyFormBuilderDropdownField<String>(
         name: ProjectComposerFields.knittingNeedleSize,
         label: l10n.projectComposerNeedleSizeLabel,
-        options: _selectOptions(ProjectOptionCatalogs.needleSizes),
+        options: _selectOptions(
+          ProjectOptionCatalogs.needleSizes,
+          alphabetize: false,
+        ),
         enabled: controlsEnabled,
       ),
       SizedBox(height: spacing.sp4),
@@ -1752,7 +1765,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       CraftskyFormBuilderDropdownField<String>(
         name: ProjectComposerFields.knittingGaugeUnit,
         label: l10n.projectComposerGaugeUnitLabel,
-        options: _selectOptions(ProjectOptionCatalogs.gaugeUnits),
+        options: _selectOptions(
+          ProjectOptionCatalogs.gaugeUnits,
+          alphabetize: false,
+        ),
         enabled: controlsEnabled,
       ),
       SizedBox(height: spacing.sp4),
@@ -1807,14 +1823,20 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       CraftskyFormBuilderDropdownField<String>(
         name: ProjectComposerFields.crochetYarnWeight,
         label: l10n.projectComposerYarnWeightLabel,
-        options: _selectOptions(ProjectOptionCatalogs.yarnWeights),
+        options: _selectOptions(
+          ProjectOptionCatalogs.yarnWeights,
+          alphabetize: false,
+        ),
         enabled: controlsEnabled,
       ),
       SizedBox(height: spacing.sp4),
       CraftskyFormBuilderDropdownField<String>(
         name: ProjectComposerFields.crochetHookSize,
         label: l10n.projectComposerHookSizeLabel,
-        options: _selectOptions(ProjectOptionCatalogs.hookSizes),
+        options: _selectOptions(
+          ProjectOptionCatalogs.hookSizes,
+          alphabetize: false,
+        ),
         enabled: controlsEnabled,
       ),
       SizedBox(height: spacing.sp4),
@@ -1845,7 +1867,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       CraftskyFormBuilderDropdownField<String>(
         name: ProjectComposerFields.crochetGaugeUnit,
         label: l10n.projectComposerGaugeUnitLabel,
-        options: _selectOptions(ProjectOptionCatalogs.gaugeUnits),
+        options: _selectOptions(
+          ProjectOptionCatalogs.gaugeUnits,
+          alphabetize: false,
+        ),
         enabled: controlsEnabled,
       ),
       SizedBox(height: spacing.sp4),
