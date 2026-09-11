@@ -61,7 +61,7 @@ class ComposerMetadataControls extends StatelessWidget {
                   count: languages.values.length,
                   backgroundColor: colors.onSurface,
                   textColor: colors.surface,
-                  child: const Icon(CraftskyIcons.language),
+                  child: const Icon(CraftskyIcons.translate),
                 ),
               ),
             ),
@@ -143,7 +143,7 @@ class ComposerMetadataControls extends StatelessWidget {
               for (final language in languages.values)
                 CraftskyContextMenuItem(
                   text: languageLabel(language),
-                  icon: CraftskyIcons.language,
+                  icon: CraftskyIcons.translate,
                   isSelected: true,
                   onPressed: languages.values.length == 1
                       ? null
