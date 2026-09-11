@@ -48,11 +48,10 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Make sure to handle PDS migration
 - [x] Video posts (including Instagram post importer)
 - [x] Update to latest version of `Indigo` package and `Tap` service
-- [ ] CraftSky hosted CDN (maybe)
 - [ ] Pro and Business subscriptions (Revenue Cat)
   - [ ] Webhooks
   - [ ] Backend tracking against accounts
-- [ ] Moderation communication (3 strikes? Push notifications for warnings? A way to appeal decisions?)
+- [x] Moderation communication (3 strikes? Push notifications for warnings? A way to appeal decisions?)
 
 ### Flutter app
 
@@ -116,7 +115,6 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [ ] Email infrastructure — transactional provider for the moderation reports inbox and any future account emails
 - [ ] First-PDS decision — where do first users' accounts live? Self-hosted Craftsky PDS, bsky.social, or third-party? Ties into the handle-suffix decision but is a separate question
 - [ ] Secrets management for local dev — `.env` handling conventions, `.env.example`, what's safe to commit
-- [ ] CDN
 
 ### Product / community
 
