@@ -34,8 +34,9 @@ CREATE TABLE craftsky_posts (
     rkey             TEXT        NOT NULL,
     cid              TEXT        NOT NULL,
 
-    text             TEXT        NOT NULL,
-    facets           JSONB,
+	text             TEXT        NOT NULL,
+	sponsored        BOOLEAN     NOT NULL DEFAULT false,
+	facets           JSONB,
     images           JSONB,
 
     reply_root_uri   TEXT,
@@ -76,6 +77,7 @@ CREATE TABLE craftsky_project_posts (
     pattern_designer_facets JSONB,
     pattern_publisher TEXT,
     pattern_publisher_facets JSONB,
+    pattern_self_drafted BOOLEAN,
     materials TEXT[] NOT NULL DEFAULT '{}',
     colors TEXT[] NOT NULL DEFAULT '{}',
     design_tags TEXT[] NOT NULL DEFAULT '{}',
@@ -264,6 +266,7 @@ func TestCraftskyPost_Create_PlainText(t *testing.T) {
 		Record: json.RawMessage(`{
 			"$type": "social.craftsky.feed.post",
 			"text": "first post",
+			"sponsored": true,
 			"createdAt": "` + fixedCreatedAt + `"
 		}`),
 	}
@@ -273,6 +276,7 @@ func TestCraftskyPost_Create_PlainText(t *testing.T) {
 
 	var (
 		uri, did, rkey, cid, text string
+		sponsored                 bool
 		facets, images            *string
 		replyRoot, replyParent    *string
 		quoteURI, quoteCID        *string
@@ -280,13 +284,13 @@ func TestCraftskyPost_Create_PlainText(t *testing.T) {
 		createdAt                 time.Time
 	)
 	err := pool.QueryRow(context.Background(), `
-		SELECT uri, did, rkey, cid, text,
+		SELECT uri, did, rkey, cid, text, sponsored,
 		       facets::text, images::text,
 		       reply_root_uri, reply_parent_uri,
 		       quote_uri, quote_cid,
 		       tags, created_at
 		FROM craftsky_posts WHERE uri = $1`, ev.URI).
-		Scan(&uri, &did, &rkey, &cid, &text,
+		Scan(&uri, &did, &rkey, &cid, &text, &sponsored,
 			&facets, &images,
 			&replyRoot, &replyParent,
 			&quoteURI, &quoteCID,
@@ -302,6 +306,9 @@ func TestCraftskyPost_Create_PlainText(t *testing.T) {
 	}
 	if text != "first post" {
 		t.Errorf("text = %q", text)
+	}
+	if !sponsored {
+		t.Error("sponsored = false, want true")
 	}
 	if facets != nil || images != nil {
 		t.Errorf("facets/images should be NULL on plain text post; got facets=%v images=%v", facets, images)
@@ -416,6 +423,7 @@ func TestCraftskyPost_Create_WithProjectPayload_MaterializesProject(t *testing.T
 				"craftType": "social.craftsky.feed.defs#knitting",
 				"status":    "social.craftsky.feed.defs#finished",
 				"title":     "Hitchhiker Shawl",
+				"pattern":   {"selfDrafted":true},
 				"materials": [{"text":"merino"}],
 				"tags":      ["fair-isle"]
 			}
@@ -462,11 +470,12 @@ func TestCraftskyPost_Create_WithProjectPayload_MaterializesProject(t *testing.T
 		materials       []string
 		projectTags     []string
 		rawProject      string
+		selfDrafted     *bool
 	)
 	if err := pool.QueryRow(context.Background(), `
-		SELECT common_craft_type, common_status, common_title, materials, project_tags, raw_project::text
+		SELECT common_craft_type, common_status, common_title, materials, project_tags, raw_project::text, pattern_self_drafted
 		FROM craftsky_project_posts WHERE uri = $1`, ev.URI).
-		Scan(&commonCraftType, &commonStatus, &commonTitle, &materials, &projectTags, &rawProject); err != nil {
+		Scan(&commonCraftType, &commonStatus, &commonTitle, &materials, &projectTags, &rawProject, &selfDrafted); err != nil {
 		t.Fatalf("select project: %v", err)
 	}
 	if commonCraftType != "social.craftsky.feed.defs#knitting" || commonStatus == nil || *commonStatus != "social.craftsky.feed.defs#finished" || commonTitle == nil || *commonTitle != "Hitchhiker Shawl" {
@@ -480,6 +489,9 @@ func TestCraftskyPost_Create_WithProjectPayload_MaterializesProject(t *testing.T
 	}
 	if rawProject == "" {
 		t.Fatalf("raw_project empty")
+	}
+	if selfDrafted == nil || !*selfDrafted {
+		t.Fatalf("pattern_self_drafted = %v, want true", selfDrafted)
 	}
 
 	// The raw record column must round-trip the project payload byte-for-meaning.

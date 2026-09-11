@@ -490,11 +490,11 @@ class EventFormState extends ConsumerState<EventForm> {
       label: label,
       value: value,
       enabled: widget.enabled,
-      options: items
-          .map(
-            (item) => CraftskySelectOption(value: item, label: itemLabel(item)),
-          )
-          .toList(),
+      options: alphabetizedSelectOptions(
+        items.map(
+          (item) => CraftskySelectOption(value: item, label: itemLabel(item)),
+        ),
+      ),
       onChanged: widget.enabled
           ? (next) => setState(() {
               if (next == null) return;

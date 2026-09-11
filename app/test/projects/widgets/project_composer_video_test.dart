@@ -109,6 +109,7 @@ void main() {
             viewerHasLiked: false,
             viewerHasReposted: false,
             viewerHasSaved: false,
+            sponsored: false,
             createdAt: DateTime(2026),
             indexedAt: DateTime(2026),
             author: PostAuthor(

@@ -204,18 +204,16 @@ void main() {
     ).updateMyProfile(clearAvatar: true, clearBanner: true);
   });
 
-  test('replaces customisation with exactly the three wire fields', () async {
+  test('replaces customisation with exactly the two wire fields', () async {
     final dio = buildDio();
     DioAdapter(dio: dio).onPut(
       '/v1/profiles/me/customisation',
       (server) => server.reply(200, {
         'colour': 'teal',
-        'profileBorder': 'thick',
         'profileBackground': 'x2',
       }),
       data: {
         'colour': 'teal',
-        'profileBorder': 'thick',
         'profileBackground': 'x2',
       },
     );
@@ -223,7 +221,6 @@ void main() {
     final saved = await ProfileApiClient(dio).updateMyCustomisation(
       const ProfileCustomisation(
         colour: 'teal',
-        border: 'thick',
         background: 'x2',
       ),
     );
@@ -232,7 +229,6 @@ void main() {
       saved,
       const ProfileCustomisation(
         colour: 'teal',
-        border: 'thick',
         background: 'x2',
       ),
     );

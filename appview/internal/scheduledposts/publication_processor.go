@@ -427,7 +427,7 @@ func publicationRecord(payload Payload, blobs []map[string]any, createdAt time.T
 	if len(blobs) != expectedBlobs {
 		return nil, ErrMediaInvalid
 	}
-	record := map[string]any{"$type": PostCollection, "text": payload.Text, "createdAt": createdAt.UTC().Format(time.RFC3339)}
+	record := map[string]any{"$type": PostCollection, "text": payload.Text, "sponsored": payload.Sponsored, "createdAt": createdAt.UTC().Format(time.RFC3339)}
 	if len(payload.Facets) > 0 {
 		var facets any
 		if err := json.Unmarshal(payload.Facets, &facets); err != nil {

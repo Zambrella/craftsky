@@ -6,6 +6,7 @@ import 'package:craftsky_app/languages/providers/language_preferences_provider.d
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -171,6 +172,33 @@ void main() {
     );
     expect(find.text('Bag'), findsOneWidget);
     expect(find.text('Dress'), findsNothing);
+  });
+
+  testWidgets('catalogue choices are alphabetical in project detail forms', (
+    tester,
+  ) async {
+    await _openDetailsForCraft(tester, 'Sewing');
+
+    void expectAlphabetical(String label) {
+      final input = tester.widget<CraftskySingleSelectInput<String>>(
+        find.byWidgetPredicate(
+          (widget) =>
+              widget is CraftskySingleSelectInput<String> &&
+              widget.label == label,
+        ),
+      );
+      final labels = input.options.map((option) => option.label).toList();
+      expect(labels, [...labels]..sort());
+    }
+
+    expectAlphabetical('Project type');
+    await _searchAndSelect(
+      tester,
+      fieldName: 'sewingProjectType',
+      query: 'gar',
+      option: 'Garment',
+    );
+    expectAlphabetical('Project subtype');
   });
 
   testWidgets('AT-005 clears craft-specific details when craft changes', (

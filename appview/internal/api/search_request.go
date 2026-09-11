@@ -75,19 +75,21 @@ type HashtagSearchRequest struct {
 }
 
 type ProjectSearchRequest struct {
-	Query   string
-	Sort    SearchSort
-	Limit   int
-	Cursor  string
-	Filters map[string][]string
+	Query       string
+	Sort        SearchSort
+	Limit       int
+	Cursor      string
+	Filters     map[string][]string
+	SelfDrafted bool
 }
 
 type ProjectListRequest struct {
-	CraftTypes []string
-	Filters    map[string][]string
-	Sort       SearchSort
-	Limit      int
-	Cursor     string
+	CraftTypes  []string
+	Filters     map[string][]string
+	SelfDrafted bool
+	Sort        SearchSort
+	Limit       int
+	Cursor      string
 }
 
 type TopHashtagsRequest struct {
@@ -359,7 +361,7 @@ func normalizeRecentProjectFilters(raw json.RawMessage) (map[string][]string, er
 	filters := map[string][]string{}
 	total := 0
 	for key, values := range input {
-		if !allowedProjectFilterKeys[key] || len(values) == 0 || len(values) > ProjectFilterMaxPerFamily {
+		if !allowedRecentProjectFilterKeys[key] || len(values) == 0 || len(values) > ProjectFilterMaxPerFamily {
 			return nil, ErrSearchValidation
 		}
 		seen := map[string]bool{}
@@ -449,7 +451,7 @@ func ParseTopHashtagsRequest(r *http.Request) (TopHashtagsRequest, error) {
 	return TopHashtagsRequest{CraftTypes: crafts, Limit: limit}, nil
 }
 
-var allowedProjectFilterKeys = map[string]bool{
+var allowedRecentProjectFilterKeys = map[string]bool{
 	"craftType":         true,
 	"projectType":       true,
 	"patternDifficulty": true,
@@ -457,6 +459,20 @@ var allowedProjectFilterKeys = map[string]bool{
 	"material":          true,
 	"designTag":         true,
 	"projectTag":        true,
+}
+
+var allowedProjectBrowseFilterKeys = map[string]bool{
+	"craftType":         true,
+	"status":            true,
+	"projectType":       true,
+	"projectSubtype":    true,
+	"patternDifficulty": true,
+	"color":             true,
+	"designTag":         true,
+	"yarnWeight":        true,
+	"piecingTechnique":  true,
+	"quiltingMethod":    true,
+	"selfDrafted":       true,
 }
 
 var allowedProjectQueryKeys = map[string]bool{
@@ -488,7 +504,7 @@ func ParseProjectSearchRequest(r *http.Request) (ProjectSearchRequest, error) {
 func ParseProjectListRequest(r *http.Request) (ProjectListRequest, error) {
 	q := r.URL.Query()
 	for key := range q {
-		if key != "sort" && key != "limit" && key != "cursor" && !allowedProjectFilterKeys[key] {
+		if key != "sort" && key != "limit" && key != "cursor" && !allowedProjectBrowseFilterKeys[key] {
 			return ProjectListRequest{}, ErrSearchValidation
 		}
 	}
@@ -508,17 +524,21 @@ func ParseProjectListRequest(r *http.Request) (ProjectListRequest, error) {
 	if err != nil {
 		return ProjectListRequest{}, err
 	}
-	return ProjectListRequest{CraftTypes: filters["craftType"], Filters: filters, Sort: sort, Limit: limit, Cursor: cursor}, nil
+	selfDrafted, err := parseSelfDraftedFilter(q["selfDrafted"])
+	if err != nil {
+		return ProjectListRequest{}, err
+	}
+	return ProjectListRequest{CraftTypes: filters["craftType"], Filters: filters, SelfDrafted: selfDrafted, Sort: sort, Limit: limit, Cursor: cursor}, nil
 }
 
 func parseProjectBrowseFilters(q url.Values) (map[string][]string, error) {
 	filters := map[string][]string{}
 	total := 0
 	for key, values := range q {
-		if key == "sort" || key == "limit" || key == "cursor" {
+		if key == "sort" || key == "limit" || key == "cursor" || key == "selfDrafted" {
 			continue
 		}
-		if !allowedProjectFilterKeys[key] || len(values) == 0 || len(values) > ProjectFilterMaxPerFamily {
+		if !allowedProjectBrowseFilterKeys[key] || len(values) == 0 || len(values) > ProjectFilterMaxPerFamily {
 			return nil, ErrSearchValidation
 		}
 		if key == "craftType" {
@@ -548,6 +568,16 @@ func parseProjectBrowseFilters(q url.Values) (map[string][]string, error) {
 		return nil, ErrSearchValidation
 	}
 	return filters, nil
+}
+
+func parseSelfDraftedFilter(values []string) (bool, error) {
+	if len(values) == 0 {
+		return false, nil
+	}
+	if len(values) != 1 || !strings.EqualFold(strings.TrimSpace(values[0]), "true") {
+		return false, ErrSearchValidation
+	}
+	return true, nil
 }
 
 func NormalizeHashtagPathValue(raw string) (string, error) {

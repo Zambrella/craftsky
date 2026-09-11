@@ -453,7 +453,7 @@ func ListProjectsHandler(
 			r.Context(),
 			viewerDID.String(),
 			contentLanguages,
-			ProjectSearchRequest{Sort: req.Sort, Limit: req.Limit, Cursor: req.Cursor, Filters: req.Filters},
+			ProjectSearchRequest{Sort: req.Sort, Limit: req.Limit, Cursor: req.Cursor, Filters: req.Filters, SelfDrafted: req.SelfDrafted},
 			time.Now().UTC(),
 		)
 		if errors.Is(err, envelope.ErrInvalidCursor) {

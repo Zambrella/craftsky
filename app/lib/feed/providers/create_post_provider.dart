@@ -40,6 +40,7 @@ class CreatePost extends _$CreatePost {
   Future<Post?> create({
     required String text,
     required List<String> langs,
+    required bool sponsored,
     PostReply? reply,
     PostRef? quote,
     Project? project,
@@ -70,6 +71,7 @@ class CreatePost extends _$CreatePost {
       final created = await repo.create(
         text: text,
         langs: langs,
+        sponsored: sponsored,
         reply: reply,
         quote: quote,
         project: project,

@@ -34,7 +34,7 @@ Expiry uses the same standing-before-case/effect lock discipline. The stored pro
 
 | Area | Existing Pattern | Planned Change | Requirement IDs | Test IDs |
 |---|---|---|---|---|
-| Private persistence | Numbered `golang-migrate` SQL; current moderation stores use inline `pgx`. | Add migration `000069` with cases, associations, append-only events, projections, appeals, replay constraints, indexes, and notification-category constraints. Preserve all legacy rows without backfill. | FR-001, FR-006, FR-013, FR-036, NFR-001, RULE-003 | IT-001, IT-002, IT-020, REG-008 |
+| Private persistence | Numbered `golang-migrate` SQL; current moderation stores use inline `pgx`. | Add migration `000072` with cases, associations, append-only events, projections, appeals, replay constraints, indexes, and notification-category constraints. Preserve all legacy rows without backfill. | FR-001, FR-006, FR-013, FR-036, NFR-001, RULE-003 | IT-001, IT-002, IT-020, REG-008 |
 | Report intake | `api.ReportStore.CreateReport` owns one transaction and permits duplicate reports. | Attach every newly accepted report to the one open canonical-subject case inside the existing report transaction. | FR-001, FR-002, FR-029, RULE-007 | AT-009, IT-001, IT-002, REG-001 |
 | Domain policy | Existing dev moderation path couples validation and persistence. | Add pure reason/consequence/reference/standing/expiry/notification policy functions in `internal/moderation`. | FR-012 through FR-017, FR-027 through FR-034, RULE-001 through RULE-017 | UT-001 through UT-005, UT-008, UT-009, UT-012 |
 | Adjudication | No production case service exists. | Add source-neutral command service with replay fingerprints, optimistic case revisions, append-only events, partial reversal/reapplication, appeal, and restoration commands. | FR-005, FR-006, FR-011, FR-024, FR-025, FR-030, NFR-001, NFR-002 | AT-005, AT-006, AT-008, AT-010, IT-003 through IT-009, IT-019, IT-022 through IT-024 |
@@ -53,8 +53,8 @@ Expiry uses the same standing-before-case/effect lock discipline. The stored pro
 
 | Path / Module | Create / Change | Purpose | Requirement IDs | Test IDs |
 |---|---|---|---|---|
-| `appview/migrations/000069_moderation_cases.up.sql` | Create | Add moderation cases/events/effects/strikes/standing/appeals, report association, indexes/constraints, and `moderation` notification category support without legacy backfill. | FR-001, FR-006, FR-011, FR-013, FR-019, FR-024, FR-036, NFR-001 | IT-020, REG-008 |
-| `appview/migrations/000069_moderation_cases.down.sql` | Create | Remove only new moderation structures/category values in dependency-safe order; never mutate retained legacy report/output rows. | FR-036 | IT-020 |
+| `appview/migrations/000072_moderation_cases.up.sql` | Create | Add moderation cases/events/effects/strikes/standing/appeals, report association, indexes/constraints, and `moderation` notification category support without legacy backfill. | FR-001, FR-006, FR-011, FR-013, FR-019, FR-024, FR-036, NFR-001 | IT-020, REG-008 |
+| `appview/migrations/000072_moderation_cases.down.sql` | Create | Remove only new moderation structures/category values in dependency-safe order; never mutate retained legacy report/output rows. | FR-036 | IT-020 |
 | `appview/internal/moderation/reference.go` | Create | UUIDv4 `MOD-` parse/format/case-insensitive canonicalization. | FR-032 | UT-005, IT-025 |
 | `appview/internal/moderation/policy.go` | Create | Closed disposition, reason, consequence, reversal/reapplication, appeal, and notification validation. | FR-012, FR-027 through FR-031, FR-033, RULE-001, RULE-003, RULE-005, RULE-009, RULE-012 through RULE-017 | UT-002, UT-008, UT-009, UT-012 |
 | `appview/internal/moderation/standing.go` | Create | Strike due-date calculation and pure standing derivation from projections. | FR-013 through FR-017, FR-034, RULE-002, RULE-004, RULE-006 | UT-001, UT-003 |
@@ -107,7 +107,7 @@ Expiry uses the same standing-before-case/effect lock discipline. The stored pro
 
 ### Persistence Shape
 
-`000069_moderation_cases` should create these private structures:
+`000072_moderation_cases` should create these private structures:
 
 | Structure | Key invariants |
 |---|---|
@@ -379,7 +379,7 @@ Retool configuration remains external and manual. It uses only the documented ad
 | Order | Test ID | Target | Setup / Fixture | Initial Expected Failure |
 |---:|---|---|---|---|
 | 1 | UT-005 | `internal/moderation/reference_test.go` | UUIDv4 and malformed/mixed-case references. | No parser/formatter package exists. |
-| 2 | IT-020, REG-008 | `internal/db/moderation_cases_migration_test.go` | Pre-000069 schema with legacy reports/outputs. | Migration/tables/constraints/category do not exist. |
+| 2 | IT-020, REG-008 | `internal/db/moderation_cases_migration_test.go` | Pre-000072 schema with legacy reports/outputs. | Migration/tables/constraints/category do not exist. |
 | 3 | IT-001, IT-002, REG-001 | `internal/moderation/adjudication_service_integration_test.go`, existing report tests | `testdb.WithSchema`, concurrent barriers, resolved case. | Reports do not create or join cases. |
 | 4 | UT-002, UT-009 | `internal/moderation/policy_test.go`, `visibility_effects_test.go` | Full reason/disposition/consequence table. | Decision policy/types do not exist. |
 | 5 | IT-003, IT-004, IT-015, IT-022 | `internal/moderation/adjudication_service_integration_test.go` | Failure triggers, replay fingerprints, stale revisions, concurrent locks. | No atomic adjudication/replay/output bridge exists. |
@@ -419,7 +419,7 @@ cd app && flutter gen-l10n
 
 ## 10. Sequencing And Guardrails
 
-- First TDD step: Add `UT-005` for public case reference parsing/formatting, then add `IT-020` as the first PostgreSQL failure before writing migration `000069`.
+- First TDD step: Add `UT-005` for public case reference parsing/formatting, then add `IT-020` as the first PostgreSQL failure before writing migration `000072`.
 - Dependency order: reference types -> migration/invariants -> intake grouping -> decision policy/service -> standing/expiry -> appeals/effect changes -> admin/owner APIs -> suspension middleware -> notifications/preferences -> Flutter UI/routing -> observability/deletion -> release regression.
 - Transaction guardrail: No handler or adapter writes moderation tables directly. All coupled state changes use one service-owned transaction and the fixed lock order.
 - Audit guardrail: Never update/delete append-only case/effect events in ordinary operation. Projections may change only alongside a new event.

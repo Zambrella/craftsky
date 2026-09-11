@@ -222,7 +222,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			) AS actor_viewer_is_following,
 			e.activity_at,
 			e.indexed_at,
-			sp.uri, sp.did, sp.rkey, sp.cid, sp.text, sp.facets, sp.images,
+			sp.uri, sp.did, sp.rkey, sp.cid, sp.text, sp.sponsored, sp.facets, sp.images,
 			sp.reply_root_uri, sp.reply_root_cid, sp.reply_parent_uri, sp.reply_parent_cid,
 			sp.quote_uri, sp.quote_cid, sp.tags, sp.created_at, sp.indexed_at,
 			sp.external_import_source, sp.profile_sort_at,
@@ -267,7 +267,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			&subjectQuoteAvailable,
 			&actorDID, &caseReference, &row.ActorDisplayName, &row.ActorAvatarCID, &row.ActorAvatarMime, &row.ActorViewerIsFollowing,
 			&row.CreatedAt, &row.IndexedAt,
-			&subject.URI, &subject.DID, &subject.Rkey, &subject.CID, &subject.Text, &subject.Facets, &subject.Images,
+			&subject.URI, &subject.DID, &subject.Rkey, &subject.CID, &subject.Text, &subject.Sponsored, &subject.Facets, &subject.Images,
 			&subject.ReplyRootURI, &subject.ReplyRootCID, &subject.ReplyParentURI, &subject.ReplyParentCID,
 			&subject.QuoteURI, &subject.QuoteCID, &subject.Tags, &subject.CreatedAt, &subject.IndexedAt,
 			&subject.ExternalImportSource, &subject.ProfileSortAt,
@@ -342,6 +342,7 @@ type notificationSubjectScan struct {
 	Rkey                 sql.NullString
 	CID                  sql.NullString
 	Text                 sql.NullString
+	Sponsored            sql.NullBool
 	Facets               json.RawMessage
 	Images               json.RawMessage
 	ReplyRootURI         *string
@@ -370,6 +371,7 @@ func (s notificationSubjectScan) postRow() *PostRow {
 		Rkey:                 s.Rkey.String,
 		CID:                  s.CID.String,
 		Text:                 s.Text.String,
+		Sponsored:            s.Sponsored.Valid && s.Sponsored.Bool,
 		Facets:               s.Facets,
 		Images:               s.Images,
 		ReplyRootURI:         s.ReplyRootURI,

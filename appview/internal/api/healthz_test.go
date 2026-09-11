@@ -64,6 +64,22 @@ func TestHealthz_TapDisconnectedDegraded(t *testing.T) {
 	}
 }
 
+func TestHealthz_TapConnectedWithoutEventsDegraded(t *testing.T) {
+	t.Parallel()
+	h := api.NewHealthHandler(fakePinger{}, &fakeStater{state: tap.ConnState{Connected: true}})
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, httptest.NewRequest("GET", "/healthz", nil))
+
+	if rr.Code != 200 {
+		t.Fatalf("code = %d (degraded should still be 200)", rr.Code)
+	}
+	var body map[string]any
+	_ = json.NewDecoder(rr.Body).Decode(&body)
+	if body["status"] != "degraded" {
+		t.Errorf("status = %v", body["status"])
+	}
+}
+
 func TestHealthz_DBErrorDegraded(t *testing.T) {
 	t.Parallel()
 	h := api.NewHealthHandler(fakePinger{err: errors.New("ping failed")}, &fakeStater{state: tap.ConnState{Connected: true}})

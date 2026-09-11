@@ -48,18 +48,22 @@ func TestProfileCustomisationRouteUsesAuthenticatedCurrentMemberPolicy(t *testin
 		t.Fatalf("customisation route policy = %+v", policy)
 	}
 
-	migration, err := os.ReadFile("../../migrations/000036_profile_customisation.up.sql")
+	profileMigration, err := os.ReadFile("../../migrations/000036_profile_customisation.up.sql")
 	if err != nil {
-		t.Fatalf("read customisation migration: %v", err)
+		t.Fatalf("read profile customisation migration: %v", err)
 	}
-	pool := testdb.WithSchema(t, profileCustomisationRouteTestDDL+string(migration))
+	removeBorderMigration, err := os.ReadFile("../../migrations/000070_profile_customisation_remove_border.up.sql")
+	if err != nil {
+		t.Fatalf("read remove-border migration: %v", err)
+	}
+	pool := testdb.WithSchema(t, profileCustomisationRouteTestDDL+string(profileMigration)+string(removeBorderMigration))
 	deps := testDeps()
 	deps.DB = pool
 	deps.OwnerLifecycles = newRouteOwnerLifecycleStore(t, pool)
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, deps)
 
-	body := `{"colour":"orchid","profileBorder":"thin","profileBackground":"skewdark"}`
+	body := `{"colour":"orchid","profileBackground":"skewdark"}`
 	request := func(authenticated, device bool, devDID string) *httptest.ResponseRecorder {
 		t.Helper()
 		req := httptest.NewRequest(http.MethodPut, "/v1/profiles/me/customisation", strings.NewReader(body))
@@ -95,7 +99,7 @@ func TestProfileCustomisationRouteUsesAuthenticatedCurrentMemberPolicy(t *testin
 	if err := json.Unmarshal(response.Body.Bytes(), &got); err != nil {
 		t.Fatalf("decode valid response: %v", err)
 	}
-	want := api.ProfileCustomisation{Colour: "orchid", Border: "thin", Background: "skewdark"}
+	want := api.ProfileCustomisation{Colour: "orchid", Background: "skewdark"}
 	if got != want {
 		t.Fatalf("response = %+v, want %+v", got, want)
 	}

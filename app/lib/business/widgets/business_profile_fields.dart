@@ -127,13 +127,13 @@ class BusinessProfileFields extends StatelessWidget {
           enabled: enabled,
           maxSelected: 5,
           maxSelectedErrorText: l10n.editProfileBusinessTypesLimit,
-          options: [
+          options: alphabetizedSelectOptions([
             for (final value in BusinessLabels.businessTypes)
               CraftskySelectOption(
                 value: value.value,
                 label: BusinessLabels.openValue(value, l10n),
               ),
-          ],
+          ]),
         ),
         SizedBox(height: spacing.sp5),
         CraftskyFormBuilderMultiSelectField<String>(
@@ -144,13 +144,13 @@ class BusinessProfileFields extends StatelessWidget {
           enabled: enabled,
           maxSelected: 10,
           maxSelectedErrorText: l10n.editProfileBusinessOfferingsLimit,
-          options: [
+          options: alphabetizedSelectOptions([
             for (final value in BusinessLabels.offerings)
               CraftskySelectOption(
                 value: value.value,
                 label: BusinessLabels.openValue(value, l10n),
               ),
-          ],
+          ]),
         ),
         SizedBox(height: spacing.sp5),
         _TextField(
@@ -230,11 +230,13 @@ class BusinessProfileFields extends StatelessWidget {
               value: '',
               label: l10n.editProfileBusinessActionNone,
             ),
-            for (final action in BusinessLabels.actions)
-              CraftskySelectOption(
-                value: action,
-                label: BusinessLabels.action(action, l10n),
-              ),
+            ...alphabetizedSelectOptions([
+              for (final action in BusinessLabels.actions)
+                CraftskySelectOption(
+                  value: action,
+                  label: BusinessLabels.action(action, l10n),
+                ),
+            ]),
           ],
         ),
         SizedBox(height: spacing.sp5),

@@ -60,7 +60,8 @@ func TestDecodeAndValidateLinkPreviewAndExternalRequests(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			request, err := api.DecodePostCreate(strings.NewReader(tt.body))
+			body := strings.Replace(tt.body, `{"text":`, `{"sponsored":false,"text":`, 1)
+			request, err := api.DecodePostCreate(strings.NewReader(body))
 			if err == nil {
 				err = api.ValidatePostCreate(request)
 			}

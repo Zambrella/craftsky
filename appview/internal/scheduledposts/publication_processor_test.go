@@ -29,7 +29,7 @@ func TestIT016PublicationRecordUsesFrozenExternalAndPredictedThumbnail(t *testin
 		"mimeType": "image/png", "size": int64(3),
 	}
 	record, err := publicationRecord(Payload{
-		Kind: PostKindStandard, Text: "pattern",
+		Kind: PostKindStandard, Text: "pattern", Sponsored: true,
 		External: &PayloadExternal{
 			SourceURI: "https://source.example/pattern",
 			URI:       "https://final.example/pattern#section", Title: "Frozen title",
@@ -38,6 +38,9 @@ func TestIT016PublicationRecordUsesFrozenExternalAndPredictedThumbnail(t *testin
 	}, []map[string]any{blob}, time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatalf("publicationRecord() error = %v", err)
+	}
+	if record["sponsored"] != true {
+		t.Fatalf("sponsored = %#v, want true", record["sponsored"])
 	}
 	embed, ok := record["embed"].(map[string]any)
 	if !ok || embed["$type"] != "app.bsky.embed.external" {

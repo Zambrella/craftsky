@@ -3,7 +3,7 @@ flutter_native_splash:
   ios: true
   web: false
 
-  color: "#1535D6"
+  color: "#EFE7D6"
   color_dark: "#24201D"
   image: assets/app-icon/app-icon-light.png
   image_dark: assets/app-icon/app-icon-dark.png
@@ -13,7 +13,7 @@ flutter_native_splash:
   ios_content_mode: center
 
   android_12:
-    color: "#1535D6"
+    color: "#EFE7D6"
     color_dark: "#24201D"
     image: assets/app-icon/android-icon-foreground.png
     image_dark: assets/app-icon/android-splash-dark.png

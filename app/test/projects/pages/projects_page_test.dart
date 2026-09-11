@@ -13,6 +13,7 @@ import 'package:craftsky_app/projects/providers/project_repository_provider.dart
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
+import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -34,6 +35,7 @@ Post _post(int index) => PostMapper.fromMap({
   'viewerHasLiked': false,
   'viewerHasReposted': false,
   'viewerHasSaved': false,
+  'sponsored': false,
   'createdAt': '2026-05-04T18:23:45.000Z',
   'indexedAt': '2026-05-04T18:23:47.000Z',
   'author': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},
@@ -115,6 +117,70 @@ void main() {
     expect(find.widgetWithText(OutlinedButton, 'Filters'), findsNothing);
     expect(CraftskyIconsBold.filter, PhosphorIconsBold.funnelSimple);
     expect(find.byIcon(CraftskyIconsBold.filter), findsOneWidget);
+  });
+
+  testWidgets('filter sheet orders and enables dependent controls', (
+    tester,
+  ) async {
+    await _pumpProjects(
+      tester,
+      FakeProjectRepository(
+        onListProjects: ({required query, limit, cursor}) async =>
+            const PostPage(items: []),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Filters'));
+    await tester.pumpAndSettle();
+
+    CraftskySearchableMultiSelectInput<String> subtypeInput() => tester.widget(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is CraftskySearchableMultiSelectInput<String> &&
+            widget.label == 'Project subtype',
+      ),
+    );
+    CraftskySearchableMultiSelectInput<String> inputWithLabel(String label) =>
+        tester.widget(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is CraftskySearchableMultiSelectInput<String> &&
+                widget.label == label,
+          ),
+        );
+    void expectAlphabetical(String label) {
+      final labels = [
+        for (final option in inputWithLabel(label).options) option.label,
+      ];
+      expect(labels, [...labels]..sort());
+    }
+
+    expect(find.text('Project subtype'), findsOneWidget);
+    expect(subtypeInput().enabled, isFalse);
+    expectAlphabetical('Project type');
+
+    await tester.tap(find.byKey(const Key('Project type-select-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(CheckboxListTile, 'Garment'));
+    await tester.pumpAndSettle();
+
+    expect(subtypeInput().enabled, isTrue);
+    expectAlphabetical('Project subtype');
+
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, -1000));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Design'), findsOneWidget);
+    expect(find.text('Design tag'), findsNothing);
+    expectAlphabetical('Color');
+    expectAlphabetical('Design');
+    expect(
+      tester.getTopLeft(find.text('Status')).dy,
+      lessThan(tester.getTopLeft(find.text('Self drafted')).dy),
+    );
   });
 
   testWidgets('each active project list refreshes, including empty data', (
@@ -281,11 +347,9 @@ void main() {
 
     await tester.tap(find.text('Filters'));
     await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('Material-custom-input')),
-      'alpaca',
-    );
-    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.drag(find.byType(ListView).last, const Offset(0, -1000));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(CheckboxListTile, 'Self drafted'));
     await tester.pump();
     tester
         .widget<FilledButton>(
@@ -305,11 +369,9 @@ void main() {
 
     await tester.tap(find.text('Filters'));
     await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('Material-custom-input')),
-      'cotton',
-    );
-    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.drag(find.byType(ListView).last, const Offset(0, -1000));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(CheckboxListTile, 'Self drafted'));
     await tester.pump();
     tester
         .widget<FilledButton>(

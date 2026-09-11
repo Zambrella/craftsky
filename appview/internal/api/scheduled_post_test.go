@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -25,7 +26,7 @@ func TestScheduledPostCreateIsOwnerDerivedAndIdempotent(t *testing.T) {
 	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
 	handler := CreateScheduledPostHandler(store, DefaultMediaLimits(), func() time.Time { return now }, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	operationID := "00000000-0000-4000-8000-000000000601"
-	body := `{"operationId":"` + operationID + `","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"standard","text":"private scheduled text","langs":["en"]}}`
+	body := `{"operationId":"` + operationID + `","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"standard","text":"private scheduled text","sponsored":true,"langs":["en"]}}`
 
 	first := serveScheduledPostRequest(t, handler, http.MethodPost, "/v1/scheduled-posts", body, "did:plc:alice")
 	if first.Code != http.StatusCreated {
@@ -37,6 +38,10 @@ func TestScheduledPostCreateIsOwnerDerivedAndIdempotent(t *testing.T) {
 	}
 	if firstBody["id"] == "" || firstBody["status"] != "scheduled" || firstBody["operationId"] != operationID {
 		t.Fatalf("first response=%v", firstBody)
+	}
+	payload := firstBody["payload"].(map[string]any)
+	if payload["sponsored"] != true {
+		t.Fatalf("first response sponsored = %#v, want true", payload["sponsored"])
 	}
 
 	second := serveScheduledPostRequest(t, handler, http.MethodPost, "/v1/scheduled-posts", body, "did:plc:alice")
@@ -313,6 +318,7 @@ func serveScheduledPostRequest(
 	owner syntax.DID,
 ) *httptest.ResponseRecorder {
 	t.Helper()
+	body = ensureScheduledSponsored(body)
 	request := httptest.NewRequest(method, path, bytes.NewBufferString(body))
 	request.Header.Set("Content-Type", "application/json")
 	request = request.WithContext(middleware.WithDID(request.Context(), owner))
@@ -330,6 +336,7 @@ func serveScheduledPostPathRequest(
 	owner syntax.DID,
 ) *httptest.ResponseRecorder {
 	t.Helper()
+	body = ensureScheduledSponsored(body)
 	request := httptest.NewRequest(method, "/v1/scheduled-posts/"+id, bytes.NewBufferString(body))
 	request.SetPathValue("id", id)
 	request.Header.Set("Content-Type", "application/json")
@@ -337,6 +344,13 @@ func serveScheduledPostPathRequest(
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(recorder, request)
 	return recorder
+}
+
+func ensureScheduledSponsored(body string) string {
+	if body == "" || strings.Contains(body, `"sponsored"`) {
+		return body
+	}
+	return strings.Replace(body, `"payload":{`, `"payload":{"sponsored":false,`, 1)
 }
 
 func assertScheduledPostError(t *testing.T, recorder *httptest.ResponseRecorder, code string) {

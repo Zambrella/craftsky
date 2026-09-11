@@ -91,7 +91,7 @@ appview prod   # loads environments/prod.env, info logging, (future) real OAuth
 cli ping --env dev              # pings the DB, prints pool stats
 cli migrate up|down|status|redo # wraps golang-migrate/v4
 cli request GET /v1/whoami --env dev  # hits the running server as the dev DID
-cli tap status --env dev           # prints tap connection state (exit 0 connected, 1 disconnected, 2 transport)
+cli tap status --env dev           # prints connection/event/cursor state (exit 0 receiving, 1 disconnected/no events, 2 transport)
 cli did-resolve alice.bsky.social --env dev       # stub until the identity resolver lands
 ```
 
@@ -606,7 +606,7 @@ You should see the row at the top. If it doesn't appear within a few
 seconds:
 
 ```bash
-# Confirm the appview's Tap consumer is connected.
+# Confirm the AppView consumer has received events and inspect Tap's cursor.
 just tap-status
 
 # Confirm you're a member.
@@ -617,9 +617,13 @@ just psql -c "SELECT did FROM craftsky_profiles WHERE did = 'YOUR_DID';"
 goat record ls --collection social.craftsky.feed.post YOUR_HANDLE
 ```
 
-If `goat record ls` shows the record but `craftsky_posts` is empty, the
-membership gate is the most likely culprit — the indexer drops
-non-member posts silently. Re-onboard via the OAuth flow.
+If `goat record ls` shows the record but `craftsky_posts` is empty, check
+whether `tap-status` reports no events or a slowly advancing historical
+cursor. Tap may still be replaying its durable relay backlog. For a tracked
+member whose PDS is ahead of AppView, queue a scoped read-only repair with
+`docker compose exec appview /app/cli tap reconcile YOUR_DID`. If Tap is
+current, the membership gate is the next likely culprit — re-onboard via
+the OAuth flow.
 
 ### Editing and deleting test records
 

@@ -11,7 +11,8 @@ export 'package:craftsky_app/theme/craftsky_select_inputs.dart'
         CraftskySearchableMultiSelectInput,
         CraftskySelectOption,
         CraftskySingleSelectInput,
-        CraftskyTokenInput;
+        CraftskyTokenInput,
+        alphabetizedSelectOptions;
 
 class CraftskyFormBuilderDropdownField<T>
     extends CraftskyFormSingleSelectField<T> {

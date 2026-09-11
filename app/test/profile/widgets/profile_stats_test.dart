@@ -42,13 +42,13 @@ void main() {
       );
 
       expect(find.text('1y'), findsOneWidget);
-      expect(find.text('here'), findsOneWidget);
+      expect(find.text('Joined'), findsOneWidget);
       expect(find.text('2 posts'), findsOneWidget);
-      expect(find.text('7 days'), findsOneWidget);
+      expect(find.text('Last 7 days'), findsOneWidget);
       expect(find.text('5'), findsNothing);
       expect(find.text('posts'), findsNothing);
       expect(find.text('0'), findsOneWidget);
-      expect(find.text('projects'), findsOneWidget);
+      expect(find.text('Projects'), findsOneWidget);
       expect(find.text('followers'), findsNothing);
       expect(find.text('following'), findsNothing);
       expect(find.text('9'), findsNothing);
@@ -56,6 +56,30 @@ void main() {
       expect(find.byIcon(CraftskyIcons.date), findsOneWidget);
       expect(find.byIcon(CraftskyIcons.edit), findsOneWidget);
       expect(find.byIcon(CraftskyIcons.projectCount), findsOneWidget);
+    });
+
+    testWidgets('uses the singular project label for one project', (
+      tester,
+    ) async {
+      final profile = Profile(
+        did: 'did:plc:alice',
+        handle: 'alice.craftsky.social',
+        crafts: const [],
+        projectCount: 1,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(body: ProfileStats(profile: profile)),
+        ),
+      );
+
+      expect(find.text('1'), findsOneWidget);
+      expect(find.text('Project'), findsOneWidget);
+      expect(find.text('Projects'), findsNothing);
     });
 
     testWidgets('hides account age for non-CraftSky profiles', (tester) async {
@@ -76,7 +100,7 @@ void main() {
         ),
       );
 
-      expect(find.text('here'), findsNothing);
+      expect(find.text('Joined'), findsNothing);
     });
   });
 }

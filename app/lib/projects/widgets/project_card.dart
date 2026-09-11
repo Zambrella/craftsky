@@ -1,3 +1,4 @@
+import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/options/project_option.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
@@ -44,10 +45,14 @@ class _ProjectSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final title = _nonBlank(project.common.title);
     final status = _nonBlank(project.common.status);
-    final pattern = _patternValue(project.common.pattern);
+    final pattern = _patternValue(
+      project.common.pattern,
+      l10n.projectPatternSelfDraftedLabel,
+    );
     final size = _sizeMetadata(project.details);
     final headlineStyle = theme.textTheme.headlineSmall;
     final titleStyle = theme.textTheme.displaySmall?.copyWith(
@@ -104,12 +109,18 @@ class _ProjectDetail extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
     final spacing = theme.extension<SpacingTheme>()!;
     final title = _nonBlank(project.common.title);
     final rows = _detailRows(project);
     final materials = _materialValues(project.common.materials);
     final chipSections = _chipSections(project.common);
-    final hasPattern = _patternValue(project.common.pattern) != null;
+    final hasPattern =
+        _patternValue(
+          project.common.pattern,
+          l10n.projectPatternSelfDraftedLabel,
+        ) !=
+        null;
 
     return Column(
       key: const ValueKey('project-detail-card'),
@@ -444,6 +455,10 @@ class _ProjectPatternMetadataRow extends StatelessWidget {
     final designer = _nonBlank(pattern.designer);
     final publisher = _nonBlank(pattern.publisher);
     final trailingCredits = [designer, publisher].whereType<String>().toList();
+    final selfDrafted = pattern.selfDrafted == true;
+    final selfDraftedLabel = AppLocalizations.of(
+      context,
+    ).projectPatternSelfDraftedLabel;
 
     return Padding(
       padding: EdgeInsets.only(bottom: spacing.sp1),
@@ -484,6 +499,9 @@ class _ProjectPatternMetadataRow extends StatelessWidget {
                     facets: pattern.publisherFacets,
                     style: valueStyle,
                   ),
+                if (selfDrafted && (name != null || trailingCredits.isNotEmpty))
+                  Text(' · ', style: valueStyle),
+                if (selfDrafted) Text(selfDraftedLabel, style: valueStyle),
               ],
             ),
           ),
@@ -744,12 +762,12 @@ String _tokenFallbackLabel(String value) {
       .join(' ');
 }
 
-String? _patternValue(ProjectPattern? pattern) {
+String? _patternValue(ProjectPattern? pattern, String selfDraftedLabel) {
   if (pattern == null) return null;
   final name = _nonBlank(pattern.name);
   final designer = _nonBlank(pattern.designer);
   final publisher = _nonBlank(pattern.publisher);
-  return switch ((name, designer, publisher)) {
+  final value = switch ((name, designer, publisher)) {
     (final String name, final String designer, final String publisher) =>
       '$name by $designer, $publisher',
     (final String name, final String designer, null) => '$name by $designer',
@@ -761,6 +779,8 @@ String? _patternValue(ProjectPattern? pattern) {
     (null, null, final String publisher) => publisher,
     _ => null,
   };
+  if (pattern.selfDrafted != true) return value;
+  return value == null ? selfDraftedLabel : '$value · $selfDraftedLabel';
 }
 
 _ProjectSizeMetadata? _sizeMetadata(ProjectDetails? details) {

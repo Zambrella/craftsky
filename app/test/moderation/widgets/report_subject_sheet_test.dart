@@ -64,11 +64,11 @@ void main() {
         tester
             .widget<TextButton>(find.widgetWithText(TextButton, 'Submit'))
             .onPressed,
-        isNull,
+        isNotNull,
       );
     });
 
-    testWidgets('lists approved reasons and blocks submit until valid', (
+    testWidgets('lists approved reasons and validates when submitted', (
       tester,
     ) async {
       ReportSubmission? submitted;
@@ -88,7 +88,25 @@ void main() {
         tester
             .widget<TextButton>(find.widgetWithText(TextButton, 'Submit'))
             .onPressed,
-        isNull,
+        isNotNull,
+      );
+
+      await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+      await tester.pump();
+
+      expect(submitted, isNull);
+      expect(
+        tester
+            .state<
+              FormBuilderFieldState<
+                FormBuilderField<ReportReason>,
+                ReportReason
+              >
+            >(
+              find.byType(FormBuilderRadioGroup<ReportReason>),
+            )
+            .errorText,
+        isNotNull,
       );
 
       await tester.tap(find.text('Spam'));
@@ -107,12 +125,15 @@ void main() {
       expect(submitted?.details, isNull);
     });
 
-    testWidgets('details over 1000 characters disables submit', (tester) async {
+    testWidgets('details over 1000 characters block submission on press', (
+      tester,
+    ) async {
+      var submissions = 0;
       await _pump(
         tester,
         ReportSubjectSheet(
           subjectType: ReportSubjectType.profile,
-          onSubmit: (_) async {},
+          onSubmit: (_) async => submissions++,
         ),
       );
 
@@ -128,8 +149,13 @@ void main() {
         tester
             .widget<TextButton>(find.widgetWithText(TextButton, 'Submit'))
             .onPressed,
-        isNull,
+        isNotNull,
       );
+
+      await tester.tap(find.widgetWithText(TextButton, 'Submit'));
+      await tester.pump();
+
+      expect(submissions, 0);
     });
 
     testWidgets('reason list does not paint a filled input background', (

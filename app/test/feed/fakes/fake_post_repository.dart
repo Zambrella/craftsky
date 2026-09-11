@@ -149,11 +149,13 @@ class FakePostRepository implements PostRepository {
   CreatePostExternal? lastCreateExternal;
   CreatePostVideo? lastCreateVideo;
   List<String>? lastCreateLangs;
+  bool? lastCreateSponsored;
 
   @override
   Future<Post> create({
     required String text,
     required List<String> langs,
+    required bool sponsored,
     PostReply? reply,
     PostRef? quote,
     Project? project,
@@ -166,6 +168,7 @@ class FakePostRepository implements PostRepository {
     lastCreateExternal = external;
     lastCreateVideo = video;
     lastCreateLangs = List.unmodifiable(langs);
+    lastCreateSponsored = sponsored;
     return onCreateWithFacets?.call(
           text: text,
           reply: reply,

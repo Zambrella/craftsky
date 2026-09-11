@@ -50,7 +50,7 @@ func TestScheduledHandlerCaptureExcludesPrivateCanaries(t *testing.T) {
 		create,
 		http.MethodPost,
 		"/v1/scheduled-posts",
-		`{"operationId":"00000000-0000-4000-8000-000000000781","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"standard","text":"private-scheduled-text-canary","langs":["en"]}}`,
+		`{"operationId":"00000000-0000-4000-8000-000000000781","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"standard","text":"private-scheduled-text-canary","sponsored":false,"langs":["en"]}}`,
 		owner,
 	)
 	if created.Code != http.StatusInternalServerError {
@@ -67,7 +67,7 @@ func TestScheduledHandlerCaptureExcludesPrivateCanaries(t *testing.T) {
 		update,
 		http.MethodPut,
 		id,
-		`{"scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"standard","text":"private-scheduled-text-canary","langs":["en"]}}`,
+		`{"scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"standard","text":"private-scheduled-text-canary","sponsored":false,"langs":["en"]}}`,
 		owner,
 	)
 	if edited.Code != http.StatusInternalServerError {
@@ -163,7 +163,7 @@ func TestIR017ScheduledSaveLifecycleExcludesCanariesFromApplicableSinks(t *testi
 	request := httptest.NewRequest(
 		http.MethodPost,
 		"/v1/scheduled-posts",
-		strings.NewReader(`{"operationId":"00000000-0000-4000-8000-000000000791","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"standard","text":"`+canaries[0]+`","langs":["en"]}}`),
+		strings.NewReader(`{"operationId":"00000000-0000-4000-8000-000000000791","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"standard","text":"`+canaries[0]+`","sponsored":false,"langs":["en"]}}`),
 	)
 	request.Header.Set("Authorization", "Bearer "+canaries[2])
 	request.Header.Set("X-Craftsky-Device-Id", canaries[3])

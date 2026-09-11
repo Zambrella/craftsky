@@ -7,10 +7,12 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
+import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
 import 'package:craftsky_app/settings/pages/profile_customisation_page.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -80,8 +82,15 @@ Future<void> _pumpRoutedPage(
   await tester.pumpAndSettle();
 }
 
+Future<void> _tapChoice(WidgetTester tester, String label) async {
+  final choice = find.widgetWithText(ChoiceChip, label);
+  await tester.ensureVisible(choice);
+  await tester.tap(choice);
+  await tester.pump();
+}
+
 void main() {
-  testWidgets('edits a live local preview and saves all three choices', (
+  testWidgets('edits a live local preview and saves both choices', (
     tester,
   ) async {
     ProfileCustomisation? submitted;
@@ -121,7 +130,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Colour'), findsOneWidget);
-    expect(find.text('Profile border'), findsOneWidget);
+    expect(find.text('Profile border'), findsNothing);
     expect(find.text('Profile background'), findsOneWidget);
     expect(find.text('Green'), findsOneWidget);
     expect(find.text('Lime'), findsNothing);
@@ -135,17 +144,24 @@ void main() {
       tester.widget<ProfileAvatar>(find.byType(ProfileAvatar)).showShadow,
       isFalse,
     );
-    await tester.tap(find.text('Ink'));
-    await tester.tap(find.text('Thick'));
+    expect(find.widgetWithText(ChunkyButton, 'Save'), findsOneWidget);
+    final cobaltChip = tester.widget<ChoiceChip>(
+      find.widgetWithText(ChoiceChip, 'Cobalt'),
+    );
+    expect(
+      cobaltChip.color?.resolve({WidgetState.selected}),
+      profileColour(profileColourBundles['cobalt']!.base),
+    );
+    await _tapChoice(tester, 'Ink');
     final scrollable = find.byType(Scrollable).first;
     await tester.scrollUntilVisible(
-      find.widgetWithText(ChoiceChip, 'Crosshatch'),
+      find.widgetWithText(ChoiceChip, 'Crochet'),
       300,
       scrollable: scrollable,
     );
     await tester.drag(scrollable, const Offset(0, -120));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ChoiceChip, 'Crosshatch'));
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Crochet'));
     await tester.drag(
       scrollable,
       const Offset(0, 1000),
@@ -157,26 +173,25 @@ void main() {
     );
     final border = (avatar.decoration! as BoxDecoration).border! as Border;
     expect(border.top.color, const Color(0xFF161210));
-    expect(border.top.width, 8);
+    expect(border.top.width, 5);
     expect(
       find.byKey(const Key('profile-header-background-texture')),
       findsOneWidget,
     );
 
     await tester.scrollUntilVisible(
-      find.text('Save'),
+      find.widgetWithText(ChunkyButton, 'Save'),
       300,
       scrollable: scrollable,
     );
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
     await tester.pumpAndSettle();
 
     expect(
       submitted,
       const ProfileCustomisation(
         colour: 'ink',
-        border: 'thick',
-        background: 'x2',
+        background: 'craft-crochet',
       ),
     );
     expect(messenger.calls.last.$2, 'Profile customisation saved');
@@ -213,13 +228,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Rose'));
+    await _tapChoice(tester, 'Rose');
     await tester.scrollUntilVisible(
-      find.text('Save'),
+      find.widgetWithText(ChunkyButton, 'Save'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
     await tester.pumpAndSettle();
 
     expect(find.widgetWithText(ChoiceChip, 'Rose'), findsOneWidget);
@@ -241,8 +256,8 @@ void main() {
 
     await tester.tap(find.text('Open customisation'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Rose'));
-    await tester.tap(find.text('Cobalt'));
+    await _tapChoice(tester, 'Rose');
+    await _tapChoice(tester, 'Cobalt');
     await tester.pageBack();
     await tester.pumpAndSettle();
     expect(find.text('Open customisation'), findsOneWidget);
@@ -250,13 +265,13 @@ void main() {
 
     await tester.tap(find.text('Open customisation'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Rose'));
+    await _tapChoice(tester, 'Rose');
     await tester.scrollUntilVisible(
-      find.text('Save'),
+      find.widgetWithText(ChunkyButton, 'Save'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
     await tester.pumpAndSettle();
     await tester.pageBack();
     await tester.pumpAndSettle();
@@ -268,7 +283,7 @@ void main() {
     tester,
   ) async {
     await _pumpRoutedPage(tester);
-    await tester.tap(find.text('Rose'));
+    await _tapChoice(tester, 'Rose');
     await tester.pump();
 
     await tester.pageBack();
@@ -306,14 +321,14 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Teal'));
+    await _tapChoice(tester, 'Teal');
     await tester.scrollUntilVisible(
-      find.text('Save'),
+      find.widgetWithText(ChunkyButton, 'Save'),
       300,
       scrollable: find.byType(Scrollable).first,
     );
-    await tester.tap(find.text('Save'));
-    await tester.tap(find.text('Save'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
+    await tester.tap(find.widgetWithText(ChunkyButton, 'Save'));
     await tester.pump();
 
     expect(calls, 1);
@@ -391,13 +406,16 @@ void main() {
         20,
         21,
         22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
         30,
         31,
-        32,
-        33,
-        34,
-        35,
-        36,
+        40,
       ]),
     );
     await tester.scrollUntilVisible(
@@ -407,7 +425,7 @@ void main() {
     );
     final saveOrder = tester.widget<FocusTraversalOrder>(
       find.ancestor(
-        of: find.widgetWithText(FilledButton, 'Save'),
+        of: find.widgetWithText(ChunkyButton, 'Save'),
         matching: find.byType(FocusTraversalOrder),
       ),
     );

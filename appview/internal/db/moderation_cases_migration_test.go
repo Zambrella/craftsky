@@ -123,11 +123,11 @@ INSERT INTO notification_events(
 `
 
 func TestModerationCasesMigrationPreservesLegacyDataAndEnforcesInvariants(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000069_moderation_cases.up.sql")
+	up, err := os.ReadFile("../../migrations/000072_moderation_cases.up.sql")
 	if err != nil {
 		t.Fatalf("read up migration: %v", err)
 	}
-	down, err := os.ReadFile("../../migrations/000069_moderation_cases.down.sql")
+	down, err := os.ReadFile("../../migrations/000072_moderation_cases.down.sql")
 	if err != nil {
 		t.Fatalf("read down migration: %v", err)
 	}

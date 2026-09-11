@@ -63,9 +63,9 @@
 
 - Write failing test: Add migration/legacy-preservation test against a pre-feature schema and explicit database invariants.
 - Run command: `just dev-d && just test`
-- Confirmed failure: Focused test failed because `000069_moderation_cases.up.sql` did not exist.
+- Confirmed failure: Focused test failed because `000072_moderation_cases.up.sql` did not exist.
 - Implement: Added paired migration files for report-origin cases, append-only commands/decisions/effects, active projections, one logical strike, independent account-standing bases, correspondence/appeals, and actorless moderation notification/category constraints.
-- Run command: `TEST_DATABASE_URL="postgres://craftsky:dev@localhost:15720/craftsky_dev?sslmode=disable" TEST_DATABASE_REQUIRED=true go test ./internal/db -run TestModerationCasesMigrationPreservesLegacyDataAndEnforcesInvariants -count=1` passed. `just dev-d` also built the app and applied the full migration chain through `000069` successfully.
+- Run command: `TEST_DATABASE_URL="postgres://craftsky:dev@localhost:15720/craftsky_dev?sslmode=disable" TEST_DATABASE_REQUIRED=true go test ./internal/db -run TestModerationCasesMigrationPreservesLegacyDataAndEnforcesInvariants -count=1` passed. `just dev-d` also built the app and applied the full migration chain through `000072` successfully.
 - Refactor: Kept lifecycle invariants in named tables/indexes and reversible notification constraints while green.
 - Notes: The test proves old reports, outputs, and Instagram notifications survive without synthetic cases/effects/standing/appeals; down/up remains valid.
 

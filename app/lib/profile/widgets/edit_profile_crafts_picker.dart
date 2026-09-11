@@ -48,10 +48,6 @@ class EditProfileCraftsPicker extends StatelessWidget {
   }
 }
 
-/// Selectable variant of the profile-page craft pill. Selected state
-/// fills the chip with the brand primary; unselected stays paper-on-
-/// paper. Both share the chunky 1.5px ink border so the row reads as a
-/// cohesive group.
 class _CraftChoiceChip extends StatelessWidget {
   const _CraftChoiceChip({
     required this.craft,
@@ -65,46 +61,17 @@ class _CraftChoiceChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final swatches = theme.extension<BrandSwatchTheme>()!;
-    final spacing = theme.extension<SpacingTheme>()!;
-    final radii = theme.extension<RadiusTheme>()!;
+    final spacing = Theme.of(context).extension<SpacingTheme>()!;
     final l10n = AppLocalizations.of(context);
 
-    final background = isSelected ? theme.colorScheme.primary : swatches.paper3;
-    final foreground = isSelected
-        ? theme.colorScheme.onPrimary
-        : theme.colorScheme.onSurface;
-
-    return Semantics(
-      button: true,
+    return FilterChip(
       selected: isSelected,
-      excludeSemantics: true,
-      label: craftLabel(craft, l10n),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(radii.rPill),
-        child: Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: spacing.sp3,
-            vertical: 6,
-          ),
-          decoration: BoxDecoration(
-            color: background,
-            borderRadius: BorderRadius.circular(radii.rPill),
-            border: Border.all(
-              color: theme.colorScheme.onSurface,
-              width: 1.5,
-            ),
-          ),
-          child: CraftIconLabel(
-            craft: craft.id,
-            label: craftLabel(craft, l10n),
-            gap: spacing.sp1,
-            flexibleLabel: true,
-            style: theme.textTheme.labelMedium?.copyWith(color: foreground),
-          ),
-        ),
+      onSelected: (_) => onTap(),
+      label: CraftIconLabel(
+        craft: craft.id,
+        label: craftLabel(craft, l10n),
+        gap: spacing.sp1,
+        flexibleLabel: true,
       ),
     );
   }

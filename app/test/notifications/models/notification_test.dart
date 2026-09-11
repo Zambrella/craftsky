@@ -26,6 +26,7 @@ void main() {
     'viewerHasLiked': false,
     'viewerHasReposted': false,
     'viewerHasSaved': false,
+    'sponsored': false,
     'viewerHasReplied': false,
     'createdAt': '2026-05-28T12:00:00Z',
     'indexedAt': '2026-05-28T12:00:01Z',

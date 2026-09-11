@@ -21,6 +21,18 @@ import '../fakes/fake_post_repository.dart';
 
 void main() {
   group('PostComposerSheet facets', () {
+    testWidgets('blank post stays actionable and validates on press', (
+      tester,
+    ) async {
+      await _openComposer(tester);
+      await _pumpUntilPostEnabled(tester);
+
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
+      await tester.pump();
+
+      expect(find.text('Add something to your post.'), findsOneWidget);
+    });
+
     testWidgets('AT-001 submits generated mention, link, and tag facets', (
       tester,
     ) async {
@@ -209,6 +221,7 @@ Post _post(String text) {
     viewerHasLiked: false,
     viewerHasReposted: false,
     viewerHasSaved: false,
+    sponsored: false,
     createdAt: DateTime(2026, 5, 22, 12),
     indexedAt: DateTime(2026, 5, 22, 12, 1),
     author: PostAuthor(did: 'did:plc:alice', handle: 'alice.example'),

@@ -30,6 +30,7 @@ import (
 const videoPostFlowDDL = indexerWiringDDL + `
 ALTER TABLE craftsky_posts
     ADD COLUMN langs TEXT[] NOT NULL DEFAULT '{}',
+	ADD COLUMN sponsored BOOLEAN NOT NULL DEFAULT false,
     ADD COLUMN is_project BOOLEAN NOT NULL DEFAULT false,
     ADD COLUMN project_craft_type TEXT,
     ADD COLUMN external_import_source TEXT,
@@ -151,7 +152,7 @@ func TestVideoPostCreateTapReadConvergence(t *testing.T) {
 		logger,
 		api.CreatePostHandlerOptions{VideoCompletionVerifier: verifier},
 	)
-	body := `{"text":"video post","langs":["en"],"embed":{"video":{"jobId":"job-1","blob":{"$type":"blob","ref":{"$link":"` + videoCID.String() + `"},"mimeType":"video/mp4","size":123},"alt":"Hands knitting","aspectRatio":{"width":16,"height":9}}}}`
+	body := `{"text":"video post","sponsored":false,"langs":["en"],"embed":{"video":{"jobId":"job-1","blob":{"$type":"blob","ref":{"$link":"` + videoCID.String() + `"},"mimeType":"video/mp4","size":123},"alt":"Hands knitting","aspectRatio":{"width":16,"height":9}}}}`
 	request := httptest.NewRequest(http.MethodPost, "/v1/posts", strings.NewReader(body))
 	request = request.WithContext(middleware.WithOwnerGeneration(middleware.WithDID(request.Context(), owner), 1))
 	recorder := httptest.NewRecorder()

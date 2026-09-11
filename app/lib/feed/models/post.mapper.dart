@@ -96,6 +96,8 @@ class PostMapper extends ClassMapperBase<Post> {
     'viewerHasSaved',
     _$viewerHasSaved,
   );
+  static bool _$sponsored(Post v) => v.sponsored;
+  static const Field<Post, bool> _f$sponsored = Field('sponsored', _$sponsored);
   static List<String> _$langs(Post v) => v.langs;
   static const Field<Post, List<String>> _f$langs = Field(
     'langs',
@@ -212,6 +214,7 @@ class PostMapper extends ClassMapperBase<Post> {
     #viewerHasLiked: _f$viewerHasLiked,
     #viewerHasReposted: _f$viewerHasReposted,
     #viewerHasSaved: _f$viewerHasSaved,
+    #sponsored: _f$sponsored,
     #langs: _f$langs,
     #quoteCount: _f$quoteCount,
     #viewerHasReplied: _f$viewerHasReplied,
@@ -250,6 +253,7 @@ class PostMapper extends ClassMapperBase<Post> {
       viewerHasLiked: data.dec(_f$viewerHasLiked),
       viewerHasReposted: data.dec(_f$viewerHasReposted),
       viewerHasSaved: data.dec(_f$viewerHasSaved),
+      sponsored: data.dec(_f$sponsored),
       langs: data.dec(_f$langs),
       quoteCount: data.dec(_f$quoteCount),
       viewerHasReplied: data.dec(_f$viewerHasReplied),
@@ -353,6 +357,7 @@ abstract class PostCopyWith<$R, $In extends Post, $Out>
     bool? viewerHasLiked,
     bool? viewerHasReposted,
     bool? viewerHasSaved,
+    bool? sponsored,
     List<String>? langs,
     int? quoteCount,
     bool? viewerHasReplied,
@@ -464,6 +469,7 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
     bool? viewerHasLiked,
     bool? viewerHasReposted,
     bool? viewerHasSaved,
+    bool? sponsored,
     List<String>? langs,
     int? quoteCount,
     bool? viewerHasReplied,
@@ -496,6 +502,7 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
       if (viewerHasLiked != null) #viewerHasLiked: viewerHasLiked,
       if (viewerHasReposted != null) #viewerHasReposted: viewerHasReposted,
       if (viewerHasSaved != null) #viewerHasSaved: viewerHasSaved,
+      if (sponsored != null) #sponsored: sponsored,
       if (langs != null) #langs: langs,
       if (quoteCount != null) #quoteCount: quoteCount,
       if (viewerHasReplied != null) #viewerHasReplied: viewerHasReplied,
@@ -534,6 +541,7 @@ class _PostCopyWithImpl<$R, $Out> extends ClassCopyWithBase<$R, Post, $Out>
       or: $value.viewerHasReposted,
     ),
     viewerHasSaved: data.get(#viewerHasSaved, or: $value.viewerHasSaved),
+    sponsored: data.get(#sponsored, or: $value.sponsored),
     langs: data.get(#langs, or: $value.langs),
     quoteCount: data.get(#quoteCount, or: $value.quoteCount),
     viewerHasReplied: data.get(#viewerHasReplied, or: $value.viewerHasReplied),
@@ -1928,6 +1936,11 @@ class QuotePreviewPostMapper extends ClassMapperBase<QuotePreviewPost> {
     'createdAt',
     _$createdAt,
   );
+  static bool _$sponsored(QuotePreviewPost v) => v.sponsored;
+  static const Field<QuotePreviewPost, bool> _f$sponsored = Field(
+    'sponsored',
+    _$sponsored,
+  );
   static List<PostImage>? _$images(QuotePreviewPost v) => v.images;
   static const Field<QuotePreviewPost, List<PostImage>> _f$images = Field(
     'images',
@@ -1958,6 +1971,7 @@ class QuotePreviewPostMapper extends ClassMapperBase<QuotePreviewPost> {
     #text: _f$text,
     #author: _f$author,
     #createdAt: _f$createdAt,
+    #sponsored: _f$sponsored,
     #images: _f$images,
     #project: _f$project,
     #externalImport: _f$externalImport,
@@ -1973,6 +1987,7 @@ class QuotePreviewPostMapper extends ClassMapperBase<QuotePreviewPost> {
       text: data.dec(_f$text),
       author: data.dec(_f$author),
       createdAt: data.dec(_f$createdAt),
+      sponsored: data.dec(_f$sponsored),
       images: data.dec(_f$images),
       project: data.dec(_f$project),
       externalImport: data.dec(_f$externalImport),
@@ -2055,6 +2070,7 @@ abstract class QuotePreviewPostCopyWith<$R, $In extends QuotePreviewPost, $Out>
     String? text,
     PostAuthor? author,
     DateTime? createdAt,
+    bool? sponsored,
     List<PostImage>? images,
     Project? project,
     ExternalImport? externalImport,
@@ -2102,6 +2118,7 @@ class _QuotePreviewPostCopyWithImpl<$R, $Out>
     String? text,
     PostAuthor? author,
     DateTime? createdAt,
+    bool? sponsored,
     Object? images = $none,
     Object? project = $none,
     Object? externalImport = $none,
@@ -2113,6 +2130,7 @@ class _QuotePreviewPostCopyWithImpl<$R, $Out>
       if (text != null) #text: text,
       if (author != null) #author: author,
       if (createdAt != null) #createdAt: createdAt,
+      if (sponsored != null) #sponsored: sponsored,
       if (images != $none) #images: images,
       if (project != $none) #project: project,
       if (externalImport != $none) #externalImport: externalImport,
@@ -2126,6 +2144,7 @@ class _QuotePreviewPostCopyWithImpl<$R, $Out>
     text: data.get(#text, or: $value.text),
     author: data.get(#author, or: $value.author),
     createdAt: data.get(#createdAt, or: $value.createdAt),
+    sponsored: data.get(#sponsored, or: $value.sponsored),
     images: data.get(#images, or: $value.images),
     project: data.get(#project, or: $value.project),
     externalImport: data.get(#externalImport, or: $value.externalImport),

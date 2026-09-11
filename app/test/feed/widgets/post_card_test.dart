@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:ui' show Tristate;
+import 'dart:ui' show PointerDeviceKind, Tristate;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
@@ -66,6 +66,7 @@ Post _post({
   bool viewerHasReposted = false,
   bool viewerHasReplied = false,
   bool viewerHasSaved = false,
+  bool sponsored = false,
   String? viewerSavedFolderId,
   List<PostImage>? images,
   DateTime? createdAt,
@@ -95,6 +96,7 @@ Post _post({
     viewerHasReposted: viewerHasReposted,
     viewerHasReplied: viewerHasReplied,
     viewerHasSaved: viewerHasSaved,
+    sponsored: sponsored,
     viewerSavedFolderId: viewerSavedFolderId,
     reply: reply,
     images: images,
@@ -547,7 +549,10 @@ void main() {
       await _pump(
         tester,
         PostCard(
-          post: _post(viewerHasSaved: true, viewerSavedFolderId: 'folder-a'),
+          post: _post(
+            viewerHasSaved: true,
+            viewerSavedFolderId: 'folder-a',
+          ),
         ),
         overrides: [
           authSessionProvider.overrideWith(SignedInAuthSession.new),
@@ -619,7 +624,10 @@ void main() {
       await _pump(
         tester,
         PostCard(
-          post: _post(viewerHasSaved: true, viewerSavedFolderId: 'folder-a'),
+          post: _post(
+            viewerHasSaved: true,
+            viewerSavedFolderId: 'folder-a',
+          ),
         ),
         overrides: [
           authSessionProvider.overrideWith(SignedInAuthSession.new),
@@ -982,6 +990,69 @@ void main() {
       expect(reposterTaps, 1);
     });
 
+    testWidgets('renders an accessible disclosure on a sponsored post', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+
+      await _pump(tester, PostCard(post: _post(sponsored: true)));
+
+      expect(find.bySemanticsLabel('Sponsored'), findsOneWidget);
+      final target = find.byKey(
+        const Key('sponsored-info-tooltip-trigger'),
+      );
+      expect(target, findsOneWidget);
+      expect(
+        tester.getCenter(find.byIcon(CraftskyIcons.info)).dx,
+        lessThan(tester.getCenter(find.text('Sponsored')).dx),
+      );
+      expect(
+        tester.getTopLeft(target).dy,
+        closeTo(
+          tester.getBottomLeft(find.byType(ProfileAvatar).first).dy,
+          0.5,
+        ),
+      );
+      semantics.dispose();
+    });
+
+    testWidgets('explains sponsored content when the info icon is tapped', (
+      tester,
+    ) async {
+      await _pump(tester, PostCard(post: _post(sponsored: true)));
+
+      await tester.tap(find.text('Sponsored'));
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(
+        find.text(
+          'The creator marked this post as sponsored because they received '
+          'money, products, or another benefit.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('explains sponsored content when the label is hovered', (
+      tester,
+    ) async {
+      await _pump(tester, PostCard(post: _post(sponsored: true)));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      addTearDown(mouse.removePointer);
+      await mouse.addPointer();
+
+      await mouse.moveTo(tester.getCenter(find.text('Sponsored')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(
+          'The creator marked this post as sponsored because they received '
+          'money, products, or another benefit.',
+        ),
+        findsOneWidget,
+      );
+    });
+
     testWidgets('AT-009 IT-015 renders accessible Instagram provenance '
         'in a quote preview', (tester) async {
       final semantics = tester.ensureSemantics();
@@ -1001,6 +1072,7 @@ void main() {
                   handle: 'bob.craftsky.social',
                 ),
                 createdAt: DateTime(2020, 5, 22, 12),
+                sponsored: true,
                 externalImport: const ExternalImport(source: 'instagram'),
               ),
             ),
@@ -1010,6 +1082,7 @@ void main() {
 
       expect(find.text('Imported from Instagram'), findsOneWidget);
       expect(find.bySemanticsLabel('Imported from Instagram'), findsOneWidget);
+      expect(find.bySemanticsLabel('Sponsored'), findsOneWidget);
       semantics.dispose();
     });
 
@@ -1035,6 +1108,7 @@ void main() {
                       handle: 'bob.craftsky.social',
                     ),
                     createdAt: DateTime(2020, 5, 22, 12),
+                    sponsored: false,
                     externalImport: provenance,
                   ),
                 ),
@@ -1059,7 +1133,6 @@ void main() {
             text: 'My take on this pattern.',
             customisation: const ProfileCustomisation(
               colour: 'teal',
-              border: 'thick',
             ),
             quoteView: QuoteView(
               state: 'visible',
@@ -1074,10 +1147,10 @@ void main() {
                   avatar: 'https://cdn.example.com/bob.jpg',
                   customisation: const ProfileCustomisation(
                     colour: 'orchid',
-                    border: 'thin',
                   ),
                 ),
                 createdAt: DateTime(2026, 5, 22, 12),
+                sponsored: false,
               ),
             ),
           ),
@@ -1100,9 +1173,7 @@ void main() {
           .widgetList<ProfileAvatar>(find.byType(ProfileAvatar))
           .toList();
       expect(avatars.first.customisation.colour, 'teal');
-      expect(avatars.first.customisation.border, 'thick');
       expect(avatars.last.customisation.colour, 'orchid');
-      expect(avatars.last.customisation.border, 'thin');
 
       await tester.tap(find.text('Bob'));
       expect(quotedAuthorTaps, 1);
@@ -1148,6 +1219,7 @@ void main() {
                   ),
                 ],
                 createdAt: DateTime(2026, 5, 22, 12),
+                sponsored: false,
               ),
             ),
           ),
@@ -1216,6 +1288,7 @@ void main() {
                     ),
                   ),
                   createdAt: DateTime(2026, 5, 22, 12),
+                  sponsored: false,
                 ),
               ),
             ),
@@ -1293,6 +1366,7 @@ void main() {
     ) async {
       final post = PostMapper.fromMap({
         'availability': 'blocked',
+        'sponsored': false,
         'relationship': {'state': 'blocked', 'revealable': false},
       });
       await _pump(tester, PostCard(post: post));

@@ -122,6 +122,7 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
                 ),
                 SliverToBoxAdapter(
                   child: _ActiveFilterChips(
+                    craftType: activeCraft,
                     filters: _filters,
                     onRemove: (family, value) =>
                         _setFilters(_filters.withoutValue(family, value)),
@@ -477,11 +478,13 @@ class _ProjectErrorSliver extends StatelessWidget {
 
 class _ActiveFilterChips extends StatelessWidget {
   const _ActiveFilterChips({
+    required this.craftType,
     required this.filters,
     required this.onRemove,
     required this.onClear,
   });
 
+  final String craftType;
   final ProjectBrowseFilters filters;
   final void Function(ProjectBrowseFilterFamily family, String value) onRemove;
   final VoidCallback onClear;
@@ -491,7 +494,11 @@ class _ActiveFilterChips extends StatelessWidget {
     final l10n = AppLocalizations.of(context);
     final spacing =
         Theme.of(context).extension<SpacingTheme>() ?? const SpacingTheme();
-    final chips = _activeFilters(filters);
+    final chips = _activeFilters(
+      filters,
+      craftType,
+      l10n.projectsFilterSelfDrafted,
+    );
     if (chips.isEmpty) return const SizedBox.shrink();
     return Padding(
       padding: EdgeInsets.fromLTRB(spacing.sp4, 0, spacing.sp4, spacing.sp2),
@@ -529,12 +536,31 @@ class _FilterChipData {
   final String label;
 }
 
-List<_FilterChipData> _activeFilters(ProjectBrowseFilters filters) => [
+List<_FilterChipData> _activeFilters(
+  ProjectBrowseFilters filters,
+  String craftType,
+  String selfDraftedLabel,
+) => [
   for (final value in filters.projectType)
     _FilterChipData(
       family: ProjectBrowseFilterFamily.projectType,
       value: value,
       label: _optionLabel(ProjectOptionCatalogs.projectTypes, value),
+    ),
+  for (final value in filters.status)
+    _FilterChipData(
+      family: ProjectBrowseFilterFamily.status,
+      value: value,
+      label: _optionLabel(ProjectOptionCatalogs.statuses, value),
+    ),
+  for (final value in filters.projectSubtype)
+    _FilterChipData(
+      family: ProjectBrowseFilterFamily.projectSubtype,
+      value: value,
+      label: _optionLabel(
+        ProjectOptionCatalogs.projectSubtypesForCraft(craftType),
+        value,
+      ),
     ),
   for (final value in filters.patternDifficulty)
     _FilterChipData(
@@ -548,23 +574,38 @@ List<_FilterChipData> _activeFilters(ProjectBrowseFilters filters) => [
       value: value,
       label: _optionLabel(ProjectOptionCatalogs.colours, value),
     ),
-  for (final value in filters.material)
-    _FilterChipData(
-      family: ProjectBrowseFilterFamily.material,
-      value: value,
-      label: value,
-    ),
   for (final value in filters.designTag)
     _FilterChipData(
       family: ProjectBrowseFilterFamily.designTag,
       value: value,
       label: _optionLabel(ProjectOptionCatalogs.designTags, value),
     ),
-  for (final value in filters.projectTag)
+  for (final value in filters.yarnWeight)
     _FilterChipData(
-      family: ProjectBrowseFilterFamily.projectTag,
+      family: ProjectBrowseFilterFamily.yarnWeight,
       value: value,
-      label: value,
+      label: _optionLabel(ProjectOptionCatalogs.yarnWeights, value),
+    ),
+  for (final value in filters.piecingTechnique)
+    _FilterChipData(
+      family: ProjectBrowseFilterFamily.piecingTechnique,
+      value: value,
+      label: _optionLabel(
+        ProjectOptionCatalogs.quiltingPiecingTechniques,
+        value,
+      ),
+    ),
+  for (final value in filters.quiltingMethod)
+    _FilterChipData(
+      family: ProjectBrowseFilterFamily.quiltingMethod,
+      value: value,
+      label: _optionLabel(ProjectOptionCatalogs.quiltingMethods, value),
+    ),
+  if (filters.selfDrafted)
+    _FilterChipData(
+      family: ProjectBrowseFilterFamily.selfDrafted,
+      value: 'true',
+      label: selfDraftedLabel,
     ),
 ];
 

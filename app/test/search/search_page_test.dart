@@ -159,7 +159,6 @@ void main() {
                         viewerIsFollowing: false,
                         customisation: const ProfileCustomisation(
                           colour: 'amber',
-                          border: 'thin',
                         ),
                         crafts: const [
                           ProjectOptionCatalogs.knittingCraftToken,
@@ -199,7 +198,6 @@ void main() {
     expect(find.text('View all'), findsNWidgets(2));
     final avatar = tester.widget<ProfileAvatar>(find.byType(ProfileAvatar));
     expect(avatar.customisation.colour, 'amber');
-    expect(avatar.customisation.border, 'thin');
   });
 
   testWidgets('SearchPage renders submitted result tabs and post results', (
@@ -497,6 +495,7 @@ Post _post(String rkey) => PostMapper.fromMap({
   'viewerHasLiked': false,
   'viewerHasReposted': false,
   'viewerHasSaved': false,
+  'sponsored': false,
   'viewerHasReplied': false,
   'createdAt': '2026-05-04T18:23:45.000Z',
   'indexedAt': '2026-05-04T18:23:47.000Z',

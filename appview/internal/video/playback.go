@@ -10,7 +10,7 @@ import (
 
 const (
 	defaultPlaylistTemplate  = "https://video.bsky.app/watch/{did}/{cid}/playlist.m3u8"
-	defaultThumbnailTemplate = "https://video.cdn.bsky.app/hls/{did}/{cid}/thumbnail.jpg"
+	defaultThumbnailTemplate = "https://video.bsky.app/watch/{did}/{cid}/thumbnail.jpg"
 )
 
 var ErrPlaybackConfig = errors.New("invalid video playback configuration")

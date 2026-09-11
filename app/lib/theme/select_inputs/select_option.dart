@@ -13,3 +13,7 @@ class CraftskySelectOption<T> {
   final String? description;
   final WidgetBuilder? leadingBuilder;
 }
+
+List<CraftskySelectOption<T>> alphabetizedSelectOptions<T>(
+  Iterable<CraftskySelectOption<T>> options,
+) => options.toList()..sort((left, right) => left.label.compareTo(right.label));

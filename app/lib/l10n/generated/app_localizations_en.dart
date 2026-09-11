@@ -717,7 +717,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileStatsFollowers => 'followers';
 
   @override
-  String get profileStatsProjects => 'projects';
+  String profileStatsProjects(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Projects',
+      one: 'Project',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get profileLoadErrorTitle => 'That didn\'t load.';
@@ -1114,6 +1122,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerPatternDifficultyLabel => 'Difficulty';
 
   @override
+  String get projectComposerPatternSelfDraftedTitle => 'Self-drafted pattern';
+
+  @override
+  String get projectComposerPatternSelfDraftedDescription =>
+      'I drafted this pattern';
+
+  @override
+  String get projectPatternSelfDraftedLabel => 'Self-drafted';
+
+  @override
   String get projectComposerPatternDesignerLabel => 'Designer';
 
   @override
@@ -1126,11 +1144,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerPatternPublisherHint => 'Add pattern publisher';
 
   @override
-  String get postComposeHint => 'What are you making?';
+  String get postComposeHint => 'What would you like to share?';
 
   @override
   String get postComposeBodyHint =>
-      'Pattern, fabric, what went right, what didn\'t...';
+      'Share what you\'re making, learning, or thinking...';
+
+  @override
+  String get postComposeRequiredLabel => 'required';
+
+  @override
+  String get postComposeBodyRequiredError => 'Add something to your post.';
+
+  @override
+  String get postSponsoredToggleTitle => 'Sponsored';
+
+  @override
+  String get postSponsoredToggleDescription =>
+      'This post includes sponsorship or other commercial consideration';
+
+  @override
+  String get postSponsoredLabel => 'Sponsored';
+
+  @override
+  String get postSponsoredExplanation =>
+      'The creator marked this post as sponsored because they received money, products, or another benefit.';
 
   @override
   String get postComposeReplyTitle => 'Reply';
@@ -1774,9 +1812,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileCustomisationColour => 'Colour';
 
   @override
-  String get profileCustomisationBorder => 'Profile border';
-
-  @override
   String get profileCustomisationBackground => 'Profile background';
 
   @override
@@ -1827,15 +1862,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get profileCustomisationColourInk => 'Ink';
-
-  @override
-  String get profileCustomisationBorderThin => 'Thin';
-
-  @override
-  String get profileCustomisationBorderMedium => 'Medium';
-
-  @override
-  String get profileCustomisationBorderThick => 'Thick';
 
   @override
   String get profileCustomisationBackgroundDither => 'Dither';
@@ -2041,25 +2067,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectsFilterProjectType => 'Project type';
 
   @override
+  String get projectsFilterStatus => 'Status';
+
+  @override
+  String get projectsFilterProjectSubtype => 'Project subtype';
+
+  @override
   String get projectsFilterDifficulty => 'Pattern difficulty';
 
   @override
   String get projectsFilterColor => 'Color';
 
   @override
-  String get projectsFilterDesignTag => 'Design tag';
+  String get projectsFilterDesignTag => 'Design';
 
   @override
-  String get projectsFilterMaterial => 'Material';
+  String get projectsFilterYarnWeight => 'Yarn weight';
 
   @override
-  String get projectsFilterProjectTag => 'Project tag';
+  String get projectsFilterPiecingTechnique => 'Piecing technique';
 
   @override
-  String get projectsFreeTextHint => 'Add a value';
+  String get projectsFilterQuiltingMethod => 'Quilting method';
 
   @override
-  String get projectsAddFilterValueAction => 'Add';
+  String get projectsFilterSelfDrafted => 'Self drafted';
 
   @override
   String get projectsApplyFiltersAction => 'Apply filters';
@@ -2645,6 +2677,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get scheduledPostLater => 'Schedule for later';
 
   @override
+  String scheduledPostCompactTime(String date, String time) {
+    return '$date, $time';
+  }
+
+  @override
   String get scheduledPostTimeRangeError =>
       'Choose a whole-minute time from 5 minutes through 28 days from now';
 
@@ -3078,9 +3115,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get onboardingTitle => 'Set up your CraftSky profile';
 
   @override
-  String get onboardingSkip => 'Skip';
-
-  @override
   String get onboardingNext => 'Next';
 
   @override
@@ -3120,11 +3154,40 @@ class AppLocalizationsEn extends AppLocalizations {
       'Choose as many crafts as you like. You can change these later.';
 
   @override
-  String get onboardingInstagramTitle => 'Find your crafting community';
+  String get onboardingGuidelinesTitle => 'Our community guidelines';
 
   @override
-  String get onboardingInstagramDescription =>
-      'Connecting Instagram is optional. CraftSky uses your choices only to help match accounts and import who you follow.';
+  String get onboardingGuidelinesWelcomeHeading =>
+      'A welcoming place to make and share';
+
+  @override
+  String get onboardingGuidelinesWelcomeBody =>
+      'CraftSky exists to be a welcoming, inspiring home for the textile crafting community. We want it to be a place where people feel comfortable sharing projects, asking questions, celebrating each other\'s successes and learning from the community.';
+
+  @override
+  String get onboardingGuidelinesRespectHeading =>
+      'Be kind and keep CraftSky safe';
+
+  @override
+  String get onboardingGuidelinesRespectBody =>
+      'Respect other people and help keep CraftSky safe for everyone. We do not allow harassment, hate speech, scams, spam, sexually explicit content or content materially created by generative AI. Businesses are welcome when they are transparent about commercial relationships and follow the same rules as everyone else.';
+
+  @override
+  String get onboardingGuidelinesCraftHeading => 'Keep it craft-focused';
+
+  @override
+  String get onboardingGuidelinesCraftBody =>
+      'Most posts should relate to textile and fibre craft projects, materials, techniques, tools or the wider crafting community. Occasional off-topic posts are fine, but should remain secondary. Political discussion belongs here only when it directly affects textile crafting or the craft community.';
+
+  @override
+  String get onboardingGuidelinesCheckHeading => 'A useful check';
+
+  @override
+  String get onboardingGuidelinesCheckBody =>
+      'If you are unsure whether something belongs on CraftSky, ask: Does this make the community a better place? If the answer is yes, you are probably on the right track.';
+
+  @override
+  String get onboardingGuidelinesViewFull => 'View full guidelines';
 
   @override
   String get onboardingSaveError =>

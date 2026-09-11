@@ -19,13 +19,14 @@ void main() {
   testWidgets('UT-008 adapts bounded visible and policy summaries', (
     tester,
   ) async {
-    final post = _post();
+    final post = _post(sponsored: true);
     final data = PostSummaryData.fromPost(post);
     expect(data.state, PostSummaryState.visible);
     expect(data.text, post.text);
     expect(data.projectTitle, 'Hitchhiker shawl');
     expect(data.image, same(post.images!.first));
     expect(data.externalImport, same(post.externalImport));
+    expect(data.sponsored, isFalse);
     expect(data.image, isNot(same(post.images!.last)));
     expect(data.copyWith(text: null).text, isNull);
     expect(data.copyWith(), data);
@@ -39,12 +40,14 @@ void main() {
         text: post.text,
         author: post.author,
         createdAt: post.createdAt,
+        sponsored: true,
         images: post.images,
         project: post.project,
         externalImport: post.externalImport,
       ),
     );
     expect(PostSummaryData.fromQuoteView(quote).text, post.text);
+    expect(PostSummaryData.fromQuoteView(quote).sponsored, isTrue);
     expect(
       PostSummaryData.fromQuoteView(quote).externalImport,
       same(post.externalImport),
@@ -80,6 +83,7 @@ void main() {
     );
     expect(find.text('Hitchhiker shawl'), findsOneWidget);
     expect(find.text('Imported from Instagram'), findsOneWidget);
+    expect(find.bySemanticsLabel('Sponsored'), findsNothing);
     expect(find.text(post.text), findsOneWidget);
     final postTime = find.byType(RelativeTimeText);
     expect(postTime, findsOneWidget);
@@ -96,7 +100,6 @@ void main() {
     expect(find.byIcon(CraftskyIcons.like), findsNothing);
     final avatar = tester.widget<ProfileAvatar>(find.byType(ProfileAvatar));
     expect(avatar.customisation.colour, 'lime');
-    expect(avatar.customisation.border, 'thick');
     await tester.tap(find.text(post.text));
     await tester.tap(find.text('@alice.craftsky.social'));
     expect((postTaps, authorTaps), (1, 1));
@@ -119,6 +122,7 @@ void main() {
         text: 'Quoted text',
         author: PostAuthor(did: 'did:plc:alice', handle: 'alice.test'),
         createdAt: DateTime.utc(2026),
+        sponsored: false,
         external: external,
       ),
     );
@@ -163,6 +167,7 @@ void main() {
           text: 'Images',
           author: PostAuthor(did: 'did:plc:alice', handle: 'alice.test'),
           createdAt: DateTime.utc(2026),
+          sponsored: false,
           images: [
             PostImage(cid: 'bafyimage', mime: 'image/jpeg', size: 1, alt: ''),
           ],
@@ -180,7 +185,7 @@ void main() {
   });
 }
 
-Post _post() => Post(
+Post _post({bool sponsored = false}) => Post(
   uri: 'at://did:plc:alice/social.craftsky.feed.post/summary',
   cid: 'bafysummary',
   rkey: 'summary',
@@ -193,7 +198,6 @@ Post _post() => Post(
     handle: 'alice.craftsky.social',
     customisation: const ProfileCustomisation(
       colour: 'lime',
-      border: 'thick',
     ),
   ),
   likeCount: 0,
@@ -202,6 +206,7 @@ Post _post() => Post(
   viewerHasLiked: false,
   viewerHasReposted: false,
   viewerHasSaved: true,
+  sponsored: sponsored,
   externalImport: const ExternalImport(source: 'instagram'),
   images: [
     PostImage(cid: 'bafyimage1', mime: 'image/jpeg', size: 1, alt: 'First'),

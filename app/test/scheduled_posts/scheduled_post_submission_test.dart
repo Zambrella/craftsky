@@ -889,9 +889,10 @@ Future<List<Map<String, dynamic>>> _testMaterializer(
 }
 
 Future<void> _selectLater(WidgetTester tester) async {
-  await tester.ensureVisible(find.text('When'));
+  final schedule = find.byKey(const Key('composer-schedule-control'));
+  await tester.ensureVisible(schedule);
   await tester.pumpAndSettle();
-  await tester.tap(find.text('When'));
+  await tester.tap(schedule);
   await tester.pumpAndSettle();
   await tester.tap(find.text('Schedule for later'));
   await tester.pumpAndSettle();
@@ -1283,6 +1284,7 @@ Post _post(String text) => Post(
   viewerHasLiked: false,
   viewerHasReposted: false,
   viewerHasSaved: false,
+  sponsored: false,
   createdAt: DateTime(2026),
   indexedAt: DateTime(2026),
   author: PostAuthor(did: 'did:plc:alice', handle: 'alice.test'),

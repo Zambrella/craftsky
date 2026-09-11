@@ -105,6 +105,7 @@ func TestNotificationListHydratesImportedSubjectProvenanceForLaterEngagement(t *
 	if _, err := pool.Exec(context.Background(), `
 		UPDATE craftsky_posts
 		SET external_import_source = 'instagram',
+		    sponsored = true,
 		    profile_sort_at = created_at
 		WHERE uri = $1
 	`, subjectURI); err != nil {
@@ -191,7 +192,8 @@ func TestNotificationListHydratesImportedSubjectProvenanceForLaterEngagement(t *
 		}
 		if item.SubjectPost == nil ||
 			item.SubjectPost.ExternalImport == nil ||
-			item.SubjectPost.ExternalImport.Source != "instagram" {
+			item.SubjectPost.ExternalImport.Source != "instagram" ||
+			!item.SubjectPost.Sponsored {
 			t.Fatalf(
 				"%s subject externalImport=%+v",
 				item.Type,

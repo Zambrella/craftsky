@@ -18,10 +18,11 @@ func TestPayloadRoundTrip(t *testing.T) {
 		{
 			name: "standard",
 			payload: Payload{
-				Kind:   PostKindStandard,
-				Text:   "A linked #project with a mention",
-				Facets: json.RawMessage(`[{"index":{"byteStart":2,"byteEnd":8},"features":[{"$type":"app.bsky.richtext.facet#tag","tag":"project"}]}]`),
-				Langs:  []string{"en-GB", "fr"},
+				Kind:      PostKindStandard,
+				Text:      "A linked #project with a mention",
+				Sponsored: true,
+				Facets:    json.RawMessage(`[{"index":{"byteStart":2,"byteEnd":8},"features":[{"$type":"app.bsky.richtext.facet#tag","tag":"project"}]}]`),
+				Langs:     []string{"en-GB", "fr"},
 				Media: []PayloadMedia{
 					{ID: "11111111-1111-4111-8111-111111111111", Alt: "first image", Width: 1200, Height: 800},
 					{ID: "22222222-2222-4222-8222-222222222222", Alt: "second image", Width: 800, Height: 1200},
@@ -38,10 +39,11 @@ func TestPayloadRoundTrip(t *testing.T) {
 		{
 			name: "project",
 			payload: Payload{
-				Kind:    PostKindProject,
-				Text:    "Finished cardigan",
-				Langs:   []string{"en"},
-				Project: json.RawMessage(`{"common":{"craftType":"social.craftsky.feed.defs#knitting","title":"Cardigan","materials":[{"text":"Wool","facets":[{"index":{"byteStart":0,"byteEnd":4},"features":[]}]}],"colors":["blue","cream"],"designTags":["cables","winter"]},"details":{"$type":"social.craftsky.project.knitting#details","projectType":"garment"}}`),
+				Kind:      PostKindProject,
+				Text:      "Finished cardigan",
+				Sponsored: false,
+				Langs:     []string{"en"},
+				Project:   json.RawMessage(`{"common":{"craftType":"social.craftsky.feed.defs#knitting","title":"Cardigan","materials":[{"text":"Wool","facets":[{"index":{"byteStart":0,"byteEnd":4},"features":[]}]}],"colors":["blue","cream"],"designTags":["cables","winter"]},"details":{"$type":"social.craftsky.project.knitting#details","projectType":"garment"}}`),
 				Media: []PayloadMedia{
 					{ID: "33333333-3333-4333-8333-333333333333", Alt: "front", Width: 1600, Height: 1200},
 					{ID: "44444444-4444-4444-8444-444444444444", Alt: "detail", Width: 1200, Height: 1200},

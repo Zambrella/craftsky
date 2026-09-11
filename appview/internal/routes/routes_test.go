@@ -1828,6 +1828,7 @@ CREATE TABLE craftsky_posts (
 	rkey TEXT NOT NULL,
 	cid TEXT NOT NULL,
 	text TEXT NOT NULL,
+	sponsored BOOLEAN NOT NULL DEFAULT false,
 	facets JSONB,
 	images JSONB,
 	record JSONB NOT NULL,

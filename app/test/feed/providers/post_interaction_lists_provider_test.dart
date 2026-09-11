@@ -744,6 +744,7 @@ Post _post(String rkey, {String? text}) => PostMapper.fromMap({
   'viewerHasLiked': false,
   'viewerHasReposted': false,
   'viewerHasSaved': false,
+  'sponsored': false,
   'createdAt': '2026-09-06T12:00:00.000Z',
   'indexedAt': '2026-09-06T12:00:01.000Z',
   'author': {'did': 'did:plc:author', 'handle': 'author.test'},

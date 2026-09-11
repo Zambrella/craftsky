@@ -13,10 +13,15 @@ sealed class LocalDraftContent {
 }
 
 final class StandardDraftContent extends LocalDraftContent {
-  const StandardDraftContent({required this.text, required this.languages});
+  const StandardDraftContent({
+    required this.text,
+    required this.languages,
+    this.sponsored = false,
+  });
 
   final String text;
   final List<String> languages;
+  final bool sponsored;
 
   @override
   String toString() => 'StandardDraftContent(<redacted>)';
@@ -28,11 +33,13 @@ final class ProjectDraftContent extends LocalDraftContent {
     required this.body,
     required this.languages,
     required this.knownProjectFieldValues,
+    this.sponsored = false,
   });
 
   final String body;
   final List<String> languages;
   final Map<String, Object?> knownProjectFieldValues;
+  final bool sponsored;
 
   @override
   String toString() => 'ProjectDraftContent(<redacted>)';

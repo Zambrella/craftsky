@@ -25,7 +25,7 @@ type ProfileCustomisationStore struct {
 // ProfileCustomisationBatchQuery is kept as one statement so response
 // hydration remains bounded and its PostgreSQL plan can be regression-tested.
 const ProfileCustomisationBatchQuery = `
-	SELECT p.did, c.colour, c.profile_border, c.profile_background
+	SELECT p.did, c.colour, c.profile_background
 	FROM craftsky_profiles p
 	LEFT JOIN profile_customisations c ON c.owner_did = p.did
 	WHERE p.did = ANY($1::text[])
@@ -49,10 +49,10 @@ func (s *ProfileCustomisationStore) Read(
 ) (ProfileCustomisation, error) {
 	value := ProfileCustomisation{}
 	err := s.pool.QueryRow(ctx, `
-		SELECT colour, profile_border, profile_background
+		SELECT colour, profile_background
 		FROM profile_customisations
 		WHERE owner_did = $1
-	`, owner).Scan(&value.Colour, &value.Border, &value.Background)
+	`, owner).Scan(&value.Colour, &value.Background)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return DefaultProfileCustomisation, nil
 	}
@@ -79,17 +79,15 @@ func (s *ProfileCustomisationStore) Put(
 	stored := ProfileCustomisation{}
 	err = tx.QueryRow(ctx, `
 		INSERT INTO profile_customisations (
-			owner_did, colour, profile_border, profile_background, created_at, updated_at
-		) VALUES ($1, $2, $3, $4, $5, $5)
+			owner_did, colour, profile_background, created_at, updated_at
+		) VALUES ($1, $2, $3, $4, $4)
 		ON CONFLICT (owner_did) DO UPDATE SET
 			colour = EXCLUDED.colour,
-			profile_border = EXCLUDED.profile_border,
 			profile_background = EXCLUDED.profile_background,
 			updated_at = EXCLUDED.updated_at
-		RETURNING colour, profile_border, profile_background
-	`, owner, value.Colour, value.Border, value.Background, now).Scan(
+		RETURNING colour, profile_background
+	`, owner, value.Colour, value.Background, now).Scan(
 		&stored.Colour,
-		&stored.Border,
 		&stored.Background,
 	)
 	if err != nil {
@@ -129,18 +127,15 @@ func (s *ProfileCustomisationStore) ReadBatch(
 	defer rows.Close()
 	for rows.Next() {
 		var (
-			owner                      string
-			colour, border, background *string
+			owner              string
+			colour, background *string
 		)
-		if err := rows.Scan(&owner, &colour, &border, &background); err != nil {
+		if err := rows.Scan(&owner, &colour, &background); err != nil {
 			return nil, fmt.Errorf("profile customisation batch scan: %w", err)
 		}
 		value := DefaultProfileCustomisation
 		if colour != nil {
 			value.Colour = *colour
-		}
-		if border != nil {
-			value.Border = *border
 		}
 		if background != nil {
 			value.Background = *background

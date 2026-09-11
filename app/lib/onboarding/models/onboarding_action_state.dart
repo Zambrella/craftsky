@@ -6,14 +6,12 @@ final class OnboardingActionState {
   const OnboardingActionState({
     required this.kind,
     required this.canSubmit,
-    required this.canSkip,
     required this.canGoBack,
     required this.busy,
   });
 
   final OnboardingActionKind kind;
   final bool canSubmit;
-  final bool canSkip;
   final bool canGoBack;
   final bool busy;
 }
@@ -25,14 +23,13 @@ OnboardingActionState deriveOnboardingActionState({
   bool saving = false,
 }) {
   final kind = switch (step) {
-    OnboardingStep.instagram => OnboardingActionKind.finish,
+    OnboardingStep.guidelines => OnboardingActionKind.finish,
     _ when dirty => OnboardingActionKind.saveAndNext,
     _ => OnboardingActionKind.next,
   };
   return OnboardingActionState(
     kind: kind,
     canSubmit: !saving && (kind != OnboardingActionKind.saveAndNext || valid),
-    canSkip: !saving,
     canGoBack: step != OnboardingStep.profile && !saving,
     busy: saving,
   );

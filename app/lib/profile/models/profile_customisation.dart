@@ -11,8 +11,6 @@ const profileColourCatalogue = <String>[
   'ink',
 ];
 
-const profileBorderCatalogue = <String>['thin', 'medium', 'thick'];
-
 const profileBackgroundCatalogue = <String>[
   'none',
   'bayerdark',
@@ -21,7 +19,20 @@ const profileBackgroundCatalogue = <String>[
   'scallopdark',
   'skewdark',
   'x2',
+  'craft-sewing',
+  'craft-knitting',
+  'craft-crochet',
+  'craft-quilting',
+  'craft-embroidery',
 ];
+
+const profileCraftBackgrounds = <String, String>{
+  'craft-sewing': 'sewing',
+  'craft-knitting': 'knitting',
+  'craft-crochet': 'crochet',
+  'craft-quilting': 'quilting',
+  'craft-embroidery': 'embroidery',
+};
 
 @immutable
 class ProfileColourBundle {
@@ -181,7 +192,6 @@ const profileColourBundles = <String, ProfileColourBundle>{
 class ProfileCustomisation {
   const ProfileCustomisation({
     this.colour = 'cobalt',
-    this.border = 'medium',
     this.background = 'none',
   });
 
@@ -191,11 +201,6 @@ class ProfileCustomisation {
         map?['colour'],
         profileColourCatalogue,
         defaults.colour,
-      ),
-      border: _effectiveKey(
-        map?['profileBorder'],
-        profileBorderCatalogue,
-        defaults.border,
       ),
       background: _effectiveKey(
         map?['profileBackground'],
@@ -208,22 +213,18 @@ class ProfileCustomisation {
   static const defaults = ProfileCustomisation();
 
   final String colour;
-  final String border;
   final String background;
 
   Map<String, String> toMap() => {
     'colour': colour,
-    'profileBorder': border,
     'profileBackground': background,
   };
 
   ProfileCustomisation copyWith({
     String? colour,
-    String? border,
     String? background,
   }) => ProfileCustomisation(
     colour: colour ?? this.colour,
-    border: border ?? this.border,
     background: background ?? this.background,
   );
 
@@ -232,11 +233,10 @@ class ProfileCustomisation {
       identical(this, other) ||
       other is ProfileCustomisation &&
           colour == other.colour &&
-          border == other.border &&
           background == other.background;
 
   @override
-  int get hashCode => Object.hash(colour, border, background);
+  int get hashCode => Object.hash(colour, background);
 }
 
 class ProfileCustomisationMapper extends SimpleMapper<ProfileCustomisation> {

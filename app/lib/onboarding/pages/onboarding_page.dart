@@ -8,7 +8,7 @@ import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_flow_provider.dart';
 import 'package:craftsky_app/onboarding/widgets/onboarding_bottom_action.dart';
 import 'package:craftsky_app/onboarding/widgets/onboarding_crafts_step.dart';
-import 'package:craftsky_app/onboarding/widgets/onboarding_instagram_step.dart';
+import 'package:craftsky_app/onboarding/widgets/onboarding_guidelines_step.dart';
 import 'package:craftsky_app/onboarding/widgets/onboarding_profile_step.dart';
 import 'package:craftsky_app/onboarding/widgets/onboarding_progress.dart';
 import 'package:craftsky_app/profile/data/profile_field_constraints.dart';
@@ -24,14 +24,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 class OnboardingPage extends ConsumerWidget {
-  const OnboardingPage({
-    this.linkLauncher = launchExternalLink,
-    this.confirmOpenLink = showOpenLinkDialog,
-    super.key,
-  });
+  const OnboardingPage({this.linkLauncher = launchExternalLink, super.key});
 
   final ExternalLinkLauncher linkLauncher;
-  final ExternalLinkConfirmer confirmOpenLink;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -42,21 +37,12 @@ class OnboardingPage extends ConsumerWidget {
     }
     final provider = onboardingFlowProvider(lease);
     final flow = ref.watch(provider);
-    final prefillAppBar = AppBar(
-      title: Text(l10n.onboardingTitle),
-      actions: [
-        TextButton(
-          onPressed: () => unawaited(ref.read(provider.notifier).complete()),
-          child: Text(l10n.onboardingSkip),
-        ),
-      ],
-    );
+    final prefillAppBar = AppBar(title: Text(l10n.onboardingTitle));
     return switch (flow) {
       AsyncData(:final value) => _OnboardingFlowScaffold(
         lease: lease,
         state: value,
         linkLauncher: linkLauncher,
-        confirmOpenLink: confirmOpenLink,
       ),
       AsyncError() => Scaffold(
         appBar: prefillAppBar,
@@ -86,19 +72,14 @@ class _OnboardingFlowScaffold extends ConsumerWidget {
     required this.lease,
     required this.state,
     required this.linkLauncher,
-    required this.confirmOpenLink,
   });
 
   final ActiveAccountLease lease;
   final OnboardingFlowState state;
   final ExternalLinkLauncher linkLauncher;
-  final ExternalLinkConfirmer confirmOpenLink;
 
-  Future<void> _openSupport(BuildContext context) async {
-    final opened = await tryLaunchSettingsLink(
-      settingsSupportUri,
-      linkLauncher,
-    );
+  Future<void> _openTrustedLink(BuildContext context, Uri uri) async {
+    final opened = await tryLaunchSettingsLink(uri, linkLauncher);
     if (!context.mounted || opened) return;
     context.showError(AppLocalizations.of(context).navigationLinkOpenError);
   }
@@ -111,7 +92,7 @@ class _OnboardingFlowScaffold extends ConsumerWidget {
     final dirty = switch (state.step) {
       OnboardingStep.profile => state.identityDirty,
       OnboardingStep.crafts => state.craftsDirty,
-      OnboardingStep.instagram => false,
+      OnboardingStep.guidelines => false,
     };
     final valid =
         state.identity.displayName.length <= profileDisplayNameMaxLength &&
@@ -151,14 +132,6 @@ class _OnboardingFlowScaffold extends ConsumerWidget {
                   icon: const Icon(CraftskyIconsBold.back),
                 ),
           title: Text(l10n.onboardingTitle),
-          actions: [
-            TextButton(
-              onPressed: action.canSkip
-                  ? () => unawaited(notifier.complete())
-                  : null,
-              child: Text(l10n.onboardingSkip),
-            ),
-          ],
         ),
         body: SafeArea(
           top: false,
@@ -203,11 +176,19 @@ class _OnboardingFlowScaffold extends ConsumerWidget {
                                 state: state,
                                 onToggle: (craft) =>
                                     notifier.toggleCraft(craft.id),
-                                onRequestMore: () =>
-                                    unawaited(_openSupport(context)),
+                                onRequestMore: () => unawaited(
+                                  _openTrustedLink(context, settingsSupportUri),
+                                ),
                               ),
-                              OnboardingStep.instagram =>
-                                OnboardingInstagramStep(lease: lease),
+                              OnboardingStep.guidelines =>
+                                OnboardingGuidelinesStep(
+                                  onViewFullGuidelines: () => unawaited(
+                                    _openTrustedLink(
+                                      context,
+                                      communityGuidelinesUri,
+                                    ),
+                                  ),
+                                ),
                             },
                           ),
                         ),

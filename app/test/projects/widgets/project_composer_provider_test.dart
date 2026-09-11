@@ -183,5 +183,6 @@ Post _post(String text) {
     viewerHasLiked: false,
     viewerHasReposted: false,
     viewerHasSaved: false,
+    sponsored: false,
   );
 }

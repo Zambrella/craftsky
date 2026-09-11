@@ -390,6 +390,7 @@ func lexiconRecordBody(req PostCreateRequest, verifiedVideo *video.Blob) (map[st
 	body := map[string]any{
 		"$type":     craftskyPostNSID,
 		"text":      req.Text,
+		"sponsored": req.Sponsored,
 		"createdAt": time.Now().UTC().Format(time.RFC3339),
 	}
 	if len(req.Facets) > 0 {
@@ -505,6 +506,7 @@ func syntheticPostRow(
 		Rkey:      path.Base(string(uri)),
 		CID:       string(cid),
 		Text:      req.Text,
+		Sponsored: req.Sponsored,
 		Tags:      postutil.MergeTags(extractRequestTags(req.Text, req.Facets), requestProjectTags(req.Project)),
 		Langs:     append([]string(nil), req.Langs...),
 		CreatedAt: now,

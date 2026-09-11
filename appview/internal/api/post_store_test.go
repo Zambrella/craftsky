@@ -69,7 +69,8 @@ CREATE TABLE craftsky_posts (
     did              TEXT        NOT NULL,
     rkey             TEXT        NOT NULL,
     cid              TEXT        NOT NULL,
-    text             TEXT        NOT NULL,
+	text             TEXT        NOT NULL,
+	sponsored        BOOLEAN     NOT NULL DEFAULT false,
     facets           JSONB,
     images           JSONB,
     reply_root_uri   TEXT,
@@ -105,6 +106,7 @@ CREATE TABLE craftsky_project_posts (
     pattern_designer_facets JSONB,
     pattern_publisher TEXT,
     pattern_publisher_facets JSONB,
+    pattern_self_drafted BOOLEAN,
     materials TEXT[] NOT NULL DEFAULT '{}',
     colors TEXT[] NOT NULL DEFAULT '{}',
     design_tags TEXT[] NOT NULL DEFAULT '{}',
@@ -457,6 +459,33 @@ func TestPostStore_ReadOneReturnsMaterializedLanguages(t *testing.T) {
 		response.Langs[0] != "en" ||
 		response.Langs[1] != "fr-CA" {
 		t.Fatalf("response languages = %v", response.Langs)
+	}
+}
+
+func TestPostStore_ReadOneReturnsSponsoredAndSelfDrafted(t *testing.T) {
+	pool := testdb.WithSchema(t, postStoreDDL)
+	seedMember(t, pool, "did:plc:alice")
+	uri := seedPost(t, pool, "did:plc:alice", "rk1", "project", time.Now())
+	seedProjectMaterialization(t, pool, uri, "social.craftsky.feed.defs#knitting", "Original")
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE craftsky_posts SET sponsored = true WHERE uri = $1
+	`, uri); err != nil {
+		t.Fatalf("seed sponsored post: %v", err)
+	}
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE craftsky_project_posts
+		SET raw_project = '{"common":{"craftType":"social.craftsky.feed.defs#knitting","pattern":{"selfDrafted":true}}}'::jsonb
+		WHERE uri = $1
+	`, uri); err != nil {
+		t.Fatalf("seed self-drafted project: %v", err)
+	}
+
+	row, err := api.NewPostStore(pool).ReadOne(context.Background(), "did:plc:alice", "rk1")
+	if err != nil {
+		t.Fatalf("ReadOne: %v", err)
+	}
+	if !row.Sponsored || row.Project == nil || row.Project.Common.Pattern == nil || row.Project.Common.Pattern.SelfDrafted == nil || !*row.Project.Common.Pattern.SelfDrafted {
+		t.Fatalf("row = %#v, want sponsored self-drafted project", row)
 	}
 }
 

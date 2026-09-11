@@ -74,6 +74,13 @@ class PostSummaryDataMapper extends ClassMapperBase<PostSummaryData> {
     _$external,
     opt: true,
   );
+  static bool _$sponsored(PostSummaryData v) => v.sponsored;
+  static const Field<PostSummaryData, bool> _f$sponsored = Field(
+    'sponsored',
+    _$sponsored,
+    opt: true,
+    def: false,
+  );
   static bool _$revealable(PostSummaryData v) => v.revealable;
   static const Field<PostSummaryData, bool> _f$revealable = Field(
     'revealable',
@@ -92,6 +99,7 @@ class PostSummaryDataMapper extends ClassMapperBase<PostSummaryData> {
     #image: _f$image,
     #externalImport: _f$externalImport,
     #external: _f$external,
+    #sponsored: _f$sponsored,
     #revealable: _f$revealable,
   };
 
@@ -105,6 +113,7 @@ class PostSummaryDataMapper extends ClassMapperBase<PostSummaryData> {
       image: data.dec(_f$image),
       externalImport: data.dec(_f$externalImport),
       external: data.dec(_f$external),
+      sponsored: data.dec(_f$sponsored),
       revealable: data.dec(_f$revealable),
     );
   }
@@ -112,6 +121,7 @@ class PostSummaryDataMapper extends ClassMapperBase<PostSummaryData> {
   @override
   final Function instantiate = _instantiate;
 }
+
 mixin PostSummaryDataMappable {
   PostSummaryDataCopyWith<PostSummaryData, PostSummaryData, PostSummaryData>
   get copyWith =>
@@ -158,6 +168,7 @@ abstract class PostSummaryDataCopyWith<$R, $In extends PostSummaryData, $Out>
     PostImage? image,
     ExternalImport? externalImport,
     PostExternal? external,
+    bool? sponsored,
     bool? revealable,
   });
   PostSummaryDataCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
@@ -196,6 +207,7 @@ class _PostSummaryDataCopyWithImpl<$R, $Out>
     Object? image = $none,
     Object? externalImport = $none,
     Object? external = $none,
+    bool? sponsored,
     bool? revealable,
   }) => $apply(
     FieldCopyWithData({
@@ -207,6 +219,7 @@ class _PostSummaryDataCopyWithImpl<$R, $Out>
       if (image != $none) #image: image,
       if (externalImport != $none) #externalImport: externalImport,
       if (external != $none) #external: external,
+      if (sponsored != null) #sponsored: sponsored,
       if (revealable != null) #revealable: revealable,
     }),
   );
@@ -220,6 +233,7 @@ class _PostSummaryDataCopyWithImpl<$R, $Out>
     image: data.get(#image, or: $value.image),
     externalImport: data.get(#externalImport, or: $value.externalImport),
     external: data.get(#external, or: $value.external),
+    sponsored: data.get(#sponsored, or: $value.sponsored),
     revealable: data.get(#revealable, or: $value.revealable),
   );
 

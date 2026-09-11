@@ -61,11 +61,6 @@ class ProfileCustomisationEditor extends _$ProfileCustomisationEditor {
     _updateDraft((value) => value.copyWith(colour: colour));
   }
 
-  void selectBorder(String border) {
-    if (!profileBorderCatalogue.contains(border)) return;
-    _updateDraft((value) => value.copyWith(border: border));
-  }
-
   void selectBackground(String background) {
     if (!profileBackgroundCatalogue.contains(background)) return;
     _updateDraft((value) => value.copyWith(background: background));

@@ -6,6 +6,20 @@ import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('alphabetizedSelectOptions sorts by displayed label', () {
+    final options = alphabetizedSelectOptions([
+      const CraftskySelectOption(value: 'sewing', label: 'Sewing'),
+      const CraftskySelectOption(value: 'crochet', label: 'Crochet'),
+      const CraftskySelectOption(value: 'knitting', label: 'Knitting'),
+    ]);
+
+    expect(options.map((option) => option.label), [
+      'Crochet',
+      'Knitting',
+      'Sewing',
+    ]);
+  });
+
   testWidgets('UT-004 free-text multi-select saves chips and enforces max', (
     tester,
   ) async {

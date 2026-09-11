@@ -32,6 +32,7 @@ void main() {
       'viewerHasLiked': false,
       'viewerHasReposted': false,
       'viewerHasSaved': false,
+      'sponsored': false,
       'createdAt': '2026-05-04T18:23:45.000Z',
       'indexedAt': '2026-05-04T18:23:47.000Z',
       'author': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},
@@ -52,12 +53,23 @@ void main() {
       DioAdapter(dio: dio).onPost(
         '/v1/posts',
         (server) => server.reply(201, samplePost(text: '#Mending')),
-        data: {'text': '#Mending', 'langs': langs, 'facets': facets},
+        data: {
+          'text': '#Mending',
+          'langs': langs,
+          'sponsored': true,
+          'facets': facets,
+        },
       );
 
-      final post = await ApiPostRepository(
-        PostApiClient(dio),
-      ).create(text: '#Mending', langs: langs, facets: facets);
+      final post =
+          await ApiPostRepository(
+            PostApiClient(dio),
+          ).create(
+            text: '#Mending',
+            langs: langs,
+            sponsored: true,
+            facets: facets,
+          );
 
       expect(post.text, '#Mending');
     });
@@ -83,6 +95,7 @@ void main() {
       final post = await asInterface.create(
         text: 'project',
         langs: langs,
+        sponsored: false,
         project: project,
       );
 
@@ -116,6 +129,7 @@ void main() {
             ).create(
               text: 'invalid',
               langs: langs,
+              sponsored: false,
               project: project,
               reply: reply,
             ),
@@ -142,6 +156,7 @@ void main() {
             ).create(
               text: 'invalid',
               langs: langs,
+              sponsored: false,
               project: project,
               quote: quote,
             ),

@@ -191,7 +191,9 @@ class _CraftskyFieldScaffoldState extends State<CraftskyFieldScaffold> {
             child: widget.child,
           ),
           if (belowText != null || widget.counterText != null) ...[
-            SizedBox(height: sp.sp2),
+            SizedBox(
+              height: widget.counterText == null ? sp.sp2 : sp.sp1,
+            ),
             ExcludeSemantics(
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,

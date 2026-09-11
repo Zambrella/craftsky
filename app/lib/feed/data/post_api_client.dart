@@ -111,6 +111,7 @@ class PostApiClient {
   Future<Post> createPost({
     required String text,
     required List<String> langs,
+    required bool sponsored,
     PostReply? reply,
     PostRef? quote,
     Project? project,
@@ -150,6 +151,7 @@ class PostApiClient {
       data: {
         'text': text,
         'langs': langs,
+        'sponsored': sponsored,
         'project': ?project?.toCreateMap(),
         'reply': ?reply?.toMap(),
         'embed': ?switch ((quote, external, video)) {

@@ -38,6 +38,8 @@ type FeedPost struct {
 	Project *ProjectDefs_Project `json:"project,omitempty" cborgen:"project,omitempty"`
 	// reply: If present, this post is a reply to another post.
 	Reply *FeedPost_ReplyRef `json:"reply,omitempty" cborgen:"reply,omitempty"`
+	// sponsored: Whether the author declares that this post was created with sponsorship or other commercial consideration. Disclosure metadata only; it does not affect distribution.
+	Sponsored bool `json:"sponsored" cborgen:"sponsored"`
 	// text: The primary text content of the post. Plain text; rich-text annotations live in 'facets'. Craftsky allows longer posts than Bluesky (2000 graphemes vs 300) because crafters write fuller project write-ups.
 	Text string `json:"text" cborgen:"text"`
 }

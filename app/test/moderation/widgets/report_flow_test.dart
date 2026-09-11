@@ -32,6 +32,7 @@ Post _post() => Post(
   viewerHasLiked: false,
   viewerHasReposted: false,
   viewerHasSaved: false,
+  sponsored: false,
 );
 
 Future<void> _pumpNestedNavigatorHarness(

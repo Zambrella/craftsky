@@ -90,7 +90,7 @@ func TestCreatePostUsesPreallocatedDurableEffectIdentityAndOwnerGeneration(t *te
 		return executor, nil
 	}
 	handler := api.CreatePostHandler(&fakePostStore{}, factory, fakeResolver{handleFor: "alice.example"}, api.DefaultMediaLimits(), nilLogger())
-	request := httptest.NewRequest(http.MethodPost, "/v1/posts", strings.NewReader(`{"text":"hello"}`))
+	request := httptest.NewRequest(http.MethodPost, "/v1/posts", strings.NewReader(`{"text":"hello","sponsored":false}`))
 	ctx := middleware.WithDID(request.Context(), owner)
 	ctx = middleware.WithOwnerGeneration(ctx, 7)
 	ctx = middleware.WithOAuthSessionID(ctx, "session-alice")
@@ -135,7 +135,7 @@ func TestCreatePostFallbackEffectIdentityIsUniquePerRequest(t *testing.T) {
 		return executor, nil
 	}, fakeResolver{handleFor: "alice.example"}, api.DefaultMediaLimits(), nilLogger())
 	for range 2 {
-		request := httptest.NewRequest(http.MethodPost, "/v1/posts", strings.NewReader(`{"text":"hello"}`))
+		request := httptest.NewRequest(http.MethodPost, "/v1/posts", strings.NewReader(`{"text":"hello","sponsored":false}`))
 		ctx := middleware.WithDID(request.Context(), owner)
 		ctx = middleware.WithOwnerGeneration(ctx, 2)
 		request = request.WithContext(ctx)
@@ -229,6 +229,7 @@ func TestCreatePostCarriesDirectedOwnersIntoDurableFenceResolution(t *testing.T)
 			handler := api.CreatePostHandler(test.store, func(context.Context, syntax.DID, string) (pdseffects.EffectExecutor, error) {
 				return executor, nil
 			}, fakeResolver{handleFor: "alice.example"}, api.DefaultMediaLimits(), nilLogger())
+			test.body = strings.Replace(test.body, `{"text":`, `{"sponsored":false,"text":`, 1)
 			request := httptest.NewRequest(http.MethodPost, "/v1/posts", strings.NewReader(test.body))
 			ctx := middleware.WithDID(request.Context(), owner)
 			ctx = middleware.WithOwnerGeneration(ctx, 9)
@@ -326,7 +327,7 @@ func TestPostPDSMutationHandlersMissingOwnerGenerationFailBeforeEffectFactory(t 
 				return api.CreatePostHandler(store, factory, fakeResolver{}, api.DefaultMediaLimits(), nilLogger())
 			},
 			request: func() *http.Request {
-				return httptest.NewRequest(http.MethodPost, "/v1/posts", strings.NewReader(`{"text":"hello"}`))
+				return httptest.NewRequest(http.MethodPost, "/v1/posts", strings.NewReader(`{"text":"hello","sponsored":false}`))
 			},
 		},
 		{

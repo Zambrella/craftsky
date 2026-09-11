@@ -36,7 +36,7 @@ func TestPlaybackURLBuilderDefaultsAndRejectsUnsafeConfiguration(t *testing.T) {
 	}
 	playlist, thumbnail := builder.URLs("did:plc:alice", syntax.CID(testVideoCID))
 	if playlist != "https://video.bsky.app/watch/did%3Aplc%3Aalice/"+testVideoCID+"/playlist.m3u8" ||
-		thumbnail != "https://video.cdn.bsky.app/hls/did%3Aplc%3Aalice/"+testVideoCID+"/thumbnail.jpg" {
+		thumbnail != "https://video.bsky.app/watch/did%3Aplc%3Aalice/"+testVideoCID+"/thumbnail.jpg" {
 		t.Fatalf("default URLs = %q %q", playlist, thumbnail)
 	}
 	for _, template := range []string{"http://media.example/{did}/{cid}", "https://media.example/{did}", "https://user:pass@media.example/{did}/{cid}"} {

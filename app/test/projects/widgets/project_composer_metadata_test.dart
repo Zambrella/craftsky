@@ -17,6 +17,7 @@ import 'package:craftsky_app/shared/rich_text/data/mock_facet_suggestion_reposit
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -115,7 +116,7 @@ void main() {
   });
 
   testWidgets(
-    'AT-007 hides pattern fields until pattern tag or name is filled',
+    'AT-007 pattern details are available without a pattern name',
     (
       tester,
     ) async {
@@ -132,7 +133,9 @@ void main() {
           child: MessengerScope(
             messenger: RecordingMessenger(),
             child: MaterialApp(
-              theme: AppTheme.lightThemeData,
+              theme: AppTheme.lightThemeData.copyWith(
+                platform: TargetPlatform.iOS,
+              ),
               localizationsDelegates: AppLocalizations.localizationsDelegates,
               supportedLocales: AppLocalizations.supportedLocales,
               home: const ProjectComposerSheet(),
@@ -142,23 +145,11 @@ void main() {
       );
 
       expect(find.text('Pattern tag or name'), findsOneWidget);
-      expect(find.text('Pattern details'), findsNothing);
+      expect(find.text('Pattern details'), findsOneWidget);
       expect(find.text('Link'), findsNothing);
       expect(find.text('Difficulty'), findsNothing);
       expect(find.text('Designer'), findsNothing);
       expect(find.text('Publisher'), findsNothing);
-
-      await tester.enterText(
-        find.descendant(
-          of: find.byKey(const Key('project-composer-pattern-name-editor')),
-          matching: find.byType(TextField),
-        ),
-        '#SockKAL',
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Pattern details'), findsOneWidget);
-      expect(find.text('Designer'), findsNothing);
 
       await _openDetail(
         tester,
@@ -169,6 +160,32 @@ void main() {
       expect(find.text('Publisher'), findsOneWidget);
       expect(find.text('Link'), findsOneWidget);
       expect(find.text('Difficulty'), findsOneWidget);
+      expect(find.text('Self-drafted pattern'), findsOneWidget);
+      final selfDrafted = find.byKey(
+        const Key('project-composer-self-drafted-switch'),
+      );
+      expect(
+        find.descendant(of: selfDrafted, matching: find.byType(Switch)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: selfDrafted,
+          matching: find.byType(CupertinoSwitch),
+        ),
+        findsNothing,
+      );
+      final themedSwitch = tester.widget<Switch>(
+        find.descendant(of: selfDrafted, matching: find.byType(Switch)),
+      );
+      expect(
+        themedSwitch.activeTrackColor,
+        AppTheme.lightThemeData.colorScheme.primary,
+      );
+      expect(
+        themedSwitch.activeThumbColor,
+        AppTheme.lightThemeData.colorScheme.onPrimary,
+      );
     },
   );
 
