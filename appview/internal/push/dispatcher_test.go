@@ -1,10 +1,12 @@
 package push
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
 	"sync"
@@ -14,16 +16,30 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/testdb"
 )
 
 type permissiveLifecycleFence struct{}
+
+type recordingLifecycleFence struct {
+	owners []syntax.DID
+}
 
 func (permissiveLifecycleFence) WithActiveOwners(
 	ctx context.Context,
 	_ []syntax.DID,
 	callback func(context.Context) error,
 ) error {
+	return callback(ctx)
+}
+
+func (fence *recordingLifecycleFence) WithActiveOwners(
+	ctx context.Context,
+	owners []syntax.DID,
+	callback func(context.Context) error,
+) error {
+	fence.owners = append([]syntax.DID(nil), owners...)
 	return callback(ctx)
 }
 
@@ -307,6 +323,99 @@ func TestDispatcherIT001ProjectsCanonicalRoutingFacts(t *testing.T) {
 		request.ActorDisplayName != "Alice" ||
 		request.TTL <= 0 {
 		t.Fatalf("unchanged send metadata = %#v", request)
+	}
+}
+
+func TestDispatcherDispatchesActorlessModerationWithSafeAccountRouting(t *testing.T) {
+	pool := dispatcherPool(t)
+	seedModerationDelivery(t, pool, time.Now().Add(6*time.Hour))
+	if _, err := pool.Exec(context.Background(), `
+		CREATE OR REPLACE FUNCTION appview_owner_is_terminal(candidate_did TEXT)
+		RETURNS BOOLEAN LANGUAGE SQL IMMUTABLE
+		AS $$ SELECT candidate_did IS NULL $$
+	`); err != nil {
+		t.Fatal(err)
+	}
+	sender := &scriptedSender{}
+	fence := &recordingLifecycleFence{}
+	dispatcher, err := NewDispatcherValidated(pool, sender, DispatcherOptions{LifecycleFence: fence})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if n, err := dispatcher.ProcessBatch(context.Background(), "worker"); err != nil || n != 1 {
+		t.Fatalf("n=%d err=%v", n, err)
+	}
+	if len(sender.requests) != 1 {
+		t.Fatalf("send requests=%d, want 1", len(sender.requests))
+	}
+	request := sender.requests[0]
+	if request.Category != "moderation" || request.RoutingFacts.ActorDID != "" || request.ActorDisplayName != "" {
+		t.Fatalf("actorless moderation request=%+v", request)
+	}
+	if request.AccountSubscriptionID != "30000000-0000-0000-0000-000000000001" ||
+		request.RoutingFacts.CaseReference != "MOD-550e8400-e29b-41d4-a716-446655440000" {
+		t.Fatalf("safe routing facts=%+v", request)
+	}
+	if len(fence.owners) != 1 || fence.owners[0] != "did:plc:viewer" {
+		t.Fatalf("lifecycle owners=%v, want recipient only", fence.owners)
+	}
+}
+
+func TestDispatcherSuppressesActorlessModerationWhenCurrentPreferenceIsDisabled(t *testing.T) {
+	pool := dispatcherPool(t)
+	seedModerationDelivery(t, pool, time.Now().Add(6*time.Hour))
+	sender := &scriptedSender{}
+	dispatcher := newTestDispatcher(t, pool, sender, DispatcherOptions{})
+	items, err := dispatcher.claimOne(context.Background(), "worker")
+	if err != nil || len(items) != 1 {
+		t.Fatalf("claims=%d err=%v", len(items), err)
+	}
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO notification_preferences(account_did,category,scope,push_enabled)
+		VALUES('did:plc:viewer','moderation','everyone',false)
+	`); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := dispatcher.processClaim(context.Background(), items[0]); err != nil {
+		t.Fatal(err)
+	}
+	if sender.requestCount() != 0 {
+		t.Fatalf("provider sends=%d, want 0", sender.requestCount())
+	}
+	var status string
+	if err := pool.QueryRow(context.Background(), `SELECT status FROM push_deliveries`).Scan(&status); err != nil {
+		t.Fatal(err)
+	}
+	if status != "cancelled" {
+		t.Fatalf("delivery status=%q, want cancelled", status)
+	}
+}
+
+func TestDispatcherRetriesActorlessModerationWithSameSafeRouting(t *testing.T) {
+	pool := dispatcherPool(t)
+	seedModerationDelivery(t, pool, time.Now().UTC().Add(6*time.Hour))
+	now := time.Now().UTC().Add(time.Second)
+	sender := &scriptedSender{results: []ProviderResult{{Class: ResultRetryable}, {Class: ResultSuccess}}}
+	dispatcher := newTestDispatcher(t, pool, sender, DispatcherOptions{Now: func() time.Time { return now }})
+
+	if n, err := dispatcher.ProcessBatch(context.Background(), "worker"); err != nil || n != 1 {
+		t.Fatalf("first batch n=%d err=%v", n, err)
+	}
+	now = now.Add(2 * time.Second)
+	if n, err := dispatcher.ProcessBatch(context.Background(), "worker"); err != nil || n != 1 {
+		t.Fatalf("retry batch n=%d err=%v", n, err)
+	}
+	if len(sender.requests) != 2 {
+		t.Fatalf("provider sends=%d, want 2", len(sender.requests))
+	}
+	for _, request := range sender.requests {
+		if request.AccountSubscriptionID != "30000000-0000-0000-0000-000000000001" ||
+			request.RoutingFacts.CaseReference != "MOD-550e8400-e29b-41d4-a716-446655440000" ||
+			request.RoutingFacts.ActorDID != "" {
+			t.Fatalf("retry routing changed or gained actor: %+v", request)
+		}
 	}
 }
 
@@ -1417,6 +1526,142 @@ func TestDispatcherTelemetryNeverExposesProviderSentinels(t *testing.T) {
 	}
 }
 
+func TestModerationQueueStatsCountOnlyEligibleWork(t *testing.T) {
+	pool := dispatcherPool(t)
+	now := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
+	seedModerationDelivery(t, pool, now.Add(time.Hour))
+	if _, err := pool.Exec(context.Background(), `UPDATE push_deliveries SET created_at=$1,updated_at=$1`, now.Add(-20*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+
+	// Disabled preferences make otherwise routable moderation work ineligible.
+	if _, err := pool.Exec(context.Background(), `INSERT INTO notification_preferences(account_did,category,scope,push_enabled) VALUES('did:plc:viewer','moderation','everyone',false)`); err != nil {
+		t.Fatal(err)
+	}
+	d := newTestDispatcher(t, pool, nil, DispatcherOptions{Now: func() time.Time { return now }, BatchSize: 1, LeaseDuration: time.Minute})
+	pending, age, err := d.moderationQueueStats(context.Background(), now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pending != 0 || age != 0 {
+		t.Fatalf("disabled preference: pending=%d age=%s, want zero eligible work", pending, age)
+	}
+
+	if _, err := pool.Exec(context.Background(), `UPDATE notification_preferences SET push_enabled=true; UPDATE push_account_subscriptions SET active=false`); err != nil {
+		t.Fatal(err)
+	}
+	pending, age, err = d.moderationQueueStats(context.Background(), now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pending != 0 || age != 0 {
+		t.Fatalf("inactive routing: pending=%d age=%s, want zero eligible work", pending, age)
+	}
+
+	if _, err := pool.Exec(context.Background(), `UPDATE push_account_subscriptions SET active=true`); err != nil {
+		t.Fatal(err)
+	}
+	pending, age, err = d.moderationQueueStats(context.Background(), now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pending != 1 || age != 20*time.Minute {
+		t.Fatalf("eligible moderation work: pending=%d age=%s, want 1 and 20m", pending, age)
+	}
+}
+
+type dispatcherModerationLogEvent struct {
+	message string
+	attrs   observability.EventContext
+}
+
+type dispatcherModerationLogSink struct {
+	events []dispatcherModerationLogEvent
+}
+
+func (s *dispatcherModerationLogSink) Emit(_ context.Context, _ slog.Level, message string, attrs observability.EventContext) {
+	s.events = append(s.events, dispatcherModerationLogEvent{message: message, attrs: attrs})
+}
+
+func TestDispatcherProcessBatchAlertsOnStaleEligibleModerationWork(t *testing.T) {
+	const (
+		ownerSentinel  = "did:plc:SENTINEL_PUSH_OWNER"
+		deviceSentinel = "SENTINEL_PUSH_DEVICE"
+		tokenSentinel  = "SENTINEL_PUSH_SECRET"
+	)
+	pool := dispatcherPool(t)
+	now := time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC)
+	seedModerationDelivery(t, pool, now.Add(6*time.Hour))
+	for _, update := range []struct {
+		query string
+		args  []any
+	}{
+		{`UPDATE notification_events SET recipient_did=$1`, []any{ownerSentinel}},
+		{`UPDATE push_account_subscriptions SET account_did=$1`, []any{ownerSentinel}},
+		{`UPDATE push_installations SET device_id=$1,fcm_token=$2`, []any{deviceSentinel, tokenSentinel}},
+		{`UPDATE push_deliveries SET created_at=$1,updated_at=$1,next_attempt_at=$2`, []any{now.Add(-15*time.Minute + time.Second), now.Add(time.Hour)}},
+	} {
+		if _, err := pool.Exec(context.Background(), update.query, update.args...); err != nil {
+			t.Fatal(err)
+		}
+	}
+	recorder := observability.NewInMemoryMetricRecorder()
+	sink := &dispatcherModerationLogSink{}
+	var logOutput bytes.Buffer
+	observer := observability.New(observability.Config{
+		SentryDSN: "https://public@example.invalid/1", LogsEnabled: true, MetricsEnabled: true,
+		MetricRecorder: recorder, LogSink: sink, Logger: slog.New(slog.NewJSONHandler(&logOutput, nil)),
+	})
+	d := newTestDispatcher(t, pool, &scriptedSender{}, DispatcherOptions{
+		Now: func() time.Time { return now }, BatchSize: 1, LeaseDuration: time.Minute, Observer: observer,
+	})
+	if processed, err := d.ProcessBatch(context.Background(), "worker"); err != nil || processed != 0 {
+		t.Fatalf("below-threshold batch = %d, %v", processed, err)
+	}
+	if _, err := pool.Exec(context.Background(), `UPDATE push_deliveries SET created_at=$1,updated_at=$1`, now.Add(-15*time.Minute)); err != nil {
+		t.Fatal(err)
+	}
+	if processed, err := d.ProcessBatch(context.Background(), "worker"); err != nil || processed != 0 {
+		t.Fatalf("threshold batch = %d, %v", processed, err)
+	}
+
+	workCalls := map[string][]float64{}
+	for _, call := range recorder.Calls() {
+		if strings.HasPrefix(call.Name, "craftsky_appview_moderation_work_") || call.Name == "craftsky_appview_moderation_alert_active" {
+			if len(call.Attributes) != 1 || call.Attributes["kind"] != "notification_delivery" {
+				t.Fatalf("moderation queue metric attrs = %#v", call.Attributes)
+			}
+			workCalls[call.Name] = append(workCalls[call.Name], call.Value)
+		}
+	}
+	if got := workCalls["craftsky_appview_moderation_work_pending"]; fmt.Sprint(got) != "[1 1]" {
+		t.Fatalf("pending metrics = %v", got)
+	}
+	if got := workCalls["craftsky_appview_moderation_work_oldest_age_seconds"]; fmt.Sprint(got) != "[899 900]" {
+		t.Fatalf("age metrics = %v", got)
+	}
+	if got := workCalls["craftsky_appview_moderation_alert_active"]; fmt.Sprint(got) != "[0 1]" {
+		t.Fatalf("alert metrics = %v", got)
+	}
+	if len(sink.events) != 1 || sink.events[0].message != "moderation notification queue alert" ||
+		len(sink.events[0].attrs) != 3 || sink.events[0].attrs["component"] != "moderation" ||
+		sink.events[0].attrs["operation"] != "notification_delivery" || sink.events[0].attrs["result"] != "alert" {
+		t.Fatalf("queue alert logs = %#v", sink.events)
+	}
+	observable := logOutput.String()
+	for _, call := range recorder.Calls() {
+		observable += fmt.Sprintf("%s%v", call.Name, call.Attributes)
+	}
+	for _, event := range sink.events {
+		observable += event.message + fmt.Sprint(event.attrs)
+	}
+	for _, sensitive := range []string{ownerSentinel, deviceSentinel, tokenSentinel, "did:plc:"} {
+		if strings.Contains(observable, sensitive) {
+			t.Fatalf("dispatcher alert telemetry leaked %q: %s", sensitive, observable)
+		}
+	}
+}
+
 func dispatcherPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	pool := testdb.WithSchema(t, `
@@ -1452,6 +1697,61 @@ func seedDelivery(t *testing.T, pool *pgxpool.Pool, status string, deadline time
 		if _, err := pool.Exec(context.Background(), statement.sql, statement.args...); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+func seedModerationDelivery(t *testing.T, pool *pgxpool.Pool, deadline time.Time) {
+	t.Helper()
+	if _, err := pool.Exec(context.Background(), `
+		ALTER TABLE notification_events
+			DROP CONSTRAINT notification_events_category_check,
+			ALTER COLUMN actor_did DROP NOT NULL,
+			ALTER COLUMN source_uri DROP NOT NULL,
+			ALTER COLUMN source_cid DROP NOT NULL,
+			ALTER COLUMN source_rkey DROP NOT NULL,
+			ADD COLUMN moderation_case_reference TEXT,
+			ADD CONSTRAINT notification_events_category_check CHECK (category IN (
+				'like','follow','reply','mention','quote','repost','everythingElse','moderation'
+			));
+		ALTER TABLE notification_preferences
+			DROP CONSTRAINT notification_preferences_category_check,
+			ADD CONSTRAINT notification_preferences_category_check CHECK (category IN (
+				'like','follow','reply','mention','quote','repost','everythingElse','moderation'
+			))
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO notification_events(
+			id,recipient_did,category,subject_key,moderation_case_reference,
+			eligibility_scope,recipient_followed_actor,push_enabled_snapshot,state,
+			first_activity_at,activity_at,indexed_at,initial_push_evaluated_at
+		) VALUES(
+			'00000000-0000-0000-0000-000000000001','did:plc:viewer','moderation','event-1',
+			'MOD-550e8400-e29b-41d4-a716-446655440000','everyone',false,true,'active',
+			now(),now(),now(),now()
+		);
+		INSERT INTO push_installations(id,device_id,platform,fcm_token)
+		VALUES('10000000-0000-0000-0000-000000000001','device','ios','secret-token');
+		INSERT INTO push_account_subscriptions(id,installation_id,account_did,routing_id)
+		VALUES(
+			'20000000-0000-0000-0000-000000000001',
+			'10000000-0000-0000-0000-000000000001','did:plc:viewer',
+			'30000000-0000-0000-0000-000000000001'
+		)
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO push_deliveries(
+			id,notification_id,account_subscription_id,status,next_attempt_at,deadline_at
+		) VALUES(
+			'40000000-0000-0000-0000-000000000001',
+			'00000000-0000-0000-0000-000000000001',
+			'20000000-0000-0000-0000-000000000001','pending',now(),$1
+		)
+	`, deadline); err != nil {
+		t.Fatal(err)
 	}
 }
 

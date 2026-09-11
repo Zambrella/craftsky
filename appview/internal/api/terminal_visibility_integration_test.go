@@ -246,6 +246,9 @@ func TestTerminalOwnerIsInvisibleAndIneffectiveBeforePhysicalPurge(t *testing.T)
 	if _, err := posts.ReadOne(ctx, terminal.String(), "terminal-post"); !errors.Is(err, api.ErrPostNotFound) {
 		t.Fatalf("terminal direct post read error=%v, want not found", err)
 	}
+	if _, err := posts.ReadOneForViewer(ctx, terminal.String(), "terminal-post", terminal.String()); !errors.Is(err, api.ErrPostNotFound) {
+		t.Fatalf("terminal owner post read error=%v, want not found", err)
+	}
 	timeline, _, err := posts.ListTimeline(ctx, viewer.String(), 20, "")
 	if err != nil {
 		t.Fatal(err)

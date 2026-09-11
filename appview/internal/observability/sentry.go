@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"sync/atomic"
+	"time"
 
 	"github.com/getsentry/sentry-go"
 	"github.com/google/uuid"
@@ -39,6 +40,10 @@ var allowedEventContextKeys = map[string]struct{}{
 	"recovered_type":    {},
 	"sentry_trace_id":   {},
 	"sentry_span_id":    {},
+	"actor_type":        {},
+	"request_id":        {},
+	"case_reference":    {},
+	"occurred_at":       {},
 }
 
 func SanitizeEventContext(ctx EventContext) EventContext {
@@ -81,7 +86,26 @@ func sanitizeEventContextValue(key string, value any) any {
 	case "failure_stage":
 		return safeMetricStage(fmt.Sprint(value))
 	case "result":
+		if strings.TrimSpace(fmt.Sprint(value)) == "alert" {
+			return "alert"
+		}
+		moderationResult := safeModerationResult(fmt.Sprint(value))
+		if moderationResult != "unknown" {
+			return moderationResult
+		}
 		return safeMetricResult(fmt.Sprint(value))
+	case "actor_type":
+		return safeModerationActorType(fmt.Sprint(value))
+	case "request_id":
+		return safeModerationRequestIdentifier(fmt.Sprint(value))
+	case "case_reference":
+		return safeModerationCaseReference(fmt.Sprint(value))
+	case "occurred_at":
+		parsed, err := time.Parse(time.RFC3339Nano, fmt.Sprint(value))
+		if err != nil {
+			return "unknown"
+		}
+		return parsed.UTC().Format(time.RFC3339Nano)
 	case "reason":
 		return safeMigrationReason(fmt.Sprint(value))
 	case "retryable":

@@ -6,7 +6,7 @@ import (
 )
 
 func TestCategoriesExposeExactlyTheApprovedWireValues(t *testing.T) {
-	want := []Category{Like, Follow, Reply, Mention, Quote, Repost, EverythingElse, InstagramMatch}
+	want := []Category{Like, Follow, Reply, Mention, Quote, Repost, EverythingElse, InstagramMatch, Moderation}
 
 	if got := Categories(); !slices.Equal(got, want) {
 		t.Fatalf("Categories() = %v, want %v", got, want)
@@ -23,6 +23,16 @@ func TestCategoriesExposeExactlyTheApprovedWireValues(t *testing.T) {
 	}
 	if EverythingElse.HasProducer() {
 		t.Fatal("everythingElse must remain reserved without a producer")
+	}
+}
+
+func TestModerationCategoryIsFixedScopeAndProduced(t *testing.T) {
+	if !Moderation.Valid() || !Moderation.HasProducer() || !Moderation.FixedScope() {
+		t.Fatal("moderation category must be valid, produced, and fixed-scope")
+	}
+	peopleIFollow := PeopleIFollow
+	if _, err := ResolvePreferences(nil, map[Category]PreferencePatch{Moderation: {Scope: &peopleIFollow}}); err == nil {
+		t.Fatal("moderation scope patch must be rejected")
 	}
 }
 

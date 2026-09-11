@@ -28,6 +28,8 @@ var terminalCascadePolicies = map[string]string{
 	"instagram_private_suggestions":     "drain",
 	"instagram_reconciliation_jobs":     "drain",
 	"instagram_verification_attempts":   "drain",
+	"moderation_cases":                  "drain",
+	"moderation_reports":                "fixed",
 	"notification_events":               "drain",
 	"oauth_auth_requests":               "fixed",
 	"oauth_handoff_exchanges":           "fixed",
@@ -152,6 +154,17 @@ func terminalCascadeDrainSQL(entry TerminalDIDEntry) []string {
 			DELETE FROM push_deliveries AS child
 			USING target WHERE child.id=target.id
 		`}
+	case "moderation_cases":
+		return []string{
+			deleteModerationCaseDependentSQL("moderation_appeals", "case_id"),
+			deleteModerationCaseDependentSQL("moderation_active_case_effects", "case_id,effect_type"),
+			deleteModerationCaseDependentSQL("moderation_case_strikes", "case_id"),
+			deleteModerationCaseDependentSQL("moderation_effect_events", "created_at,id"),
+			deleteModerationCaseDependentSQL("moderation_decisions", "created_at,id"),
+			deleteModerationCaseDependentSQL("moderation_appeal_correspondence", "received_at,id"),
+			deleteModerationCaseDependentSQL("moderation_case_reports", "attached_at,report_id"),
+			deleteModerationCaseDependentSQL("moderation_case_events", "created_at,id"),
+		}
 	case "push_account_subscriptions":
 		return []string{`
 			WITH target AS (
@@ -272,6 +285,21 @@ func deletePostDependentSQL(table, postColumn, orderBy string) string {
 			  ON parent.uri=child.` + quoteIdentifier(postColumn) + `
 			WHERE parent.did=$1
 			  AND parent.ctid=ANY($3::tid[])
+			ORDER BY ` + qualifyOrder("child", orderBy) + `
+			LIMIT $2 FOR UPDATE OF child NOWAIT
+		)
+		DELETE FROM ` + quoteIdentifier(table) + ` AS child
+		USING target WHERE child.ctid=target.ctid
+	`
+}
+
+func deleteModerationCaseDependentSQL(table, orderBy string) string {
+	return `
+		WITH target AS (
+			SELECT child.ctid
+			FROM ` + quoteIdentifier(table) + ` AS child
+			JOIN moderation_cases AS parent ON parent.id=child.case_id
+			WHERE parent.ctid=ANY($3::tid[])
 			ORDER BY ` + qualifyOrder("child", orderBy) + `
 			LIMIT $2 FOR UPDATE OF child NOWAIT
 		)

@@ -45,9 +45,7 @@ class NotificationSettingsPage extends ConsumerWidget {
           child: FilledButton(
             onPressed: () {
               if (account != null) {
-                ref.invalidate(
-                  accountNotificationPreferencesProvider(account),
-                );
+                ref.invalidate(accountNotificationPreferencesProvider(account));
               } else {
                 ref.invalidate(notificationPreferencesProvider);
               }
@@ -217,17 +215,23 @@ class _PreferenceSection extends ConsumerWidget {
               ),
             ],
           ),
-          if (category == NotificationCategory.instagramMatch) ...[
+          if (category.hasFixedScope) ...[
             SizedBox(height: spacing.sp2),
             Text(
-              l10n.notificationInstagramMatchPreferenceDescription,
+              switch (category) {
+                NotificationCategory.instagramMatch =>
+                  l10n.notificationInstagramMatchPreferenceDescription,
+                NotificationCategory.moderation =>
+                  l10n.notificationModerationPreferenceDescription,
+                _ => throw StateError('Unexpected fixed-scope category'),
+              },
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
             ),
           ],
           SizedBox(height: spacing.sp4),
-          if (category != NotificationCategory.instagramMatch)
+          if (!category.hasFixedScope)
             CraftskySingleSelectInput<NotificationPreferenceScope>(
               label: l10n.notificationPreferenceFrom,
               keyPrefix: 'notification-${category.wireValue}-scope',
@@ -256,9 +260,7 @@ class _PreferenceSection extends ConsumerWidget {
                           )
                           .setScope(category, value: value);
                 if (!saved && context.mounted) {
-                  context.showError(
-                    l10n.notificationPreferenceSaveError,
-                  );
+                  context.showError(l10n.notificationPreferenceSaveError);
                 }
               },
             ),
@@ -275,9 +277,7 @@ class _PreferenceSection extends ConsumerWidget {
                 ),
                 SizedBox(width: spacing.sp3),
                 Switch(
-                  key: Key(
-                    'notification-${category.wireValue}-push-switch',
-                  ),
+                  key: Key('notification-${category.wireValue}-push-switch'),
                   value: preference.pushEnabled,
                   onChanged: (value) async {
                     final saved = account == null
@@ -305,19 +305,18 @@ class _PreferenceSection extends ConsumerWidget {
   }
 }
 
-String _categoryLabel(
-  AppLocalizations l10n,
-  NotificationCategory category,
-) => switch (category) {
-  NotificationCategory.like => l10n.notificationCategoryLikes,
-  NotificationCategory.follow => l10n.notificationCategoryFollows,
-  NotificationCategory.reply => l10n.notificationCategoryReplies,
-  NotificationCategory.mention => l10n.notificationCategoryMentions,
-  NotificationCategory.quote => l10n.notificationCategoryQuotes,
-  NotificationCategory.repost => l10n.notificationCategoryReposts,
-  NotificationCategory.instagramMatch =>
-    l10n.notificationCategoryInstagramMatches,
-  NotificationCategory.everythingElse =>
-    l10n.notificationCategoryEverythingElse,
-  NotificationCategory.unknown => l10n.notificationCategoryEverythingElse,
-};
+String _categoryLabel(AppLocalizations l10n, NotificationCategory category) =>
+    switch (category) {
+      NotificationCategory.like => l10n.notificationCategoryLikes,
+      NotificationCategory.follow => l10n.notificationCategoryFollows,
+      NotificationCategory.reply => l10n.notificationCategoryReplies,
+      NotificationCategory.mention => l10n.notificationCategoryMentions,
+      NotificationCategory.quote => l10n.notificationCategoryQuotes,
+      NotificationCategory.repost => l10n.notificationCategoryReposts,
+      NotificationCategory.instagramMatch =>
+        l10n.notificationCategoryInstagramMatches,
+      NotificationCategory.moderation => l10n.notificationCategoryModeration,
+      NotificationCategory.everythingElse =>
+        l10n.notificationCategoryEverythingElse,
+      NotificationCategory.unknown => l10n.notificationCategoryEverythingElse,
+    };

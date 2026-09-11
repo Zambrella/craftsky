@@ -11,6 +11,7 @@ import (
 	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/followergrowth"
 	"social.craftsky/appview/internal/languages"
+	"social.craftsky/appview/internal/moderation"
 	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/relationships"
@@ -61,7 +62,7 @@ func newContentDependencies(
 		profiles:              api.NewProfileStore(pool),
 		profileCustomisation:  api.NewProfileCustomisationStore(pool),
 		follows:               api.NewFollowStore(pool),
-		reports:               api.NewReportStore(pool),
+		reports:               api.NewReportStore(pool, moderation.NewStore(pool)),
 		reportForwarder:       api.NewPlaceholderReportForwarder(time.Now),
 		followerGrowth:        followerGrowth,
 		followerGrowthWorker:  followergrowth.NewWorker(followerGrowth, followergrowth.WithObserver(observer)),

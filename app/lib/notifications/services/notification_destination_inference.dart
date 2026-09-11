@@ -22,6 +22,9 @@ abstract final class NotificationDestinationInference {
         ),
         NotificationCategory.everythingElse => const NotificationsDestination(),
         NotificationCategory.instagramMatch => const NotificationsDestination(),
+        NotificationCategory.moderation => ModerationHistoryDestination(
+          facts.caseReference!,
+        ),
         NotificationCategory.unknown => throw StateError(
           'Unknown categories cannot be valid notification facts',
         ),

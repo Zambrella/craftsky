@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"image"
 	"image/color"
 	"image/jpeg"
@@ -160,12 +161,129 @@ func (*recordingRegistrationFlow) CompleteCallback(context.Context, url.Values, 
 
 func testDeps() *Dependencies {
 	return &Dependencies{
-		Config:         Config{Env: EnvDev, AllowedOrigins: []string{"*"}},
-		Logger:         slog.New(slog.NewTextHandler(io.Discard, nil)),
-		AuthService:    &auth.MockAuthService{DefaultDID: "did:plc:test"},
-		HandleResolver: stubResolver{handle: syntax.Handle("stub-handle.example")},
+		Config:           Config{Env: EnvDev, AllowedOrigins: []string{"*"}},
+		Logger:           slog.New(slog.NewTextHandler(io.Discard, nil)),
+		AuthService:      &auth.MockAuthService{DefaultDID: "did:plc:test"},
+		HandleResolver:   stubResolver{handle: syntax.Handle("stub-handle.example")},
+		SuspensionReader: unsuspendedReader{},
 	}
 }
+
+func TestAdminModerationRoutesUseOnlyDedicatedModeratorAuthentication(t *testing.T) {
+	const sensitive = "SENTINEL_ADMIN_CREDENTIAL"
+	var logOutput bytes.Buffer
+	recorder := observability.NewInMemoryMetricRecorder()
+	sink := &routeModerationLogSink{}
+	observer := observability.New(observability.Config{
+		SentryDSN: "https://public@example.invalid/1", LogsEnabled: true, MetricsEnabled: true,
+		MetricRecorder: recorder, LogSink: sink, Logger: slog.New(slog.NewJSONHandler(&logOutput, nil)),
+	})
+	deps := testDeps()
+	deps.Config.ModerationAdminEnabled = true
+	deps.Config.ModerationAdminToken = Secret(sensitive)
+	deps.Config.ModerationAdminActorID = "operator-1"
+	deps.Config.ModerationAdminSourceSystem = "admin-api"
+	deps.Config.EnableDevModeration = true
+	deps.Config.DevModerationToken = "SENTINEL_DEVELOPMENT_SECRET"
+	deps.Observability = observer
+	deps.Logger = slog.New(slog.NewJSONHandler(&logOutput, nil))
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, deps)
+
+	denials := []struct {
+		name          string
+		authorization string
+		devToken      string
+	}{
+		{name: "missing"},
+		{name: "member", authorization: "Bearer SENTINEL_MEMBER_SESSION"},
+		{name: "development", devToken: "SENTINEL_DEVELOPMENT_SECRET"},
+		{name: "revoked", authorization: "Bearer SENTINEL_REVOKED_ADMIN_SECRET"},
+		{name: "malformed", authorization: sensitive},
+	}
+	for index, test := range denials {
+		t.Run(test.name, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, "/v1/admin/moderation/cases", nil)
+			request.Header.Set("Authorization", test.authorization)
+			request.Header.Set("X-Craftsky-Dev-Moderation-Token", test.devToken)
+			request.Header.Set("X-Dev-DID", "did:plc:SENTINEL_MEMBER_DID")
+			response := httptest.NewRecorder()
+			mux.ServeHTTP(response, request)
+			wantBody := `{"error":"moderator_authentication_failed","message":"moderator authentication failed","requestId":""}` + "\n"
+			if response.Code != http.StatusUnauthorized || response.Body.String() != wantBody {
+				t.Fatalf("status/body = %d/%s", response.Code, response.Body.String())
+			}
+			failures := moderationMetricCalls(recorder.Calls(), "craftsky_appview_moderation_admin_auth_total", map[string]string{"result": "failure"})
+			if failures != index+1 {
+				t.Fatalf("failure metrics after denial %d = %d", index+1, failures)
+			}
+		})
+	}
+	if len(sink.events) != 5 || sink.events[3].level != slog.LevelWarn || sink.events[4].level != slog.LevelError {
+		t.Fatalf("auth threshold log levels = %#v, want four warnings then an error", sink.events)
+	}
+
+	request := httptest.NewRequest(http.MethodGet, "/v1/admin/moderation/cases?state=closed", nil)
+	request.Header.Set("Authorization", "Bearer "+sensitive)
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, request)
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), `"error":"invalid_request"`) {
+		t.Fatalf("current admin credential status/body = %d/%s", response.Code, response.Body.String())
+	}
+	if got := moderationMetricCalls(recorder.Calls(), "craftsky_appview_moderation_admin_auth_total", map[string]string{"result": "success"}); got != 1 {
+		t.Fatalf("success metrics = %d, want 1", got)
+	}
+	for _, call := range recorder.Calls() {
+		if call.Name == "craftsky_appview_moderation_admin_auth_total" && len(call.Attributes) != 1 {
+			t.Fatalf("admin auth metric attributes = %#v, want bounded result only", call.Attributes)
+		}
+	}
+	observable := logOutput.String() + response.Body.String()
+	for _, event := range sink.events {
+		observable += event.message
+		for key, value := range event.attrs {
+			observable += key + fmt.Sprint(value)
+		}
+	}
+	for _, value := range []string{sensitive, "SENTINEL_MEMBER_SESSION", "SENTINEL_DEVELOPMENT_SECRET", "SENTINEL_REVOKED_ADMIN_SECRET", "SENTINEL_MEMBER_DID", "did:plc:"} {
+		if strings.Contains(observable, value) {
+			t.Fatalf("admin route response/log telemetry leaked %q: %s", value, observable)
+		}
+	}
+}
+
+type routeModerationLogEvent struct {
+	level   slog.Level
+	message string
+	attrs   observability.EventContext
+}
+
+type routeModerationLogSink struct{ events []routeModerationLogEvent }
+
+func (s *routeModerationLogSink) Emit(_ context.Context, level slog.Level, message string, attrs observability.EventContext) {
+	s.events = append(s.events, routeModerationLogEvent{level: level, message: message, attrs: attrs})
+}
+
+func moderationMetricCalls(calls []observability.MetricCall, name string, attrs map[string]string) int {
+	count := 0
+	for _, call := range calls {
+		if call.Name != name || len(call.Attributes) != len(attrs) {
+			continue
+		}
+		matches := true
+		for key, value := range attrs {
+			matches = matches && call.Attributes[key] == value
+		}
+		if matches {
+			count++
+		}
+	}
+	return count
+}
+
+type unsuspendedReader struct{}
+
+func (unsuspendedReader) IsSuspended(context.Context, syntax.DID) (bool, error) { return false, nil }
 
 func TestV1MiddlewareHydratesIdentityAccountType(t *testing.T) {
 	observer := observability.New(observability.Config{Env: "test"})

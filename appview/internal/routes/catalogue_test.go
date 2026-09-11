@@ -15,7 +15,7 @@ import (
 func TestV1CatalogueRejectsDuplicatePolicy(t *testing.T) {
 	t.Parallel()
 
-	policy := RoutePolicy{Method: http.MethodGet, PathPattern: "/v1/things/{id}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember}
+	policy := RoutePolicy{Method: http.MethodGet, PathPattern: "/v1/things/{id}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember, SuspensionClass: SuspensionAllowed}
 	if _, err := NewV1Catalogue([]RoutePolicy{policy, policy}); err == nil {
 		t.Fatal("NewV1Catalogue() error = nil, want duplicate policy rejection")
 	}
@@ -26,11 +26,12 @@ func TestV1CatalogueRejectsMissingOrInvalidAccessClass(t *testing.T) {
 
 	for _, accessClass := range []AccessClass{0, AccessClass(255)} {
 		policy := RoutePolicy{
-			Method:      http.MethodGet,
-			PathPattern: "/v1/things/{id}",
-			RateClass:   RateClassRead,
-			BodyKind:    BodyNoBody,
-			AccessClass: accessClass,
+			Method:          http.MethodGet,
+			PathPattern:     "/v1/things/{id}",
+			RateClass:       RateClassRead,
+			BodyKind:        BodyNoBody,
+			AccessClass:     accessClass,
+			SuspensionClass: SuspensionAllowed,
 		}
 		if _, err := NewV1Catalogue([]RoutePolicy{policy}); err == nil || !strings.Contains(err.Error(), "access class") {
 			t.Fatalf("NewV1Catalogue(access class %d) error = %v, want access-class rejection", accessClass, err)
@@ -108,8 +109,8 @@ func TestV1RoutingOwnsUnknownAndWrongMethodErrors(t *testing.T) {
 	t.Parallel()
 
 	catalogue, err := NewV1Catalogue([]RoutePolicy{
-		{Method: http.MethodGet, PathPattern: "/v1/things/{id}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
-		{Method: http.MethodPatch, PathPattern: "/v1/things/{id}", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
+		{Method: http.MethodGet, PathPattern: "/v1/things/{id}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember, SuspensionClass: SuspensionAllowed},
+		{Method: http.MethodPatch, PathPattern: "/v1/things/{id}", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember, SuspensionClass: SuspensionDenied},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -172,7 +173,7 @@ func TestV1RoutingRejectsNonCanonicalPathsWithoutRedirect(t *testing.T) {
 	t.Parallel()
 
 	catalogue, err := NewV1Catalogue([]RoutePolicy{
-		{Method: http.MethodGet, PathPattern: "/v1/things/{id}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: http.MethodGet, PathPattern: "/v1/things/{id}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember, SuspensionClass: SuspensionAllowed},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -217,8 +218,8 @@ func TestPolicyMuxValidatesHandlerPolicyBijection(t *testing.T) {
 	t.Parallel()
 
 	catalogue, err := NewV1Catalogue([]RoutePolicy{
-		{Method: http.MethodGet, PathPattern: "/v1/one", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
-		{Method: http.MethodPost, PathPattern: "/v1/two", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
+		{Method: http.MethodGet, PathPattern: "/v1/one", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember, SuspensionClass: SuspensionAllowed},
+		{Method: http.MethodPost, PathPattern: "/v1/two", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember, SuspensionClass: SuspensionDenied},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -239,7 +240,7 @@ func TestPolicyMuxRejectsMethodNeutralV1HandlerOutsideCatalogue(t *testing.T) {
 	t.Parallel()
 
 	catalogue, err := NewV1Catalogue([]RoutePolicy{
-		{Method: http.MethodGet, PathPattern: "/v1/one", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: http.MethodGet, PathPattern: "/v1/one", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember, SuspensionClass: SuspensionAllowed},
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -51,6 +51,15 @@ func (f *fakeReportForwarder) Prepare(_ context.Context, input api.ReportForward
 	return api.ForwardingMetadata{Status: "prepared_not_submitted", SchemaVersion: &schema, PreparedAt: time.Date(2026, 5, 30, 12, 0, 0, 0, time.UTC)}, nil
 }
 
+type suspendedReportReader struct {
+	calls int
+}
+
+func (reader *suspendedReportReader) IsSuspended(context.Context, syntax.DID) (bool, error) {
+	reader.calls++
+	return true, nil
+}
+
 func TestReportPostHandler_AcceptsValidRequest(t *testing.T) {
 	t.Parallel()
 	reports := &fakeReportCreator{}
@@ -121,16 +130,17 @@ func TestReportProfileHandler_AcceptsValidRequest(t *testing.T) {
 	assertStringPtr(t, "handle snapshot", reports.lastInput.SubmittedHandleSnapshot, ptrString("bob.craftsky.social"))
 }
 
-func TestReportPostHandler_RejectsSelfReport(t *testing.T) {
+func TestSuspendedReporterRetainsNormalSelfReportRejection(t *testing.T) {
 	t.Parallel()
 	reports := &fakeReportCreator{}
 	forwarder := &fakeReportForwarder{}
-	h := api.ReportPostHandler(fakeReportPostTargets{target: &api.PostReportTarget{
+	reader := &suspendedReportReader{}
+	h := middleware.ModerationEnforcement(reader, true, nil)(api.ReportPostHandler(fakeReportPostTargets{target: &api.PostReportTarget{
 		DID:         "did:plc:alice",
 		Rkey:        "3lf2abc",
 		URI:         "at://did:plc:alice/social.craftsky.feed.post/3lf2abc",
 		CIDSnapshot: "bafy-post-v1",
-	}}, reports, forwarder, nilLogger())
+	}}, reports, forwarder, nilLogger()))
 	req := authedReportReq(http.MethodPost, "/v1/posts/did:plc:alice/3lf2abc/reports", `{"reasonType":"spam"}`, "did:plc:alice", "device-1")
 	req.SetPathValue("did", "did:plc:alice")
 	req.SetPathValue("rkey", "3lf2abc")
@@ -146,6 +156,9 @@ func TestReportPostHandler_RejectsSelfReport(t *testing.T) {
 	}
 	if reports.lastInput.ReporterDID != "" {
 		t.Fatalf("report was persisted: %+v", reports.lastInput)
+	}
+	if reader.calls != 0 {
+		t.Fatalf("retained report route queried suspension %d times, want 0", reader.calls)
 	}
 }
 

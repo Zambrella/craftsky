@@ -73,6 +73,7 @@ func TestInstagramVerificationRoutesEnforceMembershipBeforeDisabledService(t *te
 		AuthService:           &auth.MockAuthService{DefaultDID: "did:plc:synthetic-current"},
 		InstagramMembership:   instagram.NewMembershipStore(pool),
 		InstagramVerification: disabled,
+		SuspensionReader:      unsuspendedReader{},
 	}
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, deps)
@@ -178,6 +179,7 @@ func TestInstagramChallengeRouteUsesSharedDIDDeviceAndIPLimits(t *testing.T) {
 		InstagramMembership:   instagram.NewMembershipStore(pool),
 		InstagramRateLimiter:  limiter,
 		InstagramVerification: disabled,
+		SuspensionReader:      unsuspendedReader{},
 	}
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, deps)

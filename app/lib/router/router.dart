@@ -23,6 +23,7 @@ import 'package:craftsky_app/feed/pages/post_thread_page.dart';
 import 'package:craftsky_app/feed/providers/post_interaction_lists_provider.dart';
 import 'package:craftsky_app/instagram_migration/pages/instagram_migration_page.dart';
 import 'package:craftsky_app/languages/pages/languages_page.dart';
+import 'package:craftsky_app/moderation/pages/account_standing_page.dart';
 import 'package:craftsky_app/notifications/pages/notification_settings_page.dart';
 import 'package:craftsky_app/notifications/pages/notifications_page.dart';
 import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
@@ -257,6 +258,10 @@ class AccountDeletionReauthCompleteRoute extends GoRouteData
                     TypedGoRoute<AccountRoute>(
                       path: RouteLocations.accountChild,
                       name: 'settings-account',
+                    ),
+                    TypedGoRoute<AccountStandingRoute>(
+                      path: RouteLocations.moderationChild,
+                      name: 'account-standing',
                     ),
                     TypedGoRoute<AboutRoute>(
                       path: RouteLocations.aboutChild,
@@ -540,6 +545,17 @@ class AccountRoute extends GoRouteData with $AccountRoute {
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const AccountPage();
+}
+
+class AccountStandingRoute extends GoRouteData with $AccountStandingRoute {
+  const AccountStandingRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.authenticatedShellNavigatorKey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const AccountStandingPage();
 }
 
 class AboutRoute extends GoRouteData with $AboutRoute {

@@ -1,3 +1,4 @@
+import 'package:craftsky_app/moderation/models/account_moderation.dart';
 import 'package:craftsky_app/notifications/models/account_subscription_id.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -174,6 +175,45 @@ void main() {
     }
   });
 
+  test(
+    'AT-004 moderation facts require and canonicalize a v4 case reference',
+    () {
+      final valid = NotificationOpenAttempt.fromProviderData(
+        _providerData(
+          type: 'moderation',
+          caseReference: 'mod-550E8400-E29B-41D4-A716-446655440000',
+        ),
+      );
+
+      expect(valid.facts, isA<ValidNotificationFacts>());
+      expect(
+        (valid.facts as ValidNotificationFacts).caseReference,
+        ModerationCaseReference.parse(
+          'MOD-550e8400-e29b-41d4-a716-446655440000',
+        ),
+      );
+
+      for (final caseReference in <Object?>[
+        null,
+        'not-a-reference',
+        'MOD-550e8400-e29b-11d4-a716-446655440000',
+      ]) {
+        final attempt = NotificationOpenAttempt.fromProviderData(
+          _providerData(type: 'moderation', caseReference: caseReference),
+        );
+        expect(
+          attempt.facts,
+          isA<InvalidNotificationFacts>(),
+          reason: 'accepted $caseReference',
+        );
+        expect(
+          attempt.accountSubscriptionId,
+          AccountSubscriptionId.parse(routingId),
+        );
+      }
+    },
+  );
+
   test('UT-010 diagnostics expose classes but no routing identifiers', () {
     const actorDid = 'did:plc:privacyactor';
     const subjectUri =
@@ -211,6 +251,7 @@ Map<String, Object?> _providerData({
   String? subjectUri,
   String? rootUri,
   String? sourceUri,
+  Object? caseReference,
 }) => <String, Object?>{
   'payloadVersion': '1',
   'type': type,
@@ -219,4 +260,5 @@ Map<String, Object?> _providerData({
   'subjectUri': ?subjectUri,
   'rootUri': ?rootUri,
   'sourceUri': ?sourceUri,
+  'caseReference': ?caseReference,
 };

@@ -46,6 +46,7 @@ type RoutingFacts struct {
 	RootURI        syntax.ATURI
 	TargetRole     ContentRole
 	NotificationID string
+	CaseReference  string
 }
 type SendRequest struct {
 	Token                 string

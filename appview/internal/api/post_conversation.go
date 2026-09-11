@@ -28,7 +28,7 @@ type commentRepliesStore interface {
 }
 
 type postCommentsStore interface {
-	postByKeyReader
+	directPostReader
 	postByURIReader
 	relationshipStateReader
 	engagementSummaryReader
@@ -203,9 +203,10 @@ func GetPostCommentsHandler(
 			return
 		}
 		rkey := r.PathValue("rkey")
+		viewerDID, _ := middleware.GetDID(r.Context())
 		logger.Debug("post comments: resolving root",
 			apiLogAttrs(runID, "post.comments.list")...)
-		root, err := store.ReadOne(r.Context(), did.String(), rkey)
+		root, err := store.ReadOneForViewer(r.Context(), did.String(), rkey, viewerDID.String())
 		if errors.Is(err, ErrPostNotFound) {
 			envelope.WriteError(w, http.StatusNotFound,
 				"post_not_found", "post not found", runID, nil)
@@ -224,7 +225,6 @@ func GetPostCommentsHandler(
 			return
 		}
 
-		viewerDID, _ := middleware.GetDID(r.Context())
 		rootRelationship, err := store.RelationshipState(r.Context(), viewerDID, did)
 		if errors.Is(err, relationships.ErrProfileNotFound) {
 			envelope.WriteError(w, http.StatusNotFound, "profile_not_found", "profile not found", runID, nil)

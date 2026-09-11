@@ -11,10 +11,7 @@ void main() {
       },
     });
 
-    expect(
-      preferences.known[NotificationCategory.like]?.pushEnabled,
-      isTrue,
-    );
+    expect(preferences.known[NotificationCategory.like]?.pushEnabled, isTrue);
     expect(preferences.unknown, contains('futureCategory'));
     expect(
       preferences.known,
@@ -45,6 +42,17 @@ void main() {
         },
       },
     );
+    expect(
+      NotificationPreferencePatch.pushEnabled(
+        NotificationCategory.moderation,
+        value: false,
+      ).toMap(),
+      {
+        'preferences': {
+          'moderation': {'pushEnabled': false},
+        },
+      },
+    );
   });
 
   test('preference values use generated mapping and copyWith', () {
@@ -55,9 +63,6 @@ void main() {
 
     expect(preference.scope, NotificationPreferenceScope.peopleIFollow);
     expect(preference.copyWith(pushEnabled: false).pushEnabled, isFalse);
-    expect(preference.toMap(), {
-      'scope': 'peopleIFollow',
-      'pushEnabled': true,
-    });
+    expect(preference.toMap(), {'scope': 'peopleIFollow', 'pushEnabled': true});
   });
 }

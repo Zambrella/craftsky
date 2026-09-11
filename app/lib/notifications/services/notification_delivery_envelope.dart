@@ -28,6 +28,7 @@ final class NotificationDeliveryEnvelope {
     'subjectUri',
     'rootUri',
     'sourceUri',
+    'caseReference',
   };
 
   final String notificationId;

@@ -20,6 +20,7 @@ func TestRouteInventoryAndV1PoliciesStayExact(t *testing.T) {
 	deps := testDeps()
 	deps.Config.EnableDevModeration = true
 	deps.Config.DevModerationToken = "inventory-token"
+	deps.Config.ModerationAdminEnabled = true
 	registrar := &inventoryRegistrar{}
 
 	AddRoutes(context.Background(), registrar, deps)
@@ -36,6 +37,16 @@ func TestRouteInventoryAndV1PoliciesStayExact(t *testing.T) {
 		"POST /v1/auth/registrations",
 		"POST /v1/auth/handoffs/exchange",
 		"POST /v1/auth/handoffs/confirm",
+		"GET /v1/moderation/standing",
+		"GET /v1/moderation/history",
+		"GET /v1/moderation/history/{caseReference}",
+		"GET /v1/admin/moderation/cases",
+		"GET /v1/admin/moderation/cases/{caseReference}",
+		"POST /v1/admin/moderation/cases/{caseReference}/decisions",
+		"POST /v1/admin/moderation/cases/{caseReference}/appeal-confirmations",
+		"POST /v1/admin/moderation/cases/{caseReference}/appeal-resolutions",
+		"POST /v1/admin/moderation/cases/{caseReference}/effect-changes",
+		"POST /v1/admin/moderation/cases/{caseReference}/restorations",
 		"POST /v1/blobs/videos/authorization",
 		"GET /v1/blobs/videos/limits",
 		"GET /v1/whoami",

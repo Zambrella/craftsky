@@ -40,6 +40,7 @@ type NotificationItem struct {
 	SubjectPost      *PostResponse           `json:"subjectPost,omitempty"`
 	Reply            *NotificationReplyRef   `json:"reply,omitempty"`
 	ContentAvailable *bool                   `json:"contentAvailable,omitempty"`
+	CaseReference    string                  `json:"caseReference,omitempty"`
 }
 
 type NotificationActor struct {
@@ -83,7 +84,9 @@ func ListNotificationsHandler(store NotificationReader, _ HandleResolver, logger
 			dids := make([]string, 0, len(rows)*2)
 			postURIs := make([]string, 0, len(rows))
 			for _, row := range rows {
-				dids = append(dids, row.ActorDID)
+				if row.ActorDID != "" {
+					dids = append(dids, row.ActorDID)
+				}
 				if row.SubjectPost != nil {
 					dids = append(dids, row.SubjectPost.DID)
 					postURIs = append(postURIs, row.SubjectPost.URI)
@@ -137,32 +140,35 @@ func parseNotificationLimit(raw string) int {
 
 func buildNotificationItem(row *NotificationRow, handles map[string]syntax.Handle, summaries map[string]EngagementSummary, playbackSource any) *NotificationItem {
 	item := &NotificationItem{
-		ID:        row.ID,
-		Type:      row.Type,
-		CreatedAt: row.CreatedAt.UTC().Format(time.RFC3339),
-		IndexedAt: row.IndexedAt.UTC().Format(time.RFC3339),
+		ID:            row.ID,
+		Type:          row.Type,
+		CreatedAt:     row.CreatedAt.UTC().Format(time.RFC3339),
+		IndexedAt:     row.IndexedAt.UTC().Format(time.RFC3339),
+		CaseReference: row.CaseReference,
 	}
-	actorHandle, actorAvailable := handles[row.ActorDID]
-	item.Actor = &NotificationActor{
-		Available:         actorAvailable,
-		DID:               row.ActorDID,
-		Handle:            actorHandle.String(),
-		DisplayName:       row.ActorDisplayName,
-		AvatarCID:         row.ActorAvatarCID,
-		ViewerIsFollowing: row.ActorViewerIsFollowing,
-	}
-	if avatar := synthBlobURL("avatar", row.ActorDID, row.ActorAvatarCID, row.ActorAvatarMime); avatar != "" {
-		item.Actor.Avatar = &avatar
+	if row.ActorDID != "" {
+		actorHandle, actorAvailable := handles[row.ActorDID]
+		item.Actor = &NotificationActor{
+			Available:         actorAvailable,
+			DID:               row.ActorDID,
+			Handle:            actorHandle.String(),
+			DisplayName:       row.ActorDisplayName,
+			AvatarCID:         row.ActorAvatarCID,
+			ViewerIsFollowing: row.ActorViewerIsFollowing,
+		}
+		if avatar := synthBlobURL("avatar", row.ActorDID, row.ActorAvatarCID, row.ActorAvatarMime); avatar != "" {
+			item.Actor.Avatar = &avatar
+		}
+		if !actorAvailable {
+			item.Actor.DisplayName = nil
+			item.Actor.Avatar = nil
+			item.Actor.AvatarCID = nil
+		}
 	}
 	if row.References.Source.Available {
 		item.URI = row.References.Source.URI
 		item.CID = row.References.Source.CID
 		item.Rkey = row.References.Source.Rkey
-	}
-	if !actorAvailable {
-		item.Actor.DisplayName = nil
-		item.Actor.Avatar = nil
-		item.Actor.AvatarCID = nil
 	}
 	item.Reply = row.Reply
 	item.References = &row.References

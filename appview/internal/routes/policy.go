@@ -1,5 +1,7 @@
 package routes
 
+import "net/http"
+
 type RateClass string
 
 const (
@@ -49,11 +51,12 @@ const (
 	AccessAnonymous
 	AccessAuthenticatedRecovery
 	AccessCurrentMember
+	AccessModerator
 )
 
 func (c AccessClass) Valid() bool {
 	switch c {
-	case AccessAnonymous, AccessAuthenticatedRecovery, AccessCurrentMember:
+	case AccessAnonymous, AccessAuthenticatedRecovery, AccessCurrentMember, AccessModerator:
 		return true
 	default:
 		return false
@@ -61,16 +64,20 @@ func (c AccessClass) Valid() bool {
 }
 
 type RoutePolicy struct {
-	Method      string
-	PathPattern string
-	RateClass   RateClass
-	BodyKind    BodyKind
-	AccessClass AccessClass
-	DevOnly     bool
+	Method          string
+	PathPattern     string
+	RateClass       RateClass
+	BodyKind        BodyKind
+	AccessClass     AccessClass
+	SuspensionClass SuspensionClass
+	DevOnly         bool
 }
 
 func V1RoutePolicies(env Environment, cfg Config) []RoutePolicy {
 	policies := baseV1RoutePolicies()
+	if cfg.ModerationAdminEnabled {
+		policies = append(policies, adminModerationRoutePolicies()...)
+	}
 	if env == EnvDev {
 		policies = append(policies, RoutePolicy{Method: "GET", PathPattern: "/v1/dev/media/{name}", RateClass: RateClassDevOnly, BodyKind: BodyNoBody, AccessClass: AccessAnonymous, DevOnly: true})
 		policies = append(policies, RoutePolicy{Method: "GET", PathPattern: "/v1/dev/panic", RateClass: RateClassDevOnly, BodyKind: BodyNoBody, AccessClass: AccessAnonymous, DevOnly: true})
@@ -78,12 +85,112 @@ func V1RoutePolicies(env Environment, cfg Config) []RoutePolicy {
 			policies = append(policies, RoutePolicy{Method: "POST", PathPattern: "/v1/dev/moderation/ozone-events", RateClass: RateClassDevOnly, BodyKind: BodyDefaultJSON, AccessClass: AccessAnonymous, DevOnly: true})
 		}
 	}
+	for index := range policies {
+		policies[index].SuspensionClass = suspensionClassFor(policies[index])
+	}
 	return policies
+}
+
+type SuspensionClass uint8
+
+const (
+	SuspensionUnspecified SuspensionClass = iota
+	SuspensionAllowed
+	SuspensionDenied
+)
+
+func (class SuspensionClass) Valid() bool {
+	return class == SuspensionAllowed || class == SuspensionDenied
+}
+func (class SuspensionClass) AllowedWhenSuspended() bool { return class == SuspensionAllowed }
+
+func suspensionClassFor(policy RoutePolicy) SuspensionClass {
+	if policy.Method == http.MethodGet || policy.AccessClass == AccessAnonymous || policy.AccessClass == AccessModerator {
+		return SuspensionAllowed
+	}
+	if retainedSuspendedMutations[policyKey(policy.Method, policy.PathPattern)] {
+		return SuspensionAllowed
+	}
+	if deniedSuspendedMutations[policyKey(policy.Method, policy.PathPattern)] {
+		return SuspensionDenied
+	}
+	return SuspensionUnspecified
+}
+
+var retainedSuspendedMutations = map[string]bool{
+	"POST /v1/auth/logout":                                           true,
+	"POST /v1/account-deletion/intents":                              true,
+	"DELETE /v1/account-deletion/intents/{jobId}":                    true,
+	"POST /v1/account-deletions/{jobId}":                             true,
+	"POST /v1/profiles/{handleOrDid}/mutes":                          true,
+	"DELETE /v1/profiles/{handleOrDid}/mutes":                        true,
+	"POST /v1/profiles/{handleOrDid}/blocks":                         true,
+	"DELETE /v1/profiles/{handleOrDid}/blocks":                       true,
+	"POST /v1/profiles/{handleOrDid}/reports":                        true,
+	"POST /v1/events/{did}/{rkey}/reports":                           true,
+	"POST /v1/posts/{did}/{rkey}/reports":                            true,
+	"DELETE /v1/events/{did}/{rkey}":                                 true,
+	"DELETE /v1/posts/{did}/{rkey}":                                  true,
+	"DELETE /v1/profiles/me/business":                                true,
+	"DELETE /v1/posts/{did}/{rkey}/pin":                              true,
+	"POST /v1/notifications/seen":                                    true,
+	"PATCH /v1/notifications/preferences":                            true,
+	"PUT /v1/languages/preferences":                                  true,
+	"POST /v1/languages/preferences/initialize":                      true,
+	"POST /v1/notifications/devices":                                 true,
+	"DELETE /v1/notifications/devices/{accountSubscriptionId}":       true,
+	"POST /v1/search/recent":                                         true,
+	"DELETE /v1/search/recent/{id}":                                  true,
+	"POST /v1/posts/{did}/{rkey}/saves":                              true,
+	"DELETE /v1/posts/{did}/{rkey}/saves":                            true,
+	"POST /v1/saved-post-folders":                                    true,
+	"PATCH /v1/saved-post-folders/{folderId}":                        true,
+	"DELETE /v1/saved-post-folders/{folderId}":                       true,
+	"DELETE /v1/scheduled-posts/{id}":                                true,
+	"DELETE /v1/scheduled-post-media/{mediaId}":                      true,
+	"DELETE /v1/migrations/instagram/verifications/{verificationId}": true,
+	"DELETE /v1/migrations/instagram/account":                        true,
+	"DELETE /v1/migrations/instagram/imports/{importId}":             true,
+	"DELETE /v1/migrations/instagram/suggestions/{suggestionId}":     true,
+}
+
+// Denied mutations are explicit so a new authenticated mutation cannot silently
+// inherit policy; an absent classification prevents catalogue construction.
+var deniedSuspendedMutations = map[string]bool{
+	"POST /v1/blobs/videos/authorization":                                  true,
+	"POST /v1/migrations/instagram/verifications":                          true,
+	"POST /v1/migrations/instagram/verifications/{verificationId}/confirm": true,
+	"PATCH /v1/migrations/instagram/settings":                              true,
+	"POST /v1/migrations/instagram/imports":                                true,
+	"PATCH /v1/migrations/instagram/imports/{importId}":                    true,
+	"POST /v1/migrations/instagram/suggestions/{suggestionId}/accept":      true,
+	"POST /v1/onboarding/completion":                                       true,
+	"PUT /v1/profiles/me":                                                  true,
+	"PUT /v1/profiles/me/customisation":                                    true,
+	"PUT /v1/profiles/me/account-type":                                     true,
+	"PUT /v1/profiles/me/business":                                         true,
+	"POST /v1/profiles/{handleOrDid}/follows":                              true,
+	"DELETE /v1/profiles/{handleOrDid}/follows":                            true,
+	"POST /v1/events":                                                      true,
+	"PUT /v1/events/{did}/{rkey}":                                          true,
+	"POST /v1/blobs/images":                                                true,
+	"PUT /v1/scheduled-post-media/{mediaId}":                               true,
+	"POST /v1/scheduled-posts":                                             true,
+	"PUT /v1/scheduled-posts/{id}":                                         true,
+	"POST /v1/scheduled-posts/{id}/publication":                            true,
+	"POST /v1/posts":                                                       true,
+	"POST /v1/link-previews":                                               true,
+	"PUT /v1/posts/{did}/{rkey}/pin":                                       true,
+	"POST /v1/posts/{did}/{rkey}/likes":                                    true,
+	"DELETE /v1/posts/{did}/{rkey}/likes":                                  true,
+	"POST /v1/posts/{did}/{rkey}/reposts":                                  true,
+	"DELETE /v1/posts/{did}/{rkey}/reposts":                                true,
 }
 
 func mustPolicy(method, pathPattern string) RoutePolicy {
 	for _, policy := range baseV1RoutePolicies() {
 		if policy.Method == method && policy.PathPattern == pathPattern {
+			policy.SuspensionClass = suspensionClassFor(policy)
 			return policy
 		}
 	}
@@ -101,6 +208,9 @@ func mustConfiguredPolicy(env Environment, cfg Config, method, pathPattern strin
 
 func baseV1RoutePolicies() []RoutePolicy {
 	return []RoutePolicy{
+		{Method: "GET", PathPattern: "/v1/moderation/standing", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "GET", PathPattern: "/v1/moderation/history", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "GET", PathPattern: "/v1/moderation/history/{caseReference}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/auth/login", RateClass: RateClassAuth, BodyKind: BodyDefaultJSON, AccessClass: AccessAnonymous},
 		{Method: "POST", PathPattern: "/v1/auth/registrations", RateClass: RateClassAuth, BodyKind: BodyDefaultJSON, AccessClass: AccessAnonymous},
 		{Method: "POST", PathPattern: "/v1/auth/handoffs/exchange", RateClass: RateClassAuth, BodyKind: BodyDefaultJSON, AccessClass: AccessAnonymous},
@@ -220,5 +330,17 @@ func baseV1RoutePolicies() []RoutePolicy {
 		{Method: "GET", PathPattern: "/v1/profiles/{handleOrDid}/posts", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/profiles/{handleOrDid}/projects", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/profiles/{handleOrDid}/comments", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+	}
+}
+
+func adminModerationRoutePolicies() []RoutePolicy {
+	return []RoutePolicy{
+		{Method: "GET", PathPattern: "/v1/admin/moderation/cases", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessModerator},
+		{Method: "GET", PathPattern: "/v1/admin/moderation/cases/{caseReference}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessModerator},
+		{Method: "POST", PathPattern: "/v1/admin/moderation/cases/{caseReference}/decisions", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
+		{Method: "POST", PathPattern: "/v1/admin/moderation/cases/{caseReference}/appeal-confirmations", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
+		{Method: "POST", PathPattern: "/v1/admin/moderation/cases/{caseReference}/appeal-resolutions", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
+		{Method: "POST", PathPattern: "/v1/admin/moderation/cases/{caseReference}/effect-changes", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
+		{Method: "POST", PathPattern: "/v1/admin/moderation/cases/{caseReference}/restorations", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
 	}
 }

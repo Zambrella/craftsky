@@ -139,3 +139,19 @@ func TestBuildPayloadUT012BoundsLargestReplyData(t *testing.T) {
 		t.Fatal("over-bound subjectUri entered provider data")
 	}
 }
+
+func TestBuildModerationPayloadIsActorlessAndRoutesByPublicReference(t *testing.T) {
+	payload := BuildPayload(notifications.Moderation, "opaque-binding", "PRIVATE MODERATOR", RoutingFacts{
+		ActorDID:       "did:plc:private-actor",
+		NotificationID: "00000000-0000-4000-8000-000000000001",
+		CaseReference:  "MOD-550e8400-e29b-41d4-a716-446655440000",
+	})
+	if payload.Title != "CraftSky" || payload.Data["caseReference"] != "MOD-550e8400-e29b-41d4-a716-446655440000" {
+		t.Fatalf("payload = %+v", payload)
+	}
+	for _, forbidden := range []string{"actorDid", "recipientDid", "eventId", "decisionId"} {
+		if _, exists := payload.Data[forbidden]; exists {
+			t.Fatalf("payload contains forbidden key %q: %+v", forbidden, payload.Data)
+		}
+	}
+}

@@ -44,4 +44,28 @@ void main() {
       );
     }
   });
+
+  test('AT-004 validates moderation delivery facts', () {
+    final moderation = <String, Object?>{
+      ...data,
+      'type': 'moderation',
+      'caseReference': 'mod-550E8400-E29B-41D4-A716-446655440000',
+    };
+
+    final envelope = NotificationDeliveryEnvelope.tryParse(moderation);
+    expect(envelope, isNotNull);
+    expect(
+      (envelope!.openAttempt.facts as ValidNotificationFacts)
+          .caseReference!
+          .value,
+      'MOD-550e8400-e29b-41d4-a716-446655440000',
+    );
+
+    expect(
+      NotificationDeliveryEnvelope.tryParse(
+        Map<String, Object?>.of(moderation)..remove('caseReference'),
+      ),
+      isNull,
+    );
+  });
 }

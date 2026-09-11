@@ -310,6 +310,12 @@ abstract class AppLocalizations {
   /// **'New activity'**
   String get notificationGenericRow;
 
+  /// No description provided for @notificationModerationRow.
+  ///
+  /// In en, this message translates to:
+  /// **'Review an update to your account standing'**
+  String get notificationModerationRow;
+
   /// No description provided for @notificationUnavailableRow.
   ///
   /// In en, this message translates to:
@@ -399,6 +405,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Push alerts are based on your private Instagram matches and never name the matched account.'**
   String get notificationInstagramMatchPreferenceDescription;
+
+  /// No description provided for @notificationCategoryModeration.
+  ///
+  /// In en, this message translates to:
+  /// **'Moderation'**
+  String get notificationCategoryModeration;
+
+  /// No description provided for @notificationModerationPreferenceDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Push alerts notify you about changes to your account standing. Turning them off does not change your standing, moderation history, or enforcement.'**
+  String get notificationModerationPreferenceDescription;
 
   /// No description provided for @notificationCategoryEverythingElse.
   ///
@@ -6710,6 +6728,366 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Delete'**
   String get businessEventDeleteConfirmAction;
+
+  /// Settings row and owner moderation page title.
+  ///
+  /// In en, this message translates to:
+  /// **'Account standing'**
+  String get accountStandingTitle;
+
+  /// Current account state when there is no active enforcement.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account is in good standing'**
+  String get moderationStandingGood;
+
+  /// Current account state when strikes are active without suspension.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account has active moderation action'**
+  String get moderationStandingActionRequired;
+
+  /// Current account state during moderation suspension.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account is suspended'**
+  String get moderationStandingSuspended;
+
+  /// Active strike count and policy threshold.
+  ///
+  /// In en, this message translates to:
+  /// **'Active strikes: {count} of the {threshold} strike suspension threshold.'**
+  String moderationStandingCount(int count, int threshold);
+
+  /// Threshold suspension explanation.
+  ///
+  /// In en, this message translates to:
+  /// **'The account is suspended because the active-strike threshold has been reached.'**
+  String get moderationStandingThresholdDetail;
+
+  /// Severe suspension explanation.
+  ///
+  /// In en, this message translates to:
+  /// **'The account is suspended because of a severe policy decision.'**
+  String get moderationStandingSevereDetail;
+
+  /// Safe standing load failure.
+  ///
+  /// In en, this message translates to:
+  /// **'Account standing could not be loaded.'**
+  String get moderationStandingLoadError;
+
+  /// Owner moderation history heading.
+  ///
+  /// In en, this message translates to:
+  /// **'Moderation history'**
+  String get moderationHistoryTitle;
+
+  /// Owner moderation history empty-state title.
+  ///
+  /// In en, this message translates to:
+  /// **'No moderation history'**
+  String get moderationHistoryEmptyTitle;
+
+  /// Owner moderation history empty-state explanation.
+  ///
+  /// In en, this message translates to:
+  /// **'There are no moderation decisions to show for this account.'**
+  String get moderationHistoryEmptyBody;
+
+  /// Safe owner moderation history load failure.
+  ///
+  /// In en, this message translates to:
+  /// **'Moderation history could not be loaded.'**
+  String get moderationHistoryLoadError;
+
+  /// Action retrying a moderation request.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get moderationRetryAction;
+
+  /// Action loading another moderation history page.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more'**
+  String get moderationHistoryLoadMore;
+
+  /// Progress label while loading another moderation history page.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading…'**
+  String get moderationHistoryLoadingMore;
+
+  /// Action retrying failed moderation history pagination.
+  ///
+  /// In en, this message translates to:
+  /// **'Try loading more again'**
+  String get moderationHistoryRetryMore;
+
+  /// Accessible owner moderation entry label.
+  ///
+  /// In en, this message translates to:
+  /// **'Moderation history entry {reference}'**
+  String moderationHistoryEntrySemantics(String reference);
+
+  /// Local date and time of a moderation event.
+  ///
+  /// In en, this message translates to:
+  /// **'{date} at {time}'**
+  String moderationHistoryOccurredAt(String date, String time);
+
+  /// Heading for moderation effects.
+  ///
+  /// In en, this message translates to:
+  /// **'Consequences'**
+  String get moderationConsequencesTitle;
+
+  /// Moderation effect, state, and stored expiry date.
+  ///
+  /// In en, this message translates to:
+  /// **'{effect} · {state} · Until {date}'**
+  String moderationEffectWithExpiry(String effect, String state, String date);
+
+  /// Formal account warning effect.
+  ///
+  /// In en, this message translates to:
+  /// **'Formal warning'**
+  String get moderationEffectFormalWarning;
+
+  /// Viewer-facing content warning effect.
+  ///
+  /// In en, this message translates to:
+  /// **'Viewer warning'**
+  String get moderationEffectViewerWarning;
+
+  /// Content visibility hide effect.
+  ///
+  /// In en, this message translates to:
+  /// **'Content hidden'**
+  String get moderationEffectHidden;
+
+  /// App View content takedown effect.
+  ///
+  /// In en, this message translates to:
+  /// **'Content removed from CraftSky'**
+  String get moderationEffectRemoved;
+
+  /// Account strike effect.
+  ///
+  /// In en, this message translates to:
+  /// **'Account strike'**
+  String get moderationEffectStrike;
+
+  /// Severe account suspension effect.
+  ///
+  /// In en, this message translates to:
+  /// **'Severe suspension'**
+  String get moderationEffectSevereSuspension;
+
+  /// Forward-compatible unknown moderation effect label.
+  ///
+  /// In en, this message translates to:
+  /// **'Policy action'**
+  String get moderationEffectPolicyAction;
+
+  /// Active moderation effect state.
+  ///
+  /// In en, this message translates to:
+  /// **'Active'**
+  String get moderationEffectActive;
+
+  /// Historical moderation effect application action.
+  ///
+  /// In en, this message translates to:
+  /// **'Applied'**
+  String get moderationEffectApplied;
+
+  /// Expired moderation effect state.
+  ///
+  /// In en, this message translates to:
+  /// **'Expired'**
+  String get moderationEffectExpired;
+
+  /// Negated moderation effect state.
+  ///
+  /// In en, this message translates to:
+  /// **'Overturned'**
+  String get moderationEffectOverturned;
+
+  /// Restored suspension state.
+  ///
+  /// In en, this message translates to:
+  /// **'Access restored'**
+  String get moderationEffectRestored;
+
+  /// Inactive moderation effect state.
+  ///
+  /// In en, this message translates to:
+  /// **'No longer active'**
+  String get moderationEffectNoLongerActive;
+
+  /// Controlled moderation reason.
+  ///
+  /// In en, this message translates to:
+  /// **'Harassment'**
+  String get moderationReasonHarassment;
+
+  /// Controlled moderation reason.
+  ///
+  /// In en, this message translates to:
+  /// **'Hate or hateful conduct'**
+  String get moderationReasonHate;
+
+  /// Controlled moderation reason.
+  ///
+  /// In en, this message translates to:
+  /// **'Spam'**
+  String get moderationReasonSpam;
+
+  /// Controlled moderation reason.
+  ///
+  /// In en, this message translates to:
+  /// **'Misleading content'**
+  String get moderationReasonMisleading;
+
+  /// Controlled moderation reason.
+  ///
+  /// In en, this message translates to:
+  /// **'Suspected AI-generated content'**
+  String get moderationReasonSuspectedAi;
+
+  /// Controlled moderation reason.
+  ///
+  /// In en, this message translates to:
+  /// **'Adult or graphic content'**
+  String get moderationReasonAdultOrGraphic;
+
+  /// Controlled moderation reason.
+  ///
+  /// In en, this message translates to:
+  /// **'Impersonation'**
+  String get moderationReasonImpersonation;
+
+  /// Controlled moderation reason.
+  ///
+  /// In en, this message translates to:
+  /// **'Off-topic content'**
+  String get moderationReasonOffTopic;
+
+  /// Controlled moderation reason.
+  ///
+  /// In en, this message translates to:
+  /// **'Intellectual property'**
+  String get moderationReasonIntellectualProperty;
+
+  /// Controlled moderation reason.
+  ///
+  /// In en, this message translates to:
+  /// **'Other policy issue'**
+  String get moderationReasonOther;
+
+  /// Forward-compatible moderation reason label.
+  ///
+  /// In en, this message translates to:
+  /// **'Policy decision'**
+  String get moderationReasonPolicy;
+
+  /// Account snapshot label.
+  ///
+  /// In en, this message translates to:
+  /// **'Account'**
+  String get moderationSubjectAccount;
+
+  /// Post snapshot label.
+  ///
+  /// In en, this message translates to:
+  /// **'Post'**
+  String get moderationSubjectPost;
+
+  /// Action opening the moderated post inside CraftSky.
+  ///
+  /// In en, this message translates to:
+  /// **'View post'**
+  String get moderationViewPost;
+
+  /// Business-event snapshot label.
+  ///
+  /// In en, this message translates to:
+  /// **'Event'**
+  String get moderationSubjectEvent;
+
+  /// Safe snapshot fallback label.
+  ///
+  /// In en, this message translates to:
+  /// **'Subject reference unavailable'**
+  String get moderationSubjectUnavailable;
+
+  /// Action opening a prefilled moderation appeal email.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal by email'**
+  String get moderationAppealAction;
+
+  /// Appeal email address clipboard fallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy email address'**
+  String get moderationCopyAppealAddress;
+
+  /// Public moderation reference clipboard fallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy case reference'**
+  String get moderationCopyCaseReference;
+
+  /// Appeal availability state.
+  ///
+  /// In en, this message translates to:
+  /// **'An appeal can be requested by email.'**
+  String get moderationAppealAvailable;
+
+  /// Confirmed pending appeal state.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal under review'**
+  String get moderationAppealPending;
+
+  /// Upheld appeal outcome.
+  ///
+  /// In en, this message translates to:
+  /// **'Decision upheld after appeal'**
+  String get moderationAppealUpheld;
+
+  /// Changed appeal outcome.
+  ///
+  /// In en, this message translates to:
+  /// **'Decision changed after appeal'**
+  String get moderationAppealChanged;
+
+  /// Forward-compatible appeal state.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal status updated'**
+  String get moderationAppealUpdated;
+
+  /// Safe mailto failure with fallback guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'No email app opened. You can copy the address and case reference instead.'**
+  String get moderationAppealError;
+
+  /// Clipboard success feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied'**
+  String get moderationCopied;
+
+  /// Safe clipboard failure feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not copy. The text remains selectable.'**
+  String get moderationCopyError;
 }
 
 class _AppLocalizationsDelegate

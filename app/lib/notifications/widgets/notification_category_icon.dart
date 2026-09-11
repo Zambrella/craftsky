@@ -12,6 +12,7 @@ IconData notificationCategoryIcon(NotificationCategory category) =>
       NotificationCategory.quote => CraftskyIcons.quote,
       NotificationCategory.repost => CraftskyIcons.repost,
       NotificationCategory.instagramMatch => CraftskyIcons.findPeople,
+      NotificationCategory.moderation => CraftskyIcons.privacy,
       NotificationCategory.everythingElse ||
       NotificationCategory.unknown => CraftskyIcons.notification,
     };

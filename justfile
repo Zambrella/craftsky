@@ -63,6 +63,66 @@ seed-follower-growth DID *ARGS:
 psql *ARGS:
     ./scripts/compose-dev exec postgres psql -U craftsky craftsky_dev {{ARGS}}
 
+# Show moderation helper usage and available effect-list syntax.
+moderation-help:
+    ./scripts/moderation-dev --help
+
+# List moderation cases. FILTER is an optional query such as state=open&subjectType=account.
+moderation-cases FILTER="":
+    ./scripts/moderation-dev cases {{ quote(FILTER) }}
+
+# Show private moderator detail for one case.
+moderation-case CASE:
+    ./scripts/moderation-dev case {{ quote(CASE) }}
+
+# Resolve an open case as a violation. CONSEQUENCES is a comma-separated effect list.
+moderation-decision CASE CONSEQUENCES="strike" REASON="spam" DETAIL="Dev moderation test decision" SEVERITY="" EVIDENCE="Reviewed in local development":
+    ./scripts/moderation-dev decision {{ quote(CASE) }} {{ quote(CONSEQUENCES) }} {{ quote(REASON) }} {{ quote(DETAIL) }} {{ quote(SEVERITY) }} {{ quote(EVIDENCE) }}
+
+# Resolve an open moderation case without applying action.
+moderation-no-action CASE EVIDENCE="No violation found in local development":
+    ./scripts/moderation-dev no-action {{ quote(CASE) }} {{ quote(EVIDENCE) }}
+
+# Negate active or reapply previously issued effects; use "" for an empty side.
+moderation-effects CASE NEGATE="" REAPPLY="" RATIONALE="Changed in local development":
+    ./scripts/moderation-dev effect-change {{ quote(CASE) }} {{ quote(NEGATE) }} {{ quote(REAPPLY) }} {{ quote(RATIONALE) }}
+
+# Mark a resolved case as having a pending owner appeal.
+moderation-appeal-confirm CASE:
+    ./scripts/moderation-dev appeal-confirm {{ quote(CASE) }}
+
+# Uphold a pending appeal.
+moderation-appeal-uphold CASE RATIONALE="Upheld in local development":
+    ./scripts/moderation-dev appeal-resolve {{ quote(CASE) }} upheld '' {{ quote(RATIONALE) }}
+
+# Change a pending appeal and reverse comma-separated active effects.
+moderation-appeal-change CASE EFFECTS RATIONALE="Changed after local appeal review":
+    ./scripts/moderation-dev appeal-resolve {{ quote(CASE) }} changed {{ quote(EFFECTS) }} {{ quote(RATIONALE) }}
+
+# Restore the active severe suspension on a case; the effect ID is discovered automatically.
+moderation-restore CASE RATIONALE="Restored in local development":
+    ./scripts/moderation-dev restore {{ quote(CASE) }} {{ quote(RATIONALE) }}
+
+# Show one member's moderation standing through the dev member-auth path.
+moderation-standing DID:
+    ./scripts/moderation-dev standing {{ quote(DID) }}
+
+# Show one member's owner-safe moderation history.
+moderation-history DID CASE="":
+    ./scripts/moderation-dev history {{ quote(DID) }} {{ quote(CASE) }}
+
+# Report an account and create or join its open moderation case.
+moderation-report-account REPORTER TARGET REASON="spam" DETAILS="Local moderation test report":
+    ./scripts/moderation-dev report-account {{ quote(REPORTER) }} {{ quote(TARGET) }} {{ quote(REASON) }} {{ quote(DETAILS) }}
+
+# Report a post and create or join its open moderation case.
+moderation-report-post REPORTER OWNER RKEY REASON="spam" DETAILS="Local moderation test report":
+    ./scripts/moderation-dev report-post {{ quote(REPORTER) }} {{ quote(OWNER) }} {{ quote(RKEY) }} {{ quote(REASON) }} {{ quote(DETAILS) }}
+
+# Report an event and create or join its open moderation case.
+moderation-report-event REPORTER OWNER RKEY REASON="spam" DETAILS="Local moderation test report":
+    ./scripts/moderation-dev report-event {{ quote(REPORTER) }} {{ quote(OWNER) }} {{ quote(RKEY) }} {{ quote(REASON) }} {{ quote(DETAILS) }}
+
 # Run the Go test suite with the race detector enabled. Tests run on the
 # host (the appview image uses a distroless-ish alpine final stage without
 # Go) and connect to the current stack's published Postgres port.

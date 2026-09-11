@@ -368,6 +368,14 @@ func run(ctx context.Context, args []string) error {
 		"identity_cache",
 		"refresh",
 	)
+	moderationExpiryDone := startBatchWorker(
+		consumerCtx,
+		deps.ModerationExpiry,
+		deps.Logger,
+		deps.Config.ModerationExpiryPollInterval,
+		"moderation",
+		"expire_strikes",
+	)
 	workerDone := []<-chan struct{}{
 		consumerDone,
 		tapProjectionDone,
@@ -388,6 +396,7 @@ func run(ctx context.Context, args []string) error {
 		accountDeletionIntentExpiryDone,
 		terminalPurgeDone,
 		identityCacheRefreshDone,
+		moderationExpiryDone,
 	}
 
 	// listenErr receives the result of Serve. A non-nil,

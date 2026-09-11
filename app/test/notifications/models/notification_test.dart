@@ -186,6 +186,36 @@ void main() {
     );
   });
 
+  test('decodes moderation rows with their case reference', () {
+    final notification = CraftskyNotification.fromMap({
+      'id': '00000000-0000-4000-8000-000000000323',
+      'type': 'moderation',
+      'caseReference': 'MOD-550e8400-e29b-41d4-a716-446655440000',
+      'createdAt': '2026-09-11T12:00:00Z',
+      'indexedAt': '2026-09-11T12:00:01Z',
+    });
+
+    expect(notification, isA<ModerationNotification>());
+    expect(notification.type, NotificationCategory.moderation);
+    expect(
+      (notification as ModerationNotification).caseReference.value,
+      'MOD-550e8400-e29b-41d4-a716-446655440000',
+    );
+  });
+
+  test('keeps malformed moderation rows visible but inert', () {
+    final notification = CraftskyNotification.fromMap({
+      'id': '00000000-0000-4000-8000-000000000324',
+      'type': 'moderation',
+      'caseReference': 'invalid',
+      'createdAt': '2026-09-11T12:00:00Z',
+      'indexedAt': '2026-09-11T12:00:01Z',
+    });
+
+    expect(notification, isA<GenericSystemNotification>());
+    expect(notification.type, NotificationCategory.moderation);
+  });
+
   test(
     'UT-012 keeps unknown and malformed system variants actorless and inert',
     () {

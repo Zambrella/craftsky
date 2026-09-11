@@ -3,6 +3,7 @@ package observability
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -44,6 +45,8 @@ type Observer struct {
 	logger              *slog.Logger
 	flushFunc           func(time.Duration) bool
 	tapLastEventAt      time.Time
+	moderationMu        sync.Mutex
+	adminAuthFailures   []time.Time
 }
 
 func New(cfg Config) *Observer {

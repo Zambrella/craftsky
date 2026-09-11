@@ -42,8 +42,18 @@ void navigateToNotificationOutcome(
         return;
       }
       unawaited(route.push<void>(navigationContext));
+    case final ModerationHistoryDestination destination:
+      unawaited(
+        accountStandingRouteForNotification(
+          destination,
+        ).push<void>(navigationContext),
+      );
   }
 }
+
+AccountStandingRoute accountStandingRouteForNotification(
+  ModerationHistoryDestination _,
+) => const AccountStandingRoute();
 
 PostThreadRoute? postThreadRouteForNotification(
   PostDestination destination,

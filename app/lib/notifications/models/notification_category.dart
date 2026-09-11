@@ -11,6 +11,7 @@ enum NotificationCategory {
   quote,
   repost,
   instagramMatch,
+  moderation,
   everythingElse,
   unknown;
 
@@ -22,8 +23,11 @@ enum NotificationCategory {
     quote,
     repost,
     instagramMatch,
+    moderation,
     everythingElse,
   ];
+
+  bool get hasFixedScope => this == instagramMatch || this == moderation;
 
   static NotificationCategory fromWireValue(String value) =>
       NotificationCategoryMapper.fromValue(value);

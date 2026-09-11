@@ -71,7 +71,7 @@ type readPostCapability struct {
 	quoteHydrationCapability
 }
 
-func (readPostCapability) ReadOne(context.Context, string, string) (*api.PostRow, error) {
+func (readPostCapability) ReadOneForViewer(context.Context, string, string, string) (*api.PostRow, error) {
 	return nil, nil
 }
 
@@ -88,6 +88,10 @@ type conversationCapability struct {
 }
 
 func (conversationCapability) ReadOne(context.Context, string, string) (*api.PostRow, error) {
+	return nil, nil
+}
+
+func (conversationCapability) ReadOneForViewer(context.Context, string, string, string) (*api.PostRow, error) {
 	return nil, nil
 }
 

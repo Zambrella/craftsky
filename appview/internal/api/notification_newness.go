@@ -34,16 +34,18 @@ func (s *PostStore) NotificationNewCount(ctx context.Context, accountDID string)
 		WHERE event.recipient_did = $1
 		  AND event.state = 'active'
 		  AND NOT appview_owner_is_terminal(event.recipient_did)
-		  AND NOT appview_owner_is_terminal(event.actor_did)
-		  AND NOT EXISTS (
-			SELECT 1 FROM actor_mutes mute
-			WHERE mute.owner_did = $1 AND mute.subject_did = event.actor_did
-		  )
-		  AND NOT EXISTS (
-			SELECT 1 FROM atproto_blocks block
-			WHERE (block.blocker_did = $1 AND block.subject_did = event.actor_did)
-			   OR (block.blocker_did = event.actor_did AND block.subject_did = $1)
-		  )
+		  AND (event.actor_did IS NULL OR (
+			NOT appview_owner_is_terminal(event.actor_did)
+			AND NOT EXISTS (
+				SELECT 1 FROM actor_mutes mute
+				WHERE mute.owner_did = $1 AND mute.subject_did = event.actor_did
+			)
+			AND NOT EXISTS (
+				SELECT 1 FROM atproto_blocks block
+				WHERE (block.blocker_did = $1 AND block.subject_did = event.actor_did)
+				   OR (block.blocker_did = event.actor_did AND block.subject_did = $1)
+			)
+		  ))
 		  AND event.newness_revision > COALESCE((
 			SELECT seen.last_seen_revision
 			FROM notification_seen_state seen

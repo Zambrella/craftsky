@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/joho/godotenv"
 
 	"social.craftsky/appview/internal/api"
@@ -55,6 +56,7 @@ const (
 	maxHTTPLimiterIdleTTL                         = 24 * time.Hour
 	maxHTTPJSONBodyReadTimeout                    = 90 * time.Second
 	maxHTTPUploadBodyReadTimeout                  = 5 * time.Minute
+	maxModerationExpiryPollInterval               = 15 * time.Minute
 	maxOAuthPendingAuthRequestCapacity            = 1_000_000
 	maxOAuthAuthRequestTerminalRetention          = 30 * 24 * time.Hour
 	maxOAuthAuthRequestSweepInterval              = time.Hour
@@ -317,6 +319,13 @@ type Config struct {
 	DevModerationToken          string
 	DevLabelerDID               string
 	TrustedModerationSourceDIDs []string
+
+	ModerationAdminEnabled       bool
+	ModerationAdminBearerToken   Secret
+	ModerationAdminActorID       string
+	ModerationSourceDID          string
+	ModerationExpiryPollInterval time.Duration
+	ModerationExpiryBatchSize    int
 }
 
 // LoadConfig reads environments/<env>.env from envFilePath, layers os.Getenv
@@ -907,6 +916,18 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	if cfg.EnableDevModeration, err = boolEnv("APPVIEW_ENABLE_DEV_MODERATION", false); err != nil {
 		return Config{}, err
 	}
+	if cfg.ModerationAdminEnabled, err = boolEnv("MODERATION_ADMIN_ENABLED", false); err != nil {
+		return Config{}, err
+	}
+	cfg.ModerationAdminBearerToken = Secret(os.Getenv("MODERATION_ADMIN_BEARER_TOKEN"))
+	cfg.ModerationAdminActorID = os.Getenv("MODERATION_ADMIN_ACTOR_ID")
+	cfg.ModerationSourceDID = os.Getenv("MODERATION_SOURCE_DID")
+	if cfg.ModerationExpiryPollInterval, err = boundedPositiveDurationEnv("MODERATION_EXPIRY_POLL_INTERVAL", 5*time.Minute, maxModerationExpiryPollInterval); err != nil {
+		return Config{}, err
+	}
+	if cfg.ModerationExpiryBatchSize, err = boundedIntEnv("MODERATION_EXPIRY_BATCH_SIZE", 100, 1, 1000); err != nil {
+		return Config{}, err
+	}
 	if env == EnvDev {
 		cfg.DevModerationToken = os.Getenv("APPVIEW_DEV_MODERATION_TOKEN")
 		cfg.DevLabelerDID = getEnvWithDefault("CRAFTSKY_DEV_LABELER_DID", "did:plc:labeler")
@@ -947,6 +968,17 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	}
 	if env == EnvDev && cfg.EnableDevModeration && strings.TrimSpace(cfg.DevModerationToken) == "" {
 		return Config{}, fmt.Errorf("APPVIEW_DEV_MODERATION_TOKEN is required when APPVIEW_ENABLE_DEV_MODERATION=true")
+	}
+	if cfg.ModerationAdminEnabled {
+		if raw := cfg.ModerationAdminBearerToken.Reveal(); raw == "" || raw != strings.TrimSpace(raw) || containsControl(raw) {
+			return Config{}, fmt.Errorf("MODERATION_ADMIN_BEARER_TOKEN is required when MODERATION_ADMIN_ENABLED=true")
+		}
+		if cfg.ModerationAdminActorID == "" || cfg.ModerationAdminActorID != strings.TrimSpace(cfg.ModerationAdminActorID) || containsControl(cfg.ModerationAdminActorID) {
+			return Config{}, fmt.Errorf("MODERATION_ADMIN_ACTOR_ID is required when MODERATION_ADMIN_ENABLED=true")
+		}
+		if _, parseErr := syntax.ParseDID(cfg.ModerationSourceDID); parseErr != nil {
+			return Config{}, fmt.Errorf("MODERATION_SOURCE_DID must be a valid DID when MODERATION_ADMIN_ENABLED=true")
+		}
 	}
 
 	if cfg.Env == EnvProd {
