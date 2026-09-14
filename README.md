@@ -48,7 +48,7 @@ It's an open, commentable doc covering the "why", the core post types (simple + 
 - **Client:** Flutter + Dart, using [atproto.dart](https://atprotodart.com)
 - **App View:** Go, using [indigo](https://github.com/bluesky-social/indigo), `pgx`, and the standard library HTTP server
 - **Database:** Postgres 16
-- **Infrastructure:** Hetzner VPS + Docker Compose + Caddy
+- **Infrastructure:** Render (AppView, Tap, managed Postgres) + managed S3-compatible object storage; see [ADR 016](adr/016-render-managed-production-infrastructure.md)
 - **Push:** FCM
 
 ## Getting started

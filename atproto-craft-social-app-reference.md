@@ -400,40 +400,21 @@ A `Makefile` with targets like `make dev`, `make migrate`, `make generate`, `mak
 - Full-text search for craft discovery without a separate search service.
 - `sqlc` means contributors can read the SQL directly — explicit and transparent.
 
-### Infrastructure: Hetzner VPS + Docker Compose
+### Infrastructure: Render managed services
 
-**Hetzner** is recommended over GCP for this use case — dramatically cheaper for equivalent workload (€4-6/month vs 5-10x on GCP). A CX22 (2 vCPU, 4GB RAM) handles the workload comfortably. GCP's Cloud Run has cold start issues with persistent WebSocket connections to the firehose. The crafting community would need tens of thousands of active users before scaling beyond a single box.
+The initial production backend uses Render for the AppView web service, the
+private Tap service with persistent SQLite storage, and managed PostgreSQL.
+AppView-managed private media uses an external managed S3-compatible object store,
+with AWS S3 as the preferred initial candidate. CraftSky does not self-host
+PostgreSQL or MinIO for the initial production deployment.
 
-#### Docker Compose (Production)
+This supersedes the original Hetzner VPS and production Docker Compose
+recommendation. Development continues to use Docker Compose. Production maps each
+long-running component to a separate Render service and uses Render private
+networking; it does not run the development Compose stack inside one service.
 
-```yaml
-services:
-  appview:
-    build: .
-    restart: always
-    depends_on:
-      - postgres
-    environment:
-      - DATABASE_URL=postgres://craft:secret@postgres:5432/craftapp
-      - FIREHOSE_URL=wss://bsky.network/xrpc/com.atproto.sync.subscribeRepos
-    ports:
-      - "8080:8080"
-
-  postgres:
-    image: postgres:16
-    restart: always
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    environment:
-      - POSTGRES_USER=craft
-      - POSTGRES_PASSWORD=secret
-      - POSTGRES_DB=craftapp
-
-volumes:
-  pgdata:
-```
-
-Caddy sits on the host, proxying `craftapp.yourdomain.com` to `localhost:8080`. Multi-stage Dockerfile: build in Go image, copy binary into scratch/alpine.
+See [ADR 016](adr/016-render-managed-production-infrastructure.md) for the options,
+constraints, and migration boundaries.
 
 #### Dev Environment
 

@@ -106,7 +106,7 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 
 ### Ops / infra
 
-- [ ] Production deploy (Hetzner VPS + Docker Compose + Caddy + Postgres hosting) → own spec
+- [ ] Production deploy (Render AppView + Tap + managed Postgres, external managed S3-compatible storage) → [ADR 016](../adr/016-render-managed-production-infrastructure.md), own implementation spec
 - [ ] Client private key management for OAuth in prod (env var vs file vs KMS) — OAuth BFF §5.1 open question
 - [ ] Backup strategy for Postgres → own spec
 - [ ] Monitoring / alerting for Tap connection health, firehose lag, indexer errors
