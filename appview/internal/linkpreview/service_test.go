@@ -154,7 +154,7 @@ func TestServiceThumbnailSkipsWorkAfterTotalContextCancellation(t *testing.T) {
 	}
 }
 
-func TestServiceThumbnailIgnoresDecodeResultAfterTotalDeadline(t *testing.T) {
+func TestServiceThumbnailIgnoresDecodeResultAfterTotalCancellation(t *testing.T) {
 	t.Parallel()
 	nearLimit := bytes.Repeat([]byte{1}, maxThumbnailBytes)
 	fetcher := &scriptedResourceFetcher{images: map[string]resourceResult{
@@ -171,13 +171,19 @@ func TestServiceThumbnailIgnoresDecodeResultAfterTotalDeadline(t *testing.T) {
 		<-releaseDecode
 		return Thumbnail{Bytes: input, MIMEType: "image/png", Width: 4000, Height: 4000}, nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	result := make(chan *Thumbnail, 1)
 	go func() {
 		result <- service.fetchThumbnail(ctx, "https://images.example/near-limit.png")
 	}()
-	<-decodeStarted
+	select {
+	case <-decodeStarted:
+	case <-time.After(time.Second):
+		close(releaseDecode)
+		t.Fatal("thumbnail decode did not start")
+	}
+	cancel()
 
 	select {
 	case thumbnail := <-result:
