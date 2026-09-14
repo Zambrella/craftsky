@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/app"
@@ -102,6 +103,35 @@ func TestNewServerRejectsUnexpectedHostBeforeRouting(t *testing.T) {
 				t.Fatalf("envelope = %#v", got)
 			}
 		})
+	}
+}
+
+func TestNewServerAllowsReadinessProbeFromInfrastructureHost(t *testing.T) {
+	pool, err := pgxpool.New(context.Background(), "postgres://127.0.0.1:1/unreachable?connect_timeout=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	deps := &app.Deps{
+		Config: app.Config{
+			Env:            app.EnvProd,
+			AllowedOrigins: []string{"https://craftsky.social"},
+			ExpectedHosts:  []string{"appview.craftsky.social"},
+		},
+		DB:            pool,
+		Logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+		AuthService:   &auth.MockAuthService{DefaultDID: "did:plc:test"},
+		Observability: observability.New(observability.Config{Env: "test"}),
+	}
+	handler := NewServer(context.Background(), deps)
+	request := httptest.NewRequest(http.MethodGet, "https://craftsky-appview.onrender.com/health", nil)
+	request.Host = "craftsky-appview.onrender.com"
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503 from readiness DB check; body=%s", recorder.Code, recorder.Body.String())
 	}
 }
 

@@ -84,14 +84,14 @@ release build.
   unit-only Go suite passes after the dependency upgrade.
 - Live scanning moved the toolchain baseline beyond the audit minimum: Go
   1.26.5 still had seven reachable standard-library findings in the current
-  vulnerability database, so the implementation now uses Go 1.26.6. Source
-  `govulncheck` 1.7.0 is clean after also upgrading pgx, gRPC, `x/net`, and
-  `x/crypto`. Binary scanning exposes a govulncheck all-symbol OpenPGP false
-  positive even though neither `go list -deps` nor an unstripped binary contains
-  an OpenPGP package/symbol. The release gate runs the pinned scanner binary
-  directly so its documented exit status is preserved, admits only that proven
-  exact-ID/dependency/symbol exception, and fails every other finding until the
-  upstream binary scanner can represent package absence.
+  vulnerability database; the implementation now uses Go 1.27.1 and
+  Staticcheck 2026.2.1. Source `govulncheck` 1.7.0 is clean after also upgrading
+  pgx, gRPC, `x/net`, and `x/crypto`. Stripped-binary scanning exposes an OpenPGP
+  false positive because stripping removes the package/symbol data needed to
+  prove absence. The release gate now exports same-source, same-toolchain
+  unstripped companions, requires their non-empty path/module/dependency
+  provenance to exactly match each release binary, and scans those companions
+  without an exception or suppression.
 - Final evidence on 2026-08-20:
   `APPVIEW_CHECK_ARTIFACT_DIR=/private/tmp/craftsky-appview-final-gate-20260820-4
   ./scripts/appview-check` passes end to end with Go 1.26.6, Staticcheck 2026.1,
@@ -107,11 +107,6 @@ release build.
   unreadable sources; `up`, `down`, `status`, and `redo` all reject an empty
   bundle before a database connection. The actual Compose failure path makes
   `migrate` exit nonzero for an empty bundle and proves AppView never starts.
-- The exact AppView/CLI binary exception admits only `GO-2026-5932` while the
-  source scan is clean and dependency/symbol evidence contains no OpenPGP.
-  AppView maintainers own the Step-1 review; it expires on 2026-09-20 and the
-  gate hard-fails after expiry or for any other finding.
-
 ### Step 2: `CFG-001`
 
 - Complete: one typed OAuth deployment bundle derives every public endpoint
@@ -943,8 +938,8 @@ release build.
 - [x] Flutter unit/widget/platform contract tests pass.
 - [x] `gofmt -l`, `go vet`, pinned Staticcheck, module drift, and
   `just lexgen-check` pass inside `appview-check`.
-- [x] Source and exact built AppView/CLI binaries pass pinned `govulncheck` or
-  the exact evidence-backed all-symbol false-positive exception.
+- [x] Source and provenance-matched, symbol-bearing AppView/CLI companions pass
+  pinned `govulncheck` without an exception or suppression.
 - [x] Clean disposable migration and release-container startup smoke pass.
 - [x] Exact release-runtime media memory and maximum-admitted concurrent-upload
   proof pass under the 512 MiB cgroup limit.

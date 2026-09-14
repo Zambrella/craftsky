@@ -1,6 +1,8 @@
 services:
   postgres:
     image: postgres:16@sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94
+    # Parallel isolated-schema tests apply the full migration set concurrently.
+    command: ["postgres", "-c", "max_locks_per_transaction=256"]
     restart: unless-stopped
     environment:
       POSTGRES_USER: craftsky
@@ -19,7 +21,7 @@ services:
       retries: 15
 
   minio:
-    image: minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
+    image: quay.io/minio/minio:RELEASE.2025-09-07T16-13-09Z@sha256:14cea493d9a34af32f524e538b8346cf79f3321eff8e708c1e2960462bd8936e
     restart: unless-stopped
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
@@ -37,7 +39,7 @@ services:
       retries: 15
 
   minio-bootstrap:
-    image: minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
+    image: quay.io/minio/mc:RELEASE.2025-08-13T08-35-41Z@sha256:a7fe349ef4bd8521fb8497f55c6042871b2ae640607cf99d9bede5e9bdf11727
     depends_on:
       minio:
         condition: service_healthy
@@ -125,6 +127,7 @@ services:
       context: ./appview
       dockerfile: Dockerfile
     restart: unless-stopped
+    command: ["dev"]
     # The release gate measures the exact runtime image plus 16 MP JPEG/PNG/WebP
     # and maximum admitted upload work under this 512 MiB cgroup limit. Keep
     # decode/upload-body admission at one unless that proof is rerun.

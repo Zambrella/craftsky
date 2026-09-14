@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-for required_command in curl docker git go just rg; do
+for required_command in curl diff docker git go just rg; do
   if ! command -v "$required_command" >/dev/null 2>&1; then
     echo "appview-check: required command is unavailable: $required_command" >&2
     exit 1
@@ -138,10 +138,8 @@ fi
 } >"$artifact_dir/tool-identities.txt"
 
 "$staticcheck_bin" ./...
-source_scan_clean=false
 "$govulncheck_bin" ./... 2>&1 \
   | tee "$artifact_dir/govuln-source.log"
-source_scan_clean=true
 
 export CRAFTSKY_POSTGRES_PORT=0
 export CRAFTSKY_MINIO_PORT=0
@@ -222,77 +220,33 @@ go version -m "$artifact_dir/cli" >"$artifact_dir/cli-build-info.txt"
 cp "$artifact_dir/audit-evidence/appview-deps.txt" "$artifact_dir/appview-deps.txt"
 cp "$artifact_dir/audit-evidence/cli-deps.txt" "$artifact_dir/cli-deps.txt"
 
-# Temporary exact-ID exception owner: AppView maintainers. Remove this branch
-# when govulncheck/vulndb gains package-precise binary handling for
-# GO-2026-5932. It is valid only with a clean source scan, no OpenPGP
-# dependency, and zero OpenPGP symbols in the same-builder companion.
-binary_exception_expires_on="2026-09-20"
-binary_exception_review="docs/2026-appview-code-audit-plan/05-implementation-plan.md#step-1-gate-001"
 scan_release_binary() {
   local binary_name=$1
-  local release_binary="$artifact_dir/$binary_name"
   local evidence_binary="$artifact_dir/audit-evidence/$binary_name"
-  local dependency_evidence="$artifact_dir/audit-evidence/${binary_name}-deps.txt"
+  local release_build_info="$artifact_dir/${binary_name}-build-info.txt"
+  local evidence_build_info="$artifact_dir/${binary_name}-audit-build-info.txt"
+  local release_provenance="$artifact_dir/${binary_name}-release-provenance.txt"
+  local evidence_provenance="$artifact_dir/${binary_name}-audit-provenance.txt"
   local scan_log="$artifact_dir/govuln-${binary_name}-binary.log"
-  local symbol_evidence="$artifact_dir/${binary_name}-symbols.tmp"
-  local scan_status
-  local tee_status
-  local finding_ids
-  local -a pipeline_status
 
-  set +e
-  "$govulncheck_bin" -mode=binary "$release_binary" 2>&1 | tee "$scan_log"
-  pipeline_status=("${PIPESTATUS[@]}")
-  scan_status=${pipeline_status[0]}
-  tee_status=${pipeline_status[1]}
-  set -e
-  if [[ "$tee_status" -ne 0 ]]; then
-    echo "appview-check: could not persist $binary_name binary scan evidence" >&2
-    exit "$tee_status"
+  go version -m "$evidence_binary" >"$evidence_build_info"
+  sed '1d' "$release_build_info" >"$release_provenance"
+  sed '1d' "$evidence_build_info" >"$evidence_provenance"
+  if [[ ! -s "$release_provenance" || ! -s "$evidence_provenance" ]]; then
+    echo "appview-check: $binary_name build provenance is empty" >&2
+    exit 1
   fi
-  if [[ "$scan_status" -eq 0 ]]; then
-    return
-  fi
-  if [[ "$scan_status" -ne 3 ]]; then
-    echo "appview-check: $binary_name binary scanner failed with exit $scan_status; only vulnerability exit 3 is eligible for the exact exception" >&2
-    exit "$scan_status"
-  fi
-  binary_exception_today=$(date -u +%F)
-  if [[ "$binary_exception_today" == "$binary_exception_expires_on" ||
-        "$binary_exception_today" > "$binary_exception_expires_on" ]]; then
-    echo "appview-check: the reviewed GO-2026-5932 binary exception expired on $binary_exception_expires_on" >&2
-    exit "$scan_status"
+  if ! diff -u "$release_provenance" "$evidence_provenance" \
+    >"$artifact_dir/${binary_name}-provenance.diff"; then
+    echo "appview-check: $binary_name audit binary does not match release provenance" >&2
+    cat "$artifact_dir/${binary_name}-provenance.diff" >&2
+    exit 1
   fi
 
-  finding_ids=$(sed -nE 's/.*(GO-[0-9]{4}-[0-9]+).*/\1/p' "$scan_log" | sort -u)
-  if [[ "$finding_ids" != "GO-2026-5932" ]]; then
-    echo "appview-check: $binary_name binary scan failed outside the exact GO-2026-5932 exception" >&2
-    exit "$scan_status"
-  fi
-  if [[ "$source_scan_clean" != "true" ]]; then
-    echo "appview-check: binary exception requires a clean source scan" >&2
-    exit 1
-  fi
-  if rg -q '^golang.org/x/crypto/openpgp(/|$)' "$dependency_evidence"; then
-    echo "appview-check: $binary_name links an OpenPGP package; GO-2026-5932 cannot be excepted" >&2
-    exit 1
-  fi
-  go tool nm "$evidence_binary" >"$symbol_evidence"
-  if rg -q 'golang.org/x/crypto/openpgp(/|\.)' "$symbol_evidence"; then
-    echo "appview-check: $binary_name has an OpenPGP symbol; GO-2026-5932 cannot be excepted" >&2
-    exit 1
-  fi
-  rm "$symbol_evidence"
-  {
-    printf 'finding=GO-2026-5932\n'
-    printf 'owner=AppView maintainers\n'
-    printf 'review=%s\n' "$binary_exception_review"
-    printf 'expires_on=%s\n' "$binary_exception_expires_on"
-    printf 'removal=govulncheck/vulndb gains package-precise binary handling\n'
-    printf 'source_scan_clean=true\n'
-    printf 'openpgp_dependency_matches=0\n'
-    printf 'openpgp_symbol_matches=0\n'
-  } >"$artifact_dir/${binary_name}-binary-exception.txt"
+  # Stripping removes symbol data govulncheck needs for package-scoped findings.
+  # Scan the build-metadata-matched companion so module-only false positives
+  # cannot hide whether vulnerable symbols are actually linked into the release.
+  "$govulncheck_bin" -mode=binary "$evidence_binary" 2>&1 | tee "$scan_log"
 }
 
 scan_release_binary appview
@@ -436,6 +390,11 @@ media_concurrent_upload_peak=$media_probe_peak
 
 gate_network="${gate_project}_default"
 container_database_url="postgres://craftsky:dev@postgres:5432/craftsky_dev?sslmode=disable"
+oauth_client_secret_key=$(docker run --rm --entrypoint /app/cli "$gate_image" oauth-keygen)
+if [[ -z "$oauth_client_secret_key" ]]; then
+  echo "appview-check: release CLI did not generate an OAuth client key" >&2
+  exit 1
+fi
 run_release_cli() {
   docker run --rm \
     --network "$gate_network" \
@@ -444,6 +403,7 @@ run_release_cli() {
     --env ALLOWED_ORIGINS="*" \
     --env CRAFTSKY_DEV_DID="did:plc:jt3cxdyrhjhrkpwzdvonheax" \
     --env TAP_WS_URL="ws://tap:2480/channel" \
+    --env OAUTH_HANDOFF_RECEIPT_KEY="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" \
     --env SCHEDULED_POSTS_S3_ENDPOINT="http://minio:9000" \
     --env SCHEDULED_POSTS_S3_REGION="us-east-1" \
     --env SCHEDULED_POSTS_S3_BUCKET="private-scheduled-media" \
@@ -457,6 +417,7 @@ if [[ "$migration_count" -le 0 ]]; then
   echo "appview-check: no up migrations found" >&2
   exit 1
 fi
+run_release_cli --env dev ping | tee "$artifact_dir/cli-dependency-ping.log"
 run_release_cli --env dev migrate up
 first_status=$(run_release_cli --env dev migrate status)
 if [[ ! "$first_status" =~ ^version=[0-9]+[[:space:]]dirty=false$ ]]; then
@@ -473,6 +434,61 @@ run_release_cli --env dev migrate up
 second_status=$(run_release_cli --env dev migrate status)
 if [[ "$second_status" != "$first_status" ]]; then
   echo "appview-check: migration reapply status changed: $first_status -> $second_status" >&2
+  exit 1
+fi
+
+# Production dependency construction must reach the private object-store check.
+# Its TLS endpoint is intentionally closed; the successful dev ping above proves
+# the same database and S3 dependency graph against live local services.
+set +e
+production_ping_output=$(docker run --rm \
+  --network "$gate_network" \
+  --entrypoint /app/cli \
+  --env DATABASE_URL="$container_database_url" \
+  --env ALLOWED_ORIGINS="https://craftsky.social" \
+  --env TAP_WS_URL="ws://tap:2480/channel" \
+  --env OAUTH_PUBLIC_ORIGIN="https://appview.craftsky.social" \
+  --env OAUTH_CLIENT_SECRET_KEY="$oauth_client_secret_key" \
+  --env OAUTH_CLIENT_SECRET_KEY_ID="primary" \
+  --env OAUTH_HANDOFF_RECEIPT_KEY="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" \
+  --env APP_VERIFIED_LINK_ORIGIN="https://app.craftsky.social" \
+  --env SCHEDULED_POSTS_S3_ENDPOINT="https://127.0.0.1:1" \
+  --env SCHEDULED_POSTS_S3_REGION="eu-central-1" \
+  --env SCHEDULED_POSTS_S3_BUCKET="release-gate" \
+  --env SCHEDULED_POSTS_S3_ACCESS_KEY_ID="release-gate" \
+  --env SCHEDULED_POSTS_S3_SECRET_ACCESS_KEY="release-gate" \
+  "$gate_image" --env prod ping 2>&1)
+production_ping_status=$?
+set -e
+printf '%s\n' "$production_ping_output" >"$artifact_dir/cli-production-dependency-probe.log"
+if [[ "$production_ping_status" -eq 0 ]] || \
+  [[ "$production_ping_output" != *"scheduled private object store check: private object store unavailable"* ]]; then
+  echo "appview-check: production dependency probe did not reach the expected object-store check" >&2
+  printf '%s\n' "$production_ping_output" >&2
+  exit 1
+fi
+
+# Exercise the migration half of Render's pre-deploy command with production
+# configuration validation.
+production_status=$(docker run --rm \
+  --network "$gate_network" \
+  --entrypoint /app/cli \
+  --env DATABASE_URL="$container_database_url" \
+  --env ALLOWED_ORIGINS="https://craftsky.social" \
+  --env TAP_WS_URL="ws://tap:2480/channel" \
+  --env OAUTH_PUBLIC_ORIGIN="https://appview.craftsky.social" \
+  --env OAUTH_CLIENT_SECRET_KEY="$oauth_client_secret_key" \
+  --env OAUTH_CLIENT_SECRET_KEY_ID="primary" \
+  --env OAUTH_HANDOFF_RECEIPT_KEY="AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" \
+  --env APP_VERIFIED_LINK_ORIGIN="https://app.craftsky.social" \
+  --env SCHEDULED_POSTS_S3_ENDPOINT="https://s3.example.invalid" \
+  --env SCHEDULED_POSTS_S3_REGION="eu-central-1" \
+  --env SCHEDULED_POSTS_S3_BUCKET="release-gate" \
+  --env SCHEDULED_POSTS_S3_ACCESS_KEY_ID="release-gate" \
+  --env SCHEDULED_POSTS_S3_SECRET_ACCESS_KEY="release-gate" \
+  "$gate_image" --env prod migrate status)
+if [[ "$production_status" != "$first_status" ]]; then
+  echo "appview-check: production migration status changed: $first_status -> $production_status" >&2
   exit 1
 fi
 

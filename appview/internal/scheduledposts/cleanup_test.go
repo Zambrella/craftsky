@@ -15,6 +15,7 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/observability"
 )
@@ -447,7 +448,15 @@ func TestCleanupProcessorDoesNotDeleteAConcurrentReupload(t *testing.T) {
 }
 
 func TestCleanupProcessorFencesExpiredLeaseDeleteAcrossReupload(t *testing.T) {
-	store := NewStore(newScheduledPostStoreTestPool(t))
+	basePool := newScheduledPostStoreTestPool(t)
+	poolConfig := basePool.Config().Copy()
+	poolConfig.MaxConns = 8
+	pool, err := pgxpool.NewWithConfig(context.Background(), poolConfig)
+	if err != nil {
+		t.Fatalf("construct cleanup concurrency pool: %v", err)
+	}
+	t.Cleanup(pool.Close)
+	store := NewStore(pool)
 	objects := &sequencedCleanupObjectStore{
 		objects:             map[string][]byte{},
 		firstDeleteStarted:  make(chan struct{}),
