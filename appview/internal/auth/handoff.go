@@ -279,7 +279,7 @@ func (service *HandoffService) Exchange(ctx context.Context, code, deviceID stri
 					return err
 				}
 				receiptID := uuid.New()
-				confirmBy := now.Add(service.confirmationTTL)
+				confirmBy := now.Add(service.confirmationTTL).Truncate(time.Microsecond)
 				nonce := make([]byte, service.receiptAEAD.NonceSize())
 				if _, err := io.ReadFull(service.random, nonce); err != nil {
 					return fmt.Errorf("generate handoff receipt nonce: %w", err)
