@@ -18,6 +18,7 @@ import (
 type ExpectedHostPolicy struct {
 	Authorities  []string
 	AllowAnyPort bool
+	BypassPaths  []string
 }
 
 func ExpectedHost(policy ExpectedHostPolicy) func(http.Handler) http.Handler {
@@ -28,8 +29,16 @@ func ExpectedHost(policy ExpectedHostPolicy) func(http.Handler) http.Handler {
 			expected[normalized] = struct{}{}
 		}
 	}
+	bypassPaths := make(map[string]struct{}, len(policy.BypassPaths))
+	for _, bypassPath := range policy.BypassPaths {
+		bypassPaths[bypassPath] = struct{}{}
+	}
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if _, bypass := bypassPaths[r.URL.Path]; bypass {
+				next.ServeHTTP(w, r)
+				return
+			}
 			authority, err := normalizeAuthority(r.Host)
 			allowed := err == nil
 			if allowed && policy.AllowAnyPort {

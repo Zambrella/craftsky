@@ -42,3 +42,30 @@ func TestStopBackgroundWorkersRejectsInvalidTimeout(t *testing.T) {
 		t.Fatal("expected invalid timeout error")
 	}
 }
+
+func TestListenAddressUsesRenderPortWithLocalDefault(t *testing.T) {
+	for _, test := range []struct {
+		name    string
+		port    string
+		want    string
+		wantErr bool
+	}{
+		{name: "local default", want: "0.0.0.0:8080"},
+		{name: "Render port", port: "10000", want: "0.0.0.0:10000"},
+		{name: "maximum port", port: "65535", want: "0.0.0.0:65535"},
+		{name: "not numeric", port: "http", wantErr: true},
+		{name: "zero", port: "0", wantErr: true},
+		{name: "too large", port: "65536", wantErr: true},
+		{name: "surrounding whitespace", port: " 8080", wantErr: true},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := listenAddress(test.port)
+			if (err != nil) != test.wantErr {
+				t.Fatalf("listenAddress(%q) error = %v, wantErr %t", test.port, err, test.wantErr)
+			}
+			if got != test.want {
+				t.Fatalf("listenAddress(%q) = %q, want %q", test.port, got, test.want)
+			}
+		})
+	}
+}

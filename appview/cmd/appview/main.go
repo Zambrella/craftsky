@@ -19,6 +19,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
@@ -135,7 +136,10 @@ func run(ctx context.Context, args []string) error {
 	if err != nil {
 		return fmt.Errorf("configure HTTP server: %w", err)
 	}
-	httpServer.Addr = net.JoinHostPort("0.0.0.0", "8080")
+	httpServer.Addr, err = listenAddress(os.Getenv("PORT"))
+	if err != nil {
+		return err
+	}
 	listener, err := net.Listen("tcp", httpServer.Addr)
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)
@@ -465,6 +469,17 @@ func run(ctx context.Context, args []string) error {
 		_ = httpServer.Close()
 	}
 	return nil
+}
+
+func listenAddress(port string) (string, error) {
+	if port == "" {
+		port = "8080"
+	}
+	portNumber, err := strconv.Atoi(port)
+	if err != nil || portNumber < 1 || portNumber > 65535 {
+		return "", fmt.Errorf("PORT must be an integer between 1 and 65535")
+	}
+	return net.JoinHostPort("0.0.0.0", port), nil
 }
 
 type followerGrowthRunner interface {

@@ -104,6 +104,7 @@ func NewServerWithAdmission(ctx context.Context, deps *app.Deps, cfg HandlerAdmi
 		h = middleware.ExpectedHost(middleware.ExpectedHostPolicy{
 			Authorities:  routeDeps.Config.ExpectedHosts,
 			AllowAnyPort: routeDeps.Config.ExpectedHostAllowAnyPort,
+			BypassPaths:  []string{"/health"},
 		})(h)
 	}
 	h = outerRate(h)

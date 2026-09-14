@@ -1,6 +1,8 @@
 services:
   postgres:
     image: postgres:16@sha256:f1c3376c26f2609ab9f29f71f824103fe2fcd8ee0346485cb6122a4f93df6f94
+    # Parallel isolated-schema tests apply the full migration set concurrently.
+    command: ["postgres", "-c", "max_locks_per_transaction=256"]
     restart: unless-stopped
     environment:
       POSTGRES_USER: craftsky
@@ -125,6 +127,7 @@ services:
       context: ./appview
       dockerfile: Dockerfile
     restart: unless-stopped
+    command: ["dev"]
     # The release gate measures the exact runtime image plus 16 MP JPEG/PNG/WebP
     # and maximum admitted upload work under this 512 MiB cgroup limit. Keep
     # decode/upload-body admission at one unless that proof is rerun.

@@ -1,0 +1,149 @@
+name: Deploy Production
+
+on:
+  push:
+    tags:
+      - prod-v*
+
+permissions:
+  contents: read
+
+concurrency:
+  group: craftsky-production
+  cancel-in-progress: false
+
+jobs:
+  verify-tag:
+    name: Verify production tag
+    runs-on: ubuntu-24.04
+    outputs:
+      commit: ${{ steps.tag.outputs.commit }}
+    steps:
+      - name: Check out tagged commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+
+      - name: Require strict tag at current main tip
+        id: tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$GITHUB_REF_NAME" =~ ^prod-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            printf 'Invalid production tag: %s\n' "$GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+          git fetch --force --no-tags origin main:refs/remotes/origin/main
+          tag_commit=$(git rev-parse "refs/tags/${GITHUB_REF_NAME}^{commit}")
+          main_commit=$(git rev-parse refs/remotes/origin/main)
+          if [[ "$tag_commit" != "$main_commit" ]]; then
+            printf 'Production tag commit %s is not current main tip %s\n' "$tag_commit" "$main_commit" >&2
+            exit 1
+          fi
+          printf 'commit=%s\n' "$tag_commit" >>"$GITHUB_OUTPUT"
+
+  release-gate:
+    name: Test tagged AppView
+    needs: verify-tag
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - name: Check out tagged commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.verify-tag.outputs.commit }}
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version: 1.27.1
+          cache-dependency-path: appview/go.sum
+
+      - name: Install release-gate tools
+        run: sudo apt-get update && sudo apt-get install --yes just ripgrep
+
+      - name: Run AppView release gate
+        env:
+          APPVIEW_CHECK_ARTIFACT_DIR: ${{ runner.temp }}/appview-check
+          GOFLAGS: -p=1
+        run: ./scripts/appview-check
+
+      - name: Upload release evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: production-release-evidence-${{ needs.verify-tag.outputs.commit }}
+          path: ${{ runner.temp }}/appview-check
+          if-no-files-found: error
+          retention-days: 30
+
+  deploy:
+    name: Deploy exact commit to Render
+    needs: [verify-tag, release-gate]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment:
+      name: production
+      url: https://appview.craftsky.social/healthz
+    env:
+      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+      RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+      TAG_COMMIT: ${{ needs.verify-tag.outputs.commit }}
+    steps:
+      - name: Check out deployed commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ needs.verify-tag.outputs.commit }}
+
+      - name: Install pinned Render CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive=cli_2.28.0_linux_amd64.zip
+          curl -fsSLO "https://github.com/render-oss/cli/releases/download/v2.28.0/${archive}"
+          printf '%s  %s\n' '00d1ca6f3c31b1f4bc7316837b8ee24acbeb11cf372b7593c7d2c3106a1987b4' "$archive" | sha256sum --check
+          unzip -q "$archive"
+          sudo install -m 0755 cli_v2.28.0 /usr/local/bin/render
+          render --version
+
+      - name: Validate production Blueprint
+        run: render blueprints validate --confirm -o json
+
+      - name: Reconfirm tag remains current main tip
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch --force --no-tags origin main:refs/remotes/origin/main
+          main_commit=$(git rev-parse refs/remotes/origin/main)
+          if [[ "$TAG_COMMIT" != "$main_commit" ]]; then
+            printf 'Production tag commit %s is no longer current main tip %s\n' "$TAG_COMMIT" "$main_commit" >&2
+            exit 1
+          fi
+
+      - name: Deploy exact tested commit
+        run: render deploys create "$RENDER_SERVICE_ID" --commit "$TAG_COMMIT" --wait --confirm -o json
+
+      - name: Verify public health
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --max-time 10 --retry 12 --retry-delay 5 \
+            https://appview.craftsky.social/health
+          for attempt in $(seq 1 60); do
+            if health=$(curl --fail --silent --show-error --max-time 10 \
+              https://appview.craftsky.social/healthz) && \
+              jq --exit-status '
+                .db == "ok" and
+                .tap.connected == true and
+                (.tap.last_event_at == "" or (now - (.tap.last_event_at | fromdateiso8601)) < 900)
+              ' <<<"$health" >/dev/null; then
+              printf '%s\n' "$health"
+              exit 0
+            fi
+            if [[ "$attempt" -lt 60 ]]; then
+              sleep 10
+            fi
+          done
+          printf 'AppView did not reach full production health within 10 minutes\n' >&2
+          exit 1
