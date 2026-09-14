@@ -1,5 +1,5 @@
 /* =========================================================================
-   Craftsky landing page — styles
+   CraftSky landing page - styles
    Design tokens copied from docs/design/colors_and_type.css on 2026-04-22.
    If the design system changes, re-copy the :root block. Run this to diff:
      diff <(sed -n '/^:root {/,/^}/p' web/styles.css) \
@@ -1195,7 +1195,7 @@ a:hover { color: var(--cobalt-deep); }
   margin-top: var(--sp-7);
   padding: var(--sp-4) 0;
   font-size: var(--t-meta);
-  color: var(--fg-3);
+  color: var(--fg-2);
 }
 
 .footer__strip-inner {
@@ -1482,7 +1482,7 @@ a:hover { color: var(--cobalt-deep); }
 }
 
 .footer__legal a {
-  color: var(--fg-3);
+  color: var(--fg-2);
   text-decoration: none;
   font-weight: 600;
 }
@@ -1490,4 +1490,73 @@ a:hover { color: var(--cobalt-deep); }
 .footer__legal a:hover {
   color: var(--ink);
   text-decoration: underline;
+}
+
+/* =========================================================================
+   Analytics choices
+   ========================================================================= */
+
+.analytics-choices {
+  position: fixed;
+  z-index: 1000;
+  right: var(--sp-4);
+  bottom: var(--sp-4);
+  left: var(--sp-4);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-5);
+  max-width: 880px;
+  margin: 0 auto;
+  padding: var(--sp-4);
+  color: var(--ink);
+  background: var(--paper-3);
+  border: var(--border-w) solid var(--ink);
+  box-shadow: var(--sh-drop);
+}
+
+.analytics-choices[hidden] {
+  display: none;
+}
+
+.analytics-choices p {
+  margin: var(--sp-1) 0 0;
+  max-width: 58ch;
+}
+
+.analytics-choices__actions {
+  display: flex;
+  flex: none;
+  gap: var(--sp-2);
+}
+
+.analytics-settings {
+  position: fixed;
+  z-index: 900;
+  right: var(--sp-3);
+  bottom: var(--sp-3);
+  padding: 7px 10px;
+  color: var(--fg-2);
+  background: var(--paper);
+  border: 1px solid var(--fg-3);
+  border-radius: 999px;
+  font: 600 12px var(--font-ui);
+  cursor: pointer;
+}
+
+.analytics-settings:hover,
+.analytics-settings:focus-visible {
+  color: var(--ink);
+  border-color: var(--ink);
+}
+
+@media (max-width: 680px) {
+  .analytics-choices {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .analytics-choices__actions {
+    flex-direction: column-reverse;
+  }
 }

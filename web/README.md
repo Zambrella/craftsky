@@ -1,4 +1,4 @@
-# Craftsky landing page
+# CraftSky landing page
 
 Single static HTML page served at https://craftsky.social.
 
