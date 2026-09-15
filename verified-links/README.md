@@ -19,5 +19,5 @@ must be available over HTTPS without redirects:
 
 The callback pages intentionally contain no scripts, external resources, forms,
 or reflected query values. Their response headers prevent referrer leakage and
-framing. `_redirects` uses internal rewrites so each exact callback path returns
-the fallback directly instead of redirecting the sensitive query string.
+framing. Each fallback is stored as an extensionless-route `.html` file so
+Cloudflare Pages serves the exact callback path without a redirect.
