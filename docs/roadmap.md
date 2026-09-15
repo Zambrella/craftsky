@@ -107,13 +107,9 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 ### Ops / infra
 
 - [ ] Production deploy (Render AppView + Tap + managed Postgres, external managed S3-compatible storage) → [ADR 016](../adr/016-render-managed-production-infrastructure.md), own implementation spec
-- [ ] Client private key management for OAuth in prod (env var vs file vs KMS) — OAuth BFF §5.1 open question
-- [ ] Backup strategy for Postgres → own spec
+- [ ] Backup strategy
 - [ ] Monitoring / alerting for Tap connection health, firehose lag, indexer errors
 - [ ] App store distribution — Apple Developer + Google Play accounts, bundle/app IDs, signing keys, TestFlight + Play internal track, store listings, review submission → own spec
-- [ ] Domain & DNS setup — craftsky.social apex, `api.craftsky.social`, email/MX, TLS strategy (likely folded into the production-deploy spec, but called out so it isn't forgotten)
-- [ ] Email infrastructure — transactional provider for the moderation reports inbox and any future account emails
-- [ ] First-PDS decision — where do first users' accounts live? Self-hosted Craftsky PDS, bsky.social, or third-party? Ties into the handle-suffix decision but is a separate question
 - [ ] Secrets management for local dev — `.env` handling conventions, `.env.example`, what's safe to commit
 
 ### Product / community
@@ -121,8 +117,8 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [ ] Handle suffix decision (users get `<name>.craftsky.social`? Some other domain? Use bsky.social handles?)
 - [x] Initial moderation plan — even MVP needs a "report a post" path, even if the backend is just "email an inbox"
 - [ ] Ozone moderation backend — self-hosted Ozone instance for triaging reports, labelling, and takedowns (see https://atproto.com/guides/using-ozone) → own spec
-- [ ] Legal read (UK Online Safety Act implications per reference doc)
-- [ ] Terms of service & privacy policy — drafted copy, linked from app + landing page (legal read informs this but is separate)
+- [x] Legal read (UK Online Safety Act implications per reference doc)
+- [x] Terms of service & privacy policy — drafted copy, linked from app + landing page (legal read informs this but is separate)
 
 ### Governance
 
