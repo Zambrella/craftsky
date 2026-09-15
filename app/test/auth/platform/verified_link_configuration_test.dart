@@ -118,8 +118,8 @@ void main() {
 
   test('browser fallbacks do not execute scripts or leak referrers', () {
     for (final path in [
-      '../verified-links/auth/complete/index.html',
-      '../verified-links/account-deletion/reauth-complete/index.html',
+      '../verified-links/auth-complete.html',
+      '../verified-links/account-deletion-reauth-complete.html',
     ]) {
       final page = File(path).readAsStringSync();
       expect(page, contains('<meta name="referrer" content="no-referrer">'));

@@ -19,4 +19,5 @@ must be available over HTTPS without redirects:
 
 The callback pages intentionally contain no scripts, external resources, forms,
 or reflected query values. Their response headers prevent referrer leakage and
-framing.
+framing. `_redirects` uses internal rewrites so each exact callback path returns
+the fallback directly instead of redirecting the sensitive query string.
