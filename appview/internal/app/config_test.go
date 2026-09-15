@@ -1519,6 +1519,34 @@ func TestLoadConfigScheduledImageDecodeLimits(t *testing.T) {
 	}
 }
 
+func TestProductionDeploymentImageGeometryMatchesApplicationCeiling(t *testing.T) {
+	productionEnv, err := os.ReadFile("../../environments/prod.env.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	blueprint, err := os.ReadFile("../../../render.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, expected := range []string{
+		"SCHEDULED_IMAGE_MAX_WIDTH=4000",
+		"SCHEDULED_IMAGE_MAX_HEIGHT=4000",
+	} {
+		if !strings.Contains(string(productionEnv), expected) {
+			t.Fatalf("production environment is missing %q", expected)
+		}
+	}
+	for _, expected := range []string{
+		"SCHEDULED_IMAGE_MAX_WIDTH\n                value: \"4000\"",
+		"SCHEDULED_IMAGE_MAX_HEIGHT\n                value: \"4000\"",
+	} {
+		if !strings.Contains(string(blueprint), expected) {
+			t.Fatalf("Render Blueprint is missing %q", expected)
+		}
+	}
+}
+
 func TestLoadConfig_OAuthCustomValues(t *testing.T) {
 	// Localhost mode accepts only its callback, scopes, and session budgets.
 	path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\n")

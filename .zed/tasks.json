@@ -115,6 +115,84 @@
       "flutter-run"
     ]
   },
+  // ---------- Flutter run: production AppView ----------
+  // These tasks use config/production.env and do not require the local
+  // Compose stack. Create the ignored config file from its example first.
+  {
+    "label": "flutter run — production — pick device",
+    "command": "just",
+    "args": [
+      "app-run-production"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "tags": [
+      "flutter-run",
+      "production"
+    ]
+  },
+  {
+    "label": "flutter run — production — Chrome",
+    "command": "just",
+    "args": [
+      "app-run-production-chrome"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "tags": [
+      "flutter-run",
+      "production"
+    ]
+  },
+  {
+    "label": "flutter run — production — macOS",
+    "command": "just",
+    "args": [
+      "app-run-production-macos"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "tags": [
+      "flutter-run",
+      "production"
+    ]
+  },
+  {
+    "label": "flutter run — production — iOS simulator",
+    "command": "just",
+    "args": [
+      "app-run-production-ios"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "tags": [
+      "flutter-run",
+      "production"
+    ]
+  },
+  {
+    "label": "flutter run — production — Android emulator",
+    "command": "just",
+    "args": [
+      "app-run-production-android"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "use_new_terminal": true,
+    "allow_concurrent_runs": false,
+    "reveal": "always",
+    "tags": [
+      "flutter-run",
+      "production"
+    ]
+  },
   // ---------- Codegen ----------
   {
     "label": "build_runner: build (delete conflicting)",
@@ -252,7 +330,20 @@
     ]
   },
   {
-    "label": "flutter build apk",
+    "label": "flutter build ipa — production",
+    "command": "just",
+    "args": [
+      "app-build-ipa"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always",
+    "tags": [
+      "build",
+      "production"
+    ]
+  },
+  {
+    "label": "flutter build apk — production",
     "command": "just",
     "args": [
       "app-build-apk"
@@ -261,6 +352,19 @@
     "reveal": "always",
     "tags": [
       "build"
+    ]
+  },
+  {
+    "label": "flutter build appbundle — production",
+    "command": "just",
+    "args": [
+      "app-build-appbundle"
+    ],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "reveal": "always",
+    "tags": [
+      "build",
+      "production"
     ]
   },
   // ---------- Housekeeping ----------

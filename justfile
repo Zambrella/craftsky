@@ -291,6 +291,27 @@ app-run-android: app-env-init
     flutter run --dart-define-from-file=config/local-android.env \
       --dart-define="CRAFTSKY_API_BASE_URL=http://10.0.2.2:${APPVIEW_PORT}"
 
+# Run the Flutter app against the production AppView with an interactive device picker.
+app-run-production *ARGS:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    config="config/production.env"
+    test -f "app/$config" || { echo "Missing app/$config. Copy app/$config.example first."; exit 1; }
+    cd app
+    flutter run --dart-define-from-file="$config" {{ARGS}}
+
+app-run-production-chrome:
+    just app-run-production -- -d chrome
+
+app-run-production-macos:
+    just app-run-production -- -d macos
+
+app-run-production-ios:
+    just app-run-production -- -d ios
+
+app-run-production-android:
+    just app-run-production -- -d emulator
+
 app-analyze:
     cd app && flutter analyze
 
@@ -349,10 +370,26 @@ app-build-ios ENV="production":
     cd app
     flutter build ios --no-codesign --dart-define-from-file="$config"
 
+app-build-ipa ENV="production":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    config="config/{{ENV}}.env"
+    test -f "app/$config" || { echo "Missing app/$config. Copy app/$config.example first."; exit 1; }
+    cd app
+    flutter build ipa --release --dart-define-from-file="$config"
+
 app-build-apk ENV="production":
     #!/usr/bin/env bash
     set -euo pipefail
     config="config/{{ENV}}.env"
     test -f "app/$config" || { echo "Missing app/$config. Copy app/$config.example first."; exit 1; }
     cd app
-    flutter build apk --dart-define-from-file="$config"
+    flutter build apk --release --dart-define-from-file="$config"
+
+app-build-appbundle ENV="production":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    config="config/{{ENV}}.env"
+    test -f "app/$config" || { echo "Missing app/$config. Copy app/$config.example first."; exit 1; }
+    cd app
+    flutter build appbundle --release --dart-define-from-file="$config"

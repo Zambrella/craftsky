@@ -253,9 +253,9 @@ projects:
               - key: VIDEO_THUMBNAIL_URL_TEMPLATE
                 value: https://video.bsky.app/watch/{did}/{cid}/thumbnail.jpg
               - key: SCHEDULED_IMAGE_MAX_WIDTH
-                value: "8192"
+                value: "4000"
               - key: SCHEDULED_IMAGE_MAX_HEIGHT
-                value: "8192"
+                value: "4000"
               - key: SCHEDULED_IMAGE_MAX_PIXELS
                 value: "16000000"
               - key: SCHEDULED_IMAGE_MAX_ASPECT_RATIO
