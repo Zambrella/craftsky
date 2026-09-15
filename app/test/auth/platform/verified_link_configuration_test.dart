@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -71,5 +72,60 @@ void main() {
       hasLength(2),
       reason: 'Profile and Release must keep the scheme-free plist',
     );
+  });
+
+  test(
+    'domain associations authorize the production application identities',
+    () {
+      final assetLinks =
+          jsonDecode(
+                File(
+                  '../verified-links/.well-known/assetlinks.json',
+                ).readAsStringSync(),
+              )
+              as List<dynamic>;
+      final androidTarget =
+          (assetLinks.single as Map<String, dynamic>)['target']
+              as Map<String, dynamic>;
+
+      expect(androidTarget['package_name'], 'social.craftsky.app');
+      expect(androidTarget['sha256_cert_fingerprints'], [
+        'D7:A8:2E:30:70:D7:8B:7F:A6:3D:22:DA:EE:06:5C:51:ED:96:39:7A:'
+            'A5:C7:A5:20:CF:79:1A:BE:3B:17:D7:0D',
+      ]);
+
+      final association =
+          jsonDecode(
+                File(
+                  '../verified-links/.well-known/apple-app-site-association',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      final applinks = association['applinks'] as Map<String, dynamic>;
+      final details =
+          (applinks['details'] as List<dynamic>).single as Map<String, dynamic>;
+      final components = details['components'] as List<dynamic>;
+
+      expect(details['appIDs'], ['B6YZZCUZWS.social.craftsky.app']);
+      expect(
+        components.cast<Map<String, dynamic>>().map(
+          (component) => component['/'],
+        ),
+        ['/auth/complete', '/account-deletion/reauth-complete'],
+      );
+    },
+  );
+
+  test('browser fallbacks do not execute scripts or leak referrers', () {
+    for (final path in [
+      '../verified-links/auth/complete/index.html',
+      '../verified-links/account-deletion/reauth-complete/index.html',
+    ]) {
+      final page = File(path).readAsStringSync();
+      expect(page, contains('<meta name="referrer" content="no-referrer">'));
+      expect(page, isNot(contains('<script')));
+      expect(page, isNot(contains('http://')));
+      expect(page, isNot(contains('https://')));
+    }
   });
 }

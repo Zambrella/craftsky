@@ -1,0 +1,19 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["B6YZZCUZWS.social.craftsky.app"],
+        "components": [
+          {
+            "/": "/auth/complete",
+            "comment": "CraftSky OAuth handoff completion"
+          },
+          {
+            "/": "/account-deletion/reauth-complete",
+            "comment": "CraftSky account-deletion reauthentication"
+          }
+        ]
+      }
+    ]
+  }
+}
