@@ -169,7 +169,6 @@ var callbackTmpl = template.Must(template.New("cb").Parse(`<!doctype html>
     --cobalt: #1535d6;
     --cobalt-deep: #0c1f8c;
     --butter: #f7d46a;
-    --red: #f03a2e;
 }
 * { box-sizing: border-box; }
 body {
@@ -177,125 +176,88 @@ body {
     min-height: 100vh;
     min-height: 100svh;
     margin: 0;
-    padding: 28px 20px 38px;
+    padding: 24px;
     place-items: center;
-    overflow-x: hidden;
     color: var(--ink);
     background: var(--paper);
 }
 main {
-    position: relative;
-    width: min(100%, 520px);
-}
-main::before {
-    position: absolute;
-    z-index: -1;
-    top: -28px;
-    right: -22px;
-    width: 112px;
-    height: 112px;
-    border: 2px solid var(--ink);
-    border-radius: 24px;
-    background: var(--butter);
-    content: "";
-    transform: rotate(9deg);
-}
-main::after {
-    position: absolute;
-    z-index: -1;
-    bottom: -24px;
-    left: -18px;
-    width: 72px;
-    height: 72px;
-    border: 2px solid var(--ink);
-    border-radius: 50%;
-    background: var(--red);
-    content: "";
+    width: min(100%, 460px);
 }
 .card {
-    padding: clamp(30px, 7vw, 52px);
-    border: 2px solid var(--ink);
-    border-radius: 24px;
+    padding: clamp(28px, 7vw, 42px);
+    border: 1px solid #ded5c8;
+    border-radius: 18px;
     background: var(--paper-raised);
-    box-shadow: 10px 10px 0 var(--ink);
+    box-shadow: 0 14px 36px rgb(22 18 16 / 8%);
 }
 .brand {
     display: flex;
     align-items: center;
-    gap: 12px;
-    margin-bottom: 42px;
+    gap: 9px;
+    margin-bottom: 34px;
     font-size: 14px;
-    font-weight: 900;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+    font-weight: 800;
+    letter-spacing: 0.04em;
 }
 .brand-mark {
-    display: grid;
-    width: 42px;
-    height: 42px;
-    border: 2px solid var(--ink);
-    border-radius: 13px;
-    place-items: center;
-    color: white;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
     background: var(--cobalt);
-    box-shadow: 3px 3px 0 var(--ink);
-    font-size: 15px;
-    letter-spacing: -0.04em;
+    font-size: 0;
 }
 .eyebrow {
-    margin: 0 0 10px;
+    margin: 0 0 8px;
     color: var(--cobalt);
     font-size: 12px;
-    font-weight: 900;
-    letter-spacing: 0.13em;
+    font-weight: 800;
+    letter-spacing: 0.09em;
     text-transform: uppercase;
 }
 h1 {
-    max-width: 10ch;
     margin: 0;
-    font-size: clamp(38px, 10vw, 58px);
-    line-height: 0.98;
-    letter-spacing: -0.045em;
+    font-size: clamp(32px, 8vw, 40px);
+    line-height: 1.08;
+    letter-spacing: -0.035em;
 }
 .message {
-    margin: 24px 0 30px;
+    margin: 18px 0 28px;
     color: var(--ink-muted);
-    font-size: 18px;
-    line-height: 1.55;
+    font-size: 17px;
+    line-height: 1.5;
 }
 .cta {
     display: flex;
     width: 100%;
-    min-height: 58px;
+    min-height: 54px;
     align-items: center;
     justify-content: center;
-    padding: 15px 28px;
-    border: 2px solid var(--ink);
-    border-radius: 999px;
+    padding: 14px 24px;
+    border: 0;
+    border-radius: 12px;
     color: white;
     background: var(--cobalt);
-    box-shadow: 5px 5px 0 var(--ink);
-    font-size: 17px;
-    font-weight: 900;
-    letter-spacing: 0.01em;
+    box-shadow: 0 6px 16px rgb(21 53 214 / 20%);
+    font-size: 16px;
+    font-weight: 800;
     text-align: center;
     text-decoration: none;
-    transition: background 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+    transition: background 120ms ease, transform 120ms ease;
 }
-.cta:hover { background: var(--cobalt-deep); transform: translate(-1px, -1px); }
-.cta:active { box-shadow: 1px 1px 0 var(--ink); transform: translate(4px, 4px); }
-.cta:focus-visible { outline: 4px solid var(--butter); outline-offset: 4px; }
+.cta:hover { background: var(--cobalt-deep); }
+.cta:active { transform: translateY(1px); }
+.cta:focus-visible { outline: 3px solid var(--butter); outline-offset: 3px; }
 .note {
-    margin: 24px 0 0;
+    margin: 18px 0 0;
     color: var(--ink-muted);
     font-size: 14px;
     line-height: 1.45;
     text-align: center;
 }
 @media (max-width: 420px) {
-    body { padding: 20px 16px 30px; }
-    .card { border-radius: 20px; box-shadow: 7px 7px 0 var(--ink); }
-    .brand { margin-bottom: 34px; }
+    body { padding: 16px; }
+    .card { border-radius: 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
     .cta { transition: none; }
