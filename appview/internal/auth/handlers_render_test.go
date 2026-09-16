@@ -418,12 +418,16 @@ func TestVerifiedLinkAndErrorPagesDenyAllConnections(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if csp := verified.Header().Get("Content-Security-Policy"); !strings.Contains(csp, "connect-src 'none'") {
+	csp := verified.Header().Get("Content-Security-Policy")
+	if !strings.Contains(csp, "connect-src 'none'") {
 		t.Fatalf("verified-link CSP=%q, want connections denied", csp)
 	}
 	body := verified.Body.String()
-	if !strings.Contains(body, `href="`+completionURL+`"`) || !strings.Contains(body, ">Open CraftSky</a>") {
+	if !strings.Contains(body, `class="cta" href="`+completionURL+`"`) || !strings.Contains(body, ">Open CraftSky</a>") {
 		t.Fatalf("verified-link body does not contain a user-activated app link: %q", body)
+	}
+	if !strings.Contains(csp, `style-src 'nonce-`) || strings.Contains(csp, "style-src 'unsafe-inline'") {
+		t.Fatalf("verified-link CSP does not nonce inline styles: %q", csp)
 	}
 	if strings.Contains(body, "window.location") {
 		t.Fatalf("verified-link body uses scripted navigation: %q", body)
