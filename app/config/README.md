@@ -30,3 +30,10 @@ configured video infrastructure is dependable.
 out of committed examples. `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, and
 `SENTRY_PROJECT` are build/upload credentials for Sentry symbolication and must
 come from CI secrets or your shell environment, not from these app config files.
+
+The `app-build-ios`, `app-build-ipa`, `app-build-apk`, and
+`app-build-appbundle` recipes require Sentry to be enabled in the selected app
+config and require all three upload credentials. They build with obfuscation and
+split debug information, then upload native symbols, Dart symbols, the
+obfuscation map, and source context to Sentry. The recipe fails if either the
+build or upload fails.

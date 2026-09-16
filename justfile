@@ -362,34 +362,72 @@ app-build-web ENV="production":
     cd app
     flutter build web --dart-define-from-file="$config"
 
-app-build-ios ENV="production":
+# Build a mobile release with Sentry enabled, then upload its debug symbols.
+_app-build-mobile TARGET ENV:
     #!/usr/bin/env bash
     set -euo pipefail
     config="config/{{ENV}}.env"
     test -f "app/$config" || { echo "Missing app/$config. Copy app/$config.example first."; exit 1; }
     cd app
-    flutter build ios --no-codesign --dart-define-from-file="$config"
+
+    config_value() {
+        local requested_key="$1"
+        local key value
+        while IFS='=' read -r key value; do
+            if [[ "$key" == "$requested_key" ]]; then
+                printf '%s' "$value"
+                return
+            fi
+        done < "$config"
+        return 0
+    }
+
+    sentry_dsn="$(config_value SENTRY_DSN)"
+    sentry_environment="$(config_value SENTRY_ENVIRONMENT)"
+    sentry_local_opt_in="$(config_value SENTRY_LOCAL_OPT_IN)"
+    [[ -n "$sentry_dsn" ]] || { echo "SENTRY_DSN must be set in app/$config for mobile release builds." >&2; exit 1; }
+    if [[ "$sentry_environment" != "production" && "$sentry_environment" != "staging" && "$sentry_local_opt_in" != "true" ]]; then
+        echo "Sentry is disabled by app/$config. Use production/staging or set SENTRY_LOCAL_OPT_IN=true." >&2
+        exit 1
+    fi
+    : "${SENTRY_AUTH_TOKEN:?Set SENTRY_AUTH_TOKEN to upload Sentry debug symbols.}"
+    : "${SENTRY_ORG:?Set SENTRY_ORG to upload Sentry debug symbols.}"
+    : "${SENTRY_PROJECT:?Set SENTRY_PROJECT to upload Sentry debug symbols.}"
+
+    sentry_release="$(config_value SENTRY_RELEASE)"
+    sentry_dist="$(config_value SENTRY_DIST)"
+    [[ -z "$sentry_release" ]] || export SENTRY_RELEASE="$sentry_release"
+    [[ -z "$sentry_dist" ]] || export SENTRY_DIST="$sentry_dist"
+
+    symbols_dir="build/debug-info/{{TARGET}}"
+    symbol_map="build/app/obfuscation-{{TARGET}}.map.json"
+    rm -rf "$symbols_dir" "$symbol_map"
+    build_args=(
+        flutter build "{{TARGET}}" --release
+        --dart-define-from-file="$config"
+        --obfuscate
+        --split-debug-info="$symbols_dir"
+        --extra-gen-snapshot-options="--save-obfuscation-map=$symbol_map"
+    )
+    if [[ "{{TARGET}}" == "ios" ]]; then
+        build_args+=(--no-codesign)
+    fi
+    "${build_args[@]}"
+
+    dart run sentry_dart_plugin \
+        --sentry-define="symbols_path=$symbols_dir" \
+        --sentry-define="dart_symbol_map_path=$symbol_map" \
+        --sentry-define=upload_source_maps=false \
+        --sentry-define=wait_for_processing=true
+
+app-build-ios ENV="production":
+    just _app-build-mobile ios "{{ENV}}"
 
 app-build-ipa ENV="production":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    config="config/{{ENV}}.env"
-    test -f "app/$config" || { echo "Missing app/$config. Copy app/$config.example first."; exit 1; }
-    cd app
-    flutter build ipa --release --dart-define-from-file="$config"
+    just _app-build-mobile ipa "{{ENV}}"
 
 app-build-apk ENV="production":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    config="config/{{ENV}}.env"
-    test -f "app/$config" || { echo "Missing app/$config. Copy app/$config.example first."; exit 1; }
-    cd app
-    flutter build apk --release --dart-define-from-file="$config"
+    just _app-build-mobile apk "{{ENV}}"
 
 app-build-appbundle ENV="production":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    config="config/{{ENV}}.env"
-    test -f "app/$config" || { echo "Missing app/$config. Copy app/$config.example first."; exit 1; }
-    cd app
-    flutter build appbundle --release --dart-define-from-file="$config"
+    just _app-build-mobile appbundle "{{ENV}}"
