@@ -2,6 +2,7 @@ package observability
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"sync"
 	"time"
@@ -10,6 +11,8 @@ import (
 )
 
 const defaultServiceName = "craftsky_appview"
+
+var ErrSentryInitialization = errors.New("sentry client initialization failed")
 
 // Config contains the safe, bounded process metadata exposed by telemetry.
 type Config struct {
@@ -50,6 +53,29 @@ type Observer struct {
 }
 
 func New(cfg Config) *Observer {
+	observer, err := newObserver(cfg)
+	if err != nil && cfg.Logger != nil {
+		cfg.Logger.Error("sentry client initialization failed",
+			slog.String("component", "sentry"),
+			slog.String("result", "error"))
+	}
+	return observer
+}
+
+// NewValidated returns a safe initialization error when an explicitly
+// configured Sentry client cannot be constructed. Process startup uses this
+// path so production cannot silently run without requested error reporting.
+func NewValidated(cfg Config) (*Observer, error) {
+	observer, err := newObserver(cfg)
+	if err != nil && cfg.Logger != nil {
+		cfg.Logger.Error("sentry client initialization failed",
+			slog.String("component", "sentry"),
+			slog.String("result", "error"))
+	}
+	return observer, err
+}
+
+func newObserver(cfg Config) (*Observer, error) {
 	if cfg.Service == "" {
 		cfg.Service = defaultServiceName
 	}
@@ -83,10 +109,11 @@ func New(cfg Config) *Observer {
 			},
 			Transport: cfg.SentryTransport,
 		})
-		if err == nil {
-			sentryClient = client
-			sentryHub = sentry.NewHub(client, sentry.NewScope())
+		if err != nil {
+			return observer, ErrSentryInitialization
 		}
+		sentryClient = client
+		sentryHub = sentry.NewHub(client, sentry.NewScope())
 	}
 	observer.sentryClient = sentryClient
 	observer.sentryHub = sentryHub
@@ -105,7 +132,7 @@ func New(cfg Config) *Observer {
 			observer.logSink = noopLogSink{}
 		}
 	}
-	return observer
+	return observer, nil
 }
 
 func (o *Observer) BeginHTTPRequest(method, routePattern string) string {

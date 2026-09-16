@@ -867,7 +867,10 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		return Config{}, err
 	}
 	cfg.SentryDSN = os.Getenv("SENTRY_DSN")
-	cfg.SentryRelease = os.Getenv("SENTRY_RELEASE")
+	cfg.SentryRelease = strings.TrimSpace(os.Getenv("SENTRY_RELEASE"))
+	if cfg.SentryRelease == "" {
+		cfg.SentryRelease = strings.TrimSpace(os.Getenv("RENDER_GIT_COMMIT"))
+	}
 	if cfg.SentryLogsEnabled, err = boolEnv("SENTRY_LOGS_ENABLED", false); err != nil {
 		return Config{}, err
 	}

@@ -197,7 +197,11 @@ projects:
               - key: MODERATION_ADMIN_ENABLED
                 value: "false"
               - key: PUSH_ENABLED
-                value: "false"
+                value: "true"
+              - key: FIREBASE_PROJECT_ID
+                value: craftsky-app
+              - key: GOOGLE_APPLICATION_CREDENTIALS
+                value: /etc/secrets/firebase-admin.json
               - key: OWNER_FENCE_ACQUIRE_TIMEOUT
                 value: 5s
               - key: PDS_EFFECT_TIMEOUT
@@ -264,14 +268,20 @@ projects:
                 value: "1"
               - key: SCHEDULED_IMAGE_ADMISSION_WAIT
                 value: 250ms
+              - key: SENTRY_DSN
+                value: https://0db789277b730a641a533a2a0af32da9@o4511665947803648.ingest.de.sentry.io/4511665960517712
               - key: SENTRY_LOGS_ENABLED
-                value: "false"
+                value: "true"
               - key: SENTRY_TRACING_ENABLED
-                value: "false"
+                value: "true"
+              - key: SENTRY_TRACES_SAMPLE_RATE
+                value: "0.01"
               - key: SENTRY_METRICS_ENABLED
-                value: "false"
+                value: "true"
               - key: SENTRY_TAP_TRACING_ENABLED
-                value: "false"
+                value: "true"
+              - key: SENTRY_TAP_TRACES_SAMPLE_RATE
+                value: "0.01"
               - key: APPVIEW_UNSAFE_LOG_RESPONSE_BODIES
                 value: "false"
 
