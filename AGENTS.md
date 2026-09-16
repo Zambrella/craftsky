@@ -4,7 +4,7 @@ Guidance for AI agents and human contributors working in this repository.
 
 ## Project Overview
 
-**The app is not in production with no active users so breaking changes are not a thing.**
+**Production infrastructure is deployed, but the app has no active users, so backward compatibility for shipped app behavior is not yet required. Production data, credentials, and infrastructure still require normal change controls.**
 
 Craftsky is a crafting-focused social platform built on the [AT Protocol](https://atproto.com). It is a federated, user-owned alternative to Instagram/Pinterest for the crafting community.
 
@@ -15,6 +15,40 @@ For the product-level "why" and the community-facing feature intent, read the vi
 ## Dev Workflow
 
 `just dev` (from the repo root) starts the full compose stack — `postgres`, `migrate`, `tap`, `tap-bootstrap`, `appview`. The appview runs only inside Docker in dev; there is no `go run ./cmd/appview` path. Go tests run on the host with `just test` against the compose Postgres (the appview image has no Go toolchain). See `justfile` for the full recipe list.
+
+## Production Hosting (Render)
+
+The backend is hosted on Render. [`render.yaml`](render.yaml) is the source of truth for infrastructure configuration, [ADR 016](adr/016-render-managed-production-infrastructure.md) records the architecture decision, and [`docs/operations/production-render.md`](docs/operations/production-render.md) is the deployment and recovery runbook.
+
+Basic production configuration:
+
+| Resource | Render name | Configuration |
+|---|---|---|
+| Blueprint project | `craftsky` | Environment `production`; private-network isolation and protection enabled |
+| AppView | `craftsky-appview` | Docker web service from this repository, branch `main`, root directory `appview`, Frankfurt, one `0.5c-512mb` instance |
+| Tap | `craftsky-tap` | Private image service, Frankfurt, one `0.5c-512mb` instance, 1 GB disk mounted at `/data` |
+| PostgreSQL | `craftsky-prod-db` | PostgreSQL 16, Frankfurt, database/user `craftsky`, Basic 1 GB plan, 5 GB autoscaling storage, no public IP allowlist |
+| Environment group | `craftsky-appview-prod-config` | Non-secret AppView production configuration |
+
+- Public AppView origin: `https://appview.craftsky.social`.
+- Shallow Render restart probe: `GET /health`. Operator/deployment health: `GET /healthz`.
+- Tap is private and AppView connects to it over Render's private network.
+- Scheduled private media is stored in AWS S3 in `eu-central-1`, not on Render disks.
+- AppView uses the direct internal PostgreSQL URL. Do not switch it to transaction-mode PgBouncer; owner lifecycle fencing relies on session advisory locks.
+- AppView's 1 GB disk at `/var/lib/craftsky-deploy-serialization` must remain empty. It exists only to prevent overlapping singleton deployments.
+- Service auto-deploy and Blueprint Auto Sync are disabled. Infrastructure changes require a reviewed manual Blueprint sync.
+- Routine application releases use immutable `prod-vX.Y.Z` tags at the current `main` tip. `.github/workflows/deploy-production.yml` retests the exact commit, triggers the Render deploy, verifies the deployed commit, and checks public health. Do not bypass this path with a manual Render deploy except for an explicit rollback or incident response.
+- The pre-deploy command validates production dependencies before applying migrations: `/app/cli --env prod ping && /app/cli --env prod migrate up`.
+
+When using the Render MCP tools:
+
+1. Call `list_workspaces` first and ask the user to confirm the intended workspace. Pass that confirmed `workspaceId` explicitly on every later call; do not rely on session-selected workspace state.
+2. Discover resource IDs with `list_services` and `list_postgres_instances`; match the checked-in names above. Do not commit Render resource IDs, API keys, connection strings, or secrets.
+3. Prefer read-only inspection first: `get_service`, `list_deploys`, `get_deploy`, `list_logs`, `get_metrics`, and read-only `query_render_postgres`.
+4. Treat environment updates, deploy triggers, and resource creation as production mutations. Perform them only when explicitly requested and after confirming the resource and workspace.
+5. Do not trigger a Render deploy after pushing a production tag; the GitHub production workflow is responsible for the exact-commit deployment. Use `trigger_deploy` only for an explicitly requested manual redeploy/rollback when the normal tagged path is unsuitable.
+
+For the Render CLI, run commands from the repository root. `render blueprints validate` must report `valid: true` before a reviewed Blueprint sync. Use CLI discovery (`render --help` and subcommand help) rather than assuming command syntax, and never place Render credentials in repository files or command output. See the production runbook for secrets, DNS, post-deploy checks, rollback, PostgreSQL recovery, and Tap recovery.
 
 ## Pull Requests
 

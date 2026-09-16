@@ -10,23 +10,27 @@ export SENTRY_ORG=...
 export SENTRY_PROJECT=...
 ```
 
-Android release smoke build:
+Android release build and symbol upload:
 
 ```sh
-cd app
-flutter build apk --release --obfuscate --split-debug-info=build/debug-info \
-  --extra-gen-snapshot-options=--save-obfuscation-map=build/app/obfuscation.map.json
-dart run sentry_dart_plugin
+just app-build-appbundle production
 ```
 
-iOS release smoke build:
+iOS release build and symbol upload:
 
 ```sh
-cd app
-flutter build ipa --release --obfuscate --split-debug-info=build/debug-info \
-  --extra-gen-snapshot-options=--save-obfuscation-map=build/app/obfuscation.map.json
-dart run sentry_dart_plugin
+just app-build-ipa production
 ```
+
+The APK and unsigned iOS smoke-build variants (`app-build-apk` and
+`app-build-ios`) use the same fail-closed Sentry checks and upload flow. The
+selected `app/config/<environment>.env` must contain a non-empty `SENTRY_DSN`
+and enable Sentry for that environment. `SENTRY_RELEASE` and `SENTRY_DIST`, when
+set there, are also used for the upload.
+
+Internally, the recipes build with `--obfuscate`, `--split-debug-info`, and an
+obfuscation map, then run `dart run sentry_dart_plugin` against those exact
+artifacts. Web source-map upload is disabled for these mobile-only builds.
 
 Web release smoke build:
 

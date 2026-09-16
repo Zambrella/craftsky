@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   test('Sentry release symbolication config and docs are present', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
+    final justfile = File('../justfile').readAsStringSync();
     final docs = File(
       '../docs/changes/2026-07-03-flutter-error-handling-sentry/release-symbolication.md',
     );
@@ -14,6 +15,11 @@ void main() {
     expect(pubspec, contains('upload_source_maps: true'));
     expect(pubspec, contains('upload_sources: true'));
     expect(pubspec, isNot(contains('auth_token:')));
+
+    expect(justfile, contains('SENTRY_DSN must be set'));
+    expect(justfile, contains('SENTRY_AUTH_TOKEN'));
+    expect(justfile, contains('--split-debug-info'));
+    expect(justfile, contains('dart run sentry_dart_plugin'));
 
     expect(docs.existsSync(), isTrue);
     final docText = docs.readAsStringSync();
