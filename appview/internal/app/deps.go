@@ -240,7 +240,10 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	if err != nil {
 		return nil, nil, err
 	}
-	observer := newObservabilityDependencies(cfg, logger, resources)
+	observer, err := newObservabilityDependencies(cfg, logger, resources)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	authCapability, err := newAuthDependencies(
 		pool, federated, owners, oauthArtifacts, handoffReceiptKey, cfg, logger, ingestionStore, observer,

@@ -88,7 +88,29 @@ openssl rand -base64 32 | tr '+/' '-_' | tr -d '=\n'
 Enter both outputs directly into Render when prompted. Do not place them in a
 shell history, issue, chat message, CI log, or repository file.
 
-### 4. Apply the Blueprint
+### 4. Configure Sentry and Firebase push
+
+AppView sends production errors, safe logs, sampled traces, and metrics to the
+configured Sentry project. The DSN and conservative sample rates are declared in
+`render.yaml`. `SENTRY_RELEASE` may override the release identifier; when it is
+omitted on Render, AppView uses the platform-provided `RENDER_GIT_COMMIT` SHA.
+An invalid configured Sentry client fails dependency construction instead of
+silently disabling production reporting.
+
+Firebase Admin authenticates with Application Default Credentials. In the
+`craftsky-appview` Render service, create a secret file named
+`firebase-admin.json` containing the dedicated `craftsky-app` service-account
+JSON. Render mounts it at `/etc/secrets/firebase-admin.json`; never store the
+JSON in an environment variable, Blueprint, repository, issue, or CI output.
+The service account must be limited to sending Firebase Cloud Messaging messages,
+and the Firebase Cloud Messaging API must be enabled for `craftsky-app`.
+
+For iOS delivery, upload the production APNs authentication key, key ID, and
+Apple team ID to the `social.craftsky.app` iOS application in Firebase Console.
+Confirm the signed TestFlight application has the production `aps-environment`
+entitlement before relying on production delivery.
+
+### 5. Apply the Blueprint
 
 The Blueprint must be present on `main`. Open:
 
@@ -122,7 +144,7 @@ The Pro workspace and Blueprint isolate the production environment's private
 network boundary and protect it from non-admin destructive changes. Keep these
 controls enabled while Tap's private admin endpoints are unauthenticated.
 
-### 5. Verify DNS and TLS
+### 6. Verify DNS and TLS
 
 The DNS zone is on Cloudflare. Add the CNAME target Render supplies for
 `appview.craftsky.social` with Cloudflare proxying disabled. Verify the domain in
@@ -198,7 +220,8 @@ Expected:
 - `status` can remain `degraded` until Tap receives its first tracked event.
 
 Use Render logs to confirm migrations, S3 bucket connectivity, one Tap consumer,
-and one copy of each worker. Query PostgreSQL after initial migration:
+one copy of each worker, successful Firebase initialization, and no Sentry
+initialization failure. Query PostgreSQL after initial migration:
 
 ```sql
 SELECT current_setting('server_version');
@@ -211,6 +234,14 @@ Test requests from two independent external networks. Keep
 CIDRs and the observed forwarding chain matches AppView's trust model. The
 initial per-client limit equals the global limit so proxy aggregation cannot
 create a lower accidental shared bucket.
+
+Install the store-signed Android and iOS builds on physical devices, grant
+notification permission, and confirm each device registers through
+`POST /v1/notifications/devices`. Generate a real eligible notification from a
+second account and verify foreground, background, and terminated delivery. Check
+Sentry for the AppView release SHA, production environment, sampled request and
+Tap traces, push metrics, and safe push completion logs without device tokens or
+other private identifiers.
 
 Before launch, configure an external monitor to poll `/healthz` and alert when
 `db != "ok"`, `tap.connected != true`, or a non-empty `tap.last_event_at` is more

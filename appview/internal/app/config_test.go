@@ -231,7 +231,7 @@ func testConfigFile(t *testing.T, contents string) string {
 		"SCHEDULED_IMAGE_ADMISSION_WAIT",
 		"SCHEDULED_POSTS_S3_ENDPOINT", "SCHEDULED_POSTS_S3_REGION", "SCHEDULED_POSTS_S3_BUCKET",
 		"SCHEDULED_POSTS_S3_ACCESS_KEY_ID", "SCHEDULED_POSTS_S3_SECRET_ACCESS_KEY",
-		"SENTRY_DSN", "SENTRY_RELEASE", "SENTRY_TRACING_ENABLED", "SENTRY_TRACES_SAMPLE_RATE",
+		"SENTRY_DSN", "SENTRY_RELEASE", "RENDER_GIT_COMMIT", "SENTRY_TRACING_ENABLED", "SENTRY_TRACES_SAMPLE_RATE",
 		"SENTRY_LOGS_ENABLED", "SENTRY_METRICS_ENABLED", "SENTRY_TAP_TRACING_ENABLED",
 		"SENTRY_TAP_TRACES_SAMPLE_RATE",
 		"APPVIEW_UNSAFE_LOG_RESPONSE_BODIES",
@@ -468,6 +468,28 @@ func TestLoadConfig_ObservabilityDefaultsAndValidation(t *testing.T) {
 		}
 		if cfg.SentryTapTracingEnabled {
 			t.Fatal("SentryTapTracingEnabled = true, want false")
+		}
+	})
+
+	t.Run("render commit supplies the release when no explicit release is set", func(t *testing.T) {
+		path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\nSENTRY_DSN=https://public@example.invalid/1\nRENDER_GIT_COMMIT=abc123\n")
+		cfg, err := LoadConfig(EnvDev, path)
+		if err != nil {
+			t.Fatalf("LoadConfig: %v", err)
+		}
+		if cfg.SentryRelease != "abc123" {
+			t.Fatalf("SentryRelease = %q, want Render commit", cfg.SentryRelease)
+		}
+	})
+
+	t.Run("explicit release overrides the render commit", func(t *testing.T) {
+		path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\nSENTRY_DSN=https://public@example.invalid/1\nSENTRY_RELEASE=appview-v1\nRENDER_GIT_COMMIT=abc123\n")
+		cfg, err := LoadConfig(EnvDev, path)
+		if err != nil {
+			t.Fatalf("LoadConfig: %v", err)
+		}
+		if cfg.SentryRelease != "appview-v1" {
+			t.Fatalf("SentryRelease = %q, want explicit release", cfg.SentryRelease)
 		}
 	})
 
