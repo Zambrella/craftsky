@@ -198,10 +198,11 @@ git tag -a prod-v0.1.0 -m "Production v0.1.0"
 git push origin prod-v0.1.0
 ```
 
-The workflow retests that exact commit, validates the Blueprint, deploys that SHA
-with Render CLI 2.28.0, waits for a terminal result, and polls bounded public
-health checks until PostgreSQL and Tap are healthy. It does not synchronize
-Blueprint changes. Render auto-deploy is off.
+The workflow retests that exact commit, deploys that SHA through Render's public
+HTTP API, waits for a terminal result, and polls bounded public health checks
+until PostgreSQL and Tap are healthy. Blueprint validation remains part of the
+separate reviewed infrastructure-sync path because an application release does
+not synchronize `render.yaml`. Render auto-deploy is off.
 
 Record the tag, commit SHA, Render deploy ID, migration version, and health-check
 results in the release notes.
@@ -255,7 +256,11 @@ database readiness only; it cannot detect ingestion becoming stale after startup
 2. If the migration is backward compatible, deploy that exact commit manually:
 
    ```sh
-   render deploys create SERVICE_ID --commit COMMIT_SHA --wait --confirm
+   curl --fail-with-body --request POST \
+     --header "Authorization: Bearer $RENDER_API_KEY" \
+     --header 'Content-Type: application/json' \
+     --data '{"commitId":"COMMIT_SHA","clearCache":"do_not_clear"}' \
+     "https://api.render.com/v1/services/SERVICE_ID/deploys"
    ```
 
 3. Do not run a down migration during an incident unless its data-loss behavior

@@ -20,7 +20,7 @@ jobs:
       commit: ${{ steps.tag.outputs.commit }}
     steps:
       - name: Check out tagged commit
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           fetch-depth: 0
 
@@ -49,7 +49,7 @@ jobs:
     timeout-minutes: 90
     steps:
       - name: Check out tagged commit
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           ref: ${{ needs.verify-tag.outputs.commit }}
           fetch-depth: 0
@@ -92,23 +92,9 @@ jobs:
       TAG_COMMIT: ${{ needs.verify-tag.outputs.commit }}
     steps:
       - name: Check out deployed commit
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           ref: ${{ needs.verify-tag.outputs.commit }}
-
-      - name: Install pinned Render CLI
-        shell: bash
-        run: |
-          set -euo pipefail
-          archive=cli_2.28.0_linux_amd64.zip
-          curl -fsSLO "https://github.com/render-oss/cli/releases/download/v2.28.0/${archive}"
-          printf '%s  %s\n' '00d1ca6f3c31b1f4bc7316837b8ee24acbeb11cf372b7593c7d2c3106a1987b4' "$archive" | sha256sum --check
-          unzip -q "$archive"
-          sudo install -m 0755 cli_v2.28.0 /usr/local/bin/render
-          render --version
-
-      - name: Validate production Blueprint
-        run: render blueprints validate --confirm -o json
 
       - name: Reconfirm tag remains current main tip
         shell: bash
@@ -122,7 +108,59 @@ jobs:
           fi
 
       - name: Deploy exact tested commit
-        run: render deploys create "$RENDER_SERVICE_ID" --commit "$TAG_COMMIT" --wait --confirm -o json
+        shell: bash
+        run: |
+          set -euo pipefail
+          api_base="https://api.render.com/v1"
+          auth_header="Authorization: Bearer ${RENDER_API_KEY}"
+          request_body=$(jq --null-input --arg commit "$TAG_COMMIT" '{commitId: $commit, clearCache: "do_not_clear"}')
+          deploy=$(curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "$auth_header" \
+            --header 'Accept: application/json' \
+            --header 'Content-Type: application/json' \
+            --data "$request_body" \
+            "$api_base/services/$RENDER_SERVICE_ID/deploys")
+          deploy_id=$(jq --exit-status --raw-output '.id' <<<"$deploy")
+          printf 'Triggered Render deploy %s for commit %s\n' "$deploy_id" "$TAG_COMMIT"
+
+          for _ in $(seq 1 180); do
+            deploy=$(curl --fail-with-body --silent --show-error \
+              --header "$auth_header" \
+              --header 'Accept: application/json' \
+              "$api_base/services/$RENDER_SERVICE_ID/deploys/$deploy_id")
+            status=$(jq --exit-status --raw-output '.status' <<<"$deploy")
+            deployed_commit=$(jq --raw-output '.commit.id // empty' <<<"$deploy")
+            if [[ -n "$deployed_commit" && "$deployed_commit" != "$TAG_COMMIT" ]]; then
+              printf 'Render deploy %s resolved to commit %s, expected %s\n' \
+                "$deploy_id" "$deployed_commit" "$TAG_COMMIT" >&2
+              exit 1
+            fi
+            case "$status" in
+              live)
+                if [[ "$deployed_commit" != "$TAG_COMMIT" ]]; then
+                  printf 'Live Render deploy %s did not report expected commit %s\n' \
+                    "$deploy_id" "$TAG_COMMIT" >&2
+                  exit 1
+                fi
+                printf 'Render deploy %s is live at commit %s\n' "$deploy_id" "$TAG_COMMIT"
+                exit 0
+                ;;
+              created|queued|build_in_progress|pre_deploy_in_progress|update_in_progress)
+                ;;
+              build_failed|pre_deploy_failed|update_failed|canceled|deactivated)
+                printf 'Render deploy %s ended with status %s\n' "$deploy_id" "$status" >&2
+                exit 1
+                ;;
+              *)
+                printf 'Render deploy %s returned unknown status %s\n' "$deploy_id" "$status" >&2
+                exit 1
+                ;;
+            esac
+            sleep 10
+          done
+          printf 'Render deploy %s did not finish within 30 minutes\n' "$deploy_id" >&2
+          exit 1
 
       - name: Verify public health
         shell: bash
