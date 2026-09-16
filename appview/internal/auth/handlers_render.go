@@ -33,11 +33,12 @@ var errorPageTmpl = template.Must(template.New("err").Parse(`<!doctype html>
 // CallbackHandler before rendering. Either DeepLinkURL OR LoopbackURI
 // is set, never both.
 type callbackPageData struct {
-	Code        string
-	Failure     RegistrationFailureCode
-	DeepLinkURL string
-	LoopbackURI string
-	Nonce       string
+	Code            string
+	Failure         RegistrationFailureCode
+	DeepLinkURL     string
+	VerifiedLinkURL string
+	LoopbackURI     string
+	Nonce           string
 }
 
 func renderCallbackHTML(w http.ResponseWriter, data callbackPageData) error {
@@ -46,6 +47,12 @@ func renderCallbackHTML(w http.ResponseWriter, data callbackPageData) error {
 	}
 	if data.DeepLinkURL != "" && data.LoopbackURI != "" {
 		return fmt.Errorf("callback cannot use verified-link and loopback handoffs together")
+	}
+	if data.DeepLinkURL != "" {
+		parsed, err := url.Parse(data.DeepLinkURL)
+		if err == nil && parsed.Scheme == "https" && parsed.Host != "" && parsed.User == nil {
+			data.VerifiedLinkURL = data.DeepLinkURL
+		}
 	}
 	connectSource := ""
 	if data.LoopbackURI != "" {
@@ -144,9 +151,10 @@ func exactLoopbackOrigin(raw string) (string, error) {
 // tests in handlers_test.go are regression tests against this swap.
 var callbackTmpl = template.Must(template.New("cb").Parse(`<!doctype html>
 <html><head><title>Craftsky — signed in</title></head><body>
-<p>{{if .Failure}}Registration did not complete.{{else}}Signed in.{{end}} {{if .DeepLinkURL}}Return to the Craftsky app.{{else}}You can close this tab.{{end}}</p>
+<p>{{if .Failure}}Registration did not complete.{{else}}Signed in.{{end}} {{if .VerifiedLinkURL}}<a href="{{.VerifiedLinkURL}}">Open CraftSky</a> to continue.{{else if .DeepLinkURL}}Return to the Craftsky app.{{else}}You can close this tab.{{end}}</p>
 <script nonce="{{.Nonce}}">
-{{if .DeepLinkURL}}
+{{if .VerifiedLinkURL}}
+{{else if .DeepLinkURL}}
 window.location.replace({{.DeepLinkURL}});
 {{else if .LoopbackURI}}
 fetch({{.LoopbackURI}}, {
