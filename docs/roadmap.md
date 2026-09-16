@@ -92,6 +92,8 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
   - [ ] Front-end logic
   - [ ] Paywall
   - [ ] Locking content
+- [ ] Add the correct OAuth scopes
+- [ ] Make sure OAuth and lexicons are broadcast to the network
 
 ### Lexicons
 
@@ -111,6 +113,8 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [ ] Monitoring / alerting for Tap connection health, firehose lag, indexer errors
 - [ ] App store distribution — Apple Developer + Google Play accounts, bundle/app IDs, signing keys, TestFlight + Play internal track, store listings, review submission → own spec
 - [ ] Secrets management for local dev — `.env` handling conventions, `.env.example`, what's safe to commit
+- [ ] Correct Sentry config for production AppView
+- [ ] Correct Sentry config for App (including automated debug symbol uploads)
 
 ### Product / community
 
