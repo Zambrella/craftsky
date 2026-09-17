@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/widgets/external_card.dart';
@@ -5,6 +6,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/projects/models/project.dart';
+import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -12,6 +14,8 @@ import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../fakes/image_cache_fakes.dart';
 
 void main() {
   setUpAll(initializeMappers);
@@ -59,24 +63,28 @@ void main() {
       PostSummaryState.muted,
     );
     expect(
-      PostSummaryData.fromQuoteView(
-        const QuoteView(state: 'blocked'),
-      ).state,
+      PostSummaryData.fromQuoteView(const QuoteView(state: 'blocked')).state,
       PostSummaryState.blocked,
     );
 
     var postTaps = 0;
     var authorTaps = 0;
+    final fakeCache = FakeBaseCacheManager();
     await tester.pumpWidget(
-      MaterialApp(
-        theme: AppTheme.lightThemeData,
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        home: Scaffold(
-          body: PostSummary(
-            data: data,
-            onTap: () => postTaps++,
-            onAuthorTap: () => authorTaps++,
+      ProviderScope(
+        overrides: [
+          feedImageCacheManagerProvider.overrideWithValue(fakeCache),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: PostSummary(
+              data: data,
+              onTap: () => postTaps++,
+              onAuthorTap: () => authorTaps++,
+            ),
           ),
         ),
       ),
@@ -98,6 +106,18 @@ void main() {
     );
     expect(find.byIcon(CraftskyIcons.saved), findsNothing);
     expect(find.byIcon(CraftskyIcons.like), findsNothing);
+    expect(find.byKey(const Key('post-summary-image')), findsOneWidget);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is Semantics && widget.properties.label == 'First',
+      ),
+      findsOneWidget,
+    );
+    final image = tester.widget<CachedNetworkImage>(
+      find.byType(CachedNetworkImage),
+    );
+    expect(image.imageUrl, 'https://cdn.example.com/first-thumb.jpg');
+    expect(image.cacheManager, same(fakeCache));
     final avatar = tester.widget<ProfileAvatar>(find.byType(ProfileAvatar));
     expect(avatar.customisation.colour, 'lime');
     await tester.tap(find.text(post.text));
@@ -150,9 +170,9 @@ void main() {
     expect(find.text('Quoted pattern'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.tap(find.byType(ExternalCard));
-    await tester.pumpAndSettle();
+    await tester.pump();
     await tester.tap(find.text('Open link'));
-    await tester.pumpAndSettle();
+    await tester.pump();
     expect(
       launched.toString(),
       'https://example.com/pattern?token=final#section',
@@ -183,6 +203,110 @@ void main() {
       expect(hidden.external, isNull);
     }
   });
+
+  testWidgets('renders policy placeholders and reveals muted summaries', (
+    tester,
+  ) async {
+    var reveals = 0;
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightThemeData,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: Column(
+            children: [
+              PostSummary(
+                data: const PostSummaryData(
+                  state: PostSummaryState.muted,
+                  revealable: true,
+                ),
+                onReveal: () => reveals++,
+              ),
+              const PostSummary(
+                data: PostSummaryData(state: PostSummaryState.hidden),
+              ),
+              const PostSummary(
+                data: PostSummaryData(state: PostSummaryState.blocked),
+              ),
+              const PostSummary(
+                data: PostSummaryData(state: PostSummaryState.unavailable),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Post from a muted account'), findsOneWidget);
+    expect(find.text('Quoted post hidden'), findsOneWidget);
+    expect(find.text('Post unavailable'), findsOneWidget);
+    expect(find.text('Quoted post unavailable'), findsOneWidget);
+    await tester.tap(find.text('Show post'));
+    expect(reveals, 1);
+  });
+
+  testWidgets('owns quote provenance and sponsored presentation', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final quote = QuoteView(
+      state: 'visible',
+      post: QuotePreviewPost(
+        uri: 'at://did:plc:bob/social.craftsky.feed.post/target',
+        cid: 'bafyquote',
+        text: 'Original imported post',
+        author: PostAuthor(
+          did: 'did:plc:bob',
+          handle: 'bob.craftsky.social',
+        ),
+        createdAt: DateTime.utc(2026),
+        sponsored: true,
+        externalImport: const ExternalImport(source: 'instagram'),
+      ),
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightThemeData,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: PostSummary(data: PostSummaryData.fromQuoteView(quote)),
+        ),
+      ),
+    );
+
+    expect(find.bySemanticsLabel('Imported from Instagram'), findsOneWidget);
+    expect(find.bySemanticsLabel('Sponsored'), findsOneWidget);
+
+    for (final provenance in <ExternalImport?>[
+      null,
+      const ExternalImport(source: 'future-service'),
+    ]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: Scaffold(
+            body: PostSummary(
+              data: PostSummaryData.fromQuoteView(
+                QuoteView(
+                  state: 'visible',
+                  post: quote.post!.copyWith(
+                    sponsored: false,
+                    externalImport: provenance,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      expect(find.text('Imported from Instagram'), findsNothing);
+    }
+    semantics.dispose();
+  });
 }
 
 Post _post({bool sponsored = false}) => Post(
@@ -196,9 +320,7 @@ Post _post({bool sponsored = false}) => Post(
   author: PostAuthor(
     did: 'did:plc:alice',
     handle: 'alice.craftsky.social',
-    customisation: const ProfileCustomisation(
-      colour: 'lime',
-    ),
+    customisation: const ProfileCustomisation(colour: 'lime'),
   ),
   likeCount: 0,
   repostCount: 0,
@@ -209,13 +331,22 @@ Post _post({bool sponsored = false}) => Post(
   sponsored: sponsored,
   externalImport: const ExternalImport(source: 'instagram'),
   images: [
-    PostImage(cid: 'bafyimage1', mime: 'image/jpeg', size: 1, alt: 'First'),
-    PostImage(cid: 'bafyimage2', mime: 'image/jpeg', size: 1, alt: 'Second'),
+    PostImage(
+      cid: 'bafyimage1',
+      mime: 'image/jpeg',
+      size: 1,
+      alt: 'First',
+      thumb: 'https://cdn.example.com/first-thumb.jpg',
+    ),
+    PostImage(
+      cid: 'bafyimage2',
+      mime: 'image/jpeg',
+      size: 1,
+      alt: 'Second',
+      thumb: 'https://cdn.example.com/second-thumb.jpg',
+    ),
   ],
   project: const Project(
-    common: ProjectCommon(
-      craftType: 'knitting',
-      title: 'Hitchhiker shawl',
-    ),
+    common: ProjectCommon(craftType: 'knitting', title: 'Hitchhiker shawl'),
   ),
 );

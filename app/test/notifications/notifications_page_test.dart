@@ -30,6 +30,7 @@ import 'package:go_router/go_router.dart';
 
 import '../fakes/recording_messenger.dart';
 import '../profile/fakes/fake_profile_repository.dart';
+import '../test_support/deterministic_pump.dart';
 
 void main() {
   setUpAll(initializeMappers);
@@ -81,13 +82,14 @@ void main() {
             const _FakeNotificationRepository(NotificationPage(items: [])),
           ),
         ],
-        child: const _TestApp(
-          topPadding: 24,
-          home: NotificationsPage(),
-        ),
+        child: const _TestApp(topPadding: 24, home: NotificationsPage()),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.byType(RefreshIndicator),
+      description: 'the notifications refresh control',
+    );
 
     expect(
       tester.widget<RefreshIndicator>(find.byType(RefreshIndicator)).edgeOffset,
@@ -173,10 +175,7 @@ void main() {
                 ),
               ),
               NotificationRow(
-                notification: _like(
-                  'like-reply',
-                  subjectPost: _replyPost(),
-                ),
+                notification: _like('like-reply', subjectPost: _replyPost()),
               ),
               NotificationRow(notification: _repost('repost-post')),
               NotificationRow(
@@ -306,9 +305,7 @@ void main() {
       expect(
         tester
             .widgetList<Tooltip>(find.byType(Tooltip))
-            .every(
-              (tooltip) => tooltip.message?.contains('2026') ?? false,
-            ),
+            .every((tooltip) => tooltip.message?.contains('2026') ?? false),
         isTrue,
       );
     },
@@ -396,16 +393,11 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          profileRepositoryProvider.overrideWithValue(repository),
-        ],
+        overrides: [profileRepositoryProvider.overrideWithValue(repository)],
         child: _TestApp(
           home: Scaffold(
             body: NotificationRow(
-              notification: _follow(
-                'follow-action',
-                viewerIsFollowing: true,
-              ),
+              notification: _follow('follow-action', viewerIsFollowing: true),
             ),
           ),
         ),
@@ -423,10 +415,7 @@ void main() {
 
     await tester.tap(find.text('Follow'));
     await tester.pumpAndSettle();
-    expect(calls, [
-      'unfollow:did:plc:alice',
-      'follow:did:plc:alice',
-    ]);
+    expect(calls, ['unfollow:did:plc:alice', 'follow:did:plc:alice']);
     expect(find.text('Unfollow'), findsOneWidget);
   });
 
@@ -440,9 +429,7 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          profileRepositoryProvider.overrideWithValue(repository),
-        ],
+        overrides: [profileRepositoryProvider.overrideWithValue(repository)],
         child: _TestApp(
           home: MessengerScope(
             messenger: messenger,
@@ -669,10 +656,7 @@ void main() {
           path: '/',
           builder: (_, _) => Scaffold(
             body: NotificationRow(
-              notification: _like(
-                'like-comment',
-                subjectPost: _commentPost(),
-              ),
+              notification: _like('like-comment', subjectPost: _commentPost()),
             ),
           ),
         ),
@@ -722,9 +706,7 @@ void main() {
         '00000000-0000-0000-0000-000000000003',
         type: 'futureCategory',
       );
-      final unavailable = _unavailable(
-        '00000000-0000-0000-0000-000000000002',
-      );
+      final unavailable = _unavailable('00000000-0000-0000-0000-000000000002');
 
       await tester.pumpWidget(
         ProviderScope(
@@ -755,10 +737,7 @@ void main() {
             widget.textSpan?.toPlainText().contains('New activity') == true,
       );
       final informationalRows = tester.widgetList<InkWell>(
-        find.ancestor(
-          of: genericText,
-          matching: find.byType(InkWell),
-        ),
+        find.ancestor(of: genericText, matching: find.byType(InkWell)),
       );
       expect(informationalRows, hasLength(2));
       expect(informationalRows.every((row) => row.onTap == null), isTrue);
@@ -801,9 +780,8 @@ void main() {
       routes: [
         GoRoute(
           path: '/',
-          builder: (_, _) => Scaffold(
-            body: NotificationRow(notification: notification),
-          ),
+          builder: (_, _) =>
+              Scaffold(body: NotificationRow(notification: notification)),
         ),
         GoRoute(
           path: '/profile/settings/moderation',
@@ -857,9 +835,8 @@ void main() {
       routes: [
         GoRoute(
           path: '/',
-          builder: (_, _) => Scaffold(
-            body: NotificationRow(notification: notification),
-          ),
+          builder: (_, _) =>
+              Scaffold(body: NotificationRow(notification: notification)),
         ),
         GoRoute(
           path: '/profile/settings/moderation',
@@ -962,20 +939,14 @@ InstagramMatchNotification _instagramMatch() =>
         })
         as InstagramMatchNotification;
 
-LikeNotification _like(
-  String rkey, {
-  Map<String, dynamic>? subjectPost,
-}) =>
+LikeNotification _like(String rkey, {Map<String, dynamic>? subjectPost}) =>
     CraftskyNotification.fromMap({
           ..._baseNotification('like', rkey),
           'subjectPost': subjectPost ?? _post(),
         })
         as LikeNotification;
 
-RepostNotification _repost(
-  String rkey, {
-  Map<String, dynamic>? subjectPost,
-}) =>
+RepostNotification _repost(String rkey, {Map<String, dynamic>? subjectPost}) =>
     CraftskyNotification.fromMap({
           ..._baseNotification('repost', rkey),
           'subjectPost': subjectPost ?? _post(),
@@ -1043,10 +1014,7 @@ Map<String, dynamic> _baseNotification(String type, String rkey) => {
     'handle': 'alice.craftsky.social',
     'displayName': 'Alice',
     'avatar': 'https://cdn.example/avatar/alice.jpg',
-    'customisation': {
-      'colour': 'rose',
-      'profileBackground': 'none',
-    },
+    'customisation': {'colour': 'rose', 'profileBackground': 'none'},
   },
   'createdAt': '2026-05-28T13:00:00Z',
   'indexedAt': '2026-05-28T13:00:01Z',

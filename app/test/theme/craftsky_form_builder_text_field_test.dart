@@ -1,8 +1,9 @@
-import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_text_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../test_support/widget_pump.dart';
 
 void main() {
   testWidgets('UT-001 forwards value, error, save, reset and enabled state', (
@@ -10,18 +11,17 @@ void main() {
   ) async {
     final formKey = GlobalKey<FormBuilderState>();
 
-    await tester.pumpWidget(
-      _Harness(
-        child: FormBuilder(
-          key: formKey,
-          child: CraftskyFormBuilderTextField(
-            name: 'title',
-            label: 'Project title',
-            hintText: 'Name this project',
-            helperText: 'Optional but useful',
-            initialValue: 'Old title',
-            validator: (value) => value == 'bad' ? 'Choose kinder words' : null,
-          ),
+    await pumpCraftskyWidget(
+      tester,
+      FormBuilder(
+        key: formKey,
+        child: CraftskyFormBuilderTextField(
+          name: 'title',
+          label: 'Project title',
+          hintText: 'Name this project',
+          helperText: 'Optional but useful',
+          initialValue: 'Old title',
+          validator: (value) => value == 'bad' ? 'Choose kinder words' : null,
         ),
       ),
     );
@@ -49,16 +49,15 @@ void main() {
   testWidgets('UT-001 disabled field is not editable', (tester) async {
     final formKey = GlobalKey<FormBuilderState>();
 
-    await tester.pumpWidget(
-      _Harness(
-        child: FormBuilder(
-          key: formKey,
-          child: const CraftskyFormBuilderTextField(
-            name: 'title',
-            label: 'Project title',
-            initialValue: 'Locked title',
-            enabled: false,
-          ),
+    await pumpCraftskyWidget(
+      tester,
+      FormBuilder(
+        key: formKey,
+        child: const CraftskyFormBuilderTextField(
+          name: 'title',
+          label: 'Project title',
+          initialValue: 'Locked title',
+          enabled: false,
         ),
       ),
     );
@@ -84,22 +83,21 @@ void main() {
       addTearDown(controller.dispose);
       addTearDown(focusNode.dispose);
 
-      await tester.pumpWidget(
-        _Harness(
-          child: FormBuilder(
-            key: formKey,
-            child: CraftskyFormBuilderMultilineTextField(
-              name: 'notes',
-              label: 'Notes',
-              helperText: 'Add extra detail',
-              controller: controller,
-              focusNode: focusNode,
-              minLines: 4,
-              maxLines: 7,
-              textInputAction: TextInputAction.done,
-              onChanged: (value) => changed = value,
-              onSubmitted: (value) => submitted = value,
-            ),
+      await pumpCraftskyWidget(
+        tester,
+        FormBuilder(
+          key: formKey,
+          child: CraftskyFormBuilderMultilineTextField(
+            name: 'notes',
+            label: 'Notes',
+            helperText: 'Add extra detail',
+            controller: controller,
+            focusNode: focusNode,
+            minLines: 4,
+            maxLines: 7,
+            textInputAction: TextInputAction.done,
+            onChanged: (value) => changed = value,
+            onSubmitted: (value) => submitted = value,
           ),
         ),
       );
@@ -121,20 +119,4 @@ void main() {
       expect(submitted, 'Line one\nLine two');
     },
   );
-}
-
-class _Harness extends StatelessWidget {
-  const _Harness({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      theme: AppTheme.lightThemeData,
-      home: Scaffold(
-        body: Padding(padding: const EdgeInsets.all(24), child: child),
-      ),
-    );
-  }
 }

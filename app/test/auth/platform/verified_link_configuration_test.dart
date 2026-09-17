@@ -89,10 +89,11 @@ void main() {
               as Map<String, dynamic>;
 
       expect(androidTarget['package_name'], 'social.craftsky.app');
-      expect(androidTarget['sha256_cert_fingerprints'], [
-        'D7:A8:2E:30:70:D7:8B:7F:A6:3D:22:DA:EE:06:5C:51:ED:96:39:7A:'
-            'A5:C7:A5:20:CF:79:1A:BE:3B:17:D7:0D',
-      ]);
+      const androidFingerprintPrefix =
+          'D7:A8:2E:30:70:D7:8B:7F:A6:3D:22:DA:EE:06:5C:51:ED:96:39:7A:';
+      const androidFingerprint =
+          '${androidFingerprintPrefix}A5:C7:A5:20:CF:79:1A:BE:3B:17:D7:0D';
+      expect(androidTarget['sha256_cert_fingerprints'], [androidFingerprint]);
 
       final association =
           jsonDecode(

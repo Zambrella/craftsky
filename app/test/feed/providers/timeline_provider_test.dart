@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
@@ -10,6 +8,7 @@ import 'package:craftsky_app/languages/providers/language_preferences_provider.d
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../test_support/pagination_contract.dart';
 import '../fakes/fake_post_repository.dart';
 
 Map<String, dynamic> _samplePostMap({required String rkey, String? did}) => {
@@ -57,8 +56,60 @@ TimelineItem _repostItem({
   ),
 );
 
+PaginationContractSubject<TimelineItem> _paginationSubject(
+  PaginationContractFetch<TimelineItem> fetch,
+) {
+  final repository = FakePostRepository(
+    onListTimeline: ({cursor, limit}) async {
+      expect(limit, timelinePageLimit);
+      final page = await fetch(cursor);
+      return TimelinePage(items: page.items, cursor: page.cursor);
+    },
+  );
+  final container = ProviderContainer.test(
+    overrides: [
+      activeLanguagePreferencesProvider.overrideWith(
+        (ref) => const LanguagePreferences(
+          primaryLanguage: 'en',
+          contentLanguages: ['en'],
+        ),
+      ),
+      postRepositoryProvider.overrideWithValue(repository),
+    ],
+  );
+  final subscription = container.listen(timelineProvider, (_, _) {});
+
+  return PaginationContractSubject(
+    initialize: () async => container.read(timelineProvider.future),
+    loadMore: () => container.read(timelineProvider.notifier).loadMore(),
+    snapshot: () {
+      final asyncState = container.read(timelineProvider);
+      final state = asyncState.value!;
+      return PaginationContractSnapshot(
+        items: state.items,
+        cursor: state.cursor,
+        hasMore: state.hasMore,
+        hasError: asyncState.hasError,
+      );
+    },
+    dispose: () {
+      subscription.close();
+      container.dispose();
+    },
+  );
+}
+
 void main() {
   setUpAll(initializeMappers);
+
+  paginationContract(
+    name: 'timeline',
+    firstItem: _timelinePost(_samplePost(rkey: 'page-a')),
+    secondItem: _timelinePost(_samplePost(rkey: 'page-b')),
+    itemIdentity: (item) => item.itemKey,
+    createSubject: _paginationSubject,
+    deduplicatesAcrossPages: true,
+  );
 
   group('timelineProvider build', () {
     test(
@@ -89,42 +140,6 @@ void main() {
         expect(calls, 1);
       },
     );
-
-    test('first build fetches page 1 and surfaces items + cursor', () async {
-      int? seenLimit;
-      final fake = FakePostRepository(
-        onListTimeline: ({cursor, limit}) async {
-          expect(cursor, isNull);
-          seenLimit = limit;
-          return TimelinePage(
-            items: [
-              _timelinePost(_samplePost(rkey: 'a')),
-              _timelinePost(_samplePost(rkey: 'b')),
-            ],
-            cursor: 'next',
-          );
-        },
-      );
-
-      final container = ProviderContainer.test(
-        overrides: [
-          activeLanguagePreferencesProvider.overrideWith(
-            (ref) => const LanguagePreferences(
-              primaryLanguage: 'en',
-              contentLanguages: ['en'],
-            ),
-          ),
-          postRepositoryProvider.overrideWithValue(fake),
-        ],
-      );
-
-      final state = await container.read(timelineProvider.future);
-
-      expect(seenLimit, timelinePageLimit);
-      expect(state.items.map((item) => item.post.rkey), ['a', 'b']);
-      expect(state.cursor, 'next');
-      expect(state.hasMore, isTrue);
-    });
 
     test(
       'keeps duplicate repost feed items for the same post by itemKey',
@@ -178,165 +193,6 @@ void main() {
     );
   });
 
-  group('timelineProvider loadMore', () {
-    test('passes opaque cursor and appends next page', () async {
-      var call = 0;
-      String? nextPageCursor;
-      final fake = FakePostRepository(
-        onListTimeline: ({cursor, limit}) async {
-          call++;
-          expect(limit, timelinePageLimit);
-          if (call == 1) {
-            return TimelinePage(
-              items: [_timelinePost(_samplePost(rkey: 'a'))],
-              cursor: 'opaque:abc',
-            );
-          }
-          nextPageCursor = cursor;
-          return TimelinePage(items: [_timelinePost(_samplePost(rkey: 'b'))]);
-        },
-      );
-
-      final container = ProviderContainer.test(
-        overrides: [
-          activeLanguagePreferencesProvider.overrideWith(
-            (ref) => const LanguagePreferences(
-              primaryLanguage: 'en',
-              contentLanguages: ['en'],
-            ),
-          ),
-          postRepositoryProvider.overrideWithValue(fake),
-        ],
-      );
-
-      await container.read(timelineProvider.future);
-      await container.read(timelineProvider.notifier).loadMore();
-
-      final state = container.read(timelineProvider).value!;
-      expect(nextPageCursor, 'opaque:abc');
-      expect(state.items.map((item) => item.post.rkey), ['a', 'b']);
-      expect(state.cursor, isNull);
-      expect(state.hasMore, isFalse);
-    });
-
-    test('failure preserves visible items and cursor for retry', () async {
-      var call = 0;
-      final fake = FakePostRepository(
-        onListTimeline: ({cursor, limit}) async {
-          call++;
-          if (call == 1) {
-            return TimelinePage(
-              items: [_timelinePost(_samplePost(rkey: 'a'))],
-              cursor: 'c1',
-            );
-          }
-          if (call == 2) {
-            throw Exception('network down');
-          }
-          expect(cursor, 'c1');
-          return TimelinePage(items: [_timelinePost(_samplePost(rkey: 'b'))]);
-        },
-      );
-
-      final container = ProviderContainer.test(
-        overrides: [
-          activeLanguagePreferencesProvider.overrideWith(
-            (ref) => const LanguagePreferences(
-              primaryLanguage: 'en',
-              contentLanguages: ['en'],
-            ),
-          ),
-          postRepositoryProvider.overrideWithValue(fake),
-        ],
-      );
-
-      await container.read(timelineProvider.future);
-      await container.read(timelineProvider.notifier).loadMore();
-
-      final mid = container.read(timelineProvider);
-      expect(mid.hasError, isTrue);
-      expect(mid.value?.items.map((item) => item.post.rkey), ['a']);
-      expect(mid.value?.cursor, 'c1');
-
-      await container.read(timelineProvider.notifier).loadMore();
-
-      final after = container.read(timelineProvider).value!;
-      expect(after.items.map((item) => item.post.rkey), ['a', 'b']);
-    });
-
-    test('no-op when hasMore is false', () async {
-      var calls = 0;
-      final fake = FakePostRepository(
-        onListTimeline: ({cursor, limit}) async {
-          calls++;
-          return const TimelinePage(items: []);
-        },
-      );
-
-      final container = ProviderContainer.test(
-        overrides: [
-          activeLanguagePreferencesProvider.overrideWith(
-            (ref) => const LanguagePreferences(
-              primaryLanguage: 'en',
-              contentLanguages: ['en'],
-            ),
-          ),
-          postRepositoryProvider.overrideWithValue(fake),
-        ],
-      );
-
-      await container.read(timelineProvider.future);
-      await container.read(timelineProvider.notifier).loadMore();
-
-      expect(calls, 1);
-    });
-
-    test('no-op when a previous loadMore is still in flight', () async {
-      var calls = 0;
-      final gate = Completer<TimelinePage>();
-      final fake = FakePostRepository(
-        onListTimeline: ({cursor, limit}) async {
-          calls++;
-          if (calls == 1) {
-            return TimelinePage(
-              items: [_timelinePost(_samplePost(rkey: 'a'))],
-              cursor: 'c1',
-            );
-          }
-          return gate.future;
-        },
-      );
-
-      final container = ProviderContainer.test(
-        overrides: [
-          activeLanguagePreferencesProvider.overrideWith(
-            (ref) => const LanguagePreferences(
-              primaryLanguage: 'en',
-              contentLanguages: ['en'],
-            ),
-          ),
-          postRepositoryProvider.overrideWithValue(fake),
-        ],
-      );
-      final sub = container.listen(timelineProvider, (_, _) {});
-      addTearDown(sub.close);
-
-      await container.read(timelineProvider.future);
-      final firstLoadMore = container
-          .read(timelineProvider.notifier)
-          .loadMore();
-      await Future<void>.delayed(Duration.zero);
-      await container.read(timelineProvider.notifier).loadMore();
-
-      expect(calls, 2);
-
-      gate.complete(
-        TimelinePage(items: [_timelinePost(_samplePost(rkey: 'b'))]),
-      );
-      await firstLoadMore;
-    });
-  });
-
   group('timelineProvider cache helpers', () {
     test(
       'prepend inserts top-level post at head and ignores duplicate URI',
@@ -368,45 +224,6 @@ void main() {
         expect(state.items.map((item) => item.post.rkey), ['new', 'old']);
       },
     );
-
-    test('loadMore merge dedupes fetched posts by URI', () async {
-      var call = 0;
-      final duplicate = _samplePost(rkey: 'a');
-      final fake = FakePostRepository(
-        onListTimeline: ({cursor, limit}) async {
-          call++;
-          if (call == 1) {
-            return TimelinePage(
-              items: [_timelinePost(duplicate)],
-              cursor: 'c1',
-            );
-          }
-          return TimelinePage(
-            items: [
-              _timelinePost(duplicate),
-              _timelinePost(_samplePost(rkey: 'b')),
-            ],
-          );
-        },
-      );
-      final container = ProviderContainer.test(
-        overrides: [
-          activeLanguagePreferencesProvider.overrideWith(
-            (ref) => const LanguagePreferences(
-              primaryLanguage: 'en',
-              contentLanguages: ['en'],
-            ),
-          ),
-          postRepositoryProvider.overrideWithValue(fake),
-        ],
-      );
-
-      await container.read(timelineProvider.future);
-      await container.read(timelineProvider.notifier).loadMore();
-
-      final state = container.read(timelineProvider).value!;
-      expect(state.items.map((item) => item.post.rkey), ['a', 'b']);
-    });
 
     test(
       'removeByUri removes matching post and ignores missing rows',

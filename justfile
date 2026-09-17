@@ -318,6 +318,16 @@ app-analyze:
 app-test *ARGS:
     cd app && flutter test {{ARGS}}
 
+# Run the device/process integration suite locally without adding it to the
+# fast widget-test path. DEVICE is a Flutter device id from `flutter devices`.
+app-test-integration DEVICE *ARGS:
+    cd app && flutter test integration_test/critical_journeys_test.dart -d '{{DEVICE}}' {{ARGS}}
+
+# CI integration gate. Dependency resolution is a separate CI step so this
+# command compiles and runs only the dedicated device suite.
+app-test-integration-ci DEVICE *ARGS:
+    cd app && flutter test integration_test/critical_journeys_test.dart -d '{{DEVICE}}' --no-pub --reporter expanded {{ARGS}}
+
 # Install the standalone Instagram importer's checked dependency graph.
 importer-install:
     npm ci --prefix instagram-importer
