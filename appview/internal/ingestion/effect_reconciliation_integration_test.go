@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -18,11 +17,12 @@ import (
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/tap"
+	"social.craftsky/appview/internal/testdb"
 )
 
 func TestPDSEffectSourceReconciliationMigrationDownUp(t *testing.T) {
 	pool := lifecycleIngestionPool(t)
-	renameDown, err := os.ReadFile("../../migrations/000058_tap_projection_generation_column.down.sql")
+	renameDown, err := testdb.ReadMigration("000058_tap_projection_generation_column.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,10 +51,10 @@ func TestPDSEffectSourceReconciliationMigrationDownUp(t *testing.T) {
 		path string
 		want bool
 	}{
-		{"../../migrations/000050_pds_effect_source_reconciliation.down.sql", false},
-		{"../../migrations/000050_pds_effect_source_reconciliation.up.sql", true},
+		{"000050_pds_effect_source_reconciliation.down.sql", false},
+		{"000050_pds_effect_source_reconciliation.up.sql", true},
 	} {
-		migration, err := os.ReadFile(step.path)
+		migration, err := testdb.ReadMigration(step.path)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -63,7 +63,7 @@ func TestPDSEffectSourceReconciliationMigrationDownUp(t *testing.T) {
 		}
 		assertRecordFingerprintColumn(step.want)
 	}
-	renameUp, err := os.ReadFile("../../migrations/000058_tap_projection_generation_column.up.sql")
+	renameUp, err := testdb.ReadMigration("000058_tap_projection_generation_column.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +132,7 @@ func TestTapSourceProjectionGenerationMigrationBackfillsWakesAndRoundTrips(t *te
 
 	readMigration := func(path string) []byte {
 		t.Helper()
-		migration, err := os.ReadFile(path)
+		migration, err := testdb.ReadMigration(path)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -144,10 +144,10 @@ func TestTapSourceProjectionGenerationMigrationBackfillsWakesAndRoundTrips(t *te
 			t.Fatalf("apply %s: %v", label, err)
 		}
 	}
-	down58 := readMigration("../../migrations/000058_tap_projection_generation_column.down.sql")
-	up58 := readMigration("../../migrations/000058_tap_projection_generation_column.up.sql")
-	down56 := readMigration("../../migrations/000056_tap_source_projection_generation.down.sql")
-	up56 := readMigration("../../migrations/000056_tap_source_projection_generation.up.sql")
+	down58 := readMigration("000058_tap_projection_generation_column.down.sql")
+	up58 := readMigration("000058_tap_projection_generation_column.up.sql")
+	down56 := readMigration("000056_tap_source_projection_generation.down.sql")
+	up56 := readMigration("000056_tap_source_projection_generation.up.sql")
 	apply("58 down", down58)
 	apply("56 down", down56)
 
@@ -293,7 +293,7 @@ func TestStaleGenerationRepositoryReconciliationRecoveryMigrationRequeuesAndReap
 
 	readMigration := func(path string) []byte {
 		t.Helper()
-		migration, err := os.ReadFile(path)
+		migration, err := testdb.ReadMigration(path)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -305,8 +305,8 @@ func TestStaleGenerationRepositoryReconciliationRecoveryMigrationRequeuesAndReap
 			t.Fatalf("apply %s: %v", label, err)
 		}
 	}
-	up := readMigration("../../migrations/000059_stale_projection_reconciliation.up.sql")
-	down := readMigration("../../migrations/000059_stale_projection_reconciliation.down.sql")
+	up := readMigration("000059_stale_projection_reconciliation.up.sql")
+	down := readMigration("000059_stale_projection_reconciliation.down.sql")
 	assertState := func(want string) {
 		t.Helper()
 		var state string

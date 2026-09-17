@@ -5,8 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -24,6 +22,7 @@ import (
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/testdb"
+	"social.craftsky/appview/internal/testlog"
 )
 
 const searchStoreDDL = timelineStoreDDL + `
@@ -628,7 +627,7 @@ func TestSearchSuggestionsHandlerReturnsGroupedTopNSections(t *testing.T) {
 		seedPostTags(t, pool, uri, []string{tag})
 	}
 
-	handler := api.SearchSuggestionsHandler(api.NewSearchStore(pool, nil), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	handler := api.SearchSuggestionsHandler(api.NewSearchStore(pool, nil), testlog.Discard())
 	req := httptest.NewRequest(http.MethodGet, "/v1/search/suggestions?q=sock&types=profiles,hashtags&profileLimit=1&hashtagLimit=1", nil)
 	req = req.WithContext(middleware.WithDID(req.Context(), syntax.DID("did:plc:viewer")))
 	rr := httptest.NewRecorder()

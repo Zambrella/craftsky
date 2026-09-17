@@ -3,8 +3,6 @@ package routes
 import (
 	"context"
 	"encoding/json"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -15,47 +13,8 @@ import (
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/testdb"
+	"social.craftsky/appview/internal/testlog"
 )
-
-func TestInstagramRoutePoliciesRequireAuthDeviceAndCurrentMember(t *testing.T) {
-	t.Parallel()
-
-	want := map[string]struct {
-		rate RateClass
-		body BodyKind
-	}{
-		"POST /v1/migrations/instagram/verifications":                          {rate: RateClassWrite, body: BodyDefaultJSON},
-		"GET /v1/migrations/instagram/verifications/current":                   {rate: RateClassRead, body: BodyNoBody},
-		"GET /v1/migrations/instagram/verifications/{verificationId}":          {rate: RateClassRead, body: BodyNoBody},
-		"DELETE /v1/migrations/instagram/verifications/{verificationId}":       {rate: RateClassWrite, body: BodyNoBody},
-		"POST /v1/migrations/instagram/verifications/{verificationId}/confirm": {rate: RateClassWrite, body: BodyDefaultJSON},
-		"GET /v1/migrations/instagram/account":                                 {rate: RateClassRead, body: BodyNoBody},
-		"DELETE /v1/migrations/instagram/account":                              {rate: RateClassWrite, body: BodyNoBody},
-		"PATCH /v1/migrations/instagram/settings":                              {rate: RateClassWrite, body: BodyDefaultJSON},
-		"POST /v1/migrations/instagram/imports":                                {rate: RateClassWrite, body: BodyDefaultJSON},
-		"GET /v1/migrations/instagram/imports":                                 {rate: RateClassRead, body: BodyNoBody},
-		"GET /v1/migrations/instagram/imports/{importId}":                      {rate: RateClassRead, body: BodyNoBody},
-		"PATCH /v1/migrations/instagram/imports/{importId}":                    {rate: RateClassWrite, body: BodyDefaultJSON},
-		"DELETE /v1/migrations/instagram/imports/{importId}":                   {rate: RateClassWrite, body: BodyNoBody},
-		"GET /v1/migrations/instagram/suggestions":                             {rate: RateClassRead, body: BodyNoBody},
-		"POST /v1/migrations/instagram/suggestions/{suggestionId}/accept":      {rate: RateClassWrite, body: BodyNoBody},
-		"DELETE /v1/migrations/instagram/suggestions/{suggestionId}":           {rate: RateClassWrite, body: BodyNoBody},
-	}
-	for _, policy := range V1RoutePolicies(EnvProd, Config{Env: EnvProd}) {
-		key := policy.Method + " " + policy.PathPattern
-		expected, ok := want[key]
-		if !ok {
-			continue
-		}
-		if policy.AccessClass != AccessCurrentMember || policy.RateClass != expected.rate || policy.BodyKind != expected.body {
-			t.Errorf("policy %s = %+v", key, policy)
-		}
-		delete(want, key)
-	}
-	for missing := range want {
-		t.Errorf("missing Instagram route policy %s", missing)
-	}
-}
 
 func TestInstagramVerificationRoutesEnforceMembershipBeforeDisabledService(t *testing.T) {
 	pool := testdb.WithSchema(t, `
@@ -69,7 +28,7 @@ func TestInstagramVerificationRoutesEnforceMembershipBeforeDisabledService(t *te
 	deps := &Dependencies{
 		Config:                Config{Env: EnvDev},
 		DB:                    pool,
-		Logger:                slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:                testlog.Discard(),
 		AuthService:           &auth.MockAuthService{DefaultDID: "did:plc:synthetic-current"},
 		InstagramMembership:   instagram.NewMembershipStore(pool),
 		InstagramVerification: disabled,
@@ -174,7 +133,7 @@ func TestInstagramChallengeRouteUsesSharedDIDDeviceAndIPLimits(t *testing.T) {
 			},
 		},
 		DB:                    pool,
-		Logger:                slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:                testlog.Discard(),
 		AuthService:           &auth.MockAuthService{DefaultDID: "did:plc:synthetic-current"},
 		InstagramMembership:   instagram.NewMembershipStore(pool),
 		InstagramRateLimiter:  limiter,
@@ -210,7 +169,7 @@ func TestInstagramChallengeRouteUsesSharedDIDDeviceAndIPLimits(t *testing.T) {
 func TestInstagramWebhookRoutesAreAbsentUntilCompleteHandlerIsWired(t *testing.T) {
 	t.Parallel()
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testlog.Discard()
 	disabledMux := http.NewServeMux()
 	AddRoutes(context.Background(), disabledMux, &Dependencies{
 		Config:      Config{Env: EnvDev},

@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -1498,13 +1497,13 @@ func newEffectExecutorStore(t *testing.T) (*pgxpool.Pool, *ownerlifecycle.Store,
 		);
 	`)
 	for _, path := range []string{
-		"../../migrations/000038_owner_auth_lifecycle.up.sql",
-		"../../migrations/000039_owner_effects_terminal_purge.up.sql",
-		"../../migrations/000045_tap_ingestion_durability.up.sql",
-		"../../migrations/000049_pds_effect_action.up.sql",
-		"../../migrations/000050_pds_effect_source_reconciliation.up.sql",
+		"000038_owner_auth_lifecycle.up.sql",
+		"000039_owner_effects_terminal_purge.up.sql",
+		"000045_tap_ingestion_durability.up.sql",
+		"000049_pds_effect_action.up.sql",
+		"000050_pds_effect_source_reconciliation.up.sql",
 	} {
-		migration, err := os.ReadFile(path)
+		migration, err := testdb.ReadMigration(path)
 		if err != nil {
 			t.Fatal(err)
 		}

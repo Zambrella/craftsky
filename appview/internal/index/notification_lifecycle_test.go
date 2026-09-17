@@ -3,7 +3,6 @@ package index_test
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -17,7 +16,7 @@ import (
 
 func TestLikeDeleteRetractsNotificationAndCancelsUnsentDelivery(t *testing.T) {
 	pool := testdb.WithSchema(t, craftskyInteractionsDDL)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +59,7 @@ func TestLikeDeleteRetractsNotificationAndCancelsUnsentDelivery(t *testing.T) {
 
 func TestLikeRecreationReactivatesStableNotificationWithoutAnotherPush(t *testing.T) {
 	pool := testdb.WithSchema(t, craftskyInteractionsDDL)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,7 +114,7 @@ func TestActiveInteractionSourceReplacementIgnoresStaleDelete(t *testing.T) {
 	for _, tc := range interactionIndexerCases() {
 		t.Run(tc.name, func(t *testing.T) {
 			pool := testdb.WithSchema(t, craftskyInteractionsDDL)
-			migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+			migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -161,7 +160,7 @@ func TestActiveInteractionSourceReplacementIgnoresStaleDelete(t *testing.T) {
 
 func TestActiveFollowSourceReplacementIgnoresStaleDelete(t *testing.T) {
 	pool := testdb.WithSchema(t, atprotoFollowsDDL)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -200,7 +199,7 @@ func TestActiveFollowSourceReplacementIgnoresStaleDelete(t *testing.T) {
 
 func TestDeletingRequiredDestinationRetractsInteractionNotification(t *testing.T) {
 	pool := testdb.WithSchema(t, craftskyInteractionsDDL)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

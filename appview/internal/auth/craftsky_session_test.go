@@ -192,17 +192,23 @@ func TestCraftskySession_LastSeenThrottled(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Create: %v", err)
 	}
+	hash := sha256.Sum256([]byte(token))
 
-	// Small sleep so the first Lookup's last_seen_at write produces a timestamp
-	// measurably different from created_at.
-	time.Sleep(5 * time.Millisecond)
+	// Put the persisted timestamp behind the database clock so the first lookup
+	// has an explicit value to advance from.
+	if _, err := pool.Exec(ctx, `
+		UPDATE craftsky_sessions
+		SET last_seen_at = now() - interval '1 minute'
+		WHERE token_hash = $1
+	`, hash[:]); err != nil {
+		t.Fatalf("age last_seen_at: %v", err)
+	}
 
 	// First Lookup — in-memory map is empty, so maybeTouchLastSeen writes.
 	if _, err := store.Lookup(ctx, token); err != nil {
 		t.Fatalf("first Lookup: %v", err)
 	}
 
-	hash := sha256.Sum256([]byte(token))
 	var lastSeen1 time.Time
 	if err := pool.QueryRow(ctx,
 		`SELECT last_seen_at FROM craftsky_sessions WHERE token_hash = $1`, hash[:],

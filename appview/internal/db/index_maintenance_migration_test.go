@@ -2,7 +2,6 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"strings"
 	"testing"
 
@@ -86,11 +85,11 @@ VALUES ('20000000-0000-4000-8000-000000000001', '10000000-0000-4000-8000-0000000
 `
 
 func TestIndexMaintenanceMigration(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000043_index_maintenance.up.sql")
+	up, err := testdb.ReadMigration("000043_index_maintenance.up.sql")
 	if err != nil {
 		t.Fatalf("read up migration: %v", err)
 	}
-	down, err := os.ReadFile("../../migrations/000043_index_maintenance.down.sql")
+	down, err := testdb.ReadMigration("000043_index_maintenance.down.sql")
 	if err != nil {
 		t.Fatalf("read down migration: %v", err)
 	}

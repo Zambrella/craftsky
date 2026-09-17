@@ -4,7 +4,6 @@ package api_test
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
@@ -82,11 +81,11 @@ func moderationStoreDDL(t *testing.T) string {
 	t.Helper()
 	ddl := moderationFlowMigrationDDL(t) + moderationOutboxTestPreStateDDL
 	for _, path := range []string{
-		"../../migrations/000038_owner_auth_lifecycle.up.sql",
-		"../../migrations/000039_owner_effects_terminal_purge.up.sql",
-		"../../migrations/000044_moderation_restoration_outbox.up.sql",
+		"000038_owner_auth_lifecycle.up.sql",
+		"000039_owner_effects_terminal_purge.up.sql",
+		"000044_moderation_restoration_outbox.up.sql",
 	} {
-		up, err := os.ReadFile(path)
+		up, err := testdb.ReadMigration(path)
 		if err != nil {
 			t.Fatalf("read moderation dependency migration %s: %v", path, err)
 		}

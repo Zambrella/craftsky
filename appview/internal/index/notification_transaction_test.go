@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -55,7 +54,7 @@ func (failingNotificationLifecycle) Activate(ctx context.Context, tx pgx.Tx, act
 
 func TestFollowCreationUsesSameNotificationTransactionAndEventTimeScope(t *testing.T) {
 	pool := testdb.WithSchema(t, atprotoFollowsDDL)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +89,7 @@ func TestFollowCreationUsesSameNotificationTransactionAndEventTimeScope(t *testi
 
 func TestFollowToNonMemberIndexesSourceWithoutNotification(t *testing.T) {
 	pool := testdb.WithSchema(t, atprotoFollowsDDL)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,7 +136,7 @@ func (failingNotificationLifecycle) Retract(context.Context, pgx.Tx, notificatio
 
 func TestLikeCreateRollsBackSourceAndNotificationTogether(t *testing.T) {
 	pool := testdb.WithSchema(t, craftskyInteractionsDDL)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatalf("read notification migration: %v", err)
 	}
@@ -224,7 +223,7 @@ func TestPostDeletionRollsBackSourceNotificationAndDeliveryTogether(t *testing.T
 
 func applyNotificationMigration(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -48,20 +48,19 @@ func TestDecodeAndValidateLinkPreviewAndExternalRequests(t *testing.T) {
 		body    string
 		wantErr bool
 	}{
-		{name: "metadata only without matching facet", body: `{"text":"plain text","embed":{"external":` + validExternal + `}}`},
-		{name: "thumbnail", body: `{"text":"link","embed":{"external":{"uri":"https://final.example","title":"Pattern","description":"","thumb":` + validBlob + `}}}`},
-		{name: "quote and external", body: `{"text":"link","embed":{"quote":{"uri":"at://did:plc:abc/social.craftsky.feed.post/rk","cid":"bafyquote"},"external":` + validExternal + `}}`, wantErr: true},
-		{name: "images and external", body: `{"text":"link","images":[{"image":{"ref":{"$link":"bafyimage"},"mimeType":"image/jpeg","size":1},"alt":""}],"embed":{"external":` + validExternal + `}}`, wantErr: true},
-		{name: "project and external", body: `{"text":"link","project":{"common":{"craftType":"social.craftsky.feed.defs#knitting"}},"embed":{"external":` + validExternal + `}}`, wantErr: true},
-		{name: "oversized title", body: `{"text":"link","embed":{"external":{"uri":"https://final.example","title":"` + strings.Repeat("a", 201) + `","description":""}}}`, wantErr: true},
-		{name: "invalid URI", body: `{"text":"link","embed":{"external":{"uri":"file:///private","title":"Pattern","description":""}}}`, wantErr: true},
-		{name: "oversized thumbnail", body: `{"text":"link","embed":{"external":{"uri":"https://final.example","title":"Pattern","description":"","thumb":{"ref":{"$link":"bafy"},"mimeType":"image/png","size":1000001}}}}`, wantErr: true},
-		{name: "unsupported thumbnail", body: `{"text":"link","embed":{"external":{"uri":"https://final.example","title":"Pattern","description":"","thumb":{"ref":{"$link":"bafy"},"mimeType":"image/gif","size":10}}}}`, wantErr: true},
+		{name: "metadata only without matching facet", body: `{"text":"plain text","sponsored":false,"embed":{"external":` + validExternal + `}}`},
+		{name: "thumbnail", body: `{"text":"link","sponsored":false,"embed":{"external":{"uri":"https://final.example","title":"Pattern","description":"","thumb":` + validBlob + `}}}`},
+		{name: "quote and external", body: `{"text":"link","sponsored":false,"embed":{"quote":{"uri":"at://did:plc:abc/social.craftsky.feed.post/rk","cid":"bafyquote"},"external":` + validExternal + `}}`, wantErr: true},
+		{name: "images and external", body: `{"text":"link","sponsored":false,"images":[{"image":{"ref":{"$link":"bafyimage"},"mimeType":"image/jpeg","size":1},"alt":""}],"embed":{"external":` + validExternal + `}}`, wantErr: true},
+		{name: "project and external", body: `{"text":"link","sponsored":false,"project":{"common":{"craftType":"social.craftsky.feed.defs#knitting"}},"embed":{"external":` + validExternal + `}}`, wantErr: true},
+		{name: "oversized title", body: `{"text":"link","sponsored":false,"embed":{"external":{"uri":"https://final.example","title":"` + strings.Repeat("a", 201) + `","description":""}}}`, wantErr: true},
+		{name: "invalid URI", body: `{"text":"link","sponsored":false,"embed":{"external":{"uri":"file:///private","title":"Pattern","description":""}}}`, wantErr: true},
+		{name: "oversized thumbnail", body: `{"text":"link","sponsored":false,"embed":{"external":{"uri":"https://final.example","title":"Pattern","description":"","thumb":{"ref":{"$link":"bafy"},"mimeType":"image/png","size":1000001}}}}`, wantErr: true},
+		{name: "unsupported thumbnail", body: `{"text":"link","sponsored":false,"embed":{"external":{"uri":"https://final.example","title":"Pattern","description":"","thumb":{"ref":{"$link":"bafy"},"mimeType":"image/gif","size":10}}}}`, wantErr: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			body := strings.Replace(tt.body, `{"text":`, `{"sponsored":false,"text":`, 1)
-			request, err := api.DecodePostCreate(strings.NewReader(body))
+			request, err := api.DecodePostCreate(strings.NewReader(tt.body))
 			if err == nil {
 				err = api.ValidatePostCreate(request)
 			}

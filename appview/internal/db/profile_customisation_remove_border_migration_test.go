@@ -2,7 +2,6 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -11,15 +10,15 @@ import (
 )
 
 func TestProfileCustomisationRemoveBorderMigrationUpDownUp(t *testing.T) {
-	create, err := os.ReadFile("../../migrations/000036_profile_customisation.up.sql")
+	create, err := testdb.ReadMigration("000036_profile_customisation.up.sql")
 	if err != nil {
 		t.Fatalf("read profile customisation migration: %v", err)
 	}
-	up, err := os.ReadFile("../../migrations/000070_profile_customisation_remove_border.up.sql")
+	up, err := testdb.ReadMigration("000070_profile_customisation_remove_border.up.sql")
 	if err != nil {
 		t.Fatalf("read remove-border up migration: %v", err)
 	}
-	down, err := os.ReadFile("../../migrations/000070_profile_customisation_remove_border.down.sql")
+	down, err := testdb.ReadMigration("000070_profile_customisation_remove_border.down.sql")
 	if err != nil {
 		t.Fatalf("read remove-border down migration: %v", err)
 	}

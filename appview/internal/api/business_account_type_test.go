@@ -3,11 +3,8 @@ package api_test
 import (
 	"context"
 	"encoding/json"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
@@ -19,6 +16,7 @@ import (
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
+	"social.craftsky/appview/internal/testlog"
 )
 
 type businessMemberChecker struct{}
@@ -34,7 +32,7 @@ func (r businessLifecycleReader) Get(_ context.Context, did syntax.DID) (ownerli
 }
 
 func TestBusinessAccountTypeMutationAuthenticationAndOwnership(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000061_business_account_types.up.sql")
+	migration, err := testdb.ReadMigration("000061_business_account_types.up.sql")
 	if err != nil {
 		t.Fatalf("read account type migration: %v", err)
 	}
@@ -102,7 +100,7 @@ func TestBusinessAccountTypeMutationAuthenticationAndOwnership(t *testing.T) {
 }
 
 func businessAccountTypeHandler(store *business.Store, did syntax.DID, lifecycles businessLifecycleReader) http.Handler {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testlog.Discard()
 	handler := api.PutBusinessAccountTypeHandler(store)
 	handler = middleware.CurrentMember(businessMemberChecker{}, logger, lifecycles)(handler)
 	return middleware.Authenticated(&auth.MockAuthService{DefaultDID: did}, logger, middleware.DevAuthPolicy{Mode: middleware.DevAuthDisabled})(handler)

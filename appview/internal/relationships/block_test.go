@@ -3,7 +3,6 @@ package relationships
 import (
 	"context"
 	"errors"
-	"os"
 	"slices"
 	"testing"
 	"time"
@@ -103,7 +102,7 @@ func blockEffectsFactory(executor *recordingBlockPDS) pdseffects.ExecutorFactory
 }
 
 func TestMutationServiceBlockWaitsForPDSAndDoesNotProjectLocally(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000023_mutes_blocks.up.sql")
+	migration, err := testdb.ReadMigration("000023_mutes_blocks.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}
@@ -186,7 +185,7 @@ func TestMutationServiceBlockWaitsForPDSAndDoesNotProjectLocally(t *testing.T) {
 }
 
 func TestMutationServiceBlockAndRapidUnblockUseTheSameDeterministicRecordKey(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000023_mutes_blocks.up.sql")
+	migration, err := testdb.ReadMigration("000023_mutes_blocks.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}
@@ -250,7 +249,7 @@ func TestMutationServiceBlockAndRapidUnblockUseTheSameDeterministicRecordKey(t *
 }
 
 func TestMutationServiceUnmuteAndUnblockEnqueueSafetyRestoration(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000023_mutes_blocks.up.sql")
+	migration, err := testdb.ReadMigration("000023_mutes_blocks.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -294,7 +293,7 @@ func TestMutationServiceUnmuteAndUnblockEnqueueSafetyRestoration(t *testing.T) {
 }
 
 func TestMutationServiceUnblockDeletesIndexedCIDAndDeterministicCleanupKey(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000023_mutes_blocks.up.sql")
+	migration, err := testdb.ReadMigration("000023_mutes_blocks.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}

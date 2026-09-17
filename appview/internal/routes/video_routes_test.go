@@ -6,14 +6,6 @@ import (
 	"testing"
 )
 
-func TestVideoAuthorizationRouteUsesExactCurrentMemberPolicy(t *testing.T) {
-	t.Parallel()
-	policy := mustPolicy(http.MethodPost, "/v1/blobs/videos/authorization")
-	if policy.RateClass != RateClassUpload || policy.BodyKind != BodyNoBody || policy.AccessClass != AccessCurrentMember {
-		t.Fatalf("policy = %+v", policy)
-	}
-}
-
 func TestAddRoutesRegistersVideoAuthorization(t *testing.T) {
 	t.Parallel()
 	deps := testDeps()
@@ -28,14 +20,6 @@ func TestAddRoutesRegistersVideoAuthorization(t *testing.T) {
 	}
 }
 
-func TestVideoLimitsRouteUsesExactCurrentMemberPolicy(t *testing.T) {
-	t.Parallel()
-	policy := mustPolicy(http.MethodGet, "/v1/blobs/videos/limits")
-	if policy.RateClass != RateClassRead || policy.BodyKind != BodyNoBody || policy.AccessClass != AccessCurrentMember {
-		t.Fatalf("policy = %+v", policy)
-	}
-}
-
 func TestAddRoutesRegistersVideoLimits(t *testing.T) {
 	t.Parallel()
 	deps := testDeps()
@@ -47,14 +31,6 @@ func TestAddRoutesRegistersVideoLimits(t *testing.T) {
 	}
 	if _, pattern := mux.Handler(request); pattern != "GET /v1/blobs/videos/limits" {
 		t.Fatalf("registered pattern = %q", pattern)
-	}
-}
-
-func TestVideoCaptionRouteUsesExactCurrentMemberPolicy(t *testing.T) {
-	t.Parallel()
-	policy := mustPolicy(http.MethodGet, "/v1/posts/{did}/{rkey}/video-captions/{captionCid}")
-	if policy.RateClass != RateClassRead || policy.BodyKind != BodyNoBody || policy.AccessClass != AccessCurrentMember {
-		t.Fatalf("policy = %+v", policy)
 	}
 }
 

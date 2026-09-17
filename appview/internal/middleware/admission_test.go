@@ -3,8 +3,6 @@ package middleware
 import (
 	"context"
 	"encoding/json"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,6 +10,7 @@ import (
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/ctxkeys"
+	"social.craftsky/appview/internal/testlog"
 )
 
 func TestRequestConcurrencyLimitRejectsWithoutStartingMoreWork(t *testing.T) {
@@ -80,7 +79,7 @@ func TestOuterRateLimitStopsAddressRotationThroughGlobalBucket(t *testing.T) {
 		t.Fatal(err)
 	}
 	called := 0
-	outer, err := OuterRateLimit(resolver, limiter, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	outer, err := OuterRateLimit(resolver, limiter, testlog.Discard())
 	if err != nil {
 		t.Fatal(err)
 	}

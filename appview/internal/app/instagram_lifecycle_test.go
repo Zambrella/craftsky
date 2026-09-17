@@ -4,9 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
-	"io"
-	"log/slog"
-	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -19,6 +16,7 @@ import (
 	"social.craftsky/appview/internal/scheduledposts"
 	"social.craftsky/appview/internal/tap"
 	"social.craftsky/appview/internal/testdb"
+	"social.craftsky/appview/internal/testlog"
 )
 
 type lifecycleActorDeletionFake struct {
@@ -97,7 +95,7 @@ func (lifecycleBackfillerFake) Backfill(context.Context, syntax.DID) error { ret
 func TestProfileIndexerDeletionQueuesScheduledPrivateMediaCleanup(t *testing.T) {
 	readMigration := func(name string) []byte {
 		t.Helper()
-		migration, err := os.ReadFile("../../migrations/" + name)
+		migration, err := testdb.ReadMigration(name)
 		if err != nil {
 			t.Fatalf("read %s: %v", name, err)
 		}
@@ -224,7 +222,7 @@ func TestProfileIndexerDeletionQueuesScheduledPrivateMediaCleanup(t *testing.T) 
 	idx := index.NewCraftskyProfile(
 		pool,
 		lifecycleBackfillerFake{},
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		testlog.Discard(),
 		deletion,
 	)
 	if err := idx.Handle(ctx, tap.Event{

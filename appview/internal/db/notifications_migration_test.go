@@ -2,7 +2,6 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"strings"
 	"testing"
 
@@ -20,7 +19,7 @@ VALUES ('at://did:plc:actor/social.craftsky.feed.like/old', 'did:plc:actor', 'at
 `
 
 func TestNotificationsMigrationCreatesPrivateDurableSchemaWithoutBackfill(t *testing.T) {
-	sql, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	sql, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}
@@ -95,11 +94,11 @@ func TestNotificationsMigrationCreatesPrivateDurableSchemaWithoutBackfill(t *tes
 }
 
 func TestNotificationNewnessMigrationAddsAccountRevisionState(t *testing.T) {
-	base, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	base, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatalf("read base migration: %v", err)
 	}
-	newness, err := os.ReadFile("../../migrations/000022_notification_newness.up.sql")
+	newness, err := testdb.ReadMigration("000022_notification_newness.up.sql")
 	if err != nil {
 		t.Fatalf("read newness migration: %v", err)
 	}

@@ -5,6 +5,9 @@ on:
     branches: [main]
   push:
     branches: [main]
+  schedule:
+    - cron: "17 3 * * 6"
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -14,8 +17,28 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  appview-unit-feedback:
+    name: AppView unit feedback
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Go
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version: 1.27.1
+          cache-dependency-path: appview/go.sum
+
+      - name: Run unit-only AppView tests
+        run: ./scripts/appview-test unit
+
   appview-release-gate:
     name: AppView release gate
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    needs: appview-unit-feedback
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
@@ -50,3 +73,75 @@ jobs:
           path: ${{ runner.temp }}/appview-check
           if-no-files-found: warn
           retention-days: 14
+
+  appview-periodic-reliability:
+    name: AppView periodic reliability evidence
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Set up Go
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version: 1.27.1
+          cache-dependency-path: appview/go.sum
+
+      - name: Exercise fuzz targets
+        continue-on-error: true
+        env:
+          APPVIEW_FUZZTIME: 30s
+        run: |
+          mkdir -p "${{ runner.temp }}/appview-periodic"
+          ./scripts/appview-test fuzz 2>&1 | tee "${{ runner.temp }}/appview-periodic/fuzz.log"
+
+      - name: Collect fuzz crash inputs
+        if: always()
+        run: |
+          if [[ -d appview/internal/api/testdata/fuzz ]]; then
+            cp -R appview/internal/api/testdata/fuzz "${{ runner.temp }}/appview-periodic/fuzz-crashes"
+          fi
+
+      - name: Produce unit coverage trend
+        id: coverage
+        continue-on-error: true
+        env:
+          APPVIEW_COVERAGE_DIR: ${{ runner.temp }}/appview-periodic
+        run: ./scripts/appview-test coverage
+
+      - name: Start shuffled-suite dependencies
+        run: |
+          docker compose up -d --wait postgres minio
+          docker compose run --rm --no-deps minio-bootstrap
+
+      - name: Run full suite in shuffled order
+        id: shuffle
+        continue-on-error: true
+        run: |
+          ./scripts/appview-test shuffle 2>&1 | tee "${{ runner.temp }}/appview-periodic/shuffle.log"
+
+      - name: Stop shuffled-suite dependencies
+        if: always()
+        run: docker compose down --volumes --remove-orphans
+
+      - name: Upload periodic evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: appview-periodic-evidence-${{ github.sha }}
+          path: ${{ runner.temp }}/appview-periodic
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Enforce deterministic periodic checks
+        if: always()
+        env:
+          COVERAGE_OUTCOME: ${{ steps.coverage.outcome }}
+          SHUFFLE_OUTCOME: ${{ steps.shuffle.outcome }}
+        run: |
+          if [[ "$COVERAGE_OUTCOME" != success || "$SHUFFLE_OUTCOME" != success ]]; then
+            echo "coverage=$COVERAGE_OUTCOME shuffle=$SHUFFLE_OUTCOME" >&2
+            exit 1
+          fi

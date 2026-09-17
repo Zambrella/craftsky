@@ -129,41 +129,27 @@ moderation-report-event REPORTER OWNER RKEY REASON="spam" DETAILS="Local moderat
 # Requires: Go installed locally, and `just dev-d` already running (for
 # the real-Postgres integration tests).
 test:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    POSTGRES_ADDRESS=$(./scripts/compose-dev port postgres 5432)
-    POSTGRES_PORT=${POSTGRES_ADDRESS##*:}
-    MINIO_ADDRESS=$(./scripts/compose-dev port minio 9000)
-    MINIO_PORT=${MINIO_ADDRESS##*:}
-    cd appview
-    TEST_DATABASE_URL="postgres://craftsky:dev@localhost:${POSTGRES_PORT}/craftsky_dev?sslmode=disable" \
-      TEST_S3_ENDPOINT="http://localhost:${MINIO_PORT}" \
-      TEST_S3_REGION="us-east-1" \
-      TEST_S3_BUCKET="private-scheduled-media" \
-      TEST_S3_ACCESS_KEY_ID="craftsky-minio" \
-      TEST_S3_SECRET_ACCESS_KEY="craftsky-minio-dev-secret" \
-      TEST_DATABASE_REQUIRED="true" \
-      GOTOOLCHAIN="go1.27.1" \
-      go test -p=1 -race ./...
+    ./scripts/appview-test full
 
 # Fast, explicitly incomplete AppView unit path. Real PostgreSQL and MinIO
 # suites are deliberately skipped; only appview-check is release evidence.
 appview-test-unit:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "UNIT-ONLY: PostgreSQL and MinIO integration tests are intentionally skipped."
-    cd appview
-    env \
-      -u DATABASE_URL \
-      -u TEST_DATABASE_URL \
-      -u TEST_S3_ENDPOINT \
-      -u TEST_S3_REGION \
-      -u TEST_S3_BUCKET \
-      -u TEST_S3_ACCESS_KEY_ID \
-      -u TEST_S3_SECRET_ACCESS_KEY \
-      TEST_DATABASE_REQUIRED="false" \
-      GOTOOLCHAIN="go1.27.1" \
-      go test ./...
+    ./scripts/appview-test unit
+
+# Run the full PostgreSQL/MinIO suite once in randomized test order without the
+# race detector. Requires `just dev-d`; Go prints the shuffle seed for replay.
+appview-test-shuffle:
+    ./scripts/appview-test shuffle
+
+# Exercise each registered fuzz target for 30 seconds. Override locally with
+# APPVIEW_FUZZTIME and APPVIEW_FUZZ_TIMEOUT when investigating a target.
+appview-test-fuzz:
+    ./scripts/appview-test fuzz
+
+# Produce unit-only coverage evidence as a trend, with no pass/fail threshold.
+# Set APPVIEW_COVERAGE_DIR to retain the profile and function summary by path.
+appview-test-coverage:
+    ./scripts/appview-test coverage
 
 # Release-equivalent, fail-closed AppView gate. It uses an isolated Compose
 # project and disposable database/MinIO volumes, so migration down-to-zero can

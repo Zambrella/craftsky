@@ -145,7 +145,11 @@ func TestCommitBeforeAckDisconnectRedeliveryIsIdempotent(t *testing.T) {
 		t.Fatal("Tap event was not acknowledged after redelivery")
 	}
 	cancel()
-	<-done
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Tap consumer did not stop after cancellation")
+	}
 
 	if ingestor.calls.Load() != 2 {
 		t.Fatalf("ingestion calls=%d, want committed attempt plus redelivery", ingestor.calls.Load())
@@ -227,7 +231,11 @@ func TestOversizedInvalidEnvelopeCommitsExactReplayPayloadBeforeAck(t *testing.T
 		t.Fatal("invalid Tap event was not acknowledged after exact quarantine commit")
 	}
 	cancel()
-	<-done
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("Tap consumer did not stop after cancellation")
+	}
 
 	items, err := store.ListQuarantine(context.Background(), 1)
 	if err != nil || len(items) != 1 {

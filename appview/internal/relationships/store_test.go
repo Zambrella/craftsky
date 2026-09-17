@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -49,7 +48,7 @@ FOR EACH ROW EXECUTE FUNCTION seed_active_relationship_owner();
 `
 
 func TestStoreMuteIsOwnerScopedImmediateAndIdempotent(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000023_mutes_blocks.up.sql")
+	migration, err := testdb.ReadMigration("000023_mutes_blocks.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}
@@ -99,7 +98,7 @@ func TestStoreMuteIsOwnerScopedImmediateAndIdempotent(t *testing.T) {
 }
 
 func TestStoreMuteRejectsTerminalSubjectWithoutPersisting(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000023_mutes_blocks.up.sql")
+	migration, err := testdb.ReadMigration("000023_mutes_blocks.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -135,7 +134,7 @@ func TestStoreMuteRejectsTerminalSubjectWithoutPersisting(t *testing.T) {
 }
 
 func TestStoreUnmuteRejectsStaleOwnerGenerationWithoutDeleting(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000023_mutes_blocks.up.sql")
+	migration, err := testdb.ReadMigration("000023_mutes_blocks.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,7 +167,7 @@ func TestStoreUnmuteRejectsStaleOwnerGenerationWithoutDeleting(t *testing.T) {
 }
 
 func TestMutationServiceMuteRollsBackWhenDeliveryCancellationFails(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000023_mutes_blocks.up.sql")
+	migration, err := testdb.ReadMigration("000023_mutes_blocks.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}
@@ -237,7 +236,7 @@ func TestMutationServiceMuteRollsBackWhenDeliveryCancellationFails(t *testing.T)
 }
 
 func TestMutationServiceMuteObservesPushCancellation(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000023_mutes_blocks.up.sql")
+	migration, err := testdb.ReadMigration("000023_mutes_blocks.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,7 +296,7 @@ func (o *mutationRelationshipObserver) has(operation, stage, result, errorClass 
 }
 
 func TestStoreStateDoesNotExposeAnotherOwnersMute(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000023_mutes_blocks.up.sql")
+	migration, err := testdb.ReadMigration("000023_mutes_blocks.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}
@@ -347,7 +346,7 @@ func TestStoreStateDoesNotExposeAnotherOwnersMute(t *testing.T) {
 }
 
 func TestStoreOwnedBlockRecordsReturnsOnlyCallerOwnedRecords(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000023_mutes_blocks.up.sql")
+	migration, err := testdb.ReadMigration("000023_mutes_blocks.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}
@@ -395,7 +394,7 @@ func TestStoreOwnedBlockRecordsReturnsOnlyCallerOwnedRecords(t *testing.T) {
 }
 
 func TestStoreRelationshipListsAreOwnerScopedEligibleStableAndDeduplicated(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000023_mutes_blocks.up.sql")
+	migration, err := testdb.ReadMigration("000023_mutes_blocks.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}

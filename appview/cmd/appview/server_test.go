@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -20,6 +18,7 @@ import (
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
+	"social.craftsky/appview/internal/testlog"
 )
 
 type serverStubResolver struct{ handle syntax.Handle }
@@ -42,7 +41,7 @@ func TestNewServer_HTTPMetricsUseRoutePattern(t *testing.T) {
 			AllowedOrigins: []string{"*"},
 			DevDID:         "did:plc:test",
 		},
-		Logger:         slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:         testlog.Discard(),
 		AuthService:    &auth.MockAuthService{DefaultDID: "did:plc:test"},
 		HandleResolver: serverStubResolver{handle: syntax.Handle("stub.example")},
 		Observability:  observer,
@@ -76,7 +75,7 @@ func TestNewServerRejectsUnexpectedHostBeforeRouting(t *testing.T) {
 			AllowedOrigins: []string{"https://craftsky.social"},
 			ExpectedHosts:  []string{"appview.craftsky.social"},
 		},
-		Logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:        testlog.Discard(),
 		AuthService:   &auth.MockAuthService{DefaultDID: "did:plc:test"},
 		Observability: observability.New(observability.Config{Env: "test"}),
 	}
@@ -119,7 +118,7 @@ func TestNewServerAllowsReadinessProbeFromInfrastructureHost(t *testing.T) {
 			ExpectedHosts:  []string{"appview.craftsky.social"},
 		},
 		DB:            pool,
-		Logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:        testlog.Discard(),
 		AuthService:   &auth.MockAuthService{DefaultDID: "did:plc:test"},
 		Observability: observability.New(observability.Config{Env: "test"}),
 	}
@@ -144,7 +143,7 @@ func TestNewServerAdmissionRunsBeforeUnexpectedHost(t *testing.T) {
 			AllowedOrigins: []string{"https://craftsky.social"},
 			ExpectedHosts:  []string{"appview.craftsky.social"},
 		},
-		Logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:        testlog.Discard(),
 		AuthService:   &auth.MockAuthService{DefaultDID: "did:plc:test"},
 		Observability: observability.New(observability.Config{Env: "test"}),
 	}
@@ -191,7 +190,7 @@ func TestNewServerOwnsV1FallbackMethodAndCanonicalPathContracts(t *testing.T) {
 			AllowedOrigins: []string{"https://app.craftsky.social"},
 			DevDID:         "did:plc:test",
 		},
-		Logger:         slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:         testlog.Discard(),
 		AuthService:    &auth.MockAuthService{DefaultDID: "did:plc:test"},
 		HandleResolver: serverStubResolver{handle: syntax.Handle("stub.example")},
 		Observability:  observability.New(observability.Config{Env: "test"}),
@@ -245,7 +244,7 @@ func TestNewServerAllowsCatalogueDerivedPatchPreflight(t *testing.T) {
 			Env:            app.EnvDev,
 			AllowedOrigins: []string{"https://app.craftsky.social"},
 		},
-		Logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:        testlog.Discard(),
 		AuthService:   &auth.MockAuthService{DefaultDID: "did:plc:test"},
 		Observability: observability.New(observability.Config{Env: "test"}),
 	}
@@ -278,7 +277,7 @@ func TestInstagramWebhookWorkerLoopRetriesErrorsAndDrainsBacklogWithoutPollingDe
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		runInstagramWebhookWorker(ctx, processor, slog.New(slog.NewTextHandler(io.Discard, nil)), time.Millisecond)
+		runInstagramWebhookWorker(ctx, processor, testlog.Discard(), time.Millisecond)
 	}()
 	select {
 	case <-done:
@@ -299,7 +298,7 @@ func TestScheduledWorkerLoopRunsImmediatelyDrainsAndStopsOnCancellation(t *testi
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		runScheduledWorker(ctx, processor, slog.New(slog.NewTextHandler(io.Discard, nil)), time.Millisecond, "publication")
+		runScheduledWorker(ctx, processor, testlog.Discard(), time.Millisecond, "publication")
 	}()
 	select {
 	case <-done:
@@ -328,7 +327,7 @@ func TestInstagramReconciliationWorkerLoopUsesBoundedBatchAndDrainsBacklog(t *te
 		runInstagramReconciliationWorker(
 			ctx,
 			processor,
-			slog.New(slog.NewTextHandler(io.Discard, nil)),
+			testlog.Discard(),
 			100,
 			time.Millisecond,
 		)
@@ -359,7 +358,7 @@ func TestInstagramRetentionRunsImmediatelyAndStopsOnCancellation(t *testing.T) {
 		runInstagramRetention(
 			ctx,
 			runner,
-			slog.New(slog.NewTextHandler(io.Discard, nil)),
+			testlog.Discard(),
 			500,
 			time.Hour,
 		)

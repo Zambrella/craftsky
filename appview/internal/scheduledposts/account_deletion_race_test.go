@@ -157,22 +157,18 @@ func TestAccountDeletionWaitsForLiveUploadReadyBoundary(t *testing.T) {
 		})
 		uploadDone <- err
 	}()
-	<-objects.started
+	waitForScheduledSignal(t, objects.started, "private upload object write")
 
 	deletion := NewAccountDeletion(pool, func() time.Time { return now }, ownerFence)
 	deletionDone := make(chan error, 1)
 	go func() { deletionDone <- deletion.Purge(ctx, owner) }()
-	select {
-	case err := <-deletionDone:
-		t.Fatalf("account deletion crossed live upload fence early: %v", err)
-	case <-time.After(100 * time.Millisecond):
-	}
+	waitForScheduledAdvisoryWaiter(t, pool, deletionDone)
 
 	close(objects.continuePut)
-	if err := <-uploadDone; err != nil {
+	if err := waitForScheduledResult(t, uploadDone, "live upload completion"); err != nil {
 		t.Fatalf("complete live upload: %v", err)
 	}
-	if err := <-deletionDone; err != nil {
+	if err := waitForScheduledResult(t, deletionDone, "fenced account deletion"); err != nil {
 		t.Fatalf("complete fenced account deletion: %v", err)
 	}
 	assertRowCount(t, store, `SELECT count(*) FROM scheduled_post_media WHERE id=$1`, 0, mediaID)

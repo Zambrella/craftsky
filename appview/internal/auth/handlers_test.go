@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -23,6 +22,7 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/testlog"
 )
 
 // erroringGetPDSClient always errors on GetRecord (non-404). Used to
@@ -112,7 +112,7 @@ func TestClientMetadataDoesNotReflectRequestHost(t *testing.T) {
 		OAuth:          oauth.NewClientApp(&artifacts.Config, nil),
 		ClientMetadata: artifacts.Metadata,
 		PublicJWKS:     artifacts.JWKS,
-		Logger:         slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:         testlog.Discard(),
 	}
 	request := httptest.NewRequest("GET", "/oauth/client-metadata.json", nil)
 	request.Host = "attacker.invalid"
@@ -320,7 +320,7 @@ func TestRegistrationHandlerMapsBoundedStartFailures(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			flow := &registrationValidationFlow{err: test.failure}
-			handlers := &auth.HTTPHandlers{OAuthFlow: flow, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+			handlers := &auth.HTTPHandlers{OAuthFlow: flow, Logger: testlog.Discard()}
 			request := httptest.NewRequest(http.MethodPost, "/v1/auth/registrations", strings.NewReader(`{"handoffMode":"verified_link"}`))
 			request = request.WithContext(middleware.WithDeviceID(request.Context(), "classification-device"))
 			response := httptest.NewRecorder()
@@ -370,7 +370,7 @@ func TestRegistrationRequestValidationDoesNotCallProvider(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			flow := &registrationValidationFlow{}
-			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+			logger := testlog.Discard()
 			handlers := &auth.HTTPHandlers{OAuthFlow: flow, Logger: logger}
 			handler := middleware.DeviceID(nil, logger)(handlers.RegistrationHandler())
 			request := httptest.NewRequest(http.MethodPost, "/v1/auth/registrations", strings.NewReader(test.body))

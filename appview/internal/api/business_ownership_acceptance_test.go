@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -29,11 +28,11 @@ func (current businessOwnershipMembership) IsCurrentMember(context.Context, synt
 }
 
 func TestRegularMemberCanPrepareOnlyOwnBusinessRecords(t *testing.T) {
-	accountMigration, err := os.ReadFile("../../migrations/000061_business_account_types.up.sql")
+	accountMigration, err := testdb.ReadMigration("000061_business_account_types.up.sql")
 	if err != nil {
 		t.Fatalf("read account type migration: %v", err)
 	}
-	recordMigration, err := os.ReadFile("../../migrations/000062_business_records.up.sql")
+	recordMigration, err := testdb.ReadMigration("000062_business_records.up.sql")
 	if err != nil {
 		t.Fatalf("read business record migration: %v", err)
 	}

@@ -22,6 +22,7 @@ import (
 	"social.craftsky/appview/internal/ctxkeys"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/scheduledposts"
+	"social.craftsky/appview/internal/testlog"
 )
 
 func TestScheduledMediaHandlersKeepBytesOwnerPrivate(t *testing.T) {
@@ -38,7 +39,7 @@ func TestScheduledMediaHandlersKeepBytesOwnerPrivate(t *testing.T) {
 		},
 		body: validJPEG,
 	}
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testlog.Discard()
 
 	t.Run("PUT returns only safe media metadata", func(t *testing.T) {
 		handler := PutScheduledMediaHandler(
@@ -139,7 +140,7 @@ func validJPEGBytes(t *testing.T) []byte {
 func TestScheduledMediaPutRejectsInvalidImageBodies(t *testing.T) {
 	mediaID := uuid.MustParse("00000000-0000-4000-8000-000000000702")
 	alice := syntax.DID("did:plc:alice")
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testlog.Discard()
 	cases := []struct {
 		name        string
 		contentType string
@@ -212,7 +213,7 @@ func TestScheduledMediaPutRejectsOversizedGeometryBeforeStorage(t *testing.T) {
 		service,
 		DefaultMediaLimits(),
 		validator,
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		testlog.Discard(),
 	)
 	request := httptest.NewRequest(
 		http.MethodPut,
@@ -260,7 +261,7 @@ func TestScheduledMediaPutReturnsRetryableOverloadWhenDecoderIsSaturated(t *test
 		service,
 		DefaultMediaLimits(),
 		fixedImageValidator{err: ErrImageDecodeSaturated},
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		testlog.Discard(),
 	)
 	request := httptest.NewRequest(
 		http.MethodPut,

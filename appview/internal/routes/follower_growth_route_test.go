@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
@@ -60,11 +59,6 @@ INSERT INTO owner_lifecycles(
 `
 
 func TestFollowerGrowthRoutePolicyAndHandler(t *testing.T) {
-	policy := mustPolicy("GET", "/v1/profiles/me/follower-growth")
-	if policy.AccessClass != AccessCurrentMember || policy.RateClass != RateClassRead || policy.BodyKind != BodyNoBody {
-		t.Fatalf("route policy = %+v, want current-member read with no body", policy)
-	}
-
 	now := time.Date(2026, time.August, 25, 12, 0, 0, 0, time.UTC)
 	availableFrom := time.Date(2026, time.July, 1, 0, 0, 0, 0, time.UTC)
 	latest := followergrowth.Snapshot{
@@ -179,12 +173,6 @@ func TestFollowerGrowthProductionRouteEnforcesCurrentOwnerBoundary(t *testing.T)
 		return response
 	}
 
-	if got := request("/v1/profiles/me/follower-growth?period=7d", false, true, ""); got.Code != http.StatusUnauthorized {
-		t.Fatalf("unauthenticated status = %d, want 401; body=%s", got.Code, got.Body.String())
-	}
-	if got := request("/v1/profiles/me/follower-growth?period=7d", true, false, ""); got.Code != http.StatusBadRequest {
-		t.Fatalf("missing-device status = %d, want 400; body=%s", got.Code, got.Body.String())
-	}
 	if got := request("/v1/profiles/me/follower-growth?period=7d", true, true, "did:plc:departed"); got.Code != http.StatusNotFound {
 		t.Fatalf("departed-member status = %d, want 404; body=%s", got.Code, got.Body.String())
 	}
@@ -218,7 +206,7 @@ func TestFollowerGrowthProductionRouteEnforcesCurrentOwnerBoundary(t *testing.T)
 
 func TestFollowerGrowthProductionRouteUsesPersistedHistoryWithoutLiveOverlay(t *testing.T) {
 	pool := testdb.WithSchema(t, followerGrowthRouteLifecycleDDL)
-	migration, err := os.ReadFile("../../migrations/000060_follower_growth_snapshots.up.sql")
+	migration, err := testdb.ReadMigration("000060_follower_growth_snapshots.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

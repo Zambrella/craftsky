@@ -34,7 +34,7 @@ func TestOwnerFenceSharedEffectsDrainBeforeExclusiveTransition(t *testing.T) {
 			return nil
 		})
 	}()
-	<-entered
+	waitForTestSignal(t, entered, "shared owner fence callback")
 
 	err = fenceB.WithExclusive(context.Background(), []syntax.DID{owner}, func(context.Context) error {
 		return errors.New("exclusive callback must not run while shared fence is held")
@@ -47,7 +47,7 @@ func TestOwnerFenceSharedEffectsDrainBeforeExclusiveTransition(t *testing.T) {
 	}
 
 	close(release)
-	if err := <-sharedDone; err != nil {
+	if err := waitForTestResult(t, sharedDone, "shared owner fence completion"); err != nil {
 		t.Fatalf("shared effect: %v", err)
 	}
 	if err := fenceB.WithExclusive(context.Background(), []syntax.DID{owner}, func(context.Context) error {
@@ -80,7 +80,7 @@ func TestOwnerFenceSharedOwnersOverlapAndReverseInputCannotDeadlock(t *testing.T
 			return nil
 		})
 	}()
-	<-firstEntered
+	waitForTestSignal(t, firstEntered, "first shared multi-owner fence")
 
 	secondEntered := make(chan struct{})
 	secondDone := make(chan error, 1)
@@ -95,17 +95,19 @@ func TestOwnerFenceSharedOwnersOverlapAndReverseInputCannotDeadlock(t *testing.T
 	case <-time.After(500 * time.Millisecond):
 		t.Fatal("shared multi-owner fence did not overlap")
 	}
-	if err := <-secondDone; err != nil {
+	if err := waitForTestResult(t, secondDone, "second shared multi-owner fence"); err != nil {
 		t.Fatalf("second shared fence: %v", err)
 	}
 	close(releaseFirst)
-	if err := <-firstDone; err != nil {
+	if err := waitForTestResult(t, firstDone, "first shared multi-owner fence completion"); err != nil {
 		t.Fatalf("first shared fence: %v", err)
 	}
 
 	// Both callers supply inverse orders. Canonical acquisition allows one to
 	// finish and the other to follow without an AB/BA deadlock.
 	start := make(chan struct{})
+	entered := make(chan struct{}, 1)
+	release := make(chan struct{})
 	done := make(chan error, 2)
 	for _, owners := range [][]syntax.DID{{a, b}, {b, a}} {
 		owners := owners
@@ -116,14 +118,29 @@ func TestOwnerFenceSharedOwnersOverlapAndReverseInputCannotDeadlock(t *testing.T
 		go func() {
 			<-start
 			done <- fencer.WithExclusive(context.Background(), owners, func(context.Context) error {
-				time.Sleep(25 * time.Millisecond)
+				entered <- struct{}{}
+				<-release
 				return nil
 			})
 		}()
 	}
 	close(start)
+	waitForTestSignal(t, entered, "first inverse-order exclusive fence")
+	key, err := FenceKey(a)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bKey, err := FenceKey(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bKey < key {
+		key = bKey
+	}
+	waitForAdvisoryWaiter(t, poolA, key)
+	close(release)
 	for range 2 {
-		if err := <-done; err != nil {
+		if err := waitForTestResult(t, done, "inverse-order exclusive fence"); err != nil {
 			t.Fatalf("inverse-order exclusive fence: %v", err)
 		}
 	}

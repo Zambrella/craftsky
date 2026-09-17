@@ -3,6 +3,7 @@ package moderation
 import (
 	"context"
 	"errors"
+	"runtime"
 	"testing"
 	"time"
 
@@ -594,7 +595,7 @@ func waitForStandingLockWaiters(t *testing.T, ctx context.Context, pool *pgxpool
 		if time.Now().After(deadline) {
 			t.Fatalf("standing contenders waiting = %d, want at least %d", waiting, want)
 		}
-		time.Sleep(5 * time.Millisecond)
+		runtime.Gosched()
 	}
 }
 

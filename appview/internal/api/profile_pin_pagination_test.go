@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"testing"
 	"time"
 
@@ -19,7 +18,7 @@ import (
 )
 
 func TestProfilePinFirstPagePromotionAndMetadataOmission(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000035_profile_pins.up.sql")
+	migration, err := testdb.ReadMigration("000035_profile_pins.up.sql")
 	if err != nil {
 		t.Fatalf("read profile pin migration: %v", err)
 	}
@@ -130,7 +129,7 @@ func TestProfilePinFirstPagePromotionAndMetadataOmission(t *testing.T) {
 }
 
 func TestProfilePinTraversalIsUniqueAndPinChangesInvalidateCursor(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000035_profile_pins.up.sql")
+	migration, err := testdb.ReadMigration("000035_profile_pins.up.sql")
 	if err != nil {
 		t.Fatalf("read profile pin migration: %v", err)
 	}
@@ -231,7 +230,7 @@ func TestProfilePinTraversalIsUniqueAndPinChangesInvalidateCursor(t *testing.T) 
 }
 
 func TestProfilePinPromotionRespectsAndRetainsViewerPolicy(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000035_profile_pins.up.sql")
+	migration, err := testdb.ReadMigration("000035_profile_pins.up.sql")
 	if err != nil {
 		t.Fatalf("read profile pin migration: %v", err)
 	}

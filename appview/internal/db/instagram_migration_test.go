@@ -2,7 +2,6 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"strings"
 	"testing"
 
@@ -14,10 +13,10 @@ import (
 func TestInstagramMigrationCreatesPrivateSchemaWithoutMembershipCascades(t *testing.T) {
 	t.Parallel()
 
-	sql := readMigration(t, "../../migrations/000025_instagram_migration.up.sql")
+	sql := readMigration(t, "000025_instagram_migration.up.sql")
 	storageNames := readMigration(
 		t,
-		"../../migrations/000031_instagram_automatic_follow_storage_names.up.sql",
+		"000031_instagram_automatic_follow_storage_names.up.sql",
 	)
 	for _, forbidden := range []string{
 		"REFERENCES craftsky_profiles",
@@ -137,8 +136,8 @@ func TestInstagramAutomaticFollowStorageNamesMigrationIsReversible(t *testing.T)
 	pool := testdb.WithSchema(t, "")
 	ctx := context.Background()
 	for _, path := range []string{
-		"../../migrations/000025_instagram_migration.up.sql",
-		"../../migrations/000031_instagram_automatic_follow_storage_names.up.sql",
+		"000025_instagram_migration.up.sql",
+		"000031_instagram_automatic_follow_storage_names.up.sql",
 	} {
 		if _, err := pool.Exec(ctx, readMigration(t, path)); err != nil {
 			t.Fatalf("apply %s: %v", path, err)
@@ -165,7 +164,7 @@ func TestInstagramAutomaticFollowStorageNamesMigrationIsReversible(t *testing.T)
 
 	down := readMigration(
 		t,
-		"../../migrations/000031_instagram_automatic_follow_storage_names.down.sql",
+		"000031_instagram_automatic_follow_storage_names.down.sql",
 	)
 	if _, err := pool.Exec(ctx, down); err != nil {
 		t.Fatalf("roll back automatic-follow storage-name migration: %v", err)
@@ -187,9 +186,9 @@ func TestInstagramAutomaticFollowStorageNamesMigrationIsReversible(t *testing.T)
 func TestInstagramFollowingOnlyMigrationRemovesFollowerStorage(t *testing.T) {
 	t.Parallel()
 
-	core := readMigration(t, "../../migrations/000025_instagram_migration.up.sql")
-	legacyShape := readMigration(t, "../../migrations/000027_instagram_following_only.down.sql")
-	followingOnly := readMigration(t, "../../migrations/000027_instagram_following_only.up.sql")
+	core := readMigration(t, "000025_instagram_migration.up.sql")
+	legacyShape := readMigration(t, "000027_instagram_following_only.down.sql")
+	followingOnly := readMigration(t, "000027_instagram_following_only.up.sql")
 	pool := testdb.WithSchema(t, "")
 	ctx := context.Background()
 	if _, err := pool.Exec(ctx, core); err != nil {
@@ -262,8 +261,8 @@ func TestInstagramFollowingOnlyMigrationRemovesFollowerStorage(t *testing.T) {
 func TestInstagramImportLifetimeMigrationRemovesRetentionStorage(t *testing.T) {
 	t.Parallel()
 
-	core := readMigration(t, "../../migrations/000025_instagram_migration.up.sql")
-	lifetime := readMigration(t, "../../migrations/000028_instagram_import_lifetime.up.sql")
+	core := readMigration(t, "000025_instagram_migration.up.sql")
+	lifetime := readMigration(t, "000028_instagram_import_lifetime.up.sql")
 	pool := testdb.WithSchema(t, "")
 	ctx := context.Background()
 	if _, err := pool.Exec(ctx, core); err != nil {
@@ -321,9 +320,9 @@ func TestInstagramImportLifetimeMigrationRemovesRetentionStorage(t *testing.T) {
 func TestInstagramImportLifetimeMigrationKeepsOnlyVerifiedLinkImports(t *testing.T) {
 	t.Parallel()
 
-	core := readMigration(t, "../../migrations/000025_instagram_migration.up.sql")
-	legacyLifetime := readMigration(t, "../../migrations/000028_instagram_import_lifetime.down.sql")
-	lifetime := readMigration(t, "../../migrations/000028_instagram_import_lifetime.up.sql")
+	core := readMigration(t, "000025_instagram_migration.up.sql")
+	legacyLifetime := readMigration(t, "000028_instagram_import_lifetime.down.sql")
+	lifetime := readMigration(t, "000028_instagram_import_lifetime.up.sql")
 	pool := testdb.WithSchema(t, "")
 	ctx := context.Background()
 	if _, err := pool.Exec(ctx, core); err != nil {
@@ -460,11 +459,11 @@ func TestInstagramImportLifetimeMigrationKeepsOnlyVerifiedLinkImports(t *testing
 func TestNotificationMigrationUsesCategoryAsTheOnlyPayloadDiscriminator(t *testing.T) {
 	t.Parallel()
 
-	base := readMigration(t, "../../migrations/000021_appview_notifications.up.sql")
-	newness := readMigration(t, "../../migrations/000022_notification_newness.up.sql")
-	instagram := readMigration(t, "../../migrations/000025_instagram_migration.up.sql")
-	system := readMigration(t, "../../migrations/000026_system_notifications.up.sql")
-	clientDestination := readMigration(t, "../../migrations/000029_notification_client_owned_destination.up.sql")
+	base := readMigration(t, "000021_appview_notifications.up.sql")
+	newness := readMigration(t, "000022_notification_newness.up.sql")
+	instagram := readMigration(t, "000025_instagram_migration.up.sql")
+	system := readMigration(t, "000026_system_notifications.up.sql")
+	clientDestination := readMigration(t, "000029_notification_client_owned_destination.up.sql")
 	if strings.Contains(system, "ADD COLUMN kind") ||
 		strings.Contains(system, "notification_events_kind_payload_check") {
 		t.Fatal("notification migration still defines redundant kind storage")
@@ -597,7 +596,7 @@ func TestNotificationMigrationUsesCategoryAsTheOnlyPayloadDiscriminator(t *testi
 func TestInstagramAutomaticFollowMigrationEnforcesWorkerAndActorfulNotificationShape(t *testing.T) {
 	t.Parallel()
 
-	automaticFollow := readMigration(t, "../../migrations/000030_instagram_automatic_follows.up.sql")
+	automaticFollow := readMigration(t, "000030_instagram_automatic_follows.up.sql")
 	for _, required := range []string{
 		"pds_follow_operations_lease_shape_check",
 		"pds_follow_operations_owner_target_unique",
@@ -617,13 +616,13 @@ func TestInstagramAutomaticFollowMigrationEnforcesWorkerAndActorfulNotificationS
 	pool := testdb.WithSchema(t, "")
 	ctx := context.Background()
 	for _, path := range []string{
-		"../../migrations/000021_appview_notifications.up.sql",
-		"../../migrations/000022_notification_newness.up.sql",
-		"../../migrations/000025_instagram_migration.up.sql",
-		"../../migrations/000026_system_notifications.up.sql",
-		"../../migrations/000029_notification_client_owned_destination.up.sql",
-		"../../migrations/000030_instagram_automatic_follows.up.sql",
-		"../../migrations/000031_instagram_automatic_follow_storage_names.up.sql",
+		"000021_appview_notifications.up.sql",
+		"000022_notification_newness.up.sql",
+		"000025_instagram_migration.up.sql",
+		"000026_system_notifications.up.sql",
+		"000029_notification_client_owned_destination.up.sql",
+		"000030_instagram_automatic_follows.up.sql",
+		"000031_instagram_automatic_follow_storage_names.up.sql",
 	} {
 		if _, err := pool.Exec(ctx, readMigration(t, path)); err != nil {
 			t.Fatalf("apply %s: %v", path, err)
@@ -739,7 +738,7 @@ func TestInstagramAutomaticFollowMigrationEnforcesWorkerAndActorfulNotificationS
 
 func readMigration(t *testing.T, path string) string {
 	t.Helper()
-	contents, err := os.ReadFile(path)
+	contents, err := testdb.ReadMigration(path)
 	if err != nil {
 		t.Fatalf("read migration %s: %v", path, err)
 	}

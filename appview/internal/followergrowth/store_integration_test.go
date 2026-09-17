@@ -2,7 +2,6 @@ package followergrowth
 
 import (
 	"context"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -415,7 +414,7 @@ func assertSnapshotCount(t *testing.T, pool *pgxpool.Pool, date time.Time, did s
 
 func applyFollowerGrowthMigration(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	up, err := os.ReadFile("../../migrations/000060_follower_growth_snapshots.up.sql")
+	up, err := testdb.ReadMigration("000060_follower_growth_snapshots.up.sql")
 	if err != nil {
 		t.Fatalf("read follower growth migration: %v", err)
 	}

@@ -3,7 +3,7 @@ package ingestion
 import (
 	"context"
 	"encoding/json"
-	"os"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -19,7 +19,7 @@ import (
 
 func TestProjectionActorFencePrecedesSourceRowLock(t *testing.T) {
 	pool := testdb.WithSchema(t, projectionLockLifecycleDDL)
-	migration, err := os.ReadFile("../../migrations/000045_tap_ingestion_durability.up.sql")
+	migration, err := testdb.ReadMigration("000045_tap_ingestion_durability.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -27,7 +27,7 @@ func TestProjectionActorFencePrecedesSourceRowLock(t *testing.T) {
 	if _, err := pool.Exec(ctx, string(migration)); err != nil {
 		t.Fatalf("apply Tap durability migration: %v", err)
 	}
-	renameMigration, err := os.ReadFile("../../migrations/000058_tap_projection_generation_column.up.sql")
+	renameMigration, err := testdb.ReadMigration("000058_tap_projection_generation_column.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -101,7 +101,12 @@ func TestProjectionActorFencePrecedesSourceRowLock(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer probe.Release()
+	probeReleased := false
+	defer func() {
+		if !probeReleased {
+			probe.Release()
+		}
+	}()
 	sharedHeld := false
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
@@ -117,14 +122,16 @@ func TestProjectionActorFencePrecedesSourceRowLock(t *testing.T) {
 		if err := probe.QueryRow(ctx, `SELECT pg_advisory_unlock($1)`, key).Scan(&unlocked); err != nil || !unlocked {
 			t.Fatalf("release projection fence probe unlocked=%t err=%v", unlocked, err)
 		}
-		time.Sleep(5 * time.Millisecond)
+		runtime.Gosched()
 	}
 	if !sharedHeld {
 		_ = rowBlocker.Rollback(context.Background())
 		release()
-		<-projectDone
+		waitForProjectionResult(t, projectDone, "projection after failed fence-order probe")
 		t.Fatal("projection waited on its source row before acquiring the actor fence")
 	}
+	probe.Release()
+	probeReleased = true
 
 	fencer, err := ownerlifecycle.NewFencer(pool, 2*time.Second)
 	if err != nil {
@@ -138,36 +145,68 @@ func TestProjectionActorFencePrecedesSourceRowLock(t *testing.T) {
 			return nil
 		})
 	}()
-	select {
-	case <-transitionEntered:
-		t.Fatal("exclusive transition passed a projection actor fence")
-	case <-time.After(100 * time.Millisecond):
-	}
+	waitForProjectionAdvisoryWaiter(t, pool)
 
 	if err := rowBlocker.Rollback(ctx); err != nil {
 		t.Fatal(err)
 	}
-	select {
-	case <-projectorEntered:
-	case <-time.After(time.Second):
-		t.Fatal("projection did not reach its projector after the source row was released")
-	}
+	waitForProjectionSignal(t, projectorEntered, "projection callback after source row release")
 	select {
 	case <-transitionEntered:
 		t.Fatal("exclusive transition completed before the projection transaction")
-	case <-time.After(100 * time.Millisecond):
+	default:
 	}
 	release()
-	if err := <-projectDone; err != nil {
+	if err := waitForProjectionResult(t, projectDone, "projection completion"); err != nil {
 		t.Fatalf("project: %v", err)
 	}
-	select {
-	case <-transitionEntered:
-	case <-time.After(time.Second):
-		t.Fatal("exclusive transition did not enter after projection commit")
-	}
-	if err := <-transitionDone; err != nil {
+	waitForProjectionSignal(t, transitionEntered, "exclusive transition after projection commit")
+	if err := waitForProjectionResult(t, transitionDone, "exclusive transition completion"); err != nil {
 		t.Fatalf("exclusive transition: %v", err)
+	}
+}
+
+func waitForProjectionSignal(t *testing.T, signal <-chan struct{}, description string) {
+	t.Helper()
+	waitForProjectionResult(t, signal, description)
+}
+
+func waitForProjectionResult[T any](t *testing.T, result <-chan T, description string) T {
+	t.Helper()
+	select {
+	case value := <-result:
+		return value
+	case <-time.After(2 * time.Second):
+		t.Fatalf("timed out waiting for %s", description)
+		var zero T
+		return zero
+	}
+}
+
+func waitForProjectionAdvisoryWaiter(t *testing.T, pool interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}) {
+	t.Helper()
+	waitCtx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	for {
+		var waiting bool
+		if err := pool.QueryRow(waitCtx, `
+			SELECT EXISTS (
+				SELECT 1 FROM pg_locks
+				WHERE locktype='advisory' AND NOT granted
+			)
+		`).Scan(&waiting); err != nil {
+			t.Fatal(err)
+		}
+		if waiting {
+			return
+		}
+		select {
+		case <-waitCtx.Done():
+			t.Fatal("timed out waiting for projection fence contention")
+		case <-time.After(5 * time.Millisecond):
+		}
 	}
 }
 
