@@ -13,6 +13,8 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+
+	"social.craftsky/appview/internal/buildinfo"
 )
 
 // envFlag is the value of --env for the current invocation, populated
@@ -20,8 +22,9 @@ import (
 var envFlag string
 
 var rootCmd = &cobra.Command{
-	Use:   "cli",
-	Short: "Craftsky App View ops and smoke-test CLI",
+	Use:     "cli",
+	Short:   "Craftsky App View ops and smoke-test CLI",
+	Version: buildinfo.Version(),
 	Long: `cli is a companion tool to the appview server. It provides:
   * migrate — apply or inspect database migrations
   * ping    — check DB connectivity

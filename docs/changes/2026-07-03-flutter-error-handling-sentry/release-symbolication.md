@@ -10,6 +10,10 @@ export SENTRY_ORG=...
 export SENTRY_PROJECT=...
 ```
 
+Create the local app release commit and `app-vX.Y.Z+N` tag before building store
+artifacts. See [`../../operations/releases.md`](../../operations/releases.md)
+for the explicit version, changelog, build, and push sequence.
+
 Android release build and symbol upload:
 
 ```sh
@@ -22,15 +26,22 @@ iOS release build and symbol upload:
 just app-build-ipa production
 ```
 
-The APK and unsigned iOS smoke-build variants (`app-build-apk` and
-`app-build-ios`) use the same fail-closed Sentry checks and upload flow. The
+The production IPA, APK, and app-bundle recipes first require clean `main` at the
+matching annotated app tag and run Flutter analysis and tests. The unsigned iOS
+variant (`app-build-ios`) remains a smoke build, not a releasable artifact. The
 selected `app/config/<environment>.env` must contain a non-empty `SENTRY_DSN`
 and enable Sentry for that environment. `SENTRY_RELEASE` and `SENTRY_DIST`, when
 set there, are also used for the upload.
 
 Internally, the recipes build with `--obfuscate`, `--split-debug-info`, and an
 obfuscation map, then run `dart run sentry_dart_plugin` against those exact
-artifacts. Web source-map upload is disabled for these mobile-only builds.
+artifacts. Web source-map upload is disabled for these mobile-only builds. After
+upload, releasable recipes print the artifact SHA-256 and matching symbol paths;
+retain those values with the release record. The releasable artifacts are
+`app/build/ios/ipa/*.ipa` and
+`app/build/app/outputs/bundle/release/app-release.aab`; matching debug data is
+under `app/build/debug-info/<target>` and
+`app/build/app/obfuscation-<target>.map.json`.
 
 Web release smoke build:
 

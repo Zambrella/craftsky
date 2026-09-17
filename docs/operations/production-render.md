@@ -92,8 +92,10 @@ shell history, issue, chat message, CI log, or repository file.
 
 AppView sends production errors, safe logs, sampled traces, and metrics to the
 configured Sentry project. The DSN and conservative sample rates are declared in
-`render.yaml`. `SENTRY_RELEASE` may override the release identifier; when it is
-omitted on Render, AppView uses the platform-provided `RENDER_GIT_COMMIT` SHA.
+`render.yaml`. Production builds embed `appview/VERSION` and normally report
+`craftsky-appview@X.Y.Z` as their Sentry release. `SENTRY_RELEASE` may override
+that identifier. Unversioned development builds fall back to the
+platform-provided `RENDER_GIT_COMMIT` SHA.
 An invalid configured Sentry client fails dependency construction instead of
 silently disabling production reporting.
 
@@ -154,29 +156,31 @@ Render health probes use a verified custom domain as their `Host`. Before DNS is
 verified, AppView permits only `/health` to bypass canonical Host enforcement;
 OAuth and `/v1/*` remain unavailable through alternate authorities.
 
-## CI/CD setup
+## Pull-request checks
 
-Create a GitHub environment named `production`. Add these environment secrets:
+GitHub Actions tests pull requests only. The `Pull Request Checks` workflow
+classifies changed paths, runs the release-equivalent AppView gate for backend
+changes, runs Flutter analysis and tests for app changes, and lints changed
+workflow files. Configure repository rulesets as follows:
 
-- `RENDER_API_KEY`: a non-expiring Render API key scoped to the operator.
-- `RENDER_SERVICE_ID`: the `srv-...` ID of `craftsky-appview`.
+- `main`: require pull requests and the stable `PR checks` result; block
+  force-pushes and deletion. The maintainer needs the existing release bypass to
+  push the local version/changelog commit.
+- `prod-v*`: restrict creation to the release maintainer and block
+  update/deletion.
+- `app-v*`: restrict creation to the release maintainer and block
+  update/deletion.
 
-Require an environment reviewer for initial releases. Add repository rulesets:
-
-- `main`: require pull requests and the `AppView release gate` check; block
-  force-pushes and deletion.
-- `prod-v*`: restrict creation to release maintainers and block update/deletion.
-
-`Backend CI` runs the release-equivalent AppView gate for relevant pull requests
-and pushes to `main`, and lints the GitHub Actions workflows. Flutter and the
-standalone Instagram importer are separate artifacts and retain their own manual
-release checks.
+GitHub does not build releases, hold Render deployment credentials, or deploy
+production. Export `RENDER_API_KEY` and `RENDER_SERVICE_ID` only in the local
+operator environment immediately before a deployment. Do not store either value
+in this repository or shell history.
 
 ## Release
 
 Production has two authorized change paths. Routine application releases use
 immutable `prod-v*` tags. Infrastructure changes use a reviewed manual Blueprint
-sync after the required `AppView release gate` passes on the current `main` tip.
+sync after the required `PR checks` status passes on the current `main` tip.
 Before a sync, run `render blueprints validate`, review the planned actions, and
 afterward wait for every affected resource to become healthy. A manual sync can
 redeploy affected services from `main`; treat and record it as a production
@@ -189,23 +193,43 @@ creating the application release tag. Record the Blueprint sync and resulting
 resource configuration in the release notes.
 
 Outside reviewed Blueprint synchronization, only a strict semantic production
-tag at the current remote `main` tip deploys the AppView application commit:
+tag on remote `main` deploys the AppView application commit. Create the local
+version/changelog commit and annotated tag. Changelog bullets are generated from
+relevant non-merge commit subjects since the previous tag:
 
 ```sh
 git switch main
 git pull --ff-only origin main
-git tag -a prod-v0.1.0 -m "Production v0.1.0"
-git push origin prod-v0.1.0
+just release-create-appview 1.0.4
 ```
 
-The workflow retests that exact commit, deploys that SHA through Render's public
-HTTP API, waits for a terminal result, and polls bounded public health checks
-until PostgreSQL and Tap are healthy. Blueprint validation remains part of the
-separate reviewed infrastructure-sync path because an application release does
-not synchronize `render.yaml`. Render auto-deploy is off.
+Pass a Markdown notes file as the optional second argument when curated wording
+should replace generated notes.
 
-Record the tag, commit SHA, Render deploy ID, migration version, and health-check
-results in the release notes.
+Test that exact local release commit, then atomically push the release commit and
+tag:
+
+```sh
+just appview-check
+just release-push appview prod-v1.0.4
+```
+
+Deploy from the local operator environment:
+
+```sh
+export RENDER_API_KEY=...
+export RENDER_SERVICE_ID=...
+just appview-deploy prod-v1.0.4
+```
+
+The local deploy script resolves the pushed tag, deploys that exact SHA through
+Render's public HTTP API, waits for a terminal result, and polls bounded public
+health checks until PostgreSQL and Tap are healthy. Record its tag, commit SHA,
+Render deploy ID, target migration, and health output. Blueprint validation
+remains part of the separate reviewed infrastructure-sync path because an
+application release does not synchronize `render.yaml`. Render auto-deploy is
+off. See [`releases.md`](releases.md) for version, changelog, build, and retry
+rules.
 
 ## Post-deploy checks
 
@@ -240,7 +264,7 @@ Install the store-signed Android and iOS builds on physical devices, grant
 notification permission, and confirm each device registers through
 `POST /v1/notifications/devices`. Generate a real eligible notification from a
 second account and verify foreground, background, and terminated delivery. Check
-Sentry for the AppView release SHA, production environment, sampled request and
+Sentry for the semantic AppView release `craftsky-appview@X.Y.Z`, production environment, sampled request and
 Tap traces, push metrics, and safe push completion logs without device tokens or
 other private identifiers.
 

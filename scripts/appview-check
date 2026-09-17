@@ -215,6 +215,19 @@ docker create --name "$extract_container" "$gate_image" >/dev/null
 docker cp "$extract_container:/app/appview" "$artifact_dir/appview"
 docker cp "$extract_container:/app/cli" "$artifact_dir/cli"
 docker rm "$extract_container" >/dev/null
+expected_version=$(tr -d '\n' <appview/VERSION)
+appview_version=$(docker run --rm --entrypoint /app/appview "$gate_image" version)
+cli_version=$(docker run --rm --entrypoint /app/cli "$gate_image" --version)
+[[ "$appview_version" == "$expected_version" ]] || {
+  echo "appview-check: production AppView reports $appview_version, expected $expected_version" >&2
+  exit 1
+}
+[[ "$cli_version" == "cli version $expected_version" ]] || {
+  echo "appview-check: production CLI reports $cli_version, expected cli version $expected_version" >&2
+  exit 1
+}
+printf '%s\n' "$appview_version" >"$artifact_dir/appview-version.txt"
+printf '%s\n' "$cli_version" >"$artifact_dir/cli-version.txt"
 go version -m "$artifact_dir/appview" >"$artifact_dir/appview-build-info.txt"
 go version -m "$artifact_dir/cli" >"$artifact_dir/cli-build-info.txt"
 cp "$artifact_dir/audit-evidence/appview-deps.txt" "$artifact_dir/appview-deps.txt"

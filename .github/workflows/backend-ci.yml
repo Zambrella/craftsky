@@ -1,26 +1,73 @@
-name: Backend CI
+name: Pull Request Checks
 
 on:
   pull_request:
-    branches: [main]
-  push:
     branches: [main]
 
 permissions:
   contents: read
 
 concurrency:
-  group: backend-ci-${{ github.ref }}
+  group: pull-request-checks-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
-  appview-release-gate:
+  changes:
+    name: Classify changed paths
+    runs-on: ubuntu-24.04
+    outputs:
+      appview: ${{ steps.paths.outputs.appview }}
+      app: ${{ steps.paths.outputs.app }}
+      workflows: ${{ steps.paths.outputs.workflows }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Classify paths
+        id: paths
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          appview=false
+          app=false
+          workflows=false
+          while IFS= read -r path; do
+            case "$path" in
+              appview/*|lexicon/*|scripts/app-release-preflight|scripts/appview-check|scripts/appview-check-*|scripts/appview-deploy|scripts/release|docker-compose.yml|docker-compose.push.yml|render.yaml|.github/workflows/*)
+                appview=true
+                ;;
+            esac
+            case "$path" in
+              app/*|scripts/app-release-preflight|scripts/release|.github/workflows/*)
+                app=true
+                ;;
+            esac
+            case "$path" in
+              .github/workflows/*)
+                workflows=true
+                ;;
+            esac
+            if [[ "$path" == justfile ]]; then
+              appview=true
+              app=true
+            fi
+          done < <(git diff --name-only "$BASE_SHA...HEAD")
+          printf 'appview=%s\napp=%s\nworkflows=%s\n' \
+            "$appview" "$app" "$workflows" >>"$GITHUB_OUTPUT"
+
+  appview:
     name: AppView release gate
+    needs: changes
+    if: needs.changes.outputs.appview == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
       - name: Check out repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
         with:
           fetch-depth: 0
 
@@ -32,9 +79,6 @@ jobs:
 
       - name: Install release-gate tools
         run: sudo apt-get update && sudo apt-get install --yes just ripgrep
-
-      - name: Lint GitHub Actions workflows
-        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
 
       - name: Run AppView release gate
         env:
@@ -50,3 +94,70 @@ jobs:
           path: ${{ runner.temp }}/appview-check
           if-no-files-found: warn
           retention-days: 14
+
+  app:
+    name: Flutter checks
+    needs: changes
+    if: needs.changes.outputs.app == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          channel: stable
+          flutter-version: 3.44.9
+          cache: true
+          pub-cache: true
+
+      - name: Resolve dependencies
+        working-directory: app
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: app
+        run: flutter analyze
+
+      - name: Test
+        working-directory: app
+        run: flutter test
+
+  workflow-lint:
+    name: Workflow lint
+    needs: changes
+    if: needs.changes.outputs.workflows == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5.0.1
+
+      - name: Set up Go
+        uses: actions/setup-go@44694675825211faa026b3c33043df3e48a5fa00 # v6.0.0
+        with:
+          go-version: 1.27.1
+
+      - name: Lint workflows
+        run: go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+
+  required:
+    name: PR checks
+    if: always()
+    needs: [changes, appview, app, workflow-lint]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require applicable checks
+        env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          APPVIEW_RESULT: ${{ needs.appview.result }}
+          APP_RESULT: ${{ needs.app.result }}
+          WORKFLOW_RESULT: ${{ needs.workflow-lint.result }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$CHANGES_RESULT" == success ]]
+          for result in "$APPVIEW_RESULT" "$APP_RESULT" "$WORKFLOW_RESULT"; do
+            [[ "$result" == success || "$result" == skipped ]]
+          done

@@ -98,6 +98,38 @@ func TestReleaseGatesUseFixturesInsteadOfLiveBluesky(t *testing.T) {
 	)
 }
 
+func TestLocalReleaseAndVersionWiringIsPresent(t *testing.T) {
+	repositoryRoot := filepath.Clean(filepath.Join("..", "..", ".."))
+	assertFileContains(t, filepath.Join(repositoryRoot, "scripts", "release"),
+		"create_release",
+		"push_release",
+		"git push --atomic",
+		"appview/CHANGELOG.md",
+		"app/CHANGELOG.md",
+	)
+	assertFileContains(t, filepath.Join(repositoryRoot, "justfile"),
+		"release-create-appview VERSION NOTES=\"\":",
+		"release-create-app VERSION NOTES=\"\":",
+		"release-push STREAM TAG:",
+		"appview-deploy TAG:",
+	)
+	assertFileContains(t, filepath.Join(repositoryRoot, "scripts", "appview-deploy"),
+		"RENDER_API_KEY",
+		"commitId",
+		"tap.connected",
+	)
+	assertFileContains(t, filepath.Join(repositoryRoot, ".github", "workflows", "backend-ci.yml"),
+		"pull_request:",
+		"name: PR checks",
+		"flutter analyze",
+		"./scripts/appview-check",
+	)
+	assertFileContains(t, filepath.Join(repositoryRoot, "appview", "Dockerfile"),
+		"internal/buildinfo.version",
+		"grep -Eq '^(0|[1-9][0-9]*)",
+	)
+}
+
 func inventoryDiff(want, got map[string]int) string {
 	keys := make(map[string]struct{}, len(want)+len(got))
 	for key := range want {

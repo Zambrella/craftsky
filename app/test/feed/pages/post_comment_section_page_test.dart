@@ -16,6 +16,7 @@ import 'package:craftsky_app/shared/rich_text/data/mock_facet_suggestion_reposit
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
+import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
@@ -850,7 +851,10 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('threadStickyReplyPrompt')));
     await tester.pumpAndSettle();
-    expect(find.text('Write your comment'), findsOneWidget);
+    final commentField = tester.widget<BrandTextField>(
+      find.byType(BrandTextField),
+    );
+    expect(commentField.label, 'Write your comment');
     await tester.enterText(find.byType(TextField), 'created comment');
     await tester.pump();
     await tester.tap(find.widgetWithText(ChunkyButton, 'Comment'));
