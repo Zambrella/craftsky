@@ -11,6 +11,34 @@ worktree BRANCH *ARGS:
 worktree-cleanup *ARGS:
     ./scripts/worktree-cleanup {{ARGS}}
 
+# Create a local AppView release commit and tag, optionally overriding generated notes.
+release-create-appview VERSION NOTES="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    version={{ quote(VERSION) }}
+    notes={{ quote(NOTES) }}
+    args=(create appview --version "$version")
+    [[ -z "$notes" ]] || args+=(--notes "$notes")
+    ./scripts/release "${args[@]}"
+
+# Create a local app release commit and tag, optionally overriding generated notes.
+release-create-app VERSION NOTES="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    version={{ quote(VERSION) }}
+    notes={{ quote(NOTES) }}
+    args=(create app --version "$version")
+    [[ -z "$notes" ]] || args+=(--notes "$notes")
+    ./scripts/release "${args[@]}"
+
+# Atomically push one local release commit and tag.
+release-push STREAM TAG:
+    ./scripts/release push {{ quote(STREAM) }} {{ quote(TAG) }}
+
+# Deploy one already-pushed AppView tag to Render and verify public health.
+appview-deploy TAG:
+    ./scripts/appview-deploy {{ quote(TAG) }}
+
 # Start the full compose stack in the foreground.
 dev:
     ./scripts/compose-dev up --build
@@ -353,7 +381,8 @@ importer-test-e2e *ARGS:
 app-build-web ENV="production":
     #!/usr/bin/env bash
     set -euo pipefail
-    config="config/{{ENV}}.env"
+    environment={{ quote(ENV) }}
+    config="config/${environment}.env"
     test -f "app/$config" || { echo "Missing app/$config. Copy app/$config.example first."; exit 1; }
     cd app
     flutter build web --dart-define-from-file="$config"
@@ -362,8 +391,13 @@ app-build-web ENV="production":
 _app-build-mobile TARGET ENV:
     #!/usr/bin/env bash
     set -euo pipefail
-    config="config/{{ENV}}.env"
+    target={{ quote(TARGET) }}
+    environment={{ quote(ENV) }}
+    config="config/${environment}.env"
     test -f "app/$config" || { echo "Missing app/$config. Copy app/$config.example first."; exit 1; }
+    if [[ "$environment" == "production" && "$target" != "ios" ]]; then
+        ./scripts/app-release-preflight "$target" "app/$config"
+    fi
     cd app
 
     config_value() {
@@ -395,17 +429,17 @@ _app-build-mobile TARGET ENV:
     [[ -z "$sentry_release" ]] || export SENTRY_RELEASE="$sentry_release"
     [[ -z "$sentry_dist" ]] || export SENTRY_DIST="$sentry_dist"
 
-    symbols_dir="build/debug-info/{{TARGET}}"
-    symbol_map="build/app/obfuscation-{{TARGET}}.map.json"
+    symbols_dir="build/debug-info/${target}"
+    symbol_map="build/app/obfuscation-${target}.map.json"
     rm -rf "$symbols_dir" "$symbol_map"
     build_args=(
-        flutter build "{{TARGET}}" --release
+        flutter build "$target" --release
         --dart-define-from-file="$config"
         --obfuscate
         --split-debug-info="$symbols_dir"
         --extra-gen-snapshot-options="--save-obfuscation-map=$symbol_map"
     )
-    if [[ "{{TARGET}}" == "ios" ]]; then
+    if [[ "$target" == "ios" ]]; then
         build_args+=(--no-codesign)
     fi
     "${build_args[@]}"
@@ -416,14 +450,27 @@ _app-build-mobile TARGET ENV:
         --sentry-define=upload_source_maps=false \
         --sentry-define=wait_for_processing=true
 
+    case "$target" in
+        ipa) artifact=$(printf '%s\n' build/ios/ipa/*.ipa) ;;
+        appbundle) artifact=build/app/outputs/bundle/release/app-release.aab ;;
+        apk) artifact=build/app/outputs/flutter-apk/app-release.apk ;;
+        *) artifact="" ;;
+    esac
+    if [[ -n "$artifact" ]]; then
+        test -f "$artifact" || { echo "Expected release artifact not found: $artifact" >&2; exit 1; }
+        shasum -a 256 "$artifact"
+        echo "Debug symbols: app/$symbols_dir"
+        echo "Obfuscation map: app/$symbol_map"
+    fi
+
 app-build-ios ENV="production":
-    just _app-build-mobile ios "{{ENV}}"
+    just _app-build-mobile ios {{ quote(ENV) }}
 
 app-build-ipa ENV="production":
-    just _app-build-mobile ipa "{{ENV}}"
+    just _app-build-mobile ipa {{ quote(ENV) }}
 
 app-build-apk ENV="production":
-    just _app-build-mobile apk "{{ENV}}"
+    just _app-build-mobile apk {{ quote(ENV) }}
 
 app-build-appbundle ENV="production":
-    just _app-build-mobile appbundle "{{ENV}}"
+    just _app-build-mobile appbundle {{ quote(ENV) }}

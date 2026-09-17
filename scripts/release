@@ -1,0 +1,335 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  scripts/release create <appview|app> --version VERSION [--notes PATH]
+  scripts/release push <appview|app> TAG
+USAGE
+}
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
+}
+
+repo_root() {
+  git rev-parse --show-toplevel 2>/dev/null || die "not inside a Git repository"
+}
+
+validate_stream() {
+  [[ "$1" == appview || "$1" == app ]] || die "unknown release stream: $1"
+}
+
+validate_semver() {
+  [[ "$1" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+}
+
+validate_app_version() {
+  [[ "$1" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\+(0|[1-9][0-9]*)$ ]]
+}
+
+split_semver() {
+  validate_semver "$1" || die "invalid semantic version: $1"
+  SEMVER_MAJOR=${BASH_REMATCH[1]}
+  SEMVER_MINOR=${BASH_REMATCH[2]}
+  SEMVER_PATCH=${BASH_REMATCH[3]}
+}
+
+split_app_version() {
+  validate_app_version "$1" || die "invalid app version: $1"
+  APP_MAJOR=${BASH_REMATCH[1]}
+  APP_MINOR=${BASH_REMATCH[2]}
+  APP_PATCH=${BASH_REMATCH[3]}
+  APP_BUILD=${BASH_REMATCH[4]}
+}
+
+semver_greater() {
+  local left=$1 right=$2
+  split_semver "$left"
+  local left_major=$SEMVER_MAJOR left_minor=$SEMVER_MINOR left_patch=$SEMVER_PATCH
+  split_semver "$right"
+  decimal_greater "$left_major" "$SEMVER_MAJOR" && return 0
+  [[ "$left_major" == "$SEMVER_MAJOR" ]] || return 1
+  decimal_greater "$left_minor" "$SEMVER_MINOR" && return 0
+  [[ "$left_minor" == "$SEMVER_MINOR" ]] || return 1
+  decimal_greater "$left_patch" "$SEMVER_PATCH"
+}
+
+decimal_greater() {
+  local left=$1 right=$2
+  (( ${#left} > ${#right} )) && return 0
+  (( ${#left} < ${#right} )) && return 1
+  [[ "$left" > "$right" ]]
+}
+
+app_version_greater() {
+  local left=$1 right=$2
+  split_app_version "$left"
+  local left_marketing="$APP_MAJOR.$APP_MINOR.$APP_PATCH" left_build=$APP_BUILD
+  split_app_version "$right"
+  local right_marketing="$APP_MAJOR.$APP_MINOR.$APP_PATCH" right_build=$APP_BUILD
+  semver_greater "$left_marketing" "$right_marketing" || return 1
+  decimal_greater "$left_build" "$right_build"
+}
+
+stream_tag_version() {
+  local stream=$1 tag=$2 value
+  case "$stream" in
+    appview)
+      [[ "$tag" =~ ^prod-v(.+)$ ]] || return 1
+      value=${BASH_REMATCH[1]}
+      validate_semver "$value" || return 1
+      ;;
+    app)
+      [[ "$tag" =~ ^app-v(.+)$ ]] || return 1
+      value=${BASH_REMATCH[1]}
+      validate_app_version "$value" || return 1
+      ;;
+  esac
+  printf '%s\n' "$value"
+}
+
+read_version() {
+  local stream=$1 value count
+  if [[ "$stream" == appview ]]; then
+    [[ -f appview/VERSION ]] || die "appview/VERSION is missing"
+    value=$(tr -d '\n' <appview/VERSION)
+    validate_semver "$value" || die "invalid appview/VERSION: $value"
+  else
+    count=$(grep -Ec '^version: ' app/pubspec.yaml)
+    [[ "$count" == 1 ]] || die "expected exactly one top-level version in app/pubspec.yaml"
+    value=$(grep -E '^version: ' app/pubspec.yaml | cut -d' ' -f2-)
+    validate_app_version "$value" || die "invalid app/pubspec.yaml version: $value"
+  fi
+  printf '%s\n' "$value"
+}
+
+latest_stream_tag() {
+  local stream=$1 best_tag="" best_version="" tag version
+  while IFS= read -r tag; do
+    version=$(stream_tag_version "$stream" "$tag" 2>/dev/null) || continue
+    if [[ -z "$best_version" ]]; then
+      best_tag=$tag
+      best_version=$version
+    elif [[ "$stream" == appview ]] && semver_greater "$version" "$best_version"; then
+      best_tag=$tag
+      best_version=$version
+    elif [[ "$stream" == app ]] && app_version_greater "$version" "$best_version"; then
+      best_tag=$tag
+      best_version=$version
+    fi
+  done < <(git for-each-ref --format='%(refname:strip=2)' refs/tags)
+  printf '%s\n' "$best_tag"
+}
+
+generate_notes() {
+  local stream=$1 previous_tag=$2
+  local -a paths
+  if [[ "$stream" == appview ]]; then
+    paths=(
+      appview
+      lexicon
+      'scripts/appview-check*'
+      scripts/appview-deploy
+      scripts/release
+      docker-compose.yml
+      docker-compose.push.yml
+      render.yaml
+      justfile
+    )
+  else
+    paths=(app scripts/app-release-preflight scripts/release justfile)
+  fi
+  git log --reverse --no-merges --format='- %s' "$previous_tag..HEAD" -- "${paths[@]}"
+}
+
+require_main() {
+  [[ $(git branch --show-current) == main ]] || die "release commands require main"
+}
+
+require_clean() {
+  [[ -z $(git status --porcelain) ]] || die "working tree must be clean"
+}
+
+fetch_release_refs() {
+  git fetch origin '+refs/heads/main:refs/remotes/origin/main'
+  git fetch origin --tags
+}
+
+write_version() {
+  local stream=$1 version=$2 tmp
+  if [[ "$stream" == appview ]]; then
+    tmp=$(mktemp appview/.VERSION.XXXXXX)
+    printf '%s\n' "$version" >"$tmp"
+    mv "$tmp" appview/VERSION
+  else
+    tmp=$(mktemp app/.pubspec.XXXXXX)
+    awk -v version="$version" '/^version: / { print "version: " version; next } { print }' app/pubspec.yaml >"$tmp"
+    mv "$tmp" app/pubspec.yaml
+  fi
+}
+
+prepend_changelog() {
+  local changelog=$1 title=$2 version=$3 notes=$4 release_date=$5 tmp
+  tmp=$(mktemp "$(dirname "$changelog")/.CHANGELOG.XXXXXX")
+  {
+    printf '# %s\n\n' "$title"
+    printf '## %s - %s\n\n' "$version" "$release_date"
+    cat "$notes"
+    [[ $(tail -c 1 "$notes" 2>/dev/null || true) == "" ]] || printf '\n'
+    printf '\n'
+    if [[ -f "$changelog" ]]; then
+      awk 'NR > 2' "$changelog"
+    else
+      printf 'Release history before local release automation is represented by Git tags.\n'
+    fi
+  } >"$tmp"
+  mv "$tmp" "$changelog"
+}
+
+create_release() {
+  local stream=$1 version="" notes="" current latest previous_tag tag version_path changelog title commit_name release_date generated_notes
+  shift
+  validate_stream "$stream"
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --version) [[ $# -ge 2 ]] || die "--version requires a value"; version=$2; shift 2 ;;
+      --notes) [[ $# -ge 2 ]] || die "--notes requires a path"; notes=$2; shift 2 ;;
+      *) die "unknown create argument: $1" ;;
+    esac
+  done
+  [[ -n "$version" ]] || die "--version is required"
+  if [[ -n "$notes" ]]; then
+    [[ -f "$notes" && -r "$notes" && -s "$notes" ]] || die "--notes must name a nonempty readable file"
+  fi
+
+  require_main
+  require_clean
+  fetch_release_refs
+  [[ $(git rev-parse HEAD) == $(git rev-parse origin/main) ]] || die "local main is not the current origin/main"
+
+  current=$(read_version "$stream")
+  if [[ "$stream" == appview ]]; then
+    validate_semver "$version" || die "invalid AppView version: $version"
+    tag="prod-v$version"
+    version_path=appview/VERSION
+    changelog=appview/CHANGELOG.md
+    title="AppView Changelog"
+    commit_name="AppView $version"
+  else
+    validate_app_version "$version" || die "invalid app version: $version"
+    tag="app-v$version"
+    version_path=app/pubspec.yaml
+    changelog=app/CHANGELOG.md
+    title="App Changelog"
+    commit_name="app $version"
+  fi
+  git show-ref --verify --quiet "refs/tags/$tag" && die "local tag already exists: $tag"
+  [[ -z $(git ls-remote --tags origin "refs/tags/$tag") ]] || die "remote tag already exists: $tag"
+  previous_tag=$(latest_stream_tag "$stream")
+  if [[ -n "$previous_tag" ]]; then
+    latest=$(stream_tag_version "$stream" "$previous_tag")
+  else
+    latest=$current
+  fi
+  if [[ "$stream" == appview ]]; then
+    semver_greater "$version" "$latest" || die "AppView version must be greater than $latest"
+  else
+    app_version_greater "$version" "$latest" || die "app version and build number must be greater than $latest"
+  fi
+
+  if [[ -z "$notes" ]]; then
+    [[ -n "$previous_tag" ]] || die "no prior $stream release tag; provide --notes"
+    generated_notes=$(generate_notes "$stream" "$previous_tag")
+    [[ -n "$generated_notes" ]] || die "no relevant commits since $previous_tag; provide --notes"
+    notes=$(mktemp "${TMPDIR:-/tmp}/craftsky-release-notes.XXXXXX")
+    printf '%s\n' "$generated_notes" >"$notes"
+  fi
+
+  release_date=${RELEASE_DATE:-$(date +%F)}
+  [[ "$release_date" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]] || die "invalid release date: $release_date"
+  write_version "$stream" "$version"
+  prepend_changelog "$changelog" "$title" "$version" "$notes" "$release_date"
+  [[ -z "$generated_notes" ]] || rm -f "$notes"
+  git diff -- "$version_path" "$changelog"
+  git add -- "$version_path" "$changelog"
+  git commit -m "chore(release): $commit_name"
+  git tag -a "$tag" -m "$commit_name"
+  printf 'Created local release %s at %s. Build and verify it before running release push.\n' "$tag" "$(git rev-parse HEAD)"
+}
+
+push_release() {
+  local stream=$1 tag=$2 expected version version_path changelog parent_count response release_commit tag_object expected_files actual_files
+  validate_stream "$stream"
+  expected=$(stream_tag_version "$stream" "$tag") || die "invalid $stream release tag: $tag"
+  require_main
+  require_clean
+  fetch_release_refs
+  git show-ref --verify --quiet "refs/tags/$tag" || die "local tag not found: $tag"
+  [[ $(git cat-file -t "refs/tags/$tag") == tag ]] || die "release tag must be annotated: $tag"
+  [[ $(git rev-parse "$tag^{commit}") == $(git rev-parse HEAD) ]] || die "$tag does not point to current main"
+  version=$(read_version "$stream")
+  [[ "$version" == "$expected" ]] || die "$tag does not match the configured version $version"
+  if [[ "$stream" == appview ]]; then
+    version_path=appview/VERSION
+    changelog=appview/CHANGELOG.md
+  else
+    version_path=app/pubspec.yaml
+    changelog=app/CHANGELOG.md
+  fi
+  grep -Fq "## $version - " "$changelog" || die "$changelog has no release section for $version"
+  expected_files=$(printf '%s\n%s\n' "$changelog" "$version_path" | sort)
+  actual_files=$(git diff-tree --no-commit-id --name-only -r HEAD | sort)
+  [[ "$actual_files" == "$expected_files" ]] || die "release commit must change only $version_path and $changelog"
+  parent_count=$(git rev-list --parents -n 1 HEAD | awk '{print NF - 1}')
+  [[ "$parent_count" == 1 ]] || die "release commit must have exactly one parent"
+  [[ $(git rev-parse HEAD^) == $(git rev-parse origin/main) ]] || die "release commit is not exactly one commit ahead of origin/main"
+  [[ -z $(git ls-remote --tags origin "refs/tags/$tag") ]] || die "remote tag already exists: $tag"
+  release_commit=$(git rev-parse HEAD)
+  tag_object=$(git rev-parse "refs/tags/$tag")
+
+  printf 'Push release commit %s and tag %s atomically? [y/N] ' "$release_commit" "$tag" >&2
+  read -r response
+  [[ "$response" == y || "$response" == Y ]] || die "release push cancelled"
+  fetch_release_refs
+  require_main
+  require_clean
+  [[ $(git rev-parse HEAD) == "$release_commit" ]] || die "HEAD changed while awaiting confirmation"
+  [[ $(git rev-parse "refs/tags/$tag") == "$tag_object" ]] || die "$tag moved while awaiting confirmation"
+  [[ $(git rev-parse "$tag^{commit}") == "$release_commit" ]] || die "$tag no longer points to the release commit"
+  [[ $(read_version "$stream") == "$expected" ]] || die "$tag no longer matches the configured version"
+  grep -Fq "## $expected - " "$changelog" || die "$changelog no longer has a release section for $expected"
+  actual_files=$(git diff-tree --no-commit-id --name-only -r "$release_commit" | sort)
+  [[ "$actual_files" == "$expected_files" ]] || die "release commit changed while awaiting confirmation"
+  [[ $(git rev-parse HEAD^) == $(git rev-parse origin/main) ]] || die "origin/main changed while awaiting confirmation"
+  [[ -z $(git ls-remote --tags origin "refs/tags/$tag") ]] || die "remote tag appeared while awaiting confirmation: $tag"
+  git push --atomic origin "$release_commit:refs/heads/main" "$tag_object:refs/tags/$tag"
+}
+
+main() {
+  [[ $# -gt 0 ]] || { usage; exit 2; }
+  require_command git
+  cd "$(repo_root)"
+  local command=$1
+  shift
+  case "$command" in
+    create)
+      [[ $# -ge 1 ]] || die "create requires a stream"
+      create_release "$@"
+      ;;
+    push)
+      [[ $# == 2 ]] || die "push requires a stream and tag"
+      push_release "$@"
+      ;;
+    -h|--help|help) usage ;;
+    *) die "unknown command: $command" ;;
+  esac
+}
+
+main "$@"

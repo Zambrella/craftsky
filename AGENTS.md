@@ -37,7 +37,7 @@ Basic production configuration:
 - AppView uses the direct internal PostgreSQL URL. Do not switch it to transaction-mode PgBouncer; owner lifecycle fencing relies on session advisory locks.
 - AppView's 1 GB disk at `/var/lib/craftsky-deploy-serialization` must remain empty. It exists only to prevent overlapping singleton deployments.
 - Service auto-deploy and Blueprint Auto Sync are disabled. Infrastructure changes require a reviewed manual Blueprint sync.
-- Routine application releases use immutable `prod-vX.Y.Z` tags at the current `main` tip. `.github/workflows/deploy-production.yml` retests the exact commit, triggers the Render deploy, verifies the deployed commit, and checks public health. Do not bypass this path with a manual Render deploy except for an explicit rollback or incident response.
+- Routine application releases are created and deployed from the maintainer's local machine. `scripts/release` creates the version/changelog commit and immutable `prod-vX.Y.Z` tag; `scripts/appview-deploy` deploys that exact pushed tag and verifies public health. The tag must equal the semantic version embedded from `appview/VERSION`.
 - The pre-deploy command validates production dependencies before applying migrations: `/app/cli --env prod ping && /app/cli --env prod migrate up`.
 
 When using the Render MCP tools:
@@ -46,13 +46,13 @@ When using the Render MCP tools:
 2. Discover resource IDs with `list_services` and `list_postgres_instances`; match the checked-in names above. Do not commit Render resource IDs, API keys, connection strings, or secrets.
 3. Prefer read-only inspection first: `get_service`, `list_deploys`, `get_deploy`, `list_logs`, `get_metrics`, and read-only `query_render_postgres`.
 4. Treat environment updates, deploy triggers, and resource creation as production mutations. Perform them only when explicitly requested and after confirming the resource and workspace.
-5. Do not trigger a Render deploy after pushing a production tag; the GitHub production workflow is responsible for the exact-commit deployment. Use `trigger_deploy` only for an explicitly requested manual redeploy/rollback when the normal tagged path is unsuitable.
+5. Do not trigger a routine Render deploy through MCP after pushing a production tag; use the checked-in local `scripts/appview-deploy` path. Use `trigger_deploy` only for an explicitly requested manual redeploy or rollback when the normal exact-tag path is unsuitable.
 
 For the Render CLI, run commands from the repository root. `render blueprints validate` must report `valid: true` before a reviewed Blueprint sync. Use CLI discovery (`render --help` and subcommand help) rather than assuming command syntax, and never place Render credentials in repository files or command output. See the production runbook for secrets, DNS, post-deploy checks, rollback, PostgreSQL recovery, and Tap recovery.
 
 ## Pull Requests
 
-Use [`.github/pull_request_template.md`](.github/pull_request_template.md) for every PR. Keep the summary short, list the tests run, call out API or lexicon impact explicitly, and include screenshots or recordings for UI changes.
+Use [`.github/pull_request_template.md`](.github/pull_request_template.md) for every PR. Keep the summary short, list the tests run, call out API or lexicon impact explicitly, and include screenshots or recordings for UI changes. GitHub Actions runs path-aware tests only for pull requests. Releases, builds, tags, and production deployments are local maintainer operations documented in [`docs/operations/releases.md`](docs/operations/releases.md).
 
 ## Repository Layout
 

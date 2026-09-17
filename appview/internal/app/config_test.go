@@ -482,6 +482,24 @@ func TestLoadConfig_ObservabilityDefaultsAndValidation(t *testing.T) {
 		}
 	})
 
+	t.Run("embedded semantic version overrides the render commit", func(t *testing.T) {
+		if got := sentryRelease("", "craftsky-appview@1.0.3", "abc123"); got != "craftsky-appview@1.0.3" {
+			t.Fatalf("sentryRelease = %q, want embedded release", got)
+		}
+	})
+
+	t.Run("render commit remains the fallback for an unversioned build", func(t *testing.T) {
+		if got := sentryRelease("", "", "abc123"); got != "abc123" {
+			t.Fatalf("sentryRelease = %q, want Render commit", got)
+		}
+	})
+
+	t.Run("explicit release overrides embedded semantic version", func(t *testing.T) {
+		if got := sentryRelease("appview-v1", "craftsky-appview@1.0.3", "abc123"); got != "appview-v1" {
+			t.Fatalf("sentryRelease = %q, want explicit release", got)
+		}
+	})
+
 	t.Run("explicit release overrides the render commit", func(t *testing.T) {
 		path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\nSENTRY_DSN=https://public@example.invalid/1\nSENTRY_RELEASE=appview-v1\nRENDER_GIT_COMMIT=abc123\n")
 		cfg, err := LoadConfig(EnvDev, path)

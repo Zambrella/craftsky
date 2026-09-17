@@ -97,6 +97,38 @@ func TestReleaseGatesUseFixturesInsteadOfLiveBluesky(t *testing.T) {
 	assertFederatedFixtureIsHermetic(t, filepath.Join(filepath.Dir(sourceFile), "federated_real_flow_fixture_test.go"))
 }
 
+func TestLocalReleaseAndVersionWiringIsPresent(t *testing.T) {
+	repositoryRoot := filepath.Clean(filepath.Join("..", "..", ".."))
+	assertFileContains(t, filepath.Join(repositoryRoot, "scripts", "release"),
+		"create_release",
+		"push_release",
+		"git push --atomic",
+		"appview/CHANGELOG.md",
+		"app/CHANGELOG.md",
+	)
+	assertFileContains(t, filepath.Join(repositoryRoot, "justfile"),
+		"release-create-appview VERSION NOTES=\"\":",
+		"release-create-app VERSION NOTES=\"\":",
+		"release-push STREAM TAG:",
+		"appview-deploy TAG:",
+	)
+	assertFileContains(t, filepath.Join(repositoryRoot, "scripts", "appview-deploy"),
+		"RENDER_API_KEY",
+		"commitId",
+		"tap.connected",
+	)
+	assertFileContains(t, filepath.Join(repositoryRoot, ".github", "workflows", "backend-ci.yml"),
+		"pull_request:",
+		"name: PR checks",
+		"flutter analyze",
+		"./scripts/appview-check",
+	)
+	assertFileContains(t, filepath.Join(repositoryRoot, "appview", "Dockerfile"),
+		"internal/buildinfo.version",
+		"grep -Eq '^(0|[1-9][0-9]*)",
+	)
+}
+
 func sourceConstantStrings(t *testing.T, path string) []string {
 	t.Helper()
 	if filepath.Ext(path) != ".go" {
@@ -173,6 +205,19 @@ func sourceContainsConstant(t *testing.T, path, want string) bool {
 		}
 	}
 	return false
+}
+
+func assertFileContains(t *testing.T, path string, fragments ...string) {
+	t.Helper()
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	for _, fragment := range fragments {
+		if !strings.Contains(string(raw), fragment) {
+			t.Errorf("%s does not contain required release inventory fragment %q", path, fragment)
+		}
+	}
 }
 
 func assertReleaseTestCommands(t *testing.T, path string) {
