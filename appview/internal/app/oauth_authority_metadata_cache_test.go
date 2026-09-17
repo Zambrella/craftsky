@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"reflect"
+	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -225,7 +226,7 @@ func TestOAuthAuthorityMetadataCacheCoalescesMissesAndLetsWaitersCancel(t *testi
 		if time.Now().After(deadline) {
 			t.Fatal("waiters did not join the shared protected-resource flight")
 		}
-		time.Sleep(time.Millisecond)
+		runtime.Gosched()
 	}
 	close(source.release)
 	if err := <-firstResult; err != nil {
@@ -376,7 +377,7 @@ func TestOAuthAuthorityMetadataCacheCountsAbandonedLoaderUntilExit(t *testing.T)
 		if time.Now().After(deadline) {
 			t.Fatal("abandoned loader did not release capacity")
 		}
-		time.Sleep(time.Millisecond)
+		runtime.Gosched()
 	}
 	if _, err := resolver.ResolveIssuer(context.Background(), "https://pds-b.example"); err != nil {
 		t.Fatal(err)

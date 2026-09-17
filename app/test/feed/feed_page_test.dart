@@ -30,6 +30,7 @@ import 'package:go_router/go_router.dart';
 
 import '../fakes/auth_session_fakes.dart';
 import '../fakes/recording_messenger.dart';
+import '../test_support/deterministic_pump.dart';
 import 'fakes/fake_post_repository.dart';
 
 final class _FeedPinRegistryStorage implements SessionRegistryStorage {
@@ -93,10 +94,8 @@ Post _post(
   ),
 );
 
-TimelineItem _timelinePost(Post post, {String? itemKey}) => TimelineItem(
-  itemKey: itemKey ?? 'post:${post.uri}',
-  post: post,
-);
+TimelineItem _timelinePost(Post post, {String? itemKey}) =>
+    TimelineItem(itemKey: itemKey ?? 'post:${post.uri}', post: post);
 
 TimelinePage _timelinePage(List<Post> posts, {String? cursor}) => TimelinePage(
   items: [for (final post in posts) _timelinePost(post)],
@@ -194,7 +193,11 @@ void main() {
         onListTimeline: ({cursor, limit}) async => _timelinePage([_post('a')]),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.text('timeline post a'),
+      description: 'the compact feed post',
+    );
 
     expect(find.byType(CraftskyFloatingActionButton), findsOneWidget);
     expect(find.text('New post'), findsOneWidget);
@@ -218,7 +221,11 @@ void main() {
         onListTimeline: ({cursor, limit}) async => _timelinePage([_post('a')]),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.text('timeline post a'),
+      description: 'the wide feed post',
+    );
 
     expect(find.byType(CraftskyFloatingActionButton), findsNothing);
     expect(find.text('New post'), findsNothing);
@@ -228,34 +235,38 @@ void main() {
     const [],
     [_post('before')],
   ]) {
-    testWidgets(
-      'Feed pull-to-refresh reloads '
-      '${initialPosts.isEmpty ? 'empty' : 'nonempty'} data',
-      (tester) async {
-        var calls = 0;
-        await _pump(
-          tester,
-          FakePostRepository(
-            onListTimeline: ({cursor, limit}) async {
-              calls++;
-              return calls == 1
-                  ? _timelinePage(initialPosts)
-                  : _timelinePage([_post('refreshed')]);
-            },
-          ),
-        );
-        await tester.pumpAndSettle();
+    testWidgets('Feed pull-to-refresh reloads '
+        '${initialPosts.isEmpty ? 'empty' : 'nonempty'} data', (tester) async {
+      var calls = 0;
+      await _pump(
+        tester,
+        FakePostRepository(
+          onListTimeline: ({cursor, limit}) async {
+            calls++;
+            return calls == 1
+                ? _timelinePage(initialPosts)
+                : _timelinePage([_post('refreshed')]);
+          },
+        ),
+      );
+      await pumpUntilFound(
+        tester,
+        initialPosts.isEmpty
+            ? find.text('Your feed is quiet.')
+            : find.text('timeline post before'),
+        description: 'the initial refreshable feed state',
+      );
 
-        await tester.drag(
-          find.byType(CustomScrollView),
-          const Offset(0, 400),
-        );
-        await tester.pumpAndSettle();
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, 400));
+      await pumpUntilFound(
+        tester,
+        find.text('timeline post refreshed'),
+        description: 'the refreshed feed post',
+      );
 
-        expect(calls, 2);
-        expect(find.text('timeline post refreshed'), findsOneWidget);
-      },
-    );
+      expect(calls, 2);
+      expect(find.text('timeline post refreshed'), findsOneWidget);
+    });
   }
 
   testWidgets('Feed refresh indicator starts below its sliver app bar', (
@@ -269,7 +280,11 @@ void main() {
       ),
       topPadding: 24,
     );
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.byType(RefreshIndicator),
+      description: 'the feed refresh control',
+    );
 
     expect(
       tester.widget<RefreshIndicator>(find.byType(RefreshIndicator)).edgeOffset,
@@ -288,19 +303,26 @@ void main() {
     expect(find.byTooltip('Back to top'), findsNothing);
 
     gate.complete(const TimelinePage(items: []));
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.text('Your feed is quiet.'),
+      description: 'the empty feed state',
+    );
     expect(find.byTooltip('Back to top'), findsNothing);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await _pump(
       tester,
       FakePostRepository(
-        onListTimeline: ({cursor, limit}) async => _timelinePage([
-          for (var i = 0; i < 12; i++) _post('top-$i'),
-        ]),
+        onListTimeline: ({cursor, limit}) async =>
+            _timelinePage([for (var i = 0; i < 12; i++) _post('top-$i')]),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.text('timeline post top-0'),
+      description: 'the populated feed state',
+    );
     expect(find.byTooltip('Back to top'), findsNothing);
   });
 
@@ -310,12 +332,15 @@ void main() {
     await _pump(
       tester,
       FakePostRepository(
-        onListTimeline: ({cursor, limit}) async => _timelinePage([
-          for (var i = 0; i < 16; i++) _post('scroll-$i'),
-        ]),
+        onListTimeline: ({cursor, limit}) async =>
+            _timelinePage([for (var i = 0; i < 16; i++) _post('scroll-$i')]),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.text('timeline post scroll-0'),
+      description: 'the scrollable feed posts',
+    );
     final scrollable = tester.state<ScrollableState>(
       find.descendant(
         of: find.byType(CustomScrollView),
@@ -346,13 +371,16 @@ void main() {
     await _pump(
       tester,
       FakePostRepository(
-        onListTimeline: ({cursor, limit}) async => _timelinePage([
-          for (var i = 0; i < 16; i++) _post('rtl-$i'),
-        ]),
+        onListTimeline: ({cursor, limit}) async =>
+            _timelinePage([for (var i = 0; i < 16; i++) _post('rtl-$i')]),
       ),
       textDirection: TextDirection.rtl,
     );
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.text('timeline post rtl-0'),
+      description: 'the RTL feed posts',
+    );
     await tester.drag(find.byType(CustomScrollView), const Offset(0, -250));
     await tester.pumpAndSettle();
 
@@ -374,7 +402,11 @@ void main() {
             _timelinePage([_post('long', text: longText)]),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.text('Show more'),
+      description: 'the long-post expansion action',
+    );
 
     expect(find.text('Show more'), findsOneWidget);
     await tester.ensureVisible(find.text('Show more'));
@@ -419,9 +451,13 @@ void main() {
     final targets = <String>[];
     final messenger = RecordingMessenger();
     final post = _post('timeline-pin');
+    var pinsLoaded = false;
     final repository = FakePostRepository(
       onListTimeline: ({cursor, limit}) async => _timelinePage([post]),
-      onProfilePins: () async => const ProfilePinState(),
+      onProfilePins: () async {
+        pinsLoaded = true;
+        return const ProfilePinState();
+      },
       onPin: (did, rkey) async {
         targets.add('$did/$rkey');
         return ProfilePinState(standardPostUri: post.uri.value);
@@ -440,7 +476,14 @@ void main() {
       ],
       messenger: messenger,
     );
-    await tester.pumpAndSettle();
+    await pumpUntil(
+      tester,
+      () =>
+          pinsLoaded &&
+          find.text('timeline post timeline-pin').evaluate().isNotEmpty,
+      description: 'the timeline post and profile pin state',
+    );
+    await tester.pump();
 
     await tester.tap(find.byIcon(CraftskyIconsBold.more));
     await tester.pumpAndSettle();
@@ -545,7 +588,11 @@ void main() {
 
     allowSuccess = true;
     await tester.tap(find.text('Retry'));
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.text('timeline post a'),
+      description: 'the retried feed post',
+    );
 
     expect(calls, greaterThanOrEqualTo(2));
     expect(find.text('timeline post a'), findsOneWidget);
@@ -562,10 +609,9 @@ void main() {
         onListTimeline: ({cursor, limit}) async {
           calls++;
           if (calls == 1) {
-            return _timelinePage(
-              [for (var i = 0; i < 12; i++) _post('page1-$i')],
-              cursor: 'c1',
-            );
+            return _timelinePage([
+              for (var i = 0; i < 12; i++) _post('page1-$i'),
+            ], cursor: 'c1');
           }
           nextCursor = cursor;
           return _timelinePage([_post('page2')]);
@@ -573,11 +619,19 @@ void main() {
       ),
     );
 
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.text('timeline post page1-0'),
+      description: 'the first timeline page',
+    );
     expect(find.text('timeline post page1-0'), findsOneWidget);
 
     await tester.drag(find.byType(CustomScrollView), const Offset(0, -1200));
-    await tester.pumpAndSettle();
+    await pumpUntil(
+      tester,
+      () => nextCursor == 'c1',
+      description: 'the second timeline request',
+    );
 
     expect(nextCursor, 'c1');
     await tester.scrollUntilVisible(
@@ -600,10 +654,9 @@ void main() {
         onListTimeline: ({cursor, limit}) async {
           calls++;
           if (calls == 1) {
-            return _timelinePage(
-              [for (var i = 0; i < 12; i++) _post('page1-$i')],
-              cursor: 'c1',
-            );
+            return _timelinePage([
+              for (var i = 0; i < 12; i++) _post('page1-$i'),
+            ], cursor: 'c1');
           }
           nextCursors.add(cursor);
           if (!allowNextPage) throw Exception('next page failed');
@@ -771,10 +824,7 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(
-      messenger.calls,
-      contains(('error', "Couldn't update like.", null)),
-    );
+    expect(messenger.calls, contains(('error', "Couldn't update like.", null)));
     expect(find.byIcon(CraftskyIconsBold.like), findsOneWidget);
   });
 

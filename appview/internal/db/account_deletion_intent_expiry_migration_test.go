@@ -2,7 +2,6 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"strings"
 	"testing"
 
@@ -10,11 +9,11 @@ import (
 )
 
 func TestAccountDeletionIntentExpiryMigrationUpDownUp(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000047_account_deletion_intent_expiry.up.sql")
+	up, err := testdb.ReadMigration("000047_account_deletion_intent_expiry.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := os.ReadFile("../../migrations/000047_account_deletion_intent_expiry.down.sql")
+	down, err := testdb.ReadMigration("000047_account_deletion_intent_expiry.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

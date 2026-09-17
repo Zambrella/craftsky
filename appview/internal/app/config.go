@@ -19,6 +19,7 @@ import (
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/buildinfo"
 	"social.craftsky/appview/internal/federatedhttp"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/scheduledposts"
@@ -867,10 +868,11 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		return Config{}, err
 	}
 	cfg.SentryDSN = os.Getenv("SENTRY_DSN")
-	cfg.SentryRelease = strings.TrimSpace(os.Getenv("SENTRY_RELEASE"))
-	if cfg.SentryRelease == "" {
-		cfg.SentryRelease = strings.TrimSpace(os.Getenv("RENDER_GIT_COMMIT"))
-	}
+	cfg.SentryRelease = sentryRelease(
+		os.Getenv("SENTRY_RELEASE"),
+		buildinfo.SentryRelease(),
+		os.Getenv("RENDER_GIT_COMMIT"),
+	)
 	if cfg.SentryLogsEnabled, err = boolEnv("SENTRY_LOGS_ENABLED", false); err != nil {
 		return Config{}, err
 	}
@@ -1012,6 +1014,16 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func sentryRelease(explicit, embedded, renderCommit string) string {
+	if release := strings.TrimSpace(explicit); release != "" {
+		return release
+	}
+	if release := strings.TrimSpace(embedded); release != "" {
+		return release
+	}
+	return strings.TrimSpace(renderCommit)
 }
 
 // Validate applies cross-field invariants after both defaults and overrides

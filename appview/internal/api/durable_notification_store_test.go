@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -17,7 +16,7 @@ import (
 
 func TestNotificationStoreListsOnlyActiveDurableEventsWithStablePagination(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -73,7 +72,7 @@ func TestNotificationStoreListsOnlyActiveDurableEventsWithStablePagination(t *te
 
 func TestNotificationListHydratesImportedSubjectProvenanceForLaterEngagement(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,10 +205,10 @@ func TestNotificationListHydratesImportedSubjectProvenanceForLaterEngagement(t *
 func TestNotificationListAndNewCountDynamicallySuppressAndRestoreRelationships(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
 	for _, migrationPath := range []string{
-		"../../migrations/000021_appview_notifications.up.sql",
-		"../../migrations/000022_notification_newness.up.sql",
+		"000021_appview_notifications.up.sql",
+		"000022_notification_newness.up.sql",
 	} {
-		migration, err := os.ReadFile(migrationPath)
+		migration, err := testdb.ReadMigration(migrationPath)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -268,7 +267,7 @@ func TestNotificationListAndNewCountDynamicallySuppressAndRestoreRelationships(t
 
 func TestNotificationStoreKeepsDurableRowButWithholdsTakenDownContent(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -293,7 +292,7 @@ func TestNotificationStoreKeepsDurableRowButWithholdsTakenDownContent(t *testing
 
 func TestNotificationListWithholdsModeratedReplySourceAndQuoteTarget(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -363,7 +362,7 @@ func TestNotificationListWithholdsModeratedReplySourceAndQuoteTarget(t *testing.
 
 func TestNotificationListHidesThirdPartyBlockedReferenceGraph(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -423,7 +422,7 @@ func TestNotificationListHidesThirdPartyBlockedReferenceGraph(t *testing.T) {
 
 func TestNotificationStoreModeratesEveryReferenceRoleAcrossStates(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

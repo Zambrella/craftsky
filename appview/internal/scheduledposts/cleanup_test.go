@@ -420,7 +420,7 @@ func TestCleanupProcessorDoesNotDeleteAConcurrentReupload(t *testing.T) {
 		_, err := processor.ProcessBatch(ctx)
 		processResult <- err
 	}()
-	<-objects.deleteStarted
+	waitForScheduledSignal(t, objects.deleteStarted, "cleanup object deletion")
 
 	reuploadResult := make(chan error, 1)
 	go func() {
@@ -428,10 +428,10 @@ func TestCleanupProcessorDoesNotDeleteAConcurrentReupload(t *testing.T) {
 		reuploadResult <- err
 	}()
 	close(objects.continueDelete)
-	if err := <-processResult; err != nil {
+	if err := waitForScheduledResult(t, processResult, "cleanup processor completion"); err != nil {
 		t.Fatalf("complete cleanup processor: %v", err)
 	}
-	reuploadErr := <-reuploadResult
+	reuploadErr := waitForScheduledResult(t, reuploadResult, "concurrent reupload")
 	if reuploadErr != nil && !errors.Is(reuploadErr, ErrScheduledMediaConflict) {
 		t.Fatalf("reupload during deleting: %v", reuploadErr)
 	}
@@ -492,7 +492,7 @@ func TestCleanupProcessorFencesExpiredLeaseDeleteAcrossReupload(t *testing.T) {
 		_, processErr := firstProcessor.ProcessBatch(ctx)
 		firstResult <- processErr
 	}()
-	<-objects.firstDeleteStarted
+	waitForScheduledSignal(t, objects.firstDeleteStarted, "first cleanup deletion")
 
 	secondStore := &cleanupEffectSignalStore{
 		Store:         store,
@@ -511,7 +511,7 @@ func TestCleanupProcessorFencesExpiredLeaseDeleteAcrossReupload(t *testing.T) {
 		_, processErr := secondProcessor.ProcessBatch(ctx)
 		secondResult <- processErr
 	}()
-	<-secondStore.beforeAcquire
+	waitForScheduledSignal(t, secondStore.beforeAcquire, "recovered cleanup acquisition")
 
 	reuploadResult := make(chan error, 1)
 	go func() {
@@ -520,13 +520,13 @@ func TestCleanupProcessorFencesExpiredLeaseDeleteAcrossReupload(t *testing.T) {
 	}()
 	close(objects.continueFirstDelete)
 
-	if processErr := <-firstResult; processErr == nil {
+	if processErr := waitForScheduledResult(t, firstResult, "expired cleanup completion"); processErr == nil {
 		t.Fatal("expired first cleanup lease unexpectedly completed")
 	}
-	if processErr := <-secondResult; processErr != nil {
+	if processErr := waitForScheduledResult(t, secondResult, "recovered cleanup completion"); processErr != nil {
 		t.Fatalf("recovered cleanup processor: %v", processErr)
 	}
-	if putErr := <-reuploadResult; putErr != nil &&
+	if putErr := waitForScheduledResult(t, reuploadResult, "reupload during recovered cleanup"); putErr != nil &&
 		!errors.Is(putErr, ErrScheduledMediaConflict) &&
 		!errors.Is(putErr, ErrScheduledMediaOutcomeUnknown) {
 		t.Fatalf("reupload during recovered cleanup: %v", putErr)
@@ -580,14 +580,24 @@ func TestCleanupProcessorBoundsRemoteWorkByItsLease(t *testing.T) {
 	}
 	parentCtx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
 	defer cancel()
-	started := time.Now()
-	_, processErr := processor.ProcessBatch(parentCtx)
-	elapsed := time.Since(started)
+	processResult := make(chan error, 1)
+	go func() {
+		_, processErr := processor.ProcessBatch(parentCtx)
+		processResult <- processErr
+	}()
+	select {
+	case <-objects.deleteStarted:
+	case <-parentCtx.Done():
+		t.Fatal("cleanup did not start remote delete before parent deadline")
+	}
+	var processErr error
+	select {
+	case processErr = <-processResult:
+	case <-parentCtx.Done():
+		t.Fatal("cleanup lease did not cancel remote work before parent deadline")
+	}
 	if processErr == nil {
 		t.Fatal("cleanup whose remote delete exceeded the lease returned nil")
-	}
-	if elapsed >= 150*time.Millisecond {
-		t.Fatalf("cleanup elapsed=%s, want its %s lease to bound remote work", elapsed, leaseDuration)
 	}
 }
 

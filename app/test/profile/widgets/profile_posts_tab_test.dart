@@ -27,6 +27,7 @@ import 'package:go_router/go_router.dart';
 import '../../fakes/auth_session_fakes.dart';
 import '../../fakes/recording_messenger.dart';
 import '../../feed/fakes/fake_post_repository.dart';
+import 'profile_tab_test_harness.dart';
 
 final class _ProfilePinRegistryStorage implements SessionRegistryStorage {
   _ProfilePinRegistryStorage()
@@ -77,37 +78,15 @@ Future<void> _pump(
   RecordingMessenger? messenger,
   List<dynamic> overrides = const [],
 }) {
-  return tester.pumpWidget(
-    ProviderScope(
-      overrides: List.from([
-        activeLanguagePreferencesProvider.overrideWith(
-          (ref) => const LanguagePreferences(
-            primaryLanguage: 'en',
-            contentLanguages: ['en'],
-          ),
-        ),
-        postRepositoryProvider.overrideWithValue(repo),
-        ...overrides,
-      ]),
-      child: MessengerScope(
-        messenger: messenger ?? RecordingMessenger(),
-        child: MaterialApp(
-          theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(
-            body: CustomScrollView(
-              slivers: [
-                ProfilePostsTab(
-                  did: Did.parse('did:plc:alice'),
-                  isOwnProfile: isOwnProfile,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+  return pumpProfileTab(
+    tester,
+    sliver: ProfilePostsTab(
+      did: Did.parse('did:plc:alice'),
+      isOwnProfile: isOwnProfile,
     ),
+    repository: repo,
+    messenger: messenger,
+    overrides: overrides,
   );
 }
 
@@ -329,7 +308,7 @@ void main() {
     });
 
     testWidgets('scrolling near the end appends the next page', (tester) async {
-      final calls = <({String? cursor, int? limit})>[];
+      final calls = <ProfilePageRequest>[];
       final repo = FakePostRepository(
         onListByAuthor: (_, {cursor, limit}) async {
           calls.add((cursor: cursor, limit: limit));
@@ -344,21 +323,17 @@ void main() {
         },
       );
 
-      await _pump(tester, repo: repo, isOwnProfile: false);
-      await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(
-        find.text('post a9'),
-        500,
-        scrollable: find.byType(Scrollable),
+      await expectProfileTabInfiniteScroll(
+        tester,
+        sliver: ProfilePostsTab(
+          did: Did.parse('did:plc:alice'),
+          isOwnProfile: false,
+        ),
+        repository: repo,
+        requests: calls,
+        lastInitialItem: find.text('post a9'),
+        appendedItem: find.text('post b'),
       );
-      await tester.pumpAndSettle();
-
-      expect(calls, [
-        (cursor: null, limit: 10),
-        (cursor: 'c1', limit: 10),
-      ]);
-      expect(find.text('post a9'), findsOneWidget);
-      expect(find.text('post b'), findsOneWidget);
       expect(find.text('Load more posts'), findsNothing);
     });
 

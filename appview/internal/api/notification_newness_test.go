@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
+	"runtime"
 	"testing"
 	"time"
 
@@ -18,10 +18,10 @@ func TestNotificationNewCountUsesAccountMarkerAndListVisibility(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
 	ctx := context.Background()
 	for _, path := range []string{
-		"../../migrations/000021_appview_notifications.up.sql",
-		"../../migrations/000022_notification_newness.up.sql",
+		"000021_appview_notifications.up.sql",
+		"000022_notification_newness.up.sql",
 	} {
-		migration, err := os.ReadFile(path)
+		migration, err := testdb.ReadMigration(path)
 		if err != nil {
 			t.Fatalf("read migration %s: %v", path, err)
 		}
@@ -108,10 +108,10 @@ func TestActorlessModerationNotificationIsListedCountedAndHasNoActorDTO(t *testi
 	pool := testdb.WithSchema(t, timelineStoreDDL)
 	ctx := context.Background()
 	for _, path := range []string{
-		"../../migrations/000021_appview_notifications.up.sql",
-		"../../migrations/000022_notification_newness.up.sql",
+		"000021_appview_notifications.up.sql",
+		"000022_notification_newness.up.sql",
 	} {
-		migration, err := os.ReadFile(path)
+		migration, err := testdb.ReadMigration(path)
 		if err != nil {
 			t.Fatalf("read migration %s: %v", path, err)
 		}
@@ -185,10 +185,10 @@ func TestNotificationMarkSeenUsesStatementSnapshot(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
 	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	for _, path := range []string{
-		"../../migrations/000021_appview_notifications.up.sql",
-		"../../migrations/000022_notification_newness.up.sql",
+		"000021_appview_notifications.up.sql",
+		"000022_notification_newness.up.sql",
 	} {
-		migration, err := os.ReadFile(path)
+		migration, err := testdb.ReadMigration(path)
 		if err != nil {
 			t.Fatalf("read migration %s: %v", path, err)
 		}
@@ -270,7 +270,7 @@ func TestNotificationMarkSeenUsesStatementSnapshot(t *testing.T) {
 		if time.Now().After(deadline) {
 			t.Fatal("mark-seen did not reach the blocked acknowledgement upsert")
 		}
-		time.Sleep(10 * time.Millisecond)
+		runtime.Gosched()
 	}
 
 	secondRevision := insert("10000000-0000-0000-0000-000000000002")

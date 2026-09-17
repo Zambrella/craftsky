@@ -3,7 +3,6 @@ package db_test
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -97,11 +96,11 @@ VALUES (
 `
 
 func TestInstagramPrivateSuggestionsMigration(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000042_instagram_private_suggestions.up.sql")
+	up, err := testdb.ReadMigration("000042_instagram_private_suggestions.up.sql")
 	if err != nil {
 		t.Fatalf("read up migration: %v", err)
 	}
-	down, err := os.ReadFile("../../migrations/000042_instagram_private_suggestions.down.sql")
+	down, err := testdb.ReadMigration("000042_instagram_private_suggestions.down.sql")
 	if err != nil {
 		t.Fatalf("read down migration: %v", err)
 	}

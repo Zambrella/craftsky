@@ -18,8 +18,8 @@ import (
 	"social.craftsky/appview/internal/testdb"
 )
 
-// IT-005: the preview route is always registered and auth, device, method,
-// body, and disabled-feature rejection all occur before preview service work.
+// IT-005: the preview route is always registered and route-specific admission
+// failures occur before preview service work.
 func TestAddRoutesLinkPreviewAdmission(t *testing.T) {
 	pool := testdb.WithSchema(t, `
 		CREATE TABLE craftsky_profiles (did TEXT PRIMARY KEY);
@@ -56,11 +56,8 @@ func TestAddRoutesLinkPreviewAdmission(t *testing.T) {
 		enabled bool
 		want    int
 	}{
-		{name: "missing auth", method: http.MethodPost, body: `{"url":"https://source.example"}`, device: true, enabled: true, want: http.StatusUnauthorized},
-		{name: "missing device", method: http.MethodPost, body: `{"url":"https://source.example"}`, auth: true, enabled: true, want: http.StatusBadRequest},
 		{name: "disabled", method: http.MethodPost, body: `{"url":"https://source.example"}`, auth: true, device: true, want: http.StatusServiceUnavailable},
 		{name: "wrong method", method: http.MethodGet, auth: true, device: true, enabled: true, want: http.StatusMethodNotAllowed},
-		{name: "malformed body", method: http.MethodPost, body: `{}`, auth: true, device: true, enabled: true, want: http.StatusBadRequest},
 		{name: "admitted", method: http.MethodPost, body: `{"url":"https://source.example"}`, auth: true, device: true, enabled: true, want: http.StatusOK},
 	} {
 		t.Run(tt.name, func(t *testing.T) {

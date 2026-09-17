@@ -3,14 +3,13 @@ package app
 import (
 	"context"
 	"errors"
-	"io"
-	"log/slog"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/ingestion"
 	"social.craftsky/appview/internal/pdseffects"
+	"social.craftsky/appview/internal/testlog"
 )
 
 type deleteEffectStub struct {
@@ -48,7 +47,7 @@ func TestDeleteReconcilingExecutor(t *testing.T) {
 	request := pdseffects.DeleteRecordRequest{
 		Owner: owner, Collection: "social.craftsky.feed.like", Rkey: "like",
 	}
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testlog.Discard()
 
 	t.Run("queues authoritative repository reconciliation after success", func(t *testing.T) {
 		jobs := &repositoryJobEnqueuerStub{}

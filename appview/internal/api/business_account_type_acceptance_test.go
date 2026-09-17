@@ -3,7 +3,6 @@ package api_test
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -15,11 +14,11 @@ import (
 )
 
 func TestAccountTypeSelectionWithoutDeclaration(t *testing.T) {
-	accountMigration, err := os.ReadFile("../../migrations/000061_business_account_types.up.sql")
+	accountMigration, err := testdb.ReadMigration("000061_business_account_types.up.sql")
 	if err != nil {
 		t.Fatalf("read account migration: %v", err)
 	}
-	recordMigration, err := os.ReadFile("../../migrations/000062_business_records.up.sql")
+	recordMigration, err := testdb.ReadMigration("000062_business_records.up.sql")
 	if err != nil {
 		t.Fatalf("read record migration: %v", err)
 	}

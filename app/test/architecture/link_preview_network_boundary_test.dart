@@ -2,28 +2,22 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import '../test_support/source_scan.dart';
+
 void main() {
   test('IT-020 preview production code uses only the AppView API boundary', () {
-    final paths = [
-      'lib/feed/composer/link_preview_candidate.dart',
-      'lib/feed/composer/link_preview_candidates.dart',
-      'lib/feed/composer/link_preview_controller.dart',
-      'lib/feed/models/link_preview.dart',
-      'lib/feed/widgets/composer_link_preview_carousel.dart',
-    ];
-    for (final path in paths) {
-      final source = File(path).readAsStringSync();
-      for (final forbidden in [
-        "import 'dart:io'",
-        'package:http/',
-        'Image.network(',
-        'NetworkImage(',
-        '.getUri(',
-        '.postUri(',
-      ]) {
-        expect(source, isNot(contains(forbidden)), reason: '$path: $forbidden');
-      }
-    }
+    final previewSources = scanDartSources(
+      'lib/feed',
+    ).where((file) => file.path.contains('link_preview'));
+    final violations = forbiddenSourceMatches(previewSources, [
+      "import 'dart:io'",
+      'package:http/',
+      'Image.network(',
+      'NetworkImage(',
+      '.getUri(',
+      '.postUri(',
+    ]);
+    expect(violations, isEmpty, reason: violations.join('\n'));
 
     final controller = File(
       'lib/feed/composer/link_preview_controller.dart',

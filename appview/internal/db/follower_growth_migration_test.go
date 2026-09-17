@@ -2,7 +2,6 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -35,11 +34,11 @@ VALUES ('did:plc:alice', 'alice-cid');
 `
 
 func TestFollowerGrowthMigration(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000060_follower_growth_snapshots.up.sql")
+	up, err := testdb.ReadMigration("000060_follower_growth_snapshots.up.sql")
 	if err != nil {
 		t.Fatalf("read up migration: %v", err)
 	}
-	down, err := os.ReadFile("../../migrations/000060_follower_growth_snapshots.down.sql")
+	down, err := testdb.ReadMigration("000060_follower_growth_snapshots.down.sql")
 	if err != nil {
 		t.Fatalf("read down migration: %v", err)
 	}

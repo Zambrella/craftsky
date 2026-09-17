@@ -170,6 +170,8 @@ void main() {
       same(Overlay.of(zoomContext, rootOverlay: true)),
     );
     expect(find.bySemanticsLabel('Blue shawl drying flat'), findsOneWidget);
+    expect(find.byKey(const Key('post-image-count')), findsNothing);
+    expect(find.byKey(const Key('post-image-dots')), findsNothing);
   });
 
   testWidgets('pinch lifts the image into the root overlay until release', (
@@ -221,7 +223,8 @@ void main() {
 
     await firstFinger.up();
     await secondFinger.up();
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
 
     expect(find.bySemanticsLabel('Quilt detail in overlay'), findsOneWidget);
     expect(
@@ -279,10 +282,7 @@ void main() {
   testWidgets('uses the soft rounded outline from embedded previews', (
     tester,
   ) async {
-    await _pumpCarousel(
-      tester,
-      PostImageCarousel(images: _images('outlined')),
-    );
+    await _pumpCarousel(tester, PostImageCarousel(images: _images('outlined')));
 
     final context = tester.element(find.byType(PostImageCarousel));
     final theme = Theme.of(context);
@@ -352,7 +352,7 @@ void main() {
       find.byKey(const Key('post-image-carousel')),
       const Offset(-500, 0),
     );
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
     final secondTag = tester.widget<Hero>(find.byType(Hero)).tag;
     expect(secondTag, isNot(same(firstTag)));
 
@@ -360,7 +360,7 @@ void main() {
       find.byKey(const Key('post-image-carousel')),
       const Offset(500, 0),
     );
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(tester.widget<Hero>(find.byType(Hero)).tag, same(firstTag));
   });
 
@@ -399,11 +399,11 @@ void main() {
       find.byKey(const Key('post-image-carousel')),
       const Offset(-500, 0),
     );
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('2/2'), findsOneWidget);
 
     await tester.drag(find.byType(ListView), const Offset(0, -900));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
 
     expect(find.text('1/2'), findsOneWidget);
   });

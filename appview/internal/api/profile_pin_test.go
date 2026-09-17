@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
@@ -163,7 +162,7 @@ func assertProfilePinError(t *testing.T, response *httptest.ResponseRecorder, st
 }
 
 func TestProfilePinStoreEnforcesNewTargetPolicyButAllowsRetainedUnpin(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000035_profile_pins.up.sql")
+	migration, err := testdb.ReadMigration("000035_profile_pins.up.sql")
 	if err != nil {
 		t.Fatalf("read profile pin migration: %v", err)
 	}

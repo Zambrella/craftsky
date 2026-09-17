@@ -7,14 +7,20 @@ RUN go mod download
 COPY . .
 
 FROM build-base AS production-build
-RUN mkdir -p /out \
- && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/appview ./cmd/appview \
- && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/cli ./cmd/cli
+RUN test "$(wc -l < VERSION)" -eq 1 \
+ && grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' VERSION \
+ && VERSION="$(cat VERSION)" \
+ && mkdir -p /out \
+ && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X social.craftsky/appview/internal/buildinfo.version=${VERSION}" -o /out/appview ./cmd/appview \
+ && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w -X social.craftsky/appview/internal/buildinfo.version=${VERSION}" -o /out/cli ./cmd/cli
 
 FROM build-base AS evidence-build
-RUN mkdir -p /evidence \
- && CGO_ENABLED=0 go build -trimpath -o /evidence/appview ./cmd/appview \
- && CGO_ENABLED=0 go build -trimpath -o /evidence/cli     ./cmd/cli \
+RUN test "$(wc -l < VERSION)" -eq 1 \
+ && grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' VERSION \
+ && VERSION="$(cat VERSION)" \
+ && mkdir -p /evidence \
+ && CGO_ENABLED=0 go build -trimpath -ldflags="-X social.craftsky/appview/internal/buildinfo.version=${VERSION}" -o /evidence/appview ./cmd/appview \
+ && CGO_ENABLED=0 go build -trimpath -ldflags="-X social.craftsky/appview/internal/buildinfo.version=${VERSION}" -o /evidence/cli     ./cmd/cli \
  && CGO_ENABLED=0 go list -deps ./cmd/appview > /evidence/appview-deps.txt \
  && CGO_ENABLED=0 go list -deps ./cmd/cli     > /evidence/cli-deps.txt
 

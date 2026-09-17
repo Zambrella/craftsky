@@ -4,6 +4,8 @@
 //
 //	appview dev
 //	appview prod
+//	appview version
+//	appview --version
 //
 // The positional argument selects the environment file under
 // environments/ and the dev/prod divergent wiring (log level, auth
@@ -14,6 +16,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
@@ -25,6 +28,7 @@ import (
 	"time"
 
 	"social.craftsky/appview/internal/app"
+	"social.craftsky/appview/internal/buildinfo"
 	"social.craftsky/appview/internal/instagram"
 )
 
@@ -82,13 +86,18 @@ func stopBackgroundWorkers(cancel context.CancelFunc, timeout time.Duration, don
 }
 
 func main() {
-	if err := run(context.Background(), os.Args); err != nil {
+	if err := run(context.Background(), os.Args, os.Stdout); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, args []string) error {
+func run(ctx context.Context, args []string, output io.Writer) error {
+	if len(args) > 1 && (args[1] == "version" || args[1] == "--version") {
+		_, err := fmt.Fprintln(output, buildinfo.Version())
+		return err
+	}
+
 	// Signal handling wraps the whole run so Ctrl-C during deps init
 	// (e.g. slow DB connect) exits cleanly.
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
@@ -409,7 +418,7 @@ func run(ctx context.Context, args []string) error {
 	// while background workers continue using dependencies being torn down.
 	listenErr := make(chan error, 1)
 	go func() {
-		deps.Logger.Info("listening", "addr", httpServer.Addr)
+		logListening(deps.Logger, httpServer.Addr)
 		if err := httpServer.Serve(limitedListener); err != nil && err != http.ErrServerClosed {
 			listenErr <- err
 			return
@@ -469,6 +478,13 @@ func run(ctx context.Context, args []string) error {
 		_ = httpServer.Close()
 	}
 	return nil
+}
+
+func logListening(logger *slog.Logger, addr string) {
+	logger.Info("listening",
+		slog.String("addr", addr),
+		slog.String("app_version", buildinfo.Version()),
+	)
 }
 
 func listenAddress(port string) (string, error) {

@@ -1,11 +1,11 @@
-import 'dart:io';
-
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/business/data/business_api_client.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http_mock_adapter/http_mock_adapter.dart';
+
+import '../test_support/source_scan.dart';
 
 void main() {
   setUpAll(initializeMappers);
@@ -17,9 +17,7 @@ void main() {
       const email = 'mailto:privacy-email@invalid.example';
       const freeText = 'PRIVACY_FREE_TEXT_SENTINEL';
       const title = 'PRIVACY_TITLE_SENTINEL';
-      const price = '98765.4321';
       const location = 'PRIVACY_LOCATION_SENTINEL';
-      const alt = 'PRIVACY_ALT_SENTINEL';
       const did = 'did:plc:privacysentinel';
       const rkey = 'privacy-rkey-sentinel';
       final requests = <RequestOptions>[];
@@ -73,40 +71,13 @@ void main() {
       );
       expect(requests.single.uri.toString(), isNot(contains('mailto:')));
       expect(requests.single.uri.toString(), isNot(contains('/xrpc/')));
-
-      final prohibited = [
-        destination,
-        email,
-        freeText,
-        title,
-        price,
-        location,
-        alt,
-        did,
-        rkey,
-      ];
-      final sinks = <String>[
-        ..._recordBoundedSink('logger', 'business_event_load', 'success'),
-        ..._recordBoundedSink(
-          'errorReporter',
-          'business_event_load',
-          'failure',
-        ),
-        ..._recordBoundedSink('trace', 'business_event_load', 'success'),
-        ..._recordBoundedSink('metric', 'business_event_load', 'failure'),
-        ..._recordBoundedSink('routeDiagnostic', 'event_detail', 'success'),
-      ];
-      for (final value in prohibited) {
-        expect(sinks.join('|'), isNot(contains(value)));
-      }
     },
   );
 
   test('UT-017 business runtime has no observability or preview sink', () {
-    for (final entity in Directory('lib/business').listSync(recursive: true)) {
-      if (entity is! File || !entity.path.endsWith('.dart')) continue;
-      final source = entity.readAsStringSync();
-      for (final forbidden in [
+    final violations = forbiddenSourceMatches(
+      scanDartSources('lib/business'),
+      [
         'Sentry',
         'captureException',
         'captureMessage',
@@ -114,15 +85,8 @@ void main() {
         'Logger(',
         'lookupHost',
         'LinkPreview',
-      ]) {
-        expect(source, isNot(contains(forbidden)), reason: entity.path);
-      }
-    }
+      ],
+    );
+    expect(violations, isEmpty, reason: violations.join('\n'));
   });
 }
-
-List<String> _recordBoundedSink(
-  String sink,
-  String operation,
-  String result,
-) => [sink, operation, result];

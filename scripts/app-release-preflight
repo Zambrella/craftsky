@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+command -v git >/dev/null 2>&1 || die "required command not found: git"
+command -v flutter >/dev/null 2>&1 || die "required command not found: flutter"
+[[ $# == 2 ]] || die "usage: scripts/app-release-preflight <ipa|apk|appbundle> CONFIG"
+target=$1
+config=$2
+[[ "$target" == ipa || "$target" == apk || "$target" == appbundle ]] || die "unsupported production app target: $target"
+
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || die "not inside a Git repository"
+cd "$repo_root"
+[[ -f "$config" ]] || die "production app config not found: $config"
+[[ $(git branch --show-current) == main ]] || die "production app builds require main"
+[[ -z $(git status --porcelain) ]] || die "working tree must be clean"
+count=$(grep -Ec '^version: ' app/pubspec.yaml)
+[[ "$count" == 1 ]] || die "expected exactly one top-level version in app/pubspec.yaml"
+version=$(grep -E '^version: ' app/pubspec.yaml | cut -d' ' -f2-)
+[[ "$version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\+(0|[1-9][0-9]*)$ ]] || die "invalid app version: $version"
+tag="app-v$version"
+git show-ref --verify --quiet "refs/tags/$tag" || die "local release tag not found: $tag"
+[[ $(git cat-file -t "refs/tags/$tag") == tag ]] || die "release tag must be annotated: $tag"
+[[ $(git rev-parse "$tag^{commit}") == $(git rev-parse HEAD) ]] || die "$tag does not point to HEAD"
+
+config_value() {
+  local requested_key=$1 key value
+  while IFS='=' read -r key value; do
+    if [[ "$key" == "$requested_key" ]]; then
+      printf '%s' "$value"
+      return
+    fi
+  done <"$config"
+}
+
+[[ -n $(config_value SENTRY_DSN) ]] || die "SENTRY_DSN must be set in $config"
+sentry_environment=$(config_value SENTRY_ENVIRONMENT)
+sentry_local_opt_in=$(config_value SENTRY_LOCAL_OPT_IN)
+if [[ "$sentry_environment" != production && "$sentry_environment" != staging && "$sentry_local_opt_in" != true ]]; then
+  die "Sentry is disabled by $config"
+fi
+: "${SENTRY_AUTH_TOKEN:?Set SENTRY_AUTH_TOKEN to upload Sentry debug symbols.}"
+: "${SENTRY_ORG:?Set SENTRY_ORG to upload Sentry debug symbols.}"
+: "${SENTRY_PROJECT:?Set SENTRY_PROJECT to upload Sentry debug symbols.}"
+
+if [[ "$target" == ipa ]]; then
+  command -v security >/dev/null 2>&1 || die "required command not found: security"
+  command -v xcodebuild >/dev/null 2>&1 || die "required command not found: xcodebuild"
+  identities=$(security find-identity -v -p codesigning 2>/dev/null) || die "unable to inspect code-signing identities"
+  team_id=$(awk -F'[ =;]+' '/DEVELOPMENT_TEAM = / { print $3; exit }' app/ios/Runner.xcodeproj/project.pbxproj)
+  [[ -n "$team_id" ]] || die "iOS development team is not configured"
+  distribution_identity=$(printf '%s\n' "$identities" | grep -E "(Apple|iPhone) Distribution: .+ \\($team_id\\)" || true)
+  [[ -n "$distribution_identity" ]] || die "no Apple distribution signing identity is available for team $team_id"
+else
+  properties=app/android/key.properties
+  [[ -r "$properties" ]] || die "Android release signing properties not found: $properties"
+  property_value() {
+    local requested_key=$1 key value
+    while IFS='=' read -r key value; do
+      if [[ "$key" == "$requested_key" ]]; then
+        printf '%s' "$value"
+        return
+      fi
+    done <"$properties"
+  }
+  for key in keyAlias keyPassword storeFile storePassword; do
+    [[ -n $(property_value "$key") ]] || die "Android release signing property is missing: $key"
+  done
+  store_file=$(property_value storeFile)
+  if [[ "$store_file" != /* ]]; then
+    store_file="app/android/app/$store_file"
+  fi
+  [[ -r "$store_file" ]] || die "Android release keystore not found"
+fi
+
+printf 'Running Flutter release checks for %s.\n' "$tag"
+(
+  cd app
+  flutter pub get
+  flutter analyze
+  flutter test
+)
+[[ -z $(git status --porcelain) ]] || die "Flutter release checks changed tracked files"

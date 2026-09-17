@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -19,7 +18,7 @@ import (
 )
 
 func TestBusinessProjectionPreservesFederatedSourceAndConverges(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000062_business_records.up.sql")
+	migration, err := testdb.ReadMigration("000062_business_records.up.sql")
 	if err != nil {
 		t.Fatalf("read business records migration: %v", err)
 	}

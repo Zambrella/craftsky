@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
@@ -18,6 +17,7 @@ import (
 	"social.craftsky/appview/internal/ingestion"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/tap"
+	"social.craftsky/appview/internal/testdb"
 )
 
 type authRepositoryJobAdapter struct {
@@ -193,17 +193,11 @@ func withRepositoryJobAuthSchema(t *testing.T) *pgxpool.Pool {
 	if _, err := pool.Exec(context.Background(), `ALTER TABLE craftsky_profiles ADD COLUMN record_cid TEXT`); err != nil {
 		t.Fatalf("extend profile fixture: %v", err)
 	}
-	for _, path := range []string{
-		"../../migrations/000045_tap_ingestion_durability.up.sql",
-		"../../migrations/000058_tap_projection_generation_column.up.sql",
-	} {
-		migration, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read Tap durability migration %s: %v", path, err)
-		}
-		if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
-			t.Fatalf("apply Tap durability migration %s: %v", path, err)
-		}
+	if err := testdb.ApplyMigrations(context.Background(), pool,
+		"000045_tap_ingestion_durability.up.sql",
+		"000058_tap_projection_generation_column.up.sql",
+	); err != nil {
+		t.Fatalf("apply Tap durability migrations: %v", err)
 	}
 	return pool
 }

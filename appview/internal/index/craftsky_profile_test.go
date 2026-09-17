@@ -5,9 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"log/slog"
-	"os"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -16,6 +14,7 @@ import (
 	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/tap"
 	"social.craftsky/appview/internal/testdb"
+	"social.craftsky/appview/internal/testlog"
 )
 
 const craftskyProfilesDDL = `
@@ -53,7 +52,7 @@ func (noopBackfiller) Backfill(context.Context, syntax.DID) error { return nil }
 // and `bluesky_backfiller_test.go` share `package index_test`, the helpers
 // are visible to both test files (no sharing-helper-file needed).
 func testLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
+	return testlog.Discard()
 }
 
 func TestCraftskyProfile_Create(t *testing.T) {
@@ -218,7 +217,7 @@ func TestCraftskyProfile_DeleteRemovesBothRows(t *testing.T) {
 
 func TestCraftskyProfile_DeleteHardDeletesCausedNotifications(t *testing.T) {
 	pool := testdb.WithSchema(t, craftskyProfilesDDL)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

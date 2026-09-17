@@ -7,7 +7,6 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
-	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -22,6 +21,7 @@ import (
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/federatedhttp"
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/testdb"
 )
 
 type blockingOAuthEndpointValidator struct {
@@ -1247,19 +1247,13 @@ func TestOAuthSessionCoordinatorDoesNotCorruptCorrectedDeletionCredentialVersion
 
 func TestOAuthSessionCoordinatorCombinesActiveEffectsAndSessionPersistence(t *testing.T) {
 	pool := withAuthSchema(t)
-	for _, path := range []string{
-		"../../migrations/000039_owner_effects_terminal_purge.up.sql",
-		"../../migrations/000045_tap_ingestion_durability.up.sql",
-		"../../migrations/000049_pds_effect_action.up.sql",
-		"../../migrations/000050_pds_effect_source_reconciliation.up.sql",
-	} {
-		migration, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
-			t.Fatal(err)
-		}
+	if err := testdb.ApplyMigrations(context.Background(), pool,
+		"000039_owner_effects_terminal_purge.up.sql",
+		"000045_tap_ingestion_durability.up.sql",
+		"000049_pds_effect_action.up.sql",
+		"000050_pds_effect_source_reconciliation.up.sql",
+	); err != nil {
+		t.Fatal(err)
 	}
 	owners := newAuthOwnerStore(t, pool)
 	storeConfig := testStoreConfig()

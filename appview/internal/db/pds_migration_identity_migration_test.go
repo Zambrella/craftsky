@@ -2,22 +2,21 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"social.craftsky/appview/internal/testdb"
 )
 
 func TestPDSMigrationCallbackAuthorityMigrationUpDownUp(t *testing.T) {
-	providerUp, err := os.ReadFile("../../migrations/000064_provider_first_registration.up.sql")
+	providerUp, err := testdb.ReadMigration("000064_provider_first_registration.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	up, err := os.ReadFile("../../migrations/000066_pds_migration_identity.up.sql")
+	up, err := testdb.ReadMigration("000066_pds_migration_identity.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := os.ReadFile("../../migrations/000066_pds_migration_identity.down.sql")
+	down, err := testdb.ReadMigration("000066_pds_migration_identity.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

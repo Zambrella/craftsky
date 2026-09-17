@@ -6,7 +6,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -22,6 +21,7 @@ import (
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/pdseffects"
+	"social.craftsky/appview/internal/testlog"
 )
 
 // fakeStore implements the subset of ProfileStore that handlers call.
@@ -87,7 +87,7 @@ func (f fakeResolver) ResolveDID(_ context.Context, _ syntax.Handle) (syntax.DID
 }
 
 func nilLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
+	return testlog.Discard()
 }
 
 func TestGetProfile_ByDIDHappyPath(t *testing.T) {

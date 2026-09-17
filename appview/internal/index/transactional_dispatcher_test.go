@@ -3,6 +3,8 @@ package index
 import (
 	"context"
 	"encoding/json"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -17,6 +19,82 @@ type transactionalIndexerFunc func(context.Context, pgx.Tx, tap.Event) (tap.Outc
 
 func (fn transactionalIndexerFunc) Project(ctx context.Context, tx pgx.Tx, event tap.Event) (tap.Outcome, error) {
 	return fn(ctx, tx, event)
+}
+
+func TestTransactionalDispatcherRegisterRejectsNilIndexer(t *testing.T) {
+	dispatcher := NewTransactionalDispatcher()
+	assertPanicsWith(t, "indexer must not be nil", func() {
+		dispatcher.Register("social.craftsky.test.nil", nil)
+	})
+	if collections := dispatcher.Collections(); len(collections) != 0 {
+		t.Fatalf("Collections() = %v after rejected registration", collections)
+	}
+}
+
+func TestTransactionalDispatcherRegisterRejectsDuplicateWithoutReplacingOriginal(t *testing.T) {
+	dispatcher := NewTransactionalDispatcher()
+	collection := syntax.NSID("app.bsky.actor.profile")
+	original := transactionalIndexerFunc(func(context.Context, pgx.Tx, tap.Event) (tap.Outcome, error) {
+		return tap.Applied(), nil
+	})
+	replacement := transactionalIndexerFunc(func(context.Context, pgx.Tx, tap.Event) (tap.Outcome, error) {
+		return tap.PermanentInvalid(tap.ReasonMalformedRecord), nil
+	})
+	dispatcher.Register(collection, original)
+
+	assertPanicsWith(t, collection.String(), func() {
+		dispatcher.Register(collection, replacement)
+	})
+	outcome, err := dispatcher.Project(context.Background(), nil, ingestion.SourceRecord{
+		URI: "at://did:plc:actor/app.bsky.actor.profile/self",
+		DID: "did:plc:actor", Collection: collection, Rkey: "self",
+		Action: "create", Record: json.RawMessage(`{"displayName":"Actor"}`),
+	})
+	if err != nil || outcome.Kind != tap.OutcomeApplied {
+		t.Fatalf("original registration was replaced: outcome=%+v err=%v", outcome, err)
+	}
+}
+
+func TestTransactionalDispatcherCollectionsAreSortedSnapshotOfRegistrations(t *testing.T) {
+	dispatcher := NewTransactionalDispatcher()
+	registered := []syntax.NSID{
+		"social.craftsky.feed.repost",
+		"app.bsky.actor.profile",
+		"social.craftsky.feed.like",
+	}
+	for _, collection := range registered {
+		dispatcher.Register(collection, transactionalIndexerFunc(func(context.Context, pgx.Tx, tap.Event) (tap.Outcome, error) {
+			return tap.Applied(), nil
+		}))
+	}
+
+	want := []syntax.NSID{
+		"app.bsky.actor.profile",
+		"social.craftsky.feed.like",
+		"social.craftsky.feed.repost",
+	}
+	got := dispatcher.Collections()
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("Collections() = %v, want %v", got, want)
+	}
+	got[0] = "social.craftsky.test.mutated"
+	if next := dispatcher.Collections(); !reflect.DeepEqual(next, want) {
+		t.Fatalf("Collections() did not return a snapshot: %v", next)
+	}
+}
+
+func assertPanicsWith(t *testing.T, want string, fn func()) {
+	t.Helper()
+	defer func() {
+		value := recover()
+		if value == nil {
+			t.Fatal("call did not panic")
+		}
+		if message := value.(string); !strings.Contains(message, want) {
+			t.Fatalf("panic = %q, want substring %q", message, want)
+		}
+	}()
+	fn()
 }
 
 func TestTransactionalDispatcherRejectsMalformedSupportedRecordBeforeMutation(t *testing.T) {

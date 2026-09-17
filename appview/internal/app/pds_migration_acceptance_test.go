@@ -7,13 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
-	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -36,6 +32,7 @@ import (
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/tap"
 	"social.craftsky/appview/internal/testdb"
+	"social.craftsky/appview/internal/testlog"
 )
 
 // AT-001 / IT-009: migration changes authority, not the durable owner boundary.
@@ -51,7 +48,7 @@ func TestSameDIDPDSMigrationConvergesAndPreservesAccount(t *testing.T) {
 			ctx := context.Background()
 			pool := phase10MigrationPool(t)
 			owner := syntax.DID("did:plc:phase10" + strings.ReplaceAll(testCase.name, " ", ""))
-			logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+			logger := testlog.Discard()
 
 			if _, err := pool.Exec(ctx, `
 				INSERT INTO owner_lifecycles(
@@ -323,34 +320,8 @@ func phase10Post(text string) *craftskylex.FeedPost {
 
 func phase10MigrationPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	pool := testdb.WithSchema(t, "")
-	ctx := context.Background()
-	var schema string
-	if err := pool.QueryRow(ctx, `SELECT current_schema()`).Scan(&schema); err != nil {
-		t.Fatalf("read isolated schema: %v", err)
-	}
-	conn, err := pool.Acquire(ctx)
-	if err != nil {
-		t.Fatalf("acquire migration connection: %v", err)
-	}
-	defer conn.Release()
-	if _, err := conn.Exec(ctx, "SET search_path TO "+pgx.Identifier{schema}.Sanitize()+", public"); err != nil {
-		t.Fatalf("set migration search path: %v", err)
-	}
-	paths, err := filepath.Glob("../../migrations/*.up.sql")
-	if err != nil {
-		t.Fatalf("list migrations: %v", err)
-	}
-	for _, path := range paths {
-		migration, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read migration %s: %v", path, err)
-		}
-		if _, err := conn.Exec(ctx, string(migration)); err != nil {
-			t.Fatalf("apply migration %s: %v", path, err)
-		}
-	}
-	if _, err := conn.Exec(ctx, `
+	pool := testdb.WithMigratedSchema(t)
+	if _, err := pool.Exec(t.Context(), `
 		CREATE TABLE phase10_private_state(
 			owner_did TEXT NOT NULL REFERENCES owner_lifecycles(owner_did),
 			kind TEXT NOT NULL,

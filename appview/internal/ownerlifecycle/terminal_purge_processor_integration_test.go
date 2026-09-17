@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -404,6 +405,10 @@ func TestTerminalCascadeParentLockRejectsLateChildInsteadOfCascading(t *testing.
 	if len(targets) != 1 {
 		t.Fatalf("locked parents=%d, want 1", len(targets))
 	}
+	var blockerXID string
+	if err := tx.QueryRow(ctx, `SELECT txid_current()::text`).Scan(&blockerXID); err != nil {
+		t.Fatal(err)
+	}
 
 	insertDone := make(chan error, 1)
 	go func() {
@@ -417,11 +422,7 @@ func TestTerminalCascadeParentLockRejectsLateChildInsteadOfCascading(t *testing.
 		`, postURI)
 		insertDone <- insertErr
 	}()
-	select {
-	case insertErr := <-insertDone:
-		t.Fatalf("late child insert did not wait for locked parent: %v", insertErr)
-	case <-time.After(100 * time.Millisecond):
-	}
+	waitForTransactionWaiter(t, pool, blockerXID)
 	if affected, err := deleteLockedTerminalRoleBatchTx(ctx, tx, entry, targets); err != nil {
 		t.Fatal(err)
 	} else if affected != 1 {
@@ -430,7 +431,7 @@ func TestTerminalCascadeParentLockRejectsLateChildInsteadOfCascading(t *testing.
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if insertErr := <-insertDone; insertErr == nil {
+	if insertErr := waitForTestResult(t, insertDone, "late child insert"); insertErr == nil {
 		t.Fatal("late child insert succeeded after its locked parent was deleted")
 	}
 }
@@ -787,11 +788,11 @@ func TestTerminalSourcePurgeHoldsTargetFenceThroughRestorationPromotion(t *testi
 		})
 		terminalized <- err
 	}()
-	select {
-	case err := <-terminalized:
-		t.Fatalf("target terminal transition crossed source restoration promotion: %v", err)
-	case <-time.After(100 * time.Millisecond):
+	key, err := FenceKey(target)
+	if err != nil {
+		t.Fatal(err)
 	}
+	waitForAdvisoryWaiter(t, pool, key)
 
 	if err := blocker.Rollback(ctx); err != nil {
 		t.Fatal(err)
@@ -856,7 +857,7 @@ func waitForExclusiveOwnerFence(t *testing.T, pool *pgxpool.Pool, owner syntax.D
 		if time.Now().After(deadline) {
 			t.Fatal("terminal purge did not acquire source owner fence")
 		}
-		time.Sleep(5 * time.Millisecond)
+		runtime.Gosched()
 	}
 }
 

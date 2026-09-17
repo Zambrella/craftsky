@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"errors"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -426,7 +425,7 @@ func newPushLifecycleFixture(t *testing.T) pushLifecycleFixture {
 			PRIMARY KEY(owner_did,owner_generation,component,did_role)
 		);
 	`)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatalf("read push migration: %v", err)
 	}

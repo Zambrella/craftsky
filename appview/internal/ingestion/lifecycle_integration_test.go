@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
@@ -281,23 +280,23 @@ func lifecycleIngestionPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	pool := testdb.WithSchema(t, ingestionProjectionFixtureDDL)
 	for _, path := range []string{
-		"../../migrations/000015_identity_handle_cache.up.sql",
-		"../../migrations/000002_oauth_tables.up.sql",
-		"../../migrations/000003_oauth_auth_requests_handoff.up.sql",
-		"../../migrations/000006_craftsky_sessions_device_id.up.sql",
-		"../../migrations/000037_account_deletion.up.sql",
-		"../../migrations/000038_owner_auth_lifecycle.up.sql",
-		"../../migrations/000039_owner_effects_terminal_purge.up.sql",
-		"../../migrations/000045_tap_ingestion_durability.up.sql",
-		"../../migrations/000049_pds_effect_action.up.sql",
-		"../../migrations/000050_pds_effect_source_reconciliation.up.sql",
-		"../../migrations/000053_identity_cache_refresh.up.sql",
-		"../../migrations/000054_tap_identity_refresh_trigger.up.sql",
-		"../../migrations/000056_tap_source_projection_generation.up.sql",
-		"../../migrations/000057_tap_identity_refresh_version.up.sql",
-		"../../migrations/000058_tap_projection_generation_column.up.sql",
+		"000015_identity_handle_cache.up.sql",
+		"000002_oauth_tables.up.sql",
+		"000003_oauth_auth_requests_handoff.up.sql",
+		"000006_craftsky_sessions_device_id.up.sql",
+		"000037_account_deletion.up.sql",
+		"000038_owner_auth_lifecycle.up.sql",
+		"000039_owner_effects_terminal_purge.up.sql",
+		"000045_tap_ingestion_durability.up.sql",
+		"000049_pds_effect_action.up.sql",
+		"000050_pds_effect_source_reconciliation.up.sql",
+		"000053_identity_cache_refresh.up.sql",
+		"000054_tap_identity_refresh_trigger.up.sql",
+		"000056_tap_source_projection_generation.up.sql",
+		"000057_tap_identity_refresh_version.up.sql",
+		"000058_tap_projection_generation_column.up.sql",
 	} {
-		sql, err := os.ReadFile(path)
+		sql, err := testdb.ReadMigration(path)
 		if err != nil {
 			t.Fatalf("read migration %s: %v", path, err)
 		}

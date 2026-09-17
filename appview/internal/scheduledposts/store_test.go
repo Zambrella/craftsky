@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -84,7 +83,7 @@ func TestStoreEnforcesCapacityTransactionally(t *testing.T) {
 	var winner uuid.UUID
 	var successes, full int
 	for range 2 {
-		result := <-results
+		result := waitForScheduledResult(t, results, "concurrent capacity result")
 		switch {
 		case result.err == nil:
 			successes++
@@ -154,7 +153,7 @@ func TestStoreEditsAreLastWriteWinsAndFenceStaleWorkers(t *testing.T) {
 
 	committedPayloads := make(map[int64][]byte, 2)
 	for range 2 {
-		edit := <-edits
+		edit := waitForScheduledResult(t, edits, "concurrent edit")
 		if edit.err != nil {
 			t.Fatalf("concurrent edit: %v", edit.err)
 		}
@@ -286,8 +285,8 @@ func TestStoreSerializesMutationsAgainstPublishing(t *testing.T) {
 			started <- struct{}{}
 			results <- store.Delete(ctx, owner, created.ID, due)
 		}()
-		<-started
-		<-started
+		waitForScheduledResult(t, started, "member edit start")
+		waitForScheduledResult(t, started, "member delete start")
 		select {
 		case err := <-results:
 			t.Fatalf("member mutation crossed held publication effect lock: %v", err)
@@ -297,7 +296,7 @@ func TestStoreSerializesMutationsAgainstPublishing(t *testing.T) {
 			t.Fatalf("release publication effect: %v", err)
 		}
 		for range 2 {
-			if err := <-results; !errors.Is(err, ErrMutationLocked) {
+			if err := waitForScheduledResult(t, results, "member mutation completion"); !errors.Is(err, ErrMutationLocked) {
 				t.Fatalf("mutation after Publishing error=%v, want %v", err, ErrMutationLocked)
 			}
 		}
@@ -349,8 +348,8 @@ func TestStoreClaimsDueWorkWithExclusiveRecoverableLeases(t *testing.T) {
 		close(start)
 		claimed := map[uuid.UUID]bool{}
 		for range 2 {
-			claims := <-results
-			if err := <-errs; err != nil {
+			claims := waitForScheduledResult(t, results, "concurrent claim result")
+			if err := waitForScheduledResult(t, errs, "concurrent claim error"); err != nil {
 				t.Fatalf("claim due: %v", err)
 			}
 			for _, claim := range claims {
@@ -493,7 +492,7 @@ func TestClaimedScheduleAcquiresEffectFenceBeforeExternalWrite(t *testing.T) {
 	if err := guard.Release(ctx); err != nil {
 		t.Fatalf("release publication effect: %v", err)
 	}
-	if err := <-mutation; !errors.Is(err, ErrMutationLocked) {
+	if err := waitForScheduledResult(t, mutation, "publishing mutation completion"); !errors.Is(err, ErrMutationLocked) {
 		t.Fatalf("delete after Publishing error=%v, want %v", err, ErrMutationLocked)
 	}
 	if externalWrites != 1 {
@@ -640,16 +639,16 @@ func newScheduledPostStoreTestPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	ddl := scheduledPostStorePreStateDDL
 	for _, path := range []string{
-		"../../migrations/000034_scheduled_posts.up.sql",
-		"../../migrations/000039_owner_effects_terminal_purge.up.sql",
-		"../../migrations/000040_scheduled_media_durability.up.sql",
-		"../../migrations/000041_account_deletion_safety_tombstones.up.sql",
-		"../../migrations/000045_tap_ingestion_durability.up.sql",
-		"../../migrations/000048_scheduled_post_owner_generation.up.sql",
-		"../../migrations/000049_pds_effect_action.up.sql",
-		"../../migrations/000050_pds_effect_source_reconciliation.up.sql",
+		"000034_scheduled_posts.up.sql",
+		"000039_owner_effects_terminal_purge.up.sql",
+		"000040_scheduled_media_durability.up.sql",
+		"000041_account_deletion_safety_tombstones.up.sql",
+		"000045_tap_ingestion_durability.up.sql",
+		"000048_scheduled_post_owner_generation.up.sql",
+		"000049_pds_effect_action.up.sql",
+		"000050_pds_effect_source_reconciliation.up.sql",
 	} {
-		migration, err := os.ReadFile(path)
+		migration, err := testdb.ReadMigration(path)
 		if err != nil {
 			t.Fatalf("read scheduled-post migration %s: %v", path, err)
 		}

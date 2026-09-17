@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
@@ -13,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../feed/fakes/fake_post_repository.dart';
+import '../../test_support/pagination_contract.dart';
 
 final _aliceDid = Did.parse('did:plc:alice');
 
@@ -47,8 +46,61 @@ Map<String, dynamic> _postMap({
 Post _post({required String rkey, bool withProject = true}) =>
     PostMapper.fromMap(_postMap(rkey: rkey, withProject: withProject));
 
+PaginationContractSubject<Post> _paginationSubject(
+  PaginationContractFetch<Post> fetch,
+) {
+  final repository = FakePostRepository(
+    onListProjectsByAuthor: (id, {cursor, limit}) async {
+      expect(id, _aliceDid);
+      expect(limit, userProjectsPageLimit);
+      final page = await fetch(cursor);
+      return PostPage(items: page.items, cursor: page.cursor);
+    },
+  );
+  final container = ProviderContainer.test(
+    overrides: [
+      postRepositoryProvider.overrideWithValue(repository),
+      activeLanguagePreferencesProvider.overrideWith(
+        (ref) => const LanguagePreferences(
+          primaryLanguage: 'en',
+          contentLanguages: [],
+        ),
+      ),
+    ],
+  );
+  final provider = userProjectsProvider(_aliceDid);
+  final subscription = container.listen(provider, (_, _) {});
+
+  return PaginationContractSubject(
+    initialize: () async => container.read(provider.future),
+    loadMore: () => container.read(provider.notifier).loadMore(),
+    snapshot: () {
+      final asyncState = container.read(provider);
+      final state = asyncState.value!;
+      return PaginationContractSnapshot(
+        items: state.items,
+        cursor: state.cursor,
+        hasMore: state.hasMore,
+        hasError: asyncState.hasError,
+      );
+    },
+    dispose: () {
+      subscription.close();
+      container.dispose();
+    },
+  );
+}
+
 void main() {
   setUpAll(initializeMappers);
+
+  paginationContract(
+    name: 'user projects',
+    firstItem: _post(rkey: 'page-a'),
+    secondItem: _post(rkey: 'page-b'),
+    itemIdentity: (post) => post.rkey,
+    createSubject: _paginationSubject,
+  );
 
   group('userProjectsProvider', () {
     test(
@@ -147,67 +199,6 @@ void main() {
         expect(state.items.last.project, isNull);
         expect(state.cursor, 'next');
         expect(state.hasMore, isTrue);
-      },
-    );
-
-    test(
-      'UT-014 loadMore appends, preserves data on failure, no-ops when loading',
-      () async {
-        var calls = 0;
-        final gate = Completer<PostPage>();
-        final fake = FakePostRepository(
-          onListProjectsByAuthor: (id, {cursor, limit}) async {
-            calls++;
-            if (calls == 1) {
-              return PostPage(
-                items: [_post(rkey: 'a')],
-                cursor: 'c1',
-              );
-            }
-            if (calls == 2) throw Exception('network down');
-            if (calls == 3) return gate.future;
-            return PostPage(items: [_post(rkey: 'c')]);
-          },
-        );
-        final container = ProviderContainer.test(
-          overrides: [
-            postRepositoryProvider.overrideWithValue(fake),
-            activeLanguagePreferencesProvider.overrideWith(
-              (ref) => const LanguagePreferences(
-                primaryLanguage: 'en',
-                contentLanguages: [],
-              ),
-            ),
-          ],
-        );
-        final sub = container.listen(
-          userProjectsProvider(_aliceDid),
-          (_, _) {},
-        );
-        addTearDown(sub.close);
-
-        await container.read(userProjectsProvider(_aliceDid).future);
-        await container
-            .read(userProjectsProvider(_aliceDid).notifier)
-            .loadMore();
-        final failed = container.read(userProjectsProvider(_aliceDid));
-        expect(failed.hasError, isTrue);
-        expect(failed.value?.items.map((post) => post.rkey), ['a']);
-        expect(failed.value?.cursor, 'c1');
-
-        final inFlight = container
-            .read(userProjectsProvider(_aliceDid).notifier)
-            .loadMore();
-        await Future<void>.delayed(Duration.zero);
-        await container
-            .read(userProjectsProvider(_aliceDid).notifier)
-            .loadMore();
-        expect(calls, 3);
-        gate.complete(PostPage(items: [_post(rkey: 'b')]));
-        await inFlight;
-
-        final state = container.read(userProjectsProvider(_aliceDid)).value!;
-        expect(state.items.map((post) => post.rkey), ['a', 'b']);
       },
     );
 

@@ -3,7 +3,6 @@ package api_test
 import (
 	"context"
 	"errors"
-	"os"
 	"slices"
 	"strconv"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/ownerlifecycle"
@@ -121,7 +121,7 @@ CREATE TABLE moderation_outputs (
 func TestSavedPostStorePersistsTriStateOwnerScopedSave(t *testing.T) {
 	pool := testdb.WithSchema(t, savedPostStorePreStateDDL)
 	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
-	up, err := os.ReadFile("../../migrations/000024_saved_posts.up.sql")
+	up, err := testdb.ReadMigration("000024_saved_posts.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}
@@ -257,7 +257,7 @@ func TestSavedPostStorePersistsTriStateOwnerScopedSave(t *testing.T) {
 func TestSavedPostStoreRejectsStaleOwnerGeneration(t *testing.T) {
 	pool := testdb.WithSchema(t, savedPostStorePreStateDDL)
 	ctx := context.Background()
-	up, err := os.ReadFile("../../migrations/000024_saved_posts.up.sql")
+	up, err := testdb.ReadMigration("000024_saved_posts.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -297,7 +297,7 @@ func TestSavedPostStoreRejectsStaleOwnerGeneration(t *testing.T) {
 func TestSavedPostStoreRejectsTerminalPostOwner(t *testing.T) {
 	pool := testdb.WithSchema(t, savedPostStorePreStateDDL)
 	ctx := context.Background()
-	up, err := os.ReadFile("../../migrations/000024_saved_posts.up.sql")
+	up, err := testdb.ReadMigration("000024_saved_posts.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -356,7 +356,7 @@ func TestSavedPostStoreDestructiveMutationsRejectStaleOwnerGeneration(t *testing
 		t.Run(test.name, func(t *testing.T) {
 			pool := testdb.WithSchema(t, savedPostStorePreStateDDL)
 			ctx := context.Background()
-			up, err := os.ReadFile("../../migrations/000024_saved_posts.up.sql")
+			up, err := testdb.ReadMigration("000024_saved_posts.up.sql")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -415,7 +415,7 @@ func TestSavedPostStoreDestructiveMutationsRejectStaleOwnerGeneration(t *testing
 func TestSavedPostStoreCreatesRenamesAndListsDuplicateFolders(t *testing.T) {
 	pool := testdb.WithSchema(t, savedPostStorePreStateDDL)
 	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
-	up, err := os.ReadFile("../../migrations/000024_saved_posts.up.sql")
+	up, err := testdb.ReadMigration("000024_saved_posts.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}
@@ -528,7 +528,7 @@ func TestSavedPostStoreCreatesRenamesAndListsDuplicateFolders(t *testing.T) {
 func TestSavedPostStoreListsMoreThanOneHundredDuplicateFoldersExactlyOnce(t *testing.T) {
 	pool := testdb.WithSchema(t, savedPostStorePreStateDDL)
 	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
-	up, err := os.ReadFile("../../migrations/000024_saved_posts.up.sql")
+	up, err := testdb.ReadMigration("000024_saved_posts.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}
@@ -600,7 +600,7 @@ func TestSavedPostStoreListsMoreThanOneHundredDuplicateFoldersExactlyOnce(t *tes
 func TestSavedPostStoreDeleteFolderUnfilesSavesIdempotently(t *testing.T) {
 	pool := testdb.WithSchema(t, savedPostStorePreStateDDL)
 	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
-	up, err := os.ReadFile("../../migrations/000024_saved_posts.up.sql")
+	up, err := testdb.ReadMigration("000024_saved_posts.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}
@@ -746,7 +746,7 @@ func TestSavedPostStoreDeleteFolderUnfilesSavesIdempotently(t *testing.T) {
 func TestSavedPostStoreListsAllFolderAndUnfiledInBothDirections(t *testing.T) {
 	pool := testdb.WithSchema(t, savedPostStorePreStateDDL)
 	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
-	up, err := os.ReadFile("../../migrations/000024_saved_posts.up.sql")
+	up, err := testdb.ReadMigration("000024_saved_posts.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}
@@ -1002,8 +1002,10 @@ func sameTestStringPointer(first, second *string) bool {
 
 func TestSavedPostStoreConcurrentMutationsRemainSerialValid(t *testing.T) {
 	pool := testdb.WithSchema(t, savedPostStorePreStateDDL)
-	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
-	up, err := os.ReadFile("../../migrations/000024_saved_posts.up.sql")
+	operationCtx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	ctx := ownerlifecycle.WithExpectedGeneration(operationCtx, 1)
+	up, err := testdb.ReadMigration("000024_saved_posts.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}
@@ -1080,7 +1082,7 @@ func TestSavedPostStoreConcurrentMutationsRemainSerialValid(t *testing.T) {
 		}()
 	}
 	for range 2 {
-		if err := <-moveErrors; err != nil {
+		if err := waitForSavedPostResult(t, moveErrors, "concurrent folder move"); err != nil {
 			t.Fatalf("concurrent folder move: %v", err)
 		}
 	}
@@ -1107,16 +1109,16 @@ func TestSavedPostStoreConcurrentMutationsRemainSerialValid(t *testing.T) {
 	}
 	unsaveDone := make(chan error, 1)
 	go func() { unsaveDone <- store.Unsave(ctx, owner, postTwo) }()
-	time.Sleep(50 * time.Millisecond)
+	waitForSavedPostDeleteTrigger(t, pool)
 	resaveDone := make(chan error, 1)
 	go func() {
 		_, err := store.Save(ctx, owner, postTwo, api.FolderAssignment{Present: true, ID: &folderB.ID})
 		resaveDone <- err
 	}()
-	if err := <-unsaveDone; err != nil {
+	if err := waitForSavedPostResult(t, unsaveDone, "controlled concurrent unsave"); err != nil {
 		t.Fatalf("controlled concurrent unsave: %v", err)
 	}
-	if err := <-resaveDone; err != nil {
+	if err := waitForSavedPostResult(t, resaveDone, "controlled concurrent resave"); err != nil {
 		t.Fatalf("controlled concurrent resave: %v", err)
 	}
 	resaved, err := store.ReadState(ctx, owner, postTwo)
@@ -1140,10 +1142,10 @@ func TestSavedPostStoreConcurrentMutationsRemainSerialValid(t *testing.T) {
 		_, err := store.Save(ctx, owner, postTwo, api.FolderAssignment{Present: true})
 		unfileDone <- err
 	}()
-	if err := <-folderDeleteDone; err != nil {
+	if err := waitForSavedPostResult(t, folderDeleteDone, "concurrent folder delete"); err != nil {
 		t.Fatalf("concurrent folder delete: %v", err)
 	}
-	if err := <-unfileDone; err != nil {
+	if err := waitForSavedPostResult(t, unfileDone, "concurrent explicit unfile"); err != nil {
 		t.Fatalf("concurrent explicit unfile: %v", err)
 	}
 	unfiled, err := store.ReadState(ctx, owner, postTwo)
@@ -1162,7 +1164,7 @@ func TestSavedPostStoreConcurrentMutationsRemainSerialValid(t *testing.T) {
 		moveDeleteDone <- err
 	}()
 	for range 2 {
-		err := <-moveDeleteDone
+		err := waitForSavedPostResult(t, moveDeleteDone, "concurrent move/delete outcome")
 		if err != nil && !errors.Is(err, api.ErrSavedPostFolderNotFound) {
 			t.Fatalf("concurrent move/delete outcome: %v", err)
 		}
@@ -1171,6 +1173,45 @@ func TestSavedPostStoreConcurrentMutationsRemainSerialValid(t *testing.T) {
 		t.Fatalf("list folders after move/delete: %v", err)
 	} else if slices.ContainsFunc(folders, func(folder api.SavedPostFolder) bool { return folder.ID == folderD.ID }) {
 		t.Fatalf("folder D survived delete: %+v", folders)
+	}
+}
+
+func waitForSavedPostResult[T any](t *testing.T, result <-chan T, description string) T {
+	t.Helper()
+	select {
+	case value := <-result:
+		return value
+	case <-time.After(5 * time.Second):
+		t.Fatalf("timed out waiting for %s", description)
+		var zero T
+		return zero
+	}
+}
+
+func waitForSavedPostDeleteTrigger(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	for {
+		var sleeping bool
+		if err := pool.QueryRow(ctx, `
+			SELECT EXISTS (
+				SELECT 1 FROM pg_stat_activity
+				WHERE datname=current_database()
+				  AND wait_event='PgSleep'
+				  AND query LIKE '%DELETE FROM saved_posts%'
+			)
+		`).Scan(&sleeping); err != nil {
+			t.Fatal(err)
+		}
+		if sleeping {
+			return
+		}
+		select {
+		case <-ctx.Done():
+			t.Fatal("timed out waiting for controlled saved-post delete trigger")
+		case <-time.After(5 * time.Millisecond):
+		}
 	}
 }
 

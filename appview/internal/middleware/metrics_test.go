@@ -3,8 +3,6 @@ package middleware
 import (
 	"context"
 	"fmt"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,6 +15,7 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/observability"
+	"social.craftsky/appview/internal/testlog"
 )
 
 func TestHTTPMetrics_InFlightGaugeIsNonZeroDuringActiveRequest(t *testing.T) {
@@ -78,7 +77,7 @@ func TestHTTPMetrics_CapturesNonPanic5xxResponseInSentry(t *testing.T) {
 	mux.HandleFunc("GET /v1/not-found", func(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteError(w, http.StatusNotFound, "not_found", "not found", GetRunID(r.Context()), nil)
 	})
-	handler := Logging(slog.New(slog.NewTextHandler(io.Discard, nil)))(HTTPMetrics(observer)(mux))
+	handler := Logging(testlog.Discard())(HTTPMetrics(observer)(mux))
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/internal/did:plc:raw?cursor=secret", nil))
@@ -145,7 +144,7 @@ func TestHTTPMetrics_DoesNotCaptureClientCanceledRequestAsServerError(t *testing
 		cancel()
 		envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "timeline list failed", GetRunID(r.Context()), nil)
 	})
-	handler := Logging(slog.New(slog.NewTextHandler(io.Discard, nil)))(HTTPMetrics(observer)(mux))
+	handler := Logging(testlog.Discard())(HTTPMetrics(observer)(mux))
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/feed/timeline", nil).WithContext(ctx))
@@ -192,7 +191,7 @@ func TestHTTPMetrics_CapturesNonPanic5xxBeforeFinishingActiveSpan(t *testing.T) 
 		handlerTraceID, handlerSpanID = observability.TraceIDs(r.Context())
 		envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "internal server error", GetRunID(r.Context()), nil)
 	})
-	handler := Logging(slog.New(slog.NewTextHandler(io.Discard, nil)))(HTTPMetrics(observer)(mux))
+	handler := Logging(testlog.Discard())(HTTPMetrics(observer)(mux))
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/internal/did:plc:raw", nil))
@@ -249,7 +248,7 @@ func TestHTTPMetrics_ExportsSentryTransactionWithRoutePattern(t *testing.T) {
 		traceID, spanID = observability.TraceIDs(r.Context())
 		w.WriteHeader(http.StatusNoContent)
 	})
-	handler := Logging(slog.New(slog.NewTextHandler(io.Discard, nil)))(HTTPMetrics(observer)(mux))
+	handler := Logging(testlog.Discard())(HTTPMetrics(observer)(mux))
 
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/v1/posts/did:plc:alice/post1?cursor=secret", nil))
@@ -341,7 +340,7 @@ func TestHTTPMetrics_DoesNotCaptureExpectedPDSFailureReturnedAs502(t *testing.T)
 				}
 				w.WriteHeader(http.StatusNoContent)
 			})
-			handler := Logging(slog.New(slog.NewTextHandler(io.Discard, nil)))(HTTPMetrics(observer)(mux))
+			handler := Logging(testlog.Discard())(HTTPMetrics(observer)(mux))
 
 			rec := httptest.NewRecorder()
 			handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/v1/posts", strings.NewReader(`{"text":"secret body"}`)))

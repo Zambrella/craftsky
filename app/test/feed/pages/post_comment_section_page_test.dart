@@ -16,6 +16,7 @@ import 'package:craftsky_app/shared/rich_text/data/mock_facet_suggestion_reposit
 import 'package:craftsky_app/shared/rich_text/providers/facet_suggestion_providers.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
+import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
@@ -24,6 +25,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../fakes/recording_messenger.dart';
+import '../../test_support/deterministic_pump.dart';
 import '../fakes/fake_post_repository.dart';
 
 Post _post(
@@ -67,6 +69,15 @@ InteractionWriteResponse _repostResponse(Post post) => InteractionWriteResponse(
   subject: PostRef(uri: post.uri, cid: post.cid),
   createdAt: DateTime.utc(2026, 5, 1, 12, 1),
 );
+
+Finder get _stickyReplyButton => find.descendant(
+  of: find.byKey(const ValueKey('threadStickyReplyPrompt')),
+  matching: find.byType(FilledButton),
+);
+
+void _openStickyReplyComposer(WidgetTester tester) {
+  tester.widget<FilledButton>(_stickyReplyButton).onPressed!();
+}
 
 Future<void> _pumpCommentSection(
   WidgetTester tester, {
@@ -131,9 +142,7 @@ Future<void> _pumpCommentSection(
 void main() {
   testWidgets(
     'IT-014 renders external cards on detail, comment, and reply surfaces',
-    (
-      tester,
-    ) async {
+    (tester) async {
       final launched = <Uri>[];
       PostExternal external(String title) => PostExternal(
         uri: 'https://example.com/${title.toLowerCase()}?token=final#section',
@@ -186,7 +195,11 @@ void main() {
           return true;
         },
       );
-      await tester.pumpAndSettle();
+      await pumpUntilFound(
+        tester,
+        find.text('Reply pattern'),
+        description: 'the nested comment reply',
+      );
 
       expect(find.byType(ExternalCard), findsNWidgets(3));
       expect(find.text('Root pattern'), findsOneWidget);
@@ -281,7 +294,11 @@ void main() {
     );
 
     await _pumpCommentSection(tester, repo: repo, focus: focusUri);
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.text('focused reply'),
+      description: 'the focused reply branch',
+    );
 
     expect(calls, [focusUri]);
     expect(find.text('root post'), findsOneWidget);
@@ -295,9 +312,7 @@ void main() {
 
   testWidgets(
     'root project post uses detail card while comments stay compact',
-    (
-      tester,
-    ) async {
+    (tester) async {
       final root = _post('did:plc:alice', 'root', 'root post').copyWith(
         project: const Project(
           common: ProjectCommon(
@@ -555,11 +570,7 @@ void main() {
       },
     );
 
-    await _pumpCommentSection(
-      tester,
-      repo: repo,
-      size: const Size(390, 220),
-    );
+    await _pumpCommentSection(tester, repo: repo, size: const Size(390, 220));
     await tester.pumpAndSettle();
 
     expect(find.text('comment 10'), findsNothing);
@@ -579,9 +590,7 @@ void main() {
     expect(find.text('comment 10'), findsOneWidget);
   });
 
-  testWidgets('expands, loads more, and hides child replies', (
-    tester,
-  ) async {
+  testWidgets('expands, loads more, and hides child replies', (tester) async {
     final calls = <String?>[];
     final root = _post('did:plc:alice', 'root', 'root post');
     final comment = _post(
@@ -759,9 +768,7 @@ void main() {
 
   testWidgets(
     'REG-006 selecting comment sort rerenders backend ordered comments',
-    (
-      tester,
-    ) async {
+    (tester) async {
       final sorts = <CommentSort?>[];
       final root = _post('did:plc:alice', 'root', 'root post');
       final repo = FakePostRepository(
@@ -848,9 +855,16 @@ void main() {
     await _pumpCommentSection(tester, repo: repo);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const ValueKey('threadStickyReplyPrompt')));
-    await tester.pumpAndSettle();
-    expect(find.text('Write your comment'), findsOneWidget);
+    _openStickyReplyComposer(tester);
+    await pumpUntilFound(
+      tester,
+      find.byType(BrandTextField),
+      description: 'the top-level comment composer',
+    );
+    final commentField = tester.widget<BrandTextField>(
+      find.byType(BrandTextField),
+    );
+    expect(commentField.label, 'Write your comment');
     await tester.enterText(find.byType(TextField), 'created comment');
     await tester.pump();
     await tester.tap(find.widgetWithText(ChunkyButton, 'Comment'));
@@ -911,8 +925,12 @@ void main() {
     await _pumpCommentSection(tester, repo: repo, focus: focusUri);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const ValueKey('threadStickyReplyPrompt')));
-    await tester.pumpAndSettle();
+    _openStickyReplyComposer(tester);
+    await pumpUntilFound(
+      tester,
+      find.byType(TextField),
+      description: 'the focused top-level comment composer',
+    );
     await tester.enterText(find.byType(TextField), 'created comment');
     await tester.pump();
     await tester.tap(find.widgetWithText(ChunkyButton, 'Comment'));
@@ -959,11 +977,7 @@ void main() {
       onCreate: ({required text, reply, images}) async => created,
     );
 
-    await _pumpCommentSection(
-      tester,
-      repo: repo,
-      size: const Size(390, 420),
-    );
+    await _pumpCommentSection(tester, repo: repo, size: const Size(390, 420));
     await tester.pumpAndSettle();
     await tester.scrollUntilVisible(
       find.text('comment 11'),
@@ -971,7 +985,7 @@ void main() {
       scrollable: find.byType(Scrollable),
     );
 
-    await tester.tap(find.byKey(const ValueKey('threadStickyReplyPrompt')));
+    _openStickyReplyComposer(tester);
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextField), 'created comment');
     await tester.pump();
@@ -987,12 +1001,8 @@ void main() {
     tester,
   ) async {
     final root = _post('did:plc:alice', 'root', 'root post');
-    final created =
-        _post(
-          'did:plc:viewer',
-          'created',
-          'created comment',
-        ).copyWith(
+    final created = _post('did:plc:viewer', 'created', 'created comment')
+        .copyWith(
           reply: PostReply(
             root: PostRef(uri: root.uri, cid: root.cid),
             parent: PostRef(uri: root.uri, cid: root.cid),
@@ -1026,9 +1036,7 @@ void main() {
 
   testWidgets(
     'REG-006 replying to a collapsed comment loads the visible branch',
-    (
-      tester,
-    ) async {
+    (tester) async {
       final replyLoadCursors = <String?>[];
       final root = _post('did:plc:alice', 'root', 'root post');
       final comment =
@@ -1096,11 +1104,7 @@ void main() {
         onCreate: ({required text, reply, images}) async => createdReply,
       );
 
-      await _pumpCommentSection(
-        tester,
-        repo: repo,
-        size: const Size(390, 420),
-      );
+      await _pumpCommentSection(tester, repo: repo, size: const Size(390, 420));
       await tester.pumpAndSettle();
       expect(find.text('Show 15 replies'), findsOneWidget);
 
@@ -1190,9 +1194,7 @@ void main() {
 
   testWidgets(
     'REG-006 replying to a reply inserts created reply into comment branch',
-    (
-      tester,
-    ) async {
+    (tester) async {
       final root = _post('did:plc:alice', 'root', 'root post');
       final comment = _post('did:plc:bob', 'comment', 'comment');
       final reply = Post(

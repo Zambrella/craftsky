@@ -11,6 +11,34 @@ worktree BRANCH *ARGS:
 worktree-cleanup *ARGS:
     ./scripts/worktree-cleanup {{ARGS}}
 
+# Create a local AppView release commit and tag, optionally overriding generated notes.
+release-create-appview VERSION NOTES="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    version={{ quote(VERSION) }}
+    notes={{ quote(NOTES) }}
+    args=(create appview --version "$version")
+    [[ -z "$notes" ]] || args+=(--notes "$notes")
+    ./scripts/release "${args[@]}"
+
+# Create a local app release commit and tag, optionally overriding generated notes.
+release-create-app VERSION NOTES="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    version={{ quote(VERSION) }}
+    notes={{ quote(NOTES) }}
+    args=(create app --version "$version")
+    [[ -z "$notes" ]] || args+=(--notes "$notes")
+    ./scripts/release "${args[@]}"
+
+# Atomically push one local release commit and tag.
+release-push STREAM TAG:
+    ./scripts/release push {{ quote(STREAM) }} {{ quote(TAG) }}
+
+# Deploy one already-pushed AppView tag to Render and verify public health.
+appview-deploy TAG:
+    ./scripts/appview-deploy {{ quote(TAG) }}
+
 # Start the full compose stack in the foreground.
 dev:
     ./scripts/compose-dev up --build
@@ -129,41 +157,27 @@ moderation-report-event REPORTER OWNER RKEY REASON="spam" DETAILS="Local moderat
 # Requires: Go installed locally, and `just dev-d` already running (for
 # the real-Postgres integration tests).
 test:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    POSTGRES_ADDRESS=$(./scripts/compose-dev port postgres 5432)
-    POSTGRES_PORT=${POSTGRES_ADDRESS##*:}
-    MINIO_ADDRESS=$(./scripts/compose-dev port minio 9000)
-    MINIO_PORT=${MINIO_ADDRESS##*:}
-    cd appview
-    TEST_DATABASE_URL="postgres://craftsky:dev@localhost:${POSTGRES_PORT}/craftsky_dev?sslmode=disable" \
-      TEST_S3_ENDPOINT="http://localhost:${MINIO_PORT}" \
-      TEST_S3_REGION="us-east-1" \
-      TEST_S3_BUCKET="private-scheduled-media" \
-      TEST_S3_ACCESS_KEY_ID="craftsky-minio" \
-      TEST_S3_SECRET_ACCESS_KEY="craftsky-minio-dev-secret" \
-      TEST_DATABASE_REQUIRED="true" \
-      GOTOOLCHAIN="go1.27.1" \
-      go test -p=1 -race ./...
+    ./scripts/appview-test full
 
 # Fast, explicitly incomplete AppView unit path. Real PostgreSQL and MinIO
 # suites are deliberately skipped; only appview-check is release evidence.
 appview-test-unit:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "UNIT-ONLY: PostgreSQL and MinIO integration tests are intentionally skipped."
-    cd appview
-    env \
-      -u DATABASE_URL \
-      -u TEST_DATABASE_URL \
-      -u TEST_S3_ENDPOINT \
-      -u TEST_S3_REGION \
-      -u TEST_S3_BUCKET \
-      -u TEST_S3_ACCESS_KEY_ID \
-      -u TEST_S3_SECRET_ACCESS_KEY \
-      TEST_DATABASE_REQUIRED="false" \
-      GOTOOLCHAIN="go1.27.1" \
-      go test ./...
+    ./scripts/appview-test unit
+
+# Run the full PostgreSQL/MinIO suite once in randomized test order without the
+# race detector. Requires `just dev-d`; Go prints the shuffle seed for replay.
+appview-test-shuffle:
+    ./scripts/appview-test shuffle
+
+# Exercise each registered fuzz target for 30 seconds. Override locally with
+# APPVIEW_FUZZTIME and APPVIEW_FUZZ_TIMEOUT when investigating a target.
+appview-test-fuzz:
+    ./scripts/appview-test fuzz
+
+# Produce unit-only coverage evidence as a trend, with no pass/fail threshold.
+# Set APPVIEW_COVERAGE_DIR to retain the profile and function summary by path.
+appview-test-coverage:
+    ./scripts/appview-test coverage
 
 # Release-equivalent, fail-closed AppView gate. It uses an isolated Compose
 # project and disposable database/MinIO volumes, so migration down-to-zero can
@@ -318,6 +332,16 @@ app-analyze:
 app-test *ARGS:
     cd app && flutter test {{ARGS}}
 
+# Run the device/process integration suite locally without adding it to the
+# fast widget-test path. DEVICE is a Flutter device id from `flutter devices`.
+app-test-integration DEVICE *ARGS:
+    cd app && flutter test integration_test/critical_journeys_test.dart -d '{{DEVICE}}' {{ARGS}}
+
+# CI integration gate. Dependency resolution is a separate CI step so this
+# command compiles and runs only the dedicated device suite.
+app-test-integration-ci DEVICE *ARGS:
+    cd app && flutter test integration_test/critical_journeys_test.dart -d '{{DEVICE}}' --no-pub --reporter expanded {{ARGS}}
+
 # Install the standalone Instagram importer's checked dependency graph.
 importer-install:
     npm ci --prefix instagram-importer
@@ -357,39 +381,96 @@ importer-test-e2e *ARGS:
 app-build-web ENV="production":
     #!/usr/bin/env bash
     set -euo pipefail
-    config="config/{{ENV}}.env"
+    environment={{ quote(ENV) }}
+    config="config/${environment}.env"
     test -f "app/$config" || { echo "Missing app/$config. Copy app/$config.example first."; exit 1; }
     cd app
     flutter build web --dart-define-from-file="$config"
 
-app-build-ios ENV="production":
+# Build a mobile release with Sentry enabled, then upload its debug symbols.
+_app-build-mobile TARGET ENV:
     #!/usr/bin/env bash
     set -euo pipefail
-    config="config/{{ENV}}.env"
+    target={{ quote(TARGET) }}
+    environment={{ quote(ENV) }}
+    config="config/${environment}.env"
     test -f "app/$config" || { echo "Missing app/$config. Copy app/$config.example first."; exit 1; }
+    if [[ "$environment" == "production" && "$target" != "ios" ]]; then
+        ./scripts/app-release-preflight "$target" "app/$config"
+    fi
     cd app
-    flutter build ios --no-codesign --dart-define-from-file="$config"
+
+    config_value() {
+        local requested_key="$1"
+        local key value
+        while IFS='=' read -r key value; do
+            if [[ "$key" == "$requested_key" ]]; then
+                printf '%s' "$value"
+                return
+            fi
+        done < "$config"
+        return 0
+    }
+
+    sentry_dsn="$(config_value SENTRY_DSN)"
+    sentry_environment="$(config_value SENTRY_ENVIRONMENT)"
+    sentry_local_opt_in="$(config_value SENTRY_LOCAL_OPT_IN)"
+    [[ -n "$sentry_dsn" ]] || { echo "SENTRY_DSN must be set in app/$config for mobile release builds." >&2; exit 1; }
+    if [[ "$sentry_environment" != "production" && "$sentry_environment" != "staging" && "$sentry_local_opt_in" != "true" ]]; then
+        echo "Sentry is disabled by app/$config. Use production/staging or set SENTRY_LOCAL_OPT_IN=true." >&2
+        exit 1
+    fi
+    : "${SENTRY_AUTH_TOKEN:?Set SENTRY_AUTH_TOKEN to upload Sentry debug symbols.}"
+    : "${SENTRY_ORG:?Set SENTRY_ORG to upload Sentry debug symbols.}"
+    : "${SENTRY_PROJECT:?Set SENTRY_PROJECT to upload Sentry debug symbols.}"
+
+    sentry_release="$(config_value SENTRY_RELEASE)"
+    sentry_dist="$(config_value SENTRY_DIST)"
+    [[ -z "$sentry_release" ]] || export SENTRY_RELEASE="$sentry_release"
+    [[ -z "$sentry_dist" ]] || export SENTRY_DIST="$sentry_dist"
+
+    symbols_dir="build/debug-info/${target}"
+    symbol_map="build/app/obfuscation-${target}.map.json"
+    rm -rf "$symbols_dir" "$symbol_map"
+    build_args=(
+        flutter build "$target" --release
+        --dart-define-from-file="$config"
+        --obfuscate
+        --split-debug-info="$symbols_dir"
+        --extra-gen-snapshot-options="--save-obfuscation-map=$symbol_map"
+    )
+    if [[ "$target" == "ios" ]]; then
+        build_args+=(--no-codesign)
+    fi
+    "${build_args[@]}"
+
+    dart run sentry_dart_plugin \
+        --sentry-define="symbols_path=$symbols_dir" \
+        --sentry-define="dart_symbol_map_path=$symbol_map" \
+        --sentry-define=upload_source_maps=false \
+        --sentry-define=wait_for_processing=true
+
+    case "$target" in
+        ipa) artifact=$(printf '%s\n' build/ios/ipa/*.ipa) ;;
+        appbundle) artifact=build/app/outputs/bundle/release/app-release.aab ;;
+        apk) artifact=build/app/outputs/flutter-apk/app-release.apk ;;
+        *) artifact="" ;;
+    esac
+    if [[ -n "$artifact" ]]; then
+        test -f "$artifact" || { echo "Expected release artifact not found: $artifact" >&2; exit 1; }
+        shasum -a 256 "$artifact"
+        echo "Debug symbols: app/$symbols_dir"
+        echo "Obfuscation map: app/$symbol_map"
+    fi
+
+app-build-ios ENV="production":
+    just _app-build-mobile ios {{ quote(ENV) }}
 
 app-build-ipa ENV="production":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    config="config/{{ENV}}.env"
-    test -f "app/$config" || { echo "Missing app/$config. Copy app/$config.example first."; exit 1; }
-    cd app
-    flutter build ipa --release --dart-define-from-file="$config"
+    just _app-build-mobile ipa {{ quote(ENV) }}
 
 app-build-apk ENV="production":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    config="config/{{ENV}}.env"
-    test -f "app/$config" || { echo "Missing app/$config. Copy app/$config.example first."; exit 1; }
-    cd app
-    flutter build apk --release --dart-define-from-file="$config"
+    just _app-build-mobile apk {{ quote(ENV) }}
 
 app-build-appbundle ENV="production":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    config="config/{{ENV}}.env"
-    test -f "app/$config" || { echo "Missing app/$config. Copy app/$config.example first."; exit 1; }
-    cd app
-    flutter build appbundle --release --dart-define-from-file="$config"
+    just _app-build-mobile appbundle {{ quote(ENV) }}

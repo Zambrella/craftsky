@@ -3,7 +3,6 @@ package middleware
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -13,12 +12,13 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/testlog"
 )
 
 // discardLogger returns a slog.Logger that drops everything. Used by tests
 // that assert HTTP behaviour without caring about log output.
 func discardLogger() *slog.Logger {
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
+	return testlog.Discard()
 }
 
 // passthroughHandler captures the DID seen in context and responds 200.
