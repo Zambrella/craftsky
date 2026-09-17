@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +15,7 @@ import (
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/instagram"
+	"social.craftsky/appview/internal/testlog"
 )
 
 func TestInstagramImportHandlersExactWireContractAndOpaquePagination(t *testing.T) {
@@ -37,7 +37,7 @@ func TestInstagramImportHandlersExactWireContractAndOpaquePagination(t *testing.
 		nextCursor: &instagram.ImportCursor{CreatedAt: createdAt, ID: id},
 		item:       item,
 	}
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testlog.Discard()
 
 	createRequest := authenticatedInstagramRequest(http.MethodPost, "/v1/migrations/instagram/imports", `{
 		"sourceType":"instagramJson",
@@ -116,7 +116,7 @@ func TestInstagramImportHandlersRejectRawFieldsInvalidInputsAndMapSafeErrors(t *
 	t.Parallel()
 	alice := syntax.DID("did:plc:synthetic-alice")
 	id := uuid.MustParse("00000000-0000-0000-0000-000000000232")
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testlog.Discard()
 
 	tests := []struct {
 		name       string

@@ -193,4 +193,24 @@ func TestRouteInventoryAndV1PoliciesStayExact(t *testing.T) {
 			t.Errorf("v1 route %s has %d policies", pattern, count)
 		}
 	}
+
+	mux := http.NewServeMux()
+	AddRoutes(context.Background(), mux, deps)
+	for _, policy := range V1RoutePolicies(deps.Config.Env, deps.Config) {
+		policy := policy
+		t.Run(policy.Method+" "+policy.PathPattern, func(t *testing.T) {
+			if !policy.RateClass.Valid() || !policy.BodyKind.Valid() || !policy.AccessClass.Valid() || !policy.SuspensionClass.Valid() {
+				t.Fatalf("invalid route policy metadata: %+v", policy)
+			}
+			request, err := http.NewRequest(policy.Method, concretePolicyPath(policy.PathPattern), nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, pattern := mux.Handler(request)
+			wantPattern := policy.Method + " " + policy.PathPattern
+			if pattern != wantPattern {
+				t.Fatalf("concrete route matched %q, want %q", pattern, wantPattern)
+			}
+		})
+	}
 }

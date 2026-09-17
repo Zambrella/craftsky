@@ -55,6 +55,9 @@ func (dispatcher *TransactionalDispatcher) Register(collection syntax.NSID, inde
 	if indexer == nil {
 		panic("index.TransactionalDispatcher.Register: indexer must not be nil")
 	}
+	if _, exists := dispatcher.handlers[collection]; exists {
+		panic(fmt.Sprintf("index.TransactionalDispatcher.Register: indexer already registered for %s", collection))
+	}
 	dispatcher.handlers[collection] = indexer
 }
 

@@ -3,7 +3,6 @@ package instagram
 import (
 	"context"
 	"errors"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -283,7 +282,7 @@ func newImportTestStore(t *testing.T) (*ImportStore, *pgxpool.Pool) {
 		"000031_instagram_automatic_follow_storage_names.up.sql",
 		"000042_instagram_private_suggestions.up.sql",
 	} {
-		contents, err := os.ReadFile("../../migrations/" + name)
+		contents, err := testdb.ReadMigration(name)
 		if err != nil {
 			t.Fatalf("read migration %s: %v", name, err)
 		}

@@ -2,7 +2,6 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -33,11 +32,11 @@ VALUES (
 `
 
 func TestLanguagesMigration(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000033_post_languages.up.sql")
+	up, err := testdb.ReadMigration("000033_post_languages.up.sql")
 	if err != nil {
 		t.Fatalf("read up migration: %v", err)
 	}
-	down, err := os.ReadFile("../../migrations/000033_post_languages.down.sql")
+	down, err := testdb.ReadMigration("000033_post_languages.down.sql")
 	if err != nil {
 		t.Fatalf("read down migration: %v", err)
 	}

@@ -21,13 +21,24 @@ func TestPublicationHoldsOneGuardedEffectScopeThroughFinalization(t *testing.T) 
 	config := base.Config().Copy()
 	// One connection holds the canonical owner/session boundary and one holds
 	// the later schedule-effect lock. Attempt persistence and finalization must
-	// reuse those connections rather than starving on a third acquisition.
-	config.MaxConns = 2
+	// reuse those connections rather than starving on a third acquisition. The
+	// third slot stays reserved until the competing lifecycle transition starts.
+	config.MaxConns = 3
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
+	reserved, err := pool.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	reservedReleased := false
+	t.Cleanup(func() {
+		if !reservedReleased {
+			reserved.Release()
+		}
+	})
 	store := NewStore(pool)
 	fencer := newScheduledTestOwnerFencer(t, pool)
 	now := time.Date(2026, time.August, 20, 12, 0, 0, 0, time.UTC)
@@ -93,11 +104,13 @@ func TestPublicationHoldsOneGuardedEffectScopeThroughFinalization(t *testing.T) 
 			CreatedAt: claim.CreatedAt,
 		})
 	}()
-	<-remoteStarted
+	waitForScheduledSignal(t, remoteStarted, "publication remote read")
 
 	departure := NewAccountDeletion(pool, func() time.Time { return now }, fencer)
 	departureDone := make(chan error, 1)
+	departureStarted := make(chan struct{})
 	go func() {
+		close(departureStarted)
 		_, transitionErr := lifecycles.TransitionWith(
 			context.Background(),
 			ownerlifecycle.TransitionRequest{
@@ -108,17 +121,16 @@ func TestPublicationHoldsOneGuardedEffectScopeThroughFinalization(t *testing.T) 
 		)
 		departureDone <- transitionErr
 	}()
-	select {
-	case err := <-departureDone:
-		t.Fatalf("departure crossed the live publication fence: %v", err)
-	case <-time.After(100 * time.Millisecond):
-	}
+	waitForScheduledSignal(t, departureStarted, "departure transition start")
+	reserved.Release()
+	reservedReleased = true
+	waitForScheduledAdvisoryWaiter(t, base, departureDone)
 
 	close(continueRemote)
-	if err := <-publicationDone; err != nil {
+	if err := waitForScheduledResult(t, publicationDone, "publication completion"); err != nil {
 		t.Fatalf("complete publication: %v", err)
 	}
-	if err := <-departureDone; err != nil {
+	if err := waitForScheduledResult(t, departureDone, "departure completion"); err != nil {
 		t.Fatalf("complete departure: %v", err)
 	}
 	if got := boundary.calls.Load(); got != 1 {

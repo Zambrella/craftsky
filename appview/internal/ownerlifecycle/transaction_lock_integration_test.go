@@ -84,20 +84,16 @@ func TestLockOwnerStatesTxHoldsKnownAndUnknownSharedFencesUntilCallerTransaction
 			return nil
 		})
 	}()
-	select {
-	case <-exclusiveEntered:
-		t.Fatal("exclusive transition entered while projector transaction was open")
-	case <-time.After(100 * time.Millisecond):
+	key, err := FenceKey(owner)
+	if err != nil {
+		t.Fatal(err)
 	}
+	waitForAdvisoryWaiter(t, pool, key)
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
-	select {
-	case <-exclusiveEntered:
-	case <-time.After(time.Second):
-		t.Fatal("exclusive transition did not enter after projector transaction committed")
-	}
-	if err := <-exclusiveDone; err != nil {
+	waitForTestSignal(t, exclusiveEntered, "exclusive transition after projector commit")
+	if err := waitForTestResult(t, exclusiveDone, "exclusive transition completion"); err != nil {
 		t.Fatalf("exclusive transition: %v", err)
 	}
 }

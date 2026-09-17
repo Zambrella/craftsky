@@ -26,66 +26,63 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import '../fakes/recording_messenger.dart';
+import '../test_support/deterministic_pump.dart';
 
 void main() {
-  testWidgets(
-    'compact shell drawer opens the shared Feedback destination',
-    (tester) async {
-      Uri? openedUri;
-      var confirmationCalls = 0;
-      final router = await _pumpShell(
-        tester,
-        const Size(500, 800),
-        linkLauncher: (uri) async {
-          openedUri = uri;
-          return true;
-        },
-        confirmOpenLink: (_, _) async {
-          confirmationCalls++;
-          return false;
-        },
+  testWidgets('compact shell drawer opens the shared Feedback destination', (
+    tester,
+  ) async {
+    Uri? openedUri;
+    var confirmationCalls = 0;
+    final router = await _pumpShell(
+      tester,
+      const Size(500, 800),
+      linkLauncher: (uri) async {
+        openedUri = uri;
+        return true;
+      },
+      confirmOpenLink: (_, _) async {
+        confirmationCalls++;
+        return false;
+      },
+    );
+
+    await tester.dragFrom(const Offset(0, 400), const Offset(320, 0));
+    await tester.pumpAndSettle();
+
+    final drawer = find.byType(Drawer);
+    expect(drawer, findsOneWidget);
+    for (final label in [
+      'Feed',
+      'Projects',
+      'Search',
+      'Notifications',
+      'Profile',
+      'Saved',
+      'Scheduled',
+      'Drafts',
+      'Settings',
+      'Terms',
+      'Privacy',
+      'Feedback',
+    ]) {
+      expect(
+        find.descendant(of: drawer, matching: find.text(label)),
+        findsOneWidget,
       );
+    }
+    expect(find.textContaining('@'), findsNothing);
 
-      await tester.dragFrom(
-        const Offset(0, 400),
-        const Offset(320, 0),
-      );
-      await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(of: drawer, matching: find.text('Feedback')),
+    );
+    await tester.pumpAndSettle();
 
-      final drawer = find.byType(Drawer);
-      expect(drawer, findsOneWidget);
-      for (final label in [
-        'Feed',
-        'Projects',
-        'Search',
-        'Notifications',
-        'Profile',
-        'Saved',
-        'Scheduled',
-        'Drafts',
-        'Settings',
-        'Terms',
-        'Privacy',
-        'Feedback',
-      ]) {
-        expect(
-          find.descendant(of: drawer, matching: find.text(label)),
-          findsOneWidget,
-        );
-      }
-      expect(find.textContaining('@'), findsNothing);
-
-      await tester.tap(
-        find.descendant(of: drawer, matching: find.text('Feedback')),
-      );
-      await tester.pumpAndSettle();
-
-      expect(router.state.matchedLocation, '/feed');
-      expect(find.byType(Drawer), findsNothing);
-      expect(openedUri, settingsSupportUri);
-      expect(confirmationCalls, 0);
-    },
-  );
+    expect(router.state.matchedLocation, '/feed');
+    expect(find.byType(Drawer), findsNothing);
+    expect(openedUri, settingsSupportUri);
+    expect(confirmationCalls, 0);
+  });
 
   testWidgets('shell drawer button opens the owning compact drawer', (
     tester,
@@ -93,7 +90,11 @@ void main() {
     await _pumpShell(tester, const Size(500, 800));
 
     await tester.tap(find.byTooltip('Open navigation menu'));
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.byType(Drawer),
+      description: 'the compact navigation drawer to open',
+    );
 
     expect(find.byType(Drawer), findsOneWidget);
     expect(
@@ -135,19 +136,13 @@ void main() {
       greaterThan(0),
     );
     expect(
-      find.descendant(
-        of: drawerFinder,
-        matching: find.byType(CraftskyDivider),
-      ),
+      find.descendant(of: drawerFinder, matching: find.byType(CraftskyDivider)),
       findsNothing,
     );
 
     final profileTile = find.widgetWithText(ListTile, 'Profile');
     expect(
-      find.descendant(
-        of: profileTile,
-        matching: find.byType(AccountAvatar),
-      ),
+      find.descendant(of: profileTile, matching: find.byType(AccountAvatar)),
       findsNothing,
     );
     expect(
@@ -160,11 +155,7 @@ void main() {
   });
 
   testWidgets('dark compact drawer has no outer border', (tester) async {
-    await _pumpShell(
-      tester,
-      const Size(500, 800),
-      themeMode: ThemeMode.dark,
-    );
+    await _pumpShell(tester, const Size(500, 800), themeMode: ThemeMode.dark);
     await tester.tap(find.byTooltip('Open navigation menu'));
     await tester.pumpAndSettle();
 
@@ -291,15 +282,10 @@ void main() {
 
     expect(railTheme.indicatorColor, theme.colorScheme.primary);
     expect(railTheme.selectedIconTheme?.color, theme.colorScheme.onPrimary);
-    expect(
-      railTheme.selectedLabelTextStyle?.color,
-      theme.colorScheme.primary,
-    );
+    expect(railTheme.selectedLabelTextStyle?.color, theme.colorScheme.primary);
   });
 
-  testWidgets('UIP-012 rail has only a content-edge border', (
-    tester,
-  ) async {
+  testWidgets('UIP-012 rail has only a content-edge border', (tester) async {
     await _pumpShell(tester, const Size(1200, 800));
 
     final railFinder = find.byType(NavigationRail);
@@ -624,19 +610,13 @@ void main() {
     await tester.pumpAndSettle();
 
     for (final label in ['Terms', 'Privacy']) {
-      expect(
-        tester.getSize(find.widgetWithText(ListTile, label)).height,
-        40,
-      );
+      expect(tester.getSize(find.widgetWithText(ListTile, label)).height, 40);
     }
 
     await _pumpShell(tester, const Size(1200, 800));
 
     for (final label in ['Terms', 'Privacy']) {
-      expect(
-        tester.getSize(find.widgetWithText(TextButton, label)).height,
-        40,
-      );
+      expect(tester.getSize(find.widgetWithText(TextButton, label)).height, 40);
     }
   });
 
@@ -892,10 +872,7 @@ void main() {
       textDirection: TextDirection.rtl,
     );
 
-    await tester.dragFrom(
-      const Offset(499, 400),
-      const Offset(-320, 0),
-    );
+    await tester.dragFrom(const Offset(499, 400), const Offset(-320, 0));
     await tester.pumpAndSettle();
 
     final drawer = find.byType(Drawer);
@@ -905,9 +882,7 @@ void main() {
 
   testWidgets(
     'CORR-006 drawer remains reachable at large text and low height',
-    (
-      tester,
-    ) async {
+    (tester) async {
       await _pumpShell(
         tester,
         const Size(500, 350),
@@ -975,9 +950,7 @@ void main() {
 
         expect(router.state.matchedLocation, '/feed');
         expect(find.byType(Drawer), findsNothing);
-        expect(messenger.calls, [
-          ('error', "Couldn't open that link.", null),
-        ]);
+        expect(messenger.calls, [('error', "Couldn't open that link.", null)]);
       },
     );
   }

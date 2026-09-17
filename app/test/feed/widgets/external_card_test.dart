@@ -14,9 +14,7 @@ import '../../fakes/image_cache_fakes.dart';
 void main() {
   testWidgets(
     'UT-015 derives bounded presentation and launches exact final URI',
-    (
-      tester,
-    ) async {
+    (tester) async {
       Uri? launched;
       const external = PostExternal(
         uri: 'https://EXAMPLE.com:8443/pattern?token=hidden#section',
@@ -43,11 +41,11 @@ void main() {
       expect(find.byType(ExternalCard), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.tap(find.byType(ExternalCard));
-      await tester.pumpAndSettle();
+      await tester.pump();
       expect(launched, isNull);
       expect(find.text('Open link?'), findsOneWidget);
       await tester.tap(find.text('Open link'));
-      await tester.pumpAndSettle();
+      await tester.pump();
       expect(
         launched.toString(),
         'https://example.com:8443/pattern?token=hidden#section',
@@ -120,9 +118,7 @@ void main() {
     );
     expect(
       tester
-          .widget<DecoratedBox>(
-            find.byKey(const Key('external-card-outline')),
-          )
+          .widget<DecoratedBox>(find.byKey(const Key('external-card-outline')))
           .position,
       DecorationPosition.foreground,
     );
@@ -164,20 +160,20 @@ void main() {
     expect(find.byKey(const Key('fake-youtube-player')), findsNothing);
 
     await tester.tap(find.byType(ExternalCard));
-    await tester.pumpAndSettle();
+    await tester.pump();
     expect(find.text('Play video from YouTube?'), findsOneWidget);
     expect(find.byKey(const Key('fake-youtube-player')), findsNothing);
 
     await tester.tap(find.text('Allow once'));
-    await tester.pumpAndSettle();
+    await tester.pump();
     expect(find.text('player:dQw4w9WgXcQ:90'), findsOneWidget);
     expect(find.text('Open in YouTube'), findsOneWidget);
     expect(consent.setAlwaysAllowCalls, 0);
 
     await tester.tap(find.text('Open in YouTube'));
-    await tester.pumpAndSettle();
+    await tester.pump();
     await tester.tap(find.text('Open link'));
-    await tester.pumpAndSettle();
+    await tester.pump();
     expect(launched, Uri.parse('https://youtu.be/dQw4w9WgXcQ?t=90'));
   });
 
@@ -236,9 +232,9 @@ void main() {
     );
 
     await tester.tap(find.byType(ExternalCard));
-    await tester.pumpAndSettle();
+    await tester.pump();
     await tester.tap(find.text('Always allow YouTube'));
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     expect(consent.setAlwaysAllowCalls, 1);
     expect(find.byKey(const Key('fake-youtube-player')), findsOneWidget);
@@ -311,18 +307,16 @@ void main() {
 
     expect(find.byKey(const Key('youtube-play-indicator')), findsNothing);
     await tester.tap(find.byType(ExternalCard));
-    await tester.pumpAndSettle();
+    await tester.pump();
     expect(find.text('Play video from YouTube?'), findsNothing);
     expect(find.text('Open link?'), findsOneWidget);
     await tester.tap(find.text('Open link'));
-    await tester.pumpAndSettle();
+    await tester.pump();
     expect(launched, Uri.parse('https://youtu.be/dQw4w9WgXcQ'));
   });
 }
 
-Widget _app(Widget child) => ProviderScope(
-  child: _materialApp(child),
-);
+Widget _app(Widget child) => ProviderScope(child: _materialApp(child));
 
 Widget _materialApp(Widget child) => MaterialApp(
   theme: AppTheme.lightThemeData,

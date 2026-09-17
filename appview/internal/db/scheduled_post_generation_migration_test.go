@@ -10,10 +10,10 @@ import (
 )
 
 func TestScheduledPostGenerationMigrationUpDownUp(t *testing.T) {
-	up34 := readScheduledMediaMigration(t, "../../migrations/000034_scheduled_posts.up.sql")
-	up40 := readScheduledMediaMigration(t, "../../migrations/000040_scheduled_media_durability.up.sql")
-	up48 := readScheduledMediaMigration(t, "../../migrations/000048_scheduled_post_owner_generation.up.sql")
-	down48 := readScheduledMediaMigration(t, "../../migrations/000048_scheduled_post_owner_generation.down.sql")
+	up34 := readScheduledMediaMigration(t, "000034_scheduled_posts.up.sql")
+	up40 := readScheduledMediaMigration(t, "000040_scheduled_media_durability.up.sql")
+	up48 := readScheduledMediaMigration(t, "000048_scheduled_post_owner_generation.up.sql")
+	down48 := readScheduledMediaMigration(t, "000048_scheduled_post_owner_generation.down.sql")
 
 	pool := testdb.WithSchema(t, scheduledMediaDurabilityPreStateDDL)
 	applyScheduledMediaMigration(t, pool, "34 up", up34)

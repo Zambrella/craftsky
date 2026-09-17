@@ -2,7 +2,6 @@ package notifications_test
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -19,10 +18,10 @@ func TestNotificationNewnessRevisionTracksGenuineActivations(t *testing.T) {
 	`)
 	ctx := context.Background()
 	for _, path := range []string{
-		"../../migrations/000021_appview_notifications.up.sql",
-		"../../migrations/000022_notification_newness.up.sql",
+		"000021_appview_notifications.up.sql",
+		"000022_notification_newness.up.sql",
 	} {
-		migration, err := os.ReadFile(path)
+		migration, err := testdb.ReadMigration(path)
 		if err != nil {
 			t.Fatalf("read migration %s: %v", path, err)
 		}
@@ -105,7 +104,7 @@ func TestNotificationSuppressionEmitsBoundedRelationshipOutcome(t *testing.T) {
 		CREATE TABLE atproto_blocks(uri TEXT PRIMARY KEY, blocker_did TEXT NOT NULL, subject_did TEXT NOT NULL);
 	`)
 	ctx := context.Background()
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

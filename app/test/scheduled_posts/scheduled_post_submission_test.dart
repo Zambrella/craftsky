@@ -35,6 +35,7 @@ import 'package:image/image.dart' as img;
 
 import '../fakes/recording_messenger.dart';
 import '../feed/fakes/fake_post_repository.dart';
+import '../test_support/deterministic_pump.dart';
 
 void main() {
   testWidgets('AT-005 freezes and privately stages a scheduled external card', (
@@ -50,7 +51,11 @@ void main() {
         previews: _PreviewRepository(),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.byType(TextField),
+      description: 'the post composer text field',
+    );
     await tester.enterText(
       find.byType(TextField).first,
       'Use https://source.example/pattern#section ',
@@ -91,7 +96,11 @@ void main() {
         previews: _PreviewRepository(thumbnail: false),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.byType(TextField),
+      description: 'the post composer text field',
+    );
     await tester.enterText(
       find.byType(TextField).first,
       'Use https://source.example/pattern ',
@@ -127,7 +136,11 @@ void main() {
           composerId: 'trimmed-create',
         ),
       );
-      await tester.pumpAndSettle();
+      await pumpUntilFound(
+        tester,
+        find.byType(TextField),
+        description: 'the post composer text field',
+      );
       await tester.enterText(
         find.byType(TextField).first,
         'Use https://source.example/pattern ',
@@ -165,7 +178,11 @@ void main() {
           scheduledPost: detail,
         ),
       );
-      await tester.pumpAndSettle();
+      await pumpUntilFound(
+        tester,
+        find.text('Use https://source.example/pattern'),
+        description: 'the reopened scheduled post text',
+      );
       await _pumpUntilEnabled(tester, 'Schedule');
       await tester.tap(find.byKey(const Key('post-composer-primary-action')));
       await _pumpUntil(tester, () => scheduled.updateCalls == 1);
@@ -187,7 +204,11 @@ void main() {
         previews: _PreviewRepository(),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.byType(TextField),
+      description: 'the post composer text field',
+    );
     await tester.enterText(
       find.byType(TextField).first,
       'Use https://source.example/pattern ',
@@ -206,9 +227,7 @@ void main() {
     expect(find.byType(CraftskySnackBarContent), findsOneWidget);
 
     tester
-        .widget<CraftskySnackBarContent>(
-          find.byType(CraftskySnackBarContent),
-        )
+        .widget<CraftskySnackBarContent>(find.byType(CraftskySnackBarContent))
         .action!
         .onPressed();
     await tester.pumpAndSettle();
@@ -242,9 +261,7 @@ void main() {
       await tester.tap(find.byTooltip('Dismiss link previews'));
       await tester.pump();
       tester
-          .widget<CraftskySnackBarContent>(
-            find.byType(CraftskySnackBarContent),
-          )
+          .widget<CraftskySnackBarContent>(find.byType(CraftskySnackBarContent))
           .action!
           .onPressed();
       await tester.pump();
@@ -255,9 +272,7 @@ void main() {
       await tester.pump();
       expect(find.text('Undo'), findsOneWidget);
       tester
-          .widget<CraftskySnackBarContent>(
-            find.byType(CraftskySnackBarContent),
-          )
+          .widget<CraftskySnackBarContent>(find.byType(CraftskySnackBarContent))
           .action!
           .onPressed();
       await tester.pump();
@@ -315,51 +330,48 @@ void main() {
     expect(find.text('Two pattern'), findsNothing);
   });
 
-  testWidgets(
-    'IR-016 AT-001 real composer bounds five sequential links '
-    'and omits failure',
-    (tester) async {
-      final previews = _SequentialAcceptancePreviewRepository();
-      final messenger = RecordingMessenger();
-      await tester.pumpWidget(
-        _testApp(
-          scheduled: _SubmissionRepository(),
-          publicPosts: FakePostRepository(),
-          messenger: messenger,
-          images: const ComposerImagesState(images: []),
-          previews: previews,
-        ),
-      );
-      await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byType(TextField).first,
-        'https://one.example/a https://two.example/b '
-        'https://three.example/c https://four.example/d '
-        'https://five.example/e ',
-      );
-      await _pumpUntil(tester, () => previews.urls.length == 4);
-      await tester.pumpAndSettle();
+  testWidgets('IR-016 AT-001 real composer bounds five sequential links '
+      'and omits failure', (tester) async {
+    final previews = _SequentialAcceptancePreviewRepository();
+    final messenger = RecordingMessenger();
+    await tester.pumpWidget(
+      _testApp(
+        scheduled: _SubmissionRepository(),
+        publicPosts: FakePostRepository(),
+        messenger: messenger,
+        images: const ComposerImagesState(images: []),
+        previews: previews,
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byType(TextField).first,
+      'https://one.example/a https://two.example/b '
+      'https://three.example/c https://four.example/d '
+      'https://five.example/e ',
+    );
+    await _pumpUntil(tester, () => previews.urls.length == 4);
+    await tester.pumpAndSettle();
 
-      expect(previews.urls, [
-        'https://one.example/a',
-        'https://two.example/b',
-        'https://three.example/c',
-        'https://four.example/d',
-      ]);
-      expect(previews.maxActive, 1);
-      expect(find.text('One pattern'), findsOneWidget);
-      expect(find.text('Two pattern'), findsNothing);
-      expect(find.text('Link preview 1 of 3'), findsOneWidget);
-      expect(messenger.calls.where((call) => call.$1 == 'error'), isEmpty);
+    expect(previews.urls, [
+      'https://one.example/a',
+      'https://two.example/b',
+      'https://three.example/c',
+      'https://four.example/d',
+    ]);
+    expect(previews.maxActive, 1);
+    expect(find.text('One pattern'), findsOneWidget);
+    expect(find.text('Two pattern'), findsNothing);
+    expect(find.text('Link preview 1 of 3'), findsOneWidget);
+    expect(messenger.calls.where((call) => call.$1 == 'error'), isEmpty);
 
-      await tester.tap(find.byTooltip('Next link preview'));
-      await tester.pump();
-      expect(find.text('Three pattern'), findsOneWidget);
-      await tester.tap(find.byTooltip('Next link preview'));
-      await tester.pump();
-      expect(find.text('Four pattern'), findsOneWidget);
-    },
-  );
+    await tester.tap(find.byTooltip('Next link preview'));
+    await tester.pump();
+    expect(find.text('Three pattern'), findsOneWidget);
+    await tester.tap(find.byTooltip('Next link preview'));
+    await tester.pump();
+    expect(find.text('Four pattern'), findsOneWidget);
+  });
 
   testWidgets(
     'IR-016 AT-002 real image actions cancel, hide, and restore previews',
@@ -536,10 +548,7 @@ void main() {
     expect(publicPosts.lastCreateExternal, isNull);
     expect(find.text(text), findsOneWidget);
     expect(find.text('Frozen pattern'), findsOneWidget);
-    expect(
-      messenger.calls,
-      contains(('error', "Couldn't post.", null)),
-    );
+    expect(messenger.calls, contains(('error', "Couldn't post.", null)));
   });
 
   testWidgets('AT-004 stages private media before creating the schedule', (
@@ -590,12 +599,7 @@ void main() {
     expect(scheduled.createCalls, 1);
     expect(scheduled.events, ['stage:start', 'stage:done', 'create']);
     expect(scheduled.createdPayload?['media'], [
-      {
-        'id': 'local-image',
-        'alt': 'A tiny project',
-        'width': 3,
-        'height': 2,
-      },
+      {'id': 'local-image', 'alt': 'A tiny project', 'width': 3, 'height': 2},
     ]);
     expect(scheduled.createdPayload.toString(), isNot(contains('pds-cid')));
     expect(publicCreateCalls, 0);
@@ -640,13 +644,11 @@ void main() {
     expect(reporter.breadcrumbs, isEmpty);
     expect(
       messenger.calls,
-      contains(
-        (
-          'error',
-          'Could not schedule post. Your draft is still here.',
-          null,
-        ),
-      ),
+      contains((
+        'error',
+        'Could not schedule post. Your draft is still here.',
+        null,
+      )),
     );
 
     await _pumpUntilEnabled(tester, 'Schedule');
@@ -661,70 +663,67 @@ void main() {
     expect(scheduled.operationIDs.toSet(), {'submission'});
   });
 
-  testWidgets(
-    'IR-020 new schedule retains identical thumbnail ID '
-    'and rotates changed content',
-    (tester) async {
-      final firstBytes = _pngBytes(width: 3, height: 1);
-      final secondBytes = _pngBytes(width: 4, height: 1);
-      final scheduled = _SubmissionRepository(failCreateCount: 2);
-      final previews = _ChangingThumbnailPreviewRepository(
-        firstBytes: firstBytes,
-        secondBytes: secondBytes,
-      );
-      await tester.pumpWidget(
-        _testApp(
-          scheduled: scheduled,
-          publicPosts: FakePostRepository(),
-          messenger: RecordingMessenger(),
-          images: const ComposerImagesState(images: []),
-          previews: previews,
-          composerId: 'changed-thumbnail-retry',
-        ),
-      );
-      await tester.pumpAndSettle();
-      await tester.enterText(
-        find.byType(TextField).first,
-        'Use https://first.example/pattern ',
-      );
-      await _pumpUntil(
-        tester,
-        () => find.text('First pattern').evaluate().isNotEmpty,
-      );
-      await _selectLater(tester);
-      await _pumpUntilEnabled(tester, 'Schedule');
+  testWidgets('IR-020 new schedule retains identical thumbnail ID '
+      'and rotates changed content', (tester) async {
+    final firstBytes = _pngBytes(width: 3, height: 1);
+    final secondBytes = _pngBytes(width: 4, height: 1);
+    final scheduled = _SubmissionRepository(failCreateCount: 2);
+    final previews = _ChangingThumbnailPreviewRepository(
+      firstBytes: firstBytes,
+      secondBytes: secondBytes,
+    );
+    await tester.pumpWidget(
+      _testApp(
+        scheduled: scheduled,
+        publicPosts: FakePostRepository(),
+        messenger: RecordingMessenger(),
+        images: const ComposerImagesState(images: []),
+        previews: previews,
+        composerId: 'changed-thumbnail-retry',
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byType(TextField).first,
+      'Use https://first.example/pattern ',
+    );
+    await _pumpUntil(
+      tester,
+      () => find.text('First pattern').evaluate().isNotEmpty,
+    );
+    await _selectLater(tester);
+    await _pumpUntilEnabled(tester, 'Schedule');
 
-      await tester.tap(find.byKey(const Key('post-composer-primary-action')));
-      await _pumpUntil(tester, () => scheduled.createCalls == 1);
-      await _pumpUntilEnabled(tester, 'Schedule');
-      await tester.tap(find.byKey(const Key('post-composer-primary-action')));
-      await _pumpUntil(tester, () => scheduled.createCalls == 2);
+    await tester.tap(find.byKey(const Key('post-composer-primary-action')));
+    await _pumpUntil(tester, () => scheduled.createCalls == 1);
+    await _pumpUntilEnabled(tester, 'Schedule');
+    await tester.tap(find.byKey(const Key('post-composer-primary-action')));
+    await _pumpUntil(tester, () => scheduled.createCalls == 2);
 
-      expect(scheduled.stagedIDs, hasLength(2));
-      expect(scheduled.stagedIDs[1], scheduled.stagedIDs[0]);
-      expect(scheduled.stagedByteHistory, [firstBytes, firstBytes]);
+    expect(scheduled.stagedIDs, hasLength(2));
+    expect(scheduled.stagedIDs[1], scheduled.stagedIDs[0]);
+    expect(scheduled.stagedByteHistory, [firstBytes, firstBytes]);
 
-      await tester.enterText(
-        find.byType(TextField).first,
-        'Use https://second.example/pattern ',
-      );
-      await _pumpUntil(
-        tester,
-        () => find.text('Second pattern').evaluate().isNotEmpty,
-      );
-      await _pumpUntilEnabled(tester, 'Schedule');
-      await tester.tap(find.byKey(const Key('post-composer-primary-action')));
-      await _pumpUntil(tester, () => scheduled.createCalls == 3);
+    await tester.enterText(
+      find.byType(TextField).first,
+      'Use https://second.example/pattern ',
+    );
+    await _pumpUntil(
+      tester,
+      () => find.text('Second pattern').evaluate().isNotEmpty,
+    );
+    await _pumpUntilEnabled(tester, 'Schedule');
+    await tester.tap(find.byKey(const Key('post-composer-primary-action')));
+    await _pumpUntil(tester, () => scheduled.createCalls == 3);
 
-      expect(scheduled.stagedIDs, hasLength(3));
-      expect(scheduled.stagedIDs[2], isNot(scheduled.stagedIDs[1]));
-      expect(scheduled.stagedByteHistory[2], secondBytes);
-      expect(
-        (scheduled.createdPayload?['external'] as Map)['thumbMediaId'],
-        scheduled.stagedIDs[2],
-      );
-    },
-  );
+    expect(scheduled.stagedIDs, hasLength(3));
+    expect(scheduled.stagedIDs[2], isNot(scheduled.stagedIDs[1]));
+    expect(scheduled.stagedByteHistory[2], secondBytes);
+    expect(
+      (scheduled.createdPayload?['external'] as Map)['thumbMediaId'],
+      scheduled.stagedIDs[2],
+    );
+  });
 
   testWidgets(
     'IT-013 submit invalidates pending preview queue after publish failure',
@@ -808,9 +807,7 @@ Widget _testApp({
       ),
       postRepositoryProvider.overrideWithValue(publicPosts),
       if (imageNotifier != null)
-        composerImagesProvider(
-          composerId,
-        ).overrideWith(() => imageNotifier)
+        composerImagesProvider(composerId).overrideWith(() => imageNotifier)
       else
         composerImagesProvider(
           composerId,
@@ -910,10 +907,7 @@ Future<void> _pumpUntilEnabled(WidgetTester tester, String label) async {
   });
 }
 
-Future<void> _pumpUntil(
-  WidgetTester tester,
-  bool Function() condition,
-) async {
+Future<void> _pumpUntil(WidgetTester tester, bool Function() condition) async {
   for (var attempt = 0; attempt < 200; attempt++) {
     await tester.pump(const Duration(milliseconds: 20));
     if (condition()) return;

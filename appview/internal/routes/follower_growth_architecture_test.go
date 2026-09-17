@@ -1,10 +1,13 @@
 package routes
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -12,22 +15,13 @@ import (
 func TestFollowerGrowthProductionDependenciesStayPrivateAndNonInfluential(t *testing.T) {
 	t.Parallel()
 
-	allowed := []string{
-		"api/follower_growth.go",
-		"app/deps.go",
-		"app/deps_content.go",
-		"app/routes_adapter.go",
-		"followergrowth/period.go",
-		"followergrowth/series.go",
-		"followergrowth/store.go",
-		"followergrowth/worker.go",
-		"observability/follower_growth.go",
-		"observability/metric_recorder.go",
-		"ownerlifecycle/terminal_inventory.go",
-		"ownerlifecycle/terminal_purge_processor.go",
-		"routes/dependencies.go",
-		"routes/routes.go",
-		"routes/routes_profile_notification.go",
+	allowedPackages := map[string]bool{
+		"api":            true,
+		"app":            true,
+		"followergrowth": true,
+		"observability":  true,
+		"ownerlifecycle": true,
+		"routes":         true,
 	}
 	protectedBoundaries := []string{
 		"feed", "timeline", "rank", "recommend", "search", "discover", "moderation", "advert",
@@ -41,14 +35,14 @@ func TestFollowerGrowthProductionDependenciesStayPrivateAndNonInfluential(t *tes
 			return nil
 		}
 		relative := filepath.ToSlash(strings.TrimPrefix(path, "../"))
-		raw, err := os.ReadFile(path)
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
 		if err != nil {
 			return err
 		}
-		source := strings.ToLower(string(raw))
-		referencesGrowth := strings.Contains(source, "followergrowth") || strings.Contains(source, "follower_growth")
-		if referencesGrowth && !slices.Contains(allowed, relative) {
-			t.Errorf("unapproved follower-growth production dependency in %s", relative)
+		referencesGrowth := referencesFollowerGrowth(file)
+		ownerPackage := strings.Split(relative, "/")[0]
+		if referencesGrowth && !allowedPackages[ownerPackage] {
+			t.Errorf("unapproved follower-growth production dependency in package %s (%s)", ownerPackage, relative)
 		}
 		for _, boundary := range protectedBoundaries {
 			if strings.Contains(strings.ToLower(relative), boundary) && referencesGrowth {
@@ -66,4 +60,27 @@ func TestFollowerGrowthProductionDependenciesStayPrivateAndNonInfluential(t *tes
 			t.Errorf("%s subsystem now exists; add it explicitly to the follower-growth non-interference inventory", absentSubsystem)
 		}
 	}
+}
+
+func referencesFollowerGrowth(file *ast.File) bool {
+	for _, imported := range file.Imports {
+		path, err := strconv.Unquote(imported.Path.Value)
+		if err == nil && strings.HasSuffix(path, "/internal/followergrowth") {
+			return true
+		}
+	}
+	found := false
+	ast.Inspect(file, func(node ast.Node) bool {
+		switch node := node.(type) {
+		case *ast.Ident:
+			found = found || strings.Contains(strings.ToLower(node.Name), "followergrowth")
+		case *ast.BasicLit:
+			if node.Kind == token.STRING {
+				value, err := strconv.Unquote(node.Value)
+				found = found || err == nil && strings.Contains(strings.ToLower(value), "follower_growth")
+			}
+		}
+		return !found
+	})
+	return found
 }

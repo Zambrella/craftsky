@@ -2,7 +2,6 @@ package index_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"social.craftsky/appview/internal/index"
@@ -12,7 +11,7 @@ import (
 
 func TestLikeIngestionPersistsFansOutAndReplaysIdempotently(t *testing.T) {
 	pool := testdb.WithSchema(t, craftskyInteractionsDDL)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +65,7 @@ func TestLikeIngestionPersistsFansOutAndReplaysIdempotently(t *testing.T) {
 
 func TestPushPreferenceIsProspectiveAndDoesNotBackfill(t *testing.T) {
 	pool := testdb.WithSchema(t, craftskyInteractionsDDL)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

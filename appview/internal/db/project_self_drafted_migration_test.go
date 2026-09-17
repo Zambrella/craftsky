@@ -2,22 +2,21 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"social.craftsky/appview/internal/testdb"
 )
 
 func TestProjectSelfDraftedMigrationBackfillsAndReverses(t *testing.T) {
-	projectMigration, err := os.ReadFile("../../migrations/000016_project_posts.up.sql")
+	projectMigration, err := testdb.ReadMigration("000016_project_posts.up.sql")
 	if err != nil {
 		t.Fatalf("read project migration: %v", err)
 	}
-	up, err := os.ReadFile("../../migrations/000071_project_self_drafted.up.sql")
+	up, err := testdb.ReadMigration("000071_project_self_drafted.up.sql")
 	if err != nil {
 		t.Fatalf("read self-drafted up migration: %v", err)
 	}
-	down, err := os.ReadFile("../../migrations/000071_project_self_drafted.down.sql")
+	down, err := testdb.ReadMigration("000071_project_self_drafted.down.sql")
 	if err != nil {
 		t.Fatalf("read self-drafted down migration: %v", err)
 	}

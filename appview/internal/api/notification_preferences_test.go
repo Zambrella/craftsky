@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
@@ -100,7 +99,7 @@ func TestInstagramMatchPreferenceAPIRejectsScopePatch(t *testing.T) {
 
 func applyNotificationPreferencesTestSchema(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

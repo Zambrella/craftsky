@@ -270,7 +270,7 @@ func TestReleaseScriptRejectsPushWhenOriginMainAdvanced(t *testing.T) {
 	runRelease(t, repo, script, nil, "create", "appview", "--version", "1.0.4", "--notes", notes)
 
 	other := t.TempDir()
-	runGit(t, "", "clone", remote, other)
+	runGit(t, "", "clone", "--branch", "main", remote, other)
 	runGit(t, other, "config", "user.name", "Other Developer")
 	runGit(t, other, "config", "user.email", "other@example.invalid")
 	writeTestFile(t, other, "other.txt", "advanced\n")

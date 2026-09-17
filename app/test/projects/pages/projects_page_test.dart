@@ -21,6 +21,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../../fakes/auth_session_fakes.dart';
+import '../../test_support/deterministic_pump.dart';
 import '../fakes/fake_project_repository.dart';
 
 Post _post(int index) => PostMapper.fromMap({
@@ -97,7 +98,11 @@ void main() {
     );
 
     gate.complete(const PostPage(items: []));
-    await tester.pumpAndSettle();
+    await pumpUntilAbsent(
+      tester,
+      find.byType(CraftskySkeletonSliverList),
+      description: 'the project loading skeleton to disappear',
+    );
   });
 
   testWidgets('shows Filters as an extended floating action', (tester) async {
@@ -108,7 +113,11 @@ void main() {
             const PostPage(items: []),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.widgetWithText(CraftskyFloatingActionButton, 'Filters'),
+      description: 'the project filters action',
+    );
 
     expect(
       find.widgetWithText(CraftskyFloatingActionButton, 'Filters'),
@@ -129,7 +138,11 @@ void main() {
             const PostPage(items: []),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.text('Filters'),
+      description: 'the project filters action',
+    );
 
     await tester.tap(find.text('Filters'));
     await tester.pumpAndSettle();
@@ -209,10 +222,7 @@ void main() {
       const Offset(0, 400),
     );
     await tester.pumpAndSettle();
-    expect(
-      calls[ProjectOptionCatalogs.knittingCraftToken],
-      knittingCalls + 1,
-    );
+    expect(calls[ProjectOptionCatalogs.knittingCraftToken], knittingCalls + 1);
 
     await tester.drag(find.byType(TabBarView), const Offset(-500, 0));
     await tester.pumpAndSettle();

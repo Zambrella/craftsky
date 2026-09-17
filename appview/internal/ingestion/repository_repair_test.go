@@ -21,7 +21,6 @@ func TestRepositoryRepairComparisonRequiresVerifiedSnapshotAndUsesImmutableRegis
 		"social.craftsky.actor.profile",
 		"social.craftsky.feed.like",
 		"social.craftsky.feed.post",
-		"social.craftsky.feed.post",
 	} {
 		dispatcher.Register(collection, repairTestIndexer{})
 	}

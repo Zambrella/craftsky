@@ -42,7 +42,7 @@ func (fetcher *CaptionFetcher) Fetch(ctx context.Context, did syntax.DID, captio
 		return nil, ErrCaptionUnavailable
 	}
 	origin, err := fetcher.origins.ValidateOrigin(ctx, identityValue.PDSEndpoint())
-	if err != nil {
+	if err != nil || origin == nil {
 		return nil, ErrCaptionUnavailable
 	}
 	endpoint := origin.JoinPath("xrpc", "com.atproto.sync.getBlob")
@@ -72,7 +72,13 @@ func (fetcher *CaptionFetcher) Fetch(ctx context.Context, did syntax.DID, captio
 		return nil, ErrCaptionUnavailable
 	}
 	body, err := io.ReadAll(io.LimitReader(response.Body, maxCaptionBytes+1))
-	if err != nil || len(body) > maxCaptionBytes {
+	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, err
+		}
+		return nil, ErrCaptionUnavailable
+	}
+	if len(body) > maxCaptionBytes {
 		return nil, ErrCaptionUnavailable
 	}
 	return body, nil

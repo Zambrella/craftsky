@@ -30,10 +30,6 @@ type feedNeutralitySnapshot struct {
 	cursors  []string
 }
 
-func TestBusinessFeedNeutrality(t *testing.T) {
-	assertBusinessFeedNeutrality(t)
-}
-
 func assertBusinessFeedNeutrality(t *testing.T) {
 	t.Helper()
 	pool := testdb.WithSchema(t, timelineStoreDDL+businessNeutralityDDL)

@@ -17,6 +17,9 @@ check_root=$(cd "$script_dir/.." && pwd)
 appview_dir="$check_root/appview"
 compose_file="$check_root/docker-compose.yml"
 migration_failure_override="$check_root/scripts/appview-check-migration-failure.override.yml"
+tap_acceptance_override="$check_root/scripts/appview-check-tap.override.yml"
+tap_image="ghcr.io/bluesky-social/indigo/tap:0.1.10@sha256:5e20bfe416d29fcd215ed8bf99f10b2ab825a6de4e5599846dd33967ade2abeb"
+tap_collection_filters="social.craftsky.actor.profile,social.craftsky.feed.post,social.craftsky.feed.like,social.craftsky.feed.repost,social.craftsky.business.profile,social.craftsky.business.event,app.bsky.actor.profile,app.bsky.graph.follow,app.bsky.graph.block"
 artifact_dir=${APPVIEW_CHECK_ARTIFACT_DIR:-}
 if [[ -z "$artifact_dir" ]]; then
   artifact_dir=$(mktemp -d)
@@ -34,6 +37,7 @@ govulncheck_bin="$tool_bin_dir/govulncheck"
 
 gate_project="craftsky_appview_check_${RANDOM}_$$"
 failure_project="${gate_project}_migration_failure"
+gate_compose=(docker compose -f "$compose_file" -f "$tap_acceptance_override" -p "$gate_project")
 gate_image="craftsky-appview-check:${RANDOM}-$$"
 media_image="craftsky-appview-media-check:${RANDOM}-$$"
 extract_container="${gate_project}_extract"
@@ -57,18 +61,20 @@ cleanup() {
   if [[ "$failure_compose_started" == "true" ]]; then
     docker compose \
       -f "$compose_file" \
+      -f "$tap_acceptance_override" \
       -f "$migration_failure_override" \
       -p "$failure_project" \
       logs --no-color >"$artifact_dir/migration-failure-compose.log" 2>&1
     docker compose \
       -f "$compose_file" \
+      -f "$tap_acceptance_override" \
       -f "$migration_failure_override" \
       -p "$failure_project" \
       down --volumes --remove-orphans >/dev/null 2>&1
   fi
   if [[ "$compose_started" == "true" ]]; then
-    docker compose -f "$compose_file" -p "$gate_project" logs --no-color >"$artifact_dir/compose.log" 2>&1
-    docker compose -f "$compose_file" -p "$gate_project" down --volumes --remove-orphans >/dev/null 2>&1
+    "${gate_compose[@]}" logs --no-color >"$artifact_dir/compose.log" 2>&1
+    "${gate_compose[@]}" down --volumes --remove-orphans >/dev/null 2>&1
   fi
   if [[ "$image_built" == "true" ]]; then
     docker image rm "$gate_image" >/dev/null 2>&1
@@ -148,13 +154,45 @@ export CRAFTSKY_POSTGRES_PUBLISH_HOST=127.0.0.1
 export CRAFTSKY_MINIO_PUBLISH_HOST=127.0.0.1
 export CRAFTSKY_APPVIEW_PUBLISH_HOST=127.0.0.1
 compose_started=true
-docker compose -f "$compose_file" -p "$gate_project" up -d --wait postgres minio
+"${gate_compose[@]}" up -d --wait postgres minio tap
+
+tap_container=$("${gate_compose[@]}" ps -q tap)
+if [[ -z "$tap_container" ]]; then
+  echo "appview-check: Compose did not create the Tap acceptance container" >&2
+  exit 1
+fi
+expected_tap_image_id=$(docker image inspect --format '{{.Id}}' "$tap_image")
+actual_tap_image_id=$(docker inspect --format '{{.Image}}' "$tap_container")
+if [[ "$actual_tap_image_id" != "$expected_tap_image_id" ]]; then
+  echo "appview-check: Tap container image is $actual_tap_image_id, want $expected_tap_image_id" >&2
+  exit 1
+fi
+docker inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$tap_container" \
+  >"$artifact_dir/tap-environment.txt"
+for required_tap_env in \
+  "TAP_OUTBOX_ONLY=true" \
+  "TAP_DISABLE_ACKS=false" \
+  "TAP_RELAY_URL=http://127.0.0.1:1" \
+  "TAP_PLC_URL=http://127.0.0.1:1" \
+  "TAP_COLLECTION_FILTERS=$tap_collection_filters"; do
+  if ! rg -Fxq "$required_tap_env" "$artifact_dir/tap-environment.txt"; then
+    echo "appview-check: Tap acceptance container is missing $required_tap_env" >&2
+    exit 1
+  fi
+done
+"${gate_compose[@]}" exec -T tap /tap --version >"$artifact_dir/tap-version.txt"
+"${gate_compose[@]}" exec -T tap wget -qO- http://localhost:2480/health \
+  >"$artifact_dir/tap-health.json"
+if ! rg -q '^\{"status":"ok"\}$' "$artifact_dir/tap-health.json"; then
+  echo "appview-check: pinned Tap image returned an unexpected health response" >&2
+  exit 1
+fi
 
 require_loopback_publish() {
   local service=$1
   local container_port=$2
   local address
-  address=$(docker compose -f "$compose_file" -p "$gate_project" port "$service" "$container_port")
+  address=$("${gate_compose[@]}" port "$service" "$container_port")
   case "$address" in
     127.0.0.1:* | \[::1\]:*) ;;
     *)
@@ -170,7 +208,7 @@ minio_address=$(require_loopback_publish minio 9000)
 require_loopback_publish minio 9001 >/dev/null
 postgres_port=${postgres_address##*:}
 minio_port=${minio_address##*:}
-docker compose -f "$compose_file" -p "$gate_project" run --rm --no-deps minio-bootstrap
+"${gate_compose[@]}" run --rm --no-deps minio-bootstrap
 
 export TEST_DATABASE_URL="postgres://craftsky:dev@127.0.0.1:${postgres_port}/craftsky_dev?sslmode=disable"
 export TEST_DATABASE_REQUIRED="true"
@@ -190,9 +228,9 @@ assert_no_required_skips() {
 
 # Real-Postgres packages each create isolated migration schemas. Serializing
 # packages prevents those schemas from exhausting PostgreSQL's shared lock table.
-go test -p 1 -count=1 -json ./... 2>&1 | tee "$artifact_dir/tests.json"
+go test -p 1 -count=1 -json ./... -timeout=30m 2>&1 | tee "$artifact_dir/tests.json"
 assert_no_required_skips "$artifact_dir/tests.json"
-go test -p 1 -count=1 -race -json ./... 2>&1 | tee "$artifact_dir/race-tests.json"
+go test -p 1 -count=1 -race -json ./... -timeout=30m 2>&1 | tee "$artifact_dir/race-tests.json"
 assert_no_required_skips "$artifact_dir/race-tests.json"
 
 cd "$check_root"
@@ -292,6 +330,7 @@ failure_compose_started=true
 set +e
 docker compose \
   -f "$compose_file" \
+  -f "$tap_acceptance_override" \
   -f "$migration_failure_override" \
   -p "$failure_project" \
   up --no-build --wait appview >"$artifact_dir/migration-failure-up.log" 2>&1
@@ -303,6 +342,7 @@ if [[ "$failure_compose_status" -eq 0 ]]; then
 fi
 failure_migrate_container=$(docker compose \
   -f "$compose_file" \
+  -f "$tap_acceptance_override" \
   -f "$migration_failure_override" \
   -p "$failure_project" \
   ps -a -q migrate)
@@ -317,6 +357,7 @@ if [[ "$failure_migrate_exit" -eq 0 ]]; then
 fi
 failure_appview_container=$(docker compose \
   -f "$compose_file" \
+  -f "$tap_acceptance_override" \
   -f "$migration_failure_override" \
   -p "$failure_project" \
   ps -a -q appview)
@@ -543,6 +584,46 @@ if [[ "$smoke_ready" != "true" ]]; then
   echo "appview-check: release image did not pass the startup health smoke" >&2
   exit 1
 fi
+
+# Tap v0.1.10 exposes no runtime API for injecting record or identity events.
+# Require the strongest honest image-level contract: the exact pinned binary is
+# healthy in offline outbox-only mode, ACK mode and collection filters are set,
+# and the release AppView binary completes a real /channel WebSocket handshake.
+tap_websocket_ready=false
+for _ in $(seq 1 30); do
+  if curl -fsS \
+    --header "Host: 127.0.0.1:18080" \
+    "http://127.0.0.1:${smoke_port}/healthz" \
+    >"$artifact_dir/appview-tap-healthz.json" && \
+    rg -q '"connected":true' "$artifact_dir/appview-tap-healthz.json"; then
+    tap_websocket_ready=true
+    break
+  fi
+  sleep 1
+done
+if [[ "$tap_websocket_ready" != "true" ]]; then
+  echo "appview-check: release AppView did not connect to the pinned Tap /channel endpoint" >&2
+  exit 1
+fi
+docker logs "$tap_container" >"$artifact_dir/tap.log" 2>&1
+docker logs "$smoke_container" >"$artifact_dir/appview-smoke.log" 2>&1
+if ! rg -q 'websocket connected' "$artifact_dir/tap.log" || \
+  ! rg -q 'tap consumer connected' "$artifact_dir/appview-smoke.log"; then
+  echo "appview-check: Tap/AppView WebSocket handshake was not confirmed by both processes" >&2
+  exit 1
+fi
+{
+  printf 'tap_image=%s\n' "$tap_image"
+  printf 'tap_image_id=%s\n' "$actual_tap_image_id"
+  printf 'tap_outbox_only=true\n'
+  printf 'tap_ack_mode=websocket-ack\n'
+  printf 'tap_collection_filters=%s\n' "$tap_collection_filters"
+  printf 'tap_health=ok\n'
+  printf 'appview_websocket_connected=true\n'
+  printf 'events_injected=0\n'
+  printf '%s\n' 'limitation=Tap v0.1.10 exposes no safe deterministic record/identity injection API; this gate proves the exact image readiness, configuration, and real WebSocket handshake, while deterministic record/identity/ACK behavior remains covered by AppView fake-server tests.'
+} >"$artifact_dir/tap-protocol-acceptance.txt"
+echo "appview-check: pinned Tap handshake passed; no events injected because Tap v0.1.10 has no safe deterministic injection API"
 
 appview_baseline_peak=$(docker exec "$smoke_container" /bin/sh -c '
   if [ -r /sys/fs/cgroup/memory.peak ]; then

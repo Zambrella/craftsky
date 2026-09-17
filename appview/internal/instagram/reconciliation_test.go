@@ -3,7 +3,6 @@ package instagram
 import (
 	"context"
 	"errors"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -383,25 +382,25 @@ func newReconciliationWorkerForTest(t *testing.T, pool *pgxpool.Pool, policy Ins
 
 func newReconciliationTestPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	coreMigration, err := os.ReadFile("../../migrations/000025_instagram_migration.up.sql")
+	coreMigration, err := testdb.ReadMigration("000025_instagram_migration.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
 	pool := testdb.WithSchema(t, string(coreMigration))
 	ensureInstagramOwnerLifecyclePreState(t, pool)
 	for _, path := range []string{
-		"../../migrations/000021_appview_notifications.up.sql",
-		"../../migrations/000022_notification_newness.up.sql",
-		"../../migrations/000026_system_notifications.up.sql",
-		"../../migrations/000029_notification_client_owned_destination.up.sql",
-		"../../migrations/000030_instagram_automatic_follows.up.sql",
-		"../../migrations/000031_instagram_automatic_follow_storage_names.up.sql",
-		"../../migrations/000038_owner_auth_lifecycle.up.sql",
-		"../../migrations/000039_owner_effects_terminal_purge.up.sql",
-		"../../migrations/000042_instagram_private_suggestions.up.sql",
-		"../../migrations/000055_instagram_match_notifications.up.sql",
+		"000021_appview_notifications.up.sql",
+		"000022_notification_newness.up.sql",
+		"000026_system_notifications.up.sql",
+		"000029_notification_client_owned_destination.up.sql",
+		"000030_instagram_automatic_follows.up.sql",
+		"000031_instagram_automatic_follow_storage_names.up.sql",
+		"000038_owner_auth_lifecycle.up.sql",
+		"000039_owner_effects_terminal_purge.up.sql",
+		"000042_instagram_private_suggestions.up.sql",
+		"000055_instagram_match_notifications.up.sql",
 	} {
-		migration, err := os.ReadFile(path)
+		migration, err := testdb.ReadMigration(path)
 		if err != nil {
 			t.Fatalf("read migration %s: %v", path, err)
 		}

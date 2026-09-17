@@ -1,8 +1,9 @@
-import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_text_inputs.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../test_support/widget_pump.dart';
 
 void main() {
   testWidgets('text input exposes label, hint, value, and error semantics', (
@@ -10,14 +11,13 @@ void main() {
   ) async {
     final semantics = tester.ensureSemantics();
 
-    await tester.pumpWidget(
-      const _Harness(
-        child: CraftskyTextInput(
-          label: 'Project name',
-          initialValue: 'Summer cardigan',
-          hintText: 'Name this project',
-          errorText: 'Choose a unique name.',
-        ),
+    await pumpCraftskyWidget(
+      tester,
+      const CraftskyTextInput(
+        label: 'Project name',
+        initialValue: 'Summer cardigan',
+        hintText: 'Name this project',
+        errorText: 'Choose a unique name.',
       ),
     );
 
@@ -35,17 +35,16 @@ void main() {
     final controller = TextEditingController();
     addTearDown(controller.dispose);
 
-    await tester.pumpWidget(
-      _Harness(
-        child: Form(
-          key: formKey,
-          child: CraftskyTextFormField(
-            label: 'Event name',
-            controller: controller,
-            maxLength: 5,
-            validator: (value) =>
-                value == null || value.isEmpty ? 'Add an event name.' : null,
-          ),
+    await pumpCraftskyWidget(
+      tester,
+      Form(
+        key: formKey,
+        child: CraftskyTextFormField(
+          label: 'Event name',
+          controller: controller,
+          maxLength: 5,
+          validator: (value) =>
+              value == null || value.isEmpty ? 'Add an event name.' : null,
         ),
       ),
     );
@@ -65,19 +64,18 @@ void main() {
     final formKey = GlobalKey<FormBuilderState>();
     num? changed;
 
-    await tester.pumpWidget(
-      _Harness(
-        child: FormBuilder(
-          key: formKey,
-          child: CraftskyFormNumberField(
-            name: 'gaugeStitches',
-            label: 'Gauge stitches',
-            initialValue: 22,
-            suffixText: 'sts',
-            mode: CraftskyNumberInputMode.integer,
-            validator: (value) => value == null ? 'Enter a number.' : null,
-            onChanged: (value) => changed = value,
-          ),
+    await pumpCraftskyWidget(
+      tester,
+      FormBuilder(
+        key: formKey,
+        child: CraftskyFormNumberField(
+          name: 'gaugeStitches',
+          label: 'Gauge stitches',
+          initialValue: 22,
+          suffixText: 'sts',
+          mode: CraftskyNumberInputMode.integer,
+          validator: (value) => value == null ? 'Enter a number.' : null,
+          onChanged: (value) => changed = value,
         ),
       ),
     );
@@ -101,13 +99,12 @@ void main() {
   ) async {
     num? changed;
 
-    await tester.pumpWidget(
-      _Harness(
-        child: CraftskyNumberInput(
-          label: 'Gauge measurement',
-          suffixText: 'cm',
-          onChanged: (value) => changed = value,
-        ),
+    await pumpCraftskyWidget(
+      tester,
+      CraftskyNumberInput(
+        label: 'Gauge measurement',
+        suffixText: 'cm',
+        onChanged: (value) => changed = value,
       ),
     );
 
@@ -123,17 +120,16 @@ void main() {
     final controller = TextEditingController(text: '12');
     addTearDown(controller.dispose);
 
-    await tester.pumpWidget(
-      _Harness(
-        child: FormBuilder(
-          key: formKey,
-          child: CraftskyFormNumberField(
-            name: 'rowGauge',
-            label: 'Row gauge',
-            controller: controller,
-            mode: CraftskyNumberInputMode.integer,
-            validator: (value) => value == null ? 'Enter a number.' : null,
-          ),
+    await pumpCraftskyWidget(
+      tester,
+      FormBuilder(
+        key: formKey,
+        child: CraftskyFormNumberField(
+          name: 'rowGauge',
+          label: 'Row gauge',
+          controller: controller,
+          mode: CraftskyNumberInputMode.integer,
+          validator: (value) => value == null ? 'Enter a number.' : null,
         ),
       ),
     );
@@ -156,20 +152,4 @@ void main() {
     expect(controller.text, '12');
     expect(formKey.currentState!.instantValue['rowGauge'], 12);
   });
-}
-
-class _Harness extends StatelessWidget {
-  const _Harness({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      theme: AppTheme.lightThemeData,
-      home: Scaffold(
-        body: Padding(padding: const EdgeInsets.all(24), child: child),
-      ),
-    );
-  }
 }

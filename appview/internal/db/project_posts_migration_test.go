@@ -2,7 +2,6 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -41,7 +40,7 @@ CREATE TABLE craftsky_posts (
 `
 
 func TestProjectPostsMigrationCreatesSchemaAndIndexes(t *testing.T) {
-	sql, err := os.ReadFile("../../migrations/000016_project_posts.up.sql")
+	sql, err := testdb.ReadMigration("000016_project_posts.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}

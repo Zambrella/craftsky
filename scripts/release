@@ -194,7 +194,7 @@ prepend_changelog() {
 }
 
 create_release() {
-  local stream=$1 version="" notes="" current latest previous_tag tag version_path changelog title commit_name release_date generated_notes
+  local stream=$1 version="" notes="" current latest previous_tag tag version_path changelog title commit_name release_date generated_notes=""
   shift
   validate_stream "$stream"
   while [[ $# -gt 0 ]]; do

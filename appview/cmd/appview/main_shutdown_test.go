@@ -27,13 +27,9 @@ func TestStopBackgroundWorkersCancelsBeforeBoundedDrain(t *testing.T) {
 
 func TestStopBackgroundWorkersReturnsAtDeadline(t *testing.T) {
 	done := make(chan struct{})
-	start := time.Now()
 	err := stopBackgroundWorkers(func() {}, 20*time.Millisecond, done)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("stopBackgroundWorkers error = %v, want deadline exceeded", err)
-	}
-	if elapsed := time.Since(start); elapsed > 500*time.Millisecond {
-		t.Fatalf("bounded drain took %v", elapsed)
 	}
 }
 

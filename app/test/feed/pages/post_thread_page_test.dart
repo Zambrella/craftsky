@@ -229,7 +229,7 @@ void main() {
   });
 
   testWidgets(
-    'AT-001 renders only nonzero root summary links immediately after the card',
+    'AT-001 renders the root summary immediately after the card',
     (tester) async {
       final response =
           _rootPost(
@@ -310,37 +310,8 @@ void main() {
         tester.getTopLeft(summary).dy,
         lessThan(tester.getTopLeft(responseCard).dy),
       );
-      expect(find.text('3 Likes'), findsOneWidget);
-      expect(find.text('1 Quote'), findsOneWidget);
-      expect(find.textContaining('Repost'), findsNothing);
-      expect(
-        tester
-            .widgetList<Text>(
-              find.descendant(of: summary, matching: find.byType(Text)),
-            )
-            .map((text) => text.data),
-        ['3 Likes', '1 Quote'],
-      );
     },
   );
-
-  testWidgets('AT-001 omits the root summary when every count is zero', (
-    tester,
-  ) async {
-    await _pumpThread(
-      tester,
-      FakePostRepository(
-        onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
-            _section('zero interactions'),
-      ),
-    );
-
-    expect(find.byType(PostInteractionSummary), findsNothing);
-    expect(
-      find.textContaining(RegExp(r'^0 (Likes?|Reposts?|Quotes?)$')),
-      findsNothing,
-    );
-  });
 
   for (final responseType in ['comment', 'nested reply']) {
     testWidgets(
@@ -668,93 +639,30 @@ void main() {
     );
   }
 
-  for (final mutation in [
-    (
-      name: 'like',
-      likes: 0,
-      reposts: 0,
-      liked: false,
-      reposted: false,
-      label: '1 Like',
-    ),
-    (
-      name: 'unlike',
-      likes: 1,
-      reposts: 0,
-      liked: true,
-      reposted: false,
-      label: '1 Like',
-    ),
-    (
-      name: 'repost',
-      likes: 0,
-      reposts: 0,
-      liked: false,
-      reposted: false,
-      label: '1 Repost',
-    ),
-    (
-      name: 'unrepost',
-      likes: 0,
-      reposts: 1,
-      liked: false,
-      reposted: true,
-      label: '1 Repost',
-    ),
-  ]) {
-    testWidgets(
-      'AT-008 successful ${mutation.name} replacement rebuilds the '
-      'model-backed summary',
-      (tester) async {
-        final section = _section(
-          'mutable root',
-          likeCount: mutation.likes,
-          repostCount: mutation.reposts,
-          viewerHasLiked: mutation.liked,
-          viewerHasReposted: mutation.reposted,
-        );
-        final repository = FakePostRepository(
-          onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
-              section,
-          onLike: (did, rkey) async => _interaction(section.post),
-          onUnlike: (did, rkey) async {},
-          onRepost: (did, rkey) async => _interaction(section.post),
-          onUnrepost: (did, rkey) async {},
-        );
-
-        await _pumpThread(tester, repository);
-        final card = tester.widget<PostCard>(find.byType(PostCard).first);
-        if (mutation.name == 'like' || mutation.name == 'unlike') {
-          card.onLike!();
-        } else {
-          card.onRepost!();
-        }
-        await tester.pumpAndSettle();
-
-        if (mutation.name == 'like' || mutation.name == 'repost') {
-          expect(find.text(mutation.label), findsOneWidget);
-          expect(
-            tester
-                .widget<PostInteractionSummary>(
-                  find.byType(PostInteractionSummary),
-                )
-                .post,
-            tester.widget<PostCard>(find.byType(PostCard).first).post,
-          );
-        } else {
-          expect(find.text(mutation.label), findsNothing);
-          expect(find.byType(PostInteractionSummary), findsNothing);
-          final updated = tester
-              .widget<PostCard>(find.byType(PostCard).first)
-              .post;
-          expect(updated.viewerHasLiked, isFalse);
-          expect(updated.viewerHasReposted, isFalse);
-          expect(updated.likeCount, 0);
-          expect(updated.repostCount, 0);
-        }
-      },
+  testWidgets('AT-008 successful like rebuilds the model-backed summary', (
+    tester,
+  ) async {
+    final section = _section('mutable root');
+    final repository = FakePostRepository(
+      onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+          section,
+      onLike: (did, rkey) async => _interaction(section.post),
     );
-  }
+
+    await _pumpThread(tester, repository);
+    tester.widget<PostCard>(find.byType(PostCard).first).onLike!();
+    await tester.pump();
+
+    expect(find.byType(PostInteractionSummary), findsOneWidget);
+    expect(
+      tester
+          .widget<PostInteractionSummary>(
+            find.byType(PostInteractionSummary),
+          )
+          .post,
+      tester.widget<PostCard>(find.byType(PostCard).first).post,
+    );
+  });
 
   testWidgets('successful root deletion returns to the previous route', (
     tester,

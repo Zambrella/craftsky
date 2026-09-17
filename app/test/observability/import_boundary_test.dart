@@ -1,14 +1,13 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
+
+import '../test_support/source_scan.dart';
 
 void main() {
   test('only central observability implementation imports Sentry packages', () {
     final offenders = <String>[];
 
-    for (final file in Directory('lib').listSync(recursive: true)) {
-      if (file is! File || !file.path.endsWith('.dart')) continue;
-      final text = file.readAsStringSync();
+    for (final file in scanDartSources('lib')) {
+      final text = file.source;
       final importsSentry =
           text.contains('package:sentry_flutter/') ||
           text.contains('package:sentry_logging/') ||

@@ -3,7 +3,6 @@ package relationships
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
@@ -13,7 +12,7 @@ import (
 )
 
 func TestSubjectMembershipLossAndRejoinHideRetainAndRestoreRelationships(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000023_mutes_blocks.up.sql")
+	migration, err := testdb.ReadMigration("000023_mutes_blocks.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}

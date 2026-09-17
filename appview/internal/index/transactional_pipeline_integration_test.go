@@ -3,7 +3,6 @@ package index_test
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"testing"
 	"time"
 
@@ -17,14 +16,14 @@ import (
 
 func TestTransactionalPipelineRollsBackServingMutationWhenJobCompletionFails(t *testing.T) {
 	pool := testdb.WithSchema(t, craftskyProfilesDDL)
-	migration, err := os.ReadFile("../../migrations/000045_tap_ingestion_durability.up.sql")
+	migration, err := testdb.ReadMigration("000045_tap_ingestion_durability.up.sql")
 	if err != nil {
 		t.Fatalf("read Tap durability migration: %v", err)
 	}
 	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
 		t.Fatalf("apply Tap durability migration: %v", err)
 	}
-	renameMigration, err := os.ReadFile("../../migrations/000058_tap_projection_generation_column.up.sql")
+	renameMigration, err := testdb.ReadMigration("000058_tap_projection_generation_column.up.sql")
 	if err != nil {
 		t.Fatalf("read Tap projection generation migration: %v", err)
 	}

@@ -28,6 +28,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../fakes/auth_session_fakes.dart';
 import '../../fakes/recording_messenger.dart';
+import '../../test_support/deterministic_pump.dart';
 import '../fakes/fake_post_repository.dart';
 
 const _subjectDid = 'did:plc:alice';
@@ -49,7 +50,11 @@ void main() {
       );
 
       await _pumpPage(tester, repository);
-      await tester.pumpAndSettle();
+      await pumpUntilFound(
+        tester,
+        find.text('Quote dana-one'),
+        description: 'the first quote card',
+      );
 
       expect(find.widgetWithText(AppBar, 'Quotes'), findsOneWidget);
       expect(find.textContaining('Quotes ('), findsNothing);
@@ -79,13 +84,10 @@ void main() {
 
   testWidgets(
     'AT-004 preserves normal author, quote preview, and post navigation',
-    (
-      tester,
-    ) async {
+    (tester) async {
       final repository = FakePostRepository(
-        onListQuotes: (did, rkey, {cursor, limit}) async => PostPage(
-          items: [_quote('dana-one', 'Dana')],
-        ),
+        onListQuotes: (did, rkey, {cursor, limit}) async =>
+            PostPage(items: [_quote('dana-one', 'Dana')]),
       );
       final destinations = <Uri>[];
       final extras = <Object?>[];
@@ -118,7 +120,11 @@ void main() {
       addTearDown(router.dispose);
 
       await _pumpRouter(tester, repository, router);
-      await tester.pumpAndSettle();
+      await pumpUntilFound(
+        tester,
+        find.text('Quote dana-one'),
+        description: 'the quote card before navigation',
+      );
 
       _tapGestureForText(tester, 'Dana');
       await tester.pumpAndSettle();
@@ -148,48 +154,45 @@ void main() {
     },
   );
 
-  testWidgets(
-    'AT-004 successful card mutations replace and deletion removes '
-    'provider items',
-    (tester) async {
-      final original = _quote('dana-one', 'Dana');
-      final repository = FakePostRepository(
-        onListQuotes: (did, rkey, {cursor, limit}) async =>
-            PostPage(items: [original]),
-        onLike: (did, rkey) async => _interaction(original),
-        onRepost: (did, rkey) async => _interaction(original),
-        onDelete: (did, rkey) async {},
-      );
+  testWidgets('AT-004 successful card mutations replace and deletion removes '
+      'provider items', (tester) async {
+    final original = _quote('dana-one', 'Dana');
+    final repository = FakePostRepository(
+      onListQuotes: (did, rkey, {cursor, limit}) async =>
+          PostPage(items: [original]),
+      onLike: (did, rkey) async => _interaction(original),
+      onRepost: (did, rkey) async => _interaction(original),
+      onDelete: (did, rkey) async {},
+    );
 
-      await _pumpPage(
-        tester,
-        repository,
-        signedInDid: 'did:plc:dana',
-      );
-      await tester.pumpAndSettle();
+    await _pumpPage(tester, repository, signedInDid: 'did:plc:dana');
+    await pumpUntilFound(
+      tester,
+      find.byType(PostCard),
+      description: 'the mutable quote card',
+    );
 
-      var card = tester.widget<PostCard>(find.byType(PostCard));
-      card.onLike!();
-      await tester.pumpAndSettle();
-      card = tester.widget<PostCard>(find.byType(PostCard));
-      expect(card.post.viewerHasLiked, isTrue);
-      expect(card.post.likeCount, 1);
+    var card = tester.widget<PostCard>(find.byType(PostCard));
+    card.onLike!();
+    await tester.pumpAndSettle();
+    card = tester.widget<PostCard>(find.byType(PostCard));
+    expect(card.post.viewerHasLiked, isTrue);
+    expect(card.post.likeCount, 1);
 
-      card.onRepost!();
-      await tester.pumpAndSettle();
-      card = tester.widget<PostCard>(find.byType(PostCard));
-      expect(card.post.viewerHasReposted, isTrue);
-      expect(card.post.repostCount, 1);
+    card.onRepost!();
+    await tester.pumpAndSettle();
+    card = tester.widget<PostCard>(find.byType(PostCard));
+    expect(card.post.viewerHasReposted, isTrue);
+    expect(card.post.repostCount, 1);
 
-      card.onDelete!();
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Delete'));
-      await tester.pumpAndSettle();
+    card.onDelete!();
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
 
-      expect(find.byType(PostCard), findsNothing);
-      expect(find.text('No quotes yet.'), findsOneWidget);
-    },
-  );
+    expect(find.byType(PostCard), findsNothing);
+    expect(find.text('No quotes yet.'), findsOneWidget);
+  });
 
   testWidgets(
     'REG-005 IR-004 keeps placeholders bounded and reveals muted quotes',
@@ -201,15 +204,15 @@ void main() {
           revealable: true,
         ),
       );
-      final unavailable = _quote('unavailable', 'Dana').copyWith(
-        quoteView: const QuoteView(state: 'unavailable'),
-      );
+      final unavailable = _quote(
+        'unavailable',
+        'Dana',
+      ).copyWith(quoteView: const QuoteView(state: 'unavailable'));
       final oneLevel = _quote('one-level', 'Carol');
       var revealCalls = 0;
       final repository = FakePostRepository(
-        onListQuotes: (did, rkey, {cursor, limit}) async => PostPage(
-          items: [muted, unavailable, oneLevel],
-        ),
+        onListQuotes: (did, rkey, {cursor, limit}) async =>
+            PostPage(items: [muted, unavailable, oneLevel]),
         onFetch: (did, rkey) async {
           revealCalls++;
           expect(did.toString(), 'did:plc:muted');
@@ -247,10 +250,7 @@ void main() {
   ) async {
     final muted = _quote('muted', 'Muted').copyWith(
       availability: 'muted',
-      relationship: const ContentRelationship(
-        state: 'muted',
-        revealable: true,
-      ),
+      relationship: const ContentRelationship(state: 'muted', revealable: true),
     );
     final messenger = RecordingMessenger();
     final repository = FakePostRepository(
@@ -266,9 +266,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Post from a muted account'), findsOneWidget);
-    expect(messenger.calls, [
-      ('error', "Couldn't show this post.", null),
-    ]);
+    expect(messenger.calls, [('error', "Couldn't show this post.", null)]);
   });
 
   testWidgets('repost failure shows feedback and resets mutation state', (
@@ -293,9 +291,7 @@ void main() {
     );
     final repostState = container.read(toggleRepostPostProvider);
     expect(find.text('Quote dana-one'), findsOneWidget);
-    expect(messenger.calls, [
-      ('error', "Couldn't update repost.", null),
-    ]);
+    expect(messenger.calls, [('error', "Couldn't update repost.", null)]);
     expect(repostState.hasError, isFalse);
     expect(repostState.value, isNull);
   });
@@ -550,10 +546,7 @@ Future<void> _pumpRouter(
   ),
 );
 
-List<dynamic> _overrides(
-  FakePostRepository repository,
-  String signedInDid,
-) => [
+List<dynamic> _overrides(FakePostRepository repository, String signedInDid) => [
   postRepositoryProvider.overrideWithValue(repository),
   authSessionProvider.overrideWith(() => SignedInAuthSession(did: signedInDid)),
   activeLanguagePreferencesProvider.overrideWith(

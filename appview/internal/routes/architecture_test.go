@@ -96,68 +96,102 @@ func TestProductionRoutesDoNotImportAppComposition(t *testing.T) {
 func TestHandleTargetedMutationsUseAuthoritativeIdentityResolver(t *testing.T) {
 	t.Parallel()
 
-	raw, err := os.ReadFile("routes_profile_notification.go")
-	if err != nil {
-		t.Fatal(err)
-	}
-	source := string(raw)
-	for _, constructor := range []string{
-		"FollowProfileHandler", "UnfollowProfileHandler",
-		"MuteProfileHandler", "UnmuteProfileHandler",
-		"BlockProfileHandler", "UnblockProfileHandler",
-		"NewProfileReportTargetResolver",
+	function := parsedFunction(t, "routes_profile_notification.go", "registerProfileRelationshipRoutes")
+	for constructor, resolverArgument := range map[string]int{
+		"FollowProfileHandler":           2,
+		"UnfollowProfileHandler":         2,
+		"MuteProfileHandler":             2,
+		"UnmuteProfileHandler":           2,
+		"BlockProfileHandler":            2,
+		"UnblockProfileHandler":          2,
+		"NewProfileReportTargetResolver": 1,
 	} {
-		needle := constructor + "("
-		start := strings.Index(source, needle)
-		if start < 0 {
-			t.Errorf("missing mutation constructor %s", constructor)
-			continue
-		}
-		end := strings.Index(source[start:], "))")
-		if end < 0 {
-			end = min(len(source)-start, 600)
-		}
-		call := source[start : start+end]
-		if !strings.Contains(call, "routes.authoritativeResolver") {
-			t.Errorf("%s is not wired to routes.authoritativeResolver", constructor)
-		}
+		assertCallArgument(t, function, constructor, resolverArgument, "routes.authoritativeResolver")
 	}
-	if !strings.Contains(source, "GetProfileHandler(routes.profileStore, routes.businessProfiles, routes.handleResolver") {
-		t.Error("profile display route no longer uses the cached handle resolver")
-	}
+	assertCallArgument(t, function, "GetProfileHandler", 2, "routes.handleResolver")
 }
 
 // REG-004: interaction list reads stay on AppView and cannot invoke PDS effects.
 func TestPostInteractionReadRoutesUseOnlyReadDependencies(t *testing.T) {
 	t.Parallel()
 
-	raw, err := os.ReadFile("routes_scheduled_post.go")
-	if err != nil {
-		t.Fatal(err)
+	function := parsedFunction(t, "routes_scheduled_post.go", "registerPostRoutes")
+	wantArguments := map[string][]string{
+		"ListPostLikesHandler":   {"routes.postStore", "routes.logger"},
+		"ListPostRepostsHandler": {"routes.postStore", "routes.logger"},
+		"ListPostQuotesHandler":  {"routes.postStore", "routes.handleResolver", "routes.logger", "routes.languages"},
 	}
-	source := string(raw)
-	wantCalls := []string{
-		`api.ListPostLikesHandler(routes.postStore, routes.logger)`,
-		`api.ListPostRepostsHandler(routes.postStore, routes.logger)`,
-		`api.ListPostQuotesHandler(routes.postStore, routes.handleResolver, routes.logger, routes.languages)`,
-	}
-	for _, call := range wantCalls {
-		if !strings.Contains(source, call) {
-			t.Errorf("missing read-only post interaction route wiring %s", call)
-		}
-	}
-	for _, constructor := range []string{"ListPostLikesHandler", "ListPostRepostsHandler", "ListPostQuotesHandler"} {
-		start := strings.Index(source, constructor+"(")
-		if start < 0 {
+	for constructor, want := range wantArguments {
+		call := uniqueCall(t, function, constructor)
+		if len(call.Args) != len(want) {
+			t.Errorf("%s arguments = %d, want %d read dependencies", constructor, len(call.Args), len(want))
 			continue
 		}
-		end := strings.Index(source[start:], "))")
-		if end < 0 {
-			end = min(len(source)-start, 300)
+		for index, argument := range want {
+			if got := selectorName(call.Args[index]); got != argument {
+				t.Errorf("%s argument %d = %q, want %q", constructor, index, got, argument)
+			}
 		}
-		if call := source[start : start+end]; strings.Contains(call, "newPDSEffects") {
-			t.Errorf("%s receives PDS effects dependency: %s", constructor, call)
+	}
+}
+
+func parsedFunction(t *testing.T, path, name string) *ast.FuncDecl {
+	t.Helper()
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	if err != nil {
+		t.Fatalf("parse %s: %v", path, err)
+	}
+	for _, declaration := range file.Decls {
+		function, ok := declaration.(*ast.FuncDecl)
+		if ok && function.Name.Name == name {
+			return function
 		}
+	}
+	t.Fatalf("%s is missing function %s", path, name)
+	return nil
+}
+
+func assertCallArgument(t *testing.T, function *ast.FuncDecl, constructor string, index int, want string) {
+	t.Helper()
+	call := uniqueCall(t, function, constructor)
+	if len(call.Args) <= index {
+		t.Fatalf("%s has %d arguments, need resolver argument %d", constructor, len(call.Args), index)
+	}
+	if got := selectorName(call.Args[index]); got != want {
+		t.Errorf("%s resolver = %q, want %q", constructor, got, want)
+	}
+}
+
+func uniqueCall(t *testing.T, function *ast.FuncDecl, name string) *ast.CallExpr {
+	t.Helper()
+	var matches []*ast.CallExpr
+	ast.Inspect(function.Body, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if ok && selectorName(call.Fun) == "api."+name {
+			matches = append(matches, call)
+		}
+		return true
+	})
+	if len(matches) != 1 {
+		t.Fatalf("%s contains %d calls to api.%s, want 1", function.Name.Name, len(matches), name)
+	}
+	return matches[0]
+}
+
+func selectorName(expression ast.Expr) string {
+	switch expression := expression.(type) {
+	case *ast.Ident:
+		return expression.Name
+	case *ast.SelectorExpr:
+		prefix := selectorName(expression.X)
+		if prefix == "" {
+			return expression.Sel.Name
+		}
+		return prefix + "." + expression.Sel.Name
+	case *ast.ParenExpr:
+		return selectorName(expression.X)
+	default:
+		return ""
 	}
 }
 

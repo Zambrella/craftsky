@@ -1,0 +1,89 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+root_dir=$(cd "$script_dir/.." && pwd)
+appview_dir="$root_dir/appview"
+
+export GOTOOLCHAIN="go1.27.1"
+
+without_integration_services() {
+  unset DATABASE_URL
+  unset TEST_DATABASE_URL
+  unset TEST_DATABASE_ALLOW_DATABASE_URL
+  unset TEST_S3_ENDPOINT
+  unset TEST_S3_REGION
+  unset TEST_S3_BUCKET
+  unset TEST_S3_ACCESS_KEY_ID
+  unset TEST_S3_SECRET_ACCESS_KEY
+  export TEST_DATABASE_REQUIRED="false"
+}
+
+with_integration_services() {
+  local postgres_address postgres_port minio_address minio_port
+  postgres_address=$("$root_dir/scripts/compose-dev" port postgres 5432)
+  postgres_port=${postgres_address##*:}
+  minio_address=$("$root_dir/scripts/compose-dev" port minio 9000)
+  minio_port=${minio_address##*:}
+
+  export TEST_DATABASE_URL="postgres://craftsky:dev@localhost:${postgres_port}/craftsky_dev?sslmode=disable"
+  unset TEST_DATABASE_ALLOW_DATABASE_URL
+  export TEST_DATABASE_REQUIRED="true"
+  export TEST_S3_ENDPOINT="http://localhost:${minio_port}"
+  export TEST_S3_REGION="us-east-1"
+  export TEST_S3_BUCKET="private-scheduled-media"
+  export TEST_S3_ACCESS_KEY_ID="craftsky-minio"
+  export TEST_S3_SECRET_ACCESS_KEY="craftsky-minio-dev-secret"
+}
+
+mode=${1:-}
+case "$mode" in
+  full)
+    with_integration_services
+    cd "$appview_dir"
+    go test -p=1 -race -count=1 -timeout=30m ./...
+    ;;
+  unit)
+    without_integration_services
+    echo "UNIT-ONLY: PostgreSQL and MinIO integration tests are intentionally skipped."
+    cd "$appview_dir"
+    go test -count=1 -timeout=10m ./...
+    ;;
+  shuffle)
+    with_integration_services
+    cd "$appview_dir"
+    go test -p=1 -count=1 -shuffle=on -timeout=30m ./...
+    ;;
+  fuzz)
+    without_integration_services
+    fuzz_time=${APPVIEW_FUZZTIME:-30s}
+    fuzz_timeout=${APPVIEW_FUZZ_TIMEOUT:-2m}
+    cd "$appview_dir"
+    for target in FuzzImageGeometryAllowed FuzzImageValidator; do
+      go test ./internal/api \
+        -run '^$' \
+        -count=1 \
+        -parallel=2 \
+        -fuzz "^${target}$" \
+        -fuzztime "$fuzz_time" \
+        -timeout "$fuzz_timeout"
+    done
+    ;;
+  coverage)
+    without_integration_services
+    coverage_dir=${APPVIEW_COVERAGE_DIR:-$(mktemp -d)}
+    mkdir -p "$coverage_dir"
+    coverage_dir=$(cd "$coverage_dir" && pwd)
+    coverage_profile="$coverage_dir/appview-unit-coverage.out"
+    coverage_summary="$coverage_dir/appview-unit-coverage.txt"
+    cd "$appview_dir"
+    go test -count=1 -timeout=15m -covermode=atomic \
+      -coverprofile "$coverage_profile" ./...
+    go tool cover -func "$coverage_profile" | tee "$coverage_summary"
+    echo "AppView unit coverage evidence: $coverage_dir"
+    ;;
+  *)
+    echo "usage: $0 {full|unit|shuffle|fuzz|coverage}" >&2
+    exit 2
+    ;;
+esac

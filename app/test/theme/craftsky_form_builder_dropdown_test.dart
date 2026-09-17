@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../test_support/widget_pump.dart';
+
 void main() {
   testWidgets('UT-003 dropdown saves, validates, resets and disables', (
     tester,
@@ -14,7 +16,7 @@ void main() {
     String? changed;
 
     await tester.pumpWidget(
-      _Harness(
+      craftskyTestWidget(
         child: FormBuilder(
           key: formKey,
           child: Column(
@@ -75,7 +77,7 @@ void main() {
     final formKey = GlobalKey<FormBuilderState>();
 
     await tester.pumpWidget(
-      _Harness(
+      craftskyTestWidget(
         child: FormBuilder(
           key: formKey,
           child: const CraftskyFormBuilderDropdownField<String>(
@@ -105,7 +107,7 @@ void main() {
     var enabled = true;
 
     Widget buildSubject() {
-      return _Harness(
+      return craftskyTestWidget(
         child: FormBuilder(
           child: CraftskyFormBuilderDropdownField<String>(
             name: 'status',
@@ -146,7 +148,7 @@ void main() {
     addTearDown(nextFocusNode.dispose);
 
     await tester.pumpWidget(
-      _Harness(
+      craftskyTestWidget(
         child: FormBuilder(
           child: Column(
             children: [
@@ -185,8 +187,8 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const _Harness(
-        child: FormBuilder(
+      craftskyTestWidget(
+        child: const FormBuilder(
           child: Column(
             children: [
               CraftskyFormBuilderDropdownField<String>(
@@ -230,8 +232,8 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const _Harness(
-        child: FormBuilder(
+      craftskyTestWidget(
+        child: const FormBuilder(
           child: Column(
             children: [
               CraftskyFormBuilderDropdownField<String>(
@@ -287,7 +289,7 @@ void main() {
     final formKey = GlobalKey<FormBuilderState>();
 
     await tester.pumpWidget(
-      _Harness(
+      craftskyTestWidget(
         child: FormBuilder(
           key: formKey,
           child: const CraftskyFormBuilderDropdownField<String>(
@@ -365,8 +367,8 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const _Harness(
-        child: FormBuilder(
+      craftskyTestWidget(
+        child: const FormBuilder(
           child: CraftskyFormBuilderDropdownField<String>(
             name: 'needleSize',
             label: 'Needle size',
@@ -403,8 +405,8 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const _Harness(
-        child: FormBuilder(
+      craftskyTestWidget(
+        child: const FormBuilder(
           child: CraftskyFormBuilderDropdownField<String>(
             name: 'status',
             label: 'Status',
@@ -493,7 +495,7 @@ void main() {
     addTearDown(nextFocusNode.dispose);
 
     await tester.pumpWidget(
-      _Harness(
+      craftskyTestWidget(
         child: FormBuilder(
           child: Column(
             children: [
@@ -545,7 +547,7 @@ void main() {
     addTearDown(nextFocusNode.dispose);
 
     await tester.pumpWidget(
-      _Harness(
+      craftskyTestWidget(
         child: FormBuilder(
           child: Column(
             children: [
@@ -594,7 +596,7 @@ void main() {
     addTearDown(firstFocusNode.dispose);
 
     await tester.pumpWidget(
-      _Harness(
+      craftskyTestWidget(
         child: FormBuilder(
           key: formKey,
           child: Column(
@@ -705,8 +707,8 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const _Harness(
-        child: FormBuilder(
+      craftskyTestWidget(
+        child: const FormBuilder(
           child: CraftskyFormBuilderDropdownField<String>(
             name: 'craftType',
             label: 'Craft type',
@@ -733,7 +735,7 @@ void main() {
 
   testWidgets('UT-003 keyboard highlight scrolls into view', (tester) async {
     await tester.pumpWidget(
-      _Harness(
+      craftskyTestWidget(
         child: FormBuilder(
           child: CraftskyFormBuilderDropdownField<String>(
             name: 'longList',
@@ -788,20 +790,4 @@ void main() {
     expect(highlightedRect.bottom, lessThanOrEqualTo(panelRect.bottom));
     expect(highlightedRect.top, greaterThanOrEqualTo(panelRect.top));
   });
-}
-
-class _Harness extends StatelessWidget {
-  const _Harness({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      theme: AppTheme.lightThemeData,
-      home: Scaffold(
-        body: Padding(padding: const EdgeInsets.all(24), child: child),
-      ),
-    );
-  }
 }

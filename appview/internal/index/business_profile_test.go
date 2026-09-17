@@ -3,7 +3,6 @@ package index_test
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"reflect"
 	"testing"
 
@@ -16,7 +15,7 @@ import (
 )
 
 func TestBusinessProfileProjectionAndSafeHydration(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000062_business_records.up.sql")
+	migration, err := testdb.ReadMigration("000062_business_records.up.sql")
 	if err != nil {
 		t.Fatalf("read business records migration: %v", err)
 	}

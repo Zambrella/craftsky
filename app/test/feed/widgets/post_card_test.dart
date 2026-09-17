@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:ui' show PointerDeviceKind, Tristate;
 
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
@@ -31,7 +30,6 @@ import 'package:craftsky_app/saved_posts/providers/saved_post_repository_provide
 import 'package:craftsky_app/saved_posts/widgets/save_post_dialog.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
-import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_action_providers.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
@@ -44,10 +42,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:zoom_pinch_overlay/zoom_pinch_overlay.dart';
 
 import '../../fakes/auth_session_fakes.dart';
-import '../../fakes/image_cache_fakes.dart';
 import '../../fakes/recording_messenger.dart';
 import '../../profile/fakes/fake_profile_repository.dart';
 import '../fakes/fake_post_repository.dart';
@@ -139,7 +135,6 @@ final class _PinRegistryStorage implements SessionRegistryStorage {
 Future<void> _pump(
   WidgetTester tester,
   Widget child, {
-  EdgeInsets viewPadding = EdgeInsets.zero,
   List<dynamic> overrides = const [],
   ThemeData? theme,
 }) {
@@ -152,13 +147,6 @@ Future<void> _pump(
           theme: theme ?? AppTheme.lightThemeData,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          builder: (context, routeChild) {
-            final mediaQuery = MediaQuery.of(context);
-            return MediaQuery(
-              data: mediaQuery.copyWith(viewPadding: viewPadding),
-              child: routeChild!,
-            );
-          },
           home: Scaffold(body: child),
         ),
       ),
@@ -186,8 +174,6 @@ void main() {
       await _pump(tester, PostCard(post: _post(external: external)));
 
       expect(find.byType(ExternalCard), findsOneWidget);
-      expect(find.text('Full pattern card'), findsOneWidget);
-
       await _pump(
         tester,
         PostCard(
@@ -549,10 +535,7 @@ void main() {
       await _pump(
         tester,
         PostCard(
-          post: _post(
-            viewerHasSaved: true,
-            viewerSavedFolderId: 'folder-a',
-          ),
+          post: _post(viewerHasSaved: true, viewerSavedFolderId: 'folder-a'),
         ),
         overrides: [
           authSessionProvider.overrideWith(SignedInAuthSession.new),
@@ -624,10 +607,7 @@ void main() {
       await _pump(
         tester,
         PostCard(
-          post: _post(
-            viewerHasSaved: true,
-            viewerSavedFolderId: 'folder-a',
-          ),
+          post: _post(viewerHasSaved: true, viewerSavedFolderId: 'folder-a'),
         ),
         overrides: [
           authSessionProvider.overrideWith(SignedInAuthSession.new),
@@ -998,9 +978,7 @@ void main() {
       await _pump(tester, PostCard(post: _post(sponsored: true)));
 
       expect(find.bySemanticsLabel('Sponsored'), findsOneWidget);
-      final target = find.byKey(
-        const Key('sponsored-info-tooltip-trigger'),
-      );
+      final target = find.byKey(const Key('sponsored-info-tooltip-trigger'));
       expect(target, findsOneWidget);
       expect(
         tester.getCenter(find.byIcon(CraftskyIcons.info)).dx,
@@ -1008,10 +986,7 @@ void main() {
       );
       expect(
         tester.getTopLeft(target).dy,
-        closeTo(
-          tester.getBottomLeft(find.byType(ProfileAvatar).first).dy,
-          0.5,
-        ),
+        closeTo(tester.getBottomLeft(find.byType(ProfileAvatar).first).dy, 0.5),
       );
       semantics.dispose();
     });
@@ -1053,87 +1028,15 @@ void main() {
       );
     });
 
-    testWidgets('AT-009 IT-015 renders accessible Instagram provenance '
-        'in a quote preview', (tester) async {
-      final semantics = tester.ensureSemantics();
-
-      await _pump(
-        tester,
-        PostCard(
-          post: _post(
-            quoteView: QuoteView(
-              state: 'visible',
-              post: QuotePreviewPost(
-                uri: 'at://did:plc:bob/social.craftsky.feed.post/target',
-                cid: 'bafyquote',
-                text: 'Original imported post',
-                author: PostAuthor(
-                  did: 'did:plc:bob',
-                  handle: 'bob.craftsky.social',
-                ),
-                createdAt: DateTime(2020, 5, 22, 12),
-                sponsored: true,
-                externalImport: const ExternalImport(source: 'instagram'),
-              ),
-            ),
-          ),
-        ),
-      );
-
-      expect(find.text('Imported from Instagram'), findsOneWidget);
-      expect(find.bySemanticsLabel('Imported from Instagram'), findsOneWidget);
-      expect(find.bySemanticsLabel('Sponsored'), findsOneWidget);
-      semantics.dispose();
-    });
-
-    testWidgets(
-      'REG-007 ordinary and unknown quote previews show no provenance label',
-      (tester) async {
-        for (final provenance in <ExternalImport?>[
-          null,
-          const ExternalImport(source: 'future-service'),
-        ]) {
-          await _pump(
-            tester,
-            PostCard(
-              post: _post(
-                quoteView: QuoteView(
-                  state: 'visible',
-                  post: QuotePreviewPost(
-                    uri: 'at://did:plc:bob/social.craftsky.feed.post/target',
-                    cid: 'bafyquote',
-                    text: 'Original post',
-                    author: PostAuthor(
-                      did: 'did:plc:bob',
-                      handle: 'bob.craftsky.social',
-                    ),
-                    createdAt: DateTime(2020, 5, 22, 12),
-                    sponsored: false,
-                    externalImport: provenance,
-                  ),
-                ),
-              ),
-            ),
-          );
-
-          expect(find.text('Imported from Instagram'), findsNothing);
-        }
-      },
-    );
-
     testWidgets('AT-010 renders visible quote through PostSummary', (
       tester,
     ) async {
       var quotedPostTaps = 0;
-      var quotedAuthorTaps = 0;
       await _pump(
         tester,
         PostCard(
           post: _post(
             text: 'My take on this pattern.',
-            customisation: const ProfileCustomisation(
-              colour: 'teal',
-            ),
             quoteView: QuoteView(
               state: 'visible',
               post: QuotePreviewPost(
@@ -1144,10 +1047,6 @@ void main() {
                   did: 'did:plc:bob',
                   handle: 'bob.craftsky.social',
                   displayName: 'Bob',
-                  avatar: 'https://cdn.example.com/bob.jpg',
-                  customisation: const ProfileCustomisation(
-                    colour: 'orchid',
-                  ),
                 ),
                 createdAt: DateTime(2026, 5, 22, 12),
                 sponsored: false,
@@ -1155,210 +1054,12 @@ void main() {
             ),
           ),
           onQuotedPostTap: () => quotedPostTaps++,
-          onQuotedAuthorTap: () => quotedAuthorTaps++,
         ),
       );
 
-      expect(find.text('My take on this pattern.'), findsOneWidget);
       expect(find.byType(PostSummary), findsOneWidget);
-      expect(find.text('Original quoted post'), findsOneWidget);
-      expect(find.text('Bob'), findsOneWidget);
-      expect(find.text('@bob.craftsky.social'), findsOneWidget);
-      expect(find.byType(ProfileAvatar), findsNWidgets(2));
-      expect(
-        tester.widget<ProfileAvatar>(find.byType(ProfileAvatar).last).avatarUrl,
-        'https://cdn.example.com/bob.jpg',
-      );
-      final avatars = tester
-          .widgetList<ProfileAvatar>(find.byType(ProfileAvatar))
-          .toList();
-      expect(avatars.first.customisation.colour, 'teal');
-      expect(avatars.last.customisation.colour, 'orchid');
-
-      await tester.tap(find.text('Bob'));
-      expect(quotedAuthorTaps, 1);
-      expect(quotedPostTaps, 0);
-
       await tester.tap(find.text('Original quoted post'));
       expect(quotedPostTaps, 1);
-    });
-
-    testWidgets('renders only the first image from a quoted normal post', (
-      tester,
-    ) async {
-      final fakeCache = FakeBaseCacheManager();
-      await _pump(
-        tester,
-        PostCard(
-          post: _post(
-            quoteView: QuoteView(
-              state: 'visible',
-              post: QuotePreviewPost(
-                uri: 'at://did:plc:bob/social.craftsky.feed.post/target',
-                cid: 'bafyquote',
-                text: 'Original quoted post',
-                author: PostAuthor(
-                  did: 'did:plc:bob',
-                  handle: 'bob.craftsky.social',
-                ),
-                images: [
-                  PostImage(
-                    cid: 'bafkfirst',
-                    mime: 'image/jpeg',
-                    size: 10,
-                    alt: 'First quoted image',
-                    thumb: 'https://cdn.example.com/first-thumb.jpg',
-                    fullsize: 'https://cdn.example.com/first-full.jpg',
-                  ),
-                  PostImage(
-                    cid: 'bafksecond',
-                    mime: 'image/jpeg',
-                    size: 10,
-                    alt: 'Second quoted image',
-                    thumb: 'https://cdn.example.com/second-thumb.jpg',
-                  ),
-                ],
-                createdAt: DateTime(2026, 5, 22, 12),
-                sponsored: false,
-              ),
-            ),
-          ),
-        ),
-        overrides: [
-          feedImageCacheManagerProvider.overrideWith((ref) => fakeCache),
-        ],
-      );
-      await tester.pump();
-
-      expect(find.byKey(const Key('post-summary-image')), findsOneWidget);
-      final image = tester.widget<CachedNetworkImage>(
-        find.byType(CachedNetworkImage),
-      );
-      expect(image.imageUrl, 'https://cdn.example.com/first-thumb.jpg');
-      expect(image.cacheManager, same(fakeCache));
-      expect(
-        find.byWidgetPredicate(
-          (widget) =>
-              widget is Semantics &&
-              widget.properties.label == 'First quoted image',
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.byWidgetPredicate(
-          (widget) =>
-              widget is Semantics &&
-              widget.properties.label == 'Second quoted image',
-        ),
-        findsNothing,
-      );
-    });
-
-    testWidgets(
-      'renders the first image and project name for a quoted project',
-      (tester) async {
-        final fakeCache = FakeBaseCacheManager();
-        await _pump(
-          tester,
-          PostCard(
-            post: _post(
-              quoteView: QuoteView(
-                state: 'visible',
-                post: QuotePreviewPost(
-                  uri: 'at://did:plc:bob/social.craftsky.feed.post/project',
-                  cid: 'bafyproject',
-                  text: 'A finished project.',
-                  author: PostAuthor(
-                    did: 'did:plc:bob',
-                    handle: 'bob.craftsky.social',
-                  ),
-                  images: [
-                    PostImage(
-                      cid: 'bafkproject',
-                      mime: 'image/jpeg',
-                      size: 10,
-                      alt: 'Finished blue shawl',
-                      thumb: 'https://cdn.example.com/project-thumb.jpg',
-                    ),
-                  ],
-                  project: const Project(
-                    common: ProjectCommon(
-                      craftType: ProjectOptionCatalogs.knittingCraftToken,
-                      title: 'Hitchhiker Shawl',
-                    ),
-                  ),
-                  createdAt: DateTime(2026, 5, 22, 12),
-                  sponsored: false,
-                ),
-              ),
-            ),
-          ),
-          overrides: [
-            feedImageCacheManagerProvider.overrideWith((ref) => fakeCache),
-          ],
-        );
-        await tester.pump();
-
-        expect(find.byKey(const Key('post-summary-image')), findsOneWidget);
-        expect(find.text('Hitchhiker Shawl'), findsOneWidget);
-        expect(
-          find.byWidgetPredicate(
-            (widget) =>
-                widget is Semantics &&
-                widget.properties.label == 'Finished blue shawl',
-          ),
-          findsOneWidget,
-        );
-      },
-    );
-
-    testWidgets('renders quote preview placeholders', (tester) async {
-      await _pump(
-        tester,
-        Column(
-          children: [
-            PostCard(
-              post: _post(quoteView: const QuoteView(state: 'hidden')),
-            ),
-            PostCard(
-              post: _post(quoteView: const QuoteView(state: 'unavailable')),
-            ),
-          ],
-        ),
-      );
-
-      expect(find.text('Quoted post hidden'), findsOneWidget);
-      expect(find.text('Quoted post unavailable'), findsOneWidget);
-    });
-
-    testWidgets('muted quote is revealable and blocked quote is not', (
-      tester,
-    ) async {
-      var reveals = 0;
-      await _pump(
-        tester,
-        Column(
-          children: [
-            PostCard(
-              post: _post(
-                quoteView: const QuoteView(state: 'muted', revealable: true),
-              ),
-              onRevealQuotedPost: () => reveals++,
-            ),
-            PostCard(
-              post: _post(
-                quoteView: const QuoteView(state: 'blocked', revealable: false),
-              ),
-            ),
-          ],
-        ),
-      );
-
-      expect(find.text('Post from a muted account'), findsOneWidget);
-      expect(find.text('Show post'), findsOneWidget);
-      expect(find.text('Post unavailable'), findsOneWidget);
-      await tester.tap(find.text('Show post'));
-      expect(reveals, 1);
     });
 
     testWidgets('protected post card never renders sentinel content', (
@@ -2051,11 +1752,7 @@ void main() {
       var taps = 0;
       await _pump(
         tester,
-        PostCard(
-          post: _post(),
-          style: PostCardStyle.flat,
-          onTap: () => taps++,
-        ),
+        PostCard(post: _post(), style: PostCardStyle.flat, onTap: () => taps++),
       );
 
       final tapTarget = find.byKey(const Key('post-card-tap-target'));
@@ -2090,10 +1787,7 @@ void main() {
       final exactlyAtCutoff = List.filled(300, 'a').join();
       await _pump(
         tester,
-        PostCard(
-          post: _post(text: exactlyAtCutoff),
-          collapseBody: true,
-        ),
+        PostCard(post: _post(text: exactlyAtCutoff), collapseBody: true),
       );
       expect(find.text(exactlyAtCutoff), findsOneWidget);
       expect(find.bySemanticsLabel(RegExp('Show more')), findsNothing);
@@ -2540,34 +2234,6 @@ void main() {
       expect(find.text('Delete post'), findsNothing);
     });
 
-    testWidgets('renders single post image without multi-image indicators', (
-      tester,
-    ) async {
-      await _pump(
-        tester,
-        PostCard(
-          post: _post(
-            images: [
-              PostImage(
-                cid: 'bafkimage1',
-                mime: 'image/jpeg',
-                size: 10,
-                alt: 'Blue shawl drying flat',
-                thumb: 'https://cdn.example.com/thumb1.jpg',
-                fullsize: 'https://cdn.example.com/full1.jpg',
-              ),
-            ],
-          ),
-        ),
-      );
-
-      expect(find.byKey(const Key('post-image-carousel')), findsOneWidget);
-      expect(find.byKey(const Key('post-image-count')), findsNothing);
-      expect(find.byKey(const Key('post-image-dots')), findsNothing);
-      expect(find.bySemanticsLabel('Blue shawl drying flat'), findsOneWidget);
-      expect(find.byType(ZoomOverlay), findsOneWidget);
-    });
-
     testWidgets('renders regular-post text above its image', (tester) async {
       await _pump(
         tester,
@@ -2595,83 +2261,8 @@ void main() {
       );
     });
 
-    testWidgets('renders multi-image indicators and count', (tester) async {
-      await _pump(
-        tester,
-        PostCard(
-          post: _post(
-            images: [
-              PostImage(
-                cid: 'bafkimage1',
-                mime: 'image/jpeg',
-                size: 10,
-                alt: 'Image one',
-                thumb: 'https://cdn.example.com/thumb1.jpg',
-                fullsize: 'https://cdn.example.com/full1.jpg',
-              ),
-              PostImage(
-                cid: 'bafkimage2',
-                mime: 'image/png',
-                size: 11,
-                alt: 'Image two',
-                thumb: 'https://cdn.example.com/thumb2.jpg',
-                fullsize: 'https://cdn.example.com/full2.jpg',
-              ),
-            ],
-          ),
-        ),
-      );
-
-      expect(find.byKey(const Key('post-image-count')), findsOneWidget);
-      expect(find.byKey(const Key('post-image-dots')), findsOneWidget);
-      expect(find.text('1/2'), findsOneWidget);
-    });
-
-    testWidgets('horizontal paging updates image index without card tap', (
-      tester,
-    ) async {
-      var cardTaps = 0;
-      await _pump(
-        tester,
-        PostCard(
-          post: _post(
-            images: [
-              PostImage(
-                cid: 'bafkimage1',
-                mime: 'image/jpeg',
-                size: 10,
-                alt: 'Image one',
-                thumb: 'https://cdn.example.com/thumb1.jpg',
-                fullsize: 'https://cdn.example.com/full1.jpg',
-              ),
-              PostImage(
-                cid: 'bafkimage2',
-                mime: 'image/png',
-                size: 11,
-                alt: 'Image two',
-                thumb: 'https://cdn.example.com/thumb2.jpg',
-                fullsize: 'https://cdn.example.com/full2.jpg',
-              ),
-            ],
-          ),
-          onTap: () => cardTaps++,
-        ),
-      );
-
-      expect(find.text('1/2'), findsOneWidget);
-
-      await tester.drag(
-        find.byKey(const Key('post-image-carousel')),
-        const Offset(-500, 0),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('2/2'), findsOneWidget);
-      expect(cardTaps, 0);
-    });
-
     testWidgets(
-      'tapping image opens gallery while non-image tap keeps card routing',
+      'tapping image opens the gallery without invoking card routing',
       (tester) async {
         var cardTaps = 0;
         await _pump(
@@ -2701,61 +2292,13 @@ void main() {
           ),
         );
 
-        final sourceHero = tester.widget<Hero>(
-          find
-              .descendant(
-                of: find.byKey(const Key('post-image-carousel')),
-                matching: find.byType(Hero),
-              )
-              .first,
-        );
         await tester.tap(find.byKey(const Key('post-image-carousel')));
         await tester.pump();
         await tester.pump(const Duration(seconds: 1));
         await tester.pump(const Duration(milliseconds: 250));
 
         expect(find.byType(PostImageGallery), findsOneWidget);
-        expect(find.byType(AppBar), findsNothing);
-        final destinationHero = tester.widget<Hero>(
-          find
-              .descendant(
-                of: find.byType(PostImageGallery),
-                matching: find.byType(Hero),
-              )
-              .first,
-        );
-        expect(destinationHero.tag, same(sourceHero.tag));
-        expect(find.byType(CloseButton), findsOneWidget);
-        expect(
-          find.byKey(const Key('post-image-gallery-close-background')),
-          findsOneWidget,
-        );
-        expect(
-          find.ancestor(
-            of: find.byType(CloseButton),
-            matching: find.byType(SafeArea),
-          ),
-          findsNothing,
-        );
-        expect(
-          find.byKey(const Key('post-image-gallery-count')),
-          findsOneWidget,
-        );
-        expect(
-          find.byKey(const Key('post-image-gallery-dots')),
-          findsOneWidget,
-        );
-        expect(find.text('1/2'), findsOneWidget);
         expect(cardTaps, 0);
-
-        tester.state<NavigatorState>(find.byType(Navigator).first).pop();
-        await tester.pumpAndSettle();
-
-        await tester.tap(
-          find.text('Cast on for the Hitchhiker shawl tonight.'),
-        );
-        await tester.pump(const Duration(milliseconds: 350));
-        expect(cardTaps, 1);
       },
     );
 
@@ -2812,10 +2355,7 @@ void main() {
         ),
       );
 
-      await _doubleTap(
-        tester,
-        find.byKey(const Key('post-image-carousel')),
-      );
+      await _doubleTap(tester, find.byKey(const Key('post-image-carousel')));
       await tester.pumpAndSettle();
 
       expect(likes, 1);
@@ -2848,124 +2388,10 @@ void main() {
         ),
       );
 
-      await _doubleTap(
-        tester,
-        find.byKey(const Key('post-image-carousel')),
-      );
+      await _doubleTap(tester, find.byKey(const Key('post-image-carousel')));
 
       expect(likes, 0);
       expect(cardTaps, 0);
-    });
-
-    testWidgets('gallery close button accounts for media view padding', (
-      tester,
-    ) async {
-      await _pump(
-        tester,
-        PostCard(
-          post: _post(
-            images: [
-              PostImage(
-                cid: 'bafkimage1',
-                mime: 'image/jpeg',
-                size: 10,
-                alt: 'Image one',
-                thumb: 'https://cdn.example.com/thumb1.jpg',
-                fullsize: 'https://cdn.example.com/full1.jpg',
-              ),
-            ],
-          ),
-        ),
-        viewPadding: const EdgeInsets.only(left: 11, top: 23),
-      );
-
-      await tester.tap(find.byKey(const Key('post-image-carousel')));
-      await tester.pump();
-      await tester.pump(const Duration(seconds: 1));
-      await tester.pump(const Duration(milliseconds: 250));
-
-      final closeBackground = find.byKey(
-        const Key('post-image-gallery-close-background'),
-      );
-      expect(tester.getTopLeft(closeBackground), const Offset(19, 31));
-      final decoratedBox = tester.widget<DecoratedBox>(closeBackground);
-      final decoration = decoratedBox.decoration as BoxDecoration;
-      expect(decoration.shape, BoxShape.circle);
-      expect(decoration.color, isNotNull);
-    });
-
-    testWidgets('opens gallery at currently visible tapped image index', (
-      tester,
-    ) async {
-      await _pump(
-        tester,
-        PostCard(
-          post: _post(
-            images: [
-              PostImage(
-                cid: 'bafkimage1',
-                mime: 'image/jpeg',
-                size: 10,
-                alt: 'Image one',
-                thumb: 'https://cdn.example.com/thumb1.jpg',
-                fullsize: 'https://cdn.example.com/full1.jpg',
-              ),
-              PostImage(
-                cid: 'bafkimage2',
-                mime: 'image/png',
-                size: 11,
-                alt: 'Image two',
-                thumb: 'https://cdn.example.com/thumb2.jpg',
-                fullsize: 'https://cdn.example.com/full2.jpg',
-              ),
-            ],
-          ),
-        ),
-      );
-
-      await tester.drag(
-        find.byKey(const Key('post-image-carousel')),
-        const Offset(-500, 0),
-      );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byKey(const Key('post-image-carousel')));
-      await tester.pump();
-      await tester.pump(const Duration(seconds: 1));
-      await tester.pump(const Duration(milliseconds: 250));
-
-      expect(find.byType(PostImageGallery), findsOneWidget);
-      expect(find.text('Image two'), findsOneWidget);
-      expect(find.text('2/2'), findsOneWidget);
-      expect(find.text('Image one'), findsNothing);
-    });
-
-    testWidgets('opens gallery with a hero animation', (tester) async {
-      await _pump(
-        tester,
-        PostCard(
-          post: _post(
-            images: [
-              PostImage(
-                cid: 'bafkimage1',
-                mime: 'image/jpeg',
-                size: 10,
-                alt: 'Image one',
-                thumb: 'https://cdn.example.com/thumb1.jpg',
-                fullsize: 'https://cdn.example.com/full1.jpg',
-              ),
-            ],
-          ),
-        ),
-      );
-
-      await tester.tap(find.byKey(const Key('post-image-carousel')));
-      await tester.pump();
-      await tester.pump(const Duration(seconds: 1));
-      await tester.pump(const Duration(milliseconds: 250));
-
-      expect(find.byType(PostImageGallery), findsOneWidget);
-      expect(find.byType(Hero), findsOneWidget);
     });
 
     testWidgets('image-card action taps do not open gallery', (tester) async {

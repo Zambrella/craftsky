@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -506,11 +505,11 @@ func applyTapDurabilityMigration(t *testing.T, pool interface {
 }) {
 	t.Helper()
 	for _, path := range []string{
-		"../../migrations/000045_tap_ingestion_durability.up.sql",
-		"../../migrations/000051_tap_quarantine_replay_payload.up.sql",
-		"../../migrations/000058_tap_projection_generation_column.up.sql",
+		"000045_tap_ingestion_durability.up.sql",
+		"000051_tap_quarantine_replay_payload.up.sql",
+		"000058_tap_projection_generation_column.up.sql",
 	} {
-		sql, err := os.ReadFile(path)
+		sql, err := testdb.ReadMigration(path)
 		if err != nil {
 			t.Fatalf("read Tap durability migration %s: %v", path, err)
 		}
