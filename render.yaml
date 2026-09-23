@@ -276,8 +276,9 @@ projects:
                 value: "true"
               - key: SENTRY_TRACES_SAMPLE_RATE
                 value: "0.01"
+              # Re-enable after comparing hourly service-initiated bandwidth.
               - key: SENTRY_METRICS_ENABLED
-                value: "true"
+                value: "false"
               - key: SENTRY_TAP_TRACING_ENABLED
                 value: "true"
               - key: SENTRY_TAP_TRACES_SAMPLE_RATE

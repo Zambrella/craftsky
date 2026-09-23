@@ -23,8 +23,8 @@ type publicOperationsRouteBundle struct {
 }
 
 func registerPublicOperationsRoutes(routes publicOperationsRouteBundle) {
-	routes.mux.Handle("GET /health", routes.inFlight(api.HealthHandler(routes.db, routes.logger)))
-	routes.mux.Handle("GET /healthz", routes.inFlight(api.NewHealthHandler(routes.db, routes.consumer)))
+	routes.mux.Handle("GET /health", api.HealthHandler(routes.db, routes.logger))
+	routes.mux.Handle("GET /healthz", api.NewHealthHandler(routes.db, routes.consumer))
 	if routes.env == EnvDev {
 		routes.mux.Handle("GET /v1/dev/media/{name}", routes.inFlight(api.DevMediaHandler()))
 		routes.mux.Handle("GET /v1/dev/panic", routes.inFlight(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
