@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +12,7 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/getsentry/sentry-go"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/api/envelope"
@@ -18,6 +21,7 @@ import (
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
+	"social.craftsky/appview/internal/tap"
 	"social.craftsky/appview/internal/testlog"
 )
 
@@ -131,6 +135,61 @@ func TestNewServerAllowsReadinessProbeFromInfrastructureHost(t *testing.T) {
 
 	if recorder.Code != http.StatusServiceUnavailable {
 		t.Fatalf("status = %d, want 503 from readiness DB check; body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestNewServerHealthRoutesSkipRequestObservability(t *testing.T) {
+	pool, err := pgxpool.New(context.Background(), "postgres://127.0.0.1:1/unreachable?connect_timeout=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+
+	var logs bytes.Buffer
+	recorder := observability.NewInMemoryMetricRecorder()
+	transport := &sentry.MockTransport{}
+	observer := observability.New(observability.Config{
+		Env:              "test",
+		SentryDSN:        "https://public@example.invalid/1",
+		SentryTransport:  transport,
+		TracingEnabled:   true,
+		TracesSampleRate: 1,
+		MetricRecorder:   recorder,
+	})
+	deps := &app.Deps{
+		Config: app.Config{
+			Env:            app.EnvProd,
+			AllowedOrigins: []string{"https://craftsky.social"},
+			ExpectedHosts:  []string{"appview.craftsky.social"},
+		},
+		DB:            pool,
+		Consumer:      tap.NotImplemented{},
+		Logger:        slog.New(slog.NewJSONHandler(&logs, nil)),
+		AuthService:   &auth.MockAuthService{DefaultDID: "did:plc:test"},
+		Observability: observer,
+	}
+	handler := NewServer(context.Background(), deps)
+	logs.Reset()
+
+	for _, path := range []string{"/health", "/healthz"} {
+		request := httptest.NewRequest(http.MethodGet, "https://appview.craftsky.social"+path, nil)
+		request.Host = "appview.craftsky.social"
+		handler.ServeHTTP(httptest.NewRecorder(), request)
+	}
+
+	if got := recorder.Calls(); len(got) != 0 {
+		t.Fatalf("health routes emitted application metrics: %#v", got)
+	}
+	if !observer.Flush(50 * time.Millisecond) {
+		t.Fatal("observer Flush returned false")
+	}
+	if events := transport.Events(); len(events) != 0 {
+		t.Fatalf("health routes emitted %d Sentry events, want 0", len(events))
+	}
+	for _, message := range []string{"Request received", "Request details", "Request completed"} {
+		if got := logs.String(); strings.Contains(got, message) {
+			t.Fatalf("health routes emitted request log %q: %s", message, got)
+		}
 	}
 }
 
