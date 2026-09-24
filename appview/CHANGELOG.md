@@ -1,5 +1,9 @@
 # AppView Changelog
 
+## 1.0.6 - 2026-09-24
+
+- fix: enable Render SSH shell
+
 ## 1.0.5 - 2026-09-23
 
 - fix: reduce health observability bandwidth
