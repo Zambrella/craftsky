@@ -30,7 +30,6 @@ import (
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
-	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/testdb"
 	"social.craftsky/appview/internal/testlog"
 )
@@ -1081,6 +1080,19 @@ CREATE TABLE account_language_preferences (
 	primary_language TEXT NOT NULL,
 	content_languages TEXT[] NOT NULL
 );
+CREATE TABLE pds_set_aggregates (
+    kind TEXT NOT NULL,
+    actor_did TEXT NOT NULL,
+    scope_key TEXT NOT NULL,
+    subject_did TEXT,
+    subject_uri TEXT,
+    eligible_source_count INTEGER NOT NULL,
+    representative_source_uri TEXT NOT NULL,
+    activated_at TIMESTAMPTZ NOT NULL,
+    representative_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (kind, actor_did, scope_key)
+);
 `
 
 // REG-004: successful production-mux interaction reads cannot reach PDS effects.
@@ -1109,7 +1121,7 @@ func TestPostInteractionReadRoutesSucceedWithoutPDSEffects(t *testing.T) {
 	deps := testDeps()
 	deps.DB = pool
 	deps.LanguagePreferences = languages.NewStore(pool)
-	deps.NewPDSEffects = func(context.Context, syntax.DID, string) (pdseffects.EffectExecutor, error) {
+	deps.NewBlobEffects = func(context.Context, syntax.DID, string) (api.BlobEffectExecutor, error) {
 		pdsCalls++
 		return nil, errors.New("PDS effects must not be constructed for reads")
 	}

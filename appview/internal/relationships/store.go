@@ -149,15 +149,15 @@ func (s *Store) State(ctx context.Context, viewer, subject syntax.DID) (State, e
 				  AND NOT appview_owner_is_terminal(subject_did)
 			),
 			EXISTS (
-				SELECT 1 FROM atproto_blocks
-				WHERE blocker_did = $1 AND subject_did = $2
-				  AND NOT appview_owner_is_terminal(blocker_did)
+				SELECT 1 FROM pds_set_aggregates
+				WHERE kind = 'block' AND actor_did = $1 AND subject_did = $2
+				  AND NOT appview_owner_is_terminal(actor_did)
 				  AND NOT appview_owner_is_terminal(subject_did)
 			),
 			EXISTS (
-				SELECT 1 FROM atproto_blocks
-				WHERE blocker_did = $2 AND subject_did = $1
-				  AND NOT appview_owner_is_terminal(blocker_did)
+				SELECT 1 FROM pds_set_aggregates
+				WHERE kind = 'block' AND actor_did = $2 AND subject_did = $1
+				  AND NOT appview_owner_is_terminal(actor_did)
 				  AND NOT appview_owner_is_terminal(subject_did)
 			)
 	`, viewer, subject).Scan(&state.Muted, &state.Blocking, &state.BlockedBy); err != nil {
@@ -250,21 +250,16 @@ func (s *Store) ListBlocks(
 		after = afterCreated
 	}
 	rows, err := s.pool.Query(ctx, `
-		WITH owned_subjects AS (
-			SELECT DISTINCT ON (b.subject_did)
-				b.subject_did, b.created_at
-			FROM atproto_blocks b
-			WHERE b.blocker_did = $1
-			  AND NOT appview_owner_is_terminal(b.blocker_did)
-			  AND NOT appview_owner_is_terminal(b.subject_did)
-			ORDER BY b.subject_did, b.created_at DESC, b.uri DESC
-		)
-		SELECT owned.subject_did, owned.created_at
-		FROM owned_subjects owned
-		JOIN craftsky_profiles cp ON cp.did = owned.subject_did
-		WHERE ($2::timestamptz IS NULL
-		       OR (owned.created_at, owned.subject_did) < ($2::timestamptz, $3::text))
-		ORDER BY owned.created_at DESC, owned.subject_did DESC
+		SELECT block.subject_did, block.activated_at
+		FROM pds_set_aggregates block
+		JOIN craftsky_profiles cp ON cp.did = block.subject_did
+		WHERE block.kind = 'block'
+		  AND block.actor_did = $1
+		  AND NOT appview_owner_is_terminal(block.actor_did)
+		  AND NOT appview_owner_is_terminal(block.subject_did)
+		  AND ($2::timestamptz IS NULL
+		       OR (block.activated_at, block.subject_did) < ($2::timestamptz, $3::text))
+		ORDER BY block.activated_at DESC, block.subject_did DESC
 		LIMIT $4
 	`, owner, after, afterSubject, limit+1)
 	if err != nil {

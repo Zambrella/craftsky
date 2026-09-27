@@ -290,14 +290,7 @@ class _FeedLoadedSlivers extends ConsumerWidget {
   ) async {
     final created = await showPostComposerSheet(context, replyTarget: post);
     if (created == null || !context.mounted) return;
-    ref
-        .read(timelineProvider.notifier)
-        .replace(
-          post.copyWith(
-            replyCount: post.replyCount + 1,
-            viewerHasReplied: true,
-          ),
-        );
+    ref.invalidate(timelineProvider);
     await PostThreadRoute(
       did: post.author.did,
       rkey: post.rkey,

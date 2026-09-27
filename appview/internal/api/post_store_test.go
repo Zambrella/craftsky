@@ -156,6 +156,40 @@ CREATE TABLE craftsky_likes (
     deleted_at  TIMESTAMPTZ,
     UNIQUE (did, rkey)
 );
+CREATE TABLE tap_source_records (
+    uri        TEXT PRIMARY KEY,
+    did        TEXT NOT NULL,
+    collection TEXT NOT NULL,
+    rkey       TEXT NOT NULL,
+    cid        TEXT,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+CREATE TABLE pds_set_sources (
+    source_uri  TEXT PRIMARY KEY,
+    kind        TEXT NOT NULL,
+    actor_did   TEXT NOT NULL,
+    scope_key   TEXT NOT NULL,
+    subject_uri TEXT,
+    subject_cid TEXT,
+    activity_at TIMESTAMPTZ NOT NULL,
+    eligible    BOOLEAN NOT NULL
+);
+CREATE TABLE pds_set_aggregates (
+    kind                      TEXT        NOT NULL,
+    actor_did                 TEXT        NOT NULL,
+    scope_key                 TEXT        NOT NULL,
+    subject_did               TEXT,
+    subject_uri               TEXT,
+	eligible_source_count     INTEGER     NOT NULL DEFAULT 1,
+    representative_source_uri TEXT        NOT NULL,
+    activated_at              TIMESTAMPTZ NOT NULL,
+    representative_metadata   JSONB       NOT NULL DEFAULT '{}'::jsonb,
+    updated_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
+	PRIMARY KEY (kind, actor_did, scope_key)
+);
+CREATE INDEX pds_set_aggregates_subject_did_purge_idx
+	ON pds_set_aggregates (subject_did, kind, actor_did, scope_key)
+	WHERE subject_did IS NOT NULL;
 CREATE TABLE craftsky_reposts (
     uri         TEXT        NOT NULL PRIMARY KEY,
     did         TEXT        NOT NULL,
@@ -208,6 +242,23 @@ func seedBskyProfile(t *testing.T, pool *pgxpool.Pool, did, displayName, avatarC
 		 VALUES ($1, $2, $3, 'image/jpeg', 'seed')`, did, displayName, avatarCID); err != nil {
 		t.Fatalf("seed bsky profile: %v", err)
 	}
+}
+
+func seedBlockAggregate(t *testing.T, pool *pgxpool.Pool, actorDID, subjectDID string, activatedAt time.Time) string {
+	t.Helper()
+	uri := "at://" + actorDID + "/app.bsky.graph.block/" + strings.TrimPrefix(subjectDID, "did:plc:")
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO pds_set_aggregates (
+			kind, actor_did, scope_key, subject_did, representative_source_uri, activated_at
+		) VALUES ('block', $1, $2, $2, $3, $4)
+		ON CONFLICT (kind, actor_did, scope_key) DO UPDATE SET
+			subject_did = EXCLUDED.subject_did,
+			representative_source_uri = EXCLUDED.representative_source_uri,
+			activated_at = EXCLUDED.activated_at
+	`, actorDID, subjectDID, uri, activatedAt); err != nil {
+		t.Fatalf("seed logical block: %v", err)
+	}
+	return uri
 }
 
 func seedPost(t *testing.T, pool *pgxpool.Pool, did, rkey, text string, indexedAt time.Time) string {
@@ -265,6 +316,30 @@ func seedInteraction(t *testing.T, pool *pgxpool.Pool, table, did, rkey, subject
 		VALUES ($1, $2, $3, 'bafy' || $3, $4, 'subjectcid', '{}'::jsonb, $5, $5, $6)`,
 		uri, did, rkey, subjectURI, time.Date(2026, 5, 10, 11, 0, 0, 0, time.UTC), deletedAt); err != nil {
 		t.Fatalf("seed %s: %v", table, err)
+	}
+	if (table == "like" || table == "repost") && !deleted {
+		activityAt := time.Date(2026, 5, 10, 11, 0, 0, 0, time.UTC)
+		if _, err := pool.Exec(context.Background(), `
+			INSERT INTO tap_source_records(uri,did,collection,rkey,cid,updated_at)
+			VALUES($1,$2,'social.craftsky.feed.' || $3,$4,'bafy' || $4,$5)
+		`, uri, did, table, rkey, activityAt); err != nil {
+			t.Fatalf("seed logical %s tap source: %v", table, err)
+		}
+		if _, err := pool.Exec(context.Background(), `
+			INSERT INTO pds_set_sources(source_uri,kind,actor_did,scope_key,subject_uri,subject_cid,activity_at,eligible)
+			VALUES($1,$2,$3,$4,$4,'subjectcid',$5,true)
+		`, uri, table, did, subjectURI, activityAt); err != nil {
+			t.Fatalf("seed logical %s source: %v", table, err)
+		}
+		if _, err := pool.Exec(context.Background(), `
+			INSERT INTO pds_set_aggregates(
+				kind,actor_did,scope_key,subject_uri,eligible_source_count,representative_source_uri,activated_at
+			) VALUES($1,$2,$3,$3,1,$4,$5)
+			ON CONFLICT(kind,actor_did,scope_key) DO UPDATE SET
+				eligible_source_count=pds_set_aggregates.eligible_source_count+1
+		`, table, did, subjectURI, uri, activityAt); err != nil {
+			t.Fatalf("seed logical %s: %v", table, err)
+		}
 	}
 	return uri
 }
@@ -326,12 +401,7 @@ func TestPostStoreAuthorizationDenialEmitsBoundedRelationshipOutcome(t *testing.
 	pool := testdb.WithSchema(t, postStoreDDL)
 	seedMember(t, pool, "did:plc:alice")
 	seedMember(t, pool, "did:plc:bob")
-	if _, err := pool.Exec(context.Background(), `
-		INSERT INTO atproto_blocks (uri, blocker_did, rkey, cid, subject_did, record, created_at)
-		VALUES ('at://did:plc:alice/app.bsky.graph.block/deny', 'did:plc:alice', 'deny', 'cid', 'did:plc:bob', '{}', now())
-	`); err != nil {
-		t.Fatal(err)
-	}
+	seedBlockAggregate(t, pool, "did:plc:alice", "did:plc:bob", time.Now())
 	recorder := observability.NewInMemoryMetricRecorder()
 	store := api.NewPostStore(pool, observability.New(observability.Config{MetricRecorder: recorder}))
 
@@ -1298,7 +1368,9 @@ func TestPostStore_ResolveTargetAndFindActiveInteractions(t *testing.T) {
 	seedMember(t, pool, "did:plc:bob")
 	postURI := seedPost(t, pool, "did:plc:alice", "rk1", "hello", time.Now())
 	likeURI := seedInteraction(t, pool, "like", "did:plc:bob", "like1", postURI, false)
-	seedInteraction(t, pool, "repost", "did:plc:bob", "repost-deleted", postURI, true)
+	repostURI := seedInteraction(t, pool, "repost", "did:plc:bob", "repost1", postURI, false)
+	deletedSubject := seedPost(t, pool, "did:plc:alice", "rk2", "deleted repost subject", time.Now())
+	seedInteraction(t, pool, "repost", "did:plc:bob", "repost-deleted", deletedSubject, true)
 
 	store := api.NewPostStore(pool)
 	target, err := store.ResolvePostTarget(context.Background(), "did:plc:alice", "rk1")
@@ -1316,7 +1388,14 @@ func TestPostStore_ResolveTargetAndFindActiveInteractions(t *testing.T) {
 	if like.URI != likeURI || like.SubjectURI != postURI || like.Rkey != "like1" {
 		t.Fatalf("like = %+v", like)
 	}
-	_, err = store.FindActiveRepost(context.Background(), "did:plc:bob", postURI)
+	repost, err := store.FindActiveRepost(context.Background(), "did:plc:bob", postURI)
+	if err != nil {
+		t.Fatalf("FindActiveRepost: %v", err)
+	}
+	if repost.URI != repostURI || repost.SubjectURI != postURI || repost.Rkey != "repost1" {
+		t.Fatalf("repost = %+v", repost)
+	}
+	_, err = store.FindActiveRepost(context.Background(), "did:plc:bob", deletedSubject)
 	if !errors.Is(err, api.ErrInteractionNotFound) {
 		t.Fatalf("want ErrInteractionNotFound for deleted repost, got %v", err)
 	}
@@ -1656,12 +1735,7 @@ func TestPostStore_ListCommentBranchReplies_HidesThirdPartyBlockedParentChildEdg
 	comment := seedReplyPost(t, pool, "did:plc:bob", "comment", "comment", root, root, base.Add(time.Minute))
 	blockedReply := seedReplyPost(t, pool, "did:plc:alice", "blocked-reply", "must stay hidden", root, comment, base.Add(2*time.Minute))
 	seedReplyPost(t, pool, "did:plc:dave", "descendant", "must stay hidden too", root, blockedReply, base.Add(3*time.Minute))
-	if _, err := pool.Exec(context.Background(), `
-		INSERT INTO atproto_blocks (uri, blocker_did, rkey, cid, subject_did, record, created_at)
-		VALUES ('at://did:plc:alice/app.bsky.graph.block/bob', 'did:plc:alice', 'bob', 'bafyblock', 'did:plc:bob', '{}', $1)
-	`, base); err != nil {
-		t.Fatalf("seed block: %v", err)
-	}
+	seedBlockAggregate(t, pool, "did:plc:alice", "did:plc:bob", base)
 
 	store := api.NewPostStore(pool)
 	ctx := middleware.WithDID(context.Background(), syntax.DID("did:plc:carol"))
@@ -1687,12 +1761,7 @@ func TestPostStore_ListRootComments_HidesThirdPartyBlockedMentionEdge(t *testing
 	root := seedPost(t, pool, "did:plc:dave", "root", "root", base)
 	mention := seedReplyPost(t, pool, "did:plc:alice", "mention", "@bob", root, root, base.Add(time.Minute))
 	seedPostMention(t, pool, mention, "did:plc:bob", base.Add(time.Minute))
-	if _, err := pool.Exec(context.Background(), `
-		INSERT INTO atproto_blocks (uri, blocker_did, rkey, cid, subject_did, record, created_at)
-		VALUES ('at://did:plc:alice/app.bsky.graph.block/bob', 'did:plc:alice', 'bob', 'bafyblock', 'did:plc:bob', '{}', $1)
-	`, base); err != nil {
-		t.Fatalf("seed block: %v", err)
-	}
+	seedBlockAggregate(t, pool, "did:plc:alice", "did:plc:bob", base)
 
 	store := api.NewPostStore(pool)
 	rows, cursor, err := store.ListRootComments(context.Background(), root, "did:plc:carol", "oldest", 10, "")

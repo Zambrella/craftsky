@@ -150,6 +150,38 @@ CREATE TABLE craftsky_reposts (
 );
 CREATE UNIQUE INDEX craftsky_reposts_did_subject_uri_active_unique
     ON craftsky_reposts (did, subject_uri) WHERE deleted_at IS NULL;
+CREATE TABLE pds_set_sources (
+    source_uri TEXT PRIMARY KEY,
+    kind TEXT NOT NULL,
+    actor_did TEXT NOT NULL,
+    scope_key TEXT NOT NULL,
+    subject_did TEXT,
+    subject_uri TEXT,
+    subject_cid TEXT,
+    activity_at TIMESTAMPTZ NOT NULL,
+    eligible BOOLEAN NOT NULL,
+    ineligibility_reason TEXT,
+    dependency_kind TEXT,
+    dependency_key TEXT,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (source_uri, kind, actor_did, scope_key)
+);
+CREATE TABLE pds_set_aggregates (
+    kind TEXT NOT NULL,
+    actor_did TEXT NOT NULL,
+    scope_key TEXT NOT NULL,
+    subject_did TEXT,
+    subject_uri TEXT,
+    eligible_source_count INTEGER NOT NULL,
+    representative_source_uri TEXT NOT NULL,
+    activated_at TIMESTAMPTZ NOT NULL,
+    representative_metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (kind, actor_did, scope_key),
+    FOREIGN KEY (representative_source_uri, kind, actor_did, scope_key)
+        REFERENCES pds_set_sources(source_uri, kind, actor_did, scope_key)
+        DEFERRABLE INITIALLY DEFERRED
+);
 `
 
 func projectIndexerWiringEvent(
@@ -180,7 +212,9 @@ func projectIndexerWiringEvent(
 		Rkey: event.Rkey, SourceEventID: event.ID, Revision: event.Rev,
 		CID: event.CID, Action: event.Action, Record: event.Record,
 		RecordBytes: len(event.Record), Live: event.Live,
-		ProjectionGeneration: &generation,
+		OrderingStatus:             "authoritative",
+		ProjectionGeneration:       &generation,
+		StructuralValidationStatus: "valid", SemanticValidationStatus: "valid",
 	})
 	if err != nil {
 		t.Fatalf("Project through transactional dispatcher: %v", err)
@@ -205,11 +239,11 @@ func TestNewIndexerDispatcherRegistersCraftskyInteractions(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		collection syntax.NSID
-		table      string
+		kind       string
 		rkey       syntax.RecordKey
 	}{
-		{name: "like", collection: "social.craftsky.feed.like", table: "craftsky_likes", rkey: "like1"},
-		{name: "repost", collection: "social.craftsky.feed.repost", table: "craftsky_reposts", rkey: "repost1"},
+		{name: "like", collection: "social.craftsky.feed.like", kind: "like", rkey: "3aaaaaaaaaaa2"},
+		{name: "repost", collection: "social.craftsky.feed.repost", kind: "repost", rkey: "3aaaaaaaaaaa3"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			ev := tap.Event{
@@ -220,6 +254,7 @@ func TestNewIndexerDispatcherRegistersCraftskyInteractions(t *testing.T) {
 				Rkey:       tc.rkey,
 				Action:     "create",
 				Record: json.RawMessage(`{
+					"$type": "` + tc.collection.String() + `",
 					"createdAt": "2026-05-04T12:00:00Z",
 					"subject": {"uri": "at://did:plc:author/social.craftsky.feed.post/post1", "cid": "subjectcid"}
 				}`),
@@ -227,11 +262,11 @@ func TestNewIndexerDispatcherRegistersCraftskyInteractions(t *testing.T) {
 			projectIndexerWiringEvent(t, pool, dispatcher, ev)
 
 			var count int
-			if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM "+tc.table).Scan(&count); err != nil {
-				t.Fatalf("count %s: %v", tc.table, err)
+			if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM pds_set_aggregates WHERE kind=$1`, tc.kind).Scan(&count); err != nil {
+				t.Fatalf("count %s aggregates: %v", tc.kind, err)
 			}
 			if count != 1 {
-				t.Errorf("%s count = %d, want 1", tc.table, count)
+				t.Errorf("%s aggregate count = %d, want 1", tc.kind, count)
 			}
 		})
 	}
@@ -294,13 +329,14 @@ func TestNewIndexerDispatcherRegistersBlueskyFollow(t *testing.T) {
 	)
 
 	ev := tap.Event{
-		URI:        "at://did:plc:actor/app.bsky.graph.follow/follow1",
+		URI:        "at://did:plc:actor/app.bsky.graph.follow/3aaaaaaaaaaa4",
 		CID:        "bafyfollow1",
 		DID:        "did:plc:actor",
 		Collection: "app.bsky.graph.follow",
-		Rkey:       "follow1",
+		Rkey:       "3aaaaaaaaaaa4",
 		Action:     "create",
 		Record: json.RawMessage(`{
+			"$type": "app.bsky.graph.follow",
 			"subject": "did:plc:author",
 			"createdAt": "2026-05-04T12:00:00Z"
 		}`),
@@ -308,11 +344,11 @@ func TestNewIndexerDispatcherRegistersBlueskyFollow(t *testing.T) {
 	projectIndexerWiringEvent(t, pool, dispatcher, ev)
 
 	var count int
-	if err := pool.QueryRow(context.Background(), "SELECT count(*) FROM atproto_follows").Scan(&count); err != nil {
+	if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM pds_set_aggregates WHERE kind='follow'`).Scan(&count); err != nil {
 		t.Fatalf("count follows: %v", err)
 	}
 	if count != 1 {
-		t.Errorf("atproto_follows count = %d; want 1", count)
+		t.Errorf("follow aggregate count = %d; want 1", count)
 	}
 }
 
@@ -325,11 +361,11 @@ func TestBlockCollectionIsDispatchedAndConfiguredExactlyOnce(t *testing.T) {
 	)
 
 	ev := tap.Event{
-		URI:        "at://did:plc:actor/app.bsky.graph.block/block1",
+		URI:        "at://did:plc:actor/app.bsky.graph.block/3aaaaaaaaaaa5",
 		CID:        "bafyblock1",
 		DID:        "did:plc:actor",
 		Collection: "app.bsky.graph.block",
-		Rkey:       "block1",
+		Rkey:       "3aaaaaaaaaaa5",
 		Action:     "create",
 		Record: json.RawMessage(`{
 			"$type": "app.bsky.graph.block",
@@ -339,11 +375,11 @@ func TestBlockCollectionIsDispatchedAndConfiguredExactlyOnce(t *testing.T) {
 	}
 	projectIndexerWiringEvent(t, pool, dispatcher, ev)
 	var count int
-	if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM atproto_blocks`).Scan(&count); err != nil {
+	if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM pds_set_aggregates WHERE kind='block'`).Scan(&count); err != nil {
 		t.Fatalf("count blocks: %v", err)
 	}
 	if count != 1 {
-		t.Fatalf("atproto_blocks count = %d, want 1", count)
+		t.Fatalf("block aggregate count = %d, want 1", count)
 	}
 
 	compose, err := os.ReadFile("../../../docker-compose.yml")

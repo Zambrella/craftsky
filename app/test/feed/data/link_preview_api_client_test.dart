@@ -99,6 +99,7 @@ void main() {
         await PostApiClient(
           dio,
         ).createPost(
+          operationKey: '018f4d5c-7a61-7d40-a1a2-555555555555',
           text: 'Pattern link',
           langs: const ['en'],
           sponsored: false,

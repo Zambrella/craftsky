@@ -777,6 +777,8 @@ void main() {
       'repost:did:plc:alice/actions',
     ]);
     expect(find.byIcon(CraftskyIcons.liked), findsOneWidget);
+    await tester.pump(const Duration(seconds: 31));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('FeedPage quote action opens composer with quote target', (
@@ -828,10 +830,11 @@ void main() {
     expect(find.byIcon(CraftskyIconsBold.like), findsOneWidget);
   });
 
-  testWidgets('FeedPage reply opens focused thread and updates root row', (
+  testWidgets('FeedPage reply opens focused thread and refreshes root row', (
     tester,
   ) async {
     GoRouterState? threadState;
+    var timelineCalls = 0;
     final root = _post('root');
     final created = _post('created');
     final container = ProviderContainer.test(
@@ -844,7 +847,15 @@ void main() {
         ),
         postRepositoryProvider.overrideWithValue(
           FakePostRepository(
-            onListTimeline: ({cursor, limit}) async => _timelinePage([root]),
+            onListTimeline: ({cursor, limit}) async {
+              timelineCalls++;
+              return _timelinePage([
+                if (timelineCalls == 1)
+                  root
+                else
+                  root.copyWith(replyCount: 4, viewerHasReplied: true),
+              ]);
+            },
             onCreate: ({required text, reply, images}) async => created,
           ),
         ),
@@ -905,6 +916,7 @@ void main() {
     expect(timeline.items.single.post.replyCount, 4);
     expect(timeline.items.single.post.viewerHasReplied, isTrue);
     expect(timeline.items.any((item) => item.post.uri == created.uri), isFalse);
+    expect(timelineCalls, 2);
   });
 
   testWidgets('FeedPage only exposes delete for own rows and removes row', (

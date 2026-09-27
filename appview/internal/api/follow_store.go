@@ -35,11 +35,24 @@ func NewFollowStore(pool *pgxpool.Pool) *FollowStore {
 func (s *FollowStore) FindActiveFollow(ctx context.Context, did string, subjectDID string) (*FollowRow, error) {
 	out := &FollowRow{}
 	err := s.pool.QueryRow(ctx, `
-		SELECT uri, did, rkey, cid, subject_did, created_at
-		FROM atproto_follows
-		WHERE did = $1 AND subject_did = $2
-		  AND NOT appview_owner_is_terminal(did)
-		  AND NOT appview_owner_is_terminal(subject_did)
+		SELECT aggregate.representative_source_uri,
+		       aggregate.actor_did,
+		       source_record.rkey,
+		       source_record.cid,
+		       aggregate.subject_did,
+		       source.activity_at
+		FROM pds_set_aggregates aggregate
+		JOIN pds_set_sources source
+		  ON source.source_uri = aggregate.representative_source_uri
+		 AND source.kind = aggregate.kind
+		 AND source.actor_did = aggregate.actor_did
+		 AND source.scope_key = aggregate.scope_key
+		JOIN tap_source_records source_record
+		  ON source_record.uri = aggregate.representative_source_uri
+		WHERE aggregate.kind = 'follow'
+		  AND aggregate.actor_did = $1 AND aggregate.subject_did = $2
+		  AND NOT appview_owner_is_terminal(aggregate.actor_did)
+		  AND NOT appview_owner_is_terminal(aggregate.subject_did)
 		LIMIT 1
 	`, did, subjectDID).Scan(
 		&out.URI,
@@ -116,9 +129,10 @@ func (s *FollowStore) DeleteActiveByURI(ctx context.Context, uri string) error {
 func (s *FollowStore) ListActiveFollowedDIDs(ctx context.Context, did string) ([]string, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT subject_did
-		FROM atproto_follows
-		WHERE did = $1
-		  AND NOT appview_owner_is_terminal(did)
+		FROM pds_set_aggregates
+		WHERE kind = 'follow'
+		  AND actor_did = $1
+		  AND NOT appview_owner_is_terminal(actor_did)
 		  AND NOT appview_owner_is_terminal(subject_did)
 		ORDER BY subject_did ASC
 	`, did)

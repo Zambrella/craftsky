@@ -97,13 +97,13 @@ func (s *PostStore) RelationshipStates(ctx context.Context, viewer syntax.DID, s
 			        WHERE mute.owner_did = $1 AND mute.subject_did = cp.did
 			          AND NOT appview_owner_is_terminal(mute.owner_did)
 			          AND NOT appview_owner_is_terminal(mute.subject_did)),
-			EXISTS (SELECT 1 FROM atproto_blocks block
-			        WHERE block.blocker_did = $1 AND block.subject_did = cp.did
-			          AND NOT appview_owner_is_terminal(block.blocker_did)
+			EXISTS (SELECT 1 FROM pds_set_aggregates block
+			        WHERE block.kind = 'block' AND block.actor_did = $1 AND block.subject_did = cp.did
+			          AND NOT appview_owner_is_terminal(block.actor_did)
 			          AND NOT appview_owner_is_terminal(block.subject_did)),
-			EXISTS (SELECT 1 FROM atproto_blocks block
-			        WHERE block.blocker_did = cp.did AND block.subject_did = $1
-			          AND NOT appview_owner_is_terminal(block.blocker_did)
+			EXISTS (SELECT 1 FROM pds_set_aggregates block
+			        WHERE block.kind = 'block' AND block.actor_did = cp.did AND block.subject_did = $1
+			          AND NOT appview_owner_is_terminal(block.actor_did)
 			          AND NOT appview_owner_is_terminal(block.subject_did))
 		FROM craftsky_profiles cp
 		WHERE cp.did = ANY($2)
@@ -141,10 +141,11 @@ func (s *PostStore) BlockedPairs(ctx context.Context, pairs []RelationshipPair) 
 	rows, err := s.pool.Query(ctx, `
 		SELECT pair.first_did, pair.second_did,
 			EXISTS (
-				SELECT 1 FROM atproto_blocks block
-				WHERE ((block.blocker_did = pair.first_did AND block.subject_did = pair.second_did)
-				   OR (block.blocker_did = pair.second_did AND block.subject_did = pair.first_did))
-				  AND NOT appview_owner_is_terminal(block.blocker_did)
+				SELECT 1 FROM pds_set_aggregates block
+				WHERE block.kind = 'block'
+				  AND ((block.actor_did = pair.first_did AND block.subject_did = pair.second_did)
+				   OR (block.actor_did = pair.second_did AND block.subject_did = pair.first_did))
+				  AND NOT appview_owner_is_terminal(block.actor_did)
 				  AND NOT appview_owner_is_terminal(block.subject_did)
 			)
 		FROM unnest($1::text[], $2::text[]) AS pair(first_did, second_did)

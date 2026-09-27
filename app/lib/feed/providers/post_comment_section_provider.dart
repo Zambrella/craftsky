@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart' as model;
 import 'package:craftsky_app/feed/models/post_uri.dart';
+import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -22,7 +23,13 @@ class PostCommentSection extends _$PostCommentSection {
     AtUri? focus,
   }) async {
     final repo = ref.watch(postRepositoryProvider);
-    return repo.commentSection(did, rkey, sort: sort, focus: focus);
+    final section = await repo.commentSection(
+      did,
+      rkey,
+      sort: sort,
+      focus: focus,
+    );
+    return applyPostCommentSectionInteractionOverlays(ref, section);
   }
 
   void appendCommentPage(model.CommentPage page) {

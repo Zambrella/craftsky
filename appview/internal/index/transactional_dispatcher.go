@@ -26,7 +26,7 @@ import (
 // the outer transaction; serving mutations and job completion succeed or roll
 // back together.
 type TransactionalIndexer interface {
-	Project(context.Context, pgx.Tx, tap.Event) (tap.Outcome, error)
+	Project(context.Context, pgx.Tx, ingestion.SourceRecord) (tap.Outcome, error)
 }
 
 // TransactionalDispatcher routes durable source rows to transaction-aware
@@ -110,9 +110,9 @@ func (dispatcher *TransactionalDispatcher) Project(ctx context.Context, tx pgx.T
 			// cleanup delete removes any old non-terminal edge instead of
 			// leaving stale serving state while still preventing the new
 			// terminal-target edge from being created.
-			event.Action = "delete"
-			event.Record = nil
-			return indexer.Project(ctx, tx, event)
+			source.Action = "delete"
+			source.Record = nil
+			return indexer.Project(ctx, tx, source)
 		}
 		terminalMentions := make(map[syntax.DID]struct{})
 		for owner, role := range roles {
@@ -125,7 +125,7 @@ func (dispatcher *TransactionalDispatcher) Project(ctx context.Context, tx pgx.T
 			ctx = context.WithValue(ctx, terminalProjectionMentionsContextKey{}, terminalMentions)
 		}
 	}
-	return indexer.Project(ctx, tx, event)
+	return indexer.Project(ctx, tx, source)
 }
 
 func projectionLifecycleReady(
@@ -290,6 +290,13 @@ func filterTerminalProjectionMentions(ctx context.Context, mentionedDIDs []strin
 }
 
 func validateProjectionRecord(event tap.Event) error {
+	result := validateSourceRecord(event)
+	if result.StructuralStatus == ValidationInvalid || result.SemanticStatus == ValidationInvalid {
+		return errors.New(result.Reason)
+	}
+	if event.Collection == craftskyProfileNSID {
+		return nil
+	}
 	switch event.Collection {
 	case businessProfileCollection:
 		if event.Rkey != "self" {
@@ -333,9 +340,6 @@ func validateProjectionRecord(event tap.Event) error {
 		}
 		_, err := time.Parse(time.RFC3339Nano, record.CreatedAt)
 		return err
-	case craftskyProfileNSID:
-		var record craftskylex.ActorProfile
-		return json.Unmarshal(event.Record, &record)
 	case craftskyPostNSID:
 		var record craftskylex.FeedPost
 		if err := json.Unmarshal(event.Record, &record); err != nil {

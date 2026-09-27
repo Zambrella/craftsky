@@ -47,6 +47,40 @@ func observedTestEffectFactory(
 	}
 }
 
+func observedTestBlobFactory(
+	base api.BlobEffectFactory,
+	recorder *observability.InMemoryMetricRecorder,
+) api.BlobEffectFactory {
+	return func(ctx context.Context, owner syntax.DID, sessionID string) (api.BlobEffectExecutor, error) {
+		started := time.Now()
+		executor, err := base(ctx, owner, sessionID)
+		result := "success"
+		if err != nil {
+			result = "error"
+		}
+		recorder.PDSOperation(ctx, "oauth.session_resume", "session_resume", result, string(observability.ClassifyPDSError(err)), time.Since(started))
+		if err != nil {
+			return nil, err
+		}
+		return &observedTestBlobExecutor{inner: executor, recorder: recorder}, nil
+	}
+}
+
+type observedTestBlobExecutor struct {
+	inner    api.BlobEffectExecutor
+	recorder *observability.InMemoryMetricRecorder
+}
+
+func (executor *observedTestBlobExecutor) UploadBlob(
+	ctx context.Context,
+	request pdseffects.UploadBlobRequest,
+) (*auth.UploadedBlob, error) {
+	started := time.Now()
+	result, err := executor.inner.UploadBlob(ctx, request)
+	recordTestPDSOperation(ctx, executor.recorder, "blob.upload", err, time.Since(started))
+	return result, err
+}
+
 func (executor *observedTestEffectExecutor) ResolveExpectedOwners(
 	ctx context.Context,
 	generation int64,
@@ -170,7 +204,7 @@ func TestPDSWriteHandlersEmitObservedOperations(t *testing.T) {
 	deletePostReq.SetPathValue("rkey", "post1")
 	serveObservedPDSRequest(t, deletePostHandler, deletePostReq, http.StatusNoContent)
 
-	blobHandler := api.ImageBlobUploadHandler(observedTestEffectFactory(blobEffectsFactory(&fakeBlobEffects{}), recorder), api.DefaultMediaLimits(), acceptingImageValidator, nilLogger())
+	blobHandler := api.ImageBlobUploadHandler(observedTestBlobFactory(blobEffectsFactory(&fakeBlobEffects{}), recorder), api.DefaultMediaLimits(), acceptingImageValidator, nilLogger())
 	blobReq := withOAuthSession(authedReq(http.MethodPost, "/v1/blobs/images", "jpeg-bytes", "did:plc:alice"))
 	blobReq.Header.Set("Content-Type", "image/jpeg")
 	serveObservedPDSRequest(t, blobHandler, blobReq, http.StatusOK)

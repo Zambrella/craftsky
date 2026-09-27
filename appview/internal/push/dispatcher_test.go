@@ -440,7 +440,7 @@ func TestDispatcherSuppressesRelationshipProtectedDeliveryBeforeProviderSend(t *
 		sql  string
 	}{
 		{name: "mute", sql: `INSERT INTO actor_mutes(owner_did,subject_did) VALUES('did:plc:viewer','did:plc:actor')`},
-		{name: "inbound block", sql: `INSERT INTO atproto_blocks(uri,blocker_did,subject_did) VALUES('at://did:plc:actor/app.bsky.graph.block/r1','did:plc:actor','did:plc:viewer')`},
+		{name: "inbound block", sql: `INSERT INTO pds_set_aggregates(kind,actor_did,subject_did) VALUES('block','did:plc:actor','did:plc:viewer')`},
 	} {
 		t.Run(setup.name, func(t *testing.T) {
 			pool := dispatcherPool(t)
@@ -503,8 +503,8 @@ func TestDispatcherRechecksPeopleIFollowRelationshipBeforeProviderSend(t *testin
 	if _, err := pool.Exec(context.Background(), `
 		INSERT INTO notification_preferences(account_did,category,scope,push_enabled)
 		VALUES('did:plc:viewer','like','peopleIFollow',true);
-		INSERT INTO atproto_follows(uri,did,subject_did)
-		VALUES('at://did:plc:viewer/app.bsky.graph.follow/r1','did:plc:viewer','did:plc:actor')
+		INSERT INTO pds_set_aggregates(kind,actor_did,subject_did)
+		VALUES('follow','did:plc:viewer','did:plc:actor')
 	`); err != nil {
 		t.Fatal(err)
 	}
@@ -515,8 +515,8 @@ func TestDispatcherRechecksPeopleIFollowRelationshipBeforeProviderSend(t *testin
 		t.Fatalf("claims=%d err=%v", len(items), err)
 	}
 	if _, err := pool.Exec(context.Background(), `
-		DELETE FROM atproto_follows
-		WHERE did='did:plc:viewer' AND subject_did='did:plc:actor'
+		DELETE FROM pds_set_aggregates
+		WHERE kind='follow' AND actor_did='did:plc:viewer' AND subject_did='did:plc:actor'
 	`); err != nil {
 		t.Fatal(err)
 	}
@@ -585,8 +585,8 @@ func TestDispatcherTerminallySettlesCurrentEligibilityInvalidation(t *testing.T)
 				if _, err := pool.Exec(context.Background(), `
 					INSERT INTO notification_preferences(account_did,category,scope,push_enabled)
 					VALUES('did:plc:viewer','like','peopleIFollow',true);
-					INSERT INTO atproto_follows(uri,did,subject_did)
-					VALUES('at://did:plc:viewer/app.bsky.graph.follow/r1','did:plc:viewer','did:plc:actor')
+					INSERT INTO pds_set_aggregates(kind,actor_did,subject_did)
+					VALUES('follow','did:plc:viewer','did:plc:actor')
 				`); err != nil {
 					t.Fatal(err)
 				}
@@ -594,8 +594,8 @@ func TestDispatcherTerminallySettlesCurrentEligibilityInvalidation(t *testing.T)
 			invalidate: func(t *testing.T, pool *pgxpool.Pool) {
 				t.Helper()
 				if _, err := pool.Exec(context.Background(), `
-					DELETE FROM atproto_follows
-					WHERE did='did:plc:viewer' AND subject_did='did:plc:actor'
+					DELETE FROM pds_set_aggregates
+					WHERE kind='follow' AND actor_did='did:plc:viewer' AND subject_did='did:plc:actor'
 				`); err != nil {
 					t.Fatal(err)
 				}
@@ -603,8 +603,8 @@ func TestDispatcherTerminallySettlesCurrentEligibilityInvalidation(t *testing.T)
 			restore: func(t *testing.T, pool *pgxpool.Pool) {
 				t.Helper()
 				if _, err := pool.Exec(context.Background(), `
-					INSERT INTO atproto_follows(uri,did,subject_did)
-					VALUES('at://did:plc:viewer/app.bsky.graph.follow/r2','did:plc:viewer','did:plc:actor')
+					INSERT INTO pds_set_aggregates(kind,actor_did,subject_did)
+					VALUES('follow','did:plc:viewer','did:plc:actor')
 				`); err != nil {
 					t.Fatal(err)
 				}
@@ -743,8 +743,8 @@ func TestDispatcherAllowsPeopleIFollowWhenRelationshipIsStillCurrent(t *testing.
 	if _, err := pool.Exec(context.Background(), `
 		INSERT INTO notification_preferences(account_did,category,scope,push_enabled)
 		VALUES('did:plc:viewer','like','peopleIFollow',true);
-		INSERT INTO atproto_follows(uri,did,subject_did)
-		VALUES('at://did:plc:viewer/app.bsky.graph.follow/r1','did:plc:viewer','did:plc:actor')
+		INSERT INTO pds_set_aggregates(kind,actor_did,subject_did)
+		VALUES('follow','did:plc:viewer','did:plc:actor')
 	`); err != nil {
 		t.Fatal(err)
 	}
@@ -1476,7 +1476,7 @@ func TestDispatcherRunRecoversFromTransientStoreFailure(t *testing.T) {
 		CREATE TABLE craftsky_posts(uri TEXT PRIMARY KEY,reply_root_uri TEXT,reply_parent_uri TEXT);
 		CREATE TABLE actor_mutes(owner_did TEXT NOT NULL, subject_did TEXT NOT NULL, PRIMARY KEY(owner_did, subject_did));
 		CREATE TABLE atproto_blocks(uri TEXT PRIMARY KEY, blocker_did TEXT NOT NULL, subject_did TEXT NOT NULL);
-		CREATE TABLE atproto_follows(uri TEXT PRIMARY KEY, did TEXT NOT NULL, subject_did TEXT NOT NULL, UNIQUE(did, subject_did));
+		CREATE TABLE pds_set_aggregates(kind TEXT NOT NULL, actor_did TEXT NOT NULL, subject_did TEXT);
 	`)
 	sender := &scriptedSender{sent: make(chan struct{}, 1)}
 	d := newTestDispatcher(t, pool, sender, DispatcherOptions{Now: time.Now, BatchSize: 1, LeaseDuration: time.Minute})
@@ -1700,7 +1700,7 @@ func dispatcherPool(t *testing.T) *pgxpool.Pool {
 		CREATE TABLE craftsky_posts(uri TEXT PRIMARY KEY,reply_root_uri TEXT,reply_parent_uri TEXT);
 		CREATE TABLE actor_mutes(owner_did TEXT NOT NULL, subject_did TEXT NOT NULL, PRIMARY KEY(owner_did, subject_did));
 		CREATE TABLE atproto_blocks(uri TEXT PRIMARY KEY, blocker_did TEXT NOT NULL, subject_did TEXT NOT NULL);
-		CREATE TABLE atproto_follows(uri TEXT PRIMARY KEY, did TEXT NOT NULL, subject_did TEXT NOT NULL, UNIQUE(did, subject_did));
+		CREATE TABLE pds_set_aggregates(kind TEXT NOT NULL, actor_did TEXT NOT NULL, subject_did TEXT);
 	`)
 	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {

@@ -54,7 +54,7 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
     required this.isOwnProfile,
     required this.emptyState,
     required this.onLoadMore,
-    required this.onReplacePost,
+    required this.onReplyCreated,
     required this.pinnedPostUri,
     super.key,
   });
@@ -66,7 +66,7 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
   final bool isOwnProfile;
   final Widget emptyState;
   final Future<void> Function() onLoadMore;
-  final void Function(Post post) onReplacePost;
+  final VoidCallback onReplyCreated;
   final String? pinnedPostUri;
 
   @override
@@ -168,9 +168,7 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
   Future<void> _replyAndOpenThread(BuildContext context, Post post) async {
     final created = await showPostComposerSheet(context, replyTarget: post);
     if (created == null || !context.mounted) return;
-    onReplacePost(
-      post.copyWith(replyCount: post.replyCount + 1, viewerHasReplied: true),
-    );
+    onReplyCreated();
     await PostThreadRoute(
       did: post.author.did,
       rkey: post.rkey,

@@ -38,10 +38,10 @@ CREATE TABLE craftsky_business_events (
     indexed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (owner_did, rkey)
 );
-CREATE TABLE atproto_blocks (
-    uri TEXT PRIMARY KEY,
-    blocker_did TEXT NOT NULL,
-    subject_did TEXT NOT NULL
+CREATE TABLE pds_set_aggregates (
+	kind TEXT NOT NULL,
+	actor_did TEXT NOT NULL,
+	subject_did TEXT NOT NULL
 );
 CREATE TABLE moderation_outputs (
     id TEXT PRIMARY KEY,
@@ -184,8 +184,8 @@ func TestBusinessEventStoreCallerAwarePolicyMatrix(t *testing.T) {
 	blockedURI := seedEventFixture(t, pool, eventFixture{Owner: blockedOwner, Rkey: "3msblocked001", Name: "Blocked", StartsAt: asOf.Add(time.Hour), EndsAt: asOf.Add(2 * time.Hour)})
 
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO atproto_blocks(uri, blocker_did, subject_did)
-		VALUES ('at://did:plc:blocked-owner/app.bsky.graph.block/visitor', $1, $2)
+		INSERT INTO pds_set_aggregates(kind, actor_did, subject_did)
+		VALUES ('block', $1, $2)
 	`, blockedOwner, visitor); err != nil {
 		t.Fatalf("seed block policy: %v", err)
 	}

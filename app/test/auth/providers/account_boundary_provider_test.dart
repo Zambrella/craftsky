@@ -326,7 +326,7 @@ void main() {
             .single
             .post
             .viewerHasLiked,
-        isTrue,
+        isFalse,
       );
 
       final target = container

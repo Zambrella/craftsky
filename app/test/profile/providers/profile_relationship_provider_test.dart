@@ -56,40 +56,16 @@ void main() {
     expect(container.read(provider).lastError, isA<StateError>());
   });
 
-  test(
-    'UT-011 confirmed block overlay wins until Tap state catches up',
-    () async {
-      final repo = FakeProfileRepository(
-        onBlock: (_) async => const ProfileRelationship(
-          blocking: true,
-          uri: 'at://did:plc:alice/app.bsky.graph.block/3abc',
-          rkey: '3abc',
-        ),
-      );
-      final provider = profileRelationshipProvider(alice, subject);
-      final container = ProviderContainer.test(
-        overrides: [
-          accountRelationshipRepositoryProvider(
-            alice,
-          ).overrideWith((ref) async => repo),
-        ],
-      );
-      addTearDown(container.dispose);
+  test('block actions cannot bypass the shared block controller', () async {
+    final provider = profileRelationshipProvider(alice, subject);
+    final container = ProviderContainer.test();
+    addTearDown(container.dispose);
 
-      final notifier = container.read(provider.notifier)
-        ..seed(const ProfileRelationship());
-      await notifier.mutate(ProfileRelationshipAction.block);
-      expect(container.read(provider).blocking, isTrue);
-      expect(container.read(provider).confirmedOverlay, isTrue);
-
-      notifier.seed(const ProfileRelationship());
-      expect(container.read(provider).blocking, isTrue);
-
-      notifier.seed(const ProfileRelationship(blocking: true));
-      expect(container.read(provider).blocking, isTrue);
-      expect(container.read(provider).confirmedOverlay, isFalse);
-    },
-  );
+    expect(
+      container.read(provider.notifier).mutate(ProfileRelationshipAction.block),
+      throwsArgumentError,
+    );
+  });
 
   test('UT-011 relationship cache is isolated by account key', () async {
     final bob = AccountKey('did:plc:bob');

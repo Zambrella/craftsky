@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
@@ -276,6 +277,12 @@ func TestMembershipAndBlockBackfillConvergeAcrossRestartWithoutReadinessState(t 
 	if err := blockIndexer.Handle(ctx, inbound); err != nil {
 		t.Fatalf("retain inbound block before membership: %v", err)
 	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO pds_set_aggregates(kind,actor_did,scope_key,subject_did,representative_source_uri,activated_at)
+		VALUES('block',$1,$2,$2,$3,$4)
+	`, alice, joining, inbound.URI, time.Now()); err != nil {
+		t.Fatal(err)
+	}
 	store := relationships.NewStore(pool)
 	if err := relationships.RequireCurrentMember(ctx, store, joining); !errors.Is(err, relationships.ErrProfileNotFound) {
 		t.Fatalf("joining membership before profile = %v", err)
@@ -339,6 +346,12 @@ func TestMembershipAndBlockBackfillConvergeAcrossRestartWithoutReadinessState(t 
 	}
 	if err := blockIndexer.Handle(ctx, outbound); err != nil {
 		t.Fatalf("resume joining-owned block event: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO pds_set_aggregates(kind,actor_did,scope_key,subject_did,representative_source_uri,activated_at)
+		VALUES('block',$1,$2,$2,$3,$4)
+	`, joining, alice, outbound.URI, time.Now()); err != nil {
+		t.Fatal(err)
 	}
 	state, err = store.State(ctx, joining, alice)
 	if err != nil {

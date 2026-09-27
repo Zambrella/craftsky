@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -26,7 +28,34 @@ CREATE TABLE atproto_follows (
 CREATE INDEX atproto_follows_did_idx ON atproto_follows (did);
 CREATE INDEX atproto_follows_subject_did_idx ON atproto_follows (subject_did);
 CREATE INDEX atproto_follows_did_subject_did_idx ON atproto_follows (did, subject_did);
+CREATE TABLE tap_source_records (
+	uri TEXT PRIMARY KEY, rkey TEXT NOT NULL, cid TEXT, updated_at TIMESTAMPTZ NOT NULL
+);
+CREATE TABLE pds_set_sources (
+	source_uri TEXT PRIMARY KEY, kind TEXT NOT NULL, actor_did TEXT NOT NULL,
+	scope_key TEXT NOT NULL, subject_did TEXT, activity_at TIMESTAMPTZ NOT NULL
+);
+CREATE TABLE pds_set_aggregates (
+	kind TEXT NOT NULL, actor_did TEXT NOT NULL, scope_key TEXT NOT NULL,
+	subject_did TEXT, representative_source_uri TEXT NOT NULL, activated_at TIMESTAMPTZ NOT NULL,
+	PRIMARY KEY (kind, actor_did, scope_key)
+);
 `
+
+func syncFollowReadModel(t *testing.T, pool *pgxpool.Pool) {
+	t.Helper()
+	if _, err := pool.Exec(context.Background(), `
+		TRUNCATE pds_set_aggregates, pds_set_sources, tap_source_records;
+		INSERT INTO tap_source_records(uri,rkey,cid,updated_at)
+		SELECT uri,rkey,cid,indexed_at FROM atproto_follows;
+		INSERT INTO pds_set_sources(source_uri,kind,actor_did,scope_key,subject_did,activity_at)
+		SELECT uri,'follow',did,subject_did,subject_did,created_at FROM atproto_follows;
+		INSERT INTO pds_set_aggregates(kind,actor_did,scope_key,subject_did,representative_source_uri,activated_at)
+		SELECT 'follow',did,subject_did,subject_did,uri,created_at FROM atproto_follows;
+	`); err != nil {
+		t.Fatalf("sync follow read model: %v", err)
+	}
+}
 
 func TestFollowStore_ActiveGraphSemantics(t *testing.T) {
 	t.Parallel()
@@ -54,6 +83,7 @@ func TestFollowStore_ActiveGraphSemantics(t *testing.T) {
 	if err := store.UpsertActive(ctx, row, []byte(`{"subject":"did:plc:bob"}`)); err != nil {
 		t.Fatalf("UpsertActive replay: %v", err)
 	}
+	syncFollowReadModel(t, pool)
 
 	var count int
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM atproto_follows`).Scan(&count); err != nil {
@@ -61,6 +91,13 @@ func TestFollowStore_ActiveGraphSemantics(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("follow row count = %d, want 1", count)
+	}
+	active, err := store.FindActiveFollow(ctx, row.DID, row.SubjectDID)
+	if err != nil {
+		t.Fatalf("FindActiveFollow: %v", err)
+	}
+	if active == nil || active.URI != row.URI || active.Rkey != row.Rkey || active.CID != row.CID || !active.CreatedAt.Equal(createdAt) {
+		t.Fatalf("active follow = %+v, want representative source row %+v", active, row)
 	}
 
 	followed, err := store.ListActiveFollowedDIDs(ctx, "did:plc:alice")
@@ -74,6 +111,7 @@ func TestFollowStore_ActiveGraphSemantics(t *testing.T) {
 	if err := store.DeleteActiveByURI(ctx, row.URI); err != nil {
 		t.Fatalf("DeleteActiveByURI: %v", err)
 	}
+	syncFollowReadModel(t, pool)
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM atproto_follows`).Scan(&count); err != nil {
 		t.Fatalf("count after delete: %v", err)
 	}
@@ -132,6 +170,7 @@ func TestFollowStore_ListActiveFollowedDIDs_OnlyActiveUnique(t *testing.T) {
 	if err := store.UpsertActive(ctx, row1Duplicate, []byte(`{"subject":"did:plc:bob"}`)); err != nil {
 		t.Fatalf("upsert duplicate subject: %v", err)
 	}
+	syncFollowReadModel(t, pool)
 
 	followed, err := store.ListActiveFollowedDIDs(ctx, "did:plc:alice")
 	if err != nil {

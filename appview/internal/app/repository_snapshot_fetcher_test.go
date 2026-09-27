@@ -26,7 +26,57 @@ import (
 
 	"social.craftsky/appview/internal/ingestion"
 	craftskylex "social.craftsky/appview/internal/lexicon/craftsky"
+	"social.craftsky/appview/internal/pdscommands"
 )
+
+func TestAuthoritativeReaderFallsBackToGeneratedVerifiedSnapshot(t *testing.T) {
+	did := syntax.DID("did:plc:repositorysnapshot")
+	collection := syntax.NSID("social.craftsky.actor.profile")
+	key := repositorySnapshotTestKey(t, 1)
+	fixture := buildRepositorySnapshotCAR(t, did, key)
+	snapshot, err := fetchRepositorySnapshotFromBytes(t, did, key, fixture.data, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader, err := pdscommands.NewAuthoritativeReaderWithFallback(
+		&changingHeadAuthoritativeTransport{},
+		pdscommands.AuthoritativeReaderLimits{MaxPages: 2, MaxRecords: 10, MaxBytes: 1024},
+		verifiedSnapshotFallback{snapshot: snapshot},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, records, err := reader.CompleteCollection(context.Background(), did, collection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if head != syntax.CID(fixture.root.String()) || len(records) != 1 ||
+		records[0].URI != syntax.ATURI("at://"+did.String()+"/social.craftsky.actor.profile/self") {
+		t.Fatalf("fallback result = %q %+v", head, records)
+	}
+}
+
+type changingHeadAuthoritativeTransport struct{ calls int }
+
+func (transport *changingHeadAuthoritativeTransport) LatestCommit(context.Context, syntax.DID) (syntax.CID, error) {
+	transport.calls++
+	if transport.calls == 1 {
+		return "bafy-before", nil
+	}
+	return "bafy-after", nil
+}
+
+func (*changingHeadAuthoritativeTransport) ListRecords(context.Context, syntax.DID, syntax.NSID, string, int) (pdscommands.AuthoritativeRecordPage, error) {
+	return pdscommands.AuthoritativeRecordPage{}, nil
+}
+
+type verifiedSnapshotFallback struct {
+	snapshot ingestion.VerifiedRepositorySnapshot
+}
+
+func (fallback verifiedSnapshotFallback) FetchCollection(context.Context, syntax.DID, syntax.NSID) (ingestion.VerifiedRepositorySnapshot, error) {
+	return fallback.snapshot, nil
+}
 
 func TestRepositorySnapshotFetcherRejectsTruncatedRepositoryBeforeComparison(t *testing.T) {
 	did := syntax.DID("did:plc:repositorysnapshot")

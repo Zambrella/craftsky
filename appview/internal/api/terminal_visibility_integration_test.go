@@ -119,6 +119,47 @@ func TestTerminalOwnerIsInvisibleAndIneffectiveBeforePhysicalPurge(t *testing.T)
 	`, viewer, terminal, other); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO tap_source_records(
+			uri,did,collection,rkey,source_event_id,source_fingerprint,revision,cid,
+			action,record,record_bytes,live,ordering_status,projection_disposition,
+			structural_validation_status,semantic_validation_status,observed_at,updated_at
+		)
+		SELECT uri,did,'app.bsky.graph.follow',rkey,
+		       900000 + row_number() OVER (ORDER BY uri),decode(repeat('00',32),'hex'),rkey,cid,
+		       'create',record,octet_length(record::text),false,'authoritative','eligible',
+		       'valid','valid',created_at,indexed_at
+		FROM atproto_follows
+		WHERE uri IN (
+			'at://did:plc:terminal-viewer/app.bsky.graph.follow/terminal',
+			'at://did:plc:terminal-actor/app.bsky.graph.follow/other'
+		)
+	`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO pds_set_sources(
+			source_uri,kind,actor_did,scope_key,subject_did,activity_at,eligible
+		)
+		SELECT uri,'follow',did,subject_did,subject_did,created_at,true
+		FROM atproto_follows
+		WHERE uri IN (
+			'at://did:plc:terminal-viewer/app.bsky.graph.follow/terminal',
+			'at://did:plc:terminal-actor/app.bsky.graph.follow/other'
+		);
+		INSERT INTO pds_set_aggregates(
+			kind,actor_did,scope_key,subject_did,eligible_source_count,
+			representative_source_uri,activated_at
+		)
+		SELECT kind,actor_did,scope_key,subject_did,1,source_uri,activity_at
+		FROM pds_set_sources
+		WHERE kind='follow' AND source_uri IN (
+			'at://did:plc:terminal-viewer/app.bsky.graph.follow/terminal',
+			'at://did:plc:terminal-actor/app.bsky.graph.follow/other'
+		)
+	`); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := pool.Exec(ctx, `INSERT INTO actor_mutes(owner_did,subject_did) VALUES($1,$2)`, viewer, terminal); err != nil {
 		t.Fatal(err)
 	}

@@ -20,6 +20,7 @@ void main() {
 
     await expectLater(
       () => repository.create(
+        operationKey: '018f4d5c-7a61-7d40-a1a2-555555555555',
         text: 'invalid',
         langs: const ['en'],
         sponsored: false,

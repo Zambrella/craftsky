@@ -228,14 +228,7 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
   ) async {
     final created = await showPostComposerSheet(context, replyTarget: post);
     if (created == null) return;
-    ref
-        .read(userCommentsProvider(did).notifier)
-        .replace(
-          post.copyWith(
-            replyCount: post.replyCount + 1,
-            viewerHasReplied: true,
-          ),
-        );
+    ref.invalidate(userCommentsProvider(did));
   }
 }
 

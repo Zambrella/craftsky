@@ -24,6 +24,7 @@ import (
 	"social.craftsky/appview/internal/moderation"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/tap"
 	"social.craftsky/appview/internal/testdb"
@@ -32,6 +33,7 @@ import (
 const (
 	verticalViewer syntax.DID = "did:plc:verticalviewer"
 	verticalAuthor syntax.DID = "did:plc:verticalauthor"
+	verticalCID               = "bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq"
 )
 
 type verticalAuthService struct{}
@@ -102,6 +104,33 @@ func TestNewServer_MigratedPostgresVerticalSlices(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("index follow against migrated schema: %v", err)
 	}
+	followURI := "at://did:plc:verticalviewer/app.bsky.graph.follow/vertical-follow"
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO tap_source_records(
+			uri,did,collection,rkey,source_event_id,source_fingerprint,
+			revision,cid,action,record,record_bytes,live,ordering_status,
+			projection_disposition
+		) VALUES($2,$1,'app.bsky.graph.follow','vertical-follow',1,
+			decode(repeat('31',32),'hex'),'3aaaaaaaaaaa2','bafy-vertical-follow',
+			'create',$3::jsonb,octet_length($3::jsonb::text),true,'authoritative','eligible')
+	`, verticalViewer, followURI, followRecord); err != nil {
+		t.Fatalf("seed logical follow source evidence: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO pds_set_sources(
+			source_uri,kind,actor_did,scope_key,subject_did,activity_at,eligible
+		) VALUES($3,'follow',$1,$2,$2,now(),true)
+	`, verticalViewer, verticalAuthor, followURI); err != nil {
+		t.Fatalf("seed logical follow fact: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO pds_set_aggregates(
+			kind,actor_did,scope_key,subject_did,eligible_source_count,
+			representative_source_uri,activated_at
+		) VALUES('follow',$1,$2,$2,1,$3,now())
+	`, verticalViewer, verticalAuthor, followURI); err != nil {
+		t.Fatalf("seed logical follow against migrated schema: %v", err)
+	}
 	postRecord := json.RawMessage(`{"$type":"social.craftsky.feed.post","text":"from migrated indexer","langs":["en"],"sponsored":false,"createdAt":"2026-09-17T10:00:00Z"}`)
 	if err := index.NewCraftskyPost(pool, logger).Handle(ctx, tap.Event{
 		URI:        "at://did:plc:verticalauthor/social.craftsky.feed.post/vertical-post",
@@ -137,6 +166,24 @@ func TestNewServer_MigratedPostgresVerticalSlices(t *testing.T) {
 	if err != nil {
 		t.Fatalf("new PDS effect factory: %v", err)
 	}
+	commandStore, err := pdscommands.NewStore(pdscommands.StoreConfig{Pool: pool})
+	if err != nil {
+		t.Fatalf("new PDS command store: %v", err)
+	}
+	appendClock := syntax.NewTIDClock(0)
+	appendCommands, err := pdscommands.NewAppendCommandService(pdscommands.AppendCommandServiceConfig{
+		Store:      commandStore,
+		Lifecycles: lifecycles,
+		NewBoundary: func(context.Context, syntax.DID, string) (auth.ActiveEffectPDSBoundary, error) {
+			return verticalPDSBoundary{PDSClient: pdsClient, lifecycles: lifecycles}, nil
+		},
+		NewRecordKey: func() (syntax.RecordKey, error) {
+			return syntax.ParseRecordKey(appendClock.Next().String())
+		},
+	})
+	if err != nil {
+		t.Fatalf("new PDS append command service: %v", err)
+	}
 
 	server := NewServer(ctx, &app.Deps{
 		Config: app.Config{
@@ -157,7 +204,10 @@ func TestNewServer_MigratedPostgresVerticalSlices(t *testing.T) {
 		LanguagePreferences: languagePreferences,
 		ModerationCases:     moderation.NewStore(pool),
 		OwnerLifecycles:     lifecycles,
-		NewPDSEffects:       effects,
+		NewBlobEffects: func(ctx context.Context, owner syntax.DID, sessionID string) (api.BlobEffectExecutor, error) {
+			return effects(ctx, owner, sessionID)
+		},
+		PDSAppendCommands: appendCommands,
 	})
 
 	t.Run("authenticated timeline", func(t *testing.T) {
@@ -186,21 +236,22 @@ func TestNewServer_MigratedPostgresVerticalSlices(t *testing.T) {
 	t.Run("AppView-mediated PDS write", func(t *testing.T) {
 		request := httptest.NewRequest(http.MethodPost, "/v1/posts", strings.NewReader(`{"text":"routed write","sponsored":false}`))
 		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Idempotency-Key", "018f4d5c-7a61-7d40-a1a2-888888888888")
 		authorizeVerticalRequest(request)
 		response := httptest.NewRecorder()
 		server.ServeHTTP(response, request)
 		if response.Code != http.StatusCreated {
 			t.Fatalf("create status = %d, want 201; body=%s pds_puts=%d pds_gets=%d logs=%s", response.Code, response.Body.String(), pds.puts, pds.gets, logs.String())
 		}
-		if pds.puts != 1 || pds.gets != 1 {
-			t.Fatalf("fake PDS put/get calls = %d/%d, want 1/1", pds.puts, pds.gets)
+		if pds.puts != 1 || pds.gets != 2 {
+			t.Fatalf("fake PDS put/get calls = %d/%d, want 1/2", pds.puts, pds.gets)
 		}
 		var attempts int
-		if err := pool.QueryRow(ctx, `SELECT count(*) FROM owner_effect_attempts WHERE owner_did=$1`, verticalViewer).Scan(&attempts); err != nil {
-			t.Fatalf("count durable PDS attempts: %v", err)
+		if err := pool.QueryRow(ctx, `SELECT count(*) FROM pds_commands WHERE owner_did=$1`, verticalViewer).Scan(&attempts); err != nil {
+			t.Fatalf("count durable PDS commands: %v", err)
 		}
 		if attempts != 1 {
-			t.Fatalf("durable PDS attempts = %d, want 1", attempts)
+			t.Fatalf("durable PDS commands = %d, want 1", attempts)
 		}
 	})
 }
@@ -263,6 +314,44 @@ func newVerticalPDSServer(t *testing.T) *verticalPDSServer {
 	var repo, collection, rkey string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		switch request.URL.Path {
+		case "/xrpc/com.atproto.sync.getLatestCommit":
+			if request.Method != http.MethodGet || request.URL.Query().Get("did") != verticalViewer.String() {
+				http.Error(w, "unexpected getLatestCommit request", http.StatusBadRequest)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]string{"cid": verticalCID, "rev": "3aaaaaaaaaaaa"})
+		case "/xrpc/com.atproto.repo.applyWrites":
+			fake.puts++
+			var body struct {
+				Repo       string `json:"repo"`
+				SwapCommit string `json:"swapCommit"`
+				Writes     []struct {
+					Type       string          `json:"$type"`
+					Collection string          `json:"collection"`
+					Rkey       string          `json:"rkey"`
+					Value      json.RawMessage `json:"value"`
+				} `json:"writes"`
+			}
+			if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+			var value struct {
+				Text string `json:"text"`
+			}
+			if request.Method != http.MethodPost || body.Repo != verticalViewer.String() ||
+				body.SwapCommit != verticalCID || len(body.Writes) != 1 ||
+				body.Writes[0].Type != "com.atproto.repo.applyWrites#create" ||
+				body.Writes[0].Collection != "social.craftsky.feed.post" ||
+				body.Writes[0].Rkey != rkey || json.Unmarshal(body.Writes[0].Value, &value) != nil ||
+				value.Text != "routed write" {
+				http.Error(w, "unexpected applyWrites request", http.StatusBadRequest)
+				return
+			}
+			record = append(record[:0], body.Writes[0].Value...)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = io.WriteString(w, `{"commit":{"cid":"`+verticalCID+`","rev":"3aaaaaaaaaaab"},"results":[]}`)
 		case "/xrpc/com.atproto.repo.putRecord":
 			fake.puts++
 			var body struct {
@@ -280,7 +369,7 @@ func newVerticalPDSServer(t *testing.T) *verticalPDSServer {
 			}
 			if request.Method != http.MethodPost || body.Repo != verticalViewer.String() ||
 				body.Collection != "social.craftsky.feed.post" || json.Unmarshal(body.Record, &value) != nil ||
-				value.Text != "routed write" {
+				value.Text != "routed write" || (rkey != "" && body.Rkey != rkey) {
 				http.Error(w, "unexpected putRecord request", http.StatusBadRequest)
 				return
 			}
@@ -289,12 +378,17 @@ func newVerticalPDSServer(t *testing.T) *verticalPDSServer {
 			_, _ = io.WriteString(w, `{}`)
 		case "/xrpc/com.atproto.repo.getRecord":
 			fake.gets++
-			if request.Method != http.MethodGet || request.URL.Query().Get("repo") != repo ||
-				request.URL.Query().Get("collection") != collection || request.URL.Query().Get("rkey") != rkey {
+			queryRepo := request.URL.Query().Get("repo")
+			queryCollection := request.URL.Query().Get("collection")
+			queryRkey := request.URL.Query().Get("rkey")
+			if request.Method != http.MethodGet || queryRepo != verticalViewer.String() ||
+				queryCollection != "social.craftsky.feed.post" || queryRkey == "" ||
+				(rkey != "" && queryRkey != rkey) {
 				http.Error(w, "unexpected getRecord request", http.StatusBadRequest)
 				return
 			}
 			if len(record) == 0 {
+				repo, collection, rkey = queryRepo, queryCollection, queryRkey
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusBadRequest)
 				_, _ = io.WriteString(w, `{"error":"RecordNotFound","message":"missing"}`)
@@ -303,7 +397,7 @@ func newVerticalPDSServer(t *testing.T) *verticalPDSServer {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"uri":   "at://" + repo + "/" + collection + "/" + rkey,
-				"cid":   "bafy-vertical-write",
+				"cid":   verticalCID,
 				"value": json.RawMessage(record),
 			})
 		default:

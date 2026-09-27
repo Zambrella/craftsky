@@ -19,7 +19,6 @@ import (
 	"social.craftsky/appview/internal/moderation"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
-	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/relationships"
 	"social.craftsky/appview/internal/scheduledposts"
 	"social.craftsky/appview/internal/tap"
@@ -146,7 +145,11 @@ type Dependencies struct {
 	ModerationCommands        api.ModerationCommander
 	SuspensionReader          middleware.SuspensionReader
 	LanguagePreferences       *languages.Store
-	NewPDSEffects             pdseffects.ExecutorFactory
+	NewBlobEffects            api.BlobEffectFactory
+	PDSCommands               api.SetCommandExecutor
+	PDSAppendCommands         api.AppendCommandExecutor
+	PDSAddressedCommands      api.AddressedCommandExecutor
+	PDSCompoundCommands       api.CompoundPutCommandExecutor
 	BusinessStore             *business.Store
 	EventCursorCodec          *api.EventCursorCodec
 	Now                       func() time.Time

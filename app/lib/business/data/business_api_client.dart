@@ -3,6 +3,7 @@ import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/api/api_unwrap.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dio/dio.dart';
 
@@ -22,16 +23,51 @@ class BusinessApiClient {
 
   Future<RecordMutationResult> putBusinessProfile(
     Map<String, dynamic> body, {
+    required String operationKey,
     required Cid? expectedCid,
   }) => unwrapApi(() async {
-    final response = await _dio.put<Map<String, dynamic>>(
+    _requireCanonicalOperationKey(operationKey);
+    final response = await _dio.put<Object?>(
       '/v1/profiles/me/business',
       data: body,
       options: Options(
-        headers: {'If-Match': expectedCid?.toString() ?? '*'},
+        headers: {
+          'Idempotency-Key': operationKey,
+          'If-Match': expectedCid?.toString() ?? '*',
+        },
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 300,
       ),
     );
-    return RecordMutationResultMapper.fromMap(response.data!);
+    return parsePdsMutationResponse(
+      response,
+      accepted: (data) => RecordMutationResultMapper.fromMap(
+        Map<String, dynamic>.from(data! as Map),
+      ),
+    );
+  });
+
+  Future<void> deleteBusinessProfile({
+    required String operationKey,
+    required Cid expectedCid,
+  }) => unwrapApi(() async {
+    _requireCanonicalOperationKey(operationKey);
+    final response = await _dio.delete<Object?>(
+      '/v1/profiles/me/business',
+      options: Options(
+        headers: {
+          'Idempotency-Key': operationKey,
+          'If-Match': expectedCid.toString(),
+        },
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 300,
+      ),
+    );
+    parsePdsMutationResponse<void>(
+      response,
+      accepted: (_) {},
+      requireEmptyNoContent: true,
+    );
   });
 
   Future<BusinessEventPage> listProfileEvents(
@@ -73,39 +109,79 @@ class BusinessApiClient {
         return BusinessEventMapper.fromMap(response.data!);
       });
 
-  Future<RecordMutationResult> createEvent(Map<String, dynamic> body) =>
-      unwrapApi(() async {
-        final response = await _dio.post<Map<String, dynamic>>(
-          '/v1/events',
-          data: body,
-        );
-        return RecordMutationResultMapper.fromMap(response.data!);
-      });
+  Future<RecordMutationResult> createEvent(
+    Map<String, dynamic> body, {
+    required String operationKey,
+  }) => unwrapApi(() async {
+    _requireCanonicalOperationKey(operationKey);
+    final response = await _dio.post<Object?>(
+      '/v1/events',
+      data: body,
+      options: Options(
+        headers: {'Idempotency-Key': operationKey},
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 300,
+      ),
+    );
+    return parsePdsMutationResponse(
+      response,
+      accepted: (data) => RecordMutationResultMapper.fromMap(
+        Map<String, dynamic>.from(data! as Map),
+      ),
+    );
+  });
 
   Future<RecordMutationResult> updateEvent(
     Did owner,
     RecordKey rkey,
     Cid expectedCid,
-    Map<String, dynamic> body,
-  ) => unwrapApi(() async {
-    final response = await _dio.put<Map<String, dynamic>>(
+    Map<String, dynamic> body, {
+    required String operationKey,
+  }) => unwrapApi(() async {
+    _requireCanonicalOperationKey(operationKey);
+    final response = await _dio.put<Object?>(
       '/v1/events/$owner/$rkey',
       data: body,
-      options: Options(headers: {'If-Match': expectedCid.toString()}),
+      options: Options(
+        headers: {
+          'Idempotency-Key': operationKey,
+          'If-Match': expectedCid.toString(),
+        },
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 300,
+      ),
     );
-    return RecordMutationResultMapper.fromMap(response.data!);
+    return parsePdsMutationResponse(
+      response,
+      accepted: (data) => RecordMutationResultMapper.fromMap(
+        Map<String, dynamic>.from(data! as Map),
+      ),
+    );
   });
 
-  Future<RecordMutationResult> deleteEvent(
+  Future<void> deleteEvent(
     Did owner,
     RecordKey rkey,
-    Cid expectedCid,
-  ) => unwrapApi(() async {
-    final response = await _dio.delete<Map<String, dynamic>>(
+    Cid expectedCid, {
+    required String operationKey,
+  }) => unwrapApi(() async {
+    _requireCanonicalOperationKey(operationKey);
+    final response = await _dio.delete<Object?>(
       '/v1/events/$owner/$rkey',
-      options: Options(headers: {'If-Match': expectedCid.toString()}),
+      options: Options(
+        headers: {
+          'Idempotency-Key': operationKey,
+          'If-Match': expectedCid.toString(),
+        },
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 300,
+      ),
     );
-    return RecordMutationResultMapper.fromMap(response.data!);
+    parsePdsMutationResponse<void>(
+      response,
+      accepted: (_) {},
+      requireEmptyNoContent: true,
+    );
   });
 
   Future<ReportResult> reportEvent(
@@ -119,4 +195,14 @@ class BusinessApiClient {
     );
     return ReportResultMapper.fromMap(response.data!);
   });
+
+  static void _requireCanonicalOperationKey(String operationKey) {
+    if (!isCanonicalPdsMutationOperationKey(operationKey)) {
+      throw ArgumentError.value(
+        operationKey,
+        'operationKey',
+        'must be a canonical lowercase UUID',
+      );
+    }
+  }
 }

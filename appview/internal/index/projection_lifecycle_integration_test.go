@@ -181,6 +181,7 @@ func TestTransactionalDispatcherOmitsOnlyTerminalPostMentions(t *testing.T) {
 	}))
 	record := json.RawMessage(`{
 		"text":"terminal active unknown",
+		"sponsored":false,
 		"createdAt":"2026-08-14T10:00:00Z",
 		"facets":[
 			{"index":{"byteStart":0,"byteEnd":8},"features":[{"$type":"app.bsky.richtext.facet#mention","did":"did:plc:projection-terminal-mention"}]},
@@ -204,11 +205,15 @@ func TestTransactionalDispatcherOmitsOnlyTerminalPostMentions(t *testing.T) {
 }
 
 func projectionLifecycleSource(actor syntax.DID, generation int64, collection syntax.NSID, action string, record json.RawMessage) ingestion.SourceRecord {
+	rkey := syntax.RecordKey("3aaaaaaaaaaa2")
+	if collection == craftskyProfileNSID || collection == businessProfileCollection || collection == blueskyProfileNSID {
+		rkey = "self"
+	}
 	return ingestion.SourceRecord{
-		URI:                  syntax.ATURI("at://" + actor.String() + "/" + collection.String() + "/projection-test"),
+		URI:                  syntax.ATURI("at://" + actor.String() + "/" + collection.String() + "/" + rkey.String()),
 		DID:                  actor,
 		Collection:           collection,
-		Rkey:                 "projection-test",
+		Rkey:                 rkey,
 		SourceEventID:        1,
 		CID:                  "bafy-projection-test",
 		Action:               action,

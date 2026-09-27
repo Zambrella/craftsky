@@ -87,6 +87,11 @@ func TestPushPrivacySentinelsAcrossRegistrationEnqueueDispatchAndTelemetry(t *te
 			subject_did TEXT NOT NULL,
 			UNIQUE (did, subject_did)
 		);
+		CREATE TABLE pds_set_aggregates (
+			kind TEXT NOT NULL,
+			actor_did TEXT NOT NULL,
+			subject_did TEXT
+		);
 		CREATE TABLE owner_lifecycles (
 			owner_did TEXT PRIMARY KEY,
 			state TEXT NOT NULL,

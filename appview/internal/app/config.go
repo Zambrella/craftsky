@@ -43,6 +43,8 @@ const (
 	maxPushFinalizationMargin                     = time.Minute
 	maxOwnerFenceAcquireTimeout                   = time.Minute
 	maxPDSEffectTimeout                           = 10 * time.Minute
+	maxPDSCommandCompactionPollInterval           = time.Hour
+	maxPDSCommandCompactionBatchSize              = 1000
 	maxScheduledMediaPutTimeout                   = 10 * time.Minute
 	maxHTTPConnections                            = 10_000
 	maxHTTPInFlightRequests                       = 10_000
@@ -257,10 +259,12 @@ type Config struct {
 	// Owner effect boundaries. The object backend currently has no proven
 	// finite server-side settlement bound, so cleanup retains exact-key
 	// tombstones rather than inferring completion from elapsed time.
-	OwnerFenceAcquireTimeout time.Duration
-	PDSEffectTimeout         time.Duration
-	ScheduledMediaPutTimeout time.Duration
-	FederatedHTTP            FederatedHTTPConfig
+	OwnerFenceAcquireTimeout         time.Duration
+	PDSEffectTimeout                 time.Duration
+	PDSCommandCompactionPollInterval time.Duration
+	PDSCommandCompactionBatchSize    int
+	ScheduledMediaPutTimeout         time.Duration
+	FederatedHTTP                    FederatedHTTPConfig
 
 	// Instagram migration has separate private-data and external Meta
 	// availability so a provider outage cannot lock members out of retained
@@ -647,6 +651,12 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		return Config{}, err
 	}
 	if cfg.PDSEffectTimeout, err = boundedPositiveDurationEnv("PDS_EFFECT_TIMEOUT", 10*time.Second, maxPDSEffectTimeout); err != nil {
+		return Config{}, err
+	}
+	if cfg.PDSCommandCompactionPollInterval, err = boundedPositiveDurationEnv("PDS_COMMAND_COMPACTION_POLL_INTERVAL", time.Minute, maxPDSCommandCompactionPollInterval); err != nil {
+		return Config{}, err
+	}
+	if cfg.PDSCommandCompactionBatchSize, err = boundedIntEnv("PDS_COMMAND_COMPACTION_BATCH_SIZE", 100, 1, maxPDSCommandCompactionBatchSize); err != nil {
 		return Config{}, err
 	}
 	if cfg.ScheduledMediaPutTimeout, err = boundedPositiveDurationEnv("SCHEDULED_MEDIA_PUT_TIMEOUT", 30*time.Second, maxScheduledMediaPutTimeout); err != nil {

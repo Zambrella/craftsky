@@ -5,12 +5,13 @@ import 'package:craftsky_app/business/models/business_drafts.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/providers/business_event_mutation_controller.dart';
-import 'package:craftsky_app/business/providers/business_projection_overlay_provider.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
 import 'package:craftsky_app/business/providers/owner_business_events_provider.dart';
 import 'package:craftsky_app/business/services/business_time_zone_service.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -36,6 +37,30 @@ void main() {
       expect(repository.updated.single.draft.status, 'cancelled');
     },
   );
+
+  test('IT-016 ambiguous event create retries with the same key', () async {
+    final repository = _Repository()..ambiguousResponses = 1;
+    final container = _container(repository);
+    addTearDown(container.dispose);
+
+    expect(
+      await container
+          .read(businessEventMutationControllerProvider.notifier)
+          .create(_draft()),
+      isTrue,
+    );
+
+    expect(repository.operationKeys, hasLength(2));
+    expect(repository.operationKeys.toSet(), hasLength(1));
+    expect(
+      isCanonicalPdsMutationOperationKey(repository.operationKeys.first),
+      isTrue,
+    );
+    expect(repository.created.map((draft) => draft.name), [
+      'Fibre fair',
+      'Fibre fair',
+    ]);
+  });
 
   test(
     'AT-008 successful lifecycle movement restarts both owner views',
@@ -257,9 +282,9 @@ void main() {
       );
 
       final acceptedEvents = container
-          .read(businessProjectionOverlayProvider)
-          .values
-          .map((overlay) => overlay.acceptedView)
+          .read(pdsRecordOperationControllerProvider)
+          .activeOverlays
+          .map((overlay) => overlay.optimisticValue)
           .whereType<BusinessEvent>()
           .toList();
       expect(
@@ -321,6 +346,8 @@ ProviderContainer _container(_Repository repository) => ProviderContainer(
     businessTimeZoneServiceProvider.overrideWithValue(
       BusinessTimeZoneService.initialized(),
     ),
+    pdsMutationDelayProvider.overrideWithValue((_) async {}),
+    pdsMutationJitterProvider.overrideWithValue((_) => 0),
   ],
 );
 
@@ -395,6 +422,8 @@ final class _Repository extends Fake implements BusinessRepository {
   BusinessEvent? currentEvent;
   Map<OwnerEventFilter, List<BusinessEventPage>> ownerPages = const {};
   final ownerIndices = <OwnerEventFilter, int>{};
+  final operationKeys = <String>[];
+  int ambiguousResponses = 0;
 
   @override
   Future<BusinessEventPage> listOwnerEvents(
@@ -411,8 +440,16 @@ final class _Repository extends Fake implements BusinessRepository {
   }
 
   @override
-  Future<RecordMutationResult> createEvent(BusinessEventDraft draft) async {
+  Future<RecordMutationResult> createEvent(
+    BusinessEventDraft draft, {
+    required String operationKey,
+  }) async {
     created.add(draft);
+    operationKeys.add(operationKey);
+    if (ambiguousResponses > 0) {
+      ambiguousResponses--;
+      throw const PdsMutationAmbiguousException(retryAfterSeconds: 1);
+    }
     if (error case final value?) throw value;
     return RecordMutationResult(
       did: 'did:plc:owner',
@@ -427,22 +464,25 @@ final class _Repository extends Fake implements BusinessRepository {
     Did owner,
     RecordKey rkey,
     Cid expectedCid,
-    BusinessEventDraft draft,
-  ) async {
+    BusinessEventDraft draft, {
+    required String operationKey,
+  }) async {
+    operationKeys.add(operationKey);
     updated.add(_UpdateCall(expectedCid, draft));
     if (error case final value?) throw value;
     return RecordMutationResult(cid: 'bafy-updated');
   }
 
   @override
-  Future<RecordMutationResult> deleteEvent(
+  Future<void> deleteEvent(
     Did owner,
     RecordKey rkey,
-    Cid expectedCid,
-  ) async {
+    Cid expectedCid, {
+    required String operationKey,
+  }) async {
+    operationKeys.add(operationKey);
     deletes.add(_DeleteCall(expectedCid));
     if (error case final value?) throw value;
-    return RecordMutationResult(cid: expectedCid.toString());
   }
 
   @override

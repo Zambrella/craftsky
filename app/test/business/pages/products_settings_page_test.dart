@@ -311,6 +311,7 @@ final class _Repository extends Fake implements BusinessRepository {
   @override
   Future<RecordMutationResult> putBusinessProfile(
     Map<String, dynamic> body, {
+    required String operationKey,
     required Cid? expectedCid,
   }) async {
     saves++;

@@ -517,16 +517,19 @@ final class _Repository extends Fake implements BusinessRepository {
   }
 
   @override
-  Future<RecordMutationResult> createEvent(BusinessEventDraft draft) async =>
-      RecordMutationResult(cid: 'bafy-created');
+  Future<RecordMutationResult> createEvent(
+    BusinessEventDraft draft, {
+    required String operationKey,
+  }) async => RecordMutationResult(cid: 'bafy-created');
 
   @override
   Future<RecordMutationResult> updateEvent(
     Did owner,
     RecordKey rkey,
     Cid expectedCid,
-    BusinessEventDraft draft,
-  ) async {
+    BusinessEventDraft draft, {
+    required String operationKey,
+  }) async {
     updates.add(_Update(expectedCid, draft));
     if (updateErrors.isNotEmpty) throw updateErrors.removeAt(0);
     return RecordMutationResult(cid: 'bafy-updated');
@@ -539,12 +542,12 @@ final class _Repository extends Fake implements BusinessRepository {
   }
 
   @override
-  Future<RecordMutationResult> deleteEvent(
+  Future<void> deleteEvent(
     Did owner,
     RecordKey rkey,
-    Cid expectedCid,
-  ) async {
+    Cid expectedCid, {
+    required String operationKey,
+  }) async {
     deletes.add(expectedCid);
-    return RecordMutationResult(cid: expectedCid.toString());
   }
 }

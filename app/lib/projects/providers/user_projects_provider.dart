@@ -1,7 +1,7 @@
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
-import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
-import 'package:craftsky_app/feed/providers/author_post_cache.dart';
+import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
+import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/models/user_projects_state.dart';
@@ -26,7 +26,14 @@ class UserProjects extends _$UserProjects {
       limit: userProjectsPageLimit,
     );
     return UserProjectsState(
-      items: page.items,
+      items: applyPostRecordListOverlays(
+        ref,
+        page.items,
+        includes: (post) =>
+            post.author.did == did &&
+            post.reply == null &&
+            post.project != null,
+      ).map((post) => applyPostInteractionOverlays(ref, post)).toList(),
       cursor: page.cursor,
       pinnedPostUri: page.pinnedPostUri,
     );
@@ -56,13 +63,27 @@ class UserProjects extends _$UserProjects {
           limit: userProjectsPageLimit,
         );
         return UserProjectsState(
-          items: restarted.items,
+          items: applyPostRecordListOverlays(
+            ref,
+            restarted.items,
+            includes: (post) =>
+                post.author.did == did &&
+                post.reply == null &&
+                post.project != null,
+          ).map((post) => applyPostInteractionOverlays(ref, post)).toList(),
           cursor: restarted.cursor,
           pinnedPostUri: restarted.pinnedPostUri,
         );
       }
       return UserProjectsState(
-        items: [...current.items, ...page.items],
+        items: applyPostRecordListOverlays(
+          ref,
+          [...current.items, ...page.items],
+          includes: (post) =>
+              post.author.did == did &&
+              post.reply == null &&
+              post.project != null,
+        ).map((post) => applyPostInteractionOverlays(ref, post)).toList(),
         cursor: page.cursor,
         pinnedPostUri: current.pinnedPostUri,
       );
@@ -70,56 +91,5 @@ class UserProjects extends _$UserProjects {
 
     if (!isActiveAccountOperationCurrent(ref, ownership)) return;
     state = next;
-  }
-
-  void prepend(Post post) {
-    final current = state.value;
-    if (current == null) return;
-    final items = prependPostIfAbsent(current.items, post);
-    if (identical(items, current.items)) return;
-    state = AsyncData(current.copyWith(items: items));
-  }
-
-  void removeByRkey(String rkey) {
-    final current = state.value;
-    if (current == null) return;
-    state = AsyncData(
-      current.copyWith(items: removePostByRkey(current.items, rkey)),
-    );
-  }
-
-  void replace(Post post) {
-    final current = state.value;
-    if (current == null) return;
-    state = AsyncData(
-      current.copyWith(items: replacePostByIdentity(current.items, post)),
-    );
-  }
-}
-
-void prependLiveUserProjectCaches(Ref ref, Post post) {
-  if (post.project == null) return;
-  for (final id in authorPostCacheIds(post)) {
-    if (ref.exists(userProjectsProvider(id))) {
-      ref.read(userProjectsProvider(id).notifier).prepend(post);
-    }
-  }
-}
-
-void updateLiveUserProjectCaches(Ref ref, Post post) {
-  if (post.project == null) return;
-  for (final id in authorPostCacheIds(post)) {
-    if (ref.exists(userProjectsProvider(id))) {
-      ref.read(userProjectsProvider(id).notifier).replace(post);
-    }
-  }
-}
-
-void removeFromLiveUserProjectCaches(Ref ref, Post post) {
-  if (post.project == null) return;
-  for (final id in authorPostCacheIds(post)) {
-    if (ref.exists(userProjectsProvider(id))) {
-      ref.read(userProjectsProvider(id).notifier).removeByRkey(post.rkey);
-    }
   }
 }

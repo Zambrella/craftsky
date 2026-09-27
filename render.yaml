@@ -206,6 +206,10 @@ projects:
                 value: 5s
               - key: PDS_EFFECT_TIMEOUT
                 value: 10s
+              - key: PDS_COMMAND_COMPACTION_POLL_INTERVAL
+                value: 1m
+              - key: PDS_COMMAND_COMPACTION_BATCH_SIZE
+                value: "100"
               - key: SCHEDULED_MEDIA_PUT_TIMEOUT
                 value: 30s
               - key: FEDERATED_HTTP_DIAL_TIMEOUT

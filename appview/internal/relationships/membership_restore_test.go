@@ -26,10 +26,10 @@ func TestSubjectMembershipLossAndRejoinHideRetainAndRestoreRelationships(t *test
 		VALUES ('did:plc:alice', 'alice-cid'), ('did:plc:bob', 'bob-cid');
 		INSERT INTO actor_mutes (owner_did, subject_did, created_at)
 		VALUES ('did:plc:alice', 'did:plc:bob', '2026-07-19T12:00:00Z');
-		INSERT INTO atproto_blocks (uri, blocker_did, rkey, cid, subject_did, record, created_at)
+		INSERT INTO pds_set_aggregates (kind, actor_did, scope_key, subject_did, representative_source_uri, activated_at)
 		VALUES
-		  ('at://did:plc:alice/app.bsky.graph.block/alice', 'did:plc:alice', 'alice', 'bafy-alice', 'did:plc:bob', '{}', '2026-07-19T12:00:01Z'),
-		  ('at://did:plc:bob/app.bsky.graph.block/bob', 'did:plc:bob', 'bob', 'bafy-bob', 'did:plc:alice', '{}', '2026-07-19T12:00:02Z');
+		  ('block', 'did:plc:alice', 'did:plc:bob', 'did:plc:bob', 'at://did:plc:alice/app.bsky.graph.block/alice', '2026-07-19T12:00:01Z'),
+		  ('block', 'did:plc:bob', 'did:plc:alice', 'did:plc:alice', 'at://did:plc:bob/app.bsky.graph.block/bob', '2026-07-19T12:00:02Z');
 	`); err != nil {
 		t.Fatalf("seed relationships: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestSubjectMembershipLossAndRejoinHideRetainAndRestoreRelationships(t *test
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM actor_mutes`).Scan(&muteRows); err != nil {
 		t.Fatal(err)
 	}
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM atproto_blocks`).Scan(&blockRows); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM pds_set_aggregates WHERE kind = 'block'`).Scan(&blockRows); err != nil {
 		t.Fatal(err)
 	}
 	if muteRows != 1 || blockRows != 2 {

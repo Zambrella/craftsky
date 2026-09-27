@@ -12,6 +12,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:flutter/material.dart';
@@ -52,6 +53,9 @@ Future<void> _pumpEditDialog(
       overrides: [
         authSessionProvider.overrideWith(SignedInAuthSession.new),
         profileRepositoryProvider.overrideWithValue(repo),
+        pdsRecordOperationControllerProvider.overrideWithValue(
+          PdsRecordOperationController(schedule: (_, _) {}),
+        ),
         if (businessRepository != null)
           businessRepositoryProvider.overrideWithValue(businessRepository),
       ],
@@ -548,7 +552,7 @@ void main() {
       expect(find.text('Open'), findsOneWidget);
     });
 
-    testWidgets('successful save updates the cached profile without refetch', (
+    testWidgets('successful save does not mutate the profile cache directly', (
       tester,
     ) async {
       var fetchCallCount = 0;
@@ -596,9 +600,10 @@ void main() {
       await tester.tap(find.widgetWithText(TextButton, 'Save'));
       await tester.pumpAndSettle();
 
-      // Cache reflects the saved profile — pushed via setCached, no
-      // second fetch fired.
-      expect(sub.read().value?.displayName, 'Renamed');
+      // The legacy direct cache publication path is gone. A production account
+      // publishes through the shared overlay; this account-less harness leaves
+      // the existing cache untouched.
+      expect(sub.read().value?.displayName, 'Test User');
       expect(fetchCallCount, 1);
     });
 
@@ -914,6 +919,7 @@ final class _RecordingBusinessRepository extends Fake
   @override
   Future<RecordMutationResult> putBusinessProfile(
     Map<String, dynamic> body, {
+    required String operationKey,
     required Cid? expectedCid,
   }) async {
     putCalls++;

@@ -16,6 +16,7 @@ import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/shared/api/api_unwrap.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/media/blob_api_client.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
@@ -112,6 +113,7 @@ class PostApiClient {
     required String text,
     required List<String> langs,
     required bool sponsored,
+    required String operationKey,
     PostReply? reply,
     PostRef? quote,
     Project? project,
@@ -146,7 +148,7 @@ class PostApiClient {
               reply == null),
       'Video conflicts with other media and replies',
     );
-    final res = await _dio.post<Map<String, dynamic>>(
+    final res = await _dio.post<Object?>(
       '/v1/posts',
       data: {
         'text': text,
@@ -163,8 +165,18 @@ class PostApiClient {
         'images': ?images?.map((image) => image.toMap()).toList(),
         'facets': ?facets,
       },
+      options: Options(
+        headers: {'Idempotency-Key': operationKey},
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 300,
+      ),
     );
-    return PostMapper.fromMap(res.data!);
+    return parsePdsMutationResponse(
+      res,
+      accepted: (data) => PostMapper.fromMap(
+        Map<String, dynamic>.from(data! as Map),
+      ),
+    );
   });
 
   /// GET /v1/posts/{did}/{rkey}
@@ -174,8 +186,28 @@ class PostApiClient {
   });
 
   /// DELETE /v1/posts/{did}/{rkey} — idempotent per AppView spec.
-  Future<void> deletePost(Did did, RecordKey rkey) => unwrapApi(() async {
-    await _dio.delete<void>('/v1/posts/$did/$rkey');
+  Future<void> deletePost(
+    Did did,
+    RecordKey rkey, {
+    required String operationKey,
+    required String expectedCid,
+  }) => unwrapApi(() async {
+    final res = await _dio.delete<Object?>(
+      '/v1/posts/$did/$rkey',
+      options: Options(
+        headers: {
+          'Idempotency-Key': operationKey,
+          'If-Match': expectedCid,
+        },
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 300,
+      ),
+    );
+    parsePdsMutationResponse<void>(
+      res,
+      accepted: (_) {},
+      requireEmptyNoContent: true,
+    );
   });
 
   /// GET /v1/profiles/me/pins — private authoritative two-slot state.
@@ -254,31 +286,89 @@ class PostApiClient {
   });
 
   /// POST /v1/posts/{did}/{rkey}/likes.
-  Future<InteractionWriteResponse> likePost(Did did, RecordKey rkey) =>
-      unwrapApi(() async {
-        final res = await _dio.post<Map<String, dynamic>>(
-          '/v1/posts/$did/$rkey/likes',
-        );
-        return InteractionWriteResponseMapper.fromMap(res.data!);
-      });
+  Future<InteractionWriteResponse> likePost(
+    Did did,
+    RecordKey rkey, {
+    required String operationKey,
+  }) => unwrapApi(() async {
+    final res = await _dio.post<Object?>(
+      '/v1/posts/$did/$rkey/likes',
+      options: Options(
+        headers: {'Idempotency-Key': operationKey},
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 300,
+      ),
+    );
+    return parsePdsMutationResponse(
+      res,
+      accepted: (data) => InteractionWriteResponseMapper.fromMap(
+        Map<String, dynamic>.from(data! as Map),
+      ),
+    );
+  });
 
   /// DELETE /v1/posts/{did}/{rkey}/likes.
-  Future<void> unlikePost(Did did, RecordKey rkey) => unwrapApi(() async {
-    await _dio.delete<void>('/v1/posts/$did/$rkey/likes');
+  Future<void> unlikePost(
+    Did did,
+    RecordKey rkey, {
+    required String operationKey,
+  }) => unwrapApi(() async {
+    final res = await _dio.delete<Object?>(
+      '/v1/posts/$did/$rkey/likes',
+      options: Options(
+        headers: {'Idempotency-Key': operationKey},
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 300,
+      ),
+    );
+    parsePdsMutationResponse<void>(
+      res,
+      accepted: (_) {},
+      requireEmptyNoContent: true,
+    );
   });
 
   /// POST /v1/posts/{did}/{rkey}/reposts.
-  Future<InteractionWriteResponse> repostPost(Did did, RecordKey rkey) =>
-      unwrapApi(() async {
-        final res = await _dio.post<Map<String, dynamic>>(
-          '/v1/posts/$did/$rkey/reposts',
-        );
-        return InteractionWriteResponseMapper.fromMap(res.data!);
-      });
+  Future<InteractionWriteResponse> repostPost(
+    Did did,
+    RecordKey rkey, {
+    required String operationKey,
+  }) => unwrapApi(() async {
+    final res = await _dio.post<Object?>(
+      '/v1/posts/$did/$rkey/reposts',
+      options: Options(
+        headers: {'Idempotency-Key': operationKey},
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 300,
+      ),
+    );
+    return parsePdsMutationResponse(
+      res,
+      accepted: (data) => InteractionWriteResponseMapper.fromMap(
+        Map<String, dynamic>.from(data! as Map),
+      ),
+    );
+  });
 
   /// DELETE /v1/posts/{did}/{rkey}/reposts.
-  Future<void> unrepostPost(Did did, RecordKey rkey) => unwrapApi(() async {
-    await _dio.delete<void>('/v1/posts/$did/$rkey/reposts');
+  Future<void> unrepostPost(
+    Did did,
+    RecordKey rkey, {
+    required String operationKey,
+  }) => unwrapApi(() async {
+    final res = await _dio.delete<Object?>(
+      '/v1/posts/$did/$rkey/reposts',
+      options: Options(
+        headers: {'Idempotency-Key': operationKey},
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 300,
+      ),
+    );
+    parsePdsMutationResponse<void>(
+      res,
+      accepted: (_) {},
+      requireEmptyNoContent: true,
+    );
   });
 
   /// GET /v1/posts/{did}/{rkey}/likes.

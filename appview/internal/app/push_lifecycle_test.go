@@ -404,6 +404,7 @@ func newPushLifecycleFixture(t *testing.T) pushLifecycleFixture {
 		CREATE TABLE actor_mutes(owner_did TEXT NOT NULL,subject_did TEXT NOT NULL,PRIMARY KEY(owner_did,subject_did));
 		CREATE TABLE atproto_blocks(uri TEXT PRIMARY KEY,blocker_did TEXT NOT NULL,subject_did TEXT NOT NULL);
 		CREATE TABLE atproto_follows(uri TEXT PRIMARY KEY,did TEXT NOT NULL,subject_did TEXT NOT NULL,UNIQUE(did,subject_did));
+		CREATE TABLE pds_set_aggregates(kind TEXT NOT NULL,actor_did TEXT NOT NULL,subject_did TEXT);
 		CREATE TABLE owner_lifecycles(
 			owner_did TEXT PRIMARY KEY,state TEXT NOT NULL,generation BIGINT NOT NULL,
 			auth_epoch BIGINT NOT NULL,transition_reason TEXT NOT NULL,

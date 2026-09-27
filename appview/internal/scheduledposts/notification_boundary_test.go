@@ -46,8 +46,8 @@ func TestScheduledLifecycleLeavesNotificationStateUnchanged(t *testing.T) {
 		t.Helper()
 		processor, err := NewPublicationProcessor(PublicationProcessorOptions{
 			Store: store, Sessions: sessions,
-			NewEffects: recordingGuardedFactory(pds, nil),
-			Objects:    newMemoryPrivateObjectStore(), Now: func() time.Time { return now },
+			NewCommands: recordingGuardedFactory(pds, nil),
+			Objects:     newMemoryPrivateObjectStore(), Now: func() time.Time { return now },
 			Validate: validate,
 		})
 		if err != nil {

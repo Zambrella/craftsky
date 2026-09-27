@@ -30,6 +30,14 @@ CREATE TABLE atproto_blocks (
 );
 CREATE INDEX atproto_blocks_blocker_subject_idx ON atproto_blocks (blocker_did, subject_did);
 CREATE INDEX atproto_blocks_subject_blocker_idx ON atproto_blocks (subject_did, blocker_did);
+CREATE TABLE pds_set_aggregates (
+	kind TEXT NOT NULL,
+	actor_did TEXT NOT NULL,
+	scope_key TEXT NOT NULL,
+	subject_did TEXT,
+	representative_source_uri TEXT NOT NULL,
+	activated_at TIMESTAMPTZ NOT NULL
+);
 CREATE TABLE notification_events (
 	id UUID PRIMARY KEY,
 	recipient_did TEXT NOT NULL,
@@ -173,12 +181,21 @@ func TestBlueskyBlockMutualDirectionsRemainIndependentUntilFinalDelete(t *testin
 	if err := idx.Handle(ctx, bobBlocksAlice); err != nil {
 		t.Fatalf("index Bob block: %v", err)
 	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO pds_set_aggregates(kind,actor_did,scope_key,subject_did,representative_source_uri,activated_at)
+		VALUES('block',$1,$2,$2,$3,$4),('block',$2,$1,$1,$5,$4)
+	`, alice, bob, aliceBlocksBob.URI, time.Now(), bobBlocksAlice.URI); err != nil {
+		t.Fatal(err)
+	}
 
 	deleteAlice := aliceBlocksBob
 	deleteAlice.Action = "delete"
 	deleteAlice.Record = nil
 	if err := idx.Handle(ctx, deleteAlice); err != nil {
 		t.Fatalf("delete Alice block: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM pds_set_aggregates WHERE kind='block' AND actor_did=$1 AND subject_did=$2`, alice, bob); err != nil {
+		t.Fatal(err)
 	}
 	store := relationships.NewStore(pool)
 	aliceState, err := store.State(ctx, alice, bob)
@@ -198,6 +215,9 @@ func TestBlueskyBlockMutualDirectionsRemainIndependentUntilFinalDelete(t *testin
 	deleteBob.Record = nil
 	if err := idx.Handle(ctx, deleteBob); err != nil {
 		t.Fatalf("delete Bob block: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM pds_set_aggregates WHERE kind='block' AND actor_did=$1 AND subject_did=$2`, bob, alice); err != nil {
+		t.Fatal(err)
 	}
 	aliceState, err = store.State(ctx, alice, bob)
 	if err != nil {
@@ -240,6 +260,12 @@ func TestBlueskyBlockRetainsCurrentOwnerRecordForAbsentSubject(t *testing.T) {
 	}
 	if err := index.NewBlueskyBlock(pool).Handle(ctx, ev); err != nil {
 		t.Fatalf("index absent-subject block: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO pds_set_aggregates(kind,actor_did,scope_key,subject_did,representative_source_uri,activated_at)
+		VALUES('block',$1,$2,$2,$3,$4)
+	`, ev.DID, syntax.DID("did:plc:bob"), ev.URI, time.Now()); err != nil {
+		t.Fatal(err)
 	}
 	assertBlockProjection(t, pool, ev.URI.String(), 1, "bafyabsent", "did:plc:bob")
 

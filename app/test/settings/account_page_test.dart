@@ -262,6 +262,7 @@ final class _AccountTypeRepository extends Fake implements BusinessRepository {
   @override
   Future<RecordMutationResult> putBusinessProfile(
     Map<String, dynamic> body, {
+    required String operationKey,
     required Cid? expectedCid,
   }) async {
     businessProfilePuts++;
@@ -269,11 +270,12 @@ final class _AccountTypeRepository extends Fake implements BusinessRepository {
   }
 
   @override
-  Future<RecordMutationResult> deleteEvent(
+  Future<void> deleteEvent(
     Did owner,
     RecordKey rkey,
-    Cid expectedCid,
-  ) async {
+    Cid expectedCid, {
+    required String operationKey,
+  }) async {
     eventDeletes++;
     throw StateError('unexpected event deletion');
   }

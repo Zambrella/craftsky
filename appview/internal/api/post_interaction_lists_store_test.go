@@ -147,11 +147,12 @@ func TestPostStore_ListPostInteractionAccounts_Reposts(t *testing.T) {
 	seedQuotePost(t, pool, dual.String(), "dual-quote", "dual quote", targetURI, "bafyroot", base.Add(3*time.Minute))
 	repostOnlyURI := seedInteraction(t, pool, "repost", repostOnly.String(), "repost-only", targetURI, false)
 	dualURI := seedInteraction(t, pool, "repost", dual.String(), "dual-repost", targetURI, false)
+	seedInteraction(t, pool, "repost", dual.String(), "dual-repost-duplicate", targetURI, false)
 	seedInteraction(t, pool, "repost", deleted.String(), "deleted-repost", targetURI, true)
-	if _, err := pool.Exec(ctx, `UPDATE craftsky_reposts SET created_at = $1 WHERE uri = $2`, base.Add(4*time.Minute), repostOnlyURI); err != nil {
+	if _, err := pool.Exec(ctx, `UPDATE pds_set_aggregates SET activated_at = $1 WHERE kind='repost' AND representative_source_uri = $2`, base.Add(4*time.Minute), repostOnlyURI); err != nil {
 		t.Fatalf("set repost-only order: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `UPDATE craftsky_reposts SET created_at = $1 WHERE uri = $2`, base.Add(5*time.Minute), dualURI); err != nil {
+	if _, err := pool.Exec(ctx, `UPDATE pds_set_aggregates SET activated_at = $1 WHERE kind='repost' AND representative_source_uri = $2`, base.Add(5*time.Minute), dualURI); err != nil {
 		t.Fatalf("set dual order: %v", err)
 	}
 
@@ -303,6 +304,9 @@ func TestPostInteractionCursorValidation(t *testing.T) {
 		repostURI := seedInteraction(t, pool, "repost", actor.String(), "repost", firstTargetURI, false)
 		if _, err := pool.Exec(ctx, `UPDATE craftsky_likes SET created_at = $1 WHERE uri = $2`, createdAt, likeURI); err != nil {
 			t.Fatalf("set like order: %v", err)
+		}
+		if _, err := pool.Exec(ctx, `UPDATE pds_set_aggregates SET activated_at=$1 WHERE kind='like' AND representative_source_uri=$2`, createdAt, likeURI); err != nil {
+			t.Fatalf("set logical like order: %v", err)
 		}
 		if _, err := pool.Exec(ctx, `UPDATE craftsky_reposts SET created_at = $1 WHERE uri = $2`, createdAt, repostURI); err != nil {
 			t.Fatalf("set repost order: %v", err)
@@ -508,8 +512,14 @@ func TestPostStore_PostInteractionPaginationUsesCreatedAtAndURIDesc(t *testing.T
 		if _, err := pool.Exec(ctx, `UPDATE craftsky_likes SET created_at = $1 WHERE uri = $2`, interactionTime, likeURI); err != nil {
 			t.Fatalf("set like order: %v", err)
 		}
+		if _, err := pool.Exec(ctx, `UPDATE pds_set_aggregates SET activated_at=$1 WHERE kind='like' AND representative_source_uri=$2`, interactionTime, likeURI); err != nil {
+			t.Fatalf("set logical like order: %v", err)
+		}
 		if _, err := pool.Exec(ctx, `UPDATE craftsky_reposts SET created_at = $1 WHERE uri = $2`, interactionTime, repostURI); err != nil {
 			t.Fatalf("set repost order: %v", err)
+		}
+		if _, err := pool.Exec(ctx, `UPDATE pds_set_aggregates SET activated_at=$1 WHERE kind='repost' AND representative_source_uri=$2`, interactionTime, repostURI); err != nil {
+			t.Fatalf("set logical repost order: %v", err)
 		}
 		quoteURIs = append(quoteURIs, seedQuotePost(t, pool, actor.String(), "quote", "quote", targetURI, "bafyroot", interactionTime))
 	}
@@ -576,6 +586,10 @@ func TestPostStore_IR005EmptyContinuationRetainsAuthoritativeTotal(t *testing.T)
 		newerURI, olderURI, time.Now().UTC(), time.Now().UTC().Add(-time.Hour)); err != nil {
 		t.Fatalf("set interaction order: %v", err)
 	}
+	if _, err := pool.Exec(ctx, `UPDATE pds_set_aggregates SET activated_at = CASE representative_source_uri WHEN $1 THEN $3::timestamptz ELSE $4::timestamptz END WHERE kind='like' AND representative_source_uri IN ($1, $2)`,
+		newerURI, olderURI, time.Now().UTC(), time.Now().UTC().Add(-time.Hour)); err != nil {
+		t.Fatalf("set logical interaction order: %v", err)
+	}
 
 	store := api.NewPostStore(pool)
 	target, err := store.ResolveInteractionTarget(ctx, viewer, owner, syntax.RecordKey("root"), api.PostInteractionLikes)
@@ -588,6 +602,9 @@ func TestPostStore_IR005EmptyContinuationRetainsAuthoritativeTotal(t *testing.T)
 	}
 	if _, err := pool.Exec(ctx, `UPDATE craftsky_likes SET deleted_at = now() WHERE uri = $1`, olderURI); err != nil {
 		t.Fatalf("delete continuation interaction: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `DELETE FROM pds_set_aggregates WHERE kind='like' AND representative_source_uri=$1`, olderURI); err != nil {
+		t.Fatalf("delete logical continuation interaction: %v", err)
 	}
 	second, err := store.ListPostInteractionAccounts(ctx, viewer, target, api.PostInteractionLikes, 1, *first.Cursor)
 	if err != nil {
@@ -807,7 +824,7 @@ func TestPostStore_ResolveInteractionTargetProtectsUnavailableTargetsAndReplyKin
 			t.Fatalf("%s blocked target error = %v, want post not found", kind, err)
 		}
 	}
-	if _, err := pool.Exec(ctx, `DELETE FROM atproto_blocks WHERE rkey = 'viewer-blocks-target'`); err != nil {
+	if _, err := pool.Exec(ctx, `DELETE FROM pds_set_aggregates WHERE kind = 'block' AND actor_did = $1 AND scope_key = $2`, viewer, owner); err != nil {
 		t.Fatalf("remove target block: %v", err)
 	}
 	seedModerationOutput(t, pool, "post", owner.String(), rootURI, "hide", time.Now().UTC())
@@ -1054,8 +1071,12 @@ func seedBlock(t *testing.T, pool interface {
 }, blocker, subject syntax.DID, rkey string) {
 	t.Helper()
 	if _, err := pool.Exec(context.Background(), `
-		INSERT INTO atproto_blocks (uri, blocker_did, rkey, cid, subject_did, record, created_at)
-		VALUES ('at://' || $1 || '/app.bsky.graph.block/' || $3, $1, $3, 'cid', $2, '{}', now())
+		INSERT INTO pds_set_aggregates (
+			kind, actor_did, scope_key, subject_did, representative_source_uri, activated_at
+		) VALUES ('block', $1, $2, $2, 'at://' || $1 || '/app.bsky.graph.block/' || $3, now())
+		ON CONFLICT (kind, actor_did, scope_key) DO UPDATE SET
+			representative_source_uri = EXCLUDED.representative_source_uri,
+			activated_at = EXCLUDED.activated_at
 	`, blocker, subject, rkey); err != nil {
 		t.Fatalf("seed block: %v", err)
 	}

@@ -34,6 +34,11 @@ CREATE TABLE atproto_follows (
 CREATE INDEX atproto_follows_did_idx ON atproto_follows (did);
 CREATE INDEX atproto_follows_subject_did_idx ON atproto_follows (subject_did);
 CREATE INDEX atproto_follows_did_subject_did_idx ON atproto_follows (did, subject_did);
+CREATE TABLE pds_set_aggregates (
+	kind TEXT NOT NULL,
+	actor_did TEXT NOT NULL,
+	subject_did TEXT
+);
 ` + relationshipNotificationPolicyDDL
 
 const relationshipNotificationPolicyDDL = `

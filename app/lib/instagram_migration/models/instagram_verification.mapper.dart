@@ -89,7 +89,6 @@ extension InstagramVerificationStateMapperExtension
         as String;
   }
 }
-
 class InstagramVerificationRetryCodeMapper
     extends EnumMapper<InstagramVerificationRetryCode> {
   InstagramVerificationRetryCodeMapper._();

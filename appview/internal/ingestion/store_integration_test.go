@@ -517,6 +517,15 @@ func applyTapDurabilityMigration(t *testing.T, pool interface {
 			t.Fatalf("apply Tap durability migration %s: %v", path, err)
 		}
 	}
+	if _, err := pool.Exec(context.Background(), `
+		ALTER TABLE tap_source_records
+			ADD COLUMN validation_version INTEGER NOT NULL DEFAULT 1,
+			ADD COLUMN structural_validation_status TEXT NOT NULL DEFAULT 'pending',
+			ADD COLUMN semantic_validation_status TEXT NOT NULL DEFAULT 'pending',
+			ADD COLUMN validation_reason TEXT
+	`); err != nil {
+		t.Fatalf("add source validation fixture columns: %v", err)
+	}
 }
 
 func claimOneProjection(t *testing.T, store *ingestion.Store, worker string) ingestion.ProjectionClaim {

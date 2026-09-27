@@ -1,8 +1,8 @@
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
-import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/models/user_posts_state.dart';
-import 'package:craftsky_app/feed/providers/author_post_cache.dart';
+import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
+import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
@@ -27,7 +27,14 @@ class UserPosts extends _$UserPosts {
       limit: userPostsPageLimit,
     );
     return UserPostsState(
-      items: page.items,
+      items: applyPostRecordListOverlays(
+        ref,
+        page.items,
+        includes: (post) =>
+            post.author.did == did &&
+            post.reply == null &&
+            post.project == null,
+      ).map((post) => applyPostInteractionOverlays(ref, post)).toList(),
       cursor: page.cursor,
       pinnedPostUri: page.pinnedPostUri,
     );
@@ -65,13 +72,27 @@ class UserPosts extends _$UserPosts {
           limit: userPostsPageLimit,
         );
         return UserPostsState(
-          items: restarted.items,
+          items: applyPostRecordListOverlays(
+            ref,
+            restarted.items,
+            includes: (post) =>
+                post.author.did == did &&
+                post.reply == null &&
+                post.project == null,
+          ).map((post) => applyPostInteractionOverlays(ref, post)).toList(),
           cursor: restarted.cursor,
           pinnedPostUri: restarted.pinnedPostUri,
         );
       }
       return UserPostsState(
-        items: [...current.items, ...page.items],
+        items: applyPostRecordListOverlays(
+          ref,
+          [...current.items, ...page.items],
+          includes: (post) =>
+              post.author.did == did &&
+              post.reply == null &&
+              post.project == null,
+        ).map((post) => applyPostInteractionOverlays(ref, post)).toList(),
         cursor: page.cursor,
         pinnedPostUri: current.pinnedPostUri,
       );
@@ -79,47 +100,5 @@ class UserPosts extends _$UserPosts {
 
     if (!isActiveAccountOperationCurrent(ref, ownership)) return;
     state = next;
-  }
-
-  /// Cache helper. Inserts [post] at the head of the items list. No-op
-  /// when the state has no data yet, or when a post with the same
-  /// `uri` is already present (dedupe — protects against a synthetic
-  /// create response and a later firehose-driven refresh both inserting
-  /// the same row).
-  void prepend(Post post) {
-    final current = state.value;
-    if (current == null) return;
-    final items = prependPostIfAbsent(current.items, post);
-    if (identical(items, current.items)) return;
-    state = AsyncData(current.copyWith(items: items));
-  }
-
-  /// Cache helper. Removes the post with [rkey] from items if present.
-  /// No-op when the state has no data, and quietly succeeds when no
-  /// post matches.
-  void removeByRkey(String rkey) {
-    final current = state.value;
-    if (current == null) return;
-    state = AsyncData(
-      current.copyWith(items: removePostByRkey(current.items, rkey)),
-    );
-  }
-
-  /// Cache helper. Replaces a rendered post with [post] by stable URI or rkey.
-  void replace(Post post) {
-    final current = state.value;
-    if (current == null) return;
-    state = AsyncData(
-      current.copyWith(items: replacePostByIdentity(current.items, post)),
-    );
-  }
-}
-
-void updateLiveUserPostCaches(Ref ref, Post post) {
-  if (post.project != null) return;
-  for (final id in authorPostCacheIds(post)) {
-    if (ref.exists(userPostsProvider(id))) {
-      ref.read(userPostsProvider(id).notifier).replace(post);
-    }
   }
 }

@@ -74,7 +74,6 @@ func newContentRuntimeDependencies(
 	pool *pgxpool.Pool,
 	handleResolver api.HandleResolver,
 	content *contentDependencies,
-	pdsEffects *pdsEffectDependencies,
 	instagramStorage *instagramStorageDependencies,
 	observer *observability.Observer,
 	identityInvalidator api.IdentityInvalidator,
@@ -97,7 +96,6 @@ func newContentRuntimeDependencies(
 		identityRefresh: identityRefresh,
 		relationshipMutations: relationships.NewMutationServiceWithRestoration(
 			content.relationships,
-			pdsEffects.ordinary,
 			time.Now,
 			instagramStorage.restoration,
 			observer,

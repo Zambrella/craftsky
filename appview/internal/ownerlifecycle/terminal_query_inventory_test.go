@@ -22,7 +22,7 @@ var terminalQueryInventory = []struct {
 	{"post reads", "api/post_store.go", []string{"postVisibleModerationPredicate", "appview_owner_is_terminal"}},
 	{"post relationship hydration", "api/post_relationship_store.go", []string{"RelationshipStates", "appview_owner_is_terminal"}},
 	{"post engagement hydration", "api/post_engagement_store.go", []string{"CountActiveLikes", "CountDescendantReplies", "appview_owner_is_terminal"}},
-	{"timeline feed assembly", "api/timeline_store.go", []string{"ListTimelineWithLanguages", "appview_owner_is_terminal(f.did)", "appview_owner_is_terminal(r.did)"}},
+	{"timeline feed assembly", "api/timeline_store.go", []string{"ListTimelineWithLanguages", "appview_owner_is_terminal(f.actor_did)", "appview_owner_is_terminal(r.actor_did)"}},
 	{"search relationship policy", "api/search_store.go", []string{"relationshipTopLevelPredicate", "appview_owner_is_terminal"}},
 	{"profile search", "api/search_profile_store.go", []string{"SearchProfiles", "appview_owner_is_terminal"}},
 	{"post search", "api/search_post_store.go", []string{"SearchPostsWithLanguages", "relationshipTopLevelPredicate", "appview_owner_is_terminal"}},

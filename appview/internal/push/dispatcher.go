@@ -258,9 +258,10 @@ func (d *Dispatcher) claimOne(
 				WHERE mute.owner_did = n.recipient_did AND mute.subject_did = n.actor_did
 			)
 			AND NOT EXISTS (
-				SELECT 1 FROM atproto_blocks block
-				WHERE (block.blocker_did = n.recipient_did AND block.subject_did = n.actor_did)
-				   OR (block.blocker_did = n.actor_did AND block.subject_did = n.recipient_did)
+				SELECT 1 FROM pds_set_aggregates block
+				WHERE block.kind='block'
+				  AND ((block.actor_did = n.recipient_did AND block.subject_did = n.actor_did)
+				   OR (block.actor_did = n.actor_did AND block.subject_did = n.recipient_did))
 			)
 		  ))
 		ORDER BY d.next_attempt_at,d.id FOR UPDATE OF d SKIP LOCKED LIMIT 1`, now)
@@ -743,8 +744,9 @@ func (d *Dispatcher) currentDeliveryStatus(
 						OR (
 							preference.scope='peopleIFollow'
 							AND EXISTS (
-								SELECT 1 FROM atproto_follows follow
-								WHERE follow.did=claim.recipient_did
+								SELECT 1 FROM pds_set_aggregates follow
+								WHERE follow.kind='follow'
+								  AND follow.actor_did=claim.recipient_did
 								  AND follow.subject_did=claim.actor_did
 							)
 						)
@@ -755,9 +757,10 @@ func (d *Dispatcher) currentDeliveryStatus(
 						  AND mute.subject_did=claim.actor_did
 					)
 					AND NOT EXISTS (
-						SELECT 1 FROM atproto_blocks block
-						WHERE (block.blocker_did=claim.recipient_did AND block.subject_did=claim.actor_did)
-						   OR (block.blocker_did=claim.actor_did AND block.subject_did=claim.recipient_did)
+						SELECT 1 FROM pds_set_aggregates block
+						WHERE block.kind='block'
+						  AND ((block.actor_did=claim.recipient_did AND block.subject_did=claim.actor_did)
+						   OR (block.actor_did=claim.actor_did AND block.subject_did=claim.recipient_did))
 					)
 				  ))
 			)

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -50,6 +51,65 @@ CREATE TABLE atproto_follows (
     UNIQUE (did, rkey),
     UNIQUE (did, subject_did)
 );
+CREATE TABLE tap_source_records (
+    uri        TEXT PRIMARY KEY,
+    rkey       TEXT        NOT NULL,
+    cid        TEXT,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+CREATE TABLE pds_set_sources (
+    source_uri  TEXT PRIMARY KEY,
+    kind        TEXT        NOT NULL,
+    actor_did   TEXT        NOT NULL,
+    scope_key   TEXT        NOT NULL,
+    subject_did TEXT,
+    activity_at TIMESTAMPTZ NOT NULL
+);
+CREATE TABLE pds_set_aggregates (
+    kind                      TEXT        NOT NULL,
+    actor_did                 TEXT        NOT NULL,
+    scope_key                 TEXT        NOT NULL,
+	subject_did               TEXT,
+	eligible_source_count     INTEGER     NOT NULL DEFAULT 1,
+    representative_source_uri TEXT        NOT NULL,
+    activated_at              TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (kind, actor_did, scope_key)
+);
+CREATE INDEX pds_set_aggregates_block_actor_pagination_idx
+    ON pds_set_aggregates (actor_did, activated_at DESC, subject_did DESC)
+    WHERE kind = 'block';
+CREATE INDEX pds_set_aggregates_actor_purge_idx
+    ON pds_set_aggregates (actor_did, kind, scope_key);
+CREATE INDEX pds_set_aggregates_subject_did_purge_idx
+    ON pds_set_aggregates (subject_did, kind, actor_did, scope_key)
+    WHERE subject_did IS NOT NULL;
+CREATE FUNCTION mirror_profile_test_follow_aggregate()
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
+BEGIN
+    INSERT INTO tap_source_records (uri, rkey, cid, updated_at)
+    VALUES (NEW.uri, NEW.rkey, NEW.cid, NEW.indexed_at)
+    ON CONFLICT (uri) DO UPDATE SET
+        rkey = EXCLUDED.rkey, cid = EXCLUDED.cid, updated_at = EXCLUDED.updated_at;
+    INSERT INTO pds_set_sources (
+        source_uri, kind, actor_did, scope_key, subject_did, activity_at
+    ) VALUES (NEW.uri, 'follow', NEW.did, NEW.subject_did, NEW.subject_did, NEW.created_at)
+    ON CONFLICT (source_uri) DO UPDATE SET
+        actor_did = EXCLUDED.actor_did, scope_key = EXCLUDED.scope_key,
+        subject_did = EXCLUDED.subject_did, activity_at = EXCLUDED.activity_at;
+    INSERT INTO pds_set_aggregates (
+        kind, actor_did, scope_key, subject_did,
+        representative_source_uri, activated_at
+    ) VALUES ('follow', NEW.did, NEW.subject_did, NEW.subject_did, NEW.uri, NEW.created_at)
+    ON CONFLICT (kind, actor_did, scope_key) DO UPDATE SET
+        subject_did = EXCLUDED.subject_did,
+        representative_source_uri = EXCLUDED.representative_source_uri,
+        activated_at = EXCLUDED.activated_at;
+    RETURN NEW;
+END
+$$;
+CREATE TRIGGER mirror_profile_test_follow_aggregate
+AFTER INSERT OR UPDATE ON atproto_follows
+FOR EACH ROW EXECUTE FUNCTION mirror_profile_test_follow_aggregate();
 CREATE VIEW craftsky_profile_follower_counts AS
 SELECT
     profile.did AS profile_did,
@@ -467,12 +527,76 @@ func TestProfileStore_ListFollowersAndFollowing_OrderNewestFirst(t *testing.T) {
 	}
 }
 
+func TestProfileStore_ListFollowingUsesAggregateActivationCursor(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, profileStoreDDL)
+	ctx := context.Background()
+	base := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
+
+	for _, did := range []string{
+		"did:plc:viewer", "did:plc:newest", "did:plc:middle", "did:plc:oldest", "did:plc:legacy-only",
+	} {
+		if _, err := pool.Exec(ctx,
+			`INSERT INTO craftsky_profiles (did, crafts, record_cid) VALUES ($1, '{}', 'cid')`, did); err != nil {
+			t.Fatalf("seed profile %s: %v", did, err)
+		}
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO atproto_follows (uri,did,rkey,cid,subject_did,record,created_at)
+		VALUES (
+			'at://did:plc:viewer/app.bsky.graph.follow/legacy',
+			'did:plc:viewer','legacy','legacy-cid','did:plc:legacy-only','{}',$1
+		)
+	`, base.Add(time.Hour)); err != nil {
+		t.Fatalf("seed contradictory legacy follow: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		DELETE FROM pds_set_aggregates
+		WHERE kind='follow' AND actor_did='did:plc:viewer' AND scope_key='did:plc:legacy-only'
+	`); err != nil {
+		t.Fatalf("remove contradictory legacy aggregate: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO pds_set_aggregates(
+			kind,actor_did,scope_key,subject_did,representative_source_uri,activated_at
+		) VALUES
+			('follow','did:plc:viewer','did:plc:newest','did:plc:newest','at://did:plc:viewer/app.bsky.graph.follow/z-representative',$1),
+			('follow','did:plc:viewer','did:plc:middle','did:plc:middle','at://did:plc:viewer/app.bsky.graph.follow/m-representative',$2),
+			('follow','did:plc:viewer','did:plc:oldest','did:plc:oldest','at://did:plc:viewer/app.bsky.graph.follow/a-representative',$3)
+	`, base.Add(3*time.Minute), base.Add(2*time.Minute), base.Add(time.Minute)); err != nil {
+		t.Fatalf("seed follow aggregates: %v", err)
+	}
+
+	store := api.NewProfileStore(pool)
+	first, cursor, total, err := store.ListFollowing(ctx, "did:plc:viewer", 2, "")
+	if err != nil {
+		t.Fatalf("ListFollowing first page: %v", err)
+	}
+	if total != 3 || cursor == "" {
+		t.Fatalf("first page total,cursor = %d,%q; want 3,non-empty", total, cursor)
+	}
+	if got := []string{first[0].DID, first[1].DID}; !slices.Equal(got, []string{"did:plc:newest", "did:plc:middle"}) {
+		t.Fatalf("first page DIDs = %v", got)
+	}
+	if !first[0].FollowCreatedAt.Equal(base.Add(3*time.Minute)) || first[0].FollowURI != "at://did:plc:viewer/app.bsky.graph.follow/z-representative" {
+		t.Fatalf("first row cursor fields = %s,%q", first[0].FollowCreatedAt, first[0].FollowURI)
+	}
+
+	second, next, total, err := store.ListFollowing(ctx, "did:plc:viewer", 2, cursor)
+	if err != nil {
+		t.Fatalf("ListFollowing second page: %v", err)
+	}
+	if total != 3 || next != "" || len(second) != 1 || second[0].DID != "did:plc:oldest" {
+		t.Fatalf("second page = %+v total=%d next=%q", second, total, next)
+	}
+}
+
 func TestProfileStore_SocialSummaryIndexesCoverOrderedQueries(t *testing.T) {
 	wantFragments := []string{
-		"CREATE INDEX atproto_follows_subject_created_uri_desc_idx",
-		"ON atproto_follows (subject_did, created_at DESC, uri DESC)",
-		"CREATE INDEX atproto_follows_did_created_uri_desc_idx",
-		"ON atproto_follows (did, created_at DESC, uri DESC)",
+		"CREATE INDEX pds_set_aggregates_actor_purge_idx",
+		"ON pds_set_aggregates (actor_did, kind, scope_key)",
+		"CREATE INDEX pds_set_aggregates_subject_did_purge_idx",
+		"ON pds_set_aggregates (subject_did, kind, actor_did, scope_key)",
 		"CREATE INDEX craftsky_posts_root_did_created_idx",
 		"ON craftsky_posts (did, created_at DESC)",
 		"WHERE reply_root_uri IS NULL AND reply_parent_uri IS NULL",

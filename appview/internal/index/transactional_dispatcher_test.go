@@ -6,19 +6,30 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5"
 
 	"social.craftsky/appview/internal/ingestion"
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/sourcevalidation"
 	"social.craftsky/appview/internal/tap"
 )
 
 type transactionalIndexerFunc func(context.Context, pgx.Tx, tap.Event) (tap.Outcome, error)
 
-func (fn transactionalIndexerFunc) Project(ctx context.Context, tx pgx.Tx, event tap.Event) (tap.Outcome, error) {
-	return fn(ctx, tx, event)
+func (fn transactionalIndexerFunc) Project(ctx context.Context, tx pgx.Tx, source ingestion.SourceRecord) (tap.Outcome, error) {
+	return fn(ctx, tx, eventFromSource(source))
+}
+
+type sourceCapturingIndexer struct {
+	source ingestion.SourceRecord
+}
+
+func (indexer *sourceCapturingIndexer) Project(_ context.Context, _ pgx.Tx, source ingestion.SourceRecord) (tap.Outcome, error) {
+	indexer.source = source
+	return tap.Applied(), nil
 }
 
 func TestTransactionalDispatcherRegisterRejectsNilIndexer(t *testing.T) {
@@ -139,6 +150,29 @@ func TestTransactionalDispatcherRoutesValidatedSource(t *testing.T) {
 	})
 	if err != nil || outcome.Kind != tap.OutcomeApplied {
 		t.Fatalf("outcome=%+v err=%v", outcome, err)
+	}
+}
+
+func TestTransactionalDispatcherPreservesDurableSourceMetadata(t *testing.T) {
+	dispatcher := NewTransactionalDispatcher()
+	indexer := &sourceCapturingIndexer{}
+	dispatcher.Register(blueskyProfileNSID, indexer)
+	updatedAt := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
+	source := ingestion.SourceRecord{
+		URI: "at://did:plc:actor/app.bsky.actor.profile/self",
+		DID: "did:plc:actor", Collection: blueskyProfileNSID, Rkey: "self",
+		SourceEventID: 8, Revision: "3aaaaaaaaaaa3", CID: "bafy-profile", Action: "create",
+		Record: json.RawMessage(`{"displayName":"Actor"}`), OrderingStatus: "authoritative",
+		StructuralValidationStatus: sourcevalidation.Valid, SemanticValidationStatus: sourcevalidation.Valid,
+		UpdatedAt: updatedAt,
+	}
+
+	outcome, err := dispatcher.Project(context.Background(), nil, source)
+	if err != nil || outcome.Kind != tap.OutcomeApplied {
+		t.Fatalf("outcome=%+v err=%v", outcome, err)
+	}
+	if !reflect.DeepEqual(indexer.source, source) {
+		t.Fatalf("projected source = %+v, want %+v", indexer.source, source)
 	}
 }
 

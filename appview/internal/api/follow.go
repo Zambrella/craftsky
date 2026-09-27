@@ -15,10 +15,12 @@ import (
 
 	"github.com/bluesky-social/indigo/api/bsky"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/relationships"
 )
@@ -28,6 +30,212 @@ const blueskyFollowCollection syntax.NSID = "app.bsky.graph.follow"
 // FollowGraphStore is the follow-graph read/write subset handlers need.
 type FollowGraphStore interface {
 	FindActiveFollow(ctx context.Context, did string, subjectDID string) (*FollowRow, error)
+}
+
+// CommandFollowProfileHandler serves POST /v1/profiles/@{handleOrDid}/follows
+// through the authoritative set-command coordinator.
+func CommandFollowProfileHandler(
+	profiles ProfileReader,
+	resolver HandleResolver,
+	commands SetCommandExecutor,
+	logger *slog.Logger,
+) http.Handler {
+	return commandFollowProfileHandler(profiles, resolver, commands, logger, true)
+}
+
+// CommandUnfollowProfileHandler serves DELETE /v1/profiles/@{handleOrDid}/follows
+// through the authoritative set-command coordinator.
+func CommandUnfollowProfileHandler(
+	profiles ProfileReader,
+	resolver HandleResolver,
+	commands SetCommandExecutor,
+	logger *slog.Logger,
+) http.Handler {
+	return commandFollowProfileHandler(profiles, resolver, commands, logger, false)
+}
+
+func commandFollowProfileHandler(
+	profiles ProfileReader,
+	resolver HandleResolver,
+	commands SetCommandExecutor,
+	logger *slog.Logger,
+	desiredActive bool,
+) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		runID := middleware.GetRunID(r.Context())
+		caller, ok := middleware.GetDID(r.Context())
+		if !ok {
+			envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "no did in context", runID, nil)
+			return
+		}
+		generation, ok := requirePDSEffectGeneration(w, r, runID)
+		if !ok {
+			return
+		}
+		operationKey, ok := requireCommandOperationKey(w, r, runID)
+		if !ok {
+			return
+		}
+		if desiredActive {
+			if err := rejectNonEmptyBody(r); err != nil {
+				envelope.WriteError(w, http.StatusBadRequest, "unexpected_field", "request body rejected", runID, nil)
+				return
+			}
+		}
+
+		target, err := resolveFollowTargetDID(r.Context(), strings.TrimPrefix(r.PathValue("handleOrDid"), "@"), resolver)
+		if err != nil {
+			writeFollowTargetResolutionError(w, runID, err)
+			return
+		}
+		if caller == target {
+			message := "cannot follow yourself"
+			if !desiredActive {
+				message = "cannot unfollow yourself"
+			}
+			envelope.WriteError(w, http.StatusBadRequest, "self_follow_not_allowed", message, runID, nil)
+			return
+		}
+		targetProfile, err := requireFollowTargetMember(r.Context(), profiles, caller, target)
+		if err != nil {
+			writeFollowTargetMembershipError(w, runID, err)
+			return
+		}
+		if desiredActive {
+			authorization := relationships.Authorize(relationships.OperationFollowCreate, relationships.State{
+				Muted: targetProfile.Muted, Blocking: targetProfile.Blocking, BlockedBy: targetProfile.BlockedBy,
+			}, false)
+			if !authorization.Allowed {
+				envelope.WriteError(w, http.StatusForbidden, "interaction_blocked", "interaction is not allowed across a block", runID, nil)
+				return
+			}
+		}
+
+		responseBody, err := followProfileResponseBody(r.Context(), resolver, target, targetProfile, desiredActive)
+		if err != nil {
+			envelope.WriteError(w, http.StatusBadGateway, "identity_unavailable", "could not resolve handle", runID, nil)
+			return
+		}
+		selectedRkey := syntax.RecordKey("")
+		if desiredActive {
+			selectedRkey, err = newImmediateRecordKey()
+			if err != nil {
+				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "could not prepare follow", runID, nil)
+				return
+			}
+		}
+		result, err := executeFollowCommand(r, commands, caller, generation, target, operationKey, selectedRkey, desiredActive, responseBody, runID)
+		if err != nil {
+			operation := "follow"
+			if !desiredActive {
+				operation = "unfollow"
+			}
+			logger.Warn(operation+" command failed", slog.Any("error", err))
+			WriteCommandError(w, runID, err)
+			return
+		}
+		WriteCommandResponse(w, CommandResultFromStored(result))
+	})
+}
+
+func executeFollowCommand(
+	r *http.Request,
+	commands SetCommandExecutor,
+	caller syntax.DID,
+	generation int64,
+	target syntax.DID,
+	operationKey uuid.UUID,
+	selectedRkey syntax.RecordKey,
+	desiredActive bool,
+	responseBody json.RawMessage,
+	runID string,
+) (pdscommands.CommandResult, error) {
+	if commands == nil {
+		return pdscommands.CommandResult{}, pdscommands.ErrDispatchUnavailable
+	}
+	intent, err := json.Marshal(struct {
+		TargetDID syntax.DID `json:"targetDid"`
+	}{TargetDID: target})
+	if err != nil {
+		return pdscommands.CommandResult{}, err
+	}
+	operationKind := "profile.follow"
+	if !desiredActive {
+		operationKind = "profile.unfollow"
+	}
+	sessionID, _ := middleware.GetOAuthSessionID(r.Context())
+	accepted := func() pdscommands.TerminalResult {
+		return pdscommands.TerminalResult{
+			State: pdscommands.CommandAccepted, HTTPStatus: http.StatusOK, ResponseBody: responseBody,
+			ResponseHeaders: json.RawMessage(`{"Content-Type":"application/json"}`),
+		}
+	}
+	return commands.Execute(r.Context(), pdscommands.SetCommandRequest{
+		Owner: caller, OwnerGeneration: generation, Target: target, SessionID: sessionID,
+		OperationKind: operationKind, OperationKey: operationKey,
+		Collection: blueskyFollowCollection, DesiredActive: desiredActive,
+		Intent: intent, SelectedRkey: selectedRkey,
+		Matches: func(record pdscommands.AuthoritativeRecord) bool {
+			follow, _, valid := decodeAuthoritativeFollow(record)
+			return valid && follow.Subject == target.String()
+		},
+		CreateRecord: func(createdAt time.Time) (json.RawMessage, error) {
+			return json.Marshal(bsky.GraphFollow{
+				LexiconTypeID: blueskyFollowCollection.String(),
+				Subject:       target.String(),
+				CreatedAt:     createdAt.UTC().Format(time.RFC3339Nano),
+			})
+		},
+		AcceptedPresent: func(record pdscommands.AuthoritativeRecord, _ bool) (pdscommands.TerminalResult, error) {
+			follow, _, valid := decodeAuthoritativeFollow(record)
+			if !valid || follow.Subject != target.String() {
+				return pdscommands.TerminalResult{}, pdscommands.ErrMalformedCommand
+			}
+			return accepted(), nil
+		},
+		AcceptedAbsent: accepted,
+		Rejected:       func(err error) pdscommands.TerminalResult { return RejectedCommandResult(runID, err) },
+	})
+}
+
+func decodeAuthoritativeFollow(record pdscommands.AuthoritativeRecord) (bsky.GraphFollow, time.Time, bool) {
+	var follow bsky.GraphFollow
+	if record.URI == "" || record.CID == "" || json.Unmarshal(record.Record, &follow) != nil ||
+		follow.LexiconTypeID != blueskyFollowCollection.String() {
+		return bsky.GraphFollow{}, time.Time{}, false
+	}
+	if _, err := syntax.ParseDID(follow.Subject); err != nil {
+		return bsky.GraphFollow{}, time.Time{}, false
+	}
+	createdAt, err := time.Parse(time.RFC3339Nano, follow.CreatedAt)
+	if err != nil {
+		return bsky.GraphFollow{}, time.Time{}, false
+	}
+	return follow, createdAt, true
+}
+
+func followProfileResponseBody(
+	ctx context.Context,
+	resolver HandleResolver,
+	target syntax.DID,
+	profile *ProfileRow,
+	desiredActive bool,
+) (json.RawMessage, error) {
+	handle, err := resolver.ResolveHandle(ctx, target)
+	if err != nil {
+		return nil, err
+	}
+	row := *profile
+	followingOverride(desiredActive)(&row)
+	return json.Marshal(BuildProfileResponse(&row, handle, row.IsCraftskyProfile))
+}
+
+func writeFollowTargetResolutionError(w http.ResponseWriter, runID string, err error) {
+	if errors.Is(err, errInvalidIdentifier) {
+		envelope.WriteError(w, http.StatusBadRequest, "invalid_identifier", "not a valid handle or DID", runID, nil)
+		return
+	}
+	envelope.WriteError(w, http.StatusBadGateway, "identity_unavailable", "could not resolve identity", runID, nil)
 }
 
 // FollowProfileHandler serves POST /v1/profiles/@{handleOrDid}/follows.

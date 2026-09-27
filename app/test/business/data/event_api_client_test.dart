@@ -49,7 +49,10 @@ void main() {
     await ApiBusinessRepository(
       BusinessApiClient(createDio),
       BusinessTimeZoneService.initialized(),
-    ).createEvent(draft);
+    ).createEvent(
+      draft,
+      operationKey: '018f3f70-6a6d-7c4b-8a91-123456789abc',
+    );
 
     final updateDio = _dio();
     DioAdapter(dio: updateDio).onPut(
@@ -61,7 +64,13 @@ void main() {
     await ApiBusinessRepository(
       BusinessApiClient(updateDio),
       BusinessTimeZoneService.initialized(),
-    ).updateEvent(owner, rkey, Cid.parse('bafy-current'), draft);
+    ).updateEvent(
+      owner,
+      rkey,
+      Cid.parse('bafy-current'),
+      draft,
+      operationKey: '018f3f70-6a6d-7c4b-8a91-123456789abc',
+    );
   });
 }
 

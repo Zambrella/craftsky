@@ -39,8 +39,10 @@ func TestPrimaryFeedPaginationQueriesAvoidFullHotTableScans(t *testing.T) {
 		plan := explainCapturedFeedQuery(t, pool, query, args...)
 
 		assertPlanHasIndexedAccess(t, plan, "craftsky_posts")
-		assertPlanHasIndexedAccess(t, plan, "craftsky_reposts")
-		assertNoSequentialScan(t, plan, "craftsky_posts", "craftsky_reposts")
+		assertPlanHasIndexedAccess(t, plan, "pds_set_aggregates")
+		assertPlanHasIndexedAccess(t, plan, "pds_set_sources")
+		assertPlanHasIndexedAccess(t, plan, "tap_source_records")
+		assertNoSequentialScan(t, plan, "craftsky_posts", "pds_set_aggregates", "pds_set_sources", "tap_source_records")
 	})
 
 	t.Run("notifications", func(t *testing.T) {
@@ -89,6 +91,42 @@ func seedFeedQueryPlanCardinality(t *testing.T, pool *pgxpool.Pool) {
 		       '2026-09-17T00:00:00Z'::timestamptz + n * interval '1 second'
 		FROM generate_series(1, 20) AS n;
 
+		INSERT INTO tap_source_records(
+			uri,did,collection,rkey,source_event_id,source_fingerprint,revision,cid,
+			action,record,record_bytes,live,ordering_status,projection_disposition,
+			structural_validation_status,semantic_validation_status,observed_at,updated_at
+		)
+		SELECT uri,did,'app.bsky.graph.follow',rkey,20000+n,decode(repeat('00',32),'hex'),rkey,cid,
+		       'create',json_build_object('subject',subject_did),octet_length(json_build_object('subject',subject_did)::text),false,'authoritative','eligible',
+		       'valid','valid',activity_at,activity_at
+		FROM (
+			SELECT n,
+			       'at://did:plc:plan-viewer/app.bsky.graph.follow/' || n AS uri,
+			       'did:plc:plan-viewer' AS did,
+			       n::text AS rkey,
+			       'follow-cid-' || n AS cid,
+			       'did:plc:plan-actor-' || n AS subject_did,
+			       '2026-09-17T00:00:00Z'::timestamptz + n * interval '1 second' AS activity_at
+			FROM generate_series(1,20) AS n
+		) follow_sources;
+
+		INSERT INTO pds_set_sources(source_uri,kind,actor_did,scope_key,subject_did,activity_at,eligible)
+		SELECT uri,'follow',did,subject_did,subject_did,activity_at,true
+		FROM (
+			SELECT n,
+			       'at://did:plc:plan-viewer/app.bsky.graph.follow/' || n AS uri,
+			       'did:plc:plan-viewer' AS did,
+			       'did:plc:plan-actor-' || n AS subject_did,
+			       '2026-09-17T00:00:00Z'::timestamptz + n * interval '1 second' AS activity_at
+			FROM generate_series(1,20) AS n
+		) follow_sources;
+
+		INSERT INTO pds_set_aggregates(
+			kind,actor_did,scope_key,subject_did,eligible_source_count,representative_source_uri,activated_at
+		)
+		SELECT kind,actor_did,scope_key,subject_did,1,source_uri,activity_at
+		FROM pds_set_sources WHERE kind='follow';
+
 		INSERT INTO craftsky_posts (
 			uri, did, rkey, cid, text, record, created_at, indexed_at, profile_sort_at
 		)
@@ -117,6 +155,44 @@ func seedFeedQueryPlanCardinality(t *testing.T, pool *pgxpool.Pool) {
 			FROM generate_series(1, 10000) AS n
 		) AS seeded_reposts;
 
+		INSERT INTO tap_source_records(
+			uri,did,collection,rkey,source_event_id,source_fingerprint,revision,cid,
+			action,record,record_bytes,live,ordering_status,projection_disposition,
+			structural_validation_status,semantic_validation_status,observed_at,updated_at
+		)
+		SELECT uri,did,'social.craftsky.feed.repost',rkey,n,decode(repeat('00',32),'hex'),rkey,cid,
+		       'create','{}'::json,2,false,'authoritative','eligible','valid','valid',activity_at,activity_at
+		FROM (
+			SELECT n,
+			       'at://did:plc:plan-actor-' || (((n - 1) % 1000) + 1) || '/social.craftsky.feed.repost/' || n AS uri,
+			       'did:plc:plan-actor-' || (((n - 1) % 1000) + 1) AS did,
+			       n::text AS rkey,
+			       'repost-cid-' || n AS cid,
+			       '2026-09-18T00:00:00Z'::timestamptz + n * interval '1 second' AS activity_at
+			FROM generate_series(1,10000) AS n
+		) sources;
+
+		INSERT INTO pds_set_sources(source_uri,kind,actor_did,scope_key,subject_uri,subject_cid,activity_at,eligible)
+		SELECT uri,'repost',actor_did,subject_uri,subject_uri,subject_cid,activity_at,true
+		FROM (
+			SELECT n,
+			       'at://did:plc:plan-actor-' || actor || '/social.craftsky.feed.repost/' || n AS uri,
+			       'did:plc:plan-actor-' || actor AS actor_did,
+			       'at://did:plc:plan-actor-' || subject_actor || '/social.craftsky.feed.post/' || subject_post AS subject_uri,
+			       'post-cid-' || subject_actor || '-' || subject_post AS subject_cid,
+			       '2026-09-18T00:00:00Z'::timestamptz + n * interval '1 second' AS activity_at
+			FROM (
+				SELECT n,((n - 1) % 1000) + 1 AS actor,
+				       (((n - 1) % 1000 + (n - 1) / 1000 + 1) % 1000) + 1 AS subject_actor,
+				       ((n - 1) / 1000) + 1 AS subject_post
+				FROM generate_series(1,10000) AS n
+			) generated
+		) sources;
+
+		INSERT INTO pds_set_aggregates(kind,actor_did,scope_key,subject_uri,eligible_source_count,representative_source_uri,activated_at)
+		SELECT kind,actor_did,scope_key,subject_uri,1,source_uri,activity_at
+		FROM pds_set_sources WHERE kind='repost';
+
 		INSERT INTO notification_events (
 			id, recipient_did, actor_did, category, subject_key,
 			source_uri, source_cid, source_rkey, eligibility_scope,
@@ -140,6 +216,9 @@ func seedFeedQueryPlanCardinality(t *testing.T, pool *pgxpool.Pool) {
 		ANALYZE atproto_follows;
 		ANALYZE craftsky_posts;
 		ANALYZE craftsky_reposts;
+		ANALYZE tap_source_records;
+		ANALYZE pds_set_sources;
+		ANALYZE pds_set_aggregates;
 		ANALYZE notification_events;
 	`); err != nil {
 		t.Fatalf("seed realistic feed cardinality: %v", err)

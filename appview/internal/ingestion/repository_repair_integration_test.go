@@ -144,7 +144,7 @@ func TestRepositoryRepairVerifiedSnapshotConvergesThroughDurableProjection(t *te
 		rkey := repairFixtureRkey(collection, i)
 		switch collection {
 		case "social.craftsky.feed.post": // authoritative create
-			rkey += "-new"
+			rkey = syntax.RecordKey(syntax.NewTIDFromInteger(uint64(i + 2000)).String())
 		case "social.craftsky.business.event": // authoritative update
 		case "social.craftsky.feed.repost": // authoritative delete: omit the seeded path
 			continue
@@ -159,11 +159,16 @@ func TestRepositoryRepairVerifiedSnapshotConvergesThroughDurableProjection(t *te
 		records = append(records, repairFixtureRecord(owner, collection, rkey, value))
 	}
 	for i := 0; i < 101; i++ {
-		records = append(records, repairFixtureRecord(owner, "social.craftsky.feed.post", syntax.RecordKey(fmt.Sprintf("3repair%06d", i)), fmt.Sprintf("new-%03d", i)))
+		rkey := syntax.RecordKey(syntax.NewTIDFromInteger(uint64(i + 3000)).String())
+		if i == 0 {
+			postIndex := slices.Index(dispatcher.Collections(), syntax.NSID("social.craftsky.feed.post"))
+			rkey = repairFixtureRkey("social.craftsky.feed.post", postIndex)
+		}
+		records = append(records, repairFixtureRecord(owner, "social.craftsky.feed.post", rkey, fmt.Sprintf("new-%03d", i)))
 	}
 
 	// A newer Tap source must remain authoritative over this older snapshot.
-	defended := repairFixtureRecord(owner, "social.craftsky.feed.post", "3repairdefend", "snapshot-old")
+	defended := repairFixtureRecord(owner, "social.craftsky.feed.post", syntax.RecordKey(syntax.NewTIDFromInteger(5000).String()), "snapshot-old")
 	newer := repairFixtureRecord(owner, defended.collection, defended.rkey, "tap-newer")
 	seedRepairSource(t, service, store, dispatcher, newer.event(900, "3aaaaaaaaaaaz", "create"))
 	if _, err := pool.Exec(ctx, `DELETE FROM repair_projection_audit WHERE uri=$1`, defended.uri); err != nil {
@@ -350,7 +355,7 @@ type repairRecordIngestor interface {
 
 type repairAuditIndexer struct{}
 
-func (repairAuditIndexer) Project(ctx context.Context, tx pgx.Tx, event tap.Event) (tap.Outcome, error) {
+func (repairAuditIndexer) Project(ctx context.Context, tx pgx.Tx, event ingestion.SourceRecord) (tap.Outcome, error) {
 	_, err := tx.Exec(ctx, `
 		INSERT INTO repair_projection_audit(uri,owner_did,action) VALUES($1,$2,$3)
 		ON CONFLICT(uri) DO UPDATE SET owner_did=EXCLUDED.owner_did,
@@ -468,10 +473,7 @@ func repairFixtureRkey(collection syntax.NSID, index int) syntax.RecordKey {
 	if collection == "social.craftsky.actor.profile" || collection == "social.craftsky.business.profile" || collection == "app.bsky.actor.profile" {
 		return "self"
 	}
-	if collection == "social.craftsky.business.event" {
-		return "3meventrecord"
-	}
-	return syntax.RecordKey(fmt.Sprintf("3repair%06d", index))
+	return syntax.RecordKey(syntax.NewTIDFromInteger(uint64(index + 1000)).String())
 }
 
 func repairFixtureRecord(owner syntax.DID, collection syntax.NSID, rkey syntax.RecordKey, value string) repairFixture {
@@ -481,7 +483,7 @@ func repairFixtureRecord(owner syntax.DID, collection syntax.NSID, rkey syntax.R
 	case "social.craftsky.actor.profile":
 		record["crafts"] = []string{value}
 	case "social.craftsky.feed.post":
-		record["text"], record["createdAt"] = value, created
+		record["text"], record["sponsored"], record["createdAt"] = value, false, created
 	case "social.craftsky.feed.like", "social.craftsky.feed.repost":
 		record["subject"] = map[string]any{"uri": "at://did:plc:subject/social.craftsky.feed.post/3subject0000", "cid": "bafysubject"}
 		record["createdAt"] = created

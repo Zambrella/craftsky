@@ -123,7 +123,8 @@ class _ProductsContent extends ConsumerWidget {
                       ),
                     ),
                   )
-                else if (state.status == ProductsStatus.error)
+                else if (state.status == ProductsStatus.error ||
+                    state.status == ProductsStatus.ambiguous)
                   Text(
                     l10n.businessProductsSaveError,
                     style: TextStyle(

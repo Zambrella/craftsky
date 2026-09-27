@@ -67,6 +67,6 @@ func TestRepositoryRepairComparisonRequiresVerifiedSnapshotAndUsesImmutableRegis
 
 type repairTestIndexer struct{}
 
-func (repairTestIndexer) Project(context.Context, pgx.Tx, tap.Event) (tap.Outcome, error) {
+func (repairTestIndexer) Project(context.Context, pgx.Tx, ingestion.SourceRecord) (tap.Outcome, error) {
 	return tap.Applied(), nil
 }

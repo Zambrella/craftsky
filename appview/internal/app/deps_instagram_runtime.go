@@ -186,7 +186,7 @@ func newInstagramRuntimeDependencies(
 		storage.privateSuggestions,
 		owners.lifecycles,
 		storage.suggestionPolicy,
-		instagramSuggestionEffectCoordinator{factory: pdsEffects.guarded},
+		instagramSuggestionFollowAdapter{commands: pdsEffects.commands},
 	)
 	if err != nil {
 		return nil, fmt.Errorf("instagram suggestion service: %w", err)

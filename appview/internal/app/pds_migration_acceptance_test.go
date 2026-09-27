@@ -84,16 +84,16 @@ func TestSameDIDPDSMigrationConvergesAndPreservesAccount(t *testing.T) {
 			newKey := repositorySnapshotTestKey(t, 22)
 			oldUpdated := phase10Post("old version")
 			oldDeleted := phase10Post("removed on B")
-			phase10SeedPost(t, store, service, dispatcher, owner, "updated", "3aaaaaaaaaaa2", oldUpdated)
-			phase10SeedPost(t, store, service, dispatcher, owner, "deleted", "3aaaaaaaaaaa2", oldDeleted)
+			phase10SeedPost(t, store, service, dispatcher, owner, "3aaaaaaaaaaa2", "3aaaaaaaaaaa2", oldUpdated)
+			phase10SeedPost(t, store, service, dispatcher, owner, "3aaaaaaaaaaa3", "3aaaaaaaaaaa2", oldDeleted)
 
 			snapshotCAR := buildRepositorySnapshotCARWithRecords(t, owner, newKey, "3bbbbbbbbbbb2", []repositorySnapshotFixtureRecord{
-				{path: "social.craftsky.feed.post/updated", record: phase10Post("authoritative update")},
-				{path: "social.craftsky.feed.post/created", record: phase10Post("missed live create")},
+				{path: "social.craftsky.feed.post/3aaaaaaaaaaa2", record: phase10Post("authoritative update")},
+				{path: "social.craftsky.feed.post/3aaaaaaaaaaa4", record: phase10Post("missed live create")},
 			})
 			oldCAR := buildRepositorySnapshotCARWithRecords(t, owner, oldKey, "3aaaaaaaaaaa2", []repositorySnapshotFixtureRecord{
-				{path: "social.craftsky.feed.post/updated", record: oldUpdated},
-				{path: "social.craftsky.feed.post/deleted", record: oldDeleted},
+				{path: "social.craftsky.feed.post/3aaaaaaaaaaa2", record: oldUpdated},
+				{path: "social.craftsky.feed.post/3aaaaaaaaaaa3", record: oldDeleted},
 			})
 			if oldCAR.root.Equals(snapshotCAR.root) {
 				t.Fatal("rotated-key reset chain unexpectedly retained the old root")

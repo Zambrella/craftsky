@@ -45,6 +45,15 @@ $$;
 CREATE TRIGGER seed_active_relationship_owner
 AFTER INSERT ON craftsky_profiles
 FOR EACH ROW EXECUTE FUNCTION seed_active_relationship_owner();
+CREATE TABLE pds_set_aggregates (
+	kind TEXT NOT NULL,
+	actor_did TEXT NOT NULL,
+	scope_key TEXT NOT NULL,
+	subject_did TEXT,
+	representative_source_uri TEXT NOT NULL,
+	activated_at TIMESTAMPTZ NOT NULL,
+	PRIMARY KEY (kind, actor_did, scope_key)
+);
 `
 
 func TestStoreMuteIsOwnerScopedImmediateAndIdempotent(t *testing.T) {
@@ -212,7 +221,7 @@ func TestMutationServiceMuteRollsBackWhenDeliveryCancellationFails(t *testing.T)
 	alice := syntax.DID("did:plc:alice")
 	bob := syntax.DID("did:plc:bob")
 	observer := &mutationRelationshipObserver{}
-	service := NewMutationService(store, nil, nil, observer)
+	service := NewMutationService(store, nil, observer)
 	if _, err := service.Mute(ctx, alice, bob); err == nil {
 		t.Fatal("Mute succeeded despite forced delivery cancellation failure")
 	}
@@ -261,7 +270,7 @@ func TestMutationServiceMuteObservesPushCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	observer := &mutationRelationshipObserver{}
-	service := NewMutationService(NewStore(pool), nil, nil, observer)
+	service := NewMutationService(NewStore(pool), nil, observer)
 	if _, err := service.Mute(ctx, "did:plc:alice", "did:plc:bob"); err != nil {
 		t.Fatal(err)
 	}
@@ -468,12 +477,12 @@ func TestStoreRelationshipListsAreOwnerScopedEligibleStableAndDeduplicated(t *te
 	}
 
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO atproto_blocks (uri, blocker_did, rkey, cid, subject_did, record, created_at)
-		VALUES
-			('at://did:plc:alice/app.bsky.graph.block/one', 'did:plc:alice', 'one', 'cid-one', 'did:plc:user001', '{}', $1),
-			('at://did:plc:alice/app.bsky.graph.block/two', 'did:plc:alice', 'two', 'cid-two', 'did:plc:user001', '{}', $1),
-			('at://did:plc:alice/app.bsky.graph.block/three', 'did:plc:alice', 'three', 'cid-three', 'did:plc:user002', '{}', $1),
-			('at://did:plc:alice/app.bsky.graph.block/former', 'did:plc:alice', 'former', 'cid-former', 'did:plc:user050', '{}', $1)
+		INSERT INTO pds_set_aggregates (
+			kind, actor_did, scope_key, subject_did, representative_source_uri, activated_at
+		) VALUES
+			('block', 'did:plc:alice', 'did:plc:user001', 'did:plc:user001', 'at://did:plc:alice/app.bsky.graph.block/two', $1),
+			('block', 'did:plc:alice', 'did:plc:user002', 'did:plc:user002', 'at://did:plc:alice/app.bsky.graph.block/three', $1),
+			('block', 'did:plc:alice', 'did:plc:user050', 'did:plc:user050', 'at://did:plc:alice/app.bsky.graph.block/former', $1)
 	`, fixed); err != nil {
 		t.Fatalf("insert block list fixtures: %v", err)
 	}

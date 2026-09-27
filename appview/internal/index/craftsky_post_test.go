@@ -131,6 +131,11 @@ CREATE TABLE profile_pins (
     updated_at TIMESTAMPTZ NOT NULL,
     PRIMARY KEY (owner_did, slot)
 );
+CREATE TABLE pds_set_aggregates (
+	kind TEXT NOT NULL,
+	actor_did TEXT NOT NULL,
+	subject_did TEXT
+);
 `
 
 // seedCraftskyMember inserts a craftsky_profiles row so a post for did

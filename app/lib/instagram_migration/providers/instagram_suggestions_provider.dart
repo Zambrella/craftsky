@@ -2,6 +2,12 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/instagram_migration/data/instagram_migration_repository.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_migration_repository_provider.dart';
+import 'package:craftsky_app/profile/providers/follow_profile_overlay.dart';
+import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_reconciliation.dart';
 import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -93,14 +99,115 @@ class InstagramSuggestions extends _$InstagramSuggestions {
     }
   }
 
-  Future<bool> accept(String suggestionId) => _act(
-    suggestionId,
-    (repository) async {
-      final result = await repository.acceptSuggestion(suggestionId);
-      return result.state == InstagramSuggestionState.followed ||
+  Future<bool> accept(String suggestionId) async {
+    final current = state.value;
+    if (current == null || current.busyIds.contains(suggestionId)) return false;
+    final suggestion = current.items
+        .where((item) => item.suggestionId == suggestionId)
+        .firstOrNull;
+    if (suggestion == null) return false;
+
+    ensureInstagramOperationCurrent(ref, lease);
+    final targetDid = Did.parse(suggestion.target.did);
+    final endpoint =
+        '/v1/migrations/instagram/suggestions/'
+        '${Uri.encodeComponent(suggestionId)}/accept';
+    const immutableBody = 'POST\n';
+    final controller = ref.read(pdsRecordOperationControllerProvider);
+    final token = controller.beginOrRetry(
+      scope: followProfileMutationScope(ref, targetDid),
+      endpoint: endpoint,
+      immutableBody: immutableBody,
+      newOperationKey: newPdsMutationOperationKey,
+    );
+    final operationKey = token.operationKey;
+    final startedAt = ref.read(pdsMutationNowProvider)();
+    var retryIndex = 0;
+
+    state = AsyncData(
+      current.copyWith(
+        busyIds: {...current.busyIds, suggestionId},
+        hasActionError: false,
+      ),
+    );
+    while (true) {
+      late final InstagramSuggestionActionResult result;
+      try {
+        final repository = await _repository();
+        result = await repository.acceptSuggestion(
+          suggestionId,
+          operationKey: operationKey,
+        );
+      } on PdsMutationAmbiguousException catch (error) {
+        if (!_isCurrent) return false;
+        if (!controller.markAmbiguous(
+          token,
+          retryAfterSeconds: error.retryAfterSeconds,
+        )) {
+          _clearBusy(suggestionId);
+          return false;
+        }
+        final delay = const PdsMutationRetryPolicy().nextDelay(
+          retryIndex: retryIndex,
+          retryAfterSeconds: error.retryAfterSeconds,
+          elapsed: ref.read(pdsMutationNowProvider)().difference(startedAt),
+          jitterMillis: ref.read(pdsMutationJitterProvider),
+        );
+        if (delay == null) {
+          _completeAction(suggestionId, accepted: false);
+          return false;
+        }
+        retryIndex++;
+        await ref.read(pdsMutationDelayProvider)(delay);
+        if (!_isCurrent) return false;
+        if (!controller.canRetry(
+          token,
+          operationKey: operationKey,
+          endpoint: endpoint,
+          immutableBody: immutableBody,
+        )) {
+          _clearBusy(suggestionId);
+          return false;
+        }
+        continue;
+      } on InstagramOperationDiscarded {
+        return false;
+      } on Object {
+        if (!_isCurrent) return false;
+        if (!controller.markFailed(token)) {
+          _clearBusy(suggestionId);
+          return false;
+        }
+        _completeAction(suggestionId, accepted: false);
+        return false;
+      }
+
+      if (!_isCurrent) return false;
+      final accepted =
+          result.state == InstagramSuggestionState.followed ||
           result.state == InstagramSuggestionState.alreadyFollowing;
-    },
-  );
+      if (!accepted) {
+        if (!controller.markFailed(token)) {
+          _clearBusy(suggestionId);
+          return false;
+        }
+        _completeAction(suggestionId, accepted: false);
+        return false;
+      }
+      const reconciliation = PdsSetReconciliation(active: true);
+      if (!controller.markAccepted(
+        token,
+        optimisticValue: true,
+        agrees: (value) => value is bool && reconciliation.agrees(value),
+        refresh: () => invalidateFollowProfileReads(ref, targetDid),
+      )) {
+        _clearBusy(suggestionId);
+        return false;
+      }
+      _completeAction(suggestionId, accepted: true);
+      return true;
+    }
+  }
 
   Future<bool> dismiss(String suggestionId) => _act(
     suggestionId,
@@ -165,6 +272,32 @@ class InstagramSuggestions extends _$InstagramSuggestions {
     );
     ensureInstagramOperationCurrent(ref, lease);
     return repository;
+  }
+
+  void _completeAction(String suggestionId, {required bool accepted}) {
+    final latest = state.value;
+    if (latest == null) return;
+    state = AsyncData(
+      latest.copyWith(
+        items: accepted
+            ? latest.items
+                  .where((item) => item.suggestionId != suggestionId)
+                  .toList(growable: false)
+            : latest.items,
+        busyIds: {...latest.busyIds}..remove(suggestionId),
+        hasActionError: !accepted,
+      ),
+    );
+  }
+
+  void _clearBusy(String suggestionId) {
+    final latest = state.value;
+    if (latest == null) return;
+    state = AsyncData(
+      latest.copyWith(
+        busyIds: {...latest.busyIds}..remove(suggestionId),
+      ),
+    );
   }
 
   bool get _isCurrent {

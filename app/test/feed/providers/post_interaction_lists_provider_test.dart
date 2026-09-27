@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
@@ -16,6 +17,8 @@ import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_reconciliation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -442,7 +445,7 @@ void main() {
     );
 
     test(
-      'retries the same cursor, dedupes by URI, and supports replace/remove',
+      'retries the same cursor and dedupes by URI',
       () async {
         var continuationCalls = 0;
         final first = _post('first');
@@ -471,53 +474,97 @@ void main() {
           ['first', 'second'],
         );
 
-        final replacement = _post('second', text: 'updated');
-        container.read(provider.notifier).replace(replacement);
-        expect(
-          container.read(provider).requireValue.items.last,
-          same(replacement),
-        );
-        container.read(provider.notifier).remove(first.uri);
-        expect(container.read(provider).requireValue.items, [
-          same(replacement),
-        ]);
         expect(continuationCalls, 2);
       },
     );
 
     test(
-      'IR-003 late continuation preserves quote replacement and removal',
+      'IT-012 stale reads retain accepted interactions until overlay expiry',
       () async {
-        final continuation = Completer<PostPage>();
-        final first = _post('first');
-        final second = _post('second');
-        final repository = FakePostRepository(
-          onListQuotes: (did, rkey, {cursor, limit}) => cursor == null
-              ? Future.value(
-                  PostPage(items: [first, second], cursor: 'next'),
-                )
-              : continuation.future,
+        var now = DateTime.utc(2026, 9, 25, 12);
+        final controller = PdsRecordOperationController(
+          now: () => now,
+          schedule: (_, _) {},
         );
-        final container = _container(repository);
+        final quote = _post('first');
+        final scope = PdsMutationScope(
+          lease: AccountSessionLease(
+            account: AccountKey(quote.author.did.toString()),
+            sessionGeneration: 0,
+          ),
+          identity: 'like:${quote.uri}',
+        );
+        final token = controller.begin(
+          scope: scope,
+          operationKey: 'accepted-like',
+          endpoint: '/likes',
+          immutableBody: 'POST\n',
+        );
+        controller.markAccepted(
+          token,
+          optimisticValue: true,
+          agrees: (value) => value == true,
+        );
+        final repository = FakePostRepository(
+          onListQuotes: (did, rkey, {cursor, limit}) async =>
+              PostPage(items: [quote]),
+        );
+        final container = _container(repository, controller: controller);
         addTearDown(container.dispose);
         final provider = _quotesProvider();
-        final subscription = container.listen(provider, (_, _) {});
-        addTearDown(subscription.close);
-        await container.read(provider.future);
 
-        final loadMore = container.read(provider.notifier).loadMore();
-        await _flush();
-        final replacement = _post('second', text: 'updated');
-        container.read(provider.notifier).replace(replacement);
-        container.read(provider.notifier).remove(first.uri);
-        continuation.complete(PostPage(items: [_post('third')]));
-        await loadMore;
+        expect(
+          (await container.read(provider.future)).items.single.viewerHasLiked,
+          isTrue,
+        );
+        await container.read(provider.notifier).refresh();
+        expect(
+          container.read(provider).requireValue.items.single.viewerHasLiked,
+          isTrue,
+        );
 
-        final items = container.read(provider).requireValue.items;
-        expect(items.map((post) => post.rkey), ['second', 'third']);
-        expect(items.first, same(replacement));
+        now = now.add(const Duration(seconds: 30));
+        controller.advanceTime();
+        container.invalidate(provider);
+        expect(
+          (await container.read(provider.future)).items.single.viewerHasLiked,
+          isFalse,
+        );
       },
     );
+
+    test('IT-012 accepted delete masks a stale quote page', () async {
+      final controller = PdsRecordOperationController(schedule: (_, _) {});
+      final quote = _post('deleted');
+      final scope = PdsMutationScope(
+        lease: AccountSessionLease(
+          account: AccountKey(quote.author.did.toString()),
+          sessionGeneration: 0,
+        ),
+        identity: 'post:${quote.uri}',
+      );
+      final token = controller.begin(
+        scope: scope,
+        operationKey: 'accepted-delete',
+        endpoint: '/post',
+        immutableBody: 'DELETE\n',
+      );
+      controller.markAccepted(
+        token,
+        optimisticValue: null,
+        agrees: (value) => const PdsAddressedDeleteReconciliation(
+          uri: 'at://did:plc:author/social.craftsky.feed.post/deleted',
+        ).agrees(value is PdsRecordProjection ? value : null),
+      );
+      final repository = FakePostRepository(
+        onListQuotes: (did, rkey, {cursor, limit}) async =>
+            PostPage(items: [quote]),
+      );
+      final container = _container(repository, controller: controller);
+      addTearDown(container.dispose);
+
+      expect((await container.read(_quotesProvider().future)).items, isEmpty);
+    });
 
     test('refresh generation rejects a late continuation completion', () async {
       final continuation = Completer<PostPage>();
@@ -676,6 +723,7 @@ PostQuotesProvider _quotesProvider() =>
 ProviderContainer _container(
   FakePostRepository repository, {
   SessionRegistry? registry,
+  PdsRecordOperationController? controller,
 }) {
   final value = registry ?? SessionRegistry.empty();
   return ProviderContainer.test(
@@ -687,6 +735,8 @@ ProviderContainer _container(
       activeLanguagePreferencesProvider.overrideWith(
         (ref) => ref.watch(_testLanguagePreferencesProvider),
       ),
+      if (controller != null)
+        pdsRecordOperationControllerProvider.overrideWithValue(controller),
     ],
     retry: (_, _) => null,
   );

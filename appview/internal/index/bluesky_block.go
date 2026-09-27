@@ -17,9 +17,10 @@ const blueskyBlockNSID syntax.NSID = "app.bsky.graph.block"
 
 // BlueskyBlock is the sole writer of the public block projection.
 type BlueskyBlock struct {
-	pool         *pgxpool.Pool
-	projectionDB transactionalDatabase
-	observer     RelationshipObserver
+	pool                     *pgxpool.Pool
+	projectionDB             transactionalDatabase
+	observer                 RelationshipObserver
+	skipDeliveryCancellation bool
 }
 
 // RelationshipObserver is the identifier-free operational boundary shared by
@@ -104,30 +105,16 @@ func (b *BlueskyBlock) Handle(ctx context.Context, ev tap.Event) (err error) {
 			errorClass = "store"
 			return fmt.Errorf("upsert block %s: %w", ev.URI, err)
 		}
-		cancelTag, err := tx.Exec(ctx, `
-			UPDATE push_deliveries delivery
-			SET status = 'cancelled', lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
-			FROM notification_events event
-			WHERE delivery.notification_id = event.id
-			  AND delivery.status IN ('pending', 'retry', 'leased')
-			  AND (
-				(event.recipient_did = $1 AND event.actor_did = $2)
-				OR (event.recipient_did = $2 AND event.actor_did = $1)
-			  )
-		`, ev.DID, subject)
-		if err != nil {
-			errorClass = "store"
-			return fmt.Errorf("cancel block deliveries %s: %w", ev.URI, err)
+		if !b.skipDeliveryCancellation {
+			if err := b.cancelPendingDeliveries(ctx, tx, ev.DID, subject); err != nil {
+				errorClass = "store"
+				return fmt.Errorf("cancel block deliveries %s: %w", ev.URI, err)
+			}
 		}
 		if err := tx.Commit(ctx); err != nil {
 			errorClass = "store"
 			return fmt.Errorf("commit block %s: %w", ev.URI, err)
 		}
-		cancellationResult := "none"
-		if cancelTag.RowsAffected() > 0 {
-			cancellationResult = "some"
-		}
-		observeRelationshipOutcome(b.observer, "push_cancellation", "delivery", cancellationResult, "none", 0)
 		return nil
 	case "delete":
 		stage = "store"
@@ -141,6 +128,29 @@ func (b *BlueskyBlock) Handle(ctx context.Context, ev tap.Event) (err error) {
 		errorClass = "validation"
 		return fmt.Errorf("unknown block action %q on %s", ev.Action, ev.URI)
 	}
+}
+
+func (b *BlueskyBlock) cancelPendingDeliveries(ctx context.Context, db transactionalDatabase, actor, subject syntax.DID) error {
+	result, err := db.Exec(ctx, `
+		UPDATE push_deliveries delivery
+		SET status = 'cancelled', lease_owner = NULL, lease_expires_at = NULL, updated_at = now()
+		FROM notification_events event
+		WHERE delivery.notification_id = event.id
+		  AND delivery.status IN ('pending', 'retry', 'leased')
+		  AND (
+			(event.recipient_did = $1 AND event.actor_did = $2)
+			OR (event.recipient_did = $2 AND event.actor_did = $1)
+		  )
+	`, actor, subject)
+	if err != nil {
+		return err
+	}
+	cancellationResult := "none"
+	if result.RowsAffected() > 0 {
+		cancellationResult = "some"
+	}
+	observeRelationshipOutcome(b.observer, "push_cancellation", "delivery", cancellationResult, "none", 0)
+	return nil
 }
 
 func (b *BlueskyBlock) database() transactionalDatabase {

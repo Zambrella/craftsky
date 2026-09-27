@@ -34,6 +34,20 @@ type RepositorySnapshotFetcher struct {
 	client    *http.Client
 }
 
+type singleRepositoryCollection struct{ collection syntax.NSID }
+
+func (registry singleRepositoryCollection) Collections() []syntax.NSID {
+	return []syntax.NSID{registry.collection}
+}
+
+func (fetcher *RepositorySnapshotFetcher) FetchCollection(
+	ctx context.Context,
+	did syntax.DID,
+	collection syntax.NSID,
+) (VerifiedRepositorySnapshot, error) {
+	return fetcher.Fetch(ctx, did, singleRepositoryCollection{collection: collection})
+}
+
 func NewRepositorySnapshotFetcher(directory identity.Directory, client *http.Client) (*RepositorySnapshotFetcher, error) {
 	if directory == nil || client == nil {
 		return nil, errors.New("repository snapshot fetcher dependencies are unavailable")

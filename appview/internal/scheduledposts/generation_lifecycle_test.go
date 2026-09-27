@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/ownerlifecycle"
-	"social.craftsky/appview/internal/pdseffects"
 )
 
 func TestClaimedGenerationCannotPublishAfterDepartureAndRejoin(t *testing.T) {
@@ -85,7 +84,7 @@ func TestClaimedGenerationCannotPublishAfterDepartureAndRejoin(t *testing.T) {
 		Sessions: stubPublicationSessionSelector{
 			sessionID: "stale-session",
 		},
-		NewEffects: func(context.Context, syntax.DID, string) (pdseffects.GuardedEffectCoordinator, error) {
+		NewCommands: func(context.Context, syntax.DID, string) (GuardedCommandCoordinator, error) {
 			pdsFactoryCalls++
 			return nil, errors.New("stale work reached PDS factory")
 		},

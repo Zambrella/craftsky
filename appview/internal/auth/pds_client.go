@@ -16,6 +16,8 @@ var (
 	ErrRecordSwapConflict           = errors.New("pds: record changed before conditional mutation")
 	ErrConditionalPutUnsupported    = errors.New("pds: conditional record Put is unsupported")
 	ErrConditionalDeleteUnsupported = errors.New("pds: conditional record delete is unsupported")
+	ErrRepositorySwapConflict       = errors.New("pds: repository changed before atomic mutation")
+	ErrApplyWritesUnsupported       = errors.New("pds: atomic applyWrites is unsupported")
 )
 
 // PDSClient is the minimal surface users of this package exercise against
@@ -80,6 +82,27 @@ type PDSRecordLister interface {
 		cursor string,
 		limit int,
 	) (records []PDSRecord, nextCursor string, err error)
+}
+
+type RepositoryWrite struct {
+	Action      string
+	Collection  syntax.NSID
+	RKey        syntax.RecordKey
+	Record      any
+	ExpectedCID syntax.CID
+}
+
+type RepositoryCommandPDSClient interface {
+	LatestCommit(context.Context, syntax.DID) (syntax.CID, error)
+	ApplyWrites(context.Context, syntax.DID, syntax.CID, []RepositoryWrite) error
+	DeleteRecordWithRepositorySwap(
+		context.Context,
+		syntax.DID,
+		syntax.NSID,
+		syntax.RecordKey,
+		syntax.CID,
+		syntax.CID,
+	) error
 }
 
 // DeletionPDSClient is the deliberately closed capability available to the

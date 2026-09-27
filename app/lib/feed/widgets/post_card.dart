@@ -19,7 +19,9 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/moderation_warning_banner.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
+import 'package:craftsky_app/profile/providers/block_profile_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
+import 'package:craftsky_app/profile/providers/toggle_block_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/projects/widgets/project_card.dart';
@@ -130,13 +132,17 @@ class PostCard extends ConsumerWidget {
     final relationship = relationshipProvider == null
         ? null
         : ref.watch(relationshipProvider);
-    final authorViewerRelationship = post.author.hasViewerState
-        ? ProfileRelationship.fromProfileFlags(
-            muted: post.author.muted ?? false,
-            blocking: post.author.blocking ?? false,
-            blockedBy: post.author.blockedBy ?? false,
-          )
-        : const ProfileRelationship(initialized: true);
+    final authorViewerRelationship = applyBlockRelationshipOverlay(
+      ref.read,
+      post.author.hasViewerState
+          ? ProfileRelationship.fromProfileFlags(
+              muted: post.author.muted ?? false,
+              blocking: post.author.blocking ?? false,
+              blockedBy: post.author.blockedBy ?? false,
+            )
+          : const ProfileRelationship(initialized: true),
+      post.author.did,
+    );
     if (relationshipProvider != null && !(relationship?.initialized ?? false)) {
       unawaited(
         Future<void>.microtask(
@@ -146,11 +152,15 @@ class PostCard extends ConsumerWidget {
         ),
       );
     }
-    final effectiveRelationship = relationship?.initialized ?? false
-        ? relationship
-        : post.author.hasViewerState
-        ? authorViewerRelationship
-        : null;
+    final effectiveRelationship = applyBlockRelationshipOverlay(
+      ref.read,
+      relationship?.initialized ?? false
+          ? relationship!
+          : post.author.hasViewerState
+          ? authorViewerRelationship
+          : const ProfileRelationship(initialized: true),
+      post.author.did,
+    );
     final reposter = repostReason?.by;
     final isReposterViewerOwned =
         auth is SignedIn && reposter != null && auth.did == reposter.did;
@@ -165,13 +175,19 @@ class PostCard extends ConsumerWidget {
         : reposterRelationshipProvider == relationshipProvider
         ? relationship
         : ref.watch(reposterRelationshipProvider);
-    final reposterViewerRelationship = reposter?.hasViewerState ?? false
-        ? ProfileRelationship.fromProfileFlags(
-            muted: reposter?.muted ?? false,
-            blocking: reposter?.blocking ?? false,
-            blockedBy: reposter?.blockedBy ?? false,
-          )
-        : const ProfileRelationship(initialized: true);
+    final reposterViewerRelationship = reposter == null
+        ? null
+        : applyBlockRelationshipOverlay(
+            ref.read,
+            reposter.hasViewerState
+                ? ProfileRelationship.fromProfileFlags(
+                    muted: reposter.muted ?? false,
+                    blocking: reposter.blocking ?? false,
+                    blockedBy: reposter.blockedBy ?? false,
+                  )
+                : const ProfileRelationship(initialized: true),
+            reposter.did,
+          );
     if (reposterRelationshipProvider != null &&
         reposterRelationshipProvider != relationshipProvider &&
         !(reposterRelationship?.initialized ?? false)) {
@@ -179,19 +195,23 @@ class PostCard extends ConsumerWidget {
         Future<void>.microtask(
           () => ref
               .read(reposterRelationshipProvider.notifier)
-              .seed(reposterViewerRelationship),
+              .seed(reposterViewerRelationship!),
         ),
       );
     }
-    final effectiveReposterRelationship =
-        reposterRelationship?.initialized ?? false
-        ? reposterRelationship
-        : reposter?.hasViewerState ?? false
-        ? reposterViewerRelationship
-        : null;
+    final effectiveReposterRelationship = reposter == null
+        ? null
+        : applyBlockRelationshipOverlay(
+            ref.read,
+            reposterRelationship?.initialized ?? false
+                ? reposterRelationship!
+                : reposterViewerRelationship!,
+            reposter.did,
+          );
+    final blockState = ref.watch(toggleBlockProfileProvider);
     if (hideWhenAuthorProtected &&
-        ((effectiveRelationship?.muted ?? false) ||
-            (effectiveRelationship?.hasBlock ?? false) ||
+        (effectiveRelationship.muted ||
+            effectiveRelationship.hasBlock ||
             (effectiveReposterRelationship?.muted ?? false) ||
             (effectiveReposterRelationship?.hasBlock ?? false))) {
       return const SizedBox.shrink();
@@ -344,7 +364,7 @@ class PostCard extends ConsumerWidget {
                       _RepostAttribution(reason: reason, onTap: openReposter),
                       SizedBox(height: spacing.sp2),
                     ],
-                    if (effectiveRelationship?.muted ?? false) ...[
+                    if (effectiveRelationship.muted) ...[
                       Semantics(
                         liveRegion: true,
                         child: Text(
@@ -551,17 +571,18 @@ class PostCard extends ConsumerWidget {
                           tooltip: deleteTooltip,
                           label: deleteLabel,
                           reportLabel: effectiveReportLabel,
-                          isMuted: effectiveRelationship?.muted ?? false,
-                          isBlocking: effectiveRelationship?.blocking ?? false,
+                          isMuted: effectiveRelationship.muted,
+                          isBlocking: effectiveRelationship.blocking,
                           isRelationshipBusy:
-                              effectiveRelationship?.pendingAction != null,
+                              blockState.isLoading ||
+                              effectiveRelationship.pendingAction != null,
                           onMuteToggle: relationshipProvider == null
                               ? null
                               : () => unawaited(
                                   _mutateAuthorRelationship(
                                     context,
                                     ref,
-                                    effectiveRelationship?.muted ?? false
+                                    effectiveRelationship.muted
                                         ? ProfileRelationshipAction.unmute
                                         : ProfileRelationshipAction.mute,
                                   ),
@@ -572,7 +593,7 @@ class PostCard extends ConsumerWidget {
                                   _confirmBlockAuthor(
                                     context,
                                     ref,
-                                    effectiveRelationship?.blocking ?? false,
+                                    effectiveRelationship.blocking,
                                   ),
                                 ),
                         ),
@@ -671,12 +692,17 @@ class PostCard extends ConsumerWidget {
       ),
     );
     if (confirmed != true || !context.mounted) return;
-    await _mutateAuthorRelationship(
-      context,
-      ref,
-      isBlocking
-          ? ProfileRelationshipAction.unblock
-          : ProfileRelationshipAction.block,
+    await ref
+        .read(toggleBlockProfileProvider.notifier)
+        .toggle(targetDid: post.author.did, isBlocking: isBlocking);
+    if (!context.mounted) return;
+    final result = ref.read(toggleBlockProfileProvider);
+    if (result.hasError || result.value == isBlocking) {
+      context.showError(l10n.profileRelationshipError);
+      return;
+    }
+    context.showInfo(
+      isBlocking ? l10n.profileUnblockSuccess : l10n.profileBlockSuccess,
     );
   }
 

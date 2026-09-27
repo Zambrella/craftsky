@@ -15,7 +15,9 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/pages/edit_profile_dialog.dart';
+import 'package:craftsky_app/profile/providers/block_profile_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
+import 'package:craftsky_app/profile/providers/toggle_block_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_actions.dart';
@@ -275,10 +277,14 @@ class _ProfileBody extends ConsumerWidget {
       }
     });
 
-    final serverRelationship = ProfileRelationship.fromProfileFlags(
-      muted: profile.muted,
-      blocking: profile.blocking,
-      blockedBy: profile.blockedBy,
+    final serverRelationship = applyBlockRelationshipOverlay(
+      ref.read,
+      ProfileRelationship.fromProfileFlags(
+        muted: profile.muted,
+        blocking: profile.blocking,
+        blockedBy: profile.blockedBy,
+      ),
+      profile.did,
     );
     final account = viewerAccount;
     final provider = account == null || isOwnProfile
@@ -292,9 +298,11 @@ class _ProfileBody extends ConsumerWidget {
         ),
       );
     }
-    final relationship = cached?.initialized ?? false
-        ? cached!
-        : serverRelationship;
+    final relationship = applyBlockRelationshipOverlay(
+      ref.read,
+      cached?.initialized ?? false ? cached! : serverRelationship,
+      profile.did,
+    );
     final actions = _actionsFor(context, ref, relationship);
 
     if (relationship.hasBlock) {
@@ -328,9 +336,13 @@ class _ProfileBody extends ConsumerWidget {
     }
 
     final toggleState = ref.watch(toggleFollowProfileProvider);
+    final blockState = ref.watch(toggleBlockProfileProvider);
     return VisitorProfileActionSet(
       isFollowing: profile.viewerIsFollowing,
-      isBusy: toggleState.isLoading || relationship.pendingAction != null,
+      isBusy:
+          toggleState.isLoading ||
+          blockState.isLoading ||
+          relationship.pendingAction != null,
       isMuted: relationship.muted,
       isBlocking: relationship.blocking,
       canFollow: !relationship.hasBlock,
@@ -396,12 +408,17 @@ class _ProfileBody extends ConsumerWidget {
       ),
     );
     if (confirmed != true || !context.mounted) return;
-    await _mutateRelationship(
-      context,
-      ref,
-      isBlocking
-          ? ProfileRelationshipAction.unblock
-          : ProfileRelationshipAction.block,
+    await ref
+        .read(toggleBlockProfileProvider.notifier)
+        .toggle(targetDid: profile.did, isBlocking: isBlocking);
+    if (!context.mounted) return;
+    final result = ref.read(toggleBlockProfileProvider);
+    if (result.hasError || result.value == isBlocking) {
+      context.showError(l10n.profileRelationshipError);
+      return;
+    }
+    context.showInfo(
+      isBlocking ? l10n.profileUnblockSuccess : l10n.profileBlockSuccess,
     );
   }
 
@@ -427,8 +444,8 @@ class _ProfileBody extends ConsumerWidget {
     context.showInfo(switch (action) {
       ProfileRelationshipAction.mute => l10n.profileMuteSuccess,
       ProfileRelationshipAction.unmute => l10n.profileUnmuteSuccess,
-      ProfileRelationshipAction.block => l10n.profileBlockSuccess,
-      ProfileRelationshipAction.unblock => l10n.profileUnblockSuccess,
+      ProfileRelationshipAction.block ||
+      ProfileRelationshipAction.unblock => l10n.profileRelationshipError,
     });
   }
 }

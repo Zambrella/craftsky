@@ -69,6 +69,9 @@ func TestFollowCreationUsesSameNotificationTransactionAndEventTimeScope(t *testi
 		VALUES ('did:plc:bob', 'follow', 'peopleIFollow', true);
 		INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at)
 		VALUES ('at://did:plc:bob/app.bsky.graph.follow/mutual', 'did:plc:bob', 'mutual', 'c', 'did:plc:alice', '{}', now())
+		;
+		INSERT INTO pds_set_aggregates(kind,actor_did,subject_did)
+		VALUES ('follow','did:plc:bob','did:plc:alice')
 	`); err != nil {
 		t.Fatal(err)
 	}

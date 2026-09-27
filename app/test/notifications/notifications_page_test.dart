@@ -381,6 +381,7 @@ void main() {
       viewerIsFollowing: viewerIsFollowing,
     );
     final repository = FakeProfileRepository(
+      onFetch: (_) async => result(viewerIsFollowing: true),
       onFollow: (handleOrDid) async {
         calls.add('follow:$handleOrDid');
         return result(viewerIsFollowing: true);
@@ -417,6 +418,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(calls, ['unfollow:did:plc:alice', 'follow:did:plc:alice']);
     expect(find.text('Unfollow'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 31));
   });
 
   testWidgets('UT-023 follow notification rolls back a failed mutation', (
@@ -424,6 +426,11 @@ void main() {
   ) async {
     final messenger = RecordingMessenger();
     final repository = FakeProfileRepository(
+      onFetch: (_) async => Profile(
+        did: 'did:plc:alice',
+        handle: 'alice.craftsky.social',
+        crafts: const [],
+      ),
       onFollow: (_) => Future<Profile>.error(Exception('follow failed')),
     );
 

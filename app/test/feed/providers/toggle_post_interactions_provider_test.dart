@@ -12,7 +12,9 @@ import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -131,7 +133,126 @@ void main() {
   );
 
   group('ToggleLikePost', () {
-    test('optimistically patches live user post lists', () async {
+    test('IT-016 retries ambiguity with one canonical operation key', () async {
+      final post = _post(rkey: 'retry');
+      var calls = 0;
+      final fake = FakePostRepository(
+        onLike: (did, rkey) async {
+          calls++;
+          if (calls < 3) {
+            throw const PdsMutationAmbiguousException(retryAfterSeconds: 2);
+          }
+          return _interaction(post);
+        },
+      );
+      final container = ProviderContainer.test(
+        overrides: [
+          postRepositoryProvider.overrideWithValue(fake),
+          pdsMutationDelayProvider.overrideWithValue((_) async {}),
+          pdsMutationJitterProvider.overrideWithValue((_) => 0),
+        ],
+      );
+
+      await container.read(toggleLikePostProvider.notifier).toggle(post: post);
+
+      expect(calls, 3);
+      expect(fake.likeOperationKeys.toSet(), hasLength(1));
+      expect(
+        isCanonicalPdsMutationOperationKey(fake.likeOperationKeys.first),
+        isTrue,
+      );
+      expect(
+        container.read(toggleLikePostProvider).value?.viewerHasLiked,
+        isTrue,
+      );
+    });
+
+    test('IT-016 exhaustion remains actionable with the same key', () async {
+      final post = _post(rkey: 'retry-limit');
+      var calls = 0;
+      final fake = FakePostRepository(
+        onLike: (did, rkey) async {
+          calls++;
+          if (calls <= 7) {
+            throw const PdsMutationAmbiguousException(retryAfterSeconds: 1);
+          }
+          return _interaction(post);
+        },
+      );
+      final container = ProviderContainer.test(
+        overrides: [
+          postRepositoryProvider.overrideWithValue(fake),
+          pdsMutationDelayProvider.overrideWithValue((_) async {}),
+          pdsMutationJitterProvider.overrideWithValue((_) => 0),
+        ],
+      );
+
+      await container.read(toggleLikePostProvider.notifier).toggle(post: post);
+
+      expect(calls, 7);
+      expect(fake.likeOperationKeys.toSet(), hasLength(1));
+      expect(container.read(toggleLikePostProvider).hasError, isTrue);
+
+      await container.read(toggleLikePostProvider.notifier).toggle(post: post);
+
+      expect(calls, 8);
+      expect(fake.likeOperationKeys.toSet(), hasLength(1));
+      expect(
+        container.read(toggleLikePostProvider).value?.viewerHasLiked,
+        isTrue,
+      );
+    });
+
+    test('IT-016 masks stale reads and retires on logical agreement', () async {
+      var authoritativeLiked = false;
+      final original = _post(rkey: 'overlay', likeCount: 2);
+      final fake = FakePostRepository(
+        onListByAuthor: (id, {cursor, limit}) async => PostPage(
+          items: [
+            _post(
+              rkey: 'overlay',
+              likeCount: authoritativeLiked ? 3 : 2,
+              viewerHasLiked: authoritativeLiked,
+            ),
+          ],
+        ),
+        onLike: (did, rkey) async => _interaction(original),
+      );
+      final container = ProviderContainer.test(
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
+      );
+
+      await container.read(userPostsProvider(_aliceDid).future);
+      await container
+          .read(toggleLikePostProvider.notifier)
+          .toggle(post: original);
+      final staleRead = await container.read(
+        userPostsProvider(_aliceDid).future,
+      );
+      expect(staleRead.items.single.viewerHasLiked, isTrue);
+      expect(staleRead.items.single.likeCount, 3);
+
+      authoritativeLiked = true;
+      container.invalidate(userPostsProvider(_aliceDid));
+      await container.read(userPostsProvider(_aliceDid).future);
+      authoritativeLiked = false;
+      container.invalidate(userPostsProvider(_aliceDid));
+      final afterAgreement = await container.read(
+        userPostsProvider(_aliceDid).future,
+      );
+      expect(afterAgreement.items.single.viewerHasLiked, isFalse);
+      expect(afterAgreement.items.single.likeCount, 2);
+    });
+
+    test('accepted overlay updates user post lists', () async {
       final post = _post(rkey: 'a', likeCount: 2);
       final calls = <(String, String)>[];
       final fake = FakePostRepository(
@@ -155,6 +276,7 @@ void main() {
 
       await container.read(userPostsProvider(_aliceDid).future);
       await container.read(toggleLikePostProvider.notifier).toggle(post: post);
+      await container.read(userPostsProvider(_aliceDid).future);
 
       final handleUpdated = container
           .read(userPostsProvider(_aliceDid))
@@ -194,6 +316,7 @@ void main() {
 
       await container.read(userPostsProvider(_aliceDid).future);
       await container.read(toggleLikePostProvider.notifier).toggle(post: post);
+      await container.read(userPostsProvider(_aliceDid).future);
 
       final updated = container
           .read(userPostsProvider(_aliceDid))
@@ -260,6 +383,7 @@ void main() {
 
       await container.read(timelineProvider.future);
       await container.read(toggleLikePostProvider.notifier).toggle(post: post);
+      await container.read(timelineProvider.future);
 
       var current = container.read(timelineProvider).value!.items.single.post;
       expect(current.viewerHasLiked, isTrue);
@@ -309,6 +433,7 @@ void main() {
         await container
             .read(toggleLikePostProvider.notifier)
             .toggle(post: post);
+        await container.read(userProjectsProvider(_aliceDid).future);
 
         _expectProjectLikeCaches(container, liked: true, likeCount: 3);
         _expectProfilePostCachesUnchanged(container);
@@ -321,6 +446,7 @@ void main() {
         await container
             .read(toggleLikePostProvider.notifier)
             .toggle(post: liked);
+        await container.read(userProjectsProvider(_aliceDid).future);
 
         _expectProjectLikeCaches(container, liked: false, likeCount: 2);
         _expectProfilePostCachesUnchanged(container);
@@ -343,7 +469,92 @@ void main() {
   });
 
   group('ToggleRepostPost', () {
-    test('optimistically patches live user post lists', () async {
+    test('IT-016 retries ambiguity with one canonical operation key', () async {
+      final post = _post(rkey: 'repost-retry');
+      var calls = 0;
+      final fake = FakePostRepository(
+        onRepost: (did, rkey) async {
+          calls++;
+          if (calls < 3) {
+            throw const PdsMutationAmbiguousException(retryAfterSeconds: 2);
+          }
+          return _interaction(post);
+        },
+      );
+      final container = ProviderContainer.test(
+        overrides: [
+          postRepositoryProvider.overrideWithValue(fake),
+          pdsMutationDelayProvider.overrideWithValue((_) async {}),
+          pdsMutationJitterProvider.overrideWithValue((_) => 0),
+        ],
+      );
+
+      await container
+          .read(toggleRepostPostProvider.notifier)
+          .toggle(post: post);
+
+      expect(calls, 3);
+      expect(fake.repostOperationKeys.toSet(), hasLength(1));
+      expect(
+        isCanonicalPdsMutationOperationKey(fake.repostOperationKeys.first),
+        isTrue,
+      );
+      expect(
+        container.read(toggleRepostPostProvider).value?.viewerHasReposted,
+        isTrue,
+      );
+    });
+
+    test('IT-016 masks stale reads and retires on logical agreement', () async {
+      var authoritativeReposted = false;
+      final original = _post(rkey: 'repost-overlay', repostCount: 2);
+      final fake = FakePostRepository(
+        onListByAuthor: (id, {cursor, limit}) async => PostPage(
+          items: [
+            _post(
+              rkey: 'repost-overlay',
+              repostCount: authoritativeReposted ? 3 : 2,
+              viewerHasReposted: authoritativeReposted,
+            ),
+          ],
+        ),
+        onRepost: (did, rkey) async => _interaction(original),
+      );
+      final container = ProviderContainer.test(
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+        ],
+      );
+
+      await container.read(userPostsProvider(_aliceDid).future);
+      await container
+          .read(toggleRepostPostProvider.notifier)
+          .toggle(post: original);
+      final staleRead = await container.read(
+        userPostsProvider(_aliceDid).future,
+      );
+      expect(staleRead.items.single.viewerHasReposted, isTrue);
+      expect(staleRead.items.single.repostCount, 3);
+
+      authoritativeReposted = true;
+      container.invalidate(userPostsProvider(_aliceDid));
+      await container.read(userPostsProvider(_aliceDid).future);
+      authoritativeReposted = false;
+      container.invalidate(userPostsProvider(_aliceDid));
+      final afterAgreement = await container.read(
+        userPostsProvider(_aliceDid).future,
+      );
+      expect(afterAgreement.items.single.viewerHasReposted, isFalse);
+      expect(afterAgreement.items.single.repostCount, 2);
+    });
+
+    test('accepted overlay updates user post lists', () async {
       final post = _post(rkey: 'a', repostCount: 1);
       final calls = <(String, String)>[];
       final fake = FakePostRepository(
@@ -369,6 +580,7 @@ void main() {
       await container
           .read(toggleRepostPostProvider.notifier)
           .toggle(post: post);
+      await container.read(userPostsProvider(_aliceDid).future);
 
       final updated = container
           .read(userPostsProvider(_aliceDid))
@@ -403,6 +615,7 @@ void main() {
       await container
           .read(toggleRepostPostProvider.notifier)
           .toggle(post: post);
+      await container.read(userPostsProvider(_aliceDid).future);
 
       final updated = container
           .read(userPostsProvider(_aliceDid))
@@ -473,6 +686,7 @@ void main() {
       await container
           .read(toggleRepostPostProvider.notifier)
           .toggle(post: post);
+      await container.read(timelineProvider.future);
 
       var current = container.read(timelineProvider).value!.items.single.post;
       expect(current.viewerHasReposted, isTrue);
@@ -554,6 +768,7 @@ void main() {
         await container
             .read(toggleRepostPostProvider.notifier)
             .toggle(post: post);
+        await container.read(userProjectsProvider(_aliceDid).future);
 
         _expectProjectRepostCaches(container, reposted: true, repostCount: 2);
         _expectProfilePostCachesUnchanged(container);
@@ -566,6 +781,7 @@ void main() {
         await container
             .read(toggleRepostPostProvider.notifier)
             .toggle(post: reposted);
+        await container.read(userProjectsProvider(_aliceDid).future);
 
         _expectProjectRepostCaches(container, reposted: false, repostCount: 1);
         _expectProfilePostCachesUnchanged(container);
