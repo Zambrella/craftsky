@@ -301,7 +301,7 @@ void main() {
       'Projects': ('projects', true),
       'Posts': ('posts', true),
       'Comments & replies': ('comments', true),
-      'Reposts': ('reposts', false),
+      'Reposts': ('reposts', true),
       'Products': ('products', true),
       'Upcoming Events': ('upcomingEvents', true),
       'About': ('about', false),

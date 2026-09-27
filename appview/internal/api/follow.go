@@ -82,6 +82,31 @@ func commandFollowProfileHandler(
 				return
 			}
 		}
+		kind := "profile.follow"
+		if !desiredActive {
+			kind = "profile.unfollow"
+		}
+		replay, handled := existingSetCommand(w, r, commands, caller, generation, kind, operationKey, r.PathValue("handleOrDid"), runID)
+		if handled {
+			return
+		}
+		if replay != nil {
+			var intent struct {
+				TargetDID syntax.DID      `json:"targetDid"`
+				Response  json.RawMessage `json:"response"`
+			}
+			if json.Unmarshal(replay.Intent, &intent) != nil || intent.TargetDID == "" || len(intent.Response) == 0 {
+				WriteCommandError(w, runID, pdscommands.ErrIdempotencyConflict)
+				return
+			}
+			result, err := executeFollowCommand(r, commands, caller, generation, intent.TargetDID, operationKey, replay.SelectedRkey, desiredActive, intent.Response, runID)
+			if err != nil {
+				WriteCommandError(w, runID, err)
+				return
+			}
+			WriteCommandResponse(w, CommandResultFromStored(result))
+			return
+		}
 
 		target, err := resolveFollowTargetDID(r.Context(), strings.TrimPrefix(r.PathValue("handleOrDid"), "@"), resolver)
 		if err != nil {
@@ -154,8 +179,10 @@ func executeFollowCommand(
 		return pdscommands.CommandResult{}, pdscommands.ErrDispatchUnavailable
 	}
 	intent, err := json.Marshal(struct {
-		TargetDID syntax.DID `json:"targetDid"`
-	}{TargetDID: target})
+		TargetDID     syntax.DID      `json:"targetDid"`
+		RequestTarget string          `json:"requestTarget"`
+		Response      json.RawMessage `json:"response"`
+	}{TargetDID: target, RequestTarget: r.PathValue("handleOrDid"), Response: responseBody})
 	if err != nil {
 		return pdscommands.CommandResult{}, err
 	}

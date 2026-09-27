@@ -1258,6 +1258,29 @@ void main() {
     });
   });
 
+  group('PostApiClient.listRepostsByAuthor', () {
+    test('GETs /v1/profiles/@{handleOrDid}/reposts with pagination', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onGet(
+        '/v1/profiles/@alice.craftsky.social/reposts',
+        (server) => server.reply(200, {
+          'items': [samplePost()],
+          'cursor': 'next-cursor',
+        }),
+        queryParameters: {'cursor': 'c1', 'limit': '25'},
+      );
+
+      final page = await PostApiClient(dio).listRepostsByAuthor(
+        'alice.craftsky.social',
+        cursor: 'c1',
+        limit: 25,
+      );
+
+      expect(page.items, hasLength(1));
+      expect(page.cursor, 'next-cursor');
+    });
+  });
+
   group('PostApiClient.listCommentBranchReplies', () {
     test('GETs /v1/posts/{did}/{rkey}/replies with pagination', () async {
       final dio = buildDio();

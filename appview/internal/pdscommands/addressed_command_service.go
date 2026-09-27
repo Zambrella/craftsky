@@ -111,7 +111,7 @@ func (service *AddressedCommandService) Delete(ctx context.Context, request Addr
 	}
 	lifecycle, err := service.lifecycles.Get(ctx, request.Owner)
 	if err != nil {
-		return service.reject(ctx, prepared.ID, request, err)
+		return CommandResult{}, err
 	}
 	if lifecycle.State == ownerlifecycle.StateTerminal {
 		return service.reject(ctx, prepared.ID, request, ownerlifecycle.ErrTerminalOwner)
@@ -179,7 +179,7 @@ func (service *AddressedCommandService) Put(ctx context.Context, request Address
 	}
 	lifecycle, err := service.lifecycles.Get(ctx, request.Owner)
 	if err != nil {
-		return service.rejectPut(ctx, prepared.ID, request, err)
+		return CommandResult{}, err
 	}
 	if lifecycle.State == ownerlifecycle.StateTerminal {
 		return service.rejectPut(ctx, prepared.ID, request, ownerlifecycle.ErrTerminalOwner)

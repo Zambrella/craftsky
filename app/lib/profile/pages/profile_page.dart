@@ -8,6 +8,7 @@ import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/providers/profile_business_events_provider.dart';
 import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
+import 'package:craftsky_app/feed/providers/user_reposts_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
@@ -27,11 +28,11 @@ import 'package:craftsky_app/profile/widgets/profile_sliver_app_bar.dart';
 import 'package:craftsky_app/profile/widgets/profile_tab_bar.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_about_tab.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_comments_tab.dart';
-import 'package:craftsky_app/profile/widgets/profile_tabs/profile_empty_tab.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_events_tab.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_posts_tab.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_products_tab.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_projects_tab.dart';
+import 'package:craftsky_app/profile/widgets/profile_tabs/profile_reposts_tab.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
@@ -40,7 +41,6 @@ import 'package:craftsky_app/shared/errors/notification_destination_error.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
-import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -794,6 +794,11 @@ class _ProfileTabScrollView extends ConsumerWidget {
           userCommentsProvider(profile.did).future,
         );
       },
+      ProfileTab.reposts => () async {
+        final _ = await ref.refresh(
+          userRepostsProvider(profile.did).future,
+        );
+      },
       ProfileTab.products => () async {
         final _ = await ref.refresh(
           userProfileProvider(profile.did).future,
@@ -841,11 +846,7 @@ class _ProfileTabScrollView extends ConsumerWidget {
         did: profile.did,
         isOwnProfile: isOwnProfile,
       ),
-      ProfileTab.reposts => ProfileEmptyTab(
-        icon: CraftskyIcons.repost,
-        title: l10n.profileTabReposts,
-        subtitle: l10n.profileEmptyReposts,
-      ),
+      ProfileTab.reposts => ProfileRepostsTab(did: profile.did),
       ProfileTab.products => ProfileProductsTab(
         products: profile.business?.products ?? const [],
         isOwnProfile: isOwnProfile,

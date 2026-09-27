@@ -487,6 +487,22 @@ class PostApiClient {
     return PostPageMapper.fromMap(res.data!);
   });
 
+  /// GET /v1/profiles/@{handleOrDid}/reposts — newest-first.
+  Future<PostPage> listRepostsByAuthor(
+    String handleOrDid, {
+    String? cursor,
+    int? limit,
+  }) => unwrapApi(() async {
+    final res = await _dio.get<Map<String, dynamic>>(
+      '/v1/profiles/@$handleOrDid/reposts',
+      queryParameters: {
+        'cursor': ?cursor,
+        'limit': ?limit?.toString(),
+      },
+    );
+    return PostPageMapper.fromMap(res.data!);
+  });
+
   ReportResult _reportResultFromMap(Map<String, dynamic> data) {
     return ReportResult(
       reportId: data['reportId'] as String,

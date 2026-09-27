@@ -10,6 +10,7 @@ import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
+import 'package:craftsky_app/feed/providers/user_reposts_provider.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
@@ -46,7 +47,7 @@ class ToggleLikePost extends _$ToggleLikePost {
     final startedAt = ref.read(pdsMutationNowProvider)();
     var retryIndex = 0;
 
-    state = const AsyncLoading<Post?>();
+    state = AsyncData(next);
     while (true) {
       try {
         final repo = ref.read(postRepositoryProvider);
@@ -97,6 +98,7 @@ class ToggleLikePost extends _$ToggleLikePost {
       } on Object catch (error, stackTrace) {
         if (!isActiveAccountOperationCurrent(ref, ownership)) return;
         controller.markFailed(token);
+        state = const AsyncData(null);
         state = AsyncError<Post?>(error, stackTrace);
         return;
       }
@@ -128,5 +130,6 @@ void _invalidateLikeReads(Ref ref, Post post) {
     ..invalidate(timelineProvider)
     ..invalidate(userPostsProvider)
     ..invalidate(userCommentsProvider)
+    ..invalidate(userRepostsProvider)
     ..invalidate(userProjectsProvider);
 }

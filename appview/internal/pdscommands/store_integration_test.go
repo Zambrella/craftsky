@@ -353,6 +353,9 @@ func TestDispatchIntentAndTerminalOutcomeAreDurableAndImmutable(t *testing.T) {
 	if _, err := store.PrepareOrReplay(context.Background(), request); !errors.Is(err, ErrIdempotencyConflict) {
 		t.Fatalf("tombstoned key reuse error = %v, want idempotency conflict", err)
 	}
+	if _, err := store.LookupCommand(context.Background(), request.Owner, request.OperationKind, request.OperationKey); !errors.Is(err, ErrIdempotencyConflict) {
+		t.Fatalf("tombstoned replay lookup error = %v, want idempotency conflict", err)
+	}
 }
 
 func TestDispatchAndTerminalOutcomeCompleteAtomically(t *testing.T) {

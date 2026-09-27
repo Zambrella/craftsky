@@ -99,7 +99,7 @@ func (service *CompoundCommandService) Put(ctx context.Context, request Compound
 	}
 	lifecycle, err := service.lifecycles.Get(ctx, request.Owner)
 	if err != nil {
-		return service.reject(ctx, prepared.ID, request, err)
+		return CommandResult{}, err
 	}
 	if lifecycle.State == ownerlifecycle.StateTerminal {
 		return service.reject(ctx, prepared.ID, request, ownerlifecycle.ErrTerminalOwner)

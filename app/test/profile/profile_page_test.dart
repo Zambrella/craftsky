@@ -80,13 +80,14 @@ void main() {
       expect(find.byType(PostCardSkeleton), findsOneWidget);
     });
 
-    testWidgets('remote collection tabs refresh the profile, except Reposts', (
+    testWidgets('remote collection tabs refresh their posts', (
       tester,
     ) async {
       var profileFetches = 0;
       var postFetches = 0;
       var projectFetches = 0;
       var commentFetches = 0;
+      var repostFetches = 0;
       final profile = Profile(
         did: 'did:plc:other',
         handle: 'alice.bsky.social',
@@ -110,6 +111,10 @@ void main() {
         },
         onListCommentsByAuthor: (_, {cursor, limit}) async {
           commentFetches++;
+          return const PostPage(items: []);
+        },
+        onListRepostsByAuthor: (_, {cursor, limit}) async {
+          repostFetches++;
           return const PostPage(items: []);
         },
       );
@@ -145,6 +150,7 @@ void main() {
         'Projects': 'projects',
         'Posts': 'posts',
         'Comments & replies': 'comments',
+        'Reposts': 'reposts',
       }.entries) {
         await tester.tap(find.widgetWithText(Tab, entry.key));
         await tester.pumpAndSettle();
@@ -163,10 +169,7 @@ void main() {
       expect(postFetches, greaterThanOrEqualTo(2));
       expect(projectFetches, greaterThanOrEqualTo(2));
       expect(commentFetches, greaterThanOrEqualTo(2));
-
-      await tester.tap(find.widgetWithText(Tab, 'Reposts'));
-      await tester.pumpAndSettle();
-      expect(find.byType(RefreshIndicator), findsNothing);
+      expect(repostFetches, greaterThanOrEqualTo(2));
     });
 
     testWidgets('signed-in self profile renders identity + edit actions', (

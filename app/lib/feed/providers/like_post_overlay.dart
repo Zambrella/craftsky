@@ -7,8 +7,18 @@ import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.da
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 PdsMutationScope likePostMutationScope(Ref ref, Post post) {
+  return likePostMutationScopeForLease(
+    captureActiveAccountOperation(ref)?.session,
+    post,
+  );
+}
+
+PdsMutationScope likePostMutationScopeForLease(
+  AccountSessionLease? activeLease,
+  Post post,
+) {
   final lease =
-      captureActiveAccountOperation(ref)?.session ??
+      activeLease ??
       AccountSessionLease(
         account: AccountKey(post.author.did.toString()),
         sessionGeneration: 0,
@@ -17,8 +27,18 @@ PdsMutationScope likePostMutationScope(Ref ref, Post post) {
 }
 
 PdsMutationScope repostPostMutationScope(Ref ref, Post post) {
+  return repostPostMutationScopeForLease(
+    captureActiveAccountOperation(ref)?.session,
+    post,
+  );
+}
+
+PdsMutationScope repostPostMutationScopeForLease(
+  AccountSessionLease? activeLease,
+  Post post,
+) {
   final lease =
-      captureActiveAccountOperation(ref)?.session ??
+      activeLease ??
       AccountSessionLease(
         account: AccountKey(post.author.did.toString()),
         sessionGeneration: 0,

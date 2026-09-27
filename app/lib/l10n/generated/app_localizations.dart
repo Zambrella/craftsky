@@ -1354,11 +1354,17 @@ abstract class AppLocalizations {
   /// **'Nothing saved yet.'**
   String get profileEmptySaved;
 
-  /// Muted placeholder shown in the Reposts tab while repost data isn't wired.
+  /// Empty-state message shown in the profile Reposts tab.
   ///
   /// In en, this message translates to:
   /// **'No reposts yet.'**
   String get profileEmptyReposts;
+
+  /// Error title shown in the profile Reposts tab when repost fetching fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Reposts didn\'t load.'**
+  String get profileRepostsLoadError;
 
   /// Muted placeholder shown in the profile Posts tab when the user has not posted.
   ///

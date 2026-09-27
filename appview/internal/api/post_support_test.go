@@ -154,6 +154,9 @@ type fakePostStore struct {
 	commentListRows         []*api.PostRow
 	commentListCursor       string
 	commentListErr          error
+	repostListRows          []*api.PostRow
+	repostListCursor        string
+	repostListErr           error
 	commentRows             []*api.PostRow
 	commentCursor           string
 	commentErr              error
@@ -189,6 +192,9 @@ type fakePostStore struct {
 	lastListProjectsDID     string
 	lastListProjectsLimit   int
 	lastListProjectsCursor  string
+	lastListRepostsDID      string
+	lastListRepostsLimit    int
+	lastListRepostsCursor   string
 	lastEngagementViewer    string
 	lastEngagementURIs      []string
 	lastEngagementLanguages []string
@@ -280,6 +286,13 @@ func (f *fakePostStore) ListCommentsByAuthor(_ context.Context, did string, limi
 	f.lastListCommentsLimit = limit
 	f.lastListCommentsCursor = cursor
 	return f.commentListRows, f.commentListCursor, f.commentListErr
+}
+
+func (f *fakePostStore) ListRepostsByAuthor(_ context.Context, did string, limit int, cursor string) ([]*api.PostRow, string, error) {
+	f.lastListRepostsDID = did
+	f.lastListRepostsLimit = limit
+	f.lastListRepostsCursor = cursor
+	return f.repostListRows, f.repostListCursor, f.repostListErr
 }
 
 func (f *fakePostStore) ListRootComments(_ context.Context, rootURI, viewerDID, sort string, limit int, cursor string) ([]*api.PostRow, string, error) {

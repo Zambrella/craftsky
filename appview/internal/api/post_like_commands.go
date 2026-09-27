@@ -52,6 +52,28 @@ func CommandLikePostHandler(store likeCommandStore, commands SetCommandExecutor,
 			envelope.WriteError(writer, http.StatusBadRequest, "unexpected_field", "request body rejected", runID, nil)
 			return
 		}
+		targetURI, targetDID, ok := commandPostURI(writer, request, runID)
+		if !ok {
+			return
+		}
+		replay, handled := existingSetCommand(writer, request, commands, caller, generation, "post.like", operationKey, targetURI, runID)
+		if handled {
+			return
+		}
+		if replay != nil {
+			target, valid := replayPostTarget(replay.Intent)
+			if !valid {
+				WriteCommandError(writer, runID, pdscommands.ErrIdempotencyConflict)
+				return
+			}
+			result, err := executeLikeCommand(request, commands, caller, generation, targetDID, target, operationKey, replay.SelectedRkey, true, runID)
+			if err != nil {
+				WriteCommandError(writer, runID, err)
+				return
+			}
+			WriteCommandResponse(writer, CommandResultFromStored(result))
+			return
+		}
 		targetDID, target, ok := resolveLikeCommandTarget(writer, request, store, runID)
 		if !ok {
 			return
@@ -88,6 +110,28 @@ func CommandUnlikePostHandler(store unlikeCommandStore, commands SetCommandExecu
 		}
 		operationKey, ok := requireCommandOperationKey(writer, request, runID)
 		if !ok {
+			return
+		}
+		targetURI, targetDID, ok := commandPostURI(writer, request, runID)
+		if !ok {
+			return
+		}
+		replay, handled := existingSetCommand(writer, request, commands, caller, generation, "post.unlike", operationKey, targetURI, runID)
+		if handled {
+			return
+		}
+		if replay != nil {
+			target, valid := replayPostTarget(replay.Intent)
+			if !valid {
+				WriteCommandError(writer, runID, pdscommands.ErrIdempotencyConflict)
+				return
+			}
+			result, err := executeLikeCommand(request, commands, caller, generation, targetDID, target, operationKey, "", false, runID)
+			if err != nil {
+				WriteCommandError(writer, runID, err)
+				return
+			}
+			WriteCommandResponse(writer, CommandResultFromStored(result))
 			return
 		}
 		targetDID, target, ok := resolveLikeCommandTarget(writer, request, store, runID)

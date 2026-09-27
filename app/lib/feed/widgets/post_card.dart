@@ -9,8 +9,11 @@ import 'package:craftsky_app/feed/models/post_uri.dart';
 import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/providers/author_post_cache.dart';
+import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
 import 'package:craftsky_app/feed/providers/profile_pins_provider.dart';
+import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
+import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/external_card.dart';
 import 'package:craftsky_app/feed/widgets/native_video_player.dart';
 import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
@@ -28,6 +31,7 @@ import 'package:craftsky_app/projects/widgets/project_card.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_bookmark_button.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/rich_text/faceted_text_model.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
@@ -48,6 +52,45 @@ const _postCardActionIconSize = 22.0;
 enum PostCardStyle { card, flat }
 
 enum PostCardImageInteractionMode { navigate, fullscreenGallery }
+
+Post _postWithInteractionState(WidgetRef ref, Post post) {
+  final likeState = ref.watch(toggleLikePostProvider);
+  final repostState = ref.watch(toggleRepostPostProvider);
+  final like = likeState.hasError ? null : likeState.value;
+  final repost = repostState.hasError ? null : repostState.value;
+  final controller = ref.read(pdsRecordOperationControllerProvider);
+  final activeLease = ref
+      .read(sessionRegistryProvider)
+      .value
+      ?.activeLease
+      ?.session;
+  final likeScope = likePostMutationScopeForLease(activeLease, post);
+  final repostScope = repostPostMutationScopeForLease(activeLease, post);
+  final likeOperation = controller.operationFor(likeScope);
+  final repostOperation = controller.operationFor(repostScope);
+  final likeIsActive =
+      (likeOperation != null &&
+          likeOperation.status != PdsMutationStatus.failed) ||
+      controller.overlayFor(likeScope) != null;
+  final repostIsActive =
+      (repostOperation != null &&
+          repostOperation.status != PdsMutationStatus.failed) ||
+      controller.overlayFor(repostScope) != null;
+  var result = post;
+  if (likeIsActive && like?.uri == post.uri) {
+    result = result.copyWith(
+      viewerHasLiked: like!.viewerHasLiked,
+      likeCount: like.likeCount,
+    );
+  }
+  if (repostIsActive && repost?.uri == post.uri) {
+    result = result.copyWith(
+      viewerHasReposted: repost!.viewerHasReposted,
+      repostCount: repost.repostCount,
+    );
+  }
+  return result;
+}
 
 /// Card-shaped post row used by the feed and the profile Posts tab.
 class PostCard extends ConsumerWidget {
@@ -120,6 +163,7 @@ class PostCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final post = _postWithInteractionState(ref, this.post);
     if (post.isProtected) {
       return _ProtectedPostCard(post: post, onReveal: onRevealPost);
     }

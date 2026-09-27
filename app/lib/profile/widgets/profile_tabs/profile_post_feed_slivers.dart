@@ -42,6 +42,12 @@ void listenToProfilePostActions(BuildContext context, WidgetRef ref) {
         context.showError(l10n.postLikeError);
         ref.read(toggleLikePostProvider.notifier).reset();
       }
+    })
+    ..listen(toggleRepostPostProvider, (previous, next) {
+      if (next.hasError) {
+        context.showError(l10n.postRepostError);
+        ref.read(toggleRepostPostProvider.notifier).reset();
+      }
     });
 }
 

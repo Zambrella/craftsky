@@ -103,6 +103,50 @@ type CommandResult struct {
 	RetryAfterSeconds int
 }
 
+// ReplayCommand carries the immutable inputs needed to resume an existing
+// command without consulting a potentially changed serving projection.
+type ReplayCommand struct {
+	OwnerGeneration int64
+	Intent          json.RawMessage
+	SelectedRkey    syntax.RecordKey
+	Result          CommandResult
+}
+
+func (store *Store) LookupCommand(ctx context.Context, owner syntax.DID, kind string, key uuid.UUID) (*ReplayCommand, error) {
+	var replay ReplayCommand
+	var commandID uuid.UUID
+	var rkey *string
+	err := store.pool.QueryRow(ctx, `
+		SELECT id,owner_generation,immutable_request,selected_rkey
+		FROM pds_commands WHERE owner_did=$1 AND operation_kind=$2 AND operation_key=$3
+	`, owner, kind, key).Scan(&commandID, &replay.OwnerGeneration, &replay.Intent, &rkey)
+	if errors.Is(err, pgx.ErrNoRows) {
+		hash := ScopedKeyHash(owner, kind, key)
+		var tombstoned bool
+		if err := store.pool.QueryRow(ctx, `
+			SELECT EXISTS(SELECT 1 FROM pds_command_tombstones
+			WHERE owner_did=$1 AND operation_kind=$2 AND scoped_key_hash=$3)
+		`, owner, kind, hash[:]).Scan(&tombstoned); err != nil {
+			return nil, fmt.Errorf("check PDS command tombstone: %w", err)
+		}
+		if tombstoned {
+			return nil, ErrIdempotencyConflict
+		}
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("look up PDS command: %w", err)
+	}
+	if rkey != nil {
+		replay.SelectedRkey = syntax.RecordKey(*rkey)
+	}
+	replay.Result, err = store.Result(ctx, commandID)
+	if err != nil {
+		return nil, err
+	}
+	return &replay, nil
+}
+
 func NewStore(config StoreConfig) (*Store, error) {
 	if config.Pool == nil {
 		return nil, errors.New("PDS command store requires a database pool")

@@ -153,4 +153,11 @@ abstract interface class PostRepository {
     String? cursor,
     int? limit,
   });
+
+  /// GET /v1/profiles/@{handleOrDid}/reposts — newest-first, paginated.
+  Future<PostPage> listRepostsByAuthor(
+    String handleOrDid, {
+    String? cursor,
+    int? limit,
+  });
 }

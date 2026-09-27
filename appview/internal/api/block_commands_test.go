@@ -126,8 +126,17 @@ func TestCommandBlockAndUnblockUseAuthoritativeSetContract(t *testing.T) {
 			request.OperationKey != uuid.MustParse(key) || !request.DesiredActive ||
 			request.Owner != "did:plc:alice" || request.OwnerGeneration != 1 ||
 			request.Target != "did:plc:bob" || request.SessionID != "session-alice" ||
-			request.Collection != "app.bsky.graph.block" || string(request.Intent) != `{"targetDid":"did:plc:bob"}` {
+			request.Collection != "app.bsky.graph.block" {
 			t.Fatalf("command request = %+v calls=%d", request, commands.calls)
+		}
+		var intent struct {
+			TargetDID     string              `json:"targetDid"`
+			RequestTarget string              `json:"requestTarget"`
+			State         relationships.State `json:"state"`
+		}
+		if err := json.Unmarshal(request.Intent, &intent); err != nil || intent.TargetDID != "did:plc:bob" ||
+			intent.RequestTarget != "bob.example" || intent.State != store.state {
+			t.Fatalf("command intent = %s, err=%v", request.Intent, err)
 		}
 		if _, err := syntax.ParseTID(request.SelectedRkey.String()); err != nil {
 			t.Fatalf("selected rkey %q is not a TID: %v", request.SelectedRkey, err)

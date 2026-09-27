@@ -208,8 +208,17 @@ func TestCommandFollowAndUnfollowPreserveProfileResponseAndCommandIntent(t *test
 				request.OperationKey != uuid.MustParse(key) || request.DesiredActive != test.wantDesiredActive ||
 				request.Owner != "did:plc:alice" || request.OwnerGeneration != 1 ||
 				request.Target != "did:plc:bob" || request.SessionID != "session-alice" ||
-				request.Collection != "app.bsky.graph.follow" || string(request.Intent) != `{"targetDid":"did:plc:bob"}` {
+				request.Collection != "app.bsky.graph.follow" {
 				t.Fatalf("command request = %+v calls=%d", request, commands.calls)
+			}
+			var intent struct {
+				TargetDID     string              `json:"targetDid"`
+				RequestTarget string              `json:"requestTarget"`
+				Response      api.ProfileResponse `json:"response"`
+			}
+			if err := json.Unmarshal(request.Intent, &intent); err != nil || intent.TargetDID != "did:plc:bob" ||
+				intent.RequestTarget != "bob.example" || intent.Response.ViewerIsFollowing != test.wantFollowing {
+				t.Fatalf("command intent = %s, err=%v", request.Intent, err)
 			}
 			if test.assertSelectedRkey {
 				if _, err := syntax.ParseTID(request.SelectedRkey.String()); err != nil {

@@ -74,6 +74,9 @@ func TestLikeEndpointReconcilesLostResponseWithoutBlindReplay(t *testing.T) {
 		firstResponse.Header().Get("Retry-After") != "1" || pds.applyCalls != 1 {
 		t.Fatalf("first response status=%d headers=%v body=%q applyCalls=%d", firstResponse.Code, firstResponse.Header(), firstResponse.Body.String(), pds.applyCalls)
 	}
+	// Tap can remove the target before the PDS command's lost response is
+	// recovered. The retry must use the frozen subject rather than the index.
+	store.targetErr = api.ErrPostNotFound
 
 	retryRequest := commandPostRequest(http.MethodPost, key)
 	retryResponse := httptest.NewRecorder()
@@ -94,6 +97,13 @@ func TestLikeEndpointReconcilesLostResponseWithoutBlindReplay(t *testing.T) {
 	handler.ServeHTTP(replayResponse, replayRequest)
 	if replayResponse.Code != http.StatusCreated || replayResponse.Body.String() != retryResponse.Body.String() || pds.applyCalls != 1 {
 		t.Fatalf("terminal replay status=%d body=%q applyCalls=%d", replayResponse.Code, replayResponse.Body.String(), pds.applyCalls)
+	}
+	otherPath := commandPostRequest(http.MethodPost, key)
+	otherPath.SetPathValue("rkey", "other-post")
+	conflict := httptest.NewRecorder()
+	handler.ServeHTTP(conflict, otherPath)
+	if conflict.Code != http.StatusConflict || pds.applyCalls != 1 {
+		t.Fatalf("key reused on another target status=%d body=%q applyCalls=%d", conflict.Code, conflict.Body.String(), pds.applyCalls)
 	}
 }
 

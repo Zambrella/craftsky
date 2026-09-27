@@ -162,6 +162,74 @@ func TestSetCommandServiceReconcilesLostCreateAndRemovesEveryMatchingRecord(t *t
 	}
 }
 
+func TestSetCommandLeavesPreparedCommandRetryableWhenLifecycleReadFails(t *testing.T) {
+	ctx := context.Background()
+	pool := testdb.WithMigratedSchema(t)
+	now := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
+	owner := syntax.DID("did:plc:transient-lifecycle-owner")
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO owner_lifecycles(owner_did,state,generation,auth_epoch,transition_reason,transitioned_at,created_at,updated_at)
+		VALUES($1,'active',1,1,'test',$2,$2,$2)
+	`, owner, now); err != nil {
+		t.Fatal(err)
+	}
+	// Keep preparation available while simulating an unavailable lifecycle
+	// lookup after the command has been inserted.
+	commandStore, err := NewStore(StoreConfig{Pool: pool, Now: func() time.Time { return now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fencer, err := ownerlifecycle.NewFencer(pool, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lifecycles, err := ownerlifecycle.NewStore(pool, fencer, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	service, err := NewSetCommandService(SetCommandServiceConfig{
+		Store: commandStore, Lifecycles: lifecycles,
+		NewBoundary: func(context.Context, syntax.DID, string) (auth.ActiveEffectPDSBoundary, error) {
+			return &setCommandBoundary{client: newSetCommandPDS(owner)}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := SetCommandRequest{
+		Owner: owner, OwnerGeneration: 1, SessionID: "session", OperationKind: "test.unlike",
+		OperationKey: uuid.New(), Collection: "social.craftsky.feed.like", DesiredActive: false,
+		Intent:          json.RawMessage(`{"subjectUri":"at://did:plc:other/social.craftsky.feed.post/post1"}`),
+		Matches:         func(AuthoritativeRecord) bool { return false },
+		AcceptedPresent: func(AuthoritativeRecord, bool) (TerminalResult, error) { return TerminalResult{}, nil },
+		AcceptedAbsent:  func() TerminalResult { return TerminalResult{State: CommandAccepted, HTTPStatus: 204} },
+		Rejected:        setCommandRejectedResult,
+	}
+	if _, err := pool.Exec(ctx, `ALTER TABLE owner_lifecycles RENAME TO owner_lifecycles_unavailable`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Execute(ctx, request); err == nil {
+		t.Fatal("unavailable lifecycle lookup must return an error")
+	}
+	prepared, err := commandStore.LookupCommand(ctx, owner, request.OperationKind, request.OperationKey)
+	if err != nil || prepared == nil || prepared.Result.State != CommandPrepared {
+		t.Fatalf("command after transient failure = %+v, err=%v", prepared, err)
+	}
+	if _, err := pool.Exec(ctx, `ALTER TABLE owner_lifecycles_unavailable RENAME TO owner_lifecycles`); err != nil {
+		t.Fatal(err)
+	}
+	// The test pool includes public in its search_path. Drop prepared queries
+	// that resolved the missing relation against public during the outage.
+	pool.Reset()
+	if lifecycle, err := lifecycles.Get(ctx, owner); err != nil {
+		t.Fatalf("restored lifecycle unavailable: %+v, %v", lifecycle, err)
+	}
+	result, err := service.Execute(ctx, request)
+	if err != nil || result.State != CommandAccepted || result.HTTPStatus != 204 {
+		t.Fatalf("retry after lifecycle recovery = %+v, err=%v", result, err)
+	}
+}
+
 func setCommandRejectedResult(error) TerminalResult {
 	return TerminalResult{State: CommandRejected, HTTPStatus: 409, ResponseBody: json.RawMessage(`{"error":"conflict"}`)}
 }

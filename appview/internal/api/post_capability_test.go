@@ -34,6 +34,7 @@ func TestPostHandlersAcceptNarrowCapabilities(t *testing.T) {
 		_ = api.ListPostsByAuthorHandler(authorPostsCapability{}, nil, nil, nil)
 		_ = api.ListProjectsByAuthorHandler(authorProjectsCapability{}, nil, nil, nil)
 		_ = api.ListCommentsByAuthorHandler(authorCommentsCapability{}, nil, nil)
+		_ = api.ListRepostsByAuthorHandler(authorRepostsCapability{}, nil, nil)
 	})
 }
 
@@ -197,6 +198,14 @@ func (authorProjectsCapability) ListProjectsByAuthor(context.Context, string, in
 
 type authorCommentsCapability struct {
 	authorFeedHydrationCapability
+}
+
+type authorRepostsCapability struct {
+	authorFeedHydrationCapability
+}
+
+func (authorRepostsCapability) ListRepostsByAuthor(context.Context, string, int, string) ([]*api.PostRow, string, error) {
+	return nil, "", nil
 }
 
 func (authorCommentsCapability) ListCommentsByAuthor(context.Context, string, int, string) ([]*api.PostRow, string, error) {

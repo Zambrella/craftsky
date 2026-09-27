@@ -67,6 +67,12 @@ func (indexer *CraftskyPost) Project(ctx context.Context, tx pgx.Tx, source inge
 
 func (indexer *CraftskyLike) Project(ctx context.Context, tx pgx.Tx, source ingestion.SourceRecord) (tap.Outcome, error) {
 	event := eventFromSource(source)
+	if event.Action != "delete" {
+		outcome, ready, err := projectionMemberReady(ctx, tx, event.DID)
+		if err != nil || !ready {
+			return outcome, err
+		}
+	}
 	changes, err := projectSetSourceTx(ctx, tx, source, source.UpdatedAt)
 	if err != nil {
 		return tap.Retryable(tap.ReasonProjectionFailure), err
@@ -154,6 +160,12 @@ func applyInteractionSetChanges(
 
 func (indexer *CraftskyRepost) Project(ctx context.Context, tx pgx.Tx, source ingestion.SourceRecord) (tap.Outcome, error) {
 	event := eventFromSource(source)
+	if event.Action != "delete" {
+		outcome, ready, err := projectionMemberReady(ctx, tx, event.DID)
+		if err != nil || !ready {
+			return outcome, err
+		}
+	}
 	changes, err := projectSetSourceTx(ctx, tx, source, source.UpdatedAt)
 	if err != nil {
 		return tap.Retryable(tap.ReasonProjectionFailure), err
@@ -178,15 +190,15 @@ func (indexer *BlueskyProfile) Project(ctx context.Context, tx pgx.Tx, source in
 
 func (indexer *BlueskyFollow) Project(ctx context.Context, tx pgx.Tx, source ingestion.SourceRecord) (tap.Outcome, error) {
 	event := eventFromSource(source)
-	changes, err := projectSetSourceTx(ctx, tx, source, source.UpdatedAt)
-	if err != nil {
-		return tap.Retryable(tap.ReasonProjectionFailure), err
-	}
 	if event.Action != "delete" {
 		outcome, ready, err := projectionMemberReady(ctx, tx, event.DID)
 		if err != nil || !ready {
 			return outcome, err
 		}
+	}
+	changes, err := projectSetSourceTx(ctx, tx, source, source.UpdatedAt)
+	if err != nil {
+		return tap.Retryable(tap.ReasonProjectionFailure), err
 	}
 	if err := applyFollowSetChanges(ctx, tx, indexer.lifecycle, event, changes); err != nil {
 		return tap.Retryable(tap.ReasonProjectionFailure), err
@@ -275,15 +287,15 @@ func applyFollowSetChanges(
 
 func (indexer *BlueskyBlock) Project(ctx context.Context, tx pgx.Tx, source ingestion.SourceRecord) (tap.Outcome, error) {
 	event := eventFromSource(source)
-	changes, err := projectSetSourceTx(ctx, tx, source, source.UpdatedAt)
-	if err != nil {
-		return tap.Retryable(tap.ReasonProjectionFailure), err
-	}
 	if event.Action != "delete" {
 		outcome, ready, err := projectionMemberReady(ctx, tx, event.DID)
 		if err != nil || !ready {
 			return outcome, err
 		}
+	}
+	changes, err := projectSetSourceTx(ctx, tx, source, source.UpdatedAt)
+	if err != nil {
+		return tap.Retryable(tap.ReasonProjectionFailure), err
 	}
 	clone := *indexer
 	clone.projectionDB = tx

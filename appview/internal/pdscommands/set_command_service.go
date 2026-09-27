@@ -70,6 +70,10 @@ func NewSetCommandService(config SetCommandServiceConfig) (*SetCommandService, e
 	}, nil
 }
 
+func (service *SetCommandService) LookupCommand(ctx context.Context, owner syntax.DID, kind string, key uuid.UUID) (*ReplayCommand, error) {
+	return service.store.LookupCommand(ctx, owner, kind, key)
+}
+
 func (service *SetCommandService) Execute(ctx context.Context, request SetCommandRequest) (CommandResult, error) {
 	if err := validateSetCommandRequest(request); err != nil {
 		return CommandResult{}, err
@@ -111,7 +115,10 @@ func (service *SetCommandService) Execute(ctx context.Context, request SetComman
 	}
 	expected, err := service.resolveExpectedOwners(ctx, prepared, request.TargetGeneration)
 	if err != nil {
-		return service.reject(ctx, prepared.ID, request, err)
+		if isDefinitiveLifecycleError(err) {
+			return service.reject(ctx, prepared.ID, request, err)
+		}
+		return CommandResult{}, err
 	}
 	boundary, err := service.newBoundary(ctx, request.Owner, request.SessionID)
 	if err != nil {
@@ -134,6 +141,12 @@ func (service *SetCommandService) Execute(ctx context.Context, request SetComman
 		return CommandResult{}, err
 	}
 	return result, nil
+}
+
+func isDefinitiveLifecycleError(err error) bool {
+	return errors.Is(err, ownerlifecycle.ErrTerminalOwner) ||
+		errors.Is(err, ownerlifecycle.ErrOwnerNotActive) ||
+		errors.Is(err, ownerlifecycle.ErrGenerationChanged)
 }
 
 func validateSetCommandRequest(request SetCommandRequest) error {

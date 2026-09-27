@@ -600,6 +600,70 @@ func TestListCommentsByAuthor_HappyPath(t *testing.T) {
 	}
 }
 
+func TestListRepostsByAuthor_HydratesSubjectAuthorsAndEngagement(t *testing.T) {
+	t.Parallel()
+	base := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
+	bob := testPostRow("did:plc:bob", "bob-post", "Bob's post", base)
+	carol := testPostRow("did:plc:carol", "carol-post", "Carol's post", base.Add(-time.Minute))
+	store := &fakePostStore{
+		repostListRows:   []*api.PostRow{bob, carol},
+		repostListCursor: "next-reposts",
+		engagement: map[string]api.EngagementSummary{
+			bob.URI: {LikeCount: 4, RepostCount: 2, ViewerHasLiked: true},
+		},
+	}
+	h := api.ListRepostsByAuthorHandler(store, fakeResolver{handlesByDID: map[string]syntax.Handle{
+		"did:plc:bob":   "bob.example",
+		"did:plc:carol": "carol.example",
+	}}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/reposts?limit=2", "", "did:plc:viewer")
+	req.SetPathValue("handleOrDid", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", rr.Code, rr.Body.String())
+	}
+	var resp struct {
+		Items  []api.PostResponse `json:"items"`
+		Cursor string             `json:"cursor,omitempty"`
+	}
+	if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if len(resp.Items) != 2 || resp.Items[0].Author.Handle != "bob.example" || resp.Items[1].Author.Handle != "carol.example" {
+		t.Fatalf("subject author hydration = %+v", resp.Items)
+	}
+	if resp.Items[0].LikeCount != 4 || resp.Items[0].RepostCount != 2 || !resp.Items[0].ViewerHasLiked {
+		t.Fatalf("engagement = %+v", resp.Items[0])
+	}
+	if resp.Cursor != "next-reposts" || store.lastListRepostsDID != "did:plc:alice" || store.lastListRepostsLimit != 2 {
+		t.Fatalf("cursor/list call = %q did=%q limit=%d", resp.Cursor, store.lastListRepostsDID, store.lastListRepostsLimit)
+	}
+}
+
+func TestListRepostsByAuthor_BlockingRelationshipReturnsEmpty(t *testing.T) {
+	t.Parallel()
+	store := &fakePostStore{
+		repostListRows: []*api.PostRow{testPostRow("did:plc:bob", "post", "hidden", time.Now())},
+		relationshipStates: map[syntax.DID]relationships.State{
+			"did:plc:alice": {Blocking: true},
+		},
+	}
+	h := api.ListRepostsByAuthorHandler(store, fakeResolver{}, nilLogger())
+	req := authedReq(http.MethodGet, "/v1/profiles/@did:plc:alice/reposts", "", "did:plc:viewer")
+	req.SetPathValue("handleOrDid", "did:plc:alice")
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK || rr.Body.String() != "{\"items\":[]}\n" {
+		t.Fatalf("response = %d %s", rr.Code, rr.Body.String())
+	}
+	if store.lastListRepostsDID != "" {
+		t.Fatalf("store list called for blocked profile: %q", store.lastListRepostsDID)
+	}
+}
+
 func TestListCommentsByAuthor_BadCursor_400(t *testing.T) {
 	t.Parallel()
 	store := &fakePostStore{commentListErr: envelope.ErrInvalidCursor}

@@ -72,6 +72,36 @@ func commandBlockProfileHandler(
 				return
 			}
 		}
+		kind := "profile.block"
+		if !desiredActive {
+			kind = "profile.unblock"
+		}
+		replay, handled := existingSetCommand(writer, request, commands, owner, generation, kind, operationKey, request.PathValue("handleOrDid"), runID)
+		if handled {
+			return
+		}
+		if replay != nil {
+			var intent struct {
+				TargetDID syntax.DID          `json:"targetDid"`
+				State     relationships.State `json:"state"`
+			}
+			if json.Unmarshal(replay.Intent, &intent) != nil || intent.TargetDID == "" {
+				WriteCommandError(writer, runID, pdscommands.ErrIdempotencyConflict)
+				return
+			}
+			result, err := executeBlockCommand(request, commands, owner, generation, intent.TargetDID, operationKey, replay.SelectedRkey, desiredActive, intent.State, runID)
+			if err != nil {
+				WriteCommandError(writer, runID, err)
+				return
+			}
+			if !desiredActive && result.State == pdscommands.CommandAccepted && restoration != nil {
+				if err := restoration.EnqueueRelationshipSafetyRestoration(request.Context(), owner, intent.TargetDID); err != nil && logger != nil {
+					logger.Error("enqueue unblock relationship restoration failed", slog.Any("error", err))
+				}
+			}
+			WriteCommandResponse(writer, CommandResultFromStored(result))
+			return
+		}
 
 		subject, err := relationships.ResolveTarget(
 			request.Context(), request.PathValue("handleOrDid"), owner, resolver, store,
@@ -133,8 +163,10 @@ func executeBlockCommand(
 		return pdscommands.CommandResult{}, pdscommands.ErrDispatchUnavailable
 	}
 	intent, err := json.Marshal(struct {
-		TargetDID syntax.DID `json:"targetDid"`
-	}{TargetDID: subject})
+		TargetDID     syntax.DID          `json:"targetDid"`
+		RequestTarget string              `json:"requestTarget"`
+		State         relationships.State `json:"state"`
+	}{TargetDID: subject, RequestTarget: request.PathValue("handleOrDid"), State: state})
 	if err != nil {
 		return pdscommands.CommandResult{}, err
 	}

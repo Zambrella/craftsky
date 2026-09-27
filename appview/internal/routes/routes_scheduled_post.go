@@ -112,4 +112,5 @@ func registerPostRoutes(routes postRouteBundle) {
 	routes.mux.Handle("GET /v1/profiles/{handleOrDid}/posts", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/posts"), api.ListPostsByAuthorHandler(routes.postStore, routes.handleResolver, routes.logger, routes.profilePinStore, routes.languages)))
 	routes.mux.Handle("GET /v1/profiles/{handleOrDid}/projects", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/projects"), api.ListProjectsByAuthorHandler(routes.postStore, routes.handleResolver, routes.logger, routes.profilePinStore, routes.languages)))
 	routes.mux.Handle("GET /v1/profiles/{handleOrDid}/comments", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/comments"), api.ListCommentsByAuthorHandler(routes.postStore, routes.handleResolver, routes.logger, routes.languages)))
+	routes.mux.Handle("GET /v1/profiles/{handleOrDid}/reposts", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/reposts"), api.ListRepostsByAuthorHandler(routes.postStore, routes.handleResolver, routes.logger, routes.languages)))
 }

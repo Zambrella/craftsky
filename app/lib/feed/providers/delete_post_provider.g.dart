@@ -8,57 +8,30 @@ part of 'delete_post_provider.dart';
 
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint, type=warning
-/// Standalone delete-a-post mutation notifier. Takes the full [Post]
-/// because the cache update needs `did`, `handle`, and `rkey` to splice
-/// the post out of any live family entries (lists may be keyed by
-/// either form). The caller — UI deleting a post it's already
-/// rendering — has the [Post] in hand.
+/// Standalone delete-a-post mutation notifier. The caller supplies the [Post]
+/// so the command can retain its exact URI and expected CID.
 ///
 /// `build()` returns `Post?` so the `AsyncData(post)` transition
 /// carries the deleted post for `ref.listen` consumers (e.g. an
 /// "undo delete" snackbar).
-///
-/// On success, removes the post from any live `userPostsProvider`
-/// family entries keyed by either the author's handle or DID,
-/// sidestepping the AppView's read-after-delete window (where a
-/// refetch could still include the just-deleted row until the firehose
-/// tombstone arrives).
 
 @ProviderFor(DeletePost)
 final deletePostProvider = DeletePostProvider._();
 
-/// Standalone delete-a-post mutation notifier. Takes the full [Post]
-/// because the cache update needs `did`, `handle`, and `rkey` to splice
-/// the post out of any live family entries (lists may be keyed by
-/// either form). The caller — UI deleting a post it's already
-/// rendering — has the [Post] in hand.
+/// Standalone delete-a-post mutation notifier. The caller supplies the [Post]
+/// so the command can retain its exact URI and expected CID.
 ///
 /// `build()` returns `Post?` so the `AsyncData(post)` transition
 /// carries the deleted post for `ref.listen` consumers (e.g. an
 /// "undo delete" snackbar).
-///
-/// On success, removes the post from any live `userPostsProvider`
-/// family entries keyed by either the author's handle or DID,
-/// sidestepping the AppView's read-after-delete window (where a
-/// refetch could still include the just-deleted row until the firehose
-/// tombstone arrives).
 final class DeletePostProvider
     extends $AsyncNotifierProvider<DeletePost, Post?> {
-  /// Standalone delete-a-post mutation notifier. Takes the full [Post]
-  /// because the cache update needs `did`, `handle`, and `rkey` to splice
-  /// the post out of any live family entries (lists may be keyed by
-  /// either form). The caller — UI deleting a post it's already
-  /// rendering — has the [Post] in hand.
+  /// Standalone delete-a-post mutation notifier. The caller supplies the [Post]
+  /// so the command can retain its exact URI and expected CID.
   ///
   /// `build()` returns `Post?` so the `AsyncData(post)` transition
   /// carries the deleted post for `ref.listen` consumers (e.g. an
   /// "undo delete" snackbar).
-  ///
-  /// On success, removes the post from any live `userPostsProvider`
-  /// family entries keyed by either the author's handle or DID,
-  /// sidestepping the AppView's read-after-delete window (where a
-  /// refetch could still include the just-deleted row until the firehose
-  /// tombstone arrives).
   DeletePostProvider._()
     : super(
         from: null,
@@ -78,23 +51,14 @@ final class DeletePostProvider
   DeletePost create() => DeletePost();
 }
 
-String _$deletePostHash() => r'cfe7e2702d1deb128941606e23e01061b29a2012';
+String _$deletePostHash() => r'b168e6c52c661675e3c8d8f7a6588991f15d14c7';
 
-/// Standalone delete-a-post mutation notifier. Takes the full [Post]
-/// because the cache update needs `did`, `handle`, and `rkey` to splice
-/// the post out of any live family entries (lists may be keyed by
-/// either form). The caller — UI deleting a post it's already
-/// rendering — has the [Post] in hand.
+/// Standalone delete-a-post mutation notifier. The caller supplies the [Post]
+/// so the command can retain its exact URI and expected CID.
 ///
 /// `build()` returns `Post?` so the `AsyncData(post)` transition
 /// carries the deleted post for `ref.listen` consumers (e.g. an
 /// "undo delete" snackbar).
-///
-/// On success, removes the post from any live `userPostsProvider`
-/// family entries keyed by either the author's handle or DID,
-/// sidestepping the AppView's read-after-delete window (where a
-/// refetch could still include the just-deleted row until the firehose
-/// tombstone arrives).
 
 abstract class _$DeletePost extends $AsyncNotifier<Post?> {
   FutureOr<Post?> build();

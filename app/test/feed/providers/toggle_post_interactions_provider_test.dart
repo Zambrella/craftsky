@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
@@ -133,6 +135,31 @@ void main() {
   );
 
   group('ToggleLikePost', () {
+    test(
+      'publishes the optimistic like before the request completes',
+      () async {
+        final post = _post(rkey: 'optimistic-like', likeCount: 2);
+        final response = Completer<InteractionWriteResponse>();
+        final fake = FakePostRepository(
+          onLike: (did, rkey) => response.future,
+        );
+        final container = ProviderContainer.test(
+          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        );
+
+        final mutation = container
+            .read(toggleLikePostProvider.notifier)
+            .toggle(post: post);
+
+        final optimistic = container.read(toggleLikePostProvider).requireValue!;
+        expect(optimistic.viewerHasLiked, isTrue);
+        expect(optimistic.likeCount, 3);
+
+        response.complete(_interaction(post));
+        await mutation;
+      },
+    );
+
     test('IT-016 retries ambiguity with one canonical operation key', () async {
       final post = _post(rkey: 'retry');
       var calls = 0;
@@ -355,6 +382,7 @@ void main() {
           .items
           .single;
       expect(container.read(toggleLikePostProvider).hasError, isTrue);
+      expect(container.read(toggleLikePostProvider).value, isNull);
       expect(current.viewerHasLiked, isFalse);
       expect(current.likeCount, 2);
     });
@@ -469,6 +497,33 @@ void main() {
   });
 
   group('ToggleRepostPost', () {
+    test(
+      'publishes the optimistic repost before the request completes',
+      () async {
+        final post = _post(rkey: 'optimistic-repost', repostCount: 2);
+        final response = Completer<InteractionWriteResponse>();
+        final fake = FakePostRepository(
+          onRepost: (did, rkey) => response.future,
+        );
+        final container = ProviderContainer.test(
+          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        );
+
+        final mutation = container
+            .read(toggleRepostPostProvider.notifier)
+            .toggle(post: post);
+
+        final optimistic = container
+            .read(toggleRepostPostProvider)
+            .requireValue!;
+        expect(optimistic.viewerHasReposted, isTrue);
+        expect(optimistic.repostCount, 3);
+
+        response.complete(_interaction(post));
+        await mutation;
+      },
+    );
+
     test('IT-016 retries ambiguity with one canonical operation key', () async {
       final post = _post(rkey: 'repost-retry');
       var calls = 0;
@@ -656,6 +711,7 @@ void main() {
           .items
           .single;
       expect(container.read(toggleRepostPostProvider).hasError, isTrue);
+      expect(container.read(toggleRepostPostProvider).value, isNull);
       expect(current.viewerHasReposted, isFalse);
       expect(current.repostCount, 1);
     });

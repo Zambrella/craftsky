@@ -1081,6 +1081,87 @@ func TestPostStore_ListByAuthor_IncludesAuthoredQuotePostsAndExcludesReposts(t *
 	assertPostRowURIs(t, rows, []string{quote})
 }
 
+func TestPostStore_ListRepostsByAuthor_PaginatesLogicalRepostsByActivationAndSubjectURI(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol", "did:plc:dave"} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
+	bob := seedPost(t, pool, "did:plc:bob", "post", "Bob", base)
+	carol := seedPost(t, pool, "did:plc:carol", "post", "Carol", base)
+	dave := seedPost(t, pool, "did:plc:dave", "post", "Dave", base)
+	seedInteraction(t, pool, "repost", "did:plc:alice", "bob-1", bob, false)
+	seedInteraction(t, pool, "repost", "did:plc:alice", "bob-2", bob, false)
+	seedInteraction(t, pool, "repost", "did:plc:alice", "carol", carol, false)
+	seedInteraction(t, pool, "repost", "did:plc:alice", "dave", dave, false)
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE pds_set_aggregates
+		SET activated_at = CASE subject_uri
+			WHEN $1 THEN $2::timestamptz
+			ELSE $3::timestamptz
+		END
+		WHERE kind = 'repost' AND actor_did = 'did:plc:alice'
+	`, bob, base.Add(2*time.Hour), base.Add(time.Hour)); err != nil {
+		t.Fatalf("set repost activation times: %v", err)
+	}
+
+	store := api.NewPostStore(pool)
+	page1, cursor, err := store.ListRepostsByAuthor(context.Background(), "did:plc:alice", 2, "")
+	if err != nil {
+		t.Fatalf("ListRepostsByAuthor page 1: %v", err)
+	}
+	if got, want := postRowURIs(page1), []string{bob, dave}; !slices.Equal(got, want) || cursor == "" {
+		t.Fatalf("page 1 = %v cursor=%q, want %v and cursor", got, cursor, want)
+	}
+	page2, next, err := store.ListRepostsByAuthor(context.Background(), "did:plc:alice", 2, cursor)
+	if err != nil {
+		t.Fatalf("ListRepostsByAuthor page 2: %v", err)
+	}
+	if got, want := postRowURIs(page2), []string{carol}; !slices.Equal(got, want) || next != "" {
+		t.Fatalf("page 2 = %v cursor=%q, want %v and final page", got, next, want)
+	}
+}
+
+func TestPostStore_ListRepostsByAuthor_FiltersVisibilityBeforePagination(t *testing.T) {
+	pool := testdb.WithSchema(t, postStoreDDL)
+	for _, did := range []string{"did:plc:alice", "did:plc:viewer", "did:plc:bob", "did:plc:carol", "did:plc:dave", "did:plc:eve"} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
+	english := seedPost(t, pool, "did:plc:bob", "english", "English", base)
+	french := seedPost(t, pool, "did:plc:carol", "french", "French", base)
+	hidden := seedPost(t, pool, "did:plc:dave", "hidden", "Hidden", base)
+	blocked := seedPost(t, pool, "did:plc:eve", "blocked", "Blocked", base)
+	for index, uri := range []string{english, french, hidden, blocked} {
+		seedInteraction(t, pool, "repost", "did:plc:alice", fmt.Sprintf("visibility-%d", index), uri, false)
+	}
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE craftsky_posts
+		SET langs = CASE uri WHEN $1 THEN ARRAY['fr']::text[] ELSE ARRAY['en']::text[] END
+		WHERE uri IN ($1, $2, $3, $4)
+	`, french, english, hidden, blocked); err != nil {
+		t.Fatalf("seed repost subject languages: %v", err)
+	}
+	seedModerationOutput(t, pool, "post", "did:plc:dave", hidden, "hide", base.Add(time.Hour))
+	seedBlockAggregate(t, pool, "did:plc:eve", "did:plc:viewer", base.Add(time.Hour))
+
+	rows, _, err := api.NewPostStore(pool).ListRepostsByAuthorWithLanguages(
+		context.Background(),
+		"did:plc:viewer",
+		"did:plc:alice",
+		[]string{"en"},
+		10,
+		"",
+	)
+	if err != nil {
+		t.Fatalf("ListRepostsByAuthorWithLanguages: %v", err)
+	}
+	if got, want := postRowURIs(rows), []string{english}; !slices.Equal(got, want) {
+		t.Fatalf("visible reposts = %v, want %v", got, want)
+	}
+}
+
 func TestPostStore_ListProjectsByAuthor_ReturnsOnlyTopLevelProjects(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, postStoreDDL)

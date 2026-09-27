@@ -90,6 +90,9 @@ services:
       # tap-bootstrap below still seeds a handful of known dev DIDs for a
       # fast first-boot path but is now redundant for real users.
       TAP_SIGNAL_COLLECTION: "social.craftsky.actor.profile"
+      # Local restarts can leave a firehose backlog that replays slower than live traffic.
+      # Tap resyncs tracked repos after the next event exposes a revision gap.
+      TAP_NO_REPLAY: "true"
       TAP_LOG_LEVEL: info
     volumes:
       - tapdata:/data

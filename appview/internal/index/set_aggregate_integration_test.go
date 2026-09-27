@@ -84,6 +84,68 @@ func TestReplaceSetSourceMaintainsAggregateAcrossRepresentativeChurn(t *testing.
 	}
 }
 
+func TestFollowActivationWaitsForActorProfileProjection(t *testing.T) {
+	pool := testdb.WithMigratedSchema(t)
+	ctx := context.Background()
+	now := time.Date(2026, 9, 24, 8, 0, 0, 0, time.UTC)
+	actor := syntax.DID("did:plc:early-follow-actor")
+	recipient := syntax.DID("did:plc:early-follow-recipient")
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO owner_lifecycles(owner_did,state,generation,auth_epoch,transition_reason,transitioned_at,created_at,updated_at)
+		VALUES($1,'active',1,1,'test',$3,$3,$3),($2,'active',1,1,'test',$3,$3,$3)
+	`, actor, recipient, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'bafy-recipient')`, recipient); err != nil {
+		t.Fatal(err)
+	}
+	store, err := ingestion.NewStore(pool, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	uri := syntax.ATURI("at://" + actor.String() + "/app.bsky.graph.follow/3aaaaaaaaaaa2")
+	event := tap.Event{
+		ID: 1, URI: uri, DID: actor, Collection: blueskyFollowNSID, Rkey: "3aaaaaaaaaaa2",
+		Rev: "3aaaaaaaaaaa2", CID: "bafy-follow", Action: "create",
+		Record: json.RawMessage(`{"$type":"app.bsky.graph.follow","subject":"` + recipient.String() + `","createdAt":"2026-09-24T08:00:00Z"}`),
+	}
+	if _, err := store.IngestRecord(ctx, event); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `UPDATE tap_source_records SET projection_generation=1 WHERE uri=$1`, uri); err != nil {
+		t.Fatal(err)
+	}
+	source, err := store.Source(ctx, uri)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dispatcher := NewTransactionalDispatcher()
+	dispatcher.Register(blueskyFollowNSID, NewBlueskyFollow(pool, notifications.NewService()))
+	project := func(want tap.OutcomeKind) {
+		t.Helper()
+		if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+			outcome, err := dispatcher.Project(ctx, tx, source)
+			if err == nil && outcome.Kind != want {
+				t.Fatalf("projection outcome = %+v, want %s", outcome, want)
+			}
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	project(tap.OutcomeBlocked)
+	assertSetFactCounts(t, pool, uri, 0, 0)
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'bafy-actor')`, actor); err != nil {
+		t.Fatal(err)
+	}
+	project(tap.OutcomeApplied)
+	assertSetFactCounts(t, pool, uri, 1, 1)
+	var notificationsCount int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM notification_events WHERE actor_did=$1 AND recipient_did=$2 AND category='follow'`, actor, recipient).Scan(&notificationsCount); err != nil || notificationsCount != 1 {
+		t.Fatalf("follow notification count=%d err=%v", notificationsCount, err)
+	}
+}
+
 func TestCraftskyLikeProjectMaintainsLogicalAggregateAcrossDuplicateSources(t *testing.T) {
 	pool := testdb.WithMigratedSchema(t)
 	ctx := context.Background()

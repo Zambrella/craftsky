@@ -54,6 +54,7 @@ class FakePostRepository implements PostRepository {
     this.onListProjectsByAuthor,
     this.onListTimeline,
     this.onListCommentsByAuthor,
+    this.onListRepostsByAuthor,
   });
 
   final Future<Post> Function({
@@ -144,6 +145,12 @@ class FakePostRepository implements PostRepository {
     int? limit,
   })?
   onListCommentsByAuthor;
+  final Future<PostPage> Function(
+    String handleOrDid, {
+    String? cursor,
+    int? limit,
+  })?
+  onListRepostsByAuthor;
 
   PostRef? lastCreateQuote;
   CreatePostExternal? lastCreateExternal;
@@ -407,5 +414,20 @@ class FakePostRepository implements PostRepository {
       onListCommentsByAuthor?.call(handleOrDid, cursor: cursor, limit: limit) ??
       Future<PostPage>.error(
         UnimplementedError('listCommentsByAuthor not stubbed'),
+      );
+
+  @override
+  Future<PostPage> listRepostsByAuthor(
+    String handleOrDid, {
+    String? cursor,
+    int? limit,
+  }) =>
+      onListRepostsByAuthor?.call(
+        handleOrDid,
+        cursor: cursor,
+        limit: limit,
+      ) ??
+      Future<PostPage>.error(
+        UnimplementedError('listRepostsByAuthor not stubbed'),
       );
 }
