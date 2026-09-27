@@ -126,6 +126,7 @@ func TestLocalReleaseAndVersionWiringIsPresent(t *testing.T) {
 	assertFileContains(t, filepath.Join(repositoryRoot, "appview", "Dockerfile"),
 		"internal/buildinfo.version",
 		"grep -Eq '^(0|[1-9][0-9]*)",
+		"adduser -S -s /bin/sh -G app app",
 	)
 }
 
