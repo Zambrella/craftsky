@@ -175,7 +175,7 @@ func TestCommandBlockMatchesOnlyValidAuthoritativeTargetRecords(t *testing.T) {
 	}
 
 	valid := pdscommands.AuthoritativeRecord{
-		URI: "at://did:plc:alice/app.bsky.graph.block/external", CID: "bafy-valid",
+		URI: "at://did:plc:alice/app.bsky.graph.block/3aaaaaaaaaaa2", CID: "bafy-valid",
 		Record: json.RawMessage(`{"$type":"app.bsky.graph.block","subject":"did:plc:bob","createdAt":"2026-09-24T12:00:00Z"}`),
 	}
 	if !commands.request.Matches(valid) {

@@ -15,7 +15,32 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/pdscommands"
+	"social.craftsky/appview/internal/sourcevalidation"
+	"social.craftsky/appview/internal/tap"
 )
+
+func TestFollowCommandMatchesEveryIngestionValidExternalRecord(t *testing.T) {
+	commands := &followSetCommands{}
+	handler := api.CommandFollowProfileHandler(
+		&fakeFollowProfileStore{row: commandFollowProfile(false, 2)},
+		fakeResolver{didFor: "did:plc:bob", handleFor: "bob.example"}, commands, nilLogger(),
+	)
+	handler.ServeHTTP(httptest.NewRecorder(), commandFollowRequest(http.MethodPost, uuid.NewString()))
+	if commands.calls != 1 {
+		t.Fatalf("command calls=%d", commands.calls)
+	}
+	record := pdscommands.AuthoritativeRecord{
+		URI: "at://did:plc:alice/app.bsky.graph.follow/3aaaaaaaaaaa2", CID: "bafy-external",
+		Record: json.RawMessage(`{"subject":"did:plc:bob","createdAt":"2026-09-24T12:00:00Z"}`),
+	}
+	valid := sourcevalidation.Validate(tap.Event{Collection: "app.bsky.graph.follow", Rkey: "3aaaaaaaaaaa2", Action: "create", Record: record.Record})
+	if valid.StructuralStatus != sourcevalidation.Valid || valid.SemanticStatus != sourcevalidation.Valid {
+		t.Fatalf("source validation=%+v", valid)
+	}
+	if !commands.request.Matches(record) {
+		t.Fatal("command would create a duplicate instead of recognizing the valid external follow")
+	}
+}
 
 type followSetCommands struct {
 	calls   int
@@ -246,7 +271,7 @@ func TestCommandFollowMatchesOnlyValidAuthoritativeTargetRecords(t *testing.T) {
 	}
 
 	valid := pdscommands.AuthoritativeRecord{
-		URI: "at://did:plc:alice/app.bsky.graph.follow/external", CID: "bafy-valid",
+		URI: "at://did:plc:alice/app.bsky.graph.follow/3aaaaaaaaaaa2", CID: "bafy-valid",
 		Record: json.RawMessage(`{"$type":"app.bsky.graph.follow","subject":"did:plc:bob","createdAt":"2026-09-24T12:00:00Z"}`),
 	}
 	if !commands.request.Matches(valid) {

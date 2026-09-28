@@ -1,3 +1,5 @@
+import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/api/api_unwrap.dart';
 import 'package:dio/dio.dart';
 import 'package:uuid/uuid.dart';
 
@@ -26,6 +28,25 @@ final class PdsMutationUnresolvedException implements Exception {
 
   @override
   String toString() => 'PdsMutationUnresolvedException(<retryable>)';
+}
+
+/// A missing or unparseable response cannot establish whether the keyed write
+/// reached AppView. Keep the operation frozen and retry the original endpoint.
+Future<T> unwrapPdsMutationApi<T>(Future<T> Function() request) async {
+  try {
+    return await unwrapApi(request);
+  } on ApiNetworkError {
+    throw const PdsMutationAmbiguousException(retryAfterSeconds: 1);
+  } on ApiServerError catch (error) {
+    if (error.details.appViewError == 'video_blob_missing') rethrow;
+    throw const PdsMutationAmbiguousException(retryAfterSeconds: 1);
+  } on FormatException {
+    throw const PdsMutationAmbiguousException(retryAfterSeconds: 1);
+  } on TypeError {
+    // A malformed success payload does not undo a write already accepted by
+    // AppView. Let the same-key retry obtain the saved response.
+    throw const PdsMutationAmbiguousException(retryAfterSeconds: 1);
+  }
 }
 
 T parsePdsMutationResponse<T>(

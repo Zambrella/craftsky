@@ -121,7 +121,7 @@ class PostApiClient {
     CreatePostExternal? external,
     CreatePostVideo? video,
     List<Map<String, dynamic>>? facets,
-  }) => unwrapApi(() async {
+  }) => unwrapPdsMutationApi(() async {
     assertProjectCreateIsTopLevel(project: project, reply: reply);
     assert(
       quote == null || reply == null,
@@ -191,7 +191,7 @@ class PostApiClient {
     RecordKey rkey, {
     required String operationKey,
     required String expectedCid,
-  }) => unwrapApi(() async {
+  }) => unwrapPdsMutationApi(() async {
     final res = await _dio.delete<Object?>(
       '/v1/posts/$did/$rkey',
       options: Options(
@@ -290,7 +290,7 @@ class PostApiClient {
     Did did,
     RecordKey rkey, {
     required String operationKey,
-  }) => unwrapApi(() async {
+  }) => unwrapPdsMutationApi(() async {
     final res = await _dio.post<Object?>(
       '/v1/posts/$did/$rkey/likes',
       options: Options(
@@ -312,7 +312,7 @@ class PostApiClient {
     Did did,
     RecordKey rkey, {
     required String operationKey,
-  }) => unwrapApi(() async {
+  }) => unwrapPdsMutationApi(() async {
     final res = await _dio.delete<Object?>(
       '/v1/posts/$did/$rkey/likes',
       options: Options(
@@ -333,7 +333,7 @@ class PostApiClient {
     Did did,
     RecordKey rkey, {
     required String operationKey,
-  }) => unwrapApi(() async {
+  }) => unwrapPdsMutationApi(() async {
     final res = await _dio.post<Object?>(
       '/v1/posts/$did/$rkey/reposts',
       options: Options(
@@ -355,7 +355,7 @@ class PostApiClient {
     Did did,
     RecordKey rkey, {
     required String operationKey,
-  }) => unwrapApi(() async {
+  }) => unwrapPdsMutationApi(() async {
     final res = await _dio.delete<Object?>(
       '/v1/posts/$did/$rkey/reposts',
       options: Options(

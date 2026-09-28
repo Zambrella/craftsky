@@ -251,7 +251,14 @@ func (service *AddressedCommandService) deleteFenced(
 	requestFingerprint [32]byte,
 	request AddressedDeleteCommandRequest,
 ) (CommandResult, error) {
-	for attemptNumber := 1; attemptNumber <= 3; attemptNumber++ {
+	command, firstAttempt, err := service.store.ResumeKnownInvalidSwap(ctx, command)
+	if err != nil {
+		return CommandResult{}, err
+	}
+	if firstAttempt > 3 {
+		return service.reject(ctx, command.ID, request, ErrRepositoryConflict)
+	}
+	for attemptNumber := firstAttempt; attemptNumber <= 3; attemptNumber++ {
 		record, err := transport.GetRecord(ctx, request.Owner, request.URI)
 		if errors.Is(err, auth.ErrRecordNotFound) {
 			return service.accept(ctx, command.ID, request.AcceptedAbsent())
@@ -260,15 +267,13 @@ func (service *AddressedCommandService) deleteFenced(
 			return CommandResult{}, errors.Join(ErrDispatchUnavailable, err)
 		}
 		if record.CID != request.ExpectedCID {
+			if command.State != CommandPrepared {
+				return service.store.UnresolvedResult(ctx, command)
+			}
 			return service.reject(ctx, command.ID, request, ErrRecordConflict)
 		}
 		if command.State != CommandPrepared {
-			if command.State == CommandDispatching {
-				if err := service.store.MarkOpenDispatchAmbiguous(ctx, command.ID, 1, "recovery_required"); err != nil {
-					return CommandResult{}, err
-				}
-			}
-			return service.store.Result(ctx, command.ID)
+			return service.store.UnresolvedResult(ctx, command)
 		}
 		head, err := transport.LatestCommit(ctx, request.Owner)
 		if err != nil {
@@ -338,10 +343,20 @@ func (service *AddressedCommandService) putFenced(
 	requestFingerprint [32]byte,
 	request AddressedPutCommandRequest,
 ) (CommandResult, error) {
-	for attemptNumber := 1; attemptNumber <= 3; attemptNumber++ {
+	command, firstAttempt, err := service.store.ResumeKnownInvalidSwap(ctx, command)
+	if err != nil {
+		return CommandResult{}, err
+	}
+	if firstAttempt > 3 {
+		return service.rejectPut(ctx, command.ID, request, ErrRepositoryConflict)
+	}
+	for attemptNumber := firstAttempt; attemptNumber <= 3; attemptNumber++ {
 		record, err := transport.GetRecord(ctx, request.Owner, request.URI)
 		absent := errors.Is(err, auth.ErrRecordNotFound)
 		if absent && request.ExpectedCID != "*" {
+			if command.State != CommandPrepared {
+				return service.store.UnresolvedResult(ctx, command)
+			}
 			return service.rejectPut(ctx, command.ID, request, ErrRecordConflict)
 		}
 		if err != nil && !absent {
@@ -363,16 +378,14 @@ func (service *AddressedCommandService) putFenced(
 				return service.acceptRecord(ctx, command.ID, request, record)
 			}
 			if request.ExpectedCID == "*" || record.CID != request.ExpectedCID {
+				if command.State != CommandPrepared {
+					return service.store.UnresolvedResult(ctx, command)
+				}
 				return service.rejectPut(ctx, command.ID, request, ErrRecordConflict)
 			}
 		}
 		if command.State != CommandPrepared {
-			if command.State == CommandDispatching {
-				if err := service.store.MarkOpenDispatchAmbiguous(ctx, command.ID, 1, "recovery_required"); err != nil {
-					return CommandResult{}, err
-				}
-			}
-			return service.store.Result(ctx, command.ID)
+			return service.store.UnresolvedResult(ctx, command)
 		}
 		head, err := transport.LatestCommit(ctx, request.Owner)
 		if err != nil {

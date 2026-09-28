@@ -18,6 +18,7 @@ import (
 	lexiconschema "social.craftsky/appview/internal/lexicon/schema"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/postutil"
+	"social.craftsky/appview/internal/sourcevalidation"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -82,8 +83,19 @@ func (dispatcher *TransactionalDispatcher) Project(ctx context.Context, tx pgx.T
 		Action: source.Action, Record: source.Record, Live: source.Live,
 		ID: source.SourceEventID, Rev: source.Revision,
 	}
-	if err := validateProjectionRecord(event); err != nil {
-		return tap.PermanentInvalid(tap.ReasonMalformedRecord), nil
+	invalid := validateProjectionRecord(event) != nil
+	if invalid {
+		key := sourcevalidation.Validate(tap.Event{Collection: source.Collection, Rkey: source.Rkey, Action: "delete"})
+		if source.Collection == craftskyProfileNSID || key.StructuralStatus != sourcevalidation.Valid {
+			// Invalid profile content cannot trigger a membership departure.
+			return tap.PermanentInvalid(tap.ReasonMalformedRecord), nil
+		}
+		// Invalidate the prior serving state at this URI without changing the
+		// retained (invalid) Tap source or deleting anything from the PDS.
+		source.Action = "delete"
+		source.Record = nil
+		event.Action = "delete"
+		event.Record = nil
 	}
 	roles, err := projectionOwnerRoles(event)
 	if err != nil {
@@ -112,7 +124,11 @@ func (dispatcher *TransactionalDispatcher) Project(ctx context.Context, tx pgx.T
 			// terminal-target edge from being created.
 			source.Action = "delete"
 			source.Record = nil
-			return indexer.Project(ctx, tx, source)
+			projected, err := indexer.Project(ctx, tx, source)
+			if invalid && err == nil && projected.Kind == tap.OutcomeApplied {
+				return tap.PermanentInvalid(tap.ReasonMalformedRecord), nil
+			}
+			return projected, err
 		}
 		terminalMentions := make(map[syntax.DID]struct{})
 		for owner, role := range roles {
@@ -125,7 +141,11 @@ func (dispatcher *TransactionalDispatcher) Project(ctx context.Context, tx pgx.T
 			ctx = context.WithValue(ctx, terminalProjectionMentionsContextKey{}, terminalMentions)
 		}
 	}
-	return indexer.Project(ctx, tx, source)
+	projected, err := indexer.Project(ctx, tx, source)
+	if invalid && err == nil && projected.Kind == tap.OutcomeApplied {
+		return tap.PermanentInvalid(tap.ReasonMalformedRecord), nil
+	}
+	return projected, err
 }
 
 func projectionLifecycleReady(

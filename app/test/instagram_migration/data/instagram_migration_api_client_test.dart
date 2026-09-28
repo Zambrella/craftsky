@@ -392,7 +392,7 @@ void main() {
     });
 
     test(
-      'suggestion acceptance rejects malformed accepted responses',
+      'suggestion acceptance keeps malformed success responses unresolved',
       () async {
         const suggestionId = '80000000-0000-4000-8000-000000000001';
         const operationKey = '018f47a5-1837-7ad1-8f6d-8e8d2a89c950';
@@ -418,13 +418,7 @@ void main() {
             InstagramMigrationApiClient(
               dio,
             ).acceptSuggestion(suggestionId, operationKey: operationKey),
-            throwsA(
-              isA<ApiServerError>().having(
-                (error) => error.message,
-                'message',
-                'invalid_instagram_response',
-              ),
-            ),
+            throwsA(isA<PdsMutationAmbiguousException>()),
           );
         }
       },

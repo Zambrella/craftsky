@@ -212,8 +212,8 @@ func executeRepostCommand(
 
 func decodeAuthoritativeRepost(record pdscommands.AuthoritativeRecord) (craftskylex.FeedRepost, time.Time, bool) {
 	var repost craftskylex.FeedRepost
-	if record.URI == "" || record.CID == "" || json.Unmarshal(record.Record, &repost) != nil ||
-		repost.LexiconTypeID != craftskyRepostNSID || repost.Subject == nil || repost.Subject.Uri == "" || repost.Subject.Cid == "" {
+	if !validAuthoritativeSetRecord(record, syntax.NSID(craftskyRepostNSID)) || json.Unmarshal(record.Record, &repost) != nil ||
+		repost.Subject == nil || repost.Subject.Uri == "" || repost.Subject.Cid == "" {
 		return craftskylex.FeedRepost{}, time.Time{}, false
 	}
 	createdAt, err := time.Parse(time.RFC3339Nano, repost.CreatedAt)

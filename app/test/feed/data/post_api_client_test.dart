@@ -146,6 +146,58 @@ void main() {
   });
 
   group('PostApiClient.createPost', () {
+    test('keeps an undecodable accepted create response unresolved', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onPost(
+        '/v1/posts',
+        (server) => server.reply(201, null),
+        data: {'text': 'hi', 'langs': createLangs, 'sponsored': false},
+      );
+      await expectLater(
+        PostApiClient(dio).createPost(
+          operationKey: createOperationKey,
+          text: 'hi',
+          langs: createLangs,
+          sponsored: false,
+        ),
+        throwsA(isA<PdsMutationAmbiguousException>()),
+      );
+    });
+
+    test(
+      'keeps a dropped create response unresolved for same-key retry',
+      () async {
+        final dio = buildDio();
+        final sentKeys = <Object?>[];
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              sentKeys.add(options.headers['Idempotency-Key']);
+              handler.reject(
+                DioException(
+                  requestOptions: options,
+                  type: DioExceptionType.receiveTimeout,
+                ),
+              );
+            },
+          ),
+        );
+        final client = PostApiClient(dio);
+        for (var attempt = 0; attempt < 2; attempt++) {
+          await expectLater(
+            client.createPost(
+              operationKey: createOperationKey,
+              text: 'hi',
+              langs: createLangs,
+              sponsored: false,
+            ),
+            throwsA(isA<PdsMutationAmbiguousException>()),
+          );
+        }
+        expect(sentKeys, [createOperationKey, createOperationKey]);
+      },
+    );
+
     test('sends operation key and surfaces exact ambiguity response', () async {
       final dio = buildDio();
       RequestOptions? captured;

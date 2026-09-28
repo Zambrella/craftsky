@@ -217,8 +217,7 @@ func executeBlockCommand(
 
 func decodeAuthoritativeBlock(record pdscommands.AuthoritativeRecord) (bsky.GraphBlock, time.Time, bool) {
 	var block bsky.GraphBlock
-	if record.URI == "" || record.CID == "" || json.Unmarshal(record.Record, &block) != nil ||
-		block.LexiconTypeID != blueskyBlockCollection.String() {
+	if !validAuthoritativeSetRecord(record, blueskyBlockCollection) || json.Unmarshal(record.Record, &block) != nil {
 		return bsky.GraphBlock{}, time.Time{}, false
 	}
 	if _, err := syntax.ParseDID(block.Subject); err != nil {

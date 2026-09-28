@@ -71,7 +71,7 @@ class ProfileApiClient {
     bool clearAvatar = false,
     UploadedBlob? banner,
     bool clearBanner = false,
-  }) => unwrapApi(() async {
+  }) => unwrapPdsMutationApi(() async {
     _requireCanonicalOperationKey(operationKey);
     final body = <String, dynamic>{
       'displayName': ?displayName,
@@ -122,7 +122,7 @@ class ProfileApiClient {
   Future<Profile> followProfile(
     String handleOrDid, {
     required String operationKey,
-  }) => unwrapApi(() async {
+  }) => unwrapPdsMutationApi(() async {
     _requireCanonicalOperationKey(operationKey);
     final res = await _dio.post<Object?>(
       '/v1/profiles/@$handleOrDid/follows',
@@ -144,7 +144,7 @@ class ProfileApiClient {
   Future<Profile> unfollowProfile(
     String handleOrDid, {
     required String operationKey,
-  }) => unwrapApi(() async {
+  }) => unwrapPdsMutationApi(() async {
     _requireCanonicalOperationKey(operationKey);
     final res = await _dio.delete<Object?>(
       '/v1/profiles/@$handleOrDid/follows',
@@ -171,7 +171,7 @@ class ProfileApiClient {
   Future<ProfileRelationship> blockProfile(
     String handleOrDid, {
     required String operationKey,
-  }) => unwrapApi(() async {
+  }) => unwrapPdsMutationApi(() async {
     _requireCanonicalOperationKey(operationKey);
     final res = await _dio.post<Object?>(
       '/v1/profiles/@$handleOrDid/blocks',
@@ -192,7 +192,7 @@ class ProfileApiClient {
   Future<void> unblockProfile(
     String handleOrDid, {
     required String operationKey,
-  }) => unwrapApi(() async {
+  }) => unwrapPdsMutationApi(() async {
     _requireCanonicalOperationKey(operationKey);
     final res = await _dio.delete<Object?>(
       '/v1/profiles/@$handleOrDid/blocks',

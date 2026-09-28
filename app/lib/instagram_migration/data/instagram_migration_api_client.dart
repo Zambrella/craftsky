@@ -175,7 +175,7 @@ final class InstagramMigrationApiClient {
   Future<InstagramSuggestionActionResult> acceptSuggestion(
     String suggestionId, {
     required String operationKey,
-  }) => unwrapApi(() async {
+  }) => unwrapPdsMutationApi(() async {
     _requireCanonicalOperationKey(operationKey);
     final response = await _dio.post<Object?>(
       '/v1/migrations/instagram/suggestions/'

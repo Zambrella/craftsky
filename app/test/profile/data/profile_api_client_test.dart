@@ -602,7 +602,7 @@ void main() {
     );
   });
 
-  test('unblock rejects a non-empty success response', () {
+  test('unblock retains its key after a malformed success response', () {
     final dio = buildDio();
     DioAdapter(dio: dio).onDelete(
       '/v1/profiles/@bob.craftsky.social/blocks',
@@ -614,7 +614,7 @@ void main() {
         'bob.craftsky.social',
         operationKey: '018f47a5-1837-7ad1-8f6d-8e8d2a89c950',
       ),
-      throwsA(isA<FormatException>()),
+      throwsA(isA<PdsMutationAmbiguousException>()),
     );
   });
 

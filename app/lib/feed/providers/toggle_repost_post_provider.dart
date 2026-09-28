@@ -44,78 +44,55 @@ class ToggleRepostPost extends _$ToggleRepostPost {
       newOperationKey: newPdsMutationOperationKey,
     );
     final operationKey = token.operationKey;
-    final startedAt = ref.read(pdsMutationNowProvider)();
-    var retryIndex = 0;
 
     state = AsyncData(next);
-    while (true) {
-      try {
-        final repo = ref.read(postRepositoryProvider);
-        if (desiredReposted) {
-          await repo.repost(
-            post.author.did,
-            post.rkey,
-            operationKey: operationKey,
-          );
-        } else {
-          await repo.unrepost(
-            post.author.did,
-            post.rkey,
-            operationKey: operationKey,
-          );
-        }
-      } on PdsMutationAmbiguousException catch (error) {
-        if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-        controller.markAmbiguous(
-          token,
-          retryAfterSeconds: error.retryAfterSeconds,
-        );
-        final delay = const PdsMutationRetryPolicy().nextDelay(
-          retryIndex: retryIndex,
-          retryAfterSeconds: error.retryAfterSeconds,
-          elapsed: ref.read(pdsMutationNowProvider)().difference(startedAt),
-          jitterMillis: ref.read(pdsMutationJitterProvider),
-        );
-        if (delay == null) {
-          state = AsyncError<Post?>(
-            const PdsMutationUnresolvedException(),
-            StackTrace.current,
-          );
-          return;
-        }
-        retryIndex++;
-        await ref.read(pdsMutationDelayProvider)(delay);
-        if (!isActiveAccountOperationCurrent(ref, ownership) ||
-            !controller.canRetry(
-              token,
+    try {
+      await runPdsMutation<void>(
+        ref: ref,
+        controller: controller,
+        token: token,
+        isCurrent: () => isActiveAccountOperationCurrent(ref, ownership),
+        send: () async {
+          final repo = ref.read(postRepositoryProvider);
+          if (desiredReposted) {
+            await repo.repost(
+              post.author.did,
+              post.rkey,
               operationKey: operationKey,
-              endpoint: endpoint,
-              immutableBody: immutableBody,
-            )) {
-          return;
-        }
-        continue;
-      } on Object catch (error, stackTrace) {
-        if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-        controller.markFailed(token);
-        state = const AsyncData(null);
-        state = AsyncError<Post?>(error, stackTrace);
-        return;
-      }
-
+            );
+          } else {
+            await repo.unrepost(
+              post.author.did,
+              post.rkey,
+              operationKey: operationKey,
+            );
+          }
+        },
+      );
+    } on PdsMutationObsoleteException {
+      return;
+    } on PdsMutationUnresolvedException catch (error, stackTrace) {
+      state = AsyncError<Post?>(error, stackTrace);
+      return;
+    } on Object catch (error, stackTrace) {
       if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-      final reconciliation = PdsSetReconciliation(active: desiredReposted);
-      if (!controller.markAccepted(
-        token,
-        optimisticValue: desiredReposted,
-        agrees: (value) => value is bool && reconciliation.agrees(value),
-        refresh: () => _invalidateRepostReads(ref, post),
-      )) {
-        return;
-      }
-      state = AsyncData<Post?>(next);
+      controller.markFailed(token);
+      state = const AsyncData(null);
+      state = AsyncError<Post?>(error, stackTrace);
       return;
     }
+
+    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+    final reconciliation = PdsSetReconciliation(active: desiredReposted);
+    if (!controller.markAccepted(
+      token,
+      optimisticValue: desiredReposted,
+      agrees: (value) => value is bool && reconciliation.agrees(value),
+      refresh: () => _invalidateRepostReads(ref, post),
+    )) {
+      return;
+    }
+    state = AsyncData<Post?>(next);
   }
 
   void reset() => state = const AsyncData(null);

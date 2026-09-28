@@ -37,68 +37,45 @@ class ToggleFollowProfile extends _$ToggleFollowProfile {
       newOperationKey: newPdsMutationOperationKey,
     );
     final operationKey = token.operationKey;
-    final startedAt = ref.read(pdsMutationNowProvider)();
-    var retryIndex = 0;
 
     state = const AsyncLoading<Profile?>();
-    while (true) {
-      late final Profile updated;
-      try {
-        final repo = ref.read(profileRepositoryProvider);
-        updated = desiredFollowing
-            ? await repo.follow(cacheKey, operationKey: operationKey)
-            : await repo.unfollow(cacheKey, operationKey: operationKey);
-      } on PdsMutationAmbiguousException catch (error) {
-        if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-        controller.markAmbiguous(
-          token,
-          retryAfterSeconds: error.retryAfterSeconds,
-        );
-        final delay = const PdsMutationRetryPolicy().nextDelay(
-          retryIndex: retryIndex,
-          retryAfterSeconds: error.retryAfterSeconds,
-          elapsed: ref.read(pdsMutationNowProvider)().difference(startedAt),
-          jitterMillis: ref.read(pdsMutationJitterProvider),
-        );
-        if (delay == null) {
-          state = AsyncError<Profile?>(
-            const PdsMutationUnresolvedException(),
-            StackTrace.current,
-          );
-          return;
-        }
-        retryIndex++;
-        await ref.read(pdsMutationDelayProvider)(delay);
-        if (!isActiveAccountOperationCurrent(ref, ownership) ||
-            !controller.canRetry(
-              token,
-              operationKey: operationKey,
-              endpoint: endpoint,
-              immutableBody: immutableBody,
-            )) {
-          return;
-        }
-        continue;
-      } on Object catch (error, stackTrace) {
-        if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-        controller.markFailed(token);
-        state = AsyncError<Profile?>(error, stackTrace);
-        return;
-      }
-
+    late final Profile updated;
+    try {
+      updated = await runPdsMutation<Profile>(
+        ref: ref,
+        controller: controller,
+        token: token,
+        isCurrent: () => isActiveAccountOperationCurrent(ref, ownership),
+        send: () async {
+          final repo = ref.read(profileRepositoryProvider);
+          return desiredFollowing
+              ? await repo.follow(cacheKey, operationKey: operationKey)
+              : await repo.unfollow(cacheKey, operationKey: operationKey);
+        },
+      );
+    } on PdsMutationObsoleteException {
+      return;
+    } on PdsMutationUnresolvedException catch (error, stackTrace) {
+      state = AsyncError<Profile?>(error, stackTrace);
+      return;
+    } on Object catch (error, stackTrace) {
       if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-      final reconciliation = PdsSetReconciliation(active: desiredFollowing);
-      if (!controller.markAccepted(
-        token,
-        optimisticValue: desiredFollowing,
-        agrees: (value) => value is bool && reconciliation.agrees(value),
-        refresh: () => invalidateFollowProfileReads(ref, cacheKey),
-      )) {
-        return;
-      }
-      state = AsyncData<Profile?>(updated);
+      controller.markFailed(token);
+      state = AsyncError<Profile?>(error, stackTrace);
       return;
     }
+
+    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+    final reconciliation = PdsSetReconciliation(active: desiredFollowing);
+    if (!controller.markAccepted(
+      token,
+      optimisticValue: desiredFollowing,
+      agrees: (value) => value is bool && reconciliation.agrees(value),
+      refresh: () => invalidateFollowProfileReads(ref, cacheKey),
+    )) {
+      return;
+    }
+    state = AsyncData<Profile?>(updated);
   }
 
   void reset() => state = const AsyncData(null);

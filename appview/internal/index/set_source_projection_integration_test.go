@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"social.craftsky/appview/internal/ingestion"
+	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/tap"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -53,6 +54,103 @@ func TestProjectSetSourceReplacesValidFactWithLatestValidationState(t *testing.T
 	event.Record = json.RawMessage(`{"subject":"did:plc:target","createdAt":"2026-09-23T14:02:00Z"}`)
 	ingestAndProjectSetSource(t, store, pool, event, now.Add(2*time.Minute))
 	assertSetFactCounts(t, pool, uri, 1, 1)
+}
+
+func TestInvalidLatestFollowRemovesPreviousFactThroughProductionDispatcher(t *testing.T) {
+	pool := testdb.WithMigratedSchema(t)
+	ctx := context.Background()
+	now := time.Date(2026, 9, 23, 15, 0, 0, 0, time.UTC)
+	store, err := ingestion.NewStore(pool, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor := syntax.DID("did:plc:invalid-follow-actor")
+	if _, err := pool.Exec(ctx, `INSERT INTO owner_lifecycles(owner_did,state,generation,auth_epoch,transition_reason,transitioned_at,created_at,updated_at) VALUES($1,'active',1,1,'test',$2,$2,$2)`, actor, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'bafy-profile')`, actor); err != nil {
+		t.Fatal(err)
+	}
+	uri := syntax.ATURI("at://" + actor.String() + "/app.bsky.graph.follow/3aaaaaaaaaaa2")
+	event := tap.Event{ID: 1, URI: uri, DID: actor, Collection: blueskyFollowNSID, Rkey: "3aaaaaaaaaaa2", Rev: "3aaaaaaaaaaa2", CID: "bafy-valid", Action: "create", Record: json.RawMessage(`{"$type":"app.bsky.graph.follow","subject":"did:plc:target","createdAt":"2026-09-23T14:00:00Z"}`)}
+	dispatcher := NewTransactionalDispatcher()
+	dispatcher.Register(blueskyFollowNSID, NewBlueskyFollow(pool, notifications.NewService()))
+	project := func() {
+		t.Helper()
+		if _, err := store.IngestRecord(ctx, event); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(ctx, `UPDATE tap_source_records SET projection_generation=1 WHERE uri=$1`, uri); err != nil {
+			t.Fatal(err)
+		}
+		source, err := store.Source(ctx, uri)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+			_, err := dispatcher.Project(ctx, tx, source)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	project()
+	assertSetFactCounts(t, pool, uri, 1, 1)
+	event.ID, event.Rev, event.CID, event.Action = 2, "3aaaaaaaaaaa3", "bafy-invalid", "update"
+	event.Record = json.RawMessage(`{"$type":"app.bsky.graph.follow","subject":"not-a-did","createdAt":"2026-09-23T14:00:00Z"}`)
+	project()
+	assertSetFactCounts(t, pool, uri, 0, 0)
+}
+
+func TestInvalidLatestBlueskyProfileRemovesPreviousServingRow(t *testing.T) {
+	pool := testdb.WithMigratedSchema(t)
+	ctx := context.Background()
+	now := time.Date(2026, 9, 23, 16, 0, 0, 0, time.UTC)
+	store, err := ingestion.NewStore(pool, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	actor := syntax.DID("did:plc:invalid-bluesky-profile")
+	if _, err := pool.Exec(ctx, `INSERT INTO owner_lifecycles(owner_did,state,generation,auth_epoch,transition_reason,transitioned_at,created_at,updated_at) VALUES($1,'active',1,1,'test',$2,$2,$2)`, actor, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'bafy-profile')`, actor); err != nil {
+		t.Fatal(err)
+	}
+	uri := syntax.ATURI("at://" + actor.String() + "/app.bsky.actor.profile/self")
+	event := tap.Event{ID: 1, URI: uri, DID: actor, Collection: blueskyProfileNSID, Rkey: "self", Rev: "3aaaaaaaaaaa2", CID: "bafy-valid", Action: "create", Record: json.RawMessage(`{"$type":"app.bsky.actor.profile","displayName":"valid"}`)}
+	dispatcher := NewTransactionalDispatcher()
+	dispatcher.Register(blueskyProfileNSID, NewBlueskyProfile(pool))
+	project := func() {
+		t.Helper()
+		if _, err := store.IngestRecord(ctx, event); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(ctx, `UPDATE tap_source_records SET projection_generation=1 WHERE uri=$1`, uri); err != nil {
+			t.Fatal(err)
+		}
+		source, err := store.Source(ctx, uri)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := pgx.BeginFunc(ctx, pool, func(tx pgx.Tx) error {
+			_, err := dispatcher.Project(ctx, tx, source)
+			return err
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	project()
+	var count int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM bluesky_profiles WHERE did=$1`, actor).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("before invalid: %d, %v", count, err)
+	}
+	event.ID, event.Rev, event.CID, event.Action = 2, "3aaaaaaaaaaa3", "bafy-invalid", "update"
+	event.Record = json.RawMessage(`{"$type":"app.bsky.actor.profile","displayName":42}`)
+	project()
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM bluesky_profiles WHERE did=$1`, actor).Scan(&count); err != nil || count != 0 {
+		t.Fatalf("after invalid: %d, %v", count, err)
+	}
 }
 
 func TestProjectSetSourceWakesBlockedDependencyWithoutTapReplay(t *testing.T) {

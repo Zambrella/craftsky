@@ -227,8 +227,7 @@ func executeFollowCommand(
 
 func decodeAuthoritativeFollow(record pdscommands.AuthoritativeRecord) (bsky.GraphFollow, time.Time, bool) {
 	var follow bsky.GraphFollow
-	if record.URI == "" || record.CID == "" || json.Unmarshal(record.Record, &follow) != nil ||
-		follow.LexiconTypeID != blueskyFollowCollection.String() {
+	if !validAuthoritativeSetRecord(record, blueskyFollowCollection) || json.Unmarshal(record.Record, &follow) != nil {
 		return bsky.GraphFollow{}, time.Time{}, false
 	}
 	if _, err := syntax.ParseDID(follow.Subject); err != nil {

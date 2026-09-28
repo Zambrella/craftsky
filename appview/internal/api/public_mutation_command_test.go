@@ -327,7 +327,7 @@ func TestFollowEndpointNoOpsExistingExternalMatchAndReplaysExactProfile(t *testi
 	target := syntax.DID("did:plc:bob")
 	seedCommandOwners(t, pool, now, owner, target)
 	pds := &endpointCommandPDS{owner: owner, head: "bafy-head-one", records: map[syntax.ATURI]endpointCommandRecord{
-		"at://did:plc:alice/app.bsky.graph.follow/external": {
+		"at://did:plc:alice/app.bsky.graph.follow/3aaaaaaaaaaa2": {
 			cid: "bafy-external-follow",
 			value: map[string]any{
 				"$type": "app.bsky.graph.follow", "subject": target.String(), "createdAt": now.Format(time.RFC3339),
@@ -381,9 +381,9 @@ func TestUnfollowEndpointAtomicallyRemovesAllValidMatchesAndReturnsProfile(t *te
 		}
 	}
 	pds := &endpointCommandPDS{owner: owner, head: "bafy-head-one", records: map[syntax.ATURI]endpointCommandRecord{
-		"at://did:plc:alice/app.bsky.graph.follow/one":   {cid: "bafy-follow-one", value: matchingRecord(now)},
-		"at://did:plc:alice/app.bsky.graph.follow/two":   {cid: "bafy-follow-two", value: matchingRecord(now.Add(time.Second))},
-		"at://did:plc:alice/app.bsky.graph.follow/other": {cid: "bafy-follow-other", value: map[string]any{"$type": "app.bsky.graph.follow", "subject": "did:plc:carol", "createdAt": now.Format(time.RFC3339)}},
+		"at://did:plc:alice/app.bsky.graph.follow/3aaaaaaaaaaa2": {cid: "bafy-follow-one", value: matchingRecord(now)},
+		"at://did:plc:alice/app.bsky.graph.follow/3aaaaaaaaaaa3": {cid: "bafy-follow-two", value: matchingRecord(now.Add(time.Second))},
+		"at://did:plc:alice/app.bsky.graph.follow/3aaaaaaaaaaa4": {cid: "bafy-follow-other", value: map[string]any{"$type": "app.bsky.graph.follow", "subject": "did:plc:carol", "createdAt": now.Format(time.RFC3339)}},
 	}}
 	commands := newEndpointSetCommands(t, pool, now, pds)
 	followerCount := 2
@@ -403,11 +403,11 @@ func TestUnfollowEndpointAtomicallyRemovesAllValidMatchesAndReturnsProfile(t *te
 		t.Fatalf("status=%d body=%q applyCalls=%d writes=%+v", response.Code, response.Body.String(), pds.applyCalls, pds.lastWrites)
 	}
 	for _, write := range pds.lastWrites {
-		if write.Action != "delete" || write.Collection != "app.bsky.graph.follow" || (write.RKey != "one" && write.RKey != "two") {
+		if write.Action != "delete" || write.Collection != "app.bsky.graph.follow" || (write.RKey != "3aaaaaaaaaaa2" && write.RKey != "3aaaaaaaaaaa3") {
 			t.Fatalf("unexpected atomic write: %+v", write)
 		}
 	}
-	if _, ok := pds.records["at://did:plc:alice/app.bsky.graph.follow/other"]; !ok || len(pds.records) != 1 {
+	if _, ok := pds.records["at://did:plc:alice/app.bsky.graph.follow/3aaaaaaaaaaa4"]; !ok || len(pds.records) != 1 {
 		t.Fatalf("remaining authoritative records = %+v", pds.records)
 	}
 	var profile api.ProfileResponse

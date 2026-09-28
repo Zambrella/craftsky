@@ -108,7 +108,7 @@ func TestAppendCommandServiceFreezesIdentityAndReconcilesLostResponse(t *testing
 	}
 }
 
-func TestAppendCommandServiceRejectsRecordReplacedAfterDispatch(t *testing.T) {
+func TestAppendCommandServiceKeepsRecordReplacedAfterDispatchAmbiguous(t *testing.T) {
 	ctx := context.Background()
 	pool := testdb.WithMigratedSchema(t)
 	now := time.Date(2026, 9, 24, 13, 0, 0, 0, time.UTC)
@@ -165,8 +165,8 @@ func TestAppendCommandServiceRejectsRecordReplacedAfterDispatch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.State != CommandRejected || result.HTTPStatus != 409 || pds.applyCalls != 1 {
-		t.Fatalf("result=%+v applyCalls=%d, want definite conflict after one write", result, pds.applyCalls)
+	if result.State != CommandAmbiguous || pds.applyCalls != 1 {
+		t.Fatalf("result=%+v applyCalls=%d, want unresolved outcome after one write", result, pds.applyCalls)
 	}
 }
 

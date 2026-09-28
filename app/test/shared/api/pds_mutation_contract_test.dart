@@ -1,8 +1,19 @@
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('preserves a definitive missing-video-blob response', () async {
+    const failure = ApiServerError(
+      'http_502',
+      details: ApiFailureDetails(appViewError: 'video_blob_missing'),
+    );
+    await expectLater(
+      unwrapPdsMutationApi<void>(() async => throw failure),
+      throwsA(same(failure)),
+    );
+  });
   test('generates canonical UUID operation keys', () {
     final key = newPdsMutationOperationKey();
     expect(isCanonicalPdsMutationOperationKey(key), isTrue);

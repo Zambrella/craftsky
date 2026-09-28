@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -338,6 +339,55 @@ final pdsMutationNowProvider = Provider<DateTime Function()>(
 final pdsMutationJitterProvider = Provider<int Function(int)>(
   (ref) => math.Random().nextInt,
 );
+
+/// A late result belongs to a discarded account session or a newer operation.
+final class PdsMutationObsoleteException implements Exception {
+  const PdsMutationObsoleteException();
+}
+
+/// Shared retry budget for keyed PDS writes. Feature adapters dispatch their
+/// frozen request and present the final outcome.
+Future<T> runPdsMutation<T>({
+  required Ref ref,
+  required PdsRecordOperationController controller,
+  required PdsMutationToken token,
+  required bool Function() isCurrent,
+  required Future<T> Function() send,
+}) async {
+  final startedAt = ref.read(pdsMutationNowProvider)();
+  var retryIndex = 0;
+  while (true) {
+    try {
+      return await send();
+    } on PdsMutationAmbiguousException catch (error) {
+      if (!isCurrent() ||
+          !controller.markAmbiguous(
+            token,
+            retryAfterSeconds: error.retryAfterSeconds,
+          )) {
+        throw const PdsMutationObsoleteException();
+      }
+      final delay = const PdsMutationRetryPolicy().nextDelay(
+        retryIndex: retryIndex,
+        retryAfterSeconds: error.retryAfterSeconds,
+        elapsed: ref.read(pdsMutationNowProvider)().difference(startedAt),
+        jitterMillis: ref.read(pdsMutationJitterProvider),
+      );
+      if (delay == null) throw const PdsMutationUnresolvedException();
+      retryIndex++;
+      await ref.read(pdsMutationDelayProvider)(delay);
+      if (!isCurrent() ||
+          !controller.canRetry(
+            token,
+            operationKey: token.operationKey,
+            endpoint: token.endpoint,
+            immutableBody: token.immutableBody,
+          )) {
+        throw const PdsMutationObsoleteException();
+      }
+    }
+  }
+}
 
 @immutable
 final class PdsMutationRetryPolicy {

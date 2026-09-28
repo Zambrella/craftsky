@@ -612,6 +612,43 @@ func (store *Store) MarkOpenDispatchAmbiguous(
 	})
 }
 
+// UnresolvedResult preserves the exact attempted plan after response loss.
+// Current PDS state alone cannot prove a later external change did not occur.
+func (store *Store) UnresolvedResult(ctx context.Context, command PreparedCommand) (CommandResult, error) {
+	if command.State == CommandDispatching {
+		if err := store.MarkOpenDispatchAmbiguous(ctx, command.ID, 1, "recovery_required"); err != nil {
+			return CommandResult{}, err
+		}
+	}
+	return store.Result(ctx, command.ID)
+}
+
+// ResumeKnownInvalidSwap permits a fresh head-bound plan only when the last
+// dispatch was definitively rejected by the repository-head guard. Uncertain
+// remote outcomes must continue through read-only reconciliation.
+func (store *Store) ResumeKnownInvalidSwap(ctx context.Context, command PreparedCommand) (PreparedCommand, int, error) {
+	if command.State == CommandPrepared {
+		return command, 1, nil
+	}
+	var ordinal int
+	var outcome string
+	err := store.pool.QueryRow(ctx, `
+		SELECT attempt_ordinal,outcome FROM pds_command_dispatches
+		WHERE command_id=$1 ORDER BY attempt_ordinal DESC LIMIT 1
+	`, command.ID).Scan(&ordinal, &outcome)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return command, 1, nil
+	}
+	if err != nil {
+		return command, 0, fmt.Errorf("read last PDS dispatch for swap recovery: %w", err)
+	}
+	if outcome == string(DispatchInvalidSwap) {
+		command.State = CommandPrepared // only the local planning decision; durable state is unchanged
+		return command, ordinal + 1, nil
+	}
+	return command, 1, nil
+}
+
 func (store *Store) CompleteCommand(ctx context.Context, commandID uuid.UUID, result TerminalResult) error {
 	if err := validateTerminalResult(result); err != nil {
 		return err

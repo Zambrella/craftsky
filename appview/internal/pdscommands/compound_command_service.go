@@ -170,7 +170,14 @@ func (service *CompoundCommandService) putFenced(
 	requestFingerprint [32]byte,
 	request CompoundPutCommandRequest,
 ) (CommandResult, error) {
-	for attemptNumber := 1; attemptNumber <= 3; attemptNumber++ {
+	command, firstAttempt, err := service.store.ResumeKnownInvalidSwap(ctx, command)
+	if err != nil {
+		return CommandResult{}, err
+	}
+	if firstAttempt > 3 {
+		return service.reject(ctx, command.ID, request, ErrRepositoryConflict)
+	}
+	for attemptNumber := firstAttempt; attemptNumber <= 3; attemptNumber++ {
 		head, current, err := readStableCompoundRecords(ctx, transport, request.Owner, request.Records)
 		if err != nil {
 			if errors.Is(err, ErrRepositoryConflict) {
@@ -204,12 +211,7 @@ func (service *CompoundCommandService) putFenced(
 			return service.acceptRecords(ctx, command.ID, request, current)
 		}
 		if command.State != CommandPrepared {
-			if command.State == CommandDispatching {
-				if err := service.store.MarkOpenDispatchAmbiguous(ctx, command.ID, 1, "recovery_required"); err != nil {
-					return CommandResult{}, err
-				}
-			}
-			return service.store.Result(ctx, command.ID)
+			return service.store.UnresolvedResult(ctx, command)
 		}
 		steps := make([]DispatchStep, len(request.Records))
 		for index, record := range request.Records {

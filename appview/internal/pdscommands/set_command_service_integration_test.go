@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/ingestion"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -159,6 +160,171 @@ func TestSetCommandServiceReconcilesLostCreateAndRemovesEveryMatchingRecord(t *t
 	}
 	if result.State != CommandRejected || pds.applyCalls != applyCalls {
 		t.Fatalf("missing target result=%+v applyCalls=%d, want rejected before dispatch at %d", result, pds.applyCalls, applyCalls)
+	}
+}
+
+func TestAmbiguousSetCreateDoesNotRecreateAfterExternalDelete(t *testing.T) {
+	ctx := context.Background()
+	pool := testdb.WithMigratedSchema(t)
+	now := time.Date(2026, 9, 24, 21, 0, 0, 0, time.UTC)
+	owner := syntax.DID("did:plc:lost-set-create")
+	if _, err := pool.Exec(ctx, `INSERT INTO owner_lifecycles(owner_did,state,generation,auth_epoch,transition_reason,transitioned_at,created_at,updated_at) VALUES($1,'active',1,1,'test',$2,$2,$2)`, owner, now); err != nil {
+		t.Fatal(err)
+	}
+	store, err := NewStore(StoreConfig{Pool: pool, Now: func() time.Time { return now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fencer, err := ownerlifecycle.NewFencer(pool, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lifecycles, err := ownerlifecycle.NewStore(pool, fencer, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	pds := newSetCommandPDS(owner)
+	service, err := NewSetCommandService(SetCommandServiceConfig{Store: store, Lifecycles: lifecycles, NewBoundary: func(context.Context, syntax.DID, string) (auth.ActiveEffectPDSBoundary, error) {
+		return &setCommandBoundary{client: pds}, nil
+	}, Now: func() time.Time { return now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	const subject = "did:plc:target"
+	request := SetCommandRequest{
+		Owner: owner, OwnerGeneration: 1, SessionID: "session", OperationKind: "profile.follow", OperationKey: uuid.New(), Collection: "app.bsky.graph.follow", DesiredActive: true, SelectedRkey: "3aaaaaaaaaaa1", Intent: json.RawMessage(`{"target":"did:plc:target"}`),
+		Matches: func(record AuthoritativeRecord) bool {
+			var value struct {
+				Subject string `json:"subject"`
+			}
+			return json.Unmarshal(record.Record, &value) == nil && value.Subject == subject
+		},
+		CreateRecord: func(time.Time) (json.RawMessage, error) { return json.RawMessage(`{"subject":"did:plc:target"}`), nil },
+		AcceptedPresent: func(AuthoritativeRecord, bool) (TerminalResult, error) {
+			return TerminalResult{State: CommandAccepted, HTTPStatus: 200}, nil
+		},
+		AcceptedAbsent: func() TerminalResult { return TerminalResult{State: CommandAccepted, HTTPStatus: 204} },
+		Rejected:       setCommandRejectedResult,
+	}
+	pds.loseNextResponse = true
+	pds.afterApply = func() {
+		for uri := range pds.records {
+			delete(pds.records, uri)
+		}
+		pds.head = "bafy-head-external-delete"
+		pds.afterApply = nil
+	}
+	first, err := service.Execute(ctx, request)
+	if err != nil || first.State != CommandAmbiguous {
+		t.Fatalf("first=%+v err=%v", first, err)
+	}
+	second, err := service.Execute(ctx, request)
+	if err != nil || second.State != CommandAmbiguous {
+		t.Fatalf("retry=%+v err=%v", second, err)
+	}
+	if pds.applyCalls != 1 || len(pds.records) != 0 {
+		t.Fatalf("remote calls=%d records=%d; retry recreated externally deleted follow", pds.applyCalls, len(pds.records))
+	}
+}
+
+type failingSnapshotFallback struct{ calls int }
+
+func (fallback *failingSnapshotFallback) FetchCollection(context.Context, syntax.DID, syntax.NSID) (ingestion.VerifiedRepositorySnapshot, error) {
+	fallback.calls++
+	return ingestion.VerifiedRepositorySnapshot{}, errors.New("snapshot unavailable")
+}
+
+type changingSetHeadPDS struct {
+	*setCommandPDS
+	calls int
+}
+
+func (pds *changingSetHeadPDS) LatestCommit(context.Context, syntax.DID) (syntax.CID, error) {
+	pds.calls++
+	if pds.calls == 1 {
+		return "bafy-before", nil
+	}
+	return "bafy-after", nil
+}
+
+func TestSetCommandUsesConfiguredSnapshotFallbackWhenHeadChanges(t *testing.T) {
+	owner := syntax.DID("did:plc:snapshot-fallback-owner")
+	fallback := &failingSnapshotFallback{}
+	service := &SetCommandService{snapshotFallback: fallback}
+	transport, err := NewPDSTransport(&changingSetHeadPDS{setCommandPDS: newSetCommandPDS(owner)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, _, err = service.readCollection(context.Background(), transport, SetCommandRequest{Owner: owner, Collection: "app.bsky.graph.follow"})
+	if err == nil || fallback.calls != 1 {
+		t.Fatalf("snapshot fallback calls=%d err=%v", fallback.calls, err)
+	}
+}
+
+func TestSetCommandResumesKnownInvalidSwapAfterInterruptedRetry(t *testing.T) {
+	ctx := context.Background()
+	pool := testdb.WithMigratedSchema(t)
+	now := time.Date(2026, 9, 24, 22, 0, 0, 0, time.UTC)
+	owner := syntax.DID("did:plc:invalid-swap-recovery")
+	if _, err := pool.Exec(ctx, `INSERT INTO owner_lifecycles(owner_did,state,generation,auth_epoch,transition_reason,transitioned_at,created_at,updated_at) VALUES($1,'active',1,1,'test',$2,$2,$2)`, owner, now); err != nil {
+		t.Fatal(err)
+	}
+	store, err := NewStore(StoreConfig{Pool: pool, Now: func() time.Time { return now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	fencer, err := ownerlifecycle.NewFencer(pool, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lifecycles, err := ownerlifecycle.NewStore(pool, fencer, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	pds := newSetCommandPDS(owner)
+	pds.applyErr = auth.ErrRepositorySwapConflict
+	crashOnRetry := true
+	service, err := NewSetCommandService(SetCommandServiceConfig{
+		Store: store, Lifecycles: lifecycles,
+		NewBoundary: func(context.Context, syntax.DID, string) (auth.ActiveEffectPDSBoundary, error) {
+			return &setCommandBoundary{client: pds}, nil
+		},
+		Sleep: func(time.Duration) {
+			if crashOnRetry {
+				panic("restart")
+			}
+		}, Now: func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := SetCommandRequest{
+		Owner: owner, OwnerGeneration: 1, SessionID: "session", OperationKind: "profile.follow", OperationKey: uuid.New(), Collection: "app.bsky.graph.follow", DesiredActive: true, SelectedRkey: "3aaaaaaaaaaa2", Intent: json.RawMessage(`{"subject":"did:plc:target"}`),
+		Matches: func(record AuthoritativeRecord) bool {
+			var value struct {
+				Subject string `json:"subject"`
+			}
+			return json.Unmarshal(record.Record, &value) == nil && value.Subject == "did:plc:target"
+		},
+		CreateRecord: func(time.Time) (json.RawMessage, error) { return json.RawMessage(`{"subject":"did:plc:target"}`), nil },
+		AcceptedPresent: func(AuthoritativeRecord, bool) (TerminalResult, error) {
+			return TerminalResult{State: CommandAccepted, HTTPStatus: 200}, nil
+		},
+		AcceptedAbsent: func() TerminalResult { return TerminalResult{State: CommandAccepted, HTTPStatus: 204} }, Rejected: setCommandRejectedResult,
+	}
+	func() {
+		defer func() {
+			if recover() == nil {
+				t.Error("expected interruption after recorded InvalidSwap")
+			}
+		}()
+		_, _ = service.Execute(ctx, request)
+	}()
+	crashOnRetry = false
+	pds.applyErr = nil
+	result, err := service.Execute(ctx, request)
+	if err != nil || result.State != CommandAccepted || pds.applyCalls != 2 {
+		t.Fatalf("known swap retry=%+v err=%v calls=%d", result, err, pds.applyCalls)
 	}
 }
 

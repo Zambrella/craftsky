@@ -25,7 +25,7 @@ class BusinessApiClient {
     Map<String, dynamic> body, {
     required String operationKey,
     required Cid? expectedCid,
-  }) => unwrapApi(() async {
+  }) => unwrapPdsMutationApi(() async {
     _requireCanonicalOperationKey(operationKey);
     final response = await _dio.put<Object?>(
       '/v1/profiles/me/business',
@@ -50,7 +50,7 @@ class BusinessApiClient {
   Future<void> deleteBusinessProfile({
     required String operationKey,
     required Cid expectedCid,
-  }) => unwrapApi(() async {
+  }) => unwrapPdsMutationApi(() async {
     _requireCanonicalOperationKey(operationKey);
     final response = await _dio.delete<Object?>(
       '/v1/profiles/me/business',
@@ -112,7 +112,7 @@ class BusinessApiClient {
   Future<RecordMutationResult> createEvent(
     Map<String, dynamic> body, {
     required String operationKey,
-  }) => unwrapApi(() async {
+  }) => unwrapPdsMutationApi(() async {
     _requireCanonicalOperationKey(operationKey);
     final response = await _dio.post<Object?>(
       '/v1/events',
@@ -137,7 +137,7 @@ class BusinessApiClient {
     Cid expectedCid,
     Map<String, dynamic> body, {
     required String operationKey,
-  }) => unwrapApi(() async {
+  }) => unwrapPdsMutationApi(() async {
     _requireCanonicalOperationKey(operationKey);
     final response = await _dio.put<Object?>(
       '/v1/events/$owner/$rkey',
@@ -164,7 +164,7 @@ class BusinessApiClient {
     RecordKey rkey,
     Cid expectedCid, {
     required String operationKey,
-  }) => unwrapApi(() async {
+  }) => unwrapPdsMutationApi(() async {
     _requireCanonicalOperationKey(operationKey);
     final response = await _dio.delete<Object?>(
       '/v1/events/$owner/$rkey',

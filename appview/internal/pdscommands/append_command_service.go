@@ -235,12 +235,24 @@ func (service *AppendCommandService) executeFenced(
 	record json.RawMessage,
 	request AppendCommandRequest,
 ) (CommandResult, error) {
-	for attemptNumber := 1; attemptNumber <= 3; attemptNumber++ {
+	var firstAttempt int
+	var err error
+	command, firstAttempt, err = service.store.ResumeKnownInvalidSwap(ctx, command)
+	if err != nil {
+		return CommandResult{}, err
+	}
+	if firstAttempt > 3 {
+		return service.reject(ctx, command.ID, request, ErrRepositoryConflict)
+	}
+	for attemptNumber := firstAttempt; attemptNumber <= 3; attemptNumber++ {
 		authoritative, err := transport.GetRecord(ctx, request.Owner, command.SelectedURI)
 		switch {
 		case err == nil:
 			equal, compareErr := equalCanonicalJSON(authoritative.Record, record)
 			if compareErr != nil || !equal {
+				if command.State != CommandPrepared {
+					return service.store.UnresolvedResult(ctx, command)
+				}
 				return service.reject(ctx, command.ID, request, ErrIdempotencyConflict)
 			}
 			return service.acceptRecord(ctx, command.ID, request, authoritative)
@@ -248,12 +260,7 @@ func (service *AppendCommandService) executeFenced(
 			return CommandResult{}, errors.Join(ErrDispatchUnavailable, err)
 		}
 		if command.State != CommandPrepared {
-			if command.State == CommandDispatching {
-				if err := service.store.MarkOpenDispatchAmbiguous(ctx, command.ID, 1, "recovery_required"); err != nil {
-					return CommandResult{}, err
-				}
-			}
-			return service.store.Result(ctx, command.ID)
+			return service.store.UnresolvedResult(ctx, command)
 		}
 		head, err := transport.LatestCommit(ctx, request.Owner)
 		if err != nil {
@@ -320,7 +327,10 @@ func (service *AppendCommandService) executeFenced(
 		}
 		equal, compareErr := equalCanonicalJSON(authoritative.Record, record)
 		if compareErr != nil || !equal {
-			return service.rejectDispatch(ctx, attempt.ID, command.ID, request, "record_conflict", ErrIdempotencyConflict)
+			if completeErr := service.store.CompleteDispatch(ctx, attempt.ID, DispatchCompletion{Outcome: CommandAmbiguous, RetryAfterSeconds: 1, ErrorClass: "result_mismatch"}); completeErr != nil {
+				return CommandResult{}, completeErr
+			}
+			return service.store.Result(ctx, command.ID)
 		}
 		terminal, err := request.Accepted(authoritative)
 		if err != nil {

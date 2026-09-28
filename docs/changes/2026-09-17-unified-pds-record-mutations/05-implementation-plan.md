@@ -462,17 +462,45 @@ The implementation review in `06-implementation-review.md` returned `Changes req
 
 Each correction begins with one focused failing test, uses the minimum implementation needed to pass, then runs the affected package/provider suite. Full release evidence is rerun only after all seven findings are green.
 
+### Follow-up Audit Correction Order (2026-09-28)
+The subsequent review in `06-implementation-review.md` found IR-008 through IR-012. The user authorized their correction, followed by simplification. This is a new red-green sequence after the earlier phases:
+
+| Step | Finding / improvement | Test ID | Requirements | Acceptance | First failing behavior |
+|---|---|---|---|---|
+| 1 | IR-008 | IT-016 | BR-002, FR-030, FR-032 | AC-003, AC-021, AC-036 | A dropped response is marked failed and reuses a new key. |
+| 2 | IR-009 | IT-001 | FR-004, FR-008 | AC-009, AC-012 | Invalid current source leaves a previous serving fact. |
+| 3 | IR-010 | IT-007 | FR-017, FR-019, FR-024 | AC-021, AC-029 | Uncertain set create can be redispatched after external deletion. |
+| 4 | IR-011 | IT-007 | FR-016, FR-017, FR-019 | AC-021, AC-024 | Uncertain append/addressed command becomes rejected on external overwrite. |
+| 5 | IR-012 | IT-008 | FR-003, FR-005, FR-041 | AC-001, AC-049 | Ingestion-valid external set record is skipped by command matcher. |
+| 6 | CAR fallback wiring | IT-008 | FR-047 | AC-055 | Production set reads cannot use verified snapshot fallback. |
+| 7 | Legacy removal/shared orchestration | UT-019, IT-017 | FR-049, FR-030 | AC-057, AC-036 | Legacy physical paths and duplicated retry loops remain. |
+
+Follow each step with its focused test and neighboring suite. Keep command history out of projection, do not edit Lexicon shapes, and avoid production database or infrastructure mutations.
+
+- IT-016 / IR-008: Dropped-response `PostApiClient.createPost` test failed with `ApiServerError`; added a keyed-mutation-only API wrapper that classifies unknown transport/5xx/response-format outcomes as ambiguous, and applied it to post, profile, business, and Instagram keyed clients. Kept the definite `video_blob_missing` recovery exception; its red/green regression passes. Focused shared API, post API, and create provider suites pass (75 tests).
+- IT-001 / IR-009: Production dispatcher regression failed with one old follow fact and aggregate after an invalid current version. Invalid non-membership sources now project a synthetic serving deletion before quarantine without touching raw PDS evidence; focused PostgreSQL test passes. Membership-profile behavior remains subject to separate lifecycle policy and further full-path verification.
+- IT-007 / IR-010: Real-PostgreSQL set-command test showed an ambiguous create being redispatched after an external delete, falsely becoming accepted. Uncertain create attempts now retain ambiguity when the selected URI is absent, overwritten, or replaced by another logical match; exact selected content can still reconcile. Focused old/new command tests pass.
+- IT-007 / IR-011: Lost addressed delete plus external recreation initially recorded `rejected`; retry now remains ambiguous. Post-dispatch append-result overwrite also changed from permanent rejection to ambiguity, while pre-dispatch CID/content conflict remains a rejection. Focused regressions pass.
+- IT-008 / IR-012: A red route test proved a source-valid `$type`-omitting external follow was ignored by set matching. Command matchers for follow, block, like, and repost now reuse source validation, including rkey policy and optional `$type`, and the updated realistic TID fixtures pass route tests.
+- IT-008 / FR-047: A red set-service test proved changing repository heads never invoked configured verified snapshots. Production command wiring now injects the existing signed-CAR fetcher via the authoritative directory and bounded HTTP client; service and existing generated-CAR fallback tests pass.
+- IT-007 / FR-023: Crash after a definite `InvalidSwap` stranded set creation in ambiguity. A red PostgreSQL interruption test now passes: the shared journal inspects the last dispatch, permits a new head-bound plan only after definite `InvalidSwap`, and retains the original three-attempt budget. Append, addressed, and compound plans use the same recovery check. Uncertain transport outcomes still never redispatch.
+- IT-016 / FR-030, FR-043: Added the shared Flutter `runPdsMutation` retry runner and migrated like, repost, follow, and block providers. It owns the bounded timing/key/epoch decision; each provider only dispatches and presents the result. The provider and shared retry suites pass; remaining feature-specific flows retain their more specialized state handling.
+- UT-019 / FR-049: Production's four duplicated coordinated PDS boundary closures were reduced to one purpose-bound factory, and duplicated post-dispatch ambiguity handling to `Store.UnresolvedResult`. Retained legacy physical set tables and their low-level indexer/test/purge paths: earlier migrations and rollback/down migration plus numerous fixture/purge contracts still refer to them. Dropping them here would add a large, potentially destructive migration and test rewrite without simplifying the live read path, which already uses only aggregates. This is a deliberate skipped optional cleanup, not a claimed schema removal.
+- Additional branch regression: `just test` exposed `TAP_NO_REPLAY: true` reintroduced in Compose, conflicting with the pre-existing durable-cursor acceptance test. Removed it; focused Tap test and the full `just test` gate pass.
+- Gate evidence: final `just app-test` passed all 2,427 Flutter tests including the additional malformed-success regression; `CGO_ENABLED=0 TEST_DATABASE_REQUIRED=true TEST_DATABASE_URL=<local-dev-postgres> just test` passed all packages without DB skips; `CGO_ENABLED=0 just appview-check` passed race, build, migration, health, vulnerability, and Tap checks; `just app-analyze` passed with no issues; `git diff --check` passed.
+- A final table-driven fixture confirms that all four set collections accept ingestion-valid external records without `$type` and reject invalid record keys; its focused `internal/api` suite passed after the full backend gate.
+
 ## Completion Checklist
-- [ ] All Must requirements covered by passing tests or documented gaps
-- [ ] All planned Must tests passing
+- [x] All Must requirements covered by passing tests or documented gaps
+- [x] All planned Must tests passing
 - [x] Real-PostgreSQL tests ran without skips
-- [ ] Relevant regression tests passing
-- [ ] `just test` passing after review corrections
-- [ ] `just appview-check` passing after review corrections
-- [ ] `just app-test` passing after review corrections
-- [ ] `just app-analyze` recorded separately after review corrections
+- [x] Relevant regression tests passing
+- [x] `just test` passing after review corrections
+- [x] `just appview-check` passing after review corrections
+- [x] `just app-test` passing after review corrections
+- [x] `just app-analyze` recorded separately after review corrections
 - [x] No unlinked behavior implemented
 - [x] No Lexicon files or generated Lexicon types changed
-- [ ] No superseded mechanism remains reachable by a migrated caller
-- [ ] Docs and this execution log updated with correction evidence
-- [ ] Implementation review completed or explicitly skipped
+- [x] No superseded mechanism remains reachable by a migrated caller
+- [x] Docs and this execution log updated with correction evidence
+- [x] Implementation review completed with optional legacy-schema cleanup recorded as deferred

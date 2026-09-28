@@ -1,7 +1,57 @@
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'shared runner retries ambiguous responses with one frozen token',
+    () async {
+      final controller = PdsRecordOperationController();
+      final token = controller.begin(
+        scope: PdsMutationScope(
+          lease: AccountSessionLease(
+            account: AccountKey('did:plc:alice'),
+            sessionGeneration: 1,
+          ),
+          identity: 'like:post',
+        ),
+        operationKey: newPdsMutationOperationKey(),
+        endpoint: '/v1/likes',
+        immutableBody: 'POST',
+      );
+      var sends = 0;
+      final provider = Provider<Future<int>>(
+        (ref) => runPdsMutation<int>(
+          ref: ref,
+          controller: controller,
+          token: token,
+          isCurrent: () => true,
+          send: () async {
+            sends++;
+            if (sends == 1) {
+              throw const PdsMutationAmbiguousException(retryAfterSeconds: 1);
+            }
+            return 42;
+          },
+        ),
+      );
+      final container = ProviderContainer.test(
+        overrides: [
+          pdsMutationDelayProvider.overrideWithValue((_) async {}),
+          pdsMutationJitterProvider.overrideWithValue((_) => 0),
+        ],
+      );
+      expect(await container.read(provider), 42);
+      expect(sends, 2);
+      expect(
+        controller.operationFor(token.scope)?.token.operationKey,
+        token.operationKey,
+      );
+    },
+  );
   test('retry delay uses clamped server value, local backoff, and jitter', () {
     const policy = PdsMutationRetryPolicy();
     final expected = <Duration>[

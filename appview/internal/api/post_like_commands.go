@@ -211,8 +211,8 @@ func executeLikeCommand(
 
 func decodeAuthoritativeLike(record pdscommands.AuthoritativeRecord) (craftskylex.FeedLike, time.Time, bool) {
 	var like craftskylex.FeedLike
-	if record.URI == "" || record.CID == "" || json.Unmarshal(record.Record, &like) != nil ||
-		like.LexiconTypeID != craftskyLikeNSID || like.Subject == nil || like.Subject.Uri == "" || like.Subject.Cid == "" {
+	if !validAuthoritativeSetRecord(record, syntax.NSID(craftskyLikeNSID)) || json.Unmarshal(record.Record, &like) != nil ||
+		like.Subject == nil || like.Subject.Uri == "" || like.Subject.Cid == "" {
 		return craftskylex.FeedLike{}, time.Time{}, false
 	}
 	createdAt, err := time.Parse(time.RFC3339Nano, like.CreatedAt)

@@ -38,73 +38,50 @@ class ToggleBlockProfile extends _$ToggleBlockProfile {
       newOperationKey: newPdsMutationOperationKey,
     );
     final operationKey = token.operationKey;
-    final startedAt = ref.read(pdsMutationNowProvider)();
-    var retryIndex = 0;
 
     state = const AsyncLoading<bool?>();
-    while (true) {
-      try {
-        final repository = ref.read(profileRepositoryProvider);
-        if (desiredBlocking) {
-          await repository.block(targetDid, operationKey: operationKey);
-        } else {
-          await repository.unblock(targetDid, operationKey: operationKey);
-        }
-      } on PdsMutationAmbiguousException catch (error) {
-        if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-        controller.markAmbiguous(
-          token,
-          retryAfterSeconds: error.retryAfterSeconds,
-        );
-        final delay = const PdsMutationRetryPolicy().nextDelay(
-          retryIndex: retryIndex,
-          retryAfterSeconds: error.retryAfterSeconds,
-          elapsed: ref.read(pdsMutationNowProvider)().difference(startedAt),
-          jitterMillis: ref.read(pdsMutationJitterProvider),
-        );
-        if (delay == null) {
-          state = AsyncError<bool?>(
-            const PdsMutationUnresolvedException(),
-            StackTrace.current,
-          );
-          return;
-        }
-        retryIndex++;
-        await ref.read(pdsMutationDelayProvider)(delay);
-        if (!isActiveAccountOperationCurrent(ref, ownership) ||
-            !controller.canRetry(
-              token,
-              operationKey: operationKey,
-              endpoint: endpoint,
-              immutableBody: immutableBody,
-            )) {
-          return;
-        }
-        continue;
-      } on Object catch (error, stackTrace) {
-        if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-        controller.markFailed(token);
-        state = AsyncError<bool?>(error, stackTrace);
-        return;
-      }
-
+    try {
+      await runPdsMutation<void>(
+        ref: ref,
+        controller: controller,
+        token: token,
+        isCurrent: () => isActiveAccountOperationCurrent(ref, ownership),
+        send: () async {
+          final repository = ref.read(profileRepositoryProvider);
+          if (desiredBlocking) {
+            await repository.block(targetDid, operationKey: operationKey);
+          } else {
+            await repository.unblock(targetDid, operationKey: operationKey);
+          }
+        },
+      );
+    } on PdsMutationObsoleteException {
+      return;
+    } on PdsMutationUnresolvedException catch (error, stackTrace) {
+      state = AsyncError<bool?>(error, stackTrace);
+      return;
+    } on Object catch (error, stackTrace) {
       if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-      final reconciliation = PdsSetReconciliation(active: desiredBlocking);
-      if (!controller.markAccepted(
-        token,
-        optimisticValue: desiredBlocking,
-        agrees: (value) => value is bool && reconciliation.agrees(value),
-        refresh: () => _invalidateBlockReads(
-          ref,
-          targetDid,
-          ownership?.session.account,
-        ),
-      )) {
-        return;
-      }
-      state = AsyncData<bool?>(desiredBlocking);
+      controller.markFailed(token);
+      state = AsyncError<bool?>(error, stackTrace);
       return;
     }
+
+    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+    final reconciliation = PdsSetReconciliation(active: desiredBlocking);
+    if (!controller.markAccepted(
+      token,
+      optimisticValue: desiredBlocking,
+      agrees: (value) => value is bool && reconciliation.agrees(value),
+      refresh: () => _invalidateBlockReads(
+        ref,
+        targetDid,
+        ownership?.session.account,
+      ),
+    )) {
+      return;
+    }
+    state = AsyncData<bool?>(desiredBlocking);
   }
 
   void reset() => state = const AsyncData(null);

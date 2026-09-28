@@ -18,21 +18,23 @@ import (
 type ActivePDSBoundaryFactory func(context.Context, syntax.DID, string) (auth.ActiveEffectPDSBoundary, error)
 
 type SetCommandServiceConfig struct {
-	Store       *Store
-	Lifecycles  *ownerlifecycle.Store
-	NewBoundary ActivePDSBoundaryFactory
-	Now         func() time.Time
-	Sleep       func(time.Duration)
-	Jitter      func(int) int
+	Store            *Store
+	Lifecycles       *ownerlifecycle.Store
+	NewBoundary      ActivePDSBoundaryFactory
+	SnapshotFallback AuthoritativeSnapshotFallback
+	Now              func() time.Time
+	Sleep            func(time.Duration)
+	Jitter           func(int) int
 }
 
 type SetCommandService struct {
-	store       *Store
-	lifecycles  *ownerlifecycle.Store
-	newBoundary ActivePDSBoundaryFactory
-	now         func() time.Time
-	sleep       func(time.Duration)
-	jitter      func(int) int
+	store            *Store
+	lifecycles       *ownerlifecycle.Store
+	newBoundary      ActivePDSBoundaryFactory
+	snapshotFallback AuthoritativeSnapshotFallback
+	now              func() time.Time
+	sleep            func(time.Duration)
+	jitter           func(int) int
 }
 
 type SetCommandRequest struct {
@@ -66,7 +68,7 @@ func NewSetCommandService(config SetCommandServiceConfig) (*SetCommandService, e
 	}
 	return &SetCommandService{
 		store: config.Store, lifecycles: config.Lifecycles, newBoundary: config.NewBoundary,
-		now: config.Now, sleep: config.Sleep, jitter: config.Jitter,
+		now: config.Now, sleep: config.Sleep, jitter: config.Jitter, snapshotFallback: config.SnapshotFallback,
 	}, nil
 }
 
@@ -171,6 +173,15 @@ func (service *SetCommandService) executeFenced(
 	requestFingerprint [32]byte,
 	request SetCommandRequest,
 ) (CommandResult, error) {
+	var firstAttempt int
+	var err error
+	command, firstAttempt, err = service.store.ResumeKnownInvalidSwap(ctx, command)
+	if err != nil {
+		return CommandResult{}, err
+	}
+	if firstAttempt > 3 {
+		return service.reject(ctx, command.ID, request, ErrRepositoryConflict)
+	}
 	createdRecord := json.RawMessage(nil)
 	if request.DesiredActive {
 		var err error
@@ -179,7 +190,7 @@ func (service *SetCommandService) executeFenced(
 			return service.reject(ctx, command.ID, request, errors.Join(ErrMalformedCommand, err))
 		}
 	}
-	for attemptNumber := 1; attemptNumber <= 3; attemptNumber++ {
+	for attemptNumber := firstAttempt; attemptNumber <= 3; attemptNumber++ {
 		head, records, err := service.readCollection(ctx, transport, request)
 		if err != nil {
 			return CommandResult{}, errors.Join(ErrDispatchUnavailable, err)
@@ -198,10 +209,7 @@ func (service *SetCommandService) executeFenced(
 				return service.accept(ctx, command.ID, request.AcceptedAbsent())
 			}
 			if command.State == CommandDispatching {
-				if err := service.store.MarkOpenDispatchAmbiguous(ctx, command.ID, 1, "recovery_required"); err != nil {
-					return CommandResult{}, err
-				}
-				return service.store.Result(ctx, command.ID)
+				return service.store.UnresolvedResult(ctx, command)
 			}
 			result, retry, err := service.dispatch(ctx, transport, command, requestFingerprint, request, head, steps, attemptNumber)
 			if !retry || err != nil {
@@ -225,7 +233,13 @@ func (service *SetCommandService) readCollection(
 	transport *PDSTransport,
 	request SetCommandRequest,
 ) (syntax.CID, []AuthoritativeRecord, error) {
-	reader, err := NewAuthoritativeReader(transport)
+	var reader *AuthoritativeReader
+	var err error
+	if service.snapshotFallback != nil {
+		reader, err = NewAuthoritativeReaderWithFallback(transport, defaultAuthoritativeReaderLimits, service.snapshotFallback)
+	} else {
+		reader, err = NewAuthoritativeReader(transport)
+	}
 	if err != nil {
 		return "", nil, err
 	}
@@ -245,6 +259,9 @@ func (service *SetCommandService) reconcilePresent(
 		}
 		equal, err := equalCanonicalJSON(record.Record, createdRecord)
 		if err != nil || !equal || !request.Matches(record) {
+			if command.State != CommandPrepared {
+				return service.unresolvedSetCreate(ctx, command)
+			}
 			result, rejectErr := service.reject(ctx, command.ID, request, ErrIdempotencyConflict)
 			return result, true, rejectErr
 		}
@@ -254,6 +271,11 @@ func (service *SetCommandService) reconcilePresent(
 		}
 		result, err := service.accept(ctx, command.ID, terminal)
 		return result, true, err
+	}
+	if command.State != CommandPrepared {
+		// Neither a missing selected URI nor another matching source proves
+		// whether the earlier write committed before an external change.
+		return service.unresolvedSetCreate(ctx, command)
 	}
 	for _, record := range records {
 		if request.Matches(record) {
@@ -265,14 +287,12 @@ func (service *SetCommandService) reconcilePresent(
 			return result, true, err
 		}
 	}
-	if command.State == CommandDispatching {
-		if err := service.store.MarkOpenDispatchAmbiguous(ctx, command.ID, 1, "recovery_required"); err != nil {
-			return CommandResult{}, true, err
-		}
-		result, err := service.store.Result(ctx, command.ID)
-		return result, true, err
-	}
 	return CommandResult{}, false, nil
+}
+
+func (service *SetCommandService) unresolvedSetCreate(ctx context.Context, command PreparedCommand) (CommandResult, bool, error) {
+	result, err := service.store.UnresolvedResult(ctx, command)
+	return result, true, err
 }
 
 func (service *SetCommandService) dispatch(

@@ -93,6 +93,26 @@ func TestAddressedDeleteReconcilesAbsenceAndRejectsStaleCID(t *testing.T) {
 	if !errors.Is(rejectedCause, ErrRecordConflict) {
 		t.Fatalf("rejected cause = %v, want record conflict", rejectedCause)
 	}
+
+	// A lost delete response followed by an external recreation must not
+	// turn the original (possibly accepted) dispatch into a rejection.
+	request.OperationKey = uuid.New()
+	request.ExpectedCID = "bafy-new-version"
+	pds.loseNextResponse = true
+	pds.afterApply = func() {
+		pds.records[uri] = setCommandRecord{cid: "bafy-external-recreate", value: map[string]any{"text": "new owner action"}}
+		pds.head = "bafy-external-head"
+		pds.afterApply = nil
+	}
+	uncertain, err := service.Delete(ctx, request)
+	if err != nil || uncertain.State != CommandAmbiguous {
+		t.Fatalf("lost delete = %+v, %v", uncertain, err)
+	}
+	beforeRetry := pds.applyCalls
+	uncertain, err = service.Delete(ctx, request)
+	if err != nil || uncertain.State != CommandAmbiguous || pds.applyCalls != beforeRetry {
+		t.Fatalf("recreated delete = %+v, %v, calls=%d", uncertain, err, pds.applyCalls)
+	}
 }
 
 func TestAddressedPutReconcilesDesiredContentAndRejectsStaleCID(t *testing.T) {
