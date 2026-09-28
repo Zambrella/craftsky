@@ -2,9 +2,7 @@
 package index
 
 import (
-	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -12,19 +10,14 @@ import (
 
 	craftskylex "social.craftsky/appview/internal/lexicon/craftsky"
 	"social.craftsky/appview/internal/notifications"
-	"social.craftsky/appview/internal/tap"
 )
 
 type CraftskyRepost struct {
-	pool         *pgxpool.Pool
-	projectionDB transactionalDatabase
-	logger       *slog.Logger
-	lifecycle    notifications.Lifecycle
+	logger    *slog.Logger
+	lifecycle notifications.Lifecycle
 }
 
-var _ Indexer = (*CraftskyRepost)(nil)
-
-func NewCraftskyRepost(pool *pgxpool.Pool, logger *slog.Logger, lifecycles ...notifications.Lifecycle) *CraftskyRepost {
+func NewCraftskyRepost(_ *pgxpool.Pool, logger *slog.Logger, lifecycles ...notifications.Lifecycle) *CraftskyRepost {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -32,31 +25,10 @@ func NewCraftskyRepost(pool *pgxpool.Pool, logger *slog.Logger, lifecycles ...no
 	if len(lifecycles) > 0 && lifecycles[0] != nil {
 		lifecycle = lifecycles[0]
 	}
-	return &CraftskyRepost{pool: pool, logger: logger, lifecycle: lifecycle}
+	return &CraftskyRepost{logger: logger, lifecycle: lifecycle}
 }
 
 const craftskyRepostNSID syntax.NSID = "social.craftsky.feed.repost"
-
-func (c *CraftskyRepost) Handle(ctx context.Context, ev tap.Event) error {
-	if ev.Collection != craftskyRepostNSID {
-		return nil
-	}
-	switch ev.Action {
-	case "create", "update":
-		return handleCraftskyInteractionUpsert(ctx, c.database(), ev, "craftsky_reposts", notifications.Repost, c.lifecycle, decodeCraftskyRepost)
-	case "delete":
-		return handleCraftskyInteractionDelete(ctx, c.database(), ev, "craftsky_reposts", c.lifecycle)
-	default:
-		return fmt.Errorf("unknown action %q on %s", ev.Action, ev.URI)
-	}
-}
-
-func (c *CraftskyRepost) database() transactionalDatabase {
-	if c.projectionDB != nil {
-		return c.projectionDB
-	}
-	return c.pool
-}
 
 func decodeCraftskyRepost(raw json.RawMessage) (craftskyInteractionRecord, error) {
 	var rec craftskylex.FeedRepost

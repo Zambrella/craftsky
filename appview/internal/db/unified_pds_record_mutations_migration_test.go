@@ -94,6 +94,20 @@ func TestUnifiedPDSRecordMutationsMigrationCreatesOwnershipBaseline(t *testing.T
 	}
 }
 
+func TestUnifiedPDSRecordMutationsRetiresPhysicalSetTables(t *testing.T) {
+	pool := testdb.WithMigratedSchema(t)
+	for _, table := range []string{"craftsky_likes", "craftsky_reposts", "atproto_follows", "atproto_blocks"} {
+		if tableExists(t, pool, table) {
+			t.Errorf("legacy physical set table %s remains in the current schema", table)
+		}
+	}
+	for _, table := range []string{"tap_source_records", "pds_set_sources", "pds_set_aggregates"} {
+		if !tableExists(t, pool, table) {
+			t.Errorf("authoritative source/aggregate table %s is missing", table)
+		}
+	}
+}
+
 func TestUnifiedPDSRecordMutationsMigrationConstrainsAggregateRepresentativeMembership(t *testing.T) {
 	pool := testdb.WithMigratedSchema(t)
 	if !constraintExists(t, pool, "pds_set_aggregates_representative_fkey") {
@@ -301,6 +315,22 @@ func TestUnifiedPDSRecordMutationsMigrationSeparatesCommandPersistenceBoundaries
 func TestUnifiedPDSRecordMutationsMigrationUpDownUp(t *testing.T) {
 	pool := testdb.WithMigratedSchema(t)
 	ctx := context.Background()
+	legacyDown, err := testdb.ReadMigration("000075_retire_legacy_set_projections.down.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacyUp, err := testdb.ReadMigration("000075_retire_legacy_set_projections.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, string(legacyDown)); err != nil {
+		t.Fatalf("apply migration 75 down: %v", err)
+	}
+	for _, table := range []string{"craftsky_likes", "craftsky_reposts", "atproto_follows", "atproto_blocks"} {
+		if !tableExists(t, pool, table) {
+			t.Fatalf("migration 75 down did not recreate %s", table)
+		}
+	}
 	down, err := testdb.ReadMigration("000073_unified_pds_record_mutations.down.sql")
 	if err != nil {
 		t.Fatal(err)
@@ -332,6 +362,14 @@ func TestUnifiedPDSRecordMutationsMigrationUpDownUp(t *testing.T) {
 	aggregateView := viewDefinition(t, pool, "craftsky_profile_follower_counts")
 	if !strings.Contains(aggregateView, "pds_set_aggregates") || strings.Contains(aggregateView, "atproto_follows") {
 		t.Fatalf("reapplied migration 73 did not restore aggregate follower-count view: %s", aggregateView)
+	}
+	if _, err := pool.Exec(ctx, string(legacyUp)); err != nil {
+		t.Fatalf("reapply migration 75: %v", err)
+	}
+	for _, table := range []string{"craftsky_likes", "craftsky_reposts", "atproto_follows", "atproto_blocks"} {
+		if tableExists(t, pool, table) {
+			t.Errorf("reapplied migration 75 retained %s", table)
+		}
 	}
 }
 

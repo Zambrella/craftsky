@@ -33,14 +33,23 @@ func TestTerminalPurgeRemovesOnlyOwnersFollowerGrowthSnapshots(t *testing.T) {
 		t.Fatalf("seed follower growth purge rows: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO atproto_follows (
-			uri, did, rkey, cid, subject_did, record, created_at
+		INSERT INTO tap_source_records (
+			uri,did,collection,rkey,source_event_id,source_fingerprint,revision,
+			cid,action,record,record_bytes,live,ordering_status,projection_disposition
 		) VALUES (
 			'at://did:plc:follower-growth-other/app.bsky.graph.follow/owner',
-			$2, 'owner', 'follow-cid', $1, '{}', now()
+			$1,'app.bsky.graph.follow','owner',1,decode(repeat('00',32),'hex'),
+			'3aaaaaaaaaaa2','follow-cid','create','{}',2,false,'authoritative','eligible'
 		)
-	`, owner, other); err != nil {
+	`, other); err != nil {
 		t.Fatalf("seed public follow row: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO pds_set_sources(source_uri,kind,actor_did,scope_key,subject_did,activity_at,eligible)
+		VALUES('at://did:plc:follower-growth-other/app.bsky.graph.follow/owner',
+			'follow',$2,$1,$1,now(),true)
+	`, owner, other); err != nil {
+		t.Fatalf("seed public follow fact: %v", err)
 	}
 
 	claim := claimSpecificTerminalComponent(
@@ -61,7 +70,7 @@ func TestTerminalPurgeRemovesOnlyOwnersFollowerGrowthSnapshots(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM follower_growth_snapshots WHERE profile_did=$1`, other).Scan(&otherRows); err != nil {
 		t.Fatal(err)
 	}
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM atproto_follows WHERE did=$1 AND subject_did=$2`, other, owner).Scan(&followRows); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM pds_set_sources WHERE actor_did=$1 AND subject_did=$2`, other, owner).Scan(&followRows); err != nil {
 		t.Fatal(err)
 	}
 	if ownerRows != 0 || otherRows != 1 || followRows != 1 {

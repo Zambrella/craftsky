@@ -135,8 +135,6 @@ func terminalCascadeDrainSQL(entry TerminalDIDEntry) []string {
 	switch entry.Table {
 	case "craftsky_posts":
 		return []string{
-			deletePostDependentSQL("craftsky_likes", "subject_uri", "uri"),
-			deletePostDependentSQL("craftsky_reposts", "subject_uri", "uri"),
 			deletePostDependentSQL("craftsky_post_mentions", "post_uri", "post_uri,mentioned_did"),
 			deletePostDependentSQL("craftsky_project_posts", "uri", "uri"),
 			deletePostDependentSQL("saved_posts", "post_uri", "owner_did,post_uri"),

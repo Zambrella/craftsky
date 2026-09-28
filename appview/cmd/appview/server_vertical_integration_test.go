@@ -93,17 +93,6 @@ func TestNewServer_MigratedPostgresVerticalSlices(t *testing.T) {
 	}
 
 	followRecord := json.RawMessage(`{"$type":"app.bsky.graph.follow","subject":"did:plc:verticalauthor","createdAt":"2026-09-17T10:00:00Z"}`)
-	if err := index.NewBlueskyFollow(pool).Handle(ctx, tap.Event{
-		URI:        "at://did:plc:verticalviewer/app.bsky.graph.follow/vertical-follow",
-		CID:        "bafy-vertical-follow",
-		DID:        verticalViewer,
-		Collection: "app.bsky.graph.follow",
-		Rkey:       "vertical-follow",
-		Action:     "create",
-		Record:     followRecord,
-	}); err != nil {
-		t.Fatalf("index follow against migrated schema: %v", err)
-	}
 	followURI := "at://did:plc:verticalviewer/app.bsky.graph.follow/vertical-follow"
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO tap_source_records(
@@ -273,10 +262,10 @@ func assertFollowLookupUsesCompositeIndex(t *testing.T, pool *pgxpool.Pool, foll
 	}
 	rows, err := tx.Query(t.Context(), `
 		EXPLAIN (COSTS OFF)
-		SELECT uri, did, rkey, cid, subject_did, created_at
-		FROM atproto_follows
-		WHERE did = $1 AND subject_did = $2
-		  AND NOT appview_owner_is_terminal(did)
+		SELECT representative_source_uri, actor_did, subject_did, activated_at
+		FROM pds_set_aggregates
+		WHERE kind='follow' AND actor_did = $1 AND scope_key = $2
+		  AND NOT appview_owner_is_terminal(actor_did)
 		  AND NOT appview_owner_is_terminal(subject_did)
 		LIMIT 1
 	`, follower, subject)
@@ -296,7 +285,7 @@ func assertFollowLookupUsesCompositeIndex(t *testing.T, pool *pgxpool.Pool, foll
 	if err := rows.Err(); err != nil {
 		t.Fatalf("read follow lookup plan: %v", err)
 	}
-	if !strings.Contains(plan.String(), "atproto_follows_did_subject_did") {
+	if !strings.Contains(plan.String(), "Index Scan using pds_set_aggregates_") {
 		t.Fatalf("follow lookup plan does not use migrated composite index:\n%s", plan.String())
 	}
 }

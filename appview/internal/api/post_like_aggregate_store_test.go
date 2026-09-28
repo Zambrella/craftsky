@@ -17,7 +17,7 @@ func TestPostStoreEngagementUsesLogicalSetAggregates(t *testing.T) {
 	ctx := context.Background()
 	now := time.Date(2026, 9, 24, 11, 0, 0, 0, time.UTC)
 	postURI := "at://did:plc:author/social.craftsky.feed.post/3aaaaaaaaaaa2"
-	for _, did := range []string{"did:plc:author", "did:plc:bob", "did:plc:carol", "did:plc:dave"} {
+	for _, did := range []string{"did:plc:author", "did:plc:bob", "did:plc:carol"} {
 		if _, err := pool.Exec(ctx, `
 			INSERT INTO owner_lifecycles(
 				owner_did,state,generation,auth_epoch,transition_reason,transitioned_at,created_at,updated_at
@@ -38,19 +38,6 @@ func TestPostStoreEngagementUsesLogicalSetAggregates(t *testing.T) {
 	seedInteractionAggregate(t, pool, "like", "did:plc:bob", postURI, 2, now)
 	seedInteractionAggregate(t, pool, "like", "did:plc:carol", postURI, 1, now.Add(time.Minute))
 	seedInteractionAggregate(t, pool, "repost", "did:plc:bob", postURI, 2, now)
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO craftsky_likes(uri,did,rkey,cid,subject_uri,subject_cid,record,created_at)
-		VALUES('at://did:plc:dave/social.craftsky.feed.like/legacy','did:plc:dave','legacy','bafy-legacy',$1,'bafy-post','{}'::jsonb,$2)
-	`, postURI, now); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO craftsky_reposts(uri,did,rkey,cid,subject_uri,subject_cid,record,created_at)
-		VALUES('at://did:plc:dave/social.craftsky.feed.repost/repost','did:plc:dave','repost','bafy-repost',$1,'bafy-post','{}'::jsonb,$2)
-	`, postURI, now); err != nil {
-		t.Fatal(err)
-	}
-
 	store := api.NewPostStore(pool)
 	counts, err := store.CountActiveLikes(ctx, []string{postURI})
 	if err != nil {

@@ -18,38 +18,10 @@ import (
 	"social.craftsky/appview/internal/testdb"
 )
 
-const followerGrowthRouteLifecycleDDL = `
-CREATE TABLE craftsky_profiles (
-    did TEXT PRIMARY KEY,
-    record_cid TEXT NOT NULL
-);
+const followerGrowthRouteLifecycleSeed = `
 INSERT INTO craftsky_profiles(did,record_cid) VALUES
     ('did:plc:alice','alice-cid'),
     ('did:plc:bob','bob-cid');
-CREATE TABLE atproto_follows (
-    uri TEXT PRIMARY KEY,
-    did TEXT NOT NULL,
-    rkey TEXT NOT NULL,
-    cid TEXT NOT NULL,
-    subject_did TEXT NOT NULL,
-    record JSONB NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL,
-    indexed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE(did,rkey),
-    UNIQUE(did,subject_did)
-);
-CREATE TABLE owner_lifecycles (
-    owner_did TEXT PRIMARY KEY,
-    state TEXT NOT NULL,
-    generation BIGINT NOT NULL,
-    auth_epoch BIGINT NOT NULL,
-    transition_reason TEXT NOT NULL,
-    transitioned_at TIMESTAMPTZ NOT NULL,
-    terminal_at TIMESTAMPTZ,
-    purge_completed_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ NOT NULL,
-    updated_at TIMESTAMPTZ NOT NULL
-);
 INSERT INTO owner_lifecycles(
     owner_did,state,generation,auth_epoch,transition_reason,
     transitioned_at,created_at,updated_at
@@ -138,7 +110,10 @@ func TestFollowerGrowthRoutePolicyAndHandler(t *testing.T) {
 }
 
 func TestFollowerGrowthProductionRouteEnforcesCurrentOwnerBoundary(t *testing.T) {
-	pool := testdb.WithSchema(t, followerGrowthRouteLifecycleDDL)
+	pool := testdb.WithMigratedSchema(t)
+	if _, err := pool.Exec(context.Background(), followerGrowthRouteLifecycleSeed); err != nil {
+		t.Fatal(err)
+	}
 	latest := followergrowth.Snapshot{
 		Date:          time.Date(2026, time.August, 24, 0, 0, 0, 0, time.UTC),
 		FollowerCount: 42,
@@ -205,20 +180,28 @@ func TestFollowerGrowthProductionRouteEnforcesCurrentOwnerBoundary(t *testing.T)
 }
 
 func TestFollowerGrowthProductionRouteUsesPersistedHistoryWithoutLiveOverlay(t *testing.T) {
-	pool := testdb.WithSchema(t, followerGrowthRouteLifecycleDDL)
-	migration, err := testdb.ReadMigration("000060_follower_growth_snapshots.up.sql")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
-		t.Fatalf("apply follower-growth migration: %v", err)
+	pool := testdb.WithMigratedSchema(t)
+	if _, err := pool.Exec(context.Background(), followerGrowthRouteLifecycleSeed); err != nil {
+		t.Fatalf("seed follower-growth owners: %v", err)
 	}
 	if _, err := pool.Exec(context.Background(), `
 		INSERT INTO follower_growth_snapshots(
 			profile_did,snapshot_date,follower_count,captured_at
 		) VALUES('did:plc:alice','2026-08-24',8,'2026-08-24T00:00:02Z');
-		INSERT INTO atproto_follows(uri,did,rkey,cid,subject_did,record,created_at)
-		VALUES('at://did:plc:bob/app.bsky.graph.follow/alice','did:plc:bob','alice','live-cid','did:plc:alice','{}',now());
+		INSERT INTO tap_source_records(
+			uri,did,collection,rkey,source_event_id,source_fingerprint,revision,cid,
+			action,record,record_bytes,live,ordering_status,projection_disposition
+		) VALUES('at://did:plc:bob/app.bsky.graph.follow/3aaaaaaaaaaa2',
+			'did:plc:bob','app.bsky.graph.follow','3aaaaaaaaaaa2',1,
+			decode(repeat('00',32),'hex'),'3aaaaaaaaaaa2','live-cid',
+			'create','{}',2,false,'authoritative','eligible');
+		INSERT INTO pds_set_sources(source_uri,kind,actor_did,scope_key,subject_did,activity_at,eligible)
+		VALUES('at://did:plc:bob/app.bsky.graph.follow/3aaaaaaaaaaa2',
+			'follow','did:plc:bob','did:plc:alice','did:plc:alice',now(),true);
+		INSERT INTO pds_set_aggregates(kind,actor_did,scope_key,subject_did,
+			eligible_source_count,representative_source_uri,activated_at)
+		VALUES('follow','did:plc:bob','did:plc:alice','did:plc:alice',1,
+			'at://did:plc:bob/app.bsky.graph.follow/3aaaaaaaaaaa2',now());
 	`); err != nil {
 		t.Fatalf("seed persisted and live counts: %v", err)
 	}

@@ -114,7 +114,11 @@ CREATE TABLE craftsky_post_mentions (
     indexed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (post_uri, mentioned_did)
 );
-` + relationshipNotificationPolicyDDL + `
+CREATE TABLE actor_mutes (
+    owner_did TEXT NOT NULL,
+    subject_did TEXT NOT NULL,
+    PRIMARY KEY (owner_did, subject_did)
+);
 CREATE TABLE saved_posts (
     owner_did TEXT NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
     post_uri  TEXT NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,

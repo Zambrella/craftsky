@@ -1036,29 +1036,10 @@ CREATE TABLE craftsky_post_mentions (
 	post_uri TEXT NOT NULL,
 	mentioned_did TEXT NOT NULL
 );
-CREATE TABLE craftsky_likes (
-	uri TEXT PRIMARY KEY,
-	did TEXT NOT NULL,
-	subject_uri TEXT NOT NULL,
-	created_at TIMESTAMPTZ NOT NULL,
-	deleted_at TIMESTAMPTZ
-);
-CREATE TABLE craftsky_reposts (
-	uri TEXT PRIMARY KEY,
-	did TEXT NOT NULL,
-	subject_uri TEXT NOT NULL,
-	created_at TIMESTAMPTZ NOT NULL,
-	deleted_at TIMESTAMPTZ
-);
 CREATE TABLE actor_mutes (
 	owner_did TEXT NOT NULL,
 	subject_did TEXT NOT NULL,
 	PRIMARY KEY (owner_did, subject_did)
-);
-CREATE TABLE atproto_blocks (
-	uri TEXT PRIMARY KEY,
-	blocker_did TEXT NOT NULL,
-	subject_did TEXT NOT NULL
 );
 CREATE TABLE atproto_identity_cache (
 	did TEXT PRIMARY KEY,

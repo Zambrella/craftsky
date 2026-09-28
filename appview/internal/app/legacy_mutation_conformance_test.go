@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -134,12 +135,31 @@ func TestLegacyMutationConformanceSetProjectionHasNoWinnerReplacementPath(t *tes
 		})
 	}
 
-	likeRead, err := os.ReadFile(filepath.Join("..", "api", "post_interactions_store.go"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if strings.Contains(string(likeRead), `findActiveInteraction(ctx, "craftsky_likes"`) {
-		t.Error("FindActiveLike still reads the obsolete single-winner cache")
+}
+
+func TestRetiredPhysicalSetTablesHaveNoRuntimeCallers(t *testing.T) {
+	for _, root := range []string{"..", filepath.Join("..", "..", "cmd")} {
+		err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+			if entry.IsDir() || filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
+				return nil
+			}
+			contents, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			for _, table := range []string{"craftsky_likes", "craftsky_reposts", "atproto_follows", "atproto_blocks"} {
+				if strings.Contains(string(contents), table) {
+					t.Errorf("%s retains retired physical set table %s", path, table)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 

@@ -83,14 +83,6 @@ func seedFeedQueryPlanCardinality(t *testing.T, pool *pgxpool.Pool) {
 		       '2026-09-17T00:00:00Z', '2026-09-17T00:00:00Z', '2026-09-17T00:00:00Z'
 		FROM craftsky_profiles;
 
-		INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at, indexed_at)
-		SELECT 'at://did:plc:plan-viewer/app.bsky.graph.follow/' || n,
-		       'did:plc:plan-viewer', n::text, 'follow-cid-' || n,
-		       'did:plc:plan-actor-' || n, '{}',
-		       '2026-09-17T00:00:00Z'::timestamptz + n * interval '1 second',
-		       '2026-09-17T00:00:00Z'::timestamptz + n * interval '1 second'
-		FROM generate_series(1, 20) AS n;
-
 		INSERT INTO tap_source_records(
 			uri,did,collection,rkey,source_event_id,source_fingerprint,revision,cid,
 			action,record,record_bytes,live,ordering_status,projection_disposition,
@@ -138,22 +130,6 @@ func seedFeedQueryPlanCardinality(t *testing.T, pool *pgxpool.Pool) {
 		       '2026-09-17T00:00:00Z'::timestamptz + (author * 20 + post) * interval '1 second'
 		FROM generate_series(1, 1000) AS author
 		CROSS JOIN generate_series(1, 20) AS post;
-
-		INSERT INTO craftsky_reposts (
-			uri, did, rkey, cid, subject_uri, subject_cid, record, created_at, indexed_at
-		)
-		SELECT 'at://did:plc:plan-actor-' || actor || '/social.craftsky.feed.repost/' || n,
-		       'did:plc:plan-actor-' || actor, n::text, 'repost-cid-' || n,
-		       'at://did:plc:plan-actor-' || subject_actor || '/social.craftsky.feed.post/' || subject_post,
-		       'post-cid-' || subject_actor || '-' || subject_post, '{}',
-		       '2026-09-18T00:00:00Z'::timestamptz + n * interval '1 second',
-		       '2026-09-18T00:00:00Z'::timestamptz + n * interval '1 second'
-		FROM (
-			SELECT n, ((n - 1) % 1000) + 1 AS actor,
-			       (((n - 1) % 1000 + (n - 1) / 1000 + 1) % 1000) + 1 AS subject_actor,
-			       ((n - 1) / 1000) + 1 AS subject_post
-			FROM generate_series(1, 10000) AS n
-		) AS seeded_reposts;
 
 		INSERT INTO tap_source_records(
 			uri,did,collection,rkey,source_event_id,source_fingerprint,revision,cid,
@@ -213,9 +189,7 @@ func seedFeedQueryPlanCardinality(t *testing.T, pool *pgxpool.Pool) {
 
 		ANALYZE craftsky_profiles;
 		ANALYZE owner_lifecycles;
-		ANALYZE atproto_follows;
 		ANALYZE craftsky_posts;
-		ANALYZE craftsky_reposts;
 		ANALYZE tap_source_records;
 		ANALYZE pds_set_sources;
 		ANALYZE pds_set_aggregates;

@@ -1475,7 +1475,6 @@ func TestDispatcherRunRecoversFromTransientStoreFailure(t *testing.T) {
 		CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT);
 		CREATE TABLE craftsky_posts(uri TEXT PRIMARY KEY,reply_root_uri TEXT,reply_parent_uri TEXT);
 		CREATE TABLE actor_mutes(owner_did TEXT NOT NULL, subject_did TEXT NOT NULL, PRIMARY KEY(owner_did, subject_did));
-		CREATE TABLE atproto_blocks(uri TEXT PRIMARY KEY, blocker_did TEXT NOT NULL, subject_did TEXT NOT NULL);
 		CREATE TABLE pds_set_aggregates(kind TEXT NOT NULL, actor_did TEXT NOT NULL, subject_did TEXT);
 	`)
 	sender := &scriptedSender{sent: make(chan struct{}, 1)}
@@ -1699,7 +1698,6 @@ func dispatcherPool(t *testing.T) *pgxpool.Pool {
 		CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT);
 		CREATE TABLE craftsky_posts(uri TEXT PRIMARY KEY,reply_root_uri TEXT,reply_parent_uri TEXT);
 		CREATE TABLE actor_mutes(owner_did TEXT NOT NULL, subject_did TEXT NOT NULL, PRIMARY KEY(owner_did, subject_did));
-		CREATE TABLE atproto_blocks(uri TEXT PRIMARY KEY, blocker_did TEXT NOT NULL, subject_did TEXT NOT NULL);
 		CREATE TABLE pds_set_aggregates(kind TEXT NOT NULL, actor_did TEXT NOT NULL, subject_did TEXT);
 	`)
 	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")

@@ -135,13 +135,8 @@ func TestStoreCaptureReadsLogicalFollowAggregates(t *testing.T) {
 			'follow','did:plc:alice','did:plc:bob','did:plc:bob',1,
 			'at://did:plc:alice/app.bsky.graph.follow/bob','2026-08-20T00:00:00Z'
 		);
-		INSERT INTO atproto_follows(uri,did,rkey,cid,subject_did,record,created_at)
-		VALUES(
-			'at://did:plc:carol/app.bsky.graph.follow/bob','did:plc:carol','bob',
-			'legacy-follow','did:plc:bob','{}','2026-08-20T00:00:00Z'
-		);
 	`); err != nil {
-		t.Fatalf("seed logical and legacy follows: %v", err)
+		t.Fatalf("seed logical follows: %v", err)
 	}
 
 	snapshotDate := growthDate(2026, time.August, 25)

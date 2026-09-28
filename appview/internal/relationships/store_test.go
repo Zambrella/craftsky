@@ -354,54 +354,6 @@ func TestStoreStateDoesNotExposeAnotherOwnersMute(t *testing.T) {
 	}
 }
 
-func TestStoreOwnedBlockRecordsReturnsOnlyCallerOwnedRecords(t *testing.T) {
-	migration, err := testdb.ReadMigration("000023_mutes_blocks.up.sql")
-	if err != nil {
-		t.Fatalf("read migration: %v", err)
-	}
-	pool := testdb.WithSchema(t, relationshipStorePreStateDDL)
-	ctx := context.Background()
-	if _, err := pool.Exec(ctx, string(migration)); err != nil {
-		t.Fatalf("apply migration: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO atproto_blocks (
-			uri, blocker_did, rkey, cid, subject_did, record, created_at
-		) VALUES
-			('at://did:plc:alice/app.bsky.graph.block/alice-block', 'did:plc:alice', 'alice-block', 'cid-alice', 'did:plc:bob', '{}', now()),
-			('at://did:plc:bob/app.bsky.graph.block/bob-block', 'did:plc:bob', 'bob-block', 'cid-bob', 'did:plc:alice', '{}', now())
-	`); err != nil {
-		t.Fatalf("insert blocks: %v", err)
-	}
-
-	store := NewStore(pool)
-	alice := syntax.DID("did:plc:alice")
-	bob := syntax.DID("did:plc:bob")
-	carol := syntax.DID("did:plc:carol")
-
-	aliceRows, err := store.OwnedBlockRecords(ctx, alice, bob)
-	if err != nil {
-		t.Fatalf("Alice owned blocks: %v", err)
-	}
-	if len(aliceRows) != 1 || aliceRows[0].Rkey != syntax.RecordKey("alice-block") {
-		t.Fatalf("Alice owned blocks = %+v, want only alice-block", aliceRows)
-	}
-	bobRows, err := store.OwnedBlockRecords(ctx, bob, alice)
-	if err != nil {
-		t.Fatalf("Bob owned blocks: %v", err)
-	}
-	if len(bobRows) != 1 || bobRows[0].Rkey != syntax.RecordKey("bob-block") {
-		t.Fatalf("Bob owned blocks = %+v, want only bob-block", bobRows)
-	}
-	carolRows, err := store.OwnedBlockRecords(ctx, carol, bob)
-	if err != nil {
-		t.Fatalf("Carol owned blocks: %v", err)
-	}
-	if len(carolRows) != 0 {
-		t.Fatalf("Carol enumerated foreign blocks: %+v", carolRows)
-	}
-}
-
 func TestStoreRelationshipListsAreOwnerScopedEligibleStableAndDeduplicated(t *testing.T) {
 	migration, err := testdb.ReadMigration("000023_mutes_blocks.up.sql")
 	if err != nil {

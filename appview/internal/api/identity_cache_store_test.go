@@ -111,18 +111,6 @@ CREATE TABLE bluesky_profiles (
     record_cid   TEXT        NOT NULL,
     indexed_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE TABLE atproto_follows (
-    uri         TEXT        NOT NULL PRIMARY KEY,
-    did         TEXT        NOT NULL,
-    rkey        TEXT        NOT NULL,
-    cid         TEXT        NOT NULL,
-    subject_did TEXT        NOT NULL,
-    record      JSONB       NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL,
-    indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (did, rkey),
-    UNIQUE (did, subject_did)
-);
 CREATE TABLE pds_set_aggregates (
     kind                      TEXT        NOT NULL,
     actor_did                 TEXT        NOT NULL,
@@ -224,12 +212,6 @@ func TestFacetStoreSearchMentionSuggestionsUsesFreshSeparateIdentityCache(t *tes
 			('did:plc:mallory', 'alice.elsewhere.example', 'alice.elsewhere.example', $1)
 	`, now.Add(-23*time.Hour), now.Add(-24*time.Hour), now.Add(-24*time.Hour-time.Minute)); err != nil {
 		t.Fatalf("seed identity cache: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at) VALUES
-			('at://did:plc:viewer/app.bsky.graph.follow/f1', 'did:plc:viewer', 'f1', 'cid-f1', 'did:plc:alice', '{}', $1)
-	`, now); err != nil {
-		t.Fatalf("seed follows: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO pds_set_aggregates (

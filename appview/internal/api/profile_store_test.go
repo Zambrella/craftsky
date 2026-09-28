@@ -39,18 +39,6 @@ CREATE TABLE bluesky_profiles (
     record_cid   TEXT        NOT NULL,
     indexed_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE TABLE atproto_follows (
-    uri         TEXT        NOT NULL PRIMARY KEY,
-    did         TEXT        NOT NULL,
-    rkey        TEXT        NOT NULL,
-    cid         TEXT        NOT NULL,
-    subject_did TEXT        NOT NULL,
-    record      JSONB       NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL,
-    indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (did, rkey),
-    UNIQUE (did, subject_did)
-);
 CREATE TABLE tap_source_records (
     uri        TEXT PRIMARY KEY,
     rkey       TEXT        NOT NULL,
@@ -63,7 +51,8 @@ CREATE TABLE pds_set_sources (
     actor_did   TEXT        NOT NULL,
     scope_key   TEXT        NOT NULL,
     subject_did TEXT,
-    activity_at TIMESTAMPTZ NOT NULL
+    activity_at TIMESTAMPTZ NOT NULL,
+    eligible BOOLEAN NOT NULL
 );
 CREATE TABLE pds_set_aggregates (
     kind                      TEXT        NOT NULL,
@@ -83,44 +72,17 @@ CREATE INDEX pds_set_aggregates_actor_purge_idx
 CREATE INDEX pds_set_aggregates_subject_did_purge_idx
     ON pds_set_aggregates (subject_did, kind, actor_did, scope_key)
     WHERE subject_did IS NOT NULL;
-CREATE FUNCTION mirror_profile_test_follow_aggregate()
-RETURNS TRIGGER LANGUAGE plpgsql AS $$
-BEGIN
-    INSERT INTO tap_source_records (uri, rkey, cid, updated_at)
-    VALUES (NEW.uri, NEW.rkey, NEW.cid, NEW.indexed_at)
-    ON CONFLICT (uri) DO UPDATE SET
-        rkey = EXCLUDED.rkey, cid = EXCLUDED.cid, updated_at = EXCLUDED.updated_at;
-    INSERT INTO pds_set_sources (
-        source_uri, kind, actor_did, scope_key, subject_did, activity_at
-    ) VALUES (NEW.uri, 'follow', NEW.did, NEW.subject_did, NEW.subject_did, NEW.created_at)
-    ON CONFLICT (source_uri) DO UPDATE SET
-        actor_did = EXCLUDED.actor_did, scope_key = EXCLUDED.scope_key,
-        subject_did = EXCLUDED.subject_did, activity_at = EXCLUDED.activity_at;
-    INSERT INTO pds_set_aggregates (
-        kind, actor_did, scope_key, subject_did,
-        representative_source_uri, activated_at
-    ) VALUES ('follow', NEW.did, NEW.subject_did, NEW.subject_did, NEW.uri, NEW.created_at)
-    ON CONFLICT (kind, actor_did, scope_key) DO UPDATE SET
-        subject_did = EXCLUDED.subject_did,
-        representative_source_uri = EXCLUDED.representative_source_uri,
-        activated_at = EXCLUDED.activated_at;
-    RETURN NEW;
-END
-$$;
-CREATE TRIGGER mirror_profile_test_follow_aggregate
-AFTER INSERT OR UPDATE ON atproto_follows
-FOR EACH ROW EXECUTE FUNCTION mirror_profile_test_follow_aggregate();
 CREATE VIEW craftsky_profile_follower_counts AS
 SELECT
     profile.did AS profile_did,
     COUNT(follower.did)::BIGINT AS follower_count
 FROM craftsky_profiles profile
-LEFT JOIN atproto_follows follow
-    ON follow.subject_did = profile.did
-    AND NOT appview_owner_is_terminal(follow.did)
+LEFT JOIN pds_set_aggregates follow
+    ON follow.kind='follow' AND follow.subject_did = profile.did
+    AND NOT appview_owner_is_terminal(follow.actor_did)
     AND NOT appview_owner_is_terminal(follow.subject_did)
 LEFT JOIN craftsky_profiles follower
-    ON follower.did = follow.did
+    ON follower.did = follow.actor_did
     AND NOT appview_owner_is_terminal(follower.did)
 WHERE NOT appview_owner_is_terminal(profile.did)
 GROUP BY profile.did;
@@ -146,10 +108,12 @@ CREATE TABLE craftsky_posts (
     indexed_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (did, rkey)
 );
-CREATE INDEX atproto_follows_subject_created_uri_desc_idx
-    ON atproto_follows (subject_did, created_at DESC, uri DESC);
-CREATE INDEX atproto_follows_did_created_uri_desc_idx
-    ON atproto_follows (did, created_at DESC, uri DESC);
+CREATE INDEX pds_set_aggregates_follow_subject_pagination_idx
+    ON pds_set_aggregates(subject_did, activated_at DESC, representative_source_uri DESC)
+    WHERE kind='follow';
+CREATE INDEX pds_set_aggregates_follow_actor_pagination_idx
+    ON pds_set_aggregates(actor_did, activated_at DESC, representative_source_uri DESC)
+    WHERE kind='follow';
 CREATE INDEX craftsky_posts_root_did_created_idx
     ON craftsky_posts (did, created_at DESC)
     WHERE reply_root_uri IS NULL AND reply_parent_uri IS NULL;
@@ -358,15 +322,17 @@ func TestProfileStore_ReadByDID_MutualFollowerCountUsesViewerGraph(t *testing.T)
 			t.Fatalf("seed craftsky profile %s: %v", did, err)
 		}
 	}
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at)
-		VALUES
-			('at://did:plc:viewer/app.bsky.graph.follow/f1', 'did:plc:viewer', 'f1', 'c1', 'did:plc:mutual', '{"subject":"did:plc:mutual"}', now()),
-			('at://did:plc:mutual/app.bsky.graph.follow/f2', 'did:plc:mutual', 'f2', 'c2', 'did:plc:profile', '{"subject":"did:plc:profile"}', now()),
-			('at://did:plc:viewer/app.bsky.graph.follow/f3', 'did:plc:viewer', 'f3', 'c3', 'did:plc:viewer-only', '{"subject":"did:plc:viewer-only"}', now()),
-			('at://did:plc:profile-only/app.bsky.graph.follow/f4', 'did:plc:profile-only', 'f4', 'c4', 'did:plc:profile', '{"subject":"did:plc:profile"}', now())
-	`); err != nil {
-		t.Fatalf("seed follows: %v", err)
+	for _, row := range []struct{ actor, subject, rkey string }{
+		{"did:plc:viewer", "did:plc:mutual", "f1"},
+		{"did:plc:mutual", "did:plc:profile", "f2"},
+		{"did:plc:viewer", "did:plc:viewer-only", "f3"},
+		{"did:plc:profile-only", "did:plc:profile", "f4"},
+	} {
+		seedFollowReadModel(t, pool, api.FollowRow{
+			URI: "at://" + row.actor + "/app.bsky.graph.follow/" + row.rkey,
+			DID: row.actor, Rkey: row.rkey, CID: "cid-" + row.rkey,
+			SubjectDID: row.subject, CreatedAt: time.Now(),
+		}, true)
 	}
 
 	store := api.NewProfileStore(pool)
@@ -434,12 +400,10 @@ func TestProfileStore_ListMutualFollowers_PaginatesDisplayRows(t *testing.T) {
 		{"at://did:plc:viewer/app.bsky.graph.follow/v4", "did:plc:viewer", "v4", "did:plc:not-mutual", base.Add(-4 * time.Hour)},
 	}
 	for _, row := range followRows {
-		if _, err := pool.Exec(ctx, `
-			INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at)
-			VALUES ($1, $2, $3, 'cid', $4, jsonb_build_object('subject', $4::text), $5)
-		`, row.uri, row.did, row.rkey, row.subject, row.created); err != nil {
-			t.Fatalf("seed follow %s: %v", row.uri, err)
-		}
+		seedFollowReadModel(t, pool, api.FollowRow{
+			URI: row.uri, DID: row.did, Rkey: row.rkey, CID: "cid",
+			SubjectDID: row.subject, CreatedAt: row.created,
+		}, true)
 	}
 
 	store := api.NewProfileStore(pool)
@@ -489,18 +453,23 @@ func TestProfileStore_ListFollowersAndFollowing_OrderNewestFirst(t *testing.T) {
 			t.Fatalf("seed craftsky profile %s: %v", did, err)
 		}
 	}
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at)
-		VALUES
-			('at://did:plc:bob/app.bsky.graph.follow/f1', 'did:plc:bob', 'f1', 'c1', 'did:plc:alice', '{"subject":"did:plc:alice"}', $1),
-			('at://did:plc:carol/app.bsky.graph.follow/f2', 'did:plc:carol', 'f2', 'c2', 'did:plc:alice', '{"subject":"did:plc:alice"}', $2),
-			('at://did:plc:dana/app.bsky.graph.follow/f3', 'did:plc:dana', 'f3', 'c3', 'did:plc:alice', '{"subject":"did:plc:alice"}', $3),
-			('at://did:plc:alice/app.bsky.graph.follow/f4', 'did:plc:alice', 'f4', 'c4', 'did:plc:bob', '{"subject":"did:plc:bob"}', $1),
-			('at://did:plc:alice/app.bsky.graph.follow/f5', 'did:plc:alice', 'f5', 'c5', 'did:plc:carol', '{"subject":"did:plc:carol"}', $2),
-			('at://did:plc:alice/app.bsky.graph.follow/f6', 'did:plc:alice', 'f6', 'c6', 'did:plc:dana', '{"subject":"did:plc:dana"}', $3),
-			('at://did:plc:alice/app.bsky.graph.follow/f7', 'did:plc:alice', 'f7', 'c7', 'did:plc:erin', '{"subject":"did:plc:erin"}', $4)
-	`, base.Add(-3*time.Hour), base.Add(-2*time.Hour), base.Add(-1*time.Hour), base.Add(-30*time.Minute)); err != nil {
-		t.Fatalf("seed follows: %v", err)
+	for _, row := range []struct {
+		actor, subject, rkey string
+		created              time.Time
+	}{
+		{"did:plc:bob", "did:plc:alice", "f1", base.Add(-3 * time.Hour)},
+		{"did:plc:carol", "did:plc:alice", "f2", base.Add(-2 * time.Hour)},
+		{"did:plc:dana", "did:plc:alice", "f3", base.Add(-time.Hour)},
+		{"did:plc:alice", "did:plc:bob", "f4", base.Add(-3 * time.Hour)},
+		{"did:plc:alice", "did:plc:carol", "f5", base.Add(-2 * time.Hour)},
+		{"did:plc:alice", "did:plc:dana", "f6", base.Add(-time.Hour)},
+		{"did:plc:alice", "did:plc:erin", "f7", base.Add(-30 * time.Minute)},
+	} {
+		seedFollowReadModel(t, pool, api.FollowRow{
+			URI: "at://" + row.actor + "/app.bsky.graph.follow/" + row.rkey,
+			DID: row.actor, Rkey: row.rkey, CID: "cid-" + row.rkey,
+			SubjectDID: row.subject, CreatedAt: row.created,
+		}, true)
 	}
 
 	store := api.NewProfileStore(pool)
@@ -534,27 +503,12 @@ func TestProfileStore_ListFollowingUsesAggregateActivationCursor(t *testing.T) {
 	base := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
 
 	for _, did := range []string{
-		"did:plc:viewer", "did:plc:newest", "did:plc:middle", "did:plc:oldest", "did:plc:legacy-only",
+		"did:plc:viewer", "did:plc:newest", "did:plc:middle", "did:plc:oldest",
 	} {
 		if _, err := pool.Exec(ctx,
 			`INSERT INTO craftsky_profiles (did, crafts, record_cid) VALUES ($1, '{}', 'cid')`, did); err != nil {
 			t.Fatalf("seed profile %s: %v", did, err)
 		}
-	}
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO atproto_follows (uri,did,rkey,cid,subject_did,record,created_at)
-		VALUES (
-			'at://did:plc:viewer/app.bsky.graph.follow/legacy',
-			'did:plc:viewer','legacy','legacy-cid','did:plc:legacy-only','{}',$1
-		)
-	`, base.Add(time.Hour)); err != nil {
-		t.Fatalf("seed contradictory legacy follow: %v", err)
-	}
-	if _, err := pool.Exec(ctx, `
-		DELETE FROM pds_set_aggregates
-		WHERE kind='follow' AND actor_did='did:plc:viewer' AND scope_key='did:plc:legacy-only'
-	`); err != nil {
-		t.Fatalf("remove contradictory legacy aggregate: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO pds_set_aggregates(
@@ -705,14 +659,16 @@ func TestProfileStore_ReadByDID_CraftskyOnlyCounts(t *testing.T) {
 	// - alice -> bob (counts)
 	// - alice -> dana (non-craftsky target, excluded from followingCount)
 	// - dana -> bob (non-craftsky follower, excluded from followerCount)
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at)
-		VALUES
-			('at://did:plc:alice/app.bsky.graph.follow/f1', 'did:plc:alice', 'f1', 'c1', 'did:plc:bob', '{"subject":"did:plc:bob"}', now()),
-			('at://did:plc:alice/app.bsky.graph.follow/f2', 'did:plc:alice', 'f2', 'c2', 'did:plc:dana', '{"subject":"did:plc:dana"}', now()),
-			('at://did:plc:dana/app.bsky.graph.follow/f3', 'did:plc:dana', 'f3', 'c3', 'did:plc:bob', '{"subject":"did:plc:bob"}', now())
-	`); err != nil {
-		t.Fatalf("seed follows: %v", err)
+	for _, row := range []struct{ actor, subject, rkey string }{
+		{"did:plc:alice", "did:plc:bob", "f1"},
+		{"did:plc:alice", "did:plc:dana", "f2"},
+		{"did:plc:dana", "did:plc:bob", "f3"},
+	} {
+		seedFollowReadModel(t, pool, api.FollowRow{
+			URI: "at://" + row.actor + "/app.bsky.graph.follow/" + row.rkey,
+			DID: row.actor, Rkey: row.rkey, CID: "cid-" + row.rkey,
+			SubjectDID: row.subject, CreatedAt: time.Now(),
+		}, true)
 	}
 
 	store := api.NewProfileStore(pool)
@@ -769,12 +725,10 @@ func TestProfileStore_ReadByDID_NonCraftskyFollowDoesNotMakeMember(t *testing.T)
 	`, "did:plc:carol", "Carol", "cid-bsky"); err != nil {
 		t.Fatalf("seed bluesky profile: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, now())
-	`, "at://did:plc:alice/app.bsky.graph.follow/f1", "did:plc:alice", "f1", "cid-follow", "did:plc:carol", `{"subject":"did:plc:carol"}`); err != nil {
-		t.Fatalf("seed follow: %v", err)
-	}
+	seedFollowReadModel(t, pool, api.FollowRow{
+		URI: "at://did:plc:alice/app.bsky.graph.follow/f1", DID: "did:plc:alice",
+		Rkey: "f1", CID: "cid-follow", SubjectDID: "did:plc:carol", CreatedAt: time.Now(),
+	}, true)
 
 	store := api.NewProfileStore(pool)
 	_, err := store.Read(ctx, "did:plc:carol", "did:plc:alice")

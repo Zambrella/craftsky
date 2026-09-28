@@ -490,6 +490,13 @@ Follow each step with its focused test and neighboring suite. Keep command histo
 - Gate evidence: final `just app-test` passed all 2,427 Flutter tests including the additional malformed-success regression; `CGO_ENABLED=0 TEST_DATABASE_REQUIRED=true TEST_DATABASE_URL=<local-dev-postgres> just test` passed all packages without DB skips; `CGO_ENABLED=0 just appview-check` passed race, build, migration, health, vulnerability, and Tap checks; `just app-analyze` passed with no issues; `git diff --check` passed.
 - A final table-driven fixture confirms that all four set collections accept ingestion-valid external records without `$type` and reject invalid record keys; its focused `internal/api` suite passed after the full backend gate.
 
+### Post-commit legacy-table removal (2026-09-28)
+- The user requested a commit before this follow-up. Commit `7de1cae7` contains the mutation correction stage; migration 75 and the legacy removal are committed separately afterward.
+- IT-013 / FR-046, FR-049: A real-PostgreSQL migration test first failed because the four physical set tables still existed. Migration `000075_retire_legacy_set_projections` now drops them without CASCADE; its down migration recreates their migration-74 schema so migration 73 and older down paths still work. Rollback recreates empty tables, **not their discarded rows**.
+- Removed all production Go references to the four tables. In particular, removed winner-era follow/block/like/repost `Handle` writers, physical follow upsert/delete and block identity readers, and obsolete terminal-purge inventory/cascade SQL. The transactional normalized-source/aggregate projector and its notification/push edge handling remain registered. The dev-only demo seeder now writes Tap source evidence, normalized facts, and aggregate rows, and its reset removes only demo-tagged source identities before recomputing active scopes.
+- Replaced active-path legacy test fixtures with source/fact/aggregate fixtures for API reads, pagination, terminal visibility, follower growth, query plans, CLI seeding, and source ingestion. Removed tests exclusive to the deleted winner-era indexers; equivalent duplicate/retarget/notification behavior is exercised by the existing `set_aggregate_integration_test.go` and set-source tests. Historical migration files and tests remain as rollback history. Added a production-source conformance scan to prevent reintroducing physical table callers.
+- Verified `CGO_ENABLED=0 TEST_DATABASE_REQUIRED=true TEST_DATABASE_URL=<local-dev-postgres> just test` (no required-DB skips) and `CGO_ENABLED=0 just appview-check` (including race, migration down-to-zero/reapply, builds, vulnerability and Tap gates); both pass. Flutter code was unchanged in this follow-up.
+
 ## Completion Checklist
 - [x] All Must requirements covered by passing tests or documented gaps
 - [x] All planned Must tests passing
@@ -503,4 +510,4 @@ Follow each step with its focused test and neighboring suite. Keep command histo
 - [x] No Lexicon files or generated Lexicon types changed
 - [x] No superseded mechanism remains reachable by a migrated caller
 - [x] Docs and this execution log updated with correction evidence
-- [x] Implementation review completed with optional legacy-schema cleanup recorded as deferred
+- [x] Implementation review completed; subsequently requested legacy-schema removal implemented and verified

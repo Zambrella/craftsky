@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"testing"
+	"time"
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/testdb"
@@ -94,18 +95,24 @@ func TestProfileGraphHidesBlockedPairWithoutDeletingFollowsAndRestoresOnUnblock(
 		VALUES
 		  ('did:plc:alice', 'alice-cid'), ('did:plc:bob', 'bob-cid'),
 		  ('did:plc:carol', 'carol-cid'), ('did:plc:dana', 'dana-cid');
-		INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at)
-		VALUES
-		  ('at://did:plc:alice/app.bsky.graph.follow/bob', 'did:plc:alice', 'bob', 'c1', 'did:plc:bob', '{}', '2026-07-19T12:00:00Z'),
-		  ('at://did:plc:bob/app.bsky.graph.follow/alice', 'did:plc:bob', 'alice', 'c2', 'did:plc:alice', '{}', '2026-07-19T12:00:01Z'),
-		  ('at://did:plc:alice/app.bsky.graph.follow/carol', 'did:plc:alice', 'carol', 'c3', 'did:plc:carol', '{}', '2026-07-19T12:00:02Z'),
-		  ('at://did:plc:carol/app.bsky.graph.follow/alice', 'did:plc:carol', 'alice', 'c4', 'did:plc:alice', '{}', '2026-07-19T12:00:03Z'),
-		  ('at://did:plc:carol/app.bsky.graph.follow/bob', 'did:plc:carol', 'bob', 'c5', 'did:plc:bob', '{}', '2026-07-19T12:00:04Z'),
-		  ('at://did:plc:dana/app.bsky.graph.follow/alice', 'did:plc:dana', 'alice', 'c6', 'did:plc:alice', '{}', '2026-07-19T12:00:05Z');
 		INSERT INTO pds_set_aggregates (kind, actor_did, scope_key, subject_did, representative_source_uri, activated_at)
 		VALUES ('block', 'did:plc:alice', 'did:plc:bob', 'did:plc:bob', 'at://did:plc:alice/app.bsky.graph.block/bob', now());
 	`); err != nil {
 		t.Fatalf("seed graph: %v", err)
+	}
+	for index, pair := range []struct{ actor, subject, rkey string }{
+		{"did:plc:alice", "did:plc:bob", "bob"},
+		{"did:plc:bob", "did:plc:alice", "alice"},
+		{"did:plc:alice", "did:plc:carol", "carol"},
+		{"did:plc:carol", "did:plc:alice", "alice"},
+		{"did:plc:carol", "did:plc:bob", "bob"},
+		{"did:plc:dana", "did:plc:alice", "alice"},
+	} {
+		seedFollowReadModel(t, pool, api.FollowRow{
+			URI: "at://" + pair.actor + "/app.bsky.graph.follow/" + pair.rkey,
+			DID: pair.actor, Rkey: pair.rkey, CID: "cid-follow",
+			SubjectDID: pair.subject, CreatedAt: time.Date(2026, 7, 19, 12, 0, index, 0, time.UTC),
+		}, true)
 	}
 	store := api.NewProfileStore(pool)
 
@@ -146,7 +153,7 @@ func TestProfileGraphHidesBlockedPairWithoutDeletingFollowsAndRestoresOnUnblock(
 		t.Fatalf("protected mutual list = total %d rows %+v", mutualTotal, mutuals)
 	}
 	var stored int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM atproto_follows`).Scan(&stored); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM pds_set_sources WHERE kind='follow'`).Scan(&stored); err != nil {
 		t.Fatal(err)
 	}
 	if stored != 6 {

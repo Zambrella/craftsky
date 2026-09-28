@@ -143,19 +143,6 @@ CREATE TABLE craftsky_post_mentions (
     indexed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (post_uri, mentioned_did)
 );
-CREATE TABLE craftsky_likes (
-    uri         TEXT        NOT NULL PRIMARY KEY,
-    did         TEXT        NOT NULL,
-    rkey        TEXT        NOT NULL,
-    cid         TEXT        NOT NULL,
-    subject_uri TEXT        NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
-    subject_cid TEXT        NOT NULL,
-    record      JSONB       NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL,
-    indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at  TIMESTAMPTZ,
-    UNIQUE (did, rkey)
-);
 CREATE TABLE tap_source_records (
     uri        TEXT PRIMARY KEY,
     did        TEXT NOT NULL,
@@ -190,19 +177,6 @@ CREATE TABLE pds_set_aggregates (
 CREATE INDEX pds_set_aggregates_subject_did_purge_idx
 	ON pds_set_aggregates (subject_did, kind, actor_did, scope_key)
 	WHERE subject_did IS NOT NULL;
-CREATE TABLE craftsky_reposts (
-    uri         TEXT        NOT NULL PRIMARY KEY,
-    did         TEXT        NOT NULL,
-    rkey        TEXT        NOT NULL,
-    cid         TEXT        NOT NULL,
-    subject_uri TEXT        NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
-    subject_cid TEXT        NOT NULL,
-    record      JSONB       NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL,
-    indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at  TIMESTAMPTZ,
-    UNIQUE (did, rkey)
-);
 CREATE TABLE saved_posts (
     owner_did TEXT NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
     post_uri  TEXT NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
@@ -306,18 +280,11 @@ func seedReplyPost(t *testing.T, pool *pgxpool.Pool, did, rkey, text, rootURI, p
 
 func seedInteraction(t *testing.T, pool *pgxpool.Pool, table, did, rkey, subjectURI string, deleted bool) string {
 	t.Helper()
+	if table != "like" && table != "repost" {
+		t.Fatalf("invalid interaction kind %q", table)
+	}
 	uri := "at://" + did + "/social.craftsky.feed." + table + "/" + rkey
-	var deletedAt any
-	if deleted {
-		deletedAt = time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
-	}
-	if _, err := pool.Exec(context.Background(), `
-		INSERT INTO craftsky_`+table+`s (uri, did, rkey, cid, subject_uri, subject_cid, record, created_at, indexed_at, deleted_at)
-		VALUES ($1, $2, $3, 'bafy' || $3, $4, 'subjectcid', '{}'::jsonb, $5, $5, $6)`,
-		uri, did, rkey, subjectURI, time.Date(2026, 5, 10, 11, 0, 0, 0, time.UTC), deletedAt); err != nil {
-		t.Fatalf("seed %s: %v", table, err)
-	}
-	if (table == "like" || table == "repost") && !deleted {
+	if !deleted {
 		activityAt := time.Date(2026, 5, 10, 11, 0, 0, 0, time.UTC)
 		if _, err := pool.Exec(context.Background(), `
 			INSERT INTO tap_source_records(uri,did,collection,rkey,cid,updated_at)

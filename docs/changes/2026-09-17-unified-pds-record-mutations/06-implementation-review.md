@@ -1,13 +1,13 @@
 # Implementation Review: Unified Tap-Authoritative PDS Record Mutations
 
 ## Verdict
-Status: Approved with notes (follow-up corrections, 2026-09-28)
+Status: Approved with notes (follow-up corrections and legacy removal, 2026-09-28)
 Reviewer: OpenCode
 Date: 2026-09-28
 Risk level: High
 
 ## Summary
-The September 25 review closed its seven original findings. A follow-up audit found five more correctness gaps. The corrections now pass focused regressions and the required release gates. One optional schema cleanup was deliberately retained because removing dormant physical tables would expand the rollback and historical-test surface without reducing the live read model.
+The September 25 review closed its seven original findings. A follow-up audit found five more correctness gaps, which were corrected and verified. A subsequent user-requested cleanup removed the four winner-era physical set tables and their runtime callers in migration 75; its rollback recreates empty compatibility tables for historical migrations.
 
 ## Follow-up Findings (2026-09-28)
 
@@ -47,7 +47,7 @@ The correction sequence used failing Flutter dropped-response and production-dis
 
 The branch also re-enabled `TAP_NO_REPLAY` in Compose; the durable-cursor acceptance test caught it. Removing that setting restored the supported replay behavior. Final `just test`, `just appview-check`, `just app-test` (2,427 tests), `just app-analyze`, and `git diff --check` passed. No production resources were changed.
 
-**Deferred optional cleanup:** Legacy physical set tables still support historical migration-down, isolated legacy tests, and terminal-purge inventory. Current production serving reads use `pds_set_aggregates`. Removing those tables needs a separate migration and fixture/purge rewrite; it is not necessary to fix any of IR-008–IR-012. The shared retry runner and the single coordinated boundary factory reduce active-path duplication without taking on that migration risk.
+**Legacy removal (subsequent request):** Migration 75 drops `craftsky_likes`, `craftsky_reposts`, `atproto_follows`, and `atproto_blocks`. Their obsolete indexer/reader and purge paths were removed. Historical migrations and their tests retain the names so old schema versions and the down chain remain verifiable; current production Go has no callers. A conformance test enforces this. The migration discards physical rows and its down migration cannot recover them; no production database or service was changed here. Full backend and AppView release gates passed after the removal. Commit `7de1cae7` precedes this separately committed cleanup, as requested.
 
 ## Prior Review: Finding Dispositions (2026-09-25)
 | ID | Original Severity | Disposition | Correction Evidence |

@@ -63,31 +63,6 @@ CREATE TABLE bluesky_profiles (
     record_cid   TEXT        NOT NULL,
     indexed_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE TABLE atproto_follows (
-    uri         TEXT        NOT NULL PRIMARY KEY,
-    did         TEXT        NOT NULL,
-    rkey        TEXT        NOT NULL,
-    cid         TEXT        NOT NULL,
-    subject_did TEXT        NOT NULL,
-    record      JSONB       NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL,
-    indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (did, rkey),
-    UNIQUE (did, subject_did)
-);
-CREATE TABLE atproto_blocks (
-    uri         TEXT        NOT NULL PRIMARY KEY,
-    blocker_did TEXT        NOT NULL,
-    rkey        TEXT        NOT NULL,
-    cid         TEXT        NOT NULL,
-    subject_did TEXT        NOT NULL,
-    record      JSONB       NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL,
-    indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (blocker_did, rkey)
-);
-CREATE INDEX atproto_blocks_blocker_subject_idx ON atproto_blocks (blocker_did, subject_did);
-CREATE INDEX atproto_blocks_subject_blocker_idx ON atproto_blocks (subject_did, blocker_did);
 CREATE TABLE notification_events (
     id UUID PRIMARY KEY,
     recipient_did TEXT NOT NULL,
@@ -120,36 +95,6 @@ CREATE TABLE craftsky_posts (
     indexed_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (did, rkey)
 );
-CREATE TABLE craftsky_likes (
-    uri         TEXT        NOT NULL PRIMARY KEY,
-    did         TEXT        NOT NULL,
-    rkey        TEXT        NOT NULL,
-    cid         TEXT        NOT NULL,
-    subject_uri TEXT        NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
-    subject_cid TEXT        NOT NULL,
-    record      JSONB       NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL,
-    indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at  TIMESTAMPTZ,
-    UNIQUE (did, rkey)
-);
-CREATE UNIQUE INDEX craftsky_likes_did_subject_uri_active_unique
-    ON craftsky_likes (did, subject_uri) WHERE deleted_at IS NULL;
-CREATE TABLE craftsky_reposts (
-    uri         TEXT        NOT NULL PRIMARY KEY,
-    did         TEXT        NOT NULL,
-    rkey        TEXT        NOT NULL,
-    cid         TEXT        NOT NULL,
-    subject_uri TEXT        NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
-    subject_cid TEXT        NOT NULL,
-    record      JSONB       NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL,
-    indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at  TIMESTAMPTZ,
-    UNIQUE (did, rkey)
-);
-CREATE UNIQUE INDEX craftsky_reposts_did_subject_uri_active_unique
-    ON craftsky_reposts (did, subject_uri) WHERE deleted_at IS NULL;
 CREATE TABLE pds_set_sources (
     source_uri TEXT PRIMARY KEY,
     kind TEXT NOT NULL,

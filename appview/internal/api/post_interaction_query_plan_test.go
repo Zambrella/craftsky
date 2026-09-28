@@ -16,10 +16,6 @@ import (
 )
 
 const postInteractionQueryPlanIndexesDDL = `
-CREATE INDEX craftsky_likes_active_subject_uri
-    ON craftsky_likes (subject_uri) WHERE deleted_at IS NULL;
-CREATE INDEX craftsky_reposts_active_subject_uri
-    ON craftsky_reposts (subject_uri) WHERE deleted_at IS NULL;
 CREATE INDEX craftsky_posts_quote_uri
     ON craftsky_posts (quote_uri) WHERE quote_uri IS NOT NULL;
 `
@@ -41,22 +37,12 @@ func TestPostInteractionListQueriesUseSubjectAndQuoteIndexes(t *testing.T) {
 		FROM generate_series(1, 1200) AS n;
 		INSERT INTO craftsky_posts (uri, did, rkey, cid, text, record, created_at)
 		VALUES ('at://did:plc:owner/social.craftsky.feed.post/target', 'did:plc:owner', 'target', 'target-cid', 'target', '{}', '2026-09-06T00:00:00Z');
-		INSERT INTO craftsky_likes (uri, did, rkey, cid, subject_uri, subject_cid, record, created_at)
-		SELECT 'at://did:plc:actor' || n || '/social.craftsky.feed.like/' || n,
-		       'did:plc:actor' || n, n::text, 'like-cid-' || n, 'at://did:plc:owner/social.craftsky.feed.post/target', 'target-cid', '{}',
-		       '2026-09-06T00:00:00Z'::timestamptz + n * interval '1 second'
-		FROM generate_series(1, 1200) AS n;
 		INSERT INTO pds_set_aggregates(
 			kind,actor_did,scope_key,subject_uri,eligible_source_count,representative_source_uri,activated_at
 		)
 		SELECT 'like','did:plc:actor' || n,'at://did:plc:owner/social.craftsky.feed.post/target',
 		       'at://did:plc:owner/social.craftsky.feed.post/target',1,
 		       'at://did:plc:actor' || n || '/social.craftsky.feed.like/' || n,
-		       '2026-09-06T00:00:00Z'::timestamptz + n * interval '1 second'
-		FROM generate_series(1, 1200) AS n;
-		INSERT INTO craftsky_reposts (uri, did, rkey, cid, subject_uri, subject_cid, record, created_at)
-		SELECT 'at://did:plc:actor' || n || '/social.craftsky.feed.repost/' || n,
-		       'did:plc:actor' || n, n::text, 'repost-cid-' || n, 'at://did:plc:owner/social.craftsky.feed.post/target', 'target-cid', '{}',
 		       '2026-09-06T00:00:00Z'::timestamptz + n * interval '1 second'
 		FROM generate_series(1, 1200) AS n;
 		INSERT INTO pds_set_aggregates(
@@ -74,9 +60,7 @@ func TestPostInteractionListQueriesUseSubjectAndQuoteIndexes(t *testing.T) {
 		FROM generate_series(1, 1200) AS n;
 		ANALYZE craftsky_profiles;
 		ANALYZE atproto_identity_cache;
-		ANALYZE craftsky_likes;
 		ANALYZE pds_set_aggregates;
-		ANALYZE craftsky_reposts;
 		ANALYZE craftsky_posts;
 		SET enable_seqscan = off;
 	`); err != nil {

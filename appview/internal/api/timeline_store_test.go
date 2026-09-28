@@ -14,30 +14,11 @@ import (
 	"social.craftsky/appview/internal/testdb"
 )
 
-const timelineStoreDDL = postStoreDDL + `
-CREATE TABLE atproto_follows (
-    uri         TEXT        NOT NULL PRIMARY KEY,
-    did         TEXT        NOT NULL,
-    rkey        TEXT        NOT NULL,
-    cid         TEXT        NOT NULL,
-    subject_did TEXT        NOT NULL,
-    record      JSONB       NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL,
-    indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (did, rkey),
-    UNIQUE (did, subject_did)
-);
-`
+const timelineStoreDDL = postStoreDDL
 
 func seedFollow(t *testing.T, pool *pgxpool.Pool, followerDID, subjectDID, rkey string) string {
 	t.Helper()
 	uri := "at://" + followerDID + "/app.bsky.graph.follow/" + rkey
-	if _, err := pool.Exec(context.Background(), `
-		INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at, indexed_at)
-		VALUES ($1, $2, $3, 'bafyfollow' || $3, $4, '{}'::jsonb, $5, $5)`,
-		uri, followerDID, rkey, subjectDID, time.Date(2026, 5, 28, 9, 0, 0, 0, time.UTC)); err != nil {
-		t.Fatalf("seed follow: %v", err)
-	}
 	if _, err := pool.Exec(context.Background(), `
 		INSERT INTO pds_set_aggregates (
 			kind, actor_did, scope_key, subject_did,
@@ -61,9 +42,6 @@ func setRepostTimes(t *testing.T, pool *pgxpool.Pool, uri string, activityAt, in
 		{`UPDATE pds_set_sources SET activity_at=$2 WHERE source_uri=$1`, activityAt},
 		{`UPDATE pds_set_aggregates SET activated_at=$2 WHERE kind='repost' AND representative_source_uri=$1`, activityAt},
 		{`UPDATE tap_source_records SET updated_at=$2 WHERE uri=$1`, indexedAt},
-	}
-	if _, err := pool.Exec(context.Background(), `UPDATE craftsky_reposts SET created_at=$2,indexed_at=$3 WHERE uri=$1`, uri, activityAt, indexedAt); err != nil {
-		t.Fatalf("set repost times: %v", err)
 	}
 	for _, update := range updates {
 		if _, err := pool.Exec(context.Background(), update.statement, uri, update.value); err != nil {

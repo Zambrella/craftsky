@@ -297,9 +297,6 @@ func (indexer *BlueskyBlock) Project(ctx context.Context, tx pgx.Tx, source inge
 	if err != nil {
 		return tap.Retryable(tap.ReasonProjectionFailure), err
 	}
-	clone := *indexer
-	clone.projectionDB = tx
-	clone.skipDeliveryCancellation = true
 	for _, change := range changes {
 		if change.Transition != SetActivated {
 			continue
@@ -308,7 +305,7 @@ func (indexer *BlueskyBlock) Project(ctx context.Context, tx pgx.Tx, source inge
 		if err != nil {
 			return tap.Retryable(tap.ReasonProjectionFailure), err
 		}
-		if err := clone.cancelPendingDeliveries(ctx, tx, change.Scope.Actor, subject); err != nil {
+		if err := indexer.cancelPendingDeliveries(ctx, tx, change.Scope.Actor, subject); err != nil {
 			return tap.Retryable(tap.ReasonProjectionFailure), err
 		}
 	}

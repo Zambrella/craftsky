@@ -255,7 +255,15 @@ func TestMembershipAndBlockBackfillConvergeAcrossRestartWithoutReadinessState(t 
 			created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
 			PRIMARY KEY (owner_did, subject_did)
 		);
-	`+atprotoBlocksDDL)
+		CREATE TABLE pds_set_aggregates (
+			kind TEXT NOT NULL,
+			actor_did TEXT NOT NULL,
+			scope_key TEXT NOT NULL,
+			subject_did TEXT,
+			representative_source_uri TEXT NOT NULL,
+			activated_at TIMESTAMPTZ NOT NULL
+		);
+	`)
 	ctx := context.Background()
 	alice := syntax.DID("did:plc:alice")
 	joining := syntax.DID("did:plc:joining")
@@ -264,7 +272,6 @@ func TestMembershipAndBlockBackfillConvergeAcrossRestartWithoutReadinessState(t 
 		t.Fatal(err)
 	}
 
-	blockIndexer := index.NewBlueskyBlock(pool)
 	inbound := tap.Event{
 		URI:        "at://did:plc:alice/app.bsky.graph.block/inbound",
 		CID:        "bafy-inbound",
@@ -273,9 +280,6 @@ func TestMembershipAndBlockBackfillConvergeAcrossRestartWithoutReadinessState(t 
 		Collection: "app.bsky.graph.block",
 		Action:     "create",
 		Record:     json.RawMessage(`{"subject":"did:plc:joining","createdAt":"2026-07-19T12:00:00Z"}`),
-	}
-	if err := blockIndexer.Handle(ctx, inbound); err != nil {
-		t.Fatalf("retain inbound block before membership: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO pds_set_aggregates(kind,actor_did,scope_key,subject_did,representative_source_uri,activated_at)
@@ -343,9 +347,6 @@ func TestMembershipAndBlockBackfillConvergeAcrossRestartWithoutReadinessState(t 
 		Collection: "app.bsky.graph.block",
 		Action:     "create",
 		Record:     json.RawMessage(`{"subject":"did:plc:alice","createdAt":"2026-07-19T12:01:00Z"}`),
-	}
-	if err := blockIndexer.Handle(ctx, outbound); err != nil {
-		t.Fatalf("resume joining-owned block event: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO pds_set_aggregates(kind,actor_did,scope_key,subject_did,representative_source_uri,activated_at)

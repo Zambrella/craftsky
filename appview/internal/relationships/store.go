@@ -17,15 +17,6 @@ type Store struct {
 	pool *pgxpool.Pool
 }
 
-type BlockRecord struct {
-	URI        syntax.ATURI
-	BlockerDID syntax.DID
-	Rkey       syntax.RecordKey
-	CID        syntax.CID
-	SubjectDID syntax.DID
-	CreatedAt  time.Time
-}
-
 type ListItem struct {
 	SubjectDID syntax.DID
 	CreatedAt  time.Time
@@ -164,43 +155,6 @@ func (s *Store) State(ctx context.Context, viewer, subject syntax.DID) (State, e
 		return State{}, fmt.Errorf("read relationship state: %w", err)
 	}
 	return state, nil
-}
-
-// OwnedBlockRecords returns only caller-owned indexed identities for one
-// subject. It never exposes an inbound block as deletable by the caller.
-func (s *Store) OwnedBlockRecords(ctx context.Context, blocker, subject syntax.DID) ([]BlockRecord, error) {
-	rows, err := s.pool.Query(ctx, `
-		SELECT uri, blocker_did, rkey, cid, subject_did, created_at
-		FROM atproto_blocks
-		WHERE blocker_did = $1 AND subject_did = $2
-		  AND NOT appview_owner_is_terminal(blocker_did)
-		  AND NOT appview_owner_is_terminal(subject_did)
-		ORDER BY uri ASC
-	`, blocker, subject)
-	if err != nil {
-		return nil, fmt.Errorf("list owned block records: %w", err)
-	}
-	defer rows.Close()
-
-	records := make([]BlockRecord, 0)
-	for rows.Next() {
-		var record BlockRecord
-		if err := rows.Scan(
-			&record.URI,
-			&record.BlockerDID,
-			&record.Rkey,
-			&record.CID,
-			&record.SubjectDID,
-			&record.CreatedAt,
-		); err != nil {
-			return nil, fmt.Errorf("scan owned block record: %w", err)
-		}
-		records = append(records, record)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate owned block records: %w", err)
-	}
-	return records, nil
 }
 
 func (s *Store) ListMutes(
