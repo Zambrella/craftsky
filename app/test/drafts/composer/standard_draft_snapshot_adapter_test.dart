@@ -23,6 +23,7 @@ void main() {
     );
 
     final request = const StandardDraftSnapshotAdapter().toWriteRequest(
+      sponsored: false,
       id: '00000000-0000-4000-8000-000000000001',
       owner: AccountKey('did:plc:alice'),
       text: '',
@@ -37,6 +38,7 @@ void main() {
 
   test('builds an incomplete standard snapshot with reusable stored media', () {
     final request = const StandardDraftSnapshotAdapter().toWriteRequest(
+      sponsored: false,
       id: '00000000-0000-4000-8000-000000000001',
       owner: AccountKey('did:plc:alice'),
       existingRevision: 4,

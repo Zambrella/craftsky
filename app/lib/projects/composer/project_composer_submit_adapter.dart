@@ -110,6 +110,7 @@ Future<Project> _projectWithPatternFacets(
     name: pattern.name,
     nameFacets: nameFacets,
     difficulty: pattern.difficulty,
+    selfDrafted: pattern.selfDrafted,
     designer: pattern.designer,
     designerFacets: designerFacets,
     publisher: pattern.publisher,

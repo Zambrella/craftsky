@@ -198,6 +198,13 @@ class ProjectBrowseFiltersMapper extends ClassMapperBase<ProjectBrowseFilters> {
   @override
   final String id = 'ProjectBrowseFilters';
 
+  static List<String> _$status(ProjectBrowseFilters v) => v.status;
+  static const Field<ProjectBrowseFilters, List<String>> _f$status = Field(
+    'status',
+    _$status,
+    opt: true,
+    def: const [],
+  );
   static List<String> _$projectType(ProjectBrowseFilters v) => v.projectType;
   static const Field<ProjectBrowseFilters, List<String>> _f$projectType = Field(
     'projectType',
@@ -205,6 +212,10 @@ class ProjectBrowseFiltersMapper extends ClassMapperBase<ProjectBrowseFilters> {
     opt: true,
     def: const [],
   );
+  static List<String> _$projectSubtype(ProjectBrowseFilters v) =>
+      v.projectSubtype;
+  static const Field<ProjectBrowseFilters, List<String>> _f$projectSubtype =
+      Field('projectSubtype', _$projectSubtype, opt: true, def: const []);
   static List<String> _$patternDifficulty(ProjectBrowseFilters v) =>
       v.patternDifficulty;
   static const Field<ProjectBrowseFilters, List<String>> _f$patternDifficulty =
@@ -216,13 +227,6 @@ class ProjectBrowseFiltersMapper extends ClassMapperBase<ProjectBrowseFilters> {
     opt: true,
     def: const [],
   );
-  static List<String> _$material(ProjectBrowseFilters v) => v.material;
-  static const Field<ProjectBrowseFilters, List<String>> _f$material = Field(
-    'material',
-    _$material,
-    opt: true,
-    def: const [],
-  );
   static List<String> _$designTag(ProjectBrowseFilters v) => v.designTag;
   static const Field<ProjectBrowseFilters, List<String>> _f$designTag = Field(
     'designTag',
@@ -230,32 +234,55 @@ class ProjectBrowseFiltersMapper extends ClassMapperBase<ProjectBrowseFilters> {
     opt: true,
     def: const [],
   );
-  static List<String> _$projectTag(ProjectBrowseFilters v) => v.projectTag;
-  static const Field<ProjectBrowseFilters, List<String>> _f$projectTag = Field(
-    'projectTag',
-    _$projectTag,
+  static List<String> _$yarnWeight(ProjectBrowseFilters v) => v.yarnWeight;
+  static const Field<ProjectBrowseFilters, List<String>> _f$yarnWeight = Field(
+    'yarnWeight',
+    _$yarnWeight,
     opt: true,
     def: const [],
+  );
+  static List<String> _$piecingTechnique(ProjectBrowseFilters v) =>
+      v.piecingTechnique;
+  static const Field<ProjectBrowseFilters, List<String>> _f$piecingTechnique =
+      Field('piecingTechnique', _$piecingTechnique, opt: true, def: const []);
+  static List<String> _$quiltingMethod(ProjectBrowseFilters v) =>
+      v.quiltingMethod;
+  static const Field<ProjectBrowseFilters, List<String>> _f$quiltingMethod =
+      Field('quiltingMethod', _$quiltingMethod, opt: true, def: const []);
+  static bool _$selfDrafted(ProjectBrowseFilters v) => v.selfDrafted;
+  static const Field<ProjectBrowseFilters, bool> _f$selfDrafted = Field(
+    'selfDrafted',
+    _$selfDrafted,
+    opt: true,
+    def: false,
   );
 
   @override
   final MappableFields<ProjectBrowseFilters> fields = const {
+    #status: _f$status,
     #projectType: _f$projectType,
+    #projectSubtype: _f$projectSubtype,
     #patternDifficulty: _f$patternDifficulty,
     #color: _f$color,
-    #material: _f$material,
     #designTag: _f$designTag,
-    #projectTag: _f$projectTag,
+    #yarnWeight: _f$yarnWeight,
+    #piecingTechnique: _f$piecingTechnique,
+    #quiltingMethod: _f$quiltingMethod,
+    #selfDrafted: _f$selfDrafted,
   };
 
   static ProjectBrowseFilters _instantiate(DecodingData data) {
     return ProjectBrowseFilters(
+      status: data.dec(_f$status),
       projectType: data.dec(_f$projectType),
+      projectSubtype: data.dec(_f$projectSubtype),
       patternDifficulty: data.dec(_f$patternDifficulty),
       color: data.dec(_f$color),
-      material: data.dec(_f$material),
       designTag: data.dec(_f$designTag),
-      projectTag: data.dec(_f$projectTag),
+      yarnWeight: data.dec(_f$yarnWeight),
+      piecingTechnique: data.dec(_f$piecingTechnique),
+      quiltingMethod: data.dec(_f$quiltingMethod),
+      selfDrafted: data.dec(_f$selfDrafted),
     );
   }
 
@@ -329,20 +356,30 @@ abstract class ProjectBrowseFiltersCopyWith<
   $Out
 >
     implements ClassCopyWith<$R, $In, $Out> {
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get status;
   ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get projectType;
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>
+  get projectSubtype;
   ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>
   get patternDifficulty;
   ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get color;
-  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get material;
   ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get designTag;
-  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get projectTag;
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get yarnWeight;
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>
+  get piecingTechnique;
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>
+  get quiltingMethod;
   $R call({
+    List<String>? status,
     List<String>? projectType,
+    List<String>? projectSubtype,
     List<String>? patternDifficulty,
     List<String>? color,
-    List<String>? material,
     List<String>? designTag,
-    List<String>? projectTag,
+    List<String>? yarnWeight,
+    List<String>? piecingTechnique,
+    List<String>? quiltingMethod,
+    bool? selfDrafted,
   });
   ProjectBrowseFiltersCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
@@ -358,11 +395,25 @@ class _ProjectBrowseFiltersCopyWithImpl<$R, $Out>
   late final ClassMapperBase<ProjectBrowseFilters> $mapper =
       ProjectBrowseFiltersMapper.ensureInitialized();
   @override
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get status =>
+      ListCopyWith(
+        $value.status,
+        (v, t) => ObjectCopyWith(v, $identity, t),
+        (v) => call(status: v),
+      );
+  @override
   ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>
   get projectType => ListCopyWith(
     $value.projectType,
     (v, t) => ObjectCopyWith(v, $identity, t),
     (v) => call(projectType: v),
+  );
+  @override
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>
+  get projectSubtype => ListCopyWith(
+    $value.projectSubtype,
+    (v, t) => ObjectCopyWith(v, $identity, t),
+    (v) => call(projectSubtype: v),
   );
   @override
   ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>
@@ -379,13 +430,6 @@ class _ProjectBrowseFiltersCopyWithImpl<$R, $Out>
         (v) => call(color: v),
       );
   @override
-  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get material =>
-      ListCopyWith(
-        $value.material,
-        (v, t) => ObjectCopyWith(v, $identity, t),
-        (v) => call(material: v),
-      );
-  @override
   ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get designTag =>
       ListCopyWith(
         $value.designTag,
@@ -393,41 +437,67 @@ class _ProjectBrowseFiltersCopyWithImpl<$R, $Out>
         (v) => call(designTag: v),
       );
   @override
-  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get projectTag =>
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get yarnWeight =>
       ListCopyWith(
-        $value.projectTag,
+        $value.yarnWeight,
         (v, t) => ObjectCopyWith(v, $identity, t),
-        (v) => call(projectTag: v),
+        (v) => call(yarnWeight: v),
       );
   @override
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>
+  get piecingTechnique => ListCopyWith(
+    $value.piecingTechnique,
+    (v, t) => ObjectCopyWith(v, $identity, t),
+    (v) => call(piecingTechnique: v),
+  );
+  @override
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>
+  get quiltingMethod => ListCopyWith(
+    $value.quiltingMethod,
+    (v, t) => ObjectCopyWith(v, $identity, t),
+    (v) => call(quiltingMethod: v),
+  );
+  @override
   $R call({
+    List<String>? status,
     List<String>? projectType,
+    List<String>? projectSubtype,
     List<String>? patternDifficulty,
     List<String>? color,
-    List<String>? material,
     List<String>? designTag,
-    List<String>? projectTag,
+    List<String>? yarnWeight,
+    List<String>? piecingTechnique,
+    List<String>? quiltingMethod,
+    bool? selfDrafted,
   }) => $apply(
     FieldCopyWithData({
+      if (status != null) #status: status,
       if (projectType != null) #projectType: projectType,
+      if (projectSubtype != null) #projectSubtype: projectSubtype,
       if (patternDifficulty != null) #patternDifficulty: patternDifficulty,
       if (color != null) #color: color,
-      if (material != null) #material: material,
       if (designTag != null) #designTag: designTag,
-      if (projectTag != null) #projectTag: projectTag,
+      if (yarnWeight != null) #yarnWeight: yarnWeight,
+      if (piecingTechnique != null) #piecingTechnique: piecingTechnique,
+      if (quiltingMethod != null) #quiltingMethod: quiltingMethod,
+      if (selfDrafted != null) #selfDrafted: selfDrafted,
     }),
   );
   @override
   ProjectBrowseFilters $make(CopyWithData data) => ProjectBrowseFilters(
+    status: data.get(#status, or: $value.status),
     projectType: data.get(#projectType, or: $value.projectType),
+    projectSubtype: data.get(#projectSubtype, or: $value.projectSubtype),
     patternDifficulty: data.get(
       #patternDifficulty,
       or: $value.patternDifficulty,
     ),
     color: data.get(#color, or: $value.color),
-    material: data.get(#material, or: $value.material),
     designTag: data.get(#designTag, or: $value.designTag),
-    projectTag: data.get(#projectTag, or: $value.projectTag),
+    yarnWeight: data.get(#yarnWeight, or: $value.yarnWeight),
+    piecingTechnique: data.get(#piecingTechnique, or: $value.piecingTechnique),
+    quiltingMethod: data.get(#quiltingMethod, or: $value.quiltingMethod),
+    selfDrafted: data.get(#selfDrafted, or: $value.selfDrafted),
   );
 
   @override

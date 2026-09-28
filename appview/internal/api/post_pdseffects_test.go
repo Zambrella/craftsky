@@ -90,7 +90,7 @@ func TestCreatePostUsesPreallocatedDurableEffectIdentityAndOwnerGeneration(t *te
 		return executor, nil
 	}
 	handler := api.CreatePostHandler(&fakePostStore{}, factory, fakeResolver{handleFor: "alice.example"}, api.DefaultMediaLimits(), nilLogger())
-	request := httptest.NewRequest(http.MethodPost, "/v1/posts", strings.NewReader(`{"text":"hello"}`))
+	request := httptest.NewRequest(http.MethodPost, "/v1/posts", strings.NewReader(`{"text":"hello","sponsored":false}`))
 	ctx := middleware.WithDID(request.Context(), owner)
 	ctx = middleware.WithOwnerGeneration(ctx, 7)
 	ctx = middleware.WithOAuthSessionID(ctx, "session-alice")
@@ -135,7 +135,7 @@ func TestCreatePostFallbackEffectIdentityIsUniquePerRequest(t *testing.T) {
 		return executor, nil
 	}, fakeResolver{handleFor: "alice.example"}, api.DefaultMediaLimits(), nilLogger())
 	for range 2 {
-		request := httptest.NewRequest(http.MethodPost, "/v1/posts", strings.NewReader(`{"text":"hello"}`))
+		request := httptest.NewRequest(http.MethodPost, "/v1/posts", strings.NewReader(`{"text":"hello","sponsored":false}`))
 		ctx := middleware.WithDID(request.Context(), owner)
 		ctx = middleware.WithOwnerGeneration(ctx, 2)
 		request = request.WithContext(ctx)
@@ -198,7 +198,7 @@ func TestCreatePostCarriesDirectedOwnersIntoDurableFenceResolution(t *testing.T)
 	}{
 		{
 			name: "quote",
-			body: `{"text":"quote","embed":{"quote":{"uri":"at://did:plc:bob/social.craftsky.feed.post/post1","cid":"bafyPost"}}}`,
+			body: `{"text":"quote","sponsored":false,"embed":{"quote":{"uri":"at://did:plc:bob/social.craftsky.feed.post/post1","cid":"bafyPost"}}}`,
 			store: &fakePostStore{shareTarget: &api.ShareTargetRef{
 				URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost",
 			}},
@@ -206,13 +206,13 @@ func TestCreatePostCarriesDirectedOwnersIntoDurableFenceResolution(t *testing.T)
 		},
 		{
 			name:        "reply parent and root",
-			body:        `{"text":"reply","reply":{"root":{"uri":"at://did:plc:carol/social.craftsky.feed.post/root","cid":"bafyRoot"},"parent":{"uri":"at://did:plc:bob/social.craftsky.feed.post/parent","cid":"bafyParent"}}}`,
+			body:        `{"text":"reply","sponsored":false,"reply":{"root":{"uri":"at://did:plc:carol/social.craftsky.feed.post/root","cid":"bafyRoot"},"parent":{"uri":"at://did:plc:bob/social.craftsky.feed.post/parent","cid":"bafyParent"}}}`,
 			store:       &fakePostStore{},
 			wantTargets: []syntax.DID{"did:plc:bob", "did:plc:carol"},
 		},
 		{
 			name:        "mention",
-			body:        `{"text":"@bob.example","facets":[{"index":{"byteStart":0,"byteEnd":12},"features":[{"$type":"app.bsky.richtext.facet#mention","did":"did:plc:bob"}]}]}`,
+			body:        `{"text":"@bob.example","sponsored":false,"facets":[{"index":{"byteStart":0,"byteEnd":12},"features":[{"$type":"app.bsky.richtext.facet#mention","did":"did:plc:bob"}]}]}`,
 			store:       &fakePostStore{},
 			wantTargets: []syntax.DID{"did:plc:bob"},
 		},
@@ -326,7 +326,7 @@ func TestPostPDSMutationHandlersMissingOwnerGenerationFailBeforeEffectFactory(t 
 				return api.CreatePostHandler(store, factory, fakeResolver{}, api.DefaultMediaLimits(), nilLogger())
 			},
 			request: func() *http.Request {
-				return httptest.NewRequest(http.MethodPost, "/v1/posts", strings.NewReader(`{"text":"hello"}`))
+				return httptest.NewRequest(http.MethodPost, "/v1/posts", strings.NewReader(`{"text":"hello","sponsored":false}`))
 			},
 		},
 		{

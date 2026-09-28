@@ -15,23 +15,31 @@ func TestV1RoutePoliciesUseExplicitAccessClasses(t *testing.T) {
 	t.Parallel()
 
 	wantOverrides := map[string]AccessClass{
-		"POST /v1/auth/login":                         AccessAnonymous,
-		"POST /v1/auth/registrations":                 AccessAnonymous,
-		"POST /v1/auth/handoffs/exchange":             AccessAnonymous,
-		"POST /v1/auth/handoffs/confirm":              AccessAnonymous,
-		"GET /v1/whoami":                              AccessAuthenticatedRecovery,
-		"POST /v1/auth/logout":                        AccessAuthenticatedRecovery,
-		"DELETE /v1/account-deletion/intents/{jobId}": AccessAuthenticatedRecovery,
-		"POST /v1/account-deletions/{jobId}":          AccessAuthenticatedRecovery,
-		"GET /v1/dev/media/{name}":                    AccessAnonymous,
-		"GET /v1/dev/panic":                           AccessAnonymous,
-		"POST /v1/dev/moderation/ozone-events":        AccessAnonymous,
+		"POST /v1/auth/login":                                                  AccessAnonymous,
+		"POST /v1/auth/registrations":                                          AccessAnonymous,
+		"POST /v1/auth/handoffs/exchange":                                      AccessAnonymous,
+		"POST /v1/auth/handoffs/confirm":                                       AccessAnonymous,
+		"GET /v1/whoami":                                                       AccessAuthenticatedRecovery,
+		"POST /v1/auth/logout":                                                 AccessAuthenticatedRecovery,
+		"DELETE /v1/account-deletion/intents/{jobId}":                          AccessAuthenticatedRecovery,
+		"POST /v1/account-deletions/{jobId}":                                   AccessAuthenticatedRecovery,
+		"GET /v1/dev/media/{name}":                                             AccessAnonymous,
+		"GET /v1/dev/panic":                                                    AccessAnonymous,
+		"POST /v1/dev/moderation/ozone-events":                                 AccessAnonymous,
+		"GET /v1/admin/moderation/cases":                                       AccessModerator,
+		"GET /v1/admin/moderation/cases/{caseReference}":                       AccessModerator,
+		"POST /v1/admin/moderation/cases/{caseReference}/decisions":            AccessModerator,
+		"POST /v1/admin/moderation/cases/{caseReference}/appeal-confirmations": AccessModerator,
+		"POST /v1/admin/moderation/cases/{caseReference}/appeal-resolutions":   AccessModerator,
+		"POST /v1/admin/moderation/cases/{caseReference}/effect-changes":       AccessModerator,
+		"POST /v1/admin/moderation/cases/{caseReference}/restorations":         AccessModerator,
 	}
 
 	policies := V1RoutePolicies(EnvDev, Config{
-		Env:                 EnvDev,
-		EnableDevModeration: true,
-		DevModerationToken:  "configured",
+		Env:                    EnvDev,
+		EnableDevModeration:    true,
+		DevModerationToken:     "configured",
+		ModerationAdminEnabled: true,
 	})
 	for _, policy := range policies {
 		key := policy.Method + " " + policy.PathPattern
@@ -65,6 +73,7 @@ func TestV1MiddlewareDispatchesAccessClass(t *testing.T) {
 		{name: "anonymous dev route", accessClass: AccessAnonymous, rateClass: RateClassDevOnly, wantCalls: []string{"handler"}},
 		{name: "authenticated recovery", accessClass: AccessAuthenticatedRecovery, rateClass: RateClassRead, wantCalls: []string{"recovery", "device", "handler"}},
 		{name: "current member", accessClass: AccessCurrentMember, rateClass: RateClassRead, wantCalls: []string{"ordinary", "device", "member", "handler"}},
+		{name: "moderator", accessClass: AccessModerator, rateClass: RateClassRead, wantCalls: []string{"moderator", "handler"}},
 		{name: "unspecified fails closed", accessClass: 0, rateClass: RateClassRead, wantCalls: []string{"ordinary", "device", "member", "handler"}},
 	} {
 		test := test
@@ -85,15 +94,17 @@ func TestV1MiddlewareDispatchesAccessClass(t *testing.T) {
 				authRecovery:      probe("recovery"),
 				deviceID:          probe("device"),
 				member:            probe("member"),
+				moderator:         probe("moderator"),
 				rateLimit:         map[RateClass]func(http.Handler) http.Handler{},
 				observer:          observability.New(observability.Config{}),
 			}
 			handler := mw.wrap(RoutePolicy{
-				Method:      http.MethodGet,
-				PathPattern: "/v1/probe",
-				RateClass:   test.rateClass,
-				BodyKind:    BodyExempt,
-				AccessClass: test.accessClass,
+				Method:          http.MethodGet,
+				PathPattern:     "/v1/probe",
+				RateClass:       test.rateClass,
+				BodyKind:        BodyExempt,
+				AccessClass:     test.accessClass,
+				SuspensionClass: SuspensionAllowed,
 			}, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				calls = append(calls, "handler")
 				w.WriteHeader(http.StatusNoContent)

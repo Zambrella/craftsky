@@ -79,6 +79,7 @@ type PostResponse struct {
 	CID                 string                  `json:"cid"`
 	Rkey                string                  `json:"rkey"`
 	Text                string                  `json:"text"`
+	Sponsored           bool                    `json:"sponsored"`
 	Images              []PostImageView         `json:"images,omitempty"`
 	Facets              json.RawMessage         `json:"facets"`
 	Tags                []string                `json:"tags"`
@@ -216,6 +217,7 @@ type QuotePreviewPost struct {
 	URI            string                  `json:"uri"`
 	CID            string                  `json:"cid"`
 	Text           string                  `json:"text"`
+	Sponsored      bool                    `json:"sponsored"`
 	Author         PostAuthor              `json:"author"`
 	Images         []PostImageView         `json:"images,omitempty"`
 	Project        *Project                `json:"project,omitempty"`
@@ -318,6 +320,7 @@ func BuildPostResponse(row *PostRow, handle syntax.Handle, playbackBuilders ...P
 		CID:            row.CID,
 		Rkey:           row.Rkey,
 		Text:           row.Text,
+		Sponsored:      row.Sponsored,
 		Images:         buildPostImageViews(row),
 		Facets:         row.Facets,
 		Tags:           tags,
@@ -460,6 +463,7 @@ func BuildQuoteView(row *QuoteViewRow, handle syntax.Handle) *QuoteView {
 		URI:            row.Post.URI,
 		CID:            row.Post.CID,
 		Text:           row.Post.Text,
+		Sponsored:      row.Post.Sponsored,
 		Author:         author,
 		Images:         buildPostImageViews(row.Post),
 		Project:        row.Post.Project,

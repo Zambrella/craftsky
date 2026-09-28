@@ -18,6 +18,7 @@ import (
 	lexiconschema "social.craftsky/appview/internal/lexicon/schema"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/postutil"
+	"social.craftsky/appview/internal/sourcevalidation"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -26,7 +27,7 @@ import (
 // the outer transaction; serving mutations and job completion succeed or roll
 // back together.
 type TransactionalIndexer interface {
-	Project(context.Context, pgx.Tx, tap.Event) (tap.Outcome, error)
+	Project(context.Context, pgx.Tx, ingestion.SourceRecord) (tap.Outcome, error)
 }
 
 // TransactionalDispatcher routes durable source rows to transaction-aware
@@ -55,6 +56,9 @@ func (dispatcher *TransactionalDispatcher) Register(collection syntax.NSID, inde
 	if indexer == nil {
 		panic("index.TransactionalDispatcher.Register: indexer must not be nil")
 	}
+	if _, exists := dispatcher.handlers[collection]; exists {
+		panic(fmt.Sprintf("index.TransactionalDispatcher.Register: indexer already registered for %s", collection))
+	}
 	dispatcher.handlers[collection] = indexer
 }
 
@@ -79,8 +83,19 @@ func (dispatcher *TransactionalDispatcher) Project(ctx context.Context, tx pgx.T
 		Action: source.Action, Record: source.Record, Live: source.Live,
 		ID: source.SourceEventID, Rev: source.Revision,
 	}
-	if err := validateProjectionRecord(event); err != nil {
-		return tap.PermanentInvalid(tap.ReasonMalformedRecord), nil
+	invalid := validateProjectionRecord(event) != nil
+	if invalid {
+		key := sourcevalidation.Validate(tap.Event{Collection: source.Collection, Rkey: source.Rkey, Action: "delete"})
+		if source.Collection == craftskyProfileNSID || key.StructuralStatus != sourcevalidation.Valid {
+			// Invalid profile content cannot trigger a membership departure.
+			return tap.PermanentInvalid(tap.ReasonMalformedRecord), nil
+		}
+		// Invalidate the prior serving state at this URI without changing the
+		// retained (invalid) Tap source or deleting anything from the PDS.
+		source.Action = "delete"
+		source.Record = nil
+		event.Action = "delete"
+		event.Record = nil
 	}
 	roles, err := projectionOwnerRoles(event)
 	if err != nil {
@@ -107,9 +122,13 @@ func (dispatcher *TransactionalDispatcher) Project(ctx context.Context, tx pgx.T
 			// cleanup delete removes any old non-terminal edge instead of
 			// leaving stale serving state while still preventing the new
 			// terminal-target edge from being created.
-			event.Action = "delete"
-			event.Record = nil
-			return indexer.Project(ctx, tx, event)
+			source.Action = "delete"
+			source.Record = nil
+			projected, err := indexer.Project(ctx, tx, source)
+			if invalid && err == nil && projected.Kind == tap.OutcomeApplied {
+				return tap.PermanentInvalid(tap.ReasonMalformedRecord), nil
+			}
+			return projected, err
 		}
 		terminalMentions := make(map[syntax.DID]struct{})
 		for owner, role := range roles {
@@ -122,7 +141,11 @@ func (dispatcher *TransactionalDispatcher) Project(ctx context.Context, tx pgx.T
 			ctx = context.WithValue(ctx, terminalProjectionMentionsContextKey{}, terminalMentions)
 		}
 	}
-	return indexer.Project(ctx, tx, event)
+	projected, err := indexer.Project(ctx, tx, source)
+	if invalid && err == nil && projected.Kind == tap.OutcomeApplied {
+		return tap.PermanentInvalid(tap.ReasonMalformedRecord), nil
+	}
+	return projected, err
 }
 
 func projectionLifecycleReady(
@@ -287,6 +310,13 @@ func filterTerminalProjectionMentions(ctx context.Context, mentionedDIDs []strin
 }
 
 func validateProjectionRecord(event tap.Event) error {
+	result := validateSourceRecord(event)
+	if result.StructuralStatus == ValidationInvalid || result.SemanticStatus == ValidationInvalid {
+		return errors.New(result.Reason)
+	}
+	if event.Collection == craftskyProfileNSID {
+		return nil
+	}
 	switch event.Collection {
 	case businessProfileCollection:
 		if event.Rkey != "self" {
@@ -330,9 +360,6 @@ func validateProjectionRecord(event tap.Event) error {
 		}
 		_, err := time.Parse(time.RFC3339Nano, record.CreatedAt)
 		return err
-	case craftskyProfileNSID:
-		var record craftskylex.ActorProfile
-		return json.Unmarshal(event.Record, &record)
 	case craftskyPostNSID:
 		var record craftskylex.FeedPost
 		if err := json.Unmarshal(event.Record, &record); err != nil {

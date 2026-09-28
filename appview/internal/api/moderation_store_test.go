@@ -4,7 +4,6 @@ package api_test
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/moderation"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -81,11 +81,11 @@ func moderationStoreDDL(t *testing.T) string {
 	t.Helper()
 	ddl := moderationFlowMigrationDDL(t) + moderationOutboxTestPreStateDDL
 	for _, path := range []string{
-		"../../migrations/000038_owner_auth_lifecycle.up.sql",
-		"../../migrations/000039_owner_effects_terminal_purge.up.sql",
-		"../../migrations/000044_moderation_restoration_outbox.up.sql",
+		"000038_owner_auth_lifecycle.up.sql",
+		"000039_owner_effects_terminal_purge.up.sql",
+		"000044_moderation_restoration_outbox.up.sql",
 	} {
-		up, err := os.ReadFile(path)
+		up, err := testdb.ReadMigration(path)
 		if err != nil {
 			t.Fatalf("read moderation dependency migration %s: %v", path, err)
 		}
@@ -525,6 +525,37 @@ func TestModerationStore_InsertOutput_PersistsPostAndAccountOutputs(t *testing.T
 	}
 	if storedCount != 2 {
 		t.Fatalf("stored outputs = %d, want 2", storedCount)
+	}
+}
+
+func TestModerationStore_InsertOutputTxBridgesExistingOutputStream(t *testing.T) {
+	pool := testdb.WithSchema(t, moderationStoreDDL(t))
+	store, _ := newModerationStore(t, pool, time.Now)
+	ctx := context.Background()
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	uri := syntax.ATURI("at://did:plc:target/social.craftsky.feed.post/3bridge")
+	id, err := store.InsertOutputTx(ctx, tx, moderation.VisibilityOutputWrite{
+		SourceDID: syntax.DID("did:plc:labeler"), SubjectType: moderation.SubjectPost,
+		SubjectDID: syntax.DID("did:plc:target"), SubjectCollection: "social.craftsky.feed.post",
+		SubjectRkey: "3bridge", SubjectURI: uri, Value: "hide", Action: "apply",
+		InternalReason: "private evidence", CreatedAt: time.Date(2026, 9, 10, 12, 0, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var storedID, storedURI, value, action string
+	if err := pool.QueryRow(ctx, `SELECT id,subject_uri,value,action FROM moderation_outputs WHERE id=$1`, id).Scan(&storedID, &storedURI, &value, &action); err != nil {
+		t.Fatal(err)
+	}
+	if storedID != id || storedURI != uri.String() || value != "hide" || action != "apply" {
+		t.Fatalf("bridged output = %q/%q/%q/%q", storedID, storedURI, value, action)
 	}
 }
 

@@ -12,6 +12,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -41,6 +42,12 @@ void listenToProfilePostActions(BuildContext context, WidgetRef ref) {
         context.showError(l10n.postLikeError);
         ref.read(toggleLikePostProvider.notifier).reset();
       }
+    })
+    ..listen(toggleRepostPostProvider, (previous, next) {
+      if (next.hasError) {
+        context.showError(l10n.postRepostError);
+        ref.read(toggleRepostPostProvider.notifier).reset();
+      }
     });
 }
 
@@ -53,7 +60,7 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
     required this.isOwnProfile,
     required this.emptyState,
     required this.onLoadMore,
-    required this.onReplacePost,
+    required this.onReplyCreated,
     required this.pinnedPostUri,
     super.key,
   });
@@ -65,7 +72,7 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
   final bool isOwnProfile;
   final Widget emptyState;
   final Future<void> Function() onLoadMore;
-  final void Function(Post post) onReplacePost;
+  final VoidCallback onReplyCreated;
   final String? pinnedPostUri;
 
   @override
@@ -167,9 +174,7 @@ class ProfilePostFeedSlivers extends ConsumerWidget {
   Future<void> _replyAndOpenThread(BuildContext context, Post post) async {
     final created = await showPostComposerSheet(context, replyTarget: post);
     if (created == null || !context.mounted) return;
-    onReplacePost(
-      post.copyWith(replyCount: post.replyCount + 1, viewerHasReplied: true),
-    );
+    onReplyCreated();
     await PostThreadRoute(
       did: post.author.did,
       rkey: post.rkey,
@@ -184,9 +189,11 @@ class ProfileTabLoadingSliver extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const SliverFillRemaining(
-      hasScrollBody: false,
-      child: Center(child: StitchProgressIndicator()),
+    return CraftskySkeletonSliverList(
+      itemCount: 3,
+      itemBuilder: (context, index) => PostCardSkeleton(
+        showMedia: index == 0,
+      ),
     );
   }
 }

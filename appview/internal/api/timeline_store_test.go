@@ -14,31 +14,40 @@ import (
 	"social.craftsky/appview/internal/testdb"
 )
 
-const timelineStoreDDL = postStoreDDL + `
-CREATE TABLE atproto_follows (
-    uri         TEXT        NOT NULL PRIMARY KEY,
-    did         TEXT        NOT NULL,
-    rkey        TEXT        NOT NULL,
-    cid         TEXT        NOT NULL,
-    subject_did TEXT        NOT NULL,
-    record      JSONB       NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL,
-    indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (did, rkey),
-    UNIQUE (did, subject_did)
-);
-`
+const timelineStoreDDL = postStoreDDL
 
 func seedFollow(t *testing.T, pool *pgxpool.Pool, followerDID, subjectDID, rkey string) string {
 	t.Helper()
 	uri := "at://" + followerDID + "/app.bsky.graph.follow/" + rkey
 	if _, err := pool.Exec(context.Background(), `
-		INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at, indexed_at)
-		VALUES ($1, $2, $3, 'bafyfollow' || $3, $4, '{}'::jsonb, $5, $5)`,
-		uri, followerDID, rkey, subjectDID, time.Date(2026, 5, 28, 9, 0, 0, 0, time.UTC)); err != nil {
-		t.Fatalf("seed follow: %v", err)
+		INSERT INTO pds_set_aggregates (
+			kind, actor_did, scope_key, subject_did,
+			eligible_source_count, representative_source_uri, activated_at
+		) VALUES ('follow', $1, $2, $2, 1, $3, $4)
+		ON CONFLICT (kind, actor_did, scope_key) DO UPDATE SET
+			representative_source_uri = EXCLUDED.representative_source_uri,
+			activated_at = EXCLUDED.activated_at`,
+		followerDID, subjectDID, uri, time.Date(2026, 5, 28, 9, 0, 0, 0, time.UTC)); err != nil {
+		t.Fatalf("seed follow aggregate: %v", err)
 	}
 	return uri
+}
+
+func setRepostTimes(t *testing.T, pool *pgxpool.Pool, uri string, activityAt, indexedAt time.Time) {
+	t.Helper()
+	updates := []struct {
+		statement string
+		value     time.Time
+	}{
+		{`UPDATE pds_set_sources SET activity_at=$2 WHERE source_uri=$1`, activityAt},
+		{`UPDATE pds_set_aggregates SET activated_at=$2 WHERE kind='repost' AND representative_source_uri=$1`, activityAt},
+		{`UPDATE tap_source_records SET updated_at=$2 WHERE uri=$1`, indexedAt},
+	}
+	for _, update := range updates {
+		if _, err := pool.Exec(context.Background(), update.statement, uri, update.value); err != nil {
+			t.Fatalf("set repost times: %v", err)
+		}
+	}
 }
 
 func seedQuotePost(t *testing.T, pool *pgxpool.Pool, did, rkey, text, quoteURI, quoteCID string, indexedAt time.Time) string {
@@ -74,19 +83,16 @@ func TestTimelineFiltersMuteBlockAndRepostAttributionBeforePagination(t *testing
 	bobNewest := seedPost(t, pool, "did:plc:bob", "bob-newest", "hidden muted", base.Add(10*time.Minute))
 	carol := seedPost(t, pool, "did:plc:carol", "carol", "eligible", base.Add(9*time.Minute))
 	repost := seedInteraction(t, pool, "repost", "did:plc:carol", "repost-bob", bobNewest, false)
-	if _, err := pool.Exec(ctx, `UPDATE craftsky_reposts SET created_at = $1, indexed_at = $1 WHERE uri = $2`, base.Add(8*time.Minute), repost); err != nil {
-		t.Fatalf("date repost: %v", err)
-	}
+	setRepostTimes(t, pool, repost, base.Add(8*time.Minute), base.Add(8*time.Minute))
 	seedPost(t, pool, "did:plc:dana", "dana", "hidden blocked", base.Add(7*time.Minute))
 	erin := seedPost(t, pool, "did:plc:erin", "erin", "eligible", base.Add(6*time.Minute))
 	viewer := seedPost(t, pool, "did:plc:viewer", "viewer", "own", base.Add(5*time.Minute))
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO actor_mutes (owner_did, subject_did) VALUES ('did:plc:viewer', 'did:plc:bob');
-		INSERT INTO atproto_blocks (uri, blocker_did, rkey, cid, subject_did, record, created_at)
-		VALUES ('at://did:plc:dana/app.bsky.graph.block/viewer', 'did:plc:dana', 'viewer', 'block-cid', 'did:plc:viewer', '{}', now());
+		INSERT INTO actor_mutes (owner_did, subject_did) VALUES ('did:plc:viewer', 'did:plc:bob')
 	`); err != nil {
 		t.Fatalf("seed relationships: %v", err)
 	}
+	seedBlockAggregate(t, pool, "did:plc:dana", "did:plc:viewer", base)
 
 	store := api.NewPostStore(pool)
 	first, cursor, err := store.ListTimeline(ctx, "did:plc:viewer", 2, "")
@@ -311,10 +317,10 @@ func TestTimelineStore_ListTimeline_OmitsRepostsOfHiddenSubjects(t *testing.T) {
 	for _, item := range items {
 		gotKeys = append(gotKeys, item.ItemKey)
 	}
-	if slices.Contains(gotKeys, "repost:"+hiddenRepost) {
+	if slices.Contains(gotKeys, "repost:did:plc:bob:"+hiddenSubject) {
 		t.Fatalf("timeline item keys = %v, leaked hidden subject repost %s", gotKeys, hiddenRepost)
 	}
-	if !slices.Contains(gotKeys, "repost:"+visibleRepost) {
+	if !slices.Contains(gotKeys, "repost:did:plc:bob:"+visibleSubject) {
 		t.Fatalf("timeline item keys = %v, want visible subject repost %s", gotKeys, visibleRepost)
 	}
 }
@@ -373,10 +379,10 @@ func TestTimelineStore_ListTimeline_IncludesFollowedRepostActivityWithReasonAndE
 	comment := seedReplyPost(t, pool, "did:plc:bob", "comment", "comment", root, root, base.Add(3*time.Minute))
 	reply := seedReplyPost(t, pool, "did:plc:bob", "reply", "nested reply", root, comment, base.Add(time.Minute))
 	repost := seedInteraction(t, pool, "repost", "did:plc:bob", "repost-root", root, false)
+	duplicateRepost := seedInteraction(t, pool, "repost", "did:plc:bob", "repost-root-duplicate", root, false)
 	repostAt := base.Add(5 * time.Minute)
-	if _, err := pool.Exec(context.Background(), `UPDATE craftsky_reposts SET created_at = $1, indexed_at = $1 WHERE uri = $2`, repostAt, repost); err != nil {
-		t.Fatalf("update repost time: %v", err)
-	}
+	setRepostTimes(t, pool, repost, repostAt, repostAt)
+	setRepostTimes(t, pool, duplicateRepost, repostAt, repostAt)
 
 	store := api.NewPostStore(pool)
 	items, _, err := store.ListTimeline(context.Background(), "did:plc:viewer", 20, "")
@@ -397,9 +403,19 @@ func TestTimelineStore_ListTimeline_IncludesFollowedRepostActivityWithReasonAndE
 	if len(items) == 0 || items[0].ItemKind != "repost" {
 		t.Fatalf("first item = %+v, want repost item", items)
 	}
+	repostItems := 0
+	for _, item := range items {
+		if item.ItemKind == "repost" {
+			repostItems++
+		}
+	}
+	if repostItems != 1 {
+		t.Fatalf("repost timeline items = %d, want one logical action", repostItems)
+	}
 	repostItem := items[0]
-	if repostItem.ItemKey != "repost:"+repost {
-		t.Fatalf("repost item key = %q, want %q", repostItem.ItemKey, "repost:"+repost)
+	wantRepostKey := "repost:did:plc:bob:" + root
+	if repostItem.ItemKey != wantRepostKey {
+		t.Fatalf("repost item key = %q, want %q", repostItem.ItemKey, wantRepostKey)
 	}
 	if repostItem.Post == nil || repostItem.Post.URI != root {
 		t.Fatalf("repost item post = %+v, want original %s", repostItem.Post, root)
@@ -465,11 +481,7 @@ func TestTimelineStore_ListTimeline_OrdersBackfilledItemsByClampedActivityTime(t
 	`, base.Add(-2*time.Hour), base.Add(time.Minute), newPost); err != nil {
 		t.Fatalf("simulate backfilled post: %v", err)
 	}
-	if _, err := pool.Exec(context.Background(), `
-		UPDATE craftsky_reposts SET created_at = $1, indexed_at = $2 WHERE uri = $3
-	`, base.Add(-24*time.Hour), base.Add(2*time.Minute), repost); err != nil {
-		t.Fatalf("simulate backfilled repost: %v", err)
-	}
+	setRepostTimes(t, pool, repost, base.Add(-24*time.Hour), base.Add(2*time.Minute))
 
 	items, _, err := api.NewPostStore(pool).ListTimeline(context.Background(), "did:plc:viewer", 20, "")
 	if err != nil {
@@ -478,7 +490,7 @@ func TestTimelineStore_ListTimeline_OrdersBackfilledItemsByClampedActivityTime(t
 	if len(items) != 2 {
 		t.Fatalf("timeline items = %d, want 2", len(items))
 	}
-	if items[0].ItemKey != "post:"+newPost || items[1].ItemKey != "repost:"+repost {
+	if items[0].ItemKey != "post:"+newPost || items[1].ItemKey != "repost:did:plc:alice:"+oldSubject {
 		t.Fatalf("timeline item keys = [%s %s], want new post before old repost", items[0].ItemKey, items[1].ItemKey)
 	}
 	if !items[0].ActivityAt.Equal(base.Add(-2*time.Hour)) || !items[1].ActivityAt.Equal(base.Add(-24*time.Hour)) {
@@ -549,9 +561,7 @@ func TestTimelineStore_ListTimeline_PaginatesMixedPostsAndRepostsWithFeedItemCur
 
 	root := seedPost(t, pool, "did:plc:carol", "root", "root post", tied.Add(-time.Hour))
 	repost := seedInteraction(t, pool, "repost", "did:plc:bob", "repost-root", root, false)
-	if _, err := pool.Exec(context.Background(), `UPDATE craftsky_reposts SET created_at = $1, indexed_at = $1 WHERE uri = $2`, tied, repost); err != nil {
-		t.Fatalf("update repost time: %v", err)
-	}
+	setRepostTimes(t, pool, repost, tied, tied)
 	danaPost := seedPost(t, pool, "did:plc:dana", "post", "dana post", tied)
 
 	store := api.NewPostStore(pool)
@@ -562,7 +572,7 @@ func TestTimelineStore_ListTimeline_PaginatesMixedPostsAndRepostsWithFeedItemCur
 	if cursor == "" {
 		t.Fatal("first cursor = empty, want next page cursor")
 	}
-	if len(first) != 1 || first[0].ItemKey != "repost:"+repost {
+	if len(first) != 1 || first[0].ItemKey != "repost:did:plc:bob:"+root {
 		t.Fatalf("first page = %+v, want repost item %s", first, repost)
 	}
 	payload, err := envelope.DecodeCursor(cursor)
@@ -669,7 +679,7 @@ func TestTimelineStore_ListTimeline_UsesCurrentFollowGraphOnEachPage(t *testing.
 		t.Fatalf("first page = %v, want %v", got, want)
 	}
 
-	if _, err := pool.Exec(context.Background(), `DELETE FROM atproto_follows WHERE did = $1 AND subject_did = $2`, "did:plc:viewer", "did:plc:alice"); err != nil {
+	if _, err := pool.Exec(context.Background(), `DELETE FROM pds_set_aggregates WHERE kind = 'follow' AND actor_did = $1 AND subject_did = $2`, "did:plc:viewer", "did:plc:alice"); err != nil {
 		t.Fatalf("delete follow: %v", err)
 	}
 

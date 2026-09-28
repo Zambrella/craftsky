@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart'
@@ -38,6 +40,8 @@ const _baseUrl = String.fromEnvironment(
   defaultValue: kDebugMode ? _devDefaultBaseUrl : '',
 );
 
+const _debugApiDelayMs = int.fromEnvironment('CRAFTSKY_API_DELAY_MS');
+
 /// Shared base options for both the session Dio (this file) and the
 /// handoff Dio (api_client_provider.dart, family) so HTTP basics stay
 /// in sync.
@@ -59,6 +63,7 @@ BaseOptions baseDioOptions() {
 @Riverpod(keepAlive: true)
 Dio anonymousDio(Ref ref) {
   final client = Dio(baseDioOptions());
+  _addDebugApiDelay(client);
   client.interceptors.addAll([
     SessionAuthInterceptor.anonymous(
       readDeviceId: () => ref.read(deviceIdProvider.future),
@@ -92,6 +97,7 @@ Future<Dio> accountDio(Ref ref, AccountKey account) async {
     sessionGeneration: target.generation,
   );
   final client = Dio(baseDioOptions());
+  _addDebugApiDelay(client);
   client.interceptors.addAll([
     SessionAuthInterceptor.fixed(
       token: target.token,
@@ -113,6 +119,7 @@ Dio dio(Ref ref) {
     sessionRegistryProvider.select(_activeClientTarget),
   );
   final client = Dio(baseDioOptions());
+  _addDebugApiDelay(client);
   if (active == null) {
     client.interceptors.addAll([
       SessionAuthInterceptor.anonymous(
@@ -139,6 +146,44 @@ Dio dio(Ref ref) {
   }
   ref.onDispose(() => client.close(force: true));
   return client;
+}
+
+void _addDebugApiDelay(Dio client) {
+  if (!kDebugMode || _debugApiDelayMs <= 0) return;
+  client.interceptors.add(
+    DebugApiDelayInterceptor(_durationFromMilliseconds(_debugApiDelayMs)),
+  );
+}
+
+Duration _durationFromMilliseconds(int milliseconds) =>
+    Duration(milliseconds: milliseconds);
+
+/// Delays outgoing AppView requests to make transient loading UI inspectable.
+@visibleForTesting
+final class DebugApiDelayInterceptor extends Interceptor {
+  DebugApiDelayInterceptor(
+    this.delay, {
+    Future<void> Function(Duration)? wait,
+  }) : _wait = wait ?? Future<void>.delayed;
+
+  final Duration delay;
+  final Future<void> Function(Duration) _wait;
+
+  @override
+  void onRequest(
+    RequestOptions options,
+    RequestInterceptorHandler handler,
+  ) {
+    unawaited(_forwardAfterDelay(options, handler));
+  }
+
+  Future<void> _forwardAfterDelay(
+    RequestOptions options,
+    RequestInterceptorHandler handler,
+  ) async {
+    await _wait(delay);
+    handler.next(options);
+  }
 }
 
 _ClientTarget? _activeClientTarget(

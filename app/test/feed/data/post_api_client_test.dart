@@ -13,6 +13,7 @@ import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dio/dio.dart';
@@ -27,6 +28,7 @@ void main() {
   final postRkey = RecordKey.parse('3lf2abc');
   final missingRkey = RecordKey.parse('missing');
   const createLangs = ['en'];
+  const createOperationKey = '018f4d5c-7a61-7d40-a1a2-555555555555';
 
   Dio buildDio() {
     return Dio(BaseOptions(baseUrl: 'https://appview.example.com'))
@@ -50,6 +52,7 @@ void main() {
       'viewerHasLiked': true,
       'viewerHasReposted': false,
       'viewerHasSaved': false,
+      'sponsored': false,
       'viewerHasReplied': true,
       'createdAt': '2026-05-04T18:23:45.000Z',
       'indexedAt': '2026-05-04T18:23:47.000Z',
@@ -143,17 +146,120 @@ void main() {
   });
 
   group('PostApiClient.createPost', () {
+    test('keeps an undecodable accepted create response unresolved', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onPost(
+        '/v1/posts',
+        (server) => server.reply(201, null),
+        data: {'text': 'hi', 'langs': createLangs, 'sponsored': false},
+      );
+      await expectLater(
+        PostApiClient(dio).createPost(
+          operationKey: createOperationKey,
+          text: 'hi',
+          langs: createLangs,
+          sponsored: false,
+        ),
+        throwsA(isA<PdsMutationAmbiguousException>()),
+      );
+    });
+
+    test(
+      'keeps a dropped create response unresolved for same-key retry',
+      () async {
+        final dio = buildDio();
+        final sentKeys = <Object?>[];
+        dio.interceptors.add(
+          InterceptorsWrapper(
+            onRequest: (options, handler) {
+              sentKeys.add(options.headers['Idempotency-Key']);
+              handler.reject(
+                DioException(
+                  requestOptions: options,
+                  type: DioExceptionType.receiveTimeout,
+                ),
+              );
+            },
+          ),
+        );
+        final client = PostApiClient(dio);
+        for (var attempt = 0; attempt < 2; attempt++) {
+          await expectLater(
+            client.createPost(
+              operationKey: createOperationKey,
+              text: 'hi',
+              langs: createLangs,
+              sponsored: false,
+            ),
+            throwsA(isA<PdsMutationAmbiguousException>()),
+          );
+        }
+        expect(sentKeys, [createOperationKey, createOperationKey]);
+      },
+    );
+
+    test('sends operation key and surfaces exact ambiguity response', () async {
+      final dio = buildDio();
+      RequestOptions? captured;
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            captured = options;
+            handler.next(options);
+          },
+        ),
+      );
+      DioAdapter(dio: dio).onPost(
+        '/v1/posts',
+        (server) => server.reply(
+          202,
+          {'status': 'ambiguous'},
+          headers: {
+            Headers.contentTypeHeader: [Headers.jsonContentType],
+            'Retry-After': ['2'],
+          },
+        ),
+        data: {'text': 'hi', 'langs': createLangs, 'sponsored': false},
+      );
+
+      await expectLater(
+        () => PostApiClient(dio).createPost(
+          operationKey: createOperationKey,
+          text: 'hi',
+          langs: createLangs,
+          sponsored: false,
+        ),
+        throwsA(
+          isA<PdsMutationAmbiguousException>().having(
+            (error) => error.retryAfterSeconds,
+            'retryAfterSeconds',
+            2,
+          ),
+        ),
+      );
+      expect(
+        captured?.headers['Idempotency-Key'],
+        createOperationKey,
+      );
+    });
+
     test('POSTs /v1/posts with text body and parses response', () async {
       final dio = buildDio();
       DioAdapter(dio: dio).onPost(
         '/v1/posts',
         (server) => server.reply(201, samplePost(text: 'hi')),
-        data: {'text': 'hi', 'langs': createLangs},
+        data: {'text': 'hi', 'langs': createLangs, 'sponsored': true},
       );
 
-      final post = await PostApiClient(
-        dio,
-      ).createPost(text: 'hi', langs: createLangs);
+      final post =
+          await PostApiClient(
+            dio,
+          ).createPost(
+            operationKey: createOperationKey,
+            text: 'hi',
+            langs: createLangs,
+            sponsored: true,
+          );
       expect(post.text, 'hi');
       expect(post.rkey, '3lf2abc');
       expect(post.viewerHasReplied, isTrue);
@@ -164,12 +270,18 @@ void main() {
       DioAdapter(dio: dio).onPost(
         '/v1/posts',
         (server) => server.reply(201, samplePost(text: 'top-level')),
-        data: {'text': 'top-level', 'langs': createLangs},
+        data: {'text': 'top-level', 'langs': createLangs, 'sponsored': false},
       );
 
-      final post = await PostApiClient(
-        dio,
-      ).createPost(text: 'top-level', langs: createLangs);
+      final post =
+          await PostApiClient(
+            dio,
+          ).createPost(
+            operationKey: createOperationKey,
+            text: 'top-level',
+            langs: createLangs,
+            sponsored: false,
+          );
       expect(post.text, 'top-level');
     });
 
@@ -186,12 +298,24 @@ void main() {
       DioAdapter(dio: dio).onPost(
         '/v1/posts',
         (server) => server.reply(201, samplePost(text: '#Mending')),
-        data: {'text': '#Mending', 'langs': createLangs, 'facets': facets},
+        data: {
+          'text': '#Mending',
+          'langs': createLangs,
+          'sponsored': false,
+          'facets': facets,
+        },
       );
 
-      final post = await PostApiClient(
-        dio,
-      ).createPost(text: '#Mending', langs: createLangs, facets: facets);
+      final post =
+          await PostApiClient(
+            dio,
+          ).createPost(
+            operationKey: createOperationKey,
+            text: '#Mending',
+            langs: createLangs,
+            sponsored: false,
+            facets: facets,
+          );
 
       expect(post.text, '#Mending');
     });
@@ -208,6 +332,7 @@ void main() {
         data: {
           'text': 'quote commentary',
           'langs': createLangs,
+          'sponsored': false,
           'embed': {
             'quote': {
               'uri': 'at://did:plc:bob/social.craftsky.feed.post/target',
@@ -221,8 +346,10 @@ void main() {
           await PostApiClient(
             dio,
           ).createPost(
+            operationKey: createOperationKey,
             text: 'quote commentary',
             langs: createLangs,
+            sponsored: false,
             quote: quote,
           );
 
@@ -247,6 +374,7 @@ void main() {
         data: {
           'text': 'reply',
           'langs': createLangs,
+          'sponsored': false,
           'reply': {
             'root': {
               'uri': 'at://did:plc:alice/social.craftsky.feed.post/root',
@@ -260,9 +388,16 @@ void main() {
         },
       );
 
-      final post = await PostApiClient(
-        dio,
-      ).createPost(text: 'reply', langs: createLangs, reply: reply);
+      final post =
+          await PostApiClient(
+            dio,
+          ).createPost(
+            operationKey: createOperationKey,
+            text: 'reply',
+            langs: createLangs,
+            sponsored: false,
+            reply: reply,
+          );
       expect(post.text, 'reply');
     });
 
@@ -276,6 +411,7 @@ void main() {
           data: {
             'text': 'with images',
             'langs': createLangs,
+            'sponsored': false,
             'images': [
               {
                 'image': {
@@ -301,8 +437,10 @@ void main() {
         );
 
         final post = await PostApiClient(dio).createPost(
+          operationKey: createOperationKey,
           text: 'with images',
           langs: createLangs,
+          sponsored: false,
           images: [
             const CreatePostImage(
               blob: CreatePostBlob(
@@ -339,6 +477,7 @@ void main() {
         data: {
           'text': 'with image',
           'langs': createLangs,
+          'sponsored': false,
           'images': [
             {
               'image': {
@@ -353,8 +492,10 @@ void main() {
       );
 
       final post = await PostApiClient(dio).createPost(
+        operationKey: createOperationKey,
         text: 'with image',
         langs: createLangs,
+        sponsored: false,
         images: [
           const CreatePostImage(
             blob: CreatePostBlob(
@@ -374,11 +515,19 @@ void main() {
       DioAdapter(dio: dio).onPost(
         '/v1/posts',
         (server) => server.reply(422, {'error': 'validation_failed'}),
-        data: {'text': '', 'langs': createLangs},
+        data: {'text': '', 'langs': createLangs, 'sponsored': false},
       );
 
       await expectLater(
-        () => PostApiClient(dio).createPost(text: '', langs: createLangs),
+        () =>
+            PostApiClient(
+              dio,
+            ).createPost(
+              operationKey: createOperationKey,
+              text: '',
+              langs: createLangs,
+              sponsored: false,
+            ),
         throwsA(
           isA<ApiBadRequest>().having(
             (e) => e.code,
@@ -397,6 +546,7 @@ void main() {
         data: {
           'text': 'ordered images',
           'langs': createLangs,
+          'sponsored': false,
           'images': [
             {
               'image': {
@@ -422,8 +572,10 @@ void main() {
       );
 
       final post = await PostApiClient(dio).createPost(
+        operationKey: createOperationKey,
         text: 'ordered images',
         langs: createLangs,
+        sponsored: false,
         images: [
           const CreatePostImage(
             blob: CreatePostBlob(
@@ -459,13 +611,21 @@ void main() {
         data: {
           'text': 'project',
           'langs': createLangs,
+          'sponsored': false,
           'project': project.toCreateMap(),
         },
       );
 
-      final post = await PostApiClient(
-        dio,
-      ).createPost(text: 'project', langs: createLangs, project: project);
+      final post =
+          await PostApiClient(
+            dio,
+          ).createPost(
+            operationKey: createOperationKey,
+            text: 'project',
+            langs: createLangs,
+            sponsored: false,
+            project: project,
+          );
 
       expect(post.text, 'project');
       expect(
@@ -479,12 +639,18 @@ void main() {
       DioAdapter(dio: dio).onPost(
         '/v1/posts',
         (server) => server.reply(201, samplePost(text: 'plain')),
-        data: {'text': 'plain', 'langs': createLangs},
+        data: {'text': 'plain', 'langs': createLangs, 'sponsored': false},
       );
 
-      final post = await PostApiClient(
-        dio,
-      ).createPost(text: 'plain', langs: createLangs);
+      final post =
+          await PostApiClient(
+            dio,
+          ).createPost(
+            operationKey: createOperationKey,
+            text: 'plain',
+            langs: createLangs,
+            sponsored: false,
+          );
 
       expect(post.project, isNull);
     });
@@ -507,8 +673,10 @@ void main() {
             PostApiClient(
               dio,
             ).createPost(
+              operationKey: createOperationKey,
               text: 'invalid',
               langs: createLangs,
+              sponsored: false,
               project: commonOnlyProject(),
               reply: reply,
             ),
@@ -525,12 +693,18 @@ void main() {
           201,
           samplePost(text: 'bonjour', langs: langs),
         ),
-        data: {'text': 'bonjour', 'langs': langs},
+        data: {'text': 'bonjour', 'langs': langs, 'sponsored': false},
       );
 
-      final post = await PostApiClient(
-        dio,
-      ).createPost(text: 'bonjour', langs: langs);
+      final post =
+          await PostApiClient(
+            dio,
+          ).createPost(
+            operationKey: createOperationKey,
+            text: 'bonjour',
+            langs: langs,
+            sponsored: false,
+          );
 
       expect(post.langs, langs);
     });
@@ -565,6 +739,70 @@ void main() {
   });
 
   group('PostApiClient.deletePost', () {
+    test('sends operation key and exact CID guard', () async {
+      final dio = buildDio();
+      RequestOptions? captured;
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            captured = options;
+            handler.next(options);
+          },
+        ),
+      );
+      DioAdapter(dio: dio).onDelete(
+        '/v1/posts/did:plc:alice/3lf2abc',
+        (server) => server.reply(204, null),
+      );
+
+      await PostApiClient(dio).deletePost(
+        aliceDid,
+        postRkey,
+        operationKey: '018f4d5c-7a61-7d40-a1a2-555555555555',
+        expectedCid: 'bafy-current',
+      );
+
+      expect(
+        captured?.headers,
+        containsPair(
+          'Idempotency-Key',
+          '018f4d5c-7a61-7d40-a1a2-555555555555',
+        ),
+      );
+      expect(captured?.headers, containsPair('If-Match', 'bafy-current'));
+    });
+
+    test('surfaces exact ambiguity response', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onDelete(
+        '/v1/posts/did:plc:alice/3lf2abc',
+        (server) => server.reply(
+          202,
+          {'status': 'ambiguous'},
+          headers: {
+            Headers.contentTypeHeader: [Headers.jsonContentType],
+            'Retry-After': ['3'],
+          },
+        ),
+      );
+
+      await expectLater(
+        () => PostApiClient(dio).deletePost(
+          aliceDid,
+          postRkey,
+          operationKey: '018f4d5c-7a61-7d40-a1a2-555555555555',
+          expectedCid: 'bafy-current',
+        ),
+        throwsA(
+          isA<PdsMutationAmbiguousException>().having(
+            (error) => error.retryAfterSeconds,
+            'retryAfterSeconds',
+            3,
+          ),
+        ),
+      );
+    });
+
     test('DELETEs /v1/posts/{did}/{rkey} and returns on 204', () async {
       final dio = buildDio();
       DioAdapter(dio: dio).onDelete(
@@ -572,7 +810,13 @@ void main() {
         (server) => server.reply(204, null),
       );
 
-      await PostApiClient(dio).deletePost(aliceDid, postRkey);
+      await PostApiClient(dio).deletePost(
+        aliceDid,
+        postRkey,
+        operationKey: '018f4d5c-7a61-7d40-a1a2-555555555555',
+        expectedCid:
+            'bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq',
+      );
     });
 
     test('403 forbidden surfaces as ApiBadRequest', () async {
@@ -583,7 +827,13 @@ void main() {
       );
 
       await expectLater(
-        () => PostApiClient(dio).deletePost(bobDid, postRkey),
+        () => PostApiClient(dio).deletePost(
+          bobDid,
+          postRkey,
+          operationKey: '018f4d5c-7a61-7d40-a1a2-555555555555',
+          expectedCid:
+              'bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq',
+        ),
         throwsA(
           isA<ApiBadRequest>().having((e) => e.code, 'code', 'forbidden'),
         ),
@@ -1060,6 +1310,29 @@ void main() {
     });
   });
 
+  group('PostApiClient.listRepostsByAuthor', () {
+    test('GETs /v1/profiles/@{handleOrDid}/reposts with pagination', () async {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onGet(
+        '/v1/profiles/@alice.craftsky.social/reposts',
+        (server) => server.reply(200, {
+          'items': [samplePost()],
+          'cursor': 'next-cursor',
+        }),
+        queryParameters: {'cursor': 'c1', 'limit': '25'},
+      );
+
+      final page = await PostApiClient(dio).listRepostsByAuthor(
+        'alice.craftsky.social',
+        cursor: 'c1',
+        limit: 25,
+      );
+
+      expect(page.items, hasLength(1));
+      expect(page.cursor, 'next-cursor');
+    });
+  });
+
   group('PostApiClient.listCommentBranchReplies', () {
     test('GETs /v1/posts/{did}/{rkey}/replies with pagination', () async {
       final dio = buildDio();
@@ -1118,6 +1391,15 @@ void main() {
 
     test('POSTs and DELETEs like endpoint', () async {
       final dio = buildDio();
+      final requests = <RequestOptions>[];
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            requests.add(options);
+            handler.next(options);
+          },
+        ),
+      );
       final adapter = DioAdapter(dio: dio)
         ..onPost(
           '/v1/posts/did:plc:alice/3lf2abc/likes',
@@ -1129,15 +1411,68 @@ void main() {
         );
 
       final client = PostApiClient(dio);
-      final like = await client.likePost(aliceDid, postRkey);
-      await client.unlikePost(aliceDid, postRkey);
+      const operationKey = '018f47a5-1837-7ad1-8f6d-8e8d2a89c950';
+      final like = await client.likePost(
+        aliceDid,
+        postRkey,
+        operationKey: operationKey,
+      );
+      await client.unlikePost(
+        aliceDid,
+        postRkey,
+        operationKey: operationKey,
+      );
 
       expect(like.rkey, 'like1');
+      expect(requests, hasLength(2));
+      expect(
+        requests.map((request) => request.headers['Idempotency-Key']),
+        everyElement(operationKey),
+      );
       expect(adapter, isNotNull);
+    });
+
+    test('surfaces the exact ambiguous like contract with retry guidance', () {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onPost(
+        '/v1/posts/did:plc:alice/3lf2abc/likes',
+        (server) => server.reply(
+          202,
+          {'status': 'ambiguous'},
+          headers: {
+            Headers.contentTypeHeader: [Headers.jsonContentType],
+            'Retry-After': ['4'],
+          },
+        ),
+      );
+
+      expect(
+        PostApiClient(dio).likePost(
+          aliceDid,
+          postRkey,
+          operationKey: '018f47a5-1837-7ad1-8f6d-8e8d2a89c950',
+        ),
+        throwsA(
+          isA<PdsMutationAmbiguousException>().having(
+            (error) => error.retryAfterSeconds,
+            'retryAfterSeconds',
+            4,
+          ),
+        ),
+      );
     });
 
     test('POSTs and DELETEs repost endpoint', () async {
       final dio = buildDio();
+      final requests = <RequestOptions>[];
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            requests.add(options);
+            handler.next(options);
+          },
+        ),
+      );
       DioAdapter(dio: dio)
         ..onPost(
           '/v1/posts/did:plc:alice/3lf2abc/reposts',
@@ -1149,10 +1484,53 @@ void main() {
         );
 
       final client = PostApiClient(dio);
-      final repost = await client.repostPost(aliceDid, postRkey);
-      await client.unrepostPost(aliceDid, postRkey);
+      const operationKey = '018f47a5-1837-7ad1-8f6d-8e8d2a89c950';
+      final repost = await client.repostPost(
+        aliceDid,
+        postRkey,
+        operationKey: operationKey,
+      );
+      await client.unrepostPost(
+        aliceDid,
+        postRkey,
+        operationKey: operationKey,
+      );
 
       expect(repost.subject.cid, 'bafy123');
+      expect(
+        requests.map((request) => request.headers['Idempotency-Key']),
+        everyElement(operationKey),
+      );
+    });
+
+    test('surfaces the exact ambiguous repost contract', () {
+      final dio = buildDio();
+      DioAdapter(dio: dio).onPost(
+        '/v1/posts/did:plc:alice/3lf2abc/reposts',
+        (server) => server.reply(
+          202,
+          {'status': 'ambiguous'},
+          headers: {
+            Headers.contentTypeHeader: [Headers.jsonContentType],
+            'Retry-After': ['3'],
+          },
+        ),
+      );
+
+      expect(
+        PostApiClient(dio).repostPost(
+          aliceDid,
+          postRkey,
+          operationKey: '018f47a5-1837-7ad1-8f6d-8e8d2a89c950',
+        ),
+        throwsA(
+          isA<PdsMutationAmbiguousException>().having(
+            (error) => error.retryAfterSeconds,
+            'retryAfterSeconds',
+            3,
+          ),
+        ),
+      );
     });
   });
 

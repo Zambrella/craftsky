@@ -3,7 +3,6 @@ package instagram
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
@@ -240,7 +239,7 @@ func TestModerationRestorationRelayHoldsTargetFenceThroughQueueCommit(t *testing
 
 func moderationOutboxRelayDDL(t *testing.T) string {
 	t.Helper()
-	migration, err := os.ReadFile("../../migrations/000044_moderation_restoration_outbox.up.sql")
+	migration, err := testdb.ReadMigration("000044_moderation_restoration_outbox.up.sql")
 	if err != nil {
 		t.Fatalf("read moderation outbox migration: %v", err)
 	}

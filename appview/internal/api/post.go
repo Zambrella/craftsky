@@ -44,6 +44,10 @@ type postByKeyReader interface {
 	ReadOne(context.Context, string, string) (*PostRow, error)
 }
 
+type directPostReader interface {
+	ReadOneForViewer(context.Context, string, string, string) (*PostRow, error)
+}
+
 type relationshipStateReader interface {
 	RelationshipState(context.Context, syntax.DID, syntax.DID) (relationships.State, error)
 }

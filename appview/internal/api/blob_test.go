@@ -91,8 +91,8 @@ func (effects *fakeBlobEffects) UploadBlob(
 	}, nil
 }
 
-func blobEffectsFactory(effects *fakeBlobEffects) pdseffects.ExecutorFactory {
-	return func(_ context.Context, owner syntax.DID, sessionID string) (pdseffects.EffectExecutor, error) {
+func blobEffectsFactory(effects *fakeBlobEffects) api.BlobEffectFactory {
+	return func(_ context.Context, owner syntax.DID, sessionID string) (api.BlobEffectExecutor, error) {
 		effects.factoryOwner = owner
 		effects.factorySession = sessionID
 		return effects, nil
@@ -181,7 +181,7 @@ func TestImageBlobUpload_InvalidImage_RejectsBeforeCreatingPDSEffects(t *testing
 	t.Parallel()
 	factoryCalls := 0
 	h := api.ImageBlobUploadHandler(
-		func(context.Context, syntax.DID, string) (pdseffects.EffectExecutor, error) {
+		func(context.Context, syntax.DID, string) (api.BlobEffectExecutor, error) {
 			factoryCalls++
 			return &fakeBlobEffects{}, nil
 		},
@@ -283,7 +283,7 @@ func TestImageBlobUploadMissingGenerationFailsBeforeEffectFactory(t *testing.T) 
 	t.Parallel()
 	factoryCalls := 0
 	h := api.ImageBlobUploadHandler(
-		func(context.Context, syntax.DID, string) (pdseffects.EffectExecutor, error) {
+		func(context.Context, syntax.DID, string) (api.BlobEffectExecutor, error) {
 			factoryCalls++
 			return nil, errors.New("must not be called")
 		},
@@ -309,7 +309,7 @@ func TestImageBlobUploadFactoryFailureOccursBeforeDurableUpload(t *testing.T) {
 	t.Parallel()
 	factoryCalls := 0
 	h := api.ImageBlobUploadHandler(
-		func(context.Context, syntax.DID, string) (pdseffects.EffectExecutor, error) {
+		func(context.Context, syntax.DID, string) (api.BlobEffectExecutor, error) {
 			factoryCalls++
 			return nil, errors.New("session resume failed")
 		},

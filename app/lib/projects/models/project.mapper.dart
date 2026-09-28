@@ -455,6 +455,12 @@ class ProjectPatternMapper extends ClassMapperBase<ProjectPattern> {
     _$difficulty,
     opt: true,
   );
+  static bool? _$selfDrafted(ProjectPattern v) => v.selfDrafted;
+  static const Field<ProjectPattern, bool> _f$selfDrafted = Field(
+    'selfDrafted',
+    _$selfDrafted,
+    opt: true,
+  );
   static String? _$designer(ProjectPattern v) => v.designer;
   static const Field<ProjectPattern, String> _f$designer = Field(
     'designer',
@@ -482,6 +488,7 @@ class ProjectPatternMapper extends ClassMapperBase<ProjectPattern> {
     #name: _f$name,
     #nameFacets: _f$nameFacets,
     #difficulty: _f$difficulty,
+    #selfDrafted: _f$selfDrafted,
     #designer: _f$designer,
     #designerFacets: _f$designerFacets,
     #publisher: _f$publisher,
@@ -496,6 +503,7 @@ class ProjectPatternMapper extends ClassMapperBase<ProjectPattern> {
       name: data.dec(_f$name),
       nameFacets: data.dec(_f$nameFacets),
       difficulty: data.dec(_f$difficulty),
+      selfDrafted: data.dec(_f$selfDrafted),
       designer: data.dec(_f$designer),
       designerFacets: data.dec(_f$designerFacets),
       publisher: data.dec(_f$publisher),
@@ -588,6 +596,7 @@ abstract class ProjectPatternCopyWith<$R, $In extends ProjectPattern, $Out>
     String? name,
     List<Map<String, dynamic>>? nameFacets,
     String? difficulty,
+    bool? selfDrafted,
     String? designer,
     List<Map<String, dynamic>>? designerFacets,
     String? publisher,
@@ -651,6 +660,7 @@ class _ProjectPatternCopyWithImpl<$R, $Out>
     Object? name = $none,
     Object? nameFacets = $none,
     Object? difficulty = $none,
+    Object? selfDrafted = $none,
     Object? designer = $none,
     Object? designerFacets = $none,
     Object? publisher = $none,
@@ -661,6 +671,7 @@ class _ProjectPatternCopyWithImpl<$R, $Out>
       if (name != $none) #name: name,
       if (nameFacets != $none) #nameFacets: nameFacets,
       if (difficulty != $none) #difficulty: difficulty,
+      if (selfDrafted != $none) #selfDrafted: selfDrafted,
       if (designer != $none) #designer: designer,
       if (designerFacets != $none) #designerFacets: designerFacets,
       if (publisher != $none) #publisher: publisher,
@@ -673,6 +684,7 @@ class _ProjectPatternCopyWithImpl<$R, $Out>
     name: data.get(#name, or: $value.name),
     nameFacets: data.get(#nameFacets, or: $value.nameFacets),
     difficulty: data.get(#difficulty, or: $value.difficulty),
+    selfDrafted: data.get(#selfDrafted, or: $value.selfDrafted),
     designer: data.get(#designer, or: $value.designer),
     designerFacets: data.get(#designerFacets, or: $value.designerFacets),
     publisher: data.get(#publisher, or: $value.publisher),

@@ -164,6 +164,44 @@ void main() {
     expect(find.text('Instagram route'), findsOneWidget);
   });
 
+  testWidgets('Account standing row opens the typed moderation location', (
+    tester,
+  ) async {
+    final router = GoRouter(
+      initialLocation: '/settings',
+      routes: [
+        GoRoute(path: '/settings', builder: (_, _) => const SettingsPage()),
+        GoRoute(
+          path: '/profile/settings/moderation',
+          builder: (_, _) => const Scaffold(body: Text('Standing route')),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [sharedPreferencesProvider.overrideWithValue(preferences)],
+        child: MaterialApp.router(
+          routerConfig: router,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await tester.scrollUntilVisible(
+      find.text('Account standing'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    await tester.tap(find.text('Account standing'));
+    await tester.pumpAndSettle();
+
+    expect(router.state.uri.path, '/profile/settings/moderation');
+    expect(find.text('Standing route'), findsOneWidget);
+  });
+
   testWidgets('AT-005 business Products row opens product management', (
     tester,
   ) async {
@@ -224,6 +262,7 @@ const _regularSettingsRows = <SettingsRowId>[
   SettingsRowId.blockedAccounts,
   SettingsRowId.findPeopleFromInstagram,
   SettingsRowId.subscriptions,
+  SettingsRowId.accountStanding,
   SettingsRowId.account,
   SettingsRowId.about,
   SettingsRowId.signOut,
@@ -244,6 +283,7 @@ const _businessSettingsRows = <SettingsRowId>[
   SettingsRowId.businessEvents,
   SettingsRowId.businessProducts,
   SettingsRowId.subscriptions,
+  SettingsRowId.accountStanding,
   SettingsRowId.account,
   SettingsRowId.about,
   SettingsRowId.signOut,

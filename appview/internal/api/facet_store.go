@@ -115,9 +115,10 @@ func (s *FacetStore) SearchMentionSuggestions(ctx context.Context, viewerDID syn
 			bp.avatar_mime,
 			cp.crafts,
 			EXISTS (
-				SELECT 1 FROM atproto_follows f
-				WHERE f.did = $1 AND f.subject_did = ic.did
-				  AND NOT appview_owner_is_terminal(f.did)
+				SELECT 1 FROM pds_set_aggregates f
+				WHERE f.kind = 'follow'
+				  AND f.actor_did = $1 AND f.subject_did = ic.did
+				  AND NOT appview_owner_is_terminal(f.actor_did)
 				  AND NOT appview_owner_is_terminal(f.subject_did)
 			) AS viewer_is_following
 		FROM atproto_identity_cache ic
@@ -126,10 +127,11 @@ func (s *FacetStore) SearchMentionSuggestions(ctx context.Context, viewerDID syn
 		WHERE ic.resolved_at >= $2
 		  AND NOT appview_owner_is_terminal(ic.did)
 		  AND NOT EXISTS (
-			SELECT 1 FROM atproto_blocks b
-			WHERE ((b.blocker_did = $1 AND b.subject_did = ic.did)
-			   OR (b.blocker_did = ic.did AND b.subject_did = $1))
-			  AND NOT appview_owner_is_terminal(b.blocker_did)
+			SELECT 1 FROM pds_set_aggregates b
+			WHERE b.kind = 'block'
+			  AND ((b.actor_did = $1 AND b.subject_did = ic.did)
+			   OR (b.actor_did = ic.did AND b.subject_did = $1))
+			  AND NOT appview_owner_is_terminal(b.actor_did)
 			  AND NOT appview_owner_is_terminal(b.subject_did)
 		  )
 		  AND (
@@ -139,9 +141,10 @@ func (s *FacetStore) SearchMentionSuggestions(ctx context.Context, viewerDID syn
 		  )
 		ORDER BY
 			EXISTS (
-				SELECT 1 FROM atproto_follows f
-				WHERE f.did = $1 AND f.subject_did = ic.did
-				  AND NOT appview_owner_is_terminal(f.did)
+				SELECT 1 FROM pds_set_aggregates f
+				WHERE f.kind = 'follow'
+				  AND f.actor_did = $1 AND f.subject_did = ic.did
+				  AND NOT appview_owner_is_terminal(f.actor_did)
 				  AND NOT appview_owner_is_terminal(f.subject_did)
 			) DESC,
 			CASE

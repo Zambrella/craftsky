@@ -16,6 +16,7 @@ Map<String, dynamic> _postMap(String rkey) => {
   'viewerHasLiked': false,
   'viewerHasReposted': false,
   'viewerHasSaved': false,
+  'sponsored': false,
   'createdAt': '2026-05-04T18:23:45.000Z',
   'indexedAt': '2026-05-04T18:23:47.000Z',
   'author': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},

@@ -2,7 +2,6 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -42,11 +41,11 @@ VALUES ('did:plc:bob', 'at://did:plc:bob/social.craftsky.feed.post/sentinel', '2
 `
 
 func TestProfilePinsMigration(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000035_profile_pins.up.sql")
+	up, err := testdb.ReadMigration("000035_profile_pins.up.sql")
 	if err != nil {
 		t.Fatalf("read up migration: %v", err)
 	}
-	down, err := os.ReadFile("../../migrations/000035_profile_pins.down.sql")
+	down, err := testdb.ReadMigration("000035_profile_pins.down.sql")
 	if err != nil {
 		t.Fatalf("read down migration: %v", err)
 	}

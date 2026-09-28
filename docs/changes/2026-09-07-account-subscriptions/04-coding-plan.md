@@ -56,8 +56,8 @@ Migration numbers must be rechecked before implementation; `000069` and
 
 | Path / Module | Create / Change | Purpose | Requirement IDs | Test IDs |
 |---|---|---|---|---|
-| `appview/migrations/000069_subscription_accounts.{up,down}.sql` | Create | Billing accounts, provider subscriptions, licenses/assignments, closure state, constraints, and access indexes | FR-001, FR-003, FR-004, FR-009, FR-012, FR-022, FR-026, FR-030, FR-031 | IT-001 through IT-005, IT-008, IT-009 |
-| `appview/migrations/000070_revenuecat_events.{up,down}.sql` | Create | Sanitized event deduplication and reconciliation request/lease indexes; no raw columns | FR-015, FR-017, FR-018; NFR-003 through NFR-005 | IT-006, IT-007, IT-009 |
+| `appview/migrations/000076_subscription_accounts.{up,down}.sql` | Create | Billing accounts, provider subscriptions, licenses/assignments, closure state, constraints, and access indexes | FR-001, FR-003, FR-004, FR-009, FR-012, FR-022, FR-026, FR-030, FR-031 | IT-001 through IT-005, IT-008, IT-009 |
+| `appview/migrations/000077_revenuecat_events.{up,down}.sql` | Create | Sanitized event deduplication and reconciliation request/lease indexes; no raw columns | FR-015, FR-017, FR-018; NFR-003 through NFR-005 | IT-006, IT-007, IT-009 |
 | `appview/internal/subscriptions/types.go` | Create | Tier, provider snapshot, billing state, access projection, anomaly, and domain errors | BR-001 through BR-005; FR-003 through FR-013 | UT-001, UT-007; AT-002 through AT-005 |
 | `appview/internal/subscriptions/access.go` | Create | Pure effective-access projection from local assignment and provider access | FR-005 through FR-007, FR-013, FR-027 through FR-029 | UT-001; IT-004; AT-003, AT-008 |
 | `appview/internal/subscriptions/catalog.go` | Create | Minimal project/app/environment and product-to-tier allowlist | FR-019; RULE-006, RULE-007 | UT-003; AT-006 |

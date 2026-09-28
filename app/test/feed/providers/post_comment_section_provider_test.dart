@@ -30,6 +30,7 @@ Post _post(String did, String rkey, int minute) => Post(
   viewerHasLiked: false,
   viewerHasReposted: false,
   viewerHasSaved: false,
+  sponsored: false,
 );
 
 CommentItem _comment(String rkey, int minute) => CommentItem(
@@ -358,6 +359,7 @@ void main() {
         final placeholder = PostMapper.fromMap({
           'uri': 'at://did:plc:bob/social.craftsky.feed.post/muted-comment',
           'availability': 'muted',
+          'sponsored': false,
           'relationship': {'state': 'muted', 'revealable': true},
         });
         final comment = CommentItem(

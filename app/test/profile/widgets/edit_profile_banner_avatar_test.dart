@@ -26,7 +26,6 @@ void main() {
     crafts: const [],
     customisation: const ProfileCustomisation(
       colour: 'orchid',
-      border: 'thick',
     ),
   );
 
@@ -50,7 +49,6 @@ void main() {
     expect(tapped, 1);
     final avatar = tester.widget<ProfileAvatar>(find.byType(ProfileAvatar));
     expect(avatar.customisation.colour, 'orchid');
-    expect(avatar.customisation.border, 'thick');
     expect(avatar.showShadow, isFalse);
   });
 

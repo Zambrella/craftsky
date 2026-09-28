@@ -186,5 +186,6 @@ Post _post({int likeCount = 0, int repostCount = 0, int quoteCount = 0}) {
     viewerHasLiked: false,
     viewerHasReposted: false,
     viewerHasSaved: false,
+    sponsored: false,
   );
 }

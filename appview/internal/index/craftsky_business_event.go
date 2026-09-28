@@ -8,6 +8,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 
+	"social.craftsky/appview/internal/ingestion"
 	craftskylex "social.craftsky/appview/internal/lexicon/craftsky"
 	"social.craftsky/appview/internal/tap"
 )
@@ -20,7 +21,8 @@ func NewCraftskyBusinessEvent() *CraftskyBusinessEvent {
 	return &CraftskyBusinessEvent{}
 }
 
-func (*CraftskyBusinessEvent) Project(ctx context.Context, tx pgx.Tx, event tap.Event) (tap.Outcome, error) {
+func (*CraftskyBusinessEvent) Project(ctx context.Context, tx pgx.Tx, source ingestion.SourceRecord) (tap.Outcome, error) {
+	event := eventFromSource(source)
 	if event.Collection != businessEventCollection {
 		return tap.Applied(), nil
 	}

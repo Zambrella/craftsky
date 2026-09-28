@@ -17,6 +17,7 @@ import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/scroll_to_top_button.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -82,6 +83,12 @@ class _FeedPageState extends ConsumerState<FeedPage> {
           context.showError(l10n.postLikeError);
           ref.read(toggleLikePostProvider.notifier).reset();
         }
+      })
+      ..listen(toggleRepostPostProvider, (previous, next) {
+        if (next.hasError) {
+          context.showError(l10n.postRepostError);
+          ref.read(toggleRepostPostProvider.notifier).reset();
+        }
       });
     return Scaffold(
       floatingActionButton: isCompact
@@ -122,9 +129,11 @@ class _FeedPageState extends ConsumerState<FeedPage> {
                   _ when timelineAsync.hasError => _FeedErrorSliver(
                     onRetry: () => ref.invalidate(timelineProvider),
                   ),
-                  _ => const SliverFillRemaining(
-                    hasScrollBody: false,
-                    child: Center(child: StitchProgressIndicator()),
+                  _ => CraftskySkeletonSliverList(
+                    itemCount: 3,
+                    itemBuilder: (context, index) => PostCardSkeleton(
+                      showMedia: index == 0,
+                    ),
                   ),
                 },
               ],
@@ -287,14 +296,7 @@ class _FeedLoadedSlivers extends ConsumerWidget {
   ) async {
     final created = await showPostComposerSheet(context, replyTarget: post);
     if (created == null || !context.mounted) return;
-    ref
-        .read(timelineProvider.notifier)
-        .replace(
-          post.copyWith(
-            replyCount: post.replyCount + 1,
-            viewerHasReplied: true,
-          ),
-        );
+    ref.invalidate(timelineProvider);
     await PostThreadRoute(
       did: post.author.did,
       rkey: post.rkey,

@@ -212,9 +212,11 @@ class _SubmittedPostResults extends ConsumerWidget {
         message: l10n.searchLoadError,
         onRetry: () => ref.invalidate(provider),
       ),
-      _ => const SliverFillRemaining(
-        hasScrollBody: false,
-        child: Center(child: StitchProgressIndicator()),
+      _ => CraftskySkeletonSliverList(
+        itemCount: 3,
+        itemBuilder: (context, index) => PostCardSkeleton(
+          showMedia: index == 0,
+        ),
       ),
     };
   }
@@ -246,9 +248,11 @@ class _SubmittedProjectResults extends ConsumerWidget {
         message: l10n.searchLoadError,
         onRetry: () => ref.invalidate(provider),
       ),
-      _ => const SliverFillRemaining(
-        hasScrollBody: false,
-        child: Center(child: StitchProgressIndicator()),
+      _ => CraftskySkeletonSliverList(
+        itemCount: 3,
+        itemBuilder: (context, index) => PostCardSkeleton(
+          showMedia: index == 0,
+        ),
       ),
     };
   }
@@ -292,9 +296,8 @@ class _ProfileResultsSliver extends ConsumerWidget {
         message: l10n.searchLoadError,
         onRetry: () => ref.invalidate(provider),
       ),
-      _ => const SliverFillRemaining(
-        hasScrollBody: false,
-        child: Center(child: StitchProgressIndicator()),
+      _ => CraftskySkeletonSliverList(
+        itemBuilder: (context, index) => const AccountRowSkeleton(),
       ),
     };
   }
@@ -339,9 +342,10 @@ class _HashtagResultsSliver extends ConsumerWidget {
         message: l10n.searchLoadError,
         onRetry: () => ref.invalidate(provider),
       ),
-      _ => const SliverFillRemaining(
-        hasScrollBody: false,
-        child: Center(child: StitchProgressIndicator()),
+      _ => CraftskySkeletonSliverList(
+        itemBuilder: (context, index) => const AccountRowSkeleton(
+          showTrailing: false,
+        ),
       ),
     };
   }

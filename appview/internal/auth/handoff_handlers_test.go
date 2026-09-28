@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -16,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/ctxkeys"
+	"social.craftsky/appview/internal/testlog"
 )
 
 type fakeHandoffCoordinator struct {
@@ -63,7 +62,7 @@ func TestHandoffExchangeHandlerReturnsPendingCredentialWithoutEchoingCode(t *tes
 		Token: "pending-bearer", DID: syntax.DID("did:plc:alice"),
 		Handle: syntax.Handle("alice.example"), ReceiptID: receiptID, ConfirmBy: confirmBy,
 	}}
-	handlers := &HTTPHandlers{Handoffs: fake, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	handlers := &HTTPHandlers{Handoffs: fake, Logger: testlog.Discard()}
 	recorder := httptest.NewRecorder()
 
 	handlers.HandoffExchangeHandler().ServeHTTP(recorder, handoffHandlerRequest(
@@ -92,7 +91,7 @@ func TestHandoffExchangeHandlerReturnsPendingCredentialWithoutEchoingCode(t *tes
 func TestHandoffConfirmHandlerUsesPendingBearerAndIsIdempotent(t *testing.T) {
 	receiptID := uuid.MustParse("00000000-0000-4000-8000-000000000812")
 	fake := &fakeHandoffCoordinator{}
-	handlers := &HTTPHandlers{Handoffs: fake, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	handlers := &HTTPHandlers{Handoffs: fake, Logger: testlog.Discard()}
 	recorder := httptest.NewRecorder()
 
 	handlers.HandoffConfirmHandler().ServeHTTP(recorder, handoffHandlerRequest(
@@ -121,7 +120,7 @@ func TestHandoffHandlersCollapseInvalidSecretsAndClassifyInfrastructure(t *testi
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			fake := &fakeHandoffCoordinator{exchangeErr: test.err}
-			handlers := &HTTPHandlers{Handoffs: fake, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+			handlers := &HTTPHandlers{Handoffs: fake, Logger: testlog.Discard()}
 			recorder := httptest.NewRecorder()
 			handlers.HandoffExchangeHandler().ServeHTTP(recorder, handoffHandlerRequest(
 				http.MethodPost, "/v1/auth/handoffs/exchange", `{"code":"secret"}`, "installation-a", "",

@@ -7,6 +7,8 @@ import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/settings/pages/relationship_list_page.dart';
 import 'package:craftsky_app/settings/providers/relationship_list_provider.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,7 +18,12 @@ import '../profile/fakes/fake_profile_repository.dart';
 
 Widget _app(FakeProfileRepository repo, RelationshipListKind kind) =>
     ProviderScope(
-      overrides: [profileRepositoryProvider.overrideWithValue(repo)],
+      overrides: [
+        profileRepositoryProvider.overrideWithValue(repo),
+        pdsRecordOperationControllerProvider.overrideWithValue(
+          PdsRecordOperationController(schedule: (_, _) {}),
+        ),
+      ],
       child: MaterialApp(
         theme: AppTheme.lightThemeData,
         localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -26,6 +33,19 @@ Widget _app(FakeProfileRepository repo, RelationshipListKind kind) =>
     );
 
 void main() {
+  testWidgets('initial loading uses account row skeletons', (tester) async {
+    final page = Completer<ProfileAccountPage>();
+    final repo = FakeProfileRepository(
+      onListMutedProfiles: ({limit, cursor}) => page.future,
+    );
+
+    await tester.pumpWidget(_app(repo, RelationshipListKind.muted));
+    await tester.pump();
+
+    expect(find.byType(CraftskySkeletonList), findsOneWidget);
+    expect(find.byType(AccountRowSkeleton), findsNWidgets(6));
+  });
+
   test('provider owns pagination and row mutation state', () async {
     final unmute = Completer<ProfileRelationship>();
     final cursors = <String?>[];
@@ -188,9 +208,8 @@ void main() {
           ),
         ],
       ),
-      onUnblock: (_) async {
+      onUnblock: (_, _) async {
         unblockCalls++;
-        return const ProfileRelationship();
       },
     );
     await tester.pumpWidget(_app(repo, RelationshipListKind.blocked));
@@ -208,6 +227,8 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'Unblock account'));
     await tester.pumpAndSettle();
     expect(unblockCalls, 1);
+    expect(repo.unblockOperationKeys, hasLength(1));
+    expect(repo.unblockOperationKeys.single, isNotEmpty);
     expect(find.text('@bob.craftsky.social'), findsNothing);
   });
 }

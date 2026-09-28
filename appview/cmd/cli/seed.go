@@ -351,6 +351,7 @@ func queuePostUpsert(batch *pgx.Batch, row seedPostRow) {
 	record, err := json.Marshal(map[string]any{
 		"$type":     fakePostCollection,
 		"text":      row.Text,
+		"sponsored": false,
 		"createdAt": row.CreatedAt.UTC().Format(time.RFC3339),
 	})
 	if err != nil {

@@ -6,6 +6,7 @@ import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:flutter/material.dart';
@@ -27,6 +28,7 @@ final class PostSummaryData with PostSummaryDataMappable {
     this.image,
     this.externalImport,
     this.external,
+    this.sponsored = false,
     this.revealable = false,
   });
 
@@ -64,6 +66,7 @@ final class PostSummaryData with PostSummaryDataMappable {
       images: post.images,
       externalImport: post.externalImport,
       external: post.external,
+      sponsored: post.sponsored,
     ),
     ('muted', _) => PostSummaryData(
       state: PostSummaryState.muted,
@@ -110,6 +113,7 @@ final class PostSummaryData with PostSummaryDataMappable {
     DateTime? createdAt,
     ExternalImport? externalImport,
     PostExternal? external,
+    bool sponsored = false,
   }) => PostSummaryData(
     state: PostSummaryState.visible,
     author: author,
@@ -135,6 +139,7 @@ final class PostSummaryData with PostSummaryDataMappable {
         },
     externalImport: externalImport,
     external: images?.isNotEmpty == true || video != null ? null : external,
+    sponsored: sponsored,
   );
 
   final PostSummaryState state;
@@ -145,6 +150,7 @@ final class PostSummaryData with PostSummaryDataMappable {
   final PostImage? image;
   final ExternalImport? externalImport;
   final PostExternal? external;
+  final bool sponsored;
   final bool revealable;
 
   @override
@@ -204,6 +210,9 @@ class PostSummary extends StatelessWidget {
               if (data.externalImport?.isInstagram ?? false) ...[
                 if (data.author != null) const SizedBox(height: 8),
                 const ImportedPostLabel(),
+              ],
+              if (data.sponsored) ...[
+                const SponsoredLabel(),
               ],
               if (data.image case final image?) ...[
                 const SizedBox(height: 8),
@@ -283,6 +292,50 @@ class ImportedPostLabel extends StatelessWidget {
           label,
           style: theme.textTheme.labelSmall?.copyWith(
             color: theme.colorScheme.outline,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class SponsoredLabel extends StatelessWidget {
+  const SponsoredLabel({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final l10n = AppLocalizations.of(context);
+    final label = l10n.postSponsoredLabel;
+    final color = theme.colorScheme.outline;
+    return Tooltip(
+      message: l10n.postSponsoredExplanation,
+      triggerMode: TooltipTriggerMode.tap,
+      showDuration: const Duration(seconds: 6),
+      excludeFromSemantics: true,
+      child: Semantics(
+        container: true,
+        button: true,
+        label: label,
+        hint: l10n.postSponsoredExplanation,
+        child: ExcludeSemantics(
+          child: SizedBox(
+            key: const Key('sponsored-info-tooltip-trigger'),
+            height: 28,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(CraftskyIcons.info, size: 14, color: color),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

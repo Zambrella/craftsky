@@ -22,6 +22,10 @@ cp app/config/staging.env.example app/config/staging.env
 cp app/config/production.env.example app/config/production.env
 ```
 
+`CRAFTSKY_ENABLE_VIDEO_UPLOADS` controls whether post composers offer video
+selection. It defaults to `false` when omitted; set it to `true` only when the
+configured video infrastructure is dependable.
+
 `SENTRY_DSN` is public client configuration once the app is shipped, but keep it
 out of committed examples. `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, and
 `SENTRY_PROJECT` are build/upload credentials for Sentry symbolication and must
@@ -35,3 +39,10 @@ Local native debug builds may opt into RevenueCat Test Store by setting
 `REVENUECAT_TEST_STORE_PUBLIC_KEY` and `REVENUECAT_USE_TEST_STORE=true`. Release
 builds ignore that opt-in and always select the matching Apple or Google public
 key. Test Store keys must never be used for a release build.
+
+The `app-build-ios`, `app-build-ipa`, `app-build-apk`, and
+`app-build-appbundle` recipes require Sentry to be enabled in the selected app
+config and require all three upload credentials. They build with obfuscation and
+split debug information, then upload native symbols, Dart symbols, the
+obfuscation map, and source context to Sentry. The recipe fails if either the
+build or upload fails.

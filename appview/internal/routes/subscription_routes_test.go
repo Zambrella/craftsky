@@ -15,7 +15,7 @@ import (
 )
 
 func TestBillingIdentityIsExplicitStableAndPrivate(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000069_subscription_accounts.up.sql")
+	migration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestBillingIdentityIsExplicitStableAndPrivate(t *testing.T) {
 }
 
 func TestSelfAccessRouteIsDIDBoundLocalAndMinimal(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000069_subscription_accounts.up.sql")
+	migration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -165,7 +165,7 @@ func TestSelfAccessRouteIsDIDBoundLocalAndMinimal(t *testing.T) {
 }
 
 func TestIT013OwnerBillingStateUsesPrivateCamelCaseContract(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000069_subscription_accounts.up.sql")
+	migration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

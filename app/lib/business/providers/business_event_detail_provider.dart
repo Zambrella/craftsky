@@ -2,7 +2,7 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
-import 'package:craftsky_app/business/providers/business_projection_overlay_provider.dart';
+import 'package:craftsky_app/business/providers/business_record_overlay.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -64,13 +64,9 @@ class BusinessEventDetail extends _$BusinessEventDetail {
     final lease =
         ownership?.session ??
         AccountSessionLease(account: target.account, sessionGeneration: 0);
-    final overlay = ref.read(businessProjectionOverlayProvider.notifier);
-    final key = BusinessProjectionKey.event(
-      target.account,
-      target.owner,
-      target.rkey,
-    );
-    final readFence = overlay.captureRead(lease);
+    final uri =
+        'at://${target.owner}/social.craftsky.business.event/${target.rkey}';
+    final readFence = captureBusinessEventRead(ref, lease, uri);
     try {
       final event = await ref
           .watch(businessRepositoryProvider)
@@ -78,51 +74,38 @@ class BusinessEventDetail extends _$BusinessEventDetail {
       if (!isActiveAccountOperationCurrent(ref, ownership)) {
         throw StateError('Active account changed');
       }
-      final reconciliation = overlay.reconcile<BusinessEvent>(
-        key: key,
-        fence: readFence,
-        authoritativeCid: event.cid,
-        authoritativeView: event,
-      );
-      if (reconciliation.isStale && state.value != null) {
+      if (!isBusinessRecordReadCurrent(ref, readFence) &&
+          !hasBusinessEventOverlay(ref, lease, uri) &&
+          state.value != null) {
         return state.value!;
       }
-      final reconciled = reconciliation.view;
+      final reconciled = applyBusinessEventOverlay(
+        ref,
+        lease,
+        uri,
+        event,
+      );
       return reconciled == null
           ? const BusinessEventDetailUnavailable()
           : BusinessEventDetailAvailable(reconciled);
     } on ApiBadRequest catch (error) {
-      final retained = _retainAfterStaleRead(overlay, key, readFence);
+      final retained = _retainAfterStaleRead(lease, uri, readFence);
       if (retained != null) return retained;
       if (error.code == 'event_not_found') {
-        final reconciliation = overlay.reconcile<BusinessEvent>(
-          key: key,
-          fence: readFence,
-          authoritativeCid: null,
-          authoritativeView: null,
+        final reconciled = applyBusinessEventOverlay(
+          ref,
+          lease,
+          uri,
+          null,
         );
-        if (reconciliation.isStale && state.value != null) {
-          return state.value!;
-        }
-        final reconciled = reconciliation.view;
         return reconciled == null
             ? const BusinessEventDetailUnavailable()
             : BusinessEventDetailAvailable(reconciled);
       }
-      overlay.markReadFailure(
-        key: key,
-        fence: readFence,
-        error: error,
-      );
       rethrow;
-    } on Object catch (error) {
-      final retained = _retainAfterStaleRead(overlay, key, readFence);
+    } on Object {
+      final retained = _retainAfterStaleRead(lease, uri, readFence);
       if (retained != null) return retained;
-      overlay.markReadFailure(
-        key: key,
-        fence: readFence,
-        error: error,
-      );
       rethrow;
     }
   }
@@ -130,23 +113,19 @@ class BusinessEventDetail extends _$BusinessEventDetail {
   void retry() => ref.invalidateSelf();
 
   BusinessEventDetailState? _retainAfterStaleRead(
-    BusinessProjectionOverlayController overlay,
-    BusinessProjectionKey key,
-    BusinessProjectionReadFence fence,
+    AccountSessionLease lease,
+    String uri,
+    BusinessRecordReadFence fence,
   ) {
-    if (overlay.isRecordReadCurrent(key, fence)) return null;
+    if (isBusinessRecordReadCurrent(ref, fence)) return null;
+    if (hasBusinessEventOverlay(ref, lease, uri)) {
+      final event = applyBusinessEventOverlay(ref, lease, uri, null);
+      return event == null
+          ? const BusinessEventDetailUnavailable()
+          : BusinessEventDetailAvailable(event);
+    }
     if (state.value case final current?) return current;
-    final reconciliation = overlay.reconcile<BusinessEvent>(
-      key: key,
-      fence: fence,
-      authoritativeCid: null,
-      authoritativeView: null,
-    );
-    if (reconciliation.overlay == null) return null;
-    final event = reconciliation.view;
-    return event == null
-        ? const BusinessEventDetailUnavailable()
-        : BusinessEventDetailAvailable(event);
+    return null;
   }
 
   void markUnavailable() {

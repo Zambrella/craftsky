@@ -91,7 +91,7 @@ appview prod   # loads environments/prod.env, info logging, (future) real OAuth
 cli ping --env dev              # pings the DB, prints pool stats
 cli migrate up|down|status|redo # wraps golang-migrate/v4
 cli request GET /v1/whoami --env dev  # hits the running server as the dev DID
-cli tap status --env dev           # prints tap connection state (exit 0 connected, 1 disconnected, 2 transport)
+cli tap status --env dev           # prints connection/event/cursor state (exit 0 receiving, 1 disconnected/no events, 2 transport)
 cli did-resolve alice.bsky.social --env dev       # stub until the identity resolver lands
 ```
 
@@ -135,6 +135,16 @@ just tap-status         # cli tap status inside the appview container
 just psql               # psql shell against the dev database
 just migrate up         # wraps golang-migrate/v4 via the CLI
 ```
+
+Release images embed the strict semantic version from `VERSION`. Inspect a
+built image with `/app/appview version` or `/app/appview --version`; unversioned
+host builds report `dev`. The same value is logged as `app_version` at startup
+and supplies the default production Sentry release. See
+[`docs/operations/releases.md`](../docs/operations/releases.md) for version
+preparation and publication. Releases are local operations: create the
+version/changelog commit and tag with `just release-create-appview`, run
+`just appview-check`, push with `just release-push`, and deploy the exact pushed
+tag with `just appview-deploy`.
 
 Tests run on the **host** (the appview image has no Go toolchain), so Go must be installed locally and `just dev-d` must already be running. The `just test` recipe discovers the current checkout's published Postgres port and sets `TEST_DATABASE_URL` automatically. The primary checkout uses `localhost:5433`; linked worktrees use stable alternate ports and isolated database volumes.
 
@@ -475,6 +485,57 @@ for example `./scripts/compose-dev exec appview /app/cli request GET
 /v1/whoami --env dev`, so the credential stays in configuration rather than
 shell arguments.
 
+### Testing moderation in development
+
+The local stack enables a dev-only moderator account. The `moderation-*`
+recipes call the real report, owner, and admin routes, discover the current
+worktree's AppView port, generate idempotency keys, and fetch the latest case
+revision automatically. They require `curl` and `jq` on the host.
+
+Create a case by reporting an indexed account, post, or event from a current
+member:
+
+```bash
+just moderation-report-account REPORTER_DID TARGET_DID spam "Local test report"
+just moderation-report-post REPORTER_DID OWNER_DID POST_RKEY spam "Local test report"
+just moderation-report-event REPORTER_DID OWNER_DID EVENT_RKEY spam "Local test report"
+```
+
+List and inspect cases, then apply a decision:
+
+```bash
+just moderation-cases 'state=open'
+just moderation-case MOD-CASE_UUID
+just moderation-decision MOD-CASE_UUID strike spam "This content violated the spam policy."
+just moderation-decision MOD-CASE_UUID 'formalWarning,strike' spam "Repeated spam behavior."
+```
+
+Exercise later state transitions:
+
+```bash
+just moderation-effects MOD-CASE_UUID strike '' "Strike applied in error"
+just moderation-effects MOD-CASE_UUID '' strike "Reapply the strike"
+just moderation-appeal-confirm MOD-CASE_UUID
+just moderation-appeal-uphold MOD-CASE_UUID
+just moderation-appeal-change MOD-CASE_UUID strike
+just moderation-restore MOD-CASE_UUID
+```
+
+View the affected member's owner-safe state:
+
+```bash
+just moderation-standing OWNER_DID
+just moderation-history OWNER_DID
+just moderation-history OWNER_DID MOD-CASE_UUID
+```
+
+Run `just moderation-help` for the underlying helper syntax. Effect lists are
+comma-separated and use `formalWarning`, `visibilityWarn`, `visibilityHide`,
+`visibilityTakedown`, `strike`, or `severeSuspension`. A severe suspension also
+requires an eligible reason and a non-empty `SEVERITY` argument. Override the
+local moderator identity or token in ignored `.env.local`, then recreate the
+AppView container.
+
 ## Smoke testing the indexer
 
 End-to-end sanity check: write a record to your real PDS and confirm it
@@ -555,7 +616,7 @@ You should see the row at the top. If it doesn't appear within a few
 seconds:
 
 ```bash
-# Confirm the appview's Tap consumer is connected.
+# Confirm the AppView consumer has received events and inspect Tap's cursor.
 just tap-status
 
 # Confirm you're a member.
@@ -566,9 +627,13 @@ just psql -c "SELECT did FROM craftsky_profiles WHERE did = 'YOUR_DID';"
 goat record ls --collection social.craftsky.feed.post YOUR_HANDLE
 ```
 
-If `goat record ls` shows the record but `craftsky_posts` is empty, the
-membership gate is the most likely culprit — the indexer drops
-non-member posts silently. Re-onboard via the OAuth flow.
+If `goat record ls` shows the record but `craftsky_posts` is empty, check
+whether `tap-status` reports no events or a slowly advancing historical
+cursor. Tap may still be replaying its durable relay backlog. For a tracked
+member whose PDS is ahead of AppView, queue a scoped read-only repair with
+`docker compose exec appview /app/cli tap reconcile YOUR_DID`. If Tap is
+current, the membership gate is the next likely culprit — re-onboard via
+the OAuth flow.
 
 ### Editing and deleting test records
 

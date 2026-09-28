@@ -2,125 +2,119 @@ package app
 
 import (
 	"context"
-	"errors"
-	"strings"
+	"encoding/json"
+	"net/http"
 	"time"
 
 	"github.com/bluesky-social/indigo/api/bsky"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/google/uuid"
 
+	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/instagram"
-	"social.craftsky/appview/internal/ownerlifecycle"
-	"social.craftsky/appview/internal/pdseffects"
+	"social.craftsky/appview/internal/pdscommands"
 )
 
 const instagramFollowCollection syntax.NSID = "app.bsky.graph.follow"
 
-// instagramSuggestionEffectCoordinator is the only capability the explicit
-// suggestion-acceptance service receives for crossing the PDS boundary. It
-// enters the combined participant/session fence once and lends a scoped
-// follow-only adapter to the callback. Matching and background reconciliation
-// never receive this coordinator.
-type instagramSuggestionEffectCoordinator struct {
-	factory pdseffects.GuardedExecutorFactory
-}
-
-func (coordinator instagramSuggestionEffectCoordinator) WithSuggestionEffects(
-	ctx context.Context,
-	owner syntax.DID,
-	sessionID string,
-	expected []ownerlifecycle.ExpectedOwner,
-	operation instagram.SuggestionEffectOperation,
-) error {
-	if coordinator.factory == nil || owner == "" || strings.TrimSpace(sessionID) == "" ||
-		len(expected) == 0 || operation == nil {
-		return errors.New("instagram suggestion effect coordinator is unavailable")
-	}
-	guarded, err := coordinator.factory(ctx, owner, sessionID)
-	if err != nil {
-		return err
-	}
-	if guarded == nil {
-		return errors.New("instagram suggestion guarded executor is unavailable")
-	}
-	return guarded.WithGuardedEffects(
-		ctx,
-		expected,
-		func(effectCtx context.Context, executor pdseffects.EffectExecutor) error {
-			return operation(effectCtx, instagramSuggestionFollowAdapter{
-				executor: executor,
-				expected: append([]ownerlifecycle.ExpectedOwner(nil), expected...),
-			})
-		},
-	)
-}
-
 type instagramSuggestionFollowAdapter struct {
-	executor pdseffects.EffectExecutor
-	expected []ownerlifecycle.ExpectedOwner
+	commands api.SetCommandExecutor
 }
 
 func (adapter instagramSuggestionFollowAdapter) FollowSuggestion(
 	ctx context.Context,
 	request instagram.SuggestionFollowRequest,
-) (instagram.SuggestionFollowResult, error) {
-	if adapter.executor == nil {
-		return instagram.SuggestionFollowResult{}, errors.New("instagram suggestion follow executor is unavailable")
+) (instagram.SuggestionCommandResult, error) {
+	if adapter.commands == nil {
+		return instagram.SuggestionCommandResult{}, pdscommands.ErrDispatchUnavailable
 	}
-	if err := validateSuggestionFollowScope(request, adapter.expected); err != nil {
-		return instagram.SuggestionFollowResult{}, err
+	if err := validateSuggestionFollowRequest(request); err != nil {
+		return instagram.SuggestionCommandResult{}, err
 	}
-	result, err := adapter.executor.PutRecord(ctx, pdseffects.PutRecordRequest{
-		OperationID: request.OperationID,
-		MutationKey: request.MutationKey,
-		Owner:       request.Owner, OwnerGeneration: request.OwnerGeneration,
-		ExpectedOwners: adapter.expected,
-		Collection:     instagramFollowCollection,
-		Rkey:           request.Rkey,
-		Record: &bsky.GraphFollow{
-			LexiconTypeID: instagramFollowCollection.String(),
-			Subject:       request.Target.String(),
-			CreatedAt:     request.CreatedAt.UTC().Format(time.RFC3339),
+	intent, err := json.Marshal(struct {
+		SuggestionID     string     `json:"suggestionId"`
+		TargetDID        syntax.DID `json:"targetDid"`
+		TargetGeneration int64      `json:"targetGeneration"`
+	}{SuggestionID: request.SuggestionID.String(), TargetDID: request.Target, TargetGeneration: request.TargetGeneration})
+	if err != nil {
+		return instagram.SuggestionCommandResult{}, err
+	}
+	selectedURI := syntax.ATURI("at://" + request.Owner.String() + "/" + instagramFollowCollection.String() + "/" + request.Rkey.String())
+	accepted := func(state instagram.SuggestionState) pdscommands.TerminalResult {
+		body, _ := json.Marshal(struct {
+			SuggestionID string                    `json:"suggestionId"`
+			State        instagram.SuggestionState `json:"state"`
+		}{SuggestionID: request.SuggestionID.String(), State: state})
+		return pdscommands.TerminalResult{
+			State: pdscommands.CommandAccepted, HTTPStatus: http.StatusOK, ResponseBody: body,
+			ResponseHeaders: json.RawMessage(`{"Content-Type":"application/json"}`),
+		}
+	}
+	result, err := adapter.commands.Execute(ctx, pdscommands.SetCommandRequest{
+		Owner: request.Owner, OwnerGeneration: request.OwnerGeneration,
+		Target: request.Target, TargetGeneration: request.TargetGeneration,
+		SessionID: request.SessionID, OperationKind: "instagram.suggestion.accept",
+		OperationKey: request.OperationKey, Collection: instagramFollowCollection,
+		DesiredActive: true, Intent: intent, SelectedRkey: request.Rkey,
+		Matches: func(record pdscommands.AuthoritativeRecord) bool {
+			follow, valid := decodeInstagramAuthoritativeFollow(record)
+			return valid && follow.Subject == request.Target.String()
+		},
+		CreateRecord: func(time.Time) (json.RawMessage, error) {
+			return json.Marshal(bsky.GraphFollow{
+				LexiconTypeID: instagramFollowCollection.String(),
+				Subject:       request.Target.String(),
+				CreatedAt:     request.CreatedAt.UTC().Format(time.RFC3339Nano),
+			})
+		},
+		AcceptedPresent: func(record pdscommands.AuthoritativeRecord, _ bool) (pdscommands.TerminalResult, error) {
+			follow, valid := decodeInstagramAuthoritativeFollow(record)
+			if !valid || follow.Subject != request.Target.String() {
+				return pdscommands.TerminalResult{}, pdscommands.ErrMalformedCommand
+			}
+			if record.URI == selectedURI {
+				return accepted(instagram.SuggestionFollowed), nil
+			}
+			return accepted(instagram.SuggestionAlreadyFollowing), nil
+		},
+		AcceptedAbsent: func() pdscommands.TerminalResult {
+			return accepted(instagram.SuggestionAlreadyFollowing)
+		},
+		Rejected: func(err error) pdscommands.TerminalResult {
+			return api.RejectedCommandResult(request.RequestID, err)
 		},
 	})
-	if err != nil {
-		return instagram.SuggestionFollowResult{}, err
-	}
-	return instagram.SuggestionFollowResult{
-		Outcome:   instagram.SuggestionFollowed,
-		RecordURI: result.URI,
-		RecordCID: result.CID.String(),
-	}, nil
+	return instagram.SuggestionCommandResult{
+		State:             instagram.SuggestionCommandState(result.State),
+		HTTPStatus:        result.HTTPStatus,
+		ResponseBody:      result.ResponseBody,
+		ResponseHeaders:   result.ResponseHeaders,
+		RetryAfterSeconds: result.RetryAfterSeconds,
+	}, err
 }
 
-func validateSuggestionFollowScope(
-	request instagram.SuggestionFollowRequest,
-	expected []ownerlifecycle.ExpectedOwner,
-) error {
-	if request.OperationID == "" || request.MutationKey != request.OperationID ||
+func validateSuggestionFollowRequest(request instagram.SuggestionFollowRequest) error {
+	if request.OperationKey == uuid.Nil || request.RequestID == "" || request.SessionID == "" || request.SuggestionID == uuid.Nil ||
 		request.Owner == "" || request.Target == "" || request.Owner == request.Target ||
-		request.OwnerGeneration <= 0 || request.TargetGeneration <= 0 ||
-		request.Rkey == "" || request.CreatedAt.IsZero() {
-		return errors.New("invalid Instagram suggestion follow request")
-	}
-	ownerMatched := false
-	targetMatched := false
-	for _, item := range expected {
-		if item.AllowMissing {
-			continue
-		}
-		if item.Owner == request.Owner && item.Generation == request.OwnerGeneration {
-			ownerMatched = true
-		}
-		if item.Owner == request.Target && item.Generation == request.TargetGeneration {
-			targetMatched = true
-		}
-	}
-	if !ownerMatched || !targetMatched {
-		return ownerlifecycle.ErrGenerationChanged
+		request.OwnerGeneration <= 0 || request.TargetGeneration <= 0 || request.Rkey == "" || request.CreatedAt.IsZero() {
+		return pdscommands.ErrMalformedCommand
 	}
 	return nil
 }
 
-var _ instagram.SuggestionEffectCoordinator = instagramSuggestionEffectCoordinator{}
+func decodeInstagramAuthoritativeFollow(record pdscommands.AuthoritativeRecord) (bsky.GraphFollow, bool) {
+	var follow bsky.GraphFollow
+	if record.URI == "" || record.CID == "" || json.Unmarshal(record.Record, &follow) != nil ||
+		follow.LexiconTypeID != instagramFollowCollection.String() {
+		return bsky.GraphFollow{}, false
+	}
+	if _, err := syntax.ParseDID(follow.Subject); err != nil {
+		return bsky.GraphFollow{}, false
+	}
+	if _, err := time.Parse(time.RFC3339Nano, follow.CreatedAt); err != nil {
+		return bsky.GraphFollow{}, false
+	}
+	return follow, true
+}
+
 var _ instagram.SuggestionFollowExecutor = instagramSuggestionFollowAdapter{}

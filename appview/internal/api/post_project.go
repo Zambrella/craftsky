@@ -59,4 +59,5 @@ type ProjectPattern struct {
 	DesignerFacets  json.RawMessage `json:"designerFacets,omitempty"`
 	Publisher       *string         `json:"publisher,omitempty"`
 	PublisherFacets json.RawMessage `json:"publisherFacets,omitempty"`
+	SelfDrafted     *bool           `json:"selfDrafted,omitempty"`
 }

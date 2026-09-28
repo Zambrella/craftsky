@@ -10,6 +10,7 @@
         "type": "object",
         "required": [
           "text",
+          "sponsored",
           "createdAt"
         ],
         "properties": {
@@ -18,6 +19,10 @@
             "maxLength": 20000,
             "maxGraphemes": 2000,
             "description": "The primary text content of the post. Plain text; rich-text annotations live in 'facets'. Craftsky allows longer posts than Bluesky (2000 graphemes vs 300) because crafters write fuller project write-ups."
+          },
+          "sponsored": {
+            "type": "boolean",
+            "description": "Whether the author declares that this post was created with sponsorship or other commercial consideration. Disclosure metadata only; it does not affect distribution."
           },
           "facets": {
             "type": "array",

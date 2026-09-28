@@ -47,6 +47,9 @@ func NewV1Catalogue(policies []RoutePolicy) (*V1Catalogue, error) {
 		if !policy.AccessClass.Valid() {
 			return nil, fmt.Errorf("invalid access class for %s %s", policy.Method, policy.PathPattern)
 		}
+		if !policy.SuspensionClass.Valid() {
+			return nil, fmt.Errorf("invalid suspension class for %s %s", policy.Method, policy.PathPattern)
+		}
 		if !policy.RateClass.Valid() {
 			return nil, fmt.Errorf("invalid rate class for %s %s", policy.Method, policy.PathPattern)
 		}

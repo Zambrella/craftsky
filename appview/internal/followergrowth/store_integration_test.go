@@ -2,7 +2,6 @@ package followergrowth
 
 import (
 	"context"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -104,6 +103,47 @@ func TestStoreCaptureCanonicalCounts(t *testing.T) {
 	if _, exists := got["did:plc:dana"]; exists {
 		t.Fatal("captured snapshot for non-member did:plc:dana")
 	}
+}
+
+func TestStoreCaptureReadsLogicalFollowAggregates(t *testing.T) {
+	pool := testdb.WithMigratedSchema(t)
+	ctx := context.Background()
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO craftsky_profiles (did, record_cid) VALUES
+			('did:plc:alice', 'alice-cid'),
+			('did:plc:bob', 'bob-cid'),
+			('did:plc:carol', 'carol-cid');
+		INSERT INTO tap_source_records(
+			uri,did,collection,rkey,source_event_id,source_fingerprint,
+			revision,cid,action,record,record_bytes,live,ordering_status,
+			projection_disposition
+		) VALUES (
+			'at://did:plc:alice/app.bsky.graph.follow/bob','did:plc:alice',
+			'app.bsky.graph.follow','bob',1,decode(repeat('11',32),'hex'),
+			'1','bafy-follow','create','{}',2,true,'authoritative','eligible'
+		);
+		INSERT INTO pds_set_sources(
+			source_uri,kind,actor_did,scope_key,subject_did,activity_at,eligible
+		) VALUES (
+			'at://did:plc:alice/app.bsky.graph.follow/bob','follow','did:plc:alice',
+			'did:plc:bob','did:plc:bob','2026-08-20T00:00:00Z',true
+		);
+		INSERT INTO pds_set_aggregates(
+			kind,actor_did,scope_key,subject_did,eligible_source_count,
+			representative_source_uri,activated_at
+		) VALUES (
+			'follow','did:plc:alice','did:plc:bob','did:plc:bob',1,
+			'at://did:plc:alice/app.bsky.graph.follow/bob','2026-08-20T00:00:00Z'
+		);
+	`); err != nil {
+		t.Fatalf("seed logical follows: %v", err)
+	}
+
+	snapshotDate := growthDate(2026, time.August, 25)
+	if _, err := NewStore(pool).Capture(ctx, snapshotDate, snapshotDate.Add(2*time.Second)); err != nil {
+		t.Fatalf("capture follower growth: %v", err)
+	}
+	assertSnapshotCount(t, pool, snapshotDate, "did:plc:bob", 1)
 }
 
 func TestStoreCaptureIsAtomicAndConcurrent(t *testing.T) {
@@ -415,7 +455,7 @@ func assertSnapshotCount(t *testing.T, pool *pgxpool.Pool, date time.Time, did s
 
 func applyFollowerGrowthMigration(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	up, err := os.ReadFile("../../migrations/000060_follower_growth_snapshots.up.sql")
+	up, err := testdb.ReadMigration("000060_follower_growth_snapshots.up.sql")
 	if err != nil {
 		t.Fatalf("read follower growth migration: %v", err)
 	}

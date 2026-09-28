@@ -9,6 +9,7 @@ abstract final class ProjectComposerFields {
   static const patternUrl = 'patternUrl';
   static const patternName = 'patternName';
   static const patternDifficulty = 'patternDifficulty';
+  static const patternSelfDrafted = 'patternSelfDrafted';
   static const patternDesigner = 'patternDesigner';
   static const patternPublisher = 'patternPublisher';
 

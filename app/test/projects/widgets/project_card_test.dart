@@ -88,6 +88,7 @@ void main() {
                 difficulty:
                     '${ProjectOptionCatalogs.feedDefsPrefix}#intermediate',
                 url: 'https://example.com/pattern',
+                selfDrafted: true,
               ),
               materials: [
                 ProjectMaterial(text: 'linen'),
@@ -125,6 +126,7 @@ void main() {
       expect(_richText('Jenny Gordy'), findsOneWidget);
       expect(find.text('DIFFICULTY'), findsOneWidget);
       expect(find.text('Intermediate'), findsOneWidget);
+      expect(find.text('Self-drafted'), findsOneWidget);
       expect(find.text('LINK'), findsOneWidget);
       expect(find.text('example.com/pattern'), findsOneWidget);
       expect(find.text('PROJECT TYPE'), findsOneWidget);

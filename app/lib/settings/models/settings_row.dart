@@ -24,6 +24,7 @@ enum SettingsRowId {
   businessEvents,
   businessProducts,
   subscriptions,
+  accountStanding,
   account,
   about,
   terms,
@@ -128,6 +129,10 @@ const settingsSections = <SettingsSectionDescriptor>[
     rows: [
       SettingsRowDescriptor(
         id: SettingsRowId.subscriptions,
+        kind: SettingsRowKind.disclosure,
+      ),
+      SettingsRowDescriptor(
+        id: SettingsRowId.accountStanding,
         kind: SettingsRowKind.disclosure,
       ),
       SettingsRowDescriptor(

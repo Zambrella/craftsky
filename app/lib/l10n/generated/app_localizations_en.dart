@@ -145,6 +145,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notificationGenericRow => 'New activity';
 
   @override
+  String get notificationModerationRow =>
+      'Review an update to your account standing';
+
+  @override
   String get notificationUnavailableRow => 'Activity unavailable';
 
   @override
@@ -194,6 +198,13 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get notificationInstagramMatchPreferenceDescription =>
       'Push alerts are based on your private Instagram matches and never name the matched account.';
+
+  @override
+  String get notificationCategoryModeration => 'Moderation';
+
+  @override
+  String get notificationModerationPreferenceDescription =>
+      'Push alerts notify you about changes to your account standing. Turning them off does not change your standing, moderation history, or enforcement.';
 
   @override
   String get notificationCategoryEverythingElse => 'Everything else';
@@ -706,7 +717,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileStatsFollowers => 'followers';
 
   @override
-  String get profileStatsProjects => 'projects';
+  String profileStatsProjects(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: 'Projects',
+      one: 'Project',
+    );
+    return '$_temp0';
+  }
 
   @override
   String get profileLoadErrorTitle => 'That didn\'t load.';
@@ -731,6 +750,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get profileEmptyReposts => 'No reposts yet.';
+
+  @override
+  String get profileRepostsLoadError => 'Reposts didn\'t load.';
 
   @override
   String get profilePostsEmpty => 'No posts yet.';
@@ -1103,6 +1125,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerPatternDifficultyLabel => 'Difficulty';
 
   @override
+  String get projectComposerPatternSelfDraftedTitle => 'Self-drafted pattern';
+
+  @override
+  String get projectComposerPatternSelfDraftedDescription =>
+      'I drafted this pattern';
+
+  @override
+  String get projectPatternSelfDraftedLabel => 'Self-drafted';
+
+  @override
   String get projectComposerPatternDesignerLabel => 'Designer';
 
   @override
@@ -1115,11 +1147,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectComposerPatternPublisherHint => 'Add pattern publisher';
 
   @override
-  String get postComposeHint => 'What are you making?';
+  String get postComposeHint => 'What would you like to share?';
 
   @override
   String get postComposeBodyHint =>
-      'Pattern, fabric, what went right, what didn\'t...';
+      'Share what you\'re making, learning, or thinking...';
+
+  @override
+  String get postComposeRequiredLabel => 'required';
+
+  @override
+  String get postComposeBodyRequiredError => 'Add something to your post.';
+
+  @override
+  String get postSponsoredToggleTitle => 'Sponsored';
+
+  @override
+  String get postSponsoredToggleDescription =>
+      'This post includes sponsorship or other commercial consideration';
+
+  @override
+  String get postSponsoredLabel => 'Sponsored';
+
+  @override
+  String get postSponsoredExplanation =>
+      'The creator marked this post as sponsored because they received money, products, or another benefit.';
 
   @override
   String get postComposeReplyTitle => 'Reply';
@@ -1763,9 +1815,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileCustomisationColour => 'Colour';
 
   @override
-  String get profileCustomisationBorder => 'Profile border';
-
-  @override
   String get profileCustomisationBackground => 'Profile background';
 
   @override
@@ -1816,15 +1865,6 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get profileCustomisationColourInk => 'Ink';
-
-  @override
-  String get profileCustomisationBorderThin => 'Thin';
-
-  @override
-  String get profileCustomisationBorderMedium => 'Medium';
-
-  @override
-  String get profileCustomisationBorderThick => 'Thick';
 
   @override
   String get profileCustomisationBackgroundDither => 'Dither';
@@ -2030,25 +2070,31 @@ class AppLocalizationsEn extends AppLocalizations {
   String get projectsFilterProjectType => 'Project type';
 
   @override
+  String get projectsFilterStatus => 'Status';
+
+  @override
+  String get projectsFilterProjectSubtype => 'Project subtype';
+
+  @override
   String get projectsFilterDifficulty => 'Pattern difficulty';
 
   @override
   String get projectsFilterColor => 'Color';
 
   @override
-  String get projectsFilterDesignTag => 'Design tag';
+  String get projectsFilterDesignTag => 'Design';
 
   @override
-  String get projectsFilterMaterial => 'Material';
+  String get projectsFilterYarnWeight => 'Yarn weight';
 
   @override
-  String get projectsFilterProjectTag => 'Project tag';
+  String get projectsFilterPiecingTechnique => 'Piecing technique';
 
   @override
-  String get projectsFreeTextHint => 'Add a value';
+  String get projectsFilterQuiltingMethod => 'Quilting method';
 
   @override
-  String get projectsAddFilterValueAction => 'Add';
+  String get projectsFilterSelfDrafted => 'Self drafted';
 
   @override
   String get projectsApplyFiltersAction => 'Apply filters';
@@ -2634,6 +2680,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get scheduledPostLater => 'Schedule for later';
 
   @override
+  String scheduledPostCompactTime(String date, String time) {
+    return '$date, $time';
+  }
+
+  @override
   String get scheduledPostTimeRangeError =>
       'Choose a whole-minute time from 5 minutes through 28 days from now';
 
@@ -3067,9 +3118,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get onboardingTitle => 'Set up your CraftSky profile';
 
   @override
-  String get onboardingSkip => 'Skip';
-
-  @override
   String get onboardingNext => 'Next';
 
   @override
@@ -3109,11 +3157,40 @@ class AppLocalizationsEn extends AppLocalizations {
       'Choose as many crafts as you like. You can change these later.';
 
   @override
-  String get onboardingInstagramTitle => 'Find your crafting community';
+  String get onboardingGuidelinesTitle => 'Our community guidelines';
 
   @override
-  String get onboardingInstagramDescription =>
-      'Connecting Instagram is optional. CraftSky uses your choices only to help match accounts and import who you follow.';
+  String get onboardingGuidelinesWelcomeHeading =>
+      'A welcoming place to make and share';
+
+  @override
+  String get onboardingGuidelinesWelcomeBody =>
+      'CraftSky exists to be a welcoming, inspiring home for the textile crafting community. We want it to be a place where people feel comfortable sharing projects, asking questions, celebrating each other\'s successes and learning from the community.';
+
+  @override
+  String get onboardingGuidelinesRespectHeading =>
+      'Be kind and keep CraftSky safe';
+
+  @override
+  String get onboardingGuidelinesRespectBody =>
+      'Respect other people and help keep CraftSky safe for everyone. We do not allow harassment, hate speech, scams, spam, sexually explicit content or content materially created by generative AI. Businesses are welcome when they are transparent about commercial relationships and follow the same rules as everyone else.';
+
+  @override
+  String get onboardingGuidelinesCraftHeading => 'Keep it craft-focused';
+
+  @override
+  String get onboardingGuidelinesCraftBody =>
+      'Most posts should relate to textile and fibre craft projects, materials, techniques, tools or the wider crafting community. Occasional off-topic posts are fine, but should remain secondary. Political discussion belongs here only when it directly affects textile crafting or the craft community.';
+
+  @override
+  String get onboardingGuidelinesCheckHeading => 'A useful check';
+
+  @override
+  String get onboardingGuidelinesCheckBody =>
+      'If you are unsure whether something belongs on CraftSky, ask: Does this make the community a better place? If the answer is yes, you are probably on the right track.';
+
+  @override
+  String get onboardingGuidelinesViewFull => 'View full guidelines';
 
   @override
   String get onboardingSaveError =>
@@ -4022,4 +4099,201 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get subscriptionsUnassignmentConfirmBody =>
       'The assigned account will lose paid access. Changing it again may require a seven-day wait.';
+
+  @override
+  String get accountStandingTitle => 'Account standing';
+
+  @override
+  String get moderationStandingGood => 'Your account is in good standing';
+
+  @override
+  String get moderationStandingActionRequired =>
+      'Your account has active moderation action';
+
+  @override
+  String get moderationStandingSuspended => 'Your account is suspended';
+
+  @override
+  String moderationStandingCount(int count, int threshold) {
+    return 'Active strikes: $count of the $threshold strike suspension threshold.';
+  }
+
+  @override
+  String get moderationStandingThresholdDetail =>
+      'The account is suspended because the active-strike threshold has been reached.';
+
+  @override
+  String get moderationStandingSevereDetail =>
+      'The account is suspended because of a severe policy decision.';
+
+  @override
+  String get moderationStandingLoadError =>
+      'Account standing could not be loaded.';
+
+  @override
+  String get moderationHistoryTitle => 'Moderation history';
+
+  @override
+  String get moderationHistoryEmptyTitle => 'No moderation history';
+
+  @override
+  String get moderationHistoryEmptyBody =>
+      'There are no moderation decisions to show for this account.';
+
+  @override
+  String get moderationHistoryLoadError =>
+      'Moderation history could not be loaded.';
+
+  @override
+  String get moderationRetryAction => 'Try again';
+
+  @override
+  String get moderationHistoryLoadMore => 'Load more';
+
+  @override
+  String get moderationHistoryLoadingMore => 'Loading…';
+
+  @override
+  String get moderationHistoryRetryMore => 'Try loading more again';
+
+  @override
+  String moderationHistoryEntrySemantics(String reference) {
+    return 'Moderation history entry $reference';
+  }
+
+  @override
+  String moderationHistoryOccurredAt(String date, String time) {
+    return '$date at $time';
+  }
+
+  @override
+  String get moderationConsequencesTitle => 'Consequences';
+
+  @override
+  String moderationEffectWithExpiry(String effect, String state, String date) {
+    return '$effect · $state · Until $date';
+  }
+
+  @override
+  String get moderationEffectFormalWarning => 'Formal warning';
+
+  @override
+  String get moderationEffectViewerWarning => 'Viewer warning';
+
+  @override
+  String get moderationEffectHidden => 'Content hidden';
+
+  @override
+  String get moderationEffectRemoved => 'Content removed from CraftSky';
+
+  @override
+  String get moderationEffectStrike => 'Account strike';
+
+  @override
+  String get moderationEffectSevereSuspension => 'Severe suspension';
+
+  @override
+  String get moderationEffectPolicyAction => 'Policy action';
+
+  @override
+  String get moderationEffectActive => 'Active';
+
+  @override
+  String get moderationEffectApplied => 'Applied';
+
+  @override
+  String get moderationEffectExpired => 'Expired';
+
+  @override
+  String get moderationEffectOverturned => 'Overturned';
+
+  @override
+  String get moderationEffectRestored => 'Access restored';
+
+  @override
+  String get moderationEffectNoLongerActive => 'No longer active';
+
+  @override
+  String get moderationReasonHarassment => 'Harassment';
+
+  @override
+  String get moderationReasonHate => 'Hate or hateful conduct';
+
+  @override
+  String get moderationReasonSpam => 'Spam';
+
+  @override
+  String get moderationReasonMisleading => 'Misleading content';
+
+  @override
+  String get moderationReasonSuspectedAi => 'Suspected AI-generated content';
+
+  @override
+  String get moderationReasonAdultOrGraphic => 'Adult or graphic content';
+
+  @override
+  String get moderationReasonImpersonation => 'Impersonation';
+
+  @override
+  String get moderationReasonOffTopic => 'Off-topic content';
+
+  @override
+  String get moderationReasonIntellectualProperty => 'Intellectual property';
+
+  @override
+  String get moderationReasonOther => 'Other policy issue';
+
+  @override
+  String get moderationReasonPolicy => 'Policy decision';
+
+  @override
+  String get moderationSubjectAccount => 'Account';
+
+  @override
+  String get moderationSubjectPost => 'Post';
+
+  @override
+  String get moderationViewPost => 'View post';
+
+  @override
+  String get moderationSubjectEvent => 'Event';
+
+  @override
+  String get moderationSubjectUnavailable => 'Subject reference unavailable';
+
+  @override
+  String get moderationAppealAction => 'Appeal by email';
+
+  @override
+  String get moderationCopyAppealAddress => 'Copy email address';
+
+  @override
+  String get moderationCopyCaseReference => 'Copy case reference';
+
+  @override
+  String get moderationAppealAvailable =>
+      'An appeal can be requested by email.';
+
+  @override
+  String get moderationAppealPending => 'Appeal under review';
+
+  @override
+  String get moderationAppealUpheld => 'Decision upheld after appeal';
+
+  @override
+  String get moderationAppealChanged => 'Decision changed after appeal';
+
+  @override
+  String get moderationAppealUpdated => 'Appeal status updated';
+
+  @override
+  String get moderationAppealError =>
+      'No email app opened. You can copy the address and case reference instead.';
+
+  @override
+  String get moderationCopied => 'Copied';
+
+  @override
+  String get moderationCopyError =>
+      'Could not copy. The text remains selectable.';
 }

@@ -23,6 +23,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/errors/notification_destination_error.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
 import 'package:craftsky_app/shared/widgets/sort_menu_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -123,34 +124,13 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
         if (next.hasError) {
           context.showError(l10n.postLikeError);
           ref.read(toggleLikePostProvider.notifier).reset();
-          return;
         }
-        final post = next.value;
-        if (post == null) return;
-        ref
-            .read(
-              postCommentSectionProvider(
-                widget.did,
-                widget.rkey,
-                sort: _sort,
-                focus: widget.focus,
-              ).notifier,
-            )
-            .replacePost(post);
       })
       ..listen(toggleRepostPostProvider, (previous, next) {
-        final post = next.value;
-        if (post == null) return;
-        ref
-            .read(
-              postCommentSectionProvider(
-                widget.did,
-                widget.rkey,
-                sort: _sort,
-                focus: widget.focus,
-              ).notifier,
-            )
-            .replacePost(post);
+        if (next.hasError) {
+          context.showError(l10n.postRepostError);
+          ref.read(toggleRepostPostProvider.notifier).reset();
+        }
       });
     return Scaffold(
       appBar: AppBar(title: Text(l10n.postThreadTitle)),
@@ -229,7 +209,11 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
                   ),
                 ),
               ),
-              _ => const Center(child: StitchProgressIndicator()),
+              _ => CraftskySkeletonList(
+                itemBuilder: (context, index) => CommentRowSkeleton(
+                  indent: index == 0 ? 0 : 24,
+                ),
+              ),
             },
       bottomNavigationBar: switch (visibleSection) {
         final value? when formFactor.isSmall => _ReplyPrompt(

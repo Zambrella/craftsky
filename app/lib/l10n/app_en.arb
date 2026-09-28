@@ -148,6 +148,7 @@
     "placeholders": { "actor": { "type": "String", "example": "Alice" } }
   },
   "notificationGenericRow": "New activity",
+  "notificationModerationRow": "Review an update to your account standing",
   "notificationUnavailableRow": "Activity unavailable",
   "notificationInstagramMatchActorRow": "You found {actor} through your Instagram following",
   "@notificationInstagramMatchActorRow": {
@@ -167,6 +168,8 @@
   "notificationCategoryReposts": "Reposts",
   "notificationCategoryInstagramMatches": "Instagram matches",
   "notificationInstagramMatchPreferenceDescription": "Push alerts are based on your private Instagram matches and never name the matched account.",
+  "notificationCategoryModeration": "Moderation",
+  "notificationModerationPreferenceDescription": "Push alerts notify you about changes to your account standing. Turning them off does not change your standing, moderation history, or enforcement.",
   "notificationCategoryEverythingElse": "Everything else",
   "notificationPreferenceFrom": "From",
   "notificationScopeEveryone": "Everyone",
@@ -616,8 +619,11 @@
   "profileStatsFollowers": "followers",
   "@profileStatsFollowers": { "description": "Lower-case label paired with the follower-count on the profile stats row." },
 
-  "profileStatsProjects": "projects",
-  "@profileStatsProjects": { "description": "Lower-case label paired with the project-count on the profile stats row." },
+  "profileStatsProjects": "{count, plural, =1{Project} other{Projects}}",
+  "@profileStatsProjects": {
+    "description": "Label paired with the project-count on the profile stats row.",
+    "placeholders": { "count": { "type": "int", "example": "2" } }
+  },
 
   "profileLoadErrorTitle": "That didn't load.",
   "@profileLoadErrorTitle": { "description": "Headline on the full-screen profile-page error fallback when the profile fetch fails." },
@@ -641,7 +647,10 @@
   "@profileEmptySaved": { "description": "Muted placeholder shown in the Saved tab while saved-item data isn't wired." },
 
   "profileEmptyReposts": "No reposts yet.",
-  "@profileEmptyReposts": { "description": "Muted placeholder shown in the Reposts tab while repost data isn't wired." },
+  "@profileEmptyReposts": { "description": "Empty-state message shown in the profile Reposts tab." },
+
+  "profileRepostsLoadError": "Reposts didn't load.",
+  "@profileRepostsLoadError": { "description": "Error title shown in the profile Reposts tab when repost fetching fails." },
 
   "profilePostsEmpty": "No posts yet.",
   "@profilePostsEmpty": { "description": "Muted placeholder shown in the profile Posts tab when the user has not posted." },
@@ -994,6 +1003,15 @@
   "projectComposerPatternDifficultyLabel": "Difficulty",
   "@projectComposerPatternDifficultyLabel": { "description": "Label for the optional pattern difficulty field in the project composer." },
 
+  "projectComposerPatternSelfDraftedTitle": "Self-drafted pattern",
+  "@projectComposerPatternSelfDraftedTitle": { "description": "Title for the switch that marks a project pattern as drafted by the post author." },
+
+  "projectComposerPatternSelfDraftedDescription": "I drafted this pattern",
+  "@projectComposerPatternSelfDraftedDescription": { "description": "Description for the self-drafted pattern switch." },
+
+  "projectPatternSelfDraftedLabel": "Self-drafted",
+  "@projectPatternSelfDraftedLabel": { "description": "Metadata label shown on a project card for a pattern drafted by the post author." },
+
   "projectComposerPatternDesignerLabel": "Designer",
   "@projectComposerPatternDesignerLabel": { "description": "Label for the optional pattern designer field in the project composer." },
 
@@ -1006,11 +1024,29 @@
   "projectComposerPatternPublisherHint": "Add pattern publisher",
   "@projectComposerPatternPublisherHint": { "description": "Placeholder text for the optional pattern publisher field in the project composer." },
 
-  "postComposeHint": "What are you making?",
+  "postComposeHint": "What would you like to share?",
   "@postComposeHint": { "description": "Label above the text field in the text-only post composer." },
 
-  "postComposeBodyHint": "Pattern, fabric, what went right, what didn't...",
+  "postComposeBodyHint": "Share what you're making, learning, or thinking...",
   "@postComposeBodyHint": { "description": "Hint text inside the main post composer text field." },
+
+  "postComposeRequiredLabel": "required",
+  "@postComposeRequiredLabel": { "description": "Small marker shown beside required text fields in the regular post composer." },
+
+  "postComposeBodyRequiredError": "Add something to your post.",
+  "@postComposeBodyRequiredError": { "description": "Validation error shown after submitting a regular post without body text." },
+
+  "postSponsoredToggleTitle": "Sponsored",
+  "@postSponsoredToggleTitle": { "description": "Title for the sponsorship disclosure switch in top-level post composers." },
+
+  "postSponsoredToggleDescription": "This post includes sponsorship or other commercial consideration",
+  "@postSponsoredToggleDescription": { "description": "Description for the sponsorship disclosure switch." },
+
+  "postSponsoredLabel": "Sponsored",
+  "@postSponsoredLabel": { "description": "Accessible disclosure label shown on sponsored full post cards and quote previews." },
+
+  "postSponsoredExplanation": "The creator marked this post as sponsored because they received money, products, or another benefit.",
+  "@postSponsoredExplanation": { "description": "Tooltip explaining what the Sponsored disclosure means." },
 
   "postComposeReplyTitle": "Reply",
   "@postComposeReplyTitle": { "description": "Title of the reply composer sheet." },
@@ -1596,9 +1632,6 @@
   "profileCustomisationColour": "Colour",
   "@profileCustomisationColour": { "description": "Heading for the fixed profile colour choices." },
 
-  "profileCustomisationBorder": "Profile border",
-  "@profileCustomisationBorder": { "description": "Heading for profile picture border thickness choices." },
-
   "profileCustomisationBackground": "Profile background",
   "@profileCustomisationBackground": { "description": "Heading for profile background texture choices." },
 
@@ -1646,15 +1679,6 @@
 
   "profileCustomisationColourInk": "Ink",
   "@profileCustomisationColourInk": { "description": "Label for the profile colour that uses the CraftSky theme Ink colour." },
-
-  "profileCustomisationBorderThin": "Thin",
-  "@profileCustomisationBorderThin": { "description": "Label for the thin profile picture border." },
-
-  "profileCustomisationBorderMedium": "Medium",
-  "@profileCustomisationBorderMedium": { "description": "Label for the medium profile picture border." },
-
-  "profileCustomisationBorderThick": "Thick",
-  "@profileCustomisationBorderThick": { "description": "Label for the thick profile picture border." },
 
   "profileCustomisationBackgroundDither": "Dither",
   "@profileCustomisationBackgroundDither": { "description": "Label for the bayerdark profile texture." },
@@ -1860,26 +1884,32 @@
   "projectsFilterProjectType": "Project type",
   "@projectsFilterProjectType": { "description": "Project filter group label for project type." },
 
+  "projectsFilterStatus": "Status",
+  "@projectsFilterStatus": { "description": "Project filter group label for project status." },
+
+  "projectsFilterProjectSubtype": "Project subtype",
+  "@projectsFilterProjectSubtype": { "description": "Project filter group label for project subtype." },
+
   "projectsFilterDifficulty": "Pattern difficulty",
   "@projectsFilterDifficulty": { "description": "Project filter group label for pattern difficulty." },
 
   "projectsFilterColor": "Color",
   "@projectsFilterColor": { "description": "Project filter group label for colors." },
 
-  "projectsFilterDesignTag": "Design tag",
+  "projectsFilterDesignTag": "Design",
   "@projectsFilterDesignTag": { "description": "Project filter group label for design tags." },
 
-  "projectsFilterMaterial": "Material",
-  "@projectsFilterMaterial": { "description": "Project filter group label for material free-text filters." },
+  "projectsFilterYarnWeight": "Yarn weight",
+  "@projectsFilterYarnWeight": { "description": "Project filter group label for yarn weight." },
 
-  "projectsFilterProjectTag": "Project tag",
-  "@projectsFilterProjectTag": { "description": "Project filter group label for project tag free-text filters." },
+  "projectsFilterPiecingTechnique": "Piecing technique",
+  "@projectsFilterPiecingTechnique": { "description": "Quilting project filter group label for piecing technique." },
 
-  "projectsFreeTextHint": "Add a value",
-  "@projectsFreeTextHint": { "description": "Hint text for adding a free-text project filter chip." },
+  "projectsFilterQuiltingMethod": "Quilting method",
+  "@projectsFilterQuiltingMethod": { "description": "Quilting project filter group label for quilting method." },
 
-  "projectsAddFilterValueAction": "Add",
-  "@projectsAddFilterValueAction": { "description": "Button label for adding a free-text project filter value." },
+  "projectsFilterSelfDrafted": "Self drafted",
+  "@projectsFilterSelfDrafted": { "description": "Project filter label for self-drafted patterns." },
 
   "projectsApplyFiltersAction": "Apply filters",
   "@projectsApplyFiltersAction": { "description": "Primary action in the project filters sheet." },
@@ -2232,6 +2262,15 @@
 
   "scheduledPostLater": "Schedule for later",
   "@scheduledPostLater": { "description": "Option to choose a future publication time." },
+
+  "scheduledPostCompactTime": "{date}, {time}",
+  "@scheduledPostCompactTime": {
+    "description": "Compact local date and time shown on an active composer schedule control.",
+    "placeholders": {
+      "date": { "type": "String", "example": "Sep 15" },
+      "time": { "type": "String", "example": "2:30 PM" }
+    }
+  },
 
   "scheduledPostTimeRangeError": "Choose a whole-minute time from 5 minutes through 28 days from now",
   "@scheduledPostTimeRangeError": { "description": "Error shown when a selected schedule time falls outside the supported window." },
@@ -2616,7 +2655,6 @@
     "description": "Stable fallback shown when the YouTube iframe reports a playback error."
   },
   "onboardingTitle": "Set up your CraftSky profile",
-  "onboardingSkip": "Skip",
   "onboardingNext": "Next",
   "onboardingSaveNext": "Save & next",
   "onboardingFinish": "Finish",
@@ -2630,8 +2668,16 @@
   "@onboardingHandleLabel": {"placeholders": {"handle": {"type": "String"}}},
   "onboardingCraftsTitle": "What do you make?",
   "onboardingCraftsDescription": "Choose as many crafts as you like. You can change these later.",
-  "onboardingInstagramTitle": "Find your crafting community",
-  "onboardingInstagramDescription": "Connecting Instagram is optional. CraftSky uses your choices only to help match accounts and import who you follow.",
+  "onboardingGuidelinesTitle": "Our community guidelines",
+  "onboardingGuidelinesWelcomeHeading": "A welcoming place to make and share",
+  "onboardingGuidelinesWelcomeBody": "CraftSky exists to be a welcoming, inspiring home for the textile crafting community. We want it to be a place where people feel comfortable sharing projects, asking questions, celebrating each other's successes and learning from the community.",
+  "onboardingGuidelinesRespectHeading": "Be kind and keep CraftSky safe",
+  "onboardingGuidelinesRespectBody": "Respect other people and help keep CraftSky safe for everyone. We do not allow harassment, hate speech, scams, spam, sexually explicit content or content materially created by generative AI. Businesses are welcome when they are transparent about commercial relationships and follow the same rules as everyone else.",
+  "onboardingGuidelinesCraftHeading": "Keep it craft-focused",
+  "onboardingGuidelinesCraftBody": "Most posts should relate to textile and fibre craft projects, materials, techniques, tools or the wider crafting community. Occasional off-topic posts are fine, but should remain secondary. Political discussion belongs here only when it directly affects textile crafting or the craft community.",
+  "onboardingGuidelinesCheckHeading": "A useful check",
+  "onboardingGuidelinesCheckBody": "If you are unsure whether something belongs on CraftSky, ask: Does this make the community a better place? If the answer is yes, you are probably on the right track.",
+  "onboardingGuidelinesViewFull": "View full guidelines",
   "onboardingSaveError": "We couldn't save your profile. Your changes are still here; try again.",
   "onboardingLoadError": "We couldn't load your profile.",
   "onboardingRetry": "Try again",
@@ -3164,5 +3210,125 @@
   "subscriptionsUnassignmentConfirmTitle": "Remove this assignment?",
   "@subscriptionsUnassignmentConfirmTitle": { "description": "Unassignment confirmation title." },
   "subscriptionsUnassignmentConfirmBody": "The assigned account will lose paid access. Changing it again may require a seven-day wait.",
-  "@subscriptionsUnassignmentConfirmBody": { "description": "Unassignment access and cooldown warning." }
+  "@subscriptionsUnassignmentConfirmBody": { "description": "Unassignment access and cooldown warning." },
+  "accountStandingTitle": "Account standing",
+  "@accountStandingTitle": { "description": "Settings row and owner moderation page title." },
+  "moderationStandingGood": "Your account is in good standing",
+  "@moderationStandingGood": { "description": "Current account state when there is no active enforcement." },
+  "moderationStandingActionRequired": "Your account has active moderation action",
+  "@moderationStandingActionRequired": { "description": "Current account state when strikes are active without suspension." },
+  "moderationStandingSuspended": "Your account is suspended",
+  "@moderationStandingSuspended": { "description": "Current account state during moderation suspension." },
+  "moderationStandingCount": "Active strikes: {count} of the {threshold} strike suspension threshold.",
+  "@moderationStandingCount": { "description": "Active strike count and policy threshold.", "placeholders": { "count": { "type": "int" }, "threshold": { "type": "int" } } },
+  "moderationStandingThresholdDetail": "The account is suspended because the active-strike threshold has been reached.",
+  "@moderationStandingThresholdDetail": { "description": "Threshold suspension explanation." },
+  "moderationStandingSevereDetail": "The account is suspended because of a severe policy decision.",
+  "@moderationStandingSevereDetail": { "description": "Severe suspension explanation." },
+  "moderationStandingLoadError": "Account standing could not be loaded.",
+  "@moderationStandingLoadError": { "description": "Safe standing load failure." },
+  "moderationHistoryTitle": "Moderation history",
+  "@moderationHistoryTitle": { "description": "Owner moderation history heading." },
+  "moderationHistoryEmptyTitle": "No moderation history",
+  "@moderationHistoryEmptyTitle": { "description": "Owner moderation history empty-state title." },
+  "moderationHistoryEmptyBody": "There are no moderation decisions to show for this account.",
+  "@moderationHistoryEmptyBody": { "description": "Owner moderation history empty-state explanation." },
+  "moderationHistoryLoadError": "Moderation history could not be loaded.",
+  "@moderationHistoryLoadError": { "description": "Safe owner moderation history load failure." },
+  "moderationRetryAction": "Try again",
+  "@moderationRetryAction": { "description": "Action retrying a moderation request." },
+  "moderationHistoryLoadMore": "Load more",
+  "@moderationHistoryLoadMore": { "description": "Action loading another moderation history page." },
+  "moderationHistoryLoadingMore": "Loading…",
+  "@moderationHistoryLoadingMore": { "description": "Progress label while loading another moderation history page." },
+  "moderationHistoryRetryMore": "Try loading more again",
+  "@moderationHistoryRetryMore": { "description": "Action retrying failed moderation history pagination." },
+  "moderationHistoryEntrySemantics": "Moderation history entry {reference}",
+  "@moderationHistoryEntrySemantics": { "description": "Accessible owner moderation entry label.", "placeholders": { "reference": { "type": "String" } } },
+  "moderationHistoryOccurredAt": "{date} at {time}",
+  "@moderationHistoryOccurredAt": { "description": "Local date and time of a moderation event.", "placeholders": { "date": { "type": "String" }, "time": { "type": "String" } } },
+  "moderationConsequencesTitle": "Consequences",
+  "@moderationConsequencesTitle": { "description": "Heading for moderation effects." },
+  "moderationEffectWithExpiry": "{effect} · {state} · Until {date}",
+  "@moderationEffectWithExpiry": { "description": "Moderation effect, state, and stored expiry date.", "placeholders": { "effect": { "type": "String" }, "state": { "type": "String" }, "date": { "type": "String" } } },
+  "moderationEffectFormalWarning": "Formal warning",
+  "@moderationEffectFormalWarning": { "description": "Formal account warning effect." },
+  "moderationEffectViewerWarning": "Viewer warning",
+  "@moderationEffectViewerWarning": { "description": "Viewer-facing content warning effect." },
+  "moderationEffectHidden": "Content hidden",
+  "@moderationEffectHidden": { "description": "Content visibility hide effect." },
+  "moderationEffectRemoved": "Content removed from CraftSky",
+  "@moderationEffectRemoved": { "description": "App View content takedown effect." },
+  "moderationEffectStrike": "Account strike",
+  "@moderationEffectStrike": { "description": "Account strike effect." },
+  "moderationEffectSevereSuspension": "Severe suspension",
+  "@moderationEffectSevereSuspension": { "description": "Severe account suspension effect." },
+  "moderationEffectPolicyAction": "Policy action",
+  "@moderationEffectPolicyAction": { "description": "Forward-compatible unknown moderation effect label." },
+  "moderationEffectActive": "Active",
+  "@moderationEffectActive": { "description": "Active moderation effect state." },
+  "moderationEffectApplied": "Applied",
+  "@moderationEffectApplied": { "description": "Historical moderation effect application action." },
+  "moderationEffectExpired": "Expired",
+  "@moderationEffectExpired": { "description": "Expired moderation effect state." },
+  "moderationEffectOverturned": "Overturned",
+  "@moderationEffectOverturned": { "description": "Negated moderation effect state." },
+  "moderationEffectRestored": "Access restored",
+  "@moderationEffectRestored": { "description": "Restored suspension state." },
+  "moderationEffectNoLongerActive": "No longer active",
+  "@moderationEffectNoLongerActive": { "description": "Inactive moderation effect state." },
+  "moderationReasonHarassment": "Harassment",
+  "@moderationReasonHarassment": { "description": "Controlled moderation reason." },
+  "moderationReasonHate": "Hate or hateful conduct",
+  "@moderationReasonHate": { "description": "Controlled moderation reason." },
+  "moderationReasonSpam": "Spam",
+  "@moderationReasonSpam": { "description": "Controlled moderation reason." },
+  "moderationReasonMisleading": "Misleading content",
+  "@moderationReasonMisleading": { "description": "Controlled moderation reason." },
+  "moderationReasonSuspectedAi": "Suspected AI-generated content",
+  "@moderationReasonSuspectedAi": { "description": "Controlled moderation reason." },
+  "moderationReasonAdultOrGraphic": "Adult or graphic content",
+  "@moderationReasonAdultOrGraphic": { "description": "Controlled moderation reason." },
+  "moderationReasonImpersonation": "Impersonation",
+  "@moderationReasonImpersonation": { "description": "Controlled moderation reason." },
+  "moderationReasonOffTopic": "Off-topic content",
+  "@moderationReasonOffTopic": { "description": "Controlled moderation reason." },
+  "moderationReasonIntellectualProperty": "Intellectual property",
+  "@moderationReasonIntellectualProperty": { "description": "Controlled moderation reason." },
+  "moderationReasonOther": "Other policy issue",
+  "@moderationReasonOther": { "description": "Controlled moderation reason." },
+  "moderationReasonPolicy": "Policy decision",
+  "@moderationReasonPolicy": { "description": "Forward-compatible moderation reason label." },
+  "moderationSubjectAccount": "Account",
+  "@moderationSubjectAccount": { "description": "Account snapshot label." },
+  "moderationSubjectPost": "Post",
+  "@moderationSubjectPost": { "description": "Post snapshot label." },
+  "moderationViewPost": "View post",
+  "@moderationViewPost": { "description": "Action opening the moderated post inside CraftSky." },
+  "moderationSubjectEvent": "Event",
+  "@moderationSubjectEvent": { "description": "Business-event snapshot label." },
+  "moderationSubjectUnavailable": "Subject reference unavailable",
+  "@moderationSubjectUnavailable": { "description": "Safe snapshot fallback label." },
+  "moderationAppealAction": "Appeal by email",
+  "@moderationAppealAction": { "description": "Action opening a prefilled moderation appeal email." },
+  "moderationCopyAppealAddress": "Copy email address",
+  "@moderationCopyAppealAddress": { "description": "Appeal email address clipboard fallback." },
+  "moderationCopyCaseReference": "Copy case reference",
+  "@moderationCopyCaseReference": { "description": "Public moderation reference clipboard fallback." },
+  "moderationAppealAvailable": "An appeal can be requested by email.",
+  "@moderationAppealAvailable": { "description": "Appeal availability state." },
+  "moderationAppealPending": "Appeal under review",
+  "@moderationAppealPending": { "description": "Confirmed pending appeal state." },
+  "moderationAppealUpheld": "Decision upheld after appeal",
+  "@moderationAppealUpheld": { "description": "Upheld appeal outcome." },
+  "moderationAppealChanged": "Decision changed after appeal",
+  "@moderationAppealChanged": { "description": "Changed appeal outcome." },
+  "moderationAppealUpdated": "Appeal status updated",
+  "@moderationAppealUpdated": { "description": "Forward-compatible appeal state." },
+  "moderationAppealError": "No email app opened. You can copy the address and case reference instead.",
+  "@moderationAppealError": { "description": "Safe mailto failure with fallback guidance." },
+  "moderationCopied": "Copied",
+  "@moderationCopied": { "description": "Clipboard success feedback." },
+  "moderationCopyError": "Could not copy. The text remains selectable.",
+  "@moderationCopyError": { "description": "Safe clipboard failure feedback." }
 }

@@ -89,6 +89,7 @@ SavedPostItem _item(
     'viewerHasReposted': false,
     'viewerHasReplied': false,
     'viewerHasSaved': true,
+    'sponsored': false,
     'viewerSavedFolderId': folderId,
     'createdAt': DateTime.utc(2026, 7, 21, createdHour).toIso8601String(),
     'indexedAt': DateTime.utc(2026, 7, 21, createdHour).toIso8601String(),

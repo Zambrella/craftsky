@@ -52,7 +52,10 @@ void main() {
     );
 
     final updated = await ProfileApiClient(harness.dio)
-        .updateMyProfile(description: 'updated while validation is pending')
+        .updateMyProfile(
+          operationKey: '018f47a5-1837-7ad1-8f6d-8e8d2a89c955',
+          description: 'updated while validation is pending',
+        )
         .timeout(const Duration(seconds: 1));
 
     expect(harness.authState, isA<SignedIn>());
@@ -82,7 +85,10 @@ void main() {
       await expectLater(
         ProfileApiClient(
           harness.dio,
-        ).updateMyProfile(description: 'stale write'),
+        ).updateMyProfile(
+          operationKey: '018f47a5-1837-7ad1-8f6d-8e8d2a89c956',
+          description: 'stale write',
+        ),
         throwsA(
           isA<ApiUnauthorized>()
               .having(

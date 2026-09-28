@@ -21,8 +21,22 @@ class ApiBusinessRepository implements BusinessRepository {
   @override
   Future<RecordMutationResult> putBusinessProfile(
     Map<String, dynamic> body, {
+    required String operationKey,
     required Cid? expectedCid,
-  }) => _api.putBusinessProfile(body, expectedCid: expectedCid);
+  }) => _api.putBusinessProfile(
+    body,
+    operationKey: operationKey,
+    expectedCid: expectedCid,
+  );
+
+  @override
+  Future<void> deleteBusinessProfile({
+    required String operationKey,
+    required Cid expectedCid,
+  }) => _api.deleteBusinessProfile(
+    operationKey: operationKey,
+    expectedCid: expectedCid,
+  );
 
   @override
   Future<BusinessEventPage> listProfileEvents(
@@ -43,28 +57,41 @@ class ApiBusinessRepository implements BusinessRepository {
       _api.getEvent(owner, rkey);
 
   @override
-  Future<RecordMutationResult> createEvent(BusinessEventDraft draft) =>
-      _api.createEvent(draft.toCreateJson(_timeZones));
+  Future<RecordMutationResult> createEvent(
+    BusinessEventDraft draft, {
+    required String operationKey,
+  }) => _api.createEvent(
+    draft.toCreateJson(_timeZones),
+    operationKey: operationKey,
+  );
 
   @override
   Future<RecordMutationResult> updateEvent(
     Did owner,
     RecordKey rkey,
     Cid expectedCid,
-    BusinessEventDraft draft,
-  ) => _api.updateEvent(
+    BusinessEventDraft draft, {
+    required String operationKey,
+  }) => _api.updateEvent(
     owner,
     rkey,
     expectedCid,
     draft.toUpdateJson(_timeZones),
+    operationKey: operationKey,
   );
 
   @override
-  Future<RecordMutationResult> deleteEvent(
+  Future<void> deleteEvent(
     Did owner,
     RecordKey rkey,
-    Cid expectedCid,
-  ) => _api.deleteEvent(owner, rkey, expectedCid);
+    Cid expectedCid, {
+    required String operationKey,
+  }) => _api.deleteEvent(
+    owner,
+    rkey,
+    expectedCid,
+    operationKey: operationKey,
+  );
 
   @override
   Future<ReportResult> reportEvent(

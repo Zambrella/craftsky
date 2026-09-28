@@ -14,11 +14,13 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
 	"github.com/ipfs/go-cid"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/multiformats/go-multihash"
 
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/pdseffects"
 )
 
@@ -29,7 +31,7 @@ func TestIT016PublicationRecordUsesFrozenExternalAndPredictedThumbnail(t *testin
 		"mimeType": "image/png", "size": int64(3),
 	}
 	record, err := publicationRecord(Payload{
-		Kind: PostKindStandard, Text: "pattern",
+		Kind: PostKindStandard, Text: "pattern", Sponsored: true,
 		External: &PayloadExternal{
 			SourceURI: "https://source.example/pattern",
 			URI:       "https://final.example/pattern#section", Title: "Frozen title",
@@ -38,6 +40,9 @@ func TestIT016PublicationRecordUsesFrozenExternalAndPredictedThumbnail(t *testin
 	}, []map[string]any{blob}, time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatalf("publicationRecord() error = %v", err)
+	}
+	if record["sponsored"] != true {
+		t.Fatalf("sponsored = %#v, want true", record["sponsored"])
 	}
 	embed, ok := record["embed"].(map[string]any)
 	if !ok || embed["$type"] != "app.bsky.embed.external" {
@@ -101,11 +106,11 @@ func TestPublicationWorkerPublishesDuePostWithStablePutAndFinalizes(t *testing.T
 		}
 	}}
 	processor, err := NewPublicationProcessor(PublicationProcessorOptions{
-		Store:      store,
-		Sessions:   stubPublicationSessionSelector{wantOwner: "did:plc:alice", sessionID: "owner-session"},
-		NewEffects: recordingGuardedFactory(pds, nil),
-		Objects:    newMemoryPrivateObjectStore(),
-		Now:        func() time.Time { return now },
+		Store:       store,
+		Sessions:    stubPublicationSessionSelector{wantOwner: "did:plc:alice", sessionID: "owner-session"},
+		NewCommands: recordingGuardedFactory(pds, nil),
+		Objects:     newMemoryPrivateObjectStore(),
+		Now:         func() time.Time { return now },
 	})
 	if err != nil {
 		t.Fatalf("new publisher: %v", err)
@@ -134,15 +139,15 @@ func TestPublicationWorkerPublishesDuePostWithStablePutAndFinalizes(t *testing.T
 		t.Fatalf("durable put requests=%d, want one", len(pds.putRequests))
 	}
 	request := pds.putRequests[0]
-	wantEffectID := scheduledRecordEffectIdentity(PublishingClaim{
+	wantCommandKey := scheduledPublicationCommandKey(PublishingClaim{
 		ID: created.ID, OwnerGeneration: created.OwnerGeneration,
 		PayloadVersion: created.PayloadVersion,
-	})
-	if request.OperationID != wantEffectID || request.MutationKey != wantEffectID ||
+	}).String()
+	if request.OperationID != wantCommandKey || request.MutationKey != wantCommandKey ||
 		request.OwnerGeneration != created.OwnerGeneration ||
 		len(request.ExpectedOwners) != 1 ||
 		request.ExpectedOwners[0].Generation != created.OwnerGeneration {
-		t.Fatalf("durable put request=%+v, want identity %q and exact generation", request, wantEffectID)
+		t.Fatalf("command put request=%+v, want key %q and exact generation", request, wantCommandKey)
 	}
 	if _, err := store.Get(ctx, "did:plc:alice", created.ID); !errors.Is(err, ErrScheduleNotFound) {
 		t.Fatalf("finalized schedule get error=%v", err)
@@ -187,7 +192,7 @@ func TestPublicationWorkerRejectsOversizedExternalThumbnailBeforeFreeze(t *testi
 	pds := &recordingScheduledPDS{}
 	processor, err := NewPublicationProcessor(PublicationProcessorOptions{
 		Store: store, Sessions: stubPublicationSessionSelector{wantOwner: "did:plc:alice", sessionID: "owner-session"},
-		NewEffects: recordingGuardedFactory(pds, nil), Objects: objects,
+		NewCommands: recordingGuardedFactory(pds, nil), Objects: objects,
 		Now: func() time.Time { return now },
 	})
 	if err != nil {
@@ -248,7 +253,7 @@ func TestPublicationWorkerRejectsSameCountDifferentMediaIdentityBeforeFreeze(t *
 	pds := &recordingScheduledPDS{}
 	processor, err := NewPublicationProcessor(PublicationProcessorOptions{
 		Store: store, Sessions: stubPublicationSessionSelector{wantOwner: "did:plc:alice", sessionID: "owner-session"},
-		NewEffects: recordingGuardedFactory(pds, nil), Objects: objects,
+		NewCommands: recordingGuardedFactory(pds, nil), Objects: objects,
 		Now: func() time.Time { return now },
 	})
 	if err != nil {
@@ -309,7 +314,7 @@ func TestIT018ScheduledPublicationRetryTelemetryExcludesPrivateCanaries(t *testi
 	pds := &recordingScheduledPDS{putErr: errors.New(canaries[7])}
 	processor, err := NewPublicationProcessor(PublicationProcessorOptions{
 		Store: store, Sessions: stubPublicationSessionSelector{wantOwner: owner, sessionID: "owner-session"},
-		NewEffects: recordingGuardedFactory(pds, nil), Objects: objects,
+		NewCommands: recordingGuardedFactory(pds, nil), Objects: objects,
 		Now: func() time.Time { return now }, Observer: observer,
 	})
 	if err != nil {
@@ -350,7 +355,7 @@ func TestPublicationWorkerUploadsThePrivateCopyBeforeWritingImageRecord(t *testi
 	pds := &recordingScheduledPDS{}
 	processor, _ := NewPublicationProcessor(PublicationProcessorOptions{
 		Store: store, Sessions: stubPublicationSessionSelector{wantOwner: "did:plc:alice", sessionID: "owner-session"},
-		NewEffects: recordingGuardedFactory(pds, nil), Objects: objects, Now: func() time.Time { return now },
+		NewCommands: recordingGuardedFactory(pds, nil), Objects: objects, Now: func() time.Time { return now },
 	})
 	worker, _ := NewWorker(WorkerOptions{Store: store, Processor: processor, Now: func() time.Time { return now }})
 	if _, err := worker.ProcessBatch(ctx); err != nil {
@@ -417,9 +422,9 @@ func TestPublicationWorkerFreezesPredictedMediaBeforeFirstPDSUpload(t *testing.T
 		Sessions: stubPublicationSessionSelector{
 			wantOwner: "did:plc:alice", sessionID: "owner-session",
 		},
-		NewEffects: recordingGuardedFactory(pds, nil),
-		Objects:    objects,
-		Now:        func() time.Time { return now },
+		NewCommands: recordingGuardedFactory(pds, nil),
+		Objects:     objects,
+		Now:         func() time.Time { return now },
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -481,9 +486,9 @@ func TestPublicationWorkerRejectsPDSBlobThatDiffersFromFrozenPrediction(t *testi
 		Sessions: stubPublicationSessionSelector{
 			wantOwner: "did:plc:alice", sessionID: "owner-session",
 		},
-		NewEffects: recordingGuardedFactory(pds, nil),
-		Objects:    objects,
-		Now:        func() time.Time { return now },
+		NewCommands: recordingGuardedFactory(pds, nil),
+		Objects:     objects,
+		Now:         func() time.Time { return now },
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -534,8 +539,8 @@ func TestPublicationWorkerRechecksCurrentMediaSizePolicy(t *testing.T) {
 		Store: store, Sessions: stubPublicationSessionSelector{
 			wantOwner: "did:plc:alice", sessionID: "owner-session",
 		},
-		NewEffects: recordingGuardedFactory(pds, nil),
-		Objects:    objects, Now: func() time.Time { return now }, MaxMediaBytes: 1,
+		NewCommands: recordingGuardedFactory(pds, nil),
+		Objects:     objects, Now: func() time.Time { return now }, MaxMediaBytes: 1,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -564,8 +569,8 @@ func TestManualPublicationPublishesImmediatelyAndRetainsDefiniteFailure(t *testi
 			Sessions: stubPublicationSessionSelector{
 				wantOwner: "did:plc:alice", sessionID: "owner-session",
 			},
-			NewEffects: recordingGuardedFactory(pds, nil),
-			Objects:    newMemoryPrivateObjectStore(), Now: func() time.Time { return now },
+			NewCommands: recordingGuardedFactory(pds, nil),
+			Objects:     newMemoryPrivateObjectStore(), Now: func() time.Time { return now },
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -590,8 +595,8 @@ func TestManualPublicationPublishesImmediatelyAndRetainsDefiniteFailure(t *testi
 			Sessions: stubPublicationSessionSelector{
 				wantOwner: "did:plc:alice", err: auth.ErrNoUsableBackgroundSession,
 			},
-			NewEffects: recordingGuardedFactory(&recordingScheduledPDS{}, nil),
-			Objects:    newMemoryPrivateObjectStore(), Now: func() time.Time { return now },
+			NewCommands: recordingGuardedFactory(&recordingScheduledPDS{}, nil),
+			Objects:     newMemoryPrivateObjectStore(), Now: func() time.Time { return now },
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -618,8 +623,8 @@ func TestManualPublicationPublishesImmediatelyAndRetainsDefiniteFailure(t *testi
 			Sessions: stubPublicationSessionSelector{
 				wantOwner: "did:plc:alice", sessionID: "owner-session",
 			},
-			NewEffects: recordingGuardedFactory(pds, nil),
-			Objects:    newMemoryPrivateObjectStore(), Now: func() time.Time { return now },
+			NewCommands: recordingGuardedFactory(pds, nil),
+			Objects:     newMemoryPrivateObjectStore(), Now: func() time.Time { return now },
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -681,12 +686,12 @@ type recordingScheduledPDS struct {
 func recordingGuardedFactory(
 	pds *recordingScheduledPDS,
 	factoryErr error,
-) pdseffects.GuardedExecutorFactory {
+) GuardedCommandCoordinatorFactory {
 	return func(
 		_ context.Context,
 		owner syntax.DID,
 		_ string,
-	) (pdseffects.GuardedEffectCoordinator, error) {
+	) (GuardedCommandCoordinator, error) {
 		if factoryErr != nil {
 			return nil, factoryErr
 		}
@@ -702,17 +707,140 @@ type recordingGuardedCoordinator struct {
 	pds   *recordingScheduledPDS
 }
 
-func (coordinator *recordingGuardedCoordinator) WithGuardedEffects(
+func (coordinator *recordingGuardedCoordinator) WithGuardedCommands(
 	ctx context.Context,
 	expected []ownerlifecycle.ExpectedOwner,
-	operation pdseffects.GuardedEffectOperation,
+	operation GuardedCommandOperation,
 ) error {
 	coordinator.pds.expectedOwners = append(
 		[]ownerlifecycle.ExpectedOwner(nil), expected...,
 	)
-	return operation(ctx, &recordingEffectExecutor{
+	effects := &recordingEffectExecutor{
 		owner: coordinator.owner, expected: expected, pds: coordinator.pds,
+	}
+	return operation(ctx, effects, &recordingCommandExecutor{effects: effects})
+}
+
+type recordingCommandExecutor struct {
+	effects *recordingEffectExecutor
+}
+
+type journaledRecordingGuardedCoordinator struct {
+	executor *pdseffects.Executor
+	append   *pdscommands.AppendCommandService
+	client   auth.PDSClient
+}
+
+func journaledRecordingGuardedFactory(
+	t *testing.T,
+	pool *pgxpool.Pool,
+	lifecycles *ownerlifecycle.Store,
+	pds *recordingScheduledPDS,
+	now func() time.Time,
+) GuardedCommandCoordinatorFactory {
+	t.Helper()
+	commandStore, err := pdscommands.NewStore(pdscommands.StoreConfig{
+		Pool: pool, Lifecycles: lifecycles, Now: now,
 	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendService, err := pdscommands.NewAppendCommandService(pdscommands.AppendCommandServiceConfig{
+		Store: commandStore, Lifecycles: lifecycles,
+		NewBoundary: func(context.Context, syntax.DID, string) (auth.ActiveEffectPDSBoundary, error) {
+			return pds, nil
+		},
+		NewRecordKey: func() (syntax.RecordKey, error) {
+			return "unused", nil
+		},
+		Now: now,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return func(
+		_ context.Context,
+		owner syntax.DID,
+		_ string,
+	) (GuardedCommandCoordinator, error) {
+		boundary := &countingPublicationEffectBoundary{
+			lifecycles: lifecycles,
+			client:     pds,
+		}
+		executor, err := pdseffects.NewExecutor(lifecycles, boundary, owner, time.Minute, now)
+		if err != nil {
+			return nil, err
+		}
+		return &journaledRecordingGuardedCoordinator{
+			executor: executor, append: appendService, client: pds,
+		}, nil
+	}
+}
+
+func (coordinator *journaledRecordingGuardedCoordinator) WithGuardedCommands(
+	ctx context.Context,
+	expected []ownerlifecycle.ExpectedOwner,
+	operation GuardedCommandOperation,
+) error {
+	return coordinator.executor.WithGuardedEffects(
+		ctx,
+		expected,
+		func(effectCtx context.Context, effects pdseffects.EffectExecutor) error {
+			commands, err := pdscommands.NewAlreadyFencedCommandExecutor(
+				coordinator.append,
+				coordinator.client,
+				expected,
+			)
+			if err != nil {
+				return err
+			}
+			scoped, err := pdscommands.NewScopedAlreadyFencedCommandExecutor(commands)
+			if err != nil {
+				return err
+			}
+			defer scoped.CloseAndWait()
+			return operation(effectCtx, effects, scoped)
+		},
+	)
+}
+
+func (executor *recordingCommandExecutor) ExecuteAppend(
+	ctx context.Context,
+	request pdscommands.FencedAppendCommandRequest,
+) (pdscommands.CommandResult, error) {
+	record, err := request.Command.BuildRecord(time.Now().UTC())
+	if err != nil {
+		return pdscommands.CommandResult{}, err
+	}
+	var value map[string]any
+	if err := json.Unmarshal(record, &value); err != nil {
+		return pdscommands.CommandResult{}, err
+	}
+	result, err := executor.effects.PutRecord(ctx, pdseffects.PutRecordRequest{
+		OperationID: request.Command.OperationKey.String(),
+		MutationKey: request.Command.OperationKey.String(),
+		Owner:       request.Command.Owner, OwnerGeneration: request.Command.OwnerGeneration,
+		ExpectedOwners: executor.effects.expected,
+		Collection:     request.Command.Collection, Rkey: request.SelectedRkey,
+		Record: value,
+	})
+	if err != nil {
+		if errors.Is(err, pdseffects.ErrOutcomeAmbiguous) {
+			return pdscommands.CommandResult{
+				TerminalResult:    pdscommands.TerminalResult{State: pdscommands.CommandAmbiguous},
+				RetryAfterSeconds: 1,
+			}, nil
+		}
+		terminal := request.Command.Rejected(err)
+		return pdscommands.CommandResult{TerminalResult: terminal}, nil
+	}
+	terminal, err := request.Command.Accepted(pdscommands.AuthoritativeRecord{
+		URI: result.URI, CID: result.CID, Record: record,
+	})
+	if err != nil {
+		return pdscommands.CommandResult{}, err
+	}
+	return pdscommands.CommandResult{TerminalResult: terminal}, nil
 }
 
 type recordingEffectExecutor struct {
@@ -875,6 +1003,52 @@ func (*recordingScheduledPDS) CreateRecord(context.Context, syntax.DID, string, 
 }
 func (*recordingScheduledPDS) DeleteRecord(context.Context, syntax.DID, string, string) error {
 	return errors.New("unexpected DeleteRecord")
+}
+func (p *recordingScheduledPDS) LatestCommit(context.Context, syntax.DID) (syntax.CID, error) {
+	return "bafyreicommit", nil
+}
+func (p *recordingScheduledPDS) ListRecords(
+	context.Context,
+	syntax.DID,
+	string,
+	string,
+	int,
+) ([]auth.PDSRecord, string, error) {
+	if p.record == nil {
+		return nil, "", nil
+	}
+	return []auth.PDSRecord{{
+		URI: syntax.ATURI("at://did:plc:alice/" + PostCollection + "/" + p.rkey),
+		CID: "bafyreischeduled", Value: p.record,
+	}}, "", nil
+}
+func (p *recordingScheduledPDS) ApplyWrites(
+	ctx context.Context,
+	repo syntax.DID,
+	_ syntax.CID,
+	writes []auth.RepositoryWrite,
+) error {
+	for _, write := range writes {
+		if write.Action != "create" {
+			return errors.New("unexpected repository write action")
+		}
+		if err := p.PutRecord(
+			ctx, repo, write.Collection.String(), write.RKey.String(), write.Record,
+		); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+func (*recordingScheduledPDS) DeleteRecordWithRepositorySwap(
+	context.Context,
+	syntax.DID,
+	syntax.NSID,
+	syntax.RecordKey,
+	syntax.CID,
+	syntax.CID,
+) error {
+	return errors.New("unexpected repository delete")
 }
 func (p *recordingScheduledPDS) UploadBlob(_ context.Context, contentType string, body []byte) (*auth.UploadedBlob, error) {
 	if p.panicBeforeUploadAt > 0 && p.uploadCalls+1 == p.panicBeforeUploadAt {

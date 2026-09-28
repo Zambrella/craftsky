@@ -48,7 +48,12 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Embroidery').last);
     await tester.pumpAndSettle();
-    await tester.ensureVisible(find.text('French'));
+    final languageControl = find.byKey(
+      const Key('composer-language-control'),
+    );
+    await tester.ensureVisible(languageControl);
+    await tester.pumpAndSettle();
+    await tester.tap(languageControl);
     await tester.pumpAndSettle();
 
     expect(find.text('French'), findsOneWidget);

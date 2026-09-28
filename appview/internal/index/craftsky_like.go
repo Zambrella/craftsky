@@ -2,9 +2,7 @@
 package index
 
 import (
-	"context"
 	"encoding/json"
-	"fmt"
 	"log/slog"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -12,19 +10,20 @@ import (
 
 	craftskylex "social.craftsky/appview/internal/lexicon/craftsky"
 	"social.craftsky/appview/internal/notifications"
-	"social.craftsky/appview/internal/tap"
 )
 
-type CraftskyLike struct {
-	pool         *pgxpool.Pool
-	projectionDB transactionalDatabase
-	logger       *slog.Logger
-	lifecycle    notifications.Lifecycle
+type craftskyInteractionRecord struct {
+	CreatedAt  string
+	SubjectURI string
+	SubjectCID string
 }
 
-var _ Indexer = (*CraftskyLike)(nil)
+type CraftskyLike struct {
+	logger    *slog.Logger
+	lifecycle notifications.Lifecycle
+}
 
-func NewCraftskyLike(pool *pgxpool.Pool, logger *slog.Logger, lifecycles ...notifications.Lifecycle) *CraftskyLike {
+func NewCraftskyLike(_ *pgxpool.Pool, logger *slog.Logger, lifecycles ...notifications.Lifecycle) *CraftskyLike {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -32,31 +31,10 @@ func NewCraftskyLike(pool *pgxpool.Pool, logger *slog.Logger, lifecycles ...noti
 	if len(lifecycles) > 0 && lifecycles[0] != nil {
 		lifecycle = lifecycles[0]
 	}
-	return &CraftskyLike{pool: pool, logger: logger, lifecycle: lifecycle}
+	return &CraftskyLike{logger: logger, lifecycle: lifecycle}
 }
 
 const craftskyLikeNSID syntax.NSID = "social.craftsky.feed.like"
-
-func (c *CraftskyLike) Handle(ctx context.Context, ev tap.Event) error {
-	if ev.Collection != craftskyLikeNSID {
-		return nil
-	}
-	switch ev.Action {
-	case "create", "update":
-		return handleCraftskyInteractionUpsert(ctx, c.database(), ev, "craftsky_likes", notifications.Like, c.lifecycle, decodeCraftskyLike)
-	case "delete":
-		return handleCraftskyInteractionDelete(ctx, c.database(), ev, "craftsky_likes", c.lifecycle)
-	default:
-		return fmt.Errorf("unknown action %q on %s", ev.Action, ev.URI)
-	}
-}
-
-func (c *CraftskyLike) database() transactionalDatabase {
-	if c.projectionDB != nil {
-		return c.projectionDB
-	}
-	return c.pool
-}
 
 func decodeCraftskyLike(raw json.RawMessage) (craftskyInteractionRecord, error) {
 	var rec craftskylex.FeedLike

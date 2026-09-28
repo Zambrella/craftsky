@@ -3,7 +3,7 @@ icons_launcher:
     android:
       enable: true
       image_path: assets/app-icon/app-icon-light.png
-      adaptive_background_color: "#1535D6"
+      adaptive_background_color: "#EFE7D6"
       adaptive_foreground_image: assets/app-icon/android-icon-foreground.png
       adaptive_monochrome_image: assets/app-icon/android-icon-monochrome.png
     ios:

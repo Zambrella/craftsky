@@ -6,6 +6,7 @@ import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
 import 'package:craftsky_app/settings/pages/follow_list_page.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +16,29 @@ import 'package:go_router/go_router.dart';
 import '../profile/fakes/fake_profile_repository.dart';
 
 void main() {
+  testWidgets('initial loading uses account row skeletons', (tester) async {
+    final page = Completer<ProfileAccountPage>();
+    final repo = FakeProfileRepository(
+      onListFollowersMe: ({cursor, limit}) => page.future,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [profileRepositoryProvider.overrideWithValue(repo)],
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const FollowListPage(kind: FollowListKind.followers),
+        ),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byType(CraftskySkeletonList), findsOneWidget);
+    expect(find.byType(AccountRowSkeleton), findsNWidgets(6));
+  });
+
   testWidgets('followers page shows count and preserves repository order', (
     tester,
   ) async {
@@ -41,10 +65,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [profileRepositoryProvider.overrideWithValue(repo)],
-        child: const MaterialApp(
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: FollowListPage(kind: FollowListKind.followers),
+          home: const FollowListPage(kind: FollowListKind.followers),
         ),
       ),
     );
@@ -147,10 +172,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [profileRepositoryProvider.overrideWithValue(repo)],
-        child: const MaterialApp(
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: FollowListPage(kind: FollowListKind.followers),
+          home: const FollowListPage(kind: FollowListKind.followers),
         ),
       ),
     );
@@ -191,10 +217,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [profileRepositoryProvider.overrideWithValue(repo)],
-        child: const MaterialApp(
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: FollowListPage(kind: FollowListKind.followers),
+          home: const FollowListPage(kind: FollowListKind.followers),
         ),
       ),
     );
@@ -257,10 +284,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [profileRepositoryProvider.overrideWithValue(repo)],
-        child: const MaterialApp(
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: FollowListPage(kind: FollowListKind.followers),
+          home: const FollowListPage(kind: FollowListKind.followers),
         ),
       ),
     );
@@ -322,10 +350,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [profileRepositoryProvider.overrideWithValue(repo)],
-        child: const MaterialApp(
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: FollowListPage(kind: FollowListKind.followers),
+          home: const FollowListPage(kind: FollowListKind.followers),
         ),
       ),
     );
@@ -375,10 +404,11 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [profileRepositoryProvider.overrideWithValue(repo)],
-        child: const MaterialApp(
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           supportedLocales: AppLocalizations.supportedLocales,
-          home: FollowListPage(kind: FollowListKind.followers),
+          home: const FollowListPage(kind: FollowListKind.followers),
         ),
       ),
     );

@@ -1,0 +1,12 @@
+services:
+  tap:
+    # The release gate must exercise the deployed Tap binary without contacting
+    # the public relay, PLC directory, or a PDS. Tap v0.1.10 has no supported
+    # deterministic event-injection endpoint, so outbox-only mode is the
+    # strongest safe image-level protocol check available.
+    environment:
+      TAP_OUTBOX_ONLY: "true"
+      TAP_DISABLE_ACKS: "false"
+      TAP_RELAY_URL: http://127.0.0.1:1
+      TAP_PLC_URL: http://127.0.0.1:1
+      TAP_DATABASE_URL: sqlite:///data/tap-acceptance.db

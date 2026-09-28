@@ -23,6 +23,7 @@ func TestSentryImportBoundary(t *testing.T) {
 		filepath.Join(root, "internal", "api") + string(filepath.Separator),
 	}
 	allowedTestFiles := []string{
+		filepath.Join(root, "cmd", "appview", "server_test.go"),
 		filepath.Join(root, "internal", "app", "pds_migration_observability_integration_test.go"),
 	}
 

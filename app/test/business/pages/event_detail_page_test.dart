@@ -63,7 +63,7 @@ void main() {
         final submit = tester.widget<TextButton>(
           find.widgetWithText(TextButton, 'Submit'),
         );
-        expect(submit.onPressed, isNull);
+        expect(submit.onPressed, isNotNull);
         await expectKeyboardFocus(tester);
         expectNoAccessibilityLayoutException(tester);
         semantics.dispose();

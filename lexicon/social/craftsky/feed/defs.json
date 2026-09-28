@@ -35,17 +35,17 @@
       "type": "token",
       "description": "Pattern suitable for newcomers to the craft."
     },
+    "confidentBeginner": {
+      "type": "token",
+      "description": "Pattern suitable for crafters comfortable with the basic techniques of the craft."
+    },
     "intermediate": {
       "type": "token",
-      "description": "Pattern assumes familiarity with core techniques of the craft."
+      "description": "Pattern assumes reliable command of core techniques and may introduce more involved construction."
     },
     "advanced": {
       "type": "token",
-      "description": "Pattern assumes confident skill and some complex techniques."
-    },
-    "expert": {
-      "type": "token",
-      "description": "Pattern demands mastery of the craft and uncommon techniques."
+      "description": "Pattern assumes strong skill and may require complex or uncommon techniques."
     }
   }
 }

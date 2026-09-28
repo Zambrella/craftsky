@@ -2,7 +2,7 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
-import 'package:craftsky_app/business/providers/business_projection_overlay_provider.dart';
+import 'package:craftsky_app/business/providers/business_record_overlay.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:flutter/foundation.dart';
@@ -94,9 +94,7 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
       throw StateError('Active account changed');
     }
     final lease = _lease(ownership);
-    final readFence = ref
-        .read(businessProjectionOverlayProvider.notifier)
-        .captureRead(lease);
+    final readFence = captureBusinessEventListRead(ref, lease);
     final page = await ref
         .watch(businessRepositoryProvider)
         .listProfileEvents(target.owner);
@@ -107,7 +105,7 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
       final retained = _reconcile(
         const [],
         lease,
-        ref.read(businessProjectionOverlayProvider.notifier).captureRead(lease),
+        captureBusinessEventListRead(ref, lease),
       );
       return BusinessEventListState(
         items: List.unmodifiable(retained.events),
@@ -142,9 +140,7 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
     final generation = _generation;
     final ownership = captureActiveAccountOperation(ref);
     final lease = _lease(ownership);
-    final readFence = ref
-        .read(businessProjectionOverlayProvider.notifier)
-        .captureRead(lease);
+    final readFence = captureBusinessEventListRead(ref, lease);
     state = AsyncData(
       current.copyWith(isLoadingMore: true, incrementalError: null),
     );
@@ -188,7 +184,6 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
         _retainAfterStaleRead(current, lease);
         return;
       }
-      _markFailure(error, lease, readFence);
       state = AsyncData(
         current.copyWith(isLoadingMore: false, incrementalError: error),
       );
@@ -201,9 +196,7 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
     final generation = ++_generation;
     final ownership = captureActiveAccountOperation(ref);
     final lease = _lease(ownership);
-    final readFence = ref
-        .read(businessProjectionOverlayProvider.notifier)
-        .captureRead(lease);
+    final readFence = captureBusinessEventListRead(ref, lease);
     state = AsyncData(
       current.copyWith(
         isRefreshing: true,
@@ -244,7 +237,6 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
         _retainAfterStaleRead(current, lease);
         return;
       }
-      _markFailure(error, lease, readFence);
       state = AsyncData(
         current.copyWith(isRefreshing: false, refreshError: error),
       );
@@ -254,13 +246,13 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
   BusinessEventListReconciliation _reconcile(
     Iterable<BusinessEvent> events,
     AccountSessionLease lease,
-    BusinessProjectionReadFence readFence,
+    BusinessRecordReadFence readFence,
   ) {
     final values = events.toList();
     final owner = _ownerDid(values);
     if (owner == null) return (events: _dedupe(values), isStale: false);
-    return reconcileBusinessEventList(
-      controller: ref.read(businessProjectionOverlayProvider.notifier),
+    return applyBusinessEventListOverlays(
+      ref,
       lease: lease,
       fence: readFence,
       owner: owner,
@@ -271,32 +263,14 @@ class ProfileBusinessEvents extends _$ProfileBusinessEvents {
     );
   }
 
-  void _markFailure(
-    Object error,
-    AccountSessionLease lease,
-    BusinessProjectionReadFence readFence,
-  ) {
-    final owner = _ownerDid(const []);
-    if (owner == null) return;
-    markBusinessEventReadFailure(
-      controller: ref.read(businessProjectionOverlayProvider.notifier),
-      lease: lease,
-      fence: readFence,
-      owner: owner,
-      error: error,
-    );
-  }
-
-  bool _isReadCurrent(BusinessProjectionReadFence fence) =>
-      ref.read(businessProjectionOverlayProvider.notifier).isReadCurrent(fence);
+  bool _isReadCurrent(BusinessRecordReadFence fence) =>
+      isBusinessRecordReadCurrent(ref, fence);
 
   void _retainAfterStaleRead(
     BusinessEventListState current,
     AccountSessionLease lease,
   ) {
-    final fence = ref
-        .read(businessProjectionOverlayProvider.notifier)
-        .captureRead(lease);
+    final fence = captureBusinessEventListRead(ref, lease);
     state = AsyncData(
       current.copyWith(
         items: List.unmodifiable(

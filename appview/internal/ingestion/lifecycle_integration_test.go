@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
@@ -213,6 +212,106 @@ func TestProfileSourceWinnerAndLifecycleTransitionCommitAtomically(t *testing.T)
 	assertLifecycleState(t, lifecycles, owner, ownerlifecycle.StateActive)
 }
 
+func TestInvalidProfileSourceDoesNotActivateMembership(t *testing.T) {
+	pool := lifecycleIngestionPool(t)
+	fencer, err := ownerlifecycle.NewFencer(pool, time.Second)
+	if err != nil {
+		t.Fatalf("new owner fencer: %v", err)
+	}
+	lifecycles, err := ownerlifecycle.NewStore(pool, fencer, time.Now)
+	if err != nil {
+		t.Fatalf("new lifecycle store: %v", err)
+	}
+	store, err := ingestion.NewStore(pool, time.Now)
+	if err != nil {
+		t.Fatalf("new ingestion store: %v", err)
+	}
+	owner := syntax.DID("did:plc:invalid-profile-owner")
+	if _, err := lifecycles.EnsureOnboardingOwner(context.Background(), owner); err != nil {
+		t.Fatalf("ensure onboarding owner: %v", err)
+	}
+	event := tap.Event{
+		ID: 120, URI: "at://did:plc:invalid-profile-owner/social.craftsky.actor.profile/self",
+		DID: owner, Collection: "social.craftsky.actor.profile", Rkey: "self",
+		Rev: "3aaaaaaaaaab2", CID: "bafy-invalid-profile", Action: "create",
+		Record: json.RawMessage(`{"crafts":["1","2","3","4","5","6","7","8","9","10","11"]}`),
+	}
+	service := newLifecycleIngestionService(t, store, lifecycles, nil, nil)
+	if outcome, err := service.IngestRecord(context.Background(), event); err != nil || outcome.Kind != tap.OutcomeApplied {
+		t.Fatalf("ingest invalid profile outcome=%+v err=%v", outcome, err)
+	}
+	assertLifecycleState(t, lifecycles, owner, ownerlifecycle.StateDeparted)
+	assertTapSourceAction(t, store, event.URI, "create")
+	source, err := store.Source(context.Background(), event.URI)
+	if err != nil {
+		t.Fatalf("read invalid profile source: %v", err)
+	}
+	if source.StructuralValidationStatus != "invalid" || source.SemanticValidationStatus != "invalid" || source.ValidationReason != "invalid_lexicon" {
+		t.Fatalf("invalid profile validation = %q/%q %q, want invalid/invalid invalid_lexicon",
+			source.StructuralValidationStatus, source.SemanticValidationStatus, source.ValidationReason)
+	}
+}
+
+func TestForeignClientRecordIsNotGatedByHistoricalEffectAttempt(t *testing.T) {
+	pool := lifecycleIngestionPool(t)
+	ctx := context.Background()
+	now := time.Date(2026, 9, 25, 12, 0, 0, 0, time.UTC)
+	fencer, err := ownerlifecycle.NewFencer(pool, time.Second)
+	if err != nil {
+		t.Fatalf("new owner fencer: %v", err)
+	}
+	lifecycles, err := ownerlifecycle.NewStore(pool, fencer, func() time.Time { return now })
+	if err != nil {
+		t.Fatalf("new lifecycle store: %v", err)
+	}
+	store, err := ingestion.NewStore(pool, func() time.Time { return now })
+	if err != nil {
+		t.Fatalf("new ingestion store: %v", err)
+	}
+	owner := syntax.DID("did:plc:foreign-client-owner")
+	lifecycle, err := lifecycles.EnsureOnboardingOwner(ctx, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := lifecycles.Transition(ctx, ownerlifecycle.TransitionRequest{
+		Owner: owner, ExpectedGeneration: lifecycle.Generation,
+		To: ownerlifecycle.StateActive, Reason: "testActive",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'bafy-profile')`, owner); err != nil {
+		t.Fatalf("seed active profile: %v", err)
+	}
+	uri := syntax.ATURI("at://did:plc:foreign-client-owner/social.craftsky.feed.post/3aaaaaaaaaab2")
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO owner_effect_attempts(
+			operation_id,owner_did,owner_generation,effect_kind,effect_action,
+			mutation_key,deterministic_key,request_fingerprint,record_fingerprint,
+			remote_outcome,projection_disposition,repeat_forbidden,remote_deadline,
+			dispatched_at,created_at,updated_at
+		) VALUES(
+			'legacy-foreign-client-collision',$1,$2,'pds_record','put_record',
+			'legacy-foreign-client-collision',$3,decode(repeat('04',32),'hex'),
+			decode(repeat('04',32),'hex'),'outcome_unknown_pre_transition',
+			'hidden_non_active',true,$4,$5,$5,$5
+		)
+	`, owner, lifecycle.Generation+1, uri, now.Add(time.Hour), now); err != nil {
+		t.Fatalf("seed historical effect attempt: %v", err)
+	}
+
+	event := tap.Event{
+		ID: 121, URI: uri, DID: owner, Collection: "social.craftsky.feed.post", Rkey: "3aaaaaaaaaab2",
+		Rev: "3aaaaaaaaaab2", CID: "bafy-foreign-client-post", Action: "create", Live: true,
+		Record: json.RawMessage(`{"text":"written by another client","createdAt":"2026-09-25T12:00:00Z"}`),
+	}
+	service := newLifecycleIngestionService(t, store, lifecycles, nil, nil)
+	outcome, err := service.IngestRecord(ctx, event)
+	if err != nil || outcome.Kind != tap.OutcomeApplied {
+		t.Fatalf("foreign-client record outcome=%+v err=%v", outcome, err)
+	}
+	assertTapSourceAction(t, store, uri, "create")
+}
+
 func TestTapDeletedIdentityIsOnlyARefreshHint(t *testing.T) {
 	pool := lifecycleIngestionPool(t)
 	fencer, err := ownerlifecycle.NewFencer(pool, time.Second)
@@ -281,29 +380,39 @@ func lifecycleIngestionPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	pool := testdb.WithSchema(t, ingestionProjectionFixtureDDL)
 	for _, path := range []string{
-		"../../migrations/000015_identity_handle_cache.up.sql",
-		"../../migrations/000002_oauth_tables.up.sql",
-		"../../migrations/000003_oauth_auth_requests_handoff.up.sql",
-		"../../migrations/000006_craftsky_sessions_device_id.up.sql",
-		"../../migrations/000037_account_deletion.up.sql",
-		"../../migrations/000038_owner_auth_lifecycle.up.sql",
-		"../../migrations/000039_owner_effects_terminal_purge.up.sql",
-		"../../migrations/000045_tap_ingestion_durability.up.sql",
-		"../../migrations/000049_pds_effect_action.up.sql",
-		"../../migrations/000050_pds_effect_source_reconciliation.up.sql",
-		"../../migrations/000053_identity_cache_refresh.up.sql",
-		"../../migrations/000054_tap_identity_refresh_trigger.up.sql",
-		"../../migrations/000056_tap_source_projection_generation.up.sql",
-		"../../migrations/000057_tap_identity_refresh_version.up.sql",
-		"../../migrations/000058_tap_projection_generation_column.up.sql",
+		"000015_identity_handle_cache.up.sql",
+		"000002_oauth_tables.up.sql",
+		"000003_oauth_auth_requests_handoff.up.sql",
+		"000006_craftsky_sessions_device_id.up.sql",
+		"000037_account_deletion.up.sql",
+		"000038_owner_auth_lifecycle.up.sql",
+		"000039_owner_effects_terminal_purge.up.sql",
+		"000045_tap_ingestion_durability.up.sql",
+		"000049_pds_effect_action.up.sql",
+		"000050_pds_effect_source_reconciliation.up.sql",
+		"000051_tap_quarantine_replay_payload.up.sql",
+		"000053_identity_cache_refresh.up.sql",
+		"000054_tap_identity_refresh_trigger.up.sql",
+		"000056_tap_source_projection_generation.up.sql",
+		"000057_tap_identity_refresh_version.up.sql",
+		"000058_tap_projection_generation_column.up.sql",
 	} {
-		sql, err := os.ReadFile(path)
+		sql, err := testdb.ReadMigration(path)
 		if err != nil {
 			t.Fatalf("read migration %s: %v", path, err)
 		}
 		if _, err := pool.Exec(context.Background(), string(sql)); err != nil {
 			t.Fatalf("apply migration %s: %v", path, err)
 		}
+	}
+	if _, err := pool.Exec(context.Background(), `
+		ALTER TABLE tap_source_records
+			ADD COLUMN validation_version INTEGER NOT NULL DEFAULT 1,
+			ADD COLUMN structural_validation_status TEXT NOT NULL DEFAULT 'pending',
+			ADD COLUMN semantic_validation_status TEXT NOT NULL DEFAULT 'pending',
+			ADD COLUMN validation_reason TEXT
+	`); err != nil {
+		t.Fatalf("add source validation fixture columns: %v", err)
 	}
 	return pool
 }

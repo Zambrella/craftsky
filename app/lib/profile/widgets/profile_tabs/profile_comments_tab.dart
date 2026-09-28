@@ -6,6 +6,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_uri.dart';
 import 'package:craftsky_app/feed/providers/delete_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
+import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
@@ -15,6 +16,7 @@ import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -62,6 +64,12 @@ class ProfileCommentsTab extends ConsumerWidget {
           context.showError(l10n.postLikeError);
           ref.read(toggleLikePostProvider.notifier).reset();
         }
+      })
+      ..listen(toggleRepostPostProvider, (previous, next) {
+        if (next.hasError) {
+          context.showError(l10n.postRepostError);
+          ref.read(toggleRepostPostProvider.notifier).reset();
+        }
       });
 
     return switch (commentsAsync) {
@@ -77,9 +85,10 @@ class ProfileCommentsTab extends ConsumerWidget {
         error: error,
         onRetry: () => ref.invalidate(userCommentsProvider(did)),
       ),
-      _ => const SliverFillRemaining(
-        hasScrollBody: false,
-        child: Center(child: StitchProgressIndicator()),
+      _ => CraftskySkeletonSliverList(
+        itemBuilder: (context, index) => CommentRowSkeleton(
+          indent: index.isOdd ? 24 : 0,
+        ),
       ),
     };
   }
@@ -226,14 +235,7 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
   ) async {
     final created = await showPostComposerSheet(context, replyTarget: post);
     if (created == null) return;
-    ref
-        .read(userCommentsProvider(did).notifier)
-        .replace(
-          post.copyWith(
-            replyCount: post.replyCount + 1,
-            viewerHasReplied: true,
-          ),
-        );
+    ref.invalidate(userCommentsProvider(did));
   }
 }
 

@@ -21,10 +21,11 @@ import (
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/languages"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/moderation"
 	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
-	"social.craftsky/appview/internal/pdseffects"
+	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/push"
 	"social.craftsky/appview/internal/relationships"
 	"social.craftsky/appview/internal/scheduledposts"
@@ -131,13 +132,19 @@ type Deps struct {
 	// ReportForwarder prepares future report forwarding metadata without live PDS/Ozone submission.
 	ReportForwarder api.ReportForwarder
 	// ModerationStore persists dev/test synthetic moderation outputs for enforcement.
-	ModerationStore *api.ModerationStore
+	ModerationStore    *api.ModerationStore
+	ModerationCases    *moderation.Store
+	ModerationCommands *moderation.Service
+	ModerationExpiry   *moderation.ExpiryWorker
 	// LanguagePreferences owns private per-account posting and content-language preferences.
 	LanguagePreferences *languages.Store
-	// NewPDSEffects is the only ordinary authenticated PDS mutation
-	// capability exposed to request and background-work handlers. It persists
-	// deterministic effect intent before crossing the remote boundary.
-	NewPDSEffects pdseffects.ExecutorFactory
+	// NewBlobEffects exposes only durable blob upload to request handlers.
+	NewBlobEffects       api.BlobEffectFactory
+	PDSCommands          *pdscommands.SetCommandService
+	PDSAppendCommands    *pdscommands.AppendCommandService
+	PDSAddressedCommands *pdscommands.AddressedCommandService
+	PDSCompoundCommands  *pdscommands.CompoundCommandService
+	PDSCommandCompaction *pdscommands.CompactionProcessor
 	// BusinessStore owns account-type, declaration, and event read models.
 	BusinessStore        *business.Store
 	Subscriptions        *subscriptions.Store
@@ -240,7 +247,10 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	if err != nil {
 		return nil, nil, err
 	}
-	observer := newObservabilityDependencies(cfg, logger, resources)
+	observer, err := newObservabilityDependencies(cfg, logger, resources)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	authCapability, err := newAuthDependencies(
 		pool, federated, owners, oauthArtifacts, handoffReceiptKey, cfg, logger, ingestionStore, observer,
@@ -309,10 +319,11 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	}
 	instagramRestoration := instagramStorage.restoration
 	moderationStore := instagramStorage.moderationStore
+	moderationCapability := newModerationDependencies(pool, moderationStore, observer, cfg.ModerationExpiryBatchSize)
 	loginCompleteURL := resolveOriginPath(cfg.VerifiedLinkOrigin, "/auth/complete")
 	deletionCompleteURL := resolveOriginPath(cfg.VerifiedLinkOrigin, "/account-deletion/reauth-complete")
 	pdsEffects, err := newPDSEffectDependencies(
-		authCapability, federated, owners, observer, cfg,
+		authCapability, federated, owners, pool, observer, cfg,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -360,7 +371,12 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		BlueskyProfileProjector:     tapCapability.profileProjector,
 		CraftskyProfileProjector:    tapCapability.craftskyProfileProjector,
 		NewPendingPDSClient:         pdsEffects.pending,
-		NewPDSEffects:               pdsEffects.ordinary,
+		NewBlobEffects:              pdsEffects.blobs,
+		PDSCommands:                 pdsEffects.commands,
+		PDSAppendCommands:           pdsEffects.append,
+		PDSAddressedCommands:        pdsEffects.addressed,
+		PDSCompoundCommands:         pdsEffects.compound,
+		PDSCommandCompaction:        pdsEffects.compaction,
 		LoginCompleteURL:            loginCompleteURL.String(),
 		DeletionCompleteURL:         deletionCompleteURL.String(),
 		HandleResolver:              identities.cached,
@@ -389,6 +405,9 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		InstagramPrivateData:        instagramPrivateData,
 		InstagramRestoration:        instagramRestoration,
 		ModerationStore:             moderationStore,
+		ModerationCases:             moderationCapability.store,
+		ModerationCommands:          moderationCapability.service,
+		ModerationExpiry:            moderationCapability.expiry,
 		ScheduledPosts:              scheduledStore,
 		ScheduledMedia:              scheduledLifecycle.media,
 		ScheduledCleanup:            scheduledLifecycle.cleanup,
@@ -413,7 +432,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	deps.InstagramSuggestions = instagramRuntime.suggestions
 	deps.InstagramRetention = instagramRuntime.retention
 	contentRuntime, err := newContentRuntimeDependencies(
-		pool, deps.AuthoritativeHandleResolver, content, pdsEffects, instagramStorage,
+		pool, deps.AuthoritativeHandleResolver, content, instagramStorage,
 		observer, identities.invalidator, cfg,
 	)
 	if err != nil {

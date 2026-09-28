@@ -276,6 +276,9 @@ ProjectPattern? _patternFrom(Map<String, dynamic> values) {
     url: _stringValue(values[ProjectComposerFields.patternUrl]),
     name: _patternNameValue(values[ProjectComposerFields.patternName]),
     difficulty: _stringValue(values[ProjectComposerFields.patternDifficulty]),
+    selfDrafted: values[ProjectComposerFields.patternSelfDrafted] == true
+        ? true
+        : null,
     designer: _stringValue(values[ProjectComposerFields.patternDesigner]),
     publisher: _stringValue(values[ProjectComposerFields.patternPublisher]),
   );
@@ -283,6 +286,7 @@ ProjectPattern? _patternFrom(Map<String, dynamic> values) {
   if (pattern.url == null &&
       pattern.name == null &&
       pattern.difficulty == null &&
+      pattern.selfDrafted == null &&
       pattern.designer == null &&
       pattern.publisher == null) {
     return null;

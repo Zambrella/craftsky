@@ -2,10 +2,10 @@ package main
 
 import (
 	"context"
-	"io"
-	"log/slog"
 	"testing"
 	"time"
+
+	"social.craftsky/appview/internal/testlog"
 )
 
 func TestStartFollowerGrowthWorkerRunsImmediatelyAndStops(t *testing.T) {
@@ -19,7 +19,7 @@ func TestStartFollowerGrowthWorkerRunsImmediatelyAndStops(t *testing.T) {
 	done := startFollowerGrowthWorker(
 		ctx,
 		runner,
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		testlog.Discard(),
 	)
 
 	select {

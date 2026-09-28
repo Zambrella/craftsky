@@ -24,7 +24,11 @@ var tapStatusCmd = &cobra.Command{
 		if url == "" {
 			url = "http://localhost:8080"
 		}
-		os.Exit(tapStatus(url, cmd.OutOrStdout()))
+		tapBaseURL := ""
+		if tapWSURL := os.Getenv("TAP_WS_URL"); tapWSURL != "" {
+			tapBaseURL, _ = tapHTTPBaseURL(tapWSURL)
+		}
+		os.Exit(tapStatus(url, tapBaseURL, cmd.OutOrStdout()))
 	},
 }
 
@@ -43,9 +47,13 @@ type healthDoc struct {
 	Tap healthTap `json:"tap"`
 }
 
+type tapCursorDoc struct {
+	Firehose int64 `json:"firehose"`
+}
+
 // tapStatus fetches /healthz and prints the tap block. Returns the shell
-// exit code: 0 connected, 1 disconnected, 2 transport/parse error.
-func tapStatus(baseURL string, out io.Writer) int {
+// exit code: 0 receiving events, 1 disconnected/no events, 2 transport/parse error.
+func tapStatus(baseURL, tapBaseURL string, out io.Writer) int {
 	if out == nil {
 		out = os.Stdout
 	}
@@ -76,15 +84,42 @@ func tapStatus(baseURL string, out io.Writer) int {
 
 	fmt.Fprintf(out, "connected:         %t\n", doc.Tap.Connected)
 	fmt.Fprintf(out, "last_event_at:     %s%s\n", doc.Tap.LastEventAt, relSuffix(doc.Tap.LastEventAt))
+	if tapBaseURL != "" {
+		cursor, err := tapFirehoseCursor(&client, tapBaseURL)
+		if err != nil {
+			fmt.Fprintf(out, "firehose_cursor:   unavailable (%v)\n", err)
+		} else {
+			fmt.Fprintf(out, "firehose_cursor:   %d\n", cursor)
+		}
+	}
 	fmt.Fprintf(out, "reconnect_attempt: %d\n", doc.Tap.ReconnectAttempt)
 	if doc.Tap.LastError != "" {
 		fmt.Fprintf(out, "last_error:        %s\n", doc.Tap.LastError)
 	}
 
-	if doc.Tap.Connected {
+	if doc.Tap.Connected && doc.Tap.LastEventAt != "" {
 		return 0
 	}
+	if doc.Tap.Connected {
+		fmt.Fprintln(out, "warning: connected but no Tap events received since AppView started")
+	}
 	return 1
+}
+
+func tapFirehoseCursor(client *http.Client, tapBaseURL string) (int64, error) {
+	resp, err := client.Get(tapBaseURL + "/stats/cursors")
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode/100 != 2 {
+		return 0, fmt.Errorf("http %d", resp.StatusCode)
+	}
+	var doc tapCursorDoc
+	if err := json.NewDecoder(resp.Body).Decode(&doc); err != nil {
+		return 0, err
+	}
+	return doc.Firehose, nil
 }
 
 func relSuffix(ts string) string {

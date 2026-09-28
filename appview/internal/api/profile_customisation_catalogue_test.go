@@ -19,11 +19,6 @@ func TestProfileCustomisationCatalogueIsClosedAndStable(t *testing.T) {
 		"teal",
 		"ink",
 	})
-	assertCatalogue(t, "borders", api.ProfileBorderCatalogue, []string{
-		"thin",
-		"medium",
-		"thick",
-	})
 	assertCatalogue(t, "backgrounds", api.ProfileBackgroundCatalogue, []string{
 		"none",
 		"bayerdark",
@@ -32,11 +27,15 @@ func TestProfileCustomisationCatalogueIsClosedAndStable(t *testing.T) {
 		"scallopdark",
 		"skewdark",
 		"x2",
+		"craft-sewing",
+		"craft-knitting",
+		"craft-crochet",
+		"craft-quilting",
+		"craft-embroidery",
 	})
 
 	wantDefault := api.ProfileCustomisation{
 		Colour:     "cobalt",
-		Border:     "medium",
 		Background: "none",
 	}
 	if got := api.DefaultProfileCustomisation; got != wantDefault {
@@ -49,12 +48,10 @@ func TestProfileCustomisationCatalogueFallsBackPerField(t *testing.T) {
 
 	got := api.EffectiveProfileCustomisation(api.ProfileCustomisation{
 		Colour:     "future-colour",
-		Border:     "thick",
 		Background: "cubedark",
 	})
 	want := api.ProfileCustomisation{
 		Colour:     "cobalt",
-		Border:     "thick",
 		Background: "cubedark",
 	}
 	if got != want {

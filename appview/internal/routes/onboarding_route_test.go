@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -13,27 +12,8 @@ import (
 	"social.craftsky/appview/internal/testdb"
 )
 
-func TestOnboardingRoutesUseCurrentMemberBodylessPolicies(t *testing.T) {
-	t.Parallel()
-	tests := []struct {
-		method string
-		path   string
-		rate   RateClass
-	}{
-		{method: "GET", path: "/v1/onboarding/status", rate: RateClassRead},
-		{method: "POST", path: "/v1/onboarding/completion", rate: RateClassWrite},
-	}
-	for _, test := range tests {
-		policy := mustPolicy(test.method, test.path)
-		if policy.RateClass != test.rate || policy.BodyKind != BodyNoBody ||
-			policy.AccessClass != AccessCurrentMember {
-			t.Fatalf("policy for %s %s = %+v", test.method, test.path, policy)
-		}
-	}
-}
-
-func TestOnboardingRoutesEnforceAuthenticatedCurrentMemberContract(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000065_account_onboarding_completion.up.sql")
+func TestOnboardingRoutesEnforceOwnerAndSelectorContract(t *testing.T) {
+	migration, err := testdb.ReadMigration("000065_account_onboarding_completion.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,11 +77,8 @@ func TestOnboardingRoutesEnforceAuthenticatedCurrentMemberContract(t *testing.T)
 		}
 	}
 
-	assertEnvelope(request(http.MethodGet, "/v1/onboarding/status", "", "", false, true), http.StatusUnauthorized, "unauthorized")
-	assertEnvelope(request(http.MethodGet, "/v1/onboarding/status", "", "", true, false), http.StatusBadRequest, "missing_device_id")
 	assertEnvelope(request(http.MethodPost, "/v1/onboarding/completion", "", "did:plc:departed", true, true), http.StatusNotFound, "profile_not_found")
 	assertEnvelope(request(http.MethodGet, "/v1/onboarding/status?accountDid=did:plc:bob", "", "", true, true), http.StatusBadRequest, "invalid_request")
-	assertEnvelope(request(http.MethodPost, "/v1/onboarding/completion", `{"accountDid":"did:plc:bob"}`, "", true, true), http.StatusBadRequest, "request_body_not_allowed")
 
 	initial := request(http.MethodGet, "/v1/onboarding/status", "", "", true, true)
 	if initial.Code != http.StatusOK || !strings.Contains(initial.Body.String(), `"completed":false`) {

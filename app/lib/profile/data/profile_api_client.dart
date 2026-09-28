@@ -6,6 +6,7 @@ import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/shared/api/api_unwrap.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:dio/dio.dart';
 
@@ -59,8 +60,9 @@ class ProfileApiClient {
   /// are atomic, so a partial body produces a partial profile record.
   /// To leave a field unchanged, send its current value.
   ///
-  /// Avatar and banner are not writable in v1.
+  /// Replaces the controlled personal-profile fields as one keyed command.
   Future<Profile> updateMyProfile({
+    required String operationKey,
     String? displayName,
     String? pronouns,
     String? description,
@@ -69,7 +71,8 @@ class ProfileApiClient {
     bool clearAvatar = false,
     UploadedBlob? banner,
     bool clearBanner = false,
-  }) => unwrapApi(() async {
+  }) => unwrapPdsMutationApi(() async {
+    _requireCanonicalOperationKey(operationKey);
     final body = <String, dynamic>{
       'displayName': ?displayName,
       'pronouns': ?pronouns,
@@ -86,11 +89,21 @@ class ProfileApiClient {
     } else if (banner != null) {
       body['banner'] = _blobToMap(banner);
     }
-    final res = await _dio.put<Map<String, dynamic>>(
+    final res = await _dio.put<Object?>(
       '/v1/profiles/me',
       data: body,
+      options: Options(
+        headers: {'Idempotency-Key': operationKey},
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 300,
+      ),
     );
-    return ProfileMapper.fromMap(res.data!);
+    return parsePdsMutationResponse(
+      res,
+      accepted: (data) => ProfileMapper.fromMap(
+        Map<String, dynamic>.from(data! as Map),
+      ),
+    );
   });
 
   /// PUT /v1/profiles/me/customisation — replaces the authenticated user's
@@ -106,19 +119,47 @@ class ProfileApiClient {
   });
 
   /// POST /v1/profiles/@{handleOrDid}/follows — follow a profile.
-  Future<Profile> followProfile(String handleOrDid) => unwrapApi(() async {
-    final res = await _dio.post<Map<String, dynamic>>(
+  Future<Profile> followProfile(
+    String handleOrDid, {
+    required String operationKey,
+  }) => unwrapPdsMutationApi(() async {
+    _requireCanonicalOperationKey(operationKey);
+    final res = await _dio.post<Object?>(
       '/v1/profiles/@$handleOrDid/follows',
+      options: Options(
+        headers: {'Idempotency-Key': operationKey},
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 300,
+      ),
     );
-    return ProfileMapper.fromMap(res.data!);
+    return parsePdsMutationResponse(
+      res,
+      accepted: (data) => ProfileMapper.fromMap(
+        Map<String, dynamic>.from(data! as Map),
+      ),
+    );
   });
 
   /// DELETE /v1/profiles/@{handleOrDid}/follows — unfollow a profile.
-  Future<Profile> unfollowProfile(String handleOrDid) => unwrapApi(() async {
-    final res = await _dio.delete<Map<String, dynamic>>(
+  Future<Profile> unfollowProfile(
+    String handleOrDid, {
+    required String operationKey,
+  }) => unwrapPdsMutationApi(() async {
+    _requireCanonicalOperationKey(operationKey);
+    final res = await _dio.delete<Object?>(
       '/v1/profiles/@$handleOrDid/follows',
+      options: Options(
+        headers: {'Idempotency-Key': operationKey},
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 300,
+      ),
     );
-    return ProfileMapper.fromMap(res.data!);
+    return parsePdsMutationResponse(
+      res,
+      accepted: (data) => ProfileMapper.fromMap(
+        Map<String, dynamic>.from(data! as Map),
+      ),
+    );
   });
 
   Future<ProfileRelationship> muteProfile(String handleOrDid) =>
@@ -127,11 +168,46 @@ class ProfileApiClient {
   Future<ProfileRelationship> unmuteProfile(String handleOrDid) =>
       _mutateRelationship(handleOrDid, 'mutes', delete: true);
 
-  Future<ProfileRelationship> blockProfile(String handleOrDid) =>
-      _mutateRelationship(handleOrDid, 'blocks', delete: false);
+  Future<ProfileRelationship> blockProfile(
+    String handleOrDid, {
+    required String operationKey,
+  }) => unwrapPdsMutationApi(() async {
+    _requireCanonicalOperationKey(operationKey);
+    final res = await _dio.post<Object?>(
+      '/v1/profiles/@$handleOrDid/blocks',
+      options: Options(
+        headers: {'Idempotency-Key': operationKey},
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 300,
+      ),
+    );
+    return parsePdsMutationResponse(
+      res,
+      accepted: (data) => ProfileRelationshipMapper.fromMap(
+        Map<String, dynamic>.from(data! as Map),
+      ),
+    );
+  });
 
-  Future<ProfileRelationship> unblockProfile(String handleOrDid) =>
-      _mutateRelationship(handleOrDid, 'blocks', delete: true);
+  Future<void> unblockProfile(
+    String handleOrDid, {
+    required String operationKey,
+  }) => unwrapPdsMutationApi(() async {
+    _requireCanonicalOperationKey(operationKey);
+    final res = await _dio.delete<Object?>(
+      '/v1/profiles/@$handleOrDid/blocks',
+      options: Options(
+        headers: {'Idempotency-Key': operationKey},
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 300,
+      ),
+    );
+    parsePdsMutationResponse<void>(
+      res,
+      accepted: (_) {},
+      requireEmptyNoContent: true,
+    );
+  });
 
   Future<ProfileAccountPage> listMutedProfiles({int? limit, String? cursor}) =>
       _listRelationships('mutes', limit: limit, cursor: cursor);
@@ -225,5 +301,15 @@ class ProfileApiClient {
       reportId: data['reportId'] as String,
       status: data['status'] as String,
     );
+  }
+
+  void _requireCanonicalOperationKey(String operationKey) {
+    if (!isCanonicalPdsMutationOperationKey(operationKey)) {
+      throw ArgumentError.value(
+        operationKey,
+        'operationKey',
+        'must be a canonical UUID',
+      );
+    }
   }
 }

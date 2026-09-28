@@ -110,11 +110,21 @@ void main() {
       'Finished my hoop #embroidery',
     );
     await _pumpUntilPostEnabled(tester);
+    await tester.ensureVisible(
+      find.byKey(const Key('composer-sponsored-control')),
+    );
+    await tester.tap(
+      find.byKey(const Key('composer-sponsored-control')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Sponsored'));
+    await tester.pumpAndSettle();
 
     await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
     await tester.pumpAndSettle();
 
     expect(capturedText, 'Finished my hoop #embroidery');
+    expect(repo.lastCreateSponsored, isTrue);
     expect(capturedReply, isNull);
     expect(capturedImages, hasLength(1));
     expect(capturedImages!.single.alt, 'Finished embroidery hoop on a table');
@@ -208,6 +218,9 @@ void main() {
       find.byKey(const Key('pattern-url-input')),
       'https://patterns.example/garden-dress',
     );
+    await tester.tap(
+      find.byKey(const Key('project-composer-self-drafted-switch')),
+    );
     await tester.tap(find.byTooltip('Back'));
     await tester.pumpAndSettle();
     await _openDetail(
@@ -273,6 +286,7 @@ void main() {
     expect(common.pattern, isNotNull);
     expect(common.pattern!.name, 'Garden dress');
     expect(common.pattern!.url, 'https://patterns.example/garden-dress');
+    expect(common.pattern!.selfDrafted, isTrue);
   });
 
   testWidgets(
@@ -714,6 +728,7 @@ Post _post({required String text, Project? project}) {
     viewerHasLiked: false,
     viewerHasReposted: false,
     viewerHasSaved: false,
+    sponsored: false,
     project: project,
   );
 }

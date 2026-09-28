@@ -15,7 +15,7 @@ import (
 )
 
 type readPostStore interface {
-	postByKeyReader
+	directPostReader
 	relationshipStateReader
 	engagementSummaryReader
 	postQuoteHydrationStore
@@ -40,7 +40,7 @@ func GetPostHandler(
 		viewerDID, _ := middleware.GetDID(r.Context())
 		logger.Debug("post get: reading post",
 			apiLogAttrs(runID, "post.get")...)
-		row, err := store.ReadOne(r.Context(), did.String(), rkey)
+		row, err := store.ReadOneForViewer(r.Context(), did.String(), rkey, viewerDID.String())
 		if errors.Is(err, ErrPostNotFound) {
 			envelope.WriteError(w, http.StatusNotFound,
 				"post_not_found", "post not found", runID, nil)

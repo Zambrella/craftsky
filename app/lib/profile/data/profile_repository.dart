@@ -26,6 +26,7 @@ abstract interface class ProfileRepository {
   /// semantics mean any field absent from the request is cleared on the
   /// PDS — see `ProfileApiClient.updateMyProfile` for the gory detail.
   Future<Profile> updateMe({
+    required String operationKey,
     String? displayName,
     String? pronouns,
     String? description,
@@ -42,18 +43,30 @@ abstract interface class ProfileRepository {
   );
 
   /// Follows the target profile and returns the updated target profile.
-  Future<Profile> follow(String handleOrDid);
+  Future<Profile> follow(
+    String handleOrDid, {
+    required String operationKey,
+  });
 
   /// Unfollows the target profile and returns the updated target profile.
-  Future<Profile> unfollow(String handleOrDid);
+  Future<Profile> unfollow(
+    String handleOrDid, {
+    required String operationKey,
+  });
 
   Future<ProfileRelationship> mute(String handleOrDid);
 
   Future<ProfileRelationship> unmute(String handleOrDid);
 
-  Future<ProfileRelationship> block(String handleOrDid);
+  Future<ProfileRelationship> block(
+    String handleOrDid, {
+    required String operationKey,
+  });
 
-  Future<ProfileRelationship> unblock(String handleOrDid);
+  Future<void> unblock(
+    String handleOrDid, {
+    required String operationKey,
+  });
 
   /// POST /v1/profiles/{handleOrDid}/reports.
   Future<ReportResult> report(String handleOrDid, ReportSubmission submission);

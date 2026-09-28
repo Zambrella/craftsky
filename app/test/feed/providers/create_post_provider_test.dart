@@ -18,7 +18,9 @@ import 'package:craftsky_app/languages/providers/language_preferences_provider.d
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -44,6 +46,7 @@ Map<String, dynamic> _postMap({
   'viewerHasLiked': false,
   'viewerHasReposted': false,
   'viewerHasSaved': false,
+  'sponsored': false,
   'createdAt': '2026-05-04T18:23:45.000Z',
   'indexedAt': '2026-05-04T18:23:47.000Z',
   'author': {'did': did, 'handle': handle},
@@ -84,6 +87,48 @@ void main() {
   setUpAll(initializeMappers);
 
   group('CreatePost', () {
+    test('retries ambiguity with one immutable operation key', () async {
+      var calls = 0;
+      final fake = FakePostRepository(
+        onCreate: ({required text, reply, images}) async {
+          calls++;
+          if (calls < 3) {
+            throw const PdsMutationAmbiguousException(retryAfterSeconds: 1);
+          }
+          return _post(rkey: 'selected');
+        },
+      );
+      final container = ProviderContainer.test(
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+          pdsMutationDelayProvider.overrideWithValue((_) async {}),
+          pdsMutationJitterProvider.overrideWithValue((_) => 0),
+        ],
+      );
+
+      final post = await container
+          .read(createPostProvider.notifier)
+          .create(
+            text: 'frozen',
+            langs: _langs,
+            sponsored: false,
+          );
+
+      expect(post?.rkey, RecordKey.parse('selected'));
+      expect(fake.createOperationKeys, hasLength(3));
+      expect(fake.createOperationKeys.toSet(), hasLength(1));
+      expect(
+        isCanonicalPdsMutationOperationKey(fake.createOperationKeys.first),
+        isTrue,
+      );
+    });
+
     test('idle build returns null', () async {
       final container = ProviderContainer.test(
         overrides: [
@@ -123,10 +168,11 @@ void main() {
 
       await container
           .read(createPostProvider.notifier)
-          .create(text: 'hi', langs: _langs);
+          .create(text: 'hi', langs: _langs, sponsored: true);
 
       expect(transitions.first, isA<AsyncLoading<Post?>>());
       expect(transitions.last.value?.rkey, 'new');
+      expect(fake.lastCreateSponsored, isTrue);
     });
 
     test(
@@ -150,7 +196,12 @@ void main() {
 
         await container
             .read(createPostProvider.notifier)
-            .create(text: 'video', langs: _langs, video: proof);
+            .create(
+              text: 'video',
+              langs: _langs,
+              sponsored: false,
+              video: proof,
+            );
 
         expect(fake.lastCreateVideo, same(proof));
       },
@@ -181,6 +232,7 @@ void main() {
               .create(
                 text: 'video',
                 langs: _langs,
+                sponsored: false,
                 video: const CreatePostVideo(
                   jobId: 'job-one',
                   blob: CreatePostVideoBlob(
@@ -246,6 +298,7 @@ void main() {
             .create(
               text: 'must remain Alice-owned',
               langs: _langs,
+              sponsored: false,
               ownership: aliceOwnership,
             );
 
@@ -273,7 +326,7 @@ void main() {
 
       await container
           .read(createPostProvider.notifier)
-          .create(text: 'bonjour', langs: selected);
+          .create(text: 'bonjour', langs: selected, sponsored: false);
 
       expect(fake.lastCreateLangs, selected);
       expect(container.read(createPostProvider).value?.langs, selected);
@@ -294,7 +347,12 @@ void main() {
 
       await container
           .read(createPostProvider.notifier)
-          .create(text: 'Pattern link', langs: _langs, external: external);
+          .create(
+            text: 'Pattern link',
+            langs: _langs,
+            sponsored: false,
+            external: external,
+          );
 
       expect(fake.lastCreateExternal, same(external));
     });
@@ -333,6 +391,7 @@ void main() {
           .create(
             text: '#Mending',
             langs: _langs,
+            sponsored: false,
             facets: facets,
           );
 
@@ -365,6 +424,7 @@ void main() {
           .create(
             text: 'hi',
             langs: _langs,
+            sponsored: false,
             reply: PostReply(
               root: PostRef(uri: target.uri, cid: target.cid),
               parent: PostRef(uri: target.uri, cid: target.cid),
@@ -416,6 +476,7 @@ void main() {
           .create(
             text: 'hi',
             langs: _langs,
+            sponsored: false,
             reply: PostReply(
               root: target.reply!.root,
               parent: PostRef(uri: target.uri, cid: target.cid),
@@ -455,12 +516,19 @@ void main() {
 
         await container
             .read(createPostProvider.notifier)
-            .create(text: 'hi', langs: _langs);
+            .create(text: 'hi', langs: _langs, sponsored: false);
+        await container.read(userPostsProvider(_aliceDid).future);
 
         final didEntry = container.read(userPostsProvider(_aliceDid)).value!;
         final handleEntry = container.read(userPostsProvider(_aliceDid)).value!;
         expect(didEntry.items.map((p) => p.rkey), ['new', 'old']);
         expect(handleEntry.items.map((p) => p.rkey), ['new', 'old']);
+
+        container.invalidate(userPostsProvider(_aliceDid));
+        final staleRefresh = await container.read(
+          userPostsProvider(_aliceDid).future,
+        );
+        expect(staleRefresh.items.map((post) => post.rkey), ['new', 'old']);
       },
     );
 
@@ -487,7 +555,7 @@ void main() {
 
       await container
           .read(createPostProvider.notifier)
-          .create(text: 'hi', langs: _langs);
+          .create(text: 'hi', langs: _langs, sponsored: false);
 
       expect(
         calls,
@@ -520,7 +588,8 @@ void main() {
 
       await container
           .read(createPostProvider.notifier)
-          .create(text: 'hi', langs: _langs);
+          .create(text: 'hi', langs: _langs, sponsored: false);
+      await container.read(timelineProvider.future);
 
       final timeline = container.read(timelineProvider).value!;
       expect(timeline.items.map((item) => item.post.rkey), ['new', 'old']);
@@ -554,7 +623,16 @@ void main() {
 
       await container
           .read(createPostProvider.notifier)
-          .create(text: 'quote commentary', langs: _langs, quote: quote);
+          .create(
+            text: 'quote commentary',
+            langs: _langs,
+            sponsored: false,
+            quote: quote,
+          );
+      await Future.wait([
+        container.read(timelineProvider.future),
+        container.read(userPostsProvider(_aliceDid).future),
+      ]);
 
       expect(fake.lastCreateQuote?.uri, quote.uri);
       expect(fake.lastCreateQuote?.cid, quote.cid);
@@ -612,7 +690,12 @@ void main() {
 
       await container
           .read(createPostProvider.notifier)
-          .create(text: 'reply', langs: _langs, reply: replyRef);
+          .create(
+            text: 'reply',
+            langs: _langs,
+            sponsored: false,
+            reply: replyRef,
+          );
 
       final timeline = container.read(timelineProvider).value!;
       expect(timeline.items.map((item) => item.post.rkey), ['target']);
@@ -636,7 +719,7 @@ void main() {
 
       await container
           .read(createPostProvider.notifier)
-          .create(text: 'hi', langs: _langs);
+          .create(text: 'hi', langs: _langs, sponsored: false);
       expect(container.read(createPostProvider).value?.rkey, 'new');
 
       container.read(createPostProvider.notifier).reset();
@@ -666,7 +749,7 @@ void main() {
 
       await container
           .read(createPostProvider.notifier)
-          .create(text: 'hi', langs: _langs);
+          .create(text: 'hi', langs: _langs, sponsored: false);
 
       expect(container.read(createPostProvider).hasError, isTrue);
       final list = container.read(userPostsProvider(_aliceDid)).value!;
@@ -706,6 +789,7 @@ void main() {
             .create(
               text: 'invalid',
               langs: _langs,
+              sponsored: false,
               project: _project,
               reply: reply,
             );
@@ -747,7 +831,16 @@ void main() {
 
         await container
             .read(createPostProvider.notifier)
-            .create(text: 'project', langs: _langs, project: _project);
+            .create(
+              text: 'project',
+              langs: _langs,
+              sponsored: false,
+              project: _project,
+            );
+        await Future.wait([
+          container.read(timelineProvider.future),
+          container.read(userProjectsProvider(_aliceDid).future),
+        ]);
 
         expect(
           container
@@ -832,7 +925,13 @@ void main() {
 
         await container
             .read(createPostProvider.notifier)
-            .create(text: 'project', langs: _langs, project: _project);
+            .create(
+              text: 'project',
+              langs: _langs,
+              sponsored: false,
+              project: _project,
+            );
+        await container.read(userProjectsProvider(_aliceDid).future);
 
         expect(container.read(createPostProvider).value?.project, _project);
         expect(

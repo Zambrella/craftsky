@@ -124,6 +124,7 @@ class AppTheme {
       navigationBarTheme: _navigationBarTheme(base),
       navigationRailTheme: _navigationRailTheme(base),
       tabBarTheme: _tabBarTheme(base),
+      chipTheme: _chipTheme(base, swatches: const BrandSwatchTheme()),
       segmentedButtonTheme: _segmentedButtonTheme(base.colorScheme),
       floatingActionButtonTheme: _floatingActionButtonTheme(base),
       progressIndicatorTheme: _progressIndicatorTheme(base),
@@ -190,6 +191,7 @@ class AppTheme {
       navigationBarTheme: _navigationBarTheme(base),
       navigationRailTheme: _navigationRailTheme(base),
       tabBarTheme: _tabBarTheme(base),
+      chipTheme: _chipTheme(base, swatches: _darkSwatches),
       segmentedButtonTheme: _segmentedButtonTheme(base.colorScheme),
       floatingActionButtonTheme: _floatingActionButtonTheme(base),
       progressIndicatorTheme: _progressIndicatorTheme(base),
@@ -306,6 +308,75 @@ class AppTheme {
           return Colors.transparent;
         }),
       ),
+    );
+  }
+
+  static ChipThemeData _chipTheme(
+    ThemeData base, {
+    required BrandSwatchTheme swatches,
+  }) {
+    final colors = base.colorScheme;
+    Color foreground(Set<WidgetState> states) {
+      final color = states.contains(WidgetState.selected)
+          ? colors.onPrimary
+          : colors.onSurface;
+      return states.contains(WidgetState.disabled)
+          ? color.withValues(alpha: 0.38)
+          : color;
+    }
+
+    Color fill(Set<WidgetState> states) {
+      final selected = states.contains(WidgetState.selected);
+      final background = selected ? colors.primary : swatches.paper3;
+      if (states.contains(WidgetState.disabled)) {
+        return background.withValues(alpha: 0.38);
+      }
+      final interactionColor = selected ? colors.onPrimary : colors.primary;
+      if (states.contains(WidgetState.pressed)) {
+        return Color.alphaBlend(
+          interactionColor.withValues(alpha: 0.12),
+          background,
+        );
+      }
+      if (states.contains(WidgetState.focused)) {
+        return Color.alphaBlend(
+          interactionColor.withValues(alpha: 0.10),
+          background,
+        );
+      }
+      if (states.contains(WidgetState.hovered)) {
+        return Color.alphaBlend(
+          interactionColor.withValues(alpha: 0.08),
+          background,
+        );
+      }
+      return background;
+    }
+
+    final foregroundColor = WidgetStateColor.resolveWith(foreground);
+    return ChipThemeData(
+      color: WidgetStateProperty.resolveWith(fill),
+      deleteIconColor: foregroundColor,
+      showCheckmark: false,
+      labelPadding: EdgeInsets.zero,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      side: WidgetStateBorderSide.resolveWith(
+        (states) => BorderSide(
+          color: states.contains(WidgetState.disabled)
+              ? colors.onSurface.withValues(alpha: 0.38)
+              : colors.onSurface,
+          width: 1.5,
+        ),
+      ),
+      shape: const StadiumBorder(),
+      labelStyle: base.textTheme.labelMedium?.copyWith(color: foregroundColor),
+      secondaryLabelStyle: base.textTheme.labelMedium?.copyWith(
+        color: foregroundColor,
+      ),
+      elevation: 0,
+      pressElevation: 0,
+      surfaceTintColor: Colors.transparent,
+      iconTheme: IconThemeData(color: foregroundColor, size: 18),
     );
   }
 

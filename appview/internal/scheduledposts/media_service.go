@@ -105,6 +105,7 @@ func (s *PrivateMediaService) Put(
 		(s.testedSettlementBound == 0 && s.settlementMargin != 0) {
 		return PrivateMedia{}, NewScheduledMediaConflict(MediaConflictInvalidRequest)
 	}
+	now := params.Now.UTC().Truncate(time.Microsecond)
 	digest := sha256.Sum256(params.Bytes)
 	multihashValue, err := multihash.Sum(params.Bytes, multihash.SHA2_256, -1)
 	if err != nil {
@@ -117,7 +118,7 @@ func (s *PrivateMediaService) Put(
 	if err != nil {
 		return PrivateMedia{}, NewScheduledMediaConflict(MediaConflictObjectKeyConstruction)
 	}
-	remoteDeadline := params.Now.UTC().Add(s.putTimeout)
+	remoteDeadline := now.Add(s.putTimeout)
 	var settlementNotBefore *time.Time
 	if s.testedSettlementBound > 0 {
 		boundary := remoteDeadline.Add(s.testedSettlementBound + s.settlementMargin)
@@ -148,7 +149,7 @@ func (s *PrivateMediaService) Put(
 			digest,
 			remoteDeadline,
 			settlementNotBefore,
-			params.Now.UTC(),
+			now,
 		)
 		if err != nil {
 			return err
@@ -161,11 +162,11 @@ func (s *PrivateMediaService) Put(
 			return nil
 		}
 		if err := s.store.markPrivateMediaDispatched(
-			effectCtx, media, params.Now.UTC(),
+			effectCtx, media, now,
 		); err != nil {
 			return err
 		}
-		remaining := media.RemoteDeadline.Sub(params.Now.UTC())
+		remaining := media.RemoteDeadline.Sub(now)
 		if remaining <= 0 {
 			return ErrScheduledMediaOutcomeUnknown
 		}
@@ -180,14 +181,14 @@ func (s *PrivateMediaService) Put(
 		cancelPut()
 		if putErr != nil {
 			if err := s.store.movePrivateMediaToCleanup(
-				effectCtx, media, params.Now.UTC(),
+				effectCtx, media, now,
 			); err != nil {
 				return err
 			}
 			return ErrPrivateObjectStoreUnavailable
 		}
 		result, err = s.store.markPrivateMediaReady(
-			effectCtx, media, predictedCID, params.Now.UTC(),
+			effectCtx, media, predictedCID, now,
 		)
 		return err
 	})

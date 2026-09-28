@@ -6,6 +6,7 @@ import 'package:craftsky_app/auth/providers/auth_controller.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
@@ -56,100 +57,105 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
     final busy = ref.watch(authControllerProvider) is AsyncLoading;
 
     return Scaffold(
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) => SingleChildScrollView(
-            padding: EdgeInsets.all(spacing.sp4),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(
-                minHeight: constraints.maxHeight - spacing.sp4 * 2,
-              ),
-              child: Center(
-                child: Container(
-                  width: double.infinity,
-                  constraints: const BoxConstraints(maxWidth: 560),
-                  padding: EdgeInsets.symmetric(
-                    horizontal: constraints.maxWidth < 420
-                        ? spacing.sp4
-                        : spacing.sp6,
-                    vertical: spacing.sp6,
+      body: Stack(
+        children: [
+          const Positioned.fill(child: _CraftScaffoldBackground()),
+          SafeArea(
+            child: LayoutBuilder(
+              builder: (context, constraints) => SingleChildScrollView(
+                padding: EdgeInsets.all(spacing.sp4),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: constraints.maxHeight - spacing.sp4 * 2,
                   ),
-                  decoration: BoxDecoration(
-                    color: swatches.paper2,
-                    border: Border.all(color: colors.onSurface, width: 1.5),
-                    borderRadius: BorderRadius.circular(radius.r3),
-                    boxShadow: shadows.drop,
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        l10n.welcomeJoinTitle,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.displaySmall,
+                  child: Center(
+                    child: Container(
+                      width: double.infinity,
+                      constraints: const BoxConstraints(maxWidth: 560),
+                      padding: EdgeInsets.symmetric(
+                        horizontal: constraints.maxWidth < 420
+                            ? spacing.sp4
+                            : spacing.sp6,
+                        vertical: spacing.sp6,
                       ),
-                      SizedBox(height: spacing.sp2),
-                      Text(
-                        l10n.welcomeSubtitle,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          color: colors.onSurfaceVariant,
-                        ),
+                      decoration: BoxDecoration(
+                        color: swatches.paper2,
+                        border: Border.all(color: colors.onSurface, width: 1.5),
+                        borderRadius: BorderRadius.circular(radius.r3),
+                        boxShadow: shadows.drop,
                       ),
-                      SizedBox(height: spacing.sp5),
-                      ChunkyButton(
-                        onPressed: busy ? null : _startRegistration,
-                        child: busy
-                            ? Text(l10n.welcomeRedirectingAction)
-                            : Text(l10n.welcomeRegisterAction),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          Text(
+                            l10n.welcomeJoinTitle,
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.displaySmall,
+                          ),
+                          SizedBox(height: spacing.sp2),
+                          Text(
+                            l10n.welcomeSubtitle,
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.bodyLarge?.copyWith(
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
+                          SizedBox(height: spacing.sp5),
+                          ChunkyButton(
+                            onPressed: busy ? null : _startRegistration,
+                            child: busy
+                                ? Text(l10n.welcomeRedirectingAction)
+                                : Text(l10n.welcomeRegisterAction),
+                          ),
+                          SizedBox(height: spacing.sp2),
+                          Text(
+                            l10n.welcomeRegistrationHandoff,
+                            textAlign: TextAlign.center,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
+                          SizedBox(height: spacing.sp5),
+                          _OrDivider(label: l10n.welcomeOr),
+                          SizedBox(height: spacing.sp5),
+                          BrandTextField(
+                            label: l10n.signInHandleLabel,
+                            hintText: 'your-handle.bsky.social',
+                            controller: _handleController,
+                            enabled: !busy,
+                            keyboardType: TextInputType.url,
+                            textInputAction: TextInputAction.done,
+                            autofillHints: const [AutofillHints.username],
+                            autocorrect: false,
+                            onSubmitted: (_) => _signIn(),
+                          ),
+                          SizedBox(height: spacing.sp4),
+                          ChunkyButton(
+                            variant: ChunkyButtonVariant.secondary,
+                            onPressed: busy ? null : _signIn,
+                            child: Text(
+                              busy
+                                  ? l10n.welcomeRedirectingAction
+                                  : l10n.welcomeSignInAction,
+                            ),
+                          ),
+                          SizedBox(height: spacing.sp5),
+                          _AtmosphereExplainer(l10n: l10n),
+                          SizedBox(height: spacing.sp5),
+                          _LegalLinks(
+                            l10n: l10n,
+                            onTerms: () => _openLink(_termsUri),
+                            onPrivacy: () => _openLink(_privacyUri),
+                          ),
+                        ],
                       ),
-                      SizedBox(height: spacing.sp2),
-                      Text(
-                        l10n.welcomeRegistrationHandoff,
-                        textAlign: TextAlign.center,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: colors.onSurfaceVariant,
-                        ),
-                      ),
-                      SizedBox(height: spacing.sp5),
-                      _OrDivider(label: l10n.welcomeOr),
-                      SizedBox(height: spacing.sp5),
-                      BrandTextField(
-                        label: l10n.signInHandleLabel,
-                        hintText: 'your-handle.bsky.social',
-                        controller: _handleController,
-                        enabled: !busy,
-                        keyboardType: TextInputType.url,
-                        textInputAction: TextInputAction.done,
-                        autofillHints: const [AutofillHints.username],
-                        autocorrect: false,
-                        onSubmitted: (_) => _signIn(),
-                      ),
-                      SizedBox(height: spacing.sp4),
-                      ChunkyButton(
-                        variant: ChunkyButtonVariant.secondary,
-                        onPressed: busy ? null : _signIn,
-                        child: Text(
-                          busy
-                              ? l10n.welcomeRedirectingAction
-                              : l10n.welcomeSignInAction,
-                        ),
-                      ),
-                      SizedBox(height: spacing.sp5),
-                      _AtmosphereExplainer(l10n: l10n),
-                      SizedBox(height: spacing.sp5),
-                      _LegalLinks(
-                        l10n: l10n,
-                        onTerms: () => _openLink(_termsUri),
-                        onPrivacy: () => _openLink(_privacyUri),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
@@ -190,6 +196,58 @@ class _WelcomePageState extends ConsumerState<WelcomePage> {
     AccountLimitReached() => l10n.accountSwitcherMaximum,
     _ => l10n.signInGenericError,
   };
+}
+
+class _CraftScaffoldBackground extends StatelessWidget {
+  const _CraftScaffoldBackground();
+
+  static const List<({Alignment alignment, double angle, String craft})>
+  _icons = [
+    (craft: 'knitting', alignment: Alignment(-0.92, -0.88), angle: -0.18),
+    (craft: 'crochet', alignment: Alignment(0.94, -0.52), angle: 0.16),
+    (craft: 'sewing', alignment: Alignment(-0.96, 0.02), angle: 0.22),
+    (craft: 'embroidery', alignment: Alignment(0.92, 0.54), angle: -0.14),
+    (craft: 'quilting', alignment: Alignment(-0.72, 0.94), angle: 0.12),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return IgnorePointer(
+      key: const Key('welcome-craft-background'),
+      child: ExcludeSemantics(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final iconSize = (constraints.biggest.shortestSide * 0.2).clamp(
+              76.0,
+              152.0,
+            );
+            final color = theme.colorScheme.primary.withValues(
+              alpha: theme.brightness == Brightness.dark ? 0.11 : 0.075,
+            );
+            return RepaintBoundary(
+              child: Stack(
+                children: [
+                  for (final icon in _icons)
+                    Align(
+                      alignment: icon.alignment,
+                      child: Transform.rotate(
+                        angle: icon.angle,
+                        child: CraftIcon(
+                          craft: icon.craft,
+                          size: iconSize,
+                          color: color,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
+      ),
+    );
+  }
 }
 
 class _OrDivider extends StatelessWidget {

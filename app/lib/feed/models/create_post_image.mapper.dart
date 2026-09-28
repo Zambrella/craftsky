@@ -111,7 +111,6 @@ mixin CreatePostImageMappable {
     );
   }
 }
-
 extension CreatePostImageValueCopy<$R, $Out>
     on ObjectCopyWith<$R, CreatePostImage, $Out> {
   CreatePostImageCopyWith<$R, CreatePostImage, $Out> get $asCreatePostImage =>

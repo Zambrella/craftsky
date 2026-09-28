@@ -7,7 +7,9 @@ import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_flow_provider.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -167,6 +169,71 @@ void main() {
     expect(sent?.clearBanner, isFalse);
   });
 
+  test(
+    'ambiguous save retries one key and installs the compound overlay',
+    () async {
+      final profile = _fullProfile();
+      var calls = 0;
+      late FakeProfileRepository repository;
+      final harness = _flowHarness(
+        profile,
+        extraOverrides: [
+          pdsMutationDelayProvider.overrideWithValue((_) async {}),
+          pdsMutationJitterProvider.overrideWithValue((_) => 0),
+        ],
+        onRepository: (value) => repository = value,
+        onUpdate:
+            ({
+              displayName,
+              pronouns,
+              description,
+              crafts,
+              avatar,
+              clearAvatar = false,
+              banner,
+              clearBanner = false,
+            }) async {
+              calls++;
+              if (calls == 1) {
+                throw const PdsMutationAmbiguousException(
+                  retryAfterSeconds: 1,
+                );
+              }
+              return profile.copyWith(
+                displayName: displayName,
+                pronouns: pronouns,
+                description: description,
+                crafts: crafts,
+              );
+            },
+      );
+      addTearDown(harness.container.dispose);
+      final subscription = harness.container.listen(
+        harness.provider,
+        (_, _) {},
+      );
+      addTearDown(subscription.close);
+      await _waitForPrefill(harness);
+
+      await harness.container.read(harness.provider.notifier).saveAndNext();
+
+      expect(repository.updateOperationKeys, hasLength(2));
+      expect(repository.updateOperationKeys.toSet(), hasLength(1));
+      expect(
+        isCanonicalPdsMutationOperationKey(
+          repository.updateOperationKeys.first,
+        ),
+        isTrue,
+      );
+      expect(
+        harness.container
+            .read(pdsRecordOperationControllerProvider)
+            .activeOverlays,
+        hasLength(1),
+      );
+    },
+  );
+
   test('step payloads preserve fields owned by the other step', () {
     final profile = Profile(
       did: 'did:plc:alice',
@@ -240,6 +307,8 @@ _flowHarness(
     bool clearBanner,
   })
   onUpdate,
+  List<dynamic> extraOverrides = const [],
+  void Function(FakeProfileRepository repository)? onRepository,
 }) {
   final registry = SessionRegistry.empty().upsertAndActivate(
     token: 'token',
@@ -250,15 +319,17 @@ _flowHarness(
     onFetchMe: () async => profile,
     onUpdateMe: onUpdate,
   );
+  onRepository?.call(repository);
   final container = ProviderContainer.test(
-    overrides: [
+    overrides: List.from([
       secureSessionRegistryStorageProvider.overrideWithValue(
         _Storage(registry),
       ),
       accountProfileRepositoryProvider.overrideWith(
         (ref, lease) async => repository,
       ),
-    ],
+      ...extraOverrides,
+    ]),
   );
   return (
     container: container,

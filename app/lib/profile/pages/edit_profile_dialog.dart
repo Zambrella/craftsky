@@ -423,14 +423,8 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
       }
     });
 
-    // `isValid` is true on first build (no errors yet) and flips false
-    // as soon as a validator fails — autovalidateMode keeps it in sync
-    // with the user's typing. Combined with `_hasChanges` it gives the
-    // save button the strict "dirty + valid + not in flight" gate.
-    final isFormValid = _formKey.currentState?.isValid ?? true;
     final canSave =
         _hasChanges &&
-        isFormValid &&
         !isSaving &&
         !_imageUploadInFlight &&
         !_imageUploadHasError;

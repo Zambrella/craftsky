@@ -28,13 +28,14 @@ import 'package:craftsky_app/feed/providers/create_post_provider.dart';
 import 'package:craftsky_app/feed/providers/image_picker_existing_video.dart';
 import 'package:craftsky_app/feed/providers/post_api_client_provider.dart';
 import 'package:craftsky_app/feed/providers/video_service_client_provider.dart';
+import 'package:craftsky_app/feed/providers/video_upload_feature_provider.dart';
 import 'package:craftsky_app/feed/widgets/composer_image_attachment_section.dart';
+import 'package:craftsky_app/feed/widgets/composer_metadata_controls.dart';
 import 'package:craftsky_app/feed/widgets/composer_video_attachment_card.dart';
 import 'package:craftsky_app/feed/widgets/submission_blocking_overlay.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
-import 'package:craftsky_app/languages/widgets/post_language_selector.dart';
 import 'package:craftsky_app/projects/composer/project_composer_draft_state.dart';
 import 'package:craftsky_app/projects/composer/project_composer_fields.dart';
 import 'package:craftsky_app/projects/composer/project_composer_hydrator.dart';
@@ -144,6 +145,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     ProjectComposerFields.patternPublisher,
     ProjectComposerFields.patternUrl,
     ProjectComposerFields.patternDifficulty,
+    ProjectComposerFields.patternSelfDrafted,
   ];
   static const List<String> _commonDetailFieldNames = [
     ProjectComposerFields.materials,
@@ -211,7 +213,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   );
   late final String _composerId;
   String _bodyText = '';
-  String _patternNameText = '';
   String? _activeCraftType;
   String? _sewingProjectType;
   String? _knittingProjectType;
@@ -244,6 +245,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   var _usesStoredDraftVideo = false;
   bool _isSubmitting = false;
   bool _isSavingDraft = false;
+  bool _sponsored = false;
+  bool _initialSponsored = false;
   bool _submissionSucceeded = false;
   late final DraftSubmissionOrigin _origin;
   String _initialBodyText = '';
@@ -284,8 +287,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     _patternPublisherController.text =
         _initialFormValues[ProjectComposerFields.patternPublisher] as String? ??
         '';
-    _patternNameText =
-        _initialFormValues[ProjectComposerFields.patternName] as String? ?? '';
     _activeCraftType =
         _initialFormValues[ProjectComposerFields.craftType] as String?;
     _sewingProjectType =
@@ -319,6 +320,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         _languages = PostLanguageSelection.fromValues(draftContent.languages);
         _initialLanguages = List.of(draftContent.languages);
       }
+      _sponsored = draftContent.sponsored;
       final restored = restoreDraftSchedule(
         widget.draftSeed!.draft.schedule,
         now: DateTime.now(),
@@ -347,6 +349,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       if (langs.isNotEmpty) {
         _languages = PostLanguageSelection.fromValues(langs);
       }
+      _sponsored = scheduled.payload['sponsored'] == true;
       if (scheduled.status == ScheduledPostStatus.needsAttention) {
         _scheduleChoice = ScheduleChoice.now;
         _missedScheduledAtLocal = scheduled.scheduledAt.utc.toLocal();
@@ -361,6 +364,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         });
       }
     }
+    _initialSponsored = _sponsored;
   }
 
   @override
@@ -403,6 +407,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     final spacing = theme.extension<SpacingTheme>()!;
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final createState = ref.watch(createPostProvider);
+    final videoUploadsEnabled = ref.watch(videoUploadsEnabledProvider);
     final preferences = ref.watch(activeLanguagePreferencesProvider);
     _languages ??= PostLanguageSelection.fromPrimary(
       preferences.primaryLanguage,
@@ -479,7 +484,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         ) ||
         !listEquals(_languages?.values, _initialLanguages) ||
         _scheduleChoice != _initialScheduleChoice ||
-        _scheduledAtLocal != _initialScheduledAtLocal;
+        _scheduledAtLocal != _initialScheduledAtLocal ||
+        _sponsored != _initialSponsored;
     final canSaveDraft =
         widget.scheduledPost == null &&
         hasDraft &&
@@ -591,6 +597,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                                   spacing: spacing,
                                   imagesState: imagesState,
                                   selectedVideo: selectedVideo,
+                                  videoUploadsEnabled: videoUploadsEnabled,
                                   controlsEnabled: controlsEnabled,
                                   photoErrorText: photoErrorText,
                                   onAddImages: () => ref
@@ -622,14 +629,78 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                                 SizedBox(height: spacing.sp4),
                                 _pageThree(
                                   l10n: l10n,
-                                  spacing: spacing,
                                   controlsEnabled: controlsEnabled,
                                   bodyErrorText: bodyErrorText,
                                 ),
+                                ComposerMetadataControls(
+                                  languages: _languages!,
+                                  onLanguagesChanged: controlsEnabled
+                                      ? (value) =>
+                                            setState(() => _languages = value)
+                                      : null,
+                                  sponsored: _sponsored,
+                                  onSponsoredChanged: controlsEnabled
+                                      ? (value) =>
+                                            setState(() => _sponsored = value)
+                                      : null,
+                                  scheduledAtLocal: _scheduledAtLocal,
+                                  onSchedulePressed: controlsEnabled
+                                      ? (menuContext) => _chooseWhen(
+                                          menuContext,
+                                          scheduleEnabled:
+                                              capacity.scheduleEnabled,
+                                        )
+                                      : null,
+                                ),
+                                if (capacity.showCapacityWarning)
+                                  const ScheduledPostCapacityWarning(),
+                                if (capacity.showManageLink)
+                                  Align(
+                                    alignment: AlignmentDirectional.centerStart,
+                                    child: TextButton(
+                                      onPressed: () =>
+                                          const ScheduledPostsRoute().go(
+                                            context,
+                                          ),
+                                      child: Text(
+                                        l10n.scheduledPostManageAction,
+                                      ),
+                                    ),
+                                  ),
+                                if (_missedScheduledAtLocal case final missed?)
+                                  Text(
+                                    l10n.scheduledPostMissedTime(
+                                      _projectLocalTimeLabel(context, missed),
+                                    ),
+                                  ),
+                                if (_isScheduling &&
+                                    (_stagedImageTotal > 0 ||
+                                        _isSavingSchedule)) ...[
+                                  SizedBox(height: spacing.sp3),
+                                  ScheduledStagingProgress(
+                                    completed: _stagedImageCount,
+                                    total: _stagedImageTotal,
+                                    creating: _isSavingSchedule,
+                                  ),
+                                ],
+                                if (widget.scheduledPost != null)
+                                  Align(
+                                    alignment: AlignmentDirectional.centerStart,
+                                    child: TextButton.icon(
+                                      onPressed: _isScheduling
+                                          ? null
+                                          : _deleteExistingSchedule,
+                                      icon: const Icon(
+                                        CraftskyIconsBold.delete,
+                                      ),
+                                      label: Text(
+                                        l10n.scheduledPostsDeleteTooltip,
+                                      ),
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
-                          SizedBox(height: spacing.sp6),
                           Text(
                             l10n.projectComposerMoreDetailsHeading,
                             style: theme.textTheme.titleLarge?.copyWith(
@@ -644,23 +715,22 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                             ),
                           ),
                           SizedBox(height: spacing.sp2),
-                          if (_hasMeaningfulPatternName(_patternNameText))
-                            _ProjectDetailActionTile(
-                              key: const Key(
-                                'project-composer-pattern-details-action',
-                              ),
-                              focusNode: _patternDetailsFocusNode,
-                              icon: CraftskyIcons.pattern,
-                              title: l10n.projectComposerPatternDetailsTitle,
-                              subtitle: _detailSummary(
-                                _patternDetailFieldNames,
-                                empty: l10n
-                                    .projectComposerPatternDetailsDescription,
-                                l10n: l10n,
-                              ),
-                              enabled: controlsEnabled,
-                              onTap: _openPatternDetails,
+                          _ProjectDetailActionTile(
+                            key: const Key(
+                              'project-composer-pattern-details-action',
                             ),
+                            focusNode: _patternDetailsFocusNode,
+                            icon: CraftskyIcons.pattern,
+                            title: l10n.projectComposerPatternDetailsTitle,
+                            subtitle: _detailSummary(
+                              _patternDetailFieldNames,
+                              empty:
+                                  l10n.projectComposerPatternDetailsDescription,
+                              l10n: l10n,
+                            ),
+                            enabled: controlsEnabled,
+                            onTap: _openPatternDetails,
+                          ),
                           _ProjectDetailActionTile(
                             key: const Key(
                               'project-composer-common-details-action',
@@ -697,64 +767,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                               onTap: _openCraftDetails,
                             ),
                           SizedBox(height: spacing.sp4),
-                          PostLanguageSelector(
-                            selection: _languages!,
-                            enabled: controlsEnabled,
-                            onChanged: (value) =>
-                                setState(() => _languages = value),
-                          ),
-                          SizedBox(height: spacing.sp4),
-                          Builder(
-                            builder: (menuContext) => ListTile(
-                              contentPadding: EdgeInsets.zero,
-                              leading: const Icon(CraftskyIcons.schedule),
-                              title: Text(l10n.scheduledPostWhenTitle),
-                              subtitle: Text(_whenLabel(context)),
-                              trailing: const Icon(CraftskyIconsBold.next),
-                              enabled: controlsEnabled,
-                              onTap: () => _chooseWhen(
-                                menuContext,
-                                scheduleEnabled: capacity.scheduleEnabled,
-                              ),
-                            ),
-                          ),
-                          if (capacity.showCapacityWarning)
-                            const ScheduledPostCapacityWarning(),
-                          if (capacity.showManageLink)
-                            Align(
-                              alignment: AlignmentDirectional.centerStart,
-                              child: TextButton(
-                                onPressed: () =>
-                                    const ScheduledPostsRoute().go(context),
-                                child: Text(l10n.scheduledPostManageAction),
-                              ),
-                            ),
-                          if (_missedScheduledAtLocal case final missed?)
-                            Text(
-                              l10n.scheduledPostMissedTime(
-                                _projectLocalTimeLabel(context, missed),
-                              ),
-                            ),
-                          if (_isScheduling &&
-                              (_stagedImageTotal > 0 || _isSavingSchedule)) ...[
-                            SizedBox(height: spacing.sp3),
-                            ScheduledStagingProgress(
-                              completed: _stagedImageCount,
-                              total: _stagedImageTotal,
-                              creating: _isSavingSchedule,
-                            ),
-                          ],
-                          if (widget.scheduledPost != null)
-                            Align(
-                              alignment: AlignmentDirectional.centerStart,
-                              child: TextButton.icon(
-                                onPressed: _isScheduling
-                                    ? null
-                                    : _deleteExistingSchedule,
-                                icon: const Icon(CraftskyIconsBold.delete),
-                                label: Text(l10n.scheduledPostsDeleteTooltip),
-                              ),
-                            ),
                           SizedBox(
                             key: const Key(
                               'project-composer-bottom-safe-space',
@@ -930,6 +942,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       owner: owner,
       body: _bodyText,
       languages: _languages!.values,
+      sponsored: _sponsored,
       schedule: schedule,
       formValues: _combinedFormValues(saved: true),
       images: imagesState.images,
@@ -1041,6 +1054,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         !listEquals(_languages?.values, _initialLanguages) ||
         _scheduleChoice != _initialScheduleChoice ||
         _scheduledAtLocal != _initialScheduledAtLocal ||
+        _sponsored != _initialSponsored ||
         _draftVideoChanged();
   }
 
@@ -1071,8 +1085,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   List<CraftskySelectOption<String>> _selectOptions(
     List<ProjectOption> options, {
     bool includeCraftIcons = false,
+    bool alphabetize = true,
   }) {
-    return [
+    final selectOptions = [
       for (final option in options)
         CraftskySelectOption<String>(
           value: option.value,
@@ -1083,6 +1098,9 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
               : null,
         ),
     ];
+    return alphabetize
+        ? alphabetizedSelectOptions(selectOptions)
+        : selectOptions;
   }
 
   Map<String, dynamic> _combinedFormValues({bool saved = false}) => {
@@ -1116,6 +1134,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       final String value => value.trim().isNotEmpty,
       final Iterable<Object?> values => values.isNotEmpty,
       final num value => value > 0,
+      true => true,
       _ => false,
     },
   );
@@ -1131,6 +1150,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         final String text => text.trim().isNotEmpty,
         final Iterable<Object?> values => values.isNotEmpty,
         final num number => number > 0,
+        true => true,
         _ => false,
       };
     }).length;
@@ -1253,7 +1273,8 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   }
 
   Widget _patternDetailFields(AppLocalizations l10n) {
-    final spacing = Theme.of(context).extension<SpacingTheme>()!;
+    final theme = Theme.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1290,7 +1311,24 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         CraftskyFormBuilderDropdownField<String>(
           name: ProjectComposerFields.patternDifficulty,
           label: l10n.projectComposerPatternDifficultyLabel,
-          options: _selectOptions(ProjectOptionCatalogs.patternDifficulties),
+          options: _selectOptions(
+            ProjectOptionCatalogs.patternDifficulties,
+            alphabetize: false,
+          ),
+        ),
+        SizedBox(height: spacing.sp4),
+        FormBuilderField<bool>(
+          name: ProjectComposerFields.patternSelfDrafted,
+          builder: (field) => SwitchListTile(
+            key: const Key('project-composer-self-drafted-switch'),
+            contentPadding: EdgeInsets.zero,
+            title: Text(l10n.projectComposerPatternSelfDraftedTitle),
+            subtitle: Text(l10n.projectComposerPatternSelfDraftedDescription),
+            value: field.value ?? false,
+            onChanged: field.didChange,
+            activeTrackColor: theme.colorScheme.primary,
+            activeThumbColor: theme.colorScheme.onPrimary,
+          ),
         ),
       ],
     );
@@ -1302,6 +1340,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     required SpacingTheme spacing,
     required ComposerImagesState imagesState,
     required LocalVideoSelection? selectedVideo,
+    required bool videoUploadsEnabled,
     required bool controlsEnabled,
     required String? photoErrorText,
     required Future<void> Function()? onAddImages,
@@ -1358,6 +1397,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
             onReplaceUnavailable: onReplaceUnavailable,
             onReorder: onReorderImages,
             supportsVideo:
+                videoUploadsEnabled &&
                 widget.scheduledPost == null &&
                 _scheduleChoice == ScheduleChoice.now,
             onAddVideo: onAddVideo,
@@ -1471,7 +1511,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
 
   Widget _pageThree({
     required AppLocalizations l10n,
-    required SpacingTheme spacing,
     required bool controlsEnabled,
     required String? bodyErrorText,
   }) {
@@ -1497,7 +1536,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           helperAlignment: AlignmentDirectional.centerEnd,
           onChanged: (value) => setState(() => _bodyText = value),
         ),
-        SizedBox(height: spacing.sp4),
       ],
     );
   }
@@ -1524,26 +1562,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   }
 
   void _onPatternNameChanged(String value) {
-    final nextValue = _patternFormValue(value);
-    final hasDetails = _hasMeaningfulPatternName(nextValue ?? '');
-    setState(() => _patternNameText = nextValue ?? '');
-    if (!hasDetails && _hasAnyDetail(_patternDetailFieldNames)) {
-      _patternDesignerController.clear();
-      _patternPublisherController.clear();
-      setState(() {
-        for (final name in _patternDetailFieldNames) {
-          _detailFormValues[name] = null;
-        }
-      });
-      context.showInfo(
-        AppLocalizations.of(context).projectComposerPatternCleared,
-      );
-    }
-  }
-
-  static bool _hasMeaningfulPatternName(String value) {
-    final trimmed = value.trim();
-    return trimmed.isNotEmpty && trimmed != '#';
+    setState(() {});
   }
 
   static String _patternDisplayText(Object? value) {
@@ -1701,14 +1720,20 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       CraftskyFormBuilderDropdownField<String>(
         name: ProjectComposerFields.knittingYarnWeight,
         label: l10n.projectComposerYarnWeightLabel,
-        options: _selectOptions(ProjectOptionCatalogs.yarnWeights),
+        options: _selectOptions(
+          ProjectOptionCatalogs.yarnWeights,
+          alphabetize: false,
+        ),
         enabled: controlsEnabled,
       ),
       SizedBox(height: spacing.sp4),
       CraftskyFormBuilderDropdownField<String>(
         name: ProjectComposerFields.knittingNeedleSize,
         label: l10n.projectComposerNeedleSizeLabel,
-        options: _selectOptions(ProjectOptionCatalogs.needleSizes),
+        options: _selectOptions(
+          ProjectOptionCatalogs.needleSizes,
+          alphabetize: false,
+        ),
         enabled: controlsEnabled,
       ),
       SizedBox(height: spacing.sp4),
@@ -1740,7 +1765,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       CraftskyFormBuilderDropdownField<String>(
         name: ProjectComposerFields.knittingGaugeUnit,
         label: l10n.projectComposerGaugeUnitLabel,
-        options: _selectOptions(ProjectOptionCatalogs.gaugeUnits),
+        options: _selectOptions(
+          ProjectOptionCatalogs.gaugeUnits,
+          alphabetize: false,
+        ),
         enabled: controlsEnabled,
       ),
       SizedBox(height: spacing.sp4),
@@ -1795,14 +1823,20 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       CraftskyFormBuilderDropdownField<String>(
         name: ProjectComposerFields.crochetYarnWeight,
         label: l10n.projectComposerYarnWeightLabel,
-        options: _selectOptions(ProjectOptionCatalogs.yarnWeights),
+        options: _selectOptions(
+          ProjectOptionCatalogs.yarnWeights,
+          alphabetize: false,
+        ),
         enabled: controlsEnabled,
       ),
       SizedBox(height: spacing.sp4),
       CraftskyFormBuilderDropdownField<String>(
         name: ProjectComposerFields.crochetHookSize,
         label: l10n.projectComposerHookSizeLabel,
-        options: _selectOptions(ProjectOptionCatalogs.hookSizes),
+        options: _selectOptions(
+          ProjectOptionCatalogs.hookSizes,
+          alphabetize: false,
+        ),
         enabled: controlsEnabled,
       ),
       SizedBox(height: spacing.sp4),
@@ -1833,7 +1867,10 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
       CraftskyFormBuilderDropdownField<String>(
         name: ProjectComposerFields.crochetGaugeUnit,
         label: l10n.projectComposerGaugeUnitLabel,
-        options: _selectOptions(ProjectOptionCatalogs.gaugeUnits),
+        options: _selectOptions(
+          ProjectOptionCatalogs.gaugeUnits,
+          alphabetize: false,
+        ),
         enabled: controlsEnabled,
       ),
       SizedBox(height: spacing.sp4),
@@ -2035,6 +2072,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           .create(
             text: args.text,
             langs: args.langs,
+            sponsored: _sponsored,
             reply: args.reply,
             project: args.project,
             images: images,
@@ -2060,6 +2098,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           .create(
             text: text,
             langs: _languages!.values,
+            sponsored: _sponsored,
             project: project,
             video: video,
             facets: facets,
@@ -2099,6 +2138,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
             .create(
               text: text,
               langs: _languages!.values,
+              sponsored: _sponsored,
               project: project,
               video: video,
               facets: facets,
@@ -2237,15 +2277,6 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
     return ProjectMapper.fromMap(value);
   }
 
-  String _whenLabel(BuildContext context) {
-    final l10n = AppLocalizations.of(context);
-    final scheduledAt = _scheduledAtLocal;
-    if (_scheduleChoice == ScheduleChoice.now || scheduledAt == null) {
-      return l10n.scheduledPostNow;
-    }
-    return _projectLocalTimeLabel(context, scheduledAt);
-  }
-
   String _projectLocalTimeLabel(BuildContext context, DateTime value) {
     final l10n = AppLocalizations.of(context);
     final localizations = MaterialLocalizations.of(context);
@@ -2343,6 +2374,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         'kind': 'project',
         'text': args.text,
         'langs': args.langs,
+        'sponsored': _sponsored,
         'facets': ?args.facets,
         'project': args.project.toCreateMap(),
         'media': media,
@@ -2424,6 +2456,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           ...existing.payload,
           'text': args.text,
           'langs': args.langs,
+          'sponsored': _sponsored,
           'facets': ?args.facets,
           'project': args.project.toCreateMap(),
           'media': media,

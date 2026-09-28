@@ -11,6 +11,10 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/testdb"
 )
 
 func TestScheduledPublicationRecoversTheSameFrozenRecordAcrossCrashBoundaries(t *testing.T) {
@@ -89,6 +93,124 @@ func TestScheduledPublicationRecoversTheSameFrozenRecordAcrossCrashBoundaries(t 
 	})
 }
 
+func TestIT010ScheduledFinalPublicationRecoversThroughCommandJournal(t *testing.T) {
+	fixture := newPublicationRecoveryFixtureWithPool(
+		t,
+		testdb.WithMigratedSchema(t),
+		0,
+		false,
+		true,
+	)
+	fixture.pds.panicAfterPut = true
+
+	stopped := fixture.stop(t)
+	if fixture.pds.putCalls != 1 || fixture.pds.record == nil {
+		t.Fatalf("puts=%d record=%#v, want committed record before restart", fixture.pds.putCalls, fixture.pds.record)
+	}
+	var commandID uuid.UUID
+	var state, selectedURI, selectedRkey string
+	if err := fixture.store.pool.QueryRow(context.Background(), `
+		SELECT id,state,selected_uri,selected_rkey
+		FROM pds_commands
+		WHERE owner_did=$1 AND owner_generation=$2
+		  AND operation_kind='scheduled_post_publish'
+	`, fixture.owner, stopped.OwnerGeneration).Scan(
+		&commandID, &state, &selectedURI, &selectedRkey,
+	); err != nil {
+		t.Fatalf("read stopped scheduled publication command: %v", err)
+	}
+	if commandID == uuid.Nil || state != "dispatching" ||
+		selectedRkey != stopped.Rkey.String() ||
+		selectedURI != "at://"+fixture.owner.String()+"/"+PostCollection+"/"+stopped.Rkey.String() {
+		t.Fatalf(
+			"stopped command id=%s state=%q uri=%q rkey=%q, want frozen publication identity",
+			commandID, state, selectedURI, selectedRkey,
+		)
+	}
+
+	frozen := fixture.frozenRecord(t)
+	fixture.recover(t, stopped, frozen)
+	if fixture.pds.putCalls != 1 {
+		t.Fatalf("record writes=%d, want command reconciliation without redispatch", fixture.pds.putCalls)
+	}
+	if err := fixture.store.pool.QueryRow(context.Background(), `
+		SELECT state FROM pds_commands WHERE id=$1
+	`, commandID).Scan(&state); err != nil {
+		t.Fatalf("read recovered scheduled publication command: %v", err)
+	}
+	if state != "accepted" {
+		t.Fatalf("recovered command state=%q, want accepted", state)
+	}
+	var legacyRecordEffects int
+	if err := fixture.store.pool.QueryRow(context.Background(), `
+		SELECT count(*) FROM owner_effect_attempts
+		WHERE operation_id=$1 AND effect_kind='pds_record'
+	`, scheduledRecordEffectIdentity(stopped)).Scan(&legacyRecordEffects); err != nil {
+		t.Fatalf("count legacy scheduled record effects: %v", err)
+	}
+	if legacyRecordEffects != 0 {
+		t.Fatalf("legacy scheduled record effects=%d, want zero", legacyRecordEffects)
+	}
+	fixture.assertFinalizedWithRecord(t, frozen)
+}
+
+func TestIT010ScheduledFinalPublicationReconcilesReturnedLostResponse(t *testing.T) {
+	fixture := newPublicationRecoveryFixtureWithPool(
+		t,
+		testdb.WithMigratedSchema(t),
+		0,
+		false,
+		true,
+	)
+	fixture.pds.commitThenErr = true
+	fixture.pds.putErr = errors.New("synthetic lost create response")
+
+	processed, err := fixture.worker.ProcessBatch(context.Background())
+	if err != nil || processed != 1 {
+		t.Fatalf("lost-response worker processed=%d error=%v", processed, err)
+	}
+	if fixture.pds.putCalls != 1 || fixture.status(t) != StatusRetrying {
+		t.Fatalf("writes=%d status=%s, want one committed write and retrying schedule", fixture.pds.putCalls, fixture.status(t))
+	}
+	var commandID uuid.UUID
+	var commandState string
+	if err := fixture.store.pool.QueryRow(context.Background(), `
+		SELECT id,state FROM pds_commands
+		WHERE owner_did=$1 AND operation_kind='scheduled_post_publish'
+	`, fixture.owner).Scan(&commandID, &commandState); err != nil {
+		t.Fatal(err)
+	}
+	if commandState != "ambiguous" {
+		t.Fatalf("lost-response command state=%q, want ambiguous", commandState)
+	}
+	frozen := fixture.frozenRecord(t)
+	var nextAttempt time.Time
+	if err := fixture.store.pool.QueryRow(context.Background(), `
+		SELECT next_attempt_at FROM scheduled_posts WHERE owner_did=$1 AND id=$2
+	`, fixture.owner, fixture.id).Scan(&nextAttempt); err != nil {
+		t.Fatal(err)
+	}
+	fixture.pds.putErr = nil
+	fixture.pds.commitThenErr = false
+	*fixture.clock = nextAttempt
+	processed, err = fixture.worker.ProcessBatch(context.Background())
+	if err != nil || processed != 1 {
+		t.Fatalf("recovery worker processed=%d error=%v", processed, err)
+	}
+	if fixture.pds.putCalls != 1 {
+		t.Fatalf("record writes=%d, want reconciliation without redispatch", fixture.pds.putCalls)
+	}
+	if err := fixture.store.pool.QueryRow(context.Background(), `
+		SELECT state FROM pds_commands WHERE id=$1
+	`, commandID).Scan(&commandState); err != nil {
+		t.Fatal(err)
+	}
+	if commandState != "accepted" {
+		t.Fatalf("recovered command state=%q, want accepted", commandState)
+	}
+	fixture.assertFinalizedWithRecord(t, frozen)
+}
+
 type publicationRecoveryFixture struct {
 	store             *Store
 	objects           *memoryPrivateObjectStore
@@ -105,11 +227,44 @@ type publicationRecoveryFixture struct {
 
 func newPublicationRecoveryFixture(t *testing.T, mediaCount int, externalThumbnail bool) *publicationRecoveryFixture {
 	t.Helper()
-	store := NewStore(newScheduledPostStoreTestPool(t))
+	return newPublicationRecoveryFixtureWithPool(
+		t,
+		newScheduledPostStoreTestPool(t),
+		mediaCount,
+		externalThumbnail,
+		false,
+	)
+}
+
+func newPublicationRecoveryFixtureWithPool(
+	t *testing.T,
+	pool *pgxpool.Pool,
+	mediaCount int,
+	externalThumbnail bool,
+	journaled bool,
+) *publicationRecoveryFixture {
+	t.Helper()
+	store := NewStore(pool)
 	objects := newMemoryPrivateObjectStore()
 	mediaService, _ := newScheduledTestMediaService(t, store, objects)
 	owner := syntax.DID("did:plc:alice")
 	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO owner_lifecycles(
+			owner_did,state,generation,auth_epoch,transition_reason,
+			transitioned_at,created_at,updated_at
+		) VALUES($1,'active',1,1,'test',$2,$2,$2)
+		ON CONFLICT(owner_did) DO NOTHING
+	`, owner, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO craftsky_profiles(did,record_cid,created_at)
+		VALUES($1,'bafyreiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',$2)
+		ON CONFLICT(did) DO NOTHING
+	`, owner, now); err != nil {
+		t.Fatal(err)
+	}
 	current := now
 	media := make([]PrivateMedia, 0, mediaCount)
 	bodies := make([][]byte, 0, mediaCount)
@@ -154,14 +309,28 @@ func newPublicationRecoveryFixture(t *testing.T, mediaCount int, externalThumbna
 		t.Fatal(err)
 	}
 	pds := &recordingScheduledPDS{}
+	newCommands := recordingGuardedFactory(pds, nil)
+	if journaled {
+		lifecycles, err := ownerlifecycle.NewStore(
+			pool,
+			newScheduledTestOwnerFencer(t, pool),
+			func() time.Time { return current },
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		newCommands = journaledRecordingGuardedFactory(
+			t, pool, lifecycles, pds, func() time.Time { return current },
+		)
+	}
 	processor, err := NewPublicationProcessor(PublicationProcessorOptions{
 		Store: store,
 		Sessions: stubPublicationSessionSelector{
 			wantOwner: owner, sessionID: "owner-session",
 		},
-		NewEffects: recordingGuardedFactory(pds, nil),
-		Objects:    objects,
-		Now:        func() time.Time { return current },
+		NewCommands: newCommands,
+		Objects:     objects,
+		Now:         func() time.Time { return current },
 	})
 	if err != nil {
 		t.Fatal(err)

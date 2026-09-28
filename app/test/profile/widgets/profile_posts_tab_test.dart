@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
@@ -13,6 +15,7 @@ import 'package:craftsky_app/languages/providers/language_preferences_provider.d
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_posts_tab.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -24,6 +27,7 @@ import 'package:go_router/go_router.dart';
 import '../../fakes/auth_session_fakes.dart';
 import '../../fakes/recording_messenger.dart';
 import '../../feed/fakes/fake_post_repository.dart';
+import 'profile_tab_test_harness.dart';
 
 final class _ProfilePinRegistryStorage implements SessionRegistryStorage {
   _ProfilePinRegistryStorage()
@@ -55,6 +59,7 @@ Post _post(String rkey, {PostExternal? external}) {
     viewerHasLiked: false,
     viewerHasReposted: false,
     viewerHasSaved: false,
+    sponsored: false,
     external: external,
     createdAt: DateTime.now().subtract(const Duration(minutes: 3)),
     indexedAt: DateTime.now().subtract(const Duration(minutes: 2)),
@@ -73,42 +78,33 @@ Future<void> _pump(
   RecordingMessenger? messenger,
   List<dynamic> overrides = const [],
 }) {
-  return tester.pumpWidget(
-    ProviderScope(
-      overrides: List.from([
-        activeLanguagePreferencesProvider.overrideWith(
-          (ref) => const LanguagePreferences(
-            primaryLanguage: 'en',
-            contentLanguages: ['en'],
-          ),
-        ),
-        postRepositoryProvider.overrideWithValue(repo),
-        ...overrides,
-      ]),
-      child: MessengerScope(
-        messenger: messenger ?? RecordingMessenger(),
-        child: MaterialApp(
-          theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(
-            body: CustomScrollView(
-              slivers: [
-                ProfilePostsTab(
-                  did: Did.parse('did:plc:alice'),
-                  isOwnProfile: isOwnProfile,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+  return pumpProfileTab(
+    tester,
+    sliver: ProfilePostsTab(
+      did: Did.parse('did:plc:alice'),
+      isOwnProfile: isOwnProfile,
     ),
+    repository: repo,
+    messenger: messenger,
+    overrides: overrides,
   );
 }
 
 void main() {
   group('ProfilePostsTab', () {
+    testWidgets('shows post skeletons during the initial load', (tester) async {
+      final pending = Completer<PostPage>();
+      final repo = FakePostRepository(
+        onListByAuthor: (_, {cursor, limit}) => pending.future,
+      );
+
+      await _pump(tester, repo: repo, isOwnProfile: false);
+      await tester.pump();
+
+      expect(find.byType(CraftskySkeletonSliverList), findsOneWidget);
+      expect(find.byType(PostCardSkeleton), findsWidgets);
+    });
+
     testWidgets('IT-014 renders a full external card on profile posts', (
       tester,
     ) async {
@@ -312,7 +308,7 @@ void main() {
     });
 
     testWidgets('scrolling near the end appends the next page', (tester) async {
-      final calls = <({String? cursor, int? limit})>[];
+      final calls = <ProfilePageRequest>[];
       final repo = FakePostRepository(
         onListByAuthor: (_, {cursor, limit}) async {
           calls.add((cursor: cursor, limit: limit));
@@ -327,21 +323,17 @@ void main() {
         },
       );
 
-      await _pump(tester, repo: repo, isOwnProfile: false);
-      await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(
-        find.text('post a9'),
-        500,
-        scrollable: find.byType(Scrollable),
+      await expectProfileTabInfiniteScroll(
+        tester,
+        sliver: ProfilePostsTab(
+          did: Did.parse('did:plc:alice'),
+          isOwnProfile: false,
+        ),
+        repository: repo,
+        requests: calls,
+        lastInitialItem: find.text('post a9'),
+        appendedItem: find.text('post b'),
       );
-      await tester.pumpAndSettle();
-
-      expect(calls, [
-        (cursor: null, limit: 10),
-        (cursor: 'c1', limit: 10),
-      ]);
-      expect(find.text('post a9'), findsOneWidget);
-      expect(find.text('post b'), findsOneWidget);
       expect(find.text('Load more posts'), findsNothing);
     });
 
@@ -394,6 +386,8 @@ void main() {
         'like:did:plc:alice/a',
         'repost:did:plc:alice/a',
       ]);
+      await tester.pump(const Duration(seconds: 31));
+      await tester.pumpAndSettle();
     });
 
     testWidgets('reply create opens thread focused on the new comment', (

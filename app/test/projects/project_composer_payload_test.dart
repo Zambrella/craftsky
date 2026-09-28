@@ -84,6 +84,37 @@ void main() {
       expect(result.project!.common.pattern, isNull);
     });
 
+    test('self-drafted alone creates pattern metadata', () {
+      final result = buildProjectComposerPayload(
+        formValues: const {
+          ProjectComposerFields.craftType:
+              ProjectOptionCatalogs.knittingCraftToken,
+          ProjectComposerFields.patternSelfDrafted: true,
+        },
+      );
+
+      expect(result.errors, isEmpty);
+      expect(result.project!.common.pattern?.selfDrafted, isTrue);
+      expect(result.project!.common.pattern?.name, isNull);
+    });
+
+    test('difficulty catalog has the approved four values', () {
+      expect(
+        ProjectOptionCatalogs.patternDifficulties.map(
+          (option) => (option.value, option.label),
+        ),
+        const [
+          ('social.craftsky.feed.defs#beginner', 'Beginner'),
+          (
+            'social.craftsky.feed.defs#confidentBeginner',
+            'Confident beginner',
+          ),
+          ('social.craftsky.feed.defs#intermediate', 'Intermediate'),
+          ('social.craftsky.feed.defs#advanced', 'Advanced'),
+        ],
+      );
+    });
+
     test('UT-007 reports missing craft type before building a project', () {
       final result = buildProjectComposerPayload(formValues: const {});
 

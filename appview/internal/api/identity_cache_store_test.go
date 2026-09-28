@@ -111,17 +111,14 @@ CREATE TABLE bluesky_profiles (
     record_cid   TEXT        NOT NULL,
     indexed_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE TABLE atproto_follows (
-    uri         TEXT        NOT NULL PRIMARY KEY,
-    did         TEXT        NOT NULL,
-    rkey        TEXT        NOT NULL,
-    cid         TEXT        NOT NULL,
-    subject_did TEXT        NOT NULL,
-    record      JSONB       NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL,
-    indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (did, rkey),
-    UNIQUE (did, subject_did)
+CREATE TABLE pds_set_aggregates (
+    kind                      TEXT        NOT NULL,
+    actor_did                 TEXT        NOT NULL,
+    scope_key                 TEXT        NOT NULL,
+    subject_did               TEXT,
+    representative_source_uri TEXT        NOT NULL,
+    activated_at              TIMESTAMPTZ NOT NULL,
+    PRIMARY KEY (kind, actor_did, scope_key)
 );
 CREATE TABLE atproto_identity_cache (
     did          TEXT        NOT NULL PRIMARY KEY,
@@ -174,12 +171,7 @@ func TestFacetMentionSuggestionsOmitBlockedAccounts(t *testing.T) {
 	`, now); err != nil {
 		t.Fatalf("seed mention identities: %v", err)
 	}
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO atproto_blocks (uri, blocker_did, rkey, cid, subject_did, record, created_at)
-		VALUES ('at://did:plc:alice/app.bsky.graph.block/viewer', 'did:plc:alice', 'viewer', 'block-cid', 'did:plc:viewer', '{}', now())
-	`); err != nil {
-		t.Fatalf("seed mention block: %v", err)
-	}
+	seedBlockAggregate(t, pool, "did:plc:alice", "did:plc:viewer", now)
 	rows, err := api.NewFacetStore(pool).SearchMentionSuggestions(ctx, "did:plc:viewer", "ali", 10, now)
 	if err != nil {
 		t.Fatalf("SearchMentionSuggestions: %v", err)
@@ -222,10 +214,14 @@ func TestFacetStoreSearchMentionSuggestionsUsesFreshSeparateIdentityCache(t *tes
 		t.Fatalf("seed identity cache: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at) VALUES
-			('at://did:plc:viewer/app.bsky.graph.follow/f1', 'did:plc:viewer', 'f1', 'cid-f1', 'did:plc:alice', '{}', $1)
+		INSERT INTO pds_set_aggregates (
+			kind, actor_did, scope_key, subject_did, representative_source_uri, activated_at
+		) VALUES (
+			'follow', 'did:plc:viewer', 'did:plc:alice', 'did:plc:alice',
+			'at://did:plc:viewer/app.bsky.graph.follow/f1', $1
+		)
 	`, now); err != nil {
-		t.Fatalf("seed follows: %v", err)
+		t.Fatalf("seed follow aggregate: %v", err)
 	}
 
 	rows, err := api.NewFacetStore(pool).SearchMentionSuggestions(ctx, syntax.DID("did:plc:viewer"), "ali", 10, now)

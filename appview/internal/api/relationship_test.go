@@ -18,7 +18,6 @@ type relationshipMutationSpy struct {
 	action  string
 	owner   syntax.DID
 	subject syntax.DID
-	sid     string
 }
 
 func (s *relationshipMutationSpy) Mute(_ context.Context, owner, subject syntax.DID) (relationships.State, error) {
@@ -31,19 +30,8 @@ func (s *relationshipMutationSpy) Unmute(_ context.Context, owner, subject synta
 	return relationships.State{}, nil
 }
 
-func (s *relationshipMutationSpy) Block(_ context.Context, owner, subject syntax.DID, sid string) (relationships.BlockMutationResult, error) {
-	s.action, s.owner, s.subject, s.sid = "block", owner, subject, sid
-	return relationships.BlockMutationResult{
-		State: relationships.State{Blocking: true},
-		URI:   "at://did:plc:alice/app.bsky.graph.block/block-1",
-		CID:   "bafyblock1",
-		Rkey:  "block-1",
-	}, nil
-}
-
-func (s *relationshipMutationSpy) Unblock(_ context.Context, owner, subject syntax.DID, sid string) (relationships.BlockMutationResult, error) {
-	s.action, s.owner, s.subject, s.sid = "unblock", owner, subject, sid
-	return relationships.BlockMutationResult{State: relationships.State{}}, nil
+func (s *relationshipMutationSpy) EnqueueRelationshipSafetyRestoration(context.Context, syntax.DID, syntax.DID) error {
+	return nil
 }
 
 type apiMembershipFake struct {
@@ -70,12 +58,6 @@ func TestRelationshipHandlersResolveAndRejectTargetsBeforeMutation(t *testing.T)
 		}},
 		{name: "unmute", method: http.MethodDelete, wantAction: "unmute", factory: func(s *relationshipMutationSpy, m relationships.MembershipLookup, r api.HandleResolver) http.Handler {
 			return api.UnmuteProfileHandler(s, m, r, nilLogger())
-		}},
-		{name: "block", method: http.MethodPost, wantAction: "block", factory: func(s *relationshipMutationSpy, m relationships.MembershipLookup, r api.HandleResolver) http.Handler {
-			return api.BlockProfileHandler(s, m, r, nilLogger())
-		}},
-		{name: "unblock", method: http.MethodDelete, wantAction: "unblock", factory: func(s *relationshipMutationSpy, m relationships.MembershipLookup, r api.HandleResolver) http.Handler {
-			return api.UnblockProfileHandler(s, m, r, nilLogger())
 		}},
 	}
 
@@ -117,11 +99,6 @@ func TestRelationshipHandlersResolveAndRejectTargetsBeforeMutation(t *testing.T)
 					if tt.wantCalled {
 						if spy.action != operation.wantAction || spy.owner != alice || spy.subject != bob {
 							t.Fatalf("mutation = %q %s -> %s, want %q %s -> %s", spy.action, spy.owner, spy.subject, operation.wantAction, alice, bob)
-						}
-						if operation.wantAction == "block" || operation.wantAction == "unblock" {
-							if spy.sid != "session-alice" {
-								t.Fatalf("session id = %q, want session-alice", spy.sid)
-							}
 						}
 						return
 					}

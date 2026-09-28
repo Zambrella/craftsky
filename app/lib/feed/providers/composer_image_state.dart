@@ -17,16 +17,19 @@ class ComposerImagesState with ComposerImagesStateMappable {
   /// One-shot user feedback emitted by image selection or processing actions.
   final ComposerImageNotice? notice;
 
-  /// Whether all attached images are uploaded and any provided alt text is
-  /// valid.
-  bool canSubmitImages({MediaConfig config = mediaConfig}) {
-    for (final image in images) {
-      if (image.phase is! ImageReady &&
-          image.phase is! ImageUploaded &&
-          image.phase is! ScheduledImageReady) {
-        return false;
-      }
+  /// Whether every attached image has finished local preparation or upload.
+  bool get isSubmitReady => images.every(
+    (image) =>
+        image.phase is ImageReady ||
+        image.phase is ImageUploaded ||
+        image.phase is ScheduledImageReady,
+  );
 
+  /// Whether all attached images are ready and any provided alt text is valid.
+  bool canSubmitImages({MediaConfig config = mediaConfig}) {
+    if (!isSubmitReady) return false;
+
+    for (final image in images) {
       final alt = image.altText.trim();
       if (alt.length > config.maxAltTextCharacters) {
         return false;

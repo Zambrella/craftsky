@@ -68,6 +68,10 @@ class ProfileRelationshipController extends _$ProfileRelationshipController {
   }
 
   Future<void> mutate(ProfileRelationshipAction action) async {
+    if (action == ProfileRelationshipAction.block ||
+        action == ProfileRelationshipAction.unblock) {
+      throw ArgumentError.value(action, 'action', 'use ToggleBlockProfile');
+    }
     if (state.pendingAction != null) return;
     final previous = state;
     final lease = _captureLease();
@@ -114,8 +118,8 @@ class ProfileRelationshipController extends _$ProfileRelationshipController {
   ) => switch (action) {
     ProfileRelationshipAction.mute => current.copyWith(muted: true),
     ProfileRelationshipAction.unmute => current.copyWith(muted: false),
-    ProfileRelationshipAction.block => current.copyWith(blocking: true),
-    ProfileRelationshipAction.unblock => current.copyWith(blocking: false),
+    ProfileRelationshipAction.block ||
+    ProfileRelationshipAction.unblock => current,
   };
 
   Future<ProfileRelationship> _apply(
@@ -124,8 +128,10 @@ class ProfileRelationshipController extends _$ProfileRelationshipController {
   ) => switch (action) {
     ProfileRelationshipAction.mute => repository.mute(did),
     ProfileRelationshipAction.unmute => repository.unmute(did),
-    ProfileRelationshipAction.block => repository.block(did),
-    ProfileRelationshipAction.unblock => repository.unblock(did),
+    ProfileRelationshipAction.block ||
+    ProfileRelationshipAction.unblock => Future<ProfileRelationship>.error(
+      StateError('Block mutations use ToggleBlockProfile'),
+    ),
   };
 
   void _invalidateAffectedSurfaces() {

@@ -3,7 +3,6 @@ package db_test
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -13,10 +12,10 @@ import (
 )
 
 func TestOwnerLifecycleMigrationsUpDownUp(t *testing.T) {
-	up38 := readOwnerLifecycleMigration(t, "../../migrations/000038_owner_auth_lifecycle.up.sql")
-	down38 := readOwnerLifecycleMigration(t, "../../migrations/000038_owner_auth_lifecycle.down.sql")
-	up39 := readOwnerLifecycleMigration(t, "../../migrations/000039_owner_effects_terminal_purge.up.sql")
-	down39 := readOwnerLifecycleMigration(t, "../../migrations/000039_owner_effects_terminal_purge.down.sql")
+	up38 := readOwnerLifecycleMigration(t, "000038_owner_auth_lifecycle.up.sql")
+	down38 := readOwnerLifecycleMigration(t, "000038_owner_auth_lifecycle.down.sql")
+	up39 := readOwnerLifecycleMigration(t, "000039_owner_effects_terminal_purge.up.sql")
+	down39 := readOwnerLifecycleMigration(t, "000039_owner_effects_terminal_purge.down.sql")
 
 	pool := testdb.WithSchema(t, `
 		CREATE TABLE craftsky_profiles (
@@ -188,7 +187,7 @@ func assertExistingMemberLifecycleBackfill(t *testing.T, pool *pgxpool.Pool) {
 
 func readOwnerLifecycleMigration(t *testing.T, path string) []byte {
 	t.Helper()
-	contents, err := os.ReadFile(path)
+	contents, err := testdb.ReadMigration(path)
 	if err != nil {
 		t.Fatalf("read %s: %v", path, err)
 	}

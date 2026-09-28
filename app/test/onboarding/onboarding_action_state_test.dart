@@ -33,11 +33,10 @@ void main() {
       saving: true,
     );
     expect(saving.canSubmit, isFalse);
-    expect(saving.canSkip, isFalse);
     expect(saving.canGoBack, isFalse);
     expect(
       deriveOnboardingActionState(
-        step: OnboardingStep.instagram,
+        step: OnboardingStep.guidelines,
         dirty: false,
         valid: true,
       ).kind,

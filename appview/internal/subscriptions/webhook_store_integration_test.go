@@ -14,11 +14,11 @@ import (
 )
 
 func TestAcceptRevenueCatEventDeduplicatesSanitizedWorkTransactionally(t *testing.T) {
-	accounts, err := os.ReadFile("../../migrations/000069_subscription_accounts.up.sql")
+	accounts, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	events, err := os.ReadFile("../../migrations/000070_revenuecat_events.up.sql")
+	events, err := os.ReadFile("../../migrations/000077_revenuecat_events.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

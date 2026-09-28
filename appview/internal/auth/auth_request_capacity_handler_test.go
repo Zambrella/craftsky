@@ -2,8 +2,6 @@ package auth_test
 
 import (
 	"context"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -15,6 +13,7 @@ import (
 
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/ctxkeys"
+	"social.craftsky/appview/internal/testlog"
 )
 
 type capacityOAuthFlow struct{}
@@ -34,7 +33,7 @@ func (capacityOAuthFlow) CompleteCallback(context.Context, url.Values, auth.OAut
 func TestLoginHandlerMapsPendingCapacityToRetryableServiceUnavailable(t *testing.T) {
 	handlers := &auth.HTTPHandlers{
 		OAuthFlow: capacityOAuthFlow{},
-		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:    testlog.Discard(),
 	}
 	request := httptest.NewRequest(http.MethodPost, "/v1/auth/login", strings.NewReader(
 		`{"handle":"alice.example","handoffMode":"verified_link"}`,

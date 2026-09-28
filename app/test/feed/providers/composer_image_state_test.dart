@@ -82,6 +82,29 @@ void main() {
         ),
       ]);
     });
+
+    test('separates upload readiness from alt text validation', () {
+      final state = ComposerImagesState(
+        images: [
+          ComposerImageDraft(
+            id: 'image-1',
+            fileName: 'project.jpg',
+            mimeType: 'image/jpeg',
+            altText: List.filled(301, 'x').join(),
+            phase: const ImageUploaded(
+              UploadedDraftImage(
+                cid: 'bafkimage',
+                mime: 'image/jpeg',
+                size: 123,
+              ),
+            ),
+          ),
+        ],
+      );
+
+      expect(state.isSubmitReady, isTrue);
+      expect(state.canSubmitImages(), isFalse);
+    });
   });
 
   group('Composer image draft readiness', () {

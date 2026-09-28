@@ -36,6 +36,10 @@ const (
 	PDSOperationBusinessEventGet      PDSOperation = "business.event.get"
 	PDSOperationBusinessEventPut      PDSOperation = "business.event.put"
 	PDSOperationBusinessEventDelete   PDSOperation = "business.event.delete"
+	PDSOperationCommandHead           PDSOperation = "command.repository_head"
+	PDSOperationCommandList           PDSOperation = "command.list_records"
+	PDSOperationCommandApply          PDSOperation = "command.apply_writes"
+	PDSOperationCommandFallback       PDSOperation = "command.single_fallback"
 )
 
 var knownPDSOperations = map[PDSOperation]struct{}{
@@ -57,6 +61,10 @@ var knownPDSOperations = map[PDSOperation]struct{}{
 	PDSOperationBusinessEventGet:      {},
 	PDSOperationBusinessEventPut:      {},
 	PDSOperationBusinessEventDelete:   {},
+	PDSOperationCommandHead:           {},
+	PDSOperationCommandList:           {},
+	PDSOperationCommandApply:          {},
+	PDSOperationCommandFallback:       {},
 }
 
 func KnownPDSOperation(op PDSOperation) bool {
@@ -217,6 +225,12 @@ type observedPDSListEffectClient struct {
 	lister auth.PDSRecordLister
 }
 
+type observedRepositoryCommandPDSClient struct {
+	observedPDSClient
+	lister  auth.PDSRecordLister
+	command auth.RepositoryCommandPDSClient
+}
+
 func (c observedPDSListClient) ListRecords(
 	ctx context.Context,
 	repo syntax.DID,
@@ -256,6 +270,14 @@ func (c observedPDSEffectClient) WithActiveEffects(
 				inner: purposeClient, observer: c.observer,
 			}
 			callbackClient := auth.PDSClient(observed)
+			lister, hasLister := purposeClient.(auth.PDSRecordLister)
+			command, hasCommand := purposeClient.(auth.RepositoryCommandPDSClient)
+			if hasLister && lister != nil && hasCommand && command != nil {
+				callbackClient = observedRepositoryCommandPDSClient{
+					observedPDSClient: observed, lister: lister, command: command,
+				}
+				return operation(effectCtx, callbackClient)
+			}
 			putter, hasPutter := purposeClient.(auth.ConditionalPDSRecordPutter)
 			deleter, hasDeleter := purposeClient.(auth.ConditionalPDSRecordDeleter)
 			switch {
@@ -281,6 +303,60 @@ func (c observedPDSEffectClient) WithActiveEffects(
 			return operation(effectCtx, callbackClient)
 		},
 	)
+}
+
+func (client observedRepositoryCommandPDSClient) ListRecords(
+	ctx context.Context,
+	repo syntax.DID,
+	collection string,
+	cursor string,
+	limit int,
+) ([]auth.PDSRecord, string, error) {
+	operationCtx, finish := client.observer.startPDSOperation(ctx, PDSOperationCommandList)
+	started := time.Now()
+	records, next, err := client.lister.ListRecords(operationCtx, repo, collection, cursor, limit)
+	client.observer.observePDSWrite(operationCtx, PDSOperationCommandList, PDSStagePDSRequest, err, time.Since(started))
+	finish(pdsResult(err))
+	return records, next, err
+}
+
+func (client observedRepositoryCommandPDSClient) LatestCommit(ctx context.Context, repo syntax.DID) (syntax.CID, error) {
+	operationCtx, finish := client.observer.startPDSOperation(ctx, PDSOperationCommandHead)
+	started := time.Now()
+	head, err := client.command.LatestCommit(operationCtx, repo)
+	client.observer.observePDSWrite(operationCtx, PDSOperationCommandHead, PDSStagePDSRequest, err, time.Since(started))
+	finish(pdsResult(err))
+	return head, err
+}
+
+func (client observedRepositoryCommandPDSClient) ApplyWrites(
+	ctx context.Context,
+	repo syntax.DID,
+	head syntax.CID,
+	writes []auth.RepositoryWrite,
+) error {
+	operationCtx, finish := client.observer.startPDSOperation(ctx, PDSOperationCommandApply)
+	started := time.Now()
+	err := client.command.ApplyWrites(operationCtx, repo, head, writes)
+	client.observer.observePDSWrite(operationCtx, PDSOperationCommandApply, PDSStagePDSRequest, err, time.Since(started))
+	finish(pdsResult(err))
+	return err
+}
+
+func (client observedRepositoryCommandPDSClient) DeleteRecordWithRepositorySwap(
+	ctx context.Context,
+	repo syntax.DID,
+	collection syntax.NSID,
+	rkey syntax.RecordKey,
+	head syntax.CID,
+	record syntax.CID,
+) error {
+	operationCtx, finish := client.observer.startPDSOperation(ctx, PDSOperationCommandFallback)
+	started := time.Now()
+	err := client.command.DeleteRecordWithRepositorySwap(operationCtx, repo, collection, rkey, head, record)
+	client.observer.observePDSWrite(operationCtx, PDSOperationCommandFallback, PDSStagePDSRequest, err, time.Since(started))
+	finish(pdsResult(err))
+	return err
 }
 
 func (c observedConditionalPutPDSClient) PutRecordWithSwap(

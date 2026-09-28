@@ -22,6 +22,7 @@ void main() {
       'viewerHasReposted': false,
       'viewerHasReplied': false,
       'viewerHasSaved': true,
+      'sponsored': false,
       'viewerSavedFolderId': '018f-folder-opaque',
       'createdAt': '2026-07-21T10:00:00.000Z',
       'indexedAt': '2026-07-21T10:00:01.000Z',
@@ -30,7 +31,6 @@ void main() {
         'handle': 'alice.craftsky.social',
         'customisation': {
           'colour': 'cobalt',
-          'profileBorder': 'medium',
           'profileBackground': 'none',
         },
       },
@@ -130,6 +130,7 @@ void main() {
       'viewerHasReposted': false,
       'viewerHasReplied': false,
       'viewerHasSaved': true,
+      'sponsored': false,
       'viewerSavedFolderId': sentinels[3],
       'createdAt': '2026-07-21T10:00:00.000Z',
       'indexedAt': '2026-07-21T10:00:01.000Z',

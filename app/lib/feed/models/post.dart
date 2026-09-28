@@ -45,6 +45,7 @@ class Post with PostMappable {
     required this.viewerHasLiked,
     required this.viewerHasReposted,
     required this.viewerHasSaved,
+    required this.sponsored,
     this.langs = const [],
     this.quoteCount = 0,
     this.viewerHasReplied = false,
@@ -88,6 +89,7 @@ class Post with PostMappable {
   final bool viewerHasReposted;
   final bool viewerHasReplied;
   final bool viewerHasSaved;
+  final bool sponsored;
   final String? viewerSavedFolderId;
   final List<PostImage>? images;
   final PostVideo? video;
@@ -223,6 +225,7 @@ class QuotePreviewPost with QuotePreviewPostMappable {
     required this.text,
     required this.author,
     required this.createdAt,
+    required this.sponsored,
     this.images,
     this.project,
     this.externalImport,
@@ -235,6 +238,7 @@ class QuotePreviewPost with QuotePreviewPostMappable {
   final String text;
   final PostAuthor author;
   final DateTime createdAt;
+  final bool sponsored;
   final List<PostImage>? images;
   final Project? project;
   final ExternalImport? externalImport;

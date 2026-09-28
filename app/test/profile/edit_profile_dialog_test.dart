@@ -12,6 +12,7 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:flutter/material.dart';
@@ -52,6 +53,9 @@ Future<void> _pumpEditDialog(
       overrides: [
         authSessionProvider.overrideWith(SignedInAuthSession.new),
         profileRepositoryProvider.overrideWithValue(repo),
+        pdsRecordOperationControllerProvider.overrideWithValue(
+          PdsRecordOperationController(schedule: (_, _) {}),
+        ),
         if (businessRepository != null)
           businessRepositoryProvider.overrideWithValue(businessRepository),
       ],
@@ -548,7 +552,7 @@ void main() {
       expect(find.text('Open'), findsOneWidget);
     });
 
-    testWidgets('successful save updates the cached profile without refetch', (
+    testWidgets('successful save does not mutate the profile cache directly', (
       tester,
     ) async {
       var fetchCallCount = 0;
@@ -596,9 +600,10 @@ void main() {
       await tester.tap(find.widgetWithText(TextButton, 'Save'));
       await tester.pumpAndSettle();
 
-      // Cache reflects the saved profile — pushed via setCached, no
-      // second fetch fired.
-      expect(sub.read().value?.displayName, 'Renamed');
+      // The legacy direct cache publication path is gone. A production account
+      // publishes through the shared overlay; this account-less harness leaves
+      // the existing cache untouched.
+      expect(sub.read().value?.displayName, 'Test User');
       expect(fetchCallCount, 1);
     });
 
@@ -824,7 +829,7 @@ void main() {
 
     testWidgets(
       'display name longer than 64 characters surfaces a validator error '
-      'and disables save',
+      'without disabling dirty save',
       (tester) async {
         final repo = FakeProfileRepository(onFetch: (_) async => _seedProfile);
         await _pumpEditDialog(tester, repo: repo);
@@ -842,12 +847,19 @@ void main() {
           findsOneWidget,
         );
 
-        // Save is disabled even though the form is dirty — invalid
-        // fields fail the canSave gate.
+        // Save remains available so pressing it can run validation and direct
+        // the user to any invalid fields.
         final saveButton = tester.widget<TextButton>(
           find.widgetWithText(TextButton, 'Save'),
         );
-        expect(saveButton.onPressed, isNull);
+        expect(saveButton.onPressed, isNotNull);
+
+        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.pump();
+        expect(
+          find.text('Display name must be 64 characters or fewer'),
+          findsOneWidget,
+        );
       },
     );
 
@@ -858,11 +870,7 @@ void main() {
       await _pumpEditDialog(tester, repo: repo);
 
       // 'Knitting' starts unselected (seed has only sewing + quilting).
-      // Use the Semantics' selected flag rather than colour to verify
-      // toggle, since colours are theme-dependent.
-      final knittingFinder = find.byWidgetPredicate(
-        (w) => w is Semantics && w.properties.label == 'Knitting',
-      );
+      final knittingFinder = find.widgetWithText(FilterChip, 'Knitting');
       expect(knittingFinder, findsOneWidget);
 
       // The crafts grid is below the fold in the default 800x600 test
@@ -870,16 +878,16 @@ void main() {
       await tester.ensureVisible(knittingFinder);
       await tester.pumpAndSettle();
 
-      Semantics knitting() => tester.widget<Semantics>(knittingFinder);
-      expect(knitting().properties.selected, isFalse);
+      FilterChip knitting() => tester.widget<FilterChip>(knittingFinder);
+      expect(knitting().selected, isFalse);
 
       await tester.tap(knittingFinder);
       await tester.pump();
-      expect(knitting().properties.selected, isTrue);
+      expect(knitting().selected, isTrue);
 
       await tester.tap(knittingFinder);
       await tester.pump();
-      expect(knitting().properties.selected, isFalse);
+      expect(knitting().selected, isFalse);
     });
   });
 }
@@ -911,6 +919,7 @@ final class _RecordingBusinessRepository extends Fake
   @override
   Future<RecordMutationResult> putBusinessProfile(
     Map<String, dynamic> body, {
+    required String operationKey,
     required Cid? expectedCid,
   }) async {
     putCalls++;

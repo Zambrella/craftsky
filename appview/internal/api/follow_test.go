@@ -386,12 +386,10 @@ func TestFollowProfileHandler_AlreadyFollowingResponseDoesNotDoubleCount(t *test
 	pool := testdb.WithSchema(t, profileStoreDDL)
 	ctx := context.Background()
 	seedCraftskyProfilesForFollowHandler(t, pool, ctx)
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at)
-		VALUES ('at://did:plc:alice/app.bsky.graph.follow/f1', 'did:plc:alice', 'f1', 'cid-follow', 'did:plc:bob', '{"subject":"did:plc:bob"}', now())
-	`); err != nil {
-		t.Fatalf("seed follow: %v", err)
-	}
+	seedFollowReadModel(t, pool, api.FollowRow{
+		URI: "at://did:plc:alice/app.bsky.graph.follow/f1", DID: "did:plc:alice",
+		Rkey: "f1", CID: "cid-follow", SubjectDID: "did:plc:bob", CreatedAt: time.Now(),
+	}, true)
 
 	graph := api.NewFollowStore(pool)
 	profiles := api.NewProfileStore(pool)
@@ -434,12 +432,10 @@ func TestUnfollowProfileHandler_ActiveResponseSubtractsBeforeTapDelete(t *testin
 	pool := testdb.WithSchema(t, profileStoreDDL)
 	ctx := context.Background()
 	seedCraftskyProfilesForFollowHandler(t, pool, ctx)
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at)
-		VALUES ('at://did:plc:alice/app.bsky.graph.follow/f1', 'did:plc:alice', 'f1', 'cid-follow', 'did:plc:bob', '{"subject":"did:plc:bob"}', now())
-	`); err != nil {
-		t.Fatalf("seed follow: %v", err)
-	}
+	seedFollowReadModel(t, pool, api.FollowRow{
+		URI: "at://did:plc:alice/app.bsky.graph.follow/f1", DID: "did:plc:alice",
+		Rkey: "f1", CID: "cid-follow", SubjectDID: "did:plc:bob", CreatedAt: time.Now(),
+	}, true)
 
 	graph := api.NewFollowStore(pool)
 	profiles := api.NewProfileStore(pool)

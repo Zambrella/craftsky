@@ -2,27 +2,14 @@ package followergrowth
 
 import (
 	"context"
-	"os"
-	"strings"
+	"encoding/json"
 	"testing"
 	"time"
 
 	"social.craftsky/appview/internal/testdb"
 )
 
-func TestStoreCaptureUsesOneSetBasedStatement(t *testing.T) {
-	source, err := os.ReadFile("store.go")
-	if err != nil {
-		t.Fatalf("read store source: %v", err)
-	}
-	captureSource := string(source)
-	if got := strings.Count(captureSource, "INSERT INTO follower_growth_snapshots"); got != 1 {
-		t.Fatalf("capture snapshot insert statements = %d, want 1", got)
-	}
-	if !strings.Contains(captureSource, "FROM craftsky_profile_follower_counts") {
-		t.Fatal("capture does not select all canonical profile counts")
-	}
-
+func TestStoreCapturePlanIsSingleSetBasedInsert(t *testing.T) {
 	pool := testdb.WithSchema(t, storeIntegrationBaseDDL)
 	applyFollowerGrowthMigration(t, pool)
 	ctx := context.Background()
@@ -30,25 +17,66 @@ func TestStoreCaptureUsesOneSetBasedStatement(t *testing.T) {
 		INSERT INTO craftsky_profiles (did, record_cid) VALUES
 			('did:plc:alice', 'alice-cid'),
 			('did:plc:bob', 'bob-cid');
+		CREATE TABLE captured_follower_growth_queries (query TEXT NOT NULL);
+		CREATE FUNCTION capture_follower_growth_query() RETURNS trigger
+		LANGUAGE plpgsql AS $$
+		BEGIN
+			INSERT INTO captured_follower_growth_queries(query) VALUES (current_query());
+			RETURN NULL;
+		END;
+		$$;
+		CREATE TRIGGER capture_follower_growth_query
+		BEFORE INSERT ON follower_growth_snapshots
+		FOR EACH STATEMENT EXECUTE FUNCTION capture_follower_growth_query();
 	`); err != nil {
-		t.Fatalf("seed profiles: %v", err)
+		t.Fatalf("seed profiles and query observer: %v", err)
 	}
 
-	var plan string
-	if err := pool.QueryRow(ctx, `
-		EXPLAIN (FORMAT JSON)
-		INSERT INTO follower_growth_snapshots (
-			profile_did, snapshot_date, follower_count, captured_at
-		)
-		SELECT profile_did, $1, follower_count, $2
-		FROM craftsky_profile_follower_counts
-	`, time.Date(2026, time.August, 25, 0, 0, 0, 0, time.UTC), time.Date(2026, time.August, 25, 0, 0, 2, 0, time.UTC)).Scan(&plan); err != nil {
+	snapshotDate := time.Date(2026, time.August, 25, 0, 0, 0, 0, time.UTC)
+	capturedAt := snapshotDate.Add(2 * time.Second)
+	result, err := NewStore(pool).Capture(ctx, snapshotDate, capturedAt)
+	if err != nil {
+		t.Fatalf("capture follower growth: %v", err)
+	}
+	if result.CapturedProfileCount != 2 {
+		t.Fatalf("captured profiles = %d, want 2", result.CapturedProfileCount)
+	}
+	var captureQuery string
+	if err := pool.QueryRow(ctx, `SELECT query FROM captured_follower_growth_queries`).Scan(&captureQuery); err != nil {
+		t.Fatalf("read observed capture query: %v", err)
+	}
+	var encodedPlan []byte
+	if err := pool.QueryRow(ctx, "EXPLAIN (FORMAT JSON) "+captureQuery, snapshotDate, capturedAt).Scan(&encodedPlan); err != nil {
 		t.Fatalf("explain set-based capture: %v", err)
 	}
-	if !strings.Contains(plan, `"Operation": "Insert"`) {
-		t.Fatalf("capture plan is not one insert operation: %s", plan)
+	var plans []struct {
+		Plan queryPlanNode `json:"Plan"`
 	}
-	if strings.Contains(plan, `"Parent Relationship": "SubPlan"`) {
-		t.Fatalf("capture plan contains repeated subplan work: %s", plan)
+	if err := json.Unmarshal(encodedPlan, &plans); err != nil {
+		t.Fatalf("decode capture plan: %v", err)
 	}
+	if len(plans) != 1 || plans[0].Plan.NodeType != "ModifyTable" || plans[0].Plan.Operation != "Insert" {
+		t.Fatalf("capture root plan = %+v, want one Insert ModifyTable", plans)
+	}
+	if got := countPlanRelationship(plans[0].Plan, "SubPlan"); got != 0 {
+		t.Fatalf("capture plan contains %d repeated subplans: %s", got, encodedPlan)
+	}
+}
+
+type queryPlanNode struct {
+	NodeType           string          `json:"Node Type"`
+	Operation          string          `json:"Operation"`
+	ParentRelationship string          `json:"Parent Relationship"`
+	Plans              []queryPlanNode `json:"Plans"`
+}
+
+func countPlanRelationship(node queryPlanNode, relationship string) int {
+	count := 0
+	if node.ParentRelationship == relationship {
+		count++
+	}
+	for _, child := range node.Plans {
+		count += countPlanRelationship(child, relationship)
+	}
+	return count
 }

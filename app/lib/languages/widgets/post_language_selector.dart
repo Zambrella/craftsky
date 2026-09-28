@@ -44,11 +44,9 @@ class PostLanguageSelector extends StatelessWidget {
             label: Text(l10n.postLanguageAdd),
             onPressed: enabled && selection.values.length < 3
                 ? () async {
-                    final language = await showCraftskyModal<String>(
+                    final language = await showPostLanguagePicker(
                       context,
-                      builder: (context) => _LanguageSearchDialog(
-                        excluded: selection.values.toSet(),
-                      ),
+                      excluded: selection.values.toSet(),
                     );
                     if (language != null) {
                       onChanged(selection.add(language));
@@ -62,6 +60,14 @@ class PostLanguageSelector extends StatelessWidget {
     );
   }
 }
+
+Future<String?> showPostLanguagePicker(
+  BuildContext context, {
+  required Set<String> excluded,
+}) => showCraftskyModal<String>(
+  context,
+  builder: (context) => _LanguageSearchDialog(excluded: excluded),
+);
 
 class _LanguageSearchDialog extends StatefulWidget {
   const _LanguageSearchDialog({required this.excluded});

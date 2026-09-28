@@ -86,6 +86,7 @@ void main() {
         'viewerHasReposted': false,
         'viewerHasReplied': true,
         'viewerHasSaved': false,
+        'sponsored': false,
       };
 
       final firstPage = PostPageMapper.fromMap({

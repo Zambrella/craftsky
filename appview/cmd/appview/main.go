@@ -4,6 +4,8 @@
 //
 //	appview dev
 //	appview prod
+//	appview version
+//	appview --version
 //
 // The positional argument selects the environment file under
 // environments/ and the dev/prod divergent wiring (log level, auth
@@ -14,16 +16,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net"
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 	"time"
 
 	"social.craftsky/appview/internal/app"
+	"social.craftsky/appview/internal/buildinfo"
 	"social.craftsky/appview/internal/instagram"
 )
 
@@ -86,13 +91,18 @@ func stopBackgroundWorkers(cancel context.CancelFunc, timeout time.Duration, don
 }
 
 func main() {
-	if err := run(context.Background(), os.Args); err != nil {
+	if err := run(context.Background(), os.Args, os.Stdout); err != nil {
 		fmt.Fprintf(os.Stderr, "%s\n", err)
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, args []string) error {
+func run(ctx context.Context, args []string, output io.Writer) error {
+	if len(args) > 1 && (args[1] == "version" || args[1] == "--version") {
+		_, err := fmt.Fprintln(output, buildinfo.Version())
+		return err
+	}
+
 	// Signal handling wraps the whole run so Ctrl-C during deps init
 	// (e.g. slow DB connect) exits cleanly.
 	ctx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
@@ -140,7 +150,10 @@ func run(ctx context.Context, args []string) error {
 	if err != nil {
 		return fmt.Errorf("configure HTTP server: %w", err)
 	}
-	httpServer.Addr = net.JoinHostPort("0.0.0.0", "8080")
+	httpServer.Addr, err = listenAddress(os.Getenv("PORT"))
+	if err != nil {
+		return err
+	}
 	listener, err := net.Listen("tcp", httpServer.Addr)
 	if err != nil {
 		return fmt.Errorf("listen: %w", err)
@@ -380,6 +393,22 @@ func run(ctx context.Context, args []string) error {
 		deps.Config.RevenueCat.ReconciliationPollInterval(),
 		deps.Config.RevenueCat.ReconciliationScheduleInterval(),
 	)
+	moderationExpiryDone := startBatchWorker(
+		consumerCtx,
+		deps.ModerationExpiry,
+		deps.Logger,
+		deps.Config.ModerationExpiryPollInterval,
+		"moderation",
+		"expire_strikes",
+	)
+	pdsCommandCompactionDone := startBatchWorker(
+		consumerCtx,
+		deps.PDSCommandCompaction,
+		deps.Logger,
+		deps.Config.PDSCommandCompactionPollInterval,
+		"pds_commands",
+		"compact",
+	)
 	workerDone := []<-chan struct{}{
 		consumerDone,
 		tapProjectionDone,
@@ -401,6 +430,8 @@ func run(ctx context.Context, args []string) error {
 		terminalPurgeDone,
 		identityCacheRefreshDone,
 		revenueCatDone,
+		moderationExpiryDone,
+		pdsCommandCompactionDone,
 	}
 
 	// listenErr receives the result of Serve. A non-nil,
@@ -409,7 +440,7 @@ func run(ctx context.Context, args []string) error {
 	// while background workers continue using dependencies being torn down.
 	listenErr := make(chan error, 1)
 	go func() {
-		deps.Logger.Info("listening", "addr", httpServer.Addr)
+		logListening(deps.Logger, httpServer.Addr)
 		if err := httpServer.Serve(limitedListener); err != nil && err != http.ErrServerClosed {
 			listenErr <- err
 			return
@@ -523,6 +554,24 @@ func startRevenueCatProcessor(ctx context.Context, processor revenueCatProcessor
 		}
 	}()
 	return done
+}
+
+func logListening(logger *slog.Logger, addr string) {
+	logger.Info("listening",
+		slog.String("addr", addr),
+		slog.String("app_version", buildinfo.Version()),
+	)
+}
+
+func listenAddress(port string) (string, error) {
+	if port == "" {
+		port = "8080"
+	}
+	portNumber, err := strconv.Atoi(port)
+	if err != nil || portNumber < 1 || portNumber > 65535 {
+		return "", fmt.Errorf("PORT must be an integer between 1 and 65535")
+	}
+	return net.JoinHostPort("0.0.0.0", port), nil
 }
 
 type followerGrowthRunner interface {

@@ -59,5 +59,39 @@ void main() {
         isNull,
       );
     });
+
+    test('keeps the subtype union for all selected project types', () {
+      final types = [
+        '${ProjectOptionCatalogs.projectDefsPrefix}#garment',
+        '${ProjectOptionCatalogs.projectDefsPrefix}#toyHobby',
+      ];
+      final options = ProjectOptionCatalogs.projectSubtypesForTypes(
+        craftToken: ProjectOptionCatalogs.crochetCraftToken,
+        projectTypeTokens: types,
+      );
+
+      expect(
+        options.map((option) => option.value),
+        containsAll([
+          'social.craftsky.project.crochet.defs#sweater',
+          'social.craftsky.project.crochet.defs#amigurumi',
+        ]),
+      );
+    });
+
+    test('removes only subtypes invalidated by parent changes', () {
+      final retained = ProjectOptionCatalogs.retainValidSubtypes(
+        craftToken: ProjectOptionCatalogs.crochetCraftToken,
+        projectTypeTokens: [
+          '${ProjectOptionCatalogs.projectDefsPrefix}#garment',
+        ],
+        subtypeTokens: [
+          'social.craftsky.project.crochet.defs#sweater',
+          'social.craftsky.project.crochet.defs#amigurumi',
+        ],
+      );
+
+      expect(retained, ['social.craftsky.project.crochet.defs#sweater']);
+    });
   });
 }

@@ -16,6 +16,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
@@ -26,6 +27,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../test_support/deterministic_pump.dart';
 
 import '../accessibility_test_helpers.dart';
 
@@ -45,7 +48,13 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    expect(find.byType(CraftskySkeletonList), findsOneWidget);
+    expect(find.byType(EventCardSkeleton), findsWidgets);
+    await pumpUntilAbsent(
+      tester,
+      find.byType(CraftskySkeletonList),
+      description: 'the events manager loading skeleton',
+    );
 
     final fab = find.byType(CraftskyFloatingActionButton);
     expect(fab, findsOneWidget);
@@ -60,74 +69,68 @@ void main() {
   });
 
   for (final constraint in businessAccessibilityMatrix) {
-    testWidgets(
-      'AT-012 REG-010 Events manager views retry and delete fit '
-      '${businessConstraintLabel(constraint)}',
-      (tester) async {
-        await setBusinessAccessibilityConstraint(tester, constraint);
-        final semantics = tester.ensureSemantics();
-        final repository = _Repository(
-          pages: {
-            OwnerEventFilter.upcoming: [
-              BusinessEventPage(
-                items: [_event('upcoming')],
-                cursor: 'next-page',
-              ),
-              StateError('offline'),
-            ],
-            OwnerEventFilter.history: [
-              BusinessEventPage(
-                items: [_event('history', status: 'cancelled')],
-              ),
-            ],
-          },
-        );
-        await tester.pumpWidget(_app(repository));
-        await tester.pumpAndSettle();
+    testWidgets('AT-012 REG-010 Events manager views retry and delete fit '
+        '${businessConstraintLabel(constraint)}', (tester) async {
+      await setBusinessAccessibilityConstraint(tester, constraint);
+      final semantics = tester.ensureSemantics();
+      final repository = _Repository(
+        pages: {
+          OwnerEventFilter.upcoming: [
+            BusinessEventPage(items: [_event('upcoming')], cursor: 'next-page'),
+            StateError('offline'),
+          ],
+          OwnerEventFilter.history: [
+            BusinessEventPage(items: [_event('history', status: 'cancelled')]),
+          ],
+        },
+      );
+      await tester.pumpWidget(_app(repository));
+      await pumpUntilFound(
+        tester,
+        find.text('Event upcoming'),
+        description: 'the upcoming event list',
+      );
 
-        expect(find.text('Upcoming'), findsOneWidget);
-        expect(find.text('History'), findsOneWidget);
-        expect(
-          tester.getSemantics(find.text('Upcoming')).flagsCollection.isSelected,
-          Tristate.isTrue,
-        );
-        final upcomingList = find.byKey(
-          const PageStorageKey(OwnerEventFilter.upcoming),
-        );
-        await tester.drag(upcomingList, const Offset(0, -300));
-        await tester.pump();
-        final loadMore = find.text('Load more').first;
-        await tester.tap(loadMore);
-        await tester.pumpAndSettle();
-        expect(find.text('Couldn’t load more events.'), findsOneWidget);
-        expect(
-          tester.getSemantics(find.widgetWithText(TextButton, 'Retry')).label,
-          contains('Retry'),
-        );
+      expect(find.text('Upcoming'), findsOneWidget);
+      expect(find.text('History'), findsOneWidget);
+      expect(
+        tester.getSemantics(find.text('Upcoming')).flagsCollection.isSelected,
+        Tristate.isTrue,
+      );
+      final upcomingList = find.byKey(
+        const PageStorageKey(OwnerEventFilter.upcoming),
+      );
+      await tester.drag(upcomingList, const Offset(0, -300));
+      await tester.pump();
+      final loadMore = find.text('Load more').first;
+      await tester.tap(loadMore);
+      await tester.pumpAndSettle();
+      expect(find.text('Couldn’t load more events.'), findsOneWidget);
+      expect(
+        tester.getSemantics(find.widgetWithText(TextButton, 'Retry')).label,
+        contains('Retry'),
+      );
 
-        await tester.tap(find.text('History'));
-        await tester.pumpAndSettle();
-        final manageHistory = find.byTooltip('Manage Event history');
-        await tester.ensureVisible(manageHistory);
-        await tester.pump();
-        await tester.tap(manageHistory);
-        await tester.pumpAndSettle();
-        expect(find.byType(CraftskyContextMenuButton), findsWidgets);
-        await tester.tap(find.text('Delete event'));
-        await tester.pumpAndSettle();
-        expect(find.text('Delete this event?'), findsOneWidget);
-        expect(find.byType(CraftskyDialog), findsOneWidget);
-        expect(
-          tester
-              .getSemantics(find.widgetWithText(ChunkyButton, 'Delete'))
-              .label,
-          contains('Delete'),
-        );
-        await expectKeyboardFocus(tester);
-        expectNoAccessibilityLayoutException(tester);
-        semantics.dispose();
-      },
-    );
+      await tester.tap(find.text('History'));
+      await tester.pumpAndSettle();
+      final manageHistory = find.byTooltip('Manage Event history');
+      await tester.ensureVisible(manageHistory);
+      await tester.pump();
+      await tester.tap(manageHistory);
+      await tester.pumpAndSettle();
+      expect(find.byType(CraftskyContextMenuButton), findsWidgets);
+      await tester.tap(find.text('Delete event'));
+      await tester.pumpAndSettle();
+      expect(find.text('Delete this event?'), findsOneWidget);
+      expect(find.byType(CraftskyDialog), findsOneWidget);
+      expect(
+        tester.getSemantics(find.widgetWithText(ChunkyButton, 'Delete')).label,
+        contains('Delete'),
+      );
+      await expectKeyboardFocus(tester);
+      expectNoAccessibilityLayoutException(tester);
+      semantics.dispose();
+    });
   }
 
   testWidgets('AT-006 uses independent views and shows bounded diagnostics', (
@@ -164,23 +167,28 @@ void main() {
       },
     );
     await tester.pumpWidget(_app(repository));
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.text('Event suppressed'),
+      description: 'the moderated event row',
+    );
 
     expect(find.text('Event suppressed'), findsOneWidget);
     expect(find.text('This event is hidden by moderation.'), findsOneWidget);
     expect(repository.listCalls.first.filter, OwnerEventFilter.upcoming);
 
     await tester.tap(find.text('History'));
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.text('Event cancelled'),
+      description: 'the event history tab',
+    );
     expect(find.text('Event cancelled'), findsOneWidget);
     expect(find.text('Event unknown'), findsOneWidget);
     expect(find.text('This event is cancelled.'), findsOneWidget);
     expect(
       repository.listCalls.map((call) => call.filter),
-      containsAll([
-        OwnerEventFilter.upcoming,
-        OwnerEventFilter.history,
-      ]),
+      containsAll([OwnerEventFilter.upcoming, OwnerEventFilter.history]),
     );
   });
 
@@ -193,9 +201,7 @@ void main() {
           BusinessEventPage(items: [_event('upcoming')]),
         ],
         OwnerEventFilter.history: [
-          BusinessEventPage(
-            items: [_event('history', status: 'cancelled')],
-          ),
+          BusinessEventPage(items: [_event('history', status: 'cancelled')]),
         ],
       },
     );
@@ -267,9 +273,7 @@ void main() {
     await tester.tap(find.text('Event history'));
     await tester.pumpAndSettle();
     expect(find.byType(EventEditorDialog), findsOneWidget);
-    final route = ModalRoute.of(
-      tester.element(find.byType(EventEditorDialog)),
-    );
+    final route = ModalRoute.of(tester.element(find.byType(EventEditorDialog)));
     expect(route, isA<MaterialPageRoute<void>>());
     expect((route! as MaterialPageRoute<void>).fullscreenDialog, isTrue);
     expect(find.byKey(const ValueKey('event-submit')), findsOneWidget);
@@ -287,9 +291,7 @@ void main() {
 
   testWidgets(
     'AT-008 lifecycle edits use PUT and delete requires confirmation',
-    (
-      tester,
-    ) async {
+    (tester) async {
       final repository = _Repository(
         pages: {
           OwnerEventFilter.upcoming: [
@@ -515,16 +517,19 @@ final class _Repository extends Fake implements BusinessRepository {
   }
 
   @override
-  Future<RecordMutationResult> createEvent(BusinessEventDraft draft) async =>
-      RecordMutationResult(cid: 'bafy-created');
+  Future<RecordMutationResult> createEvent(
+    BusinessEventDraft draft, {
+    required String operationKey,
+  }) async => RecordMutationResult(cid: 'bafy-created');
 
   @override
   Future<RecordMutationResult> updateEvent(
     Did owner,
     RecordKey rkey,
     Cid expectedCid,
-    BusinessEventDraft draft,
-  ) async {
+    BusinessEventDraft draft, {
+    required String operationKey,
+  }) async {
     updates.add(_Update(expectedCid, draft));
     if (updateErrors.isNotEmpty) throw updateErrors.removeAt(0);
     return RecordMutationResult(cid: 'bafy-updated');
@@ -537,12 +542,12 @@ final class _Repository extends Fake implements BusinessRepository {
   }
 
   @override
-  Future<RecordMutationResult> deleteEvent(
+  Future<void> deleteEvent(
     Did owner,
     RecordKey rkey,
-    Cid expectedCid,
-  ) async {
+    Cid expectedCid, {
+    required String operationKey,
+  }) async {
     deletes.add(expectedCid);
-    return RecordMutationResult(cid: expectedCid.toString());
   }
 }

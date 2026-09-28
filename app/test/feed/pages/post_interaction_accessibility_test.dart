@@ -464,6 +464,7 @@ Post _post({
   viewerHasLiked: false,
   viewerHasReposted: false,
   viewerHasSaved: false,
+  sponsored: false,
   reply: reply,
 );
 

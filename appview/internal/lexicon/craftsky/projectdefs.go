@@ -41,13 +41,13 @@ type ProjectDefs_Material struct {
 
 // ProjectDefs_Pattern is a "pattern" in the social.craftsky.project.defs schema.
 //
-// Optional reference to the pattern used. Every field optional — 'Simplicity 8265' (name only), 'https://ravelry.com/patterns/library/hitchhiker' (URL only), or both plus difficulty are all valid.
+// Optional metadata for the pattern used. Every field is optional. Self-drafted patterns may still carry a name, difficulty, URL, designer, or publisher.
 type ProjectDefs_Pattern struct {
 	// designer: The person or people who designed the pattern. Free text so physical patterns, indie designers, and multiple-designer credits can be represented without account references. Rich-text annotations for this string live in designerFacets.
 	Designer *string `json:"designer,omitempty" cborgen:"designer,omitempty"`
 	// designerFacets: Byte-range annotations over 'designer'. Mention facets may notify credited Craftsky accounts.
 	DesignerFacets []*appbsky.RichtextFacet `json:"designerFacets,omitempty" cborgen:"designerFacets,omitempty"`
-	// difficulty: Pattern difficulty as rated by the designer. A property of the pattern, not the post — self-drafted or free-formed projects should leave this empty. knownValues are tokens.
+	// difficulty: Pattern difficulty. A property of the pattern, not the post. Self-drafted patterns may include the author's own rating. knownValues are tokens.
 	Difficulty *string `json:"difficulty,omitempty" cborgen:"difficulty,omitempty"`
 	// name: Pattern name or visible pattern hashtag, e.g. 'Simplicity 8265', 'Hitchhiker Shawl', or '#hitchhiker'. Useful when there is no URL (e.g. a physical pattern), or alongside a URL as a display label. Rich-text annotations for this string live in nameFacets.
 	Name *string `json:"name,omitempty" cborgen:"name,omitempty"`
@@ -57,6 +57,8 @@ type ProjectDefs_Pattern struct {
 	Publisher *string `json:"publisher,omitempty" cborgen:"publisher,omitempty"`
 	// publisherFacets: Byte-range annotations over 'publisher'. Mention facets may notify credited Craftsky accounts.
 	PublisherFacets []*appbsky.RichtextFacet `json:"publisherFacets,omitempty" cborgen:"publisherFacets,omitempty"`
+	// selfDrafted: True when the author identifies the pattern as self-drafted. Omit when false. This may coexist with other pattern metadata.
+	SelfDrafted *bool `json:"selfDrafted,omitempty" cborgen:"selfDrafted,omitempty"`
 	// url: Link to the pattern.
 	Url *string `json:"url,omitempty" cborgen:"url,omitempty"`
 }

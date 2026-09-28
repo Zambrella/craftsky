@@ -28,12 +28,16 @@ final class DesignTagFilterToken {
 }
 
 enum ProjectBrowseFilterFamily {
+  status,
   projectType,
+  projectSubtype,
   patternDifficulty,
   color,
-  material,
   designTag,
-  projectTag,
+  yarnWeight,
+  piecingTechnique,
+  quiltingMethod,
+  selfDrafted,
 }
 
 @MappableClass()
@@ -62,53 +66,66 @@ class ProjectBrowseQuery with ProjectBrowseQueryMappable {
 @MappableClass()
 class ProjectBrowseFilters with ProjectBrowseFiltersMappable {
   const ProjectBrowseFilters({
+    this.status = const [],
     this.projectType = const [],
+    this.projectSubtype = const [],
     this.patternDifficulty = const [],
     this.color = const [],
-    this.material = const [],
     this.designTag = const [],
-    this.projectTag = const [],
+    this.yarnWeight = const [],
+    this.piecingTechnique = const [],
+    this.quiltingMethod = const [],
+    this.selfDrafted = false,
   });
 
   factory ProjectBrowseFilters.tokens({
     List<ProjectTypeFilterToken> projectType = const [],
     List<PatternDifficultyFilterToken> patternDifficulty = const [],
     List<String> color = const [],
-    List<String> material = const [],
     List<DesignTagFilterToken> designTag = const [],
-    List<String> projectTag = const [],
   }) => ProjectBrowseFilters(
     projectType: [for (final token in projectType) token.value],
     patternDifficulty: [for (final token in patternDifficulty) token.value],
     color: color,
-    material: material,
     designTag: [for (final token in designTag) token.value],
-    projectTag: projectTag,
   );
 
+  final List<String> status;
   final List<String> projectType;
+  final List<String> projectSubtype;
   final List<String> patternDifficulty;
   final List<String> color;
-  final List<String> material;
   final List<String> designTag;
-  final List<String> projectTag;
+  final List<String> yarnWeight;
+  final List<String> piecingTechnique;
+  final List<String> quiltingMethod;
+  final bool selfDrafted;
 
-  Map<String, List<String>> toQueryParameters() => {
+  Map<String, Object> toQueryParameters() => {
+    if (status.isNotEmpty) 'status': status,
     if (projectType.isNotEmpty) 'projectType': projectType,
+    if (projectSubtype.isNotEmpty) 'projectSubtype': projectSubtype,
     if (patternDifficulty.isNotEmpty) 'patternDifficulty': patternDifficulty,
     if (color.isNotEmpty) 'color': color,
-    if (material.isNotEmpty) 'material': material,
     if (designTag.isNotEmpty) 'designTag': designTag,
-    if (projectTag.isNotEmpty) 'projectTag': projectTag,
+    if (yarnWeight.isNotEmpty) 'yarnWeight': yarnWeight,
+    if (piecingTechnique.isNotEmpty) 'piecingTechnique': piecingTechnique,
+    if (quiltingMethod.isNotEmpty) 'quiltingMethod': quiltingMethod,
+    if (selfDrafted) 'selfDrafted': true,
   };
 
   List<String> valuesFor(ProjectBrowseFilterFamily family) => switch (family) {
+    ProjectBrowseFilterFamily.status => status,
     ProjectBrowseFilterFamily.projectType => projectType,
+    ProjectBrowseFilterFamily.projectSubtype => projectSubtype,
     ProjectBrowseFilterFamily.patternDifficulty => patternDifficulty,
     ProjectBrowseFilterFamily.color => color,
-    ProjectBrowseFilterFamily.material => material,
     ProjectBrowseFilterFamily.designTag => designTag,
-    ProjectBrowseFilterFamily.projectTag => projectTag,
+    ProjectBrowseFilterFamily.yarnWeight => yarnWeight,
+    ProjectBrowseFilterFamily.piecingTechnique => piecingTechnique,
+    ProjectBrowseFilterFamily.quiltingMethod => quiltingMethod,
+    ProjectBrowseFilterFamily.selfDrafted =>
+      selfDrafted ? const ['true'] : const [],
   };
 
   ProjectBrowseFilters toggleValue(
@@ -145,14 +162,26 @@ class ProjectBrowseFilters with ProjectBrowseFiltersMappable {
     List<String> values,
   ) {
     return switch (family) {
+      ProjectBrowseFilterFamily.status => copyWith(status: values),
       ProjectBrowseFilterFamily.projectType => copyWith(projectType: values),
+      ProjectBrowseFilterFamily.projectSubtype => copyWith(
+        projectSubtype: values,
+      ),
       ProjectBrowseFilterFamily.patternDifficulty => copyWith(
         patternDifficulty: values,
       ),
       ProjectBrowseFilterFamily.color => copyWith(color: values),
-      ProjectBrowseFilterFamily.material => copyWith(material: values),
       ProjectBrowseFilterFamily.designTag => copyWith(designTag: values),
-      ProjectBrowseFilterFamily.projectTag => copyWith(projectTag: values),
+      ProjectBrowseFilterFamily.yarnWeight => copyWith(yarnWeight: values),
+      ProjectBrowseFilterFamily.piecingTechnique => copyWith(
+        piecingTechnique: values,
+      ),
+      ProjectBrowseFilterFamily.quiltingMethod => copyWith(
+        quiltingMethod: values,
+      ),
+      ProjectBrowseFilterFamily.selfDrafted => copyWith(
+        selfDrafted: values.contains('true'),
+      ),
     };
   }
 }

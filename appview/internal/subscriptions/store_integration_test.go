@@ -15,7 +15,7 @@ import (
 )
 
 func TestCoreBillingConstraints(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000069_subscription_accounts.up.sql")
+	up, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
 	if err != nil {
 		t.Fatalf("read subscription accounts migration: %v", err)
 	}
@@ -126,7 +126,7 @@ func TestCoreBillingConstraints(t *testing.T) {
 }
 
 func TestEnsureBillingAccountIsExplicitStableAndConcurrent(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000069_subscription_accounts.up.sql")
+	up, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

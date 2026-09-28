@@ -56,6 +56,7 @@ type durableIngestorSpy struct {
 	quarantineErr   error
 	recordOutcome   tap.Outcome
 	identityOutcome tap.Outcome
+	recordObserved  chan tap.Event
 }
 
 type retryThenSucceedIngestor struct {
@@ -92,6 +93,9 @@ func (s *durableIngestorSpy) IngestRecord(ctx context.Context, event tap.Event) 
 	outcome := s.recordOutcome
 	err := s.recordErr
 	s.mu.Unlock()
+	if s.recordObserved != nil {
+		s.recordObserved <- event
+	}
 	if fn != nil {
 		return fn(ctx, event)
 	}
@@ -250,7 +254,7 @@ func TestWSConsumer_HappyPath(t *testing.T) {
 
 	wsURL := strings.Replace(srv.URL, "http://", "ws://", 1)
 
-	ingestor := &durableIngestorSpy{}
+	ingestor := &durableIngestorSpy{recordObserved: make(chan tap.Event, len(frames))}
 	c := tap.NewWSConsumer(tap.WSConsumerConfig{
 		URL:          wsURL,
 		Ingestor:     ingestor,
@@ -264,13 +268,13 @@ func TestWSConsumer_HappyPath(t *testing.T) {
 	done := make(chan error, 1)
 	go func() { done <- c.Run(ctx) }()
 
-	// Wait for three events to reach the durable ingestion boundary.
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		if len(ingestor.recordEvents()) == 3 {
-			break
+	// Each signal is emitted at the durable ingestion boundary.
+	for range frames {
+		select {
+		case <-ingestor.recordObserved:
+		case <-time.After(time.Second):
+			t.Fatal("timeout waiting for durable ingestion")
 		}
-		time.Sleep(20 * time.Millisecond)
 	}
 	evs := ingestor.recordEvents()
 	if len(evs) != 3 {
@@ -404,8 +408,10 @@ func TestWSConsumer_ReconnectsOnWSClose(t *testing.T) {
 	t.Parallel()
 
 	var connCount int32
+	connected := make(chan struct{}, 3)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&connCount, 1)
+		connected <- struct{}{}
 		conn, err := websocket.Accept(w, r, nil)
 		if err != nil {
 			t.Errorf("accept: %v", err)
@@ -429,12 +435,12 @@ func TestWSConsumer_ReconnectsOnWSClose(t *testing.T) {
 	defer cancel()
 	go c.Run(ctx)
 
-	deadline := time.Now().Add(1500 * time.Millisecond)
-	for time.Now().Before(deadline) {
-		if atomic.LoadInt32(&connCount) >= 3 {
-			break
+	for range 3 {
+		select {
+		case <-connected:
+		case <-time.After(1500 * time.Millisecond):
+			t.Fatalf("connected %d times, expected >=3 reconnects", atomic.LoadInt32(&connCount))
 		}
-		time.Sleep(50 * time.Millisecond)
 	}
 	if got := atomic.LoadInt32(&connCount); got < 3 {
 		t.Fatalf("connected %d times, expected >=3 reconnects", got)
@@ -520,8 +526,10 @@ func TestWSConsumer_RetryableFailureBeyondFormerLimitEventuallyAcksDurableSucces
 
 func TestWSConsumer_ReconnectsAfterQuarantiningEnvelopeWithoutAckID(t *testing.T) {
 	var connections atomic.Int32
+	connected := make(chan struct{}, 2)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		connections.Add(1)
+		connected <- struct{}{}
 		conn, err := websocket.Accept(w, r, nil)
 		if err != nil {
 			t.Errorf("accept: %v", err)
@@ -542,9 +550,12 @@ func TestWSConsumer_ReconnectsAfterQuarantiningEnvelopeWithoutAckID(t *testing.T
 	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 	go consumer.Run(ctx)
-	deadline := time.Now().Add(350 * time.Millisecond)
-	for time.Now().Before(deadline) && connections.Load() < 2 {
-		time.Sleep(10 * time.Millisecond)
+	for range 2 {
+		select {
+		case <-connected:
+		case <-time.After(350 * time.Millisecond):
+			t.Fatalf("connections=%d, want reconnect after durable quarantine without an ack id", connections.Load())
+		}
 	}
 	if got := connections.Load(); got < 2 {
 		t.Fatalf("connections=%d, want reconnect after durable quarantine without an ack id", got)

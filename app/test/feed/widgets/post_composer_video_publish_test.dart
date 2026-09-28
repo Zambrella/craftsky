@@ -224,6 +224,7 @@ Post _createdPost(String text) => Post(
   viewerHasLiked: false,
   viewerHasReposted: false,
   viewerHasSaved: false,
+  sponsored: false,
   createdAt: DateTime(2026),
   indexedAt: DateTime(2026),
   author: PostAuthor(did: 'did:plc:alice', handle: 'alice.example'),

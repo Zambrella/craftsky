@@ -2,7 +2,6 @@ package api_test
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -46,11 +45,7 @@ VALUES ('did:plc:alice', 'alice-cid'), ('did:plc:bob', 'bob-cid');
 `
 
 func TestProfileCustomisationStorePersistsCompleteOwnerScopedValues(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000036_profile_customisation.up.sql")
-	if err != nil {
-		t.Fatalf("read profile customisation migration: %v", err)
-	}
-	pool := testdb.WithSchema(t, profileCustomisationStoreTestDDL+string(migration))
+	pool := testdb.WithSchema(t, profileCustomisationStoreTestDDL+profileCustomisationSchemaMigrations(t))
 	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	alice := syntax.DID("did:plc:alice")
 	bob := syntax.DID("did:plc:bob")
@@ -69,7 +64,6 @@ func TestProfileCustomisationStorePersistsCompleteOwnerScopedValues(t *testing.T
 
 	aliceFirst := api.ProfileCustomisation{
 		Colour:     "teal",
-		Border:     "thin",
 		Background: "x2",
 	}
 	got, err = store.Put(ctx, alice, aliceFirst)
@@ -85,7 +79,6 @@ func TestProfileCustomisationStorePersistsCompleteOwnerScopedValues(t *testing.T
 
 	bobValue := api.ProfileCustomisation{
 		Colour:     "rose",
-		Border:     "thick",
 		Background: "scallopdark",
 	}
 	if got, err := store.Put(ctx, bob, bobValue); err != nil || got != bobValue {
@@ -94,7 +87,6 @@ func TestProfileCustomisationStorePersistsCompleteOwnerScopedValues(t *testing.T
 
 	aliceReplacement := api.ProfileCustomisation{
 		Colour:     "amber",
-		Border:     "medium",
 		Background: "bayerdark",
 	}
 	now = now.Add(time.Minute)
@@ -130,17 +122,13 @@ func TestProfileCustomisationStorePersistsCompleteOwnerScopedValues(t *testing.T
 }
 
 func TestProfileCustomisationStoreFallsBackPerPersistedField(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000036_profile_customisation.up.sql")
-	if err != nil {
-		t.Fatalf("read profile customisation migration: %v", err)
-	}
-	pool := testdb.WithSchema(t, profileCustomisationStoreTestDDL+string(migration))
+	pool := testdb.WithSchema(t, profileCustomisationStoreTestDDL+profileCustomisationSchemaMigrations(t))
 	ctx := context.Background()
 	owner := syntax.DID("did:plc:alice")
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO profile_customisations (
-			owner_did, colour, profile_border, profile_background
-		) VALUES ($1, 'retired-colour', 'thick', 'cubedark')
+			owner_did, colour, profile_background
+		) VALUES ($1, 'retired-colour', 'cubedark')
 	`, owner); err != nil {
 		t.Fatalf("seed retired customisation: %v", err)
 	}
@@ -151,10 +139,25 @@ func TestProfileCustomisationStoreFallsBackPerPersistedField(t *testing.T) {
 	}
 	want := api.ProfileCustomisation{
 		Colour:     "cobalt",
-		Border:     "thick",
 		Background: "cubedark",
 	}
 	if got != want {
 		t.Fatalf("effective stored customisation = %+v, want %+v", got, want)
 	}
+}
+
+func profileCustomisationSchemaMigrations(t *testing.T) string {
+	t.Helper()
+	var migrations string
+	for _, path := range []string{
+		"000036_profile_customisation.up.sql",
+		"000070_profile_customisation_remove_border.up.sql",
+	} {
+		migration, err := testdb.ReadMigration(path)
+		if err != nil {
+			t.Fatalf("read profile customisation migration %s: %v", path, err)
+		}
+		migrations += string(migration)
+	}
+	return migrations
 }

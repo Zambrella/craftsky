@@ -74,7 +74,8 @@ type VideoBlobRef struct {
 // PostCreateRequest is the decoded body of POST /v1/posts.
 // createdAt is server-stamped.
 type PostCreateRequest struct {
-	Text string `json:"text"`
+	Text      string `json:"text"`
+	Sponsored bool   `json:"sponsored"`
 	// Facets is opaque raw JSON deliberately. The lexicon's
 	// app.bsky.richtext.facet shape (including a possibly-present "$type"
 	// discriminator on the outer object and the inner union variants) is
@@ -133,6 +134,17 @@ func DecodePostCreate(body io.Reader) (PostCreateRequest, error) {
 			Fields: rejected,
 		}
 	}
+	sponsoredRaw, present := rawMap["sponsored"]
+	var sponsoredValue any
+	if present {
+		_ = json.Unmarshal(sponsoredRaw, &sponsoredValue)
+	}
+	if _, valid := sponsoredValue.(bool); !present || !valid {
+		return PostCreateRequest{}, &FieldError{
+			Code:   "validation_failed",
+			Fields: map[string]string{"sponsored": "must be an explicit boolean"},
+		}
+	}
 	out := PostCreateRequest{}
 	strict := json.NewDecoder(bytes.NewReader(raw))
 	strict.DisallowUnknownFields()
@@ -167,6 +179,9 @@ func ValidatePostCreateWithLimits(req PostCreateRequest, limits MediaLimits) err
 	if req.Reply != nil {
 		validateStrongRef(fields, "reply.root", req.Reply.Root)
 		validateStrongRef(fields, "reply.parent", req.Reply.Parent)
+		if req.Sponsored {
+			fields["sponsored"] = "sponsored posts cannot be replies"
+		}
 	}
 	if req.Embed != nil && req.Embed.Quote != nil {
 		validateStrongRef(fields, "embed.quote", *req.Embed.Quote)

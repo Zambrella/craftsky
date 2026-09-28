@@ -58,6 +58,7 @@ class ProjectPattern with ProjectPatternMappable {
     this.name,
     this.nameFacets,
     this.difficulty,
+    this.selfDrafted,
     this.designer,
     this.designerFacets,
     this.publisher,
@@ -68,6 +69,7 @@ class ProjectPattern with ProjectPatternMappable {
   final String? name;
   final List<Map<String, dynamic>>? nameFacets;
   final String? difficulty;
+  final bool? selfDrafted;
   final String? designer;
   final List<Map<String, dynamic>>? designerFacets;
   final String? publisher;

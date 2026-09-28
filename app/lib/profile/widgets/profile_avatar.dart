@@ -41,7 +41,7 @@ class ProfileAvatar extends ConsumerWidget {
     final shadows =
         theme.extension<BrandShadowTheme>() ?? const BrandShadowTheme();
     final dimension = size.dimension;
-    final borderWidth = size.borderWidthFor(customisation.border);
+    final borderWidth = size.borderWidth;
     final colourBundle =
         profileColourBundles[customisation.colour] ??
         profileColourBundles[ProfileCustomisation.defaults.colour]!;
@@ -174,16 +174,10 @@ enum ProfileAvatarSize {
 
   final double dimension;
 
-  double borderWidthFor(String border) => switch ((this, border)) {
-    (ProfileAvatarSize.small, 'thin') => 1.5,
-    (ProfileAvatarSize.small, 'thick') => 4,
-    (ProfileAvatarSize.small, _) => 2.5,
-    (ProfileAvatarSize.medium, 'thin') => 2,
-    (ProfileAvatarSize.medium, 'thick') => 5,
-    (ProfileAvatarSize.medium, _) => 3.5,
-    (ProfileAvatarSize.large, 'thin') => 3,
-    (ProfileAvatarSize.large, 'thick') => 8,
-    (ProfileAvatarSize.large, _) => 5,
+  double get borderWidth => switch (this) {
+    ProfileAvatarSize.small => 2.5,
+    ProfileAvatarSize.medium => 3.5,
+    ProfileAvatarSize.large => 5,
   };
 
   /// Hard-offset drop shadow scaled to the avatar's surface. Small avatars

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -17,6 +16,7 @@ import (
 
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/scheduledposts"
+	"social.craftsky/appview/internal/testlog"
 )
 
 // TestScheduledImageReleaseConcurrentUploads is executed again inside the
@@ -38,11 +38,12 @@ func TestScheduledImageReleaseConcurrentUploads(t *testing.T) {
 	service := &releaseImageProbeMediaService{
 		owner: owner, entered: make(chan struct{}), release: make(chan struct{}),
 	}
+	t.Cleanup(service.releaseUpload)
 	handler := PutScheduledMediaHandler(
 		service,
 		DefaultMediaLimits(),
 		validator,
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		testlog.Discard(),
 	)
 	admission, err := middleware.NewUploadBodyAdmission(
 		limits.MaxConcurrentDecodes,
@@ -63,7 +64,11 @@ func TestScheduledImageReleaseConcurrentUploads(t *testing.T) {
 		))
 		firstResponse <- response
 	}()
-	<-service.entered
+	select {
+	case <-service.entered:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for admitted release upload")
+	}
 
 	secondBody := &releaseUnreadBody{Reader: bytes.NewReader(payload)}
 	second := httptest.NewRecorder()
@@ -78,8 +83,14 @@ func TestScheduledImageReleaseConcurrentUploads(t *testing.T) {
 	if reads := secondBody.reads.Load(); reads != 0 {
 		t.Fatalf("saturated release upload reads = %d, want 0", reads)
 	}
-	close(service.release)
-	if response := <-firstResponse; response.Code != http.StatusOK {
+	service.releaseUpload()
+	var response *httptest.ResponseRecorder
+	select {
+	case response = <-firstResponse:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for admitted release upload response")
+	}
+	if response.Code != http.StatusOK {
 		t.Fatalf("admitted release upload status = %d, want 200; body=%s", response.Code, response.Body.String())
 	}
 	if calls := service.callCount(); calls != 1 {
@@ -145,8 +156,13 @@ type releaseImageProbeMediaService struct {
 	owner   syntax.DID
 	entered chan struct{}
 	release chan struct{}
+	once    sync.Once
 	mu      sync.Mutex
 	calls   int
+}
+
+func (service *releaseImageProbeMediaService) releaseUpload() {
+	service.once.Do(func() { close(service.release) })
 }
 
 func (service *releaseImageProbeMediaService) Put(

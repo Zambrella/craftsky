@@ -23,7 +23,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final when = find.text('When');
+    final when = find.byKey(const Key('composer-schedule-control'));
     expect(when, findsOneWidget);
     await tester.ensureVisible(when);
     await tester.pumpAndSettle();
@@ -63,7 +63,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final when = find.text('When');
+    final when = find.byKey(const Key('composer-schedule-control'));
     expect(when, findsOneWidget);
     await tester.ensureVisible(when);
     await tester.pumpAndSettle();
@@ -82,14 +82,20 @@ void main() {
       _postApp(PostComposerSheet(composerId: 'reply', replyTarget: target)),
     );
     await tester.pumpAndSettle();
-    expect(find.text('When'), findsNothing);
+    expect(
+      find.byKey(const Key('composer-schedule-control')),
+      findsNothing,
+    );
     expect(find.text('Schedule for later'), findsNothing);
 
     await tester.pumpWidget(
       _postApp(PostComposerSheet(composerId: 'quote', quoteTarget: target)),
     );
     await tester.pumpAndSettle();
-    expect(find.text('When'), findsNothing);
+    expect(
+      find.byKey(const Key('composer-schedule-control')),
+      findsNothing,
+    );
     expect(find.text('Schedule for later'), findsNothing);
   });
 }
@@ -144,6 +150,7 @@ Post _post() => Post(
   viewerHasLiked: false,
   viewerHasReposted: false,
   viewerHasSaved: false,
+  sponsored: false,
   createdAt: DateTime(2026),
   indexedAt: DateTime(2026),
   author: PostAuthor(did: 'did:plc:alice', handle: 'alice.test'),

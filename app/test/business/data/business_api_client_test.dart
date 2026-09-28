@@ -4,6 +4,7 @@ import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:dio/dio.dart';
@@ -12,6 +13,8 @@ import 'package:http_mock_adapter/http_mock_adapter.dart';
 
 void main() {
   setUpAll(initializeMappers);
+
+  const operationKey = '018f3f70-6a6d-7c4b-8a91-123456789abc';
 
   Dio buildDio() =>
       Dio(BaseOptions(baseUrl: 'https://appview.example.com'))
@@ -64,12 +67,17 @@ void main() {
       '/v1/profiles/me/business',
       (server) => server.reply(200, {'cid': 'bafy-created'}),
       data: body,
-      headers: {'If-Match': '*'},
+      headers: {'Idempotency-Key': operationKey, 'If-Match': '*'},
     );
 
-    final created = await BusinessApiClient(
-      createDio,
-    ).putBusinessProfile(body, expectedCid: null);
+    final created =
+        await BusinessApiClient(
+          createDio,
+        ).putBusinessProfile(
+          body,
+          operationKey: operationKey,
+          expectedCid: null,
+        );
     expect(created.cid.toString(), 'bafy-created');
 
     final replaceDio = buildDio();
@@ -77,11 +85,15 @@ void main() {
       '/v1/profiles/me/business',
       (server) => server.reply(200, {'cid': 'bafy-replaced'}),
       data: body,
-      headers: {'If-Match': 'bafy-current'},
+      headers: {
+        'Idempotency-Key': operationKey,
+        'If-Match': 'bafy-current',
+      },
     );
 
     final replaced = await BusinessApiClient(replaceDio).putBusinessProfile(
       body,
+      operationKey: operationKey,
       expectedCid: Cid.parse('bafy-current'),
     );
     expect(replaced.cid.toString(), 'bafy-replaced');
@@ -103,6 +115,7 @@ void main() {
     expect(
       BusinessApiClient(dio).putBusinessProfile(
         const <String, dynamic>{},
+        operationKey: operationKey,
         expectedCid: Cid.parse('bafy-stale'),
       ),
       throwsA(
@@ -112,6 +125,23 @@ void main() {
           'pds_record_conflict',
         ),
       ),
+    );
+  });
+
+  test('deletes a declaration with operation key and exact CID', () async {
+    final dio = buildDio();
+    DioAdapter(dio: dio).onDelete(
+      '/v1/profiles/me/business',
+      (server) => server.reply(204, null),
+      headers: {
+        'Idempotency-Key': operationKey,
+        'If-Match': 'bafy-current',
+      },
+    );
+
+    await BusinessApiClient(dio).deleteBusinessProfile(
+      operationKey: operationKey,
+      expectedCid: Cid.parse('bafy-current'),
     );
   });
 
@@ -227,8 +257,11 @@ void main() {
           'cid': 'bafy-created-event',
         }),
         data: body,
+        headers: {'Idempotency-Key': operationKey},
       );
-      final created = await BusinessApiClient(createDio).createEvent(body);
+      final created = await BusinessApiClient(
+        createDio,
+      ).createEvent(body, operationKey: operationKey);
       expect(created.rkey, rkey);
 
       final updateDio = buildDio();
@@ -242,36 +275,68 @@ void main() {
           'cid': 'bafy-updated-event',
         }),
         data: body,
-        headers: {'If-Match': 'bafy-current-event'},
+        headers: {
+          'Idempotency-Key': operationKey,
+          'If-Match': 'bafy-current-event',
+        },
       );
       final updated = await BusinessApiClient(updateDio).updateEvent(
         owner,
         rkey,
         Cid.parse('bafy-current-event'),
         body,
+        operationKey: operationKey,
       );
       expect(updated.cid.toString(), 'bafy-updated-event');
 
       final deleteDio = buildDio();
       DioAdapter(dio: deleteDio).onDelete(
         '/v1/events/did:plc:business/3m4event',
-        (server) => server.reply(200, {
-          'did': owner.toString(),
-          'rkey': rkey.toString(),
-          'uri':
-              'at://did:plc:business/social.craftsky.business.event/3m4event',
-          'cid': 'bafy-updated-event',
-        }),
-        headers: {'If-Match': 'bafy-updated-event'},
+        (server) => server.reply(204, null),
+        headers: {
+          'Idempotency-Key': operationKey,
+          'If-Match': 'bafy-updated-event',
+        },
       );
-      final deleted = await BusinessApiClient(deleteDio).deleteEvent(
+      await BusinessApiClient(deleteDio).deleteEvent(
         owner,
         rkey,
         Cid.parse('bafy-updated-event'),
+        operationKey: operationKey,
       );
-      expect(deleted.cid.toString(), 'bafy-updated-event');
     },
   );
+
+  test('surfaces a strict ambiguous response for immutable retry', () async {
+    const body = <String, dynamic>{'name': 'Fibre fair'};
+    final dio = buildDio();
+    DioAdapter(dio: dio).onPost(
+      '/v1/events',
+      (server) => server.reply(
+        202,
+        {'status': 'ambiguous'},
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+          'Retry-After': ['9'],
+        },
+      ),
+      data: body,
+      headers: {'Idempotency-Key': operationKey},
+    );
+
+    await expectLater(
+      BusinessApiClient(
+        dio,
+      ).createEvent(body, operationKey: operationKey),
+      throwsA(
+        isA<PdsMutationAmbiguousException>().having(
+          (error) => error.retryAfterSeconds,
+          'retryAfterSeconds',
+          5,
+        ),
+      ),
+    );
+  });
 
   test('reports an event through its exact record route', () async {
     final dio = buildDio();

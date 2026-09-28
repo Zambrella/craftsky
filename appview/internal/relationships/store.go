@@ -17,15 +17,6 @@ type Store struct {
 	pool *pgxpool.Pool
 }
 
-type BlockRecord struct {
-	URI        syntax.ATURI
-	BlockerDID syntax.DID
-	Rkey       syntax.RecordKey
-	CID        syntax.CID
-	SubjectDID syntax.DID
-	CreatedAt  time.Time
-}
-
 type ListItem struct {
 	SubjectDID syntax.DID
 	CreatedAt  time.Time
@@ -149,58 +140,21 @@ func (s *Store) State(ctx context.Context, viewer, subject syntax.DID) (State, e
 				  AND NOT appview_owner_is_terminal(subject_did)
 			),
 			EXISTS (
-				SELECT 1 FROM atproto_blocks
-				WHERE blocker_did = $1 AND subject_did = $2
-				  AND NOT appview_owner_is_terminal(blocker_did)
+				SELECT 1 FROM pds_set_aggregates
+				WHERE kind = 'block' AND actor_did = $1 AND subject_did = $2
+				  AND NOT appview_owner_is_terminal(actor_did)
 				  AND NOT appview_owner_is_terminal(subject_did)
 			),
 			EXISTS (
-				SELECT 1 FROM atproto_blocks
-				WHERE blocker_did = $2 AND subject_did = $1
-				  AND NOT appview_owner_is_terminal(blocker_did)
+				SELECT 1 FROM pds_set_aggregates
+				WHERE kind = 'block' AND actor_did = $2 AND subject_did = $1
+				  AND NOT appview_owner_is_terminal(actor_did)
 				  AND NOT appview_owner_is_terminal(subject_did)
 			)
 	`, viewer, subject).Scan(&state.Muted, &state.Blocking, &state.BlockedBy); err != nil {
 		return State{}, fmt.Errorf("read relationship state: %w", err)
 	}
 	return state, nil
-}
-
-// OwnedBlockRecords returns only caller-owned indexed identities for one
-// subject. It never exposes an inbound block as deletable by the caller.
-func (s *Store) OwnedBlockRecords(ctx context.Context, blocker, subject syntax.DID) ([]BlockRecord, error) {
-	rows, err := s.pool.Query(ctx, `
-		SELECT uri, blocker_did, rkey, cid, subject_did, created_at
-		FROM atproto_blocks
-		WHERE blocker_did = $1 AND subject_did = $2
-		  AND NOT appview_owner_is_terminal(blocker_did)
-		  AND NOT appview_owner_is_terminal(subject_did)
-		ORDER BY uri ASC
-	`, blocker, subject)
-	if err != nil {
-		return nil, fmt.Errorf("list owned block records: %w", err)
-	}
-	defer rows.Close()
-
-	records := make([]BlockRecord, 0)
-	for rows.Next() {
-		var record BlockRecord
-		if err := rows.Scan(
-			&record.URI,
-			&record.BlockerDID,
-			&record.Rkey,
-			&record.CID,
-			&record.SubjectDID,
-			&record.CreatedAt,
-		); err != nil {
-			return nil, fmt.Errorf("scan owned block record: %w", err)
-		}
-		records = append(records, record)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate owned block records: %w", err)
-	}
-	return records, nil
 }
 
 func (s *Store) ListMutes(
@@ -250,21 +204,16 @@ func (s *Store) ListBlocks(
 		after = afterCreated
 	}
 	rows, err := s.pool.Query(ctx, `
-		WITH owned_subjects AS (
-			SELECT DISTINCT ON (b.subject_did)
-				b.subject_did, b.created_at
-			FROM atproto_blocks b
-			WHERE b.blocker_did = $1
-			  AND NOT appview_owner_is_terminal(b.blocker_did)
-			  AND NOT appview_owner_is_terminal(b.subject_did)
-			ORDER BY b.subject_did, b.created_at DESC, b.uri DESC
-		)
-		SELECT owned.subject_did, owned.created_at
-		FROM owned_subjects owned
-		JOIN craftsky_profiles cp ON cp.did = owned.subject_did
-		WHERE ($2::timestamptz IS NULL
-		       OR (owned.created_at, owned.subject_did) < ($2::timestamptz, $3::text))
-		ORDER BY owned.created_at DESC, owned.subject_did DESC
+		SELECT block.subject_did, block.activated_at
+		FROM pds_set_aggregates block
+		JOIN craftsky_profiles cp ON cp.did = block.subject_did
+		WHERE block.kind = 'block'
+		  AND block.actor_did = $1
+		  AND NOT appview_owner_is_terminal(block.actor_did)
+		  AND NOT appview_owner_is_terminal(block.subject_did)
+		  AND ($2::timestamptz IS NULL
+		       OR (block.activated_at, block.subject_did) < ($2::timestamptz, $3::text))
+		ORDER BY block.activated_at DESC, block.subject_did DESC
 		LIMIT $4
 	`, owner, after, afterSubject, limit+1)
 	if err != nil {

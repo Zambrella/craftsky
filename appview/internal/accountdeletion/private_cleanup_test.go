@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -101,8 +102,8 @@ func TestDatabasePrivateCleanupDeletesOnlyOwnerPrivateState(t *testing.T) {
 		INSERT INTO actor_mutes(owner_did,subject_did) VALUES($1,$2),($2,$1);
 		INSERT INTO account_language_preferences(account_did,primary_language) VALUES($1,'en'),($2,'en');
 		INSERT INTO account_onboarding_completions(account_did,completed_at) VALUES($1,$3),($2,$3);
-		INSERT INTO profile_customisations(owner_did,colour,profile_border,profile_background)
-		VALUES($1,'blue','none','plain'),($2,'red','none','plain');
+		INSERT INTO profile_customisations(owner_did,colour,profile_background)
+		VALUES($1,'blue','plain'),($2,'red','plain');
 		INSERT INTO profile_pins(owner_did,slot,post_uri,state_token,created_at,updated_at)
 		VALUES($1,'standard','at://did:plc:alice/social.craftsky.feed.post/a',gen_random_uuid(),$3,$3),
 		      ($2,'standard','at://did:plc:bob/social.craftsky.feed.post/b',gen_random_uuid(),$3,$3);
@@ -515,30 +516,20 @@ func TestDatabasePrivateCleanupHoldsTargetFenceThroughModerationPromotion(t *tes
 		})
 		terminalized <- err
 	}()
-	select {
-	case err := <-terminalized:
-		t.Fatalf("target terminal transition crossed accepted-deletion promotion: %v", err)
-	case <-time.After(100 * time.Millisecond):
+	key, err := ownerlifecycle.FenceKey(target)
+	if err != nil {
+		t.Fatal(err)
 	}
+	waitForDeletionAdvisoryWaiter(t, pool, key)
 
 	if err := blocker.Rollback(ctx); err != nil {
 		t.Fatal(err)
 	}
-	select {
-	case err := <-cleaned:
-		if err != nil {
-			t.Fatalf("private cleanup after barrier: %v", err)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("private cleanup did not resume")
+	if err := waitForDeletionResult(t, cleaned, "private cleanup after barrier"); err != nil {
+		t.Fatalf("private cleanup after barrier: %v", err)
 	}
-	select {
-	case err := <-terminalized:
-		if err != nil {
-			t.Fatalf("target terminal transition after promotion: %v", err)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("target terminal transition did not resume")
+	if err := waitForDeletionResult(t, terminalized, "target terminal transition after promotion"); err != nil {
+		t.Fatalf("target terminal transition after promotion: %v", err)
 	}
 }
 
@@ -564,7 +555,7 @@ func waitForModerationParentRowLock(t *testing.T, pool *pgxpool.Pool, outputID s
 		if time.Now().After(deadline) {
 			t.Fatal("private cleanup did not lock moderation parent")
 		}
-		time.Sleep(5 * time.Millisecond)
+		runtime.Gosched()
 	}
 }
 

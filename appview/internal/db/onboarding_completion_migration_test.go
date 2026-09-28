@@ -2,7 +2,6 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"social.craftsky/appview/internal/testdb"
@@ -10,11 +9,11 @@ import (
 
 func TestOnboardingCompletionMigrationUpDownAndReapply(t *testing.T) {
 	t.Parallel()
-	up, err := os.ReadFile("../../migrations/000065_account_onboarding_completion.up.sql")
+	up, err := testdb.ReadMigration("000065_account_onboarding_completion.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := os.ReadFile("../../migrations/000065_account_onboarding_completion.down.sql")
+	down, err := testdb.ReadMigration("000065_account_onboarding_completion.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

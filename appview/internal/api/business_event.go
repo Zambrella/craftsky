@@ -11,12 +11,14 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/pdseffects"
 )
 
@@ -329,12 +331,38 @@ type businessEventImageBody struct {
 	AspectRatio *PostImageAspectRatio `json:"aspectRatio,omitempty"`
 }
 
-func PostBusinessEventHandler(newEffects pdseffects.ExecutorFactory, now func() time.Time) http.Handler {
+type BusinessEventHandlerOptions struct {
+	Commands          AppendCommandExecutor
+	AddressedCommands AddressedPutCommandExecutor
+	DeleteCommands    AddressedDeleteCommandExecutor
+}
+
+type AddressedPutCommandExecutor interface {
+	Put(context.Context, pdscommands.AddressedPutCommandRequest) (pdscommands.CommandResult, error)
+}
+
+func PostBusinessEventHandler(
+	newEffects pdseffects.ExecutorFactory,
+	now func() time.Time,
+	options ...BusinessEventHandlerOptions,
+) http.Handler {
 	if now == nil {
 		now = time.Now
 	}
+	var commands AppendCommandExecutor
+	if len(options) > 0 {
+		commands = options[0].Commands
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
+		operationKey := uuid.Nil
+		if commands != nil {
+			var ok bool
+			operationKey, ok = requireCommandOperationKey(w, r, runID)
+			if !ok {
+				return
+			}
+		}
 		currentTime := now()
 		request, record, fieldErr := decodeBusinessEventRequest(r.Body, currentTime, false)
 		if fieldErr != nil {
@@ -349,6 +377,54 @@ func PostBusinessEventHandler(newEffects pdseffects.ExecutorFactory, now func() 
 			return
 		}
 		record["createdAt"] = authored.CreatedAt
+		if commands != nil {
+			owner, ok := middleware.GetDID(r.Context())
+			if !ok {
+				envelope.WriteError(w, http.StatusInternalServerError, "missing_authenticated_did", "authenticated DID missing", runID, nil)
+				return
+			}
+			generation, ok := requirePDSEffectGeneration(w, r, runID)
+			if !ok {
+				return
+			}
+			sessionID, _ := middleware.GetOAuthSessionID(r.Context())
+			intent, err := json.Marshal(request)
+			if err != nil {
+				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "could not prepare business event", runID, nil)
+				return
+			}
+			result, err := commands.Execute(r.Context(), pdscommands.AppendCommandRequest{
+				Owner: owner, OwnerGeneration: generation, SessionID: sessionID,
+				OperationKind: "business_event.create", OperationKey: operationKey,
+				Collection: businessEventNSID, Intent: intent, Blobs: businessEventBlobReferences(request),
+				BuildRecord: func(createdAt time.Time) (json.RawMessage, error) {
+					frozen := make(map[string]any, len(record))
+					for key, value := range record {
+						frozen[key] = value
+					}
+					frozenAuthored, err := business.PrepareEventCreate(business.EventAuthoringInput{
+						Event: request.eventWrite(), CreatedAtPresent: request.CreatedAt != nil,
+					}, createdAt)
+					if err != nil {
+						return nil, err
+					}
+					frozen["createdAt"] = frozenAuthored.CreatedAt
+					return json.Marshal(frozen)
+				},
+				Accepted: func(authoritative pdscommands.AuthoritativeRecord) (pdscommands.TerminalResult, error) {
+					return acceptedBusinessEventCreateResult(owner, authoritative)
+				},
+				Rejected: func(err error) pdscommands.TerminalResult {
+					return RejectedCommandResult(runID, err)
+				},
+			})
+			if err != nil {
+				WriteCommandError(w, runID, err)
+				return
+			}
+			WriteCommandResponse(w, CommandResultFromStored(result))
+			return
+		}
 
 		owner, generation, executor, expectedOwners, ok := businessEventExecutor(w, r, runID, newEffects)
 		if !ok {
@@ -379,12 +455,73 @@ func PostBusinessEventHandler(newEffects pdseffects.ExecutorFactory, now func() 
 	})
 }
 
-func PutBusinessEventHandler(newEffects pdseffects.ExecutorFactory, now func() time.Time) http.Handler {
+func acceptedBusinessEventCreateResult(
+	owner syntax.DID,
+	record pdscommands.AuthoritativeRecord,
+) (pdscommands.TerminalResult, error) {
+	return acceptedBusinessEventMutationResult(owner, http.StatusCreated, record)
+}
+
+func acceptedBusinessEventMutationResult(
+	owner syntax.DID,
+	status int,
+	record pdscommands.AuthoritativeRecord,
+) (pdscommands.TerminalResult, error) {
+	uri, err := syntax.ParseATURI(record.URI.String())
+	if err != nil || uri.Authority().DID() != owner || uri.Collection() != businessEventNSID || record.CID == "" {
+		return pdscommands.TerminalResult{}, pdscommands.ErrMalformedCommand
+	}
+	rkey := uri.RecordKey()
+	if _, err := syntax.ParseTID(rkey.String()); err != nil {
+		return pdscommands.TerminalResult{}, pdscommands.ErrMalformedCommand
+	}
+	body, err := json.Marshal(businessEventMutationResponse{
+		DID: owner, Rkey: rkey, URI: record.URI, CID: record.CID,
+	})
+	if err != nil {
+		return pdscommands.TerminalResult{}, err
+	}
+	return pdscommands.TerminalResult{
+		State: pdscommands.CommandAccepted, HTTPStatus: status, ResponseBody: body,
+	}, nil
+}
+
+func businessEventBlobReferences(request businessEventRequest) []pdscommands.BlobReference {
+	if request.Image == nil {
+		return nil
+	}
+	ref, _ := request.Image.Image["ref"].(map[string]any)
+	cid, _ := ref["$link"].(string)
+	mimeType, _ := request.Image.Image["mimeType"].(string)
+	size, ok := positiveIntegerAsInt64(request.Image.Image["size"])
+	if cid == "" || mimeType == "" || !ok {
+		return nil
+	}
+	return []pdscommands.BlobReference{{CID: syntax.CID(cid), MIMEType: mimeType, Size: size}}
+}
+
+func PutBusinessEventHandler(
+	newEffects pdseffects.ExecutorFactory,
+	now func() time.Time,
+	options ...BusinessEventHandlerOptions,
+) http.Handler {
 	if now == nil {
 		now = time.Now
 	}
+	var commands AddressedPutCommandExecutor
+	if len(options) > 0 {
+		commands = options[0].AddressedCommands
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
+		operationKey := uuid.Nil
+		if commands != nil {
+			var ok bool
+			operationKey, ok = requireCommandOperationKey(w, r, runID)
+			if !ok {
+				return
+			}
+		}
 		owner, rkey, ok := businessEventPathOwner(w, r, runID)
 		if !ok {
 			return
@@ -397,6 +534,58 @@ func PutBusinessEventHandler(newEffects pdseffects.ExecutorFactory, now func() t
 		request, record, fieldErr := decodeBusinessEventRequest(r.Body, now(), true)
 		if fieldErr != nil {
 			writeBusinessEventFieldError(w, runID, fieldErr)
+			return
+		}
+		if commands != nil {
+			generation, ok := requirePDSEffectGeneration(w, r, runID)
+			if !ok {
+				return
+			}
+			sessionID, _ := middleware.GetOAuthSessionID(r.Context())
+			intent, err := json.Marshal(request)
+			if err != nil {
+				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "could not prepare business event", runID, nil)
+				return
+			}
+			uri := syntax.ATURI("at://" + owner.String() + "/" + businessEventNSID.String() + "/" + rkey.String())
+			result, err := commands.Put(r.Context(), pdscommands.AddressedPutCommandRequest{
+				Owner: owner, OwnerGeneration: generation, SessionID: sessionID,
+				OperationKind: "business_event.update", OperationKey: operationKey,
+				URI: uri, ExpectedCID: expectedCID, Intent: intent, Blobs: businessEventBlobReferences(request),
+				BuildRecord: func(current pdscommands.AuthoritativeRecord) (json.RawMessage, error) {
+					var stored map[string]any
+					if json.Unmarshal(current.Record, &stored) != nil {
+						return nil, pdscommands.ErrMalformedCommand
+					}
+					storedCreatedAt, ok := stored["createdAt"].(string)
+					if !ok || storedCreatedAt == "" {
+						return nil, pdscommands.ErrMalformedCommand
+					}
+					authored, err := business.PrepareEventUpdate(business.EventAuthoringInput{
+						Event: request.eventWrite(), CreatedAtPresent: request.CreatedAt != nil,
+					}, storedCreatedAt)
+					if err != nil {
+						return nil, err
+					}
+					updated := make(map[string]any, len(record)+1)
+					for key, value := range record {
+						updated[key] = value
+					}
+					updated["createdAt"] = authored.CreatedAt
+					return json.Marshal(updated)
+				},
+				Accepted: func(authoritative pdscommands.AuthoritativeRecord) (pdscommands.TerminalResult, error) {
+					return acceptedBusinessEventMutationResult(owner, http.StatusOK, authoritative)
+				},
+				Rejected: func(err error) pdscommands.TerminalResult {
+					return RejectedCommandResult(runID, err)
+				},
+			})
+			if err != nil {
+				WriteCommandError(w, runID, err)
+				return
+			}
+			WriteCommandResponse(w, CommandResultFromStored(result))
 			return
 		}
 		generation, executor, expectedOwners, ok := businessEventExecutorForOwner(w, r, runID, newEffects, owner)
@@ -450,9 +639,24 @@ func PutBusinessEventHandler(newEffects pdseffects.ExecutorFactory, now func() t
 	})
 }
 
-func DeleteBusinessEventHandler(newEffects pdseffects.ExecutorFactory) http.Handler {
+func DeleteBusinessEventHandler(
+	newEffects pdseffects.ExecutorFactory,
+	options ...BusinessEventHandlerOptions,
+) http.Handler {
+	var commands AddressedDeleteCommandExecutor
+	if len(options) > 0 {
+		commands = options[0].DeleteCommands
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
+		operationKey := uuid.Nil
+		if commands != nil {
+			var ok bool
+			operationKey, ok = requireCommandOperationKey(w, r, runID)
+			if !ok {
+				return
+			}
+		}
 		owner, rkey, ok := businessEventPathOwner(w, r, runID)
 		if !ok {
 			return
@@ -460,6 +664,39 @@ func DeleteBusinessEventHandler(newEffects pdseffects.ExecutorFactory) http.Hand
 		expectedCID, err := ParseBusinessIfMatch(r)
 		if err != nil || expectedCID == "*" {
 			WritePDSRecordConflict(w, runID)
+			return
+		}
+		if commands != nil {
+			generation, ok := requirePDSEffectGeneration(w, r, runID)
+			if !ok {
+				return
+			}
+			uri := syntax.ATURI("at://" + owner.String() + "/" + businessEventNSID.String() + "/" + rkey.String())
+			intent, err := json.Marshal(struct {
+				URI         syntax.ATURI `json:"uri"`
+				ExpectedCID syntax.CID   `json:"expectedCid"`
+			}{URI: uri, ExpectedCID: expectedCID})
+			if err != nil {
+				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "could not prepare business event delete", runID, nil)
+				return
+			}
+			sessionID, _ := middleware.GetOAuthSessionID(r.Context())
+			result, err := commands.Delete(r.Context(), pdscommands.AddressedDeleteCommandRequest{
+				Owner: owner, OwnerGeneration: generation, SessionID: sessionID,
+				OperationKind: "business_event.delete", OperationKey: operationKey,
+				URI: uri, ExpectedCID: expectedCID, Intent: intent,
+				AcceptedAbsent: func() pdscommands.TerminalResult {
+					return pdscommands.TerminalResult{State: pdscommands.CommandAccepted, HTTPStatus: http.StatusNoContent}
+				},
+				Rejected: func(err error) pdscommands.TerminalResult {
+					return RejectedCommandResult(runID, err)
+				},
+			})
+			if err != nil {
+				WriteCommandError(w, runID, err)
+				return
+			}
+			WriteCommandResponse(w, CommandResultFromStored(result))
 			return
 		}
 		generation, executor, expectedOwners, ok := businessEventExecutorForOwner(w, r, runID, newEffects, owner)

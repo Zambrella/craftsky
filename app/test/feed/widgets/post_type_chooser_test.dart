@@ -112,7 +112,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('New post'), findsOneWidget);
-    expect(find.text('What are you making?'), findsOneWidget);
+    expect(
+      find.textContaining('What would you like to share?'),
+      findsOneWidget,
+    );
+    expect(
+      find.text("Share what you're making, learning, or thinking..."),
+      findsOneWidget,
+    );
+    expect(find.textContaining('required'), findsOneWidget);
     expect(find.text('Craft type'), findsNothing);
     expect(find.text('Project post'), findsNothing);
   });

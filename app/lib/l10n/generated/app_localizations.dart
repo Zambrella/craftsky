@@ -310,6 +310,12 @@ abstract class AppLocalizations {
   /// **'New activity'**
   String get notificationGenericRow;
 
+  /// No description provided for @notificationModerationRow.
+  ///
+  /// In en, this message translates to:
+  /// **'Review an update to your account standing'**
+  String get notificationModerationRow;
+
   /// No description provided for @notificationUnavailableRow.
   ///
   /// In en, this message translates to:
@@ -399,6 +405,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Push alerts are based on your private Instagram matches and never name the matched account.'**
   String get notificationInstagramMatchPreferenceDescription;
+
+  /// No description provided for @notificationCategoryModeration.
+  ///
+  /// In en, this message translates to:
+  /// **'Moderation'**
+  String get notificationCategoryModeration;
+
+  /// No description provided for @notificationModerationPreferenceDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Push alerts notify you about changes to your account standing. Turning them off does not change your standing, moderation history, or enforcement.'**
+  String get notificationModerationPreferenceDescription;
 
   /// No description provided for @notificationCategoryEverythingElse.
   ///
@@ -1288,11 +1306,11 @@ abstract class AppLocalizations {
   /// **'followers'**
   String get profileStatsFollowers;
 
-  /// Lower-case label paired with the project-count on the profile stats row.
+  /// Label paired with the project-count on the profile stats row.
   ///
   /// In en, this message translates to:
-  /// **'projects'**
-  String get profileStatsProjects;
+  /// **'{count, plural, =1{Project} other{Projects}}'**
+  String profileStatsProjects(int count);
 
   /// Headline on the full-screen profile-page error fallback when the profile fetch fails.
   ///
@@ -1336,11 +1354,17 @@ abstract class AppLocalizations {
   /// **'Nothing saved yet.'**
   String get profileEmptySaved;
 
-  /// Muted placeholder shown in the Reposts tab while repost data isn't wired.
+  /// Empty-state message shown in the profile Reposts tab.
   ///
   /// In en, this message translates to:
   /// **'No reposts yet.'**
   String get profileEmptyReposts;
+
+  /// Error title shown in the profile Reposts tab when repost fetching fails.
+  ///
+  /// In en, this message translates to:
+  /// **'Reposts didn\'t load.'**
+  String get profileRepostsLoadError;
 
   /// Muted placeholder shown in the profile Posts tab when the user has not posted.
   ///
@@ -1996,6 +2020,24 @@ abstract class AppLocalizations {
   /// **'Difficulty'**
   String get projectComposerPatternDifficultyLabel;
 
+  /// Title for the switch that marks a project pattern as drafted by the post author.
+  ///
+  /// In en, this message translates to:
+  /// **'Self-drafted pattern'**
+  String get projectComposerPatternSelfDraftedTitle;
+
+  /// Description for the self-drafted pattern switch.
+  ///
+  /// In en, this message translates to:
+  /// **'I drafted this pattern'**
+  String get projectComposerPatternSelfDraftedDescription;
+
+  /// Metadata label shown on a project card for a pattern drafted by the post author.
+  ///
+  /// In en, this message translates to:
+  /// **'Self-drafted'**
+  String get projectPatternSelfDraftedLabel;
+
   /// Label for the optional pattern designer field in the project composer.
   ///
   /// In en, this message translates to:
@@ -2023,14 +2065,50 @@ abstract class AppLocalizations {
   /// Label above the text field in the text-only post composer.
   ///
   /// In en, this message translates to:
-  /// **'What are you making?'**
+  /// **'What would you like to share?'**
   String get postComposeHint;
 
   /// Hint text inside the main post composer text field.
   ///
   /// In en, this message translates to:
-  /// **'Pattern, fabric, what went right, what didn\'t...'**
+  /// **'Share what you\'re making, learning, or thinking...'**
   String get postComposeBodyHint;
+
+  /// Small marker shown beside required text fields in the regular post composer.
+  ///
+  /// In en, this message translates to:
+  /// **'required'**
+  String get postComposeRequiredLabel;
+
+  /// Validation error shown after submitting a regular post without body text.
+  ///
+  /// In en, this message translates to:
+  /// **'Add something to your post.'**
+  String get postComposeBodyRequiredError;
+
+  /// Title for the sponsorship disclosure switch in top-level post composers.
+  ///
+  /// In en, this message translates to:
+  /// **'Sponsored'**
+  String get postSponsoredToggleTitle;
+
+  /// Description for the sponsorship disclosure switch.
+  ///
+  /// In en, this message translates to:
+  /// **'This post includes sponsorship or other commercial consideration'**
+  String get postSponsoredToggleDescription;
+
+  /// Accessible disclosure label shown on sponsored full post cards and quote previews.
+  ///
+  /// In en, this message translates to:
+  /// **'Sponsored'**
+  String get postSponsoredLabel;
+
+  /// Tooltip explaining what the Sponsored disclosure means.
+  ///
+  /// In en, this message translates to:
+  /// **'The creator marked this post as sponsored because they received money, products, or another benefit.'**
+  String get postSponsoredExplanation;
 
   /// Title of the reply composer sheet.
   ///
@@ -3172,12 +3250,6 @@ abstract class AppLocalizations {
   /// **'Colour'**
   String get profileCustomisationColour;
 
-  /// Heading for profile picture border thickness choices.
-  ///
-  /// In en, this message translates to:
-  /// **'Profile border'**
-  String get profileCustomisationBorder;
-
   /// Heading for profile background texture choices.
   ///
   /// In en, this message translates to:
@@ -3273,24 +3345,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Ink'**
   String get profileCustomisationColourInk;
-
-  /// Label for the thin profile picture border.
-  ///
-  /// In en, this message translates to:
-  /// **'Thin'**
-  String get profileCustomisationBorderThin;
-
-  /// Label for the medium profile picture border.
-  ///
-  /// In en, this message translates to:
-  /// **'Medium'**
-  String get profileCustomisationBorderMedium;
-
-  /// Label for the thick profile picture border.
-  ///
-  /// In en, this message translates to:
-  /// **'Thick'**
-  String get profileCustomisationBorderThick;
 
   /// Label for the bayerdark profile texture.
   ///
@@ -3664,6 +3718,18 @@ abstract class AppLocalizations {
   /// **'Project type'**
   String get projectsFilterProjectType;
 
+  /// Project filter group label for project status.
+  ///
+  /// In en, this message translates to:
+  /// **'Status'**
+  String get projectsFilterStatus;
+
+  /// Project filter group label for project subtype.
+  ///
+  /// In en, this message translates to:
+  /// **'Project subtype'**
+  String get projectsFilterProjectSubtype;
+
   /// Project filter group label for pattern difficulty.
   ///
   /// In en, this message translates to:
@@ -3679,32 +3745,32 @@ abstract class AppLocalizations {
   /// Project filter group label for design tags.
   ///
   /// In en, this message translates to:
-  /// **'Design tag'**
+  /// **'Design'**
   String get projectsFilterDesignTag;
 
-  /// Project filter group label for material free-text filters.
+  /// Project filter group label for yarn weight.
   ///
   /// In en, this message translates to:
-  /// **'Material'**
-  String get projectsFilterMaterial;
+  /// **'Yarn weight'**
+  String get projectsFilterYarnWeight;
 
-  /// Project filter group label for project tag free-text filters.
+  /// Quilting project filter group label for piecing technique.
   ///
   /// In en, this message translates to:
-  /// **'Project tag'**
-  String get projectsFilterProjectTag;
+  /// **'Piecing technique'**
+  String get projectsFilterPiecingTechnique;
 
-  /// Hint text for adding a free-text project filter chip.
+  /// Quilting project filter group label for quilting method.
   ///
   /// In en, this message translates to:
-  /// **'Add a value'**
-  String get projectsFreeTextHint;
+  /// **'Quilting method'**
+  String get projectsFilterQuiltingMethod;
 
-  /// Button label for adding a free-text project filter value.
+  /// Project filter label for self-drafted patterns.
   ///
   /// In en, this message translates to:
-  /// **'Add'**
-  String get projectsAddFilterValueAction;
+  /// **'Self drafted'**
+  String get projectsFilterSelfDrafted;
 
   /// Primary action in the project filters sheet.
   ///
@@ -4690,6 +4756,12 @@ abstract class AppLocalizations {
   /// **'Schedule for later'**
   String get scheduledPostLater;
 
+  /// Compact local date and time shown on an active composer schedule control.
+  ///
+  /// In en, this message translates to:
+  /// **'{date}, {time}'**
+  String scheduledPostCompactTime(String date, String time);
+
   /// Error shown when a selected schedule time falls outside the supported window.
   ///
   /// In en, this message translates to:
@@ -5439,12 +5511,6 @@ abstract class AppLocalizations {
   /// **'Set up your CraftSky profile'**
   String get onboardingTitle;
 
-  /// No description provided for @onboardingSkip.
-  ///
-  /// In en, this message translates to:
-  /// **'Skip'**
-  String get onboardingSkip;
-
   /// No description provided for @onboardingNext.
   ///
   /// In en, this message translates to:
@@ -5511,17 +5577,65 @@ abstract class AppLocalizations {
   /// **'Choose as many crafts as you like. You can change these later.'**
   String get onboardingCraftsDescription;
 
-  /// No description provided for @onboardingInstagramTitle.
+  /// No description provided for @onboardingGuidelinesTitle.
   ///
   /// In en, this message translates to:
-  /// **'Find your crafting community'**
-  String get onboardingInstagramTitle;
+  /// **'Our community guidelines'**
+  String get onboardingGuidelinesTitle;
 
-  /// No description provided for @onboardingInstagramDescription.
+  /// No description provided for @onboardingGuidelinesWelcomeHeading.
   ///
   /// In en, this message translates to:
-  /// **'Connecting Instagram is optional. CraftSky uses your choices only to help match accounts and import who you follow.'**
-  String get onboardingInstagramDescription;
+  /// **'A welcoming place to make and share'**
+  String get onboardingGuidelinesWelcomeHeading;
+
+  /// No description provided for @onboardingGuidelinesWelcomeBody.
+  ///
+  /// In en, this message translates to:
+  /// **'CraftSky exists to be a welcoming, inspiring home for the textile crafting community. We want it to be a place where people feel comfortable sharing projects, asking questions, celebrating each other\'s successes and learning from the community.'**
+  String get onboardingGuidelinesWelcomeBody;
+
+  /// No description provided for @onboardingGuidelinesRespectHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Be kind and keep CraftSky safe'**
+  String get onboardingGuidelinesRespectHeading;
+
+  /// No description provided for @onboardingGuidelinesRespectBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Respect other people and help keep CraftSky safe for everyone. We do not allow harassment, hate speech, scams, spam, sexually explicit content or content materially created by generative AI. Businesses are welcome when they are transparent about commercial relationships and follow the same rules as everyone else.'**
+  String get onboardingGuidelinesRespectBody;
+
+  /// No description provided for @onboardingGuidelinesCraftHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep it craft-focused'**
+  String get onboardingGuidelinesCraftHeading;
+
+  /// No description provided for @onboardingGuidelinesCraftBody.
+  ///
+  /// In en, this message translates to:
+  /// **'Most posts should relate to textile and fibre craft projects, materials, techniques, tools or the wider crafting community. Occasional off-topic posts are fine, but should remain secondary. Political discussion belongs here only when it directly affects textile crafting or the craft community.'**
+  String get onboardingGuidelinesCraftBody;
+
+  /// No description provided for @onboardingGuidelinesCheckHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'A useful check'**
+  String get onboardingGuidelinesCheckHeading;
+
+  /// No description provided for @onboardingGuidelinesCheckBody.
+  ///
+  /// In en, this message translates to:
+  /// **'If you are unsure whether something belongs on CraftSky, ask: Does this make the community a better place? If the answer is yes, you are probably on the right track.'**
+  String get onboardingGuidelinesCheckBody;
+
+  /// No description provided for @onboardingGuidelinesViewFull.
+  ///
+  /// In en, this message translates to:
+  /// **'View full guidelines'**
+  String get onboardingGuidelinesViewFull;
 
   /// No description provided for @onboardingSaveError.
   ///
@@ -7118,6 +7232,366 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The assigned account will lose paid access. Changing it again may require a seven-day wait.'**
   String get subscriptionsUnassignmentConfirmBody;
+
+  /// Settings row and owner moderation page title.
+  ///
+  /// In en, this message translates to:
+  /// **'Account standing'**
+  String get accountStandingTitle;
+
+  /// Current account state when there is no active enforcement.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account is in good standing'**
+  String get moderationStandingGood;
+
+  /// Current account state when strikes are active without suspension.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account has active moderation action'**
+  String get moderationStandingActionRequired;
+
+  /// Current account state during moderation suspension.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account is suspended'**
+  String get moderationStandingSuspended;
+
+  /// Active strike count and policy threshold.
+  ///
+  /// In en, this message translates to:
+  /// **'Active strikes: {count} of the {threshold} strike suspension threshold.'**
+  String moderationStandingCount(int count, int threshold);
+
+  /// Threshold suspension explanation.
+  ///
+  /// In en, this message translates to:
+  /// **'The account is suspended because the active-strike threshold has been reached.'**
+  String get moderationStandingThresholdDetail;
+
+  /// Severe suspension explanation.
+  ///
+  /// In en, this message translates to:
+  /// **'The account is suspended because of a severe policy decision.'**
+  String get moderationStandingSevereDetail;
+
+  /// Safe standing load failure.
+  ///
+  /// In en, this message translates to:
+  /// **'Account standing could not be loaded.'**
+  String get moderationStandingLoadError;
+
+  /// Owner moderation history heading.
+  ///
+  /// In en, this message translates to:
+  /// **'Moderation history'**
+  String get moderationHistoryTitle;
+
+  /// Owner moderation history empty-state title.
+  ///
+  /// In en, this message translates to:
+  /// **'No moderation history'**
+  String get moderationHistoryEmptyTitle;
+
+  /// Owner moderation history empty-state explanation.
+  ///
+  /// In en, this message translates to:
+  /// **'There are no moderation decisions to show for this account.'**
+  String get moderationHistoryEmptyBody;
+
+  /// Safe owner moderation history load failure.
+  ///
+  /// In en, this message translates to:
+  /// **'Moderation history could not be loaded.'**
+  String get moderationHistoryLoadError;
+
+  /// Action retrying a moderation request.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get moderationRetryAction;
+
+  /// Action loading another moderation history page.
+  ///
+  /// In en, this message translates to:
+  /// **'Load more'**
+  String get moderationHistoryLoadMore;
+
+  /// Progress label while loading another moderation history page.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading…'**
+  String get moderationHistoryLoadingMore;
+
+  /// Action retrying failed moderation history pagination.
+  ///
+  /// In en, this message translates to:
+  /// **'Try loading more again'**
+  String get moderationHistoryRetryMore;
+
+  /// Accessible owner moderation entry label.
+  ///
+  /// In en, this message translates to:
+  /// **'Moderation history entry {reference}'**
+  String moderationHistoryEntrySemantics(String reference);
+
+  /// Local date and time of a moderation event.
+  ///
+  /// In en, this message translates to:
+  /// **'{date} at {time}'**
+  String moderationHistoryOccurredAt(String date, String time);
+
+  /// Heading for moderation effects.
+  ///
+  /// In en, this message translates to:
+  /// **'Consequences'**
+  String get moderationConsequencesTitle;
+
+  /// Moderation effect, state, and stored expiry date.
+  ///
+  /// In en, this message translates to:
+  /// **'{effect} · {state} · Until {date}'**
+  String moderationEffectWithExpiry(String effect, String state, String date);
+
+  /// Formal account warning effect.
+  ///
+  /// In en, this message translates to:
+  /// **'Formal warning'**
+  String get moderationEffectFormalWarning;
+
+  /// Viewer-facing content warning effect.
+  ///
+  /// In en, this message translates to:
+  /// **'Viewer warning'**
+  String get moderationEffectViewerWarning;
+
+  /// Content visibility hide effect.
+  ///
+  /// In en, this message translates to:
+  /// **'Content hidden'**
+  String get moderationEffectHidden;
+
+  /// App View content takedown effect.
+  ///
+  /// In en, this message translates to:
+  /// **'Content removed from CraftSky'**
+  String get moderationEffectRemoved;
+
+  /// Account strike effect.
+  ///
+  /// In en, this message translates to:
+  /// **'Account strike'**
+  String get moderationEffectStrike;
+
+  /// Severe account suspension effect.
+  ///
+  /// In en, this message translates to:
+  /// **'Severe suspension'**
+  String get moderationEffectSevereSuspension;
+
+  /// Forward-compatible unknown moderation effect label.
+  ///
+  /// In en, this message translates to:
+  /// **'Policy action'**
+  String get moderationEffectPolicyAction;
+
+  /// Active moderation effect state.
+  ///
+  /// In en, this message translates to:
+  /// **'Active'**
+  String get moderationEffectActive;
+
+  /// Historical moderation effect application action.
+  ///
+  /// In en, this message translates to:
+  /// **'Applied'**
+  String get moderationEffectApplied;
+
+  /// Expired moderation effect state.
+  ///
+  /// In en, this message translates to:
+  /// **'Expired'**
+  String get moderationEffectExpired;
+
+  /// Negated moderation effect state.
+  ///
+  /// In en, this message translates to:
+  /// **'Overturned'**
+  String get moderationEffectOverturned;
+
+  /// Restored suspension state.
+  ///
+  /// In en, this message translates to:
+  /// **'Access restored'**
+  String get moderationEffectRestored;
+
+  /// Inactive moderation effect state.
+  ///
+  /// In en, this message translates to:
+  /// **'No longer active'**
+  String get moderationEffectNoLongerActive;
+
+  /// Controlled moderation reason.
+  ///
+  /// In en, this message translates to:
+  /// **'Harassment'**
+  String get moderationReasonHarassment;
+
+  /// Controlled moderation reason.
+  ///
+  /// In en, this message translates to:
+  /// **'Hate or hateful conduct'**
+  String get moderationReasonHate;
+
+  /// Controlled moderation reason.
+  ///
+  /// In en, this message translates to:
+  /// **'Spam'**
+  String get moderationReasonSpam;
+
+  /// Controlled moderation reason.
+  ///
+  /// In en, this message translates to:
+  /// **'Misleading content'**
+  String get moderationReasonMisleading;
+
+  /// Controlled moderation reason.
+  ///
+  /// In en, this message translates to:
+  /// **'Suspected AI-generated content'**
+  String get moderationReasonSuspectedAi;
+
+  /// Controlled moderation reason.
+  ///
+  /// In en, this message translates to:
+  /// **'Adult or graphic content'**
+  String get moderationReasonAdultOrGraphic;
+
+  /// Controlled moderation reason.
+  ///
+  /// In en, this message translates to:
+  /// **'Impersonation'**
+  String get moderationReasonImpersonation;
+
+  /// Controlled moderation reason.
+  ///
+  /// In en, this message translates to:
+  /// **'Off-topic content'**
+  String get moderationReasonOffTopic;
+
+  /// Controlled moderation reason.
+  ///
+  /// In en, this message translates to:
+  /// **'Intellectual property'**
+  String get moderationReasonIntellectualProperty;
+
+  /// Controlled moderation reason.
+  ///
+  /// In en, this message translates to:
+  /// **'Other policy issue'**
+  String get moderationReasonOther;
+
+  /// Forward-compatible moderation reason label.
+  ///
+  /// In en, this message translates to:
+  /// **'Policy decision'**
+  String get moderationReasonPolicy;
+
+  /// Account snapshot label.
+  ///
+  /// In en, this message translates to:
+  /// **'Account'**
+  String get moderationSubjectAccount;
+
+  /// Post snapshot label.
+  ///
+  /// In en, this message translates to:
+  /// **'Post'**
+  String get moderationSubjectPost;
+
+  /// Action opening the moderated post inside CraftSky.
+  ///
+  /// In en, this message translates to:
+  /// **'View post'**
+  String get moderationViewPost;
+
+  /// Business-event snapshot label.
+  ///
+  /// In en, this message translates to:
+  /// **'Event'**
+  String get moderationSubjectEvent;
+
+  /// Safe snapshot fallback label.
+  ///
+  /// In en, this message translates to:
+  /// **'Subject reference unavailable'**
+  String get moderationSubjectUnavailable;
+
+  /// Action opening a prefilled moderation appeal email.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal by email'**
+  String get moderationAppealAction;
+
+  /// Appeal email address clipboard fallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy email address'**
+  String get moderationCopyAppealAddress;
+
+  /// Public moderation reference clipboard fallback.
+  ///
+  /// In en, this message translates to:
+  /// **'Copy case reference'**
+  String get moderationCopyCaseReference;
+
+  /// Appeal availability state.
+  ///
+  /// In en, this message translates to:
+  /// **'An appeal can be requested by email.'**
+  String get moderationAppealAvailable;
+
+  /// Confirmed pending appeal state.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal under review'**
+  String get moderationAppealPending;
+
+  /// Upheld appeal outcome.
+  ///
+  /// In en, this message translates to:
+  /// **'Decision upheld after appeal'**
+  String get moderationAppealUpheld;
+
+  /// Changed appeal outcome.
+  ///
+  /// In en, this message translates to:
+  /// **'Decision changed after appeal'**
+  String get moderationAppealChanged;
+
+  /// Forward-compatible appeal state.
+  ///
+  /// In en, this message translates to:
+  /// **'Appeal status updated'**
+  String get moderationAppealUpdated;
+
+  /// Safe mailto failure with fallback guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'No email app opened. You can copy the address and case reference instead.'**
+  String get moderationAppealError;
+
+  /// Clipboard success feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'Copied'**
+  String get moderationCopied;
+
+  /// Safe clipboard failure feedback.
+  ///
+  /// In en, this message translates to:
+  /// **'Could not copy. The text remains selectable.'**
+  String get moderationCopyError;
 }
 
 class _AppLocalizationsDelegate

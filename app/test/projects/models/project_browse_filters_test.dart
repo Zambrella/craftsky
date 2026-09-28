@@ -28,15 +28,21 @@ void main() {
       'toQueryParameters omits empty families and keeps selected values',
       () {
         const filters = ProjectBrowseFilters(
+          status: ['finished'],
           projectType: ['quilt'],
+          projectSubtype: ['throw'],
           color: ['blue', 'green'],
-          material: ['cotton'],
+          yarnWeight: ['dk'],
+          selfDrafted: true,
         );
 
         expect(filters.toQueryParameters(), {
+          'status': ['finished'],
           'projectType': ['quilt'],
+          'projectSubtype': ['throw'],
           'color': ['blue', 'green'],
-          'material': ['cotton'],
+          'yarnWeight': ['dk'],
+          'selfDrafted': true,
         });
       },
     );
@@ -46,9 +52,8 @@ void main() {
         projectType: ['garment'],
         patternDifficulty: ['beginner'],
         color: ['red'],
-        material: ['linen'],
         designTag: ['striped'],
-        projectTag: ['gift'],
+        quiltingMethod: ['tied'],
       );
 
       expect(
@@ -60,12 +65,14 @@ void main() {
         ['beginner'],
       );
       expect(filters.valuesFor(ProjectBrowseFilterFamily.color), ['red']);
-      expect(filters.valuesFor(ProjectBrowseFilterFamily.material), ['linen']);
       expect(
         filters.valuesFor(ProjectBrowseFilterFamily.designTag),
         ['striped'],
       );
-      expect(filters.valuesFor(ProjectBrowseFilterFamily.projectTag), ['gift']);
+      expect(
+        filters.valuesFor(ProjectBrowseFilterFamily.quiltingMethod),
+        ['tied'],
+      );
     });
 
     test('toggleValue adds absent values and removes present values', () {
@@ -82,29 +89,34 @@ void main() {
     });
 
     test('withValue preserves identity when value already exists', () {
-      const filters = ProjectBrowseFilters(material: ['wool']);
+      const filters = ProjectBrowseFilters(yarnWeight: ['worsted']);
 
       final result = filters.withValue(
-        ProjectBrowseFilterFamily.material,
-        'wool',
+        ProjectBrowseFilterFamily.yarnWeight,
+        'worsted',
       );
 
       expect(identical(result, filters), isTrue);
     });
 
     test('withoutValue removes every matching value', () {
-      const filters = ProjectBrowseFilters(projectTag: ['gift', 'gift', 'hat']);
-
-      final result = filters.withoutValue(
-        ProjectBrowseFilterFamily.projectTag,
-        'gift',
+      const filters = ProjectBrowseFilters(
+        projectSubtype: ['hat', 'hat', 'bag'],
       );
 
-      expect(result.projectTag, ['hat']);
+      final result = filters.withoutValue(
+        ProjectBrowseFilterFamily.projectSubtype,
+        'hat',
+      );
+
+      expect(result.projectSubtype, ['bag']);
     });
 
     test('withValues replaces only the requested family', () {
-      const filters = ProjectBrowseFilters(color: ['blue'], material: ['wool']);
+      const filters = ProjectBrowseFilters(
+        color: ['blue'],
+        yarnWeight: ['worsted'],
+      );
 
       final result = filters.withValues(
         ProjectBrowseFilterFamily.color,
@@ -112,7 +124,7 @@ void main() {
       );
 
       expect(result.color, ['green']);
-      expect(result.material, ['wool']);
+      expect(result.yarnWeight, ['worsted']);
     });
   });
 }

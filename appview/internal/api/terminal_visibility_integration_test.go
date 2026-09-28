@@ -4,10 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"os"
-	"path/filepath"
-	"sort"
-	"strings"
 	"testing"
 	"time"
 
@@ -71,8 +67,8 @@ func TestTerminalOwnerIsInvisibleAndIneffectiveBeforePhysicalPurge(t *testing.T)
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO profile_customisations(
-			owner_did,colour,profile_border,profile_background
-		) VALUES($1,'orchid','thin','skewdark')
+			owner_did,colour,profile_background
+		) VALUES($1,'orchid','skewdark')
 	`, terminal); err != nil {
 		t.Fatal(err)
 	}
@@ -101,36 +97,48 @@ func TestTerminalOwnerIsInvisibleAndIneffectiveBeforePhysicalPurge(t *testing.T)
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO craftsky_likes(uri,did,rkey,cid,subject_uri,subject_cid,record,created_at)
-		VALUES('at://did:plc:terminal-actor/social.craftsky.feed.like/other',$1,
-		       'other','terminal-like-cid',$2,'other-cid','{}',now())
-	`, terminal, otherURI); err != nil {
+		INSERT INTO tap_source_records(
+			uri,did,collection,rkey,source_event_id,source_fingerprint,revision,cid,
+			action,record,record_bytes,live,ordering_status,projection_disposition,
+			structural_validation_status,semantic_validation_status,observed_at,updated_at
+		)
+		SELECT uri, did, collection, rkey, event_id, decode(repeat('00',32),'hex'),
+		       '3aaaaaaaaaaa2', cid, 'create', '{}'::json, 2, false,
+		       'authoritative', 'eligible', 'valid', 'valid', now(), now()
+		FROM (VALUES
+		  ('at://did:plc:terminal-viewer/app.bsky.graph.follow/terminal',$1::text,'app.bsky.graph.follow','terminal',900001::bigint,'follow-cid'),
+		  ('at://did:plc:terminal-actor/app.bsky.graph.follow/other',$2::text,'app.bsky.graph.follow','other',900002::bigint,'terminal-follow-cid'),
+		  ('at://did:plc:terminal-actor/social.craftsky.feed.like/other',$2::text,'social.craftsky.feed.like','other',900003::bigint,'terminal-like-cid'),
+		  ('at://did:plc:terminal-actor/social.craftsky.feed.repost/other',$2::text,'social.craftsky.feed.repost','other',900004::bigint,'terminal-repost-cid'),
+		  ('at://did:plc:terminal-actor/app.bsky.graph.block/viewer',$2::text,'app.bsky.graph.block','viewer',900005::bigint,'block-cid')
+		) AS source(uri,did,collection,rkey,event_id,cid)
+	`, viewer, terminal); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO craftsky_reposts(uri,did,rkey,cid,subject_uri,subject_cid,record,created_at)
-		VALUES('at://did:plc:terminal-actor/social.craftsky.feed.repost/other',$1,
-		       'other','terminal-repost-cid',$2,'other-cid','{}',now())
-	`, terminal, otherURI); err != nil {
+		INSERT INTO pds_set_sources(
+			source_uri,kind,actor_did,scope_key,subject_did,subject_uri,subject_cid,activity_at,eligible
+		)
+		VALUES
+		('at://did:plc:terminal-viewer/app.bsky.graph.follow/terminal','follow',$1,$2,$2,NULL,NULL,now(),true),
+		('at://did:plc:terminal-actor/app.bsky.graph.follow/other','follow',$2,$3,$3,NULL,NULL,now(),true),
+		('at://did:plc:terminal-actor/social.craftsky.feed.like/other','like',$2,$4,NULL,$4,'other-cid',now(),true),
+		('at://did:plc:terminal-actor/social.craftsky.feed.repost/other','repost',$2,$4,NULL,$4,'other-cid',now(),true),
+		('at://did:plc:terminal-actor/app.bsky.graph.block/viewer','block',$2,$1,$1,NULL,NULL,now(),true)
+	`, viewer, terminal, other, otherURI); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO atproto_follows(uri,did,rkey,cid,subject_did,record,created_at)
-		VALUES('at://did:plc:terminal-viewer/app.bsky.graph.follow/terminal',
-		       $1,'terminal','follow-cid',$2,'{}',now()),
-		      ('at://did:plc:terminal-actor/app.bsky.graph.follow/other',
-		       $2,'other','terminal-follow-cid',$3,'{}',now())
-	`, viewer, terminal, other); err != nil {
+		INSERT INTO pds_set_aggregates(
+			kind,actor_did,scope_key,subject_did,subject_uri,eligible_source_count,
+			representative_source_uri,activated_at
+		)
+		SELECT kind,actor_did,scope_key,subject_did,subject_uri,1,source_uri,activity_at
+		FROM pds_set_sources WHERE source_uri LIKE 'at://did:plc:terminal-%'
+	`); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO actor_mutes(owner_did,subject_did) VALUES($1,$2)`, viewer, terminal); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO atproto_blocks(uri,blocker_did,rkey,cid,subject_did,record,created_at)
-		VALUES('at://did:plc:terminal-actor/app.bsky.graph.block/viewer',
-		       $2,'viewer','block-cid',$1,'{}',now())
-	`, viewer, terminal); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `
@@ -226,18 +234,17 @@ func TestTerminalOwnerIsInvisibleAndIneffectiveBeforePhysicalPurge(t *testing.T)
 	if err := pool.QueryRow(ctx, `
 		SELECT (SELECT count(*) FROM craftsky_profiles WHERE did=$1)
 		     + (SELECT count(*) FROM craftsky_posts WHERE did=$1)
-		     + (SELECT count(*) FROM craftsky_likes WHERE did=$1)
-		     + (SELECT count(*) FROM craftsky_reposts WHERE did=$1)
-		     + (SELECT count(*) FROM atproto_follows WHERE did=$1 OR subject_did=$1)
+		     + (SELECT count(*) FROM tap_source_records WHERE did=$1)
+		     + (SELECT count(*) FROM pds_set_sources WHERE actor_did=$1 OR subject_did=$1)
+		     + (SELECT count(*) FROM pds_set_aggregates WHERE actor_did=$1 OR subject_did=$1)
 		     + (SELECT count(*) FROM actor_mutes WHERE subject_did=$1)
-		     + (SELECT count(*) FROM atproto_blocks WHERE blocker_did=$1)
 		     + (SELECT count(*) FROM moderation_outputs WHERE source_did=$1)
 		     + (SELECT count(*) FROM notification_events WHERE actor_did=$1)
 	`, terminal).Scan(&retainedRows); err != nil {
 		t.Fatal(err)
 	}
-	if retainedRows != 11 {
-		t.Fatalf("pause-after-ACK fixture retained rows=%d, want 11", retainedRows)
+	if retainedRows != 20 {
+		t.Fatalf("pause-after-ACK fixture retained rows=%d, want 20", retainedRows)
 	}
 
 	if _, err := profiles.Read(ctx, terminal.String(), viewer.String()); !errors.Is(err, api.ErrProfileNotFound) {
@@ -245,6 +252,9 @@ func TestTerminalOwnerIsInvisibleAndIneffectiveBeforePhysicalPurge(t *testing.T)
 	}
 	if _, err := posts.ReadOne(ctx, terminal.String(), "terminal-post"); !errors.Is(err, api.ErrPostNotFound) {
 		t.Fatalf("terminal direct post read error=%v, want not found", err)
+	}
+	if _, err := posts.ReadOneForViewer(ctx, terminal.String(), "terminal-post", terminal.String()); !errors.Is(err, api.ErrPostNotFound) {
+		t.Fatalf("terminal owner post read error=%v, want not found", err)
 	}
 	timeline, _, err := posts.ListTimeline(ctx, viewer.String(), 20, "")
 	if err != nil {
@@ -396,11 +406,10 @@ func TestTerminalOwnerIsInvisibleAndIneffectiveBeforePhysicalPurge(t *testing.T)
 		     + (SELECT count(*) FROM bluesky_profiles WHERE did=$1)
 		     + (SELECT count(*) FROM atproto_identity_cache WHERE did=$1)
 		     + (SELECT count(*) FROM craftsky_posts WHERE did=$1)
-		     + (SELECT count(*) FROM craftsky_likes WHERE did=$1)
-		     + (SELECT count(*) FROM craftsky_reposts WHERE did=$1)
-		     + (SELECT count(*) FROM atproto_follows WHERE did=$1 OR subject_did=$1)
+		     + (SELECT count(*) FROM tap_source_records WHERE did=$1)
+		     + (SELECT count(*) FROM pds_set_sources WHERE actor_did=$1 OR subject_did=$1)
+		     + (SELECT count(*) FROM pds_set_aggregates WHERE actor_did=$1 OR subject_did=$1)
 		     + (SELECT count(*) FROM actor_mutes WHERE owner_did=$1 OR subject_did=$1)
-		     + (SELECT count(*) FROM atproto_blocks WHERE blocker_did=$1 OR subject_did=$1)
 		     + (SELECT count(*) FROM moderation_outputs WHERE source_did=$1 OR subject_did=$1)
 		     + (SELECT count(*) FROM notification_events WHERE actor_did=$1 OR recipient_did=$1)
 	`, terminal).Scan(&remainingTerminalReferences); err != nil {
@@ -412,11 +421,10 @@ func TestTerminalOwnerIsInvisibleAndIneffectiveBeforePhysicalPurge(t *testing.T)
 			"bluesky_profiles":       `SELECT count(*) FROM bluesky_profiles WHERE did=$1`,
 			"atproto_identity_cache": `SELECT count(*) FROM atproto_identity_cache WHERE did=$1`,
 			"craftsky_posts":         `SELECT count(*) FROM craftsky_posts WHERE did=$1`,
-			"craftsky_likes":         `SELECT count(*) FROM craftsky_likes WHERE did=$1`,
-			"craftsky_reposts":       `SELECT count(*) FROM craftsky_reposts WHERE did=$1`,
-			"atproto_follows":        `SELECT count(*) FROM atproto_follows WHERE did=$1 OR subject_did=$1`,
+			"tap_source_records":     `SELECT count(*) FROM tap_source_records WHERE did=$1`,
+			"pds_set_sources":        `SELECT count(*) FROM pds_set_sources WHERE actor_did=$1 OR subject_did=$1`,
+			"pds_set_aggregates":     `SELECT count(*) FROM pds_set_aggregates WHERE actor_did=$1 OR subject_did=$1`,
 			"actor_mutes":            `SELECT count(*) FROM actor_mutes WHERE owner_did=$1 OR subject_did=$1`,
-			"atproto_blocks":         `SELECT count(*) FROM atproto_blocks WHERE blocker_did=$1 OR subject_did=$1`,
 			"moderation_outputs":     `SELECT count(*) FROM moderation_outputs WHERE source_did=$1 OR subject_did=$1`,
 			"notification_events":    `SELECT count(*) FROM notification_events WHERE actor_did=$1 OR recipient_did=$1`,
 		}
@@ -453,37 +461,35 @@ func TestTerminalOwnerIsInvisibleAndIneffectiveBeforePhysicalPurge(t *testing.T)
 
 func applyTerminalVisibilityMigrations(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	entries, err := os.ReadDir("../../migrations")
+	names, err := testdb.UpMigrationNames()
 	if err != nil {
 		t.Fatal(err)
 	}
-	var paths []string
-	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".up.sql") {
-			paths = append(paths, filepath.Join("../../migrations", entry.Name()))
-		}
-	}
-	sort.Strings(paths)
-	for _, path := range paths {
-		sql, err := os.ReadFile(path)
+	for _, name := range names {
+		sql, err := testdb.ReadMigration(name)
 		if err != nil {
 			t.Fatal(err)
 		}
-		switch filepath.Base(path) {
-		case "000019_search_foundation.up.sql":
-			sql = bytes.ReplaceAll(sql, []byte("gin_trgm_ops"), []byte("public.gin_trgm_ops"))
-		case "000024_saved_posts.up.sql":
-			sql = bytes.ReplaceAll(sql, []byte("ON DELETE SET NULL (folder_id)"), []byte("ON DELETE NO ACTION"))
-		case "000041_account_deletion_safety_tombstones.up.sql":
-			sql = bytes.ReplaceAll(sql, []byte("UNIQUE NULLS NOT DISTINCT ("), []byte("UNIQUE ("))
-			sql = append(sql, []byte(`
+		sql = adaptTerminalVisibilityMigrationForPostgreSQL14(name, sql)
+		if _, err := pool.Exec(context.Background(), string(sql)); err != nil {
+			t.Fatalf("apply %s: %v", name, err)
+		}
+	}
+}
+
+func adaptTerminalVisibilityMigrationForPostgreSQL14(name string, sql []byte) []byte {
+	switch name {
+	case "000019_search_foundation.up.sql":
+		sql = bytes.ReplaceAll(sql, []byte("gin_trgm_ops"), []byte("public.gin_trgm_ops"))
+	case "000024_saved_posts.up.sql":
+		sql = bytes.ReplaceAll(sql, []byte("ON DELETE SET NULL (folder_id)"), []byte("ON DELETE NO ACTION"))
+	case "000041_account_deletion_safety_tombstones.up.sql":
+		sql = bytes.ReplaceAll(sql, []byte("UNIQUE NULLS NOT DISTINCT ("), []byte("UNIQUE ("))
+		sql = append(sql, []byte(`
 				CREATE UNIQUE INDEX account_deletion_safety_tombstones_null_upload_terminal_visibility_idx
 					ON account_deletion_safety_tombstones(operation_id,kind,exact_key)
 					WHERE upload_generation IS NULL;
 			`)...)
-		}
-		if _, err := pool.Exec(context.Background(), string(sql)); err != nil {
-			t.Fatalf("apply %s: %v", filepath.Base(path), err)
-		}
 	}
+	return sql
 }

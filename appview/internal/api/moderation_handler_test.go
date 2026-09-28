@@ -3,14 +3,13 @@ package api_test
 import (
 	"context"
 	"errors"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/testlog"
 )
 
 type moderationInserterStub struct {
@@ -49,7 +48,7 @@ func TestDevModerationHandlerRequiresValidIdempotencyKeyBeforePersistence(t *tes
 					TrustedSourceDIDs: []string{"did:plc:labeler"},
 				},
 				store,
-				slog.New(slog.NewTextHandler(io.Discard, nil)),
+				testlog.Discard(),
 			)
 			req := httptest.NewRequest(http.MethodPost, "/v1/dev/moderation/ozone-events", strings.NewReader(`{
 				"subject":{"type":"account","did":"did:plc:target"},
@@ -87,7 +86,7 @@ func TestDevModerationHandlerReplaysSuccessAndMapsKeyConflict(t *testing.T) {
 		DefaultSourceDID:  "did:plc:labeler",
 		TrustedSourceDIDs: []string{"did:plc:labeler"},
 	}
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testlog.Discard()
 
 	successStore := &moderationInserterStub{result: &api.ModerationInsertResult{
 		OutputID: "output-one", Status: "indexed", Replayed: true,

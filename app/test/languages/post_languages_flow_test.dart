@@ -56,6 +56,7 @@ Post _createdPost() => PostMapper.fromMap({
   'viewerHasLiked': false,
   'viewerHasReposted': false,
   'viewerHasSaved': false,
+  'sponsored': false,
   'createdAt': '2026-07-29T10:00:00.000Z',
   'indexedAt': '2026-07-29T10:00:01.000Z',
   'author': {
@@ -133,7 +134,11 @@ void main() {
       ).add('fr');
       await container
           .read(createPostProvider.notifier)
-          .create(text: 'Hola, bonjour', langs: selection.values);
+          .create(
+            text: 'Hola, bonjour',
+            langs: selection.values,
+            sponsored: false,
+          );
       expect(postRepository.lastCreateLangs, ['es', 'fr']);
       expect(container.read(createPostProvider).value?.langs, ['es', 'fr']);
 

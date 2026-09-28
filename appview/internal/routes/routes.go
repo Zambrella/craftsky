@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/api"
@@ -12,6 +13,7 @@ import (
 	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/moderation"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
 )
@@ -50,6 +52,9 @@ type v1Middleware struct {
 	observer            *observability.Observer
 	hydrator            *api.IdentityCustomisationHydrator
 	accountTypeHydrator *api.IdentityAccountTypeHydrator
+	moderator           func(http.Handler) http.Handler
+	suspension          middleware.SuspensionReader
+	handlerDecorator    func(RoutePolicy, http.Handler) http.Handler
 }
 
 func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handler {
@@ -60,6 +65,9 @@ func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handle
 		accessClass = AccessCurrentMember
 	}
 	wrapped := handler
+	if m.handlerDecorator != nil {
+		wrapped = m.handlerDecorator(policy, wrapped)
+	}
 	if m.hydrator != nil {
 		wrapped = m.hydrator.Handler(wrapped)
 	}
@@ -76,12 +84,17 @@ func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handle
 		wrapped = m.uploadAdmission.Handler(wrapped)
 	}
 	if accessClass == AccessCurrentMember {
+		wrapped = middleware.ModerationEnforcement(m.suspension, policy.SuspensionClass.AllowedWhenSuspended(), nil)(wrapped)
+	}
+	if accessClass == AccessCurrentMember {
 		wrapped = m.member(wrapped)
 	}
 	if rl := m.rateLimit[policy.RateClass]; rl != nil {
 		wrapped = rl(wrapped)
 	}
 	switch accessClass {
+	case AccessModerator:
+		wrapped = m.moderator(wrapped)
 	case AccessAuthenticatedRecovery:
 		wrapped = m.deviceID(wrapped)
 		wrapped = m.authRecovery(wrapped)
@@ -112,6 +125,8 @@ type middlewareDependencies struct {
 	RateLimiter               *middleware.LocalRateLimiter
 	ProfileCustomisationStore *api.ProfileCustomisationStore
 	BusinessStore             *business.Store
+	Suspension                middleware.SuspensionReader
+	HandlerDecorator          func(RoutePolicy, http.Handler) http.Handler
 }
 
 func buildV1Middleware(deps middlewareDependencies, observer *observability.Observer) v1Middleware {
@@ -187,6 +202,9 @@ func buildV1Middleware(deps middlewareDependencies, observer *observability.Obse
 		observer:            observer,
 		hydrator:            hydrator,
 		accountTypeHydrator: accountTypeHydrator,
+		moderator:           middleware.ModeratorAuthentication(deps.Config.ModerationAdminToken.reveal(), deps.Config.ModerationAdminActorID, deps.Config.ModerationAdminSourceSystem, deps.Logger, observer),
+		suspension:          deps.Suspension,
+		handlerDecorator:    deps.HandlerDecorator,
 	}
 }
 
@@ -234,12 +252,23 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 	if businessStore == nil && deps.DB != nil {
 		businessStore = business.NewStore(deps.DB)
 	}
+	moderationCases := deps.ModerationCases
+	if moderationCases == nil && deps.DB != nil {
+		moderationCases = moderation.NewStore(deps.DB)
+	}
+	var suspension middleware.SuspensionReader
+	if deps.SuspensionReader != nil {
+		suspension = deps.SuspensionReader
+	} else if moderationCases != nil {
+		suspension = moderationCases
+	}
 	v1mw := buildV1Middleware(middlewareDependencies{
 		Config: deps.Config, Logger: deps.Logger, DB: deps.DB,
 		AuthService: deps.AuthService, CraftskySessionStore: deps.CraftskySessionStore,
 		InstagramMembership: deps.InstagramMembership, OwnerLifecycles: deps.OwnerLifecycles,
 		RateLimiter: deps.RateLimiter, ProfileCustomisationStore: profileCustomisationStore,
-		BusinessStore: businessStore,
+		BusinessStore: businessStore, Suspension: suspension,
+		HandlerDecorator: deps.routeHandlerDecorator,
 	}, observer)
 	mediaLimits := api.MediaLimits{
 		MaxPostImages:       deps.Config.MaxPostImages,
@@ -247,6 +276,11 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 	}
 
 	registerAuthRoutes(authRouteBundle{mux: mux, middleware: v1mw, handlers: oauthHandlers})
+	registerModerationRoutes(moderationRouteBundle{
+		mux: mux, middleware: v1mw, store: moderationCases,
+		commands: deps.ModerationCommands, sourceDID: syntax.DID(deps.Config.ModerationSourceDID),
+		config: deps.Config,
+	})
 	registerVideoRoutes(videoRouteBundle{
 		mux: mux, middleware: v1mw, authorization: deps.VideoUploadAuthorization,
 		limits: deps.VideoUploadLimits, logger: deps.Logger, observer: observer,
@@ -283,17 +317,19 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 		businessProfiles:          businessStore,
 		followerGrowth:            deps.FollowerGrowth,
 		profileCustomisationStore: profileCustomisationStore,
-		followStore:               deps.FollowStore, relationshipStore: deps.RelationshipStore,
-		relationshipMutations: deps.RelationshipMutations,
-		handleResolver:        deps.HandleResolver,
-		authoritativeResolver: deps.AuthoritativeHandleResolver,
-		newPDSEffects:         deps.NewPDSEffects,
-		reportStore:           deps.ReportStore, reportForwarder: deps.ReportForwarder,
+		relationshipStore:         deps.RelationshipStore,
+		relationshipMutations:     deps.RelationshipMutations,
+		handleResolver:            deps.HandleResolver,
+		authoritativeResolver:     deps.AuthoritativeHandleResolver,
+		pdsCommands:               deps.PDSCommands,
+		compoundCommands:          deps.PDSCompoundCommands,
+		reportStore:               deps.ReportStore, reportForwarder: deps.ReportForwarder,
 		mediaLimits: mediaLimits, logger: deps.Logger,
 	})
 	registerBusinessRoutes(businessRouteBundle{
 		mux: mux, middleware: v1mw, store: businessStore,
-		handleResolver: deps.HandleResolver, newPDSEffects: deps.NewPDSEffects,
+		handleResolver: deps.HandleResolver,
+		appendCommands: deps.PDSAppendCommands, addressedCommands: deps.PDSAddressedCommands,
 		reportStore: deps.ReportStore, reportForwarder: deps.ReportForwarder,
 		cursors: deps.EventCursorCodec, now: deps.Now, logger: deps.Logger,
 	})
@@ -309,7 +345,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 		logger: deps.Logger,
 	})
 	registerScheduledPostRoutes(scheduledPostRouteBundle{
-		mux: mux, middleware: v1mw, newPDSEffects: deps.NewPDSEffects,
+		mux: mux, middleware: v1mw, newBlobEffects: deps.NewBlobEffects,
 		mediaLimits:    mediaLimits,
 		imageValidator: scheduledImageValidator,
 		posts:          deps.ScheduledPosts, media: deps.ScheduledMedia,
@@ -325,7 +361,8 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 		},
 		postStore: postStore, savedPostStore: savedPostStore,
 		savedPostService: savedPostService, profilePinStore: profilePinStore,
-		handleResolver: deps.HandleResolver, newPDSEffects: deps.NewPDSEffects,
+		handleResolver: deps.HandleResolver,
+		pdsCommands:    deps.PDSCommands, appendCommands: deps.PDSAppendCommands, addressedCommands: deps.PDSAddressedCommands,
 		reportStore: deps.ReportStore, reportForwarder: deps.ReportForwarder,
 		moderationStore: deps.ModerationStore, languages: deps.LanguagePreferences,
 		mediaLimits: mediaLimits, videoVerifier: deps.VideoCompletionVerifier, videoCaptions: deps.VideoCaptionFetcher, videoObserver: observer, logger: deps.Logger,

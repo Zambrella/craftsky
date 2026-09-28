@@ -71,5 +71,6 @@ Post _post({required String rkey}) {
     viewerHasLiked: false,
     viewerHasReposted: false,
     viewerHasSaved: false,
+    sponsored: false,
   );
 }

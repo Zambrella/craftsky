@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
@@ -8,8 +10,10 @@ import 'package:craftsky_app/languages/providers/language_preferences_provider.d
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/projects/pages/projects_page.dart';
 import 'package:craftsky_app/projects/providers/project_repository_provider.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
+import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,6 +21,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../../fakes/auth_session_fakes.dart';
+import '../../test_support/deterministic_pump.dart';
 import '../fakes/fake_project_repository.dart';
 
 Post _post(int index) => PostMapper.fromMap({
@@ -31,6 +36,7 @@ Post _post(int index) => PostMapper.fromMap({
   'viewerHasLiked': false,
   'viewerHasReposted': false,
   'viewerHasSaved': false,
+  'sponsored': false,
   'createdAt': '2026-05-04T18:23:45.000Z',
   'indexedAt': '2026-05-04T18:23:47.000Z',
   'author': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},
@@ -65,6 +71,40 @@ Future<void> _pumpProjects(
 void main() {
   setUpAll(initializeMappers);
 
+  testWidgets('shows three project post skeletons while initially loading', (
+    tester,
+  ) async {
+    final gate = Completer<PostPage>();
+    await _pumpProjects(
+      tester,
+      FakeProjectRepository(
+        onListProjects: ({required query, limit, cursor}) => gate.future,
+      ),
+    );
+
+    expect(
+      tester
+          .widget<CraftskySkeletonSliverList>(
+            find.byType(CraftskySkeletonSliverList),
+          )
+          .itemCount,
+      3,
+    );
+    expect(
+      tester
+          .widget<PostCardSkeleton>(find.byType(PostCardSkeleton).first)
+          .showMedia,
+      isTrue,
+    );
+
+    gate.complete(const PostPage(items: []));
+    await pumpUntilAbsent(
+      tester,
+      find.byType(CraftskySkeletonSliverList),
+      description: 'the project loading skeleton to disappear',
+    );
+  });
+
   testWidgets('shows Filters as an extended floating action', (tester) async {
     await _pumpProjects(
       tester,
@@ -73,7 +113,11 @@ void main() {
             const PostPage(items: []),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.widgetWithText(CraftskyFloatingActionButton, 'Filters'),
+      description: 'the project filters action',
+    );
 
     expect(
       find.widgetWithText(CraftskyFloatingActionButton, 'Filters'),
@@ -82,6 +126,74 @@ void main() {
     expect(find.widgetWithText(OutlinedButton, 'Filters'), findsNothing);
     expect(CraftskyIconsBold.filter, PhosphorIconsBold.funnelSimple);
     expect(find.byIcon(CraftskyIconsBold.filter), findsOneWidget);
+  });
+
+  testWidgets('filter sheet orders and enables dependent controls', (
+    tester,
+  ) async {
+    await _pumpProjects(
+      tester,
+      FakeProjectRepository(
+        onListProjects: ({required query, limit, cursor}) async =>
+            const PostPage(items: []),
+      ),
+    );
+    await pumpUntilFound(
+      tester,
+      find.text('Filters'),
+      description: 'the project filters action',
+    );
+
+    await tester.tap(find.text('Filters'));
+    await tester.pumpAndSettle();
+
+    CraftskySearchableMultiSelectInput<String> subtypeInput() => tester.widget(
+      find.byWidgetPredicate(
+        (widget) =>
+            widget is CraftskySearchableMultiSelectInput<String> &&
+            widget.label == 'Project subtype',
+      ),
+    );
+    CraftskySearchableMultiSelectInput<String> inputWithLabel(String label) =>
+        tester.widget(
+          find.byWidgetPredicate(
+            (widget) =>
+                widget is CraftskySearchableMultiSelectInput<String> &&
+                widget.label == label,
+          ),
+        );
+    void expectAlphabetical(String label) {
+      final labels = [
+        for (final option in inputWithLabel(label).options) option.label,
+      ];
+      expect(labels, [...labels]..sort());
+    }
+
+    expect(find.text('Project subtype'), findsOneWidget);
+    expect(subtypeInput().enabled, isFalse);
+    expectAlphabetical('Project type');
+
+    await tester.tap(find.byKey(const Key('Project type-select-button')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(CheckboxListTile, 'Garment'));
+    await tester.pumpAndSettle();
+
+    expect(subtypeInput().enabled, isTrue);
+    expectAlphabetical('Project subtype');
+
+    FocusManager.instance.primaryFocus?.unfocus();
+    await tester.pumpAndSettle();
+    await tester.drag(find.byType(ListView).last, const Offset(0, -1000));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Design'), findsOneWidget);
+    expect(find.text('Design tag'), findsNothing);
+    expectAlphabetical('Color');
+    expectAlphabetical('Design');
+    expect(
+      tester.getTopLeft(find.text('Status')).dy,
+      lessThan(tester.getTopLeft(find.text('Self drafted')).dy),
+    );
   });
 
   testWidgets('each active project list refreshes, including empty data', (
@@ -110,10 +222,7 @@ void main() {
       const Offset(0, 400),
     );
     await tester.pumpAndSettle();
-    expect(
-      calls[ProjectOptionCatalogs.knittingCraftToken],
-      knittingCalls + 1,
-    );
+    expect(calls[ProjectOptionCatalogs.knittingCraftToken], knittingCalls + 1);
 
     await tester.drag(find.byType(TabBarView), const Offset(-500, 0));
     await tester.pumpAndSettle();
@@ -248,11 +357,9 @@ void main() {
 
     await tester.tap(find.text('Filters'));
     await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('Material-custom-input')),
-      'alpaca',
-    );
-    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.drag(find.byType(ListView).last, const Offset(0, -1000));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(CheckboxListTile, 'Self drafted'));
     await tester.pump();
     tester
         .widget<FilledButton>(
@@ -272,11 +379,9 @@ void main() {
 
     await tester.tap(find.text('Filters'));
     await tester.pumpAndSettle();
-    await tester.enterText(
-      find.byKey(const Key('Material-custom-input')),
-      'cotton',
-    );
-    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.drag(find.byType(ListView).last, const Offset(0, -1000));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(CheckboxListTile, 'Self drafted'));
     await tester.pump();
     tester
         .widget<FilledButton>(

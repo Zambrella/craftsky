@@ -3,8 +3,6 @@ package app
 import (
 	"context"
 	"encoding/json"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -24,12 +22,14 @@ import (
 	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/tap"
 	"social.craftsky/appview/internal/testdb"
+	"social.craftsky/appview/internal/testlog"
 	"social.craftsky/appview/internal/video"
 )
 
 const videoPostFlowDDL = indexerWiringDDL + `
 ALTER TABLE craftsky_posts
     ADD COLUMN langs TEXT[] NOT NULL DEFAULT '{}',
+	ADD COLUMN sponsored BOOLEAN NOT NULL DEFAULT false,
     ADD COLUMN is_project BOOLEAN NOT NULL DEFAULT false,
     ADD COLUMN project_craft_type TEXT,
     ADD COLUMN external_import_source TEXT,
@@ -142,7 +142,7 @@ func TestVideoPostCreateTapReadConvergence(t *testing.T) {
 		JobId: "job-1", Did: owner.String(), State: "JOB_STATE_COMPLETED",
 		Blob: &lexutil.LexBlob{Ref: lexutil.LexLink(parsedVideoCID), MimeType: "video/mp4", Size: videoSize},
 	}})
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testlog.Discard()
 	create := api.CreatePostHandler(
 		store,
 		func(context.Context, syntax.DID, string) (pdseffects.EffectExecutor, error) { return effects, nil },
@@ -151,7 +151,7 @@ func TestVideoPostCreateTapReadConvergence(t *testing.T) {
 		logger,
 		api.CreatePostHandlerOptions{VideoCompletionVerifier: verifier},
 	)
-	body := `{"text":"video post","langs":["en"],"embed":{"video":{"jobId":"job-1","blob":{"$type":"blob","ref":{"$link":"` + videoCID.String() + `"},"mimeType":"video/mp4","size":123},"alt":"Hands knitting","aspectRatio":{"width":16,"height":9}}}}`
+	body := `{"text":"video post","sponsored":false,"langs":["en"],"embed":{"video":{"jobId":"job-1","blob":{"$type":"blob","ref":{"$link":"` + videoCID.String() + `"},"mimeType":"video/mp4","size":123},"alt":"Hands knitting","aspectRatio":{"width":16,"height":9}}}}`
 	request := httptest.NewRequest(http.MethodPost, "/v1/posts", strings.NewReader(body))
 	request = request.WithContext(middleware.WithOwnerGeneration(middleware.WithDID(request.Context(), owner), 1))
 	recorder := httptest.NewRecorder()

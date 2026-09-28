@@ -21,10 +21,6 @@ type searchNeutralitySnapshot struct {
 	cursors []string
 }
 
-func TestBusinessSearchNeutrality(t *testing.T) {
-	assertBusinessSearchNeutrality(t)
-}
-
 func assertBusinessSearchNeutrality(t *testing.T) {
 	t.Helper()
 	pool := testdb.WithSchema(t, searchStoreDDL+businessNeutralityDDL)

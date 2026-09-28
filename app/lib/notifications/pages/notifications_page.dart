@@ -10,6 +10,7 @@ import 'package:craftsky_app/notifications/widgets/notification_row.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
@@ -71,9 +72,8 @@ class NotificationsPage extends ConsumerWidget {
                   }
                 },
               ),
-              _ => const SliverFillRemaining(
-                hasScrollBody: false,
-                child: Center(child: StitchProgressIndicator()),
+              _ => const CraftskySkeletonSliverList(
+                itemBuilder: _buildActivitySkeleton,
               ),
             },
           ],
@@ -82,6 +82,9 @@ class NotificationsPage extends ConsumerWidget {
     );
   }
 }
+
+Widget _buildActivitySkeleton(BuildContext context, int index) =>
+    const ActivityRowSkeleton();
 
 class _NotificationsLoadedSlivers extends ConsumerWidget {
   const _NotificationsLoadedSlivers({

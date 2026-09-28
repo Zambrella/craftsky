@@ -2,14 +2,13 @@ package api
 
 import (
 	"context"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"social.craftsky/appview/internal/testlog"
 )
 
 // newUnreachablePool returns a pool whose Ping fails quickly. Used to test
@@ -32,7 +31,7 @@ func TestHealth_ReturnsServiceUnavailableWhenDBDown(t *testing.T) {
 	pool := newUnreachablePool(t)
 	defer pool.Close()
 
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testlog.Discard()
 	h := HealthHandler(pool, logger)
 	req := httptest.NewRequest("GET", "/health", nil)
 	rec := httptest.NewRecorder()

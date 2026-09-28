@@ -1,3 +1,4 @@
+import 'package:craftsky_app/moderation/models/account_moderation.dart';
 import 'package:craftsky_app/notifications/models/notification_destination.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/services/notification_destination_inference.dart';
@@ -16,6 +17,11 @@ void main() {
         ),
         focusUri: AtUri.parse(
           'at://did:plc:commenter/social.craftsky.feed.post/comment',
+        ),
+      ),
+      ModerationHistoryDestination(
+        ModerationCaseReference.parse(
+          'MOD-550e8400-e29b-41d4-a716-446655440000',
         ),
       ),
     ];
@@ -166,6 +172,24 @@ void main() {
       const NotificationsDestination(),
     );
   });
+
+  test('AT-004 infers a dedicated moderation history destination', () {
+    final attempt = NotificationOpenAttempt.fromProviderData(
+      _providerData(
+        type: 'moderation',
+        caseReference: 'mod-550E8400-E29B-41D4-A716-446655440000',
+      ),
+    );
+
+    expect(
+      NotificationDestinationInference.forFacts(attempt.facts).destination,
+      ModerationHistoryDestination(
+        ModerationCaseReference.parse(
+          'MOD-550e8400-e29b-41d4-a716-446655440000',
+        ),
+      ),
+    );
+  });
 }
 
 Map<String, Object?> _providerData({
@@ -174,6 +198,7 @@ Map<String, Object?> _providerData({
   String? subjectUri,
   String? rootUri,
   String? sourceUri,
+  String? caseReference,
 }) => <String, Object?>{
   'payloadVersion': '1',
   'type': type,
@@ -182,4 +207,5 @@ Map<String, Object?> _providerData({
   'subjectUri': ?subjectUri,
   'rootUri': ?rootUri,
   'sourceUri': ?sourceUri,
+  'caseReference': ?caseReference,
 };

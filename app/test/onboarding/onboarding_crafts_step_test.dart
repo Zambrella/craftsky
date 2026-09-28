@@ -8,6 +8,7 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -58,6 +59,42 @@ void main() {
       ['sewing', 'knitting', 'crochet', 'quilting', 'embroidery'],
     );
     expect(find.byType(CraftIcon), findsNWidgets(5));
+    expect(find.byType(FilterChip), findsNWidgets(5));
+    final sewingChip = tester.widget<FilterChip>(
+      find.widgetWithText(FilterChip, 'Sewing'),
+    );
+    expect(sewingChip.selected, isTrue);
+    expect(sewingChip.showCheckmark, isNull);
+    expect(sewingChip.backgroundColor, isNull);
+    expect(sewingChip.selectedColor, isNull);
+    expect(sewingChip.side, isNull);
+    expect(sewingChip.shape, isNull);
+    final selectedIcon = tester.widget<SvgPicture>(
+      find.descendant(
+        of: find.widgetWithText(FilterChip, 'Sewing'),
+        matching: find.byType(SvgPicture),
+      ),
+    );
+    final unselectedIcon = tester.widget<SvgPicture>(
+      find.descendant(
+        of: find.widgetWithText(FilterChip, 'Knitting'),
+        matching: find.byType(SvgPicture),
+      ),
+    );
+    expect(
+      selectedIcon.colorFilter,
+      ColorFilter.mode(
+        AppTheme.lightThemeData.colorScheme.onPrimary,
+        BlendMode.srcIn,
+      ),
+    );
+    expect(
+      unselectedIcon.colorFilter,
+      ColorFilter.mode(
+        AppTheme.lightThemeData.colorScheme.onSurface,
+        BlendMode.srcIn,
+      ),
+    );
     expect(find.text('Weaving'), findsNothing);
     await tester.tap(find.text('Sewing'));
     expect(toggled, Craft.sewing);

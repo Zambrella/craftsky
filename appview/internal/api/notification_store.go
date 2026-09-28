@@ -24,6 +24,7 @@ const (
 	NotificationTypeQuote          NotificationType = "quote"
 	NotificationTypeEverythingElse NotificationType = "everythingElse"
 	NotificationTypeInstagramMatch NotificationType = "instagramMatch"
+	NotificationTypeModeration     NotificationType = "moderation"
 )
 
 type NotificationReplyRef struct {
@@ -60,6 +61,7 @@ type NotificationRow struct {
 	ActorAvatarCID         *string
 	ActorAvatarMime        *string
 	ActorViewerIsFollowing bool
+	CaseReference          string
 
 	CreatedAt time.Time
 	IndexedAt time.Time
@@ -112,16 +114,19 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			WHERE e.recipient_did = $1
 			  AND e.state = 'active'
 			  AND NOT appview_owner_is_terminal(e.recipient_did)
-			  AND NOT appview_owner_is_terminal(e.actor_did)
-			  AND NOT EXISTS (
-				SELECT 1 FROM actor_mutes mute
-				WHERE mute.owner_did = $1 AND mute.subject_did = e.actor_did
-			  )
-			  AND NOT EXISTS (
-				SELECT 1 FROM atproto_blocks block
-				WHERE (block.blocker_did = $1 AND block.subject_did = e.actor_did)
-				   OR (block.blocker_did = e.actor_did AND block.subject_did = $1)
-			  )
+			  AND (e.actor_did IS NULL OR (
+				NOT appview_owner_is_terminal(e.actor_did)
+				AND NOT EXISTS (
+					SELECT 1 FROM actor_mutes mute
+					WHERE mute.owner_did = $1 AND mute.subject_did = e.actor_did
+				)
+				AND NOT EXISTS (
+					SELECT 1 FROM pds_set_aggregates block
+					WHERE block.kind = 'block'
+					  AND ((block.actor_did = $1 AND block.subject_did = e.actor_did)
+					   OR (block.actor_did = e.actor_did AND block.subject_did = $1))
+				)
+			  ))
 			  AND ($2::timestamptz IS NULL
 			       OR (e.indexed_at, e.id) < ($2::timestamptz, $3::uuid))
 			  AND NOT EXISTS (
@@ -174,9 +179,10 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			JOIN reference_uris refs ON refs.uri=p.uri
 			WHERE NOT appview_owner_is_terminal(p.did)
 			AND NOT EXISTS (
-				SELECT 1 FROM atproto_blocks block
-				WHERE (block.blocker_did = $1 AND block.subject_did = p.did)
-				   OR (block.blocker_did = p.did AND block.subject_did = $1)
+				SELECT 1 FROM pds_set_aggregates block
+				WHERE block.kind = 'block'
+				  AND ((block.actor_did = $1 AND block.subject_did = p.did)
+				   OR (block.actor_did = p.did AND block.subject_did = $1))
 			)
 			AND NOT EXISTS (
 				SELECT 1 FROM moderation_outputs mo
@@ -204,21 +210,22 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			e.root_uri,e.root_cid,(e.root_uri IS NOT NULL AND root_post.uri IS NOT NULL AND blocked_reference.id IS NULL),
 			e.quoted_uri,e.quoted_cid,(e.quoted_uri IS NOT NULL AND quoted_post.uri IS NOT NULL AND blocked_reference.id IS NULL),
 			CASE WHEN sp.quote_uri IS NULL THEN true ELSE subject_quote.uri IS NOT NULL END,
-			e.actor_did,
+			e.actor_did,to_jsonb(e)->>'moderation_case_reference',
 			actor_bp.display_name AS actor_display_name,
 			actor_bp.avatar_cid AS actor_avatar_cid,
 			actor_bp.avatar_mime AS actor_avatar_mime,
 			EXISTS (
 				SELECT 1
-				FROM atproto_follows actor_follow
-				WHERE actor_follow.did = $1
+				FROM pds_set_aggregates actor_follow
+				WHERE actor_follow.kind = 'follow'
+				  AND actor_follow.actor_did = $1
 				  AND actor_follow.subject_did = e.actor_did
-				  AND NOT appview_owner_is_terminal(actor_follow.did)
+				  AND NOT appview_owner_is_terminal(actor_follow.actor_did)
 				  AND NOT appview_owner_is_terminal(actor_follow.subject_did)
 			) AS actor_viewer_is_following,
 			e.activity_at,
 			e.indexed_at,
-			sp.uri, sp.did, sp.rkey, sp.cid, sp.text, sp.facets, sp.images,
+			sp.uri, sp.did, sp.rkey, sp.cid, sp.text, sp.sponsored, sp.facets, sp.images,
 			sp.reply_root_uri, sp.reply_root_cid, sp.reply_parent_uri, sp.reply_parent_cid,
 			sp.quote_uri, sp.quote_cid, sp.tags, sp.created_at, sp.indexed_at,
 			sp.external_import_source, sp.profile_sort_at,
@@ -249,7 +256,7 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 		row := &NotificationRow{}
 		var eventType string
 		var subject notificationSubjectScan
-		var sourceURI, sourceCID, sourceRkey, actorDID sql.NullString
+		var sourceURI, sourceCID, sourceRkey, actorDID, caseReference sql.NullString
 		var sourceAvailable, subjectAvailable, parentAvailable, rootAvailable, quotedAvailable, subjectQuoteAvailable bool
 		var subjectURI, subjectCID, parentURI, parentCID, rootURI, rootCID, quotedURI, quotedCID sql.NullString
 		if err := rows.Scan(
@@ -261,9 +268,9 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			&rootURI, &rootCID, &rootAvailable,
 			&quotedURI, &quotedCID, &quotedAvailable,
 			&subjectQuoteAvailable,
-			&actorDID, &row.ActorDisplayName, &row.ActorAvatarCID, &row.ActorAvatarMime, &row.ActorViewerIsFollowing,
+			&actorDID, &caseReference, &row.ActorDisplayName, &row.ActorAvatarCID, &row.ActorAvatarMime, &row.ActorViewerIsFollowing,
 			&row.CreatedAt, &row.IndexedAt,
-			&subject.URI, &subject.DID, &subject.Rkey, &subject.CID, &subject.Text, &subject.Facets, &subject.Images,
+			&subject.URI, &subject.DID, &subject.Rkey, &subject.CID, &subject.Text, &subject.Sponsored, &subject.Facets, &subject.Images,
 			&subject.ReplyRootURI, &subject.ReplyRootCID, &subject.ReplyParentURI, &subject.ReplyParentCID,
 			&subject.QuoteURI, &subject.QuoteCID, &subject.Tags, &subject.CreatedAt, &subject.IndexedAt,
 			&subject.ExternalImportSource, &subject.ProfileSortAt,
@@ -274,8 +281,13 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 		}
 		row.Type = NotificationType(eventType)
 		row.ActorDID = actorDID.String
+		row.CaseReference = caseReference.String
+		sourceReference := notificationReference(sourceURI, sourceCID, sourceRkey.String, sourceAvailable)
+		if sourceReference == nil {
+			sourceReference = &NotificationReference{}
+		}
 		row.References = NotificationReferences{
-			Source:  *notificationReference(sourceURI, sourceCID, sourceRkey.String, sourceAvailable),
+			Source:  *sourceReference,
 			Subject: notificationReference(subjectURI, subjectCID, "", subjectAvailable),
 			Parent:  notificationReference(parentURI, parentCID, "", parentAvailable),
 			Root:    notificationReference(rootURI, rootCID, "", rootAvailable),
@@ -333,6 +345,7 @@ type notificationSubjectScan struct {
 	Rkey                 sql.NullString
 	CID                  sql.NullString
 	Text                 sql.NullString
+	Sponsored            sql.NullBool
 	Facets               json.RawMessage
 	Images               json.RawMessage
 	ReplyRootURI         *string
@@ -361,6 +374,7 @@ func (s notificationSubjectScan) postRow() *PostRow {
 		Rkey:                 s.Rkey.String,
 		CID:                  s.CID.String,
 		Text:                 s.Text.String,
+		Sponsored:            s.Sponsored.Valid && s.Sponsored.Bool,
 		Facets:               s.Facets,
 		Images:               s.Images,
 		ReplyRootURI:         s.ReplyRootURI,

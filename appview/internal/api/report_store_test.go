@@ -13,6 +13,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/moderation"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -83,6 +84,34 @@ CREATE TABLE craftsky_posts (
     created_at       TIMESTAMPTZ NOT NULL,
     indexed_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (did, rkey)
+);
+`
+
+const reportCaseDDL = `
+CREATE TABLE moderation_cases (
+    id UUID PRIMARY KEY,
+    subject_key TEXT NOT NULL,
+    subject_type TEXT NOT NULL,
+    subject_did TEXT NOT NULL,
+    subject_collection TEXT,
+    subject_rkey TEXT,
+    subject_uri TEXT,
+    subject_cid_snapshot TEXT,
+    owner_did TEXT NOT NULL,
+    safe_snapshot JSONB NOT NULL,
+    state TEXT NOT NULL DEFAULT 'open',
+    revision BIGINT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    resolved_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX moderation_cases_one_open_subject_idx
+    ON moderation_cases(subject_key) WHERE state='open';
+CREATE TABLE moderation_case_reports (
+    case_id UUID NOT NULL REFERENCES moderation_cases(id) ON DELETE CASCADE,
+    report_id TEXT NOT NULL UNIQUE REFERENCES moderation_reports(id) ON DELETE RESTRICT,
+    attached_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY(case_id,report_id)
 );
 `
 
@@ -252,6 +281,42 @@ func TestReportStore_CreateReport_RejectsTerminalSubject(t *testing.T) {
 	}
 	if count != 0 {
 		t.Fatalf("report rows = %d, want 0", count)
+	}
+}
+
+func TestReportStore_CreateReport_AttachesDuplicateReportsToOneCase(t *testing.T) {
+	pool := testdb.WithSchema(t, reportStoreBaseDDL+moderationFlowMigrationDDL(t)+reportCaseDDL)
+	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
+	for _, did := range []string{"did:plc:alice", "did:plc:bob"} {
+		if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'seed')`, did); err != nil {
+			t.Fatalf("seed profile %s: %v", did, err)
+		}
+	}
+	store := api.NewReportStore(pool, moderation.NewStore(pool))
+	input := api.CreateReportInput{
+		ReporterDID: "did:plc:alice", SubjectType: api.ReportSubjectAccount,
+		SubjectDID: "did:plc:bob", ReasonType: "spam",
+		ForwardingStatus: "prepared_not_submitted", ForwardingPreparedAt: time.Now().UTC(),
+	}
+	if _, err := store.CreateReport(ctx, input); err != nil {
+		t.Fatalf("create first report: %v", err)
+	}
+	if _, err := store.CreateReport(ctx, input); err != nil {
+		t.Fatalf("create duplicate report: %v", err)
+	}
+
+	var cases, reports, associations int
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM moderation_cases`).Scan(&cases); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM moderation_reports`).Scan(&reports); err != nil {
+		t.Fatal(err)
+	}
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM moderation_case_reports`).Scan(&associations); err != nil {
+		t.Fatal(err)
+	}
+	if cases != 1 || reports != 2 || associations != 2 {
+		t.Fatalf("cases/reports/associations = %d/%d/%d, want 1/2/2", cases, reports, associations)
 	}
 }
 

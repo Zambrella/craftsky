@@ -13,21 +13,34 @@ import (
 
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/pdseffects"
+	"social.craftsky/appview/internal/testdb"
 )
 
 func TestPublicationHoldsOneGuardedEffectScopeThroughFinalization(t *testing.T) {
-	base := newScheduledPostStoreTestPool(t)
+	base := testdb.WithMigratedSchema(t)
 	config := base.Config().Copy()
 	// One connection holds the canonical owner/session boundary and one holds
 	// the later schedule-effect lock. Attempt persistence and finalization must
-	// reuse those connections rather than starving on a third acquisition.
-	config.MaxConns = 2
+	// reuse those connections rather than starving on a third acquisition. The
+	// third slot stays reserved until the competing lifecycle transition starts.
+	config.MaxConns = 3
 	pool, err := pgxpool.NewWithConfig(context.Background(), config)
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(pool.Close)
+	reserved, err := pool.Acquire(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	reservedReleased := false
+	t.Cleanup(func() {
+		if !reservedReleased {
+			reserved.Release()
+		}
+	})
 	store := NewStore(pool)
 	fencer := newScheduledTestOwnerFencer(t, pool)
 	now := time.Date(2026, time.August, 20, 12, 0, 0, 0, time.UTC)
@@ -36,6 +49,20 @@ func TestPublicationHoldsOneGuardedEffectScopeThroughFinalization(t *testing.T) 
 		t.Fatal(err)
 	}
 	owner := syntax.DID("did:plc:alice")
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO owner_lifecycles(
+			owner_did,state,generation,auth_epoch,transition_reason,
+			transitioned_at,created_at,updated_at
+		) VALUES($1,'active',1,1,'test',$2,$2,$2)
+	`, owner, now); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO craftsky_profiles(did,record_cid,created_at)
+		VALUES($1,'bafyreiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',$2)
+	`, owner, now); err != nil {
+		t.Fatal(err)
+	}
 	created, err := store.Create(context.Background(), capacityCreateParams(owner, 96, now))
 	if err != nil {
 		t.Fatal(err)
@@ -65,17 +92,36 @@ func TestPublicationHoldsOneGuardedEffectScopeThroughFinalization(t *testing.T) 
 	if err != nil {
 		t.Fatal(err)
 	}
+	commandStore, err := pdscommands.NewStore(pdscommands.StoreConfig{
+		Pool: pool, Lifecycles: lifecycles, Now: func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	appendService, err := pdscommands.NewAppendCommandService(pdscommands.AppendCommandServiceConfig{
+		Store: commandStore, Lifecycles: lifecycles,
+		NewBoundary: func(context.Context, syntax.DID, string) (auth.ActiveEffectPDSBoundary, error) {
+			return boundary, nil
+		},
+		NewRecordKey: func() (syntax.RecordKey, error) { return "unused", nil },
+		Now:          func() time.Time { return now },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 	processor, err := NewPublicationProcessor(PublicationProcessorOptions{
 		Store: store,
 		Sessions: stubPublicationSessionSelector{
 			wantOwner: owner, sessionID: "owner-session",
 		},
-		NewEffects: func(
+		NewCommands: func(
 			context.Context,
 			syntax.DID,
 			string,
-		) (pdseffects.GuardedEffectCoordinator, error) {
-			return executor, nil
+		) (GuardedCommandCoordinator, error) {
+			return &journaledRecordingGuardedCoordinator{
+				executor: executor, append: appendService, client: pds,
+			}, nil
 		},
 		Objects: newMemoryPrivateObjectStore(),
 		Now:     func() time.Time { return now },
@@ -93,11 +139,19 @@ func TestPublicationHoldsOneGuardedEffectScopeThroughFinalization(t *testing.T) 
 			CreatedAt: claim.CreatedAt,
 		})
 	}()
-	<-remoteStarted
+	select {
+	case <-remoteStarted:
+	case publicationErr := <-publicationDone:
+		t.Fatalf("publication stopped before remote read: %v", publicationErr)
+	case <-time.After(3 * time.Second):
+		t.Fatal("timed out waiting for publication remote read")
+	}
 
 	departure := NewAccountDeletion(pool, func() time.Time { return now }, fencer)
 	departureDone := make(chan error, 1)
+	departureStarted := make(chan struct{})
 	go func() {
+		close(departureStarted)
 		_, transitionErr := lifecycles.TransitionWith(
 			context.Background(),
 			ownerlifecycle.TransitionRequest{
@@ -108,17 +162,16 @@ func TestPublicationHoldsOneGuardedEffectScopeThroughFinalization(t *testing.T) 
 		)
 		departureDone <- transitionErr
 	}()
-	select {
-	case err := <-departureDone:
-		t.Fatalf("departure crossed the live publication fence: %v", err)
-	case <-time.After(100 * time.Millisecond):
-	}
+	waitForScheduledSignal(t, departureStarted, "departure transition start")
+	reserved.Release()
+	reservedReleased = true
+	waitForScheduledAdvisoryWaiter(t, base, departureDone)
 
 	close(continueRemote)
-	if err := <-publicationDone; err != nil {
+	if err := waitForScheduledResult(t, publicationDone, "publication completion"); err != nil {
 		t.Fatalf("complete publication: %v", err)
 	}
-	if err := <-departureDone; err != nil {
+	if err := waitForScheduledResult(t, departureDone, "departure completion"); err != nil {
 		t.Fatalf("complete departure: %v", err)
 	}
 	if got := boundary.calls.Load(); got != 1 {
@@ -130,16 +183,17 @@ func TestPublicationHoldsOneGuardedEffectScopeThroughFinalization(t *testing.T) 
 	if _, err := store.Get(context.Background(), owner, created.ID); !errors.Is(err, ErrScheduleNotFound) {
 		t.Fatalf("finalized schedule remained after departure: %v", err)
 	}
-	var outcome string
+	var commandState string
 	if err := pool.QueryRow(context.Background(), `
-		SELECT remote_outcome
-		FROM owner_effect_attempts
-		WHERE operation_id=$1 AND owner_did=$2 AND owner_generation=$3
-	`, scheduledRecordEffectIdentity(claim), owner, claim.OwnerGeneration).Scan(&outcome); err != nil {
-		t.Fatalf("read durable scheduled effect: %v", err)
+		SELECT state
+		FROM pds_commands
+		WHERE operation_kind='scheduled_post_publish'
+		  AND owner_did=$1 AND owner_generation=$2
+	`, owner, claim.OwnerGeneration).Scan(&commandState); err != nil {
+		t.Fatalf("read durable scheduled command: %v", err)
 	}
-	if outcome != string(ownerlifecycle.OutcomeAccepted) {
-		t.Fatalf("durable scheduled effect outcome=%q, want accepted", outcome)
+	if commandState != string(pdscommands.CommandAccepted) {
+		t.Fatalf("durable scheduled command state=%q, want accepted", commandState)
 	}
 	lifecycle, err := lifecycles.Get(context.Background(), owner)
 	if err != nil {

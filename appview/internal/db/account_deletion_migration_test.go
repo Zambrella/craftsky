@@ -2,7 +2,6 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -42,11 +41,11 @@ INSERT INTO migration_sentinel(id, value) VALUES (1, 'preserve-me');
 func TestAccountDeletionMigrationUpDown(t *testing.T) {
 	t.Parallel()
 
-	up, err := os.ReadFile("../../migrations/000037_account_deletion.up.sql")
+	up, err := testdb.ReadMigration("000037_account_deletion.up.sql")
 	if err != nil {
 		t.Fatalf("read up migration: %v", err)
 	}
-	down, err := os.ReadFile("../../migrations/000037_account_deletion.down.sql")
+	down, err := testdb.ReadMigration("000037_account_deletion.down.sql")
 	if err != nil {
 		t.Fatalf("read down migration: %v", err)
 	}

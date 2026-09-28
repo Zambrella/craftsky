@@ -4,6 +4,7 @@ import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dar
 import 'package:craftsky_app/instagram_migration/models/instagram_verification.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/api_unwrap.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:dio/dio.dart';
 
 final class InstagramMigrationApiClient {
@@ -172,16 +173,41 @@ final class InstagramMigrationApiClient {
   });
 
   Future<InstagramSuggestionActionResult> acceptSuggestion(
-    String suggestionId,
-  ) => unwrapApi(() async {
+    String suggestionId, {
+    required String operationKey,
+  }) => unwrapPdsMutationApi(() async {
+    _requireCanonicalOperationKey(operationKey);
     final response = await _dio.post<Object?>(
       '/v1/migrations/instagram/suggestions/'
       '${Uri.encodeComponent(suggestionId)}/accept',
+      options: Options(
+        headers: {'Idempotency-Key': operationKey},
+        validateStatus: (status) =>
+            status != null && status >= 200 && status < 300,
+      ),
     );
-    _requireStatus(response, 200);
-    return _decodeMap(
-      response.data,
-      InstagramSuggestionActionResult.fromMap,
+    return parsePdsMutationResponse(
+      response,
+      accepted: (data) => _decode(() {
+        _requireStatus(response, 200);
+        if (data is! Map<String, dynamic> ||
+            data.length != 2 ||
+            !data.containsKey('suggestionId') ||
+            !data.containsKey('state')) {
+          throw const FormatException(
+            'invalid_instagram_suggestion_action',
+          );
+        }
+        final result = InstagramSuggestionActionResult.fromMap(data);
+        if (result.suggestionId != suggestionId ||
+            (result.state != InstagramSuggestionState.followed &&
+                result.state != InstagramSuggestionState.alreadyFollowing)) {
+          throw const FormatException(
+            'invalid_instagram_suggestion_action_state',
+          );
+        }
+        return result;
+      }),
     );
   });
 
@@ -218,4 +244,14 @@ final class InstagramMigrationApiClient {
     }
     return decode(data);
   });
+
+  void _requireCanonicalOperationKey(String operationKey) {
+    if (!isCanonicalPdsMutationOperationKey(operationKey)) {
+      throw ArgumentError.value(
+        operationKey,
+        'operationKey',
+        'must be a canonical UUID',
+      );
+    }
+  }
 }

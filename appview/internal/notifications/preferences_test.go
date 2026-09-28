@@ -71,3 +71,23 @@ func TestInstagramMatchPreferenceAllowsPushOnlyAndFixesScope(t *testing.T) {
 		t.Fatalf("instagramMatch scope mutation returned got=%+v err=%v", got, err)
 	}
 }
+
+func TestModerationPreferenceAllowsPushOnlyAndFixesScope(t *testing.T) {
+	pushOff := false
+	got, err := ResolvePreferences(nil, map[Category]PreferencePatch{
+		Moderation: {PushEnabled: &pushOff},
+	})
+	if err != nil || got[Moderation] != (Preference{Scope: Everyone, PushEnabled: false}) {
+		t.Fatalf("moderation preference got=%+v err=%v", got, err)
+	}
+	if got[Like] != (Preference{Scope: Everyone, PushEnabled: true}) {
+		t.Fatalf("unpatched like preference changed to %+v", got[Like])
+	}
+	people := PeopleIFollow
+	got, err = ResolvePreferences(nil, map[Category]PreferencePatch{
+		Moderation: {Scope: &people},
+	})
+	if err == nil || got != nil {
+		t.Fatalf("moderation scope mutation returned got=%+v err=%v", got, err)
+	}
+}

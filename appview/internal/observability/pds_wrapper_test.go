@@ -3,6 +3,7 @@ package observability
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"strings"
@@ -67,6 +68,37 @@ func (client *fakeConditionalPDSClient) DeleteRecordWithSwap(
 type fakeConditionalEffectPDSClient struct {
 	fakePDSClient
 	purpose *fakeConditionalPDSClient
+}
+
+type fakeRepositoryCommandPDSClient struct {
+	fakePDSClient
+	applyCalls int
+}
+
+func (*fakeRepositoryCommandPDSClient) ListRecords(context.Context, syntax.DID, string, string, int) ([]auth.PDSRecord, string, error) {
+	return nil, "", nil
+}
+
+func (*fakeRepositoryCommandPDSClient) LatestCommit(context.Context, syntax.DID) (syntax.CID, error) {
+	return "bafy-head", nil
+}
+
+func (client *fakeRepositoryCommandPDSClient) ApplyWrites(context.Context, syntax.DID, syntax.CID, []auth.RepositoryWrite) error {
+	client.applyCalls++
+	return nil
+}
+
+func (*fakeRepositoryCommandPDSClient) DeleteRecordWithRepositorySwap(context.Context, syntax.DID, syntax.NSID, syntax.RecordKey, syntax.CID, syntax.CID) error {
+	return nil
+}
+
+type fakeRepositoryCommandEffectClient struct {
+	fakePDSClient
+	purpose *fakeRepositoryCommandPDSClient
+}
+
+func (client *fakeRepositoryCommandEffectClient) WithActiveEffects(ctx context.Context, _ []ownerlifecycle.ExpectedOwner, operation auth.ActiveEffectPDSOperation) error {
+	return operation(ctx, client.purpose)
 }
 
 func (client *fakeConditionalEffectPDSClient) WithActiveEffects(
@@ -189,6 +221,53 @@ func TestWrapPDSFactoryPreservesConditionalDeleteInsideActiveEffects(t *testing.
 	}
 	if purpose.calls != 1 || purpose.expectedCID != "bafy-expected" {
 		t.Fatalf("conditional delete calls/CID = %d/%q", purpose.calls, purpose.expectedCID)
+	}
+}
+
+func TestWrapPDSFactoryPreservesRepositoryCommandProtocolInsideActiveEffects(t *testing.T) {
+	recorder := NewInMemoryMetricRecorder()
+	observer := New(Config{Env: "test", MetricRecorder: recorder})
+	purpose := &fakeRepositoryCommandPDSClient{}
+	inner := &fakeRepositoryCommandEffectClient{purpose: purpose}
+	wrapper := observer.WrapPDSFactory(func(context.Context, syntax.DID, string) (auth.PDSClient, error) {
+		return inner, nil
+	})
+	client, err := wrapper(context.Background(), "did:plc:alice", "session")
+	if err != nil {
+		t.Fatal(err)
+	}
+	boundary := client.(auth.ActiveEffectPDSBoundary)
+	err = boundary.WithActiveEffects(context.Background(), nil, func(ctx context.Context, callback auth.PDSClient) error {
+		command, commandOK := callback.(auth.RepositoryCommandPDSClient)
+		_, listOK := callback.(auth.PDSRecordLister)
+		if !commandOK || !listOK {
+			return errors.New("observed callback lost repository command protocol")
+		}
+		return command.ApplyWrites(ctx, "did:plc:alice", "bafy-head", []auth.RepositoryWrite{{
+			Action: "delete", Collection: "app.bsky.graph.follow", RKey: "secret-canary-must-not-escape",
+		}})
+	})
+	if err != nil || purpose.applyCalls != 1 {
+		t.Fatalf("repository command delegation = %v calls=%d", err, purpose.applyCalls)
+	}
+	encoded, err := json.Marshal(recorder.Calls())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), "secret-canary-must-not-escape") {
+		t.Fatalf("command metric leaked record identity: %s", encoded)
+	}
+	found := false
+	for _, call := range recorder.Calls() {
+		if err := ValidateMetricCall(call); err != nil {
+			t.Fatalf("invalid command metric: %v", err)
+		}
+		if call.Attributes["operation"] == string(PDSOperationCommandApply) {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("command apply metric was not recorded")
 	}
 }
 

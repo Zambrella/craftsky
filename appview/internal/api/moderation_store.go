@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"social.craftsky/appview/internal/moderation"
 	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
@@ -91,6 +92,33 @@ type ModerationSubjectRef struct {
 	Type ModerationSubjectType
 	DID  string
 	URI  *string
+}
+
+// InsertOutputTx is the narrow transaction bridge used by moderation
+// adjudication. Replay protection and lifecycle locking belong to the caller's
+// authoritative case transaction.
+func (s *ModerationStore) InsertOutputTx(ctx context.Context, tx pgx.Tx, input moderation.VisibilityOutputWrite) (string, error) {
+	id := uuid.NewString()
+	_, err := tx.Exec(ctx, `
+		INSERT INTO moderation_outputs(
+			id,source_did,subject_type,subject_did,subject_collection,subject_rkey,
+			subject_uri,value,action,internal_reason,created_at
+		) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
+	`, id, input.SourceDID, input.SubjectType, input.SubjectDID,
+		nullableModerationString(input.SubjectCollection), nullableModerationString(input.SubjectRkey),
+		nullableModerationString(input.SubjectURI.String()), input.Value, input.Action,
+		nullableModerationString(input.InternalReason), input.CreatedAt.UTC().Truncate(time.Microsecond))
+	if err != nil {
+		return "", fmt.Errorf("moderation output transaction insert: %w", err)
+	}
+	return id, nil
+}
+
+func nullableModerationString(value string) any {
+	if value == "" {
+		return nil
+	}
+	return value
 }
 
 type ModerationStore struct {

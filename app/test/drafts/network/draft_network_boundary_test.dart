@@ -223,6 +223,7 @@ Post _post() => Post(
   viewerHasLiked: false,
   viewerHasReposted: false,
   viewerHasSaved: false,
+  sponsored: false,
   createdAt: DateTime.utc(2026, 8),
   indexedAt: DateTime.utc(2026, 8),
   author: PostAuthor(did: 'did:plc:bob', handle: 'bob.test'),

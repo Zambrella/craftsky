@@ -2,14 +2,14 @@ package notifications
 
 import (
 	"context"
-	"os"
-	"social.craftsky/appview/internal/testdb"
 	"testing"
+
+	"social.craftsky/appview/internal/testdb"
 )
 
 func TestActorDeletionHardDeletesCausedNotificationsAndDeliveries(t *testing.T) {
 	pool := testdb.WithSchema(t, "")
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

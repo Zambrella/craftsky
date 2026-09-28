@@ -222,6 +222,8 @@ void main() {
   });
 
   test('logs a bounded diagnostic for the failing video operation', () async {
+    const tokenCanary = 'PRIVATE_VIDEO_SERVICE_TOKEN';
+    const altTextCanary = 'PRIVATE_AUTHORED_ALT_TEXT';
     final records = <LogRecord>[];
     final subscription = Logger(
       'VideoPublication',
@@ -229,7 +231,7 @@ void main() {
     addTearDown(subscription.cancel);
     final coordinator = VideoPublicationCoordinator(
       checkEligibility: () async => const VideoUploadLimits(canUpload: true),
-      authorize: () async => _authorization(),
+      authorize: () async => _authorization(token: tokenCanary),
       upload:
           ({
             required authorizationHeader,
@@ -247,7 +249,7 @@ void main() {
     );
 
     await expectLater(
-      coordinator.publish(altText: '', aspectRatio: null),
+      coordinator.publish(altText: altTextCanary, aspectRatio: null),
       throwsA(isA<VideoTransportException>()),
     );
 
@@ -259,6 +261,9 @@ void main() {
       ),
     );
     expect(records.last.level, Level.SEVERE);
+    final diagnosticOutput = records.map((record) => record.message).join('\n');
+    expect(diagnosticOutput, isNot(contains(tokenCanary)));
+    expect(diagnosticOutput, isNot(contains(altTextCanary)));
   });
 
   test('missing PDS blob retries once with deduplication bypass', () async {
@@ -375,7 +380,8 @@ void main() {
   });
 }
 
-VideoUploadAuthorization _authorization() => VideoUploadAuthorization.fromMap({
-  'token': 'ephemeral-secret',
-  'expiresAt': '2030-01-01T00:00:00Z',
-});
+VideoUploadAuthorization _authorization({String token = 'ephemeral-secret'}) =>
+    VideoUploadAuthorization.fromMap({
+      'token': token,
+      'expiresAt': '2030-01-01T00:00:00Z',
+    });

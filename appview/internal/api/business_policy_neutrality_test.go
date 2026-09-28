@@ -28,10 +28,6 @@ type policyNeutralitySnapshot struct {
 	moderation    []api.ModerationPolicy
 }
 
-func TestBusinessPolicyNeutrality(t *testing.T) {
-	assertBusinessPolicyNeutrality(t)
-}
-
 func assertBusinessPolicyNeutrality(t *testing.T) {
 	t.Helper()
 	regular := policyActorFixture{accountType: business.AccountTypeRegular}

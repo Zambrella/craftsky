@@ -12,7 +12,6 @@ import 'package:craftsky_app/business/data/business_repository.dart';
 import 'package:craftsky_app/business/models/business_drafts.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
-import 'package:craftsky_app/business/providers/business_projection_overlay_provider.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
 import 'package:craftsky_app/business/providers/products_controller.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
@@ -20,7 +19,9 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -66,18 +67,41 @@ void main() {
     },
   );
 
+  test('IT-016 ambiguous profile PUT retries immutable input', () async {
+    final repository = _Repository()..ambiguousResponses = 1;
+    final container = _container(repository, _profile('bafy-current'));
+    addTearDown(container.dispose);
+    final initial = await container.read(productsControllerProvider.future);
+
+    expect(
+      await container
+          .read(productsControllerProvider.notifier)
+          .replaceProducts(initial.products.reversed.toList()),
+      isTrue,
+    );
+
+    expect(repository.operationKeys, hasLength(2));
+    expect(repository.operationKeys.toSet(), hasLength(1));
+    expect(
+      isCanonicalPdsMutationOperationKey(repository.operationKeys.first),
+      isTrue,
+    );
+    expect(repository.bodies[1], repository.bodies[0]);
+  });
+
   test('IT-006 conflict requires complete reload before retry', () async {
     final repository = _Repository()
       ..error = const ApiBadRequest('pds_record_conflict');
     final current = _profile('bafy-current');
     final reloaded = _profile('bafy-new', tagline: 'Changed elsewhere');
+    final reloadCompleter = Completer<Profile>();
     var reloads = 0;
     final container = _container(
       repository,
       current,
       loader: () async {
         reloads++;
-        return reloaded;
+        return reloadCompleter.future;
       },
     );
     addTearDown(container.dispose);
@@ -93,7 +117,14 @@ void main() {
     expect(await controller.replaceProducts(currentProducts), isFalse);
     expect(repository.bodies, hasLength(1));
 
-    await controller.reloadAfterConflict();
+    final reload = controller.reloadAfterConflict();
+    await Future<void>.delayed(Duration.zero);
+    final loading = container.read(productsControllerProvider);
+    expect(loading.isLoading, isTrue);
+    expect(loading.requireValue.products, currentProducts);
+
+    reloadCompleter.complete(reloaded);
+    await reload;
     final state = container.read(productsControllerProvider).requireValue;
     expect(reloads, 1);
     expect(state.declaration.expectedCid.toString(), 'bafy-new');
@@ -169,10 +200,10 @@ void main() {
 
       final accepted =
           (container
-                  .read(businessProjectionOverlayProvider)
-                  .values
+                  .read(pdsRecordOperationControllerProvider)
+                  .activeOverlays
                   .single
-                  .acceptedView
+                  .optimisticValue
               as BusinessProfile?)!;
       expect(accepted.products.single.image?.previewBytes, same(previewBytes));
       expect(repository.bodies.single['products'], [
@@ -259,7 +290,9 @@ void main() {
         isTrue,
       );
       await Future<void>.delayed(Duration.zero);
-      expect(profileRepository.fetches, 2);
+      expect(profileRepository.fetches, 3);
+
+      laggingRead.complete(oldProfile.copyWith(business: null));
 
       final reconciled = await container.read(
         userProfileProvider(Did.parse('did:plc:owner')).future,
@@ -273,7 +306,6 @@ void main() {
         same(previewBytes),
       );
 
-      laggingRead.complete(oldProfile.copyWith(business: null));
       expect(
         (await staleProfileRead).business?.products.single.title,
         'Accepted product',
@@ -311,6 +343,11 @@ ProviderContainer _container(
     productsProfileLoaderProvider.overrideWithValue(
       loader ?? () async => profile,
     ),
+    pdsMutationDelayProvider.overrideWithValue((_) async {}),
+    pdsMutationJitterProvider.overrideWithValue((_) => 0),
+    pdsRecordOperationControllerProvider.overrideWithValue(
+      PdsRecordOperationController(schedule: (_, _) {}),
+    ),
   ],
 );
 
@@ -344,15 +381,23 @@ BusinessProductView _product(String title, String path) => BusinessProductView(
 final class _Repository extends Fake implements BusinessRepository {
   final bodies = <Map<String, dynamic>>[];
   final expectedCids = <Cid?>[];
+  final operationKeys = <String>[];
   Exception? error;
+  int ambiguousResponses = 0;
 
   @override
   Future<RecordMutationResult> putBusinessProfile(
     Map<String, dynamic> body, {
+    required String operationKey,
     required Cid? expectedCid,
   }) async {
     bodies.add(body);
     expectedCids.add(expectedCid);
+    operationKeys.add(operationKey);
+    if (ambiguousResponses > 0) {
+      ambiguousResponses--;
+      throw const PdsMutationAmbiguousException(retryAfterSeconds: 1);
+    }
     if (error case final value?) throw value;
     return RecordMutationResult(cid: 'bafy-accepted');
   }

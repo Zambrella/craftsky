@@ -28,10 +28,13 @@ var terminalCascadePolicies = map[string]string{
 	"instagram_private_suggestions":     "drain",
 	"instagram_reconciliation_jobs":     "drain",
 	"instagram_verification_attempts":   "drain",
+	"moderation_cases":                  "drain",
+	"moderation_reports":                "fixed",
 	"notification_events":               "drain",
 	"oauth_auth_requests":               "fixed",
 	"oauth_handoff_exchanges":           "fixed",
 	"oauth_sessions":                    "dependency",
+	"pds_commands":                      "drain",
 	"push_account_subscriptions":        "drain",
 	"saved_post_folders":                "dependency",
 	"scheduled_posts":                   "dependency",
@@ -132,8 +135,6 @@ func terminalCascadeDrainSQL(entry TerminalDIDEntry) []string {
 	switch entry.Table {
 	case "craftsky_posts":
 		return []string{
-			deletePostDependentSQL("craftsky_likes", "subject_uri", "uri"),
-			deletePostDependentSQL("craftsky_reposts", "subject_uri", "uri"),
 			deletePostDependentSQL("craftsky_post_mentions", "post_uri", "post_uri,mentioned_did"),
 			deletePostDependentSQL("craftsky_project_posts", "uri", "uri"),
 			deletePostDependentSQL("saved_posts", "post_uri", "owner_did,post_uri"),
@@ -152,6 +153,17 @@ func terminalCascadeDrainSQL(entry TerminalDIDEntry) []string {
 			DELETE FROM push_deliveries AS child
 			USING target WHERE child.id=target.id
 		`}
+	case "moderation_cases":
+		return []string{
+			deleteModerationCaseDependentSQL("moderation_appeals", "case_id"),
+			deleteModerationCaseDependentSQL("moderation_active_case_effects", "case_id,effect_type"),
+			deleteModerationCaseDependentSQL("moderation_case_strikes", "case_id"),
+			deleteModerationCaseDependentSQL("moderation_effect_events", "created_at,id"),
+			deleteModerationCaseDependentSQL("moderation_decisions", "created_at,id"),
+			deleteModerationCaseDependentSQL("moderation_appeal_correspondence", "received_at,id"),
+			deleteModerationCaseDependentSQL("moderation_case_reports", "attached_at,report_id"),
+			deleteModerationCaseDependentSQL("moderation_case_events", "created_at,id"),
+		}
 	case "push_account_subscriptions":
 		return []string{`
 			WITH target AS (
@@ -246,7 +258,8 @@ func terminalCascadeDrainSQL(entry TerminalDIDEntry) []string {
 			FROM target WHERE child.moderation_output_id=target.moderation_output_id
 		`}
 	case "tap_source_records":
-		return []string{`
+		return []string{
+			`
 			WITH target AS (
 				SELECT child.id
 				FROM tap_projection_jobs AS child
@@ -257,7 +270,50 @@ func terminalCascadeDrainSQL(entry TerminalDIDEntry) []string {
 			)
 			DELETE FROM tap_projection_jobs AS child USING target
 			WHERE child.id=target.id
-		`}
+			`,
+			`
+			WITH target AS (
+				SELECT child.source_uri
+				FROM pds_set_sources AS child
+				JOIN tap_source_records AS parent ON parent.uri=child.source_uri
+				WHERE parent.did=$1
+				  AND parent.ctid=ANY($3::tid[])
+				ORDER BY child.source_uri LIMIT $2 FOR UPDATE OF child NOWAIT
+			)
+			DELETE FROM pds_set_sources AS child USING target
+			WHERE child.source_uri=target.source_uri
+			`,
+		}
+	case "pds_commands":
+		return []string{
+			`
+			WITH target AS (
+				SELECT child.id
+				FROM pds_command_dispatches AS child
+				JOIN pds_commands AS parent ON parent.id=child.command_id
+				WHERE parent.` + role + `=$1
+				  AND parent.ctid=ANY($3::tid[])
+				ORDER BY child.id LIMIT $2 FOR UPDATE OF child NOWAIT
+			)
+			DELETE FROM pds_command_dispatches AS child USING target
+			WHERE child.id=target.id
+			`,
+			`
+			WITH target AS (
+				SELECT child.command_id,child.plan_version,child.ordinal
+				FROM pds_command_steps AS child
+				JOIN pds_commands AS parent ON parent.id=child.command_id
+				WHERE parent.` + role + `=$1
+				  AND parent.ctid=ANY($3::tid[])
+				ORDER BY child.command_id,child.plan_version,child.ordinal
+				LIMIT $2 FOR UPDATE OF child NOWAIT
+			)
+			DELETE FROM pds_command_steps AS child USING target
+			WHERE child.command_id=target.command_id
+			  AND child.plan_version=target.plan_version
+			  AND child.ordinal=target.ordinal
+			`,
+		}
 	default:
 		return nil
 	}
@@ -272,6 +328,21 @@ func deletePostDependentSQL(table, postColumn, orderBy string) string {
 			  ON parent.uri=child.` + quoteIdentifier(postColumn) + `
 			WHERE parent.did=$1
 			  AND parent.ctid=ANY($3::tid[])
+			ORDER BY ` + qualifyOrder("child", orderBy) + `
+			LIMIT $2 FOR UPDATE OF child NOWAIT
+		)
+		DELETE FROM ` + quoteIdentifier(table) + ` AS child
+		USING target WHERE child.ctid=target.ctid
+	`
+}
+
+func deleteModerationCaseDependentSQL(table, orderBy string) string {
+	return `
+		WITH target AS (
+			SELECT child.ctid
+			FROM ` + quoteIdentifier(table) + ` AS child
+			JOIN moderation_cases AS parent ON parent.id=child.case_id
+			WHERE parent.ctid=ANY($3::tid[])
 			ORDER BY ` + qualifyOrder("child", orderBy) + `
 			LIMIT $2 FOR UPDATE OF child NOWAIT
 		)

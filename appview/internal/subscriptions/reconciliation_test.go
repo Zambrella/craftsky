@@ -27,7 +27,7 @@ func (provider *scriptedProvider) ListCustomerSubscriptions(context.Context, uui
 }
 
 func TestReconciliationTriggersUseOneCompleteSnapshotPath(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000069_subscription_accounts.up.sql")
+	migration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

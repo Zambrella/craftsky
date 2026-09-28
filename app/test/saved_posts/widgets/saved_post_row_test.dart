@@ -207,6 +207,7 @@ SavedPostItem _item({
     'viewerHasReposted': false,
     'viewerHasReplied': false,
     'viewerHasSaved': true,
+    'sponsored': false,
     'viewerSavedFolderId': 'folder-a',
     'createdAt': '2026-07-21T10:00:00.000Z',
     'indexedAt': '2026-07-21T10:00:01.000Z',

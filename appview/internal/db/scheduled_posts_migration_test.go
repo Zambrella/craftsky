@@ -2,7 +2,6 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"social.craftsky/appview/internal/testdb"
@@ -22,11 +21,11 @@ INSERT INTO migration_sentinel (id) VALUES (1);
 `
 
 func TestScheduledPostsMigration(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000034_scheduled_posts.up.sql")
+	up, err := testdb.ReadMigration("000034_scheduled_posts.up.sql")
 	if err != nil {
 		t.Fatalf("read up migration: %v", err)
 	}
-	down, err := os.ReadFile("../../migrations/000034_scheduled_posts.down.sql")
+	down, err := testdb.ReadMigration("000034_scheduled_posts.down.sql")
 	if err != nil {
 		t.Fatalf("read down migration: %v", err)
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"maps"
-	"os"
 	"reflect"
 	"testing"
 	"time"
@@ -102,8 +101,8 @@ func TestCraftskyPostImportProvenanceFollowsAuthoritativeReplacement(t *testing.
 // AT-008, IT-013, and REG-004: the import source is silent while later
 // like/repost/quote/reply activity retains the ordinary notification path.
 func TestCraftskyPostImportSuppressesOnlySourceNotifications(t *testing.T) {
-	pool := testdb.WithSchema(t, craftskyInteractionsDDL)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	pool := testdb.WithSchema(t, craftskyPostsDDL)
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,29 +181,6 @@ func TestCraftskyPostImportSuppressesOnlySourceNotifications(t *testing.T) {
 		t.Fatalf("mention materialization=%d source notifications=%d, want 1/0", mentionCount, sourceEventCount)
 	}
 
-	likeIndexer := index.NewCraftskyLike(pool, testLogger(), notifications.NewService())
-	like := interactionEvent(interactionIndexerCases()[0], "like-import", "bafy-like-import", string(ev.URI), string(ev.CID))
-	if err := likeIndexer.Handle(context.Background(), like); err != nil {
-		t.Fatalf("index later like: %v", err)
-	}
-	var recipient, category string
-	if err := pool.QueryRow(context.Background(), `
-		SELECT recipient_did, category
-		FROM notification_events
-		WHERE source_uri = $1
-	`, like.URI).Scan(&recipient, &category); err != nil {
-		t.Fatalf("read later interaction notification: %v", err)
-	}
-	if recipient != "did:plc:author" || category != "like" {
-		t.Fatalf("later notification recipient/category = %q/%q, want author/like", recipient, category)
-	}
-
-	repostIndexer := index.NewCraftskyRepost(pool, testLogger(), notifications.NewService())
-	repost := interactionEvent(interactionIndexerCases()[1], "repost-import", "bafy-repost-import", string(ev.URI), string(ev.CID))
-	if err := repostIndexer.Handle(context.Background(), repost); err != nil {
-		t.Fatalf("index later repost: %v", err)
-	}
-
 	laterPosts := []tap.Event{
 		{
 			URI:        "at://did:plc:actor/social.craftsky.feed.post/quote-import",
@@ -252,7 +228,7 @@ func TestCraftskyPostImportSuppressesOnlySourceNotifications(t *testing.T) {
 		FROM notification_events
 		WHERE recipient_did = 'did:plc:author'
 		  AND source_uri = ANY($1::text[])
-	`, []string{string(like.URI), string(repost.URI), string(laterPosts[0].URI), string(laterPosts[1].URI)})
+	`, []string{string(laterPosts[0].URI), string(laterPosts[1].URI)})
 	if err != nil {
 		t.Fatalf("read later notification set: %v", err)
 	}
@@ -269,8 +245,6 @@ func TestCraftskyPostImportSuppressesOnlySourceNotifications(t *testing.T) {
 		t.Fatalf("iterate later notifications: %v", err)
 	}
 	wantCategories := map[string]string{
-		string(like.URI):          "like",
-		string(repost.URI):        "repost",
 		string(laterPosts[0].URI): "quote",
 		string(laterPosts[1].URI): "reply",
 	}

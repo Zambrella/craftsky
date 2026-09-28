@@ -78,7 +78,7 @@ void main() {
               profileCustomisationEditorProvider.notifier,
             )
             ..selectColour('teal')
-            ..selectBorder('thick');
+            ..selectBackground('x2');
       final draft = container.read(profileCustomisationEditorProvider).value!;
       expect(draft.isDirty, isTrue);
 
@@ -91,7 +91,6 @@ void main() {
 
       const authoritative = ProfileCustomisation(
         colour: 'teal',
-        border: 'thick',
         background: 'x2',
       );
       save.complete(authoritative);

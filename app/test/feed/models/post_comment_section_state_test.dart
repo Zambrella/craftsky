@@ -21,6 +21,7 @@ void main() {
     viewerHasLiked: false,
     viewerHasReposted: false,
     viewerHasSaved: false,
+    sponsored: false,
   );
 
   Post postWithReplyCount(

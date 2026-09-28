@@ -2,7 +2,9 @@ import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
+import 'package:craftsky_app/profile/providers/block_profile_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/profile/providers/toggle_block_profile_provider.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -47,7 +49,7 @@ class RelationshipList extends _$RelationshipList {
       final repository = ref.read(profileRepositoryProvider);
       final page = await _fetch(repository, cursor: current.cursor);
       return RelationshipListState(
-        items: [...current.items, ...page.items],
+        items: [...current.items, ..._visibleItems(page.items)],
         cursor: page.cursor,
         mutatingDids: current.mutatingDids,
       );
@@ -73,7 +75,12 @@ class RelationshipList extends _$RelationshipList {
         case RelationshipListKind.muted:
           await repository.unmute(did);
         case RelationshipListKind.blocked:
-          await repository.unblock(did);
+          await ref
+              .read(toggleBlockProfileProvider.notifier)
+              .toggle(targetDid: account.did, isBlocking: true);
+          final result = ref.read(toggleBlockProfileProvider);
+          if (result.hasError) throw Exception(result.error);
+          if (result.value != false) return;
       }
       if (!isActiveAccountOperationCurrent(ref, ownership)) return;
       final latest = state.value;
@@ -110,5 +117,20 @@ class RelationshipList extends _$RelationshipList {
   };
 
   RelationshipListState _fromPage(ProfileAccountPage page) =>
-      RelationshipListState(items: page.items, cursor: page.cursor);
+      RelationshipListState(
+        items: _visibleItems(page.items),
+        cursor: page.cursor,
+      );
+
+  List<ProfileAccountSummary> _visibleItems(
+    List<ProfileAccountSummary> items,
+  ) {
+    if (kind != RelationshipListKind.blocked) return items;
+    return [
+      for (final item in items)
+        if (applyBlockAccountSummaryOverlay(ref.read, item) case final overlaid
+            when overlaid.blocking)
+          overlaid,
+    ];
+  }
 }

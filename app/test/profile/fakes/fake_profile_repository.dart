@@ -66,8 +66,13 @@ class FakeProfileRepository implements ProfileRepository {
   final Future<Profile> Function(String handleOrDid)? onUnfollow;
   final Future<ProfileRelationship> Function(String handleOrDid)? onMute;
   final Future<ProfileRelationship> Function(String handleOrDid)? onUnmute;
-  final Future<ProfileRelationship> Function(String handleOrDid)? onBlock;
-  final Future<ProfileRelationship> Function(String handleOrDid)? onUnblock;
+  final Future<ProfileRelationship> Function(
+    String handleOrDid,
+    String operationKey,
+  )?
+  onBlock;
+  final Future<void> Function(String handleOrDid, String operationKey)?
+  onUnblock;
   final Future<ReportResult> Function(
     String handleOrDid,
     ReportSubmission submission,
@@ -88,6 +93,12 @@ class FakeProfileRepository implements ProfileRepository {
   final Future<ProfileAccountPage> Function({int? limit, String? cursor})?
   onListBlockedProfiles;
 
+  final followOperationKeys = <String>[];
+  final unfollowOperationKeys = <String>[];
+  final updateOperationKeys = <String>[];
+  final blockOperationKeys = <String>[];
+  final unblockOperationKeys = <String>[];
+
   @override
   Future<Profile> fetch(String handleOrDid) =>
       onFetch?.call(handleOrDid) ??
@@ -107,6 +118,7 @@ class FakeProfileRepository implements ProfileRepository {
 
   @override
   Future<Profile> updateMe({
+    required String operationKey,
     String? displayName,
     String? pronouns,
     String? description,
@@ -115,18 +127,20 @@ class FakeProfileRepository implements ProfileRepository {
     bool clearAvatar = false,
     UploadedBlob? banner,
     bool clearBanner = false,
-  }) =>
-      onUpdateMe?.call(
-        displayName: displayName,
-        pronouns: pronouns,
-        description: description,
-        crafts: crafts,
-        avatar: avatar,
-        clearAvatar: clearAvatar,
-        banner: banner,
-        clearBanner: clearBanner,
-      ) ??
-      Future<Profile>.error(UnimplementedError('updateMe not stubbed'));
+  }) {
+    updateOperationKeys.add(operationKey);
+    return onUpdateMe?.call(
+          displayName: displayName,
+          pronouns: pronouns,
+          description: description,
+          crafts: crafts,
+          avatar: avatar,
+          clearAvatar: clearAvatar,
+          banner: banner,
+          clearBanner: clearBanner,
+        ) ??
+        Future<Profile>.error(UnimplementedError('updateMe not stubbed'));
+  }
 
   @override
   Future<ProfileCustomisation> updateCustomisation(
@@ -138,14 +152,24 @@ class FakeProfileRepository implements ProfileRepository {
       );
 
   @override
-  Future<Profile> follow(String handleOrDid) =>
-      onFollow?.call(handleOrDid) ??
-      Future<Profile>.error(UnimplementedError('follow not stubbed'));
+  Future<Profile> follow(
+    String handleOrDid, {
+    required String operationKey,
+  }) {
+    followOperationKeys.add(operationKey);
+    return onFollow?.call(handleOrDid) ??
+        Future<Profile>.error(UnimplementedError('follow not stubbed'));
+  }
 
   @override
-  Future<Profile> unfollow(String handleOrDid) =>
-      onUnfollow?.call(handleOrDid) ??
-      Future<Profile>.error(UnimplementedError('unfollow not stubbed'));
+  Future<Profile> unfollow(
+    String handleOrDid, {
+    required String operationKey,
+  }) {
+    unfollowOperationKeys.add(operationKey);
+    return onUnfollow?.call(handleOrDid) ??
+        Future<Profile>.error(UnimplementedError('unfollow not stubbed'));
+  }
 
   @override
   Future<ProfileRelationship> mute(String handleOrDid) =>
@@ -160,18 +184,26 @@ class FakeProfileRepository implements ProfileRepository {
       );
 
   @override
-  Future<ProfileRelationship> block(String handleOrDid) =>
-      onBlock?.call(handleOrDid) ??
-      Future<ProfileRelationship>.error(
-        UnimplementedError('block not stubbed'),
-      );
+  Future<ProfileRelationship> block(
+    String handleOrDid, {
+    required String operationKey,
+  }) {
+    blockOperationKeys.add(operationKey);
+    return onBlock?.call(handleOrDid, operationKey) ??
+        Future<ProfileRelationship>.error(
+          UnimplementedError('block not stubbed'),
+        );
+  }
 
   @override
-  Future<ProfileRelationship> unblock(String handleOrDid) =>
-      onUnblock?.call(handleOrDid) ??
-      Future<ProfileRelationship>.error(
-        UnimplementedError('unblock not stubbed'),
-      );
+  Future<void> unblock(
+    String handleOrDid, {
+    required String operationKey,
+  }) {
+    unblockOperationKeys.add(operationKey);
+    return onUnblock?.call(handleOrDid, operationKey) ??
+        Future<void>.error(UnimplementedError('unblock not stubbed'));
+  }
 
   @override
   Future<ReportResult> report(

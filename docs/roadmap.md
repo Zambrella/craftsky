@@ -48,11 +48,10 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 - [x] Make sure to handle PDS migration
 - [x] Video posts (including Instagram post importer)
 - [x] Update to latest version of `Indigo` package and `Tap` service
-- [ ] CraftSky hosted CDN (maybe)
 - [ ] Pro and Business subscriptions (Revenue Cat)
   - [ ] Webhooks
   - [ ] Backend tracking against accounts
-- [ ] Moderation communication (3 strikes? Push notifications for warnings? A way to appeal decisions?)
+- [x] Moderation communication (3 strikes? Push notifications for warnings? A way to appeal decisions?)
 
 ### Flutter app
 
@@ -93,6 +92,8 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
   - [ ] Front-end logic
   - [ ] Paywall
   - [ ] Locking content
+- [ ] Add the correct OAuth scopes
+- [ ] Make sure OAuth and lexicons are broadcast to the network
 
 ### Lexicons
 
@@ -107,24 +108,21 @@ The minimum we need to ship a first usable Craftsky Flutter app with a real AppV
 
 ### Ops / infra
 
-- [ ] Production deploy (Hetzner VPS + Docker Compose + Caddy + Postgres hosting) → own spec
-- [ ] Client private key management for OAuth in prod (env var vs file vs KMS) — OAuth BFF §5.1 open question
-- [ ] Backup strategy for Postgres → own spec
+- [ ] Production deploy (Render AppView + Tap + managed Postgres, external managed S3-compatible storage) → [ADR 016](../adr/016-render-managed-production-infrastructure.md), own implementation spec
+- [ ] Backup strategy
 - [ ] Monitoring / alerting for Tap connection health, firehose lag, indexer errors
 - [ ] App store distribution — Apple Developer + Google Play accounts, bundle/app IDs, signing keys, TestFlight + Play internal track, store listings, review submission → own spec
-- [ ] Domain & DNS setup — craftsky.social apex, `api.craftsky.social`, email/MX, TLS strategy (likely folded into the production-deploy spec, but called out so it isn't forgotten)
-- [ ] Email infrastructure — transactional provider for the moderation reports inbox and any future account emails
-- [ ] First-PDS decision — where do first users' accounts live? Self-hosted Craftsky PDS, bsky.social, or third-party? Ties into the handle-suffix decision but is a separate question
 - [ ] Secrets management for local dev — `.env` handling conventions, `.env.example`, what's safe to commit
-- [ ] CDN
+- [ ] Correct Sentry config for production AppView
+- [ ] Correct Sentry config for App (including automated debug symbol uploads)
 
 ### Product / community
 
 - [ ] Handle suffix decision (users get `<name>.craftsky.social`? Some other domain? Use bsky.social handles?)
 - [x] Initial moderation plan — even MVP needs a "report a post" path, even if the backend is just "email an inbox"
 - [ ] Ozone moderation backend — self-hosted Ozone instance for triaging reports, labelling, and takedowns (see https://atproto.com/guides/using-ozone) → own spec
-- [ ] Legal read (UK Online Safety Act implications per reference doc)
-- [ ] Terms of service & privacy policy — drafted copy, linked from app + landing page (legal read informs this but is separate)
+- [x] Legal read (UK Online Safety Act implications per reference doc)
+- [x] Terms of service & privacy policy — drafted copy, linked from app + landing page (legal read informs this but is separate)
 
 ### Governance
 
@@ -153,13 +151,17 @@ Scoped but not urgent. Ordered roughly by expected sequence, not strictly priori
 
 ### Flutter app
 
-- [ ] **Image composition** — cropping, multi-image layouts, camera roll picker.
+- [ ] **Image composition** — cropping, multi-image layouts
 - [ ] **Accessibility audit** — screen reader, dynamic type, contrast.
 
 ### Product
 
 - [ ] **Web version**
+- [ ] **Video support**
 - [ ] **Stash Hub integration**
+- [ ] **Custom feeds**
+- [ ] **Polls**
+- [ ] **Visibility and interaction rules** - See Bluesky's "Post interactionsettings" for an example
 
 ### Ops / infra
 
@@ -167,6 +169,7 @@ Scoped but not urgent. Ordered roughly by expected sequence, not strictly priori
 - [ ] **Secondary relay / fallback** — what do we do when bsky.network goes down?
 - [ ] **Horizontal scaling story** — do we ever need it? If so, what does it look like?
 - [ ] **Data export for users** — "download everything you've posted" — worth offering even though the data is already portable via atproto.
+- [ ] **CraftSky owned CDN** - For both images and video
 
 ### Governance
 

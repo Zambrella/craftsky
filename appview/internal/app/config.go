@@ -14,10 +14,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/joho/godotenv"
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/buildinfo"
 	"social.craftsky/appview/internal/federatedhttp"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/scheduledposts"
@@ -41,6 +43,8 @@ const (
 	maxPushFinalizationMargin                     = time.Minute
 	maxOwnerFenceAcquireTimeout                   = time.Minute
 	maxPDSEffectTimeout                           = 10 * time.Minute
+	maxPDSCommandCompactionPollInterval           = time.Hour
+	maxPDSCommandCompactionBatchSize              = 1000
 	maxScheduledMediaPutTimeout                   = 10 * time.Minute
 	maxHTTPConnections                            = 10_000
 	maxHTTPInFlightRequests                       = 10_000
@@ -55,6 +59,7 @@ const (
 	maxHTTPLimiterIdleTTL                         = 24 * time.Hour
 	maxHTTPJSONBodyReadTimeout                    = 90 * time.Second
 	maxHTTPUploadBodyReadTimeout                  = 5 * time.Minute
+	maxModerationExpiryPollInterval               = 15 * time.Minute
 	maxOAuthPendingAuthRequestCapacity            = 1_000_000
 	maxOAuthAuthRequestTerminalRetention          = 30 * 24 * time.Hour
 	maxOAuthAuthRequestSweepInterval              = time.Hour
@@ -254,10 +259,12 @@ type Config struct {
 	// Owner effect boundaries. The object backend currently has no proven
 	// finite server-side settlement bound, so cleanup retains exact-key
 	// tombstones rather than inferring completion from elapsed time.
-	OwnerFenceAcquireTimeout time.Duration
-	PDSEffectTimeout         time.Duration
-	ScheduledMediaPutTimeout time.Duration
-	FederatedHTTP            FederatedHTTPConfig
+	OwnerFenceAcquireTimeout         time.Duration
+	PDSEffectTimeout                 time.Duration
+	PDSCommandCompactionPollInterval time.Duration
+	PDSCommandCompactionBatchSize    int
+	ScheduledMediaPutTimeout         time.Duration
+	FederatedHTTP                    FederatedHTTPConfig
 
 	// Instagram migration has separate private-data and external Meta
 	// availability so a provider outage cannot lock members out of retained
@@ -318,6 +325,13 @@ type Config struct {
 	DevModerationToken          string
 	DevLabelerDID               string
 	TrustedModerationSourceDIDs []string
+
+	ModerationAdminEnabled       bool
+	ModerationAdminBearerToken   Secret
+	ModerationAdminActorID       string
+	ModerationSourceDID          string
+	ModerationExpiryPollInterval time.Duration
+	ModerationExpiryBatchSize    int
 }
 
 // LoadConfig reads environments/<env>.env from envFilePath, layers os.Getenv
@@ -340,7 +354,7 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		DevDID:                    os.Getenv("CRAFTSKY_DEV_DID"),
 		VideoServiceURL:           getEnvWithDefault("VIDEO_SERVICE_URL", "https://video.bsky.app"),
 		VideoPlaylistURLTemplate:  getEnvWithDefault("VIDEO_PLAYLIST_URL_TEMPLATE", "https://video.bsky.app/watch/{did}/{cid}/playlist.m3u8"),
-		VideoThumbnailURLTemplate: getEnvWithDefault("VIDEO_THUMBNAIL_URL_TEMPLATE", "https://video.cdn.bsky.app/hls/{did}/{cid}/thumbnail.jpg"),
+		VideoThumbnailURLTemplate: getEnvWithDefault("VIDEO_THUMBNAIL_URL_TEMPLATE", "https://video.bsky.app/watch/{did}/{cid}/thumbnail.jpg"),
 	}
 
 	origins := os.Getenv("ALLOWED_ORIGINS")
@@ -640,6 +654,12 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	if cfg.PDSEffectTimeout, err = boundedPositiveDurationEnv("PDS_EFFECT_TIMEOUT", 10*time.Second, maxPDSEffectTimeout); err != nil {
 		return Config{}, err
 	}
+	if cfg.PDSCommandCompactionPollInterval, err = boundedPositiveDurationEnv("PDS_COMMAND_COMPACTION_POLL_INTERVAL", time.Minute, maxPDSCommandCompactionPollInterval); err != nil {
+		return Config{}, err
+	}
+	if cfg.PDSCommandCompactionBatchSize, err = boundedIntEnv("PDS_COMMAND_COMPACTION_BATCH_SIZE", 100, 1, maxPDSCommandCompactionBatchSize); err != nil {
+		return Config{}, err
+	}
 	if cfg.ScheduledMediaPutTimeout, err = boundedPositiveDurationEnv("SCHEDULED_MEDIA_PUT_TIMEOUT", 30*time.Second, maxScheduledMediaPutTimeout); err != nil {
 		return Config{}, err
 	}
@@ -863,7 +883,11 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 		return Config{}, err
 	}
 	cfg.SentryDSN = os.Getenv("SENTRY_DSN")
-	cfg.SentryRelease = os.Getenv("SENTRY_RELEASE")
+	cfg.SentryRelease = sentryRelease(
+		os.Getenv("SENTRY_RELEASE"),
+		buildinfo.SentryRelease(),
+		os.Getenv("RENDER_GIT_COMMIT"),
+	)
 	if cfg.SentryLogsEnabled, err = boolEnv("SENTRY_LOGS_ENABLED", false); err != nil {
 		return Config{}, err
 	}
@@ -912,6 +936,18 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	if cfg.EnableDevModeration, err = boolEnv("APPVIEW_ENABLE_DEV_MODERATION", false); err != nil {
 		return Config{}, err
 	}
+	if cfg.ModerationAdminEnabled, err = boolEnv("MODERATION_ADMIN_ENABLED", false); err != nil {
+		return Config{}, err
+	}
+	cfg.ModerationAdminBearerToken = Secret(os.Getenv("MODERATION_ADMIN_BEARER_TOKEN"))
+	cfg.ModerationAdminActorID = os.Getenv("MODERATION_ADMIN_ACTOR_ID")
+	cfg.ModerationSourceDID = os.Getenv("MODERATION_SOURCE_DID")
+	if cfg.ModerationExpiryPollInterval, err = boundedPositiveDurationEnv("MODERATION_EXPIRY_POLL_INTERVAL", 5*time.Minute, maxModerationExpiryPollInterval); err != nil {
+		return Config{}, err
+	}
+	if cfg.ModerationExpiryBatchSize, err = boundedIntEnv("MODERATION_EXPIRY_BATCH_SIZE", 100, 1, 1000); err != nil {
+		return Config{}, err
+	}
 	if env == EnvDev {
 		cfg.DevModerationToken = os.Getenv("APPVIEW_DEV_MODERATION_TOKEN")
 		cfg.DevLabelerDID = getEnvWithDefault("CRAFTSKY_DEV_LABELER_DID", "did:plc:labeler")
@@ -953,6 +989,17 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	if env == EnvDev && cfg.EnableDevModeration && strings.TrimSpace(cfg.DevModerationToken) == "" {
 		return Config{}, fmt.Errorf("APPVIEW_DEV_MODERATION_TOKEN is required when APPVIEW_ENABLE_DEV_MODERATION=true")
 	}
+	if cfg.ModerationAdminEnabled {
+		if raw := cfg.ModerationAdminBearerToken.Reveal(); raw == "" || raw != strings.TrimSpace(raw) || containsControl(raw) {
+			return Config{}, fmt.Errorf("MODERATION_ADMIN_BEARER_TOKEN is required when MODERATION_ADMIN_ENABLED=true")
+		}
+		if cfg.ModerationAdminActorID == "" || cfg.ModerationAdminActorID != strings.TrimSpace(cfg.ModerationAdminActorID) || containsControl(cfg.ModerationAdminActorID) {
+			return Config{}, fmt.Errorf("MODERATION_ADMIN_ACTOR_ID is required when MODERATION_ADMIN_ENABLED=true")
+		}
+		if _, parseErr := syntax.ParseDID(cfg.ModerationSourceDID); parseErr != nil {
+			return Config{}, fmt.Errorf("MODERATION_SOURCE_DID must be a valid DID when MODERATION_ADMIN_ENABLED=true")
+		}
+	}
 
 	if cfg.Env == EnvProd {
 		if cfg.OAuth.ClientSecretKey == "" || cfg.OAuth.ClientSecretKey.Reveal() != strings.TrimSpace(cfg.OAuth.ClientSecretKey.Reveal()) {
@@ -982,6 +1029,16 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func sentryRelease(explicit, embedded, renderCommit string) string {
+	if release := strings.TrimSpace(explicit); release != "" {
+		return release
+	}
+	if release := strings.TrimSpace(embedded); release != "" {
+		return release
+	}
+	return strings.TrimSpace(renderCommit)
 }
 
 // Validate applies cross-field invariants after both defaults and overrides

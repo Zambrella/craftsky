@@ -13,13 +13,24 @@ import (
 
 func TestDecodePostCreate_HappyPathTextOnly(t *testing.T) {
 	t.Parallel()
-	body := strings.NewReader(`{"text":"hello"}`)
+	body := strings.NewReader(`{"text":"hello","sponsored":false}`)
 	req, err := api.DecodePostCreate(body)
 	if err != nil {
 		t.Fatalf("DecodePostCreate: %v", err)
 	}
 	if req.Text != "hello" {
 		t.Errorf("text = %q", req.Text)
+	}
+}
+
+func TestDecodePostCreate_RequiresExplicitSponsored(t *testing.T) {
+	t.Parallel()
+	for _, body := range []string{`{"text":"hello"}`, `{"text":"hello","sponsored":null}`} {
+		_, err := api.DecodePostCreate(strings.NewReader(body))
+		var fieldError *api.FieldError
+		if !errors.As(err, &fieldError) || fieldError.Fields["sponsored"] == "" {
+			t.Fatalf("body %s error = %#v, want explicit sponsored boolean error", body, err)
+		}
 	}
 }
 
@@ -67,7 +78,7 @@ func TestValidatePostCreate_LanguageTags(t *testing.T) {
 
 func TestDecodePostCreate_AcceptsImagesField(t *testing.T) {
 	t.Parallel()
-	body := strings.NewReader(`{"text":"hi","images":[{"image":{"$type":"blob","ref":{"$link":"bafk1"},"mimeType":"image/jpeg","size":1},"alt":"alt"}]}`)
+	body := strings.NewReader(`{"text":"hi","sponsored":false,"images":[{"image":{"$type":"blob","ref":{"$link":"bafk1"},"mimeType":"image/jpeg","size":1},"alt":"alt"}]}`)
 	req, err := api.DecodePostCreate(body)
 	if err != nil {
 		t.Fatalf("DecodePostCreate: %v", err)
@@ -79,7 +90,7 @@ func TestDecodePostCreate_AcceptsImagesField(t *testing.T) {
 
 func TestDecodePostCreate_AcceptsProjectField(t *testing.T) {
 	t.Parallel()
-	body := strings.NewReader(`{"text":"hi","project":{"common":{"craftType":"social.craftsky.feed.defs#knitting"}}}`)
+	body := strings.NewReader(`{"text":"hi","sponsored":false,"project":{"common":{"craftType":"social.craftsky.feed.defs#knitting"}}}`)
 	req, err := api.DecodePostCreate(body)
 	if err != nil {
 		t.Fatalf("DecodePostCreate: %v", err)
@@ -93,6 +104,7 @@ func TestDecodePostCreate_PreservesRawProjectFacets(t *testing.T) {
 	t.Parallel()
 	body := strings.NewReader(`{
 		"text":"hi",
+		"sponsored":false,
 		"project":{
 			"common":{
 				"craftType":"social.craftsky.feed.defs#knitting",
@@ -127,7 +139,7 @@ func TestDecodePostCreate_PreservesRawProjectFacets(t *testing.T) {
 
 func TestDecodePostCreate_RejectsCreatedAtField(t *testing.T) {
 	t.Parallel()
-	body := strings.NewReader(`{"text":"hi","createdAt":"2026-05-04T12:00:00Z"}`)
+	body := strings.NewReader(`{"text":"hi","sponsored":false,"createdAt":"2026-05-04T12:00:00Z"}`)
 	_, err := api.DecodePostCreate(body)
 	var fe *api.FieldError
 	if !errors.As(err, &fe) || fe.Code != "unexpected_field" {
@@ -314,6 +326,37 @@ func TestValidatePostCreate_AcceptsValidReply(t *testing.T) {
 	}
 }
 
+func TestValidatePostCreate_RejectsSponsoredReply(t *testing.T) {
+	t.Parallel()
+	err := api.ValidatePostCreate(api.PostCreateRequest{
+		Text:      "hi",
+		Sponsored: true,
+		Reply: &api.ReplyRef{
+			Root:   api.StrongRef{URI: "at://did:plc:abc/social.craftsky.feed.post/rk1", CID: "bafy1"},
+			Parent: api.StrongRef{URI: "at://did:plc:abc/social.craftsky.feed.post/rk2", CID: "bafy2"},
+		},
+	})
+	var fieldError *api.FieldError
+	if !errors.As(err, &fieldError) || fieldError.Fields["sponsored"] == "" {
+		t.Fatalf("error = %#v, want sponsored reply rejection", err)
+	}
+}
+
+func TestDecodePostCreate_PreservesSelfDraftedPattern(t *testing.T) {
+	t.Parallel()
+	req, err := api.DecodePostCreate(strings.NewReader(`{"text":"project","sponsored":false,"project":{"common":{"craftType":"social.craftsky.feed.defs#knitting","pattern":{"selfDrafted":true}}}}`))
+	if err != nil {
+		t.Fatalf("DecodePostCreate: %v", err)
+	}
+	if req.Project == nil || req.Project.Common.Pattern == nil || req.Project.Common.Pattern.SelfDrafted == nil || !*req.Project.Common.Pattern.SelfDrafted {
+		t.Fatalf("project pattern = %#v, want selfDrafted true", req.Project)
+	}
+	record, err := json.Marshal(req.Project)
+	if err != nil || !strings.Contains(string(record), `"selfDrafted":true`) {
+		t.Fatalf("marshaled project = %s, err = %v", record, err)
+	}
+}
+
 func TestValidatePostCreate_RejectsReplyWithBadURI(t *testing.T) {
 	t.Parallel()
 	err := api.ValidatePostCreate(api.PostCreateRequest{
@@ -354,6 +397,7 @@ func TestDecodeAndValidatePostCreate_AcceptsValidImagesPayload(t *testing.T) {
 	t.Parallel()
 	body := strings.NewReader(`{
 		"text":"hi",
+		"sponsored":false,
 		"images":[
 			{
 				"image":{"$type":"blob","ref":{"$link":"bafkimage"},"mimeType":"image/jpeg","size":253496},
@@ -375,6 +419,7 @@ func TestDecodeAndValidatePostCreate_AcceptsImagesWithoutAltText(t *testing.T) {
 	t.Parallel()
 	body := strings.NewReader(`{
 		"text":"hi",
+		"sponsored":false,
 		"images":[
 			{"image":{"$type":"blob","ref":{"$link":"bafkimage"},"mimeType":"image/jpeg","size":253496}},
 			{"image":{"$type":"blob","ref":{"$link":"bafkimage2"},"mimeType":"image/png","size":123},"alt":""}
@@ -393,6 +438,7 @@ func TestValidatePostCreate_RejectsMoreThanFourImages(t *testing.T) {
 	t.Parallel()
 	body := strings.NewReader(`{
 		"text":"hi",
+		"sponsored":false,
 		"images":[
 			{"image":{"$type":"blob","ref":{"$link":"bafk1"},"mimeType":"image/jpeg","size":1},"alt":"1"},
 			{"image":{"$type":"blob","ref":{"$link":"bafk2"},"mimeType":"image/jpeg","size":1},"alt":"2"},
@@ -419,6 +465,7 @@ func TestValidatePostCreate_UsesConfiguredImageCountLimit(t *testing.T) {
 	t.Parallel()
 	body := strings.NewReader(`{
 		"text":"hi",
+		"sponsored":false,
 		"images":[
 			{"image":{"$type":"blob","ref":{"$link":"bafk1"},"mimeType":"image/jpeg","size":1},"alt":"1"},
 			{"image":{"$type":"blob","ref":{"$link":"bafk2"},"mimeType":"image/jpeg","size":1},"alt":"2"}
@@ -453,6 +500,7 @@ func TestValidatePostCreate_RejectsImageBlobOutsideUploadPolicy(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			req, err := api.DecodePostCreate(strings.NewReader(fmt.Sprintf(`{
 				"text":"hi",
+				"sponsored":false,
 				"images":[{"image":{"$type":"blob","ref":{"$link":"bafkimage"},"mimeType":%q,"size":%d}}]
 			}`, test.mimeType, test.size)))
 			if err != nil {
@@ -471,6 +519,7 @@ func TestValidatePostCreate_RejectsMissingBlobOrInvalidAspectRatio(t *testing.T)
 	t.Parallel()
 	body := strings.NewReader(`{
 		"text":"hi",
+		"sponsored":false,
 		"images":[
 			{"alt":"missing blob"},
 			{"image":{"$type":"blob","ref":{"$link":"bafk2"},"mimeType":"image/jpeg","size":1},"alt":"ok","aspectRatio":{"width":0,"height":10}},
@@ -497,6 +546,7 @@ func TestValidatePostCreate_RejectsImageWithMissingBlobMetadata(t *testing.T) {
 	t.Parallel()
 	body := strings.NewReader(`{
 		"text":"hi",
+		"sponsored":false,
 		"images":[
 			{"image":{"$type":"blob","mimeType":"image/jpeg","size":1},"alt":"ok"},
 			{"image":{"$type":"blob","ref":{},"mimeType":"image/jpeg","size":1},"alt":"ok"},
@@ -522,7 +572,7 @@ func TestValidatePostCreate_RejectsImageWithMissingBlobMetadata(t *testing.T) {
 
 func TestDecodePostCreate_RejectsVideoField(t *testing.T) {
 	t.Parallel()
-	body := strings.NewReader(`{"text":"hi","video":{"blob":"x"}}`)
+	body := strings.NewReader(`{"text":"hi","sponsored":false,"video":{"blob":"x"}}`)
 	_, err := api.DecodePostCreate(body)
 	var fe *api.FieldError
 	if !errors.As(err, &fe) {
@@ -539,6 +589,7 @@ func TestDecodeAndValidatePostCreate_VideoProof(t *testing.T) {
 
 	req, err := api.DecodePostCreate(strings.NewReader(`{
 		"text":"video post",
+		"sponsored":false,
 		"embed":{"video":{"jobId":"job-1","blob":` + videoBlob + `,"alt":"Knitting in progress","aspectRatio":{"width":16,"height":9}}}
 	}`))
 	if err != nil {
@@ -559,17 +610,17 @@ func TestDecodeAndValidatePostCreate_VideoProof(t *testing.T) {
 		body  string
 		field string
 	}{
-		{name: "empty job ID", body: `{"text":"hi","embed":{"video":{"jobId":"","blob":` + videoBlob + `}}}`, field: "embed.video.jobId"},
-		{name: "noncanonical CID", body: `{"text":"hi","embed":{"video":{"jobId":"job-1","blob":{"$type":"blob","ref":{"$link":"not-a-cid"},"mimeType":"video/mp4","size":1}}}}`, field: "embed.video.blob.ref.$link"},
-		{name: "wrong blob type", body: `{"text":"hi","embed":{"video":{"jobId":"job-1","blob":{"$type":"not-blob","ref":{"$link":"bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"},"mimeType":"video/mp4","size":1}}}}`, field: "embed.video.blob.$type"},
-		{name: "wrong MIME", body: `{"text":"hi","embed":{"video":{"jobId":"job-1","blob":{"$type":"blob","ref":{"$link":"bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"},"mimeType":"video/webm","size":1}}}}`, field: "embed.video.blob.mimeType"},
-		{name: "oversized", body: `{"text":"hi","embed":{"video":{"jobId":"job-1","blob":{"$type":"blob","ref":{"$link":"bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"},"mimeType":"video/mp4","size":300000001}}}}`, field: "embed.video.blob.size"},
-		{name: "alt too long", body: `{"text":"hi","embed":{"video":{"jobId":"job-1","blob":` + videoBlob + `,"alt":` + fmt.Sprintf("%q", strings.Repeat("a", 1001)) + `}}}`, field: "embed.video.alt"},
-		{name: "invalid aspect ratio", body: `{"text":"hi","embed":{"video":{"jobId":"job-1","blob":` + videoBlob + `,"aspectRatio":{"width":0,"height":9}}}}`, field: "embed.video.aspectRatio.width"},
-		{name: "with images", body: `{"text":"hi","embed":{"video":{"jobId":"job-1","blob":` + videoBlob + `}},"images":[{"image":{"$type":"blob","ref":{"$link":"bafkimage"},"mimeType":"image/jpeg","size":1}}]}`, field: "embed.video"},
-		{name: "with quote", body: `{"text":"hi","embed":{"video":{"jobId":"job-1","blob":` + videoBlob + `},"quote":{"uri":"at://did:plc:abc/social.craftsky.feed.post/rk1","cid":"bafy1"}}}`, field: "embed"},
-		{name: "with external", body: `{"text":"hi","embed":{"video":{"jobId":"job-1","blob":` + videoBlob + `},"external":{"uri":"https://example.com","title":"Example","description":""}}}`, field: "embed"},
-		{name: "in reply", body: `{"text":"hi","reply":{"root":{"uri":"at://did:plc:abc/social.craftsky.feed.post/rk1","cid":"bafy1"},"parent":{"uri":"at://did:plc:abc/social.craftsky.feed.post/rk2","cid":"bafy2"}},"embed":{"video":{"jobId":"job-1","blob":` + videoBlob + `}}}`, field: "embed.video"},
+		{name: "empty job ID", body: `{"text":"hi","sponsored":false,"embed":{"video":{"jobId":"","blob":` + videoBlob + `}}}`, field: "embed.video.jobId"},
+		{name: "noncanonical CID", body: `{"text":"hi","sponsored":false,"embed":{"video":{"jobId":"job-1","blob":{"$type":"blob","ref":{"$link":"not-a-cid"},"mimeType":"video/mp4","size":1}}}}`, field: "embed.video.blob.ref.$link"},
+		{name: "wrong blob type", body: `{"text":"hi","sponsored":false,"embed":{"video":{"jobId":"job-1","blob":{"$type":"not-blob","ref":{"$link":"bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"},"mimeType":"video/mp4","size":1}}}}`, field: "embed.video.blob.$type"},
+		{name: "wrong MIME", body: `{"text":"hi","sponsored":false,"embed":{"video":{"jobId":"job-1","blob":{"$type":"blob","ref":{"$link":"bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"},"mimeType":"video/webm","size":1}}}}`, field: "embed.video.blob.mimeType"},
+		{name: "oversized", body: `{"text":"hi","sponsored":false,"embed":{"video":{"jobId":"job-1","blob":{"$type":"blob","ref":{"$link":"bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"},"mimeType":"video/mp4","size":300000001}}}}`, field: "embed.video.blob.size"},
+		{name: "alt too long", body: `{"text":"hi","sponsored":false,"embed":{"video":{"jobId":"job-1","blob":` + videoBlob + `,"alt":` + fmt.Sprintf("%q", strings.Repeat("a", 1001)) + `}}}`, field: "embed.video.alt"},
+		{name: "invalid aspect ratio", body: `{"text":"hi","sponsored":false,"embed":{"video":{"jobId":"job-1","blob":` + videoBlob + `,"aspectRatio":{"width":0,"height":9}}}}`, field: "embed.video.aspectRatio.width"},
+		{name: "with images", body: `{"text":"hi","sponsored":false,"embed":{"video":{"jobId":"job-1","blob":` + videoBlob + `}},"images":[{"image":{"$type":"blob","ref":{"$link":"bafkimage"},"mimeType":"image/jpeg","size":1}}]}`, field: "embed.video"},
+		{name: "with quote", body: `{"text":"hi","sponsored":false,"embed":{"video":{"jobId":"job-1","blob":` + videoBlob + `},"quote":{"uri":"at://did:plc:abc/social.craftsky.feed.post/rk1","cid":"bafy1"}}}`, field: "embed"},
+		{name: "with external", body: `{"text":"hi","sponsored":false,"embed":{"video":{"jobId":"job-1","blob":` + videoBlob + `},"external":{"uri":"https://example.com","title":"Example","description":""}}}`, field: "embed"},
+		{name: "in reply", body: `{"text":"hi","sponsored":false,"reply":{"root":{"uri":"at://did:plc:abc/social.craftsky.feed.post/rk1","cid":"bafy1"},"parent":{"uri":"at://did:plc:abc/social.craftsky.feed.post/rk2","cid":"bafy2"}},"embed":{"video":{"jobId":"job-1","blob":` + videoBlob + `}}}`, field: "embed.video"},
 	}
 
 	for _, test := range tests {

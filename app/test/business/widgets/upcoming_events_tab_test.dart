@@ -13,6 +13,7 @@ import 'package:craftsky_app/business/widgets/event_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_events_tab.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -59,7 +60,9 @@ void main() {
       ),
     );
 
-    expect(find.byType(StitchProgressIndicator), findsOneWidget);
+    expect(find.byType(CraftskySkeletonSliverList), findsOneWidget);
+    expect(find.byType(EventCardSkeleton), findsWidgets);
+    expect(find.byType(StitchProgressIndicator), findsNothing);
     expect(find.text('No upcoming events yet.'), findsNothing);
   });
 

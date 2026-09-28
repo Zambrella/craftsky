@@ -16,6 +16,7 @@ import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -174,6 +175,8 @@ void main() {
           ),
         ),
       );
+      expect(find.byType(CraftskySkeletonList), findsOneWidget);
+      expect(find.byType(ManagementRowSkeleton), findsWidgets);
       await tester.pumpAndSettle();
 
       await tester.tap(find.byTooltip('Edit draft'));

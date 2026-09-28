@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import '../test_support/source_scan.dart';
+
 void main() {
   test('application navigation uses typed route methods where possible', () {
     const rawNavigationExceptions = {
@@ -16,13 +18,11 @@ void main() {
     };
     final violations = <String>[];
 
-    for (final entity in Directory('lib').listSync(recursive: true)) {
-      if (entity is! File || !entity.path.endsWith('.dart')) continue;
-      final path = entity.path.replaceAll(Platform.pathSeparator, '/');
-      if (path.endsWith('.g.dart') || path.endsWith('.mapper.dart')) continue;
+    for (final file in scanDartSources('lib')) {
+      final path = file.path;
       if (rawNavigationExceptions.containsKey(path)) continue;
 
-      final source = entity.readAsStringSync();
+      final source = file.source;
       if (RegExp(
             r'\b(?:context|router)\.(?:go|push|replace)\(',
           ).hasMatch(source) ||
@@ -47,12 +47,9 @@ void main() {
   test('UT-009 known profile navigation does not use mutable handles', () {
     final violations = <String>[];
 
-    for (final entity in Directory('lib').listSync(recursive: true)) {
-      if (entity is! File || !entity.path.endsWith('.dart')) continue;
-      final path = entity.path.replaceAll(Platform.pathSeparator, '/');
-      if (path.endsWith('.g.dart') || path.endsWith('.mapper.dart')) continue;
-
-      final source = entity.readAsStringSync();
+    for (final file in scanDartSources('lib')) {
+      final path = file.path;
+      final source = file.source;
       if (source.contains('UserProfileRoute(handle:') ||
           source.contains('showUserProfileCard(context, handleOrDid:') ||
           source.contains("'/profile/:handle'") ||

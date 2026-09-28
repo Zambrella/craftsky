@@ -9,6 +9,7 @@ import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/onboarding/pages/onboarding_page.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -50,14 +51,7 @@ void main() {
     await tester.pump();
 
     expect(saveCalls, 1);
-    expect(
-      tester
-          .widget<TextButton>(
-            find.widgetWithText(TextButton, 'Skip'),
-          )
-          .onPressed,
-      isNull,
-    );
+    expect(find.text('Skip'), findsNothing);
     expect(find.text('Step 1 of 3'), findsOneWidget);
 
     save.complete(_profile(displayName: 'Alicia'));
@@ -92,14 +86,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Save & next'), findsOneWidget);
-    expect(
-      tester
-          .widget<TextButton>(
-            find.widgetWithText(TextButton, 'Skip'),
-          )
-          .onPressed,
-      isNotNull,
-    );
+    expect(find.text('Skip'), findsNothing);
   });
 }
 
@@ -133,6 +120,9 @@ Future<void> _pumpPage(
       ),
       accountProfileRepositoryProvider.overrideWith(
         (ref, lease) async => repository,
+      ),
+      pdsRecordOperationControllerProvider.overrideWithValue(
+        PdsRecordOperationController(schedule: (_, _) {}),
       ),
       activeAccountInitializationProvider.overrideWith(
         (ref) => ActiveAccountInitialization(

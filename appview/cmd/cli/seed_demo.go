@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -85,6 +86,7 @@ type demoProject struct {
 	PatternName       string
 	PatternDifficulty string
 	PatternDesigner   string
+	SelfDrafted       bool
 	Materials         []string
 	Colors            []string
 	DesignTags        []string
@@ -308,10 +310,19 @@ func runDemoSeed(ctx context.Context, pool *pgxpool.Pool, args demoSeedArgs) (de
 func resetDemoSeed(ctx context.Context, tx pgx.Tx, seed string) (int64, error) {
 	rkeyPattern := "demo-" + seed + "-%"
 	var deleted int64
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM pds_set_aggregates AS aggregate
+		WHERE EXISTS (
+			SELECT 1 FROM pds_set_sources fact
+			JOIN tap_source_records source ON source.uri=fact.source_uri
+			WHERE fact.kind=aggregate.kind AND fact.actor_did=aggregate.actor_did
+			  AND fact.scope_key=aggregate.scope_key AND source.rkey LIKE $1
+		)
+	`, rkeyPattern); err != nil {
+		return 0, fmt.Errorf("reset demo set aggregates: %w", err)
+	}
 	for _, q := range []string{
-		`DELETE FROM craftsky_likes WHERE rkey LIKE $1`,
-		`DELETE FROM craftsky_reposts WHERE rkey LIKE $1`,
-		`DELETE FROM atproto_follows WHERE rkey LIKE $1`,
+		`DELETE FROM tap_source_records WHERE rkey LIKE $1 AND collection IN ('app.bsky.graph.follow','social.craftsky.feed.like','social.craftsky.feed.repost')`,
 		`DELETE FROM craftsky_posts WHERE rkey LIKE $1`,
 	} {
 		tag, err := tx.Exec(ctx, q, rkeyPattern)
@@ -319,6 +330,22 @@ func resetDemoSeed(ctx context.Context, tx pgx.Tx, seed string) (int64, error) {
 			return 0, fmt.Errorf("reset demo data: %w", err)
 		}
 		deleted += tag.RowsAffected()
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO pds_set_aggregates(
+			kind,actor_did,scope_key,subject_did,subject_uri,eligible_source_count,
+			representative_source_uri,activated_at
+		)
+		SELECT fact.kind,fact.actor_did,fact.scope_key,max(fact.subject_did),
+		       max(fact.subject_uri),count(*),
+		       (array_agg(fact.source_uri ORDER BY fact.activity_at,fact.source_uri))[1],
+		       min(fact.activity_at)
+		FROM pds_set_sources fact
+		WHERE fact.eligible
+		GROUP BY fact.kind,fact.actor_did,fact.scope_key
+		ON CONFLICT(kind,actor_did,scope_key) DO NOTHING
+	`); err != nil {
+		return 0, fmt.Errorf("restore non-demo set aggregates: %w", err)
 	}
 	didPattern := demoDIDPrefix(seed) + "%"
 	for _, q := range []string{
@@ -390,17 +417,7 @@ func upsertDemoFollow(ctx context.Context, tx pgx.Tx, did, subjectDID, rkey stri
 		return err
 	}
 	uri := "at://" + did + "/" + demoFollowCollection + "/" + rkey
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at, indexed_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
-		ON CONFLICT (did, subject_did) DO UPDATE SET
-			uri = EXCLUDED.uri,
-			rkey = EXCLUDED.rkey,
-			cid = EXCLUDED.cid,
-			record = EXCLUDED.record,
-			created_at = EXCLUDED.created_at,
-			indexed_at = EXCLUDED.indexed_at
-	`, uri, did, rkey, fakeCID("demo-follow", did, subjectDID), subjectDID, record, createdAt.UTC()); err != nil {
+	if err := upsertDemoSetSource(ctx, tx, uri, did, demoFollowCollection, rkey, subjectDID, "", "", record, createdAt); err != nil {
 		return fmt.Errorf("upsert demo follow %s -> %s: %w", did, subjectDID, err)
 	}
 	return nil
@@ -472,6 +489,28 @@ func upsertDemoPost(ctx context.Context, tx pgx.Tx, post demoPost) (demoPostRef,
 
 func upsertDemoProject(ctx context.Context, tx pgx.Tx, uri string, project *demoProject, rawProject json.RawMessage) error {
 	patternName, patternDifficulty, patternDesigner := nullableText(project.PatternName), nullableText(project.PatternDifficulty), nullableText(project.PatternDesigner)
+	var patternSelfDrafted any
+	if project.SelfDrafted {
+		patternSelfDrafted = true
+	}
+	projectType := nullableText(demoDetailString(project.Details, "projectType"))
+	projectSubtype := nullableText(demoDetailString(project.Details, "projectSubtype"))
+	yarnWeight := nullableText(demoDetailString(project.Details, "yarnWeight"))
+	piecingTechnique := nullableText(demoDetailString(project.Details, "piecingTechnique"))
+	quiltingMethod := nullableText(demoDetailString(project.Details, "quiltingMethod"))
+	var knittingType, knittingSubtype, knittingYarn, crochetType, crochetSubtype, crochetYarn any
+	var quiltingType, quiltingSubtype, quiltingPiecing, quiltingMethodValue, sewingType, sewingSubtype any
+	switch project.CraftType {
+	case "social.craftsky.feed.defs#knitting":
+		knittingType, knittingSubtype, knittingYarn = projectType, projectSubtype, yarnWeight
+	case "social.craftsky.feed.defs#crochet":
+		crochetType, crochetSubtype, crochetYarn = projectType, projectSubtype, yarnWeight
+	case "social.craftsky.feed.defs#quilting":
+		quiltingType, quiltingSubtype = projectType, projectSubtype
+		quiltingPiecing, quiltingMethodValue = piecingTechnique, quiltingMethod
+	case "social.craftsky.feed.defs#sewing":
+		sewingType, sewingSubtype = projectType, projectSubtype
+	}
 	rawDetails, err := json.Marshal(project.Details)
 	if err != nil {
 		return fmt.Errorf("marshal demo project details %s: %w", uri, err)
@@ -479,10 +518,14 @@ func upsertDemoProject(ctx context.Context, tx pgx.Tx, uri string, project *demo
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO craftsky_project_posts (
 			uri, raw_project, common_craft_type, common_status, common_title, common_duration,
-			pattern_name, pattern_difficulty, pattern_designer,
-			materials, colors, design_tags, project_tags, details_type, raw_details
+			pattern_name, pattern_difficulty, pattern_designer, pattern_self_drafted,
+			materials, colors, design_tags, project_tags, details_type, raw_details,
+			knitting_project_type, knitting_project_subtype, knitting_yarn_weight,
+			crochet_project_type, crochet_project_subtype, crochet_yarn_weight,
+			quilting_project_type, quilting_project_subtype, quilting_piecing_technique, quilting_quilting_method,
+			sewing_project_type, sewing_project_subtype
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28)
 		ON CONFLICT (uri) DO UPDATE SET
 			raw_project = EXCLUDED.raw_project,
 			common_craft_type = EXCLUDED.common_craft_type,
@@ -492,14 +535,27 @@ func upsertDemoProject(ctx context.Context, tx pgx.Tx, uri string, project *demo
 			pattern_name = EXCLUDED.pattern_name,
 			pattern_difficulty = EXCLUDED.pattern_difficulty,
 			pattern_designer = EXCLUDED.pattern_designer,
+			pattern_self_drafted = EXCLUDED.pattern_self_drafted,
 			materials = EXCLUDED.materials,
 			colors = EXCLUDED.colors,
 			design_tags = EXCLUDED.design_tags,
 			project_tags = EXCLUDED.project_tags,
 			details_type = EXCLUDED.details_type,
 			raw_details = EXCLUDED.raw_details,
+			knitting_project_type = EXCLUDED.knitting_project_type,
+			knitting_project_subtype = EXCLUDED.knitting_project_subtype,
+			knitting_yarn_weight = EXCLUDED.knitting_yarn_weight,
+			crochet_project_type = EXCLUDED.crochet_project_type,
+			crochet_project_subtype = EXCLUDED.crochet_project_subtype,
+			crochet_yarn_weight = EXCLUDED.crochet_yarn_weight,
+			quilting_project_type = EXCLUDED.quilting_project_type,
+			quilting_project_subtype = EXCLUDED.quilting_project_subtype,
+			quilting_piecing_technique = EXCLUDED.quilting_piecing_technique,
+			quilting_quilting_method = EXCLUDED.quilting_quilting_method,
+			sewing_project_type = EXCLUDED.sewing_project_type,
+			sewing_project_subtype = EXCLUDED.sewing_project_subtype,
 			indexed_at = now()
-	`, uri, rawProject, project.CraftType, nullableText(project.Status), nullableText(project.Title), nullableText(project.Duration), patternName, patternDifficulty, patternDesigner, project.Materials, project.Colors, project.DesignTags, project.Tags, nullableText(project.DetailsType), rawDetails); err != nil {
+	`, uri, rawProject, project.CraftType, nullableText(project.Status), nullableText(project.Title), nullableText(project.Duration), patternName, patternDifficulty, patternDesigner, patternSelfDrafted, project.Materials, project.Colors, project.DesignTags, project.Tags, nullableText(project.DetailsType), rawDetails, knittingType, knittingSubtype, knittingYarn, crochetType, crochetSubtype, crochetYarn, quiltingType, quiltingSubtype, quiltingPiecing, quiltingMethodValue, sewingType, sewingSubtype); err != nil {
 		return fmt.Errorf("upsert demo project %s: %w", uri, err)
 	}
 	return nil
@@ -537,32 +593,74 @@ func upsertDemoInteraction(ctx context.Context, tx pgx.Tx, collection, did, rkey
 	if err != nil {
 		return err
 	}
-	table := "craftsky_likes"
-	if collection == demoRepostCollection {
-		table = "craftsky_reposts"
-	}
 	uri := "at://" + did + "/" + collection + "/" + rkey
-	q := fmt.Sprintf(`
-		INSERT INTO %s (uri, did, rkey, cid, subject_uri, subject_cid, record, created_at, indexed_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
-		ON CONFLICT (did, rkey) DO UPDATE SET
-			uri = EXCLUDED.uri,
-			cid = EXCLUDED.cid,
-			subject_uri = EXCLUDED.subject_uri,
-			subject_cid = EXCLUDED.subject_cid,
-			record = EXCLUDED.record,
-			created_at = EXCLUDED.created_at,
-			indexed_at = EXCLUDED.indexed_at,
-			deleted_at = NULL
-	`, table)
-	if _, err := tx.Exec(ctx, q, uri, did, rkey, fakeCID("demo-interaction", collection, did, subject.URI), subject.URI, subject.CID, record, createdAt.UTC()); err != nil {
+	if err := upsertDemoSetSource(ctx, tx, uri, did, collection, rkey, "", subject.URI, subject.CID, record, createdAt); err != nil {
 		return fmt.Errorf("upsert demo interaction %s %s -> %s: %w", collection, did, subject.URI, err)
 	}
 	return nil
 }
 
+func upsertDemoSetSource(ctx context.Context, tx pgx.Tx, uri, did, collection, rkey, subjectDID, subjectURI, subjectCID string, record json.RawMessage, createdAt time.Time) error {
+	kind := strings.TrimPrefix(collection, "social.craftsky.feed.")
+	if collection == demoFollowCollection {
+		kind = "follow"
+	}
+	scope := subjectURI
+	if kind == "follow" {
+		scope = subjectDID
+	}
+	cid := fakeCID("demo-set", uri)
+	fingerprint := sha256.Sum256(record)
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO tap_source_records(
+			uri,did,collection,rkey,source_event_id,source_fingerprint,revision,cid,
+			action,record,record_bytes,live,ordering_status,projection_disposition,observed_at,updated_at
+		) VALUES($1,$2,$3,$4,1,$5,'3aaaaaaaaaaa2',$6,'create',$7,$8,false,'authoritative','eligible',$9,$9)
+		ON CONFLICT(uri) DO UPDATE SET
+			cid=EXCLUDED.cid,record=EXCLUDED.record,record_bytes=EXCLUDED.record_bytes,
+			source_fingerprint=EXCLUDED.source_fingerprint,updated_at=EXCLUDED.updated_at
+	`, uri, did, collection, rkey, fingerprint[:], cid, record, len(record), createdAt.UTC()); err != nil {
+		return fmt.Errorf("upsert demo source: %w", err)
+	}
+	var didValue, uriValue, cidValue any
+	if subjectDID != "" {
+		didValue = subjectDID
+	}
+	if subjectURI != "" {
+		uriValue, cidValue = subjectURI, subjectCID
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO pds_set_sources(source_uri,kind,actor_did,scope_key,subject_did,subject_uri,subject_cid,activity_at,eligible)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,true)
+		ON CONFLICT(source_uri) DO UPDATE SET
+			scope_key=EXCLUDED.scope_key,subject_did=EXCLUDED.subject_did,
+			subject_uri=EXCLUDED.subject_uri,subject_cid=EXCLUDED.subject_cid,
+			activity_at=EXCLUDED.activity_at,eligible=true
+	`, uri, kind, did, scope, didValue, uriValue, cidValue, createdAt.UTC()); err != nil {
+		return fmt.Errorf("upsert demo set fact: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO pds_set_aggregates(
+			kind,actor_did,scope_key,subject_did,subject_uri,
+			eligible_source_count,representative_source_uri,activated_at
+		)
+		SELECT kind,actor_did,scope_key,max(subject_did),max(subject_uri),count(*),
+		       (array_agg(source_uri ORDER BY activity_at,source_uri))[1],min(activity_at)
+		FROM pds_set_sources
+		WHERE kind=$1 AND actor_did=$2 AND scope_key=$3 AND eligible
+		GROUP BY kind,actor_did,scope_key
+		ON CONFLICT(kind,actor_did,scope_key) DO UPDATE SET
+			eligible_source_count=EXCLUDED.eligible_source_count,
+			representative_source_uri=EXCLUDED.representative_source_uri,
+			subject_did=EXCLUDED.subject_did,subject_uri=EXCLUDED.subject_uri
+	`, kind, did, scope); err != nil {
+		return fmt.Errorf("recompute demo set aggregate: %w", err)
+	}
+	return nil
+}
+
 func demoPostRecord(post demoPost, facetsJSON, imagesJSON json.RawMessage) (json.RawMessage, json.RawMessage, error) {
-	record := map[string]any{"$type": fakePostCollection, "text": post.Text, "createdAt": post.CreatedAt.UTC().Format(time.RFC3339)}
+	record := map[string]any{"$type": fakePostCollection, "text": post.Text, "sponsored": false, "createdAt": post.CreatedAt.UTC().Format(time.RFC3339)}
 	if len(facetsJSON) > 0 {
 		var facets any
 		if err := json.Unmarshal(facetsJSON, &facets); err != nil {
@@ -621,6 +719,9 @@ func (p demoProject) raw() (json.RawMessage, error) {
 	if p.PatternDesigner != "" {
 		pattern["designer"] = p.PatternDesigner
 	}
+	if p.SelfDrafted {
+		pattern["selfDrafted"] = true
+	}
 	if len(pattern) > 0 {
 		common["pattern"] = pattern
 	}
@@ -645,6 +746,11 @@ func (p demoProject) raw() (json.RawMessage, error) {
 		out["details"] = p.Details
 	}
 	return json.Marshal(out)
+}
+
+func demoDetailString(details map[string]any, key string) string {
+	value, _ := details[key].(string)
+	return value
 }
 
 func demoImagesJSON(images []demoImage) (json.RawMessage, error) {
@@ -705,7 +811,7 @@ func demoProfiles(seed string) []demoProfile {
 
 func demoRootPosts(seed string, profiles []demoProfile, now time.Time) []demoPost {
 	posts := []demoPost{
-		{Rkey: "demo-" + seed + "-project-001", AuthorDID: profiles[0].DID, Text: "Finished these Clawsome Lobster Socks and they are exactly the kind of joyful wardrobe chaos I wanted. Tiny colourwork rows, worth every end. #knitting #socks", Images: []demoImage{{Name: "lobster-socks-alma", Alt: "Cream hand-knit socks with magenta lobster colourwork hanging over a gray chair", Width: 2870, Height: 2764}}, Tags: []string{"knitting", "socks", "colorwork"}, CreatedAt: now.Add(-1 * time.Hour), IndexedAt: now.Add(-59 * time.Minute), Project: &demoProject{CraftType: "social.craftsky.feed.defs#knitting", Status: "social.craftsky.feed.defs#finished", Title: "Clawsome Lobster Socks", Duration: "a few evenings", PatternName: "Clawsome Lobster Socks", PatternDifficulty: "social.craftsky.feed.defs#intermediate", PatternDesigner: "Stone Knits", Materials: []string{"cream sock yarn", "magenta contrast yarn"}, Colors: []string{"cream", "purple"}, DesignTags: []string{"social.craftsky.project.defs#animal", "social.craftsky.project.defs#whimsical"}, Tags: []string{"knitting", "socks", "colorwork"}, DetailsType: "social.craftsky.project.knitting#details", Details: map[string]any{"$type": "social.craftsky.project.knitting#details", "projectType": "social.craftsky.project.defs#accessory", "projectSubtype": "social.craftsky.project.knitting.defs#socks", "yarnWeight": "social.craftsky.project.defs#fingering", "needleSizeMm": "2.25mm", "finishedSize": "adult socks"}}},
+		{Rkey: "demo-" + seed + "-project-001", AuthorDID: profiles[0].DID, Text: "Finished these Clawsome Lobster Socks and they are exactly the kind of joyful wardrobe chaos I wanted. Tiny colourwork rows, worth every end. #knitting #socks", Images: []demoImage{{Name: "lobster-socks-alma", Alt: "Cream hand-knit socks with magenta lobster colourwork hanging over a gray chair", Width: 2870, Height: 2764}}, Tags: []string{"knitting", "socks", "colorwork"}, CreatedAt: now.Add(-1 * time.Hour), IndexedAt: now.Add(-59 * time.Minute), Project: &demoProject{CraftType: "social.craftsky.feed.defs#knitting", Status: "social.craftsky.feed.defs#finished", Title: "Clawsome Lobster Socks", Duration: "a few evenings", PatternName: "Clawsome Lobster Socks", PatternDifficulty: "social.craftsky.feed.defs#intermediate", PatternDesigner: "Stone Knits", SelfDrafted: true, Materials: []string{"cream sock yarn", "magenta contrast yarn"}, Colors: []string{"cream", "purple"}, DesignTags: []string{"social.craftsky.project.defs#animal", "social.craftsky.project.defs#whimsical"}, Tags: []string{"knitting", "socks", "colorwork"}, DetailsType: "social.craftsky.project.knitting#details", Details: map[string]any{"$type": "social.craftsky.project.knitting#details", "projectType": "social.craftsky.project.defs#accessory", "projectSubtype": "social.craftsky.project.knitting.defs#socks", "yarnWeight": "social.craftsky.project.defs#fingering", "needleSizeMm": "2.25mm", "finishedSize": "adult socks"}}},
 		{Rkey: "demo-" + seed + "-project-002", AuthorDID: profiles[1].DID, Text: "Finished a bright fruit-print Canyon top for #SewFruity26. The print does all the talking, so I kept the shape simple and wearable. #sewing #memade", Images: []demoImage{{Name: "fruity-top-yvette", Alt: "Yvette wearing a colourful fruit-print short-sleeve button-up shirt with blue shorts on a woodland path", Width: 4282, Height: 4779}}, Tags: []string{"sewing", "memade", "sewfruity26"}, CreatedAt: now.Add(-3 * time.Hour), IndexedAt: now.Add(-2*time.Hour - 58*time.Minute), Project: &demoProject{CraftType: "social.craftsky.feed.defs#sewing", Status: "social.craftsky.feed.defs#finished", Title: "Sew Fruity Canyon Top", Duration: "two weekends", PatternName: "Canyon Dress & Top", PatternDifficulty: "social.craftsky.feed.defs#beginner", PatternDesigner: "Friday Pattern Company", Materials: []string{"fruit-print cotton lawn", "lightweight interfacing", "shirt buttons"}, Colors: []string{"multicolor", "blue"}, DesignTags: []string{"social.craftsky.project.defs#novelty", "social.craftsky.project.defs#whimsical"}, Tags: []string{"sewing", "memade", "sewfruity26"}, DetailsType: "social.craftsky.project.sewing#details", Details: map[string]any{"$type": "social.craftsky.project.sewing#details", "projectType": "social.craftsky.project.defs#garment", "projectSubtype": "social.craftsky.project.sewing.defs#shirt", "fitNotes": "cropped to sit neatly with high-waisted shorts"}}},
 		{Rkey: "demo-" + seed + "-project-003", AuthorDID: profiles[0].DID, Text: "Banana-print Painters Tote hack, complete with big straps and a tiny Almitamade label. This one is ready for fabric shopping trips. #sewing #bagmaking", Images: []demoImage{{Name: "banana-bag-alma", Alt: "Large pink banana-print tote bag with brown straps held up in front of a brick wall", Width: 2316, Height: 2201}}, Tags: []string{"sewing", "bagmaking", "bananaprint"}, CreatedAt: now.Add(-6 * time.Hour), IndexedAt: now.Add(-5*time.Hour - 55*time.Minute), Project: &demoProject{CraftType: "social.craftsky.feed.defs#sewing", Status: "social.craftsky.feed.defs#finished", Title: "Banana Painters Tote Hack", Duration: "one weekend", PatternName: "Painters Tote hack", PatternDifficulty: "social.craftsky.feed.defs#intermediate", PatternDesigner: "sewlukeivo", Materials: []string{"banana-print canvas", "cotton webbing", "contrast topstitching thread"}, Colors: []string{"pink", "yellow", "green", "brown"}, DesignTags: []string{"social.craftsky.project.defs#botanical", "social.craftsky.project.defs#novelty"}, Tags: []string{"sewing", "bagmaking", "bananaprint"}, DetailsType: "social.craftsky.project.sewing#details", Details: map[string]any{"$type": "social.craftsky.project.sewing#details", "projectType": "social.craftsky.project.defs#accessory", "projectSubtype": "social.craftsky.project.sewing.defs#tote", "fitNotes": "boxed corners and reinforced strap stitching for a roomy carry-all"}}},
 		{Rkey: "demo-" + seed + "-project-004", AuthorDID: profiles[1].DID, Text: "The matching Andi Set is finished. Loud fabric, relaxed fit, and enough colour to make gray weather irrelevant. #sewing #memade", Images: []demoImage{{Name: "south-american-set-yvette", Alt: "Yvette wearing a matching orange and green tropical print top and trousers outside a brick house", Width: 4284, Height: 5044}}, Tags: []string{"sewing", "memade", "matching-set"}, CreatedAt: now.Add(-8 * time.Hour), IndexedAt: now.Add(-7*time.Hour - 52*time.Minute), Project: &demoProject{CraftType: "social.craftsky.feed.defs#sewing", Status: "social.craftsky.feed.defs#finished", Title: "South American Print Andi Set", Duration: "a long weekend", PatternName: "Andi Set", PatternDifficulty: "social.craftsky.feed.defs#intermediate", PatternDesigner: "Swim Style", Materials: []string{"bold printed viscose", "elastic waistband", "matching thread"}, Colors: []string{"orange", "green", "yellow"}, DesignTags: []string{"social.craftsky.project.defs#botanical", "social.craftsky.project.defs#maximalist"}, Tags: []string{"sewing", "memade", "matching-set"}, DetailsType: "social.craftsky.project.sewing#details", Details: map[string]any{"$type": "social.craftsky.project.sewing#details", "projectType": "social.craftsky.project.defs#garment", "projectSubtype": "social.craftsky.project.sewing.defs#pants", "fitNotes": "coordinating separates with an easy wrap top and wide-leg trousers"}}},

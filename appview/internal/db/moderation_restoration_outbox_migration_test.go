@@ -2,7 +2,6 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -24,11 +23,11 @@ VALUES ('legacy-output', 'did:plc:source', 'did:plc:target');
 `
 
 func TestModerationRestorationOutboxMigration(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000044_moderation_restoration_outbox.up.sql")
+	up, err := testdb.ReadMigration("000044_moderation_restoration_outbox.up.sql")
 	if err != nil {
 		t.Fatalf("read up migration: %v", err)
 	}
-	down, err := os.ReadFile("../../migrations/000044_moderation_restoration_outbox.down.sql")
+	down, err := testdb.ReadMigration("000044_moderation_restoration_outbox.down.sql")
 	if err != nil {
 		t.Fatalf("read down migration: %v", err)
 	}

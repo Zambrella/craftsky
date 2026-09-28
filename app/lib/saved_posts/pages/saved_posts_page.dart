@@ -16,6 +16,7 @@ import 'package:craftsky_app/saved_posts/widgets/saved_post_row.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_row_actions.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_sort_button.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
@@ -52,7 +53,9 @@ class _SavedPostsPageState extends ConsumerState<SavedPostsPage> {
           ),
           title: Text(l10n.savedPostsTitle),
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: const CraftskySkeletonList(
+          itemBuilder: _buildSavedPostSkeleton,
+        ),
       );
     }
     final folders = ref.watch(savedPostFoldersProvider(account));
@@ -102,27 +105,20 @@ class _SavedPostsPageState extends ConsumerState<SavedPostsPage> {
               ..invalidate(savedPostsProvider(key));
           },
         ),
-        (AsyncData(:final value), AsyncData(value: final postState)) =>
-          _OverviewBody(
-            account: account,
-            overview: SavedPostsOverview.project(
-              folders: value.displayItems,
-              items: postState.items,
-              sort: _sort,
-            ),
-            folderState: value,
-            postState: postState,
-            sort: _sort,
-            scrollController: _scrollController,
-            onSortChanged: (sort) => setState(() => _sort = sort),
-            onRefresh: () async {
-              await Future.wait([
-                ref.read(savedPostFoldersProvider(account).notifier).refresh(),
-                ref.read(savedPostsProvider(key).notifier).refresh(),
-              ]);
-            },
-          ),
-        _ => const Center(child: CircularProgressIndicator()),
+        _ => _OverviewBody(
+          account: account,
+          folderState: folders.value,
+          postState: posts.value,
+          sort: _sort,
+          scrollController: _scrollController,
+          onSortChanged: (sort) => setState(() => _sort = sort),
+          onRefresh: () async {
+            await Future.wait([
+              ref.read(savedPostFoldersProvider(account).notifier).refresh(),
+              ref.read(savedPostsProvider(key).notifier).refresh(),
+            ]);
+          },
+        ),
       },
     );
   }
@@ -131,7 +127,6 @@ class _SavedPostsPageState extends ConsumerState<SavedPostsPage> {
 class _OverviewBody extends ConsumerWidget {
   const _OverviewBody({
     required this.account,
-    required this.overview,
     required this.folderState,
     required this.postState,
     required this.sort,
@@ -141,9 +136,8 @@ class _OverviewBody extends ConsumerWidget {
   });
 
   final AccountKey account;
-  final SavedPostsOverview overview;
-  final SavedPostFolderListState folderState;
-  final SavedPostListState postState;
+  final SavedPostFolderListState? folderState;
+  final SavedPostListState? postState;
   final SavedPostSort sort;
   final ScrollController scrollController;
   final ValueChanged<SavedPostSort> onSortChanged;
@@ -152,6 +146,27 @@ class _OverviewBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    if (folderState == null && postState == null) {
+      return RefreshIndicator(
+        onRefresh: onRefresh,
+        child: const CustomScrollView(
+          physics: AlwaysScrollableScrollPhysics(),
+          slivers: [
+            CraftskySkeletonSliverList(
+              itemBuilder: _buildSavedPostSkeleton,
+            ),
+          ],
+        ),
+      );
+    }
+    final overview = postState != null
+        ? SavedPostsOverview.project(
+            folders: folderState?.displayItems ?? const [],
+            items: postState!.items,
+            sort: sort,
+          )
+        : null;
+    final isEmpty = folderState != null && (overview?.isEmpty ?? false);
     return RefreshIndicator(
       onRefresh: onRefresh,
       child: CustomScrollView(
@@ -159,7 +174,7 @@ class _OverviewBody extends ConsumerWidget {
         controller: scrollController,
         physics: const AlwaysScrollableScrollPhysics(),
         slivers: [
-          if (overview.isEmpty)
+          if (isEmpty)
             SliverFillRemaining(
               hasScrollBody: false,
               child: CraftskyEmptyState(
@@ -178,9 +193,9 @@ class _OverviewBody extends ConsumerWidget {
                   ),
                 ),
                 SliverList.builder(
-                  itemCount: overview.folders.length,
+                  itemCount: folderState?.displayItems.length ?? 0,
                   itemBuilder: (context, index) {
-                    final folder = overview.folders[index];
+                    final folder = folderState!.displayItems[index];
                     return ListTile(
                       key: ValueKey('saved-overview-folder-${folder.id}'),
                       leading: const Icon(CraftskyIcons.folder),
@@ -192,7 +207,12 @@ class _OverviewBody extends ConsumerWidget {
                     );
                   },
                 ),
-                if (folderState.incrementalError case final error?)
+                if (folderState == null)
+                  const CraftskySkeletonSliverList(
+                    itemBuilder: _buildSavedPostSkeleton,
+                    itemCount: 3,
+                  )
+                else if (folderState!.incrementalError case final error?)
                   SliverToBoxAdapter(
                     child: _SavedPostFailureControl(
                       failure: SavedPostFailure.from(
@@ -204,10 +224,10 @@ class _OverviewBody extends ConsumerWidget {
                           .retry,
                     ),
                   )
-                else if (folderState.cursor != null)
+                else if (folderState!.cursor != null)
                   SliverToBoxAdapter(
                     child: TextButton(
-                      onPressed: folderState.isLoadingMore
+                      onPressed: folderState!.isLoadingMore
                           ? null
                           : ref
                                 .read(
@@ -219,7 +239,7 @@ class _OverviewBody extends ConsumerWidget {
                   ),
               ],
             ),
-            if (overview.showUnfiled)
+            if (postState == null || overview!.showUnfiled)
               MultiSliver(
                 pushPinnedChildren: true,
                 children: [
@@ -233,9 +253,9 @@ class _OverviewBody extends ConsumerWidget {
                     ),
                   ),
                   SliverList.builder(
-                    itemCount: overview.unfiledItems.length,
+                    itemCount: overview?.unfiledItems.length ?? 0,
                     itemBuilder: (context, index) {
-                      final item = overview.unfiledItems[index];
+                      final item = overview!.unfiledItems[index];
                       return SavedPostRow(
                         account: account,
                         item: item,
@@ -269,7 +289,11 @@ class _OverviewBody extends ConsumerWidget {
                       );
                     },
                   ),
-                  if (postState.incrementalError case final error?)
+                  if (postState == null)
+                    const CraftskySkeletonSliverList(
+                      itemBuilder: _buildSavedPostSkeleton,
+                    )
+                  else if (postState!.incrementalError case final error?)
                     SliverToBoxAdapter(
                       child: _SavedPostFailureControl(
                         failure: SavedPostFailure.from(
@@ -289,10 +313,10 @@ class _OverviewBody extends ConsumerWidget {
                             .loadMore,
                       ),
                     )
-                  else if (postState.cursor != null)
+                  else if (postState!.cursor != null)
                     SliverToBoxAdapter(
                       child: TextButton(
-                        onPressed: postState.isLoadingMore
+                        onPressed: postState!.isLoadingMore
                             ? null
                             : ref
                                   .read(
@@ -316,6 +340,9 @@ class _OverviewBody extends ConsumerWidget {
     );
   }
 }
+
+Widget _buildSavedPostSkeleton(BuildContext context, int index) =>
+    const ManagementRowSkeleton();
 
 class _SavedPostsSectionHeader extends StatelessWidget {
   const _SavedPostsSectionHeader({required this.title, this.trailing});

@@ -14,9 +14,13 @@ func TestOwnerEffectAndScheduledMediaConfigDefaults(t *testing.T) {
 	}
 	if cfg.OwnerFenceAcquireTimeout != 5*time.Second ||
 		cfg.PDSEffectTimeout != 10*time.Second ||
+		cfg.PDSCommandCompactionPollInterval != time.Minute ||
+		cfg.PDSCommandCompactionBatchSize != 100 ||
 		cfg.ScheduledMediaPutTimeout != 30*time.Second {
-		t.Fatalf("lifecycle effect defaults = fence %s pds %s object %s",
-			cfg.OwnerFenceAcquireTimeout, cfg.PDSEffectTimeout, cfg.ScheduledMediaPutTimeout)
+		t.Fatalf("lifecycle effect defaults = fence %s pds %s compaction %s/%d object %s",
+			cfg.OwnerFenceAcquireTimeout, cfg.PDSEffectTimeout,
+			cfg.PDSCommandCompactionPollInterval, cfg.PDSCommandCompactionBatchSize,
+			cfg.ScheduledMediaPutTimeout)
 	}
 }
 
@@ -56,6 +60,8 @@ func TestOwnerEffectAndScheduledMediaDurationsFailClosed(t *testing.T) {
 		{name: "zero owner fence", override: "OWNER_FENCE_ACQUIRE_TIMEOUT=0s\n", want: "OWNER_FENCE_ACQUIRE_TIMEOUT"},
 		{name: "zero Tap ACK safety margin", override: "TAP_ACK_SAFETY_MARGIN=0s\n", want: "TAP_ACK_SAFETY_MARGIN"},
 		{name: "zero PDS effect", override: "PDS_EFFECT_TIMEOUT=0s\n", want: "PDS_EFFECT_TIMEOUT"},
+		{name: "zero command compaction interval", override: "PDS_COMMAND_COMPACTION_POLL_INTERVAL=0s\n", want: "PDS_COMMAND_COMPACTION_POLL_INTERVAL"},
+		{name: "zero command compaction batch", override: "PDS_COMMAND_COMPACTION_BATCH_SIZE=0\n", want: "PDS_COMMAND_COMPACTION_BATCH_SIZE"},
 		{name: "zero media put", override: "SCHEDULED_MEDIA_PUT_TIMEOUT=0s\n", want: "SCHEDULED_MEDIA_PUT_TIMEOUT"},
 	} {
 		t.Run(test.name, func(t *testing.T) {

@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -566,7 +565,7 @@ func newAccountStoreTest(t *testing.T) (*AccountStore, *pgxpool.Pool) {
 		"000031_instagram_automatic_follow_storage_names.up.sql",
 		"000042_instagram_private_suggestions.up.sql",
 	} {
-		contents, err := os.ReadFile("../../migrations/" + name)
+		contents, err := testdb.ReadMigration(name)
 		if err != nil {
 			t.Fatalf("read migration %s: %v", name, err)
 		}

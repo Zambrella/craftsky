@@ -13,6 +13,7 @@ const (
 	Repost         Category = "repost"
 	EverythingElse Category = "everythingElse"
 	InstagramMatch Category = "instagramMatch"
+	Moderation     Category = "moderation"
 )
 
 var categories = [...]Category{
@@ -24,7 +25,10 @@ var categories = [...]Category{
 	Repost,
 	EverythingElse,
 	InstagramMatch,
+	Moderation,
 }
+
+func (c Category) FixedScope() bool { return c == InstagramMatch || c == Moderation }
 
 // Categories returns the complete public registry in settings presentation
 // order. The returned slice is independent so callers cannot mutate the

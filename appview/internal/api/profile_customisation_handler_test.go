@@ -39,7 +39,7 @@ func TestPutProfileCustomisationHandlerReturnsAuthoritativeValue(t *testing.T) {
 	store := &fakeProfileCustomisationWriter{}
 	handler := api.PutProfileCustomisationHandler(store)
 	req := httptest.NewRequest(http.MethodPut, "/v1/profiles/me/customisation", strings.NewReader(
-		`{"colour":"teal","profileBorder":"thick","profileBackground":"x2"}`,
+		`{"colour":"teal","profileBackground":"x2"}`,
 	))
 	req = req.WithContext(middleware.WithDID(req.Context(), syntax.DID("did:plc:alice")))
 	response := httptest.NewRecorder()
@@ -74,19 +74,19 @@ func TestPutProfileCustomisationHandlerMapsValidationAndStoreErrors(t *testing.T
 	}{
 		{
 			name:       "unsupported value",
-			body:       `{"colour":"#fff","profileBorder":"medium","profileBackground":"none"}`,
+			body:       `{"colour":"#fff","profileBackground":"none"}`,
 			wantStatus: http.StatusUnprocessableEntity,
 			wantCode:   "validation_failed",
 		},
 		{
 			name:       "missing field",
-			body:       `{"colour":"cobalt","profileBorder":"medium"}`,
+			body:       `{"colour":"cobalt"}`,
 			wantStatus: http.StatusBadRequest,
 			wantCode:   "invalid_request",
 		},
 		{
-			name:       "unexpected field",
-			body:       `{"colour":"cobalt","profileBorder":"medium","profileBackground":"none","url":"https://example.com"}`,
+			name:       "retired profile border",
+			body:       `{"colour":"cobalt","profileBorder":"medium","profileBackground":"none"}`,
 			wantStatus: http.StatusBadRequest,
 			wantCode:   "unexpected_field",
 		},
@@ -98,7 +98,7 @@ func TestPutProfileCustomisationHandlerMapsValidationAndStoreErrors(t *testing.T
 		},
 		{
 			name:       "store failure",
-			body:       `{"colour":"cobalt","profileBorder":"medium","profileBackground":"none"}`,
+			body:       `{"colour":"cobalt","profileBackground":"none"}`,
 			storeError: errors.New("database unavailable"),
 			wantStatus: http.StatusInternalServerError,
 			wantCode:   "internal_error",

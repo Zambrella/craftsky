@@ -17,10 +17,10 @@ func TestSubscriptionMigrationsUpDownUpPreserveExistingState(t *testing.T) {
 		}
 		return string(contents)
 	}
-	accountsUp := read("../../migrations/000069_subscription_accounts.up.sql")
-	accountsDown := read("../../migrations/000069_subscription_accounts.down.sql")
-	eventsUp := read("../../migrations/000070_revenuecat_events.up.sql")
-	eventsDown := read("../../migrations/000070_revenuecat_events.down.sql")
+	accountsUp := read("../../migrations/000076_subscription_accounts.up.sql")
+	accountsDown := read("../../migrations/000076_subscription_accounts.down.sql")
+	eventsUp := read("../../migrations/000077_revenuecat_events.up.sql")
+	eventsDown := read("../../migrations/000077_revenuecat_events.down.sql")
 	pool := testdb.WithSchema(t, `
 		CREATE TABLE craftsky_profiles (did TEXT PRIMARY KEY);
 		CREATE TABLE existing_authority_sentinels (kind TEXT PRIMARY KEY, value TEXT NOT NULL);

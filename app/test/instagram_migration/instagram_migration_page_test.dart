@@ -26,75 +26,79 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../fakes/recording_messenger.dart';
+import '../test_support/deterministic_pump.dart';
 
 void main() {
-  testWidgets(
-    'IT-016 import controls stay hidden until verification',
-    (tester) async {
-      final initial = registry.SessionRegistry.empty().upsertAndActivate(
-        token: 'token-a',
-        did: 'did:plc:alice',
-        handle: 'alice.test',
-      );
-      final repository = _Repository(
-        imports: InstagramImportPage(items: const [], cursor: null),
-      );
-      final semantics = tester.ensureSemantics();
+  testWidgets('IT-016 import controls stay hidden until verification', (
+    tester,
+  ) async {
+    final initial = registry.SessionRegistry.empty().upsertAndActivate(
+      token: 'token-a',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    final repository = _Repository(
+      imports: InstagramImportPage(items: const [], cursor: null),
+    );
+    final semantics = tester.ensureSemantics();
 
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            secureSessionRegistryStorageProvider.overrideWithValue(
-              _RegistryStorage(initial),
-            ),
-            instagramMigrationRepositoryProvider.overrideWith(
-              (ref, _) async => repository,
-            ),
-            instagramVerificationStorageProvider.overrideWithValue(
-              _EmptyVerificationStorage(),
-            ),
-          ],
-          child: MaterialApp(
-            theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: const InstagramMigrationPage(),
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(initial),
           ),
+          instagramMigrationRepositoryProvider.overrideWith(
+            (ref, _) async => repository,
+          ),
+          instagramVerificationStorageProvider.overrideWithValue(
+            _EmptyVerificationStorage(),
+          ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const InstagramMigrationPage(),
         ),
-      );
-      await tester.pumpAndSettle();
+      ),
+    );
+    await pumpUntilFound(
+      tester,
+      find.text('Instagram verification is unavailable right now.'),
+      description: 'the unavailable verification state',
+    );
 
-      expect(find.text('Find people from Instagram'), findsOneWidget);
-      expect(find.byType(Card), findsNothing);
-      expect(find.byType(CraftskyCard), findsWidgets);
-      expect(
-        find.text('Instagram verification is unavailable right now.'),
-        findsOneWidget,
-      );
-      expect(
-        find.text(
-          'Imports become available after Instagram verification is '
-          'configured and your account is verified.',
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.text('Complete verification to import the accounts you follow.'),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const Key('instagram-import-composer-card')),
-        findsNothing,
-      );
-      expect(find.byKey(const Key('instagram-imports-card')), findsNothing);
-      expect(find.byKey(const Key('instagram-suggestions-card')), findsNothing);
-      expect(
-        tester.widget<ListView>(find.byType(ListView)).physics,
-        isA<AlwaysScrollableScrollPhysics>(),
-      );
-      semantics.dispose();
-    },
-  );
+    expect(find.text('Find people from Instagram'), findsOneWidget);
+    expect(find.byType(Card), findsNothing);
+    expect(find.byType(CraftskyCard), findsWidgets);
+    expect(
+      find.text('Instagram verification is unavailable right now.'),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'Imports become available after Instagram verification is '
+        'configured and your account is verified.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Complete verification to import the accounts you follow.'),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('instagram-import-composer-card')),
+      findsNothing,
+    );
+    expect(find.byKey(const Key('instagram-imports-card')), findsNothing);
+    expect(find.byKey(const Key('instagram-suggestions-card')), findsNothing);
+    expect(
+      tester.widget<ListView>(find.byType(ListView)).physics,
+      isA<AlwaysScrollableScrollPhysics>(),
+    );
+    semantics.dispose();
+  });
 
   testWidgets('IT-023 manual and Instagram export imports stay normalized', (
     tester,
@@ -165,9 +169,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final cards = tester.widgetList<CraftskyCard>(
-      find.byType(CraftskyCard),
-    );
+    final cards = tester.widgetList<CraftskyCard>(find.byType(CraftskyCard));
     expect(cards, isNotEmpty);
     expect(cards.every((card) => card.clipBehavior == Clip.none), isTrue);
     expect(find.text('Accounts that follow me'), findsNothing);
@@ -188,22 +190,16 @@ void main() {
     final importSelector = tester.widget<SegmentedButton<dynamic>>(
       find.byKey(const Key('instagram-import-kind-selector')),
     );
-    final theme = Theme.of(
-      tester.element(find.byType(InstagramMigrationPage)),
-    );
+    final theme = Theme.of(tester.element(find.byType(InstagramMigrationPage)));
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final segmentedStyle = theme.segmentedButtonTheme.style!;
     expect(importSelector.style, isNull);
     expect(
-      segmentedStyle.backgroundColor?.resolve({
-        WidgetState.selected,
-      }),
+      segmentedStyle.backgroundColor?.resolve({WidgetState.selected}),
       swatches.moss,
     );
     expect(
-      segmentedStyle.foregroundColor?.resolve({
-        WidgetState.selected,
-      }),
+      segmentedStyle.foregroundColor?.resolve({WidgetState.selected}),
       swatches.onMoss,
     );
     expect(
@@ -211,9 +207,7 @@ void main() {
       theme.colorScheme.onSurface,
     );
     expect(
-      segmentedStyle.overlayColor?.resolve({
-        WidgetState.pressed,
-      }),
+      segmentedStyle.overlayColor?.resolve({WidgetState.pressed}),
       swatches.moss.withValues(alpha: 0.12),
     );
     expect(
@@ -233,9 +227,7 @@ void main() {
     );
     expect(
       tester.getBottomLeft(jsonDescription).dy,
-      lessThan(
-        tester.getTopLeft(find.text('Select Instagram export')).dy,
-      ),
+      lessThan(tester.getTopLeft(find.text('Select Instagram export')).dy),
     );
     expect(
       find.widgetWithText(FilledButton, 'Select Instagram export'),
@@ -245,18 +237,9 @@ void main() {
     await tester.pumpAndSettle();
     expect(manualDescription, findsOneWidget);
     expect(jsonDescription, findsNothing);
-    expect(
-      find.widgetWithText(FilledButton, 'Import handles'),
-      findsOneWidget,
-    );
-    expect(
-      find.widgetWithText(OutlinedButton, 'Import handles'),
-      findsNothing,
-    );
-    await tester.enterText(
-      find.byType(TextField),
-      '@Alice\nALICE\nbad name',
-    );
+    expect(find.widgetWithText(FilledButton, 'Import handles'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Import handles'), findsNothing);
+    await tester.enterText(find.byType(TextField), '@Alice\nALICE\nbad name');
     expect(find.text('Preview normalized handles'), findsNothing);
     await tester.drag(find.byType(ListView), const Offset(0, -300));
     await tester.pumpAndSettle();
@@ -659,18 +642,9 @@ void main() {
     await tester.pump();
     expect(find.text('CRAFT-TEST-123'), findsOneWidget);
 
-    final copyButton = find.widgetWithText(
-      OutlinedButton,
-      'Copy challenge',
-    );
-    final openButton = find.widgetWithText(
-      FilledButton,
-      'Open Instagram DM',
-    );
-    final cancelButton = find.widgetWithText(
-      TextButton,
-      'Cancel verification',
-    );
+    final copyButton = find.widgetWithText(OutlinedButton, 'Copy challenge');
+    final openButton = find.widgetWithText(FilledButton, 'Open Instagram DM');
+    final cancelButton = find.widgetWithText(TextButton, 'Cancel verification');
     final copyRect = tester.getRect(copyButton);
     final openRect = tester.getRect(openButton);
     final cancelRect = tester.getRect(cancelButton);
@@ -887,9 +861,7 @@ void main() {
         currentVerification: InstagramVerificationAttempt(
           verificationId: 'verification-current',
           state: InstagramVerificationState.processing,
-          expiresAt: DateTime.now().toUtc().add(
-            const Duration(minutes: 10),
-          ),
+          expiresAt: DateTime.now().toUtc().add(const Duration(minutes: 10)),
         ),
         onCancelVerification: (_) async {},
       );
@@ -1007,25 +979,15 @@ void main() {
       final revokeButton = tester.widget<TextButton>(
         find.widgetWithText(TextButton, 'Revoke Instagram verification'),
       );
-      expect(
-        revokeButton.style?.foregroundColor?.resolve({}),
-        errorColor,
-      );
-      expect(
-        revokeButton.style?.iconColor?.resolve({}),
-        errorColor,
-      );
+      expect(revokeButton.style?.foregroundColor?.resolve({}), errorColor);
+      expect(revokeButton.style?.iconColor?.resolve({}), errorColor);
       expect(
         tester
-            .getTopLeft(
-              find.byKey(const Key('instagram-revoke-verification')),
-            )
+            .getTopLeft(find.byKey(const Key('instagram-revoke-verification')))
             .dy,
         greaterThan(
           tester
-              .getBottomLeft(
-                find.byKey(const Key('instagram-imports-card')),
-              )
+              .getBottomLeft(find.byKey(const Key('instagram-imports-card')))
               .dy,
         ),
       );
@@ -1038,102 +1000,91 @@ void main() {
       await tester.pumpAndSettle();
       final deleteButton = tester.widget<IconButton>(deleteButtonFinder);
       expect(deleteButton.tooltip, 'Delete import');
-      expect(
-        deleteButton.style?.foregroundColor?.resolve({}),
-        errorColor,
-      );
+      expect(deleteButton.style?.foregroundColor?.resolve({}), errorColor);
       expect(find.widgetWithText(TextButton, 'Delete import'), findsNothing);
       final importRow = tester.widget<Row>(
-        find.ancestor(
-          of: deleteButtonFinder,
-          matching: find.byType(Row),
-        ),
+        find.ancestor(of: deleteButtonFinder, matching: find.byType(Row)),
       );
       expect(importRow.children.last, isA<IconButton>());
     },
   );
 
-  testWidgets(
-    'IT-016 revoking Instagram verification requires confirmation',
-    (tester) async {
-      final initial = registry.SessionRegistry.empty().upsertAndActivate(
-        token: 'token-a',
-        did: 'did:plc:alice',
-        handle: 'alice.test',
-      );
-      var revokeCalls = 0;
-      final repository = _Repository(
-        status: InstagramAccountStatus(
-          integrationAvailable: true,
-          account: InstagramAccountLink(
-            state: InstagramAccountLinkState.active,
-            username: 'actual_maker',
-            discoverable: true,
-            conflictPending: false,
-            reactivationRequired: false,
-            verifiedAt: DateTime.utc(2026, 7, 22),
+  testWidgets('IT-016 revoking Instagram verification requires confirmation', (
+    tester,
+  ) async {
+    final initial = registry.SessionRegistry.empty().upsertAndActivate(
+      token: 'token-a',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    var revokeCalls = 0;
+    final repository = _Repository(
+      status: InstagramAccountStatus(
+        integrationAvailable: true,
+        account: InstagramAccountLink(
+          state: InstagramAccountLinkState.active,
+          username: 'actual_maker',
+          discoverable: true,
+          conflictPending: false,
+          reactivationRequired: false,
+          verifiedAt: DateTime.utc(2026, 7, 22),
+        ),
+      ),
+      imports: InstagramImportPage(items: const [], cursor: null),
+      onRevokeAccount: () async => revokeCalls += 1,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(initial),
           ),
-        ),
-        imports: InstagramImportPage(items: const [], cursor: null),
-        onRevokeAccount: () async => revokeCalls += 1,
-      );
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            secureSessionRegistryStorageProvider.overrideWithValue(
-              _RegistryStorage(initial),
-            ),
-            instagramMigrationRepositoryProvider.overrideWith(
-              (ref, _) async => repository,
-            ),
-          ],
-          child: MaterialApp(
-            theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: const InstagramMigrationPage(),
+          instagramMigrationRepositoryProvider.overrideWith(
+            (ref, _) async => repository,
           ),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const InstagramMigrationPage(),
         ),
-      );
-      await tester.pumpAndSettle();
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      await tester.ensureVisible(
-        find.text('Revoke Instagram verification'),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Revoke Instagram verification'));
-      await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Revoke Instagram verification'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Revoke Instagram verification'));
+    await tester.pumpAndSettle();
 
-      expect(find.text('Revoke Instagram verification?'), findsOneWidget);
-      expect(
-        find.text(
-          'This removes your Instagram verification and deletes your imported '
-          'handles. Existing CraftSky follows will not be affected.',
-        ),
-        findsOneWidget,
-      );
-      expect(revokeCalls, 0);
+    expect(find.text('Revoke Instagram verification?'), findsOneWidget);
+    expect(
+      find.text(
+        'This removes your Instagram verification and deletes your imported '
+        'handles. Existing CraftSky follows will not be affected.',
+      ),
+      findsOneWidget,
+    );
+    expect(revokeCalls, 0);
 
-      await tester.tap(find.text('Cancel'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
 
-      expect(revokeCalls, 0);
-      expect(find.text('Verified as @actual_maker'), findsOneWidget);
+    expect(revokeCalls, 0);
+    expect(find.text('Verified as @actual_maker'), findsOneWidget);
 
-      await tester.ensureVisible(
-        find.text('Revoke Instagram verification'),
-      );
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Revoke Instagram verification'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Revoke Instagram verification').last);
-      await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Revoke Instagram verification'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Revoke Instagram verification'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Revoke Instagram verification').last);
+    await tester.pumpAndSettle();
 
-      expect(revokeCalls, 1);
-      expect(find.text('Verified as @actual_maker'), findsNothing);
-    },
-  );
+    expect(revokeCalls, 1);
+    expect(find.text('Verified as @actual_maker'), findsNothing);
+  });
 }
 
 Future<void> _pumpVerifiedExportPage(
@@ -1211,10 +1162,7 @@ Iterable<TextSpan> _textSpans(TextSpan span) sync* {
 
 final class _EmptyVerificationStorage implements InstagramVerificationStorage {
   @override
-  Future<void> delete(
-    AccountKey account, {
-    String? verificationId,
-  }) async {}
+  Future<void> delete(AccountKey account, {String? verificationId}) async {}
 
   @override
   Future<InstagramVerificationSnapshot?> read(AccountKey account) async => null;
@@ -1294,10 +1242,7 @@ final class _Repository implements InstagramMigrationRepository {
   Future<InstagramVerificationConfirmation> confirmVerification(
     String verificationId, {
     required bool discoverable,
-  }) => onConfirmVerification!.call(
-    verificationId,
-    discoverable: discoverable,
-  );
+  }) => onConfirmVerification!.call(verificationId, discoverable: discoverable);
 
   @override
   Future<InstagramImportPage> listImports({int? limit, String? cursor}) async =>

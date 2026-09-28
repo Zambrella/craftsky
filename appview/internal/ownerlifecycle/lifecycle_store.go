@@ -618,6 +618,14 @@ func (store *Store) WithActiveEffectTransaction(
 	return store.beginFenced(ctx, callback)
 }
 
+func (store *Store) HasActiveEffectScope(ctx context.Context) bool {
+	if store == nil || ctx == nil {
+		return false
+	}
+	_, ok := ctx.Value(activeEffectsContextKey{}).(activeEffectScope)
+	return ok
+}
+
 const lifecycleSelect = `
 	SELECT owner_did,state,generation,auth_epoch,transition_reason,
 	       transitioned_at,terminal_at,purge_completed_at,created_at,updated_at

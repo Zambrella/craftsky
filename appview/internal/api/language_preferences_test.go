@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
@@ -156,7 +155,7 @@ func TestInitializeLanguagePreferencesReturnsExistingAuthoritativeRow(t *testing
 
 func newLanguagePreferencesAPIStore(t *testing.T) *languages.Store {
 	t.Helper()
-	up, err := os.ReadFile("../../migrations/000033_post_languages.up.sql")
+	up, err := testdb.ReadMigration("000033_post_languages.up.sql")
 	if err != nil {
 		t.Fatalf("read language migration: %v", err)
 	}

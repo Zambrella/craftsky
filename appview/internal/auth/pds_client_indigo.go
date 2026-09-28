@@ -27,6 +27,7 @@ var _ PDSClient = (*IndigoPDSClient)(nil)
 var _ PDSRecordLister = (*IndigoPDSClient)(nil)
 var _ ConditionalPDSRecordPutter = (*IndigoPDSClient)(nil)
 var _ ConditionalPDSRecordDeleter = (*IndigoPDSClient)(nil)
+var _ RepositoryCommandPDSClient = (*IndigoPDSClient)(nil)
 
 // NewIndigoPDSClient requires separate purpose-bound XRPC clients for JSON
 // requests and upload responses. Both may share the Boundary's connection
@@ -81,6 +82,11 @@ func (i *IndigoPDSClient) GetRecord(ctx context.Context, repo syntax.DID, collec
 		*target = append((*target)[:0], resp.Value...)
 		return resp.CID, nil
 	case *map[string]any:
+		if err := json.Unmarshal(resp.Value, target); err != nil {
+			return "", fmt.Errorf("decode getRecord value: %w", err)
+		}
+		return resp.CID, nil
+	case *any:
 		if err := json.Unmarshal(resp.Value, target); err != nil {
 			return "", fmt.Errorf("decode getRecord value: %w", err)
 		}
@@ -294,6 +300,111 @@ func (i *IndigoPDSClient) ListRecords(
 		next = *out.Cursor
 	}
 	return records, next, nil
+}
+
+func (i *IndigoPDSClient) LatestCommit(ctx context.Context, repo syntax.DID) (syntax.CID, error) {
+	nsid, err := syntax.ParseNSID("com.atproto.sync.getLatestCommit")
+	if err != nil {
+		return "", fmt.Errorf("parse nsid: %w", err)
+	}
+	var response struct {
+		CID string `json:"cid"`
+	}
+	if err := i.client.Get(ctx, nsid, map[string]any{"did": repo.String()}, &response); err != nil {
+		return "", i.translateError(ctx, err)
+	}
+	if response.CID == "" {
+		return "", errors.New("getLatestCommit: PDS returned empty cid")
+	}
+	return syntax.CID(response.CID), nil
+}
+
+func (i *IndigoPDSClient) ApplyWrites(
+	ctx context.Context,
+	repo syntax.DID,
+	swapCommit syntax.CID,
+	writes []RepositoryWrite,
+) error {
+	if swapCommit == "" || len(writes) == 0 {
+		return errors.New("applyWrites requires a repository head and at least one write")
+	}
+	encoded := make([]map[string]any, len(writes))
+	for index, write := range writes {
+		entry := map[string]any{
+			"$type":      "com.atproto.repo.applyWrites#" + write.Action,
+			"collection": write.Collection.String(),
+			"rkey":       write.RKey.String(),
+		}
+		switch write.Action {
+		case "create", "update":
+			if write.Record == nil {
+				return fmt.Errorf("applyWrites %s requires a record", write.Action)
+			}
+			entry["value"] = write.Record
+		case "delete":
+		default:
+			return fmt.Errorf("applyWrites has unsupported action %q", write.Action)
+		}
+		if write.ExpectedCID != "" {
+			entry["swapRecord"] = write.ExpectedCID.String()
+		}
+		encoded[index] = entry
+	}
+	nsid, err := syntax.ParseNSID("com.atproto.repo.applyWrites")
+	if err != nil {
+		return fmt.Errorf("parse nsid: %w", err)
+	}
+	body := map[string]any{
+		"repo": repo.String(), "swapCommit": swapCommit.String(), "writes": encoded,
+	}
+	var response any
+	if err := i.client.Post(ctx, nsid, body, &response); err != nil {
+		return i.translateError(ctx, translateRepositoryMutationError(err))
+	}
+	return nil
+}
+
+func (i *IndigoPDSClient) DeleteRecordWithRepositorySwap(
+	ctx context.Context,
+	repo syntax.DID,
+	collection syntax.NSID,
+	rkey syntax.RecordKey,
+	swapCommit syntax.CID,
+	swapRecord syntax.CID,
+) error {
+	if swapCommit == "" || swapRecord == "" {
+		return errors.New("guarded delete requires repository and record CIDs")
+	}
+	nsid, err := syntax.ParseNSID("com.atproto.repo.deleteRecord")
+	if err != nil {
+		return fmt.Errorf("parse nsid: %w", err)
+	}
+	body := map[string]any{
+		"repo": repo.String(), "collection": collection.String(), "rkey": rkey.String(),
+		"swapCommit": swapCommit.String(), "swapRecord": swapRecord.String(),
+	}
+	var response any
+	if err := i.client.Post(ctx, nsid, body, &response); err != nil {
+		return i.translateError(ctx, translateRepositoryMutationError(err))
+	}
+	return nil
+}
+
+func translateRepositoryMutationError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var apiErr *atclient.APIError
+	if !errors.As(err, &apiErr) {
+		return err
+	}
+	if apiErr.Name == "InvalidSwap" {
+		return errors.Join(ErrRepositorySwapConflict, err)
+	}
+	if apiErr.StatusCode == http.StatusNotFound || apiErr.Name == "MethodNotFound" || apiErr.Name == "NotImplemented" {
+		return errors.Join(ErrApplyWritesUnsupported, err)
+	}
+	return err
 }
 
 // UploadBlob calls com.atproto.repo.uploadBlob with raw image bytes.

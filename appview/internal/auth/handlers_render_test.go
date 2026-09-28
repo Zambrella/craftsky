@@ -411,14 +411,26 @@ func TestLoopbackCallbackPagePostsOneCodeOnlyPayloadToRealListener(t *testing.T)
 
 func TestVerifiedLinkAndErrorPagesDenyAllConnections(t *testing.T) {
 	verified := httptest.NewRecorder()
+	completionURL := "https://app.craftsky.social/auth/complete?code=short-lived-code"
 	if err := renderCallbackHTML(verified, callbackPageData{
 		Code:        "short-lived-code",
-		DeepLinkURL: "https://app.craftsky.social/auth/complete?code=short-lived-code",
+		DeepLinkURL: completionURL,
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if csp := verified.Header().Get("Content-Security-Policy"); !strings.Contains(csp, "connect-src 'none'") {
+	csp := verified.Header().Get("Content-Security-Policy")
+	if !strings.Contains(csp, "connect-src 'none'") {
 		t.Fatalf("verified-link CSP=%q, want connections denied", csp)
+	}
+	body := verified.Body.String()
+	if !strings.Contains(body, `class="cta" href="`+completionURL+`"`) || !strings.Contains(body, ">Open CraftSky</a>") {
+		t.Fatalf("verified-link body does not contain a user-activated app link: %q", body)
+	}
+	if !strings.Contains(csp, `style-src 'nonce-`) || strings.Contains(csp, "style-src 'unsafe-inline'") {
+		t.Fatalf("verified-link CSP does not nonce inline styles: %q", csp)
+	}
+	if strings.Contains(body, "window.location") {
+		t.Fatalf("verified-link body uses scripted navigation: %q", body)
 	}
 
 	failure := httptest.NewRecorder()

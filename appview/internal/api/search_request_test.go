@@ -417,7 +417,7 @@ func TestCraftTypeRequestParsersUseCanonicalFullTokens(t *testing.T) {
 func TestProjectBrowseFiltersStayUnderProjectsAPI(t *testing.T) {
 	const knitting = "social.craftsky.feed.defs#knitting"
 
-	browseReq := httptest.NewRequest("GET", "/v1/projects?craftType=knitting&color=Blue&material=Alpaca&designTag=Cables&projectTag=KAL&patternDifficulty=Intermediate&projectType=Socks&sort=popular&limit=10", nil)
+	browseReq := httptest.NewRequest("GET", "/v1/projects?craftType=knitting&status=Finished&projectType=Garment&projectSubtype=Socks&patternDifficulty=Intermediate&color=Blue&designTag=Cables&yarnWeight=DK&piecingTechnique=Improv&quiltingMethod=HandQuilted&selfDrafted=true&sort=popular&limit=10", nil)
 	browseParsed, err := api.ParseProjectListRequest(browseReq)
 	if err != nil {
 		t.Fatalf("ParseProjectListRequest browse filters: %v", err)
@@ -430,15 +430,21 @@ func TestProjectBrowseFiltersStayUnderProjectsAPI(t *testing.T) {
 	}
 	for key, want := range map[string][]string{
 		"color":             {"blue"},
-		"material":          {"alpaca"},
 		"designTag":         {"cables"},
-		"projectTag":        {"kal"},
+		"status":            {"finished"},
 		"patternDifficulty": {"intermediate"},
-		"projectType":       {"socks"},
+		"projectType":       {"garment"},
+		"projectSubtype":    {"socks"},
+		"yarnWeight":        {"dk"},
+		"piecingTechnique":  {"improv"},
+		"quiltingMethod":    {"handquilted"},
 	} {
 		if got := browseParsed.Filters[key]; !reflect.DeepEqual(got, want) {
 			t.Fatalf("browse %s filter = %#v, want %#v", key, got, want)
 		}
+	}
+	if !browseParsed.SelfDrafted {
+		t.Fatal("browse selfDrafted = false, want true")
 	}
 
 	textReq := httptest.NewRequest("GET", "/v1/search/projects?q=%20sock%20&limit=10", nil)
@@ -457,6 +463,11 @@ func TestProjectBrowseFiltersStayUnderProjectsAPI(t *testing.T) {
 		"/v1/search/projects?q=sock&craftType=knitting",
 		"/v1/search/projects?q=sock&material=alpaca",
 		"/v1/projects?q=sock",
+		"/v1/projects?material=alpaca",
+		"/v1/projects?projectTag=gift",
+		"/v1/projects?selfDrafted=false",
+		"/v1/projects?selfDrafted=yes",
+		"/v1/projects?selfDrafted=true&selfDrafted=true",
 		"/v1/projects?unknown=value",
 	} {
 		t.Run("invalid "+path, func(t *testing.T) {

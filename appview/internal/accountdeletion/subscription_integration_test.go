@@ -17,11 +17,11 @@ import (
 )
 
 func TestSubscriptionDeletionParticipantBlocksClosesAndUnassigns(t *testing.T) {
-	accountsMigration, err := os.ReadFile("../../migrations/000069_subscription_accounts.up.sql")
+	accountsMigration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	eventsMigration, err := os.ReadFile("../../migrations/000070_revenuecat_events.up.sql")
+	eventsMigration, err := os.ReadFile("../../migrations/000077_revenuecat_events.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestSubscriptionDeletionParticipantBlocksClosesAndUnassigns(t *testing.T) {
 }
 
 func TestSubscriptionDeletionParticipantBlocksMixedProviderBilling(t *testing.T) {
-	accountsMigration, err := os.ReadFile("../../migrations/000069_subscription_accounts.up.sql")
+	accountsMigration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,7 +232,7 @@ func TestSubscriptionDeletionParticipantBlocksMixedProviderBilling(t *testing.T)
 }
 
 func TestAcceptedSelfAssignedDeletionSerializesWithSnapshotApply(t *testing.T) {
-	accountsMigration, err := os.ReadFile("../../migrations/000069_subscription_accounts.up.sql")
+	accountsMigration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

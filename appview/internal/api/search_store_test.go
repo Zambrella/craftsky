@@ -5,8 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"log/slog"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -24,6 +23,7 @@ import (
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/testdb"
+	"social.craftsky/appview/internal/testlog"
 )
 
 const searchStoreDDL = timelineStoreDDL + `
@@ -55,12 +55,7 @@ func TestSearchProfilesOmitsBlockedAccountExceptExactHandleManagementShell(t *te
 	seedSearchIdentity(t, pool, "did:plc:viewer", "viewer.example", "Viewer", "viewer bio")
 	seedSearchIdentity(t, pool, "did:plc:bob", "bob.example", "Bob Maker", "blocked bio")
 	seedSearchIdentity(t, pool, "did:plc:carol", "carol.example", "Carol", "carol bio")
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO atproto_blocks (uri, blocker_did, rkey, cid, subject_did, record, created_at)
-		VALUES ('at://did:plc:viewer/app.bsky.graph.block/bob', 'did:plc:viewer', 'bob', 'block-cid', 'did:plc:bob', '{}', now())
-	`); err != nil {
-		t.Fatalf("seed block: %v", err)
-	}
+	seedBlockAggregate(t, pool, "did:plc:viewer", "did:plc:bob", time.Now())
 	store := api.NewSearchStore(pool, nil)
 
 	ordinary, _, err := store.SearchProfiles(ctx, "did:plc:viewer", api.ProfileSearchRequest{Query: "bob", Limit: 10})
@@ -628,7 +623,7 @@ func TestSearchSuggestionsHandlerReturnsGroupedTopNSections(t *testing.T) {
 		seedPostTags(t, pool, uri, []string{tag})
 	}
 
-	handler := api.SearchSuggestionsHandler(api.NewSearchStore(pool, nil), slog.New(slog.NewTextHandler(io.Discard, nil)))
+	handler := api.SearchSuggestionsHandler(api.NewSearchStore(pool, nil), testlog.Discard())
 	req := httptest.NewRequest(http.MethodGet, "/v1/search/suggestions?q=sock&types=profiles,hashtags&profileLimit=1&hashtagLimit=1", nil)
 	req = req.WithContext(middleware.WithDID(req.Context(), syntax.DID("did:plc:viewer")))
 	rr := httptest.NewRecorder()
@@ -726,12 +721,11 @@ func TestSearchStoreRelationshipFiltersBeforeHashtagPagination(t *testing.T) {
 		}
 	}
 	if _, err := pool.Exec(context.Background(), `
-		INSERT INTO actor_mutes(owner_did,subject_did) VALUES('did:plc:viewer','did:plc:bob');
-		INSERT INTO atproto_blocks(uri,blocker_did,rkey,cid,subject_did,record,created_at)
-		VALUES('at://did:plc:carol/app.bsky.graph.block/r1','did:plc:carol','r1','cid','did:plc:viewer','{}',now())
+		INSERT INTO actor_mutes(owner_did,subject_did) VALUES('did:plc:viewer','did:plc:bob')
 	`); err != nil {
 		t.Fatal(err)
 	}
+	seedBlockAggregate(t, pool, "did:plc:carol", "did:plc:viewer", time.Now())
 	ctx := middleware.WithDID(context.Background(), syntax.DID("did:plc:viewer"))
 	rows, cursor, err := api.NewSearchStore(pool, nil).SearchHashtagPosts(ctx, "knit", api.SearchSortChronological, 1, "", base.Add(time.Hour))
 	if err != nil {
@@ -757,6 +751,7 @@ func TestSearchStore_SearchHashtagPostsSortsChronologicalAndPopular(t *testing.T
 		seedPostTags(t, pool, uri, []string{"sock"})
 	}
 	seedInteraction(t, pool, "repost", "did:plc:fan1", "sock-repost-1", olderPopular, false)
+	seedInteraction(t, pool, "repost", "did:plc:fan1", "sock-repost-duplicate", olderPopular, false)
 	seedInteraction(t, pool, "repost", "did:plc:fan2", "sock-repost-2", olderPopular, false)
 	seedInteraction(t, pool, "like", "did:plc:fan3", "sock-like-1", olderPopular, false)
 
@@ -778,6 +773,9 @@ func TestSearchStore_SearchHashtagPostsSortsChronologicalAndPopular(t *testing.T
 	}
 	if got := searchURIs(popularRows); !slices.Equal(got, []string{olderPopular, newestQuiet, middleProject}) {
 		t.Fatalf("popular URIs = %v", got)
+	}
+	if want := api.PopularityScore(1, 0, 2, base.Add(-48*time.Hour), base); math.Abs(popularRows[0].Score-want) > 1e-6 {
+		t.Fatalf("logical popularity score = %f, want %f", popularRows[0].Score, want)
 	}
 }
 
@@ -962,6 +960,17 @@ func TestSearchStore_SearchProjectsAppliesFilterSemantics(t *testing.T) {
 	seedProjectDetails(t, pool, socks, []string{"Alpaca"}, []string{"Blue"}, []string{"Cables"}, []string{"KAL"})
 	seedProjectDetails(t, pool, shawl, []string{"Wool"}, []string{"Green"}, []string{"Lace"}, []string{"Gift"})
 	seedProjectDetails(t, pool, crochet, []string{"Cotton"}, []string{"Blue"}, []string{"Granny"}, []string{"KAL"})
+	if _, err := pool.Exec(ctx, `
+		UPDATE craftsky_project_posts
+		SET common_status = 'social.craftsky.feed.defs#finished',
+			pattern_difficulty = 'social.craftsky.feed.defs#intermediate',
+			pattern_self_drafted = true,
+			knitting_project_type = 'social.craftsky.project.defs#accessory',
+			knitting_project_subtype = 'social.craftsky.project.knitting.defs#socks',
+			knitting_yarn_weight = 'social.craftsky.project.defs#fingering'
+		WHERE uri = $1`, socks); err != nil {
+		t.Fatalf("seed structured project filters: %v", err)
+	}
 
 	store := api.NewSearchStore(pool, nil)
 	orRows, _, err := store.SearchProjects(ctx, api.ProjectSearchRequest{Sort: api.SearchSortChronological, Limit: 10, Filters: map[string][]string{"craftType": {"knitting", "crochet"}}}, base)
@@ -982,12 +991,33 @@ func TestSearchStore_SearchProjectsAppliesFilterSemantics(t *testing.T) {
 	if !slices.Equal(searchURIs(page1), []string{socks}) || cursor == "" || !slices.Equal(searchURIs(page2), []string{shawl}) || cursor2 != "" {
 		t.Fatalf("pagination page1=%v cursor=%q page2=%v cursor2=%q", searchURIs(page1), cursor, searchURIs(page2), cursor2)
 	}
-	andRows, _, err := store.SearchProjects(ctx, api.ProjectSearchRequest{Sort: api.SearchSortChronological, Limit: 10, Filters: map[string][]string{"craftType": {"knitting"}, "color": {"blue"}, "material": {"alpaca"}}}, base)
+	andRows, _, err := store.SearchProjects(ctx, api.ProjectSearchRequest{
+		Sort:        api.SearchSortChronological,
+		Limit:       10,
+		SelfDrafted: true,
+		Filters: map[string][]string{
+			"craftType":         {"knitting"},
+			"status":            {"social.craftsky.feed.defs#finished"},
+			"patternDifficulty": {"social.craftsky.feed.defs#intermediate"},
+			"projectType":       {"social.craftsky.project.defs#accessory"},
+			"projectSubtype":    {"social.craftsky.project.knitting.defs#socks"},
+			"color":             {"blue"},
+			"designTag":         {"cables"},
+			"yarnWeight":        {"social.craftsky.project.defs#fingering"},
+		},
+	}, base)
 	if err != nil {
 		t.Fatalf("SearchProjects AND filters: %v", err)
 	}
 	if got := searchURIs(andRows); !slices.Equal(got, []string{socks}) {
 		t.Fatalf("AND filter URIs = %v", got)
+	}
+	missingStatusRows, _, err := store.SearchProjects(ctx, api.ProjectSearchRequest{Sort: api.SearchSortChronological, Limit: 10, Filters: map[string][]string{"status": {"social.craftsky.feed.defs#wip"}}}, base)
+	if err != nil {
+		t.Fatalf("SearchProjects missing status: %v", err)
+	}
+	if len(missingStatusRows) != 0 {
+		t.Fatalf("missing status matched active status filter: %v", searchURIs(missingStatusRows))
 	}
 }
 

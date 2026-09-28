@@ -3,7 +3,6 @@ package api_test
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"testing"
 
@@ -51,11 +50,7 @@ func TestIdentityCustomisationHydratorBatchCountDoesNotGrowWithPageSize(t *testi
 }
 
 func TestProfileCustomisationBatchQueryUsesOwnerIndexes(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000036_profile_customisation.up.sql")
-	if err != nil {
-		t.Fatalf("read profile customisation migration: %v", err)
-	}
-	pool := testdb.WithSchema(t, profileCustomisationStoreTestDDL+string(migration))
+	pool := testdb.WithSchema(t, profileCustomisationStoreTestDDL+profileCustomisationSchemaMigrations(t))
 	ctx := context.Background()
 	if _, err := pool.Exec(ctx, `SET enable_seqscan = off`); err != nil {
 		t.Fatalf("disable sequential scans: %v", err)

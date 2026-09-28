@@ -20,8 +20,10 @@ abstract interface class PostRepository {
   /// POST /v1/posts. AppView returns a synthetic [Post] populated from
   /// the PDS write response.
   Future<Post> create({
+    required String operationKey,
     required String text,
     required List<String> langs,
+    required bool sponsored,
     PostReply? reply,
     PostRef? quote,
     Project? project,
@@ -35,7 +37,12 @@ abstract interface class PostRepository {
   Future<Post> fetch(Did did, RecordKey rkey);
 
   /// DELETE /v1/posts/{did}/{rkey}. Idempotent.
-  Future<void> delete(Did did, RecordKey rkey);
+  Future<void> delete(
+    Did did,
+    RecordKey rkey, {
+    required String operationKey,
+    required String expectedCid,
+  });
 
   /// GET /v1/profiles/me/pins.
   Future<ProfilePinState> profilePins();
@@ -72,16 +79,32 @@ abstract interface class PostRepository {
   });
 
   /// POST /v1/posts/{did}/{rkey}/likes.
-  Future<InteractionWriteResponse> like(Did did, RecordKey rkey);
+  Future<InteractionWriteResponse> like(
+    Did did,
+    RecordKey rkey, {
+    required String operationKey,
+  });
 
   /// DELETE /v1/posts/{did}/{rkey}/likes.
-  Future<void> unlike(Did did, RecordKey rkey);
+  Future<void> unlike(
+    Did did,
+    RecordKey rkey, {
+    required String operationKey,
+  });
 
   /// POST /v1/posts/{did}/{rkey}/reposts.
-  Future<InteractionWriteResponse> repost(Did did, RecordKey rkey);
+  Future<InteractionWriteResponse> repost(
+    Did did,
+    RecordKey rkey, {
+    required String operationKey,
+  });
 
   /// DELETE /v1/posts/{did}/{rkey}/reposts.
-  Future<void> unrepost(Did did, RecordKey rkey);
+  Future<void> unrepost(
+    Did did,
+    RecordKey rkey, {
+    required String operationKey,
+  });
 
   /// GET /v1/posts/{did}/{rkey}/likes — newest-first, paginated.
   Future<ProfileAccountPage> listLikes(
@@ -126,6 +149,13 @@ abstract interface class PostRepository {
 
   /// GET /v1/profiles/@{handleOrDid}/comments — newest-first, paginated.
   Future<PostPage> listCommentsByAuthor(
+    String handleOrDid, {
+    String? cursor,
+    int? limit,
+  });
+
+  /// GET /v1/profiles/@{handleOrDid}/reposts — newest-first, paginated.
+  Future<PostPage> listRepostsByAuthor(
     String handleOrDid, {
     String? cursor,
     int? limit,

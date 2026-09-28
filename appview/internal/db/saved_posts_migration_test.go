@@ -2,7 +2,6 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -139,11 +138,11 @@ INSERT INTO migration_sentinel (id) VALUES (1);
 `
 
 func TestSavedPostsMigration(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000024_saved_posts.up.sql")
+	up, err := testdb.ReadMigration("000024_saved_posts.up.sql")
 	if err != nil {
 		t.Fatalf("read up migration: %v", err)
 	}
-	down, err := os.ReadFile("../../migrations/000024_saved_posts.down.sql")
+	down, err := testdb.ReadMigration("000024_saved_posts.down.sql")
 	if err != nil {
 		t.Fatalf("read down migration: %v", err)
 	}

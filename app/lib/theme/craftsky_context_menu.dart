@@ -26,6 +26,7 @@ class CraftskyContextMenuItem {
     this.description,
     this.semanticHint,
     this.isSelected = false,
+    this.switchValue,
     this.style = CraftskyContextMenuItemStyle.normal,
   });
 
@@ -36,6 +37,7 @@ class CraftskyContextMenuItem {
   final String? description;
   final String? semanticHint;
   final bool isSelected;
+  final bool? switchValue;
   final CraftskyContextMenuItemStyle style;
 }
 
@@ -382,11 +384,14 @@ class _CraftskyContextMenuRow extends StatelessWidget {
     return Semantics(
       label: item.text,
       hint: item.semanticHint,
-      button: true,
+      button: item.switchValue == null,
+      toggled: item.switchValue,
       enabled: !isDisabled,
       excludeSemantics: true,
       child: Material(
-        color: item.isSelected ? selectedBackground : Colors.transparent,
+        color: item.isSelected && item.switchValue == null
+            ? selectedBackground
+            : Colors.transparent,
         child: ListTile(
           key: item.key,
           enabled: !isDisabled,
@@ -394,7 +399,9 @@ class _CraftskyContextMenuRow extends StatelessWidget {
           contentPadding: EdgeInsets.symmetric(horizontal: spacing.sp4),
           horizontalTitleGap: spacing.sp3,
           leading: Icon(
-            item.isSelected ? CraftskyIcons.selectedOption : item.icon,
+            item.isSelected && item.switchValue == null
+                ? CraftskyIcons.selectedOption
+                : item.icon,
             color: color,
           ),
           title: Text(
@@ -409,6 +416,15 @@ class _CraftskyContextMenuRow extends StatelessWidget {
                     color: theme.colorScheme.outline,
                   ),
                 ),
+          trailing: switch (item.switchValue) {
+            final bool value => IgnorePointer(
+              child: Switch(
+                value: value,
+                onChanged: isDisabled ? null : (_) {},
+              ),
+            ),
+            null => null,
+          },
         ),
       ),
     );

@@ -149,42 +149,6 @@ class _InstagramMigrationBody extends ConsumerWidget {
   }
 }
 
-/// Shared subset used by onboarding. Settings-only history and revocation are
-/// deliberately not part of this widget.
-class InstagramOnboardingSections extends ConsumerWidget {
-  const InstagramOnboardingSections({required this.lease, super.key});
-
-  final ActiveAccountLease lease;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final account = ref.watch(instagramAccountProvider(lease));
-    final spacing = Theme.of(context).extension<SpacingTheme>()!;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        account.when(
-          loading: () => const _LoadingCard(),
-          error: (_, _) => _ErrorCard(
-            onRetry: () =>
-                ref.read(instagramAccountProvider(lease).notifier).refresh(),
-          ),
-          data: (value) => _AccountAndVerificationCard(
-            lease: lease,
-            status: value,
-          ),
-        ),
-        if (account.value?.account != null) ...[
-          SizedBox(height: spacing.sp4),
-          _ImportComposerCard(lease: lease),
-          SizedBox(height: spacing.sp4),
-          _SuggestionsCard(lease: lease),
-        ],
-      ],
-    );
-  }
-}
-
 class _AccountAndVerificationCard extends ConsumerStatefulWidget {
   const _AccountAndVerificationCard({
     required this.lease,

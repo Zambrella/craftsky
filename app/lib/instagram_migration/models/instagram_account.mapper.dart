@@ -73,7 +73,6 @@ extension InstagramAccountLinkStateMapperExtension
         as String;
   }
 }
-
 class InstagramAccountLinkMapper extends ClassMapperBase<InstagramAccountLink> {
   InstagramAccountLinkMapper._();
 

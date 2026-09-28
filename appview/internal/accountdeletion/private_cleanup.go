@@ -71,6 +71,9 @@ func (cleanup *DatabasePrivateCleanup) Purge(ctx context.Context, owner syntax.D
 			{"notification events", `DELETE FROM notification_events WHERE recipient_did=$1`},
 			{"notification preferences", `DELETE FROM notification_preferences WHERE account_did=$1`},
 			{"notification seen state", `DELETE FROM notification_seen_state WHERE account_did=$1`},
+			{"moderation cases", `DELETE FROM moderation_cases WHERE owner_did=$1 OR subject_did=$1`},
+			{"moderation standing", `DELETE FROM moderation_account_standings WHERE owner_did=$1`},
+			{"moderation strikes", `DELETE FROM moderation_case_strikes WHERE owner_did=$1`},
 			{"moderation reports", `DELETE FROM moderation_reports WHERE reporter_did=$1 OR subject_did=$1`},
 			{"deletion OAuth requests", `DELETE FROM oauth_auth_requests WHERE account_deletion_owner_did=$1`},
 		}

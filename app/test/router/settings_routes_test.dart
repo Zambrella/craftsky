@@ -15,6 +15,7 @@ import 'package:craftsky_app/languages/data/language_preferences_repository.dart
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/pages/languages_page.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_repository_provider.dart';
+import 'package:craftsky_app/moderation/pages/account_standing_page.dart';
 import 'package:craftsky_app/notifications/pages/notification_settings_page.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
@@ -87,6 +88,10 @@ void main() {
     expect(
       const SubscriptionsRoute().location,
       '/profile/settings/subscriptions',
+    );
+    expect(
+      const AccountStandingRoute().location,
+      '/profile/settings/moderation',
     );
     expect(const AboutRoute().location, '/profile/settings/about');
   });
@@ -396,6 +401,8 @@ void main() {
       'Discovery',
       'Find people from Instagram',
       'General',
+      'Subscriptions',
+      'Account standing',
       'Account',
       'About',
       'Sign out',
@@ -403,7 +410,7 @@ void main() {
       expect(find.text(label), findsOneWidget, reason: label);
     }
     expect(find.text('Clear image cache'), findsNothing);
-    expect(find.byIcon(CraftskyIconsBold.next), findsNWidgets(14));
+    expect(find.byIcon(CraftskyIconsBold.next), findsNWidgets(15));
     final signOut = tester.widget<Text>(find.text('Sign out'));
     expect(
       signOut.style?.color,
@@ -562,6 +569,11 @@ final _routeCases = <_SettingsRouteCase>[
     label: 'Subscriptions',
     location: '/profile/settings/subscriptions',
     matchesPage: (widget) => widget is SubscriptionPage,
+  ),
+  _SettingsRouteCase(
+    label: 'Account standing',
+    location: '/profile/settings/moderation',
+    matchesPage: (widget) => widget is AccountStandingPage,
   ),
   _SettingsRouteCase(
     label: 'Account',

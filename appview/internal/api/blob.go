@@ -7,7 +7,10 @@ import (
 	"log/slog"
 	"net/http"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
+
 	"social.craftsky/appview/internal/api/envelope"
+	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/pdseffects"
@@ -20,9 +23,15 @@ type ImageBlobUploadResponse struct {
 	Size int64          `json:"size"`
 }
 
+type BlobEffectExecutor interface {
+	UploadBlob(context.Context, pdseffects.UploadBlobRequest) (*auth.UploadedBlob, error)
+}
+
+type BlobEffectFactory func(context.Context, syntax.DID, string) (BlobEffectExecutor, error)
+
 // ImageBlobUploadHandler serves POST /v1/blobs/images.
 func ImageBlobUploadHandler(
-	newEffects pdseffects.ExecutorFactory,
+	newEffects BlobEffectFactory,
 	limits MediaLimits,
 	validator ImageValidator,
 	logger *slog.Logger,

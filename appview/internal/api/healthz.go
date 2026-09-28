@@ -34,8 +34,8 @@ type healthTapBlock struct {
 // NewHealthHandler returns a handler for GET /healthz. Unlike the
 // shallow HealthHandler (which only checks DB liveness), this is the
 // deep health check that also reports Tap consumer state. Status is
-// "ok" only when both DB ping succeeds and the Tap consumer is
-// connected; otherwise "degraded". HTTP status is always 200.
+// "ok" only when DB ping succeeds and the Tap consumer is connected and
+// has received at least one event; otherwise "degraded". HTTP status is always 200.
 func NewHealthHandler(pinger Pinger, stater Stater) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dbStatus := "ok"
@@ -55,7 +55,7 @@ func NewHealthHandler(pinger Pinger, stater Stater) http.Handler {
 		if !tapState.LastEventAt.IsZero() {
 			resp.Tap.LastEventAt = tapState.LastEventAt.UTC().Format("2006-01-02T15:04:05Z07:00")
 		}
-		if dbStatus == "ok" && tapState.Connected {
+		if dbStatus == "ok" && tapState.Connected && !tapState.LastEventAt.IsZero() {
 			resp.Status = "ok"
 		} else {
 			resp.Status = "degraded"

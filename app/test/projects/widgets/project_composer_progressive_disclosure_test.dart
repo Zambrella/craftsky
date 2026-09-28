@@ -31,7 +31,16 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Add more details'), findsOneWidget);
     expect(find.text('Materials and style'), findsOneWidget);
-    expect(find.text('When'), findsOneWidget);
+    expect(find.byKey(const Key('composer-schedule-control')), findsOneWidget);
+    final bodyBottom = tester
+        .getBottomLeft(find.byKey(const Key('project-composer-body-editor')))
+        .dy;
+    final metadataTop = tester
+        .getTopLeft(find.byKey(const Key('composer-metadata-controls')))
+        .dy;
+    final detailsTop = tester.getTopLeft(find.text('Add more details')).dy;
+    expect(metadataTop, greaterThanOrEqualTo(bodyBottom));
+    expect(metadataTop, lessThan(detailsTop));
     expect(find.widgetWithText(ChunkyButton, 'Post'), findsOneWidget);
     expect(find.widgetWithText(ChunkyButton, 'Next'), findsNothing);
   });
@@ -39,7 +48,7 @@ void main() {
   testWidgets('pattern details are disclosed as a subpage', (tester) async {
     await _pumpComposer(tester);
 
-    expect(find.text('Pattern details'), findsNothing);
+    expect(find.text('Pattern details'), findsOneWidget);
 
     await tester.enterText(
       find.descendant(
@@ -111,7 +120,7 @@ void main() {
     );
   });
 
-  testWidgets('removing a pattern clears populated pattern details', (
+  testWidgets('clearing a pattern name retains independent pattern details', (
     tester,
   ) async {
     final messenger = RecordingMessenger();
@@ -143,11 +152,22 @@ void main() {
     await tester.enterText(patternName, '#');
     await tester.pumpAndSettle();
 
-    expect(action, findsNothing);
+    expect(action, findsOneWidget);
     expect(
       messenger.calls,
-      contains(('info', 'Pattern details cleared.', null)),
+      isNot(contains(('info', 'Pattern details cleared.', null))),
     );
+
+    await tester.ensureVisible(action);
+    await tester.tap(action);
+    await tester.pumpAndSettle();
+    final designer = tester.widget<TextField>(
+      find.descendant(
+        of: find.byKey(const Key('project-composer-pattern-designer-editor')),
+        matching: find.byType(TextField),
+      ),
+    );
+    expect(designer.controller?.text, '@alice.example');
   });
 }
 

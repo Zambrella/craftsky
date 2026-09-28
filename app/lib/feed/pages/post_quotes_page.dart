@@ -18,9 +18,9 @@ import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
-import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -42,7 +42,12 @@ class PostQuotesPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: Text(l10n.postInteractionQuotesTitle)),
       body: switch ((data, quotes.error)) {
-        (null, null) => const Center(child: StitchProgressIndicator()),
+        (null, null) => CraftskySkeletonList(
+          itemCount: 3,
+          itemBuilder: (context, index) => PostCardSkeleton(
+            showMedia: index == 0,
+          ),
+        ),
         (null, final error?) => _InitialError(
           error: error,
           onRetry: () => unawaited(ref.read(provider.notifier).refresh()),
@@ -82,10 +87,8 @@ class PostQuotesPage extends ConsumerWidget {
               ).push<void>(context),
               onReply: () => unawaited(_reply(context, ref, provider, post)),
               replyTooltip: l10n.postCommentAction,
-              onLike: () =>
-                  unawaited(_toggleLike(context, ref, provider, post)),
-              onRepost: () =>
-                  unawaited(_toggleRepost(context, ref, provider, post)),
+              onLike: () => unawaited(_toggleLike(context, ref, post)),
+              onRepost: () => unawaited(_toggleRepost(context, ref, post)),
               onQuote: () => unawaited(
                 showPostComposerSheet(context, quoteTarget: post),
               ),
@@ -106,7 +109,6 @@ class PostQuotesPage extends ConsumerWidget {
   Future<void> _toggleLike(
     BuildContext context,
     WidgetRef ref,
-    PostQuotesProvider provider,
     Post post,
   ) async {
     await ref.read(toggleLikePostProvider.notifier).toggle(post: post);
@@ -116,9 +118,6 @@ class PostQuotesPage extends ConsumerWidget {
       context.showError(AppLocalizations.of(context).postLikeError);
       ref.read(toggleLikePostProvider.notifier).reset();
       return;
-    }
-    if (result.value case final updated?) {
-      ref.read(provider.notifier).replace(updated);
     }
   }
 
@@ -132,7 +131,7 @@ class PostQuotesPage extends ConsumerWidget {
       final revealed = await ref
           .read(postRepositoryProvider)
           .fetch(post.author.did, post.rkey);
-      ref.read(provider.notifier).replace(revealed);
+      ref.read(provider.notifier).reveal(revealed);
     } on Object {
       if (context.mounted) {
         context.showError(AppLocalizations.of(context).postRevealError);
@@ -143,7 +142,6 @@ class PostQuotesPage extends ConsumerWidget {
   Future<void> _toggleRepost(
     BuildContext context,
     WidgetRef ref,
-    PostQuotesProvider provider,
     Post post,
   ) async {
     final notifier = ref.read(toggleRepostPostProvider.notifier);
@@ -155,9 +153,6 @@ class PostQuotesPage extends ConsumerWidget {
           context.showError(AppLocalizations.of(context).postRepostError);
         }
         return;
-      }
-      if (result.value case final updated?) {
-        ref.read(provider.notifier).replace(updated);
       }
     } finally {
       notifier.reset();
@@ -172,14 +167,7 @@ class PostQuotesPage extends ConsumerWidget {
   ) async {
     final created = await showPostComposerSheet(context, replyTarget: post);
     if (created == null || !context.mounted) return;
-    ref
-        .read(provider.notifier)
-        .replace(
-          post.copyWith(
-            replyCount: post.replyCount + 1,
-            viewerHasReplied: true,
-          ),
-        );
+    ref.invalidate(provider);
     await PostThreadRoute(
       did: post.author.did,
       rkey: post.rkey,
@@ -204,7 +192,6 @@ class PostQuotesPage extends ConsumerWidget {
         await ref.read(deletePostProvider.notifier).delete(post: post);
         final result = ref.read(deletePostProvider);
         if (result.value?.uri == post.uri) {
-          ref.read(provider.notifier).remove(post.uri);
           if (context.mounted) context.showInfo(l10n.postDeleteSuccess);
         } else if (result.hasError && context.mounted) {
           context.showError(l10n.postDeleteError);

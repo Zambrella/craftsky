@@ -2,18 +2,17 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"social.craftsky/appview/internal/testdb"
 )
 
 func TestIdentityCacheRefreshMigrationUpDownUp(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000053_identity_cache_refresh.up.sql")
+	up, err := testdb.ReadMigration("000053_identity_cache_refresh.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := os.ReadFile("../../migrations/000053_identity_cache_refresh.down.sql")
+	down, err := testdb.ReadMigration("000053_identity_cache_refresh.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -45,15 +44,15 @@ func TestIdentityCacheRefreshMigrationUpDownUp(t *testing.T) {
 }
 
 func TestTapIdentityRefreshTriggerMigrationUpDownUp(t *testing.T) {
-	base, err := os.ReadFile("../../migrations/000053_identity_cache_refresh.up.sql")
+	base, err := testdb.ReadMigration("000053_identity_cache_refresh.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	up, err := os.ReadFile("../../migrations/000054_tap_identity_refresh_trigger.up.sql")
+	up, err := testdb.ReadMigration("000054_tap_identity_refresh_trigger.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := os.ReadFile("../../migrations/000054_tap_identity_refresh_trigger.down.sql")
+	down, err := testdb.ReadMigration("000054_tap_identity_refresh_trigger.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,19 +95,19 @@ func TestTapIdentityRefreshTriggerMigrationUpDownUp(t *testing.T) {
 }
 
 func TestTapIdentityRefreshVersionMigrationUpDownUp(t *testing.T) {
-	base53, err := os.ReadFile("../../migrations/000053_identity_cache_refresh.up.sql")
+	base53, err := testdb.ReadMigration("000053_identity_cache_refresh.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	base54, err := os.ReadFile("../../migrations/000054_tap_identity_refresh_trigger.up.sql")
+	base54, err := testdb.ReadMigration("000054_tap_identity_refresh_trigger.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	up, err := os.ReadFile("../../migrations/000057_tap_identity_refresh_version.up.sql")
+	up, err := testdb.ReadMigration("000057_tap_identity_refresh_version.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := os.ReadFile("../../migrations/000057_tap_identity_refresh_version.down.sql")
+	down, err := testdb.ReadMigration("000057_tap_identity_refresh_version.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

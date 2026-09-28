@@ -6,14 +6,13 @@ import (
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/languages"
-	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/scheduledposts"
 )
 
 type scheduledPostRouteBundle struct {
 	mux             Registrar
 	middleware      v1Middleware
-	newPDSEffects   pdseffects.ExecutorFactory
+	newBlobEffects  api.BlobEffectFactory
 	mediaLimits     api.MediaLimits
 	imageValidator  api.ImageValidator
 	posts           *scheduledposts.Store
@@ -23,7 +22,7 @@ type scheduledPostRouteBundle struct {
 }
 
 func registerScheduledPostRoutes(routes scheduledPostRouteBundle) {
-	routes.mux.Handle("POST /v1/blobs/images", routes.middleware.wrap(mustPolicy("POST", "/v1/blobs/images"), api.ImageBlobUploadHandler(routes.newPDSEffects, routes.mediaLimits, routes.imageValidator, routes.logger)))
+	routes.mux.Handle("POST /v1/blobs/images", routes.middleware.wrap(mustPolicy("POST", "/v1/blobs/images"), api.ImageBlobUploadHandler(routes.newBlobEffects, routes.mediaLimits, routes.imageValidator, routes.logger)))
 	routes.mux.Handle("PUT /v1/scheduled-post-media/{mediaId}", routes.middleware.wrap(mustPolicy("PUT", "/v1/scheduled-post-media/{mediaId}"), api.PutScheduledMediaHandler(routes.media, routes.mediaLimits, routes.imageValidator, routes.logger)))
 	routes.mux.Handle("GET /v1/scheduled-post-media/{mediaId}", routes.middleware.wrap(mustPolicy("GET", "/v1/scheduled-post-media/{mediaId}"), api.GetScheduledMediaHandler(routes.media, routes.logger)))
 	routes.mux.Handle("DELETE /v1/scheduled-post-media/{mediaId}", routes.middleware.wrap(mustPolicy("DELETE", "/v1/scheduled-post-media/{mediaId}"), api.DeleteScheduledMediaHandler(routes.media, time.Now, routes.logger)))
@@ -44,28 +43,30 @@ type devModerationRouteConfig struct {
 }
 
 type postRouteBundle struct {
-	mux              Registrar
-	middleware       v1Middleware
-	moderation       devModerationRouteConfig
-	postStore        *api.PostStore
-	savedPostStore   *api.SavedPostStore
-	savedPostService *api.SavedPostService
-	profilePinStore  *api.ProfilePinStore
-	handleResolver   api.HandleResolver
-	newPDSEffects    pdseffects.ExecutorFactory
-	reportStore      *api.ReportStore
-	reportForwarder  api.ReportForwarder
-	moderationStore  *api.ModerationStore
-	languages        *languages.Store
-	mediaLimits      api.MediaLimits
-	videoVerifier    api.VideoCompletionVerifier
-	videoCaptions    api.VideoCaptionBlobFetcher
-	videoObserver    api.VideoOperationObserver
-	logger           *slog.Logger
+	mux               Registrar
+	middleware        v1Middleware
+	moderation        devModerationRouteConfig
+	postStore         *api.PostStore
+	savedPostStore    *api.SavedPostStore
+	savedPostService  *api.SavedPostService
+	profilePinStore   *api.ProfilePinStore
+	handleResolver    api.HandleResolver
+	pdsCommands       api.SetCommandExecutor
+	appendCommands    api.AppendCommandExecutor
+	addressedCommands api.AddressedDeleteCommandExecutor
+	reportStore       *api.ReportStore
+	reportForwarder   api.ReportForwarder
+	moderationStore   *api.ModerationStore
+	languages         *languages.Store
+	mediaLimits       api.MediaLimits
+	videoVerifier     api.VideoCompletionVerifier
+	videoCaptions     api.VideoCaptionBlobFetcher
+	videoObserver     api.VideoOperationObserver
+	logger            *slog.Logger
 }
 
 func registerPostRoutes(routes postRouteBundle) {
-	routes.mux.Handle("POST /v1/posts", routes.middleware.wrap(mustPolicy("POST", "/v1/posts"), api.CreatePostHandler(routes.postStore, routes.newPDSEffects, routes.handleResolver, routes.mediaLimits, routes.logger, api.CreatePostHandlerOptions{VideoCompletionVerifier: routes.videoVerifier})))
+	routes.mux.Handle("POST /v1/posts", routes.middleware.wrap(mustPolicy("POST", "/v1/posts"), api.CreatePostHandler(routes.postStore, nil, routes.handleResolver, routes.mediaLimits, routes.logger, api.CreatePostHandlerOptions{VideoCompletionVerifier: routes.videoVerifier, Commands: routes.appendCommands})))
 	routes.mux.Handle("GET /v1/posts/{did}/{rkey}", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}"), api.GetPostHandler(routes.postStore, routes.handleResolver, routes.logger, routes.languages)))
 	routes.mux.Handle("GET /v1/posts/{did}/{rkey}/video-captions/{captionCid}", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/video-captions/{captionCid}"), api.VideoCaptionHandler(routes.postStore, routes.videoCaptions, routes.logger, routes.videoObserver)))
 	routes.mux.Handle("POST /v1/posts/{did}/{rkey}/saves", routes.middleware.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/saves"), api.SavePostHandler(routes.postStore, routes.savedPostStore)))
@@ -81,13 +82,13 @@ func registerPostRoutes(routes postRouteBundle) {
 	routes.mux.Handle("GET /v1/posts/{did}/{rkey}/replies", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/replies"), api.ListCommentRepliesHandler(routes.postStore, routes.handleResolver, routes.logger, routes.languages)))
 	routes.mux.Handle("GET /v1/posts/{did}/{rkey}/comments", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/comments"), api.GetPostCommentsHandler(routes.postStore, routes.handleResolver, routes.logger, routes.languages)))
 	routes.mux.Handle("GET /v1/posts/{did}/{rkey}/likes", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/likes"), api.ListPostLikesHandler(routes.postStore, routes.logger)))
-	routes.mux.Handle("POST /v1/posts/{did}/{rkey}/likes", routes.middleware.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/likes"), api.LikePostHandler(routes.postStore, routes.newPDSEffects, routes.logger)))
-	routes.mux.Handle("DELETE /v1/posts/{did}/{rkey}/likes", routes.middleware.wrap(mustPolicy("DELETE", "/v1/posts/{did}/{rkey}/likes"), api.UnlikePostHandler(routes.postStore, routes.newPDSEffects, routes.logger)))
+	routes.mux.Handle("POST /v1/posts/{did}/{rkey}/likes", routes.middleware.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/likes"), api.CommandLikePostHandler(routes.postStore, routes.pdsCommands, routes.logger)))
+	routes.mux.Handle("DELETE /v1/posts/{did}/{rkey}/likes", routes.middleware.wrap(mustPolicy("DELETE", "/v1/posts/{did}/{rkey}/likes"), api.CommandUnlikePostHandler(routes.postStore, routes.pdsCommands, routes.logger)))
 	routes.mux.Handle("GET /v1/posts/{did}/{rkey}/reposts", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/reposts"), api.ListPostRepostsHandler(routes.postStore, routes.logger)))
-	routes.mux.Handle("POST /v1/posts/{did}/{rkey}/reposts", routes.middleware.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/reposts"), api.RepostPostHandler(routes.postStore, routes.newPDSEffects, routes.logger)))
-	routes.mux.Handle("DELETE /v1/posts/{did}/{rkey}/reposts", routes.middleware.wrap(mustPolicy("DELETE", "/v1/posts/{did}/{rkey}/reposts"), api.UnrepostPostHandler(routes.postStore, routes.newPDSEffects, routes.logger)))
+	routes.mux.Handle("POST /v1/posts/{did}/{rkey}/reposts", routes.middleware.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/reposts"), api.CommandRepostPostHandler(routes.postStore, routes.pdsCommands, routes.logger)))
+	routes.mux.Handle("DELETE /v1/posts/{did}/{rkey}/reposts", routes.middleware.wrap(mustPolicy("DELETE", "/v1/posts/{did}/{rkey}/reposts"), api.CommandUnrepostPostHandler(routes.postStore, routes.pdsCommands, routes.logger)))
 	routes.mux.Handle("GET /v1/posts/{did}/{rkey}/quotes", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/quotes"), api.ListPostQuotesHandler(routes.postStore, routes.handleResolver, routes.logger, routes.languages)))
-	routes.mux.Handle("DELETE /v1/posts/{did}/{rkey}", routes.middleware.wrap(mustPolicy("DELETE", "/v1/posts/{did}/{rkey}"), api.DeletePostHandler(routes.newPDSEffects, routes.logger)))
+	routes.mux.Handle("DELETE /v1/posts/{did}/{rkey}", routes.middleware.wrap(mustPolicy("DELETE", "/v1/posts/{did}/{rkey}"), api.CommandDeletePostHandler(routes.addressedCommands, routes.logger)))
 	routes.mux.Handle("POST /v1/posts/{did}/{rkey}/reports", routes.middleware.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/reports"), api.ReportPostHandler(routes.postStore, routes.reportStore, routes.reportForwarder, routes.logger)))
 	if routes.moderation.env == EnvDev && routes.moderation.enabled && routes.moderation.token != "" {
 		config := Config{
@@ -111,4 +112,5 @@ func registerPostRoutes(routes postRouteBundle) {
 	routes.mux.Handle("GET /v1/profiles/{handleOrDid}/posts", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/posts"), api.ListPostsByAuthorHandler(routes.postStore, routes.handleResolver, routes.logger, routes.profilePinStore, routes.languages)))
 	routes.mux.Handle("GET /v1/profiles/{handleOrDid}/projects", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/projects"), api.ListProjectsByAuthorHandler(routes.postStore, routes.handleResolver, routes.logger, routes.profilePinStore, routes.languages)))
 	routes.mux.Handle("GET /v1/profiles/{handleOrDid}/comments", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/comments"), api.ListCommentsByAuthorHandler(routes.postStore, routes.handleResolver, routes.logger, routes.languages)))
+	routes.mux.Handle("GET /v1/profiles/{handleOrDid}/reposts", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/reposts"), api.ListRepostsByAuthorHandler(routes.postStore, routes.handleResolver, routes.logger, routes.languages)))
 }

@@ -69,7 +69,8 @@ CREATE TABLE craftsky_posts (
     did              TEXT        NOT NULL,
     rkey             TEXT        NOT NULL,
     cid              TEXT        NOT NULL,
-    text             TEXT        NOT NULL,
+	text             TEXT        NOT NULL,
+	sponsored        BOOLEAN     NOT NULL DEFAULT false,
     facets           JSONB,
     images           JSONB,
     reply_root_uri   TEXT,
@@ -105,6 +106,7 @@ CREATE TABLE craftsky_project_posts (
     pattern_designer_facets JSONB,
     pattern_publisher TEXT,
     pattern_publisher_facets JSONB,
+    pattern_self_drafted BOOLEAN,
     materials TEXT[] NOT NULL DEFAULT '{}',
     colors TEXT[] NOT NULL DEFAULT '{}',
     design_tags TEXT[] NOT NULL DEFAULT '{}',
@@ -141,32 +143,40 @@ CREATE TABLE craftsky_post_mentions (
     indexed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (post_uri, mentioned_did)
 );
-CREATE TABLE craftsky_likes (
-    uri         TEXT        NOT NULL PRIMARY KEY,
-    did         TEXT        NOT NULL,
-    rkey        TEXT        NOT NULL,
-    cid         TEXT        NOT NULL,
-    subject_uri TEXT        NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
-    subject_cid TEXT        NOT NULL,
-    record      JSONB       NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL,
-    indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at  TIMESTAMPTZ,
-    UNIQUE (did, rkey)
+CREATE TABLE tap_source_records (
+    uri        TEXT PRIMARY KEY,
+    did        TEXT NOT NULL,
+    collection TEXT NOT NULL,
+    rkey       TEXT NOT NULL,
+    cid        TEXT,
+    updated_at TIMESTAMPTZ NOT NULL
 );
-CREATE TABLE craftsky_reposts (
-    uri         TEXT        NOT NULL PRIMARY KEY,
-    did         TEXT        NOT NULL,
-    rkey        TEXT        NOT NULL,
-    cid         TEXT        NOT NULL,
-    subject_uri TEXT        NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
-    subject_cid TEXT        NOT NULL,
-    record      JSONB       NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL,
-    indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at  TIMESTAMPTZ,
-    UNIQUE (did, rkey)
+CREATE TABLE pds_set_sources (
+    source_uri  TEXT PRIMARY KEY,
+    kind        TEXT NOT NULL,
+    actor_did   TEXT NOT NULL,
+    scope_key   TEXT NOT NULL,
+    subject_uri TEXT,
+    subject_cid TEXT,
+    activity_at TIMESTAMPTZ NOT NULL,
+    eligible    BOOLEAN NOT NULL
 );
+CREATE TABLE pds_set_aggregates (
+    kind                      TEXT        NOT NULL,
+    actor_did                 TEXT        NOT NULL,
+    scope_key                 TEXT        NOT NULL,
+    subject_did               TEXT,
+    subject_uri               TEXT,
+	eligible_source_count     INTEGER     NOT NULL DEFAULT 1,
+    representative_source_uri TEXT        NOT NULL,
+    activated_at              TIMESTAMPTZ NOT NULL,
+    representative_metadata   JSONB       NOT NULL DEFAULT '{}'::jsonb,
+    updated_at                TIMESTAMPTZ NOT NULL DEFAULT now(),
+	PRIMARY KEY (kind, actor_did, scope_key)
+);
+CREATE INDEX pds_set_aggregates_subject_did_purge_idx
+	ON pds_set_aggregates (subject_did, kind, actor_did, scope_key)
+	WHERE subject_did IS NOT NULL;
 CREATE TABLE saved_posts (
     owner_did TEXT NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
     post_uri  TEXT NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
@@ -206,6 +216,23 @@ func seedBskyProfile(t *testing.T, pool *pgxpool.Pool, did, displayName, avatarC
 		 VALUES ($1, $2, $3, 'image/jpeg', 'seed')`, did, displayName, avatarCID); err != nil {
 		t.Fatalf("seed bsky profile: %v", err)
 	}
+}
+
+func seedBlockAggregate(t *testing.T, pool *pgxpool.Pool, actorDID, subjectDID string, activatedAt time.Time) string {
+	t.Helper()
+	uri := "at://" + actorDID + "/app.bsky.graph.block/" + strings.TrimPrefix(subjectDID, "did:plc:")
+	if _, err := pool.Exec(context.Background(), `
+		INSERT INTO pds_set_aggregates (
+			kind, actor_did, scope_key, subject_did, representative_source_uri, activated_at
+		) VALUES ('block', $1, $2, $2, $3, $4)
+		ON CONFLICT (kind, actor_did, scope_key) DO UPDATE SET
+			subject_did = EXCLUDED.subject_did,
+			representative_source_uri = EXCLUDED.representative_source_uri,
+			activated_at = EXCLUDED.activated_at
+	`, actorDID, subjectDID, uri, activatedAt); err != nil {
+		t.Fatalf("seed logical block: %v", err)
+	}
+	return uri
 }
 
 func seedPost(t *testing.T, pool *pgxpool.Pool, did, rkey, text string, indexedAt time.Time) string {
@@ -253,16 +280,33 @@ func seedReplyPost(t *testing.T, pool *pgxpool.Pool, did, rkey, text, rootURI, p
 
 func seedInteraction(t *testing.T, pool *pgxpool.Pool, table, did, rkey, subjectURI string, deleted bool) string {
 	t.Helper()
-	uri := "at://" + did + "/social.craftsky.feed." + table + "/" + rkey
-	var deletedAt any
-	if deleted {
-		deletedAt = time.Date(2026, 5, 10, 12, 0, 0, 0, time.UTC)
+	if table != "like" && table != "repost" {
+		t.Fatalf("invalid interaction kind %q", table)
 	}
-	if _, err := pool.Exec(context.Background(), `
-		INSERT INTO craftsky_`+table+`s (uri, did, rkey, cid, subject_uri, subject_cid, record, created_at, indexed_at, deleted_at)
-		VALUES ($1, $2, $3, 'bafy' || $3, $4, 'subjectcid', '{}'::jsonb, $5, $5, $6)`,
-		uri, did, rkey, subjectURI, time.Date(2026, 5, 10, 11, 0, 0, 0, time.UTC), deletedAt); err != nil {
-		t.Fatalf("seed %s: %v", table, err)
+	uri := "at://" + did + "/social.craftsky.feed." + table + "/" + rkey
+	if !deleted {
+		activityAt := time.Date(2026, 5, 10, 11, 0, 0, 0, time.UTC)
+		if _, err := pool.Exec(context.Background(), `
+			INSERT INTO tap_source_records(uri,did,collection,rkey,cid,updated_at)
+			VALUES($1,$2,'social.craftsky.feed.' || $3,$4,'bafy' || $4,$5)
+		`, uri, did, table, rkey, activityAt); err != nil {
+			t.Fatalf("seed logical %s tap source: %v", table, err)
+		}
+		if _, err := pool.Exec(context.Background(), `
+			INSERT INTO pds_set_sources(source_uri,kind,actor_did,scope_key,subject_uri,subject_cid,activity_at,eligible)
+			VALUES($1,$2,$3,$4,$4,'subjectcid',$5,true)
+		`, uri, table, did, subjectURI, activityAt); err != nil {
+			t.Fatalf("seed logical %s source: %v", table, err)
+		}
+		if _, err := pool.Exec(context.Background(), `
+			INSERT INTO pds_set_aggregates(
+				kind,actor_did,scope_key,subject_uri,eligible_source_count,representative_source_uri,activated_at
+			) VALUES($1,$2,$3,$3,1,$4,$5)
+			ON CONFLICT(kind,actor_did,scope_key) DO UPDATE SET
+				eligible_source_count=pds_set_aggregates.eligible_source_count+1
+		`, table, did, subjectURI, uri, activityAt); err != nil {
+			t.Fatalf("seed logical %s: %v", table, err)
+		}
 	}
 	return uri
 }
@@ -324,12 +368,7 @@ func TestPostStoreAuthorizationDenialEmitsBoundedRelationshipOutcome(t *testing.
 	pool := testdb.WithSchema(t, postStoreDDL)
 	seedMember(t, pool, "did:plc:alice")
 	seedMember(t, pool, "did:plc:bob")
-	if _, err := pool.Exec(context.Background(), `
-		INSERT INTO atproto_blocks (uri, blocker_did, rkey, cid, subject_did, record, created_at)
-		VALUES ('at://did:plc:alice/app.bsky.graph.block/deny', 'did:plc:alice', 'deny', 'cid', 'did:plc:bob', '{}', now())
-	`); err != nil {
-		t.Fatal(err)
-	}
+	seedBlockAggregate(t, pool, "did:plc:alice", "did:plc:bob", time.Now())
 	recorder := observability.NewInMemoryMetricRecorder()
 	store := api.NewPostStore(pool, observability.New(observability.Config{MetricRecorder: recorder}))
 
@@ -457,6 +496,33 @@ func TestPostStore_ReadOneReturnsMaterializedLanguages(t *testing.T) {
 		response.Langs[0] != "en" ||
 		response.Langs[1] != "fr-CA" {
 		t.Fatalf("response languages = %v", response.Langs)
+	}
+}
+
+func TestPostStore_ReadOneReturnsSponsoredAndSelfDrafted(t *testing.T) {
+	pool := testdb.WithSchema(t, postStoreDDL)
+	seedMember(t, pool, "did:plc:alice")
+	uri := seedPost(t, pool, "did:plc:alice", "rk1", "project", time.Now())
+	seedProjectMaterialization(t, pool, uri, "social.craftsky.feed.defs#knitting", "Original")
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE craftsky_posts SET sponsored = true WHERE uri = $1
+	`, uri); err != nil {
+		t.Fatalf("seed sponsored post: %v", err)
+	}
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE craftsky_project_posts
+		SET raw_project = '{"common":{"craftType":"social.craftsky.feed.defs#knitting","pattern":{"selfDrafted":true}}}'::jsonb
+		WHERE uri = $1
+	`, uri); err != nil {
+		t.Fatalf("seed self-drafted project: %v", err)
+	}
+
+	row, err := api.NewPostStore(pool).ReadOne(context.Background(), "did:plc:alice", "rk1")
+	if err != nil {
+		t.Fatalf("ReadOne: %v", err)
+	}
+	if !row.Sponsored || row.Project == nil || row.Project.Common.Pattern == nil || row.Project.Common.Pattern.SelfDrafted == nil || !*row.Project.Common.Pattern.SelfDrafted {
+		t.Fatalf("row = %#v, want sponsored self-drafted project", row)
 	}
 }
 
@@ -651,6 +717,39 @@ func TestPostStore_ReadOne_HiddenPostOrHiddenAuthorReturnsNotFound(t *testing.T)
 				t.Fatalf("want ErrPostNotFound, got %v", err)
 			}
 		})
+	}
+}
+
+func TestPostStore_ReadOneForViewer_HiddenPostIsVisibleOnlyToItsAuthor(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	seedMember(t, pool, "did:plc:alice")
+	now := time.Date(2026, 9, 11, 12, 0, 0, 0, time.UTC)
+	uri := seedPost(t, pool, "did:plc:alice", "hidden-post", "hidden", now)
+	seedModerationOutput(t, pool, "post", "did:plc:alice", uri, "hide", now.Add(time.Minute))
+	store := api.NewPostStore(pool)
+
+	row, err := store.ReadOneForViewer(
+		context.Background(),
+		"did:plc:alice",
+		"hidden-post",
+		"did:plc:alice",
+	)
+	if err != nil {
+		t.Fatalf("author read: %v", err)
+	}
+	if row.URI != uri || row.Text != "hidden" {
+		t.Fatalf("author row = %+v", row)
+	}
+
+	_, err = store.ReadOneForViewer(
+		context.Background(),
+		"did:plc:alice",
+		"hidden-post",
+		"did:plc:bob",
+	)
+	if !errors.Is(err, api.ErrPostNotFound) {
+		t.Fatalf("other viewer error = %v, want ErrPostNotFound", err)
 	}
 }
 
@@ -949,6 +1048,87 @@ func TestPostStore_ListByAuthor_IncludesAuthoredQuotePostsAndExcludesReposts(t *
 	assertPostRowURIs(t, rows, []string{quote})
 }
 
+func TestPostStore_ListRepostsByAuthor_PaginatesLogicalRepostsByActivationAndSubjectURI(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	for _, did := range []string{"did:plc:alice", "did:plc:bob", "did:plc:carol", "did:plc:dave"} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
+	bob := seedPost(t, pool, "did:plc:bob", "post", "Bob", base)
+	carol := seedPost(t, pool, "did:plc:carol", "post", "Carol", base)
+	dave := seedPost(t, pool, "did:plc:dave", "post", "Dave", base)
+	seedInteraction(t, pool, "repost", "did:plc:alice", "bob-1", bob, false)
+	seedInteraction(t, pool, "repost", "did:plc:alice", "bob-2", bob, false)
+	seedInteraction(t, pool, "repost", "did:plc:alice", "carol", carol, false)
+	seedInteraction(t, pool, "repost", "did:plc:alice", "dave", dave, false)
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE pds_set_aggregates
+		SET activated_at = CASE subject_uri
+			WHEN $1 THEN $2::timestamptz
+			ELSE $3::timestamptz
+		END
+		WHERE kind = 'repost' AND actor_did = 'did:plc:alice'
+	`, bob, base.Add(2*time.Hour), base.Add(time.Hour)); err != nil {
+		t.Fatalf("set repost activation times: %v", err)
+	}
+
+	store := api.NewPostStore(pool)
+	page1, cursor, err := store.ListRepostsByAuthor(context.Background(), "did:plc:alice", 2, "")
+	if err != nil {
+		t.Fatalf("ListRepostsByAuthor page 1: %v", err)
+	}
+	if got, want := postRowURIs(page1), []string{bob, dave}; !slices.Equal(got, want) || cursor == "" {
+		t.Fatalf("page 1 = %v cursor=%q, want %v and cursor", got, cursor, want)
+	}
+	page2, next, err := store.ListRepostsByAuthor(context.Background(), "did:plc:alice", 2, cursor)
+	if err != nil {
+		t.Fatalf("ListRepostsByAuthor page 2: %v", err)
+	}
+	if got, want := postRowURIs(page2), []string{carol}; !slices.Equal(got, want) || next != "" {
+		t.Fatalf("page 2 = %v cursor=%q, want %v and final page", got, next, want)
+	}
+}
+
+func TestPostStore_ListRepostsByAuthor_FiltersVisibilityBeforePagination(t *testing.T) {
+	pool := testdb.WithSchema(t, postStoreDDL)
+	for _, did := range []string{"did:plc:alice", "did:plc:viewer", "did:plc:bob", "did:plc:carol", "did:plc:dave", "did:plc:eve"} {
+		seedMember(t, pool, did)
+	}
+	base := time.Date(2026, 9, 27, 12, 0, 0, 0, time.UTC)
+	english := seedPost(t, pool, "did:plc:bob", "english", "English", base)
+	french := seedPost(t, pool, "did:plc:carol", "french", "French", base)
+	hidden := seedPost(t, pool, "did:plc:dave", "hidden", "Hidden", base)
+	blocked := seedPost(t, pool, "did:plc:eve", "blocked", "Blocked", base)
+	for index, uri := range []string{english, french, hidden, blocked} {
+		seedInteraction(t, pool, "repost", "did:plc:alice", fmt.Sprintf("visibility-%d", index), uri, false)
+	}
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE craftsky_posts
+		SET langs = CASE uri WHEN $1 THEN ARRAY['fr']::text[] ELSE ARRAY['en']::text[] END
+		WHERE uri IN ($1, $2, $3, $4)
+	`, french, english, hidden, blocked); err != nil {
+		t.Fatalf("seed repost subject languages: %v", err)
+	}
+	seedModerationOutput(t, pool, "post", "did:plc:dave", hidden, "hide", base.Add(time.Hour))
+	seedBlockAggregate(t, pool, "did:plc:eve", "did:plc:viewer", base.Add(time.Hour))
+
+	rows, _, err := api.NewPostStore(pool).ListRepostsByAuthorWithLanguages(
+		context.Background(),
+		"did:plc:viewer",
+		"did:plc:alice",
+		[]string{"en"},
+		10,
+		"",
+	)
+	if err != nil {
+		t.Fatalf("ListRepostsByAuthorWithLanguages: %v", err)
+	}
+	if got, want := postRowURIs(rows), []string{english}; !slices.Equal(got, want) {
+		t.Fatalf("visible reposts = %v, want %v", got, want)
+	}
+}
+
 func TestPostStore_ListProjectsByAuthor_ReturnsOnlyTopLevelProjects(t *testing.T) {
 	t.Parallel()
 	pool := testdb.WithSchema(t, postStoreDDL)
@@ -1236,7 +1416,9 @@ func TestPostStore_ResolveTargetAndFindActiveInteractions(t *testing.T) {
 	seedMember(t, pool, "did:plc:bob")
 	postURI := seedPost(t, pool, "did:plc:alice", "rk1", "hello", time.Now())
 	likeURI := seedInteraction(t, pool, "like", "did:plc:bob", "like1", postURI, false)
-	seedInteraction(t, pool, "repost", "did:plc:bob", "repost-deleted", postURI, true)
+	repostURI := seedInteraction(t, pool, "repost", "did:plc:bob", "repost1", postURI, false)
+	deletedSubject := seedPost(t, pool, "did:plc:alice", "rk2", "deleted repost subject", time.Now())
+	seedInteraction(t, pool, "repost", "did:plc:bob", "repost-deleted", deletedSubject, true)
 
 	store := api.NewPostStore(pool)
 	target, err := store.ResolvePostTarget(context.Background(), "did:plc:alice", "rk1")
@@ -1254,7 +1436,14 @@ func TestPostStore_ResolveTargetAndFindActiveInteractions(t *testing.T) {
 	if like.URI != likeURI || like.SubjectURI != postURI || like.Rkey != "like1" {
 		t.Fatalf("like = %+v", like)
 	}
-	_, err = store.FindActiveRepost(context.Background(), "did:plc:bob", postURI)
+	repost, err := store.FindActiveRepost(context.Background(), "did:plc:bob", postURI)
+	if err != nil {
+		t.Fatalf("FindActiveRepost: %v", err)
+	}
+	if repost.URI != repostURI || repost.SubjectURI != postURI || repost.Rkey != "repost1" {
+		t.Fatalf("repost = %+v", repost)
+	}
+	_, err = store.FindActiveRepost(context.Background(), "did:plc:bob", deletedSubject)
 	if !errors.Is(err, api.ErrInteractionNotFound) {
 		t.Fatalf("want ErrInteractionNotFound for deleted repost, got %v", err)
 	}
@@ -1594,12 +1783,7 @@ func TestPostStore_ListCommentBranchReplies_HidesThirdPartyBlockedParentChildEdg
 	comment := seedReplyPost(t, pool, "did:plc:bob", "comment", "comment", root, root, base.Add(time.Minute))
 	blockedReply := seedReplyPost(t, pool, "did:plc:alice", "blocked-reply", "must stay hidden", root, comment, base.Add(2*time.Minute))
 	seedReplyPost(t, pool, "did:plc:dave", "descendant", "must stay hidden too", root, blockedReply, base.Add(3*time.Minute))
-	if _, err := pool.Exec(context.Background(), `
-		INSERT INTO atproto_blocks (uri, blocker_did, rkey, cid, subject_did, record, created_at)
-		VALUES ('at://did:plc:alice/app.bsky.graph.block/bob', 'did:plc:alice', 'bob', 'bafyblock', 'did:plc:bob', '{}', $1)
-	`, base); err != nil {
-		t.Fatalf("seed block: %v", err)
-	}
+	seedBlockAggregate(t, pool, "did:plc:alice", "did:plc:bob", base)
 
 	store := api.NewPostStore(pool)
 	ctx := middleware.WithDID(context.Background(), syntax.DID("did:plc:carol"))
@@ -1625,12 +1809,7 @@ func TestPostStore_ListRootComments_HidesThirdPartyBlockedMentionEdge(t *testing
 	root := seedPost(t, pool, "did:plc:dave", "root", "root", base)
 	mention := seedReplyPost(t, pool, "did:plc:alice", "mention", "@bob", root, root, base.Add(time.Minute))
 	seedPostMention(t, pool, mention, "did:plc:bob", base.Add(time.Minute))
-	if _, err := pool.Exec(context.Background(), `
-		INSERT INTO atproto_blocks (uri, blocker_did, rkey, cid, subject_did, record, created_at)
-		VALUES ('at://did:plc:alice/app.bsky.graph.block/bob', 'did:plc:alice', 'bob', 'bafyblock', 'did:plc:bob', '{}', $1)
-	`, base); err != nil {
-		t.Fatalf("seed block: %v", err)
-	}
+	seedBlockAggregate(t, pool, "did:plc:alice", "did:plc:bob", base)
 
 	store := api.NewPostStore(pool)
 	rows, cursor, err := store.ListRootComments(context.Background(), root, "did:plc:carol", "oldest", 10, "")

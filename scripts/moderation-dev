@@ -1,0 +1,310 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
+cd "$repo_root"
+
+require_command() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    printf 'Missing required command: %s\n' "$1" >&2
+    exit 1
+  fi
+}
+
+dotenv_value() {
+  local key=$1
+  local value=""
+
+  if [[ -f "$repo_root/.env.local" ]]; then
+    value=$(sed -n "s/^${key}=//p" "$repo_root/.env.local" | tail -n 1)
+  fi
+
+  printf '%s' "$value"
+}
+
+configured_value() {
+  local key=$1
+  local fallback=$2
+  local value=""
+
+  value=$(dotenv_value "$key")
+
+  printf '%s' "${value:-$fallback}"
+}
+
+usage() {
+  cat <<'EOF'
+Development moderation helper. Prefer the matching `just moderation-*` recipes.
+
+Commands:
+  cases [QUERY]
+  case CASE_REFERENCE
+  decision CASE_REFERENCE CONSEQUENCES REASON USER_SAFE_DETAIL SEVERITY_RATIONALE EVIDENCE_NOTES
+  no-action CASE_REFERENCE EVIDENCE_NOTES
+  effect-change CASE_REFERENCE NEGATE_EFFECTS REAPPLY_EFFECTS RATIONALE
+  appeal-confirm CASE_REFERENCE
+  appeal-resolve CASE_REFERENCE OUTCOME REVERSED_EFFECTS RATIONALE
+  restore CASE_REFERENCE RATIONALE
+  standing OWNER_DID
+  history OWNER_DID [CASE_REFERENCE]
+  report-account REPORTER_DID TARGET REASON DETAILS
+  report-post REPORTER_DID OWNER_DID RKEY REASON DETAILS
+  report-event REPORTER_DID OWNER_DID RKEY REASON DETAILS
+
+Effect lists are comma-separated, for example: strike,visibilityHide
+Effect changes can negate active effects or reapply previously issued effects.
+They cannot add a new consequence to an already resolved case.
+EOF
+}
+
+command=${1:-help}
+shift || true
+if [[ "$command" == help || "$command" == -h || "$command" == --help ]]; then
+  usage
+  exit 0
+fi
+
+require_command curl
+require_command jq
+
+base_url=""
+admin_token=""
+
+configure_admin() {
+  if [[ -n "$base_url" ]]; then
+    return
+  fi
+  local appview_address appview_port
+  appview_address=$(./scripts/compose-dev port appview 8080)
+  appview_port=${appview_address##*:}
+  base_url="http://127.0.0.1:${appview_port}"
+  admin_token=$(configured_value MODERATION_ADMIN_BEARER_TOKEN local-dev-moderation-admin-token)
+}
+
+print_json() {
+  if jq -e . >/dev/null 2>&1 <<<"$1"; then
+    jq . <<<"$1"
+  else
+    printf '%s\n' "$1"
+  fi
+}
+
+admin_request() {
+  configure_admin
+  local method=$1
+  local path=$2
+  local body=${3:-}
+  local idempotency_key=${4:-}
+  local response status
+  local -a args=(
+    --silent
+    --show-error
+    --fail-with-body
+    --request "$method"
+    --header "Authorization: Bearer ${admin_token}"
+  )
+
+  if [[ -n "$body" ]]; then
+    args+=(
+      --header 'Content-Type: application/json'
+      --header "Idempotency-Key: ${idempotency_key}"
+      --data "$body"
+    )
+  fi
+
+  set +e
+  response=$(curl "${args[@]}" "${base_url}${path}")
+  status=$?
+  set -e
+  print_json "$response"
+  return "$status"
+}
+
+case_detail() {
+  configure_admin
+  curl \
+    --silent \
+    --show-error \
+    --fail-with-body \
+    --header "Authorization: Bearer ${admin_token}" \
+    "${base_url}/v1/admin/moderation/cases/$1"
+}
+
+case_revision() {
+  local detail
+  detail=$(case_detail "$1") || {
+    print_json "$detail" >&2
+    return 1
+  }
+  jq -er '.revision' <<<"$detail"
+}
+
+effect_list_json() {
+  jq -cn --arg effects "$1" '
+    if $effects == "" then []
+    else $effects | split(",") | map(gsub("^\\s+|\\s+$"; ""))
+    end
+  '
+}
+
+idempotency_key() {
+  printf 'moderation-dev-%s-%s-%s' "$(date +%s)" "$$" "$RANDOM"
+}
+
+member_request() {
+  local did=$1
+  local method=$2
+  local path=$3
+  local body=${4:-}
+  local -a args=(
+    ./scripts/compose-dev exec appview /app/cli request
+    "$method"
+    "$path"
+    --env dev
+    --did "$did"
+  )
+
+  if [[ -n "$body" ]]; then
+    args+=(--header 'Content-Type: application/json' --data "$body")
+  fi
+  "${args[@]}"
+}
+
+case "$command" in
+  cases)
+    query=${1:-}
+    [[ -z "$query" || "$query" == \?* ]] || query="?$query"
+    admin_request GET "/v1/admin/moderation/cases${query}"
+    ;;
+  case)
+    [[ $# -eq 1 ]] || { usage >&2; exit 2; }
+    admin_request GET "/v1/admin/moderation/cases/$1"
+    ;;
+  decision)
+    [[ $# -eq 6 ]] || { usage >&2; exit 2; }
+    revision=$(case_revision "$1")
+    consequences=$(effect_list_json "$2")
+    body=$(jq -cn \
+      --argjson expectedRevision "$revision" \
+      --argjson consequences "$consequences" \
+      --arg reason "$3" \
+      --arg userSafeDetail "$4" \
+      --arg severityRationale "$5" \
+      --arg evidenceNotes "$6" \
+      '{expectedRevision: $expectedRevision, disposition: "violation", reason: $reason, evidenceNotes: $evidenceNotes, userSafeDetail: $userSafeDetail, severityRationale: $severityRationale, consequences: $consequences}')
+    admin_request POST "/v1/admin/moderation/cases/$1/decisions" "$body" "$(idempotency_key)"
+    ;;
+  no-action)
+    [[ $# -eq 2 ]] || { usage >&2; exit 2; }
+    revision=$(case_revision "$1")
+    body=$(jq -cn \
+      --argjson expectedRevision "$revision" \
+      --arg evidenceNotes "$2" \
+      '{expectedRevision: $expectedRevision, disposition: "noAction", evidenceNotes: $evidenceNotes, consequences: []}')
+    admin_request POST "/v1/admin/moderation/cases/$1/decisions" "$body" "$(idempotency_key)"
+    ;;
+  effect-change)
+    [[ $# -eq 4 ]] || { usage >&2; exit 2; }
+    detail=$(case_detail "$1") || {
+      print_json "$detail" >&2
+      exit 1
+    }
+    revision=$(jq -er '.revision' <<<"$detail")
+    negate=$(effect_list_json "$2")
+    apply=$(effect_list_json "$3")
+    invalid_negate=$(jq -r --argjson requested "$negate" '
+      [.effects[]? | select(.active == true) | .type] as $active |
+      [$requested[] as $effect | select(($active | index($effect)) == null) | $effect] | join(", ")
+    ' <<<"$detail")
+    invalid_apply=$(jq -r --argjson requested "$apply" '
+      [.effects[]?.type] as $issued |
+      [$requested[] as $effect | select(($issued | index($effect)) == null) | $effect] | join(", ")
+    ' <<<"$detail")
+    active_apply=$(jq -r --argjson requested "$apply" '
+      [.effects[]? | select(.active == true) | .type] as $active |
+      [$requested[] as $effect | select($active | index($effect)) | $effect] | join(", ")
+    ' <<<"$detail")
+    if [[ -n "$invalid_negate" ]]; then
+      printf 'Cannot negate effects that are not active on this case: %s\n' "$invalid_negate" >&2
+      exit 2
+    fi
+    if [[ -n "$invalid_apply" ]]; then
+      printf 'Cannot add new effects to a resolved case: %s\nCreate a new report and include them in its decision instead.\n' "$invalid_apply" >&2
+      exit 2
+    fi
+    if [[ -n "$active_apply" ]]; then
+      printf 'Cannot reapply effects that are already active on this case: %s\n' "$active_apply" >&2
+      exit 2
+    fi
+    body=$(jq -cn \
+      --argjson expectedRevision "$revision" \
+      --argjson negateEffects "$negate" \
+      --argjson applyEffects "$apply" \
+      --arg rationale "$4" \
+      '{expectedRevision: $expectedRevision, negateEffects: $negateEffects, applyEffects: $applyEffects, rationale: $rationale}')
+    admin_request POST "/v1/admin/moderation/cases/$1/effect-changes" "$body" "$(idempotency_key)"
+    ;;
+  appeal-confirm)
+    [[ $# -eq 1 ]] || { usage >&2; exit 2; }
+    revision=$(case_revision "$1")
+    body=$(jq -cn --argjson expectedRevision "$revision" '{expectedRevision: $expectedRevision}')
+    admin_request POST "/v1/admin/moderation/cases/$1/appeal-confirmations" "$body" "$(idempotency_key)"
+    ;;
+  appeal-resolve)
+    [[ $# -eq 4 ]] || { usage >&2; exit 2; }
+    revision=$(case_revision "$1")
+    effects=$(effect_list_json "$3")
+    body=$(jq -cn \
+      --argjson expectedRevision "$revision" \
+      --argjson reversedEffects "$effects" \
+      --arg outcome "$2" \
+      --arg rationale "$4" \
+      '{expectedRevision: $expectedRevision, outcome: $outcome, reversedEffects: $reversedEffects, rationale: $rationale}')
+    admin_request POST "/v1/admin/moderation/cases/$1/appeal-resolutions" "$body" "$(idempotency_key)"
+    ;;
+  restore)
+    [[ $# -eq 2 ]] || { usage >&2; exit 2; }
+    detail=$(case_detail "$1") || {
+      print_json "$detail" >&2
+      exit 1
+    }
+    revision=$(jq -er '.revision' <<<"$detail")
+    effect_id=$(jq -er '[.effects[] | select(.type == "severeSuspension" and .active == true)][0].effectId // error("no active severe suspension")' <<<"$detail")
+    body=$(jq -cn \
+      --argjson expectedRevision "$revision" \
+      --arg effectId "$effect_id" \
+      --arg rationale "$2" \
+      '{expectedRevision: $expectedRevision, effectId: $effectId, rationale: $rationale}')
+    admin_request POST "/v1/admin/moderation/cases/$1/restorations" "$body" "$(idempotency_key)"
+    ;;
+  standing)
+    [[ $# -eq 1 ]] || { usage >&2; exit 2; }
+    member_request "$1" GET /v1/moderation/standing
+    ;;
+  history)
+    [[ $# -ge 1 && $# -le 2 ]] || { usage >&2; exit 2; }
+    path=/v1/moderation/history
+    [[ $# -eq 1 || -z "$2" ]] || path="$path/$2"
+    member_request "$1" GET "$path"
+    ;;
+  report-account)
+    [[ $# -eq 4 ]] || { usage >&2; exit 2; }
+    body=$(jq -cn --arg reasonType "$3" --arg details "$4" '{reasonType: $reasonType, details: $details}')
+    member_request "$1" POST "/v1/profiles/$2/reports" "$body"
+    ;;
+  report-post)
+    [[ $# -eq 5 ]] || { usage >&2; exit 2; }
+    body=$(jq -cn --arg reasonType "$4" --arg details "$5" '{reasonType: $reasonType, details: $details}')
+    member_request "$1" POST "/v1/posts/$2/$3/reports" "$body"
+    ;;
+  report-event)
+    [[ $# -eq 5 ]] || { usage >&2; exit 2; }
+    body=$(jq -cn --arg reasonType "$4" --arg details "$5" '{reasonType: $reasonType, details: $details}')
+    member_request "$1" POST "/v1/events/$2/$3/reports" "$body"
+    ;;
+  *)
+    printf 'Unknown moderation command: %s\n\n' "$command" >&2
+    usage >&2
+    exit 2
+    ;;
+esac

@@ -154,6 +154,48 @@ func TestFirebaseSenderBuildsPlatformSpecificUniqueEventMessages(t *testing.T) {
 	}
 }
 
+func TestFirebaseSenderBuildsActorlessModerationMessage(t *testing.T) {
+	client := &captureFirebaseClient{}
+	sender := &FirebaseSender{client: client, now: time.Now}
+	_, err := sender.Send(context.Background(), SendRequest{
+		Token:                 "provider-token",
+		Category:              notifications.Moderation,
+		AccountSubscriptionID: "opaque-account-binding",
+		RoutingFacts: RoutingFacts{
+			NotificationID: "00000000-0000-4000-8000-000000000001",
+			CaseReference:  "MOD-550e8400-e29b-41d4-a716-446655440000",
+		},
+		Platform:  "ios",
+		Semantics: DeliveryUniqueEvent,
+		TTL:       time.Hour,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(client.messages) != 1 {
+		t.Fatalf("provider messages=%d, want 1", len(client.messages))
+	}
+	message := client.messages[0]
+	if message.Notification == nil || message.Notification.Title != "CraftSky" {
+		t.Fatalf("moderation notification=%+v", message.Notification)
+	}
+	for key, want := range map[string]string{
+		"type":                  "moderation",
+		"accountSubscriptionId": "opaque-account-binding",
+		"notificationId":        "00000000-0000-4000-8000-000000000001",
+		"caseReference":         "MOD-550e8400-e29b-41d4-a716-446655440000",
+	} {
+		if message.Data[key] != want {
+			t.Errorf("data[%q]=%q, want %q", key, message.Data[key], want)
+		}
+	}
+	for _, forbidden := range []string{"actorDid", "recipientDid", "eventId", "decisionId"} {
+		if _, exists := message.Data[forbidden]; exists {
+			t.Errorf("actorless moderation data contains %q: %+v", forbidden, message.Data)
+		}
+	}
+}
+
 func TestFirebaseSenderUsesStandardNotificationsWithoutPerDeliveryCollapseMetadata(t *testing.T) {
 	client := &captureFirebaseClient{}
 	sender := &FirebaseSender{client: client, now: time.Now}

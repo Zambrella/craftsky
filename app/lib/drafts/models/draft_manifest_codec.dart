@@ -68,21 +68,25 @@ abstract final class DraftManifestCodec {
 
   static Map<String, Object?> _encodeContent(LocalDraftContent content) =>
       switch (content) {
-        StandardDraftContent(:final text, :final languages) => {
-          'type': 'standard',
-          'text': text,
-          'languages': languages,
-        },
+        StandardDraftContent(:final text, :final languages, :final sponsored) =>
+          {
+            'type': 'standard',
+            'text': text,
+            'languages': languages,
+            'sponsored': sponsored,
+          },
         ProjectDraftContent(
           :final body,
           :final languages,
           :final knownProjectFieldValues,
+          :final sponsored,
         ) =>
           {
             'type': 'project',
             'body': body,
             'languages': languages,
             'knownProjectFieldValues': knownProjectFieldValues,
+            'sponsored': sponsored,
           },
       };
 
@@ -92,6 +96,7 @@ abstract final class DraftManifestCodec {
       'standard' => StandardDraftContent(
         text: content['text']! as String,
         languages: List.unmodifiable(languages),
+        sponsored: content['sponsored'] == true,
       ),
       'project' => ProjectDraftContent(
         body: content['body']! as String,
@@ -99,6 +104,7 @@ abstract final class DraftManifestCodec {
         knownProjectFieldValues: Map.unmodifiable(
           content['knownProjectFieldValues']! as Map<String, Object?>,
         ),
+        sponsored: content['sponsored'] == true,
       ),
       _ => throw const FormatException('Draft manifest is unavailable'),
     };

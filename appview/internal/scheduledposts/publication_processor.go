@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -11,8 +12,10 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/postrecord"
 )
@@ -37,10 +40,30 @@ type publicationProcessorStore interface {
 	publicationStateStore
 }
 
+type GuardedCommandOperation func(
+	context.Context,
+	pdseffects.EffectExecutor,
+	pdscommands.AlreadyFencedCommandExecutor,
+) error
+
+type GuardedCommandCoordinator interface {
+	WithGuardedCommands(
+		context.Context,
+		[]ownerlifecycle.ExpectedOwner,
+		GuardedCommandOperation,
+	) error
+}
+
+type GuardedCommandCoordinatorFactory func(
+	context.Context,
+	syntax.DID,
+	string,
+) (GuardedCommandCoordinator, error)
+
 type PublicationProcessorOptions struct {
 	Store         publicationProcessorStore
 	Sessions      PublicationSessionSelector
-	NewEffects    pdseffects.GuardedExecutorFactory
+	NewCommands   GuardedCommandCoordinatorFactory
 	Objects       PrivateObjectStore
 	Now           func() time.Time
 	Validate      func(context.Context, syntax.DID, Payload) error
@@ -51,7 +74,7 @@ type PublicationProcessorOptions struct {
 type PublicationProcessor struct {
 	store         publicationProcessorStore
 	sessions      PublicationSessionSelector
-	newEffects    pdseffects.GuardedExecutorFactory
+	newCommands   GuardedCommandCoordinatorFactory
 	objects       PrivateObjectStore
 	now           func() time.Time
 	validate      func(context.Context, syntax.DID, Payload) error
@@ -60,7 +83,7 @@ type PublicationProcessor struct {
 }
 
 func NewPublicationProcessor(options PublicationProcessorOptions) (*PublicationProcessor, error) {
-	if options.Store == nil || options.Sessions == nil || options.NewEffects == nil || options.Objects == nil {
+	if options.Store == nil || options.Sessions == nil || options.NewCommands == nil || options.Objects == nil {
 		return nil, errors.New("scheduled publication processor dependencies are required")
 	}
 	if options.Now == nil {
@@ -76,7 +99,7 @@ func NewPublicationProcessor(options PublicationProcessorOptions) (*PublicationP
 		return nil, errors.New("scheduled publication media limit is invalid")
 	}
 	return &PublicationProcessor{store: options.Store, sessions: options.Sessions,
-		newEffects: options.NewEffects, objects: options.Objects, now: options.Now,
+		newCommands: options.NewCommands, objects: options.Objects, now: options.Now,
 		validate: options.Validate, maxMediaBytes: options.MaxMediaBytes,
 		observer: options.Observer}, nil
 }
@@ -183,7 +206,7 @@ func (p *PublicationProcessor) Process(ctx context.Context, item WorkItem) (proc
 	if err != nil {
 		return p.recordFailure(ctx, claim, err, item.Manual)
 	}
-	coordinator, err := p.newEffects(ctx, claim.OwnerDID, sessionID)
+	coordinator, err := p.newCommands(ctx, claim.OwnerDID, sessionID)
 	if err != nil || coordinator == nil {
 		return p.recordFailure(ctx, claim, ErrAuthUnavailable, item.Manual)
 	}
@@ -191,10 +214,14 @@ func (p *PublicationProcessor) Process(ctx context.Context, item WorkItem) (proc
 		Owner: claim.OwnerDID, Generation: claim.OwnerGeneration,
 	}}
 	finalized := false
-	effectErr := coordinator.WithGuardedEffects(
+	effectErr := coordinator.WithGuardedCommands(
 		ctx,
 		expectedOwners,
-		func(effectCtx context.Context, effects pdseffects.EffectExecutor) (effectErr error) {
+		func(
+			effectCtx context.Context,
+			effects pdseffects.EffectExecutor,
+			commands pdscommands.AlreadyFencedCommandExecutor,
+		) (effectErr error) {
 			guard, err := p.store.AcquirePublishingEffect(effectCtx, claim)
 			if err != nil {
 				return err
@@ -212,25 +239,50 @@ func (p *PublicationProcessor) Process(ctx context.Context, item WorkItem) (proc
 			); err != nil {
 				return p.handleEffectFailure(effectCtx, claim, scheduledBlobEffect, err, item.Manual)
 			}
-			var record map[string]any
-			if err := json.Unmarshal(recordBytes, &record); err != nil {
+			intent, err := scheduledPublicationCommandIntent(claim, recordBytes)
+			if err != nil {
 				return p.recordFailure(effectCtx, claim, ErrRecordConflict, item.Manual)
 			}
-			effectID := scheduledRecordEffectIdentity(claim)
-			result, err := effects.PutRecord(effectCtx, pdseffects.PutRecordRequest{
-				OperationID:     effectID,
-				MutationKey:     effectID,
-				Owner:           claim.OwnerDID,
-				OwnerGeneration: claim.OwnerGeneration,
-				ExpectedOwners:  expectedOwners,
-				Collection:      syntax.NSID(PostCollection),
-				Rkey:            claim.Rkey,
-				Record:          record,
-			})
+			selectedURI := syntax.ATURI(
+				"at://" + claim.OwnerDID.String() + "/" + PostCollection + "/" + claim.Rkey.String(),
+			)
+			commandResult, err := commands.ExecuteAppend(
+				effectCtx,
+				pdscommands.FencedAppendCommandRequest{
+					Command: pdscommands.AppendCommandRequest{
+						Owner: claim.OwnerDID, OwnerGeneration: claim.OwnerGeneration,
+						SessionID: sessionID, OperationKind: "scheduled_post_publish",
+						OperationKey: scheduledPublicationCommandKey(claim),
+						Collection:   syntax.NSID(PostCollection), Intent: intent,
+						Blobs: scheduledPublicationBlobReferences(snapshot.Media),
+						BuildRecord: func(time.Time) (json.RawMessage, error) {
+							return append(json.RawMessage(nil), recordBytes...), nil
+						},
+						Accepted: scheduledPublicationAcceptedResult,
+						Rejected: scheduledPublicationRejectedResult,
+					},
+					SelectedURI: selectedURI, SelectedRkey: claim.Rkey,
+				},
+			)
 			if err != nil {
-				return p.handleEffectFailure(
-					effectCtx, claim, scheduledRecordEffect, err, item.Manual,
+				return p.handleScheduledCommandFailure(effectCtx, claim, err, item.Manual)
+			}
+			if commandResult.State == pdscommands.CommandAmbiguous {
+				return p.handleScheduledCommandFailure(
+					effectCtx, claim, pdseffects.ErrOutcomeAmbiguous, item.Manual,
 				)
+			}
+			if commandResult.State == pdscommands.CommandRejected {
+				return p.recordFailure(effectCtx, claim, ErrRecordConflict, item.Manual)
+			}
+			var result struct {
+				URI syntax.ATURI `json:"uri"`
+				CID syntax.CID   `json:"cid"`
+			}
+			if commandResult.State != pdscommands.CommandAccepted ||
+				json.Unmarshal(commandResult.ResponseBody, &result) != nil ||
+				result.URI == "" || result.CID == "" {
+				return p.recordFailure(effectCtx, claim, ErrRecordConflict, item.Manual)
 			}
 			_, err = p.store.FinalizePublication(effectCtx, FinalizePublicationParams{
 				Claim: claim, PublicationURI: result.URI, PublicationCID: result.CID,
@@ -265,6 +317,84 @@ func (p *PublicationProcessor) Process(ctx context.Context, item WorkItem) (proc
 		)
 	}
 	return effectErr
+}
+
+func scheduledPublicationCommandIntent(
+	claim PublishingClaim,
+	record json.RawMessage,
+) (json.RawMessage, error) {
+	digest := sha256.Sum256(record)
+	return json.Marshal(struct {
+		ScheduleID      uuid.UUID        `json:"scheduleId"`
+		OwnerGeneration int64            `json:"ownerGeneration"`
+		PayloadVersion  int64            `json:"payloadVersion"`
+		Rkey            syntax.RecordKey `json:"rkey"`
+		RecordSHA256    string           `json:"recordSha256"`
+	}{
+		ScheduleID: claim.ID, OwnerGeneration: claim.OwnerGeneration,
+		PayloadVersion: claim.PayloadVersion, Rkey: claim.Rkey,
+		RecordSHA256: hex.EncodeToString(digest[:]),
+	})
+}
+
+func scheduledPublicationCommandKey(claim PublishingClaim) uuid.UUID {
+	return uuid.NewSHA1(uuid.NameSpaceOID, []byte(scheduledRecordEffectIdentity(claim)))
+}
+
+func scheduledPublicationBlobReferences(media []publicationMedia) []pdscommands.BlobReference {
+	result := make([]pdscommands.BlobReference, len(media))
+	for index, item := range media {
+		result[index] = pdscommands.BlobReference{
+			CID: item.BlobCID, MIMEType: item.MIMEType, Size: item.SizeBytes,
+		}
+	}
+	return result
+}
+
+func scheduledPublicationAcceptedResult(
+	record pdscommands.AuthoritativeRecord,
+) (pdscommands.TerminalResult, error) {
+	body, err := json.Marshal(struct {
+		URI syntax.ATURI `json:"uri"`
+		CID syntax.CID   `json:"cid"`
+	}{URI: record.URI, CID: record.CID})
+	if err != nil {
+		return pdscommands.TerminalResult{}, err
+	}
+	return pdscommands.TerminalResult{
+		State: pdscommands.CommandAccepted, HTTPStatus: 201, ResponseBody: body,
+	}, nil
+}
+
+func scheduledPublicationRejectedResult(error) pdscommands.TerminalResult {
+	return pdscommands.TerminalResult{
+		State: pdscommands.CommandRejected, HTTPStatus: 409,
+		ResponseBody: json.RawMessage(`{"error":"record_conflict"}`),
+	}
+}
+
+func (p *PublicationProcessor) handleScheduledCommandFailure(
+	ctx context.Context,
+	claim PublishingClaim,
+	err error,
+	manual bool,
+) error {
+	if errors.Is(err, ownerlifecycle.ErrGenerationChanged) ||
+		errors.Is(err, ownerlifecycle.ErrOwnerNotActive) ||
+		errors.Is(err, ownerlifecycle.ErrTerminalOwner) ||
+		errors.Is(err, ErrWorkerLeaseLost) ||
+		errors.Is(err, ErrScheduleNotFound) {
+		return err
+	}
+	if manual && errors.Is(err, pdseffects.ErrOutcomeAmbiguous) {
+		return errors.Join(ErrPublicationAmbiguous, err)
+	}
+	if errors.Is(err, pdscommands.ErrIdempotencyConflict) ||
+		errors.Is(err, pdscommands.ErrRecordConflict) ||
+		errors.Is(err, pdscommands.ErrDispatchRejected) {
+		return p.recordFailure(ctx, claim, errors.Join(ErrRecordConflict, err), manual)
+	}
+	return p.recordFailure(ctx, claim, classifyScheduledEffectError(scheduledRecordEffect, err), manual)
 }
 
 func (p *PublicationProcessor) recordFailure(
@@ -427,7 +557,7 @@ func publicationRecord(payload Payload, blobs []map[string]any, createdAt time.T
 	if len(blobs) != expectedBlobs {
 		return nil, ErrMediaInvalid
 	}
-	record := map[string]any{"$type": PostCollection, "text": payload.Text, "createdAt": createdAt.UTC().Format(time.RFC3339)}
+	record := map[string]any{"$type": PostCollection, "text": payload.Text, "sponsored": payload.Sponsored, "createdAt": createdAt.UTC().Format(time.RFC3339)}
 	if len(payload.Facets) > 0 {
 		var facets any
 		if err := json.Unmarshal(payload.Facets, &facets); err != nil {

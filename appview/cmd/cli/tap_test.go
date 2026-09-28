@@ -1,8 +1,10 @@
 package main
 
 import (
+	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -14,7 +16,7 @@ func TestTapStatusExitConnected(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	code := tapStatus(srv.URL, nil)
+	code := tapStatus(srv.URL, "", nil)
 	if code != 0 {
 		t.Errorf("exit code = %d, want 0", code)
 	}
@@ -26,7 +28,7 @@ func TestTapStatusExitDisconnected(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	code := tapStatus(srv.URL, nil)
+	code := tapStatus(srv.URL, "", nil)
 	if code != 1 {
 		t.Errorf("exit code = %d, want 1", code)
 	}
@@ -34,7 +36,7 @@ func TestTapStatusExitDisconnected(t *testing.T) {
 
 func TestTapStatusExitTransport(t *testing.T) {
 	// Point at a closed port.
-	code := tapStatus("http://127.0.0.1:1", nil)
+	code := tapStatus("http://127.0.0.1:1", "", nil)
 	if code != 2 {
 		t.Errorf("exit code = %d, want 2", code)
 	}
@@ -47,7 +49,7 @@ func TestTapStatusExitNon2xx(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	code := tapStatus(srv.URL, nil)
+	code := tapStatus(srv.URL, "", nil)
 	if code != 2 {
 		t.Errorf("exit code = %d, want 2 (non-2xx should be transport error, not disconnected)", code)
 	}
@@ -59,9 +61,49 @@ func TestTapStatusExitGarbageBody(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	code := tapStatus(srv.URL, nil)
+	code := tapStatus(srv.URL, "", nil)
 	if code != 2 {
 		t.Errorf("exit code = %d, want 2 (parse error)", code)
+	}
+}
+
+func TestTapStatusReportsCursor(t *testing.T) {
+	appview := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"status":"ok","db":"ok","tap":{"connected":true,"last_event_at":"2026-04-17T14:23:11Z","reconnect_attempt":0,"last_error":""}}`))
+	}))
+	defer appview.Close()
+	tapServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/stats/cursors" {
+			http.NotFound(w, r)
+			return
+		}
+		_, _ = w.Write([]byte(`{"firehose":33455313326,"list_repos":""}`))
+	}))
+	defer tapServer.Close()
+
+	var out bytes.Buffer
+	code := tapStatus(appview.URL, tapServer.URL, &out)
+	if code != 0 {
+		t.Fatalf("exit code = %d, want 0", code)
+	}
+	if !strings.Contains(out.String(), "firehose_cursor:   33455313326") {
+		t.Fatalf("output = %q, want firehose cursor", out.String())
+	}
+}
+
+func TestTapStatusConnectedWithoutEventsWarns(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"status":"degraded","db":"ok","tap":{"connected":true,"last_event_at":"","reconnect_attempt":0,"last_error":""}}`))
+	}))
+	defer srv.Close()
+
+	var out bytes.Buffer
+	code := tapStatus(srv.URL, "", &out)
+	if code != 1 {
+		t.Fatalf("exit code = %d, want 1", code)
+	}
+	if !strings.Contains(out.String(), "warning: connected but no Tap events received since AppView started") {
+		t.Fatalf("output = %q, want no-events warning", out.String())
 	}
 }
 

@@ -41,10 +41,11 @@ func relationshipTopLevelPredicate(viewerParam string) string {
 			  AND NOT appview_owner_is_terminal(mute.subject_did)
 		  )
 		  AND NOT EXISTS (
-			SELECT 1 FROM atproto_blocks block
-			WHERE ((block.blocker_did = ` + viewerParam + ` AND block.subject_did = p.did)
-			   OR (block.blocker_did = p.did AND block.subject_did = ` + viewerParam + `))
-			  AND NOT appview_owner_is_terminal(block.blocker_did)
+			SELECT 1 FROM pds_set_aggregates block
+			WHERE block.kind = 'block'
+			  AND ((block.actor_did = ` + viewerParam + ` AND block.subject_did = p.did)
+			   OR (block.actor_did = p.did AND block.subject_did = ` + viewerParam + `))
+			  AND NOT appview_owner_is_terminal(block.actor_did)
 			  AND NOT appview_owner_is_terminal(block.subject_did)
 		  )
 	`
@@ -60,7 +61,7 @@ func scanPostRowWithExtraScore(scanner pgx.Row) (SearchPostRow, error) {
 	var rawProject *[]byte
 	var score float64
 	err := scanner.Scan(
-		&post.URI, &post.DID, &post.Rkey, &post.CID, &post.Text, &post.Facets, &post.Images, &post.RawEmbed,
+		&post.URI, &post.DID, &post.Rkey, &post.CID, &post.Text, &post.Sponsored, &post.Facets, &post.Images, &post.RawEmbed,
 		&post.ReplyRootURI, &post.ReplyRootCID, &post.ReplyParentURI, &post.ReplyParentCID,
 		&post.QuoteURI, &post.QuoteCID, &post.Tags, &post.Langs, &post.CreatedAt, &post.IndexedAt,
 		&post.ExternalImportSource, &post.ProfileSortAt,

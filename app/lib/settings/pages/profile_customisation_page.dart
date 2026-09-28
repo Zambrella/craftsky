@@ -4,12 +4,14 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/providers/profile_customisation_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_customisation_theme.dart';
 import 'package:craftsky_app/profile/widgets/profile_header_background.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
@@ -138,17 +140,9 @@ class _LoadedCustomisationPageState
                 values: profileColourCatalogue,
                 selected: draft.colour,
                 labels: _colourLabels(l10n),
+                selectedColourBundles: profileColourBundles,
                 orderStart: 10,
                 onSelected: notifier.selectColour,
-              ),
-              const SizedBox(height: 20),
-              _ChoiceGroup(
-                label: l10n.profileCustomisationBorder,
-                values: profileBorderCatalogue,
-                selected: draft.border,
-                labels: _borderLabels(l10n),
-                orderStart: 20,
-                onSelected: notifier.selectBorder,
               ),
               const SizedBox(height: 20),
               _ChoiceGroup(
@@ -156,13 +150,13 @@ class _LoadedCustomisationPageState
                 values: profileBackgroundCatalogue,
                 selected: draft.background,
                 labels: _backgroundLabels(l10n),
-                orderStart: 30,
+                orderStart: 20,
                 onSelected: notifier.selectBackground,
               ),
               const SizedBox(height: 28),
               FocusTraversalOrder(
                 order: const NumericFocusOrder(40),
-                child: FilledButton(
+                child: ChunkyButton(
                   onPressed: widget.value.isDirty && !widget.isSaving
                       ? () => unawaited(notifier.save())
                       : null,
@@ -219,6 +213,7 @@ class _ChoiceGroup extends StatelessWidget {
     required this.onSelected,
     required this.orderStart,
     this.labels = const {},
+    this.selectedColourBundles,
   });
 
   final String label;
@@ -227,6 +222,7 @@ class _ChoiceGroup extends StatelessWidget {
   final ValueChanged<String> onSelected;
   final double orderStart;
   final Map<String, String> labels;
+  final Map<String, ProfileColourBundle>? selectedColourBundles;
 
   @override
   Widget build(BuildContext context) => Semantics(
@@ -247,6 +243,7 @@ class _ChoiceGroup extends StatelessWidget {
                 child: ChoiceChip(
                   label: Text(labels[value] ?? value),
                   selected: selected == value,
+                  color: _colour(context, value),
                   onSelected: (_) => onSelected(value),
                 ),
               ),
@@ -255,6 +252,30 @@ class _ChoiceGroup extends StatelessWidget {
       ],
     ),
   );
+
+  WidgetStateProperty<Color?>? _colour(BuildContext context, String value) {
+    final bundle = selectedColourBundles?[value];
+    if (bundle == null) return null;
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
+    final base = profileColour(dark ? bundle.darkAccent : bundle.base);
+    final hover = profileColour(dark ? bundle.darkHover : bundle.hover);
+    final pressed = profileColour(dark ? bundle.darkPressed : bundle.pressed);
+    return WidgetStateProperty.resolveWith((states) {
+      if (!states.contains(WidgetState.selected)) {
+        return theme.chipTheme.color?.resolve(states);
+      }
+      if (states.contains(WidgetState.disabled)) {
+        return base.withValues(alpha: 0.38);
+      }
+      if (states.contains(WidgetState.pressed)) return pressed;
+      if (states.contains(WidgetState.hovered) ||
+          states.contains(WidgetState.focused)) {
+        return hover;
+      }
+      return base;
+    });
+  }
 }
 
 Map<String, String> _colourLabels(AppLocalizations l10n) => {
@@ -267,12 +288,6 @@ Map<String, String> _colourLabels(AppLocalizations l10n) => {
   'ink': l10n.profileCustomisationColourInk,
 };
 
-Map<String, String> _borderLabels(AppLocalizations l10n) => {
-  'thin': l10n.profileCustomisationBorderThin,
-  'medium': l10n.profileCustomisationBorderMedium,
-  'thick': l10n.profileCustomisationBorderThick,
-};
-
 Map<String, String> _backgroundLabels(AppLocalizations l10n) => {
   'none': l10n.profileCustomisationNone,
   'bayerdark': l10n.profileCustomisationBackgroundDither,
@@ -281,4 +296,9 @@ Map<String, String> _backgroundLabels(AppLocalizations l10n) => {
   'scallopdark': l10n.profileCustomisationBackgroundScallops,
   'skewdark': l10n.profileCustomisationBackgroundDiagonalWeave,
   'x2': l10n.profileCustomisationBackgroundCrosshatch,
+  'craft-sewing': craftLabel(Craft.sewing, l10n),
+  'craft-knitting': craftLabel(Craft.knitting, l10n),
+  'craft-crochet': craftLabel(Craft.crochet, l10n),
+  'craft-quilting': craftLabel(Craft.quilting, l10n),
+  'craft-embroidery': craftLabel(Craft.embroidery, l10n),
 };

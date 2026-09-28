@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -17,6 +16,7 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/testlog"
 )
 
 func TestInstagramVerificationHandlersExactWireContract(t *testing.T) {
@@ -48,7 +48,7 @@ func TestInstagramVerificationHandlersExactWireContract(t *testing.T) {
 			},
 		},
 	}
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testlog.Discard()
 
 	createReq := authenticatedInstagramRequest(http.MethodPost, "/v1/migrations/instagram/verifications", "{}", alice)
 	createRR := httptest.NewRecorder()
@@ -166,7 +166,7 @@ func TestInstagramVerificationHandlersRejectInvalidAndMapSafeErrors(t *testing.T
 
 	alice := syntax.DID("did:plc:synthetic-alice")
 	id := uuid.MustParse("00000000-0000-0000-0000-000000000103")
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testlog.Discard()
 
 	tests := []struct {
 		name    string

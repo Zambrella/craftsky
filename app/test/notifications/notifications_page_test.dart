@@ -4,6 +4,7 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/moderation/models/account_moderation.dart';
 import 'package:craftsky_app/notifications/data/notification_repository.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
 import 'package:craftsky_app/notifications/models/notification_page.dart';
@@ -17,6 +18,7 @@ import 'package:craftsky_app/profile/providers/profile_repository_provider.dart'
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -28,6 +30,7 @@ import 'package:go_router/go_router.dart';
 
 import '../fakes/recording_messenger.dart';
 import '../profile/fakes/fake_profile_repository.dart';
+import '../test_support/deterministic_pump.dart';
 
 void main() {
   setUpAll(initializeMappers);
@@ -50,6 +53,25 @@ void main() {
     expect(find.text(l10n.notificationsTitle), findsWidgets);
   });
 
+  testWidgets('initial loading uses activity row skeletons', (tester) async {
+    final page = Completer<NotificationPage>();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          notificationRepositoryProvider.overrideWithValue(
+            _QueueNotificationRepository([page.future]),
+          ),
+        ],
+        child: const _TestApp(home: NotificationsPage()),
+      ),
+    );
+    await tester.pump();
+
+    expect(find.byType(CraftskySkeletonSliverList), findsOneWidget);
+    expect(find.byType(ActivityRowSkeleton), findsNWidgets(6));
+    expect(find.byType(StitchProgressIndicator), findsNothing);
+  });
+
   testWidgets('refresh indicator starts below the sliver app bar', (
     tester,
   ) async {
@@ -60,13 +82,14 @@ void main() {
             const _FakeNotificationRepository(NotificationPage(items: [])),
           ),
         ],
-        child: const _TestApp(
-          topPadding: 24,
-          home: NotificationsPage(),
-        ),
+        child: const _TestApp(topPadding: 24, home: NotificationsPage()),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.byType(RefreshIndicator),
+      description: 'the notifications refresh control',
+    );
 
     expect(
       tester.widget<RefreshIndicator>(find.byType(RefreshIndicator)).edgeOffset,
@@ -130,16 +153,6 @@ void main() {
         .where((avatar) => avatar.customisation.colour == 'rose')
         .toList();
     expect(customisedAvatars, isNotEmpty);
-    expect(
-      customisedAvatars,
-      everyElement(
-        isA<ProfileAvatar>().having(
-          (avatar) => avatar.customisation.border,
-          'border',
-          'thick',
-        ),
-      ),
-    );
   });
 
   testWidgets('UT-016 uses post, comment, and reply language in rows', (
@@ -162,10 +175,7 @@ void main() {
                 ),
               ),
               NotificationRow(
-                notification: _like(
-                  'like-reply',
-                  subjectPost: _replyPost(),
-                ),
+                notification: _like('like-reply', subjectPost: _replyPost()),
               ),
               NotificationRow(notification: _repost('repost-post')),
               NotificationRow(
@@ -295,9 +305,7 @@ void main() {
       expect(
         tester
             .widgetList<Tooltip>(find.byType(Tooltip))
-            .every(
-              (tooltip) => tooltip.message?.contains('2026') ?? false,
-            ),
+            .every((tooltip) => tooltip.message?.contains('2026') ?? false),
         isTrue,
       );
     },
@@ -373,6 +381,7 @@ void main() {
       viewerIsFollowing: viewerIsFollowing,
     );
     final repository = FakeProfileRepository(
+      onFetch: (_) async => result(viewerIsFollowing: true),
       onFollow: (handleOrDid) async {
         calls.add('follow:$handleOrDid');
         return result(viewerIsFollowing: true);
@@ -385,16 +394,11 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          profileRepositoryProvider.overrideWithValue(repository),
-        ],
+        overrides: [profileRepositoryProvider.overrideWithValue(repository)],
         child: _TestApp(
           home: Scaffold(
             body: NotificationRow(
-              notification: _follow(
-                'follow-action',
-                viewerIsFollowing: true,
-              ),
+              notification: _follow('follow-action', viewerIsFollowing: true),
             ),
           ),
         ),
@@ -412,11 +416,9 @@ void main() {
 
     await tester.tap(find.text('Follow'));
     await tester.pumpAndSettle();
-    expect(calls, [
-      'unfollow:did:plc:alice',
-      'follow:did:plc:alice',
-    ]);
+    expect(calls, ['unfollow:did:plc:alice', 'follow:did:plc:alice']);
     expect(find.text('Unfollow'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 31));
   });
 
   testWidgets('UT-023 follow notification rolls back a failed mutation', (
@@ -424,14 +426,17 @@ void main() {
   ) async {
     final messenger = RecordingMessenger();
     final repository = FakeProfileRepository(
+      onFetch: (_) async => Profile(
+        did: 'did:plc:alice',
+        handle: 'alice.craftsky.social',
+        crafts: const [],
+      ),
       onFollow: (_) => Future<Profile>.error(Exception('follow failed')),
     );
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          profileRepositoryProvider.overrideWithValue(repository),
-        ],
+        overrides: [profileRepositoryProvider.overrideWithValue(repository)],
         child: _TestApp(
           home: MessengerScope(
             messenger: messenger,
@@ -658,10 +663,7 @@ void main() {
           path: '/',
           builder: (_, _) => Scaffold(
             body: NotificationRow(
-              notification: _like(
-                'like-comment',
-                subjectPost: _commentPost(),
-              ),
+              notification: _like('like-comment', subjectPost: _commentPost()),
             ),
           ),
         ),
@@ -711,9 +713,7 @@ void main() {
         '00000000-0000-0000-0000-000000000003',
         type: 'futureCategory',
       );
-      final unavailable = _unavailable(
-        '00000000-0000-0000-0000-000000000002',
-      );
+      final unavailable = _unavailable('00000000-0000-0000-0000-000000000002');
 
       await tester.pumpWidget(
         ProviderScope(
@@ -744,10 +744,7 @@ void main() {
             widget.textSpan?.toPlainText().contains('New activity') == true,
       );
       final informationalRows = tester.widgetList<InkWell>(
-        find.ancestor(
-          of: genericText,
-          matching: find.byType(InkWell),
-        ),
+        find.ancestor(of: genericText, matching: find.byType(InkWell)),
       );
       expect(informationalRows, hasLength(2));
       expect(informationalRows.every((row) => row.onTap == null), isTrue);
@@ -771,6 +768,116 @@ void main() {
       expect(messenger.calls.single.$2, 'Activity unavailable');
     },
   );
+
+  testWidgets('moderation row explains the update and opens full history', (
+    tester,
+  ) async {
+    var openedModeration = false;
+    final notification = ModerationNotification(
+      SystemNotificationCommon(
+        id: '00000000-0000-4000-8000-000000000325',
+        createdAt: DateTime.utc(2026, 9, 11, 12),
+        indexedAt: DateTime.utc(2026, 9, 11, 12, 0, 1),
+      ),
+      caseReference: ModerationCaseReference.parse(
+        'MOD-550e8400-e29b-41d4-a716-446655440000',
+      ),
+    );
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) =>
+              Scaffold(body: NotificationRow(notification: notification)),
+        ),
+        GoRoute(
+          path: '/profile/settings/moderation',
+          builder: (_, _) {
+            openedModeration = true;
+            return const Scaffold(body: Text('Moderation case'));
+          },
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp.router(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Review an update to your account standing'),
+      findsOneWidget,
+    );
+    expect(find.byIcon(CraftskyIcons.privacy), findsOneWidget);
+
+    await tester.tap(find.text('Review an update to your account standing'));
+    await tester.pumpAndSettle();
+
+    expect(openedModeration, isTrue);
+  });
+
+  testWidgets('moderation history needs one back action to leave', (
+    tester,
+  ) async {
+    final notification = ModerationNotification(
+      SystemNotificationCommon(
+        id: '00000000-0000-4000-8000-000000000326',
+        createdAt: DateTime.utc(2026, 9, 11, 12),
+        indexedAt: DateTime.utc(2026, 9, 11, 12, 0, 1),
+      ),
+      caseReference: ModerationCaseReference.parse(
+        'MOD-550e8400-e29b-41d4-a716-446655440000',
+      ),
+    );
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (_, _) =>
+              Scaffold(body: NotificationRow(notification: notification)),
+        ),
+        GoRoute(
+          path: '/profile/settings/moderation',
+          builder: (_, _) => const Scaffold(body: Text('Moderation case')),
+        ),
+      ],
+    );
+    addTearDown(router.dispose);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp.router(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          routerConfig: router,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Review an update to your account standing'));
+    await tester.pumpAndSettle();
+    expect(find.text('Moderation case'), findsOneWidget);
+
+    router.pop();
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text('Review an update to your account standing'),
+      findsOneWidget,
+    );
+    expect(find.text('Moderation case'), findsNothing);
+  });
 }
 
 class _TestApp extends StatelessWidget {
@@ -839,20 +946,14 @@ InstagramMatchNotification _instagramMatch() =>
         })
         as InstagramMatchNotification;
 
-LikeNotification _like(
-  String rkey, {
-  Map<String, dynamic>? subjectPost,
-}) =>
+LikeNotification _like(String rkey, {Map<String, dynamic>? subjectPost}) =>
     CraftskyNotification.fromMap({
           ..._baseNotification('like', rkey),
           'subjectPost': subjectPost ?? _post(),
         })
         as LikeNotification;
 
-RepostNotification _repost(
-  String rkey, {
-  Map<String, dynamic>? subjectPost,
-}) =>
+RepostNotification _repost(String rkey, {Map<String, dynamic>? subjectPost}) =>
     CraftskyNotification.fromMap({
           ..._baseNotification('repost', rkey),
           'subjectPost': subjectPost ?? _post(),
@@ -920,11 +1021,7 @@ Map<String, dynamic> _baseNotification(String type, String rkey) => {
     'handle': 'alice.craftsky.social',
     'displayName': 'Alice',
     'avatar': 'https://cdn.example/avatar/alice.jpg',
-    'customisation': {
-      'colour': 'rose',
-      'profileBorder': 'thick',
-      'profileBackground': 'none',
-    },
+    'customisation': {'colour': 'rose', 'profileBackground': 'none'},
   },
   'createdAt': '2026-05-28T13:00:00Z',
   'indexedAt': '2026-05-28T13:00:01Z',
@@ -943,6 +1040,7 @@ Map<String, dynamic> _post() => {
   'viewerHasReposted': false,
   'viewerHasReplied': false,
   'viewerHasSaved': false,
+  'sponsored': false,
   'createdAt': '2026-05-28T12:00:00Z',
   'indexedAt': '2026-05-28T12:00:01Z',
   'author': {'did': 'did:plc:viewer', 'handle': 'viewer.craftsky.social'},

@@ -1,16 +1,30 @@
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/widgets/profile_header_background.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('every non-none background key maps to one bundled local PNG', () {
-    expect(profileBackgroundAssets.keys, profileBackgroundCatalogue.skip(1));
+  test('every texture background key maps to one bundled local PNG', () {
+    expect(
+      profileBackgroundAssets.keys,
+      profileBackgroundCatalogue.skip(1).take(6),
+    );
     for (final asset in profileBackgroundAssets.values) {
       expect(asset, startsWith('assets/profile_backgrounds/'));
       expect(asset, endsWith('.png'));
       expect(asset, isNot(contains('://')));
+    }
+  });
+
+  test('every craft background key maps to a bundled craft icon', () {
+    expect(
+      profileCraftBackgrounds.keys,
+      profileBackgroundCatalogue.skip(7),
+    );
+    for (final craft in profileCraftBackgrounds.values) {
+      expect(CraftIcon.assetPathFor(craft), isNotNull);
     }
   });
 
@@ -66,5 +80,34 @@ void main() {
     );
     expect(box.color, const Color(0xFFD61535));
     expect(find.byType(Image), findsNothing);
+  });
+
+  testWidgets('craft background repeats tinted icons within the header', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: AppTheme.lightThemeData,
+        home: const SizedBox(
+          width: 180,
+          height: 80,
+          child: ProfileHeaderBackground(
+            customisation: ProfileCustomisation(
+              colour: 'teal',
+              background: 'craft-crochet',
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final icons = tester.widgetList<CraftIcon>(find.byType(CraftIcon)).toList();
+    expect(icons.length, greaterThan(1));
+    expect(icons.every((icon) => icon.craft == 'crochet'), isTrue);
+    expect(icons.every((icon) => icon.color?.a == 0.18), isTrue);
+    expect(
+      find.byKey(const Key('profile-header-background-texture')),
+      findsOneWidget,
+    );
   });
 }

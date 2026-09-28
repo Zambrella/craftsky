@@ -2,6 +2,7 @@ package instagram
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"sync"
 	"testing"
@@ -12,7 +13,6 @@ import (
 
 	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/ownerlifecycle"
-	"social.craftsky/appview/internal/pdseffects"
 )
 
 func TestSuggestionAcceptanceIsExplicitGenerationFencedAndIdempotent(t *testing.T) {
@@ -41,47 +41,41 @@ func TestSuggestionAcceptanceIsExplicitGenerationFencedAndIdempotent(t *testing.
 		t.Fatal(err)
 	}
 	executor := &recordingSuggestionFollowExecutor{
-		lifecycles: lifecycles,
-		result: SuggestionFollowResult{
-			Outcome:   SuggestionFollowed,
-			RecordURI: syntax.ATURI("at://did:plc:accept-importer/app.bsky.graph.follow/3laccept"),
-			RecordCID: "bafy-follow",
-		},
+		result: acceptedSuggestionCommandResult(created.Suggestion.ID, SuggestionFollowed),
 	}
 	service, err := NewSuggestionService(store, lifecycles, privateSuggestionAllowPolicy{}, executor)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	first, err := service.Accept(ctx, importer, created.Suggestion.ID, "session-one")
+	operationKey := uuid.MustParse("018f4d5c-7a61-7d40-a1a2-111111111111")
+	_, err = service.Accept(ctx, importer, created.Suggestion.ID, "session-one", operationKey, "request-one")
 	if err != nil {
 		t.Fatalf("first Accept: %v", err)
 	}
-	second, err := service.Accept(ctx, importer, created.Suggestion.ID, "session-two")
+	_, err = service.Accept(ctx, importer, created.Suggestion.ID, "session-two", operationKey, "request-two")
 	if err != nil {
 		t.Fatalf("second Accept: %v", err)
 	}
-	if first.State != SuggestionFollowed || second.State != SuggestionFollowed ||
-		first.ResultRecordURI == nil || second.ResultRecordURI == nil ||
-		*first.ResultRecordURI != *second.ResultRecordURI {
-		t.Fatalf("acceptance results = %+v / %+v", first, second)
+	accepted, err := store.GetOwned(ctx, importer, created.Suggestion.ID)
+	if err != nil || accepted.State != SuggestionFollowed || accepted.ResultRecordURI == nil {
+		t.Fatalf("accepted suggestion = %+v err=%v", accepted, err)
 	}
 	requests := executor.Requests()
-	if len(requests) != 1 {
-		t.Fatalf("follow executor calls = %d, want 1", len(requests))
+	if len(requests) != 2 {
+		t.Fatalf("follow executor calls = %d, want terminal replay through command", len(requests))
 	}
 	request := requests[0]
 	if request.Owner != importer || request.Target != target ||
 		request.OwnerGeneration != 2 || request.TargetGeneration != 5 ||
-		executor.SessionID() != "session-one" || request.OperationID == "" ||
-		request.MutationKey != request.OperationID || request.Rkey == "" {
+		request.SessionID != "session-one" || request.OperationKey != operationKey || request.Rkey == "" {
 		t.Fatalf("follow request = %+v", request)
 	}
 
-	if _, err := service.Accept(ctx, syntax.DID("did:plc:foreign"), created.Suggestion.ID, "foreign-session"); !errors.Is(err, ErrInstagramResourceNotFound) {
+	if _, err := service.Accept(ctx, syntax.DID("did:plc:foreign"), created.Suggestion.ID, "foreign-session", operationKey, "foreign-request"); !errors.Is(err, ErrInstagramResourceNotFound) {
 		t.Fatalf("foreign accept error = %v, want hidden not found", err)
 	}
-	if len(executor.Requests()) != 1 {
+	if len(executor.Requests()) != 2 {
 		t.Fatal("foreign accept reached follow executor")
 	}
 }
@@ -116,13 +110,13 @@ func TestSuggestionAcceptanceMakesNoCallAfterTargetTerminalization(t *testing.T)
 	}); err != nil {
 		t.Fatal(err)
 	}
-	executor := &recordingSuggestionFollowExecutor{lifecycles: lifecycles}
+	executor := &recordingSuggestionFollowExecutor{}
 	service, err := NewSuggestionService(store, lifecycles, privateSuggestionAllowPolicy{}, executor)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	_, err = service.Accept(ctx, importer, created.Suggestion.ID, "session")
+	_, err = service.Accept(ctx, importer, created.Suggestion.ID, "session", uuid.New(), "request")
 	if !errors.Is(err, ownerlifecycle.ErrGenerationChanged) &&
 		!errors.Is(err, ownerlifecycle.ErrOwnerNotActive) &&
 		!errors.Is(err, ownerlifecycle.ErrTerminalOwner) {
@@ -157,83 +151,60 @@ func TestSuggestionAcceptanceReplaysTheSameDurableIdentityAfterResponseLoss(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	wantResult := SuggestionFollowResult{
-		Outcome: SuggestionFollowed,
-		RecordURI: syntax.ATURI(
-			"at://did:plc:replay-importer/app.bsky.graph.follow/3l75000000000040008000000000000001",
-		),
-		RecordCID: "bafy-reconciled-follow",
-	}
+	wantResult := acceptedSuggestionCommandResult(suggestionID, SuggestionFollowed)
 	executor := &recordingSuggestionFollowExecutor{
-		lifecycles: lifecycles,
-		errs: []error{&pdseffects.OutcomeAmbiguousError{
-			OperationID: "instagram-suggestion:" + suggestionID.String(),
-		}},
-		results: []SuggestionFollowResult{{}, wantResult},
+		results: []SuggestionCommandResult{{State: SuggestionCommandAmbiguous, RetryAfterSeconds: 1}, wantResult},
 	}
 	service, err := NewSuggestionService(store, lifecycles, privateSuggestionAllowPolicy{}, executor)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := service.Accept(ctx, importer, created.Suggestion.ID, "session-one"); err == nil {
-		t.Fatal("first acceptance unexpectedly resolved an ambiguous response")
+	operationKey := uuid.MustParse("018f4d5c-7a61-7d40-a1a2-222222222222")
+	first, err := service.Accept(ctx, importer, created.Suggestion.ID, "session-one", operationKey, "request-one")
+	if err != nil || first.State != SuggestionCommandAmbiguous {
+		t.Fatalf("first acceptance = %+v err=%v", first, err)
 	}
-	replayed, err := service.Accept(ctx, importer, created.Suggestion.ID, "session-two")
+	replayed, err := service.Accept(ctx, importer, created.Suggestion.ID, "session-two", operationKey, "request-two")
 	if err != nil {
 		t.Fatalf("replay acceptance: %v", err)
 	}
-	if replayed.State != SuggestionFollowed || replayed.ResultRecordURI == nil ||
-		*replayed.ResultRecordURI != wantResult.RecordURI {
-		t.Fatalf("replayed suggestion = %+v", replayed)
+	if replayed.State != SuggestionCommandAccepted {
+		t.Fatalf("replayed command = %+v", replayed)
+	}
+	private, err := store.GetOwned(ctx, importer, suggestionID)
+	if err != nil || private.State != SuggestionFollowed || private.ResultRecordURI == nil {
+		t.Fatalf("replayed suggestion = %+v err=%v", private, err)
 	}
 	requests := executor.Requests()
 	if len(requests) != 2 {
 		t.Fatalf("follow executor calls = %d, want 2 durable invocations", len(requests))
 	}
-	if requests[0].OperationID != requests[1].OperationID ||
-		requests[0].MutationKey != requests[1].MutationKey ||
+	if requests[0].OperationKey != requests[1].OperationKey ||
 		requests[0].Rkey != requests[1].Rkey {
 		t.Fatalf("replay identities differ: %+v / %+v", requests[0], requests[1])
 	}
 }
 
 type recordingSuggestionFollowExecutor struct {
-	mu         sync.Mutex
-	lifecycles *ownerlifecycle.Store
-	sessionIDs []string
-	requests   []SuggestionFollowRequest
-	result     SuggestionFollowResult
-	err        error
-	results    []SuggestionFollowResult
-	errs       []error
-}
-
-func (executor *recordingSuggestionFollowExecutor) WithSuggestionEffects(
-	ctx context.Context,
-	_ syntax.DID,
-	sessionID string,
-	expected []ownerlifecycle.ExpectedOwner,
-	operation SuggestionEffectOperation,
-) error {
-	executor.mu.Lock()
-	executor.sessionIDs = append(executor.sessionIDs, sessionID)
-	executor.mu.Unlock()
-	return executor.lifecycles.WithActiveEffects(ctx, expected, func(effectCtx context.Context) error {
-		return operation(effectCtx, executor)
-	})
+	mu       sync.Mutex
+	requests []SuggestionFollowRequest
+	result   SuggestionCommandResult
+	err      error
+	results  []SuggestionCommandResult
+	errs     []error
 }
 
 func (executor *recordingSuggestionFollowExecutor) FollowSuggestion(
 	_ context.Context,
 	request SuggestionFollowRequest,
-) (SuggestionFollowResult, error) {
+) (SuggestionCommandResult, error) {
 	executor.mu.Lock()
 	defer executor.mu.Unlock()
 	executor.requests = append(executor.requests, request)
 	index := len(executor.requests) - 1
 	if index < len(executor.errs) && executor.errs[index] != nil {
-		return SuggestionFollowResult{}, executor.errs[index]
+		return SuggestionCommandResult{}, executor.errs[index]
 	}
 	if index < len(executor.results) {
 		return executor.results[index], nil
@@ -247,11 +218,7 @@ func (executor *recordingSuggestionFollowExecutor) Requests() []SuggestionFollow
 	return append([]SuggestionFollowRequest(nil), executor.requests...)
 }
 
-func (executor *recordingSuggestionFollowExecutor) SessionID() string {
-	executor.mu.Lock()
-	defer executor.mu.Unlock()
-	if len(executor.sessionIDs) == 0 {
-		return ""
-	}
-	return executor.sessionIDs[0]
+func acceptedSuggestionCommandResult(id uuid.UUID, state SuggestionState) SuggestionCommandResult {
+	body, _ := json.Marshal(map[string]string{"suggestionId": id.String(), "state": string(state)})
+	return SuggestionCommandResult{State: SuggestionCommandAccepted, HTTPStatus: 200, ResponseBody: body}
 }

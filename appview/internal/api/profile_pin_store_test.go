@@ -3,7 +3,6 @@ package api_test
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
@@ -16,7 +15,7 @@ import (
 )
 
 func TestProfilePinStoreUnpinRejectsStaleOwnerGeneration(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000035_profile_pins.up.sql")
+	migration, err := testdb.ReadMigration("000035_profile_pins.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,7 +138,7 @@ INSERT INTO moderation_outputs (
 `
 
 func TestProfilePinStorePersistsIndependentIdempotentAndReplacementStates(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000035_profile_pins.up.sql")
+	migration, err := testdb.ReadMigration("000035_profile_pins.up.sql")
 	if err != nil {
 		t.Fatalf("read profile pin migration: %v", err)
 	}
@@ -269,7 +268,7 @@ func TestProfilePinStorePersistsIndependentIdempotentAndReplacementStates(t *tes
 }
 
 func TestProfilePinStoreKeepsOwnersIsolatedAcrossReloadAndMembershipRemoval(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000035_profile_pins.up.sql")
+	migration, err := testdb.ReadMigration("000035_profile_pins.up.sql")
 	if err != nil {
 		t.Fatalf("read profile pin migration: %v", err)
 	}
@@ -322,7 +321,7 @@ func TestProfilePinStoreKeepsOwnersIsolatedAcrossReloadAndMembershipRemoval(t *t
 }
 
 func TestProfilePinStoreSerializesReplacementAndTargetSpecificUnpin(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000035_profile_pins.up.sql")
+	migration, err := testdb.ReadMigration("000035_profile_pins.up.sql")
 	if err != nil {
 		t.Fatalf("read profile pin migration: %v", err)
 	}

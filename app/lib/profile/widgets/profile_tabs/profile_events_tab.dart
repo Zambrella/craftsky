@@ -5,6 +5,7 @@ import 'package:craftsky_app/business/widgets/event_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
+import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -33,9 +34,12 @@ class ProfileEventsTab extends ConsumerWidget {
     return switch (events) {
       AsyncData(:final value) => _content(context, ref, value),
       AsyncError() => _initialError(context, ref),
-      _ => const SliverFillRemaining(
-        hasScrollBody: false,
-        child: Center(child: StitchProgressIndicator()),
+      _ => CraftskySkeletonSliverList(
+        itemCount: 3,
+        itemBuilder: (context, index) => Padding(
+          padding: const EdgeInsets.all(12),
+          child: EventCardSkeleton(showMedia: index == 0),
+        ),
       ),
     };
   }

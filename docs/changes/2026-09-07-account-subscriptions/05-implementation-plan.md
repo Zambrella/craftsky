@@ -66,8 +66,8 @@
 ### Step 2: IT-001
 - Write failing test: `TestCoreBillingConstraints` applies migration `000069` and exercises active-owner uniqueness, stable provider-subscription identity, one-to-one licenses, one assignment per DID including dormant licenses, separate row cardinality, and subscription-to-license cascade.
 - Run command: `cd appview && TEST_DATABASE_URL=... TEST_DATABASE_REQUIRED=true go test ./internal/subscriptions -run '^TestCoreBillingConstraints$'`.
-- Confirmed failure: After starting the stopped worktree Compose stack, the focused test failed reading absent `000069_subscription_accounts.up.sql`. The earlier stopped-service result was discarded as infrastructure setup, not TDD evidence.
-- Implement: Added reversible migration `000069_subscription_accounts` with billing account lifecycle/generation/lease constraints, stable provider subscriptions, one-to-one licenses, assignment uniqueness, tier/anomaly checks, cascades, and bounded access/reconciliation indexes.
+- Confirmed failure: After starting the stopped worktree Compose stack, the focused test failed reading absent `000076_subscription_accounts.up.sql`. The earlier stopped-service result was discarded as infrastructure setup, not TDD evidence.
+- Implement: Added reversible migration `000076_subscription_accounts` with billing account lifecycle/generation/lease constraints, stable provider subscriptions, one-to-one licenses, assignment uniqueness, tier/anomaly checks, cascades, and bounded access/reconciliation indexes.
 - Run command: The focused command passed; `cd appview && TEST_DATABASE_URL=... TEST_DATABASE_REQUIRED=true go test ./internal/subscriptions` also passed.
 - Refactor: Removed an unused test fixture field; no production refactor.
 - Notes: Provider subscriptions and licenses remain separate rows. Closed accounts require a DID-free marker, while all non-null assignments share one uniqueness constraint regardless of provider access.
@@ -148,7 +148,7 @@
 - Write failing test: `TestAcceptRevenueCatEventDeduplicatesSanitizedWorkTransactionally` races eight stable-ID deliveries, verifies one metadata row/generation, retries after a forced constraint failure, and inventories prohibited columns.
 - Run command: `cd appview && TEST_DATABASE_URL=... TEST_DATABASE_REQUIRED=true go test ./internal/subscriptions -run '^TestAcceptRevenueCatEventDeduplicatesSanitizedWorkTransactionally$'`.
 - Confirmed failure: Build failed because sanitized event types/storage were absent; migration `000070` was also intentionally not present.
-- Implement: Added reversible `000070_revenuecat_events` with bounded sanitized metadata only, plus one pgx transaction that maps the server-stored UUID, inserts idempotently, and advances reconciliation only for a newly accepted active-account event.
+- Implement: Added reversible `000077_revenuecat_events` with bounded sanitized metadata only, plus one pgx transaction that maps the server-stored UUID, inserts idempotently, and advances reconciliation only for a newly accepted active-account event.
 - Run command: The focused command and complete real-PostgreSQL `internal/subscriptions` package passed.
 - Refactor: Shared zero-time null conversion while green.
 - Notes: Unknown event types are accepted exactly like known types. Unmapped and closed customers are durably acknowledged without queueing; no raw body, customer UUID, receipt, payload, or secret column exists.

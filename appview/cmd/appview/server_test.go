@@ -1,9 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/getsentry/sentry-go"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/app"
@@ -19,6 +21,8 @@ import (
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/observability"
+	"social.craftsky/appview/internal/tap"
+	"social.craftsky/appview/internal/testlog"
 )
 
 type serverStubResolver struct{ handle syntax.Handle }
@@ -41,7 +45,7 @@ func TestNewServer_HTTPMetricsUseRoutePattern(t *testing.T) {
 			AllowedOrigins: []string{"*"},
 			DevDID:         "did:plc:test",
 		},
-		Logger:         slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:         testlog.Discard(),
 		AuthService:    &auth.MockAuthService{DefaultDID: "did:plc:test"},
 		HandleResolver: serverStubResolver{handle: syntax.Handle("stub.example")},
 		Observability:  observer,
@@ -75,7 +79,7 @@ func TestNewServerRejectsUnexpectedHostBeforeRouting(t *testing.T) {
 			AllowedOrigins: []string{"https://craftsky.social"},
 			ExpectedHosts:  []string{"appview.craftsky.social"},
 		},
-		Logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:        testlog.Discard(),
 		AuthService:   &auth.MockAuthService{DefaultDID: "did:plc:test"},
 		Observability: observability.New(observability.Config{Env: "test"}),
 	}
@@ -105,6 +109,90 @@ func TestNewServerRejectsUnexpectedHostBeforeRouting(t *testing.T) {
 	}
 }
 
+func TestNewServerAllowsReadinessProbeFromInfrastructureHost(t *testing.T) {
+	pool, err := pgxpool.New(context.Background(), "postgres://127.0.0.1:1/unreachable?connect_timeout=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+	deps := &app.Deps{
+		Config: app.Config{
+			Env:            app.EnvProd,
+			AllowedOrigins: []string{"https://craftsky.social"},
+			ExpectedHosts:  []string{"appview.craftsky.social"},
+		},
+		DB:            pool,
+		Logger:        testlog.Discard(),
+		AuthService:   &auth.MockAuthService{DefaultDID: "did:plc:test"},
+		Observability: observability.New(observability.Config{Env: "test"}),
+	}
+	handler := NewServer(context.Background(), deps)
+	request := httptest.NewRequest(http.MethodGet, "https://craftsky-appview.onrender.com/health", nil)
+	request.Host = "craftsky-appview.onrender.com"
+	recorder := httptest.NewRecorder()
+
+	handler.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d, want 503 from readiness DB check; body=%s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestNewServerHealthRoutesSkipRequestObservability(t *testing.T) {
+	pool, err := pgxpool.New(context.Background(), "postgres://127.0.0.1:1/unreachable?connect_timeout=1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer pool.Close()
+
+	var logs bytes.Buffer
+	recorder := observability.NewInMemoryMetricRecorder()
+	transport := &sentry.MockTransport{}
+	observer := observability.New(observability.Config{
+		Env:              "test",
+		SentryDSN:        "https://public@example.invalid/1",
+		SentryTransport:  transport,
+		TracingEnabled:   true,
+		TracesSampleRate: 1,
+		MetricRecorder:   recorder,
+	})
+	deps := &app.Deps{
+		Config: app.Config{
+			Env:            app.EnvProd,
+			AllowedOrigins: []string{"https://craftsky.social"},
+			ExpectedHosts:  []string{"appview.craftsky.social"},
+		},
+		DB:            pool,
+		Consumer:      tap.NotImplemented{},
+		Logger:        slog.New(slog.NewJSONHandler(&logs, nil)),
+		AuthService:   &auth.MockAuthService{DefaultDID: "did:plc:test"},
+		Observability: observer,
+	}
+	handler := NewServer(context.Background(), deps)
+	logs.Reset()
+
+	for _, path := range []string{"/health", "/healthz"} {
+		request := httptest.NewRequest(http.MethodGet, "https://appview.craftsky.social"+path, nil)
+		request.Host = "appview.craftsky.social"
+		handler.ServeHTTP(httptest.NewRecorder(), request)
+	}
+
+	if got := recorder.Calls(); len(got) != 0 {
+		t.Fatalf("health routes emitted application metrics: %#v", got)
+	}
+	if !observer.Flush(50 * time.Millisecond) {
+		t.Fatal("observer Flush returned false")
+	}
+	if events := transport.Events(); len(events) != 0 {
+		t.Fatalf("health routes emitted %d Sentry events, want 0", len(events))
+	}
+	for _, message := range []string{"Request received", "Request details", "Request completed"} {
+		if got := logs.String(); strings.Contains(got, message) {
+			t.Fatalf("health routes emitted request log %q: %s", message, got)
+		}
+	}
+}
+
 func TestNewServerAdmissionRunsBeforeUnexpectedHost(t *testing.T) {
 	t.Parallel()
 
@@ -114,7 +202,7 @@ func TestNewServerAdmissionRunsBeforeUnexpectedHost(t *testing.T) {
 			AllowedOrigins: []string{"https://craftsky.social"},
 			ExpectedHosts:  []string{"appview.craftsky.social"},
 		},
-		Logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:        testlog.Discard(),
 		AuthService:   &auth.MockAuthService{DefaultDID: "did:plc:test"},
 		Observability: observability.New(observability.Config{Env: "test"}),
 	}
@@ -161,7 +249,7 @@ func TestNewServerOwnsV1FallbackMethodAndCanonicalPathContracts(t *testing.T) {
 			AllowedOrigins: []string{"https://app.craftsky.social"},
 			DevDID:         "did:plc:test",
 		},
-		Logger:         slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:         testlog.Discard(),
 		AuthService:    &auth.MockAuthService{DefaultDID: "did:plc:test"},
 		HandleResolver: serverStubResolver{handle: syntax.Handle("stub.example")},
 		Observability:  observability.New(observability.Config{Env: "test"}),
@@ -215,7 +303,7 @@ func TestNewServerAllowsCatalogueDerivedPatchPreflight(t *testing.T) {
 			Env:            app.EnvDev,
 			AllowedOrigins: []string{"https://app.craftsky.social"},
 		},
-		Logger:        slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:        testlog.Discard(),
 		AuthService:   &auth.MockAuthService{DefaultDID: "did:plc:test"},
 		Observability: observability.New(observability.Config{Env: "test"}),
 	}
@@ -248,7 +336,7 @@ func TestInstagramWebhookWorkerLoopRetriesErrorsAndDrainsBacklogWithoutPollingDe
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		runInstagramWebhookWorker(ctx, processor, slog.New(slog.NewTextHandler(io.Discard, nil)), time.Millisecond)
+		runInstagramWebhookWorker(ctx, processor, testlog.Discard(), time.Millisecond)
 	}()
 	select {
 	case <-done:
@@ -269,7 +357,7 @@ func TestScheduledWorkerLoopRunsImmediatelyDrainsAndStopsOnCancellation(t *testi
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		runScheduledWorker(ctx, processor, slog.New(slog.NewTextHandler(io.Discard, nil)), time.Millisecond, "publication")
+		runScheduledWorker(ctx, processor, testlog.Discard(), time.Millisecond, "publication")
 	}()
 	select {
 	case <-done:
@@ -298,7 +386,7 @@ func TestInstagramReconciliationWorkerLoopUsesBoundedBatchAndDrainsBacklog(t *te
 		runInstagramReconciliationWorker(
 			ctx,
 			processor,
-			slog.New(slog.NewTextHandler(io.Discard, nil)),
+			testlog.Discard(),
 			100,
 			time.Millisecond,
 		)
@@ -329,7 +417,7 @@ func TestInstagramRetentionRunsImmediatelyAndStopsOnCancellation(t *testing.T) {
 		runInstagramRetention(
 			ctx,
 			runner,
-			slog.New(slog.NewTextHandler(io.Discard, nil)),
+			testlog.Discard(),
 			500,
 			time.Hour,
 		)

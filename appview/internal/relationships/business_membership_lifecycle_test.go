@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
@@ -20,11 +19,11 @@ import (
 )
 
 func TestBusinessMembershipDepartureAndRejoinRetainsAndRestoresState(t *testing.T) {
-	accountTypesMigration, err := os.ReadFile("../../migrations/000061_business_account_types.up.sql")
+	accountTypesMigration, err := testdb.ReadMigration("000061_business_account_types.up.sql")
 	if err != nil {
 		t.Fatalf("read account types migration: %v", err)
 	}
-	businessRecordsMigration, err := os.ReadFile("../../migrations/000062_business_records.up.sql")
+	businessRecordsMigration, err := testdb.ReadMigration("000062_business_records.up.sql")
 	if err != nil {
 		t.Fatalf("read business records migration: %v", err)
 	}
@@ -63,9 +62,9 @@ func TestBusinessMembershipDepartureAndRejoinRetainsAndRestoresState(t *testing.
 			indexed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 		);
 		CREATE TABLE bluesky_profiles (did TEXT PRIMARY KEY);
-		CREATE TABLE atproto_blocks (
-			uri TEXT PRIMARY KEY,
-			blocker_did TEXT NOT NULL,
+		CREATE TABLE pds_set_aggregates (
+			kind TEXT NOT NULL,
+			actor_did TEXT NOT NULL,
 			subject_did TEXT NOT NULL
 		);
 		CREATE TABLE moderation_outputs (

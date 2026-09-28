@@ -48,8 +48,9 @@ abstract interface class InstagramMigrationRepository {
   });
 
   Future<InstagramSuggestionActionResult> acceptSuggestion(
-    String suggestionId,
-  );
+    String suggestionId, {
+    required String operationKey,
+  });
 
   Future<void> dismissSuggestion(String suggestionId);
 }

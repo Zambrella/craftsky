@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -14,8 +15,8 @@ func newObservabilityDependencies(
 	cfg Config,
 	logger *slog.Logger,
 	resources *dependencyCleanup,
-) *observability.Observer {
-	observer := observability.New(observability.Config{
+) (*observability.Observer, error) {
+	observer, err := observability.NewValidated(observability.Config{
 		Env:                 string(cfg.Env),
 		Release:             cfg.SentryRelease,
 		LogsEnabled:         cfg.SentryLogsEnabled,
@@ -27,6 +28,9 @@ func newObservabilityDependencies(
 		SentryDSN:           cfg.SentryDSN,
 		Logger:              logger,
 	})
+	if err != nil {
+		return nil, fmt.Errorf("observability initialization: %w", err)
+	}
 	resources.add(func() { observer.Flush(2 * time.Second) })
-	return observer
+	return observer, nil
 }

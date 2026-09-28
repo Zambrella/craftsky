@@ -26,6 +26,12 @@ type GuardedExecutorFactory func(
 	string,
 ) (GuardedEffectCoordinator, error)
 
+type GuardedCapabilityCoordinatorFactory func(
+	context.Context,
+	syntax.DID,
+	string,
+) (GuardedCapabilityCoordinator, error)
+
 // NewExecutorFactory composes the durable attempt store with the single
 // combined owner-generation/OAuth-session boundary. Application wiring should
 // construct this once and inject the resulting factory into handlers.
@@ -61,6 +67,29 @@ func NewGuardedExecutorFactory(
 		owner syntax.DID,
 		sessionID string,
 	) (GuardedEffectCoordinator, error) {
+		executor, err := build(ctx, owner, sessionID)
+		if err != nil {
+			return nil, err
+		}
+		return guardedEffectCoordinator{executor: executor}, nil
+	}, nil
+}
+
+func NewGuardedCapabilityCoordinatorFactory(
+	attempts *ownerlifecycle.Store,
+	clients auth.PDSClientFactory,
+	timeout time.Duration,
+	now func() time.Time,
+) (GuardedCapabilityCoordinatorFactory, error) {
+	build, err := newExecutorBuilder(attempts, clients, timeout, now)
+	if err != nil {
+		return nil, err
+	}
+	return func(
+		ctx context.Context,
+		owner syntax.DID,
+		sessionID string,
+	) (GuardedCapabilityCoordinator, error) {
 		executor, err := build(ctx, owner, sessionID)
 		if err != nil {
 			return nil, err

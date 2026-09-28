@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -355,7 +354,7 @@ func assertRateLimitDecision(t *testing.T, got RateLimitDecision, allowed bool, 
 
 func instagramLimiterTestPool(t *testing.T) *pgxpool.Pool {
 	t.Helper()
-	migration, err := os.ReadFile("../../migrations/000025_instagram_migration.up.sql")
+	migration, err := testdb.ReadMigration("000025_instagram_migration.up.sql")
 	if err != nil {
 		t.Fatalf("read Instagram migration: %v", err)
 	}

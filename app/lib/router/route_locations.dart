@@ -35,6 +35,7 @@ class RouteLocations {
   static const accountChild = 'account';
   static const subscriptionsChild = 'subscriptions';
   static const subscriptions = '$settings/$subscriptionsChild';
+  static const moderationChild = 'moderation';
   static const aboutChild = 'about';
   static const productsChild = 'products';
   static const eventsChild = 'events';

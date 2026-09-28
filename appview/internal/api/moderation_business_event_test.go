@@ -42,10 +42,10 @@ CREATE TABLE craftsky_business_events (
     indexed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (owner_did, rkey)
 );
-CREATE TABLE atproto_blocks (
-    uri TEXT PRIMARY KEY,
-    blocker_did TEXT NOT NULL,
-    subject_did TEXT NOT NULL
+CREATE TABLE pds_set_aggregates (
+	kind TEXT NOT NULL,
+	actor_did TEXT NOT NULL,
+	subject_did TEXT NOT NULL
 );
 `
 

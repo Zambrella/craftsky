@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -64,14 +63,14 @@ func TestProfileCustomisationResponseBuildersIncludeCompleteDefaults(t *testing.
 		if err := json.Unmarshal(raw, &body); err != nil {
 			t.Fatalf("unmarshal %s: %v", name, err)
 		}
-		assertCustomisationMap(t, body["customisation"], "cobalt", "medium", "none")
+		assertCustomisationMap(t, body["customisation"], "cobalt", "none")
 	}
 }
 
 func TestIdentityCustomisationHydratorDecoratesNestedMembersInOneBatch(t *testing.T) {
 	ctx := context.Background()
 	reader := &fakeProfileCustomisationBatchReader{values: map[syntax.DID]api.ProfileCustomisation{
-		"did:plc:alice": {Colour: "teal", Border: "thick", Background: "x2"},
+		"did:plc:alice": {Colour: "teal", Background: "x2"},
 		"did:plc:bob":   api.DefaultProfileCustomisation,
 	}}
 	hydrator := api.NewIdentityCustomisationHydrator(reader)
@@ -96,12 +95,12 @@ func TestIdentityCustomisationHydratorDecoratesNestedMembersInOneBatch(t *testin
 		t.Fatalf("decode hydrated JSON: %v", err)
 	}
 	profile := body["profile"].(map[string]any)
-	assertCustomisationMap(t, profile["customisation"], "teal", "thick", "x2")
+	assertCustomisationMap(t, profile["customisation"], "teal", "x2")
 	items := body["items"].([]any)
 	bob := items[0].(map[string]any)["author"].(map[string]any)
-	assertCustomisationMap(t, bob["customisation"], "cobalt", "medium", "none")
+	assertCustomisationMap(t, bob["customisation"], "cobalt", "none")
 	aliceAgain := items[1].(map[string]any)["author"].(map[string]any)
-	assertCustomisationMap(t, aliceAgain["customisation"], "teal", "thick", "x2")
+	assertCustomisationMap(t, aliceAgain["customisation"], "teal", "x2")
 	outside := items[2].(map[string]any)["author"].(map[string]any)
 	if _, ok := outside["customisation"]; ok {
 		t.Fatalf("non-member identity gained customisation: %v", outside)
@@ -116,16 +115,12 @@ func TestIdentityCustomisationHydratorDecoratesNestedMembersInOneBatch(t *testin
 }
 
 func TestProfileCustomisationStoreReadBatchDeduplicatesAndDefaultsMembers(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000036_profile_customisation.up.sql")
-	if err != nil {
-		t.Fatalf("read profile customisation migration: %v", err)
-	}
-	pool := testdb.WithSchema(t, profileCustomisationStoreTestDDL+string(migration))
+	pool := testdb.WithSchema(t, profileCustomisationStoreTestDDL+profileCustomisationSchemaMigrations(t))
 	ctx := context.Background()
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO profile_customisations (
-			owner_did, colour, profile_border, profile_background
-		) VALUES ('did:plc:alice', 'orchid', 'thin', 'skewdark')
+			owner_did, colour, profile_background
+		) VALUES ('did:plc:alice', 'orchid', 'skewdark')
 	`); err != nil {
 		t.Fatalf("seed Alice customisation: %v", err)
 	}
@@ -142,7 +137,7 @@ func TestProfileCustomisationStoreReadBatchDeduplicatesAndDefaultsMembers(t *tes
 	if len(got) != 2 {
 		t.Fatalf("batch size = %d, want two current members: %v", len(got), got)
 	}
-	if got["did:plc:alice"] != (api.ProfileCustomisation{Colour: "orchid", Border: "thin", Background: "skewdark"}) {
+	if got["did:plc:alice"] != (api.ProfileCustomisation{Colour: "orchid", Background: "skewdark"}) {
 		t.Fatalf("Alice batch value = %+v", got["did:plc:alice"])
 	}
 	if got["did:plc:bob"] != api.DefaultProfileCustomisation {
@@ -154,7 +149,7 @@ func TestIdentityCustomisationHydratorWrapsSuccessfulJSONHandlers(t *testing.T) 
 	t.Parallel()
 
 	reader := &fakeProfileCustomisationBatchReader{values: map[syntax.DID]api.ProfileCustomisation{
-		"did:plc:alice": {Colour: "rose", Border: "thin", Background: "dotcrossdark"},
+		"did:plc:alice": {Colour: "rose", Background: "dotcrossdark"},
 	}}
 	hydrator := api.NewIdentityCustomisationHydrator(reader)
 	handler := hydrator.Handler(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -176,16 +171,19 @@ func TestIdentityCustomisationHydratorWrapsSuccessfulJSONHandlers(t *testing.T) 
 		t.Fatalf("decode response: %v", err)
 	}
 	author := body["author"].(map[string]any)
-	assertCustomisationMap(t, author["customisation"], "rose", "thin", "dotcrossdark")
+	assertCustomisationMap(t, author["customisation"], "rose", "dotcrossdark")
 }
 
-func assertCustomisationMap(t *testing.T, raw any, colour, border, background string) {
+func assertCustomisationMap(t *testing.T, raw any, colour, background string) {
 	t.Helper()
 	value, ok := raw.(map[string]any)
 	if !ok {
 		t.Fatalf("customisation = %#v, want object", raw)
 	}
-	if value["colour"] != colour || value["profileBorder"] != border || value["profileBackground"] != background {
-		t.Fatalf("customisation = %v, want %s/%s/%s", value, colour, border, background)
+	if value["colour"] != colour || value["profileBackground"] != background {
+		t.Fatalf("customisation = %v, want %s/%s", value, colour, background)
+	}
+	if _, exists := value["profileBorder"]; exists {
+		t.Fatalf("customisation contains retired profileBorder: %v", value)
 	}
 }

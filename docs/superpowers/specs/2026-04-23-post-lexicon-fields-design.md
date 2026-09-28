@@ -111,9 +111,10 @@ The union on `details` is open (no `closed: true`). Adding a new craft is purely
 |---|---|---|---|
 | `url` | `string<uri>` | no | Link to the pattern (Ravelry, indie designer website, pattern PDF, etc.). |
 | `name` | string | no | `maxGraphemes: 200, maxLength: 500`. Pattern name — e.g. "Simplicity 8265" or "Hitchhiker Shawl". Used when there is no URL, or alongside one. |
-| `difficulty` | string | no | `knownValues` → `feed.defs` tokens (`beginner`, `intermediate`, `advanced`, `expert`). Difficulty is a *property of the pattern*, not of the post. Posts without a pattern can't meaningfully have a difficulty. Tokens are extensible if real patterns use different scales. |
+| `selfDrafted` | boolean | no | True when the author identifies the pattern as self-drafted. May coexist with all other pattern metadata. Omitted when false. |
+| `difficulty` | string | no | `knownValues` → `feed.defs` tokens (`beginner`, `confidentBeginner`, `intermediate`, `advanced`). Difficulty is a *property of the pattern*, not of the post. Tokens are extensible if real patterns use different scales. |
 
-All three fields optional — a pattern with just a name ("self-drafted" isn't a pattern but "Butterick 6092" is) is valid; a pattern with just a URL is valid; a pattern with all three is richest.
+All fields are optional. A pattern may contain only `selfDrafted: true`, and self-drafted patterns may still include a name, difficulty, URL, designer, or publisher.
 
 ### `#image` (local def)
 
@@ -136,7 +137,7 @@ Shared tokens referenced by `social.craftsky.project.defs#projectCommon` and `so
 
 - **`craftType` tokens:** `knitting`, `crochet`, `sewing`, `embroidery`, `quilting`. Initial set; more added as the craft taxonomy settles.
 - **`status` tokens:** `wip`, `finished`.
-- **`difficulty` tokens:** `beginner`, `intermediate`, `advanced`, `expert`.
+- **`difficulty` tokens:** `beginner`, `confidentBeginner`, `intermediate`, `advanced`.
 
 Each token is an empty named def (`{ type: "token", description: "..." }`). Descriptions should be short and user-facing — they may end up in client tooltips or documentation.
 
@@ -255,7 +256,7 @@ Bluesky's `app.bsky.feed.post` puts images inside `embed` as a union variant (`a
 
 Early brainstorming considered `difficulty` as a top-level field on `#projectCommon`. Rejected in favour of nesting it inside `#pattern`.
 
-**Reason:** difficulty is a property of the *pattern*, not of the post. Patterns have difficulty ratings printed on them by the designer; posts without patterns have no meaningful difficulty. Self-drafted or free-formed projects shouldn't be forced to self-rate.
+**Reason:** difficulty is a property of the *pattern*, not of the post. Published patterns may carry designer ratings, while self-drafted patterns may carry the author's own optional rating. Posts without patterns have no meaningful difficulty.
 
 ### `duration` as `workPeriod: {startedAt, completedAt}` datetime pair
 

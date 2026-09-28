@@ -799,9 +799,9 @@ func (store *Store) ClaimDue(ctx context.Context, workerID string, leaseDuration
 	return operation, true, nil
 }
 
-// AdoptUncertainPDSAttempts inventories only outcome-uncertain ordinary PDS
-// writes from the deletion operation's originating owner generation. The
-// deterministic key is parsed and scope-checked before it becomes deletion
+// AdoptUncertainPDSAttempts inventories outcome-uncertain ordinary PDS writes
+// from both mutation journals during migration. The selected URI is parsed and
+// scope-checked before it becomes deletion
 // authority; malformed, cross-owner, and non-CraftSky keys fail closed.
 func (store *Store) AdoptUncertainPDSAttempts(ctx context.Context, operation ClaimedOperation) error {
 	if store == nil || store.pool == nil || operation.JobID == uuid.Nil ||
@@ -832,14 +832,31 @@ func (store *Store) adoptUncertainPDSAttemptsTx(
 	operation ClaimedOperation,
 ) error {
 	rows, err := tx.Query(ctx, `
-		SELECT operation_id,deterministic_key,remote_deadline
-		FROM owner_effect_attempts
-		WHERE owner_did=$1 AND owner_generation=$2
-		  AND effect_kind='pds_record'
-		  AND effect_action='put_record'
-		  AND remote_outcome IN ('dispatched','outcome_unknown_pre_transition')
-		ORDER BY operation_id
-		FOR UPDATE
+		WITH legacy AS (
+			SELECT operation_id AS source_attempt_id,
+			       deterministic_key AS exact_key,remote_deadline
+			FROM owner_effect_attempts
+			WHERE owner_did=$1 AND owner_generation=$2
+			  AND effect_kind='pds_record' AND effect_action='put_record'
+			  AND remote_outcome IN ('dispatched','outcome_unknown_pre_transition')
+			FOR UPDATE
+		), commands AS (
+			SELECT dispatch.id::text AS source_attempt_id,
+			       step.selected_uri AS exact_key,dispatch.remote_deadline
+			FROM pds_commands command
+			JOIN pds_command_dispatches dispatch ON dispatch.command_id=command.id
+			JOIN pds_command_steps step
+			  ON step.command_id=command.id AND step.plan_version=dispatch.plan_version
+			WHERE command.owner_did=$1 AND command.owner_generation=$2
+			  AND command.state IN ('dispatching','ambiguous')
+			  AND dispatch.outcome IN ('dispatching','ambiguous')
+			  AND step.action IN ('create','update')
+			FOR UPDATE OF command,dispatch,step
+		)
+		SELECT source_attempt_id,exact_key,remote_deadline FROM legacy
+		UNION ALL
+		SELECT source_attempt_id,exact_key,remote_deadline FROM commands
+		ORDER BY source_attempt_id,exact_key
 	`, operation.Owner, operation.OwnerGeneration)
 	if err != nil {
 		return fmt.Errorf("select uncertain PDS attempts: %w", err)
@@ -1208,6 +1225,30 @@ func (store *Store) CompleteParticipant(
 						SELECT 1 FROM account_deletion_safety_tombstones safety
 						WHERE safety.operation_id=$1
 						  AND safety.source_attempt_id=effect.operation_id
+					  )
+				)
+				OR EXISTS(
+					SELECT 1
+					FROM pds_commands command
+					JOIN pds_command_dispatches dispatch ON dispatch.command_id=command.id
+					JOIN pds_command_steps step
+					  ON step.command_id=command.id AND step.plan_version=dispatch.plan_version
+					WHERE command.owner_did=$2 AND command.owner_generation=$3
+					  AND command.state IN ('dispatching','ambiguous')
+					  AND dispatch.outcome IN ('dispatching','ambiguous')
+					  AND step.action IN ('create','update')
+					  AND split_part(step.selected_uri, '/', 3)=$2
+					  AND split_part(step.selected_uri, '/', 4)=ANY(ARRAY[
+						'social.craftsky.actor.profile',
+						'social.craftsky.feed.post',
+						'social.craftsky.feed.like',
+						'social.craftsky.feed.repost'
+					  ]::text[])
+					  AND split_part(step.selected_uri, '/', 5)<>''
+					  AND NOT EXISTS(
+						SELECT 1 FROM account_deletion_safety_tombstones safety
+						WHERE safety.operation_id=$1
+						  AND safety.source_attempt_id=dispatch.id::text
 					  )
 				)
 		`, operation.JobID, operation.Owner, operation.OwnerGeneration).Scan(&safetyPending); err != nil {

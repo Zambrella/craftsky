@@ -55,7 +55,8 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('Now'), findsOneWidget);
+    expect(find.byKey(const Key('composer-schedule-control')), findsOneWidget);
+    expect(find.text('Now'), findsNothing);
     expect(find.widgetWithText(ChunkyButton, 'Post'), findsOneWidget);
     expect(find.widgetWithText(TextButton, 'Post'), findsNothing);
     expect(
@@ -78,6 +79,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(createCalls, 1);
+    await tester.pump(const Duration(seconds: 31));
+    await tester.pumpAndSettle();
   });
 }
 
@@ -104,6 +107,7 @@ Post _post(String text) => Post(
   viewerHasLiked: false,
   viewerHasReposted: false,
   viewerHasSaved: false,
+  sponsored: false,
   createdAt: DateTime(2026),
   indexedAt: DateTime(2026),
   author: PostAuthor(did: 'did:plc:alice', handle: 'alice.test'),

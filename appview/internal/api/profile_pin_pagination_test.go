@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
 	"testing"
 	"time"
 
@@ -19,7 +18,7 @@ import (
 )
 
 func TestProfilePinFirstPagePromotionAndMetadataOmission(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000035_profile_pins.up.sql")
+	migration, err := testdb.ReadMigration("000035_profile_pins.up.sql")
 	if err != nil {
 		t.Fatalf("read profile pin migration: %v", err)
 	}
@@ -130,7 +129,7 @@ func TestProfilePinFirstPagePromotionAndMetadataOmission(t *testing.T) {
 }
 
 func TestProfilePinTraversalIsUniqueAndPinChangesInvalidateCursor(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000035_profile_pins.up.sql")
+	migration, err := testdb.ReadMigration("000035_profile_pins.up.sql")
 	if err != nil {
 		t.Fatalf("read profile pin migration: %v", err)
 	}
@@ -231,7 +230,7 @@ func TestProfilePinTraversalIsUniqueAndPinChangesInvalidateCursor(t *testing.T) 
 }
 
 func TestProfilePinPromotionRespectsAndRetainsViewerPolicy(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000035_profile_pins.up.sql")
+	migration, err := testdb.ReadMigration("000035_profile_pins.up.sql")
 	if err != nil {
 		t.Fatalf("read profile pin migration: %v", err)
 	}
@@ -297,17 +296,12 @@ func TestProfilePinPromotionRespectsAndRetainsViewerPolicy(t *testing.T) {
 		t.Fatalf("moderation-restored page = items:%v hasPinnedPostUri:%v", postResponseURIs(moderationRestored.Items), moderationRestored.HasPinnedPostURI)
 	}
 
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO atproto_blocks (uri, blocker_did, rkey, cid, subject_did, record, created_at)
-		VALUES ('at://did:plc:viewer/app.bsky.graph.block/alice', 'did:plc:viewer', 'alice', 'block-cid', $1, '{}'::jsonb, $2)
-	`, owner, base.Add(4*time.Minute)); err != nil {
-		t.Fatalf("seed block: %v", err)
-	}
+	seedBlockAggregate(t, pool, "did:plc:viewer", owner.String(), base.Add(4*time.Minute))
 	blocked := serveProfilePinPage(t, handler, "did:plc:alice", 2)
 	if len(blocked.Items) != 0 || blocked.HasPinnedPostURI {
 		t.Fatalf("blocked page = items:%v hasPinnedPostUri:%v", postResponseURIs(blocked.Items), blocked.HasPinnedPostURI)
 	}
-	if _, err := pool.Exec(ctx, `DELETE FROM atproto_blocks WHERE blocker_did = 'did:plc:viewer'`); err != nil {
+	if _, err := pool.Exec(ctx, `DELETE FROM pds_set_aggregates WHERE kind = 'block' AND actor_did = 'did:plc:viewer'`); err != nil {
 		t.Fatalf("reverse block: %v", err)
 	}
 	blockRestored := serveProfilePinPage(t, handler, "did:plc:alice", 2)

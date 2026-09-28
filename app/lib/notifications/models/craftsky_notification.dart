@@ -1,4 +1,5 @@
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/moderation/models/account_moderation.dart';
 import 'package:craftsky_app/notifications/models/notification_category.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
@@ -32,6 +33,7 @@ sealed class CraftskyNotification {
       throw const FormatException('invalid_notification_type');
     }
     if (type == 'instagramMatch') return _instagramMatchFromMap(map);
+    if (type == 'moderation') return _moderationFromMap(map);
     if (!_socialTypes.contains(type) &&
         (map['actor'] is! Map ||
             map['uri'] is! String ||
@@ -121,6 +123,24 @@ sealed class CraftskyNotification {
     return GenericSystemNotification(
       SystemNotificationCommon.fromMap(map),
       originalType: NotificationCategory.instagramMatch,
+    );
+  }
+
+  static CraftskyNotification _moderationFromMap(Map<String, dynamic> map) {
+    final common = SystemNotificationCommon.fromMap(map);
+    if (map['caseReference'] case final String rawReference) {
+      try {
+        return ModerationNotification(
+          common,
+          caseReference: ModerationCaseReference.parse(rawReference),
+        );
+      } on FormatException {
+        // Malformed routing facts remain visible but inert.
+      }
+    }
+    return GenericSystemNotification(
+      common,
+      originalType: NotificationCategory.moderation,
     );
   }
 }
@@ -283,6 +303,15 @@ final class GenericSystemNotification extends SystemNotification {
 
   @override
   NotificationCategory get type => originalType;
+}
+
+final class ModerationNotification extends SystemNotification {
+  ModerationNotification(super.common, {required this.caseReference});
+
+  final ModerationCaseReference caseReference;
+
+  @override
+  NotificationCategory get type => NotificationCategory.moderation;
 }
 
 @MappableClass(

@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -18,7 +17,7 @@ import (
 )
 
 func TestStoreAccountType(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000061_business_account_types.up.sql")
+	migration, err := testdb.ReadMigration("000061_business_account_types.up.sql")
 	if err != nil {
 		t.Fatalf("read account type migration: %v", err)
 	}

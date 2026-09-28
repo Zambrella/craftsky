@@ -74,7 +74,8 @@ class CraftIconLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasIcon = CraftIcon.assetPathFor(craft) != null;
-    final foreground = color ?? style?.color;
+    final foreground =
+        color ?? style?.color ?? DefaultTextStyle.of(context).style.color;
     final text = Text(label, style: style?.copyWith(color: foreground));
     return Row(
       mainAxisSize: MainAxisSize.min,

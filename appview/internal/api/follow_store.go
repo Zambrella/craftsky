@@ -3,7 +3,6 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
@@ -35,11 +34,24 @@ func NewFollowStore(pool *pgxpool.Pool) *FollowStore {
 func (s *FollowStore) FindActiveFollow(ctx context.Context, did string, subjectDID string) (*FollowRow, error) {
 	out := &FollowRow{}
 	err := s.pool.QueryRow(ctx, `
-		SELECT uri, did, rkey, cid, subject_did, created_at
-		FROM atproto_follows
-		WHERE did = $1 AND subject_did = $2
-		  AND NOT appview_owner_is_terminal(did)
-		  AND NOT appview_owner_is_terminal(subject_did)
+		SELECT aggregate.representative_source_uri,
+		       aggregate.actor_did,
+		       source_record.rkey,
+		       source_record.cid,
+		       aggregate.subject_did,
+		       source.activity_at
+		FROM pds_set_aggregates aggregate
+		JOIN pds_set_sources source
+		  ON source.source_uri = aggregate.representative_source_uri
+		 AND source.kind = aggregate.kind
+		 AND source.actor_did = aggregate.actor_did
+		 AND source.scope_key = aggregate.scope_key
+		JOIN tap_source_records source_record
+		  ON source_record.uri = aggregate.representative_source_uri
+		WHERE aggregate.kind = 'follow'
+		  AND aggregate.actor_did = $1 AND aggregate.subject_did = $2
+		  AND NOT appview_owner_is_terminal(aggregate.actor_did)
+		  AND NOT appview_owner_is_terminal(aggregate.subject_did)
 		LIMIT 1
 	`, did, subjectDID).Scan(
 		&out.URI,
@@ -58,67 +70,14 @@ func (s *FollowStore) FindActiveFollow(ctx context.Context, did string, subjectD
 	return out, nil
 }
 
-// UpsertActive stores one active follow row for (did, subject_did).
-// It collapses any existing alternate active row for the pair.
-func (s *FollowStore) UpsertActive(ctx context.Context, row FollowRow, record json.RawMessage) error {
-	tx, err := s.pool.Begin(ctx)
-	if err != nil {
-		return fmt.Errorf("begin upsert follow %s: %w", row.URI, err)
-	}
-	defer tx.Rollback(ctx)
-
-	if _, err := tx.Exec(ctx, `
-		DELETE FROM atproto_follows
-		WHERE did = $1 AND subject_did = $2 AND uri <> $3
-	`, row.DID, row.SubjectDID, row.URI); err != nil {
-		return fmt.Errorf("collapse duplicate pair %s: %w", row.URI, err)
-	}
-
-	if _, err := tx.Exec(ctx, `
-		DELETE FROM atproto_follows
-		WHERE did = $1 AND rkey = $2 AND uri <> $3
-	`, row.DID, row.Rkey, row.URI); err != nil {
-		return fmt.Errorf("collapse duplicate rkey %s: %w", row.URI, err)
-	}
-
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO atproto_follows
-			(uri, did, rkey, cid, subject_did, record, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		ON CONFLICT (uri) DO UPDATE SET
-			did = EXCLUDED.did,
-			rkey = EXCLUDED.rkey,
-			cid = EXCLUDED.cid,
-			subject_did = EXCLUDED.subject_did,
-			record = EXCLUDED.record,
-			created_at = EXCLUDED.created_at,
-			indexed_at = now()
-	`, row.URI, row.DID, row.Rkey, row.CID, row.SubjectDID, record, row.CreatedAt); err != nil {
-		return fmt.Errorf("upsert follow %s: %w", row.URI, err)
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit upsert follow %s: %w", row.URI, err)
-	}
-	return nil
-}
-
-// DeleteActiveByURI removes the active follow row by AT-URI.
-func (s *FollowStore) DeleteActiveByURI(ctx context.Context, uri string) error {
-	if _, err := s.pool.Exec(ctx,
-		`DELETE FROM atproto_follows WHERE uri = $1`, uri); err != nil {
-		return fmt.Errorf("delete follow %s: %w", uri, err)
-	}
-	return nil
-}
-
 // ListActiveFollowedDIDs returns active followed subject DIDs for a follower.
 func (s *FollowStore) ListActiveFollowedDIDs(ctx context.Context, did string) ([]string, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT subject_did
-		FROM atproto_follows
-		WHERE did = $1
-		  AND NOT appview_owner_is_terminal(did)
+		FROM pds_set_aggregates
+		WHERE kind = 'follow'
+		  AND actor_did = $1
+		  AND NOT appview_owner_is_terminal(actor_did)
 		  AND NOT appview_owner_is_terminal(subject_did)
 		ORDER BY subject_did ASC
 	`, did)

@@ -84,11 +84,6 @@ void main() {
         'parsedConfirmationDid != lease.session.account.did',
       ],
     ),
-    'profile cache publication': (
-      source: 'lib/profile/providers/profile_cache_publication.dart',
-      behaviorTest: 'test/profile/providers/user_profile_provider_test.dart',
-      didContracts: ['userProfileProvider(profile.did)'],
-    ),
     'authored post cache publication': (
       source: 'lib/feed/providers/author_post_cache.dart',
       behaviorTest: 'test/feed/providers/user_posts_provider_test.dart',
@@ -113,7 +108,6 @@ void main() {
       'mention',
       'account switcher',
       'deletion',
-      'profile cache publication',
       'authored post cache publication',
     });
   });
@@ -144,21 +138,12 @@ void main() {
     final profileProvider = File(
       'lib/profile/providers/user_profile_provider.dart',
     ).readAsStringSync();
-    final profilePublication = File(
-      'lib/profile/providers/profile_cache_publication.dart',
-    ).readAsStringSync();
     final postPublication = File(
       'lib/feed/providers/author_post_cache.dart',
     ).readAsStringSync();
 
     expect(profileProvider, contains('Future<Profile> build(Did did)'));
     expect(profileProvider, isNot(contains('build(String handleOrDid)')));
-    expect(profilePublication, isNot(contains('profile.handle')));
     expect(postPublication, isNot(contains('post.author.handle')));
-    expect(
-      RegExp(r'userProfileProvider\(').allMatches(profilePublication),
-      hasLength(1),
-      reason: 'Profile cache publication must not dual-publish by DID/handle.',
-    );
   });
 }

@@ -642,6 +642,7 @@ Post _post(String text) {
     viewerHasLiked: false,
     viewerHasReposted: false,
     viewerHasSaved: false,
+    sponsored: false,
     createdAt: DateTime(2026, 5, 22, 12),
     indexedAt: DateTime(2026, 5, 22, 12, 1),
     author: PostAuthor(did: 'did:plc:alice', handle: 'alice.example'),

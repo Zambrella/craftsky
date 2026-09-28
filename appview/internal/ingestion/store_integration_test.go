@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -30,11 +29,24 @@ CREATE TABLE craftsky_posts (
     did TEXT NOT NULL,
     cid TEXT NOT NULL
 );
-CREATE TABLE craftsky_likes (
-    uri TEXT PRIMARY KEY,
-    did TEXT NOT NULL,
-    subject_uri TEXT NOT NULL,
-    cid TEXT NOT NULL
+CREATE TABLE pds_set_sources (
+	source_uri TEXT PRIMARY KEY,
+	kind TEXT NOT NULL,
+	actor_did TEXT NOT NULL,
+	scope_key TEXT NOT NULL,
+	subject_uri TEXT NOT NULL,
+	activity_at TIMESTAMPTZ NOT NULL,
+	eligible BOOLEAN NOT NULL
+);
+CREATE TABLE pds_set_aggregates (
+	kind TEXT NOT NULL,
+	actor_did TEXT NOT NULL,
+	scope_key TEXT NOT NULL,
+	subject_uri TEXT NOT NULL,
+	eligible_source_count INTEGER NOT NULL,
+	representative_source_uri TEXT NOT NULL,
+	activated_at TIMESTAMPTZ NOT NULL,
+	PRIMARY KEY(kind,actor_did,scope_key)
 );
 `
 
@@ -127,14 +139,17 @@ func TestHistoricalSourcesConvergeWhenDependenciesArriveLater(t *testing.T) {
 		t.Fatalf("interaction claim source=%s, want %s", likeClaim.SourceURI, likeURI)
 	}
 	if err := store.Project(ctx, likeClaim, func(ctx context.Context, tx pgx.Tx, source ingestion.SourceRecord) (tap.Outcome, error) {
-		_, err := tx.Exec(ctx, `INSERT INTO craftsky_likes(uri,did,subject_uri,cid) VALUES($1,$2,$3,$4)`, source.URI, source.DID, subjectURI, source.CID)
+		if _, err := tx.Exec(ctx, `INSERT INTO pds_set_sources(source_uri,kind,actor_did,scope_key,subject_uri,activity_at,eligible) VALUES($1,'like',$2,$3,$3,now(),true)`, source.URI, source.DID, subjectURI); err != nil {
+			return tap.Applied(), err
+		}
+		_, err := tx.Exec(ctx, `INSERT INTO pds_set_aggregates(kind,actor_did,scope_key,subject_uri,eligible_source_count,representative_source_uri,activated_at) VALUES('like',$1,$2,$2,1,$3,now())`, source.DID, subjectURI, source.URI)
 		return tap.Applied(), err
 	}); err != nil {
 		t.Fatalf("project interaction: %v", err)
 	}
 
 	var likes int
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM craftsky_likes WHERE uri=$1`, likeURI).Scan(&likes); err != nil || likes != 1 {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM pds_set_sources WHERE source_uri=$1`, likeURI).Scan(&likes); err != nil || likes != 1 {
 		t.Fatalf("projected likes=%d err=%v", likes, err)
 	}
 }
@@ -506,17 +521,26 @@ func applyTapDurabilityMigration(t *testing.T, pool interface {
 }) {
 	t.Helper()
 	for _, path := range []string{
-		"../../migrations/000045_tap_ingestion_durability.up.sql",
-		"../../migrations/000051_tap_quarantine_replay_payload.up.sql",
-		"../../migrations/000058_tap_projection_generation_column.up.sql",
+		"000045_tap_ingestion_durability.up.sql",
+		"000051_tap_quarantine_replay_payload.up.sql",
+		"000058_tap_projection_generation_column.up.sql",
 	} {
-		sql, err := os.ReadFile(path)
+		sql, err := testdb.ReadMigration(path)
 		if err != nil {
 			t.Fatalf("read Tap durability migration %s: %v", path, err)
 		}
 		if _, err := pool.Exec(context.Background(), string(sql)); err != nil {
 			t.Fatalf("apply Tap durability migration %s: %v", path, err)
 		}
+	}
+	if _, err := pool.Exec(context.Background(), `
+		ALTER TABLE tap_source_records
+			ADD COLUMN validation_version INTEGER NOT NULL DEFAULT 1,
+			ADD COLUMN structural_validation_status TEXT NOT NULL DEFAULT 'pending',
+			ADD COLUMN semantic_validation_status TEXT NOT NULL DEFAULT 'pending',
+			ADD COLUMN validation_reason TEXT
+	`); err != nil {
+		t.Fatalf("add source validation fixture columns: %v", err)
 	}
 }
 

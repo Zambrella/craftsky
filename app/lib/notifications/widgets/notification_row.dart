@@ -9,8 +9,10 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
 import 'package:craftsky_app/notifications/widgets/notification_category_icon.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
+import 'package:craftsky_app/profile/providers/block_profile_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
-import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/profile/providers/toggle_block_profile_provider.dart';
+import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
@@ -42,6 +44,7 @@ class NotificationRow extends ConsumerWidget {
       return _buildSystem(context, ref, system);
     }
     final actorNotification = notification as ActorNotification;
+    ref.watch(toggleBlockProfileProvider);
     final registry = ref.watch(sessionRegistryProvider).value;
     final account = owner?.account ?? registry?.activeLease?.session.account;
     final actorRelationshipProvider =
@@ -56,13 +59,17 @@ class NotificationRow extends ConsumerWidget {
     final cachedRelationship = actorRelationshipProvider == null
         ? null
         : ref.watch(actorRelationshipProvider);
-    final serverRelationship = actorNotification.actor.hasViewerState
-        ? ProfileRelationship.fromProfileFlags(
-            muted: actorNotification.actor.muted ?? false,
-            blocking: actorNotification.actor.blocking ?? false,
-            blockedBy: actorNotification.actor.blockedBy ?? false,
-          )
-        : const ProfileRelationship(initialized: true);
+    final serverRelationship = applyBlockRelationshipOverlay(
+      ref.read,
+      actorNotification.actor.hasViewerState
+          ? ProfileRelationship.fromProfileFlags(
+              muted: actorNotification.actor.muted ?? false,
+              blocking: actorNotification.actor.blocking ?? false,
+              blockedBy: actorNotification.actor.blockedBy ?? false,
+            )
+          : const ProfileRelationship(initialized: true),
+      actorNotification.actor.did,
+    );
     if (actorRelationshipProvider != null &&
         !(cachedRelationship?.initialized ?? false)) {
       unawaited(
@@ -73,12 +80,16 @@ class NotificationRow extends ConsumerWidget {
         ),
       );
     }
-    final relationship = cachedRelationship?.initialized ?? false
-        ? cachedRelationship
-        : actorNotification.actor.hasViewerState
-        ? serverRelationship
-        : null;
-    if ((relationship?.muted ?? false) || (relationship?.hasBlock ?? false)) {
+    final relationship = applyBlockRelationshipOverlay(
+      ref.read,
+      cachedRelationship?.initialized ?? false
+          ? cachedRelationship!
+          : actorNotification.actor.hasViewerState
+          ? serverRelationship
+          : const ProfileRelationship(initialized: true),
+      actorNotification.actor.did,
+    );
+    if (relationship.muted || relationship.hasBlock) {
       return const SizedBox.shrink();
     }
     final l10n = AppLocalizations.of(context);
@@ -236,10 +247,16 @@ class NotificationRow extends ConsumerWidget {
   ) {
     final l10n = AppLocalizations.of(context);
     final theme = Theme.of(context);
-    final title = l10n.notificationGenericRow;
+    final title = switch (system) {
+      ModerationNotification() => l10n.notificationModerationRow,
+      GenericSystemNotification() => l10n.notificationGenericRow,
+    };
     return Material(
       type: MaterialType.transparency,
       child: InkWell(
+        onTap: system is ModerationNotification
+            ? () => _open(context, ref)
+            : null,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           child: Row(
@@ -300,6 +317,10 @@ class NotificationRow extends ConsumerWidget {
         break;
       case GenericSystemNotification():
         break;
+      case ModerationNotification():
+        unawaited(
+          const AccountStandingRoute().push<void>(context),
+        );
       case UnavailableNotification():
         context.showWarning(
           AppLocalizations.of(context).notificationUnavailableRow,
@@ -377,28 +398,24 @@ class _NotificationFollowButtonState
 
   Future<void> _toggle() async {
     if (_isBusy || !_isOwnerCurrent()) return;
-    final previous = _isFollowing;
-    setState(() {
-      _isFollowing = !previous;
-      _isBusy = true;
-    });
+    setState(() => _isBusy = true);
     try {
-      final owner = widget.owner;
-      final repository = owner == null
-          ? ref.read(profileRepositoryProvider)
-          : await ref.read(
-              accountRelationshipRepositoryProvider(owner.account).future,
-            );
+      final profile = await ref.read(
+        userProfileProvider(widget.actor.did).future,
+      );
       if (!_isOwnerCurrent()) return;
-      final updated = previous
-          ? await repository.unfollow(widget.actor.did.toString())
-          : await repository.follow(widget.actor.did.toString());
+      await ref
+          .read(toggleFollowProfileProvider.notifier)
+          .toggle(cacheKey: widget.actor.did, profile: profile);
       if (!mounted || !_isOwnerCurrent()) return;
-      setState(() => _isFollowing = updated.viewerIsFollowing);
-      ref.invalidate(userProfileProvider(widget.actor.did));
+      final result = ref.read(toggleFollowProfileProvider);
+      if (result.hasError) throw Exception('Follow mutation failed');
+      final updated = result.value;
+      if (updated != null) {
+        setState(() => _isFollowing = updated.viewerIsFollowing);
+      }
     } on Object {
       if (!mounted || !_isOwnerCurrent()) return;
-      setState(() => _isFollowing = previous);
       context.showError(
         AppLocalizations.of(context).profileFollowToggleError,
       );
@@ -429,6 +446,7 @@ Color _actionColor(
   MentionNotification() || QuoteNotification() => colors.secondary,
   GenericNotification() => colors.outline,
   GenericSystemNotification() => colors.outline,
+  ModerationNotification() => colors.primary,
   UnavailableNotification() => colors.error,
 };
 
