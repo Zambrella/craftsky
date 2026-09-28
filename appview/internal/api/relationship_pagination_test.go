@@ -49,14 +49,12 @@ func TestDenseRelationshipFilteredTimelineFillsThreeOpaquePages(t *testing.T) {
 
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO actor_mutes (owner_did, subject_did)
-		VALUES ('did:plc:viewer', 'did:plc:bob');
-		INSERT INTO atproto_blocks (uri, blocker_did, rkey, cid, subject_did, record, created_at)
-		VALUES
-		  ('at://did:plc:carol/app.bsky.graph.block/viewer', 'did:plc:carol', 'viewer', 'cid-carol', 'did:plc:viewer', '{}', now()),
-		  ('at://did:plc:viewer/app.bsky.graph.block/dana', 'did:plc:viewer', 'dana', 'cid-dana', 'did:plc:dana', '{}', now());
+		VALUES ('did:plc:viewer', 'did:plc:bob')
 	`); err != nil {
 		t.Fatalf("seed protected actors: %v", err)
 	}
+	seedBlockAggregate(t, pool, "did:plc:carol", "did:plc:viewer", base)
+	seedBlockAggregate(t, pool, "did:plc:viewer", "did:plc:dana", base)
 
 	store := api.NewPostStore(pool)
 	var got []string

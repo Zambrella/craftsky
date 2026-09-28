@@ -100,7 +100,6 @@ mixin ReportSubmissionMappable {
     );
   }
 }
-
 extension ReportSubmissionValueCopy<$R, $Out>
     on ObjectCopyWith<$R, ReportSubmission, $Out> {
   ReportSubmissionCopyWith<$R, ReportSubmission, $Out>

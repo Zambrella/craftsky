@@ -57,8 +57,8 @@ func TestScheduledOperationsEmitBoundedContentFreeSignals(t *testing.T) {
 		Sessions: stubPublicationSessionSelector{
 			wantOwner: "did:plc:alice", err: auth.ErrNoUsableBackgroundSession,
 		},
-		NewEffects: recordingGuardedFactory(nil, ErrAuthUnavailable),
-		Objects:    newMemoryPrivateObjectStore(), Now: func() time.Time { return current }, Observer: observer,
+		NewCommands: recordingGuardedFactory(nil, ErrAuthUnavailable),
+		Objects:     newMemoryPrivateObjectStore(), Now: func() time.Time { return current }, Observer: observer,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -121,9 +121,9 @@ func TestScheduledOperationsEmitBoundedContentFreeSignals(t *testing.T) {
 		Sessions: stubPublicationSessionSelector{
 			wantOwner: "did:plc:bob", sessionID: "private-owner-session-canary",
 		},
-		NewEffects: recordingGuardedFactory(pds, nil),
-		Objects:    newMemoryPrivateObjectStore(),
-		Now:        func() time.Time { return current }, Observer: observer,
+		NewCommands: recordingGuardedFactory(pds, nil),
+		Objects:     newMemoryPrivateObjectStore(),
+		Now:         func() time.Time { return current }, Observer: observer,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -153,9 +153,9 @@ func TestScheduledOperationsEmitBoundedContentFreeSignals(t *testing.T) {
 		Sessions: stubPublicationSessionSelector{
 			wantOwner: "did:plc:bob", err: auth.ErrNoUsableBackgroundSession,
 		},
-		NewEffects: recordingGuardedFactory(nil, errors.New("private-provider-response-canary")),
-		Objects:    newMemoryPrivateObjectStore(),
-		Now:        func() time.Time { return current }, Observer: observer,
+		NewCommands: recordingGuardedFactory(nil, errors.New("private-provider-response-canary")),
+		Objects:     newMemoryPrivateObjectStore(),
+		Now:         func() time.Time { return current }, Observer: observer,
 	})
 	if err != nil {
 		t.Fatal(err)

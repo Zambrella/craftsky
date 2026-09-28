@@ -22,6 +22,7 @@ import 'package:craftsky_app/profile/providers/profile_repository_provider.dart'
 import 'package:craftsky_app/router/router.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter/material.dart';
@@ -230,6 +231,9 @@ Future<_RouterHarness> _pumpRouter(
         ),
       ),
       businessRepositoryProvider.overrideWithValue(_BusinessRepository()),
+      pdsRecordOperationControllerProvider.overrideWithValue(
+        PdsRecordOperationController(schedule: (_, _) {}),
+      ),
     ],
     retry: (_, _) => null,
   );
@@ -305,6 +309,7 @@ final class _BusinessRepository extends Fake implements BusinessRepository {
   @override
   Future<RecordMutationResult> putBusinessProfile(
     Map<String, dynamic> body, {
+    required String operationKey,
     required Cid? expectedCid,
   }) async => RecordMutationResult(cid: 'bafy-products-accepted');
 

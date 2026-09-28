@@ -14,12 +14,14 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/testlog"
 )
@@ -446,6 +448,7 @@ func newPutHandler(
 	store *fakeStore,
 	pds *fakePDSForPut,
 	resolver fakeResolver,
+	compoundCommands ...api.CompoundPutCommandExecutor,
 ) http.Handler {
 	t.Helper()
 	handler := api.PutMeProfileHandler(
@@ -456,12 +459,107 @@ func newPutHandler(
 		},
 		api.DefaultMediaLimits(),
 		nilLogger(),
+		compoundCommands...,
 	)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := middleware.WithOwnerGeneration(r.Context(), 1)
 		ctx = middleware.WithOAuthSessionID(ctx, "profile-test-session")
 		handler.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+type fakeCompoundProfileCommands struct {
+	request pdscommands.CompoundPutCommandRequest
+	result  pdscommands.CommandResult
+	err     error
+	put     func(pdscommands.CompoundPutCommandRequest) (pdscommands.CommandResult, error)
+}
+
+func (fake *fakeCompoundProfileCommands) Put(_ context.Context, request pdscommands.CompoundPutCommandRequest) (pdscommands.CommandResult, error) {
+	fake.request = request
+	if fake.put != nil {
+		return fake.put(request)
+	}
+	return fake.result, fake.err
+}
+
+func TestPutProfile_CompoundCommandBuildsBothRecords(t *testing.T) {
+	commands := &fakeCompoundProfileCommands{}
+	commands.put = func(request pdscommands.CompoundPutCommandRequest) (pdscommands.CommandResult, error) {
+		if len(request.Records) != 2 {
+			t.Fatalf("records = %d, want 2", len(request.Records))
+		}
+		bsky, err := request.Records[0].BuildRecord(pdscommands.AuthoritativeRecord{
+			URI: request.Records[0].URI, CID: "bafy-old-bsky",
+			Record: json.RawMessage(`{"$type":"app.bsky.actor.profile","displayName":"Before","labels":{"values":[]}}`),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		craftsky, err := request.Records[1].BuildRecord(pdscommands.AuthoritativeRecord{
+			URI: request.Records[1].URI, CID: "bafy-old-craftsky",
+			Record: json.RawMessage(`{"$type":"social.craftsky.actor.profile","crafts":["sewing"]}`),
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var bskyBody map[string]any
+		if err := json.Unmarshal(bsky, &bskyBody); err != nil {
+			t.Fatal(err)
+		}
+		if bskyBody["displayName"] != "After" || bskyBody["labels"] == nil {
+			t.Fatalf("Bluesky record = %#v", bskyBody)
+		}
+		var craftskyBody map[string]any
+		if err := json.Unmarshal(craftsky, &craftskyBody); err != nil {
+			t.Fatal(err)
+		}
+		crafts, _ := craftskyBody["crafts"].([]any)
+		if len(crafts) != 1 || crafts[0] != "quilting" {
+			t.Fatalf("CraftSky record = %#v", craftskyBody)
+		}
+		terminal, err := request.Accepted([]pdscommands.AuthoritativeRecord{
+			{URI: request.Records[0].URI, CID: "bafy-new-bsky", Record: bsky},
+			{URI: request.Records[1].URI, CID: "bafy-new-craftsky", Record: craftsky},
+		})
+		return pdscommands.CommandResult{TerminalResult: terminal}, err
+	}
+	pds := &fakePDSForPut{
+		getBsky: func() (map[string]any, error) {
+			t.Fatal("legacy profile reader was called")
+			return nil, nil
+		},
+		putBsky: func(map[string]any) error {
+			t.Fatal("legacy Bluesky writer was called")
+			return nil
+		},
+		putCraftsky: func(map[string]any) error {
+			t.Fatal("legacy CraftSky writer was called")
+			return nil
+		},
+	}
+	handler := newPutHandler(t, &fakeStore{}, pds, fakeResolver{handleFor: "alice.example"}, commands)
+	request := httptest.NewRequest(http.MethodPut, "/v1/profiles/me", strings.NewReader(`{"displayName":"After","crafts":["quilting"]}`))
+	request.Header.Set("Idempotency-Key", "018f4d5c-7a61-7d40-a1a2-aaaaaaaaaaad")
+	request = request.WithContext(middleware.WithDID(request.Context(), "did:plc:me"))
+	response := httptest.NewRecorder()
+
+	handler.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
+	}
+	var body api.ProfileResponse
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if body.DisplayName == nil || *body.DisplayName != "After" || body.Handle != "alice.example" {
+		t.Fatalf("response = %+v", body)
+	}
+	if commands.request.Records[0].URI != "at://did:plc:me/app.bsky.actor.profile/self" ||
+		commands.request.Records[1].URI != "at://did:plc:me/social.craftsky.actor.profile/self" {
+		t.Fatalf("ordered URIs = %s, %s", commands.request.Records[0].URI, commands.request.Records[1].URI)
+	}
 }
 
 func TestPutProfile_HappyPathMergesBlueskyExtras(t *testing.T) {
@@ -684,21 +782,33 @@ func TestPutProfile_RejectsMalformedAvatarBlob(t *testing.T) {
 	}
 }
 
-func TestPutProfile_PartialSuccessReturns502(t *testing.T) {
+func TestPutProfile_WriteFailureCannotLeavePartialChange(t *testing.T) {
 	t.Parallel()
+	bskyWrites := 0
 	pds := &fakePDSForPut{
-		getBsky:     func() (map[string]any, error) { return map[string]any{}, nil },
-		putBsky:     func(_ map[string]any) error { return nil },
+		getBsky: func() (map[string]any, error) { return map[string]any{}, nil },
+		putBsky: func(_ map[string]any) error {
+			bskyWrites++
+			return nil
+		},
 		putCraftsky: func(_ map[string]any) error { return errors.New("pds down") },
 	}
 	row := &api.ProfileRow{DID: "did:plc:me", Crafts: []string{}, CreatedAt: time.Now()}
+	commands := &fakeCompoundProfileCommands{result: pdscommands.CommandResult{
+		TerminalResult: pdscommands.TerminalResult{
+			State: pdscommands.CommandRejected, HTTPStatus: http.StatusBadGateway,
+			ResponseBody: json.RawMessage(`{"error":"pds_write_failed","message":"profile write failed"}`),
+		},
+	}}
 	h := newPutHandler(t,
 		&fakeStore{row: row},
 		pds,
 		fakeResolver{handleFor: "alice.example"},
+		commands,
 	)
 	body := `{"displayName":"x"}`
 	req := httptest.NewRequest(http.MethodPut, "/v1/profiles/me", strings.NewReader(body))
+	req.Header.Set("Idempotency-Key", "018f4d5c-7a61-7d40-a1a2-aaaaaaaaaaab")
 	req = req.WithContext(middleware.WithDID(req.Context(), "did:plc:me"))
 	rr := httptest.NewRecorder()
 	h.ServeHTTP(rr, req)
@@ -707,11 +817,14 @@ func TestPutProfile_PartialSuccessReturns502(t *testing.T) {
 	}
 	var env envelope.Error
 	_ = json.Unmarshal(rr.Body.Bytes(), &env)
-	if env.Error != "pds_write_partial" {
+	if env.Error != "pds_write_failed" {
 		t.Errorf("code = %q", env.Error)
 	}
-	if env.Fields["craftsky"] != "failed" || env.Fields["bsky"] != "ok" {
-		t.Errorf("fields = %v", env.Fields)
+	if bskyWrites != 0 {
+		t.Fatalf("bluesky writes = %d, want no partial profile mutation", bskyWrites)
+	}
+	if commands.request.OperationKey != uuid.MustParse("018f4d5c-7a61-7d40-a1a2-aaaaaaaaaaab") || len(commands.request.Records) != 2 {
+		t.Fatalf("compound request = %+v", commands.request)
 	}
 }
 

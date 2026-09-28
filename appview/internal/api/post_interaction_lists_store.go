@@ -100,10 +100,11 @@ func eligibleAccountInteractionPredicate(actorAlias, targetAuthor, viewerParam s
 		  AND NOT appview_owner_is_terminal(` + targetAuthor + `)
 		  AND NOT ` + postAuthorBlockedPredicate(actorAlias, viewerParam) + `
 		  AND NOT EXISTS (
-			SELECT 1 FROM atproto_blocks block
-			WHERE ((block.blocker_did = ` + actorAlias + `.did AND block.subject_did = ` + targetAuthor + `)
-			    OR (block.blocker_did = ` + targetAuthor + ` AND block.subject_did = ` + actorAlias + `.did))
-			  AND NOT appview_owner_is_terminal(block.blocker_did)
+			SELECT 1 FROM pds_set_aggregates block
+			WHERE block.kind = 'block'
+			  AND ((block.actor_did = ` + actorAlias + `.did AND block.subject_did = ` + targetAuthor + `)
+			    OR (block.actor_did = ` + targetAuthor + ` AND block.subject_did = ` + actorAlias + `.did))
+			  AND NOT appview_owner_is_terminal(block.actor_did)
 			  AND NOT appview_owner_is_terminal(block.subject_did)
 		  )
 		  ` + moderation
@@ -153,18 +154,19 @@ type postInteractionAccountRow struct {
 }
 
 func PostInteractionAccountListQuery(kind PostInteractionKind) (string, error) {
-	var interactionTable string
+	var setKind string
 	switch kind {
 	case PostInteractionLikes:
-		interactionTable = "craftsky_likes"
+		setKind = "like"
 	case PostInteractionReposts:
-		interactionTable = "craftsky_reposts"
+		setKind = "repost"
 	default:
 		return "", fmt.Errorf("unsupported post interaction kind %q", kind)
 	}
 	return `
 		WITH eligible AS (
-			SELECT interaction.uri, interaction.created_at, actor.did,
+			SELECT interaction.representative_source_uri AS uri,
+			       interaction.activated_at AS created_at, actor.did,
 			       bp.display_name, bp.description, bp.avatar_cid, bp.avatar_mime,
 			       identity.handle,
 			       EXISTS (
@@ -173,12 +175,11 @@ func PostInteractionAccountListQuery(kind PostInteractionKind) (string, error) {
 					  AND NOT appview_owner_is_terminal(mute.owner_did)
 					  AND NOT appview_owner_is_terminal(mute.subject_did)
 			       ) AS muted
-			FROM ` + interactionTable + ` interaction
-			JOIN craftsky_profiles actor ON actor.did = interaction.did
+			FROM pds_set_aggregates interaction
+			JOIN craftsky_profiles actor ON actor.did = interaction.actor_did
 			LEFT JOIN bluesky_profiles bp ON bp.did = actor.did
 			LEFT JOIN atproto_identity_cache identity ON identity.did = actor.did
-			WHERE interaction.subject_uri = $1
-			  AND interaction.deleted_at IS NULL
+			WHERE interaction.kind = '` + setKind + `' AND interaction.subject_uri = $1
 			  ` + eligibleAccountInteractionPredicate("actor", "$3", "$2") + `
 		), totals AS (
 			SELECT count(*) AS total_count

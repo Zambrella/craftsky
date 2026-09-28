@@ -26,13 +26,7 @@ func TestNotificationStoreListsOnlyActiveDurableEventsWithStablePagination(t *te
 	seedMember(t, pool, "did:plc:viewer")
 	seedMember(t, pool, "did:plc:alice")
 	seedBskyProfile(t, pool, "did:plc:alice", "Alice", "avatar")
-	if _, err := pool.Exec(context.Background(), `
-		INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at)
-		VALUES ('at://did:plc:viewer/app.bsky.graph.follow/alice', 'did:plc:viewer',
-		        'alice', 'follow-cid', 'did:plc:alice', '{}'::jsonb, now())
-	`); err != nil {
-		t.Fatal(err)
-	}
+	seedFollow(t, pool, "did:plc:viewer", "did:plc:alice", "alice")
 	activity := time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC)
 	for _, row := range []struct{ id, state string }{
 		{"00000000-0000-0000-0000-000000000003", "active"},
@@ -256,12 +250,7 @@ func TestNotificationListAndNewCountDynamicallySuppressAndRestoreRelationships(t
 		t.Fatal(err)
 	}
 	assertState(1, 1)
-	if _, err := pool.Exec(context.Background(), `
-		INSERT INTO atproto_blocks(uri,blocker_did,rkey,cid,subject_did,record,created_at)
-		VALUES('at://did:plc:actor/app.bsky.graph.block/r1','did:plc:actor','r1','cid','did:plc:viewer','{}',now())
-	`); err != nil {
-		t.Fatal(err)
-	}
+	seedBlockAggregate(t, pool, "did:plc:actor", "did:plc:viewer", time.Now())
 	assertState(0, 0)
 }
 
@@ -377,12 +366,7 @@ func TestNotificationListHidesThirdPartyBlockedReferenceGraph(t *testing.T) {
 	parent := seedReplyPost(t, pool, "did:plc:bob", "parent", "parent", root, root, now.Add(time.Second))
 	source := seedReplyPost(t, pool, "did:plc:alice", "source", "@carol", root, parent, now.Add(2*time.Second))
 	seedPostMention(t, pool, source, "did:plc:carol", now.Add(2*time.Second))
-	if _, err := pool.Exec(context.Background(), `
-		INSERT INTO atproto_blocks(uri,blocker_did,rkey,cid,subject_did,record,created_at)
-		VALUES('at://did:plc:alice/app.bsky.graph.block/bob','did:plc:alice','bob','bafyblock','did:plc:bob','{}',$1)
-	`, now); err != nil {
-		t.Fatal(err)
-	}
+	seedBlockAggregate(t, pool, "did:plc:alice", "did:plc:bob", now)
 	if _, err := pool.Exec(context.Background(), `
 		INSERT INTO notification_events(
 			id,recipient_did,actor_did,category,subject_key,

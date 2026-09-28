@@ -651,7 +651,7 @@ void main() {
 
     await _pumpThread(tester, repository);
     tester.widget<PostCard>(find.byType(PostCard).first).onLike!();
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.byType(PostInteractionSummary), findsOneWidget);
     expect(
@@ -662,6 +662,8 @@ void main() {
           .post,
       tester.widget<PostCard>(find.byType(PostCard).first).post,
     );
+    await tester.pump(const Duration(seconds: 31));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('successful root deletion returns to the previous route', (

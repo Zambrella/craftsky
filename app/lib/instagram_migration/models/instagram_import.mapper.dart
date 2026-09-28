@@ -61,7 +61,6 @@ extension InstagramImportSourceTypeMapperExtension
         as String;
   }
 }
-
 class InstagramImportStateMapper extends EnumMapper<InstagramImportState> {
   InstagramImportStateMapper._();
 

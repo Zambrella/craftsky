@@ -10,7 +10,13 @@ abstract interface class BusinessRepository {
 
   Future<RecordMutationResult> putBusinessProfile(
     Map<String, dynamic> body, {
+    required String operationKey,
     required Cid? expectedCid,
+  });
+
+  Future<void> deleteBusinessProfile({
+    required String operationKey,
+    required Cid expectedCid,
   });
 
   Future<BusinessEventPage> listProfileEvents(
@@ -27,20 +33,25 @@ abstract interface class BusinessRepository {
 
   Future<BusinessEvent> getEvent(Did owner, RecordKey rkey);
 
-  Future<RecordMutationResult> createEvent(BusinessEventDraft draft);
+  Future<RecordMutationResult> createEvent(
+    BusinessEventDraft draft, {
+    required String operationKey,
+  });
 
   Future<RecordMutationResult> updateEvent(
     Did owner,
     RecordKey rkey,
     Cid expectedCid,
-    BusinessEventDraft draft,
-  );
+    BusinessEventDraft draft, {
+    required String operationKey,
+  });
 
-  Future<RecordMutationResult> deleteEvent(
+  Future<void> deleteEvent(
     Did owner,
     RecordKey rkey,
-    Cid expectedCid,
-  );
+    Cid expectedCid, {
+    required String operationKey,
+  });
 
   Future<ReportResult> reportEvent(
     Did owner,

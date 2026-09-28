@@ -52,7 +52,6 @@ extension AccountTypeMapperExtension on AccountType {
     return MapperContainer.globals.toValue<AccountType>(this) as String;
   }
 }
-
 class BusinessOpenValueMapper extends ClassMapperBase<BusinessOpenValue> {
   BusinessOpenValueMapper._();
 

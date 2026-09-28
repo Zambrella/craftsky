@@ -86,6 +86,8 @@ func postAuthorListOperation(label string) string {
 		return "project.author.list"
 	case "comment list":
 		return "comment.author.list"
+	case "repost list":
+		return "repost.author.list"
 	default:
 		return "post.author.list"
 	}

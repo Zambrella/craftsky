@@ -54,26 +54,29 @@ func (s *SearchStore) searchProfilesObserved(ctx context.Context, viewerDID stri
 		SELECT cp.did, ic.handle, ic.handle_lower, bp.display_name, bp.description, bp.avatar_cid, bp.avatar_mime, cp.crafts,
 			true AS is_craftsky_profile,
 			EXISTS (
-				SELECT 1 FROM atproto_follows f
-				WHERE f.did = $2 AND f.subject_did = cp.did
-				  AND NOT appview_owner_is_terminal(f.did)
+				SELECT 1 FROM pds_set_aggregates f
+				WHERE f.kind = 'follow'
+				  AND f.actor_did = $2 AND f.subject_did = cp.did
+				  AND NOT appview_owner_is_terminal(f.actor_did)
 				  AND NOT appview_owner_is_terminal(f.subject_did)
 				  AND NOT EXISTS (
-					SELECT 1 FROM atproto_blocks b
-					WHERE ((b.blocker_did = $2 AND b.subject_did = cp.did)
-					   OR (b.blocker_did = cp.did AND b.subject_did = $2))
-					  AND NOT appview_owner_is_terminal(b.blocker_did)
+					SELECT 1 FROM pds_set_aggregates b
+					WHERE b.kind = 'block'
+					  AND ((b.actor_did = $2 AND b.subject_did = cp.did)
+					   OR (b.actor_did = cp.did AND b.subject_did = $2))
+					  AND NOT appview_owner_is_terminal(b.actor_did)
 					  AND NOT appview_owner_is_terminal(b.subject_did)
 				  )
 			) AS viewer_is_following,
 			EXISTS (SELECT 1 FROM actor_mutes m WHERE m.owner_did = $2 AND m.subject_did = cp.did
 			        AND NOT appview_owner_is_terminal(m.owner_did) AND NOT appview_owner_is_terminal(m.subject_did)) AS muted,
-			EXISTS (SELECT 1 FROM atproto_blocks b WHERE b.blocker_did = $2 AND b.subject_did = cp.did
-			        AND NOT appview_owner_is_terminal(b.blocker_did) AND NOT appview_owner_is_terminal(b.subject_did)) AS blocking,
-			EXISTS (SELECT 1 FROM atproto_blocks b WHERE b.blocker_did = cp.did AND b.subject_did = $2
-			        AND NOT appview_owner_is_terminal(b.blocker_did) AND NOT appview_owner_is_terminal(b.subject_did)) AS blocked_by,
-			CASE WHEN EXISTS (SELECT 1 FROM atproto_follows f WHERE f.did = $2 AND f.subject_did = cp.did
-			                 AND NOT appview_owner_is_terminal(f.did) AND NOT appview_owner_is_terminal(f.subject_did)) THEN 0 ELSE 1 END AS followed_rank,
+			EXISTS (SELECT 1 FROM pds_set_aggregates b WHERE b.kind = 'block' AND b.actor_did = $2 AND b.subject_did = cp.did
+			        AND NOT appview_owner_is_terminal(b.actor_did) AND NOT appview_owner_is_terminal(b.subject_did)) AS blocking,
+			EXISTS (SELECT 1 FROM pds_set_aggregates b WHERE b.kind = 'block' AND b.actor_did = cp.did AND b.subject_did = $2
+			        AND NOT appview_owner_is_terminal(b.actor_did) AND NOT appview_owner_is_terminal(b.subject_did)) AS blocked_by,
+			CASE WHEN EXISTS (SELECT 1 FROM pds_set_aggregates f WHERE f.kind = 'follow'
+				                 AND f.actor_did = $2 AND f.subject_did = cp.did
+				                 AND NOT appview_owner_is_terminal(f.actor_did) AND NOT appview_owner_is_terminal(f.subject_did)) THEN 0 ELSE 1 END AS followed_rank,
 			CASE
 				WHEN ic.handle_lower <> 'handle.invalid' AND ic.handle_lower = $1 THEN 0
 				WHEN ic.handle_lower <> 'handle.invalid' AND ic.handle_lower LIKE $1 || '%' THEN 1
@@ -93,10 +96,11 @@ func (s *SearchStore) searchProfilesObserved(ctx context.Context, viewerDID stri
 		AND (
 			(ic.handle_lower <> 'handle.invalid' AND ic.handle_lower = $1)
 			OR NOT EXISTS (
-				SELECT 1 FROM atproto_blocks b
-				WHERE ((b.blocker_did = $2 AND b.subject_did = cp.did)
-				   OR (b.blocker_did = cp.did AND b.subject_did = $2))
-				  AND NOT appview_owner_is_terminal(b.blocker_did)
+				SELECT 1 FROM pds_set_aggregates b
+				WHERE b.kind = 'block'
+				  AND ((b.actor_did = $2 AND b.subject_did = cp.did)
+				   OR (b.actor_did = cp.did AND b.subject_did = $2))
+				  AND NOT appview_owner_is_terminal(b.actor_did)
 				  AND NOT appview_owner_is_terminal(b.subject_did)
 			)
 		)

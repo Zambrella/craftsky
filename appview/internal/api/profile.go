@@ -17,6 +17,7 @@ import (
 	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/pdseffects"
 )
 
@@ -344,6 +345,10 @@ const (
 	profileRecordKey    = "self"
 )
 
+type CompoundPutCommandExecutor interface {
+	Put(context.Context, pdscommands.CompoundPutCommandRequest) (pdscommands.CommandResult, error)
+}
+
 // PutMeProfileHandler serves PUT /v1/profiles/me.
 func PutMeProfileHandler(
 	store ProfileReader,
@@ -351,8 +356,14 @@ func PutMeProfileHandler(
 	newEffects pdseffects.ExecutorFactory,
 	limits MediaLimits,
 	logger *slog.Logger,
+	compoundCommands ...CompoundPutCommandExecutor,
 ) http.Handler {
 	limits = normalizeMediaLimits(limits)
+	var commands CompoundPutCommandExecutor
+	commandMode := len(compoundCommands) > 0
+	if len(compoundCommands) > 0 {
+		commands = compoundCommands[0]
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
 
@@ -393,6 +404,78 @@ func PutMeProfileHandler(
 		}
 		logger.Debug("profile put: validated request",
 			pdsLogAttrs(runID, pdsOperationProfilePutBsky, pdsStageRequestBuild)...)
+		if commandMode {
+			if commands == nil {
+				envelope.WriteError(w, http.StatusServiceUnavailable,
+					"pds_unavailable", "could not contact PDS", runID, nil)
+				return
+			}
+			operationKey, ok := requireCommandOperationKey(w, r, runID)
+			if !ok {
+				return
+			}
+			intent, blobs, err := profileCommandIntent(reqBody)
+			if err != nil {
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "could not prepare profile update", runID, nil)
+				return
+			}
+			uri := func(collection string) syntax.ATURI {
+				return syntax.ATURI("at://" + did.String() + "/" + collection + "/" + profileRecordKey)
+			}
+			result, err := commands.Put(r.Context(), pdscommands.CompoundPutCommandRequest{
+				Owner: did, OwnerGeneration: ownerGeneration, SessionID: sessionID,
+				OperationKind: "profile.update", OperationKey: operationKey,
+				Intent: intent, Blobs: blobs,
+				Records: []pdscommands.CompoundPutRecordRequest{
+					{URI: uri(blueskyProfileNSID), BuildRecord: func(current pdscommands.AuthoritativeRecord) (json.RawMessage, error) {
+						bsky := map[string]any{}
+						if len(current.Record) > 0 {
+							if err := json.Unmarshal(current.Record, &bsky); err != nil {
+								return nil, err
+							}
+						}
+						return json.Marshal(mergeBlueskyRecord(bsky, reqBody))
+					}},
+					{URI: uri(craftskyProfileNSID), BuildRecord: func(pdscommands.AuthoritativeRecord) (json.RawMessage, error) {
+						return json.Marshal(map[string]any{
+							"$type":  craftskyProfileNSID,
+							"crafts": nonNilStrings(reqBody.Crafts),
+						})
+					}},
+				},
+				Accepted: func(records []pdscommands.AuthoritativeRecord) (pdscommands.TerminalResult, error) {
+					if len(records) != 2 {
+						return pdscommands.TerminalResult{}, errors.New("compound profile result is incomplete")
+					}
+					var bsky map[string]any
+					if err := json.Unmarshal(records[0].Record, &bsky); err != nil {
+						return pdscommands.TerminalResult{}, err
+					}
+					handle, err := resolver.ResolveHandle(r.Context(), did)
+					if err != nil {
+						return pdscommands.TerminalResult{}, err
+					}
+					body, err := json.Marshal(BuildProfileResponse(syntheticRow(did.String(), bsky, reqBody.Crafts), handle, false))
+					if err != nil {
+						return pdscommands.TerminalResult{}, err
+					}
+					return pdscommands.TerminalResult{
+						State: pdscommands.CommandAccepted, HTTPStatus: http.StatusOK, ResponseBody: body,
+						ResponseHeaders: json.RawMessage(`{"Content-Type":"application/json"}`),
+					}, nil
+				},
+				Rejected: func(err error) pdscommands.TerminalResult {
+					return RejectedCommandResult(runID, err)
+				},
+			})
+			if err != nil {
+				WriteCommandError(w, runID, err)
+				return
+			}
+			WriteCommandResponse(w, CommandResultFromStored(result))
+			return
+		}
 
 		if newEffects == nil {
 			logger.Error("profile: durable effect factory unavailable",
@@ -528,6 +611,38 @@ func PutMeProfileHandler(
 				"pds_write_partial", "partial profile write", runID, fields)
 		}
 	})
+}
+
+func profileCommandIntent(request ProfilePutRequest) (json.RawMessage, []pdscommands.BlobReference, error) {
+	intent := map[string]any{"crafts": nonNilStrings(request.Crafts)}
+	if request.DisplayName != nil {
+		intent["displayName"] = *request.DisplayName
+	}
+	if request.Description != nil {
+		intent["description"] = *request.Description
+	}
+	if request.Pronouns != nil {
+		intent["pronouns"] = *request.Pronouns
+	}
+	blobs := make([]pdscommands.BlobReference, 0, 2)
+	for _, image := range []struct {
+		name   string
+		update ProfileImageUpdate
+	}{{"avatar", request.Avatar}, {"banner", request.Banner}} {
+		if !image.update.Present {
+			continue
+		}
+		intent[image.name] = image.update.Blob
+		if image.update.Blob == nil {
+			continue
+		}
+		size, _ := positiveIntegerAsInt64(image.update.Blob["size"])
+		blobs = append(blobs, pdscommands.BlobReference{
+			CID: syntax.CID(blobCID(image.update.Blob)), MIMEType: image.update.Blob["mimeType"].(string), Size: size,
+		})
+	}
+	raw, err := json.Marshal(intent)
+	return raw, blobs, err
 }
 
 // mergeBlueskyRecord returns a fresh record body formed from `existing`

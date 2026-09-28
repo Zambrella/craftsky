@@ -12,6 +12,8 @@ import (
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/pdscommands"
+	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/scheduledposts"
 )
 
@@ -82,9 +84,22 @@ func newScheduledPublicationDependencies(
 	cfg Config,
 ) (*scheduledPublicationDependencies, error) {
 	processor, err := scheduledposts.NewPublicationProcessor(scheduledposts.PublicationProcessorOptions{
-		Store:         storage.store,
-		Sessions:      auth.NewBackgroundSessionSelector(pool),
-		NewEffects:    pdsEffects.guarded,
+		Store:    storage.store,
+		Sessions: auth.NewBackgroundSessionSelector(pool),
+		NewCommands: func(
+			ctx context.Context,
+			owner syntax.DID,
+			sessionID string,
+		) (scheduledposts.GuardedCommandCoordinator, error) {
+			guarded, err := pdsEffects.guarded(ctx, owner, sessionID)
+			if err != nil {
+				return nil, err
+			}
+			return scheduledCommandCoordinator{
+				guarded: guarded,
+				append:  pdsEffects.append,
+			}, nil
+		},
 		Objects:       storage.objects,
 		Now:           time.Now,
 		MaxMediaBytes: cfg.MaxImageUploadBytes,
@@ -117,6 +132,42 @@ func newScheduledPublicationDependencies(
 		return nil, fmt.Errorf("scheduled publication worker: %w", err)
 	}
 	return &scheduledPublicationDependencies{manual: manual, worker: worker}, nil
+}
+
+type scheduledCommandCoordinator struct {
+	guarded pdseffects.GuardedCapabilityCoordinator
+	append  *pdscommands.AppendCommandService
+}
+
+func (coordinator scheduledCommandCoordinator) WithGuardedCommands(
+	ctx context.Context,
+	expected []ownerlifecycle.ExpectedOwner,
+	operation scheduledposts.GuardedCommandOperation,
+) error {
+	return coordinator.guarded.WithGuardedCapabilities(
+		ctx,
+		expected,
+		func(
+			effectCtx context.Context,
+			effects pdseffects.EffectExecutor,
+			client auth.PDSClient,
+		) error {
+			commands, err := pdscommands.NewAlreadyFencedCommandExecutor(
+				coordinator.append,
+				client,
+				expected,
+			)
+			if err != nil {
+				return err
+			}
+			scoped, err := pdscommands.NewScopedAlreadyFencedCommandExecutor(commands)
+			if err != nil {
+				return err
+			}
+			defer scoped.CloseAndWait()
+			return operation(effectCtx, effects, scoped)
+		},
+	)
 }
 
 func newScheduledStorageDependencies(

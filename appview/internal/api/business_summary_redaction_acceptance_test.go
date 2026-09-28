@@ -35,8 +35,8 @@ func TestBlockedBusinessEventListAndDirectReadAreIndistinguishableFromMissing(t 
 		t.Fatalf("seed blocked business account type: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO atproto_blocks(uri, blocker_did, subject_did)
-		VALUES ('at://did:plc:blocked-business/app.bsky.graph.block/visitor', $1, $2)
+		INSERT INTO pds_set_aggregates(kind, actor_did, subject_did)
+		VALUES ('block', $1, $2)
 	`, owner, visitor); err != nil {
 		t.Fatalf("seed blocked business relationship: %v", err)
 	}

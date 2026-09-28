@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/auth"
-	"social.craftsky/appview/internal/pdseffects"
 )
 
 func TestPDSMigrationScheduledPublicationCutoff(t *testing.T) {
@@ -58,7 +57,7 @@ func TestPDSMigrationScheduledPublicationCutoff(t *testing.T) {
 				Sessions: stubPublicationSessionSelector{
 					wantOwner: "did:plc:alice", sessionID: "current-parent", err: test.sessionErr,
 				},
-				NewEffects: func(context.Context, syntax.DID, string) (pdseffects.GuardedEffectCoordinator, error) {
+				NewCommands: func(context.Context, syntax.DID, string) (GuardedCommandCoordinator, error) {
 					if test.sessionErr != nil {
 						return nil, errors.New("effect factory must not run without a session")
 					}

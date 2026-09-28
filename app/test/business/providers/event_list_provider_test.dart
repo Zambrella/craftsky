@@ -6,10 +6,12 @@ import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/business/data/business_repository.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
-import 'package:craftsky_app/business/providers/business_projection_overlay_provider.dart';
+import 'package:craftsky_app/business/providers/business_record_overlay.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
 import 'package:craftsky_app/business/providers/profile_business_events_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_reconciliation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -226,23 +228,7 @@ void main() {
         account: target.account,
         sessionGeneration: 0,
       );
-      final key = BusinessProjectionKey.event(
-        target.account,
-        before.did,
-        before.rkey,
-      );
-      final overlays = container.read(
-        businessProjectionOverlayProvider.notifier,
-      );
-      final generation = overlays.beginMutation(key, lease);
-      overlays.acceptUpsert(
-        key: key,
-        lease: lease,
-        requestGeneration: generation,
-        preWriteCid: before.cid,
-        acceptedCid: accepted.cid,
-        acceptedView: accepted,
-      );
+      _installSharedEventOverlay(container, lease, accepted);
 
       staleRefresh.complete(
         BusinessEventPage(
@@ -258,7 +244,10 @@ void main() {
       expect(state.items.single.name, 'Accepted');
       expect(state.cursor, 'current-cursor');
       expect(state.isRefreshing, isFalse);
-      expect(container.read(businessProjectionOverlayProvider), contains(key));
+      expect(
+        container.read(pdsRecordOperationControllerProvider).activeOverlays,
+        isNotEmpty,
+      );
     },
   );
 
@@ -297,32 +286,12 @@ void main() {
         account: target.account,
         sessionGeneration: 0,
       );
-      final key = BusinessProjectionKey.event(
-        target.account,
-        confirmed.did,
-        confirmed.rkey,
-      );
-      final overlays = container.read(
-        businessProjectionOverlayProvider.notifier,
-      );
-      final generation = overlays.beginMutation(key, lease);
-      overlays.acceptUpsert(
-        key: key,
-        lease: lease,
-        requestGeneration: generation,
-        preWriteCid: confirmed.cid,
-        acceptedCid: accepted.cid,
-        acceptedView: accepted,
-      );
+      final overlays = container.read(pdsRecordOperationControllerProvider);
+      final scope = _installSharedEventOverlay(container, lease, accepted);
 
       final loadMore = container.read(provider.notifier).loadMore();
       await Future<void>.delayed(Duration.zero);
-      overlays.reconcile<BusinessEvent>(
-        key: key,
-        fence: overlays.captureRead(lease),
-        authoritativeCid: accepted.cid,
-        authoritativeView: accepted,
-      );
+      overlays.reconcile(scope, businessEventProjection(accepted));
       stalePage.complete(
         BusinessEventPage(
           items: [confirmed.copyWith(name: 'Stale response')],
@@ -335,9 +304,36 @@ void main() {
       expect(state.items, [same(confirmed)]);
       expect(state.cursor, 'current-cursor');
       expect(state.isLoadingMore, isFalse);
-      expect(container.read(businessProjectionOverlayProvider), isEmpty);
+      expect(overlays.activeOverlays, isEmpty);
     },
   );
+}
+
+PdsMutationScope _installSharedEventOverlay(
+  ProviderContainer container,
+  AccountSessionLease lease,
+  BusinessEvent accepted,
+) {
+  final controller = container.read(pdsRecordOperationControllerProvider);
+  final scope = businessEventMutationScope(lease, accepted.uri.toString());
+  final token = controller.begin(
+    scope: scope,
+    operationKey: 'test-${accepted.cid}',
+    endpoint: '/test',
+    immutableBody: '{}',
+  );
+  final reconciliation = PdsAddressedUpdateReconciliation(
+    uri: accepted.uri.toString(),
+    acceptedCid: accepted.cid.toString(),
+    controlledContent: businessEventProjection(accepted).content,
+  );
+  controller.markAccepted(
+    token,
+    optimisticValue: accepted,
+    agrees: (value) =>
+        value is PdsRecordProjection && reconciliation.agrees(value),
+  );
+  return scope;
 }
 
 ProfileBusinessEventsTarget _target() => ProfileBusinessEventsTarget(

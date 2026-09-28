@@ -17,8 +17,7 @@ import (
 type RelationshipMutationService interface {
 	Mute(context.Context, syntax.DID, syntax.DID) (relationships.State, error)
 	Unmute(context.Context, syntax.DID, syntax.DID) (relationships.State, error)
-	Block(context.Context, syntax.DID, syntax.DID, string) (relationships.BlockMutationResult, error)
-	Unblock(context.Context, syntax.DID, syntax.DID, string) (relationships.BlockMutationResult, error)
+	EnqueueRelationshipSafetyRestoration(context.Context, syntax.DID, syntax.DID) error
 }
 
 type relationshipMutationResponse struct {
@@ -35,8 +34,6 @@ type relationshipMutation uint8
 const (
 	mutationMute relationshipMutation = iota
 	mutationUnmute
-	mutationBlock
-	mutationUnblock
 )
 
 func MuteProfileHandler(
@@ -55,24 +52,6 @@ func UnmuteProfileHandler(
 	logger *slog.Logger,
 ) http.Handler {
 	return relationshipProfileMutationHandler(service, membership, resolver, logger, mutationUnmute)
-}
-
-func BlockProfileHandler(
-	service RelationshipMutationService,
-	membership relationships.MembershipLookup,
-	resolver HandleResolver,
-	logger *slog.Logger,
-) http.Handler {
-	return relationshipProfileMutationHandler(service, membership, resolver, logger, mutationBlock)
-}
-
-func UnblockProfileHandler(
-	service RelationshipMutationService,
-	membership relationships.MembershipLookup,
-	resolver HandleResolver,
-	logger *slog.Logger,
-) http.Handler {
-	return relationshipProfileMutationHandler(service, membership, resolver, logger, mutationUnblock)
 }
 
 func relationshipProfileMutationHandler(
@@ -100,20 +79,11 @@ func relationshipProfileMutationHandler(
 		}
 
 		var state relationships.State
-		var block relationships.BlockMutationResult
 		switch mutation {
 		case mutationMute:
 			state, err = service.Mute(r.Context(), owner, subject)
 		case mutationUnmute:
 			state, err = service.Unmute(r.Context(), owner, subject)
-		case mutationBlock:
-			sid, _ := middleware.GetOAuthSessionID(r.Context())
-			block, err = service.Block(r.Context(), owner, subject, sid)
-			state = block.State
-		case mutationUnblock:
-			sid, _ := middleware.GetOAuthSessionID(r.Context())
-			block, err = service.Unblock(r.Context(), owner, subject, sid)
-			state = block.State
 		}
 		if err != nil {
 			if logger != nil {
@@ -131,9 +101,6 @@ func relationshipProfileMutationHandler(
 			Muted:     state.Muted,
 			Blocking:  state.Blocking,
 			BlockedBy: state.BlockedBy,
-			URI:       block.URI.String(),
-			CID:       block.CID.String(),
-			Rkey:      block.Rkey.String(),
 		}
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
@@ -167,10 +134,6 @@ func (m relationshipMutation) operation() string {
 		return "mute.create"
 	case mutationUnmute:
 		return "mute.delete"
-	case mutationBlock:
-		return "block.create"
-	case mutationUnblock:
-		return "block.delete"
 	default:
 		return "relationship.unknown"
 	}

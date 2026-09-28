@@ -28,8 +28,12 @@ type Activation struct {
 }
 
 type Retraction struct {
-	SourceURI syntax.ATURI
-	Reason    string
+	SourceURI    syntax.ATURI
+	RecipientDID syntax.DID
+	ActorDID     syntax.DID
+	Category     Category
+	SubjectKey   string
+	Reason       string
 }
 
 // Lifecycle participates in a source indexer's transaction. Implementations

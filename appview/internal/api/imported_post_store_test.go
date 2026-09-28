@@ -374,7 +374,7 @@ func TestTimelineExcludesImportedOriginalButIncludesLaterRepostAndQuote(t *testi
 	`, imported); err != nil {
 		t.Fatalf("classify import: %v", err)
 	}
-	repost := seedInteraction(t, pool, "repost", "did:plc:sharer", "share-import", imported, false)
+	seedInteraction(t, pool, "repost", "did:plc:sharer", "share-import", imported, false)
 	quote := seedQuotePost(t, pool, "did:plc:sharer", "quote-import", "remember this", imported, "bafycid", base.Add(2*time.Minute))
 
 	store := api.NewPostStore(pool)
@@ -389,7 +389,7 @@ func TestTimelineExcludesImportedOriginalButIncludesLaterRepostAndQuote(t *testi
 	if slices.Contains(keys, "post:"+imported) {
 		t.Fatalf("timeline contains imported original: %v", keys)
 	}
-	for _, want := range []string{"repost:" + repost, "post:" + quote} {
+	for _, want := range []string{"repost:did:plc:sharer:" + imported, "post:" + quote} {
 		if !slices.Contains(keys, want) {
 			t.Fatalf("timeline keys = %v, want %s", keys, want)
 		}

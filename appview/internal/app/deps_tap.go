@@ -86,7 +86,6 @@ func newTapDependencies(
 		composeTransitionParticipants(
 			owners.deletionStore.ProfileDepartureParticipant(),
 			departureParticipant,
-			store.PDSAttemptDepartureParticipant(),
 		),
 	)
 	profileParticipant := func(

@@ -27,6 +27,20 @@ type GuardedEffectCoordinator interface {
 	) error
 }
 
+type GuardedCapabilityOperation func(
+	context.Context,
+	EffectExecutor,
+	auth.PDSClient,
+) error
+
+type GuardedCapabilityCoordinator interface {
+	WithGuardedCapabilities(
+		context.Context,
+		[]ownerlifecycle.ExpectedOwner,
+		GuardedCapabilityOperation,
+	) error
+}
+
 type guardedEffectCoordinator struct {
 	executor *Executor
 }
@@ -91,6 +105,60 @@ func (executor *Executor) WithGuardedEffects(
 				scope: scope,
 			}
 			return operation(callbackCtx, scopedExecutor)
+		},
+	)
+}
+
+func (coordinator guardedEffectCoordinator) WithGuardedCapabilities(
+	ctx context.Context,
+	expected []ownerlifecycle.ExpectedOwner,
+	operation GuardedCapabilityOperation,
+) error {
+	if coordinator.executor == nil || operation == nil {
+		return errors.New("guarded PDS capability coordinator is unavailable")
+	}
+	canonical, err := canonicalExpectedOwners(expected)
+	if err != nil {
+		return err
+	}
+	ownerIncluded := false
+	for _, item := range canonical {
+		if item.Owner == coordinator.executor.owner {
+			ownerIncluded = true
+			break
+		}
+	}
+	if !ownerIncluded {
+		return ErrExecutorOwnerMismatch
+	}
+	return coordinator.executor.boundary.WithActiveEffects(
+		ctx,
+		canonical,
+		func(effectCtx context.Context, client auth.PDSClient) error {
+			if client == nil {
+				return errors.New("guarded PDS purpose client is unavailable")
+			}
+			scope := &callbackEffectBoundary{
+				client: client, token: &struct{}{}, expected: canonical,
+			}
+			scope.activate()
+			defer scope.closeAndWait()
+			callbackCtx := context.WithValue(
+				effectCtx,
+				guardedEffectContextKey{},
+				scope.token,
+			)
+			scopedEffects := &callbackEffectExecutor{
+				executor: &Executor{
+					attempts: coordinator.executor.attempts,
+					boundary: scope,
+					owner:    coordinator.executor.owner,
+					timeout:  coordinator.executor.timeout,
+					now:      coordinator.executor.now,
+				},
+				scope: scope,
+			}
+			return operation(callbackCtx, scopedEffects, client)
 		},
 	)
 }

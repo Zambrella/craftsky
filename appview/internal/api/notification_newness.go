@@ -41,9 +41,10 @@ func (s *PostStore) NotificationNewCount(ctx context.Context, accountDID string)
 				WHERE mute.owner_did = $1 AND mute.subject_did = event.actor_did
 			)
 			AND NOT EXISTS (
-				SELECT 1 FROM atproto_blocks block
-				WHERE (block.blocker_did = $1 AND block.subject_did = event.actor_did)
-				   OR (block.blocker_did = event.actor_did AND block.subject_did = $1)
+				SELECT 1 FROM pds_set_aggregates block
+				WHERE block.kind = 'block'
+				  AND ((block.actor_did = $1 AND block.subject_did = event.actor_did)
+				   OR (block.actor_did = event.actor_did AND block.subject_did = $1))
 			)
 		  ))
 		  AND event.newness_revision > COALESCE((

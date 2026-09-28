@@ -41,9 +41,9 @@ func TestRegularMemberCanPrepareOnlyOwnBusinessRecords(t *testing.T) {
 			did TEXT PRIMARY KEY,
 			record_cid TEXT NOT NULL
 		);
-		CREATE TABLE atproto_blocks (
-			uri TEXT PRIMARY KEY,
-			blocker_did TEXT NOT NULL,
+		CREATE TABLE pds_set_aggregates (
+			kind TEXT NOT NULL,
+			actor_did TEXT NOT NULL,
 			subject_did TEXT NOT NULL
 		);
 		CREATE TABLE moderation_outputs (

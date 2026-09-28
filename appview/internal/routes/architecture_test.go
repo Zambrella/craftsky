@@ -98,16 +98,20 @@ func TestHandleTargetedMutationsUseAuthoritativeIdentityResolver(t *testing.T) {
 
 	function := parsedFunction(t, "routes_profile_notification.go", "registerProfileRelationshipRoutes")
 	for constructor, resolverArgument := range map[string]int{
-		"FollowProfileHandler":           2,
-		"UnfollowProfileHandler":         2,
+		"CommandFollowProfileHandler":    1,
+		"CommandUnfollowProfileHandler":  1,
+		"CommandBlockProfileHandler":     1,
+		"CommandUnblockProfileHandler":   1,
 		"MuteProfileHandler":             2,
 		"UnmuteProfileHandler":           2,
-		"BlockProfileHandler":            2,
-		"UnblockProfileHandler":          2,
 		"NewProfileReportTargetResolver": 1,
 	} {
 		assertCallArgument(t, function, constructor, resolverArgument, "routes.authoritativeResolver")
 	}
+	assertCallArgument(t, function, "CommandFollowProfileHandler", 2, "routes.pdsCommands")
+	assertCallArgument(t, function, "CommandUnfollowProfileHandler", 2, "routes.pdsCommands")
+	assertCallArgument(t, function, "CommandBlockProfileHandler", 2, "routes.pdsCommands")
+	assertCallArgument(t, function, "CommandUnblockProfileHandler", 2, "routes.pdsCommands")
 	assertCallArgument(t, function, "GetProfileHandler", 2, "routes.handleResolver")
 }
 
@@ -130,6 +134,46 @@ func TestPostInteractionReadRoutesUseOnlyReadDependencies(t *testing.T) {
 		for index, argument := range want {
 			if got := selectorName(call.Args[index]); got != argument {
 				t.Errorf("%s argument %d = %q, want %q", constructor, index, got, argument)
+			}
+		}
+	}
+}
+
+// UT-019 / REG-009: migrated public record routes cannot regain the legacy
+// durable-effect mutation capability. Blob upload remains intentionally exempt.
+func TestMigratedMutationRouteBundlesDoNotExposePDSEffects(t *testing.T) {
+	t.Parallel()
+
+	for _, target := range []struct {
+		path     string
+		typeName string
+	}{
+		{path: "routes_scheduled_post.go", typeName: "postRouteBundle"},
+		{path: "routes_scheduled_post.go", typeName: "scheduledPostRouteBundle"},
+		{path: "routes_profile_notification.go", typeName: "profileRelationshipRouteBundle"},
+		{path: "routes_business.go", typeName: "businessRouteBundle"},
+	} {
+		file, err := parser.ParseFile(token.NewFileSet(), target.path, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", target.path, err)
+		}
+		for _, declaration := range file.Decls {
+			generic, ok := declaration.(*ast.GenDecl)
+			if !ok {
+				continue
+			}
+			for _, spec := range generic.Specs {
+				typeSpec, ok := spec.(*ast.TypeSpec)
+				if !ok || typeSpec.Name.Name != target.typeName {
+					continue
+				}
+				ast.Inspect(typeSpec.Type, func(node ast.Node) bool {
+					selector, ok := node.(*ast.SelectorExpr)
+					if ok && selectorName(selector) == "pdseffects.ExecutorFactory" {
+						t.Errorf("%s exposes legacy pdseffects.ExecutorFactory", target.typeName)
+					}
+					return true
+				})
 			}
 		}
 	}

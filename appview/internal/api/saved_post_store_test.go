@@ -72,10 +72,14 @@ CREATE TABLE actor_mutes (
     subject_did TEXT NOT NULL,
     PRIMARY KEY (owner_did, subject_did)
 );
-CREATE TABLE atproto_blocks (
-    uri TEXT NOT NULL PRIMARY KEY,
-    blocker_did TEXT NOT NULL,
-    subject_did TEXT NOT NULL
+CREATE TABLE pds_set_aggregates (
+	kind TEXT NOT NULL,
+	actor_did TEXT NOT NULL,
+	scope_key TEXT NOT NULL,
+	subject_did TEXT NOT NULL,
+	representative_source_uri TEXT NOT NULL,
+	activated_at TIMESTAMPTZ NOT NULL,
+	PRIMARY KEY (kind, actor_did, scope_key)
 );
 CREATE TABLE craftsky_post_mentions (
     post_uri TEXT NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
@@ -1262,11 +1266,9 @@ func TestSavedPostStoreRequiredContextStates(t *testing.T) {
 	}
 	assertContext(targetURI, true)
 
-	if _, err := pool.Exec(ctx, `INSERT INTO atproto_blocks (uri, blocker_did, subject_did) VALUES ('at://did:plc:viewer/app.bsky.graph.block/one', $1, 'did:plc:parent')`, viewer); err != nil {
-		t.Fatalf("insert block: %v", err)
-	}
+	seedBlockAggregate(t, pool, viewer.String(), "did:plc:parent", time.Now())
 	assertContext(targetURI, false)
-	if _, err := pool.Exec(ctx, `DELETE FROM atproto_blocks`); err != nil {
+	if _, err := pool.Exec(ctx, `DELETE FROM pds_set_aggregates WHERE kind = 'block'`); err != nil {
 		t.Fatalf("delete block: %v", err)
 	}
 

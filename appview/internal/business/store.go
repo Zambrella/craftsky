@@ -78,10 +78,11 @@ const eventModeratedSQL = `EXISTS (
 
 const eventBlockedSQL = `EXISTS (
 	SELECT 1
-	FROM atproto_blocks block
-	WHERE ((block.blocker_did = $1 AND block.subject_did = event.owner_did)
-	    OR (block.blocker_did = event.owner_did AND block.subject_did = $1))
-	  AND NOT appview_owner_is_terminal(block.blocker_did)
+	FROM pds_set_aggregates block
+	WHERE block.kind = 'block'
+	  AND ((block.actor_did = $1 AND block.subject_did = event.owner_did)
+	    OR (block.actor_did = event.owner_did AND block.subject_did = $1))
+	  AND NOT appview_owner_is_terminal(block.actor_did)
 	  AND NOT appview_owner_is_terminal(block.subject_did)
 )`
 

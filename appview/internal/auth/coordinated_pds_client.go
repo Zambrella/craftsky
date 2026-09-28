@@ -248,6 +248,52 @@ func (client *CoordinatedPDSClient) ListRecords(
 	return records, nextCursor, err
 }
 
+func (client *CoordinatedPDSClient) LatestCommit(ctx context.Context, repo syntax.DID) (syntax.CID, error) {
+	var commit syntax.CID
+	err := client.withClient(ctx, func(operationCtx context.Context, purposeClient PDSClient) error {
+		commandClient, ok := purposeClient.(RepositoryCommandPDSClient)
+		if !ok {
+			return errors.New("coordinated PDS purpose client cannot read repository head")
+		}
+		var err error
+		commit, err = commandClient.LatestCommit(operationCtx, repo)
+		return err
+	})
+	return commit, err
+}
+
+func (client *CoordinatedPDSClient) ApplyWrites(
+	ctx context.Context,
+	repo syntax.DID,
+	head syntax.CID,
+	writes []RepositoryWrite,
+) error {
+	return client.withClient(ctx, func(operationCtx context.Context, purposeClient PDSClient) error {
+		commandClient, ok := purposeClient.(RepositoryCommandPDSClient)
+		if !ok {
+			return ErrApplyWritesUnsupported
+		}
+		return commandClient.ApplyWrites(operationCtx, repo, head, writes)
+	})
+}
+
+func (client *CoordinatedPDSClient) DeleteRecordWithRepositorySwap(
+	ctx context.Context,
+	repo syntax.DID,
+	collection syntax.NSID,
+	rkey syntax.RecordKey,
+	head syntax.CID,
+	record syntax.CID,
+) error {
+	return client.withClient(ctx, func(operationCtx context.Context, purposeClient PDSClient) error {
+		commandClient, ok := purposeClient.(RepositoryCommandPDSClient)
+		if !ok {
+			return ErrConditionalDeleteUnsupported
+		}
+		return commandClient.DeleteRecordWithRepositorySwap(operationCtx, repo, collection, rkey, head, record)
+	})
+}
+
 func (client *CoordinatedPDSClient) UploadBlob(
 	ctx context.Context,
 	contentType string,
@@ -264,6 +310,7 @@ func (client *CoordinatedPDSClient) UploadBlob(
 
 var _ PDSClient = (*CoordinatedPDSClient)(nil)
 var _ PDSRecordLister = (*CoordinatedPDSClient)(nil)
+var _ RepositoryCommandPDSClient = (*CoordinatedPDSClient)(nil)
 var _ ActiveEffectPDSBoundary = (*CoordinatedPDSClient)(nil)
 var _ ConditionalPDSRecordPutter = (*CoordinatedPDSClient)(nil)
 var _ ConditionalPDSRecordDeleter = (*CoordinatedPDSClient)(nil)

@@ -6,7 +6,6 @@ import (
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/languages"
-	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/relationships"
 )
 
@@ -17,12 +16,12 @@ type profileRelationshipRouteBundle struct {
 	businessProfiles          api.BusinessProfileReader
 	followerGrowth            api.FollowerGrowthReader
 	profileCustomisationStore *api.ProfileCustomisationStore
-	followStore               *api.FollowStore
 	relationshipStore         *relationships.Store
 	relationshipMutations     api.RelationshipMutationService
 	handleResolver            api.HandleResolver
 	authoritativeResolver     api.HandleResolver
-	newPDSEffects             pdseffects.ExecutorFactory
+	pdsCommands               api.SetCommandExecutor
+	compoundCommands          api.CompoundPutCommandExecutor
 	reportStore               *api.ReportStore
 	reportForwarder           api.ReportForwarder
 	mediaLimits               api.MediaLimits
@@ -35,18 +34,18 @@ func registerProfileRelationshipRoutes(routes profileRelationshipRouteBundle) {
 	routes.mux.Handle("GET /v1/profiles/me/follower-growth", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/me/follower-growth"), api.GetFollowerGrowthHandler(routes.followerGrowth, time.Now)))
 	routes.mux.Handle("GET /v1/profiles/me/followers", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/me/followers"), api.GetMeFollowersHandler(routes.profileStore, routes.handleResolver, routes.logger)))
 	routes.mux.Handle("GET /v1/profiles/me/following", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/me/following"), api.GetMeFollowingHandler(routes.profileStore, routes.handleResolver, routes.logger)))
-	routes.mux.Handle("PUT /v1/profiles/me", routes.middleware.wrap(mustPolicy("PUT", "/v1/profiles/me"), api.PutMeProfileHandler(routes.profileStore, routes.handleResolver, routes.newPDSEffects, routes.mediaLimits, routes.logger)))
+	routes.mux.Handle("PUT /v1/profiles/me", routes.middleware.wrap(mustPolicy("PUT", "/v1/profiles/me"), api.PutMeProfileHandler(routes.profileStore, routes.handleResolver, nil, routes.mediaLimits, routes.logger, routes.compoundCommands)))
 	routes.mux.Handle("PUT /v1/profiles/me/customisation", routes.middleware.wrap(
 		mustPolicy("PUT", "/v1/profiles/me/customisation"),
 		api.PutProfileCustomisationHandler(routes.profileCustomisationStore),
 	))
 	routes.mux.Handle("GET /v1/profiles/{handleOrDid}/mutual-followers", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/mutual-followers"), api.GetMutualFollowersHandler(routes.profileStore, routes.handleResolver, routes.logger)))
-	routes.mux.Handle("POST /v1/profiles/{handleOrDid}/follows", routes.middleware.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/follows"), api.FollowProfileHandler(routes.followStore, routes.profileStore, routes.authoritativeResolver, routes.newPDSEffects, routes.logger)))
-	routes.mux.Handle("DELETE /v1/profiles/{handleOrDid}/follows", routes.middleware.wrap(mustPolicy("DELETE", "/v1/profiles/{handleOrDid}/follows"), api.UnfollowProfileHandler(routes.followStore, routes.profileStore, routes.authoritativeResolver, routes.newPDSEffects, routes.logger)))
+	routes.mux.Handle("POST /v1/profiles/{handleOrDid}/follows", routes.middleware.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/follows"), api.CommandFollowProfileHandler(routes.profileStore, routes.authoritativeResolver, routes.pdsCommands, routes.logger)))
+	routes.mux.Handle("DELETE /v1/profiles/{handleOrDid}/follows", routes.middleware.wrap(mustPolicy("DELETE", "/v1/profiles/{handleOrDid}/follows"), api.CommandUnfollowProfileHandler(routes.profileStore, routes.authoritativeResolver, routes.pdsCommands, routes.logger)))
 	routes.mux.Handle("POST /v1/profiles/{handleOrDid}/mutes", routes.middleware.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/mutes"), api.MuteProfileHandler(routes.relationshipMutations, routes.relationshipStore, routes.authoritativeResolver, routes.logger)))
 	routes.mux.Handle("DELETE /v1/profiles/{handleOrDid}/mutes", routes.middleware.wrap(mustPolicy("DELETE", "/v1/profiles/{handleOrDid}/mutes"), api.UnmuteProfileHandler(routes.relationshipMutations, routes.relationshipStore, routes.authoritativeResolver, routes.logger)))
-	routes.mux.Handle("POST /v1/profiles/{handleOrDid}/blocks", routes.middleware.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/blocks"), api.BlockProfileHandler(routes.relationshipMutations, routes.relationshipStore, routes.authoritativeResolver, routes.logger)))
-	routes.mux.Handle("DELETE /v1/profiles/{handleOrDid}/blocks", routes.middleware.wrap(mustPolicy("DELETE", "/v1/profiles/{handleOrDid}/blocks"), api.UnblockProfileHandler(routes.relationshipMutations, routes.relationshipStore, routes.authoritativeResolver, routes.logger)))
+	routes.mux.Handle("POST /v1/profiles/{handleOrDid}/blocks", routes.middleware.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/blocks"), api.CommandBlockProfileHandler(routes.relationshipStore, routes.authoritativeResolver, routes.pdsCommands, routes.logger)))
+	routes.mux.Handle("DELETE /v1/profiles/{handleOrDid}/blocks", routes.middleware.wrap(mustPolicy("DELETE", "/v1/profiles/{handleOrDid}/blocks"), api.CommandUnblockProfileHandler(routes.relationshipStore, routes.authoritativeResolver, routes.pdsCommands, routes.relationshipMutations, routes.logger)))
 	routes.mux.Handle("GET /v1/profiles/me/mutes", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/me/mutes"), api.ListMutedProfilesHandler(routes.relationshipStore, routes.handleResolver, routes.logger)))
 	routes.mux.Handle("GET /v1/profiles/me/blocks", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/me/blocks"), api.ListBlockedProfilesHandler(routes.relationshipStore, routes.handleResolver, routes.logger)))
 	routes.mux.Handle("POST /v1/profiles/{handleOrDid}/reports", routes.middleware.wrap(mustPolicy("POST", "/v1/profiles/{handleOrDid}/reports"), api.ReportProfileHandler(api.NewProfileReportTargetResolver(routes.profileStore, routes.authoritativeResolver), routes.reportStore, routes.reportForwarder, routes.logger)))

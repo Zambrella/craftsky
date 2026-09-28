@@ -201,44 +201,5 @@ void main() {
         expect(state.hasMore, isTrue);
       },
     );
-
-    test(
-      'UT-016 and UT-017 cache helpers prepend, dedupe, replace, and remove',
-      () async {
-        final fake = FakePostRepository(
-          onListProjectsByAuthor: (id, {cursor, limit}) async =>
-              PostPage(items: [_post(rkey: 'a')]),
-        );
-        final container = ProviderContainer.test(
-          overrides: [
-            postRepositoryProvider.overrideWithValue(fake),
-            activeLanguagePreferencesProvider.overrideWith(
-              (ref) => const LanguagePreferences(
-                primaryLanguage: 'en',
-                contentLanguages: [],
-              ),
-            ),
-          ],
-        );
-
-        await container.read(
-          userProjectsProvider(_aliceDid).future,
-        );
-        final notifier = container.read(
-          userProjectsProvider(_aliceDid).notifier,
-        );
-        // Exercise helper calls one-by-one to assert the resulting cache state.
-        // ignore: cascade_invocations
-        notifier
-          ..prepend(_post(rkey: 'b'))
-          ..prepend(_post(rkey: 'b'))
-          ..replace(_post(rkey: 'a').copyWith(text: 'updated'))
-          ..removeByRkey('b');
-
-        final state = container.read(userProjectsProvider(_aliceDid)).value!;
-        expect(state.items.map((post) => post.rkey), ['a']);
-        expect(state.items.single.text, 'updated');
-      },
-    );
   });
 }

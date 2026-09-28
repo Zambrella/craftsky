@@ -25,7 +25,7 @@ import (
 	"social.craftsky/appview/internal/notifications"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
-	"social.craftsky/appview/internal/pdseffects"
+	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/push"
 	"social.craftsky/appview/internal/relationships"
 	"social.craftsky/appview/internal/scheduledposts"
@@ -137,10 +137,13 @@ type Deps struct {
 	ModerationExpiry   *moderation.ExpiryWorker
 	// LanguagePreferences owns private per-account posting and content-language preferences.
 	LanguagePreferences *languages.Store
-	// NewPDSEffects is the only ordinary authenticated PDS mutation
-	// capability exposed to request and background-work handlers. It persists
-	// deterministic effect intent before crossing the remote boundary.
-	NewPDSEffects pdseffects.ExecutorFactory
+	// NewBlobEffects exposes only durable blob upload to request handlers.
+	NewBlobEffects       api.BlobEffectFactory
+	PDSCommands          *pdscommands.SetCommandService
+	PDSAppendCommands    *pdscommands.AppendCommandService
+	PDSAddressedCommands *pdscommands.AddressedCommandService
+	PDSCompoundCommands  *pdscommands.CompoundCommandService
+	PDSCommandCompaction *pdscommands.CompactionProcessor
 	// BusinessStore owns account-type, declaration, and event read models.
 	BusinessStore    *business.Store
 	EventCursorCodec *api.EventCursorCodec
@@ -316,7 +319,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	loginCompleteURL := resolveOriginPath(cfg.VerifiedLinkOrigin, "/auth/complete")
 	deletionCompleteURL := resolveOriginPath(cfg.VerifiedLinkOrigin, "/account-deletion/reauth-complete")
 	pdsEffects, err := newPDSEffectDependencies(
-		authCapability, federated, owners, observer, ingestionStore, cfg, logger,
+		authCapability, federated, owners, pool, observer, cfg,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -360,7 +363,12 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		BlueskyProfileProjector:     tapCapability.profileProjector,
 		CraftskyProfileProjector:    tapCapability.craftskyProfileProjector,
 		NewPendingPDSClient:         pdsEffects.pending,
-		NewPDSEffects:               pdsEffects.ordinary,
+		NewBlobEffects:              pdsEffects.blobs,
+		PDSCommands:                 pdsEffects.commands,
+		PDSAppendCommands:           pdsEffects.append,
+		PDSAddressedCommands:        pdsEffects.addressed,
+		PDSCompoundCommands:         pdsEffects.compound,
+		PDSCommandCompaction:        pdsEffects.compaction,
 		LoginCompleteURL:            loginCompleteURL.String(),
 		DeletionCompleteURL:         deletionCompleteURL.String(),
 		HandleResolver:              identities.cached,
@@ -413,7 +421,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	deps.InstagramSuggestions = instagramRuntime.suggestions
 	deps.InstagramRetention = instagramRuntime.retention
 	contentRuntime, err := newContentRuntimeDependencies(
-		pool, deps.AuthoritativeHandleResolver, content, pdsEffects, instagramStorage,
+		pool, deps.AuthoritativeHandleResolver, content, instagramStorage,
 		observer, identities.invalidator, cfg,
 	)
 	if err != nil {

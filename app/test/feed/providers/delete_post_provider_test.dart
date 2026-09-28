@@ -8,7 +8,9 @@ import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -57,6 +59,80 @@ void main() {
   setUpAll(initializeMappers);
 
   group('DeletePost', () {
+    test('retries ambiguity with one key and unchanged CID guard', () async {
+      var calls = 0;
+      final fake = FakePostRepository(
+        onDelete: (did, rkey) async {
+          calls++;
+          if (calls < 3) {
+            throw const PdsMutationAmbiguousException(retryAfterSeconds: 1);
+          }
+        },
+      );
+      final container = ProviderContainer.test(
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+          pdsMutationDelayProvider.overrideWithValue((_) async {}),
+          pdsMutationJitterProvider.overrideWithValue((_) => 0),
+        ],
+      );
+      final post = _post(rkey: 'guarded');
+
+      await container.read(deletePostProvider.notifier).delete(post: post);
+
+      expect(fake.deleteOperationKeys, hasLength(3));
+      expect(fake.deleteOperationKeys.toSet(), hasLength(1));
+      expect(fake.deleteExpectedCids, everyElement(post.cid.toString()));
+      expect(
+        isCanonicalPdsMutationOperationKey(fake.deleteOperationKeys.first),
+        isTrue,
+      );
+    });
+
+    test(
+      'exhaustion is not success and explicit retry keeps the key',
+      () async {
+        var calls = 0;
+        final fake = FakePostRepository(
+          onDelete: (did, rkey) async {
+            calls++;
+            if (calls <= 7) {
+              throw const PdsMutationAmbiguousException(retryAfterSeconds: 1);
+            }
+          },
+        );
+        final container = ProviderContainer.test(
+          overrides: [
+            postRepositoryProvider.overrideWithValue(fake),
+            pdsMutationDelayProvider.overrideWithValue((_) async {}),
+            pdsMutationJitterProvider.overrideWithValue((_) => 0),
+          ],
+        );
+        final post = _post(rkey: 'unresolved');
+
+        await container.read(deletePostProvider.notifier).delete(post: post);
+
+        expect(calls, 7);
+        expect(
+          container.read(deletePostProvider).error,
+          isA<PdsMutationUnresolvedException>(),
+        );
+
+        await container.read(deletePostProvider.notifier).delete(post: post);
+
+        expect(calls, 8);
+        expect(fake.deleteOperationKeys.toSet(), hasLength(1));
+        expect(fake.deleteExpectedCids, everyElement(post.cid.toString()));
+        expect(container.read(deletePostProvider).value, post);
+      },
+    );
+
     test('idle build returns null', () async {
       final container = ProviderContainer.test(
         overrides: [
@@ -103,6 +179,12 @@ void main() {
       await container
           .read(deletePostProvider.notifier)
           .delete(post: _post(rkey: 'a'));
+
+      container.invalidate(userPostsProvider(_aliceDid));
+      final staleRefresh = await container.read(
+        userPostsProvider(_aliceDid).future,
+      );
+      expect(staleRefresh.items.map((post) => post.rkey), ['b']);
 
       expect(deleted, [('did:plc:alice', 'a')]);
 
@@ -194,6 +276,7 @@ void main() {
             .delete(
               post: _post(rkey: 'project', project: _project),
             );
+        await container.read(userProjectsProvider(_aliceDid).future);
 
         expect(
           container.read(userProjectsProvider(_aliceDid)).value!.items,

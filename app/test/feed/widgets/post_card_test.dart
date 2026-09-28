@@ -5,10 +5,14 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/feed/models/interaction_write_response.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/profile_pin_state.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
+import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
+import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/widgets/external_card.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
@@ -31,6 +35,7 @@ import 'package:craftsky_app/saved_posts/widgets/save_post_dialog.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_action_providers.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -114,6 +119,14 @@ Post _post({
     external: external,
   );
 }
+
+InteractionWriteResponse _interaction(Post post) => InteractionWriteResponse(
+  uri: 'at://did:plc:viewer/social.craftsky.feed.like/like1',
+  cid: 'bafy_like',
+  rkey: 'like1',
+  subject: PostRef(uri: post.uri, cid: post.cid),
+  createdAt: DateTime.parse('2026-05-04T18:25:00.000Z'),
+);
 
 final class _PinRegistryStorage implements SessionRegistryStorage {
   _PinRegistryStorage()
@@ -911,6 +924,141 @@ void main() {
       expect(likeCount.style?.color, BrandColors.red);
       expect(repostCount.style?.color, BrandColors.moss);
     });
+
+    testWidgets('optimistically renders a like and rolls it back on failure', (
+      tester,
+    ) async {
+      final post = _post(likeCount: 2);
+      final response = Completer<InteractionWriteResponse>();
+      final fake = FakePostRepository(
+        onLike: (did, rkey) => response.future,
+      );
+      late Future<void> mutation;
+      await _pump(
+        tester,
+        Consumer(
+          builder: (context, ref, child) => PostCard(
+            post: post,
+            onLike: () {
+              mutation = ref
+                  .read(toggleLikePostProvider.notifier)
+                  .toggle(post: post);
+            },
+          ),
+        ),
+        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+      );
+
+      await tester.tap(find.byTooltip('Like'));
+      await tester.pump();
+
+      expect(find.byIcon(CraftskyIcons.liked), findsOneWidget);
+      expect(find.text('3'), findsOneWidget);
+
+      response.completeError(Exception('rejected'));
+      await mutation;
+      await tester.pump();
+
+      expect(find.byIcon(CraftskyIcons.liked), findsNothing);
+      expect(find.text('2'), findsOneWidget);
+    });
+
+    testWidgets('ignores completed mutation state after reconciliation', (
+      tester,
+    ) async {
+      var authoritative = _post(likeCount: 2);
+      late WidgetRef widgetRef;
+      late StateSetter update;
+      final fake = FakePostRepository(
+        onLike: (did, rkey) async => _interaction(authoritative),
+      );
+      await _pump(
+        tester,
+        StatefulBuilder(
+          builder: (context, setState) {
+            update = setState;
+            return Consumer(
+              builder: (context, ref, child) {
+                widgetRef = ref;
+                return PostCard(post: authoritative);
+              },
+            );
+          },
+        ),
+        overrides: [postRepositoryProvider.overrideWithValue(fake)],
+      );
+
+      await widgetRef
+          .read(toggleLikePostProvider.notifier)
+          .toggle(post: authoritative);
+      await tester.pump();
+      expect(find.byIcon(CraftskyIcons.liked), findsOneWidget);
+
+      widgetRef
+          .read(pdsRecordOperationControllerProvider)
+          .reconcile(
+            likePostMutationScopeForLease(null, authoritative),
+            true,
+          );
+      update(() {
+        authoritative = authoritative.copyWith(
+          viewerHasLiked: false,
+          likeCount: 2,
+        );
+      });
+      await tester.pump();
+
+      expect(find.byIcon(CraftskyIcons.liked), findsNothing);
+      expect(find.text('2'), findsOneWidget);
+    });
+
+    testWidgets(
+      'optimistically renders a repost and rolls it back on failure',
+      (tester) async {
+        final post = _post(repostCount: 2);
+        final response = Completer<InteractionWriteResponse>();
+        final fake = FakePostRepository(
+          onRepost: (did, rkey) => response.future,
+        );
+        late Future<void> mutation;
+        await _pump(
+          tester,
+          Consumer(
+            builder: (context, ref, child) => PostCard(
+              post: post,
+              onRepost: () {
+                mutation = ref
+                    .read(toggleRepostPostProvider.notifier)
+                    .toggle(post: post);
+              },
+              onQuote: () {},
+            ),
+          ),
+          overrides: [postRepositoryProvider.overrideWithValue(fake)],
+        );
+
+        await tester.tap(find.byIcon(CraftskyIconsBold.repost));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Repost'));
+        await tester.pumpAndSettle();
+
+        expect(find.text('3'), findsOneWidget);
+        expect(
+          tester.widget<Icon>(find.byIcon(CraftskyIconsBold.repost)).color,
+          BrandColors.moss,
+        );
+
+        response.completeError(Exception('rejected'));
+        await mutation;
+        await tester.pump();
+
+        expect(find.text('2'), findsOneWidget);
+        expect(
+          tester.widget<Icon>(find.byIcon(CraftskyIconsBold.repost)).color,
+          isNot(BrandColors.moss),
+        );
+      },
+    );
 
     testWidgets('renders combined share count from reposts and quotes', (
       tester,

@@ -389,6 +389,14 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 		"moderation",
 		"expire_strikes",
 	)
+	pdsCommandCompactionDone := startBatchWorker(
+		consumerCtx,
+		deps.PDSCommandCompaction,
+		deps.Logger,
+		deps.Config.PDSCommandCompactionPollInterval,
+		"pds_commands",
+		"compact",
+	)
 	workerDone := []<-chan struct{}{
 		consumerDone,
 		tapProjectionDone,
@@ -410,6 +418,7 @@ func run(ctx context.Context, args []string, output io.Writer) error {
 		terminalPurgeDone,
 		identityCacheRefreshDone,
 		moderationExpiryDone,
+		pdsCommandCompactionDone,
 	}
 
 	// listenErr receives the result of Serve. A non-nil,

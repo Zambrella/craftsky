@@ -4,6 +4,8 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_interaction_list_state.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
+import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
@@ -143,7 +145,7 @@ class PostQuotes extends _$PostQuotes {
         !isActiveAccountOperationCurrent(ref, ownership)) {
       throw StateError('Active account changed');
     }
-    return _quoteState(page);
+    return _quoteState(ref, did, rkey, page);
   }
 
   Future<void> loadMore() async {
@@ -161,7 +163,10 @@ class PostQuotes extends _$PostQuotes {
       final latest = state.value ?? current;
       state = AsyncData(
         PostQuotesState(
-          items: _appendQuotes(latest.items, page.items),
+          items: _appendQuotes(
+            latest.items,
+            _quoteItems(ref, did, rkey, page.items),
+          ),
           cursor: page.cursor,
         ),
       );
@@ -191,7 +196,7 @@ class PostQuotes extends _$PostQuotes {
     await _restart(current);
   }
 
-  void replace(Post post) {
+  void reveal(Post post) {
     final current = state.value;
     if (current == null) return;
     state = AsyncData(
@@ -205,17 +210,6 @@ class PostQuotes extends _$PostQuotes {
     );
   }
 
-  void remove(AtUri uri) {
-    final current = state.value;
-    if (current == null) return;
-    state = AsyncData(
-      PostQuotesState(
-        items: current.items.where((post) => post.uri != uri).toList(),
-        cursor: current.cursor,
-      ),
-    );
-  }
-
   Future<void> _restart(PostQuotesState current) async {
     final generation = ++_generation;
     final ownership = captureActiveAccountOperation(ref);
@@ -223,7 +217,7 @@ class PostQuotes extends _$PostQuotes {
     try {
       final page = await _list();
       if (!_isCurrent(generation, ownership)) return;
-      state = AsyncData(_quoteState(page));
+      state = AsyncData(_quoteState(ref, did, rkey, page));
     } on Object catch (error, stackTrace) {
       if (!_isCurrent(generation, ownership)) return;
       state = AsyncError<PostQuotesState>(error, stackTrace);
@@ -251,10 +245,23 @@ PostInteractionAccountsState _accountState(ProfileAccountPage page) =>
       totalCount: page.totalCount,
     );
 
-PostQuotesState _quoteState(PostPage page) => PostQuotesState(
-  items: _dedupeQuotes(page.items),
-  cursor: page.cursor,
-);
+PostQuotesState _quoteState(Ref ref, Did did, RecordKey rkey, PostPage page) =>
+    PostQuotesState(
+      items: _dedupeQuotes(_quoteItems(ref, did, rkey, page.items)),
+      cursor: page.cursor,
+    );
+
+List<Post> _quoteItems(
+  Ref ref,
+  Did did,
+  RecordKey rkey,
+  Iterable<Post> authoritative,
+) => applyPostRecordListOverlays(
+  ref,
+  authoritative,
+  includes: (post) =>
+      post.quote?.uri.toString() == 'at://$did/social.craftsky.feed.post/$rkey',
+).map((post) => applyPostInteractionOverlays(ref, post)).toList();
 
 List<ProfileAccountSummary> _dedupeAccounts(
   Iterable<ProfileAccountSummary> items,

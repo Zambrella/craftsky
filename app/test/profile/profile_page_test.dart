@@ -32,6 +32,7 @@ import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -79,13 +80,14 @@ void main() {
       expect(find.byType(PostCardSkeleton), findsOneWidget);
     });
 
-    testWidgets('remote collection tabs refresh the profile, except Reposts', (
+    testWidgets('remote collection tabs refresh their posts', (
       tester,
     ) async {
       var profileFetches = 0;
       var postFetches = 0;
       var projectFetches = 0;
       var commentFetches = 0;
+      var repostFetches = 0;
       final profile = Profile(
         did: 'did:plc:other',
         handle: 'alice.bsky.social',
@@ -109,6 +111,10 @@ void main() {
         },
         onListCommentsByAuthor: (_, {cursor, limit}) async {
           commentFetches++;
+          return const PostPage(items: []);
+        },
+        onListRepostsByAuthor: (_, {cursor, limit}) async {
+          repostFetches++;
           return const PostPage(items: []);
         },
       );
@@ -144,6 +150,7 @@ void main() {
         'Projects': 'projects',
         'Posts': 'posts',
         'Comments & replies': 'comments',
+        'Reposts': 'reposts',
       }.entries) {
         await tester.tap(find.widgetWithText(Tab, entry.key));
         await tester.pumpAndSettle();
@@ -162,10 +169,7 @@ void main() {
       expect(postFetches, greaterThanOrEqualTo(2));
       expect(projectFetches, greaterThanOrEqualTo(2));
       expect(commentFetches, greaterThanOrEqualTo(2));
-
-      await tester.tap(find.widgetWithText(Tab, 'Reposts'));
-      await tester.pumpAndSettle();
-      expect(find.byType(RefreshIndicator), findsNothing);
+      expect(repostFetches, greaterThanOrEqualTo(2));
     });
 
     testWidgets('signed-in self profile renders identity + edit actions', (
@@ -973,9 +977,10 @@ void main() {
       );
       final repo = FakeProfileRepository(
         onFetch: (_) async => profile,
-        onBlock: (target) async {
+        onBlock: (target, operationKey) async {
           blockCalls++;
           blockTarget = target;
+          expect(operationKey, isNotEmpty);
           return const ProfileRelationship(blocking: true);
         },
       );
@@ -988,6 +993,9 @@ void main() {
             accountRelationshipRepositoryProvider(
               account,
             ).overrideWith((ref) async => repo),
+            pdsRecordOperationControllerProvider.overrideWithValue(
+              PdsRecordOperationController(schedule: (_, _) {}),
+            ),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),
           ],
           child: MessengerScope(
@@ -1639,6 +1647,7 @@ void main() {
       expect(followCalls, 1);
       expect(find.text('Unfollow'), findsOneWidget);
       expect(find.text('Follow'), findsNothing);
+      await tester.pump(const Duration(seconds: 31));
     });
 
     testWidgets('tapping Unfollow updates profile from repository response', (
@@ -1683,6 +1692,7 @@ void main() {
       expect(unfollowCalls, 1);
       expect(find.text('Follow'), findsOneWidget);
       expect(find.text('Unfollow'), findsNothing);
+      await tester.pump(const Duration(seconds: 31));
     });
 
     testWidgets('follow button is not re-entrant while request is in flight', (
@@ -1723,13 +1733,14 @@ void main() {
 
       await tester.tap(find.text('Follow'));
       await tester.pump();
-      await tester.tap(find.text('Unfollow'));
+      await tester.tap(find.text('Follow'));
       await tester.pump();
 
       expect(followCalls, 1);
 
       completer.complete(profile.copyWith(viewerIsFollowing: true));
       await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 31));
     });
 
     testWidgets('failed follow restores previous state and shows error', (

@@ -647,7 +647,10 @@
   "@profileEmptySaved": { "description": "Muted placeholder shown in the Saved tab while saved-item data isn't wired." },
 
   "profileEmptyReposts": "No reposts yet.",
-  "@profileEmptyReposts": { "description": "Muted placeholder shown in the Reposts tab while repost data isn't wired." },
+  "@profileEmptyReposts": { "description": "Empty-state message shown in the profile Reposts tab." },
+
+  "profileRepostsLoadError": "Reposts didn't load.",
+  "@profileRepostsLoadError": { "description": "Error title shown in the profile Reposts tab when repost fetching fails." },
 
   "profilePostsEmpty": "No posts yet.",
   "@profilePostsEmpty": { "description": "Muted placeholder shown in the profile Posts tab when the user has not posted." },

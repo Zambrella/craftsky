@@ -1,6 +1,7 @@
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
-import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/user_posts_state.dart';
+import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
+import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
@@ -23,7 +24,14 @@ class UserComments extends _$UserComments {
       did,
       limit: userCommentsPageLimit,
     );
-    return UserPostsState(items: page.items, cursor: page.cursor);
+    return UserPostsState(
+      items: applyPostRecordListOverlays(
+        ref,
+        page.items,
+        includes: (post) => post.author.did == did && post.reply != null,
+      ).map((post) => applyPostInteractionOverlays(ref, post)).toList(),
+      cursor: page.cursor,
+    );
   }
 
   Future<void> loadMore() async {
@@ -42,50 +50,16 @@ class UserComments extends _$UserComments {
         limit: userCommentsPageLimit,
       );
       return UserPostsState(
-        items: [...current.items, ...page.items],
+        items: applyPostRecordListOverlays(
+          ref,
+          [...current.items, ...page.items],
+          includes: (post) => post.author.did == did && post.reply != null,
+        ).map((post) => applyPostInteractionOverlays(ref, post)).toList(),
         cursor: page.cursor,
       );
     });
 
     if (!isActiveAccountOperationCurrent(ref, ownership)) return;
     state = next;
-  }
-
-  void prependOrReplace(Post post) {
-    final current = state.value;
-    if (current == null) return;
-    if (!current.items.any((item) => item.uri == post.uri)) {
-      state = AsyncData(current.copyWith(items: [post, ...current.items]));
-      return;
-    }
-    state = AsyncData(
-      current.copyWith(
-        items: [
-          for (final item in current.items)
-            if (item.uri == post.uri || item.rkey == post.rkey) post else item,
-        ],
-      ),
-    );
-  }
-
-  void replace(Post post) {
-    final current = state.value;
-    if (current == null) return;
-    state = AsyncData(
-      current.copyWith(
-        items: [
-          for (final item in current.items)
-            if (item.uri == post.uri || item.rkey == post.rkey) post else item,
-        ],
-      ),
-    );
-  }
-}
-
-void updateLiveUserCommentCaches(Ref ref, Post post) {
-  if (post.reply == null) return;
-  final provider = userCommentsProvider(post.author.did);
-  if (ref.exists(provider)) {
-    ref.read(provider.notifier).prependOrReplace(post);
   }
 }

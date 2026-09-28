@@ -2,6 +2,7 @@ package routes
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,9 +13,11 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
+	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/moderation"
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -43,6 +46,27 @@ type suspendedRouteReader struct {
 type recordingRouteEffectExecutor struct {
 	resolvedGenerations []int64
 	deleteRequests      []pdseffects.DeleteRecordRequest
+}
+
+type recordingRouteAddressedCommands struct {
+	requests []pdscommands.AddressedDeleteCommandRequest
+}
+
+func (*recordingRouteAddressedCommands) Put(
+	context.Context,
+	pdscommands.AddressedPutCommandRequest,
+) (pdscommands.CommandResult, error) {
+	return pdscommands.CommandResult{}, errors.New("unexpected addressed put")
+}
+
+func (commands *recordingRouteAddressedCommands) Delete(
+	_ context.Context,
+	request pdscommands.AddressedDeleteCommandRequest,
+) (pdscommands.CommandResult, error) {
+	commands.requests = append(commands.requests, request)
+	return pdscommands.CommandResult{TerminalResult: pdscommands.TerminalResult{
+		State: pdscommands.CommandAccepted, HTTPStatus: http.StatusNoContent,
+	}}, nil
 }
 
 func (executor *recordingRouteEffectExecutor) ResolveExpectedOwners(
@@ -101,7 +125,7 @@ func TestSuspendedAccountInvokesEveryRegisteredAuthenticatedRoute(t *testing.T) 
 			w.WriteHeader(http.StatusNoContent)
 		})
 	}
-	deps.NewPDSEffects = func(context.Context, syntax.DID, string) (pdseffects.EffectExecutor, error) {
+	deps.NewBlobEffects = func(context.Context, syntax.DID, string) (api.BlobEffectExecutor, error) {
 		effects.pdsFactoryCalls++
 		return nil, nil
 	}
@@ -206,6 +230,7 @@ func TestSuspendedStoredStandingEnforcesRealHandlersAtPDSBoundary(t *testing.T) 
 		) VALUES ('did:plc:suspended',3,true);
 	`)
 	executor := &recordingRouteEffectExecutor{}
+	addressed := &recordingRouteAddressedCommands{}
 	factoryCalls := 0
 	deps := testDeps()
 	deps.Config = Config{Env: EnvProd, AllowedOrigins: []string{"*"}}
@@ -213,7 +238,8 @@ func TestSuspendedStoredStandingEnforcesRealHandlersAtPDSBoundary(t *testing.T) 
 	deps.AuthService = &auth.MockAuthService{DefaultDID: "did:plc:suspended"}
 	deps.OwnerLifecycles = newRouteOwnerLifecycleStore(t, pool)
 	deps.SuspensionReader = moderation.NewStore(pool)
-	deps.NewPDSEffects = func(_ context.Context, owner syntax.DID, sessionID string) (pdseffects.EffectExecutor, error) {
+	deps.PDSAddressedCommands = addressed
+	deps.NewBlobEffects = func(_ context.Context, owner syntax.DID, sessionID string) (api.BlobEffectExecutor, error) {
 		factoryCalls++
 		if owner != syntax.DID("did:plc:suspended") || sessionID != "" {
 			t.Fatalf("PDS factory owner/session = %q/%q", owner, sessionID)
@@ -230,23 +256,24 @@ func TestSuspendedStoredStandingEnforcesRealHandlersAtPDSBoundary(t *testing.T) 
 	)
 	remove.Header.Set("Authorization", "Bearer suspended-session")
 	remove.Header.Set("X-Craftsky-Device-Id", "suspended-device")
+	remove.Header.Set("Idempotency-Key", "018f4d5c-7a61-7d40-a1a2-777777777777")
+	remove.Header.Set("If-Match", "bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq")
 	removed := httptest.NewRecorder()
 	mux.ServeHTTP(removed, remove)
 	if removed.Code != http.StatusNoContent {
 		t.Fatalf("owner removal status/body = %d/%s, want 204", removed.Code, removed.Body.String())
 	}
-	if factoryCalls != 1 || len(executor.resolvedGenerations) != 1 || executor.resolvedGenerations[0] != 7 {
-		t.Fatalf("PDS factory/generation calls = %d/%v, want 1/[7]", factoryCalls, executor.resolvedGenerations)
+	if factoryCalls != 0 {
+		t.Fatalf("legacy PDS factory calls = %d, want 0", factoryCalls)
 	}
-	if len(executor.deleteRequests) != 1 {
-		t.Fatalf("PDS delete requests = %d, want 1", len(executor.deleteRequests))
+	if len(addressed.requests) != 1 {
+		t.Fatalf("addressed delete requests = %d, want 1", len(addressed.requests))
 	}
-	deleted := executor.deleteRequests[0]
+	deleted := addressed.requests[0]
 	if deleted.Owner != syntax.DID("did:plc:suspended") ||
 		deleted.OwnerGeneration != 7 ||
-		deleted.Collection != syntax.NSID("social.craftsky.feed.post") ||
-		deleted.Rkey != syntax.RecordKey("post1") {
-		t.Fatalf("PDS delete request = %+v", deleted)
+		deleted.URI != syntax.ATURI("at://did:plc:suspended/social.craftsky.feed.post/post1") {
+		t.Fatalf("addressed delete request = %+v", deleted)
 	}
 
 	deniedBody := &suspendedBodyProbe{}
@@ -263,8 +290,8 @@ func TestSuspendedStoredStandingEnforcesRealHandlersAtPDSBoundary(t *testing.T) 
 	if deniedBody.reads != 0 {
 		t.Fatalf("denied public mutation read its body %d times", deniedBody.reads)
 	}
-	if factoryCalls != 1 || len(executor.deleteRequests) != 1 {
-		t.Fatalf("denied public mutation reached PDS boundary: factory=%d deletes=%d", factoryCalls, len(executor.deleteRequests))
+	if factoryCalls != 0 || len(addressed.requests) != 1 {
+		t.Fatalf("denied public mutation reached PDS boundary: legacyFactory=%d addressedDeletes=%d", factoryCalls, len(addressed.requests))
 	}
 }
 

@@ -36,17 +36,26 @@ CREATE TABLE atproto_identity_cache (
     resolved_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE TABLE atproto_follows (
-    uri TEXT NOT NULL PRIMARY KEY,
-    did TEXT NOT NULL,
-    rkey TEXT NOT NULL,
-    cid TEXT NOT NULL,
-    subject_did TEXT NOT NULL,
-    record JSONB NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL,
-    indexed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (did, rkey),
-    UNIQUE (did, subject_did)
+CREATE TABLE tap_source_records (
+    uri TEXT PRIMARY KEY, did TEXT NOT NULL, collection TEXT NOT NULL, rkey TEXT NOT NULL,
+    source_event_id BIGINT NOT NULL, source_fingerprint BYTEA NOT NULL, revision TEXT NOT NULL,
+    cid TEXT, action TEXT NOT NULL, record JSON, record_bytes INTEGER NOT NULL,
+    live BOOLEAN NOT NULL, ordering_status TEXT NOT NULL, projection_disposition TEXT NOT NULL,
+    observed_at TIMESTAMPTZ NOT NULL DEFAULT now(), updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE pds_set_sources (
+    source_uri TEXT PRIMARY KEY REFERENCES tap_source_records(uri) ON DELETE CASCADE,
+    kind TEXT NOT NULL, actor_did TEXT NOT NULL, scope_key TEXT NOT NULL,
+    subject_did TEXT, subject_uri TEXT, subject_cid TEXT,
+    activity_at TIMESTAMPTZ NOT NULL, eligible BOOLEAN NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE pds_set_aggregates (
+    kind TEXT NOT NULL, actor_did TEXT NOT NULL, scope_key TEXT NOT NULL,
+    subject_did TEXT, subject_uri TEXT, eligible_source_count INTEGER NOT NULL,
+    representative_source_uri TEXT NOT NULL, activated_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY(kind,actor_did,scope_key)
 );
 CREATE TABLE craftsky_posts (
     uri TEXT NOT NULL PRIMARY KEY,
@@ -115,32 +124,6 @@ CREATE TABLE craftsky_project_posts (
     sewing_fit_notes TEXT,
     indexed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE TABLE craftsky_likes (
-    uri TEXT NOT NULL PRIMARY KEY,
-    did TEXT NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
-    rkey TEXT NOT NULL,
-    cid TEXT NOT NULL,
-    subject_uri TEXT NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
-    subject_cid TEXT NOT NULL,
-    record JSONB NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL,
-    indexed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at TIMESTAMPTZ,
-    UNIQUE (did, rkey)
-);
-CREATE TABLE craftsky_reposts (
-    uri TEXT NOT NULL PRIMARY KEY,
-    did TEXT NOT NULL REFERENCES craftsky_profiles(did) ON DELETE CASCADE,
-    rkey TEXT NOT NULL,
-    cid TEXT NOT NULL,
-    subject_uri TEXT NOT NULL REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
-    subject_cid TEXT NOT NULL,
-    record JSONB NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL,
-    indexed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    deleted_at TIMESTAMPTZ,
-    UNIQUE (did, rkey)
-);
 CREATE TABLE craftsky_sessions (
     account_did TEXT NOT NULL,
     revoked_at TIMESTAMPTZ
@@ -177,7 +160,7 @@ func TestRunDemoSeedCreatesScreenshotDatasetAndIsIdempotent(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM craftsky_posts WHERE images::text LIKE '%devmedia:%'`).Scan(&mediaPosts); err != nil {
 		t.Fatalf("count media posts: %v", err)
 	}
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM atproto_follows WHERE did = 'did:plc:viewer'`).Scan(&follows); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM pds_set_aggregates WHERE kind='follow' AND actor_did = 'did:plc:viewer'`).Scan(&follows); err != nil {
 		t.Fatalf("count viewer follows: %v", err)
 	}
 	if posts < 80 || projects < 12 || mediaPosts < 10 || follows < 30 {

@@ -6,7 +6,6 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
 import 'package:craftsky_app/business/providers/account_type_controller.dart';
 import 'package:craftsky_app/business/providers/business_event_detail_provider.dart';
 import 'package:craftsky_app/business/providers/business_event_mutation_controller.dart';
-import 'package:craftsky_app/business/providers/business_projection_overlay_provider.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
 import 'package:craftsky_app/business/providers/owner_business_events_provider.dart';
 import 'package:craftsky_app/business/providers/products_controller.dart';
@@ -41,6 +40,7 @@ import 'package:craftsky_app/profile/providers/profile_relationship_provider.dar
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/report_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/save_profile_provider.dart';
+import 'package:craftsky_app/profile/providers/toggle_block_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/toggle_follow_profile_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/projects/providers/project_feed_provider.dart';
@@ -62,6 +62,7 @@ import 'package:craftsky_app/search/providers/recent_searches_provider.dart';
 import 'package:craftsky_app/search/providers/search_repository_provider.dart';
 import 'package:craftsky_app/search/providers/search_suggestions_provider.dart';
 import 'package:craftsky_app/search/providers/top_hashtags_provider.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 typedef AccountBoundaryAction = Future<void> Function();
@@ -105,9 +106,7 @@ class AccountSessionInvalidationCoordinator {
 
 final accountStateInvalidatorProvider = Provider<AccountBoundaryAction>(
   (ref) => () async {
-    ref
-        .read(businessProjectionOverlayProvider.notifier)
-        .advanceAccountBoundary();
+    ref.read(pdsRecordOperationControllerProvider).reset();
     ref.read(savedPostAccountBoundaryProvider.notifier).advance();
     ref
       ..invalidate(postRepositoryProvider)
@@ -133,6 +132,7 @@ final accountStateInvalidatorProvider = Provider<AccountBoundaryAction>(
       ..invalidate(saveProfileProvider)
       ..invalidate(reportProfileProvider)
       ..invalidate(toggleFollowProfileProvider)
+      ..invalidate(toggleBlockProfileProvider)
       ..invalidate(businessRepositoryProvider)
       ..invalidate(accountTypeControllerProvider)
       ..invalidate(businessEventMutationControllerProvider)

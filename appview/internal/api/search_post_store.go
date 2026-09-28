@@ -157,8 +157,8 @@ func (s *SearchStore) searchPosts(ctx context.Context, req searchPostQuery) ([]S
 			FROM craftsky_posts p
 			LEFT JOIN craftsky_project_posts pp ON pp.uri = p.uri
 			LEFT JOIN bluesky_profiles bp ON bp.did = p.did
-			LEFT JOIN (SELECT subject_uri, count(*) AS like_count FROM craftsky_likes WHERE deleted_at IS NULL AND NOT appview_owner_is_terminal(did) GROUP BY subject_uri) l ON l.subject_uri = p.uri
-			LEFT JOIN (SELECT subject_uri, count(*) AS repost_count FROM craftsky_reposts WHERE deleted_at IS NULL AND NOT appview_owner_is_terminal(did) GROUP BY subject_uri) r ON r.subject_uri = p.uri
+			LEFT JOIN (SELECT subject_uri, count(*) AS like_count FROM pds_set_aggregates WHERE kind='like' AND NOT appview_owner_is_terminal(actor_did) GROUP BY subject_uri) l ON l.subject_uri = p.uri
+			LEFT JOIN (SELECT subject_uri, count(*) AS repost_count FROM pds_set_aggregates WHERE kind='repost' AND NOT appview_owner_is_terminal(actor_did) GROUP BY subject_uri) r ON r.subject_uri = p.uri
 			LEFT JOIN (
 				SELECT reply_root_uri AS subject_uri, count(*) AS reply_count
 				FROM craftsky_posts rp

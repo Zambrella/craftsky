@@ -598,6 +598,7 @@ void main() {
 
       expect(followedKey, 'did:plc:alice');
       expect(find.text('Unfollow'), findsOneWidget);
+      await tester.pump(const Duration(seconds: 31));
     });
 
     testWidgets(

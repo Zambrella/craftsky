@@ -6,7 +6,7 @@ import (
 	"fmt"
 )
 
-func (s *PostStore) countActiveInteractions(ctx context.Context, table, label string, postURIs []string) (map[string]int, error) {
+func (s *PostStore) countActiveSetInteractions(ctx context.Context, kind string, postURIs []string) (map[string]int, error) {
 	out := make(map[string]int, len(postURIs))
 	if len(postURIs) == 0 {
 		return out, nil
@@ -14,40 +14,39 @@ func (s *PostStore) countActiveInteractions(ctx context.Context, table, label st
 	for _, uri := range postURIs {
 		out[uri] = 0
 	}
-	q := `
+	rows, err := s.pool.Query(ctx, `
 		SELECT subject_uri, count(*)::int
-		FROM ` + table + `
-		WHERE deleted_at IS NULL AND subject_uri = ANY($1::text[])
-		  AND NOT appview_owner_is_terminal(did)
+		FROM pds_set_aggregates
+		WHERE kind=$1 AND subject_uri = ANY($2::text[])
+		  AND NOT appview_owner_is_terminal(actor_did)
 		GROUP BY subject_uri
-	`
-	rows, err := s.pool.Query(ctx, q, postURIs)
+	`, kind, postURIs)
 	if err != nil {
-		return nil, fmt.Errorf("%s count active: %w", label, err)
+		return nil, fmt.Errorf("%s count active: %w", kind, err)
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var uri string
 		var count int
 		if err := rows.Scan(&uri, &count); err != nil {
-			return nil, fmt.Errorf("%s count scan: %w", label, err)
+			return nil, fmt.Errorf("%s count scan: %w", kind, err)
 		}
 		out[uri] = count
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("%s count iter: %w", label, err)
+		return nil, fmt.Errorf("%s count iter: %w", kind, err)
 	}
 	return out, nil
 }
 
 // CountActiveLikes returns active like counts keyed by post URI.
 func (s *PostStore) CountActiveLikes(ctx context.Context, postURIs []string) (map[string]int, error) {
-	return s.countActiveInteractions(ctx, "craftsky_likes", "like", postURIs)
+	return s.countActiveSetInteractions(ctx, "like", postURIs)
 }
 
 // CountActiveReposts returns active repost counts keyed by post URI.
 func (s *PostStore) CountActiveReposts(ctx context.Context, postURIs []string) (map[string]int, error) {
-	return s.countActiveInteractions(ctx, "craftsky_reposts", "repost", postURIs)
+	return s.countActiveSetInteractions(ctx, "repost", postURIs)
 }
 
 // CountVisibleQuotes returns visible top-level quote-post counts keyed by the
@@ -89,12 +88,12 @@ func (s *PostStore) CountVisibleQuotes(ctx context.Context, postURIs []string) (
 }
 
 func (s *PostStore) countEligibleAccountInteractions(ctx context.Context, kind PostInteractionKind, viewerDID string, postURIs []string) (map[string]int, error) {
-	var table, label string
+	var label, kindFilter string
 	switch kind {
 	case PostInteractionLikes:
-		table, label = "craftsky_likes", "like"
+		label, kindFilter = "like", "AND interaction.kind='like'"
 	case PostInteractionReposts:
-		table, label = "craftsky_reposts", "repost"
+		label, kindFilter = "repost", "AND interaction.kind='repost'"
 	default:
 		return nil, fmt.Errorf("unsupported account interaction kind %q", kind)
 	}
@@ -107,10 +106,11 @@ func (s *PostStore) countEligibleAccountInteractions(ctx context.Context, kind P
 	}
 	query := `
 		SELECT interaction.subject_uri, count(*)::int
-		FROM ` + table + ` interaction
-		JOIN craftsky_profiles actor ON actor.did = interaction.did
+		FROM pds_set_aggregates interaction
+		JOIN craftsky_profiles actor ON actor.did = interaction.actor_did
 		JOIN craftsky_posts target ON target.uri = interaction.subject_uri
-		WHERE interaction.deleted_at IS NULL
+		WHERE 1=1
+		  ` + kindFilter + `
 		  AND interaction.subject_uri = ANY($1::text[])
 		  ` + eligibleAccountInteractionPredicate("actor", "target.did", "$2") + `
 		GROUP BY interaction.subject_uri
@@ -233,17 +233,9 @@ func (s *PostStore) ViewerInteractionStates(ctx context.Context, viewerDID strin
 	}
 	const q = `
 		SELECT subject_uri, bool_or(kind = 'like'), bool_or(kind = 'repost')
-		FROM (
-			SELECT subject_uri, 'like' AS kind
-			FROM craftsky_likes
-			WHERE did = $1 AND deleted_at IS NULL AND subject_uri = ANY($2::text[])
-			  AND NOT appview_owner_is_terminal(did)
-			UNION ALL
-			SELECT subject_uri, 'repost' AS kind
-			FROM craftsky_reposts
-			WHERE did = $1 AND deleted_at IS NULL AND subject_uri = ANY($2::text[])
-			  AND NOT appview_owner_is_terminal(did)
-		) interactions
+		FROM pds_set_aggregates
+		WHERE kind IN ('like','repost') AND actor_did = $1 AND subject_uri = ANY($2::text[])
+		  AND NOT appview_owner_is_terminal(actor_did)
 		GROUP BY subject_uri
 	`
 	rows, err := s.pool.Query(ctx, q, viewerDID, postURIs)

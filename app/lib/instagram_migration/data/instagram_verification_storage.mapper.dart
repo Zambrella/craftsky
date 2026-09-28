@@ -87,7 +87,6 @@ mixin InstagramVerificationSnapshotMappable {
     );
   }
 }
-
 extension InstagramVerificationSnapshotValueCopy<$R, $Out>
     on ObjectCopyWith<$R, InstagramVerificationSnapshot, $Out> {
   InstagramVerificationSnapshotCopyWith<$R, InstagramVerificationSnapshot, $Out>

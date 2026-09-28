@@ -723,11 +723,11 @@ void main() {
     await _pumpCommentSection(tester, repo: repo);
     await tester.pumpAndSettle();
     await tester.tap(find.byIcon(CraftskyIconsBold.like).at(0));
-    await tester.pump();
+    await tester.pumpAndSettle();
     await tester.tap(find.byIcon(CraftskyIconsBold.like).at(0));
-    await tester.pump();
+    await tester.pumpAndSettle();
     await tester.tap(find.byIcon(CraftskyIconsBold.like).at(0));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(calls, [
       'did:plc:alice/root',
@@ -737,6 +737,8 @@ void main() {
     expect(find.byIcon(CraftskyIcons.liked), findsNWidgets(3));
     expect(find.byIcon(CraftskyIconsBold.like), findsNothing);
     expect(find.text('1'), findsNWidgets(3));
+    await tester.pump(const Duration(seconds: 31));
+    await tester.pumpAndSettle();
   });
 
   testWidgets('wires repost action for the root post', (tester) async {
@@ -764,6 +766,8 @@ void main() {
 
     expect(calls, ['did:plc:alice/root']);
     expect(find.text('1'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 31));
+    await tester.pumpAndSettle();
   });
 
   testWidgets(

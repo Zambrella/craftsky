@@ -1,9 +1,11 @@
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
-import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/timeline_page.dart';
 import 'package:craftsky_app/feed/models/timeline_state.dart';
+import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
+import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
+import 'package:craftsky_app/profile/providers/block_profile_overlay.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
@@ -19,7 +21,10 @@ class Timeline extends _$Timeline {
     ref.watch(activeContentLanguagePolicyProvider);
     final repo = ref.watch(postRepositoryProvider);
     final page = await repo.listTimeline(limit: timelinePageLimit);
-    return TimelineState(items: _dedupe(page.items), cursor: page.cursor);
+    return TimelineState(
+      items: _dedupe(_applyTimelineOverlays(ref, page.items)),
+      cursor: page.cursor,
+    );
   }
 
   Future<void> loadMore() async {
@@ -36,46 +41,16 @@ class Timeline extends _$Timeline {
         limit: timelinePageLimit,
       );
       return TimelineState(
-        items: _appendDeduped(current.items, page.items),
+        items: _appendDeduped(
+          current.items,
+          _applyTimelineOverlays(ref, page.items),
+        ),
         cursor: page.cursor,
       );
     });
 
     if (!isActiveAccountOperationCurrent(ref, ownership)) return;
     state = next;
-  }
-
-  void prepend(Post post) {
-    final current = state.value;
-    if (current == null) return;
-    final item = TimelineItem(itemKey: 'post:${post.uri}', post: post);
-    if (current.items.any((existing) => existing.itemKey == item.itemKey)) {
-      return;
-    }
-    state = AsyncData(current.copyWith(items: [item, ...current.items]));
-  }
-
-  void replace(Post post) {
-    final current = state.value;
-    if (current == null) return;
-    state = AsyncData(
-      current.copyWith(
-        items: [
-          for (final item in current.items)
-            if (item.post.uri == post.uri) item.copyWith(post: post) else item,
-        ],
-      ),
-    );
-  }
-
-  void removeByUri(AtUri uri) {
-    final current = state.value;
-    if (current == null) return;
-    state = AsyncData(
-      current.copyWith(
-        items: current.items.where((item) => item.post.uri != uri).toList(),
-      ),
-    );
   }
 
   int suppressActor(String did) {
@@ -96,30 +71,50 @@ class Timeline extends _$Timeline {
   }
 }
 
-void prependLiveTimelineCache(Ref ref, Post post) {
-  if (ref.exists(timelineProvider)) {
-    ref.read(timelineProvider.notifier).prepend(post);
-  }
-}
-
-void updateLiveTimelineCache(Ref ref, Post post) {
-  if (ref.exists(timelineProvider)) {
-    ref.read(timelineProvider.notifier).replace(post);
-  }
-}
-
-void removeFromLiveTimelineCache(Ref ref, AtUri uri) {
-  if (ref.exists(timelineProvider)) {
-    ref.read(timelineProvider.notifier).removeByUri(uri);
-  }
-}
-
 List<TimelineItem> _dedupe(List<TimelineItem> items) {
   final seen = <String>{};
   return [
     for (final item in items)
       if (seen.add(item.itemKey)) item,
   ];
+}
+
+List<TimelineItem> _applyTimelineOverlays(Ref ref, List<TimelineItem> items) {
+  final visible = [
+    for (final item in items)
+      if (!isLogicallyBlocking(
+            ref.read,
+            item.post.author.did,
+            authoritativeBlocking: item.post.author.blocking ?? false,
+          ) &&
+          (item.reason == null ||
+              !isLogicallyBlocking(
+                ref.read,
+                item.reason!.by.did,
+                authoritativeBlocking: item.reason!.by.blocking ?? false,
+              )))
+        item,
+  ];
+  final result = <TimelineItem>[];
+  final seen = <AtUri>{};
+  for (final item in visible) {
+    final post = applyPostRecordOverlay(ref, item.post);
+    if (post == null) continue;
+    seen.add(post.uri);
+    result.add(item.copyWith(post: applyPostInteractionOverlays(ref, post)));
+  }
+  for (final post in optimisticPostRecordOverlays(ref)) {
+    if (post.reply == null && seen.add(post.uri)) {
+      result.insert(
+        0,
+        TimelineItem(
+          itemKey: 'post:${post.uri}',
+          post: applyPostInteractionOverlays(ref, post),
+        ),
+      );
+    }
+  }
+  return result;
 }
 
 List<TimelineItem> _appendDeduped(

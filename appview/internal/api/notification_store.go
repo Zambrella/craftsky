@@ -121,9 +121,10 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 					WHERE mute.owner_did = $1 AND mute.subject_did = e.actor_did
 				)
 				AND NOT EXISTS (
-					SELECT 1 FROM atproto_blocks block
-					WHERE (block.blocker_did = $1 AND block.subject_did = e.actor_did)
-					   OR (block.blocker_did = e.actor_did AND block.subject_did = $1)
+					SELECT 1 FROM pds_set_aggregates block
+					WHERE block.kind = 'block'
+					  AND ((block.actor_did = $1 AND block.subject_did = e.actor_did)
+					   OR (block.actor_did = e.actor_did AND block.subject_did = $1))
 				)
 			  ))
 			  AND ($2::timestamptz IS NULL
@@ -178,9 +179,10 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			JOIN reference_uris refs ON refs.uri=p.uri
 			WHERE NOT appview_owner_is_terminal(p.did)
 			AND NOT EXISTS (
-				SELECT 1 FROM atproto_blocks block
-				WHERE (block.blocker_did = $1 AND block.subject_did = p.did)
-				   OR (block.blocker_did = p.did AND block.subject_did = $1)
+				SELECT 1 FROM pds_set_aggregates block
+				WHERE block.kind = 'block'
+				  AND ((block.actor_did = $1 AND block.subject_did = p.did)
+				   OR (block.actor_did = p.did AND block.subject_did = $1))
 			)
 			AND NOT EXISTS (
 				SELECT 1 FROM moderation_outputs mo
@@ -214,10 +216,11 @@ func (s *PostStore) ListNotifications(ctx context.Context, viewerDID string, lim
 			actor_bp.avatar_mime AS actor_avatar_mime,
 			EXISTS (
 				SELECT 1
-				FROM atproto_follows actor_follow
-				WHERE actor_follow.did = $1
+				FROM pds_set_aggregates actor_follow
+				WHERE actor_follow.kind = 'follow'
+				  AND actor_follow.actor_did = $1
 				  AND actor_follow.subject_did = e.actor_did
-				  AND NOT appview_owner_is_terminal(actor_follow.did)
+				  AND NOT appview_owner_is_terminal(actor_follow.actor_did)
 				  AND NOT appview_owner_is_terminal(actor_follow.subject_did)
 			) AS actor_viewer_is_following,
 			e.activity_at,

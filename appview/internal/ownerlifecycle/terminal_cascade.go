@@ -34,6 +34,7 @@ var terminalCascadePolicies = map[string]string{
 	"oauth_auth_requests":               "fixed",
 	"oauth_handoff_exchanges":           "fixed",
 	"oauth_sessions":                    "dependency",
+	"pds_commands":                      "drain",
 	"push_account_subscriptions":        "drain",
 	"saved_post_folders":                "dependency",
 	"scheduled_posts":                   "dependency",
@@ -134,8 +135,6 @@ func terminalCascadeDrainSQL(entry TerminalDIDEntry) []string {
 	switch entry.Table {
 	case "craftsky_posts":
 		return []string{
-			deletePostDependentSQL("craftsky_likes", "subject_uri", "uri"),
-			deletePostDependentSQL("craftsky_reposts", "subject_uri", "uri"),
 			deletePostDependentSQL("craftsky_post_mentions", "post_uri", "post_uri,mentioned_did"),
 			deletePostDependentSQL("craftsky_project_posts", "uri", "uri"),
 			deletePostDependentSQL("saved_posts", "post_uri", "owner_did,post_uri"),
@@ -259,7 +258,8 @@ func terminalCascadeDrainSQL(entry TerminalDIDEntry) []string {
 			FROM target WHERE child.moderation_output_id=target.moderation_output_id
 		`}
 	case "tap_source_records":
-		return []string{`
+		return []string{
+			`
 			WITH target AS (
 				SELECT child.id
 				FROM tap_projection_jobs AS child
@@ -270,7 +270,50 @@ func terminalCascadeDrainSQL(entry TerminalDIDEntry) []string {
 			)
 			DELETE FROM tap_projection_jobs AS child USING target
 			WHERE child.id=target.id
-		`}
+			`,
+			`
+			WITH target AS (
+				SELECT child.source_uri
+				FROM pds_set_sources AS child
+				JOIN tap_source_records AS parent ON parent.uri=child.source_uri
+				WHERE parent.did=$1
+				  AND parent.ctid=ANY($3::tid[])
+				ORDER BY child.source_uri LIMIT $2 FOR UPDATE OF child NOWAIT
+			)
+			DELETE FROM pds_set_sources AS child USING target
+			WHERE child.source_uri=target.source_uri
+			`,
+		}
+	case "pds_commands":
+		return []string{
+			`
+			WITH target AS (
+				SELECT child.id
+				FROM pds_command_dispatches AS child
+				JOIN pds_commands AS parent ON parent.id=child.command_id
+				WHERE parent.` + role + `=$1
+				  AND parent.ctid=ANY($3::tid[])
+				ORDER BY child.id LIMIT $2 FOR UPDATE OF child NOWAIT
+			)
+			DELETE FROM pds_command_dispatches AS child USING target
+			WHERE child.id=target.id
+			`,
+			`
+			WITH target AS (
+				SELECT child.command_id,child.plan_version,child.ordinal
+				FROM pds_command_steps AS child
+				JOIN pds_commands AS parent ON parent.id=child.command_id
+				WHERE parent.` + role + `=$1
+				  AND parent.ctid=ANY($3::tid[])
+				ORDER BY child.command_id,child.plan_version,child.ordinal
+				LIMIT $2 FOR UPDATE OF child NOWAIT
+			)
+			DELETE FROM pds_command_steps AS child USING target
+			WHERE child.command_id=target.command_id
+			  AND child.plan_version=target.plan_version
+			  AND child.ordinal=target.ordinal
+			`,
+		}
 	default:
 		return nil
 	}

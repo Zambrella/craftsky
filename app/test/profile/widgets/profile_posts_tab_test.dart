@@ -386,6 +386,8 @@ void main() {
         'like:did:plc:alice/a',
         'repost:did:plc:alice/a',
       ]);
+      await tester.pump(const Duration(seconds: 31));
+      await tester.pumpAndSettle();
     });
 
     testWidgets('reply create opens thread focused on the new comment', (

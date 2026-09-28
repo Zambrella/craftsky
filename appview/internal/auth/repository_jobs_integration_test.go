@@ -199,6 +199,15 @@ func withRepositoryJobAuthSchema(t *testing.T) *pgxpool.Pool {
 	); err != nil {
 		t.Fatalf("apply Tap durability migrations: %v", err)
 	}
+	if _, err := pool.Exec(context.Background(), `
+		ALTER TABLE tap_source_records
+			ADD COLUMN validation_version INTEGER,
+			ADD COLUMN structural_validation_status TEXT,
+			ADD COLUMN semantic_validation_status TEXT,
+			ADD COLUMN validation_reason TEXT
+	`); err != nil {
+		t.Fatalf("extend source validation fixture: %v", err)
+	}
 	return pool
 }
 

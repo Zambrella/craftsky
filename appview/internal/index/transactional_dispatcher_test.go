@@ -6,19 +6,30 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5"
 
 	"social.craftsky/appview/internal/ingestion"
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/sourcevalidation"
 	"social.craftsky/appview/internal/tap"
 )
 
 type transactionalIndexerFunc func(context.Context, pgx.Tx, tap.Event) (tap.Outcome, error)
 
-func (fn transactionalIndexerFunc) Project(ctx context.Context, tx pgx.Tx, event tap.Event) (tap.Outcome, error) {
-	return fn(ctx, tx, event)
+func (fn transactionalIndexerFunc) Project(ctx context.Context, tx pgx.Tx, source ingestion.SourceRecord) (tap.Outcome, error) {
+	return fn(ctx, tx, eventFromSource(source))
+}
+
+type sourceCapturingIndexer struct {
+	source ingestion.SourceRecord
+}
+
+func (indexer *sourceCapturingIndexer) Project(_ context.Context, _ pgx.Tx, source ingestion.SourceRecord) (tap.Outcome, error) {
+	indexer.source = source
+	return tap.Applied(), nil
 }
 
 func TestTransactionalDispatcherRegisterRejectsNilIndexer(t *testing.T) {
@@ -99,9 +110,9 @@ func assertPanicsWith(t *testing.T, want string, fn func()) {
 
 func TestTransactionalDispatcherRejectsMalformedSupportedRecordBeforeMutation(t *testing.T) {
 	dispatcher := NewTransactionalDispatcher()
-	called := false
-	dispatcher.Register(craftskyLikeNSID, transactionalIndexerFunc(func(context.Context, pgx.Tx, tap.Event) (tap.Outcome, error) {
-		called = true
+	calledAction := ""
+	dispatcher.Register(craftskyLikeNSID, transactionalIndexerFunc(func(_ context.Context, _ pgx.Tx, event tap.Event) (tap.Outcome, error) {
+		calledAction = event.Action
 		return tap.Applied(), nil
 	}))
 
@@ -117,8 +128,8 @@ func TestTransactionalDispatcherRejectsMalformedSupportedRecordBeforeMutation(t 
 	if outcome.Kind != tap.OutcomePermanentInvalid || outcome.Reason != tap.ReasonMalformedRecord {
 		t.Fatalf("outcome=%+v", outcome)
 	}
-	if called {
-		t.Fatal("malformed source reached the serving-table projector")
+	if calledAction != "" {
+		t.Fatalf("invalid record key should not reach serving projector, action=%s", calledAction)
 	}
 }
 
@@ -139,6 +150,29 @@ func TestTransactionalDispatcherRoutesValidatedSource(t *testing.T) {
 	})
 	if err != nil || outcome.Kind != tap.OutcomeApplied {
 		t.Fatalf("outcome=%+v err=%v", outcome, err)
+	}
+}
+
+func TestTransactionalDispatcherPreservesDurableSourceMetadata(t *testing.T) {
+	dispatcher := NewTransactionalDispatcher()
+	indexer := &sourceCapturingIndexer{}
+	dispatcher.Register(blueskyProfileNSID, indexer)
+	updatedAt := time.Date(2026, 9, 24, 12, 0, 0, 0, time.UTC)
+	source := ingestion.SourceRecord{
+		URI: "at://did:plc:actor/app.bsky.actor.profile/self",
+		DID: "did:plc:actor", Collection: blueskyProfileNSID, Rkey: "self",
+		SourceEventID: 8, Revision: "3aaaaaaaaaaa3", CID: "bafy-profile", Action: "create",
+		Record: json.RawMessage(`{"displayName":"Actor"}`), OrderingStatus: "authoritative",
+		StructuralValidationStatus: sourcevalidation.Valid, SemanticValidationStatus: sourcevalidation.Valid,
+		UpdatedAt: updatedAt,
+	}
+
+	outcome, err := dispatcher.Project(context.Background(), nil, source)
+	if err != nil || outcome.Kind != tap.OutcomeApplied {
+		t.Fatalf("outcome=%+v err=%v", outcome, err)
+	}
+	if !reflect.DeepEqual(indexer.source, source) {
+		t.Fatalf("projected source = %+v, want %+v", indexer.source, source)
 	}
 }
 
@@ -175,10 +209,10 @@ func TestTransactionalDispatcherRoutesBusinessRecordsWithSourceRevision(t *testi
 
 func TestTransactionalDispatcherRejectsBusinessRecordsOutsideLexiconContract(t *testing.T) {
 	dispatcher := NewTransactionalDispatcher()
-	called := false
+	calledAction := ""
 	for _, collection := range []syntax.NSID{businessProfileCollection, businessEventCollection} {
-		dispatcher.Register(collection, transactionalIndexerFunc(func(context.Context, pgx.Tx, tap.Event) (tap.Outcome, error) {
-			called = true
+		dispatcher.Register(collection, transactionalIndexerFunc(func(_ context.Context, _ pgx.Tx, event tap.Event) (tap.Outcome, error) {
+			calledAction = event.Action
 			return tap.Applied(), nil
 		}))
 	}
@@ -217,7 +251,7 @@ func TestTransactionalDispatcherRejectsBusinessRecordsOutsideLexiconContract(t *
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			called = false
+			calledAction = ""
 			outcome, err := dispatcher.Project(context.Background(), nil, ingestion.SourceRecord{
 				URI: syntax.ATURI("at://did:plc:actor/" + tc.collection.String() + "/" + tc.rkey.String()),
 				DID: "did:plc:actor", Collection: tc.collection, Rkey: tc.rkey,
@@ -229,8 +263,12 @@ func TestTransactionalDispatcherRejectsBusinessRecordsOutsideLexiconContract(t *
 			if outcome.Kind != tap.OutcomePermanentInvalid || outcome.Reason != tap.ReasonMalformedRecord {
 				t.Fatalf("outcome=%+v", outcome)
 			}
-			if called {
-				t.Fatal("invalid business record reached projector")
+			wantAction := "delete"
+			if tc.name == "profile key is not self" || tc.name == "event key is not a TID" {
+				wantAction = ""
+			}
+			if calledAction != wantAction {
+				t.Fatalf("invalid business record projection action=%q, want cleanup=%q", calledAction, wantAction)
 			}
 		})
 	}

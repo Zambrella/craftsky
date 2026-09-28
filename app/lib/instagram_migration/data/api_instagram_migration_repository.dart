@@ -78,8 +78,9 @@ final class ApiInstagramMigrationRepository
 
   @override
   Future<InstagramSuggestionActionResult> acceptSuggestion(
-    String suggestionId,
-  ) => _api.acceptSuggestion(suggestionId);
+    String suggestionId, {
+    required String operationKey,
+  }) => _api.acceptSuggestion(suggestionId, operationKey: operationKey);
 
   @override
   Future<void> dismissSuggestion(String suggestionId) =>

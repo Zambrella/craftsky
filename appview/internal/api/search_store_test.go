@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -54,12 +55,7 @@ func TestSearchProfilesOmitsBlockedAccountExceptExactHandleManagementShell(t *te
 	seedSearchIdentity(t, pool, "did:plc:viewer", "viewer.example", "Viewer", "viewer bio")
 	seedSearchIdentity(t, pool, "did:plc:bob", "bob.example", "Bob Maker", "blocked bio")
 	seedSearchIdentity(t, pool, "did:plc:carol", "carol.example", "Carol", "carol bio")
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO atproto_blocks (uri, blocker_did, rkey, cid, subject_did, record, created_at)
-		VALUES ('at://did:plc:viewer/app.bsky.graph.block/bob', 'did:plc:viewer', 'bob', 'block-cid', 'did:plc:bob', '{}', now())
-	`); err != nil {
-		t.Fatalf("seed block: %v", err)
-	}
+	seedBlockAggregate(t, pool, "did:plc:viewer", "did:plc:bob", time.Now())
 	store := api.NewSearchStore(pool, nil)
 
 	ordinary, _, err := store.SearchProfiles(ctx, "did:plc:viewer", api.ProfileSearchRequest{Query: "bob", Limit: 10})
@@ -725,12 +721,11 @@ func TestSearchStoreRelationshipFiltersBeforeHashtagPagination(t *testing.T) {
 		}
 	}
 	if _, err := pool.Exec(context.Background(), `
-		INSERT INTO actor_mutes(owner_did,subject_did) VALUES('did:plc:viewer','did:plc:bob');
-		INSERT INTO atproto_blocks(uri,blocker_did,rkey,cid,subject_did,record,created_at)
-		VALUES('at://did:plc:carol/app.bsky.graph.block/r1','did:plc:carol','r1','cid','did:plc:viewer','{}',now())
+		INSERT INTO actor_mutes(owner_did,subject_did) VALUES('did:plc:viewer','did:plc:bob')
 	`); err != nil {
 		t.Fatal(err)
 	}
+	seedBlockAggregate(t, pool, "did:plc:carol", "did:plc:viewer", time.Now())
 	ctx := middleware.WithDID(context.Background(), syntax.DID("did:plc:viewer"))
 	rows, cursor, err := api.NewSearchStore(pool, nil).SearchHashtagPosts(ctx, "knit", api.SearchSortChronological, 1, "", base.Add(time.Hour))
 	if err != nil {
@@ -756,6 +751,7 @@ func TestSearchStore_SearchHashtagPostsSortsChronologicalAndPopular(t *testing.T
 		seedPostTags(t, pool, uri, []string{"sock"})
 	}
 	seedInteraction(t, pool, "repost", "did:plc:fan1", "sock-repost-1", olderPopular, false)
+	seedInteraction(t, pool, "repost", "did:plc:fan1", "sock-repost-duplicate", olderPopular, false)
 	seedInteraction(t, pool, "repost", "did:plc:fan2", "sock-repost-2", olderPopular, false)
 	seedInteraction(t, pool, "like", "did:plc:fan3", "sock-like-1", olderPopular, false)
 
@@ -777,6 +773,9 @@ func TestSearchStore_SearchHashtagPostsSortsChronologicalAndPopular(t *testing.T
 	}
 	if got := searchURIs(popularRows); !slices.Equal(got, []string{olderPopular, newestQuiet, middleProject}) {
 		t.Fatalf("popular URIs = %v", got)
+	}
+	if want := api.PopularityScore(1, 0, 2, base.Add(-48*time.Hour), base); math.Abs(popularRows[0].Score-want) > 1e-6 {
+		t.Fatalf("logical popularity score = %f, want %f", popularRows[0].Score, want)
 	}
 }
 

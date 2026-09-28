@@ -34,6 +34,15 @@ func TestProjectionActorFencePrecedesSourceRowLock(t *testing.T) {
 	if _, err := pool.Exec(ctx, string(renameMigration)); err != nil {
 		t.Fatalf("apply Tap projection generation migration: %v", err)
 	}
+	if _, err := pool.Exec(ctx, `
+		ALTER TABLE tap_source_records
+			ADD COLUMN validation_version INTEGER NOT NULL DEFAULT 1,
+			ADD COLUMN structural_validation_status TEXT NOT NULL DEFAULT 'pending',
+			ADD COLUMN semantic_validation_status TEXT NOT NULL DEFAULT 'pending',
+			ADD COLUMN validation_reason TEXT
+	`); err != nil {
+		t.Fatalf("add source validation fixture columns: %v", err)
+	}
 	store, err := NewStore(pool, time.Now)
 	if err != nil {
 		t.Fatal(err)

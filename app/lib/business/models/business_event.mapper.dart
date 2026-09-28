@@ -248,7 +248,6 @@ mixin BusinessEventMappable {
     );
   }
 }
-
 extension BusinessEventValueCopy<$R, $Out>
     on ObjectCopyWith<$R, BusinessEvent, $Out> {
   BusinessEventCopyWith<$R, BusinessEvent, $Out> get $asBusinessEvent =>

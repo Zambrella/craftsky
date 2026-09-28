@@ -32,11 +32,11 @@ func TestProfilePinMutationsOnlyChangePrivateAppViewState(t *testing.T) {
 		CREATE TRIGGER audit_pin_posts
 		AFTER INSERT OR UPDATE OR DELETE ON craftsky_posts
 		FOR EACH ROW EXECUTE FUNCTION audit_pin_external_change();
-		CREATE TRIGGER audit_pin_likes
-		AFTER INSERT OR UPDATE OR DELETE ON craftsky_likes
+		CREATE TRIGGER audit_pin_set_sources
+		AFTER INSERT OR UPDATE OR DELETE ON pds_set_sources
 		FOR EACH ROW EXECUTE FUNCTION audit_pin_external_change();
-		CREATE TRIGGER audit_pin_reposts
-		AFTER INSERT OR UPDATE OR DELETE ON craftsky_reposts
+		CREATE TRIGGER audit_pin_set_aggregates
+		AFTER INSERT OR UPDATE OR DELETE ON pds_set_aggregates
 		FOR EACH ROW EXECUTE FUNCTION audit_pin_external_change();
 		CREATE TRIGGER audit_pin_saves
 		AFTER INSERT OR UPDATE OR DELETE ON saved_posts

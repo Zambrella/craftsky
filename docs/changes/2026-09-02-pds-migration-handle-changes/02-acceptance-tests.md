@@ -277,7 +277,7 @@ Feature: Verified repository repair
     And DID D is not terminalized or recorded as deleted because of migration
 ```
 
-### AT-011: Tap Status Is A Hint And Replay Resumes From The Cursor
+### AT-011: Tap Status Is A Hint And Replay Policy Matches The Environment
 Requirement IDs: FR-007, FR-029, FR-030, RULE-006
 Acceptance Criteria: AC-053, AC-054
 Priority: Must
@@ -287,11 +287,10 @@ Automation Target: `appview/internal/tap/migration_identity_acceptance_test.go`
 ```gherkin
 Feature: Tap migration resilience
   Scenario Outline: Tap reports a non-active account status
-    Given DID D has active Craftsky ownership and a durable relay cursor
+    Given DID D has active Craftsky ownership
     When Tap reports D as <status>
     Then Craftsky records or refreshes synchronization state as applicable
     And it does not terminalize or purge D
-    And a reconnect requests replay from the durable cursor rather than the live head
 
     Examples:
       | status |
@@ -299,6 +298,13 @@ Feature: Tap migration resilience
       | inactive |
       | suspended |
       | takendown |
+
+  Scenario: Production and local dev use different restart cursor policies
+    Given Tap has a saved durable relay cursor
+    When production Tap restarts
+    Then it requests replay from the saved cursor
+    When local Compose Tap restarts
+    Then it connects at the live head instead of replaying the stale cursor
 ```
 
 ### AT-012: Cold Start Does Not Add Client-Wide Write Gating
@@ -375,7 +381,7 @@ Feature: Cold-start migration discovery
 | REG-003 | Existing profile, follow, relationship, notification, search, and account-switching behavior. | NFR-006 | AC-032 | Run corresponding Go and Flutter suites with stable DIDs/handles. |
 | REG-004 | Normal profile aliases resolve while canonical known-identity routes and caches are DID-first. | FR-014, RULE-007, NFR-006 | AC-020, AC-021, AC-032, AC-035 | Run profile API/router/provider tests; assert current external handle input resolves once and canonicalizes without compatibility fallback. |
 | REG-005 | Existing scheduled post publication and failure lifecycle. | FR-025, NFR-006 | AC-032, AC-048 | Run `internal/scheduledposts` and scheduled API suites, including the existing retry schedule and `needs_attention` transition. |
-| REG-006 | Tap reconnect/replay and ordinary at-least-once ingestion. | FR-030, NFR-006 | AC-032, AC-054 | Run Tap replay, consumer, ingestion lease/replay, and repository-job suites with replay enabled and durable cursor assertions. |
+| REG-006 | Tap reconnect/replay and ordinary at-least-once ingestion. | FR-030, NFR-006 | AC-032, AC-054 | Run Tap replay, consumer, ingestion lease/replay, and repository-job suites; assert production retains cursor replay and local Compose skips the saved cursor on startup. |
 | REG-007 | Authenticated permanent deletion remains the only terminal purge path. | FR-029, RULE-006, NFR-006 | AC-032, AC-053 | Run account-deletion and terminal-purge acceptance suites; verify explicit deletion still terminalizes while federation status does not. |
 | REG-008 | Existing security boundary and secret redaction. | NFR-005, RULE-004, NFR-006 | AC-031, AC-032, AC-034 | Run Go/Flutter secret scans, federated HTTP policy tests, secure storage, and auth interceptor tests. |
 | REG-009 | OAuth start, registration, and callback discovery remain fully fresh while ordinary effect metadata is cached. | FR-031, FR-032 | AC-055, AC-056 | Run OAuth flow and federated real-flow request-count tests with a warm effect cache. |

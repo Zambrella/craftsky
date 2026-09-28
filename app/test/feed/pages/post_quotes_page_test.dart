@@ -192,6 +192,8 @@ void main() {
 
     expect(find.byType(PostCard), findsNothing);
     expect(find.text('No quotes yet.'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 31));
+    await tester.pumpAndSettle();
   });
 
   testWidgets(
