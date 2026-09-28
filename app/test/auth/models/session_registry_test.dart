@@ -49,7 +49,7 @@ void main() {
       expect(registry.pendingAccountDeletion?.jobId, pending.jobId);
       expect(registry.pendingAccountDeletion?.confirmationDid, 'did:plc:alice');
       final encoded = jsonDecode(registry.toJson()) as Map<String, dynamic>;
-      expect(encoded['schemaVersion'], 2);
+      expect(encoded['schemaVersion'], 3);
       expect(
         registry.pendingAccountDeletion?.isCurrent(
           registry.activeLease,
@@ -221,7 +221,73 @@ void main() {
       restored.orderedSessions.single.cachedCustomisation,
       ProfileCustomisation.defaults,
     );
+    expect(restored.billingOwner, isNull);
+    expect(
+      (jsonDecode(restored.toJson()) as Map<String, dynamic>)['schemaVersion'],
+      3,
+    );
   });
+
+  test('UT-002 reserves one billing owner before UUID completion', () {
+    final active = SessionRegistry.empty().upsertAndActivate(
+      token: 'alice-token',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+
+    final reserved = active.reserveBillingOwner('did:plc:alice');
+
+    expect(reserved.billingOwner?.did.value, 'did:plc:alice');
+    expect(reserved.billingOwner?.revenueCatAppUserId, isNull);
+    expect(
+      () => reserved.reserveBillingOwner('did:plc:bob'),
+      throwsStateError,
+    );
+    expect(
+      SessionRegistry.fromJson(reserved.toJson()).billingOwner?.did.value,
+      'did:plc:alice',
+    );
+  });
+
+  test(
+    'IT-004 completes only the reserved DID and preserves it on removal',
+    () {
+      var registry = SessionRegistry.empty().upsertAndActivate(
+        token: 'alice-token',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      );
+      registry = registry
+          .reserveBillingOwner('did:plc:alice')
+          .completeBillingOwner(
+            'did:plc:alice',
+            '20000000-0000-4000-8000-000000000001',
+          );
+
+      expect(
+        registry.billingOwner?.revenueCatAppUserId,
+        '20000000-0000-4000-8000-000000000001',
+      );
+      expect(
+        () => registry.completeBillingOwner(
+          'did:plc:bob',
+          '20000000-0000-4000-8000-000000000002',
+        ),
+        throwsStateError,
+      );
+      expect(
+        () => registry.completeBillingOwner(
+          'did:plc:alice',
+          '20000000-0000-4000-8000-000000000002',
+        ),
+        throwsStateError,
+      );
+      expect(
+        registry.remove('did:plc:alice').billingOwner?.did.value,
+        'did:plc:alice',
+      );
+    },
+  );
 
   test('additively upserts and enforces the five-account limit', () {
     var registry = SessionRegistry.empty();

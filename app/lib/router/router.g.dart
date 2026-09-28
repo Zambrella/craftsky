@@ -156,6 +156,13 @@ RouteBase get $authenticatedShellRoute => ShellRouteData.$route(
                       factory: $AccountRoute._fromState,
                     ),
                     GoRouteData.$route(
+                      path: 'subscriptions',
+                      name: 'settings-subscriptions',
+                      parentNavigatorKey:
+                          SubscriptionsRoute.$parentNavigatorKey,
+                      factory: $SubscriptionsRoute._fromState,
+                    ),
+                    GoRouteData.$route(
                       path: 'about',
                       name: 'settings-about',
                       parentNavigatorKey: AboutRoute.$parentNavigatorKey,
@@ -561,6 +568,28 @@ mixin $AccountRoute on GoRouteData {
 
   @override
   String get location => GoRouteData.$location('/profile/settings/account');
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+mixin $SubscriptionsRoute on GoRouteData {
+  static SubscriptionsRoute _fromState(GoRouterState state) =>
+      const SubscriptionsRoute();
+
+  @override
+  String get location =>
+      GoRouteData.$location('/profile/settings/subscriptions');
 
   @override
   void go(BuildContext context) => context.go(location);

@@ -49,7 +49,9 @@ func (o *Observer) ObserveRevenueCatReconciliation(ctx context.Context, operatio
 	}
 	result := "success"
 	level := slog.LevelInfo
-	if outcome != "success" && outcome != "empty" {
+	if outcome == "empty" {
+		level = slog.LevelDebug
+	} else if outcome != "success" {
 		result = "error"
 		level = slog.LevelWarn
 	}

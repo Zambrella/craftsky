@@ -26,25 +26,27 @@ const (
 // RevenueCatConfig is disabled by default and keeps provider credentials and
 // private catalog identifiers out of ordinary process diagnostics.
 type RevenueCatConfig struct {
-	enabled                bool
-	configured             bool
-	apiBaseURL             string
-	apiKey                 Secret
-	projectID              string
-	webhookAuthorization   Secret
-	webhookSigningSecret   Secret
-	appIDs                 []string
-	products               map[string]subscriptions.ProductMapping
-	webhookBodyLimit       int64
-	ingressDeadline        time.Duration
-	signatureTolerance     time.Duration
-	apiTimeout             time.Duration
-	pageLimit              int
-	maxPages               int
-	maxResponseBytes       int64
-	reconciliationPoll     time.Duration
-	reconciliationSchedule time.Duration
-	leaseDuration          time.Duration
+	enabled                 bool
+	configured              bool
+	apiBaseURL              string
+	apiKey                  Secret
+	projectID               string
+	environment             string
+	webhookAuthorization    Secret
+	webhookSigningSecret    Secret
+	webhookRequireSignature bool
+	appIDs                  []string
+	products                map[string]subscriptions.ProductMapping
+	webhookBodyLimit        int64
+	ingressDeadline         time.Duration
+	signatureTolerance      time.Duration
+	apiTimeout              time.Duration
+	pageLimit               int
+	maxPages                int
+	maxResponseBytes        int64
+	reconciliationPoll      time.Duration
+	reconciliationSchedule  time.Duration
+	leaseDuration           time.Duration
 }
 
 func (c RevenueCatConfig) Enabled() bool    { return c.enabled }
@@ -80,35 +82,49 @@ func redactedRevenueCatOrigin(raw string) string {
 	return parsed.Scheme + "://" + parsed.Host
 }
 
-func loadRevenueCatConfig() (RevenueCatConfig, error) {
+func loadRevenueCatConfig(env Env) (RevenueCatConfig, error) {
+	webhookRequireSignature, err := boolEnv("REVENUECAT_WEBHOOK_REQUIRE_SIGNATURE", true)
+	if err != nil {
+		return RevenueCatConfig{}, err
+	}
+	if !webhookRequireSignature && env != EnvDev {
+		return RevenueCatConfig{}, errors.New("REVENUECAT_WEBHOOK_REQUIRE_SIGNATURE=false is only allowed in dev")
+	}
 	enabled, err := boolEnv("REVENUECAT_ENABLED", false)
 	if err != nil {
 		return RevenueCatConfig{}, err
 	}
 	if !enabled {
-		return RevenueCatConfig{}, nil
+		return RevenueCatConfig{webhookRequireSignature: webhookRequireSignature}, nil
 	}
 
 	config := RevenueCatConfig{
-		enabled:              true,
-		apiBaseURL:           strings.TrimSpace(getEnvWithDefault("REVENUECAT_API_BASE_URL", defaultRevenueCatAPIBaseURL)),
-		apiKey:               Secret(strings.TrimSpace(os.Getenv("REVENUECAT_API_KEY"))),
-		projectID:            strings.TrimSpace(os.Getenv("REVENUECAT_PROJECT_ID")),
-		webhookAuthorization: Secret(strings.TrimSpace(os.Getenv("REVENUECAT_WEBHOOK_AUTHORIZATION"))),
-		webhookSigningSecret: Secret(strings.TrimSpace(os.Getenv("REVENUECAT_WEBHOOK_SIGNING_SECRET"))),
-		appIDs:               splitCommaEnv("REVENUECAT_APP_IDS"),
+		enabled:                 true,
+		apiBaseURL:              strings.TrimSpace(getEnvWithDefault("REVENUECAT_API_BASE_URL", defaultRevenueCatAPIBaseURL)),
+		apiKey:                  Secret(strings.TrimSpace(os.Getenv("REVENUECAT_API_KEY"))),
+		projectID:               strings.TrimSpace(os.Getenv("REVENUECAT_PROJECT_ID")),
+		environment:             strings.TrimSpace(getEnvWithDefault("REVENUECAT_ENVIRONMENT", "production")),
+		webhookAuthorization:    Secret(strings.TrimSpace(os.Getenv("REVENUECAT_WEBHOOK_AUTHORIZATION"))),
+		webhookSigningSecret:    Secret(strings.TrimSpace(os.Getenv("REVENUECAT_WEBHOOK_SIGNING_SECRET"))),
+		webhookRequireSignature: webhookRequireSignature,
+		appIDs:                  splitCommaEnv("REVENUECAT_APP_IDS"),
+	}
+	if config.environment != "production" && config.environment != "sandbox" {
+		return RevenueCatConfig{}, errors.New("REVENUECAT_ENVIRONMENT must be production or sandbox")
 	}
 	for key, value := range map[string]string{
-		"REVENUECAT_API_KEY":                config.apiKey.Reveal(),
-		"REVENUECAT_PROJECT_ID":             config.projectID,
-		"REVENUECAT_WEBHOOK_AUTHORIZATION":  config.webhookAuthorization.Reveal(),
-		"REVENUECAT_WEBHOOK_SIGNING_SECRET": config.webhookSigningSecret.Reveal(),
-		"REVENUECAT_APP_IDS":                strings.Join(config.appIDs, ","),
-		"REVENUECAT_PRODUCT_MAPPINGS":       strings.TrimSpace(os.Getenv("REVENUECAT_PRODUCT_MAPPINGS")),
+		"REVENUECAT_API_KEY":               config.apiKey.Reveal(),
+		"REVENUECAT_PROJECT_ID":            config.projectID,
+		"REVENUECAT_WEBHOOK_AUTHORIZATION": config.webhookAuthorization.Reveal(),
+		"REVENUECAT_APP_IDS":               strings.Join(config.appIDs, ","),
+		"REVENUECAT_PRODUCT_MAPPINGS":      strings.TrimSpace(os.Getenv("REVENUECAT_PRODUCT_MAPPINGS")),
 	} {
 		if value == "" {
 			return RevenueCatConfig{}, fmt.Errorf("%s is required when REVENUECAT_ENABLED=true", key)
 		}
+	}
+	if config.webhookRequireSignature && config.webhookSigningSecret.Reveal() == "" {
+		return RevenueCatConfig{}, errors.New("REVENUECAT_WEBHOOK_SIGNING_SECRET is required when webhook signature verification is enabled")
 	}
 	baseURL, err := url.Parse(config.apiBaseURL)
 	if err != nil || baseURL.Scheme != "https" || baseURL.Host == "" || baseURL.User != nil || baseURL.RawQuery != "" || baseURL.Fragment != "" {

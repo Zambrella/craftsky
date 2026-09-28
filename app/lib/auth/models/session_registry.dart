@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/models/billing_owner_binding.dart';
 import 'package:craftsky_app/auth/models/pending_account_deletion.dart';
 import 'package:craftsky_app/auth/models/pending_handoff.dart';
 import 'package:craftsky_app/auth/models/stored_session.dart';
@@ -29,6 +30,7 @@ class SessionRegistry {
     Map<String, String> routingBindings = const {},
     this.pendingHandoff,
     this.pendingAccountDeletion,
+    this.billingOwner,
   }) : activeDid = activeDid == null ? null : Did.parse(activeDid),
        sessions = Map.unmodifiable({
          for (final MapEntry(key: did, value: session) in sessions.entries)
@@ -53,10 +55,11 @@ class SessionRegistry {
     if (decoded is! Map<String, Object?>) {
       throw const FormatException('Invalid session registry');
     }
-    if (decoded['schemaVersion'] != currentSchemaVersion) {
+    final schemaVersion = decoded['schemaVersion'];
+    if (schemaVersion != 2 && schemaVersion != currentSchemaVersion) {
       throw const FormatException('Unsupported session registry version');
     }
-    _requireOnlyKeys(decoded, const {
+    _requireOnlyKeys(decoded, {
       'schemaVersion',
       'nextSessionGeneration',
       'nextUseOrdinal',
@@ -66,6 +69,7 @@ class SessionRegistry {
       'pendingHandoff',
       'pendingAccountDeletion',
       'sessions',
+      if (schemaVersion == currentSchemaVersion) 'billingOwner',
     });
 
     final rawSessions = decoded['sessions'];
@@ -159,6 +163,18 @@ class SessionRegistry {
       throw const FormatException('Invalid pending account deletion');
     }
 
+    final rawBillingOwner = decoded['billingOwner'];
+    final BillingOwnerBinding? billingOwner;
+    if (rawBillingOwner == null) {
+      billingOwner = null;
+    } else if (rawBillingOwner is Map) {
+      billingOwner = BillingOwnerBinding.fromMap(
+        Map<String, Object?>.from(rawBillingOwner),
+      );
+    } else {
+      throw const FormatException('Invalid billing owner');
+    }
+
     final nextSessionGeneration = _requiredPositiveInt(
       decoded,
       'nextSessionGeneration',
@@ -183,10 +199,11 @@ class SessionRegistry {
       routingBindings: routingBindings,
       pendingHandoff: pendingHandoff,
       pendingAccountDeletion: pendingAccountDeletion,
+      billingOwner: billingOwner,
     );
   }
 
-  static const currentSchemaVersion = 2;
+  static const currentSchemaVersion = 3;
   static const maxRetainedAccounts = 5;
   static const _unchanged = Object();
 
@@ -198,6 +215,7 @@ class SessionRegistry {
   final Map<Did, String> routingBindings;
   final PendingHandoff? pendingHandoff;
   final PendingAccountDeletion? pendingAccountDeletion;
+  final BillingOwnerBinding? billingOwner;
 
   List<StoredSession> get orderedSessions {
     final ordered = sessions.values.toList()
@@ -294,6 +312,41 @@ class SessionRegistry {
     final pending = pendingAccountDeletion;
     if (pending == null || pending.jobId != jobId) return this;
     return _copyWith(pendingAccountDeletion: null);
+  }
+
+  SessionRegistry reserveBillingOwner(String did) {
+    final parsedDid = Did.parse(did);
+    if (activeDid != parsedDid || !sessions.containsKey(parsedDid)) {
+      throw StateError('Billing owner must be the active account');
+    }
+    final current = billingOwner;
+    if (current == null) {
+      return _copyWith(
+        billingOwner: BillingOwnerBinding(did: parsedDid.value),
+      );
+    }
+    if (current.did != parsedDid) {
+      throw StateError('Another billing owner is already reserved');
+    }
+    return this;
+  }
+
+  SessionRegistry completeBillingOwner(String did, String revenueCatAppUserId) {
+    final parsedDid = Did.parse(did);
+    final current = billingOwner;
+    if (current == null || current.did != parsedDid) {
+      throw StateError('Billing owner reservation unavailable');
+    }
+    if (current.revenueCatAppUserId == revenueCatAppUserId) return this;
+    if (current.revenueCatAppUserId != null) {
+      throw StateError('Billing owner is already complete');
+    }
+    return _copyWith(
+      billingOwner: BillingOwnerBinding(
+        did: parsedDid.value,
+        revenueCatAppUserId: revenueCatAppUserId,
+      ),
+    );
   }
 
   /// Stores the entire inactive handoff receipt in the same secure snapshot as
@@ -497,6 +550,7 @@ class SessionRegistry {
     },
     'pendingHandoff': pendingHandoff?.toMap(),
     'pendingAccountDeletion': pendingAccountDeletion?.toMap(),
+    'billingOwner': billingOwner?.toMap(),
     'sessions': {
       for (final MapEntry(key: did, value: session) in sessions.entries)
         did: {
@@ -521,6 +575,7 @@ class SessionRegistry {
     Map<Did, String>? routingBindings,
     Object? pendingHandoff = _unchanged,
     Object? pendingAccountDeletion = _unchanged,
+    Object? billingOwner = _unchanged,
   }) {
     final resolvedActiveDid = identical(activeDid, _unchanged)
         ? this.activeDid
@@ -534,6 +589,9 @@ class SessionRegistry {
         identical(pendingAccountDeletion, _unchanged)
         ? this.pendingAccountDeletion
         : pendingAccountDeletion as PendingAccountDeletion?;
+    final resolvedBillingOwner = identical(billingOwner, _unchanged)
+        ? this.billingOwner
+        : billingOwner as BillingOwnerBinding?;
     return SessionRegistry(
       nextSessionGeneration:
           nextSessionGeneration ?? this.nextSessionGeneration,
@@ -550,6 +608,7 @@ class SessionRegistry {
       },
       pendingHandoff: resolvedPendingHandoff,
       pendingAccountDeletion: resolvedPendingAccountDeletion,
+      billingOwner: resolvedBillingOwner,
     );
   }
 

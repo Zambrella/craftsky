@@ -14,12 +14,13 @@ import (
 )
 
 type WebhookConfig struct {
-	Authorization      string
-	SigningSecret      string
-	BodyLimit          int64
-	IngressDeadline    time.Duration
-	SignatureTolerance time.Duration
-	Observer           WebhookObserver
+	Authorization             string
+	SigningSecret             string
+	SkipSignatureVerification bool
+	BodyLimit                 int64
+	IngressDeadline           time.Duration
+	SignatureTolerance        time.Duration
+	Observer                  WebhookObserver
 }
 
 type WebhookObserver interface {
@@ -31,9 +32,10 @@ type EventStore interface {
 }
 
 func NewWebhookHandler(config WebhookConfig, store EventStore, now func() time.Time) (http.Handler, error) {
-	if config.Authorization == "" || config.SigningSecret == "" || config.BodyLimit <= 0 ||
+	if config.Authorization == "" || config.BodyLimit <= 0 ||
 		config.IngressDeadline <= 0 || config.IngressDeadline > 10*time.Second ||
-		config.SignatureTolerance <= 0 || store == nil || now == nil {
+		(!config.SkipSignatureVerification && (config.SigningSecret == "" || config.SignatureTolerance <= 0)) ||
+		store == nil || now == nil {
 		return nil, errors.New("invalid RevenueCat webhook configuration")
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -70,7 +72,11 @@ func NewWebhookHandler(config WebhookConfig, store EventStore, now func() time.T
 			return
 		}
 		acceptedAt := now()
-		if err := VerifyWebhookAuthentication(r.Header, body, config.Authorization, config.SigningSecret, acceptedAt, config.SignatureTolerance); err != nil {
+		authenticationError := verifyWebhookAuthorization(r.Header, config.Authorization)
+		if authenticationError == nil && !config.SkipSignatureVerification {
+			authenticationError = verifyWebhookSignature(r.Header, body, config.SigningSecret, acceptedAt, config.SignatureTolerance)
+		}
+		if authenticationError != nil {
 			observe("authentication_failed")
 			http.Error(w, "authentication failed", http.StatusUnauthorized)
 			return

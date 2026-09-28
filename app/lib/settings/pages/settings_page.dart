@@ -20,6 +20,8 @@ import 'package:craftsky_app/settings/models/settings_identity.dart';
 import 'package:craftsky_app/settings/models/settings_row.dart';
 import 'package:craftsky_app/settings/widgets/settings_row_tile.dart';
 import 'package:craftsky_app/settings/widgets/sign_out_tile.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_notifier.dart';
 import 'package:flutter/material.dart';
@@ -42,6 +44,9 @@ class SettingsPage extends ConsumerWidget {
         loadedIdentity?.profile.accountType;
     final auth = ref.watch(authSessionProvider).value;
     final themeMode = ref.watch(themeModeProvider);
+    final subscriptionAccess = activeLease == null
+        ? null
+        : ref.watch(subscriptionAccessProvider(activeLease));
 
     SettingsIdentity? identity;
     if (activeLease != null && activeSession != null) {
@@ -213,6 +218,25 @@ class SettingsPage extends ConsumerWidget {
             ),
           ],
           _SectionLabel(l10n.settingsSectionGeneral),
+          SettingsRowTile(
+            descriptor: const SettingsRowDescriptor(
+              id: SettingsRowId.subscriptions,
+              kind: SettingsRowKind.disclosure,
+            ),
+            label: l10n.subscriptionsTitle,
+            leading: CraftskyIcons.ticket,
+            subtitle: switch (subscriptionAccess) {
+              AsyncData(:final value) => switch (value.effectiveTier) {
+                SubscriptionTier.free => l10n.subscriptionsTierFree,
+                SubscriptionTier.plus => l10n.subscriptionsTierPlus,
+                SubscriptionTier.business => l10n.subscriptionsTierBusiness,
+              },
+              AsyncLoading() => l10n.subscriptionsTierLoading,
+              AsyncError() => l10n.subscriptionsTierUnavailable,
+              null => l10n.subscriptionsTierUnavailable,
+            },
+            onTap: () => const SubscriptionsRoute().go(context),
+          ),
           SettingsRowTile(
             descriptor: const SettingsRowDescriptor(
               id: SettingsRowId.account,

@@ -26,3 +26,12 @@ cp app/config/production.env.example app/config/production.env
 out of committed examples. `SENTRY_AUTH_TOKEN`, `SENTRY_ORG`, and
 `SENTRY_PROJECT` are build/upload credentials for Sentry symbolication and must
 come from CI secrets or your shell environment, not from these app config files.
+
+`REVENUECAT_IOS_PUBLIC_KEY` and `REVENUECAT_ANDROID_PUBLIC_KEY` are public SDK
+keys, not RevenueCat secret API keys. Leave them blank to disable billing safely
+for that platform. Never place a RevenueCat secret server key in app config.
+
+Local native debug builds may opt into RevenueCat Test Store by setting
+`REVENUECAT_TEST_STORE_PUBLIC_KEY` and `REVENUECAT_USE_TEST_STORE=true`. Release
+builds ignore that opt-in and always select the matching Apple or Google public
+key. Test Store keys must never be used for a release build.

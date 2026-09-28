@@ -8,25 +8,35 @@ type ProductMapping struct {
 }
 
 type CatalogConfig struct {
-	ProjectID string
-	AppIDs    []string
-	Products  map[string]ProductMapping
+	ProjectID   string
+	Environment string
+	AppIDs      []string
+	Products    map[string]ProductMapping
 }
 
 type Catalog struct {
-	projectID string
-	apps      map[string]struct{}
-	products  map[string]ProductMapping
+	projectID   string
+	environment string
+	apps        map[string]struct{}
+	products    map[string]ProductMapping
 }
 
 func NewCatalog(config CatalogConfig) (*Catalog, error) {
 	if config.ProjectID == "" {
 		return nil, errors.New("subscription catalog project ID is required")
 	}
+	environment := config.Environment
+	if environment == "" {
+		environment = "production"
+	}
+	if environment != "production" && environment != "sandbox" {
+		return nil, errors.New("subscription catalog environment must be production or sandbox")
+	}
 	catalog := &Catalog{
-		projectID: config.ProjectID,
-		apps:      make(map[string]struct{}, len(config.AppIDs)),
-		products:  make(map[string]ProductMapping, len(config.Products)),
+		projectID:   config.ProjectID,
+		environment: environment,
+		apps:        make(map[string]struct{}, len(config.AppIDs)),
+		products:    make(map[string]ProductMapping, len(config.Products)),
 	}
 	for _, appID := range config.AppIDs {
 		if appID != "" {
@@ -40,7 +50,7 @@ func NewCatalog(config CatalogConfig) (*Catalog, error) {
 }
 
 func (c *Catalog) Authorize(projectID, environment, productID string) (ProductMapping, bool) {
-	if c == nil || projectID != c.projectID || environment != "production" {
+	if c == nil || projectID != c.projectID || environment != c.environment {
 		return ProductMapping{}, false
 	}
 	mapping, ok := c.products[productID]

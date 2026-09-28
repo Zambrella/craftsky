@@ -62,6 +62,9 @@ import 'package:craftsky_app/search/providers/recent_searches_provider.dart';
 import 'package:craftsky_app/search/providers/search_repository_provider.dart';
 import 'package:craftsky_app/search/providers/search_suggestions_provider.dart';
 import 'package:craftsky_app/search/providers/top_hashtags_provider.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_page_model_provider.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_repository_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 typedef AccountBoundaryAction = Future<void> Function();
@@ -173,7 +176,10 @@ final accountStateInvalidatorProvider = Provider<AccountBoundaryAction>(
       ..invalidate(savedPostPresentationProvider)
       ..invalidate(savedPostFoldersProvider)
       ..invalidate(savedPostsProvider)
-      ..invalidate(savePostDialogControllerProvider);
+      ..invalidate(savePostDialogControllerProvider)
+      ..invalidate(subscriptionRepositoryProvider)
+      ..invalidate(subscriptionAccessProvider)
+      ..invalidate(subscriptionPageModelProvider);
   },
 );
 

@@ -32,6 +32,7 @@ import 'package:craftsky_app/settings/pages/relationship_list_page.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/subscriptions/pages/subscription_page.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
@@ -83,6 +84,10 @@ void main() {
       '/profile/settings/blocked',
     );
     expect(const AccountRoute().location, '/profile/settings/account');
+    expect(
+      const SubscriptionsRoute().location,
+      '/profile/settings/subscriptions',
+    );
     expect(const AboutRoute().location, '/profile/settings/about');
   });
 
@@ -398,7 +403,7 @@ void main() {
       expect(find.text(label), findsOneWidget, reason: label);
     }
     expect(find.text('Clear image cache'), findsNothing);
-    expect(find.byIcon(CraftskyIconsBold.next), findsNWidgets(13));
+    expect(find.byIcon(CraftskyIconsBold.next), findsNWidgets(14));
     final signOut = tester.widget<Text>(find.text('Sign out'));
     expect(
       signOut.style?.color,
@@ -552,6 +557,11 @@ final _routeCases = <_SettingsRouteCase>[
     label: 'Notifications',
     location: '/notifications/settings',
     matchesPage: (widget) => widget is NotificationSettingsPage,
+  ),
+  _SettingsRouteCase(
+    label: 'Subscriptions',
+    location: '/profile/settings/subscriptions',
+    matchesPage: (widget) => widget is SubscriptionPage,
   ),
   _SettingsRouteCase(
     label: 'Account',

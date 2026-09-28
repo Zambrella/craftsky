@@ -15,11 +15,22 @@ import (
 var errInvalidWebhookAuthentication = errors.New("invalid webhook authentication")
 
 func VerifyWebhookAuthentication(headers http.Header, body []byte, expectedAuthorization, signingSecret string, now time.Time, tolerance time.Duration) error {
+	if err := verifyWebhookAuthorization(headers, expectedAuthorization); err != nil {
+		return err
+	}
+	return verifyWebhookSignature(headers, body, signingSecret, now, tolerance)
+}
+
+func verifyWebhookAuthorization(headers http.Header, expectedAuthorization string) error {
 	authorization := headers.Values("Authorization")
 	if len(authorization) != 1 || len(authorization[0]) != len(expectedAuthorization) ||
 		subtle.ConstantTimeCompare([]byte(authorization[0]), []byte(expectedAuthorization)) != 1 {
 		return errInvalidWebhookAuthentication
 	}
+	return nil
+}
+
+func verifyWebhookSignature(headers http.Header, body []byte, signingSecret string, now time.Time, tolerance time.Duration) error {
 	signatures := headers.Values("X-RevenueCat-Webhook-Signature")
 	if len(signatures) != 1 {
 		return errInvalidWebhookAuthentication

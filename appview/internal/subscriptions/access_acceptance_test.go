@@ -76,3 +76,32 @@ func TestReconciledAccessUsesProviderTruthWithoutLocalExpiry(t *testing.T) {
 		t.Fatalf("restored access = %+v, error %v", restored, err)
 	}
 }
+
+func TestSelfAccessIsIsolatedToConfiguredRevenueCatEnvironment(t *testing.T) {
+	migration, err := os.ReadFile("../../migrations/000069_subscription_accounts.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool := testdb.WithSchema(t, string(migration))
+	ctx := context.Background()
+	beneficiary := syntax.DID("did:plc:sandbox-beneficiary")
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id)
+		VALUES('10000000-0000-4000-8000-000000000071','did:plc:sandbox-owner','20000000-0000-4000-8000-000000000071');
+		INSERT INTO provider_subscriptions(id,billing_account_id,project_id,revenuecat_subscription_id,product_id,app_id,store,environment,status,gives_access,mapped_tier,accepted_generation)
+		VALUES('30000000-0000-4000-8000-000000000071','10000000-0000-4000-8000-000000000071','project','sandbox-subscription','sandbox-plus','test-app','test_store','sandbox','active',true,'plus',1);
+		INSERT INTO billing_licenses(provider_subscription_id,tier,assigned_did,assigned_at)
+		VALUES('30000000-0000-4000-8000-000000000071','plus',$1,now())
+	`, beneficiary); err != nil {
+		t.Fatal(err)
+	}
+
+	sandboxAccess, err := NewStoreForEnvironment(pool, "sandbox").SelfAccess(ctx, beneficiary, time.Now())
+	if err != nil || !sandboxAccess.GivesAccess || sandboxAccess.EffectiveTier != TierPlus {
+		t.Fatalf("sandbox access = %+v, error %v", sandboxAccess, err)
+	}
+	productionAccess, err := NewStore(pool).SelfAccess(ctx, beneficiary, time.Now())
+	if err != nil || productionAccess.GivesAccess || productionAccess.EffectiveTier != TierFree || productionAccess.AssignedTier == nil {
+		t.Fatalf("production access = %+v, error %v", productionAccess, err)
+	}
+}

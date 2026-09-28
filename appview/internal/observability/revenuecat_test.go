@@ -42,3 +42,18 @@ func TestRevenueCatObservationsAreBoundedAndPrivate(t *testing.T) {
 		}
 	}
 }
+
+func TestRevenueCatEmptyReconciliationIsDebugLevel(t *testing.T) {
+	var logs bytes.Buffer
+	observer := New(Config{
+		Logger: slog.New(slog.NewJSONHandler(&logs, &slog.HandlerOptions{Level: slog.LevelDebug})),
+	})
+
+	observer.ObserveRevenueCatReconciliation(context.Background(), "process", "empty", time.Millisecond)
+
+	for _, want := range []string{`"level":"DEBUG"`, `"failure_stage":"empty"`} {
+		if !strings.Contains(logs.String(), want) {
+			t.Fatalf("empty reconciliation log missing %s: %s", want, logs.String())
+		}
+	}
+}

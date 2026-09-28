@@ -21,7 +21,7 @@ func testRevenueCatConfig() RevenueCatConfig {
 		enabled: true, configured: true,
 		apiBaseURL: "https://api.revenuecat.example/v2", apiKey: revenueCatTestAPIKey,
 		projectID: "project_test", webhookAuthorization: revenueCatTestAuthorization,
-		webhookSigningSecret: revenueCatTestSigningSecret, appIDs: []string{"app_ios"},
+		webhookSigningSecret: revenueCatTestSigningSecret, webhookRequireSignature: true, appIDs: []string{"app_ios"},
 		products:         map[string]subscriptions.ProductMapping{"plus_monthly": {AppID: "app_ios", Tier: subscriptions.TierPlus}},
 		webhookBodyLimit: 1024, ingressDeadline: time.Second, signatureTolerance: time.Minute,
 		apiTimeout: time.Second, pageLimit: 100, maxPages: 10, maxResponseBytes: 1024,
@@ -48,5 +48,15 @@ func TestRevenueCatCompositionRequiresCompleteConfiguration(t *testing.T) {
 	}
 	if complete.store == nil || complete.webhook == nil || complete.reconciler == nil {
 		t.Fatalf("complete RevenueCat composition = %#v, want store, one webhook, and one reconciler", complete)
+	}
+
+	configured.webhookRequireSignature = false
+	configured.webhookSigningSecret = ""
+	localProxy, err := newSubscriptionDependencies(nil, configured, http.DefaultClient, nil)
+	if err != nil {
+		t.Fatalf("compose local webhook proxy: %v", err)
+	}
+	if localProxy.webhook == nil {
+		t.Fatal("local webhook proxy did not wire RevenueCat ingress")
 	}
 }

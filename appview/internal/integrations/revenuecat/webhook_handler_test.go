@@ -148,3 +148,54 @@ func TestWebhookIngressDeadlineCoversBodyRead(t *testing.T) {
 		t.Fatalf("deadline persisted %d events", len(store.events))
 	}
 }
+
+func TestWebhookHandlerCanSkipSignatureButStillRequiresAuthorization(t *testing.T) {
+	now := time.Unix(1788955200, 0)
+	store := &recordingEventStore{}
+	config := WebhookConfig{
+		Authorization:             "Bearer exact-webhook-secret",
+		SkipSignatureVerification: true,
+		BodyLimit:                 512,
+		IngressDeadline:           time.Second,
+	}
+	handler, err := NewWebhookHandler(config, store, func() time.Time { return now })
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := `{"api_version":"1.0","event":{"id":"event-smee","type":"RENEWAL","app_user_id":"10000000-0000-0000-0000-000000000001","event_timestamp_ms":1788955200123}}`
+	request := func(authorization string) *http.Request {
+		req := httptest.NewRequest(http.MethodPost, "/integrations/revenuecat/webhook", strings.NewReader(body))
+		if authorization != "" {
+			req.Header.Set("Authorization", authorization)
+		}
+		return req
+	}
+	serve := func(req *http.Request) *httptest.ResponseRecorder {
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, req)
+		return response
+	}
+
+	if response := serve(request("Bearer exact-webhook-secret")); response.Code != http.StatusOK {
+		t.Fatalf("unsigned authorized webhook = %d, body=%s", response.Code, response.Body.String())
+	}
+	if response := serve(request("Bearer wrong")); response.Code != http.StatusUnauthorized {
+		t.Fatalf("wrong authorization = %d, body=%s", response.Code, response.Body.String())
+	}
+	if response := serve(request("")); response.Code != http.StatusUnauthorized {
+		t.Fatalf("missing authorization = %d, body=%s", response.Code, response.Body.String())
+	}
+	duplicateAuthorization := request("Bearer exact-webhook-secret")
+	duplicateAuthorization.Header.Add("Authorization", "Bearer exact-webhook-secret")
+	if response := serve(duplicateAuthorization); response.Code != http.StatusUnauthorized {
+		t.Fatalf("duplicate authorization = %d, body=%s", response.Code, response.Body.String())
+	}
+	if len(store.events) != 1 || store.events[0].ID != "event-smee" {
+		t.Fatalf("stored events = %+v", store.events)
+	}
+
+	config.SkipSignatureVerification = false
+	if _, err := NewWebhookHandler(config, store, time.Now); err == nil {
+		t.Fatal("signature-required handler accepted an empty signing secret")
+	}
+}

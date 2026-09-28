@@ -13,12 +13,22 @@ import (
 )
 
 type Store struct {
-	pool     *pgxpool.Pool
-	observer BillingObserver
+	pool              *pgxpool.Pool
+	accessEnvironment string
+	observer          BillingObserver
 }
 
 func NewStore(pool *pgxpool.Pool, observers ...BillingObserver) *Store {
-	store := &Store{pool: pool}
+	return NewStoreForEnvironment(pool, "production", observers...)
+}
+
+// NewStoreForEnvironment creates a store whose access reads are isolated to one
+// RevenueCat environment. Production and sandbox state must never be combined.
+func NewStoreForEnvironment(pool *pgxpool.Pool, environment string, observers ...BillingObserver) *Store {
+	if environment != "sandbox" {
+		environment = "production"
+	}
+	store := &Store{pool: pool, accessEnvironment: environment}
 	if len(observers) > 0 {
 		store.observer = observers[0]
 	}
@@ -111,7 +121,7 @@ func (s *Store) OwnerState(ctx context.Context, owner syntax.DID, _ time.Time) (
 	}
 	rows.Close()
 	rows, err = tx.Query(ctx, `
-		SELECT license.id,license.tier,license.assigned_did,license.assigned_at,license.assignable,license.anomaly
+		SELECT license.id,subscription.id,license.tier,license.assigned_did,license.assigned_at,license.assignable,license.anomaly
 		FROM billing_licenses license
 		JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
 		WHERE subscription.billing_account_id=$1 ORDER BY license.created_at,license.id
@@ -121,7 +131,7 @@ func (s *Store) OwnerState(ctx context.Context, owner syntax.DID, _ time.Time) (
 	}
 	for rows.Next() {
 		var license BillingLicense
-		if err := rows.Scan(&license.ID, &license.Tier, &license.AssignedDID, &license.AssignedAt, &license.Assignable, &license.Anomaly); err != nil {
+		if err := rows.Scan(&license.ID, &license.SubscriptionID, &license.Tier, &license.AssignedDID, &license.AssignedAt, &license.Assignable, &license.Anomaly); err != nil {
 			rows.Close()
 			return BillingState{}, err
 		}
@@ -160,8 +170,8 @@ func (s *Store) SelfAccess(ctx context.Context, did syntax.DID, _ time.Time) (Se
 	var assignment LocalAssignment
 	err := s.pool.QueryRow(ctx, `
 		SELECT license.tier,
-			subscription.gives_access
-				AND subscription.environment='production'
+				subscription.gives_access
+				AND subscription.environment=$2
 				AND subscription.app_id IS NOT NULL
 				AND subscription.mapped_tier=license.tier
 				AND subscription.anomaly = 'none',
@@ -169,7 +179,7 @@ func (s *Store) SelfAccess(ctx context.Context, did syntax.DID, _ time.Time) (Se
 		FROM billing_licenses license
 		JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
 		WHERE license.assigned_did=$1
-	`, did).Scan(&assignment.Tier, &assignment.GivesAccess, &assignment.AccessEndsAt)
+	`, did, s.accessEnvironment).Scan(&assignment.Tier, &assignment.GivesAccess, &assignment.AccessEndsAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return ProjectSelfAccess(did, nil), nil
 	}

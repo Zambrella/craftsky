@@ -101,12 +101,13 @@ type BillingSubscription struct {
 
 // BillingLicense represents one paid entitlement that an owner can assign to a CraftSky DID.
 type BillingLicense struct {
-	ID          uuid.UUID   `json:"id"`
-	Tier        Tier        `json:"tier"`
-	AssignedDID *syntax.DID `json:"assignedDid,omitempty"`
-	AssignedAt  *time.Time  `json:"assignedAt,omitempty"`
-	Assignable  bool        `json:"assignable"`
-	Anomaly     string      `json:"anomaly"`
+	ID             uuid.UUID   `json:"id"`
+	SubscriptionID uuid.UUID   `json:"subscriptionId"`
+	Tier           Tier        `json:"tier"`
+	AssignedDID    *syntax.DID `json:"assignedDid,omitempty"`
+	AssignedAt     *time.Time  `json:"assignedAt,omitempty"`
+	Assignable     bool        `json:"assignable"`
+	Anomaly        string      `json:"anomaly"`
 }
 
 // ProviderSubscriptionSnapshot carries one authoritative subscription returned by the billing provider.

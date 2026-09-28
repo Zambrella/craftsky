@@ -164,7 +164,7 @@ func TestSelfAccessRouteIsDIDBoundLocalAndMinimal(t *testing.T) {
 	}
 }
 
-func TestOwnerBillingStateUsesPrivateCamelCaseContract(t *testing.T) {
+func TestIT013OwnerBillingStateUsesPrivateCamelCaseContract(t *testing.T) {
 	migration, err := os.ReadFile("../../migrations/000069_subscription_accounts.up.sql")
 	if err != nil {
 		t.Fatal(err)
@@ -182,15 +182,19 @@ func TestOwnerBillingStateUsesPrivateCamelCaseContract(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO provider_subscriptions(id,billing_account_id,project_id,revenuecat_subscription_id,product_id,app_id,store,environment,status,gives_access,pending_payment,auto_renewal_status,current_period_ends_at,mapped_tier,accepted_generation,anomaly)
-		VALUES('30000000-0000-4000-8000-000000000061','10000000-0000-4000-8000-000000000061','project','raw-provider-subscription-canary','plus-monthly','app','app_store','production','active',true,false,'will_renew',$1,'plus',1,'same_tier_duplicate')
-	`, now.Add(24*time.Hour)); err != nil {
+		INSERT INTO provider_subscriptions(id,billing_account_id,project_id,revenuecat_subscription_id,product_id,app_id,store,environment,status,gives_access,pending_payment,auto_renewal_status,current_period_ends_at,mapped_tier,accepted_generation,anomaly,created_at)
+		VALUES
+			('30000000-0000-4000-8000-000000000061','10000000-0000-4000-8000-000000000061','project','raw-provider-subscription-canary','plus-monthly','app','app_store','production','active',true,false,'will_renew',$1,'plus',1,'same_tier_duplicate',$2),
+			('30000000-0000-4000-8000-000000000060','10000000-0000-4000-8000-000000000061','project','second-provider-subscription-canary','business-monthly','app','app_store','production','active',true,false,'will_renew',$1,'business',1,'none',$3)
+	`, now.Add(24*time.Hour), now.Add(-2*time.Hour), now.Add(-time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO billing_licenses(id,provider_subscription_id,tier,assigned_did,assigned_at,assignable,anomaly)
-		VALUES('40000000-0000-4000-8000-000000000061','30000000-0000-4000-8000-000000000061','plus','did:plc:state-beneficiary',$1,false,'same_tier_duplicate')
-	`, now); err != nil {
+		INSERT INTO billing_licenses(id,provider_subscription_id,tier,assigned_did,assigned_at,assignable,anomaly,created_at)
+		VALUES
+			('40000000-0000-4000-8000-000000000061','30000000-0000-4000-8000-000000000061','plus','did:plc:state-beneficiary',$1,false,'same_tier_duplicate',$2),
+			('40000000-0000-4000-8000-000000000062','30000000-0000-4000-8000-000000000060','business',NULL,NULL,true,'none',$3)
+	`, now, now.Add(-time.Hour), now.Add(-2*time.Hour)); err != nil {
 		t.Fatal(err)
 	}
 	deps := testDeps()
@@ -199,6 +203,23 @@ func TestOwnerBillingStateUsesPrivateCamelCaseContract(t *testing.T) {
 	deps.Now = func() time.Time { return now }
 	mux := http.NewServeMux()
 	AddRoutes(ctx, mux, deps)
+	ensureReq := httptest.NewRequest(http.MethodPut, "/v1/billing/account", nil)
+	ensureReq.Header.Set("Authorization", "Bearer test-token")
+	ensureReq.Header.Set("X-Craftsky-Device-Id", "state-device")
+	ensureReq.Header.Set("X-Dev-DID", "did:plc:state-owner")
+	ensureResponse := httptest.NewRecorder()
+	mux.ServeHTTP(ensureResponse, ensureReq)
+	if ensureResponse.Code != http.StatusOK {
+		t.Fatalf("existing owner ensure = %d; body=%s", ensureResponse.Code, ensureResponse.Body.String())
+	}
+	var ensureBody map[string]any
+	if err := json.Unmarshal(ensureResponse.Body.Bytes(), &ensureBody); err != nil {
+		t.Fatal(err)
+	}
+	ensureLicenses, ok := ensureBody["licenses"].([]any)
+	if !ok || len(ensureLicenses) != 2 || ensureLicenses[0].(map[string]any)["subscriptionId"] != "30000000-0000-4000-8000-000000000060" || ensureLicenses[1].(map[string]any)["subscriptionId"] != "30000000-0000-4000-8000-000000000061" {
+		t.Fatalf("existing owner ensure relationships = %#v", ensureBody["licenses"])
+	}
 	req := httptest.NewRequest(http.MethodGet, "/v1/billing/account", nil)
 	req.Header.Set("Authorization", "Bearer test-token")
 	req.Header.Set("X-Craftsky-Device-Id", "state-device")
@@ -216,20 +237,24 @@ func TestOwnerBillingStateUsesPrivateCamelCaseContract(t *testing.T) {
 		t.Fatalf("owner readiness/staleness = %#v", body)
 	}
 	subscriptionsBody, ok := body["subscriptions"].([]any)
-	if !ok || len(subscriptionsBody) != 1 {
+	if !ok || len(subscriptionsBody) != 2 {
 		t.Fatalf("subscriptions = %#v", body["subscriptions"])
 	}
 	licensesBody, ok := body["licenses"].([]any)
-	if !ok || len(licensesBody) != 1 {
+	if !ok || len(licensesBody) != 2 {
 		t.Fatalf("licenses = %#v", body["licenses"])
 	}
 	encoded := response.Body.String()
-	if strings.Contains(encoded, "raw-provider-subscription-canary") || strings.Contains(encoded, "project\"") {
+	if strings.Contains(encoded, "provider-subscription-canary") || strings.Contains(encoded, "project\"") {
 		t.Fatalf("owner response leaked provider identity: %s", encoded)
 	}
 	license := licensesBody[0].(map[string]any)
-	if license["assignedDid"] != "did:plc:state-beneficiary" || license["anomaly"] != "same_tier_duplicate" || license["assignable"] != false {
+	if license["subscriptionId"] != "30000000-0000-4000-8000-000000000060" || license["tier"] != "business" {
 		t.Fatalf("license state = %#v", license)
+	}
+	secondLicense := licensesBody[1].(map[string]any)
+	if secondLicense["subscriptionId"] != "30000000-0000-4000-8000-000000000061" || secondLicense["assignedDid"] != "did:plc:state-beneficiary" || secondLicense["anomaly"] != "same_tier_duplicate" || secondLicense["assignable"] != false {
+		t.Fatalf("second license relationship = %#v", secondLicense)
 	}
 	nonOwnerRequest := httptest.NewRequest(http.MethodGet, "/v1/billing/account", nil)
 	nonOwnerRequest.Header.Set("Authorization", "Bearer test-token")

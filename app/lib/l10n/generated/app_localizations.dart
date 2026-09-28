@@ -6710,6 +6710,414 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Delete'**
   String get businessEventDeleteConfirmAction;
+
+  /// Title for subscription settings and management.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscriptions'**
+  String get subscriptionsTitle;
+
+  /// Free subscription tier label.
+  ///
+  /// In en, this message translates to:
+  /// **'Free'**
+  String get subscriptionsTierFree;
+
+  /// Plus subscription tier label.
+  ///
+  /// In en, this message translates to:
+  /// **'Plus'**
+  String get subscriptionsTierPlus;
+
+  /// Business subscription tier label.
+  ///
+  /// In en, this message translates to:
+  /// **'Business'**
+  String get subscriptionsTierBusiness;
+
+  /// Localized monthly tier price.
+  ///
+  /// In en, this message translates to:
+  /// **'{price} / month'**
+  String subscriptionsTierPrice(String price);
+
+  /// Fallback when the store price cannot be loaded.
+  ///
+  /// In en, this message translates to:
+  /// **'Price unavailable'**
+  String get subscriptionsPriceUnavailable;
+
+  /// Sales copy for an unpurchased Plus subscription.
+  ///
+  /// In en, this message translates to:
+  /// **'Back CraftSky\'s independent, ad-free future with a Plus license for one account.'**
+  String get subscriptionsPlusPitch;
+
+  /// Sales copy for an unpurchased Business subscription.
+  ///
+  /// In en, this message translates to:
+  /// **'Support CraftSky as a business with a Business license for your shop account.'**
+  String get subscriptionsBusinessPitch;
+
+  /// Open a tier paywall or its subscription management details.
+  ///
+  /// In en, this message translates to:
+  /// **'View details'**
+  String get subscriptionsViewDetails;
+
+  /// Tier badge loading label.
+  ///
+  /// In en, this message translates to:
+  /// **'Loading tier'**
+  String get subscriptionsTierLoading;
+
+  /// Tier badge error label.
+  ///
+  /// In en, this message translates to:
+  /// **'Tier unavailable'**
+  String get subscriptionsTierUnavailable;
+
+  /// Current AppView-authoritative access tier.
+  ///
+  /// In en, this message translates to:
+  /// **'Current access: {tier}'**
+  String subscriptionsEffectiveAccess(String tier);
+
+  /// Dormant assignment explanation.
+  ///
+  /// In en, this message translates to:
+  /// **'{tier} is assigned to this account but is not currently providing access.'**
+  String subscriptionsDormantAssignment(String tier);
+
+  /// Privacy explanation shown to a beneficiary.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscription access is managed by the billing owner. Billing details stay private.'**
+  String get subscriptionsBeneficiaryExplanation;
+
+  /// Action switching to the retained billing owner.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch to billing owner'**
+  String get subscriptionsSwitchToOwner;
+
+  /// First-time billing owner setup heading.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a billing owner'**
+  String get subscriptionsChooseOwnerTitle;
+
+  /// Permanent billing owner warning.
+  ///
+  /// In en, this message translates to:
+  /// **'This account permanently owns subscription billing for this installation. Switching accounts will not move subscriptions.'**
+  String get subscriptionsChooseOwnerBody;
+
+  /// Action confirming permanent billing ownership.
+  ///
+  /// In en, this message translates to:
+  /// **'Use this account'**
+  String get subscriptionsChooseOwnerAction;
+
+  /// Interrupted setup state.
+  ///
+  /// In en, this message translates to:
+  /// **'Billing setup is incomplete for this account.'**
+  String get subscriptionsSetupIncomplete;
+
+  /// Retry interrupted owner setup.
+  ///
+  /// In en, this message translates to:
+  /// **'Retry setup'**
+  String get subscriptionsRetrySetup;
+
+  /// Inactive owner guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'Switch to the billing owner to review or manage subscriptions.'**
+  String get subscriptionsOwnerInactive;
+
+  /// Missing retained owner guidance.
+  ///
+  /// In en, this message translates to:
+  /// **'The billing owner must sign in again before subscriptions can be managed.'**
+  String get subscriptionsOwnerReauthenticate;
+
+  /// Safe recovery guidance after an owner billing account is missing or mismatched.
+  ///
+  /// In en, this message translates to:
+  /// **'Billing management is locked because the saved billing account could not be verified. Contact support before attempting recovery.'**
+  String get subscriptionsOwnerRecoveryLocked;
+
+  /// Owner explanation of independent licenses and assignments.
+  ///
+  /// In en, this message translates to:
+  /// **'Plus and Business are separate account licenses. Assign each license explicitly; switching accounts does not move it.'**
+  String get subscriptionsIndependentLicenses;
+
+  /// Tier has no license.
+  ///
+  /// In en, this message translates to:
+  /// **'Available to purchase'**
+  String get subscriptionsStatusAvailable;
+
+  /// Tier currently gives access.
+  ///
+  /// In en, this message translates to:
+  /// **'Active'**
+  String get subscriptionsStatusActive;
+
+  /// Canceled subscription retaining access.
+  ///
+  /// In en, this message translates to:
+  /// **'Canceled; access continues until the current period ends'**
+  String get subscriptionsStatusCanceledAccessible;
+
+  /// Dormant license status.
+  ///
+  /// In en, this message translates to:
+  /// **'Not currently providing access'**
+  String get subscriptionsStatusDormant;
+
+  /// Stale AppView reconciliation state.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscription status needs refreshing'**
+  String get subscriptionsStatusStale;
+
+  /// Pending subscription state.
+  ///
+  /// In en, this message translates to:
+  /// **'Payment or reconciliation is pending'**
+  String get subscriptionsStatusPending;
+
+  /// Safe anomaly status.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscription state needs support'**
+  String get subscriptionsStatusAnomaly;
+
+  /// Safe fallback for unknown provider status.
+  ///
+  /// In en, this message translates to:
+  /// **'Status unavailable'**
+  String get subscriptionsStatusUnavailable;
+
+  /// Current license assignment.
+  ///
+  /// In en, this message translates to:
+  /// **'Assigned to {account}'**
+  String subscriptionsAssignedTo(String account);
+
+  /// Unassigned license status.
+  ///
+  /// In en, this message translates to:
+  /// **'Not assigned'**
+  String get subscriptionsUnassigned;
+
+  /// Safe store and product context.
+  ///
+  /// In en, this message translates to:
+  /// **'Store: {store} · Product: {product}'**
+  String subscriptionsProductContext(String store, String product);
+
+  /// Current subscription period dates.
+  ///
+  /// In en, this message translates to:
+  /// **'Current period: {start} to {end}'**
+  String subscriptionsCurrentPeriod(String start, String end);
+
+  /// Subscription access end date.
+  ///
+  /// In en, this message translates to:
+  /// **'Access ends: {date}'**
+  String subscriptionsAccessEnds(String date);
+
+  /// Next renewal date for an active subscription.
+  ///
+  /// In en, this message translates to:
+  /// **'Renews on {date}'**
+  String subscriptionsRenewsOn(String date);
+
+  /// Last access date for a subscription that will not renew.
+  ///
+  /// In en, this message translates to:
+  /// **'Access until {date}'**
+  String subscriptionsAccessUntil(String date);
+
+  /// Assignable license status.
+  ///
+  /// In en, this message translates to:
+  /// **'License can be assigned'**
+  String get subscriptionsLicenseAssignable;
+
+  /// Non-assignable license status.
+  ///
+  /// In en, this message translates to:
+  /// **'License cannot currently be assigned'**
+  String get subscriptionsLicenseNotAssignable;
+
+  /// Most recent reconciliation request date.
+  ///
+  /// In en, this message translates to:
+  /// **'Reconciliation requested: {date}'**
+  String subscriptionsReconciliationRequested(String date);
+
+  /// Most recent completed reconciliation date.
+  ///
+  /// In en, this message translates to:
+  /// **'Last reconciled: {date}'**
+  String subscriptionsLastReconciled(String date);
+
+  /// Tier purchase action.
+  ///
+  /// In en, this message translates to:
+  /// **'Purchase {tier}'**
+  String subscriptionsPurchase(String tier);
+
+  /// Safe repurchase action after lapse.
+  ///
+  /// In en, this message translates to:
+  /// **'Purchase {tier} again'**
+  String subscriptionsRepurchase(String tier);
+
+  /// License assignment action.
+  ///
+  /// In en, this message translates to:
+  /// **'Assign license'**
+  String get subscriptionsAssign;
+
+  /// License unassignment action.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove assignment'**
+  String get subscriptionsUnassign;
+
+  /// Provider restore action.
+  ///
+  /// In en, this message translates to:
+  /// **'Restore purchases'**
+  String get subscriptionsRestore;
+
+  /// Open Customer Center action.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage subscription'**
+  String get subscriptionsManage;
+
+  /// Refresh AppView subscription state.
+  ///
+  /// In en, this message translates to:
+  /// **'Refresh status'**
+  String get subscriptionsRefresh;
+
+  /// Optional billing fallback explanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Purchases and subscription management are unavailable on this device. Your CraftSky account remains fully usable.'**
+  String get subscriptionsBillingUnavailable;
+
+  /// Missing offering or package message.
+  ///
+  /// In en, this message translates to:
+  /// **'This subscription option is unavailable right now.'**
+  String get subscriptionsOfferingUnavailable;
+
+  /// Safe provider failure message.
+  ///
+  /// In en, this message translates to:
+  /// **'The subscription provider could not complete that action.'**
+  String get subscriptionsProviderFailure;
+
+  /// Assignment conflict message.
+  ///
+  /// In en, this message translates to:
+  /// **'That license is already assigned. Refresh to see its current assignment.'**
+  String get subscriptionsAssignmentConflict;
+
+  /// Assignment cooldown message.
+  ///
+  /// In en, this message translates to:
+  /// **'That license cannot be reassigned yet. Try again after the reassignment wait ends.'**
+  String get subscriptionsAssignmentCooldown;
+
+  /// Missing license message.
+  ///
+  /// In en, this message translates to:
+  /// **'That license is no longer available. Refresh to update this page.'**
+  String get subscriptionsLicenseNotFound;
+
+  /// Ineligible assignment target message.
+  ///
+  /// In en, this message translates to:
+  /// **'That account cannot receive this license.'**
+  String get subscriptionsTargetIneligible;
+
+  /// Unauthorized billing action message.
+  ///
+  /// In en, this message translates to:
+  /// **'Your session can no longer make that billing change. Sign in again and retry.'**
+  String get subscriptionsUnauthorized;
+
+  /// Generic non-provider billing action failure.
+  ///
+  /// In en, this message translates to:
+  /// **'That subscription change could not be completed. Refresh and try again.'**
+  String get subscriptionsActionFailed;
+
+  /// Reconciliation timeout message.
+  ///
+  /// In en, this message translates to:
+  /// **'Your provider action completed. CraftSky is waiting for confirmed subscription status.'**
+  String get subscriptionsPendingRefresh;
+
+  /// Combined accessible tier card action label.
+  ///
+  /// In en, this message translates to:
+  /// **'{tier}: {status}. {action}'**
+  String subscriptionsActionSemantic(String tier, String status, String action);
+
+  /// Assignment confirmation title.
+  ///
+  /// In en, this message translates to:
+  /// **'Assign this license?'**
+  String get subscriptionsAssignmentConfirmTitle;
+
+  /// Assignment target confirmation.
+  ///
+  /// In en, this message translates to:
+  /// **'Assign {tier} to {account}?'**
+  String subscriptionsAssignmentConfirmBody(String tier, String account);
+
+  /// Cooldown warning shown before changing a license target.
+  ///
+  /// In en, this message translates to:
+  /// **'After this change, the license cannot be assigned to another account for seven days.'**
+  String get subscriptionsReassignmentCooldown;
+
+  /// Move an assigned license to another retained account.
+  ///
+  /// In en, this message translates to:
+  /// **'Change assignment'**
+  String get subscriptionsReassign;
+
+  /// Reassignment confirmation title.
+  ///
+  /// In en, this message translates to:
+  /// **'Change this assignment?'**
+  String get subscriptionsReassignmentConfirmTitle;
+
+  /// Unassignment confirmation title.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove this assignment?'**
+  String get subscriptionsUnassignmentConfirmTitle;
+
+  /// Unassignment access and cooldown warning.
+  ///
+  /// In en, this message translates to:
+  /// **'The assigned account will lose paid access. Changing it again may require a seven-day wait.'**
+  String get subscriptionsUnassignmentConfirmBody;
 }
 
 class _AppLocalizationsDelegate

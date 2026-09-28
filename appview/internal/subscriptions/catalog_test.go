@@ -2,7 +2,7 @@ package subscriptions
 
 import "testing"
 
-func TestCatalogAuthorizesOnlyConfiguredProductionProducts(t *testing.T) {
+func TestCatalogAuthorizesOnlyConfiguredEnvironmentProducts(t *testing.T) {
 	catalog, err := NewCatalog(CatalogConfig{
 		ProjectID: "proj-production",
 		AppIDs:    []string{"app-ios", "app-android"},
@@ -40,5 +40,23 @@ func TestCatalogAuthorizesOnlyConfiguredProductionProducts(t *testing.T) {
 				t.Fatalf("Authorize() = %+v, %t; want %+v, %t", got, ok, test.want, test.allowed)
 			}
 		})
+	}
+	sandboxCatalog, err := NewCatalog(CatalogConfig{
+		ProjectID:   "proj-production",
+		Environment: "sandbox",
+		AppIDs:      []string{"app-ios"},
+		Products:    map[string]ProductMapping{"prod-plus": {AppID: "app-ios", Tier: TierPlus}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, ok := sandboxCatalog.Authorize("proj-production", "sandbox", "prod-plus"); !ok || got.Tier != TierPlus {
+		t.Fatalf("sandbox authorization = %+v, %t", got, ok)
+	}
+	if _, ok := sandboxCatalog.Authorize("proj-production", "production", "prod-plus"); ok {
+		t.Fatal("sandbox catalog authorized production state")
+	}
+	if _, err := NewCatalog(CatalogConfig{ProjectID: "project", Environment: "preview"}); err == nil {
+		t.Fatal("invalid environment succeeded")
 	}
 }

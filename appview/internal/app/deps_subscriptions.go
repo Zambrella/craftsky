@@ -19,14 +19,19 @@ type subscriptionDependencies struct {
 }
 
 func newSubscriptionDependencies(pool *pgxpool.Pool, config RevenueCatConfig, httpClient *http.Client, observer *observability.Observer) (*subscriptionDependencies, error) {
-	dependencies := &subscriptionDependencies{store: subscriptions.NewStore(pool, observer)}
+	environment := config.environment
+	if environment == "" {
+		environment = "production"
+	}
+	dependencies := &subscriptionDependencies{store: subscriptions.NewStoreForEnvironment(pool, environment, observer)}
 	if !config.Enabled() || !config.Configured() {
 		return dependencies, nil
 	}
 	catalog, err := subscriptions.NewCatalog(subscriptions.CatalogConfig{
-		ProjectID: config.projectID,
-		AppIDs:    append([]string(nil), config.appIDs...),
-		Products:  config.products,
+		ProjectID:   config.projectID,
+		Environment: config.environment,
+		AppIDs:      append([]string(nil), config.appIDs...),
+		Products:    config.products,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("RevenueCat catalog: %w", err)
@@ -49,7 +54,8 @@ func newSubscriptionDependencies(pool *pgxpool.Pool, config RevenueCatConfig, ht
 	dependencies.reconciler = subscriptions.NewReconciler(dependencies.store, client, catalog, config.leaseDuration, time.Now, observer)
 	dependencies.webhook, err = revenuecat.NewWebhookHandler(revenuecat.WebhookConfig{
 		Authorization: config.webhookAuthorization.Reveal(), SigningSecret: config.webhookSigningSecret.Reveal(),
-		BodyLimit: config.webhookBodyLimit, IngressDeadline: config.ingressDeadline,
+		SkipSignatureVerification: !config.webhookRequireSignature,
+		BodyLimit:                 config.webhookBodyLimit, IngressDeadline: config.ingressDeadline,
 		SignatureTolerance: config.signatureTolerance, Observer: observer,
 	}, dependencies.store, time.Now)
 	if err != nil {

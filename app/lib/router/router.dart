@@ -52,6 +52,7 @@ import 'package:craftsky_app/settings/pages/profile_customisation_page.dart';
 import 'package:craftsky_app/settings/pages/relationship_list_page.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/subscriptions/pages/subscription_page.dart';
 import 'package:dart_mappable/dart_mappable.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -257,6 +258,10 @@ class AccountDeletionReauthCompleteRoute extends GoRouteData
                     TypedGoRoute<AccountRoute>(
                       path: RouteLocations.accountChild,
                       name: 'settings-account',
+                    ),
+                    TypedGoRoute<SubscriptionsRoute>(
+                      path: RouteLocations.subscriptionsChild,
+                      name: 'settings-subscriptions',
                     ),
                     TypedGoRoute<AboutRoute>(
                       path: RouteLocations.aboutChild,
@@ -540,6 +545,17 @@ class AccountRoute extends GoRouteData with $AccountRoute {
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       const AccountPage();
+}
+
+class SubscriptionsRoute extends GoRouteData with $SubscriptionsRoute {
+  const SubscriptionsRoute();
+
+  static final GlobalKey<NavigatorState> $parentNavigatorKey =
+      _NavigatorKeys.authenticatedShellNavigatorKey;
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) =>
+      const SubscriptionPage();
 }
 
 class AboutRoute extends GoRouteData with $AboutRoute {

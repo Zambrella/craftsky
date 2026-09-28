@@ -858,7 +858,7 @@ func LoadConfig(env Env, envFilePath string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	cfg.RevenueCat, err = loadRevenueCatConfig()
+	cfg.RevenueCat, err = loadRevenueCatConfig(env)
 	if err != nil {
 		return Config{}, err
 	}
