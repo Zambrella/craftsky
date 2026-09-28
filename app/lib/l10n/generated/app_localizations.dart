@@ -6924,7 +6924,7 @@ abstract class AppLocalizations {
   /// Permanent billing owner warning.
   ///
   /// In en, this message translates to:
-  /// **'This account permanently owns subscription billing for this installation. Switching accounts will not move subscriptions.'**
+  /// **'Use this account to manage subscriptions on this device. If it already owns a Craftsky subscription, we\'ll reconnect it here. Billing ownership can\'t be moved to a different account.'**
   String get subscriptionsChooseOwnerBody;
 
   /// Action confirming permanent billing ownership.
@@ -6960,8 +6960,14 @@ abstract class AppLocalizations {
   /// Safe recovery guidance after an owner billing account is missing or mismatched.
   ///
   /// In en, this message translates to:
-  /// **'Billing management is locked because the saved billing account could not be verified. Contact support before attempting recovery.'**
+  /// **'We couldn\'t confirm this account\'s billing details. Subscription changes are paused. Please contact support for help.'**
   String get subscriptionsOwnerRecoveryLocked;
+
+  /// Shown when the billing account request requires reauthentication, not billing recovery.
+  ///
+  /// In en, this message translates to:
+  /// **'Your sign-in has expired. Sign in to this account again to manage subscriptions.'**
+  String get subscriptionsOwnerSignInRequired;
 
   /// Owner explanation of independent licenses and assignments.
   ///

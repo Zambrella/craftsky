@@ -297,6 +297,8 @@ availability interruption.
 
 ## PostgreSQL recovery
 
+For billing identity incidents, follow [subscription-billing-recovery.md](subscription-billing-recovery.md) before choosing a database recovery action. Restoring an old production snapshot can roll back other customers' billing state.
+
 The selected paid Render Postgres plan provides a three-day PITR window.
 Before launch, create an on-demand logical export and perform a restore drill into
 a separate database. Confirm the restored migration version and representative

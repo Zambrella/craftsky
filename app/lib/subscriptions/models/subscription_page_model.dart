@@ -32,6 +32,7 @@ final class SubscriptionPageModel {
     required this.billingAvailability,
     this.ownerRetained = false,
     this.ownerRecoveryLocked = false,
+    this.ownerSignInRequired = false,
     this.billingState,
     this.operationNotice,
     this.assignedAccountLabels = const {},
@@ -52,6 +53,7 @@ final class SubscriptionPageModel {
   final BillingAvailability billingAvailability;
   final bool ownerRetained;
   final bool ownerRecoveryLocked;
+  final bool ownerSignInRequired;
   final BillingState? billingState;
   final SubscriptionOperationNotice? operationNotice;
   final Map<Did, String> assignedAccountLabels;

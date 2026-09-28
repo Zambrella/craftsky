@@ -25,6 +25,62 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('new phone reconnects the same owner and existing license', (
+    tester,
+  ) async {
+    final storage = _Storage(
+      SessionRegistry.empty().upsertAndActivate(
+        token: 'alice-new-phone-token',
+        did: 'did:plc:alice',
+        handle: 'alice.test',
+      ),
+    );
+    final events = <String>[];
+    final api = _OwnerApi(
+      [_state(generation: 8, assignedDid: 'did:plc:alice')],
+      events: events,
+      accessTier: SubscriptionTier.plus,
+    );
+    final revenueCat = _RevenueCat(anonymous: true, events: events);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(storage),
+          revenueCatServiceProvider.overrideWithValue(revenueCat),
+          subscriptionRepositoryProvider.overrideWith((_, _) async => api),
+        ],
+        child: MaterialApp(
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          home: const SubscriptionPage(),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('Current access: Plus'), findsOneWidget);
+    expect(find.text('Use this account'), findsOneWidget);
+    expect(api.ensureCalls, 0);
+    await tester.tap(find.text('Use this account'));
+    await tester.pumpAndSettle();
+
+    expect(api.ensureCalls, 1);
+    expect(api.billingReads, greaterThanOrEqualTo(1));
+    expect(
+      events,
+      containsAllInOrder(['identityRead', 'identify', 'billingGet']),
+    );
+    expect(revenueCat.identifyCalls, 1);
+    expect(
+      storage.registry.billingOwner?.revenueCatAppUserId,
+      '20000000-0000-4000-8000-000000000001',
+    );
+    expect(find.text('Current access: Plus'), findsOneWidget);
+    expect(find.text('Assigned to @alice.test'), findsOneWidget);
+  });
+
   testWidgets(
     'IT-004 persisted owner UUID recovers identity through GET only',
     (tester) async {
@@ -1393,13 +1449,14 @@ Future<void> _tapVisible(WidgetTester tester, Finder finder) async {
 final class _Storage implements SessionRegistryStorage {
   _Storage(this.registry);
 
-  final SessionRegistry registry;
+  SessionRegistry registry;
 
   @override
   Future<SessionRegistry> read() async => registry;
 
   @override
-  Future<void> write(SessionRegistry registry) async {}
+  Future<void> write(SessionRegistry registry) async =>
+      this.registry = registry;
 }
 
 final class _OwnerApi implements SubscriptionApi {
@@ -1411,6 +1468,7 @@ final class _OwnerApi implements SubscriptionApi {
     this.onStateRead,
     this.pendingAssign,
     this.pendingUnassign,
+    this.accessTier = SubscriptionTier.free,
   }) : _lastState = states.last;
 
   final List<BillingState> states;
@@ -1420,6 +1478,7 @@ final class _OwnerApi implements SubscriptionApi {
   final void Function(BillingState state)? onStateRead;
   final Completer<void>? pendingAssign;
   final Completer<void>? pendingUnassign;
+  final SubscriptionTier accessTier;
   BillingState _lastState;
   String? assignedLicenseId;
   String? assignedTarget;
@@ -1479,7 +1538,7 @@ final class _OwnerApi implements SubscriptionApi {
 
   @override
   Future<SubscriptionAccess> getAccess() async =>
-      _access('did:plc:alice', SubscriptionTier.free);
+      _access('did:plc:alice', accessTier);
 }
 
 final class _TargetApi implements SubscriptionApi {

@@ -6,6 +6,7 @@ import 'package:craftsky_app/subscriptions/pages/subscription_page.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_page_model_provider.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -461,9 +462,71 @@ void main() {
     );
 
     expect(find.text('Current access: Plus'), findsOneWidget);
-    expect(find.textContaining('Billing management is locked'), findsOneWidget);
+    final error = find.textContaining(
+      "We couldn't confirm this account's billing details",
+    );
+    expect(error, findsOneWidget);
+    expect(
+      tester.widget<Text>(error).style?.color,
+      Theme.of(tester.element(error)).colorScheme.error,
+    );
+    expect(
+      tester
+          .widget<CraftskyCard>(
+            find.ancestor(
+              of: error,
+              matching: find.byType(CraftskyCard),
+            ),
+          )
+          .clipBehavior,
+      Clip.none,
+    );
     expect(find.text('Retry setup'), findsNothing);
     expect(_tierDetails(SubscriptionTier.plus), findsNothing);
+  });
+
+  testWidgets('expired sign-in prompts login without claiming billing loss', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      SubscriptionPageModel(
+        role: SubscriptionPageRole.owner,
+        access: _access(SubscriptionTier.plus),
+        billingAvailability: BillingAvailability.available,
+        ownerSignInRequired: true,
+      ),
+    );
+
+    final message = find.textContaining('Your sign-in has expired');
+    expect(message, findsOneWidget);
+    expect(find.text('Current access: Plus'), findsOneWidget);
+    expect(
+      tester.widget<Text>(message).style?.color,
+      Theme.of(tester.element(message)).colorScheme.error,
+    );
+    expect(find.textContaining('contact support'), findsNothing);
+    expect(find.text('Refresh status'), findsNothing);
+    expect(find.text('Retry setup'), findsNothing);
+  });
+
+  testWidgets('owner choice explains reconnecting on a new device', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      SubscriptionPageModel(
+        role: SubscriptionPageRole.neverReserved,
+        access: _access(SubscriptionTier.free),
+        billingAvailability: BillingAvailability.available,
+      ),
+    );
+
+    expect(find.textContaining("we'll reconnect it here"), findsOneWidget);
+    expect(
+      find.textContaining("Billing ownership can't be moved"),
+      findsOneWidget,
+    );
   });
 
   testWidgets('AT-011 missing owner exposes reauthentication guidance only', (

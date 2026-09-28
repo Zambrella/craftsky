@@ -89,6 +89,7 @@ class _SubscriptionPageState extends ConsumerState<SubscriptionPage>
           billingAvailability: value.billingAvailability,
           ownerRetained: value.ownerRetained,
           ownerRecoveryLocked: value.ownerRecoveryLocked,
+          ownerSignInRequired: value.ownerSignInRequired,
           billingState: value.billingState,
           operationNotice:
               _notice ??
@@ -751,9 +752,16 @@ class SubscriptionPageView extends StatelessWidget {
         _MessageCard(
           body: model.ownerRecoveryLocked
               ? l10n.subscriptionsOwnerRecoveryLocked
+              : model.ownerSignInRequired
+              ? l10n.subscriptionsOwnerSignInRequired
               : l10n.subscriptionsProviderFailure,
-          action: model.ownerRecoveryLocked ? null : l10n.subscriptionsRefresh,
-          onAction: model.ownerRecoveryLocked ? null : model.onRefresh,
+          isError: model.ownerRecoveryLocked || model.ownerSignInRequired,
+          action: model.ownerRecoveryLocked || model.ownerSignInRequired
+              ? null
+              : l10n.subscriptionsRefresh,
+          onAction: model.ownerRecoveryLocked || model.ownerSignInRequired
+              ? null
+              : model.onRefresh,
         ),
       ];
     }
@@ -1194,15 +1202,18 @@ class _MessageCard extends StatelessWidget {
     this.title,
     this.action,
     this.onAction,
+    this.isError = false,
   });
 
   final String? title;
   final String body;
   final String? action;
   final VoidCallback? onAction;
+  final bool isError;
 
   @override
   Widget build(BuildContext context) => CraftskyCard(
+    clipBehavior: Clip.none,
     padding: const EdgeInsets.all(16),
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1211,7 +1222,12 @@ class _MessageCard extends StatelessWidget {
           Text(title, style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 8),
         ],
-        Text(body),
+        Text(
+          body,
+          style: isError
+              ? TextStyle(color: Theme.of(context).colorScheme.error)
+              : null,
+        ),
         if (action case final action?) ...[
           const SizedBox(height: 12),
           Align(

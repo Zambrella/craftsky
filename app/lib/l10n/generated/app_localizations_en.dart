@@ -3897,7 +3897,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get subscriptionsChooseOwnerBody =>
-      'This account permanently owns subscription billing for this installation. Switching accounts will not move subscriptions.';
+      'Use this account to manage subscriptions on this device. If it already owns a Craftsky subscription, we\'ll reconnect it here. Billing ownership can\'t be moved to a different account.';
 
   @override
   String get subscriptionsChooseOwnerAction => 'Use this account';
@@ -3919,7 +3919,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get subscriptionsOwnerRecoveryLocked =>
-      'Billing management is locked because the saved billing account could not be verified. Contact support before attempting recovery.';
+      'We couldn\'t confirm this account\'s billing details. Subscription changes are paused. Please contact support for help.';
+
+  @override
+  String get subscriptionsOwnerSignInRequired =>
+      'Your sign-in has expired. Sign in to this account again to manage subscriptions.';
 
   @override
   String get subscriptionsIndependentLicenses =>

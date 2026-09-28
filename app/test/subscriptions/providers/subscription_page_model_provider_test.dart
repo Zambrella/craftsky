@@ -156,6 +156,35 @@ void main() {
     expect(revenueCat.identifyCalls, 0);
   });
 
+  test('expired owner sign-in is not treated as a billing mismatch', () async {
+    final revenueCat = _RevenueCat();
+    final container = ProviderContainer.test(
+      retry: (_, _) => null,
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _Storage(_registry()),
+        ),
+        revenueCatServiceProvider.overrideWithValue(revenueCat),
+        subscriptionRepositoryProvider.overrideWith(
+          (_, _) async => _Api(
+            'did:plc:alice',
+            SubscriptionTier.plus,
+            ownerError: const ApiUnauthorized(),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final model = await container.read(subscriptionPageModelProvider.future);
+
+    expect(model.access.effectiveTier, SubscriptionTier.plus);
+    expect(model.ownerSignInRequired, isTrue);
+    expect(model.ownerRecoveryLocked, isFalse);
+    expect(model.billingState, isNull);
+    expect(revenueCat.identityCalls, 0);
+  });
+
   test('IT-014 mismatched RevenueCat owner never reidentifies', () async {
     final registry = _registry();
     final revenueCat = _RevenueCat(

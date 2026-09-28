@@ -93,7 +93,7 @@ final FutureProvider<SubscriptionPageModel> subscriptionPageModelProvider =
           role: SubscriptionPageRole.owner,
           access: access,
           ownerRetained: true,
-          ownerRecoveryLocked: true,
+          ownerSignInRequired: true,
           billingAvailability: availability,
           assignedAccountLabels: labels,
         );
