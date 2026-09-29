@@ -86,7 +86,7 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
             spacing.sp4,
             spacing.sp4,
             spacing.sp4,
-            spacing.sp6,
+            spacing.sp6 + MediaQuery.paddingOf(context).bottom,
           ),
           child: FormBuilder(
             key: _formKey,

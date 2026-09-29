@@ -500,7 +500,7 @@ class _EditProfileFormState extends ConsumerState<_EditProfileForm> {
                     spacing.sp4,
                     spacing.sp4,
                     spacing.sp4,
-                    spacing.sp6,
+                    spacing.sp6 + MediaQuery.paddingOf(context).bottom,
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
