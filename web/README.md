@@ -16,16 +16,15 @@ Static public site served at https://craftsky.social.
 
 ## Local dev
 
-No build step. Pick either:
+From the repository root, start the local server (no build step needed):
 
 ```bash
-# Quickest — open the file directly
-open index.html
-
-# Or serve with python for correct MIME types
-python3 -m http.server 8000
-# Then visit http://localhost:8000
+python3 web/test/server.py
 ```
+
+Visit http://127.0.0.1:4173/. The server maps clean URLs such as `/privacy`
+to their `.html` files. Stop it with Ctrl+C. Python's built-in
+`http.server` does not resolve these URLs and will return 404 for site links.
 
 ## Check for token drift
 
