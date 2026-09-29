@@ -85,8 +85,7 @@ Future<Post?> showPostComposerSheet(
   ActiveAccountLease? draftOwner,
 }) {
   return responsiveModalNavigator(context).push<Post?>(
-    MaterialPageRoute<Post?>(
-      fullscreenDialog: true,
+    FullscreenModalRoute<Post?>(
       builder: (_) => PostComposerSheet(
         replyTarget: replyTarget,
         quoteTarget: quoteTarget,

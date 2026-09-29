@@ -86,8 +86,7 @@ Future<Post?> showProjectComposerSheet(
   ActiveAccountLease? draftOwner,
 }) {
   return responsiveModalNavigator(context).push<Post?>(
-    MaterialPageRoute<Post?>(
-      fullscreenDialog: true,
+    FullscreenModalRoute<Post?>(
       builder: (_) => ProjectComposerSheet(
         scheduledPost: scheduledPost,
         scheduledOwner: scheduledOwner,

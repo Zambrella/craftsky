@@ -4,6 +4,46 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('Android fullscreen modal slides up and back down', (
+    tester,
+  ) async {
+    final navigatorKey = GlobalKey<NavigatorState>();
+    await tester.pumpWidget(
+      MaterialApp(
+        navigatorKey: navigatorKey,
+        theme: ThemeData(platform: TargetPlatform.android),
+        home: const Scaffold(body: Text('Underneath')),
+      ),
+    );
+
+    final route = FullscreenModalRoute<void>(
+      builder: (_) => const Scaffold(body: Text('Modal')),
+    );
+    navigatorKey.currentState!.push(route).ignore();
+    await tester.pump();
+
+    expect(route.fullscreenDialog, isTrue);
+    final slideFinder = find.ancestor(
+      of: find.text('Modal', skipOffstage: false),
+      matching: find.byType(SlideTransition, skipOffstage: false),
+    );
+    Offset slideOffset() =>
+        tester.widget<SlideTransition>(slideFinder.first).position.value;
+    expect(slideOffset(), const Offset(0, 1));
+
+    await tester.pump(const Duration(milliseconds: 150));
+    expect(slideOffset().dy, inExclusiveRange(0, 1));
+    await tester.pumpAndSettle();
+    expect(slideOffset(), Offset.zero);
+
+    navigatorKey.currentState!.pop();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 150));
+    expect(slideOffset().dy, inExclusiveRange(0, 1));
+    await tester.pumpAndSettle();
+    expect(find.text('Modal'), findsNothing);
+  });
+
   for (final presentation in [
     (size: const Size(1200, 800), keepsNavigation: true),
     (size: const Size(500, 800), keepsNavigation: false),

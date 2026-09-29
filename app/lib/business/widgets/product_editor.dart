@@ -34,8 +34,7 @@ Future<ProductDraft?> showProductEditorSheet(
   bool Function(String destination)? destinationExists,
 }) {
   return responsiveModalNavigator(context).push<ProductDraft>(
-    MaterialPageRoute<ProductDraft>(
-      fullscreenDialog: true,
+    FullscreenModalRoute<ProductDraft>(
       builder: (routeContext) => ProductEditor(
         initial: initial,
         pickImage: pickImage,

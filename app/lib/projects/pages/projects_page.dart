@@ -294,8 +294,7 @@ class _ProjectsPageState extends ConsumerState<ProjectsPage>
         ProjectOptionCatalogs.craftTypes[_selectedCraftIndex].value;
     final filters = await responsiveModalNavigator(context)
         .push<ProjectBrowseFilters>(
-          MaterialPageRoute<ProjectBrowseFilters>(
-            fullscreenDialog: true,
+          FullscreenModalRoute<ProjectBrowseFilters>(
             builder: (_) => _ProjectFilterSheet(
               craftType: craftType,
               initialFilters: _filters,

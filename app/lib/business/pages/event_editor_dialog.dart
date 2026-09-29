@@ -29,8 +29,7 @@ Future<void> showEventEditorSheet(
   BusinessEvent? event,
 }) {
   return responsiveModalNavigator(context).push<void>(
-    MaterialPageRoute<void>(
-      fullscreenDialog: true,
+    FullscreenModalRoute<void>(
       builder: (_) => EventEditorDialog(event: event),
     ),
   );

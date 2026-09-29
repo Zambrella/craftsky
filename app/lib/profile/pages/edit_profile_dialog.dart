@@ -56,7 +56,7 @@ const _fieldCrafts = 'crafts';
 
 /// Opens the profile-edit screen as a full-screen Material dialog.
 ///
-/// Uses `MaterialPageRoute(fullscreenDialog: true)` for two reasons:
+/// Uses a full-screen modal route for two reasons:
 /// 1. The AppBar's auto-injected leading becomes a `CloseButton` (X)
 ///    instead of a back arrow — the "close button for free" that
 ///    matches Material's intent for temporary task screens.
@@ -75,8 +75,7 @@ Future<void> showEditProfileDialog(
   ExternalLinkConfirmer confirmOpenLink = showOpenLinkDialog,
 }) {
   return responsiveModalNavigator(context).push<void>(
-    MaterialPageRoute<void>(
-      fullscreenDialog: true,
+    FullscreenModalRoute<void>(
       builder: (_) => EditProfileDialog(
         linkLauncher: linkLauncher,
         confirmOpenLink: confirmOpenLink,
