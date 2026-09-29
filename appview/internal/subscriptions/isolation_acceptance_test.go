@@ -28,6 +28,7 @@ const isolationSocialDDL = `
 	CREATE TABLE saved_posts (owner_did TEXT NOT NULL, post_uri TEXT NOT NULL, PRIMARY KEY(owner_did,post_uri));
 	CREATE TABLE moderation_reports (id TEXT PRIMARY KEY, reporter_did TEXT NOT NULL, details TEXT);
 	CREATE TABLE scheduled_posts (id UUID PRIMARY KEY, owner_did TEXT NOT NULL, payload JSONB NOT NULL);
+	CREATE TABLE profile_pins (owner_did TEXT, slot TEXT);
 	INSERT INTO craftsky_profiles VALUES
 		('did:plc:isolation-owner','profile-owner'),
 		('did:plc:isolation-beneficiary','profile-beneficiary'),

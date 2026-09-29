@@ -9,19 +9,25 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/auth/widgets/account_avatar.dart';
 import 'package:craftsky_app/auth/widgets/account_switcher_launcher.dart';
+import 'package:craftsky_app/feed/providers/profile_pins_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/feed/widgets/post_type_chooser.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/notification_badge.dart';
 import 'package:craftsky_app/notifications/providers/notification_new_count_provider.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/profile/providers/follower_growth_provider.dart';
+import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/projects/widgets/project_composer_sheet.dart';
 import 'package:craftsky_app/router/app_shell_drawer.dart';
 import 'package:craftsky_app/router/route_locations.dart';
+import 'package:craftsky_app/saved_posts/providers/saved_post_folders_provider.dart';
+import 'package:craftsky_app/saved_posts/providers/saved_posts_provider.dart';
 import 'package:craftsky_app/settings/settings_links.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/root_overlay_scope.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
@@ -506,6 +512,36 @@ class _AppShellState extends ConsumerState<AppShell> {
     final activeIdentity = ref.watch(activeAccountIdentityProvider).value;
     final activeLease = registry?.activeLease?.session;
     final activeAccount = activeLease?.account;
+    if (activeLease != null) {
+      ref.listen(subscriptionAccessProvider(activeLease), (previous, next) {
+        final prior = previous?.value?.effectiveTier;
+        if (next case AsyncData(:final value)
+            when prior != null &&
+                prior != value.effectiveTier &&
+                value.did == activeLease.account.did) {
+          ref
+            ..invalidate(activeAccountIdentityProvider)
+            ..invalidate(userProfileProvider(activeLease.account.did))
+            ..invalidate(savedPostFoldersProvider(activeLease.account))
+            ..invalidate(savedPostsProvider)
+            ..invalidate(followerGrowthProvider);
+          if (registry?.activeLease case final ownerLease?) {
+            ref.invalidate(profilePinsProvider(ownerLease));
+          }
+          if (!value.allowsBusiness) {
+            final path = GoRouter.of(
+              context,
+            ).routeInformationProvider.value.uri.path;
+            if (path ==
+                    '${RouteLocations.settings}/${RouteLocations.productsChild}' ||
+                path ==
+                    '${RouteLocations.settings}/${RouteLocations.eventsChild}') {
+              context.go(RouteLocations.settings);
+            }
+          }
+        }
+      });
+    }
     final switcherState = registry == null
         ? null
         : AccountSwitcherState.fromRegistry(registry);
@@ -531,12 +567,22 @@ class _AppShellState extends ConsumerState<AppShell> {
     final activeProfile = activeIdentity?.lease == activeLease
         ? activeIdentity?.profile
         : null;
-    final activeCustomisation =
-        activeProfile?.customisation ??
-        (activeAccount == null
-            ? ProfileCustomisation.defaults
-            : registry?.sessions[activeAccount.did]?.cachedCustomisation ??
-                  ProfileCustomisation.defaults);
+    final access = activeLease == null
+        ? null
+        : ref.watch(subscriptionAccessProvider(activeLease));
+    final hasPlus = switch (access) {
+      AsyncData(:final value) => value.allowsPlus,
+      _ => false,
+    };
+    final activeCustomisation = hasPlus
+        ? (activeProfile?.customisation ??
+              (activeAccount == null
+                  ? ProfileCustomisation.defaults
+                  : registry
+                            ?.sessions[activeAccount.did]
+                            ?.cachedCustomisation ??
+                        ProfileCustomisation.defaults))
+        : ProfileCustomisation.defaults;
     final notificationBadge = NotificationBadge.fromCount(
       activeAccount == null
           ? ref.watch(notificationNewCountProvider).value ?? 0

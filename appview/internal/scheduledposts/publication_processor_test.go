@@ -154,6 +154,82 @@ func TestPublicationWorkerPublishesDuePostWithStablePutAndFinalizes(t *testing.T
 	}
 }
 
+func TestScheduledPublicationRechecksPlusAtLastEffectBoundary(t *testing.T) {
+	store := NewStore(newScheduledPostStoreTestPool(t))
+	ctx := context.Background()
+	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
+	payload, _ := EncodePayload(Payload{Kind: PostKindStandard, Text: "unlicensed"})
+	created, err := store.Create(ctx, CreateParams{ID: uuid.New(), OwnerDID: "did:plc:alice", OperationID: uuid.New(), RequestHash: [32]byte{1}, ScheduledAt: now, PayloadBytes: payload, PayloadHash: sha256.Sum256(payload), PayloadVersion: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pds := &recordingScheduledPDS{}
+	checks := 0
+	processor, err := NewPublicationProcessor(PublicationProcessorOptions{
+		Store: store, Sessions: stubPublicationSessionSelector{wantOwner: "did:plc:alice", sessionID: "owner-session"},
+		NewCommands: recordingGuardedFactory(pds, nil), Objects: newMemoryPrivateObjectStore(), Now: func() time.Time { return now },
+		WithPlusAccess: func(_ context.Context, did syntax.DID, _ func(context.Context) error) error {
+			checks++
+			if did != created.OwnerDID {
+				t.Fatalf("checked %s, want owner %s", did, created.OwnerDID)
+			}
+			return ErrSubscriptionRequired
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker, err := NewWorker(WorkerOptions{Store: store, Processor: processor, Now: func() time.Time { return now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if processed, err := worker.ProcessBatch(ctx); err != nil || processed != 1 {
+		t.Fatalf("processed=%d, err=%v", processed, err)
+	}
+	resource, err := store.Get(ctx, created.OwnerDID, created.ID)
+	if err != nil || checks != 1 || pds.putCalls != 0 || resource.Status != StatusNeedsAttention {
+		t.Fatalf("resource=%+v err=%v checks=%d putCalls=%d", resource, err, checks, pds.putCalls)
+	}
+	if resource.LastErrorCode != "subscription_required" {
+		t.Fatalf("owner-visible error code = %q", resource.LastErrorCode)
+	}
+	var code string
+	if err := store.pool.QueryRow(ctx, `SELECT last_error_code FROM scheduled_posts WHERE id=$1`, created.ID).Scan(&code); err != nil || code != "subscription_required" {
+		t.Fatalf("code=%q err=%v", code, err)
+	}
+}
+
+func TestDueWithoutSubscriptionIsNotReclassifiedAsAutomaticCutoff(t *testing.T) {
+	store := NewStore(newScheduledPostStoreTestPool(t))
+	ctx := context.Background()
+	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
+	payload, _ := EncodePayload(Payload{Kind: PostKindStandard, Text: "missed"})
+	created, err := store.Create(ctx, CreateParams{ID: uuid.New(), OwnerDID: "did:plc:alice", OperationID: uuid.New(), RequestHash: [32]byte{1}, ScheduledAt: now.Add(-31 * time.Minute), PayloadBytes: payload, PayloadHash: sha256.Sum256(payload), PayloadVersion: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pds := &recordingScheduledPDS{}
+	processor, err := NewPublicationProcessor(PublicationProcessorOptions{Store: store,
+		Sessions:    stubPublicationSessionSelector{wantOwner: "did:plc:alice", sessionID: "owner-session"},
+		NewCommands: recordingGuardedFactory(pds, nil), Objects: newMemoryPrivateObjectStore(), Now: func() time.Time { return now },
+		CheckPlusAccess: func(context.Context, syntax.DID) (bool, error) { return false, nil },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker, err := NewWorker(WorkerOptions{Store: store, Processor: processor, Now: func() time.Time { return now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := worker.ProcessBatch(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var code string
+	if err := store.pool.QueryRow(ctx, `SELECT last_error_code FROM scheduled_posts WHERE id=$1`, created.ID).Scan(&code); err != nil || code != "subscription_required" || pds.putCalls != 0 {
+		t.Fatalf("code=%s err=%v pds=%d", code, err, pds.putCalls)
+	}
+}
+
 func TestPublicationWorkerRejectsOversizedExternalThumbnailBeforeFreeze(t *testing.T) {
 	store := NewStore(newScheduledPostStoreTestPool(t))
 	objects := newMemoryPrivateObjectStore()
@@ -374,6 +450,43 @@ func TestPublicationWorkerUploadsThePrivateCopyBeforeWritingImageRecord(t *testi
 	image := images[0].(map[string]any)
 	if image["alt"] != "private alt" {
 		t.Fatalf("image record=%#v", image)
+	}
+}
+
+func TestUnlicensedClaimCannotUploadMediaBeforeFinalEffectCheck(t *testing.T) {
+	store := NewStore(newScheduledPostStoreTestPool(t))
+	objects := newMemoryPrivateObjectStore()
+	mediaService, _ := newScheduledTestMediaService(t, store, objects)
+	ctx := context.Background()
+	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
+	mediaID := uuid.New()
+	if _, err := mediaService.Put(ctx, PutPrivateMediaParams{ID: mediaID, OwnerDID: "did:plc:alice", OwnerGeneration: 1, MIMEType: "image/jpeg", Bytes: []byte("private"), Now: now}); err != nil {
+		t.Fatal(err)
+	}
+	payload, _ := EncodePayload(Payload{Kind: PostKindStandard, Text: "blocked image", Media: []PayloadMedia{{ID: mediaID.String(), Alt: "alt", Width: 4, Height: 3}}})
+	created, err := store.Create(ctx, CreateParams{ID: uuid.New(), OwnerDID: "did:plc:alice", OperationID: uuid.New(), RequestHash: [32]byte{1}, ScheduledAt: now, PayloadBytes: payload, PayloadHash: sha256.Sum256(payload), PayloadVersion: 1, MediaIDs: []uuid.UUID{mediaID}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	pds := &recordingScheduledPDS{}
+	processor, err := NewPublicationProcessor(PublicationProcessorOptions{
+		Store: store, Sessions: stubPublicationSessionSelector{wantOwner: "did:plc:alice", sessionID: "owner-session"},
+		NewCommands: recordingGuardedFactory(pds, nil), Objects: objects, Now: func() time.Time { return now },
+		WithPlusAccess: func(context.Context, syntax.DID, func(context.Context) error) error { return ErrSubscriptionRequired },
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	worker, err := NewWorker(WorkerOptions{Store: store, Processor: processor, Now: func() time.Time { return now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := worker.ProcessBatch(ctx); err != nil {
+		t.Fatal(err)
+	}
+	resource, err := store.Get(ctx, created.OwnerDID, created.ID)
+	if err != nil || resource.Status != StatusNeedsAttention || resource.LastErrorCode != "subscription_required" || pds.uploadCalls != 0 || pds.putCalls != 0 {
+		t.Fatalf("status=%s code=%s uploads=%d puts=%d err=%v", resource.Status, resource.LastErrorCode, pds.uploadCalls, pds.putCalls, err)
 	}
 }
 

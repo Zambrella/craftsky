@@ -18,7 +18,7 @@ func TestReconciledAccessUsesProviderTruthWithoutLocalExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(migration))
+	pool := testdb.WithSchema(t, string(migration)+`CREATE TABLE profile_pins(owner_did TEXT, slot TEXT);`)
 	ctx := context.Background()
 	store := NewStore(pool)
 	now := time.Date(2026, 9, 9, 12, 0, 0, 0, time.UTC)
@@ -85,14 +85,15 @@ func TestSelfAccessIsIsolatedToConfiguredRevenueCatEnvironment(t *testing.T) {
 	pool := testdb.WithSchema(t, string(migration))
 	ctx := context.Background()
 	beneficiary := syntax.DID("did:plc:sandbox-beneficiary")
-	if _, err := pool.Exec(ctx, `
-		INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id)
-		VALUES('10000000-0000-4000-8000-000000000071','did:plc:sandbox-owner','20000000-0000-4000-8000-000000000071');
-		INSERT INTO provider_subscriptions(id,billing_account_id,project_id,revenuecat_subscription_id,product_id,app_id,store,environment,status,gives_access,mapped_tier,accepted_generation)
-		VALUES('30000000-0000-4000-8000-000000000071','10000000-0000-4000-8000-000000000071','project','sandbox-subscription','sandbox-plus','test-app','test_store','sandbox','active',true,'plus',1);
-		INSERT INTO billing_licenses(provider_subscription_id,tier,assigned_did,assigned_at)
-		VALUES('30000000-0000-4000-8000-000000000071','plus',$1,now())
-	`, beneficiary); err != nil {
+	for _, statement := range []string{
+		`INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id) VALUES('10000000-0000-4000-8000-000000000071','did:plc:sandbox-owner','20000000-0000-4000-8000-000000000071')`,
+		`INSERT INTO provider_subscriptions(id,billing_account_id,project_id,revenuecat_subscription_id,product_id,app_id,store,environment,status,gives_access,mapped_tier,accepted_generation) VALUES('30000000-0000-4000-8000-000000000071','10000000-0000-4000-8000-000000000071','project','sandbox-subscription','sandbox-plus','test-app','test_store','sandbox','active',true,'plus',1)`,
+	} {
+		if _, err := pool.Exec(ctx, statement); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO billing_licenses(provider_subscription_id,tier,assigned_did,assigned_at) VALUES('30000000-0000-4000-8000-000000000071','plus',$1,now())`, beneficiary); err != nil {
 		t.Fatal(err)
 	}
 

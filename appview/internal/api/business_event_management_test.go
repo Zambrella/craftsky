@@ -19,7 +19,7 @@ import (
 )
 
 func TestBusinessEventOwnerManagementListsEveryRetainedState(t *testing.T) {
-	pool := testdb.WithSchema(t, businessEventStoreDDL)
+	pool := testdb.WithSchema(t, businessEventSubscriptionDDL(t))
 	ctx := context.Background()
 	owner := syntax.DID("did:plc:event-owner")
 	asOf := time.Date(2026, time.August, 29, 12, 0, 0, 0, time.UTC)
@@ -29,6 +29,7 @@ func TestBusinessEventOwnerManagementListsEveryRetainedState(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_account_types(owner_did, account_type) VALUES ($1, 'business')`, owner); err != nil {
 		t.Fatalf("seed owner account type: %v", err)
 	}
+	seedBusinessTestLicense(t, pool, owner)
 
 	fixtures := []eventFixture{
 		{Owner: owner, Rkey: "3msfuture0001", Name: "Future", StartsAt: asOf.Add(8 * time.Hour), EndsAt: asOf.Add(9 * time.Hour)},
@@ -97,7 +98,7 @@ func TestBusinessEventOwnerManagementListsEveryRetainedState(t *testing.T) {
 }
 
 func TestGetOwnerBusinessEventsHandlerPaginatesWithDefaultAndOpaqueCursor(t *testing.T) {
-	pool := testdb.WithSchema(t, businessEventStoreDDL)
+	pool := testdb.WithSchema(t, businessEventSubscriptionDDL(t))
 	ctx := context.Background()
 	owner := syntax.DID("did:plc:event-owner")
 	asOf := time.Date(2026, time.August, 29, 12, 0, 0, 0, time.UTC)
@@ -107,6 +108,7 @@ func TestGetOwnerBusinessEventsHandlerPaginatesWithDefaultAndOpaqueCursor(t *tes
 	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_account_types(owner_did, account_type) VALUES ($1, 'regular')`, owner); err != nil {
 		t.Fatalf("seed regular owner account type: %v", err)
 	}
+	seedBusinessTestLicense(t, pool, owner)
 	for index := 0; index < 23; index++ {
 		start := asOf.Add(time.Duration(index) * time.Hour)
 		seedEventFixture(t, pool, eventFixture{
@@ -141,9 +143,8 @@ func TestGetOwnerBusinessEventsHandlerPaginatesWithDefaultAndOpaqueCursor(t *tes
 			t.Fatalf("default page length = %d, want 20", len(page.Items))
 		}
 		for _, item := range page.Items {
-			if !reflect.DeepEqual(item.PublicSuppressionReasons, []string{"owner-not-business"}) ||
-				!reflect.DeepEqual(item.UpcomingExclusionReasons, []string{"owner-not-business"}) {
-				t.Fatalf("regular owner diagnostics = public %v upcoming %v", item.PublicSuppressionReasons, item.UpcomingExclusionReasons)
+			if len(item.PublicSuppressionReasons) != 0 {
+				t.Fatalf("licensed owner diagnostics = public %v upcoming %v", item.PublicSuppressionReasons, item.UpcomingExclusionReasons)
 			}
 			if seen[item.URI] {
 				t.Fatalf("duplicate event %s", item.URI)

@@ -25,7 +25,7 @@ import (
 )
 
 func TestAT006PaginateUpcomingEventsWithFrozenTimeEligibility(t *testing.T) {
-	pool := testdb.WithSchema(t, businessEventStoreDDL)
+	pool := testdb.WithSchema(t, businessEventSubscriptionDDL(t))
 	owner := syntax.DID("did:plc:at006eventowner")
 	visitor := syntax.DID("did:plc:at006eventvisitor")
 	asOf := time.Date(2026, time.August, 29, 12, 0, 0, 0, time.UTC)
@@ -118,7 +118,7 @@ func TestAT006PaginateUpcomingEventsWithFrozenTimeEligibility(t *testing.T) {
 }
 
 func TestOwnerBusinessEventsUpcomingTraversalIsCompleteAtFrozenCutoff(t *testing.T) {
-	pool := testdb.WithSchema(t, businessEventStoreDDL)
+	pool := testdb.WithSchema(t, businessEventSubscriptionDDL(t))
 	owner := syntax.DID("did:plc:ownerupcomingtraversal")
 	cutoff := time.Date(2026, time.August, 30, 12, 0, 0, 0, time.UTC)
 	clock := cutoff
@@ -194,7 +194,7 @@ func TestOwnerBusinessEventsUpcomingTraversalIsCompleteAtFrozenCutoff(t *testing
 }
 
 func TestOwnerBusinessEventsHistoryTraversalIsCompleteAtIndependentFrozenCutoff(t *testing.T) {
-	pool := testdb.WithSchema(t, businessEventStoreDDL)
+	pool := testdb.WithSchema(t, businessEventSubscriptionDDL(t))
 	owner := syntax.DID("did:plc:ownerhistorytraversal")
 	historyCutoff := time.Date(2026, time.August, 30, 12, 0, 0, 0, time.UTC)
 	clock := historyCutoff.Add(-2 * time.Hour)
@@ -299,7 +299,7 @@ func TestOwnerBusinessEventsHistoryTraversalIsCompleteAtIndependentFrozenCutoff(
 }
 
 func TestOwnerBusinessEventsUpcomingFilter(t *testing.T) {
-	pool := testdb.WithSchema(t, businessEventStoreDDL)
+	pool := testdb.WithSchema(t, businessEventSubscriptionDDL(t))
 	owner := syntax.DID("did:plc:ownerfilter")
 	cutoff := time.Date(2026, time.August, 30, 12, 0, 0, 0, time.UTC)
 	seedEligibleBusinessOwner(t, pool, owner)
@@ -437,7 +437,7 @@ func TestOwnerBusinessEventsUpcomingFilter(t *testing.T) {
 }
 
 func TestBusinessEventPaginationRealQuery(t *testing.T) {
-	pool := testdb.WithSchema(t, businessEventStoreDDL)
+	pool := testdb.WithSchema(t, businessEventSubscriptionDDL(t))
 	ctx := context.Background()
 	visitor := syntax.DID("did:plc:eventpagevisitor")
 	asOf := time.Date(2026, time.August, 29, 12, 0, 0, 0, time.UTC)
@@ -611,6 +611,7 @@ func seedEligibleBusinessOwner(t *testing.T, pool *pgxpool.Pool, owner syntax.DI
 	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_account_types(owner_did, account_type) VALUES ($1, 'business')`, owner); err != nil {
 		t.Fatalf("seed business owner account type %s: %v", owner, err)
 	}
+	seedBusinessTestLicense(t, pool, owner)
 }
 
 func serveBusinessEventPage(t *testing.T, handler http.Handler, visitor syntax.DID, handleOrDID, target string) businessEventPageResponse {

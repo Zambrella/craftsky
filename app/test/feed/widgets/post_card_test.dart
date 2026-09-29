@@ -38,6 +38,10 @@ import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/rich_text/providers/facet_action_providers.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
+import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
+import 'package:craftsky_app/subscriptions/widgets/plus_action_icon.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
@@ -150,10 +154,21 @@ Future<void> _pump(
   Widget child, {
   List<dynamic> overrides = const [],
   ThemeData? theme,
+  SubscriptionTier pinTier = SubscriptionTier.plus,
 }) {
   return tester.pumpWidget(
     ProviderScope(
-      overrides: List.from(overrides),
+      overrides: List.from([
+        subscriptionAccessProvider.overrideWith(
+          (ref, lease) async => SubscriptionAccess(
+            did: lease.account.did,
+            effectiveTier: pinTier,
+            givesAccess: pinTier != SubscriptionTier.free,
+            assignedTier: pinTier == SubscriptionTier.free ? null : pinTier,
+          ),
+        ),
+        ...overrides,
+      ]),
       child: MessengerScope(
         messenger: RecordingMessenger(),
         child: MaterialApp(
@@ -240,6 +255,46 @@ void main() {
         expect(find.text('Pin post'), findsNothing);
       },
     );
+
+    testWidgets('locked post pin keeps its label and pin icon', (tester) async {
+      await _pump(
+        tester,
+        PostCard(post: _post(), allowProfilePinAction: true),
+        pinTier: SubscriptionTier.free,
+        overrides: [
+          authSessionProvider.overrideWith(
+            () => SignedInAuthSession(did: 'did:plc:alice'),
+          ),
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _PinRegistryStorage(),
+          ),
+          postRepositoryProvider.overrideWithValue(
+            FakePostRepository(
+              onProfilePins: () async => const ProfilePinState(),
+            ),
+          ),
+        ],
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(CraftskyIconsBold.more));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Pin post'), findsOneWidget);
+      expect(find.textContaining('requires Plus'), findsNothing);
+      final icon = find.byType(PlusActionIcon);
+      expect(icon, findsOneWidget);
+      expect(
+        find.descendant(of: icon, matching: find.byIcon(CraftskyIconsBold.pin)),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: icon,
+          matching: find.byIcon(CraftskyIcons.plusTier),
+        ),
+        subscriptionsEnabled ? findsOneWidget : findsNothing,
+      );
+    });
 
     testWidgets('UT-005 derives Unpin and rejects non-owner and reply cards', (
       tester,

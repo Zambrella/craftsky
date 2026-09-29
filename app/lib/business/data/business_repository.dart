@@ -1,13 +1,10 @@
 import 'package:craftsky_app/business/models/business_drafts.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
-import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 
 abstract interface class BusinessRepository {
-  Future<AccountType> updateAccountType(AccountType value);
-
   Future<RecordMutationResult> putBusinessProfile(
     Map<String, dynamic> body, {
     required String operationKey,

@@ -68,7 +68,7 @@ const selectScheduledPostByOperationSQL = `
 const scheduledPostResourceColumns = `
 	posts.id, posts.owner_did, posts.owner_generation, posts.operation_id,
 	posts.status, posts.scheduled_at, posts.payload_bytes,
-	posts.payload_version, posts.needs_attention_expires_at
+	posts.payload_version, posts.needs_attention_expires_at, posts.last_error_code
 `
 
 const listScheduledPostsSQL = `

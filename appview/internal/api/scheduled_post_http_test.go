@@ -2,17 +2,93 @@ package api
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"github.com/google/uuid"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/scheduledposts"
+	"social.craftsky/appview/internal/subscriptions"
 )
+
+type subscriptionBlockedScheduledList struct{ items []scheduledposts.Resource }
+
+type subscriptionBlockedScheduledDetail struct{ item scheduledposts.Resource }
+
+func (s subscriptionBlockedScheduledDetail) Get(context.Context, syntax.DID, uuid.UUID) (scheduledposts.Resource, error) {
+	return s.item, nil
+}
+
+type scheduledAccessStub struct{ state subscriptions.SelfAccess }
+
+func (s scheduledAccessStub) SelfAccess(context.Context, syntax.DID, time.Time) (subscriptions.SelfAccess, error) {
+	return s.state, nil
+}
+
+func (f subscriptionBlockedScheduledList) List(context.Context, syntax.DID) ([]scheduledposts.Resource, error) {
+	return f.items, nil
+}
+
+func TestScheduledOwnerListExposesSubscriptionErrorForMissedWork(t *testing.T) {
+	payload, err := scheduledposts.EncodePayload(scheduledposts.Payload{Kind: scheduledposts.PostKindStandard, Text: "missed"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	list := subscriptionBlockedScheduledList{items: []scheduledposts.Resource{{ScheduledPost: scheduledposts.ScheduledPost{ID: uuid.New(), Status: scheduledposts.StatusNeedsAttention, ScheduledAt: time.Now()}, PayloadBytes: payload, LastErrorCode: "subscription_required"}}}
+	response := serveScheduledPostRequest(t, ListScheduledPostsHandler(list, nil), http.MethodGet, "/v1/scheduled-posts", "", "did:plc:owner")
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	var body struct {
+		Items []struct {
+			LastErrorCode string `json:"lastErrorCode"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil || len(body.Items) != 1 || body.Items[0].LastErrorCode != "subscription_required" {
+		t.Fatalf("response=%s err=%v", response.Body.String(), err)
+	}
+}
+
+func TestScheduledOwnerListSignalsFuturePendingWorkDuringLapse(t *testing.T) {
+	payload, err := scheduledposts.EncodePayload(scheduledposts.Payload{Kind: scheduledposts.PostKindStandard, Text: "future"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	list := subscriptionBlockedScheduledList{items: []scheduledposts.Resource{{ScheduledPost: scheduledposts.ScheduledPost{ID: uuid.New(), Status: scheduledposts.StatusScheduled, ScheduledAt: time.Now().Add(time.Hour)}, PayloadBytes: payload}}}
+	response := serveScheduledPostRequest(t, ListScheduledPostsHandler(list, nil, scheduledAccessStub{state: subscriptions.SelfAccess{EffectiveTier: subscriptions.TierFree}}), http.MethodGet, "/v1/scheduled-posts", "", "did:plc:owner")
+	var body struct {
+		Items []struct {
+			SubscriptionRequired bool `json:"subscriptionRequired"`
+		} `json:"items"`
+	}
+	if err := json.Unmarshal(response.Body.Bytes(), &body); err != nil || len(body.Items) != 1 || !body.Items[0].SubscriptionRequired {
+		t.Fatalf("response=%s err=%v", response.Body.String(), err)
+	}
+}
+
+func TestScheduledOwnerDetailSignalsPendingSubscriptionDuringLapse(t *testing.T) {
+	payload, err := scheduledposts.EncodePayload(scheduledposts.Payload{Kind: scheduledposts.PostKindStandard, Text: "future"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := uuid.New()
+	reader := subscriptionBlockedScheduledDetail{item: scheduledposts.Resource{ScheduledPost: scheduledposts.ScheduledPost{ID: id, OperationID: uuid.New(), Status: scheduledposts.StatusScheduled, ScheduledAt: time.Now().Add(time.Hour)}, PayloadBytes: payload}}
+	r := serveScheduledPostPathRequest(t, GetScheduledPostHandler(reader, nil, scheduledAccessStub{state: subscriptions.SelfAccess{EffectiveTier: subscriptions.TierFree}}), http.MethodGet, id.String(), "", "did:plc:owner")
+	var body struct {
+		SubscriptionRequired bool `json:"subscriptionRequired"`
+	}
+	if err := json.Unmarshal(r.Body.Bytes(), &body); err != nil || !body.SubscriptionRequired {
+		t.Fatalf("detail=%s err=%v", r.Body.String(), err)
+	}
+}
 
 func serveScheduledPostRequest(
 	t *testing.T,

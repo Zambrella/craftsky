@@ -70,7 +70,6 @@ var terminalDIDInventory = []TerminalDIDEntry{
 	deleteDID("bluesky_profiles", "did", "owner", "did"),
 	cleanupDID("billing_accounts", "owner_did", "owner", "subscription deletion participant closes owner billing authority", "id"),
 	cleanupDID("billing_licenses", "assigned_did", "beneficiary", "subscription deletion participant clears beneficiary assignment", "id"),
-	deleteDID("craftsky_account_types", "owner_did", "owner", "owner_did"),
 	deleteDID("craftsky_business_events", "owner_did", "owner", "owner_did", "rkey"),
 	deleteDID("craftsky_business_profiles", "owner_did", "owner", "owner_did"),
 	deleteDID("craftsky_business_record_tombstones", "owner_did", "owner", "uri"),

@@ -10,6 +10,20 @@ import 'package:http_mock_adapter/http_mock_adapter.dart';
 void main() {
   setUpAll(initializeMappers);
 
+  test('IT-003 flat saved scope requests every saved post', () async {
+    final dio = Dio(BaseOptions(baseUrl: 'https://appview.example.com'));
+    DioAdapter(dio: dio).onGet(
+      '/v1/saved-posts',
+      (server) => server.reply(200, {'items': <Object>[]}),
+      queryParameters: {'sort': 'newest'},
+    );
+    final page = await SavedPostApiClient(dio).listSavedPosts(
+      scope: const SavedPostScope.all(),
+      sort: SavedPostSort.newest,
+    );
+    expect(page.items, isEmpty);
+  });
+
   test('IT-001 sends and decodes every saved-post API contract', () async {
     final dio = Dio(BaseOptions(baseUrl: 'https://appview.example.com'))
       ..interceptors.add(const ErrorMappingInterceptor());
@@ -52,7 +66,7 @@ void main() {
       ..onPost(
         '/v1/posts/did:plc:alice/3lsaved/saves',
         (server) => server.reply(201, stateJson),
-        data: {'folderId': null},
+        data: <String, dynamic>{},
       )
       ..onPost(
         '/v1/posts/did:plc:alice/3lsaved/saves',

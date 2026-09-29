@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/providers/active_account_identity_provider.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/business/models/business_drafts.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/providers/products_controller.dart';
@@ -9,6 +10,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/image/craftsky_image_attachment_preview.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
@@ -25,26 +27,50 @@ class ProductsSettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final identity = ref.watch(activeAccountIdentityProvider);
+    final lease = ref
+        .watch(sessionRegistryProvider)
+        .value
+        ?.activeLease
+        ?.session;
+    final access = lease == null
+        ? null
+        : ref.watch(subscriptionAccessProvider(lease));
+    final licensed = switch (access) {
+      AsyncData(:final value)
+          when !access.isLoading &&
+              !access.hasError &&
+              value.did == lease?.account.did =>
+        value.allowsBusiness,
+      _ => false,
+    };
     return Scaffold(
       appBar: AppBar(title: Text(l10n.businessProductsSettingsTitle)),
-      body: identity.when(
-        loading: () => const CraftskySkeletonList(
-          itemBuilder: _buildProductSkeleton,
-          itemCount: businessProductLimit,
-        ),
-        error: (_, _) => _LoadError(
-          onRetry: () => ref.invalidate(activeAccountIdentityProvider),
-        ),
-        data: (value) {
-          if (value == null ||
-              value.profile.accountType != AccountType.business) {
-            return Center(child: Text(l10n.businessProductsUnavailable));
-          }
-          return const _ProductsManager();
-        },
-      ),
+      body: access == null || access.isLoading
+          ? const CraftskySkeletonList(
+              itemBuilder: _buildProductSkeleton,
+              itemCount: businessProductLimit,
+            )
+          : !licensed
+          ? Center(child: Text(l10n.businessProductsUnavailable))
+          : identity.when(
+              loading: () => const CraftskySkeletonList(
+                itemBuilder: _buildProductSkeleton,
+                itemCount: businessProductLimit,
+              ),
+              error: (_, _) => _LoadError(
+                onRetry: () => ref.invalidate(activeAccountIdentityProvider),
+              ),
+              data: (value) {
+                if (value == null ||
+                    value.profile.accountType != AccountType.business) {
+                  return Center(child: Text(l10n.businessProductsUnavailable));
+                }
+                return const _ProductsManager();
+              },
+            ),
       floatingActionButton:
-          identity.value?.profile.accountType == AccountType.business
+          licensed &&
+              identity.value?.profile.accountType == AccountType.business
           ? const _ProductActions()
           : null,
     );

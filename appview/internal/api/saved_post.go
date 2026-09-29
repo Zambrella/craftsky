@@ -12,6 +12,7 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/relationships"
+	"social.craftsky/appview/internal/subscriptions"
 )
 
 var ErrSavedPostIdentityUnavailable = errors.New("saved post: identity unavailable")
@@ -242,7 +243,9 @@ func mapSavedPostFolderError(operation savedPostFolderOperation, err error) (sta
 	return http.StatusNotFound, "saved_post_folder_not_found", true
 }
 
-func SavePostHandler(targets SavedPostTargetResolver, store SavedPostMutationStore) http.Handler {
+func SavePostHandler(targets SavedPostTargetResolver, store SavedPostMutationStore, accessReaders ...interface {
+	SelfAccess(context.Context, syntax.DID, time.Time) (subscriptions.SelfAccess, error)
+}) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		owner, ok := savedPostOwner(w, r)
 		if !ok {
@@ -256,6 +259,17 @@ func SavePostHandler(targets SavedPostTargetResolver, store SavedPostMutationSto
 		if err != nil {
 			writeSavedPostFieldError(w, r, err)
 			return
+		}
+		if assignment.Present && len(accessReaders) > 0 {
+			access, err := accessReaders[0].SelfAccess(r.Context(), owner, time.Now())
+			if err != nil {
+				writeSavedPostError(w, r, http.StatusServiceUnavailable, "subscription_unavailable", "subscription access unavailable", nil)
+				return
+			}
+			if !access.AllowsPlus() {
+				writeSavedPostError(w, r, http.StatusForbidden, "subscription_required", "Plus subscription required", nil)
+				return
+			}
 		}
 		uri, err := targets.ResolveSavedPostTarget(r.Context(), owner, did, rkey)
 		if errors.Is(err, ErrPostNotFound) {
@@ -274,6 +288,14 @@ func SavePostHandler(targets SavedPostTargetResolver, store SavedPostMutationSto
 		if err != nil {
 			writeSavedPostError(w, r, http.StatusInternalServerError, "internal_error", "saved post mutation failed", nil)
 			return
+		}
+		if len(accessReaders) > 0 {
+			access, err := accessReaders[0].SelfAccess(r.Context(), owner, time.Now())
+			if err != nil || !access.AllowsPlus() {
+				// An ordinary save stays available even if access cannot be read.
+				// Its retained folder association must not be disclosed on lapse.
+				result.State.FolderID = nil
+			}
 		}
 		writeSavedPostJSON(w, SaveMutationHTTPStatus(result), result.State)
 	})
@@ -401,7 +423,9 @@ func ListSavedPostFoldersHandler(store SavedPostFolderStore) http.Handler {
 	})
 }
 
-func ListSavedPostsHandler(service SavedPostListService) http.Handler {
+func ListSavedPostsHandler(service SavedPostListService, accessReaders ...interface {
+	SelfAccess(context.Context, syntax.DID, time.Time) (subscriptions.SelfAccess, error)
+}) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		owner, ok := savedPostOwner(w, r)
 		if !ok {
@@ -411,6 +435,19 @@ func ListSavedPostsHandler(service SavedPostListService) http.Handler {
 		if err != nil {
 			writeSavedPostQueryError(w, r, err)
 			return
+		}
+		free := false
+		if len(accessReaders) > 0 {
+			access, err := accessReaders[0].SelfAccess(r.Context(), owner, time.Now())
+			if err != nil {
+				writeSavedPostError(w, r, http.StatusServiceUnavailable, "subscription_unavailable", "subscription access unavailable", nil)
+				return
+			}
+			free = !access.AllowsPlus()
+			if free && filter.Scope != SavedPostScopeAll {
+				writeSavedPostError(w, r, http.StatusForbidden, "subscription_required", "Plus subscription required", nil)
+				return
+			}
 		}
 		page, err := service.ListSavedPosts(r.Context(), owner, filter)
 		switch {
@@ -429,6 +466,14 @@ func ListSavedPostsHandler(service SavedPostListService) http.Handler {
 		}
 		if page.Items == nil {
 			page.Items = []SavedPostItem{}
+		}
+		if free {
+			items := make([]SavedPostItem, len(page.Items))
+			copy(items, page.Items)
+			page.Items = items
+			for index := range page.Items {
+				page.Items[index].FolderID = nil
+			}
 		}
 		writeSavedPostJSON(w, http.StatusOK, page)
 	})

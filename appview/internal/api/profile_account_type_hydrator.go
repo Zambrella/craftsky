@@ -13,6 +13,7 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/subscriptions"
 )
 
 type AccountTypeBatchReader interface {
@@ -21,10 +22,19 @@ type AccountTypeBatchReader interface {
 
 type IdentityAccountTypeHydrator struct {
 	reader AccountTypeBatchReader
+	tiers  interface {
+		EffectiveTiers(context.Context, []syntax.DID) (map[syntax.DID]subscriptions.Tier, error)
+	}
 }
 
-func NewIdentityAccountTypeHydrator(reader AccountTypeBatchReader) *IdentityAccountTypeHydrator {
-	return &IdentityAccountTypeHydrator{reader: reader}
+func NewIdentityAccountTypeHydrator(reader AccountTypeBatchReader, tiers ...interface {
+	EffectiveTiers(context.Context, []syntax.DID) (map[syntax.DID]subscriptions.Tier, error)
+}) *IdentityAccountTypeHydrator {
+	h := &IdentityAccountTypeHydrator{reader: reader}
+	if len(tiers) > 0 {
+		h.tiers = tiers[0]
+	}
+	return h
 }
 
 func (h *IdentityAccountTypeHydrator) Handler(next http.Handler) http.Handler {
@@ -52,7 +62,7 @@ func (h *IdentityAccountTypeHydrator) Handler(next http.Handler) http.Handler {
 }
 
 func (h *IdentityAccountTypeHydrator) HydrateJSON(ctx context.Context, raw []byte) ([]byte, error) {
-	if h == nil || h.reader == nil || len(bytes.TrimSpace(raw)) == 0 {
+	if h == nil || (h.reader == nil && h.tiers == nil) || len(bytes.TrimSpace(raw)) == 0 {
 		return raw, nil
 	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
@@ -70,9 +80,23 @@ func (h *IdentityAccountTypeHydrator) HydrateJSON(ctx context.Context, raw []byt
 	for did := range identities {
 		dids = append(dids, did)
 	}
-	values, err := h.reader.ReadAccountTypes(ctx, dids)
-	if err != nil {
-		return nil, err
+	values := make(map[syntax.DID]business.AccountType, len(dids))
+	if h.tiers != nil {
+		tiers, err := h.tiers.EffectiveTiers(ctx, dids)
+		if err != nil {
+			return nil, err
+		}
+		for _, did := range dids {
+			if tiers[did] == subscriptions.TierBusiness {
+				values[did] = business.AccountTypeBusiness
+			}
+		}
+	} else {
+		var err error
+		values, err = h.reader.ReadAccountTypes(ctx, dids)
+		if err != nil {
+			return nil, err
+		}
 	}
 	for did, objects := range identities {
 		accountType := business.AccountTypeRegular

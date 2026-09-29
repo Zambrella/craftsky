@@ -1,4 +1,6 @@
+import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/business/data/business_repository.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
@@ -13,6 +15,8 @@ import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/messaging/scaffold_messenger_impl.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:flutter/material.dart';
@@ -42,15 +46,37 @@ Future<void> _pumpEditDialog(
   WidgetTester tester, {
   required FakeProfileRepository repo,
   BusinessRepository? businessRepository,
+  bool businessAccess = false,
   ExternalLinkLauncher linkLauncher = launchExternalLink,
   ExternalLinkConfirmer confirmOpenLink = showOpenLinkDialog,
 }) async {
+  repo.fallbackFetchMeToFetch = true;
   final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
   final messenger = ScaffoldMessengerImpl(scaffoldMessengerKey);
 
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _EditRegistryStorage(
+            SessionRegistry.empty().upsertAndActivate(
+              token: 'test-token',
+              did: 'did:plc:test',
+              handle: 'test.bsky.social',
+            ),
+          ),
+        ),
+        subscriptionAccessProvider.overrideWith((ref, lease) async {
+          final tier = businessAccess || businessRepository != null
+              ? SubscriptionTier.business
+              : SubscriptionTier.plus;
+          return SubscriptionAccess(
+            did: lease.account.did,
+            effectiveTier: tier,
+            givesAccess: true,
+            assignedTier: tier,
+          );
+        }),
         authSessionProvider.overrideWith(SignedInAuthSession.new),
         profileRepositoryProvider.overrideWithValue(repo),
         pdsRecordOperationControllerProvider.overrideWithValue(
@@ -88,6 +114,16 @@ Future<void> _pumpEditDialog(
   );
   await tester.tap(find.text('Open'));
   await tester.pumpAndSettle();
+}
+
+final class _EditRegistryStorage implements SessionRegistryStorage {
+  _EditRegistryStorage(this.registry);
+  SessionRegistry registry;
+  @override
+  Future<SessionRegistry> read() async => registry;
+  @override
+  Future<void> write(SessionRegistry registry) async =>
+      this.registry = registry;
 }
 
 void main() {
@@ -254,7 +290,7 @@ void main() {
         business: _businessDeclaration,
       );
       final repo = FakeProfileRepository(onFetch: (_) async => businessProfile);
-      await _pumpEditDialog(tester, repo: repo);
+      await _pumpEditDialog(tester, repo: repo, businessAccess: true);
 
       expect(find.text('Business details'), findsOneWidget);
       expect(find.text('Teacher'), findsWidgets);
@@ -552,7 +588,7 @@ void main() {
       expect(find.text('Open'), findsOneWidget);
     });
 
-    testWidgets('successful save does not mutate the profile cache directly', (
+    testWidgets('successful save publishes the active account overlay', (
       tester,
     ) async {
       var fetchCallCount = 0;
@@ -589,8 +625,9 @@ void main() {
       );
       addTearDown(sub.close);
 
-      // Edit page's initial fetch already happened.
-      expect(fetchCallCount, 1);
+      // The active-account identity and editor may each request the profile.
+      final baselineFetches = fetchCallCount;
+      expect(baselineFetches, greaterThanOrEqualTo(1));
 
       await tester.enterText(
         find.widgetWithText(TextField, 'Test User'),
@@ -600,11 +637,9 @@ void main() {
       await tester.tap(find.widgetWithText(TextButton, 'Save'));
       await tester.pumpAndSettle();
 
-      // The legacy direct cache publication path is gone. A production account
-      // publishes through the shared overlay; this account-less harness leaves
-      // the existing cache untouched.
-      expect(sub.read().value?.displayName, 'Test User');
-      expect(fetchCallCount, 1);
+      // A leased account refreshes the profile and applies the shared overlay.
+      expect(sub.read().value?.displayName, 'Renamed');
+      expect(fetchCallCount, baselineFetches + 1);
     });
 
     testWidgets('failed save surfaces an error snackbar and stays on page', (

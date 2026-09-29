@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/subscriptions"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -46,9 +48,15 @@ func TestProfileCustomisationRoutePersistsForAuthenticatedOwner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read remove-border migration: %v", err)
 	}
-	pool := testdb.WithSchema(t, profileCustomisationRouteTestDDL+string(profileMigration)+string(removeBorderMigration))
+	subscriptionMigration, err := os.ReadFile("../../migrations/000076_subscription_accounts.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool := testdb.WithSchema(t, profileCustomisationRouteTestDDL+string(profileMigration)+string(removeBorderMigration)+string(subscriptionMigration))
+	seedPlusRouteAccess(t, pool, "did:plc:test")
 	deps := testDeps()
 	deps.DB = pool
+	deps.Subscriptions = subscriptions.NewStore(pool)
 	deps.OwnerLifecycles = newRouteOwnerLifecycleStore(t, pool)
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, deps)

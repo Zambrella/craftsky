@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -15,6 +16,7 @@ import (
 	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/scheduledposts"
+	"social.craftsky/appview/internal/subscriptions"
 )
 
 // scheduledStorageDependencies owns the private draft repository and object
@@ -82,8 +84,23 @@ func newScheduledPublicationDependencies(
 	pdsEffects *pdsEffectDependencies,
 	observer *observability.Observer,
 	cfg Config,
+	access *subscriptions.Store,
 ) (*scheduledPublicationDependencies, error) {
+	if access == nil {
+		return nil, errors.New("scheduled publication subscription access is unavailable")
+	}
 	processor, err := scheduledposts.NewPublicationProcessor(scheduledposts.PublicationProcessorOptions{
+		CheckPlusAccess: func(ctx context.Context, did syntax.DID) (bool, error) {
+			state, err := access.SelfAccess(ctx, did, time.Now())
+			return state.AllowsPlus(), err
+		},
+		WithPlusAccess: func(ctx context.Context, did syntax.DID, effect func(context.Context) error) error {
+			err := access.WithPlusAccess(ctx, did, effect)
+			if errors.Is(err, subscriptions.ErrFeatureAccessRequired) {
+				return scheduledposts.ErrSubscriptionRequired
+			}
+			return err
+		},
 		Store:    storage.store,
 		Sessions: auth.NewBackgroundSessionSelector(pool),
 		NewCommands: func(

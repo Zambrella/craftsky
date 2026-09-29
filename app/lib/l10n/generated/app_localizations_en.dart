@@ -2854,6 +2854,27 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsSwitchAccount => 'Switch account';
 
   @override
+  String get settingsSubscriptionCalloutTitle => 'Make more with CraftSky';
+
+  @override
+  String get settingsSubscriptionCalloutDescription =>
+      'Unlock scheduling, saved folders and more with Plus or Business.';
+
+  @override
+  String get settingsSubscriptionCalloutExplore => 'Explore subscriptions';
+
+  @override
+  String get settingsSubscriptionCalloutActiveTitle =>
+      'Your CraftSky subscription';
+
+  @override
+  String get settingsSubscriptionCalloutActiveDescription =>
+      'Review your access and subscription details.';
+
+  @override
+  String get settingsSubscriptionCalloutView => 'View subscription';
+
+  @override
   String get settingsSectionPreferences => 'Preferences';
 
   @override
@@ -3842,6 +3863,42 @@ class AppLocalizationsEn extends AppLocalizations {
   String get subscriptionsTitle => 'Subscriptions';
 
   @override
+  String plusFeatureRequired(String feature) {
+    return '$feature requires Plus';
+  }
+
+  @override
+  String plusFeatureComingSoon(String feature) {
+    return '$feature is coming soon';
+  }
+
+  @override
+  String plusFeatureComingSoonExplanation(String feature) {
+    return '$feature isn\'t available yet. We\'ll let you know when it launches.';
+  }
+
+  @override
+  String plusFeatureExplanation(String feature) {
+    return 'Subscribe to Plus or Business to use $feature.';
+  }
+
+  @override
+  String get plusFeatureLearnMore => 'Learn about subscriptions';
+
+  @override
+  String plusFeatureAccessUnavailable(String feature) {
+    return 'Subscription access is unavailable. Try again before using $feature.';
+  }
+
+  @override
+  String get scheduledPostSubscriptionPending =>
+      'Plus is required before this scheduled post can publish.';
+
+  @override
+  String get scheduledPostSubscriptionMissed =>
+      'This post was not published because Plus access ended. Edit it to schedule again after subscribing.';
+
+  @override
   String get subscriptionsTierFree => 'Free';
 
   @override
@@ -3859,12 +3916,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get subscriptionsPriceUnavailable => 'Price unavailable';
 
   @override
-  String get subscriptionsPlusPitch =>
-      'Back CraftSky\'s independent, ad-free future with a Plus license for one account.';
+  String get subscriptionsPlusBenefits =>
+      'Schedule posts, organise saves into folders, personalise your profile, pin posts and track follower growth.';
 
   @override
-  String get subscriptionsBusinessPitch =>
-      'Support CraftSky as a business with a Business license for your shop account.';
+  String get subscriptionsBusinessBenefits =>
+      'Everything in Plus, plus featured products, a profile action button, business details and events.';
 
   @override
   String get subscriptionsViewDetails => 'View details';
@@ -3927,7 +3984,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get subscriptionsIndependentLicenses =>
-      'Plus and Business are separate account licenses. Assign each license explicitly; switching accounts does not move it.';
+      'Plus and Business are separate account licenses. After puchase, assign each license to a CraftSky account.';
 
   @override
   String get subscriptionsStatusAvailable => 'Available to purchase';

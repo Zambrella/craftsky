@@ -7,6 +7,7 @@ import 'package:craftsky_app/saved_posts/models/saved_post_keys.dart';
 import 'package:craftsky_app/saved_posts/providers/account_saved_post_state_provider.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
+import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
@@ -19,6 +20,7 @@ class SavedPostRow extends ConsumerWidget {
     required this.onOpen,
     required this.onMove,
     required this.onUnsave,
+    this.moveLocked = false,
     super.key,
   });
 
@@ -27,6 +29,7 @@ class SavedPostRow extends ConsumerWidget {
   final VoidCallback onOpen;
   final VoidCallback onMove;
   final VoidCallback onUnsave;
+  final bool moveLocked;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -66,8 +69,13 @@ class SavedPostRow extends ConsumerWidget {
                     CraftskyContextMenuGroup(
                       items: [
                         CraftskyContextMenuItem(
-                          text: l10n.savedPostMoveAction,
+                          text: moveLocked && subscriptionsEnabled
+                              ? l10n.plusFeatureRequired(
+                                  l10n.savedPostMoveAction,
+                                )
+                              : l10n.savedPostMoveAction,
                           icon: CraftskyIconsBold.moveToFolder,
+                          locked: moveLocked,
                           onPressed: onMove,
                         ),
                         CraftskyContextMenuItem(

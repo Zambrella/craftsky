@@ -5061,6 +5061,42 @@ abstract class AppLocalizations {
   /// **'Switch account'**
   String get settingsSwitchAccount;
 
+  /// Subscription callout heading for accounts without confirmed paid access.
+  ///
+  /// In en, this message translates to:
+  /// **'Make more with CraftSky'**
+  String get settingsSubscriptionCalloutTitle;
+
+  /// Short subscription callout for accounts without confirmed paid access.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlock scheduling, saved folders and more with Plus or Business.'**
+  String get settingsSubscriptionCalloutDescription;
+
+  /// Subscription callout action for accounts without confirmed paid access.
+  ///
+  /// In en, this message translates to:
+  /// **'Explore subscriptions'**
+  String get settingsSubscriptionCalloutExplore;
+
+  /// Subscription callout heading for accounts with confirmed paid access.
+  ///
+  /// In en, this message translates to:
+  /// **'Your CraftSky subscription'**
+  String get settingsSubscriptionCalloutActiveTitle;
+
+  /// Short subscription callout for accounts with confirmed paid access.
+  ///
+  /// In en, this message translates to:
+  /// **'Review your access and subscription details.'**
+  String get settingsSubscriptionCalloutActiveDescription;
+
+  /// Subscription callout action for accounts with confirmed paid access.
+  ///
+  /// In en, this message translates to:
+  /// **'View subscription'**
+  String get settingsSubscriptionCalloutView;
+
   /// Settings section containing app preferences.
   ///
   /// In en, this message translates to:
@@ -6831,6 +6867,54 @@ abstract class AppLocalizations {
   /// **'Subscriptions'**
   String get subscriptionsTitle;
 
+  /// Label for a locked Plus feature.
+  ///
+  /// In en, this message translates to:
+  /// **'{feature} requires Plus'**
+  String plusFeatureRequired(String feature);
+
+  /// Title and accessibility label for a paid feature before subscriptions launch.
+  ///
+  /// In en, this message translates to:
+  /// **'{feature} is coming soon'**
+  String plusFeatureComingSoon(String feature);
+
+  /// Explanation for a paid feature before subscriptions launch.
+  ///
+  /// In en, this message translates to:
+  /// **'{feature} isn\'t available yet. We\'ll let you know when it launches.'**
+  String plusFeatureComingSoonExplanation(String feature);
+
+  /// Feature-specific upgrade explanation.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscribe to Plus or Business to use {feature}.'**
+  String plusFeatureExplanation(String feature);
+
+  /// Button opening the subscription settings page from a locked feature.
+  ///
+  /// In en, this message translates to:
+  /// **'Learn about subscriptions'**
+  String get plusFeatureLearnMore;
+
+  /// Shown while paid access cannot be confirmed.
+  ///
+  /// In en, this message translates to:
+  /// **'Subscription access is unavailable. Try again before using {feature}.'**
+  String plusFeatureAccessUnavailable(String feature);
+
+  /// Owner notice while a future scheduled post lacks effective Plus access.
+  ///
+  /// In en, this message translates to:
+  /// **'Plus is required before this scheduled post can publish.'**
+  String get scheduledPostSubscriptionPending;
+
+  /// Owner error for a due scheduled post blocked by subscription lapse.
+  ///
+  /// In en, this message translates to:
+  /// **'This post was not published because Plus access ended. Edit it to schedule again after subscribing.'**
+  String get scheduledPostSubscriptionMissed;
+
   /// Free subscription tier label.
   ///
   /// In en, this message translates to:
@@ -6861,17 +6945,17 @@ abstract class AppLocalizations {
   /// **'Price unavailable'**
   String get subscriptionsPriceUnavailable;
 
-  /// Sales copy for an unpurchased Plus subscription.
+  /// Short Plus feature summary shown on every Plus subscription card.
   ///
   /// In en, this message translates to:
-  /// **'Back CraftSky\'s independent, ad-free future with a Plus license for one account.'**
-  String get subscriptionsPlusPitch;
+  /// **'Schedule posts, organise saves into folders, personalise your profile, pin posts and track follower growth.'**
+  String get subscriptionsPlusBenefits;
 
-  /// Sales copy for an unpurchased Business subscription.
+  /// Short Business feature summary shown on every Business subscription card.
   ///
   /// In en, this message translates to:
-  /// **'Support CraftSky as a business with a Business license for your shop account.'**
-  String get subscriptionsBusinessPitch;
+  /// **'Everything in Plus, plus featured products, a profile action button, business details and events.'**
+  String get subscriptionsBusinessBenefits;
 
   /// Open a tier paywall or its subscription management details.
   ///
@@ -6972,7 +7056,7 @@ abstract class AppLocalizations {
   /// Owner explanation of independent licenses and assignments.
   ///
   /// In en, this message translates to:
-  /// **'Plus and Business are separate account licenses. Assign each license explicitly; switching accounts does not move it.'**
+  /// **'Plus and Business are separate account licenses. After puchase, assign each license to a CraftSky account.'**
   String get subscriptionsIndependentLicenses;
 
   /// Tier has no license.

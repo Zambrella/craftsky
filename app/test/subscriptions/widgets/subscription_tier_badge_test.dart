@@ -2,6 +2,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/widgets/subscription_tier_badge.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -29,6 +30,10 @@ void main() {
       await tester.pumpWidget(_app(SubscriptionTierBadge(state: entry.$1)));
       expect(find.text(entry.$2), findsOneWidget);
       expect(find.textContaining('private'), findsNothing);
+      expect(
+        find.byIcon(CraftskyIcons.plusTier),
+        entry.$2 == 'Plus' ? findsOneWidget : findsNothing,
+      );
     }
   });
 }

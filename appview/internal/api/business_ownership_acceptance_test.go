@@ -57,7 +57,7 @@ func TestRegularMemberCanPrepareOnlyOwnBusinessRecords(t *testing.T) {
 			expires_at TIMESTAMPTZ,
 			indexed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 		);
-	`+string(accountMigration)+string(recordMigration))
+	`+string(accountMigration)+string(recordMigration)+subscriptionSchema(t))
 
 	ctx := context.Background()
 	owner := syntax.DID("did:plc:owner")

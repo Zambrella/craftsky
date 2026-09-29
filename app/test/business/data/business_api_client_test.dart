@@ -1,7 +1,6 @@
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/business/data/business_api_client.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
-import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
@@ -40,21 +39,6 @@ void main() {
     'publicSuppressionReasons': <String>[],
     'upcomingExclusionReasons': <String>[],
   };
-
-  test('updates account type with the exact camelCase body', () async {
-    final dio = buildDio();
-    DioAdapter(dio: dio).onPut(
-      '/v1/profiles/me/account-type',
-      (server) => server.reply(200, {'accountType': 'business'}),
-      data: {'accountType': 'business'},
-    );
-
-    final result = await BusinessApiClient(
-      dio,
-    ).updateAccountType(AccountType.business);
-
-    expect(result, AccountType.business);
-  });
 
   test('creates and replaces a complete declaration with If-Match', () async {
     const body = <String, dynamic>{

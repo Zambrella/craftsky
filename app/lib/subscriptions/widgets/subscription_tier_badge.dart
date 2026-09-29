@@ -2,6 +2,7 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -49,11 +50,28 @@ class SubscriptionTierBadge extends StatelessWidget {
           maxScaleFactor: 1.5,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            child: Text(
-              label,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.labelSmall,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (state case AsyncData(
+                  :final value,
+                ) when value.effectiveTier == SubscriptionTier.plus) ...[
+                  Icon(
+                    CraftskyIcons.plusTier,
+                    size: 14,
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  const SizedBox(width: 4),
+                ],
+                Flexible(
+                  child: Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.labelSmall,
+                  ),
+                ),
+              ],
             ),
           ),
         ),

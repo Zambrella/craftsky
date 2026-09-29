@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_formatters.dart';
 import 'package:craftsky_app/business/models/business_labels.dart';
@@ -10,6 +11,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -44,7 +46,29 @@ class EventDetailPage extends ConsumerWidget {
       owner: owner,
       rkey: rkey,
     );
-    final detail = ref.watch(businessEventDetailProvider(target));
+    final isOwner = account.did == owner;
+    final lease = isOwner
+        ? ref.watch(sessionRegistryProvider).value?.activeLease?.session
+        : null;
+    final access = lease == null
+        ? null
+        : ref.watch(subscriptionAccessProvider(lease));
+    final ownerLicensed =
+        lease != null &&
+        lease.account == account &&
+        (switch (access) {
+          AsyncData(:final value)
+              when !access.isLoading &&
+                  !access.hasError &&
+                  value.did == account.did =>
+            value.allowsBusiness,
+          _ => false,
+        });
+    final detail = isOwner && !ownerLicensed
+        ? const AsyncData<BusinessEventDetailState>(
+            BusinessEventDetailUnavailable(),
+          )
+        : ref.watch(businessEventDetailProvider(target));
     final event = switch (detail) {
       AsyncData(value: BusinessEventDetailAvailable(:final event)) => event,
       _ => null,

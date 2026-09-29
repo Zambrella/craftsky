@@ -23,7 +23,6 @@ enum SettingsRowId {
   findPeopleFromInstagram,
   businessEvents,
   businessProducts,
-  subscriptions,
   accountStanding,
   account,
   about,
@@ -127,10 +126,6 @@ const settingsSections = <SettingsSectionDescriptor>[
   SettingsSectionDescriptor(
     id: SettingsSectionId.general,
     rows: [
-      SettingsRowDescriptor(
-        id: SettingsRowId.subscriptions,
-        kind: SettingsRowKind.disclosure,
-      ),
       SettingsRowDescriptor(
         id: SettingsRowId.accountStanding,
         kind: SettingsRowKind.disclosure,

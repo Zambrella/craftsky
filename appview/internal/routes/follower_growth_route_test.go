@@ -15,6 +15,7 @@ import (
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/followergrowth"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/subscriptions"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -125,6 +126,8 @@ func TestFollowerGrowthProductionRouteEnforcesCurrentOwnerBoundary(t *testing.T)
 	}}
 	deps := testDeps()
 	deps.DB = pool
+	seedPlusRouteAccess(t, pool, "did:plc:alice", "did:plc:bob")
+	deps.Subscriptions = subscriptions.NewStore(pool)
 	deps.AuthService = &auth.MockAuthService{DefaultDID: "did:plc:alice"}
 	deps.OwnerLifecycles = newRouteOwnerLifecycleStore(t, pool)
 	deps.FollowerGrowth = reader
@@ -207,6 +210,8 @@ func TestFollowerGrowthProductionRouteUsesPersistedHistoryWithoutLiveOverlay(t *
 	}
 	deps := testDeps()
 	deps.DB = pool
+	seedPlusRouteAccess(t, pool, "did:plc:alice")
+	deps.Subscriptions = subscriptions.NewStore(pool)
 	deps.AuthService = &auth.MockAuthService{DefaultDID: "did:plc:alice"}
 	deps.OwnerLifecycles = newRouteOwnerLifecycleStore(t, pool)
 	deps.FollowerGrowth = followergrowth.NewStore(pool)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -17,6 +18,8 @@ type Store struct {
 	accessEnvironment string
 	observer          BillingObserver
 }
+
+func (s *Store) AccessEnvironment() string { return s.accessEnvironment }
 
 func NewStore(pool *pgxpool.Pool, observers ...BillingObserver) *Store {
 	return NewStoreForEnvironment(pool, "production", observers...)
@@ -166,15 +169,16 @@ func scanBillingAccount(row billingAccountRow) (BillingAccount, error) {
 	return account, err
 }
 
+const effectiveLicenseAccessSQL = `subscription.gives_access
+	AND subscription.environment=$2
+	AND subscription.app_id IS NOT NULL
+	AND subscription.mapped_tier=license.tier
+	AND subscription.anomaly = 'none'`
+
 func (s *Store) SelfAccess(ctx context.Context, did syntax.DID, _ time.Time) (SelfAccess, error) {
 	var assignment LocalAssignment
 	err := s.pool.QueryRow(ctx, `
-		SELECT license.tier,
-				subscription.gives_access
-				AND subscription.environment=$2
-				AND subscription.app_id IS NOT NULL
-				AND subscription.mapped_tier=license.tier
-				AND subscription.anomaly = 'none',
+		SELECT license.tier, `+effectiveLicenseAccessSQL+`,
 			subscription.current_period_ends_at
 		FROM billing_licenses license
 		JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
@@ -187,6 +191,47 @@ func (s *Store) SelfAccess(ctx context.Context, did syntax.DID, _ time.Time) (Se
 		return SelfAccess{}, fmt.Errorf("read self subscription access: %w", err)
 	}
 	return ProjectSelfAccess(did, &assignment), nil
+}
+
+// EffectiveTiers projects a bounded set of DIDs with the same access rules as SelfAccess.
+// Missing and dormant assignments are Free; the billing owner is never a beneficiary.
+func (s *Store) EffectiveTiers(ctx context.Context, dids []syntax.DID) (map[syntax.DID]Tier, error) {
+	result := make(map[syntax.DID]Tier, len(dids))
+	values := make([]string, 0, len(dids))
+	for _, did := range dids {
+		if _, exists := result[did]; !exists {
+			result[did] = TierFree
+			values = append(values, did.String())
+		}
+	}
+	if len(values) == 0 {
+		return result, nil
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT license.assigned_did, license.tier, `+effectiveLicenseAccessSQL+`
+		FROM billing_licenses license
+		JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
+		WHERE license.assigned_did=ANY($1)
+	`, values, s.accessEnvironment)
+	if err != nil {
+		return nil, fmt.Errorf("read effective subscription tiers: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var did syntax.DID
+		var tier Tier
+		var active bool
+		if err := rows.Scan(&did, &tier, &active); err != nil {
+			return nil, fmt.Errorf("scan effective subscription tier: %w", err)
+		}
+		if active {
+			result[did] = tier
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate effective subscription tiers: %w", err)
+	}
+	return result, nil
 }
 
 func (s *Store) ApplySnapshot(ctx context.Context, claim SnapshotClaim, snapshot CompleteSnapshot, catalog *Catalog) error {
@@ -216,12 +261,14 @@ func (s *Store) ApplySnapshot(ctx context.Context, claim SnapshotClaim, snapshot
 
 	assigned := make(map[string]*syntax.DID)
 	existingTiers := make(map[string]*Tier)
+	priorPaid := make(map[syntax.DID]bool)
 	rows, err := tx.Query(ctx, `
-		SELECT subscription.revenuecat_subscription_id, license.assigned_did, license.tier
+		SELECT subscription.revenuecat_subscription_id, license.assigned_did, license.tier,
+			`+effectiveLicenseAccessSQL+`
 		FROM provider_subscriptions subscription
 		JOIN billing_licenses license ON license.provider_subscription_id=subscription.id
 		WHERE subscription.billing_account_id=$1
-	`, claim.BillingAccountID)
+	`, claim.BillingAccountID, s.accessEnvironment)
 	if err != nil {
 		return fmt.Errorf("read existing subscription assignments: %w", err)
 	}
@@ -229,18 +276,33 @@ func (s *Store) ApplySnapshot(ctx context.Context, claim SnapshotClaim, snapshot
 		var subscriptionID string
 		var did *syntax.DID
 		var tier Tier
-		if err := rows.Scan(&subscriptionID, &did, &tier); err != nil {
+		var active bool
+		if err := rows.Scan(&subscriptionID, &did, &tier, &active); err != nil {
 			rows.Close()
 			return fmt.Errorf("scan existing subscription assignment: %w", err)
 		}
 		assigned[subscriptionID] = did
 		existingTiers[subscriptionID] = &tier
+		if did != nil {
+			priorPaid[*did] = priorPaid[*did] || (active && tier.Paid())
+		}
 	}
 	if err := rows.Err(); err != nil {
 		rows.Close()
 		return fmt.Errorf("iterate existing subscription assignments: %w", err)
 	}
 	rows.Close()
+	// Serialize any loss commit with a worker's final access check and append.
+	affected := make([]syntax.DID, 0, len(priorPaid))
+	for did := range priorPaid {
+		affected = append(affected, did)
+	}
+	slices.Sort(affected)
+	for _, did := range affected {
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, accessFenceKey(did)); err != nil {
+			return fmt.Errorf("fence subscription snapshot access: %w", err)
+		}
+	}
 
 	type mappedSubscription struct {
 		snapshot ProviderSubscriptionSnapshot
@@ -386,6 +448,25 @@ func (s *Store) ApplySnapshot(ctx context.Context, claim SnapshotClaim, snapshot
 			WHERE provider_subscription_id=$1
 		`, id); err != nil {
 			return fmt.Errorf("mark absent license inaccessible: %w", err)
+		}
+	}
+	for _, did := range affected {
+		if !priorPaid[did] {
+			continue
+		}
+		var stillPaid bool
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (
+			SELECT 1 FROM billing_licenses license
+			JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
+			WHERE license.assigned_did=$1 AND license.tier IN ('plus','business')
+			  AND `+effectiveLicenseAccessSQL+`
+		)`, did, s.accessEnvironment).Scan(&stillPaid); err != nil {
+			return fmt.Errorf("read reconciled subscription access: %w", err)
+		}
+		if !stillPaid {
+			if _, err := tx.Exec(ctx, `DELETE FROM profile_pins WHERE owner_did=$1`, did); err != nil {
+				return fmt.Errorf("clear lapsed profile pins: %w", err)
+			}
 		}
 	}
 

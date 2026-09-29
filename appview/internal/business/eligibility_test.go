@@ -29,7 +29,7 @@ func TestEventEligibility(t *testing.T) {
 	ownerInput.CallerIsOwner = true
 	ownerInput.AccountType = AccountTypeRegular
 	owner := EvaluateEvent(ownerInput)
-	if !owner.OwnerManagement || !owner.DirectVisible || owner.VisitorDirect || owner.Upcoming {
+	if owner.OwnerManagement || owner.DirectVisible || owner.VisitorDirect || owner.Upcoming {
 		t.Fatalf("regular owner result = %+v", owner)
 	}
 	if want := []string{"owner-not-business"}; !reflect.DeepEqual(owner.PublicSuppressionReasons, want) {

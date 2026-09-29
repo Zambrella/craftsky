@@ -35,6 +35,13 @@ come from CI secrets or your shell environment, not from these app config files.
 keys, not RevenueCat secret API keys. Leave them blank to disable billing safely
 for that platform. Never place a RevenueCat secret server key in app config.
 
+`SUBSCRIPTIONS_ENABLED` defaults to `false`. Beta builds hide the subscription
+callout and route, show a muted “Coming soon” prompt for Plus actions, and do
+not configure RevenueCat even if public keys are supplied. When billing is
+ready to launch, set it to `true` in the build config and verify purchases and
+paid-feature access on both native platforms. AppView remains the authority for
+paid-feature permissions; this build flag controls the Flutter experience.
+
 Local native debug builds may opt into RevenueCat Test Store by setting
 `REVENUECAT_TEST_STORE_PUBLIC_KEY` and `REVENUECAT_USE_TEST_STORE=true`. Release
 builds ignore that opt-in and always select the matching Apple or Google public

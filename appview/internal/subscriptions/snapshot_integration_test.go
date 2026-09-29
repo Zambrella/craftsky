@@ -18,7 +18,7 @@ func TestApplyCompleteSnapshotsIsFencedIdempotentAndFailClosed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(migration))
+	pool := testdb.WithSchema(t, string(migration)+`CREATE TABLE profile_pins(owner_did TEXT, slot TEXT);`)
 	observer := &recordingBillingObserver{}
 	store := NewStore(pool, observer)
 	ctx := context.Background()

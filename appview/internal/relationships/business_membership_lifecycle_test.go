@@ -27,6 +27,10 @@ func TestBusinessMembershipDepartureAndRejoinRetainsAndRestoresState(t *testing.
 	if err != nil {
 		t.Fatalf("read business records migration: %v", err)
 	}
+	subscriptionMigration, err := testdb.ReadMigration("000076_subscription_accounts.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
 	pool := testdb.WithSchema(t, `
 		CREATE TABLE owner_lifecycles (
 			owner_did TEXT PRIMARY KEY,
@@ -78,7 +82,7 @@ func TestBusinessMembershipDepartureAndRejoinRetainsAndRestoresState(t *testing.
 			expires_at TIMESTAMPTZ,
 			indexed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 		);
-	`+string(accountTypesMigration)+string(businessRecordsMigration))
+	`+string(accountTypesMigration)+string(businessRecordsMigration)+string(subscriptionMigration))
 	ctx := context.Background()
 	owner := syntax.DID("did:plc:business-lifecycle-owner")
 	visitor := syntax.DID("did:plc:business-lifecycle-visitor")
@@ -109,6 +113,15 @@ func TestBusinessMembershipDepartureAndRejoinRetainsAndRestoresState(t *testing.
 	}
 	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_account_types(owner_did, account_type) VALUES ($1, 'business')`, owner); err != nil {
 		t.Fatalf("seed account type: %v", err)
+	}
+	for _, statement := range []string{
+		`INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id) VALUES ('10000000-0000-4000-8000-000000000001','did:plc:billing-owner','20000000-0000-4000-8000-000000000001')`,
+		`INSERT INTO provider_subscriptions(id,billing_account_id,project_id,revenuecat_subscription_id,product_id,app_id,store,environment,status,gives_access,mapped_tier,accepted_generation) VALUES ('30000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','project','subscription','business','app','app_store','production','active',true,'business',1)`,
+		`INSERT INTO billing_licenses(provider_subscription_id,tier,assigned_did,assigned_at) VALUES ('30000000-0000-4000-8000-000000000001','business','did:plc:business-lifecycle-owner',now())`,
+	} {
+		if _, err := pool.Exec(ctx, statement); err != nil {
+			t.Fatal(err)
+		}
 	}
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO craftsky_business_profiles(owner_did, uri, cid, raw_record, source_revision)

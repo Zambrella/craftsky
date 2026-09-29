@@ -63,6 +63,7 @@ import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/revenuecat_service_provider.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_bootstrap.dart';
 import 'package:craftsky_app/subscriptions/services/revenuecat_service_native.dart';
+import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -212,14 +213,18 @@ Future<void> bootstrap(
   final businessTimeZones = BusinessTimeZoneService.initialized();
   final revenueCatService = await bootstrapRevenueCat(
     platform: _revenueCatPlatform(),
-    iosPublicKey: const String.fromEnvironment('REVENUECAT_IOS_PUBLIC_KEY'),
-    androidPublicKey: const String.fromEnvironment(
-      'REVENUECAT_ANDROID_PUBLIC_KEY',
-    ),
-    testStorePublicKey: const String.fromEnvironment(
-      'REVENUECAT_TEST_STORE_PUBLIC_KEY',
-    ),
-    useTestStore: const bool.fromEnvironment('REVENUECAT_USE_TEST_STORE'),
+    iosPublicKey: subscriptionsEnabled
+        ? const String.fromEnvironment('REVENUECAT_IOS_PUBLIC_KEY')
+        : '',
+    androidPublicKey: subscriptionsEnabled
+        ? const String.fromEnvironment('REVENUECAT_ANDROID_PUBLIC_KEY')
+        : '',
+    testStorePublicKey: subscriptionsEnabled
+        ? const String.fromEnvironment('REVENUECAT_TEST_STORE_PUBLIC_KEY')
+        : '',
+    useTestStore:
+        subscriptionsEnabled &&
+        const bool.fromEnvironment('REVENUECAT_USE_TEST_STORE'),
     isDebug: kDebugMode,
     configurator: const NativeRevenueCatConfigurator(),
   );

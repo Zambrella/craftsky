@@ -27,6 +27,7 @@ func TestAssignmentRoutesEnforceDeviceUniquenessCooldownAndUnassignment(t *testi
 			updated_at TIMESTAMPTZ NOT NULL
 		);
 		CREATE TABLE craftsky_profiles (did TEXT PRIMARY KEY);
+		CREATE TABLE profile_pins (owner_did TEXT, slot TEXT);
 		CREATE TABLE craftsky_sessions (
 			token_hash BYTEA PRIMARY KEY, account_did TEXT NOT NULL,
 			last_device_id TEXT, last_seen_at TIMESTAMPTZ NOT NULL,

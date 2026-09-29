@@ -20,7 +20,7 @@ func TestPendingProductChangeReachesPersistedFailClosedAnomaly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(migration))
+	pool := testdb.WithSchema(t, string(migration)+`CREATE TABLE profile_pins(owner_did TEXT, slot TEXT);`)
 	ctx := context.Background()
 	store := subscriptions.NewStore(pool)
 	account, _, err := store.EnsureAccount(ctx, syntax.DID("did:plc:pending-change-owner"))
@@ -164,7 +164,7 @@ func TestCompletedSameIDProductChangesRemainFailClosed(t *testing.T) {
 
 	for testIndex, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			pool := testdb.WithSchema(t, string(migration))
+			pool := testdb.WithSchema(t, string(migration)+`CREATE TABLE profile_pins(owner_did TEXT, slot TEXT);`)
 			store := subscriptions.NewStore(pool)
 			catalog, err := subscriptions.NewCatalog(subscriptions.CatalogConfig{
 				ProjectID: "project", AppIDs: []string{"app"},
@@ -257,7 +257,7 @@ func TestPaginationFailureDoesNotApplyPartialSnapshot(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, string(migration))
+	pool := testdb.WithSchema(t, string(migration)+`CREATE TABLE profile_pins(owner_did TEXT, slot TEXT);`)
 	ctx := context.Background()
 	store := subscriptions.NewStore(pool)
 	account, _, err := store.EnsureAccount(ctx, syntax.DID("did:plc:pagination-owner"))

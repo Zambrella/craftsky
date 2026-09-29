@@ -16,7 +16,6 @@ import 'package:craftsky_app/business/data/business_repository.dart';
 import 'package:craftsky_app/business/models/business_drafts.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
-import 'package:craftsky_app/business/providers/account_type_controller.dart';
 import 'package:craftsky_app/business/providers/business_event_detail_provider.dart';
 import 'package:craftsky_app/business/providers/business_event_mutation_controller.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
@@ -267,11 +266,6 @@ void main() {
         AccountKey('did:plc:alice'),
       );
       final subscriptions = <ProviderSubscription<Object?>>[
-        container.listen<AsyncValue<AccountType?>>(
-          accountTypeControllerProvider,
-          (_, _) {},
-          fireImmediately: true,
-        ),
         container.listen<AsyncValue<ProductsState>>(
           productsControllerProvider,
           (_, _) {},
@@ -303,9 +297,6 @@ void main() {
         'alice-mutation',
         owner: 'did:plc:alice',
       );
-      final accountTypeOperation = container
-          .read(accountTypeControllerProvider.notifier)
-          .setAccountType(AccountType.regular);
       final productOperation = container
           .read(productsControllerProvider.notifier)
           .replaceProducts([editedProduct]);
@@ -358,10 +349,6 @@ void main() {
         EventMutationStatus.ready,
       );
       expect(
-        await container.read(accountTypeControllerProvider.future),
-        AccountType.business,
-      );
-      expect(
         await container.read(
           reportBusinessEventProvider(AccountKey('did:plc:bob')).future,
         ),
@@ -370,7 +357,6 @@ void main() {
       expect(container.read(saveProfileProvider).value, isNull);
 
       repository
-        ..accountType.completeError(StateError('Alice account type failed'))
         ..products.complete(
           RecordMutationResult(cid: 'bafy-alice-products-late'),
         )
@@ -381,7 +367,6 @@ void main() {
         ..combined.complete(
           RecordMutationResult(cid: 'bafy-alice-combined-late'),
         );
-      expect(await accountTypeOperation, isFalse);
       expect(await productOperation, isFalse);
       expect(await eventOperation, isFalse);
       await reportOperation;
@@ -755,19 +740,12 @@ BusinessEvent _event(String name, {String owner = 'did:plc:business'}) =>
 
 final class _MutationBusinessRepository extends Fake
     implements BusinessRepository {
-  final accountType = Completer<AccountType>();
   final products = Completer<RecordMutationResult>();
   final event = Completer<RecordMutationResult>();
   final report = Completer<ReportResult>();
   final combined = Completer<RecordMutationResult>();
   final calls = <String>[];
   var _profileWrites = 0;
-
-  @override
-  Future<AccountType> updateAccountType(AccountType value) {
-    calls.add('account-type:${value.name}');
-    return accountType.future;
-  }
 
   @override
   Future<RecordMutationResult> putBusinessProfile(

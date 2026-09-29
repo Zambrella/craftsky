@@ -4,11 +4,13 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/instagram"
@@ -16,6 +18,7 @@ import (
 	"social.craftsky/appview/internal/moderation"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/subscriptions"
 )
 
 const defaultJSONBodyLimitBytes int64 = 1024 * 1024
@@ -42,19 +45,59 @@ func normalizedImageDecodeLimits(limits api.ImageDecodeLimits) api.ImageDecodeLi
 }
 
 type v1Middleware struct {
-	authCurrentMember   func(http.Handler) http.Handler
-	authRecovery        func(http.Handler) http.Handler
-	deviceID            func(http.Handler) http.Handler
-	member              func(http.Handler) http.Handler
-	bodyLimit           middleware.BodyLimitConfig
-	uploadAdmission     *middleware.UploadBodyAdmission
-	rateLimit           map[RateClass]func(http.Handler) http.Handler
-	observer            *observability.Observer
-	hydrator            *api.IdentityCustomisationHydrator
+	subscriptionAccess subscriptionAccessReader
+	authCurrentMember  func(http.Handler) http.Handler
+	authRecovery       func(http.Handler) http.Handler
+	deviceID           func(http.Handler) http.Handler
+	member             func(http.Handler) http.Handler
+	bodyLimit          middleware.BodyLimitConfig
+	uploadAdmission    *middleware.UploadBodyAdmission
+	rateLimit          map[RateClass]func(http.Handler) http.Handler
+	observer           *observability.Observer
+	hydrator           *api.IdentityCustomisationHydrator
+	folderRedactor     interface {
+		Handler(http.Handler) http.Handler
+	}
 	accountTypeHydrator *api.IdentityAccountTypeHydrator
 	moderator           func(http.Handler) http.Handler
 	suspension          middleware.SuspensionReader
 	handlerDecorator    func(RoutePolicy, http.Handler) http.Handler
+}
+
+type subscriptionAccessReader interface {
+	SelfAccess(context.Context, syntax.DID, time.Time) (subscriptions.SelfAccess, error)
+}
+
+func (m v1Middleware) requirePlus(next http.Handler) http.Handler {
+	return m.requireTier(next, subscriptions.SelfAccess.AllowsPlus, "Plus")
+}
+
+func (m v1Middleware) requireBusiness(next http.Handler) http.Handler {
+	return m.requireTier(next, subscriptions.SelfAccess.AllowsBusiness, "Business")
+}
+
+func (m v1Middleware) requireTier(next http.Handler, allowed func(subscriptions.SelfAccess) bool, name string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if m.subscriptionAccess == nil {
+			envelope.WriteError(w, http.StatusServiceUnavailable, "subscription_unavailable", "subscription access unavailable", middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		did, ok := middleware.GetDID(r.Context())
+		if !ok {
+			envelope.WriteError(w, http.StatusInternalServerError, "missing_authenticated_did", "authenticated DID missing", middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		access, err := m.subscriptionAccess.SelfAccess(r.Context(), did, time.Now())
+		if err != nil {
+			envelope.WriteError(w, http.StatusServiceUnavailable, "subscription_unavailable", "subscription access unavailable", middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		if !allowed(access) {
+			envelope.WriteError(w, http.StatusForbidden, "subscription_required", name+" subscription required", middleware.GetRunID(r.Context()), nil)
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handler {
@@ -68,11 +111,32 @@ func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handle
 	if m.handlerDecorator != nil {
 		wrapped = m.handlerDecorator(policy, wrapped)
 	}
+	if plusRoutes[policyKey(policy.Method, policy.PathPattern)] {
+		wrapped = m.requirePlus(wrapped)
+	}
+	if businessOwnerRoutes[policyKey(policy.Method, policy.PathPattern)] {
+		wrapped = m.requireBusiness(wrapped)
+	}
+	if policy.Method == http.MethodGet && policy.PathPattern == "/v1/events/{did}/{rkey}" {
+		ownerHandler := m.requireBusiness(wrapped)
+		visitorHandler := wrapped
+		wrapped = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			caller, ok := middleware.GetDID(r.Context())
+			if ok && caller.String() == r.PathValue("did") {
+				ownerHandler.ServeHTTP(w, r)
+				return
+			}
+			visitorHandler.ServeHTTP(w, r)
+		})
+	}
 	if m.hydrator != nil {
 		wrapped = m.hydrator.Handler(wrapped)
 	}
 	if m.accountTypeHydrator != nil {
 		wrapped = m.accountTypeHydrator.Handler(wrapped)
+	}
+	if m.folderRedactor != nil {
+		wrapped = m.folderRedactor.Handler(wrapped)
 	}
 	// Keep BodyLimit outside response decorators so ResponseController reaches
 	// net/http's writer and can install the route-specific read deadline.
@@ -110,11 +174,36 @@ func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handle
 	return middleware.HTTPInFlight(m.observer)(wrapped)
 }
 
+var plusRoutes = map[string]bool{
+	"GET /v1/saved-post-folders":                true,
+	"POST /v1/saved-post-folders":               true,
+	"PATCH /v1/saved-post-folders/{folderId}":   true,
+	"DELETE /v1/saved-post-folders/{folderId}":  true,
+	"POST /v1/scheduled-posts":                  true,
+	"PUT /v1/scheduled-posts/{id}":              true,
+	"POST /v1/scheduled-posts/{id}/publication": true,
+	"PUT /v1/scheduled-post-media/{mediaId}":    true,
+	"PUT /v1/posts/{did}/{rkey}/pin":            true,
+	"DELETE /v1/posts/{did}/{rkey}/pin":         true,
+	"GET /v1/profiles/me/follower-growth":       true,
+	"PUT /v1/profiles/me/customisation":         true,
+}
+
+var businessOwnerRoutes = map[string]bool{
+	"PUT /v1/profiles/me/business":    true,
+	"DELETE /v1/profiles/me/business": true,
+	"POST /v1/events":                 true,
+	"GET /v1/events":                  true,
+	"PUT /v1/events/{did}/{rkey}":     true,
+	"DELETE /v1/events/{did}/{rkey}":  true,
+}
+
 type Registrar interface {
 	Handle(string, http.Handler)
 }
 
 type middlewareDependencies struct {
+	Subscriptions             *subscriptions.Store
 	Config                    Config
 	Logger                    *slog.Logger
 	DB                        *pgxpool.Pool
@@ -186,12 +275,28 @@ func buildV1Middleware(deps middlewareDependencies, observer *observability.Obse
 	var hydrator *api.IdentityCustomisationHydrator
 	if profileCustomisationStore != nil {
 		hydrator = api.NewIdentityCustomisationHydrator(profileCustomisationStore)
+		if deps.Subscriptions != nil {
+			hydrator = api.NewIdentityCustomisationHydrator(profileCustomisationStore, deps.Subscriptions)
+		}
 	}
 	var accountTypeHydrator *api.IdentityAccountTypeHydrator
-	if deps.BusinessStore != nil {
+	if deps.Subscriptions != nil {
+		accountTypeHydrator = api.NewIdentityAccountTypeHydrator(nil, deps.Subscriptions)
+	} else if deps.BusinessStore != nil {
 		accountTypeHydrator = api.NewIdentityAccountTypeHydrator(deps.BusinessStore)
 	}
+	var subscriptionAccess subscriptionAccessReader
+	if deps.Subscriptions != nil {
+		subscriptionAccess = deps.Subscriptions
+	}
+	var folderRedactor interface {
+		Handler(http.Handler) http.Handler
+	}
+	if deps.Subscriptions != nil {
+		folderRedactor = api.SavedFolderRedactor(deps.Subscriptions)
+	}
 	return v1Middleware{
+		subscriptionAccess:  subscriptionAccess,
 		authCurrentMember:   authCurrentMember,
 		authRecovery:        authRecovery,
 		deviceID:            deviceID,
@@ -201,6 +306,7 @@ func buildV1Middleware(deps middlewareDependencies, observer *observability.Obse
 		rateLimit:           rateLimits,
 		observer:            observer,
 		hydrator:            hydrator,
+		folderRedactor:      folderRedactor,
 		accountTypeHydrator: accountTypeHydrator,
 		moderator:           middleware.ModeratorAuthentication(deps.Config.ModerationAdminToken.reveal(), deps.Config.ModerationAdminActorID, deps.Config.ModerationAdminSourceSystem, deps.Logger, observer),
 		suspension:          deps.Suspension,
@@ -250,7 +356,11 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 	}
 	businessStore := deps.BusinessStore
 	if businessStore == nil && deps.DB != nil {
-		businessStore = business.NewStore(deps.DB)
+		if deps.Subscriptions != nil {
+			businessStore = business.NewStoreForEnvironment(deps.DB, deps.Subscriptions.AccessEnvironment())
+		} else {
+			businessStore = business.NewStore(deps.DB)
+		}
 	}
 	moderationCases := deps.ModerationCases
 	if moderationCases == nil && deps.DB != nil {
@@ -268,6 +378,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 		InstagramMembership: deps.InstagramMembership, OwnerLifecycles: deps.OwnerLifecycles,
 		RateLimiter: deps.RateLimiter, ProfileCustomisationStore: profileCustomisationStore,
 		BusinessStore: businessStore, Suspension: suspension,
+		Subscriptions:    deps.Subscriptions,
 		HandlerDecorator: deps.routeHandlerDecorator,
 	}, observer)
 	mediaLimits := api.MediaLimits{
@@ -336,7 +447,11 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 
 	postStore := api.NewPostStoreWithPlayback(deps.DB, observer, deps.VideoPlayback)
 	savedPostStore := api.NewSavedPostStore(deps.DB)
-	profilePinStore := api.NewProfilePinStore(deps.DB, api.ProfilePinStoreOptions{Observer: observer})
+	profilePinOptions := api.ProfilePinStoreOptions{Observer: observer, RequirePlus: deps.Subscriptions != nil}
+	if deps.Subscriptions != nil {
+		profilePinOptions.AccessEnvironment = deps.Subscriptions.AccessEnvironment()
+	}
+	profilePinStore := api.NewProfilePinStore(deps.DB, profilePinOptions)
 	savedPostService := api.NewSavedPostService(savedPostStore, postStore, deps.HandleResolver)
 	oauthHandlers.NotificationSubscriptions = postStore
 	registerNotificationRoutes(notificationRouteBundle{
@@ -353,6 +468,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 	})
 	registerPostRoutes(postRouteBundle{
 		mux: mux, middleware: v1mw,
+		subscriptionAccess: deps.Subscriptions,
 		moderation: devModerationRouteConfig{
 			env: deps.Config.Env, enabled: deps.Config.EnableDevModeration,
 			token:             deps.Config.DevModerationToken,

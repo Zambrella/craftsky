@@ -10,6 +10,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 
 	"social.craftsky/appview/internal/api"
+	"social.craftsky/appview/internal/subscriptions"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -17,6 +18,37 @@ type fakeProfileCustomisationBatchReader struct {
 	values map[syntax.DID]api.ProfileCustomisation
 	calls  int
 	dids   []syntax.DID
+}
+
+type fakeCustomisationTiers map[syntax.DID]subscriptions.Tier
+
+func (f fakeCustomisationTiers) EffectiveTiers(_ context.Context, _ []syntax.DID) (map[syntax.DID]subscriptions.Tier, error) {
+	return f, nil
+}
+
+func TestCustomisationHydratorSuppressesSavedChoicesForFreeIdentities(t *testing.T) {
+	reader := &fakeProfileCustomisationBatchReader{values: map[syntax.DID]api.ProfileCustomisation{
+		"did:plc:free": {Colour: "orchid", Background: "skewdark"},
+		"did:plc:plus": {Colour: "teal", Background: "x2"},
+	}}
+	hydrator := api.NewIdentityCustomisationHydrator(reader, fakeCustomisationTiers{
+		"did:plc:free": subscriptions.TierFree, "did:plc:plus": subscriptions.TierPlus,
+	})
+	result, err := hydrator.HydrateJSON(context.Background(), []byte(`{"items":[{"did":"did:plc:free","handle":"free.example"},{"did":"did:plc:plus","handle":"plus.example"}]}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var body struct {
+		Items []map[string]any `json:"items"`
+	}
+	if err := json.Unmarshal(result, &body); err != nil {
+		t.Fatal(err)
+	}
+	assertCustomisationMap(t, body.Items[0]["customisation"], "cobalt", "none")
+	assertCustomisationMap(t, body.Items[1]["customisation"], "teal", "x2")
+	if reader.values["did:plc:free"].Colour != "orchid" {
+		t.Fatal("saved choice changed during public suppression")
+	}
 }
 
 func (f *fakeProfileCustomisationBatchReader) ReadBatch(

@@ -23,7 +23,6 @@ type businessRouteBundle struct {
 }
 
 func registerBusinessRoutes(routes businessRouteBundle) {
-	routes.mux.Handle("PUT /v1/profiles/me/account-type", routes.middleware.wrap(mustPolicy("PUT", "/v1/profiles/me/account-type"), api.PutBusinessAccountTypeHandler(routes.store)))
 	routes.mux.Handle("PUT /v1/profiles/me/business", routes.middleware.wrap(mustPolicy("PUT", "/v1/profiles/me/business"), api.PutBusinessProfileHandler(nil, api.BusinessProfileHandlerOptions{Commands: routes.addressedCommands})))
 	routes.mux.Handle("DELETE /v1/profiles/me/business", routes.middleware.wrap(mustPolicy("DELETE", "/v1/profiles/me/business"), api.DeleteBusinessProfileHandler(nil, api.BusinessProfileHandlerOptions{DeleteCommands: routes.addressedCommands})))
 	routes.mux.Handle("GET /v1/profiles/{handleOrDid}/events", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/{handleOrDid}/events"), api.GetProfileBusinessEventsHandler(routes.store, routes.handleResolver, routes.cursors, routes.now)))

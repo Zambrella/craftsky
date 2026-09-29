@@ -342,6 +342,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	if err != nil {
 		return nil, nil, err
 	}
+	setBusinessAccessEnvironment(content, pool, subscriptionCapability.store.AccessEnvironment())
 	deps := &Deps{
 		Config:                      cfg,
 		Logger:                      logger,
@@ -447,7 +448,6 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		authCapability,
 		owners,
 		federated,
-		content.business,
 		instagramPrivateData,
 		scheduledAccountDeletion,
 		scheduledDepartureParticipant,
@@ -464,7 +464,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	deps.AccountDeletionWorker = deletion.worker
 	deps.AccountDeletionIntentExpiry = deletion.intentExpiry
 	scheduledPublication, err := newScheduledPublicationDependencies(
-		pool, scheduledStorage, content, pdsEffects, observer, cfg,
+		pool, scheduledStorage, content, pdsEffects, observer, cfg, subscriptionCapability.store,
 	)
 	if err != nil {
 		return nil, nil, err

@@ -32,6 +32,7 @@ import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
+import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -930,13 +931,9 @@ class _TierCard extends StatelessWidget {
         ? theme.colorScheme.tertiary
         : BrandColors.butterDeep;
     final tierIcon = tier == SubscriptionTier.plus
-        ? Icons.auto_awesome_outlined
+        ? CraftskyIcons.plusTier
         : Icons.storefront_outlined;
     final price = model.tierPrices[tier];
-    final showPitch =
-        presentation == SubscriptionTierPresentation.empty ||
-        (presentation == SubscriptionTierPresentation.dormant &&
-            eligibility.eligible);
     return Semantics(
       container: true,
       label: l10n.subscriptionsActionSemantic(
@@ -994,15 +991,13 @@ class _TierCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 10),
                 if (summary != null) Text(summary),
-                if (showPitch) ...[
-                  if (summary != null) const SizedBox(height: 8),
-                  Text(
-                    tier == SubscriptionTier.plus
-                        ? l10n.subscriptionsPlusPitch
-                        : l10n.subscriptionsBusinessPitch,
-                    style: theme.textTheme.bodyLarge,
-                  ),
-                ],
+                if (summary != null) const SizedBox(height: 8),
+                Text(
+                  tier == SubscriptionTier.plus
+                      ? l10n.subscriptionsPlusBenefits
+                      : l10n.subscriptionsBusinessBenefits,
+                  style: theme.textTheme.bodyMedium,
+                ),
                 if (license?.assignedDid != null) ...[
                   const SizedBox(height: 6),
                   Text(_assignmentLabel(l10n, license!)),

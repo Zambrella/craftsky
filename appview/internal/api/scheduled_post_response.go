@@ -7,14 +7,18 @@ import (
 )
 
 type scheduledPostResponse struct {
-	ID          string                 `json:"id"`
-	OperationID string                 `json:"operationId"`
-	Status      scheduledposts.Status  `json:"status"`
-	ScheduledAt time.Time              `json:"scheduledAt"`
-	Payload     scheduledposts.Payload `json:"payload"`
+	LastErrorCode        string                 `json:"lastErrorCode,omitempty"`
+	SubscriptionRequired bool                   `json:"subscriptionRequired,omitempty"`
+	ID                   string                 `json:"id"`
+	OperationID          string                 `json:"operationId"`
+	Status               scheduledposts.Status  `json:"status"`
+	ScheduledAt          time.Time              `json:"scheduledAt"`
+	Payload              scheduledposts.Payload `json:"payload"`
 }
 
 type scheduledPostSummaryResponse struct {
+	LastErrorCode           string                  `json:"lastErrorCode,omitempty"`
+	SubscriptionRequired    bool                    `json:"subscriptionRequired,omitempty"`
 	ID                      string                  `json:"id"`
 	Status                  scheduledposts.Status   `json:"status"`
 	ScheduledAt             time.Time               `json:"scheduledAt"`

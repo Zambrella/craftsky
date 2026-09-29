@@ -9,7 +9,6 @@ import (
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/business"
-	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
 
@@ -30,7 +29,7 @@ func TestAccountTypeSelectionWithoutDeclaration(t *testing.T) {
 			purge_completed_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL,
 			updated_at TIMESTAMPTZ NOT NULL
 		);
-	`+string(accountMigration)+string(recordMigration))
+	`+string(accountMigration)+string(recordMigration)+subscriptionSchema(t))
 	ctx := context.Background()
 	alice := syntax.DID("did:plc:alice")
 	if _, err := pool.Exec(ctx, `
@@ -40,20 +39,14 @@ func TestAccountTypeSelectionWithoutDeclaration(t *testing.T) {
 		t.Fatalf("seed lifecycle: %v", err)
 	}
 	store := business.NewStore(pool)
-	lifecycles := businessLifecycleReader{alice: {Owner: alice, State: ownerlifecycle.StateActive, Generation: 1}}
-	handler := businessAccountTypeHandler(store, alice, lifecycles)
 	hydrator := api.NewIdentityAccountTypeHydrator(store)
 	raw := []byte(`{"profile":{"did":"did:plc:alice","handle":"alice.test"},"items":[{"author":{"did":"did:plc:alice","handle":"alice.test"}}]}`)
 
 	assertHydratedAccountTypes(t, hydrator, raw, "regular")
-	response := serveBusinessAccountType(handler, `{"accountType":"business"}`, true)
-	if response.Code != 200 {
-		t.Fatalf("set business status=%d body=%s", response.Code, response.Body.String())
-	}
+	seedBusinessTestLicense(t, pool, alice)
 	assertHydratedAccountTypes(t, hydrator, raw, "business")
-	response = serveBusinessAccountType(handler, `{"accountType":"regular"}`, true)
-	if response.Code != 200 {
-		t.Fatalf("set regular status=%d body=%s", response.Code, response.Body.String())
+	if _, err := pool.Exec(ctx, `UPDATE provider_subscriptions SET gives_access=false WHERE id=(SELECT provider_subscription_id FROM billing_licenses WHERE assigned_did=$1)`, alice); err != nil {
+		t.Fatal(err)
 	}
 	assertHydratedAccountTypes(t, hydrator, raw, "regular")
 

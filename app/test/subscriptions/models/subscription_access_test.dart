@@ -6,6 +6,38 @@ void main() {
   setUpAll(initializeMappers);
 
   group('SubscriptionAccess', () {
+    test('UT-005 effective Business inherits Plus; dormant access is Free', () {
+      final free = SubscriptionAccess.fromMap(
+        _json(effective: 'free', givesAccess: false),
+      );
+      final plus = SubscriptionAccess.fromMap(
+        _json(effective: 'plus', givesAccess: true, assigned: 'plus'),
+      );
+      final business = SubscriptionAccess.fromMap(
+        _json(effective: 'business', givesAccess: true, assigned: 'business'),
+      );
+      final dormant = SubscriptionAccess.fromMap(
+        _json(effective: 'free', givesAccess: false, assigned: 'business'),
+      );
+      expect(
+        [
+          free.allowsPlus,
+          plus.allowsPlus,
+          business.allowsPlus,
+          dormant.allowsPlus,
+        ],
+        [false, true, true, false],
+      );
+      expect(
+        [
+          free.allowsBusiness,
+          plus.allowsBusiness,
+          business.allowsBusiness,
+          dormant.allowsBusiness,
+        ],
+        [false, false, true, false],
+      );
+    });
     test('decodes canonical effective and assigned tier states', () {
       final cases =
           <

@@ -6,6 +6,8 @@ import 'package:craftsky_app/saved_posts/models/saved_post_error.dart';
 import 'package:craftsky_app/saved_posts/models/saved_post_keys.dart';
 import 'package:craftsky_app/saved_posts/providers/save_post_dialog_controller.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_post_folders_provider.dart';
+import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
+import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_select_inputs.dart';
@@ -68,7 +70,9 @@ class SavePostDialog extends ConsumerWidget {
       ),
     );
     final state = ref.watch(provider);
-    final folders = ref.watch(savedPostFoldersProvider(account));
+    final folders = subscriptionsEnabled
+        ? ref.watch(savedPostFoldersProvider(account))
+        : null;
 
     ref.listen(provider, (_, next) {
       if (next.isConfirmed && context.mounted) {
@@ -113,25 +117,38 @@ class SavePostDialog extends ConsumerWidget {
                       ],
                       onChanged: ref.read(provider.notifier).selectFolder,
                     ),
-                    switch (folders) {
-                      AsyncData(:final value) => _FolderPaginationControls(
-                        account: account,
-                        state: value,
-                      ),
-                      AsyncLoading() => const Center(
-                        child: CircularProgressIndicator(),
-                      ),
-                      AsyncError(:final error) => _FolderFailure(
-                        failure: SavedPostFailure.from(
-                          error,
-                          operation: SavedPostOperation.loadFolders,
+                    if (subscriptionsEnabled)
+                      switch (folders) {
+                        AsyncData(:final value) => _FolderPaginationControls(
+                          account: account,
+                          state: value,
                         ),
-                        onRetry: () => ref.invalidate(
-                          savedPostFoldersProvider(account),
+                        AsyncLoading() => const Center(
+                          child: CircularProgressIndicator(),
                         ),
-                      ),
-                    },
-                    if (state.isCreatingFolder) ...[
+                        AsyncError(:final error) => _FolderFailure(
+                          failure: SavedPostFailure.from(
+                            error,
+                            operation: SavedPostOperation.loadFolders,
+                          ),
+                          onRetry: () => ref.invalidate(
+                            savedPostFoldersProvider(account),
+                          ),
+                        ),
+                        null => const SizedBox.shrink(),
+                      },
+                    if (!subscriptionsEnabled)
+                      PlusFeatureLock(
+                        feature: l10n.savedPostNewFolder,
+                        access: null,
+                        onUnlocked: () {},
+                        showPlusBadge: false,
+                        child: TextButton(
+                          onPressed: () {},
+                          child: Text(l10n.savedPostNewFolder),
+                        ),
+                      )
+                    else if (state.isCreatingFolder) ...[
                       SizedBox(
                         key: const Key('saved-folder-create-spacing'),
                         height: spacing.sp4,

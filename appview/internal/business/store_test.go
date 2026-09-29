@@ -2,7 +2,6 @@ package business
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -12,91 +11,42 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/testdb"
 )
 
 func TestStoreAccountType(t *testing.T) {
-	migration, err := testdb.ReadMigration("000061_business_account_types.up.sql")
+	migration, err := testdb.ReadMigration("000076_subscription_accounts.up.sql")
 	if err != nil {
-		t.Fatalf("read account type migration: %v", err)
+		t.Fatal(err)
 	}
-	pool := testdb.WithSchema(t, `
-		CREATE TABLE owner_lifecycles (
-			owner_did TEXT PRIMARY KEY, state TEXT NOT NULL, generation BIGINT NOT NULL,
-			auth_epoch BIGINT NOT NULL, transition_reason TEXT NOT NULL,
-			transitioned_at TIMESTAMPTZ NOT NULL, terminal_at TIMESTAMPTZ,
-			purge_completed_at TIMESTAMPTZ, created_at TIMESTAMPTZ NOT NULL,
-			updated_at TIMESTAMPTZ NOT NULL
-		);
-	`+string(migration))
+	pool := testdb.WithSchema(t, string(migration))
 	store := NewStore(pool)
 	alice := syntax.DID("did:plc:alice")
-	if _, err := pool.Exec(context.Background(), `
-		INSERT INTO owner_lifecycles(owner_did,state,generation,auth_epoch,transition_reason,transitioned_at,created_at,updated_at)
-		VALUES ($1,'active',1,1,'test',now(),now(),now())
-	`, alice); err != nil {
-		t.Fatalf("seed owner lifecycle: %v", err)
-	}
-	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
-
+	ctx := context.Background()
 	got, err := store.ReadAccountType(ctx, alice)
-	if err != nil {
-		t.Fatalf("read missing account type: %v", err)
+	if err != nil || got != AccountTypeRegular {
+		t.Fatalf("unassigned = %q, %v", got, err)
 	}
-	if got != AccountTypeRegular {
-		t.Fatalf("missing account type = %q, want %q", got, AccountTypeRegular)
-	}
-	assertAccountTypeRowCount(t, pool, alice, 0)
-
-	if err := store.PutAccountType(ctx, alice, AccountTypeBusiness); err != nil {
-		t.Fatalf("put business account type: %v", err)
-	}
-	got, err = store.ReadAccountType(ctx, alice)
-	if err != nil {
-		t.Fatalf("read business account type: %v", err)
-	}
-	if got != AccountTypeBusiness {
-		t.Fatalf("stored account type = %q, want %q", got, AccountTypeBusiness)
-	}
-	assertAccountTypeRowCount(t, pool, alice, 1)
-
-	if err := store.PutAccountType(ctx, alice, AccountTypeRegular); err != nil {
-		t.Fatalf("put regular account type: %v", err)
+	for _, statement := range []string{
+		`INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id) VALUES ('10000000-0000-4000-8000-000000000001','did:plc:owner','20000000-0000-4000-8000-000000000001')`,
+		`INSERT INTO provider_subscriptions(id,billing_account_id,project_id,revenuecat_subscription_id,product_id,app_id,store,environment,status,gives_access,mapped_tier,accepted_generation) VALUES ('30000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','project','subscription','business','app','app_store','production','active',true,'business',1)`,
+		`INSERT INTO billing_licenses(provider_subscription_id,tier,assigned_did,assigned_at) VALUES ('30000000-0000-4000-8000-000000000001','business','did:plc:alice',now())`,
+	} {
+		if _, err := pool.Exec(ctx, statement); err != nil {
+			t.Fatal(err)
+		}
 	}
 	got, err = store.ReadAccountType(ctx, alice)
-	if err != nil {
-		t.Fatalf("read regular account type: %v", err)
+	if err != nil || got != AccountTypeBusiness {
+		t.Fatalf("licensed = %q, %v", got, err)
 	}
-	if got != AccountTypeRegular {
-		t.Fatalf("updated account type = %q, want %q", got, AccountTypeRegular)
-	}
-	assertAccountTypeRowCount(t, pool, alice, 1)
-
-	if err := store.PutAccountType(ctx, alice, AccountType("pro")); !errors.Is(err, ErrInvalidAccountType) {
-		t.Fatalf("put invalid account type error = %v, want ErrInvalidAccountType", err)
+	if _, err := pool.Exec(ctx, `UPDATE provider_subscriptions SET gives_access=false WHERE id='30000000-0000-4000-8000-000000000001'`); err != nil {
+		t.Fatal(err)
 	}
 	got, err = store.ReadAccountType(ctx, alice)
-	if err != nil {
-		t.Fatalf("read after invalid account type: %v", err)
+	if err != nil || got != AccountTypeRegular {
+		t.Fatalf("lapsed = %q, %v", got, err)
 	}
-	if got != AccountTypeRegular {
-		t.Fatalf("account type after invalid put = %q, want %q", got, AccountTypeRegular)
-	}
-
-	if _, err := pool.Exec(ctx, `
-		UPDATE craftsky_account_types SET account_type = 'pro' WHERE owner_did = $1
-	`, alice); err == nil {
-		t.Fatal("database accepted invalid account type")
-	}
-
-	if err := store.DeleteAccountType(ctx, alice); err != nil {
-		t.Fatalf("delete account type: %v", err)
-	}
-	if err := store.DeleteAccountType(ctx, alice); err != nil {
-		t.Fatalf("repeat account type deletion: %v", err)
-	}
-	assertAccountTypeRowCount(t, pool, alice, 0)
 }
 
 type accountTypeQueryTracer struct {
@@ -126,17 +76,19 @@ func (tracer *accountTypeQueryTracer) snapshot() []string {
 }
 
 func TestStoreReadAccountTypesUsesOneSetBasedQuery(t *testing.T) {
-	pool := testdb.WithSchema(t, `
-		CREATE TABLE craftsky_account_types (
-			owner_did TEXT PRIMARY KEY,
-			account_type TEXT NOT NULL CHECK (account_type IN ('regular', 'business'))
-		)
-	`)
-	if _, err := pool.Exec(context.Background(), `
-		INSERT INTO craftsky_account_types(owner_did, account_type)
-		VALUES ('did:plc:summary00', 'business')
-	`); err != nil {
-		t.Fatalf("seed account type: %v", err)
+	migration, err := testdb.ReadMigration("000076_subscription_accounts.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pool := testdb.WithSchema(t, string(migration))
+	for _, statement := range []string{
+		`INSERT INTO billing_accounts(id,owner_did,revenuecat_app_user_id) VALUES ('10000000-0000-4000-8000-000000000001','did:plc:owner','20000000-0000-4000-8000-000000000001')`,
+		`INSERT INTO provider_subscriptions(id,billing_account_id,project_id,revenuecat_subscription_id,product_id,app_id,store,environment,status,gives_access,mapped_tier,accepted_generation) VALUES ('30000000-0000-4000-8000-000000000001','10000000-0000-4000-8000-000000000001','project','subscription','business','app','app_store','production','active',true,'business',1)`,
+		`INSERT INTO billing_licenses(provider_subscription_id,tier,assigned_did,assigned_at) VALUES ('30000000-0000-4000-8000-000000000001','business','did:plc:summary00',now())`,
+	} {
+		if _, err := pool.Exec(context.Background(), statement); err != nil {
+			t.Fatal(err)
+		}
 	}
 
 	tracer := &accountTypeQueryTracer{}
@@ -167,22 +119,9 @@ func TestStoreReadAccountTypesUsesOneSetBasedQuery(t *testing.T) {
 			if len(queries) != 1 {
 				t.Fatalf("SQL query count = %d, want 1: %v", len(queries), queries)
 			}
-			if !strings.Contains(queries[0], "craftsky_account_types") || !strings.Contains(queries[0], "ANY($1)") {
+			if strings.Contains(queries[0], "craftsky_account_types") || !strings.Contains(queries[0], "ANY($1)") {
 				t.Fatalf("account-type query is not set-based: %s", queries[0])
 			}
 		})
-	}
-}
-
-func assertAccountTypeRowCount(t *testing.T, pool *pgxpool.Pool, did syntax.DID, want int) {
-	t.Helper()
-	var got int
-	if err := pool.QueryRow(context.Background(), `
-		SELECT count(*) FROM craftsky_account_types WHERE owner_did = $1
-	`, did).Scan(&got); err != nil {
-		t.Fatalf("count account type rows: %v", err)
-	}
-	if got != want {
-		t.Fatalf("account type row count = %d, want %d", got, want)
 	}
 }

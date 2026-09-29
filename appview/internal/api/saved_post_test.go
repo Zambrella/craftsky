@@ -16,6 +16,7 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/relationships"
+	"social.craftsky/appview/internal/subscriptions"
 )
 
 type fakeSavedPostTargetResolver struct {
@@ -50,6 +51,67 @@ type fakeSavedPostStore struct {
 	listedCursor string
 	folders      []api.SavedPostFolder
 	nextCursor   string
+}
+
+type savedPostAccessReader struct{ access subscriptions.SelfAccess }
+
+func (f savedPostAccessReader) SelfAccess(context.Context, syntax.DID, time.Time) (subscriptions.SelfAccess, error) {
+	return f.access, nil
+}
+
+func TestSavedPostFolderAssignmentRequiresPlusWithoutBlockingOrdinarySave(t *testing.T) {
+	store := &fakeSavedPostStore{saveResult: api.SaveMutationResult{Created: true}}
+	handler := api.SavePostHandler(&fakeSavedPostTargetResolver{uri: "at://did:plc:bob/social.craftsky.feed.post/one"}, store,
+		savedPostAccessReader{access: subscriptions.SelfAccess{DID: "did:plc:alice", EffectiveTier: subscriptions.TierFree}})
+	for _, tc := range []struct {
+		body string
+		want int
+	}{
+		{body: `{"folderId":"folder-1"}`, want: http.StatusForbidden},
+		{body: `{}`, want: http.StatusCreated},
+	} {
+		req := savedPostRequest(http.MethodPost, "/v1/posts/did:plc:bob/one/saves", tc.body)
+		req.SetPathValue("did", "did:plc:bob")
+		req.SetPathValue("rkey", "one")
+		resp := httptest.NewRecorder()
+		handler.ServeHTTP(resp, req)
+		if resp.Code != tc.want {
+			t.Fatalf("body %s: status = %d, want %d; response=%s", tc.body, resp.Code, tc.want, resp.Body.String())
+		}
+	}
+	if store.savedOwner != "did:plc:alice" || store.assignment.Present {
+		t.Fatalf("ordinary save not preserved: owner=%s assignment=%+v", store.savedOwner, store.assignment)
+	}
+}
+
+func TestSavedPostsWithoutPlusAreFlatWithoutLosingFolderMembership(t *testing.T) {
+	folder := "saved-folder"
+	service := &fakeSavedPostListService{page: api.SavedPostPage{Items: []api.SavedPostItem{
+		{SavedAt: time.Now(), FolderID: &folder}, {SavedAt: time.Now()},
+	}}}
+	handler := api.ListSavedPostsHandler(service, savedPostAccessReader{access: subscriptions.SelfAccess{DID: "did:plc:alice", EffectiveTier: subscriptions.TierFree}})
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, savedPostRequest(http.MethodGet, "/v1/saved-posts", ""))
+	if response.Code != http.StatusOK || service.filter.Scope != api.SavedPostScopeAll {
+		t.Fatalf("flat list status/scope = %d/%s: %s", response.Code, service.filter.Scope, response.Body.String())
+	}
+	var page api.SavedPostPage
+	if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil || len(page.Items) != 2 || page.Items[0].FolderID != nil {
+		t.Fatalf("flat page = %+v, error %v", page, err)
+	}
+	if *service.page.Items[0].FolderID != folder {
+		t.Fatal("flat presentation changed the stored folder association")
+	}
+}
+
+func TestSavedPostsWithoutPlusReturnEmptyArray(t *testing.T) {
+	service := &fakeSavedPostListService{}
+	handler := api.ListSavedPostsHandler(service, savedPostAccessReader{access: subscriptions.SelfAccess{DID: "did:plc:alice", EffectiveTier: subscriptions.TierFree}})
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, savedPostRequest(http.MethodGet, "/v1/saved-posts", ""))
+	if response.Code != http.StatusOK || !strings.Contains(response.Body.String(), `"items":[]`) {
+		t.Fatalf("empty free saved posts status/body = %d/%s", response.Code, response.Body.String())
+	}
 }
 
 func (f *fakeSavedPostStore) Save(_ context.Context, owner syntax.DID, uri syntax.ATURI, assignment api.FolderAssignment) (api.SaveMutationResult, error) {

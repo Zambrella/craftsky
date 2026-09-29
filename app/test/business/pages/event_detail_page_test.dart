@@ -3,6 +3,11 @@ import 'dart:convert';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
+    show sessionRegistryProvider;
+import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/business/data/business_repository.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
@@ -14,6 +19,8 @@ import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
@@ -21,11 +28,91 @@ import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../accessibility_test_helpers.dart';
 
 void main() {
+  setUpAll(initializeMappers);
+  testWidgets('IT-010 owner event detail disappears on Business lapse', (
+    tester,
+  ) async {
+    final tier = StateProvider<SubscriptionTier>(
+      (ref) => SubscriptionTier.business,
+    );
+    await _pump(
+      tester,
+      repository: _Repository(_event()),
+      page: EventDetailPage(
+        account: AccountKey('did:plc:business'),
+        owner: Did.parse('did:plc:business'),
+        rkey: RecordKey.parse('3m4event'),
+      ),
+      ownerTier: tier,
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Summer fibre fair'), findsOneWidget);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(EventDetailPage)),
+    );
+    container.read(tier.notifier).state = SubscriptionTier.free;
+    await tester.pumpAndSettle();
+    expect(find.text('Summer fibre fair'), findsNothing);
+    expect(find.textContaining('Published'), findsNothing);
+    container.read(tier.notifier).state = SubscriptionTier.business;
+    await tester.pumpAndSettle();
+    expect(find.text('Summer fibre fair'), findsOneWidget);
+  });
+
+  testWidgets(
+    'IT-010 owner detail hides old Business data during access refresh',
+    (
+      tester,
+    ) async {
+      final tier = StateProvider<SubscriptionTier>(
+        (ref) => SubscriptionTier.business,
+      );
+      final refresh = StateProvider<bool>((ref) => false);
+      final pending = Completer<SubscriptionAccess>();
+      await _pump(
+        tester,
+        repository: _Repository(_event()),
+        page: EventDetailPage(
+          account: AccountKey('did:plc:business'),
+          owner: Did.parse('did:plc:business'),
+          rkey: RecordKey.parse('3m4event'),
+        ),
+        ownerTier: tier,
+        refreshAccess: refresh,
+        pendingAccess: pending,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Summer fibre fair'), findsOneWidget);
+
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(EventDetailPage)),
+      );
+      container.read(refresh.notifier).state = true;
+      await tester.pump();
+      final lease = container
+          .read(sessionRegistryProvider)
+          .requireValue
+          .activeLease!
+          .session;
+      final loading = container.read(subscriptionAccessProvider(lease));
+      expect(loading.isLoading, isTrue);
+      expect(loading.value?.allowsBusiness, isTrue);
+      expect(find.text('Summer fibre fair'), findsNothing);
+      expect(find.textContaining('Published'), findsNothing);
+
+      pending.completeError(StateError('subscription unavailable'));
+      await tester.pumpAndSettle();
+      expect(find.text('Summer fibre fair'), findsNothing);
+      expect(find.textContaining('Published'), findsNothing);
+    },
+  );
+
   for (final constraint in businessAccessibilityMatrix) {
     testWidgets(
       'AT-012 REG-010 event detail and report fit '
@@ -217,8 +304,11 @@ void main() {
         owner: Did.parse('did:plc:business'),
         rkey: RecordKey.parse('3m4event'),
       ),
+      ownerTier: StateProvider<SubscriptionTier>(
+        (ref) => SubscriptionTier.business,
+      ),
     );
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.text('Summer fibre fair'), findsOneWidget);
     expect(find.byTooltip('Report event'), findsNothing);
@@ -494,9 +584,41 @@ Future<void> _pump(
   WidgetTester tester, {
   required BusinessRepository repository,
   required Widget page,
+  StateProvider<SubscriptionTier>? ownerTier,
+  StateProvider<bool>? refreshAccess,
+  Completer<SubscriptionAccess>? pendingAccess,
 }) => tester.pumpWidget(
   ProviderScope(
-    overrides: [businessRepositoryProvider.overrideWithValue(repository)],
+    overrides: [
+      businessRepositoryProvider.overrideWithValue(repository),
+      if (ownerTier != null) ...[
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _EventRegistryStorage(
+            SessionRegistry.empty().upsertAndActivate(
+              token: 'token',
+              did: 'did:plc:business',
+              handle: 'business.test',
+            ),
+          ),
+        ),
+        subscriptionAccessProvider.overrideWith(
+          (ref, lease) async {
+            final currentTier = ref.watch(ownerTier);
+            if (refreshAccess != null && ref.watch(refreshAccess)) {
+              return pendingAccess!.future;
+            }
+            return SubscriptionAccess(
+              did: lease.account.did,
+              effectiveTier: currentTier,
+              givesAccess: currentTier != SubscriptionTier.free,
+              assignedTier: currentTier == SubscriptionTier.free
+                  ? null
+                  : currentTier,
+            );
+          },
+        ),
+      ],
+    ],
     child: MaterialApp(
       theme: AppTheme.lightThemeData,
       localizationsDelegates: AppLocalizations.localizationsDelegates,
@@ -505,6 +627,18 @@ Future<void> _pump(
     ),
   ),
 );
+
+final class _EventRegistryStorage implements SessionRegistryStorage {
+  _EventRegistryStorage(this.registry);
+  SessionRegistry registry;
+
+  @override
+  Future<SessionRegistry> read() async => registry;
+
+  @override
+  Future<void> write(SessionRegistry registry) async =>
+      this.registry = registry;
+}
 
 final class _Repository extends Fake implements BusinessRepository {
   _Repository(this.result, {this.reportResult});

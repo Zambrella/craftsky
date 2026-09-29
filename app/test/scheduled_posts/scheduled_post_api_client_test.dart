@@ -4,6 +4,56 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http_mock_adapter/http_mock_adapter.dart';
 
 void main() {
+  test('AT-009 owner detail carries pending subscription notice', () async {
+    final dio = Dio(BaseOptions(baseUrl: 'https://appview.example.com'));
+    DioAdapter(dio: dio).onGet(
+      '/v1/scheduled-posts/future',
+      (server) => server.reply(200, {
+        'id': 'future',
+        'operationId': 'op-1',
+        'status': 'scheduled',
+        'scheduledAt': '2026-10-01T12:00:00Z',
+        'payload': {'kind': 'standard', 'text': 'future'},
+        'subscriptionRequired': true,
+      }),
+    );
+    final item = await ScheduledPostApiClient(dio).get('future');
+    expect(item.subscriptionRequired, isTrue);
+  });
+  test(
+    'AT-009 owner list decodes pending notice and due subscription error',
+    () async {
+      final dio = Dio(BaseOptions(baseUrl: 'https://appview.example.com'));
+      DioAdapter(dio: dio).onGet(
+        '/v1/scheduled-posts',
+        (server) => server.reply(200, {
+          'items': [
+            {
+              'id': 'future',
+              'kind': 'standard',
+              'status': 'scheduled',
+              'scheduledAt': '2026-10-01T12:00:00Z',
+              'textPreview': 'future',
+              'subscriptionRequired': true,
+            },
+            {
+              'id': 'missed',
+              'kind': 'standard',
+              'status': 'needs_attention',
+              'scheduledAt': '2026-09-01T12:00:00Z',
+              'textPreview': 'missed',
+              'lastErrorCode': 'subscription_required',
+            },
+          ],
+          'count': 2,
+          'needsAttentionCount': 1,
+        }),
+      );
+      final items = await ScheduledPostApiClient(dio).list();
+      expect(items[0].subscriptionRequired, isTrue);
+      expect(items[1].lastErrorCode, 'subscription_required');
+    },
+  );
   test('IT-017 preserves the existing scheduled-post wire contract', () async {
     final dio = Dio(
       BaseOptions(

@@ -6,11 +6,12 @@ part 'saved_post.mapper.dart';
 
 enum SavedPostSort { newest, oldest }
 
-enum SavedPostScopeKind { unfiled, folder }
+enum SavedPostScopeKind { all, unfiled, folder }
 
 /// List scope with a redacted string representation for private folder IDs.
 @immutable
 final class SavedPostScope {
+  const SavedPostScope.all() : kind = SavedPostScopeKind.all, folderId = null;
   const SavedPostScope.unfiled()
     : kind = SavedPostScopeKind.unfiled,
       folderId = null;

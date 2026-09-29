@@ -70,6 +70,10 @@ func newContentDependencies(
 	}
 }
 
+func setBusinessAccessEnvironment(content *contentDependencies, pool *pgxpool.Pool, environment string) {
+	content.business = business.NewStoreForEnvironment(pool, environment)
+}
+
 func newContentRuntimeDependencies(
 	pool *pgxpool.Pool,
 	handleResolver api.HandleResolver,

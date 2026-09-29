@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -90,6 +91,29 @@ func (s *Store) Assign(ctx context.Context, params AssignParams) (assignment Ass
 	if assignedDID != nil && *assignedDID != params.TargetDID && !CanChangeAssignmentTarget(lastTargetChange, params.Now) {
 		return Assignment{}, ErrAssignmentCooldown
 	}
+	locks := []syntax.DID{params.TargetDID}
+	if assignedDID != nil && *assignedDID != params.TargetDID {
+		locks = append(locks, *assignedDID)
+	}
+	slices.Sort(locks)
+	for _, did := range locks {
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, accessFenceKey(did)); err != nil {
+			return Assignment{}, fmt.Errorf("fence billing assignment access: %w", err)
+		}
+	}
+	var oldPaid bool
+	if assignedDID != nil && *assignedDID != params.TargetDID {
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (
+			SELECT 1 FROM billing_licenses license
+			JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
+			WHERE license.id=$1 AND license.assigned_did=$2 AND license.tier IN ('plus','business')
+			 AND subscription.gives_access AND subscription.environment=$3
+			 AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
+			 AND subscription.anomaly='none'
+		)`, params.LicenseID, *assignedDID, s.accessEnvironment).Scan(&oldPaid); err != nil {
+			return Assignment{}, fmt.Errorf("read prior assignment access: %w", err)
+		}
+	}
 
 	var targetChange any
 	if assignedDID != nil && *assignedDID != params.TargetDID {
@@ -109,6 +133,11 @@ func (s *Store) Assign(ctx context.Context, params AssignParams) (assignment Ass
 		}
 		return Assignment{}, fmt.Errorf("assign billing license: %w", err)
 	}
+	if oldPaid {
+		if _, err := tx.Exec(ctx, `DELETE FROM profile_pins WHERE owner_did=$1`, *assignedDID); err != nil {
+			return Assignment{}, fmt.Errorf("clear reassigned profile pins: %w", err)
+		}
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return Assignment{}, fmt.Errorf("commit billing assignment: %w", err)
 	}
@@ -121,7 +150,48 @@ func (s *Store) Unassign(ctx context.Context, params UnassignParams) (resultErr 
 			s.observer.ObserveSubscriptionAssignment(ctx, "unassign", assignmentOutcome(resultErr))
 		}
 	}()
-	command, err := s.pool.Exec(ctx, `
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin billing unassignment: %w", err)
+	}
+	defer func() { _ = tx.Rollback(context.Background()) }()
+	var accountID uuid.UUID
+	if err := tx.QueryRow(ctx, `SELECT id FROM billing_accounts WHERE owner_did=$1 AND state='active' FOR UPDATE`, params.OwnerDID).Scan(&accountID); errors.Is(err, pgx.ErrNoRows) {
+		return ErrLicenseNotFound
+	} else if err != nil {
+		return fmt.Errorf("lock billing owner for unassignment: %w", err)
+	}
+	var previous *syntax.DID
+	if err := tx.QueryRow(ctx, `
+		SELECT license.assigned_did
+		FROM billing_licenses license
+		JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
+		WHERE license.id=$1 AND subscription.billing_account_id=$2
+		FOR UPDATE OF subscription, license
+	`, params.LicenseID, accountID).Scan(&previous); errors.Is(err, pgx.ErrNoRows) {
+		return ErrLicenseNotFound
+	} else if err != nil {
+		return fmt.Errorf("lock billing license for unassignment: %w", err)
+	}
+	if previous != nil {
+		if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock($1)`, accessFenceKey(*previous)); err != nil {
+			return fmt.Errorf("fence subscription unassignment: %w", err)
+		}
+	}
+	var previouslyPaid bool
+	if previous != nil {
+		if err := tx.QueryRow(ctx, `SELECT EXISTS (
+			SELECT 1 FROM billing_licenses license
+			JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
+			WHERE license.id=$1 AND license.assigned_did=$2 AND license.tier IN ('plus','business')
+			  AND subscription.gives_access AND subscription.environment=$3
+			  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
+			  AND subscription.anomaly='none'
+		)`, params.LicenseID, *previous, s.accessEnvironment).Scan(&previouslyPaid); err != nil {
+			return fmt.Errorf("read prior subscription access: %w", err)
+		}
+	}
+	command, err := tx.Exec(ctx, `
 		UPDATE billing_licenses license
 		SET assigned_did=NULL, assigned_at=NULL, updated_at=$3
 		FROM provider_subscriptions subscription
@@ -130,12 +200,21 @@ func (s *Store) Unassign(ctx context.Context, params UnassignParams) (resultErr 
 		  AND license.provider_subscription_id=subscription.id
 		  AND account.owner_did=$2
 		  AND account.state='active'
-	`, params.LicenseID, params.OwnerDID, params.Now)
+		  AND license.assigned_did IS NOT DISTINCT FROM $4
+	`, params.LicenseID, params.OwnerDID, params.Now, previous)
 	if err != nil {
 		return fmt.Errorf("unassign billing license: %w", err)
 	}
 	if command.RowsAffected() != 1 {
 		return ErrLicenseNotFound
+	}
+	if previouslyPaid {
+		if _, err := tx.Exec(ctx, `DELETE FROM profile_pins WHERE owner_did=$1`, *previous); err != nil {
+			return fmt.Errorf("clear lapsed profile pins: %w", err)
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit billing unassignment: %w", err)
 	}
 	return nil
 }

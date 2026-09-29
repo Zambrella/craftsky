@@ -2,7 +2,6 @@ import 'package:craftsky_app/business/data/business_api_client.dart';
 import 'package:craftsky_app/business/data/business_repository.dart';
 import 'package:craftsky_app/business/models/business_drafts.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
-import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/services/business_time_zone_service.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
@@ -13,10 +12,6 @@ class ApiBusinessRepository implements BusinessRepository {
 
   final BusinessApiClient _api;
   final BusinessTimeZoneService _timeZones;
-
-  @override
-  Future<AccountType> updateAccountType(AccountType value) =>
-      _api.updateAccountType(value);
 
   @override
   Future<RecordMutationResult> putBusinessProfile(

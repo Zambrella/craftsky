@@ -118,6 +118,14 @@ void main() {
     expect(find.textContaining('Renews on'), findsOneWidget);
     expect(find.text('Assigned to @bob.test'), findsOneWidget);
     expect(find.text('Business'), findsWidgets);
+    expect(
+      find.textContaining('Schedule posts, organise saves'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Everything in Plus, plus featured products'),
+      findsOneWidget,
+    );
     expect(find.text('Status unavailable'), findsOneWidget);
     expect(find.textContaining('future_status'), findsNothing);
     expect(find.text('Restore purchases'), findsOneWidget);
@@ -130,6 +138,27 @@ void main() {
     expect(find.textContaining('Reconciliation requested:'), findsNothing);
     expect(find.textContaining('Last reconciled:'), findsNothing);
     expect(find.text('Change assignment'), findsOneWidget);
+  });
+
+  testWidgets('unsubscribed cards explain both tiers before purchase', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      SubscriptionPageModel(
+        role: SubscriptionPageRole.owner,
+        access: _access(SubscriptionTier.free),
+        billingAvailability: BillingAvailability.available,
+        billingState: _emptyState(),
+        onPurchase: (_) {},
+      ),
+    );
+
+    expect(
+      find.textContaining('pin posts and track follower growth'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('business details and events'), findsOneWidget);
   });
 
   testWidgets('AT-014 pending reconciliation offers refresh, not checkout', (

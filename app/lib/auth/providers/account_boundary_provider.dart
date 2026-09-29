@@ -3,7 +3,6 @@ import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
-import 'package:craftsky_app/business/providers/account_type_controller.dart';
 import 'package:craftsky_app/business/providers/business_event_detail_provider.dart';
 import 'package:craftsky_app/business/providers/business_event_mutation_controller.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
@@ -137,7 +136,6 @@ final accountStateInvalidatorProvider = Provider<AccountBoundaryAction>(
       ..invalidate(toggleFollowProfileProvider)
       ..invalidate(toggleBlockProfileProvider)
       ..invalidate(businessRepositoryProvider)
-      ..invalidate(accountTypeControllerProvider)
       ..invalidate(businessEventMutationControllerProvider)
       ..invalidate(ownerBusinessEventsProvider)
       ..invalidate(productsControllerProvider)

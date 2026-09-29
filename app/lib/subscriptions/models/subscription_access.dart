@@ -44,6 +44,11 @@ final class SubscriptionAccess with SubscriptionAccessMappable {
   final DateTime? accessEndsAt;
   final SubscriptionTier? assignedTier;
 
+  bool get allowsPlus => givesAccess && effectiveTier != SubscriptionTier.free;
+
+  bool get allowsBusiness =>
+      givesAccess && effectiveTier == SubscriptionTier.business;
+
   @override
   String toString() => 'SubscriptionAccess([REDACTED])';
 }

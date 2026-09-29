@@ -4,8 +4,10 @@ import 'package:craftsky_app/app_dependencies.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/models/active_account_initialization.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
@@ -33,7 +35,10 @@ import 'package:craftsky_app/settings/pages/relationship_list_page.dart';
 import 'package:craftsky_app/settings/pages/settings_page.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/pages/subscription_page.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
+import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
@@ -284,71 +289,75 @@ void main() {
     ('compact', const Size(500, 800), false),
     ('large', const Size(1200, 800), true),
   ]) {
-    testWidgets('Growth preserves ${layout.$1} Settings shell and back stack', (
-      tester,
-    ) async {
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
-      tester.view.devicePixelRatio = 1;
-      tester.view.physicalSize = layout.$2;
-      final container = _container();
-      addTearDown(container.dispose);
-      final subscription = container.listen(
-        goRouterProvider,
-        (_, _) {},
-        fireImmediately: true,
-      );
-      addTearDown(subscription.close);
-      final router = subscription.read()..go(const SettingsRoute().location);
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: MaterialApp.router(
-            routerConfig: router,
-            theme: AppTheme.lightThemeData,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            builder: (context, child) => MessengerScope(
-              messenger: RecordingMessenger(),
-              child: FormFactorWidget(child: child!),
+    testWidgets(
+      'Growth preserves ${layout.$1} Settings shell and back stack',
+      (
+        tester,
+      ) async {
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = layout.$2;
+        final container = _container();
+        addTearDown(container.dispose);
+        final subscription = container.listen(
+          goRouterProvider,
+          (_, _) {},
+          fireImmediately: true,
+        );
+        addTearDown(subscription.close);
+        final router = subscription.read()..go(const SettingsRoute().location);
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: MaterialApp.router(
+              routerConfig: router,
+              theme: AppTheme.lightThemeData,
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              builder: (context, child) => MessengerScope(
+                messenger: RecordingMessenger(),
+                child: FormFactorWidget(child: child!),
+              ),
             ),
           ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(
-        find.text('Growth'),
-        200,
-        scrollable: find.byType(Scrollable).last,
-      );
-      await tester.tap(find.text('Growth'));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 500));
-
-      expect(
-        router.state.matchedLocation,
-        const FollowerGrowthRoute().location,
-      );
-      expect(find.byType(FollowerGrowthPage), findsOneWidget);
-      expect(
-        find.byType(NavigationRail),
-        layout.$3 ? findsOneWidget : findsNothing,
-      );
-      expect(find.byType(NavigationBar), findsNothing);
-
-      await tester.pageBack();
-      await tester.pumpAndSettle();
-      expect(router.state.matchedLocation, const SettingsRoute().location);
-      expect(find.byType(SettingsPage), findsOneWidget);
-      if (layout.$3) {
-        expect(
-          tester
-              .widget<NavigationRail>(find.byType(NavigationRail))
-              .selectedIndex,
-          8,
         );
-      }
-    });
+        await tester.pumpAndSettle();
+        await tester.scrollUntilVisible(
+          find.text('Growth'),
+          200,
+          scrollable: find.byType(Scrollable).last,
+        );
+        await tester.tap(find.text('Growth'));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 500));
+
+        expect(
+          router.state.matchedLocation,
+          const FollowerGrowthRoute().location,
+        );
+        expect(find.byType(FollowerGrowthPage), findsOneWidget);
+        expect(
+          find.byType(NavigationRail),
+          layout.$3 ? findsOneWidget : findsNothing,
+        );
+        expect(find.byType(NavigationBar), findsNothing);
+
+        await tester.pageBack();
+        await tester.pumpAndSettle();
+        expect(router.state.matchedLocation, const SettingsRoute().location);
+        expect(find.byType(SettingsPage), findsOneWidget);
+        if (layout.$3) {
+          expect(
+            tester
+                .widget<NavigationRail>(find.byType(NavigationRail))
+                .selectedIndex,
+            8,
+          );
+        }
+      },
+      skip: !subscriptionsEnabled,
+    );
   }
 
   testWidgets('Settings shows identity, sectioned disclosures, and actions', (
@@ -401,7 +410,7 @@ void main() {
       'Discovery',
       'Find people from Instagram',
       'General',
-      'Subscriptions',
+      if (subscriptionsEnabled) 'View subscription',
       'Account standing',
       'Account',
       'About',
@@ -410,7 +419,10 @@ void main() {
       expect(find.text(label), findsOneWidget, reason: label);
     }
     expect(find.text('Clear image cache'), findsNothing);
-    expect(find.byIcon(CraftskyIconsBold.next), findsNWidgets(15));
+    expect(
+      find.byIcon(CraftskyIconsBold.next),
+      findsNWidgets(14),
+    );
     final signOut = tester.widget<Text>(find.text('Sign out'));
     expect(
       signOut.style?.color,
@@ -472,12 +484,65 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.byType(SettingsPage), findsOneWidget);
       },
+      skip:
+          !subscriptionsEnabled &&
+          (routeCase.location == const FollowerGrowthRoute().location ||
+              routeCase.location ==
+                  const ProfileCustomisationRoute().location ||
+              routeCase.location == const SubscriptionsRoute().location),
     );
   }
+
+  testWidgets('beta subscription deep link returns to Settings', (
+    tester,
+  ) async {
+    final container = _container();
+    addTearDown(container.dispose);
+    final subscription = container.listen(
+      goRouterProvider,
+      (_, _) {},
+      fireImmediately: true,
+    );
+    addTearDown(subscription.close);
+    final router = subscription.read()..go(const SubscriptionsRoute().location);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp.router(
+          routerConfig: router,
+          theme: AppTheme.lightThemeData,
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder: (context, child) => FormFactorWidget(child: child!),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(router.state.matchedLocation, const SettingsRoute().location);
+    expect(find.byType(SettingsPage), findsOneWidget);
+    expect(find.byType(SubscriptionPage), findsNothing);
+  }, skip: subscriptionsEnabled);
 }
 
 ProviderContainer _container() => ProviderContainer.test(
   overrides: [
+    secureSessionRegistryStorageProvider.overrideWithValue(
+      _SettingsRouteRegistryStorage(
+        SessionRegistry.empty().upsertAndActivate(
+          token: 'token',
+          did: 'did:plc:test',
+          handle: 'test.bsky.social',
+        ),
+      ),
+    ),
+    subscriptionAccessProvider.overrideWith(
+      (ref, lease) async => SubscriptionAccess(
+        did: lease.account.did,
+        effectiveTier: SubscriptionTier.plus,
+        givesAccess: true,
+        assignedTier: SubscriptionTier.plus,
+      ),
+    ),
     sharedPreferencesProvider.overrideWithValue(_preferences),
     activeAccountInitializationProvider.overrideWith(
       (ref) => ActiveAccountInitialization(
@@ -500,6 +565,11 @@ ProviderContainer _container() => ProviderContainer.test(
           handle: 'test.bsky.social',
           crafts: const [],
         ),
+        onFetchMe: () async => Profile(
+          did: 'did:plc:test',
+          handle: 'test.bsky.social',
+          crafts: const [],
+        ),
         onListFollowersMe: ({limit, cursor}) async => _emptyAccountPage,
         onListFollowingMe: ({limit, cursor}) async => _emptyAccountPage,
         onListMutedProfiles: ({limit, cursor}) async => _emptyAccountPage,
@@ -516,6 +586,16 @@ ProviderContainer _container() => ProviderContainer.test(
     ),
   ],
 );
+
+final class _SettingsRouteRegistryStorage implements SessionRegistryStorage {
+  _SettingsRouteRegistryStorage(this.registry);
+  SessionRegistry registry;
+  @override
+  Future<SessionRegistry> read() async => registry;
+  @override
+  Future<void> write(SessionRegistry registry) async =>
+      this.registry = registry;
+}
 
 final class _LanguageRepository implements LanguagePreferencesRepository {
   const _LanguageRepository();
@@ -566,7 +646,7 @@ final _routeCases = <_SettingsRouteCase>[
     matchesPage: (widget) => widget is NotificationSettingsPage,
   ),
   _SettingsRouteCase(
-    label: 'Subscriptions',
+    label: 'View subscription',
     location: '/profile/settings/subscriptions',
     matchesPage: (widget) => widget is SubscriptionPage,
   ),

@@ -13,7 +13,6 @@ import (
 
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/business"
-	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -26,6 +25,10 @@ func TestBusinessEligibilityDoesNotDependOnDeclaration(t *testing.T) {
 	recordMigration, err := testdb.ReadMigration("000062_business_records.up.sql")
 	if err != nil {
 		t.Fatalf("read business record migration: %v", err)
+	}
+	subscriptionMigration, err := testdb.ReadMigration("000076_subscription_accounts.up.sql")
+	if err != nil {
+		t.Fatal(err)
 	}
 	pool := testdb.WithSchema(t, `
 		CREATE TABLE owner_lifecycles (
@@ -55,7 +58,7 @@ func TestBusinessEligibilityDoesNotDependOnDeclaration(t *testing.T) {
 			expires_at TIMESTAMPTZ,
 			indexed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 		);
-	`+string(accountMigration)+string(recordMigration))
+	`+string(accountMigration)+string(recordMigration)+string(subscriptionMigration))
 
 	ctx := context.Background()
 	owner := syntax.DID("did:plc:owner")
@@ -75,6 +78,7 @@ func TestBusinessEligibilityDoesNotDependOnDeclaration(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_account_types(owner_did, account_type) VALUES ($1, 'business')`, owner); err != nil {
 		t.Fatalf("seed business account type: %v", err)
 	}
+	seedBusinessTestLicense(t, pool, owner)
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO craftsky_business_events
 			(uri, owner_did, rkey, cid, raw_record, source_revision, starts_at, ends_at, created_at, status)
@@ -99,9 +103,6 @@ func TestBusinessEligibilityDoesNotDependOnDeclaration(t *testing.T) {
 		fakeResolver{handleFor: "owner.test"},
 		nilLogger(),
 	)
-	accountTypeHandler := businessAccountTypeHandler(store, owner, businessLifecycleReader{
-		owner: {Owner: owner, State: ownerlifecycle.StateActive, Generation: 1},
-	})
 
 	assertBusinessEligibilityState(t, profileHandler, store, owner, visitor, rkey, asOf, "business", false, true)
 
@@ -125,9 +126,8 @@ func TestBusinessEligibilityDoesNotDependOnDeclaration(t *testing.T) {
 	}
 	assertBusinessEligibilityState(t, profileHandler, store, owner, visitor, rkey, asOf, "business", true, true)
 
-	response = serveBusinessAccountType(accountTypeHandler, `{"accountType":"regular"}`, true)
-	if response.Code != http.StatusOK {
-		t.Fatalf("set regular status=%d body=%s", response.Code, response.Body.String())
+	if _, err := pool.Exec(ctx, `UPDATE provider_subscriptions SET gives_access=false WHERE id=(SELECT provider_subscription_id FROM billing_licenses WHERE assigned_did=$1)`, owner); err != nil {
+		t.Fatal(err)
 	}
 	assertBusinessEligibilityState(t, profileHandler, store, owner, visitor, rkey, asOf, "regular", false, false)
 	assertBusinessProjectionRowCounts(t, pool, owner, 1, 1)
@@ -144,9 +144,8 @@ func TestBusinessEligibilityDoesNotDependOnDeclaration(t *testing.T) {
 	}
 	assertBusinessEligibilityState(t, profileHandler, store, owner, visitor, rkey, asOf, "regular", false, false)
 
-	response = serveBusinessAccountType(accountTypeHandler, `{"accountType":"business"}`, true)
-	if response.Code != http.StatusOK {
-		t.Fatalf("restore business status=%d body=%s", response.Code, response.Body.String())
+	if _, err := pool.Exec(ctx, `UPDATE provider_subscriptions SET gives_access=true WHERE id=(SELECT provider_subscription_id FROM billing_licenses WHERE assigned_did=$1)`, owner); err != nil {
+		t.Fatal(err)
 	}
 	assertBusinessEligibilityState(t, profileHandler, store, owner, visitor, rkey, asOf, "business", false, true)
 	assertBusinessProjectionRowCounts(t, pool, owner, 0, 1)

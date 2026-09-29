@@ -3,32 +3,24 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('REG-001 existing feature areas contain no paid-tier gates', () {
-    for (final area in const [
-      'feed',
-      'profile',
-      'drafts',
-      'saved_posts',
-      'scheduled_posts',
-      'business',
+  test('REG-002 feed and search ranking remain independent of paid tier', () {
+    for (final fileName in const [
+      'lib/feed/providers/timeline_provider.dart',
+      'lib/search/providers/post_search_provider.dart',
+      'lib/search/providers/project_search_provider.dart',
+      'lib/search/providers/profile_search_provider.dart',
     ]) {
-      final files = Directory('lib/$area')
-          .listSync(recursive: true)
-          .whereType<File>()
-          .where((file) => file.path.endsWith('.dart'));
-      for (final file in files) {
-        final source = file.readAsStringSync();
-        expect(
-          source,
-          isNot(contains('SubscriptionTier.')),
-          reason: '${file.path} must not gate existing behavior by paid tier',
-        );
-        expect(
-          source,
-          isNot(contains('/subscriptions/')),
-          reason: '${file.path} must not depend on subscription implementation',
-        );
-      }
+      final source = File(fileName).readAsStringSync();
+      expect(
+        source,
+        isNot(contains('SubscriptionTier.')),
+        reason: '$fileName must not sort by paid tier',
+      );
+      expect(
+        source,
+        isNot(contains('/subscriptions/')),
+        reason: '$fileName must not depend on billing',
+      );
     }
   });
 

@@ -109,7 +109,6 @@ func TestRouteInventoryAndV1PoliciesStayExact(t *testing.T) {
 		"GET /v1/profiles/me/mutes",
 		"GET /v1/profiles/me/blocks",
 		"POST /v1/profiles/{handleOrDid}/reports",
-		"PUT /v1/profiles/me/account-type",
 		"PUT /v1/profiles/me/business",
 		"DELETE /v1/profiles/me/business",
 		"GET /v1/profiles/{handleOrDid}/events",
