@@ -198,7 +198,7 @@ func TestCreatePostCarriesDirectedOwnersIntoDurableFenceResolution(t *testing.T)
 	}{
 		{
 			name: "quote",
-			body: `{"text":"quote","embed":{"quote":{"uri":"at://did:plc:bob/social.craftsky.feed.post/post1","cid":"bafyPost"}}}`,
+			body: `{"text":"quote","sponsored":false,"embed":{"quote":{"uri":"at://did:plc:bob/social.craftsky.feed.post/post1","cid":"bafyPost"}}}`,
 			store: &fakePostStore{shareTarget: &api.ShareTargetRef{
 				URI: "at://did:plc:bob/social.craftsky.feed.post/post1", CID: "bafyPost",
 			}},
@@ -206,13 +206,13 @@ func TestCreatePostCarriesDirectedOwnersIntoDurableFenceResolution(t *testing.T)
 		},
 		{
 			name:        "reply parent and root",
-			body:        `{"text":"reply","reply":{"root":{"uri":"at://did:plc:carol/social.craftsky.feed.post/root","cid":"bafyRoot"},"parent":{"uri":"at://did:plc:bob/social.craftsky.feed.post/parent","cid":"bafyParent"}}}`,
+			body:        `{"text":"reply","sponsored":false,"reply":{"root":{"uri":"at://did:plc:carol/social.craftsky.feed.post/root","cid":"bafyRoot"},"parent":{"uri":"at://did:plc:bob/social.craftsky.feed.post/parent","cid":"bafyParent"}}}`,
 			store:       &fakePostStore{},
 			wantTargets: []syntax.DID{"did:plc:bob", "did:plc:carol"},
 		},
 		{
 			name:        "mention",
-			body:        `{"text":"@bob.example","facets":[{"index":{"byteStart":0,"byteEnd":12},"features":[{"$type":"app.bsky.richtext.facet#mention","did":"did:plc:bob"}]}]}`,
+			body:        `{"text":"@bob.example","sponsored":false,"facets":[{"index":{"byteStart":0,"byteEnd":12},"features":[{"$type":"app.bsky.richtext.facet#mention","did":"did:plc:bob"}]}]}`,
 			store:       &fakePostStore{},
 			wantTargets: []syntax.DID{"did:plc:bob"},
 		},
@@ -229,7 +229,6 @@ func TestCreatePostCarriesDirectedOwnersIntoDurableFenceResolution(t *testing.T)
 			handler := api.CreatePostHandler(test.store, func(context.Context, syntax.DID, string) (pdseffects.EffectExecutor, error) {
 				return executor, nil
 			}, fakeResolver{handleFor: "alice.example"}, api.DefaultMediaLimits(), nilLogger())
-			test.body = strings.Replace(test.body, `{"text":`, `{"sponsored":false,"text":`, 1)
 			request := httptest.NewRequest(http.MethodPost, "/v1/posts", strings.NewReader(test.body))
 			ctx := middleware.WithDID(request.Context(), owner)
 			ctx = middleware.WithOwnerGeneration(ctx, 9)

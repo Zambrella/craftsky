@@ -6,6 +6,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_uri.dart';
 import 'package:craftsky_app/feed/providers/delete_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
+import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
 import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
@@ -62,6 +63,12 @@ class ProfileCommentsTab extends ConsumerWidget {
         if (next.hasError) {
           context.showError(l10n.postLikeError);
           ref.read(toggleLikePostProvider.notifier).reset();
+        }
+      })
+      ..listen(toggleRepostPostProvider, (previous, next) {
+        if (next.hasError) {
+          context.showError(l10n.postRepostError);
+          ref.read(toggleRepostPostProvider.notifier).reset();
         }
       });
 
@@ -228,14 +235,7 @@ class _ProfileCommentsLoadedSlivers extends ConsumerWidget {
   ) async {
     final created = await showPostComposerSheet(context, replyTarget: post);
     if (created == null) return;
-    ref
-        .read(userCommentsProvider(did).notifier)
-        .replace(
-          post.copyWith(
-            replyCount: post.replyCount + 1,
-            viewerHasReplied: true,
-          ),
-        );
+    ref.invalidate(userCommentsProvider(did));
   }
 }
 

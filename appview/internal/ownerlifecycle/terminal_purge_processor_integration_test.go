@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -240,11 +241,13 @@ func TestTerminalPurgeProcessorDrainsPostDependentsWithinRowBudget(t *testing.T)
 	for index := 0; index < 5; index++ {
 		actor := fmt.Sprintf("did:plc:fanout-actor-%d", index)
 		if _, err := pool.Exec(ctx, `
-			INSERT INTO craftsky_likes(
-				uri,did,rkey,cid,subject_uri,subject_cid,record,created_at
-			) VALUES($1,$2,$3,$4,$5,'post-cid','{}',now())
-		`, fmt.Sprintf("at://%s/social.craftsky.feed.like/%d", actor, index),
-			actor, fmt.Sprint(index), fmt.Sprintf("like-cid-%d", index), postURI); err != nil {
+			INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'profile-cid')
+		`, actor); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := pool.Exec(ctx, `
+			INSERT INTO saved_posts(owner_did,post_uri,saved_at) VALUES($1,$2,now())
+		`, actor, postURI); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -259,15 +262,15 @@ func TestTerminalPurgeProcessorDrainsPostDependentsWithinRowBudget(t *testing.T)
 	if result.RowsAffected != 2 || result.Complete {
 		t.Fatalf("post fan-out first batch=%+v, want two dependents and pending parent", result)
 	}
-	var posts, likes int
+	var posts, saves int
 	if err := pool.QueryRow(ctx, `
 		SELECT (SELECT count(*)::int FROM craftsky_posts WHERE uri=$1),
-		       (SELECT count(*)::int FROM craftsky_likes WHERE subject_uri=$1)
-	`, postURI).Scan(&posts, &likes); err != nil {
+		       (SELECT count(*)::int FROM saved_posts WHERE post_uri=$1)
+	`, postURI).Scan(&posts, &saves); err != nil {
 		t.Fatal(err)
 	}
-	if posts != 1 || likes != 3 {
-		t.Fatalf("post/dependents after bounded batch=%d/%d, want 1/3", posts, likes)
+	if posts != 1 || saves != 3 {
+		t.Fatalf("post/dependents after bounded batch=%d/%d, want 1/3", posts, saves)
 	}
 }
 
@@ -391,6 +394,9 @@ func TestTerminalCascadeParentLockRejectsLateChildInsteadOfCascading(t *testing.
 	`, postURI, owner); err != nil {
 		t.Fatal(err)
 	}
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles(did,record_cid) VALUES('did:plc:late','late-profile')`); err != nil {
+		t.Fatal(err)
+	}
 	entry := terminalInventoryEntry(t, "craftsky_posts", "owner")
 	tx, err := pool.Begin(ctx)
 	if err != nil {
@@ -404,24 +410,20 @@ func TestTerminalCascadeParentLockRejectsLateChildInsteadOfCascading(t *testing.
 	if len(targets) != 1 {
 		t.Fatalf("locked parents=%d, want 1", len(targets))
 	}
+	var blockerXID string
+	if err := tx.QueryRow(ctx, `SELECT txid_current()::text`).Scan(&blockerXID); err != nil {
+		t.Fatal(err)
+	}
 
 	insertDone := make(chan error, 1)
 	go func() {
 		_, insertErr := pool.Exec(context.Background(), `
-			INSERT INTO craftsky_likes(
-				uri,did,rkey,cid,subject_uri,subject_cid,record,created_at
-			) VALUES(
-				'at://did:plc:late/social.craftsky.feed.like/1',
-				'did:plc:late','1','like-cid',$1,'post-cid','{}',now()
-			)
+			INSERT INTO saved_posts(owner_did,post_uri,saved_at)
+			VALUES('did:plc:late',$1,now())
 		`, postURI)
 		insertDone <- insertErr
 	}()
-	select {
-	case insertErr := <-insertDone:
-		t.Fatalf("late child insert did not wait for locked parent: %v", insertErr)
-	case <-time.After(100 * time.Millisecond):
-	}
+	waitForTransactionWaiter(t, pool, blockerXID)
 	if affected, err := deleteLockedTerminalRoleBatchTx(ctx, tx, entry, targets); err != nil {
 		t.Fatal(err)
 	} else if affected != 1 {
@@ -430,7 +432,7 @@ func TestTerminalCascadeParentLockRejectsLateChildInsteadOfCascading(t *testing.
 	if err := tx.Commit(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if insertErr := <-insertDone; insertErr == nil {
+	if insertErr := waitForTestResult(t, insertDone, "late child insert"); insertErr == nil {
 		t.Fatal("late child insert succeeded after its locked parent was deleted")
 	}
 }
@@ -439,7 +441,7 @@ func TestTerminalCascadeLockedChildFailsClosedWithoutParentCascade(t *testing.T)
 	pool, store, processor, owner, generation := newTerminalPurgeProcessorTest(t, 1)
 	ctx := context.Background()
 	postURI := syntax.ATURI("at://" + owner.String() + "/social.craftsky.feed.post/locked-child")
-	likeURI := "at://did:plc:locked/social.craftsky.feed.like/1"
+	saver := "did:plc:locked"
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO craftsky_posts(uri,did,rkey,cid,text,record,created_at)
 		VALUES($1,$2,'locked-child','post-cid','terminal row','{}',now())
@@ -447,10 +449,13 @@ func TestTerminalCascadeLockedChildFailsClosedWithoutParentCascade(t *testing.T)
 		t.Fatal(err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO craftsky_likes(
-			uri,did,rkey,cid,subject_uri,subject_cid,record,created_at
-		) VALUES($2,'did:plc:locked','1','like-cid',$1,'post-cid','{}',now())
-	`, postURI, likeURI); err != nil {
+		INSERT INTO craftsky_profiles(did,record_cid) VALUES($1,'locked-profile')
+	`, saver); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO saved_posts(owner_did,post_uri,saved_at) VALUES($1,$2,now())
+	`, saver, postURI); err != nil {
 		t.Fatal(err)
 	}
 	childTx, err := pool.Begin(ctx)
@@ -459,8 +464,8 @@ func TestTerminalCascadeLockedChildFailsClosedWithoutParentCascade(t *testing.T)
 	}
 	defer func() { _ = childTx.Rollback(context.Background()) }()
 	if _, err := childTx.Exec(ctx, `
-		SELECT 1 FROM craftsky_likes WHERE uri=$1 FOR UPDATE
-	`, likeURI); err != nil {
+		SELECT 1 FROM saved_posts WHERE owner_did=$1 AND post_uri=$2 FOR UPDATE
+	`, saver, postURI); err != nil {
 		t.Fatal(err)
 	}
 
@@ -470,15 +475,15 @@ func TestTerminalCascadeLockedChildFailsClosedWithoutParentCascade(t *testing.T)
 	if _, err := processor.ProcessClaim(ctx, claim); err == nil {
 		t.Fatal("terminal purge cascaded through a locked child instead of failing closed")
 	}
-	var posts, likes int
+	var posts, saves int
 	if err := pool.QueryRow(ctx, `
 		SELECT (SELECT count(*)::int FROM craftsky_posts WHERE uri=$1),
-		       (SELECT count(*)::int FROM craftsky_likes WHERE uri=$2)
-	`, postURI, likeURI).Scan(&posts, &likes); err != nil {
+		       (SELECT count(*)::int FROM saved_posts WHERE owner_did=$2 AND post_uri=$1)
+	`, postURI, saver).Scan(&posts, &saves); err != nil {
 		t.Fatal(err)
 	}
-	if posts != 1 || likes != 1 {
-		t.Fatalf("locked-child failure retained post/like=%d/%d, want 1/1", posts, likes)
+	if posts != 1 || saves != 1 {
+		t.Fatalf("locked-child failure retained post/save=%d/%d, want 1/1", posts, saves)
 	}
 }
 
@@ -787,11 +792,11 @@ func TestTerminalSourcePurgeHoldsTargetFenceThroughRestorationPromotion(t *testi
 		})
 		terminalized <- err
 	}()
-	select {
-	case err := <-terminalized:
-		t.Fatalf("target terminal transition crossed source restoration promotion: %v", err)
-	case <-time.After(100 * time.Millisecond):
+	key, err := FenceKey(target)
+	if err != nil {
+		t.Fatal(err)
 	}
+	waitForAdvisoryWaiter(t, pool, key)
 
 	if err := blocker.Rollback(ctx); err != nil {
 		t.Fatal(err)
@@ -856,7 +861,7 @@ func waitForExclusiveOwnerFence(t *testing.T, pool *pgxpool.Pool, owner syntax.D
 		if time.Now().After(deadline) {
 			t.Fatal("terminal purge did not acquire source owner fence")
 		}
-		time.Sleep(5 * time.Millisecond)
+		runtime.Gosched()
 	}
 }
 

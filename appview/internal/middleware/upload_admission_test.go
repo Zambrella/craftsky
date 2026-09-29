@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -80,7 +81,7 @@ func TestUploadBodyAdmissionBoundsWaiters(t *testing.T) {
 	<-entered
 	deadline := time.Now().Add(time.Second)
 	for len(admission.waiters) != 1 && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
+		runtime.Gosched()
 	}
 	if waiting := len(admission.waiters); waiting != 1 {
 		t.Fatalf("bounded waiters = %d, want 1", waiting)

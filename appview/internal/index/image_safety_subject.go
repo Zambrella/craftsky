@@ -10,6 +10,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"social.craftsky/appview/internal/imagesafety"
+	"social.craftsky/appview/internal/ingestion"
 	craftskylex "social.craftsky/appview/internal/lexicon/craftsky"
 	"social.craftsky/appview/internal/tap"
 )
@@ -34,7 +35,8 @@ func NewImageSafetyCraftskyBusinessProfile(next TransactionalIndexer, key images
 	return &imageSafetySubject{next: next, key: key, kind: "business_profile", extract: extractBusinessProfileImages}
 }
 
-func (projector *imageSafetySubject) Project(ctx context.Context, tx pgx.Tx, event tap.Event) (tap.Outcome, error) {
+func (projector *imageSafetySubject) Project(ctx context.Context, tx pgx.Tx, source ingestion.SourceRecord) (tap.Outcome, error) {
+	event := eventFromSource(source)
 	if tx == nil {
 		return tap.Retryable(tap.ReasonProjectionFailure), fmt.Errorf("image safety projection requires a transaction")
 	}
@@ -42,7 +44,7 @@ func (projector *imageSafetySubject) Project(ctx context.Context, tx pgx.Tx, eve
 		if _, err := tx.Exec(ctx, `DELETE FROM image_subject_states WHERE subject_uri=$1`, event.URI); err != nil {
 			return tap.Retryable(tap.ReasonProjectionFailure), fmt.Errorf("delete image subject state %s: %w", event.URI, err)
 		}
-		return projector.next.Project(ctx, tx, event)
+		return projector.next.Project(ctx, tx, source)
 	}
 	if projector.key.ScannerID == "" || projector.key.PolicyVersion == "" || projector.key.CorpusVersion == "" {
 		return tap.Retryable(tap.ReasonProjectionFailure), fmt.Errorf("image safety scan identity is incomplete")
@@ -100,7 +102,7 @@ func (projector *imageSafetySubject) Project(ctx context.Context, tx pgx.Tx, eve
 	`, event.URI, event.CID); err != nil {
 		return tap.Retryable(tap.ReasonProjectionFailure), fmt.Errorf("clear image subject %s: %w", event.URI, err)
 	}
-	return projector.next.Project(ctx, tx, event)
+	return projector.next.Project(ctx, tx, source)
 }
 
 func extractBusinessEventImages(raw json.RawMessage) ([]imageRequirement, error) {

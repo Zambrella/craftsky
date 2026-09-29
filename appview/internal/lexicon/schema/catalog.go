@@ -9,28 +9,36 @@ import (
 	indigolexicon "github.com/bluesky-social/indigo/atproto/lexicon"
 )
 
-//go:embed business/*.json
-var businessSchemas embed.FS
+//go:embed actor/*.json business/*.json
+var craftskySchemas embed.FS
 
-var businessCatalog = func() *indigolexicon.BaseCatalog {
+var craftskyCatalog = func() *indigolexicon.BaseCatalog {
 	catalog := indigolexicon.NewBaseCatalog()
-	if err := catalog.LoadEmbedFS(businessSchemas); err != nil {
-		panic(fmt.Sprintf("load embedded business lexicons: %v", err))
+	if err := catalog.LoadEmbedFS(craftskySchemas); err != nil {
+		panic(fmt.Sprintf("load embedded Craftsky lexicons: %v", err))
 	}
 	return catalog
 }()
 
 func ValidateBusinessRecord(raw json.RawMessage, nsid string) error {
+	return validateRecord(raw, nsid, "business")
+}
+
+func ValidateCraftskyRecord(raw json.RawMessage, nsid string) error {
+	return validateRecord(raw, nsid, "Craftsky")
+}
+
+func validateRecord(raw json.RawMessage, nsid, kind string) error {
 	decoded, err := atdata.UnmarshalJSON(raw)
 	if err != nil {
-		return fmt.Errorf("decode business record: %w", err)
+		return fmt.Errorf("decode %s record: %w", kind, err)
 	}
 	record := decoded
 	if record == nil {
-		return fmt.Errorf("decode business record: expected object")
+		return fmt.Errorf("decode %s record: expected object", kind)
 	}
 	if _, ok := record["$type"]; !ok {
 		record["$type"] = nsid
 	}
-	return indigolexicon.ValidateRecord(businessCatalog, record, nsid, 0)
+	return indigolexicon.ValidateRecord(craftskyCatalog, record, nsid, 0)
 }

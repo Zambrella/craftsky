@@ -1,10 +1,16 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
+import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/providers/follow_profile_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_reconciliation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'toggle_follow_profile_provider.g.dart';
@@ -19,43 +25,69 @@ class ToggleFollowProfile extends _$ToggleFollowProfile {
     required Profile profile,
   }) async {
     final ownership = captureActiveAccountOperation(ref);
-    final optimistic = profile.copyWith(
-      viewerIsFollowing: !profile.viewerIsFollowing,
-      followerCount: _optimisticFollowerCount(profile),
+    final desiredFollowing = !profile.viewerIsFollowing;
+    final endpoint = '/v1/profiles/@$cacheKey/follows';
+    final immutableBody = desiredFollowing ? 'POST\n' : 'DELETE\n';
+    final controller = ref.read(pdsRecordOperationControllerProvider);
+    final scope = followProfileMutationScope(ref, cacheKey);
+    final token = controller.beginOrRetry(
+      scope: scope,
+      endpoint: endpoint,
+      immutableBody: immutableBody,
+      newOperationKey: newPdsMutationOperationKey,
     );
+    final operationKey = token.operationKey;
 
-    if (ref.exists(userProfileProvider(cacheKey))) {
-      ref.read(userProfileProvider(cacheKey).notifier).setCached(optimistic);
-    }
-
-    state = const AsyncLoading();
+    state = const AsyncLoading<Profile?>();
+    late final Profile updated;
     try {
-      final repo = ref.read(profileRepositoryProvider);
-      final updated = profile.viewerIsFollowing
-          ? await repo.unfollow(cacheKey)
-          : await repo.follow(cacheKey);
-      if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-      if (ref.exists(userProfileProvider(cacheKey))) {
-        ref.read(userProfileProvider(cacheKey).notifier).setCached(updated);
-      }
-      state = AsyncData(updated);
+      updated = await runPdsMutation<Profile>(
+        ref: ref,
+        controller: controller,
+        token: token,
+        isCurrent: () => isActiveAccountOperationCurrent(ref, ownership),
+        send: () async {
+          final repo = ref.read(profileRepositoryProvider);
+          return desiredFollowing
+              ? await repo.follow(cacheKey, operationKey: operationKey)
+              : await repo.unfollow(cacheKey, operationKey: operationKey);
+        },
+      );
+    } on PdsMutationObsoleteException {
+      return;
+    } on PdsMutationUnresolvedException catch (error, stackTrace) {
+      state = AsyncError<Profile?>(error, stackTrace);
+      return;
     } on Object catch (error, stackTrace) {
       if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-      if (ref.exists(userProfileProvider(cacheKey))) {
-        ref.read(userProfileProvider(cacheKey).notifier).setCached(profile);
-      }
-      state = AsyncError(error, stackTrace);
+      controller.markFailed(token);
+      state = AsyncError<Profile?>(error, stackTrace);
+      return;
     }
-  }
 
-  int? _optimisticFollowerCount(Profile profile) {
-    final count = profile.followerCount;
-    if (count == null || !profile.isCraftskyProfile) return count;
-    if (profile.viewerIsFollowing) {
-      return count > 0 ? count - 1 : 0;
+    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+    final reconciliation = PdsSetReconciliation(active: desiredFollowing);
+    if (!controller.markAccepted(
+      token,
+      optimisticValue: desiredFollowing,
+      agrees: (value) => value is bool && reconciliation.agrees(value),
+      refresh: () => invalidateFollowProfileReads(ref, cacheKey),
+    )) {
+      return;
     }
-    return count + 1;
+    state = AsyncData<Profile?>(updated);
   }
 
   void reset() => state = const AsyncData(null);
+}
+
+void invalidateFollowProfileReads(Ref ref, Did targetDid) {
+  if (!ref.mounted) return;
+  final selfDid = ref.read(sessionRegistryProvider).value?.activeDid;
+  ref
+    ..invalidate(userProfileProvider(targetDid))
+    ..invalidate(timelineProvider);
+  if (selfDid != null && selfDid != targetDid) {
+    ref.invalidate(userProfileProvider(selfDid));
+  }
 }

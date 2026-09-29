@@ -2,6 +2,7 @@ package ingestion
 
 import (
 	"errors"
+	"slices"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
 )
@@ -13,6 +14,24 @@ type RepositorySnapshotRecord struct {
 	URI    syntax.ATURI
 	CID    syntax.CID
 	Record []byte
+}
+
+func (snapshot VerifiedRepositorySnapshot) Collection(
+	did syntax.DID,
+	collection syntax.NSID,
+) (syntax.CID, []RepositorySnapshotRecord, error) {
+	if snapshot.verified == nil || snapshot.verified.did != did {
+		return "", nil, ErrRepositorySnapshotUnverified
+	}
+	records := make([]RepositorySnapshotRecord, 0)
+	for _, record := range snapshot.verified.records {
+		if record.URI.Collection() != collection {
+			continue
+		}
+		record.Record = slices.Clone(record.Record)
+		records = append(records, record)
+	}
+	return snapshot.verified.root, records, nil
 }
 
 // VerifiedRepositorySnapshot can only receive its verification marker from the

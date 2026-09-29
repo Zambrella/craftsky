@@ -83,6 +83,12 @@ class _FeedPageState extends ConsumerState<FeedPage> {
           context.showError(l10n.postLikeError);
           ref.read(toggleLikePostProvider.notifier).reset();
         }
+      })
+      ..listen(toggleRepostPostProvider, (previous, next) {
+        if (next.hasError) {
+          context.showError(l10n.postRepostError);
+          ref.read(toggleRepostPostProvider.notifier).reset();
+        }
       });
     return Scaffold(
       floatingActionButton: isCompact
@@ -290,14 +296,7 @@ class _FeedLoadedSlivers extends ConsumerWidget {
   ) async {
     final created = await showPostComposerSheet(context, replyTarget: post);
     if (created == null || !context.mounted) return;
-    ref
-        .read(timelineProvider.notifier)
-        .replace(
-          post.copyWith(
-            replyCount: post.replyCount + 1,
-            viewerHasReplied: true,
-          ),
-        );
+    ref.invalidate(timelineProvider);
     await PostThreadRoute(
       did: post.author.did,
       rkey: post.rkey,

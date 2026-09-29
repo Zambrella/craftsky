@@ -3,9 +3,6 @@ package db_test
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
-	"strings"
 	"testing"
 	"time"
 
@@ -19,11 +16,11 @@ import (
 func TestInstagramImportMigrationUpDownUp(t *testing.T) {
 	t.Parallel()
 
-	up, err := os.ReadFile("../../migrations/000032_instagram_post_imports.up.sql")
+	up, err := testdb.ReadMigration("000032_instagram_post_imports.up.sql")
 	if err != nil {
 		t.Fatalf("read up migration: %v", err)
 	}
-	down, err := os.ReadFile("../../migrations/000032_instagram_post_imports.down.sql")
+	down, err := testdb.ReadMigration("000032_instagram_post_imports.down.sql")
 	if err != nil {
 		t.Fatalf("read down migration: %v", err)
 	}
@@ -45,21 +42,19 @@ func TestInstagramImportMigrationUpDownUp(t *testing.T) {
 	)); err != nil {
 		t.Fatalf("include extension schema in migration search path: %v", err)
 	}
-	migrationPaths, err := filepath.Glob("../../migrations/*.up.sql")
+	migrationNames, err := testdb.UpMigrationNames()
 	if err != nil {
 		t.Fatalf("list predecessor migrations: %v", err)
 	}
-	for _, path := range migrationPaths {
-		if strings.HasPrefix(filepath.Base(path), "000032_") {
+	predecessors := make([]string, 0, len(migrationNames))
+	for _, name := range migrationNames {
+		if name >= "000032_" {
 			break
 		}
-		migration, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatalf("read predecessor migration %s: %v", path, err)
-		}
-		if _, err := conn.Exec(ctx, string(migration)); err != nil {
-			t.Fatalf("apply predecessor migration %s: %v", path, err)
-		}
+		predecessors = append(predecessors, name)
+	}
+	if err := testdb.ApplyMigrations(ctx, conn, predecessors...); err != nil {
+		t.Fatalf("apply predecessor migrations: %v", err)
 	}
 	if _, err := conn.Exec(ctx, `
 		INSERT INTO craftsky_posts (

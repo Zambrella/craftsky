@@ -88,7 +88,6 @@ extension ModerationReasonMapperExtension on ModerationReason {
     return MapperContainer.globals.toValue<ModerationReason>(this);
   }
 }
-
 class ModerationEffectTypeMapper extends EnumMapper<ModerationEffectType> {
   ModerationEffectTypeMapper._();
 

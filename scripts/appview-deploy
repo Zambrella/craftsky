@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+die() {
+  printf 'error: %s\n' "$*" >&2
+  exit 1
+}
+
+require_command() {
+  command -v "$1" >/dev/null 2>&1 || die "required command not found: $1"
+}
+
+[[ $# == 1 ]] || die "usage: scripts/appview-deploy prod-vX.Y.Z"
+tag=$1
+[[ "$tag" =~ ^prod-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] || die "invalid AppView release tag: $tag"
+version=${tag#prod-v}
+
+require_command git
+require_command curl
+require_command jq
+: "${RENDER_API_KEY:?Set RENDER_API_KEY to deploy AppView.}"
+: "${RENDER_SERVICE_ID:?Set RENDER_SERVICE_ID to deploy AppView.}"
+
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null) || die "not inside a Git repository"
+cd "$repo_root"
+[[ -z $(git status --porcelain) ]] || die "working tree must be clean"
+git fetch origin '+refs/heads/main:refs/remotes/origin/main'
+git fetch origin --tags
+git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1 || die "remote tag not found: $tag"
+tag_commit=$(git rev-parse "$tag^{commit}") || die "local tag not found after fetch: $tag"
+remote_tag_commit=$(git ls-remote origin "refs/tags/$tag^{}" | awk '{print $1}')
+[[ "$remote_tag_commit" == "$tag_commit" ]] || die "remote tag $tag does not resolve to expected commit"
+git merge-base --is-ancestor "$tag_commit" origin/main || die "$tag is not present on remote main"
+configured=$(git show "$tag_commit:appview/VERSION" | tr -d '\n')
+[[ "$configured" == "$version" ]] || die "$tag does not match tagged appview/VERSION $configured"
+
+api_base=${RENDER_API_BASE:-https://api.render.com/v1}
+public_origin=${APPVIEW_PUBLIC_ORIGIN:-https://appview.craftsky.social}
+poll_attempts=${RENDER_DEPLOY_POLL_ATTEMPTS:-180}
+health_attempts=${APPVIEW_HEALTH_ATTEMPTS:-60}
+poll_sleep=${RENDER_DEPLOY_POLL_SLEEP_SECONDS:-10}
+health_sleep=${APPVIEW_HEALTH_SLEEP_SECONDS:-10}
+[[ "$poll_attempts" =~ ^[1-9][0-9]*$ ]] || die "RENDER_DEPLOY_POLL_ATTEMPTS must be positive"
+[[ "$health_attempts" =~ ^[1-9][0-9]*$ ]] || die "APPVIEW_HEALTH_ATTEMPTS must be positive"
+[[ "$poll_sleep" =~ ^[0-9]+$ ]] || die "RENDER_DEPLOY_POLL_SLEEP_SECONDS must be nonnegative"
+[[ "$health_sleep" =~ ^[0-9]+$ ]] || die "APPVIEW_HEALTH_SLEEP_SECONDS must be nonnegative"
+
+printf 'Deploy AppView %s at %s to Render? [y/N] ' "$tag" "$tag_commit" >&2
+read -r response
+[[ "$response" == y || "$response" == Y ]] || die "deployment cancelled"
+
+git fetch origin '+refs/heads/main:refs/remotes/origin/main'
+git fetch origin --tags
+[[ $(git rev-parse "$tag^{commit}") == "$tag_commit" ]] || die "$tag moved while awaiting confirmation"
+remote_tag_commit=$(git ls-remote origin "refs/tags/$tag^{}" | awk '{print $1}')
+[[ "$remote_tag_commit" == "$tag_commit" ]] || die "remote tag $tag disappeared or moved while awaiting confirmation"
+git merge-base --is-ancestor "$tag_commit" origin/main || die "$tag is no longer present on remote main"
+
+auth_header="Authorization: Bearer ${RENDER_API_KEY}"
+request_body=$(jq --null-input --arg commit "$tag_commit" '{commitId: $commit, clearCache: "do_not_clear"}')
+deploy=$(curl --fail-with-body --silent --show-error \
+  --request POST \
+  --header "$auth_header" \
+  --header 'Accept: application/json' \
+  --header 'Content-Type: application/json' \
+  --data "$request_body" \
+  "$api_base/services/$RENDER_SERVICE_ID/deploys")
+deploy_id=$(jq --exit-status --raw-output '.id' <<<"$deploy")
+printf 'Triggered Render deploy %s for commit %s\n' "$deploy_id" "$tag_commit"
+
+attempt=1
+while (( attempt <= poll_attempts )); do
+  deploy=$(curl --fail-with-body --silent --show-error \
+    --header "$auth_header" \
+    --header 'Accept: application/json' \
+    "$api_base/services/$RENDER_SERVICE_ID/deploys/$deploy_id")
+  status=$(jq --exit-status --raw-output '.status' <<<"$deploy")
+  deployed_commit=$(jq --raw-output '.commit.id // empty' <<<"$deploy")
+  if [[ -n "$deployed_commit" && "$deployed_commit" != "$tag_commit" ]]; then
+    die "Render deploy $deploy_id resolved to commit $deployed_commit, expected $tag_commit"
+  fi
+  case "$status" in
+    live)
+      [[ "$deployed_commit" == "$tag_commit" ]] || die "live Render deploy $deploy_id did not report expected commit $tag_commit"
+      break
+      ;;
+    created|queued|build_in_progress|pre_deploy_in_progress|update_in_progress)
+      ;;
+    build_failed|pre_deploy_failed|update_failed|canceled|deactivated)
+      die "Render deploy $deploy_id ended with status $status"
+      ;;
+    *) die "Render deploy $deploy_id returned unknown status $status" ;;
+  esac
+  (( attempt < poll_attempts )) && sleep "$poll_sleep"
+  attempt=$((attempt + 1))
+done
+[[ "$status" == live ]] || die "Render deploy $deploy_id did not finish after $poll_attempts polls"
+
+curl --fail --silent --show-error --max-time 10 --retry 12 --retry-delay 5 "$public_origin/health" >/dev/null
+attempt=1
+health=""
+while (( attempt <= health_attempts )); do
+  if health=$(curl --fail --silent --show-error --max-time 10 "$public_origin/healthz") && \
+    jq --exit-status '
+      .db == "ok" and
+      .tap.connected == true and
+      (.tap.last_event_at == "" or ((now - (.tap.last_event_at | fromdateiso8601)) as $age | $age >= 0 and $age < 900))
+    ' <<<"$health" >/dev/null; then
+    break
+  fi
+  health=""
+  (( attempt < health_attempts )) && sleep "$health_sleep"
+  attempt=$((attempt + 1))
+done
+[[ -n "$health" ]] || die "AppView did not reach full production health after $health_attempts polls"
+
+migration=$(git ls-tree -r --name-only "$tag_commit" appview/migrations | awk '/\.up\.sql$/ { value=$0 } END { print value }')
+migration=${migration##*/}
+migration=${migration%.up.sql}
+printf 'AppView deployment succeeded.\n'
+printf '  Tag: %s\n' "$tag"
+printf '  Commit: %s\n' "$tag_commit"
+printf '  Render deploy: %s\n' "$deploy_id"
+printf '  Target migration: %s\n' "$migration"
+printf '  Health: %s\n' "$health"

@@ -124,34 +124,13 @@ class _PostThreadPageState extends ConsumerState<PostThreadPage> {
         if (next.hasError) {
           context.showError(l10n.postLikeError);
           ref.read(toggleLikePostProvider.notifier).reset();
-          return;
         }
-        final post = next.value;
-        if (post == null) return;
-        ref
-            .read(
-              postCommentSectionProvider(
-                widget.did,
-                widget.rkey,
-                sort: _sort,
-                focus: widget.focus,
-              ).notifier,
-            )
-            .replacePost(post);
       })
       ..listen(toggleRepostPostProvider, (previous, next) {
-        final post = next.value;
-        if (post == null) return;
-        ref
-            .read(
-              postCommentSectionProvider(
-                widget.did,
-                widget.rkey,
-                sort: _sort,
-                focus: widget.focus,
-              ).notifier,
-            )
-            .replacePost(post);
+        if (next.hasError) {
+          context.showError(l10n.postRepostError);
+          ref.read(toggleRepostPostProvider.notifier).reset();
+        }
       });
     return Scaffold(
       appBar: AppBar(title: Text(l10n.postThreadTitle)),

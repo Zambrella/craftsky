@@ -19,7 +19,6 @@ import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/providers/account_type_controller.dart';
 import 'package:craftsky_app/business/providers/business_event_detail_provider.dart';
 import 'package:craftsky_app/business/providers/business_event_mutation_controller.dart';
-import 'package:craftsky_app/business/providers/business_projection_overlay_provider.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
 import 'package:craftsky_app/business/providers/owner_business_events_provider.dart';
 import 'package:craftsky_app/business/providers/products_controller.dart';
@@ -45,48 +44,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   setUpAll(initializeMappers);
-
-  test('AT-011 account boundary advances overlays before invalidation', () {
-    final container = ProviderContainer.test();
-    final controller = container.read(
-      businessProjectionOverlayProvider.notifier,
-    );
-    final lease = AccountSessionLease(
-      account: AccountKey('did:plc:alice'),
-      sessionGeneration: 1,
-    );
-    final key = BusinessProjectionKey.event(
-      lease.account,
-      Did.parse('did:plc:alice'),
-      RecordKey.parse('alice-event'),
-    );
-    final pendingGeneration = controller.beginMutation(key, lease);
-    final staleRead = controller.captureRead(lease);
-    controller
-      ..acceptUpsert(
-        key: key,
-        lease: lease,
-        requestGeneration: pendingGeneration,
-        preWriteCid: Cid.parse('bafy-alice-before'),
-        acceptedCid: Cid.parse('bafy-alice-accepted'),
-        acceptedView: 'Alice accepted event',
-      )
-      ..advanceAccountBoundary();
-
-    expect(container.read(businessProjectionOverlayProvider), isEmpty);
-    expect(controller.isReadCurrent(staleRead), isFalse);
-    expect(
-      controller.acceptUpsert(
-        key: key,
-        lease: lease,
-        requestGeneration: pendingGeneration,
-        preWriteCid: Cid.parse('bafy-alice-before'),
-        acceptedCid: Cid.parse('bafy-alice-late'),
-        acceptedView: 'Alice late event',
-      ),
-      isFalse,
-    );
-  });
 
   test(
     'IT-010 late Alice profile list detail values and errors never publish '
@@ -400,7 +357,6 @@ void main() {
         container.read(businessEventMutationControllerProvider).status,
         EventMutationStatus.ready,
       );
-      expect(container.read(businessProjectionOverlayProvider), isEmpty);
       expect(
         await container.read(accountTypeControllerProvider.future),
         AccountType.business,
@@ -445,7 +401,6 @@ void main() {
         container.read(businessEventMutationControllerProvider).status,
         EventMutationStatus.ready,
       );
-      expect(container.read(businessProjectionOverlayProvider), isEmpty);
       expect(repository.calls.where((call) => call.contains('bob')), isEmpty);
       expect(homeResets, 1);
 
@@ -695,6 +650,7 @@ final class _ReadProfileRepository extends Fake implements ProfileRepository {
 
   @override
   Future<Profile> updateMe({
+    required String operationKey,
     String? displayName,
     String? pronouns,
     String? description,
@@ -816,6 +772,7 @@ final class _MutationBusinessRepository extends Fake
   @override
   Future<RecordMutationResult> putBusinessProfile(
     Map<String, dynamic> body, {
+    required String operationKey,
     required Cid? expectedCid,
   }) {
     calls.add('profile:$expectedCid:${body['tagline']}');
@@ -828,8 +785,9 @@ final class _MutationBusinessRepository extends Fake
     Did owner,
     RecordKey rkey,
     Cid expectedCid,
-    BusinessEventDraft draft,
-  ) {
+    BusinessEventDraft draft, {
+    required String operationKey,
+  }) {
     calls.add('event:$owner:$rkey:$expectedCid:${draft.name}');
     return event.future;
   }

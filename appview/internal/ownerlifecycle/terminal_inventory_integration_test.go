@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"regexp"
 	"slices"
 	"sort"
@@ -306,11 +304,11 @@ func TestTerminalPurgeClassifiesEveryCascadingDIDParent(t *testing.T) {
 func TestTerminalPurgeRoleIndexesMigrationUpDownUp(t *testing.T) {
 	pool := testdb.WithSchema(t, "")
 	applyTerminalInventoryMigrationsBefore(t, pool, "000046_")
-	up, err := os.ReadFile("../../migrations/000046_terminal_purge_role_indexes.up.sql")
+	up, err := testdb.ReadMigration("000046_terminal_purge_role_indexes.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := os.ReadFile("../../migrations/000046_terminal_purge_role_indexes.down.sql")
+	down, err := testdb.ReadMigration("000046_terminal_purge_role_indexes.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -383,38 +381,38 @@ func applyAllTerminalInventoryMigrations(t *testing.T, pool *pgxpool.Pool) {
 
 func applyTerminalInventoryMigrationsBefore(t *testing.T, pool *pgxpool.Pool, stopBefore string) {
 	t.Helper()
-	entries, err := os.ReadDir("../../migrations")
+	names, err := testdb.UpMigrationNames()
 	if err != nil {
 		t.Fatal(err)
 	}
-	var migrations []string
-	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".up.sql") &&
-			(stopBefore == "" || entry.Name() < stopBefore) {
-			migrations = append(migrations, filepath.Join("../../migrations", entry.Name()))
+	for _, name := range names {
+		if stopBefore != "" && name >= stopBefore {
+			break
 		}
-	}
-	sort.Strings(migrations)
-	for _, path := range migrations {
-		sql, err := os.ReadFile(path)
+		sql, err := testdb.ReadMigration(name)
 		if err != nil {
 			t.Fatal(err)
 		}
-		switch filepath.Base(path) {
-		case "000019_search_foundation.up.sql":
-			sql = bytes.ReplaceAll(sql, []byte("gin_trgm_ops"), []byte("public.gin_trgm_ops"))
-		case "000024_saved_posts.up.sql":
-			sql = bytes.ReplaceAll(sql, []byte("ON DELETE SET NULL (folder_id)"), []byte("ON DELETE NO ACTION"))
-		case "000041_account_deletion_safety_tombstones.up.sql":
-			sql = bytes.ReplaceAll(sql, []byte("UNIQUE NULLS NOT DISTINCT ("), []byte("UNIQUE ("))
-			sql = append(sql, []byte(`
+		sql = adaptTerminalInventoryMigrationForPostgreSQL14(name, sql)
+		if _, err := pool.Exec(context.Background(), string(sql)); err != nil {
+			t.Fatalf("apply %s: %v", name, err)
+		}
+	}
+}
+
+func adaptTerminalInventoryMigrationForPostgreSQL14(name string, sql []byte) []byte {
+	switch name {
+	case "000019_search_foundation.up.sql":
+		sql = bytes.ReplaceAll(sql, []byte("gin_trgm_ops"), []byte("public.gin_trgm_ops"))
+	case "000024_saved_posts.up.sql":
+		sql = bytes.ReplaceAll(sql, []byte("ON DELETE SET NULL (folder_id)"), []byte("ON DELETE NO ACTION"))
+	case "000041_account_deletion_safety_tombstones.up.sql":
+		sql = bytes.ReplaceAll(sql, []byte("UNIQUE NULLS NOT DISTINCT ("), []byte("UNIQUE ("))
+		sql = append(sql, []byte(`
 				CREATE UNIQUE INDEX account_deletion_safety_tombstones_null_upload_terminal_inventory_idx
 					ON account_deletion_safety_tombstones(operation_id,kind,exact_key)
 					WHERE upload_generation IS NULL;
 			`)...)
-		}
-		if _, err := pool.Exec(context.Background(), string(sql)); err != nil {
-			t.Fatalf("apply %s: %v", filepath.Base(path), err)
-		}
 	}
+	return sql
 }

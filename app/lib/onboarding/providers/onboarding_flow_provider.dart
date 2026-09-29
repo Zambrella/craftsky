@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
@@ -7,9 +8,13 @@ import 'package:craftsky_app/onboarding/models/onboarding_flow_state.dart';
 import 'package:craftsky_app/onboarding/providers/onboarding_status_provider.dart';
 import 'package:craftsky_app/profile/data/profile_repository.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
-import 'package:craftsky_app/profile/providers/profile_cache_publication.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
+import 'package:craftsky_app/profile/providers/profile_record_overlay.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_reconciliation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -209,15 +214,50 @@ class OnboardingFlow extends _$OnboardingFlow {
         current,
         avatar: current.avatarBlob,
       );
-      final updated = await repository.updateMe(
-        displayName: payload.displayName,
-        pronouns: payload.pronouns,
-        description: payload.description,
-        crafts: payload.crafts,
-        avatar: payload.avatar,
+      const endpoint = '/v1/profiles/me';
+      final immutableBody = jsonEncode(_profileMutationBody(payload));
+      final controller = ref.read(pdsRecordOperationControllerProvider);
+      final token = controller.beginOrRetry(
+        scope: personalProfileMutationScope(
+          lease.session,
+          lease.session.account.did,
+        ),
+        endpoint: endpoint,
+        immutableBody: immutableBody,
+        newOperationKey: newPdsMutationOperationKey,
+      );
+      final operationKey = token.operationKey;
+      final updated = await _updateProfileWithRetry(
+        repository: repository,
+        payload: payload,
+        operationKey: operationKey,
+        endpoint: endpoint,
+        immutableBody: immutableBody,
+        controller: controller,
+        token: token,
       );
       if (!_isCurrent()) return;
-      publishProfileCache(ref, updated);
+      final projection = personalProfileProjection(updated);
+      final reconciliation = PdsCompoundProfileReconciliation(
+        bluesky: PdsFixedKeyReconciliation(
+          uri: projection.bluesky!.uri,
+          controlledContent: projection.bluesky!.content,
+        ),
+        craftsky: PdsFixedKeyReconciliation(
+          uri: projection.craftsky!.uri,
+          controlledContent: projection.craftsky!.content,
+        ),
+      );
+      if (!controller.markAccepted(
+        token,
+        optimisticValue: updated,
+        agrees: (value) => reconciliation.agrees(
+          value is PdsCompoundProfileProjection ? value : null,
+        ),
+        refresh: _invalidatePersonalProfileReads,
+      )) {
+        return;
+      }
       final saved = OnboardingFlowState.fromProfile(updated);
       final next = switch (current.step) {
         OnboardingStep.profile => saved.copyWith(
@@ -248,6 +288,63 @@ class OnboardingFlow extends _$OnboardingFlow {
         .completeOptimistically(meetsMinimumAge: true);
   }
 
+  Future<Profile> _updateProfileWithRetry({
+    required ProfileRepository repository,
+    required OnboardingProfilePayload payload,
+    required String operationKey,
+    required String endpoint,
+    required String immutableBody,
+    required PdsRecordOperationController controller,
+    required PdsMutationToken token,
+  }) async {
+    final startedAt = ref.read(pdsMutationNowProvider)();
+    var retryIndex = 0;
+    while (true) {
+      try {
+        return await repository.updateMe(
+          operationKey: operationKey,
+          displayName: payload.displayName,
+          pronouns: payload.pronouns,
+          description: payload.description,
+          crafts: payload.crafts,
+          avatar: payload.avatar,
+        );
+      } on PdsMutationAmbiguousException catch (error) {
+        if (!_isCurrent()) throw const _OnboardingMutationSuperseded();
+        controller.markAmbiguous(
+          token,
+          retryAfterSeconds: error.retryAfterSeconds,
+        );
+        final delay = const PdsMutationRetryPolicy().nextDelay(
+          retryIndex: retryIndex,
+          retryAfterSeconds: error.retryAfterSeconds,
+          elapsed: ref.read(pdsMutationNowProvider)().difference(startedAt),
+          jitterMillis: ref.read(pdsMutationJitterProvider),
+        );
+        if (delay == null) rethrow;
+        retryIndex++;
+        await ref.read(pdsMutationDelayProvider)(delay);
+        if (!_isCurrent() ||
+            !controller.canRetry(
+              token,
+              operationKey: operationKey,
+              endpoint: endpoint,
+              immutableBody: immutableBody,
+            )) {
+          throw const _OnboardingMutationSuperseded();
+        }
+      } on Object {
+        controller.markFailed(token);
+        rethrow;
+      }
+    }
+  }
+
+  void _invalidatePersonalProfileReads() {
+    if (!ref.mounted) return;
+    ref.invalidate(userProfileProvider);
+  }
+
   bool _isCurrent() =>
       ref.mounted &&
       ref.read(sessionRegistryProvider).value?.activeLease == lease;
@@ -257,4 +354,24 @@ class OnboardingFlow extends _$OnboardingFlow {
       (profile.pronouns?.isNotEmpty ?? false) ||
       (profile.description?.isNotEmpty ?? false) ||
       (profile.avatar?.isNotEmpty ?? false);
+}
+
+Map<String, dynamic> _profileMutationBody(
+  OnboardingProfilePayload payload,
+) => {
+  'displayName': payload.displayName,
+  'pronouns': payload.pronouns,
+  'description': payload.description,
+  'crafts': payload.crafts,
+  if (payload.avatar case final avatar?)
+    'avatar': {
+      r'$type': avatar.type,
+      'ref': {r'$link': avatar.ref.link},
+      'mimeType': avatar.mimeType,
+      'size': avatar.size,
+    },
+};
+
+final class _OnboardingMutationSuperseded implements Exception {
+  const _OnboardingMutationSuperseded();
 }

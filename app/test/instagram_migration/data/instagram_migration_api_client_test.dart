@@ -4,6 +4,7 @@ import 'package:craftsky_app/instagram_migration/models/instagram_import.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_suggestion.dart';
 import 'package:craftsky_app/instagram_migration/models/instagram_verification.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -288,7 +289,17 @@ void main() {
 
     test('IT-029 uses the private suggestion review wires', () async {
       const suggestionId = '80000000-0000-4000-8000-000000000001';
+      const operationKey = '018f47a5-1837-7ad1-8f6d-8e8d2a89c950';
       final dio = buildDio();
+      final requests = <RequestOptions>[];
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            requests.add(options);
+            handler.next(options);
+          },
+        ),
+      );
       DioAdapter(dio: dio)
         ..onGet(
           '/v1/migrations/instagram/suggestions',
@@ -326,7 +337,10 @@ void main() {
         limit: 20,
         cursor: 'synthetic-input-cursor',
       );
-      final accepted = await api.acceptSuggestion(suggestionId);
+      final accepted = await api.acceptSuggestion(
+        suggestionId,
+        operationKey: operationKey,
+      );
       await api.dismissSuggestion(suggestionId);
 
       expect(page.cursor, 'synthetic-opaque-cursor');
@@ -335,11 +349,80 @@ void main() {
       expect(page.items.single.target.handle, 'target.synthetic.invalid');
       expect(page.items.single.target.displayLabel, 'Synthetic Target');
       expect(accepted.state, InstagramSuggestionState.followed);
+      expect(
+        requests
+            .singleWhere((request) => request.path.endsWith('/accept'))
+            .headers['Idempotency-Key'],
+        operationKey,
+      );
       for (final value in [page, page.items.single, accepted]) {
         expect(value.toString(), isNot(contains(suggestionId)));
         expect(value.toString(), isNot(contains('target.synthetic.invalid')));
       }
     });
+
+    test('suggestion acceptance parses the shared ambiguous contract', () {
+      const suggestionId = '80000000-0000-4000-8000-000000000001';
+      final dio = buildDio();
+      DioAdapter(dio: dio).onPost(
+        '/v1/migrations/instagram/suggestions/$suggestionId/accept',
+        (server) => server.reply(
+          202,
+          {'status': 'ambiguous'},
+          headers: {
+            Headers.contentTypeHeader: [Headers.jsonContentType],
+            'Retry-After': ['9'],
+          },
+        ),
+      );
+
+      expect(
+        InstagramMigrationApiClient(dio).acceptSuggestion(
+          suggestionId,
+          operationKey: '018f47a5-1837-7ad1-8f6d-8e8d2a89c950',
+        ),
+        throwsA(
+          isA<PdsMutationAmbiguousException>().having(
+            (error) => error.retryAfterSeconds,
+            'retryAfterSeconds',
+            5,
+          ),
+        ),
+      );
+    });
+
+    test(
+      'suggestion acceptance keeps malformed success responses unresolved',
+      () async {
+        const suggestionId = '80000000-0000-4000-8000-000000000001';
+        const operationKey = '018f47a5-1837-7ad1-8f6d-8e8d2a89c950';
+        for (final body in <Object?>[
+          {
+            'suggestionId': suggestionId,
+            'state': 'followed',
+            'unexpected': true,
+          },
+          {'suggestionId': suggestionId, 'state': 'pending'},
+          {
+            'suggestionId': '80000000-0000-4000-8000-000000000002',
+            'state': 'followed',
+          },
+        ]) {
+          final dio = buildDio();
+          DioAdapter(dio: dio).onPost(
+            '/v1/migrations/instagram/suggestions/$suggestionId/accept',
+            (server) => server.reply(200, body),
+          );
+
+          await expectLater(
+            InstagramMigrationApiClient(
+              dio,
+            ).acceptSuggestion(suggestionId, operationKey: operationKey),
+            throwsA(isA<PdsMutationAmbiguousException>()),
+          );
+        }
+      },
+    );
 
     test('IT-014 discards malformed response excerpts', () async {
       const privateCanary = 'synthetic_private_timestamp_canary';

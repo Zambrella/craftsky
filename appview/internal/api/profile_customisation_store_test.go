@@ -2,7 +2,6 @@ package api_test
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -151,10 +150,10 @@ func profileCustomisationSchemaMigrations(t *testing.T) string {
 	t.Helper()
 	var migrations string
 	for _, path := range []string{
-		"../../migrations/000036_profile_customisation.up.sql",
-		"../../migrations/000070_profile_customisation_remove_border.up.sql",
+		"000036_profile_customisation.up.sql",
+		"000070_profile_customisation_remove_border.up.sql",
 	} {
-		migration, err := os.ReadFile(path)
+		migration, err := testdb.ReadMigration(path)
 		if err != nil {
 			t.Fatalf("read profile customisation migration %s: %v", path, err)
 		}

@@ -6,14 +6,18 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"slices"
+	"strings"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/pdseffects"
 )
 
@@ -51,9 +55,29 @@ type businessProfileImageBody struct {
 	AspectRatio *PostImageAspectRatio `json:"aspectRatio,omitempty"`
 }
 
-func PutBusinessProfileHandler(newEffects pdseffects.ExecutorFactory) http.Handler {
+type BusinessProfileHandlerOptions struct {
+	Commands       AddressedPutCommandExecutor
+	DeleteCommands AddressedDeleteCommandExecutor
+}
+
+func PutBusinessProfileHandler(
+	newEffects pdseffects.ExecutorFactory,
+	options ...BusinessProfileHandlerOptions,
+) http.Handler {
+	var commands AddressedPutCommandExecutor
+	if len(options) > 0 {
+		commands = options[0].Commands
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
+		operationKey := uuid.Nil
+		if commands != nil {
+			var ok bool
+			operationKey, ok = requireCommandOperationKey(w, r, runID)
+			if !ok {
+				return
+			}
+		}
 		expectedCID, err := ParseBusinessIfMatch(r)
 		if err != nil {
 			WritePDSRecordConflict(w, runID)
@@ -66,6 +90,51 @@ func PutBusinessProfileHandler(newEffects pdseffects.ExecutorFactory) http.Handl
 				status = http.StatusUnprocessableEntity
 			}
 			envelope.WriteError(w, status, fieldErr.Code, "invalid business profile", runID, fieldErr.Fields)
+			return
+		}
+		if commands != nil {
+			owner, ok := middleware.GetDID(r.Context())
+			if !ok {
+				envelope.WriteError(w, http.StatusInternalServerError, "missing_authenticated_did", "authenticated DID missing", runID, nil)
+				return
+			}
+			generation, ok := requirePDSEffectGeneration(w, r, runID)
+			if !ok {
+				return
+			}
+			sessionID, _ := middleware.GetOAuthSessionID(r.Context())
+			intent, err := json.Marshal(replacement)
+			if err != nil {
+				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "could not prepare business profile", runID, nil)
+				return
+			}
+			uri := syntax.ATURI("at://" + owner.String() + "/" + businessProfileNSID.String() + "/" + businessProfileRkey.String())
+			result, err := commands.Put(r.Context(), pdscommands.AddressedPutCommandRequest{
+				Owner: owner, OwnerGeneration: generation, SessionID: sessionID,
+				OperationKind: "business_profile.put", OperationKey: operationKey,
+				URI: uri, ExpectedCID: expectedCID, Intent: intent, Blobs: businessProfileBlobReferences(replacement),
+				BuildRecord: func(current pdscommands.AuthoritativeRecord) (json.RawMessage, error) {
+					replacementRaw, err := json.Marshal(replacement)
+					if err != nil {
+						return nil, err
+					}
+					if current.CID == "" && len(current.Record) == 0 {
+						return replacementRaw, nil
+					}
+					return business.MergeProfileReplacement(current.Record, replacementRaw)
+				},
+				Accepted: func(authoritative pdscommands.AuthoritativeRecord) (pdscommands.TerminalResult, error) {
+					return acceptedBusinessProfilePutResult(owner, authoritative)
+				},
+				Rejected: func(err error) pdscommands.TerminalResult {
+					return RejectedCommandResult(runID, err)
+				},
+			})
+			if err != nil {
+				WriteCommandError(w, runID, err)
+				return
+			}
+			WriteCommandResponse(w, CommandResultFromStored(result))
 			return
 		}
 		owner, generation, executor, expectedOwners, ok := businessProfileExecutor(w, r, runID, newEffects)
@@ -118,12 +187,120 @@ func PutBusinessProfileHandler(newEffects pdseffects.ExecutorFactory) http.Handl
 	})
 }
 
-func DeleteBusinessProfileHandler(newEffects pdseffects.ExecutorFactory) http.Handler {
+func acceptedBusinessProfilePutResult(
+	owner syntax.DID,
+	record pdscommands.AuthoritativeRecord,
+) (pdscommands.TerminalResult, error) {
+	uri, err := syntax.ParseATURI(record.URI.String())
+	if err != nil || uri.Authority().DID() != owner || uri.Collection() != businessProfileNSID ||
+		uri.RecordKey() != businessProfileRkey || record.CID == "" {
+		return pdscommands.TerminalResult{}, pdscommands.ErrMalformedCommand
+	}
+	body, err := json.Marshal(businessProfileResponse{CID: record.CID})
+	if err != nil {
+		return pdscommands.TerminalResult{}, err
+	}
+	return pdscommands.TerminalResult{
+		State: pdscommands.CommandAccepted, HTTPStatus: http.StatusOK, ResponseBody: body,
+	}, nil
+}
+
+func businessProfileBlobReferences(record map[string]any) []pdscommands.BlobReference {
+	var blobs []pdscommands.BlobReference
+	var walk func(any)
+	walk = func(value any) {
+		switch typed := value.(type) {
+		case []any:
+			for _, item := range typed {
+				walk(item)
+			}
+		case map[string]any:
+			if typed["$type"] == "blob" {
+				ref, _ := typed["ref"].(map[string]any)
+				cid, _ := ref["$link"].(string)
+				mimeType, _ := typed["mimeType"].(string)
+				size, ok := positiveIntegerAsInt64(typed["size"])
+				if cid != "" && mimeType != "" && ok {
+					blobs = append(blobs, pdscommands.BlobReference{CID: syntax.CID(cid), MIMEType: mimeType, Size: size})
+				}
+			}
+			for _, item := range typed {
+				walk(item)
+			}
+		}
+	}
+	walk(record)
+	slices.SortFunc(blobs, func(left, right pdscommands.BlobReference) int {
+		if compared := strings.Compare(left.CID.String(), right.CID.String()); compared != 0 {
+			return compared
+		}
+		if compared := strings.Compare(left.MIMEType, right.MIMEType); compared != 0 {
+			return compared
+		}
+		return int(left.Size - right.Size)
+	})
+	return slices.Compact(blobs)
+}
+
+func DeleteBusinessProfileHandler(
+	newEffects pdseffects.ExecutorFactory,
+	options ...BusinessProfileHandlerOptions,
+) http.Handler {
+	var commands AddressedDeleteCommandExecutor
+	if len(options) > 0 {
+		commands = options[0].DeleteCommands
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
+		operationKey := uuid.Nil
+		if commands != nil {
+			var ok bool
+			operationKey, ok = requireCommandOperationKey(w, r, runID)
+			if !ok {
+				return
+			}
+		}
 		expectedCID, err := ParseBusinessIfMatch(r)
 		if err != nil || expectedCID == "*" {
 			WritePDSRecordConflict(w, runID)
+			return
+		}
+		if commands != nil {
+			owner, ok := middleware.GetDID(r.Context())
+			if !ok {
+				envelope.WriteError(w, http.StatusInternalServerError, "missing_authenticated_did", "authenticated DID missing", runID, nil)
+				return
+			}
+			generation, ok := requirePDSEffectGeneration(w, r, runID)
+			if !ok {
+				return
+			}
+			uri := syntax.ATURI("at://" + owner.String() + "/" + businessProfileNSID.String() + "/" + businessProfileRkey.String())
+			intent, err := json.Marshal(struct {
+				URI         syntax.ATURI `json:"uri"`
+				ExpectedCID syntax.CID   `json:"expectedCid"`
+			}{URI: uri, ExpectedCID: expectedCID})
+			if err != nil {
+				envelope.WriteError(w, http.StatusInternalServerError, "internal_error", "could not prepare business profile delete", runID, nil)
+				return
+			}
+			sessionID, _ := middleware.GetOAuthSessionID(r.Context())
+			result, err := commands.Delete(r.Context(), pdscommands.AddressedDeleteCommandRequest{
+				Owner: owner, OwnerGeneration: generation, SessionID: sessionID,
+				OperationKind: "business_profile.delete", OperationKey: operationKey,
+				URI: uri, ExpectedCID: expectedCID, Intent: intent,
+				AcceptedAbsent: func() pdscommands.TerminalResult {
+					return pdscommands.TerminalResult{State: pdscommands.CommandAccepted, HTTPStatus: http.StatusNoContent}
+				},
+				Rejected: func(err error) pdscommands.TerminalResult {
+					return RejectedCommandResult(runID, err)
+				},
+			})
+			if err != nil {
+				WriteCommandError(w, runID, err)
+				return
+			}
+			WriteCommandResponse(w, CommandResultFromStored(result))
 			return
 		}
 		owner, generation, executor, expectedOwners, ok := businessProfileExecutor(w, r, runID, newEffects)

@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/bluesky-social/indigo/atproto/syntax"
+
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/relationships"
@@ -36,6 +38,11 @@ type authorCommentsStore interface {
 	ListCommentsByAuthor(context.Context, string, int, string) ([]*PostRow, string, error)
 }
 
+type authorRepostsStore interface {
+	authorFeedHydrationStore
+	ListRepostsByAuthor(context.Context, string, int, string) ([]*PostRow, string, error)
+}
+
 // ListPostsByAuthorHandler serves GET /v1/profiles/{handleOrDid}/posts.
 func ListPostsByAuthorHandler(
 	store authorPostsStore,
@@ -50,7 +57,7 @@ func ListPostsByAuthorHandler(
 	}); ok {
 		filtered = languageStore.ListByAuthorWithLanguages
 	}
-	return listAuthorPostsHandler(store, resolver, logger, "post list", ProfilePinSlotStandard, pinReader, store.ListByAuthor, filtered, preferenceReaders)
+	return listAuthorPostsHandler(store, resolver, logger, "post list", ProfilePinSlotStandard, pinReader, store.ListByAuthor, filtered, preferenceReaders, false)
 }
 
 // ListProjectsByAuthorHandler serves GET /v1/profiles/{handleOrDid}/projects.
@@ -67,7 +74,7 @@ func ListProjectsByAuthorHandler(
 	}); ok {
 		filtered = languageStore.ListProjectsByAuthorWithLanguages
 	}
-	return listAuthorPostsHandler(store, resolver, logger, "project list", ProfilePinSlotProject, pinReader, store.ListProjectsByAuthor, filtered, preferenceReaders)
+	return listAuthorPostsHandler(store, resolver, logger, "project list", ProfilePinSlotProject, pinReader, store.ListProjectsByAuthor, filtered, preferenceReaders, false)
 }
 
 // ListCommentsByAuthorHandler serves GET /v1/profiles/{handleOrDid}/comments.
@@ -83,7 +90,23 @@ func ListCommentsByAuthorHandler(
 	}); ok {
 		filtered = languageStore.ListCommentsByAuthorWithLanguages
 	}
-	return listAuthorPostsHandler(store, resolver, logger, "comment list", "", nil, store.ListCommentsByAuthor, filtered, preferenceReaders)
+	return listAuthorPostsHandler(store, resolver, logger, "comment list", "", nil, store.ListCommentsByAuthor, filtered, preferenceReaders, false)
+}
+
+// ListRepostsByAuthorHandler serves GET /v1/profiles/{handleOrDid}/reposts.
+func ListRepostsByAuthorHandler(
+	store authorRepostsStore,
+	resolver HandleResolver,
+	logger *slog.Logger,
+	preferenceReaders ...LanguagePreferenceReader,
+) http.Handler {
+	var filtered authorLanguageList
+	if languageStore, ok := store.(interface {
+		ListRepostsByAuthorWithLanguages(context.Context, string, string, []string, int, string) ([]*PostRow, string, error)
+	}); ok {
+		filtered = languageStore.ListRepostsByAuthorWithLanguages
+	}
+	return listAuthorPostsHandler(store, resolver, logger, "repost list", "", nil, store.ListRepostsByAuthor, filtered, preferenceReaders, true)
 }
 
 type authorLanguageList func(context.Context, string, string, []string, int, string) ([]*PostRow, string, error)
@@ -98,6 +121,7 @@ func listAuthorPostsHandler(
 	list func(context.Context, string, int, string) ([]*PostRow, string, error),
 	filteredList authorLanguageList,
 	preferenceReaders []LanguagePreferenceReader,
+	resolveRowAuthors bool,
 ) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
@@ -273,7 +297,15 @@ func listAuthorPostsHandler(
 				return
 			}
 			// Only pay handle-resolution cost when there are rows to render.
-			handle, herr := resolver.ResolveHandle(r.Context(), did)
+			handles := map[string]syntax.Handle{}
+			var herr error
+			if resolveRowAuthors {
+				handles, herr = resolveHandlesForRows(r.Context(), rows, resolver)
+			} else {
+				var handle syntax.Handle
+				handle, herr = resolver.ResolveHandle(r.Context(), did)
+				handles[did.String()] = handle
+			}
 			if herr != nil {
 				logger.Warn(logLabel+": ResolveHandle failed",
 					apiLogErrorAttrs(runID, operation, "identity")...)
@@ -282,7 +314,7 @@ func listAuthorPostsHandler(
 				return
 			}
 			for _, row := range rows {
-				resp := buildPostResponse(row, handle, store)
+				resp := buildPostResponse(row, handles[row.DID], store)
 				applyEngagementSummary(resp, summaries[row.URI])
 				items = append(items, resp)
 			}

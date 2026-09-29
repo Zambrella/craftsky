@@ -1,9 +1,10 @@
-import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_form_builder_select_fields.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_form_builder/flutter_form_builder.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../test_support/widget_pump.dart';
 
 void main() {
   test('alphabetizedSelectOptions sorts by displayed label', () {
@@ -26,7 +27,7 @@ void main() {
     final formKey = GlobalKey<FormBuilderState>();
 
     await tester.pumpWidget(
-      _Harness(
+      craftskyTestWidget(
         child: FormBuilder(
           key: formKey,
           child: const CraftskyFormBuilderMultiSelectField<String>(
@@ -90,7 +91,7 @@ void main() {
     final formKey = GlobalKey<FormBuilderState>();
 
     await tester.pumpWidget(
-      _Harness(
+      craftskyTestWidget(
         child: FormBuilder(
           key: formKey,
           child: const CraftskyFormBuilderMultiSelectField<String>(
@@ -194,8 +195,8 @@ void main() {
       tester,
     ) async {
       await tester.pumpWidget(
-        const _Harness(
-          child: FormBuilder(
+        craftskyTestWidget(
+          child: const FormBuilder(
             child: CraftskyFormBuilderMultiSelectField<String>(
               name: 'designTags',
               label: 'Design tags',
@@ -243,7 +244,7 @@ void main() {
       final formKey = GlobalKey<FormBuilderState>();
 
       await tester.pumpWidget(
-        _Harness(
+        craftskyTestWidget(
           child: FormBuilder(
             key: formKey,
             child: const CraftskyFormBuilderMultiSelectField<String>(
@@ -272,8 +273,8 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const _Harness(
-        child: FormBuilder(
+      craftskyTestWidget(
+        child: const FormBuilder(
           child: CraftskyFormBuilderMultiSelectField<String>(
             name: 'colours',
             label: 'Colours',
@@ -304,7 +305,7 @@ void main() {
     final formKey = GlobalKey<FormBuilderState>();
 
     await tester.pumpWidget(
-      _Harness(
+      craftskyTestWidget(
         child: FormBuilder(
           key: formKey,
           child: const CraftskyFormBuilderMultiSelectField<String>(
@@ -345,7 +346,7 @@ void main() {
     addTearDown(nextFocusNode.dispose);
 
     await tester.pumpWidget(
-      _Harness(
+      craftskyTestWidget(
         child: FormBuilder(
           child: Column(
             children: [
@@ -393,7 +394,7 @@ void main() {
     var enabled = true;
 
     Widget buildSubject() {
-      return _Harness(
+      return craftskyTestWidget(
         child: FormBuilder(
           child: CraftskyFormBuilderMultiSelectField<String>(
             name: 'colours',
@@ -432,7 +433,7 @@ void main() {
     late StateSetter setHarnessState;
 
     await tester.pumpWidget(
-      _Harness(
+      craftskyTestWidget(
         child: StatefulBuilder(
           builder: (context, setState) {
             setHarnessState = setState;
@@ -471,7 +472,7 @@ void main() {
     final formKey = GlobalKey<FormBuilderState>();
 
     await tester.pumpWidget(
-      _Harness(
+      craftskyTestWidget(
         child: FormBuilder(
           key: formKey,
           child: const CraftskyFormBuilderMultiSelectField<String>(
@@ -509,7 +510,7 @@ void main() {
     late StateSetter setHarnessState;
 
     await tester.pumpWidget(
-      _Harness(
+      craftskyTestWidget(
         child: StatefulBuilder(
           builder: (context, setState) {
             setHarnessState = setState;
@@ -560,8 +561,8 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const _Harness(
-        child: FormBuilder(
+      craftskyTestWidget(
+        child: const FormBuilder(
           child: CraftskyFormBuilderMultiSelectField<String>(
             name: 'materials',
             label: 'Materials',
@@ -582,20 +583,4 @@ Future<void> _addCustom(WidgetTester tester, String name, String value) async {
   await tester.pump();
   await tester.tap(find.byKey(Key('$name-add-custom')));
   await tester.pump();
-}
-
-class _Harness extends StatelessWidget {
-  const _Harness({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      theme: AppTheme.lightThemeData,
-      home: Scaffold(
-        body: Padding(padding: const EdgeInsets.all(24), child: child),
-      ),
-    );
-  }
 }

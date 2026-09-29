@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"io"
-	"log/slog"
 	"testing"
 	"time"
 
@@ -13,6 +11,7 @@ import (
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/testdb"
+	"social.craftsky/appview/internal/testlog"
 )
 
 type authRequestSweepStep struct {
@@ -114,7 +113,7 @@ func TestRunAuthRequestSweeperReconcilesStaleRegistrationsBeforeOrdinarySweepAft
 	runAuthRequestSweeper(
 		ctx,
 		sweeper,
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		testlog.Discard(),
 		observability.New(observability.Config{}),
 		17,
 		10*time.Millisecond,
@@ -186,7 +185,7 @@ func TestRunAuthRequestSweeperRunsImmediatelyBacksOffAndDrains(t *testing.T) {
 		runAuthRequestSweeper(
 			ctx,
 			sweeper,
-			slog.New(slog.NewTextHandler(io.Discard, nil)),
+			testlog.Discard(),
 			observer,
 			17,
 			time.Millisecond,

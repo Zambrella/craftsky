@@ -5,7 +5,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"io"
 	"log/slog"
 	"slices"
 	"strings"
@@ -15,6 +14,7 @@ import (
 	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/auth"
+	"social.craftsky/appview/internal/testlog"
 )
 
 type fakeIdentityCacheUpdater struct {
@@ -120,7 +120,7 @@ func initializeProfileForTest(
 ) error {
 	return auth.InitializeProfileAndIdentityCache(
 		ctx, client, attempt, writer, nil, nil, nil,
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		testlog.Discard(),
 	)
 }
 
@@ -165,7 +165,7 @@ func TestInitializeProfileAndIdentityCacheProjectsNewCraftskyProfileBeforeAuxili
 		context.Background(), m, loginAttempt("did:plc:new"),
 		testOnboardingProfileWriter{}, nil, projector,
 		orderedIdentityCacheUpdater{order: &order},
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		testlog.Discard(),
 	)
 	if err != nil {
 		t.Fatalf("InitializeProfileAndIdentityCache: %v", err)
@@ -203,7 +203,7 @@ func TestInitializeProfileAndIdentityCacheFailsBeforeHandoffEffectsWhenCraftskyP
 		context.Background(), m, loginAttempt("did:plc:projection-failure"),
 		testOnboardingProfileWriter{}, nil, projector,
 		orderedIdentityCacheUpdater{order: &order},
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		testlog.Discard(),
 	)
 	if !errors.Is(err, auth.ErrProfileInitFailed) {
 		t.Fatalf("error = %v; want ErrProfileInitFailed", err)
@@ -299,7 +299,7 @@ func TestInitializeProfileAndIdentityCacheUpsertsAfterSuccessfulInitialization(t
 		putRecord: func(_, _ string, _ any) error { return nil },
 	}
 	updater := &fakeIdentityCacheUpdater{}
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testlog.Discard()
 
 	if err := auth.InitializeProfileAndIdentityCache(context.Background(), m, loginAttempt(syntax.DID("did:plc:new")), testOnboardingProfileWriter{}, nil, nil, updater, logger); err != nil {
 		t.Fatalf("InitializeProfileAndIdentityCache: %v", err)
@@ -336,7 +336,7 @@ func TestInitializeProfileAndIdentityCacheProjectsFetchedBlueskyProfileBeforeAux
 	err := auth.InitializeProfileAndIdentityCache(
 		context.Background(), m, loginAttempt(did), testOnboardingProfileWriter{},
 		projector, nil, orderedIdentityCacheUpdater{order: &order},
-		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		testlog.Discard(),
 	)
 	if err != nil {
 		t.Fatalf("InitializeProfileAndIdentityCache: %v", err)
@@ -376,7 +376,7 @@ func TestInitializeProfileAndIdentityCacheProjectionIsOptionalAndBestEffort(t *t
 		err := auth.InitializeProfileAndIdentityCache(
 			context.Background(), m, loginAttempt(syntax.DID("did:plc:no-bsky-profile")),
 			testOnboardingProfileWriter{}, projector, nil, nil,
-			slog.New(slog.NewTextHandler(io.Discard, nil)),
+			testlog.Discard(),
 		)
 		if err != nil || projector.calls != 0 {
 			t.Fatalf("missing profile err=%v projector calls=%d", err, projector.calls)
@@ -440,7 +440,7 @@ func TestInitializeProfileAndIdentityCacheLogsAndContinuesWhenUpsertFails(t *tes
 		putRecord: func(_, _ string, _ any) error { return nil },
 	}
 	updater := &fakeIdentityCacheUpdater{err: errors.New("identity unavailable")}
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testlog.Discard()
 
 	if err := auth.InitializeProfileAndIdentityCache(context.Background(), m, loginAttempt(syntax.DID("did:plc:new")), testOnboardingProfileWriter{}, nil, nil, updater, logger); err != nil {
 		t.Fatalf("InitializeProfileAndIdentityCache should continue on updater failure: %v", err)
@@ -464,7 +464,7 @@ func TestOrdinaryOnboardingPreservesProfileAndAuxiliaryEffectSeverity(t *testing
 			cache := &fakeIdentityCacheUpdater{}
 			err := auth.InitializeProfileAndIdentityCache(
 				context.Background(), pds, attempt, testOnboardingProfileWriter{}, nil, nil, cache,
-				slog.New(slog.NewTextHandler(io.Discard, nil)),
+				testlog.Discard(),
 			)
 			if !errors.Is(err, auth.ErrProfileInitFailed) || len(cache.dids) != 0 {
 				t.Fatalf("profile failure err=%v cache=%v", err, cache.dids)
@@ -486,7 +486,7 @@ func TestOrdinaryOnboardingPreservesProfileAndAuxiliaryEffectSeverity(t *testing
 			cache := &fakeIdentityCacheUpdater{err: errors.New("cache unavailable")}
 			err := auth.InitializeProfileAndIdentityCache(
 				context.Background(), pds, attempt, testOnboardingProfileWriter{}, nil, nil, cache,
-				slog.New(slog.NewTextHandler(io.Discard, nil)),
+				testlog.Discard(),
 			)
 			if err != nil || len(cache.dids) != 1 {
 				t.Fatalf("warning effect err=%v cache=%v", err, cache.dids)

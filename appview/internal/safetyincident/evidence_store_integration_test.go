@@ -18,7 +18,7 @@ import (
 
 func TestRestrictedEvidenceRequiresExplicitAuthorizedPreservationAndAuditsAccess(t *testing.T) {
 	pool := testdb.WithSchema(t, evidenceTestPreStateDDL)
-	applyEvidenceMigration(t, pool, "../../migrations/000075_safety_evidence_holds.up.sql")
+	applyEvidenceMigration(t, pool, "../../migrations/000078_safety_evidence_holds.up.sql")
 
 	ctx := context.Background()
 	now := time.Date(2030, 9, 22, 17, 0, 0, 0, time.UTC)

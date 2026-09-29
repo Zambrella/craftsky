@@ -1,0 +1,1 @@
+DROP INDEX IF EXISTS pds_set_aggregates_repost_actor_pagination_idx;

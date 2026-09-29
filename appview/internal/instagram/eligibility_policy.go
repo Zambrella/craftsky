@@ -132,8 +132,8 @@ const eligibilitySnapshotQuery = `
 		link.username_normalized,
 		link.verified_at,
 		EXISTS (
-			SELECT 1 FROM atproto_follows
-			WHERE did = $1 AND subject_did = $2
+			SELECT 1 FROM pds_set_aggregates
+			WHERE kind = 'follow' AND actor_did = $1 AND subject_did = $2
 		),
 		EXISTS (` + effectiveAccountModerationQuery + ` AND applied.value = 'hide'),
 		EXISTS (` + effectiveAccountModerationQuery + ` AND applied.value = 'takedown')

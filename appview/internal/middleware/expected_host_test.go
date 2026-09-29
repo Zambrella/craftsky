@@ -82,3 +82,35 @@ func TestExpectedHostAuthorityMatrix(t *testing.T) {
 		})
 	}
 }
+
+func TestExpectedHostBypassesOnlyConfiguredExactPaths(t *testing.T) {
+	handler := ExpectedHost(ExpectedHostPolicy{
+		Authorities: []string{"appview.craftsky.social"},
+		BypassPaths: []string{"/health"},
+	})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+
+	for _, test := range []struct {
+		path   string
+		status int
+	}{
+		{path: "/health", status: http.StatusNoContent},
+		{path: "/healthz", status: http.StatusMisdirectedRequest},
+		{path: "/health/", status: http.StatusMisdirectedRequest},
+		{path: "/oauth/client-metadata.json", status: http.StatusMisdirectedRequest},
+		{path: "/v1/whoami", status: http.StatusMisdirectedRequest},
+	} {
+		t.Run(test.path, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, "https://attacker.invalid"+test.path, nil)
+			request.Host = "attacker.invalid"
+			recorder := httptest.NewRecorder()
+
+			handler.ServeHTTP(recorder, request)
+
+			if recorder.Code != test.status {
+				t.Fatalf("status = %d, want %d", recorder.Code, test.status)
+			}
+		})
+	}
+}

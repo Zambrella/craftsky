@@ -3,22 +3,21 @@ package db_test
 import (
 	"bytes"
 	"context"
-	"os"
 	"testing"
 
 	"social.craftsky/appview/internal/testdb"
 )
 
 func TestTapQuarantineReplayPayloadMigrationUpDownUp(t *testing.T) {
-	base, err := os.ReadFile("../../migrations/000045_tap_ingestion_durability.up.sql")
+	base, err := testdb.ReadMigration("000045_tap_ingestion_durability.up.sql")
 	if err != nil {
 		t.Fatalf("read Tap durability migration: %v", err)
 	}
-	up, err := os.ReadFile("../../migrations/000051_tap_quarantine_replay_payload.up.sql")
+	up, err := testdb.ReadMigration("000051_tap_quarantine_replay_payload.up.sql")
 	if err != nil {
 		t.Fatalf("read quarantine replay up migration: %v", err)
 	}
-	down, err := os.ReadFile("../../migrations/000051_tap_quarantine_replay_payload.down.sql")
+	down, err := testdb.ReadMigration("000051_tap_quarantine_replay_payload.down.sql")
 	if err != nil {
 		t.Fatalf("read quarantine replay down migration: %v", err)
 	}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os"
 	"testing"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
@@ -12,12 +11,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/index"
+	"social.craftsky/appview/internal/ingestion"
 	"social.craftsky/appview/internal/tap"
 	"social.craftsky/appview/internal/testdb"
 )
 
 func TestBusinessEventProjectionConvergesByRevision(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000062_business_records.up.sql")
+	migration, err := testdb.ReadMigration("000062_business_records.up.sql")
 	if err != nil {
 		t.Fatalf("read business records migration: %v", err)
 	}
@@ -82,7 +82,10 @@ func projectBusinessEvent(t *testing.T, pool *pgxpool.Pool, projector *index.Cra
 	if err != nil {
 		t.Fatalf("begin event projection: %v", err)
 	}
-	outcome, err := projector.Project(ctx, tx, event)
+	outcome, err := projector.Project(ctx, tx, ingestion.SourceRecord{
+		URI: event.URI, DID: event.DID, Collection: event.Collection, Rkey: event.Rkey,
+		CID: event.CID, Action: event.Action, Record: event.Record, Revision: event.Rev,
+	})
 	if err != nil {
 		_ = tx.Rollback(ctx)
 		t.Fatalf("project event %s at %s: %v", event.Action, event.Rev, err)

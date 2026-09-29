@@ -12,7 +12,6 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"social.craftsky/appview/internal/ownerlifecycle"
-	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -136,8 +135,7 @@ func (service *Service) ReconcileSource(ctx context.Context, reconciled Reconcil
 			outcome, reconcileErr = service.store.reconcileSourceTx(
 				ctx, tx, expected, event, fingerprint,
 				sourceAuthority{
-					Lifecycle: current, Authoritative: true,
-					LockedOperationID: expected.EffectOperationID,
+					Lifecycle: current,
 				},
 				now,
 			)
@@ -161,8 +159,7 @@ func (service *Service) ReconcileSource(ctx context.Context, reconciled Reconcil
 				outcome, reconcileErr = service.store.reconcileSourceTx(
 					ctx, tx, expected, event, fingerprint,
 					sourceAuthority{
-						Lifecycle: after, Authoritative: true,
-						LockedOperationID: expected.EffectOperationID,
+						Lifecycle: after,
 					},
 					now,
 				)
@@ -191,8 +188,7 @@ func (service *Service) ReconcileSource(ctx context.Context, reconciled Reconcil
 		outcome, reconcileErr = service.store.reconcileSourceTx(
 			ctx, tx, expected, event, fingerprint,
 			sourceAuthority{
-				Lifecycle: current, Authoritative: true,
-				LockedOperationID: expected.EffectOperationID,
+				Lifecycle: current,
 			},
 			now,
 		)
@@ -206,9 +202,6 @@ func (service *Service) ReconcileSource(ctx context.Context, reconciled Reconcil
 
 func reconciliationFailure(err error) (tap.Outcome, error) {
 	if errors.Is(err, ErrReconciliationSourceChanged) {
-		return tap.Retryable(tap.ReasonSourceOrderUncertain), err
-	}
-	if errors.Is(err, ownerlifecycle.ErrEffectSourceAmbiguous) {
 		return tap.Retryable(tap.ReasonSourceOrderUncertain), err
 	}
 	return tap.Retryable(tap.ReasonStorageUnavailable), err
@@ -238,7 +231,6 @@ func (store *Store) reconcileSourceTx(
 	if !independentBusiness {
 		projectionGeneration = authority.Lifecycle.Generation
 	}
-	var effectOperationID any
 	state := "pending"
 	var dependencyKind, dependencyKey, completedAt any
 	if authority.Lifecycle.State == ownerlifecycle.StateTerminal {
@@ -254,62 +246,6 @@ func (store *Store) reconcileSourceTx(
 		dependencyKind = outcome.Dependency.Kind
 		dependencyKey = outcome.Dependency.Key
 	}
-	if event.Action != "delete" && !independentBusiness {
-		recordContentFingerprint, err := pdseffects.RecordContentFingerprint(
-			event.DID, event.Collection, event.Rkey, event.Record,
-		)
-		if err != nil {
-			return tap.Outcome{}, err
-		}
-		resolution, err := ownerlifecycle.ResolvePDSRecordSourceTx(
-			ctx,
-			tx,
-			authority.Lifecycle,
-			ownerlifecycle.PDSRecordSourceObservation{
-				Owner: event.DID, URI: event.URI, CID: event.CID,
-				RecordFingerprint: recordContentFingerprint,
-				LockedOperationID: authority.LockedOperationID,
-				Authoritative:     true,
-			},
-			now,
-		)
-		if err != nil {
-			return tap.Outcome{}, err
-		}
-		if resolution.Match == ownerlifecycle.EffectSourceAmbiguous {
-			return tap.Outcome{}, ownerlifecycle.ErrEffectSourceAmbiguous
-		}
-		if resolution.Match == ownerlifecycle.EffectSourceMatched {
-			effectOperationID = resolution.Attempt.OperationID
-			switch resolution.Attempt.ProjectionDisposition {
-			case ownerlifecycle.ProjectionEligibleCurrent:
-				outcome = tap.Applied()
-				disposition = "eligible"
-				state = "pending"
-				dependencyKind, dependencyKey, completedAt = nil, nil, nil
-			case ownerlifecycle.ProjectionHiddenNonActive:
-				outcome = tap.Blocked(
-					tap.ReasonOwnerDeparted,
-					tap.Dependency{Kind: "member_did", Key: event.DID.String()},
-				)
-				disposition = "blocked_departed"
-				state = "blocked"
-				dependencyKind, dependencyKey = outcome.Dependency.Kind, outcome.Dependency.Key
-			case ownerlifecycle.ProjectionDeniedTerminal:
-				outcome = tap.PermanentInvalid(tap.ReasonOwnerTerminal)
-				disposition = "denied_terminal"
-				state = "permanent_denied"
-				completedAt = now
-			case ownerlifecycle.ProjectionNotApplicable:
-				outcome = tap.PermanentInvalid(tap.ReasonStaleSource)
-				disposition = "not_accepted"
-				state = "permanent_denied"
-				completedAt = now
-			default:
-				return tap.Outcome{}, ownerlifecycle.ErrEffectSourceAmbiguous
-			}
-		}
-	}
 	var cid, record any
 	recordBytes := 0
 	if event.Action != "delete" {
@@ -324,7 +260,7 @@ func (store *Store) reconcileSourceTx(
 		    projection_generation=$10,effect_operation_id=$11,updated_at=$12
 		WHERE uri=$1
 	`, event.URI, fingerprint[:], event.Rev, cid, event.Action, record, recordBytes,
-		orderingStatus, disposition, projectionGeneration, effectOperationID, now)
+		orderingStatus, disposition, projectionGeneration, nil, now)
 	if err != nil {
 		return tap.Outcome{}, fmt.Errorf("install reconciled Tap source: %w", err)
 	}

@@ -54,6 +54,7 @@ class FakePostRepository implements PostRepository {
     this.onListProjectsByAuthor,
     this.onListTimeline,
     this.onListCommentsByAuthor,
+    this.onListRepostsByAuthor,
   });
 
   final Future<Post> Function({
@@ -144,15 +145,36 @@ class FakePostRepository implements PostRepository {
     int? limit,
   })?
   onListCommentsByAuthor;
+  final Future<PostPage> Function(
+    String handleOrDid, {
+    String? cursor,
+    int? limit,
+  })?
+  onListRepostsByAuthor;
 
   PostRef? lastCreateQuote;
   CreatePostExternal? lastCreateExternal;
   CreatePostVideo? lastCreateVideo;
   List<String>? lastCreateLangs;
   bool? lastCreateSponsored;
+  String? lastCreateOperationKey;
+  String? lastDeleteOperationKey;
+  String? lastDeleteExpectedCid;
+  final createOperationKeys = <String>[];
+  final deleteOperationKeys = <String>[];
+  final deleteExpectedCids = <String>[];
+  String? lastLikeOperationKey;
+  String? lastUnlikeOperationKey;
+  String? lastRepostOperationKey;
+  String? lastUnrepostOperationKey;
+  final likeOperationKeys = <String>[];
+  final unlikeOperationKeys = <String>[];
+  final repostOperationKeys = <String>[];
+  final unrepostOperationKeys = <String>[];
 
   @override
   Future<Post> create({
+    required String operationKey,
     required String text,
     required List<String> langs,
     required bool sponsored,
@@ -164,6 +186,8 @@ class FakePostRepository implements PostRepository {
     CreatePostVideo? video,
     List<Map<String, dynamic>>? facets,
   }) {
+    lastCreateOperationKey = operationKey;
+    createOperationKeys.add(operationKey);
     lastCreateQuote = quote;
     lastCreateExternal = external;
     lastCreateVideo = video;
@@ -190,9 +214,19 @@ class FakePostRepository implements PostRepository {
       Future<Post>.error(UnimplementedError('fetch not stubbed'));
 
   @override
-  Future<void> delete(Did did, RecordKey rkey) =>
-      onDelete?.call(did, rkey) ??
-      Future<void>.error(UnimplementedError('delete not stubbed'));
+  Future<void> delete(
+    Did did,
+    RecordKey rkey, {
+    required String operationKey,
+    required String expectedCid,
+  }) {
+    lastDeleteOperationKey = operationKey;
+    lastDeleteExpectedCid = expectedCid;
+    deleteOperationKeys.add(operationKey);
+    deleteExpectedCids.add(expectedCid);
+    return onDelete?.call(did, rkey) ??
+        Future<void>.error(UnimplementedError('delete not stubbed'));
+  }
 
   @override
   Future<ProfilePinState> profilePins() =>
@@ -259,28 +293,56 @@ class FakePostRepository implements PostRepository {
       );
 
   @override
-  Future<InteractionWriteResponse> like(Did did, RecordKey rkey) =>
-      onLike?.call(did, rkey) ??
-      Future<InteractionWriteResponse>.error(
-        UnimplementedError('like not stubbed'),
-      );
+  Future<InteractionWriteResponse> like(
+    Did did,
+    RecordKey rkey, {
+    required String operationKey,
+  }) {
+    lastLikeOperationKey = operationKey;
+    likeOperationKeys.add(operationKey);
+    return onLike?.call(did, rkey) ??
+        Future<InteractionWriteResponse>.error(
+          UnimplementedError('like not stubbed'),
+        );
+  }
 
   @override
-  Future<void> unlike(Did did, RecordKey rkey) =>
-      onUnlike?.call(did, rkey) ??
-      Future<void>.error(UnimplementedError('unlike not stubbed'));
+  Future<void> unlike(
+    Did did,
+    RecordKey rkey, {
+    required String operationKey,
+  }) {
+    lastUnlikeOperationKey = operationKey;
+    unlikeOperationKeys.add(operationKey);
+    return onUnlike?.call(did, rkey) ??
+        Future<void>.error(UnimplementedError('unlike not stubbed'));
+  }
 
   @override
-  Future<InteractionWriteResponse> repost(Did did, RecordKey rkey) =>
-      onRepost?.call(did, rkey) ??
-      Future<InteractionWriteResponse>.error(
-        UnimplementedError('repost not stubbed'),
-      );
+  Future<InteractionWriteResponse> repost(
+    Did did,
+    RecordKey rkey, {
+    required String operationKey,
+  }) {
+    lastRepostOperationKey = operationKey;
+    repostOperationKeys.add(operationKey);
+    return onRepost?.call(did, rkey) ??
+        Future<InteractionWriteResponse>.error(
+          UnimplementedError('repost not stubbed'),
+        );
+  }
 
   @override
-  Future<void> unrepost(Did did, RecordKey rkey) =>
-      onUnrepost?.call(did, rkey) ??
-      Future<void>.error(UnimplementedError('unrepost not stubbed'));
+  Future<void> unrepost(
+    Did did,
+    RecordKey rkey, {
+    required String operationKey,
+  }) {
+    lastUnrepostOperationKey = operationKey;
+    unrepostOperationKeys.add(operationKey);
+    return onUnrepost?.call(did, rkey) ??
+        Future<void>.error(UnimplementedError('unrepost not stubbed'));
+  }
 
   @override
   Future<ProfileAccountPage> listLikes(
@@ -352,5 +414,20 @@ class FakePostRepository implements PostRepository {
       onListCommentsByAuthor?.call(handleOrDid, cursor: cursor, limit: limit) ??
       Future<PostPage>.error(
         UnimplementedError('listCommentsByAuthor not stubbed'),
+      );
+
+  @override
+  Future<PostPage> listRepostsByAuthor(
+    String handleOrDid, {
+    String? cursor,
+    int? limit,
+  }) =>
+      onListRepostsByAuthor?.call(
+        handleOrDid,
+        cursor: cursor,
+        limit: limit,
+      ) ??
+      Future<PostPage>.error(
+        UnimplementedError('listRepostsByAuthor not stubbed'),
       );
 }

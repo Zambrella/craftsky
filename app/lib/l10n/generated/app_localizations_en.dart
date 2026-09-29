@@ -752,6 +752,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get profileEmptyReposts => 'No reposts yet.';
 
   @override
+  String get profileRepostsLoadError => 'Reposts didn\'t load.';
+
+  @override
   String get profilePostsEmpty => 'No posts yet.';
 
   @override

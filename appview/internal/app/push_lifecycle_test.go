@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"errors"
-	"os"
 	"sync"
 	"testing"
 	"time"
@@ -403,8 +402,7 @@ func newPushLifecycleFixture(t *testing.T) pushLifecycleFixture {
 		CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT);
 		CREATE TABLE craftsky_posts(uri TEXT PRIMARY KEY,reply_root_uri TEXT,reply_parent_uri TEXT);
 		CREATE TABLE actor_mutes(owner_did TEXT NOT NULL,subject_did TEXT NOT NULL,PRIMARY KEY(owner_did,subject_did));
-		CREATE TABLE atproto_blocks(uri TEXT PRIMARY KEY,blocker_did TEXT NOT NULL,subject_did TEXT NOT NULL);
-		CREATE TABLE atproto_follows(uri TEXT PRIMARY KEY,did TEXT NOT NULL,subject_did TEXT NOT NULL,UNIQUE(did,subject_did));
+		CREATE TABLE pds_set_aggregates(kind TEXT NOT NULL,actor_did TEXT NOT NULL,subject_did TEXT);
 		CREATE TABLE owner_lifecycles(
 			owner_did TEXT PRIMARY KEY,state TEXT NOT NULL,generation BIGINT NOT NULL,
 			auth_epoch BIGINT NOT NULL,transition_reason TEXT NOT NULL,
@@ -426,7 +424,7 @@ func newPushLifecycleFixture(t *testing.T) pushLifecycleFixture {
 			PRIMARY KEY(owner_did,owner_generation,component,did_role)
 		);
 	`)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatalf("read push migration: %v", err)
 	}

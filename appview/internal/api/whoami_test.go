@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +12,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/testlog"
 )
 
 type stubResolver struct {
@@ -31,7 +31,7 @@ func (s stubResolver) ResolveDID(_ context.Context, _ syntax.Handle) (syntax.DID
 // the structured-log pipeline. Cheap and doesn't pollute test output.
 func testLogger(t *testing.T) *slog.Logger {
 	t.Helper()
-	return slog.New(slog.NewTextHandler(io.Discard, nil))
+	return testlog.Discard()
 }
 
 func TestWhoAmI_HappyPath(t *testing.T) {

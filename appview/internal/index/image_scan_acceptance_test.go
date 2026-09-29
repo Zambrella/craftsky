@@ -11,6 +11,7 @@ import (
 
 	"social.craftsky/appview/internal/imagesafety"
 	"social.craftsky/appview/internal/index"
+	"social.craftsky/appview/internal/ingestion"
 	"social.craftsky/appview/internal/tap"
 	"social.craftsky/appview/internal/testdb"
 )
@@ -38,7 +39,7 @@ CREATE TABLE tap_projection_jobs (
 
 func TestCraftskyImagePostVisibilityWaitsForEveryCurrentScan(t *testing.T) {
 	pool := testdb.WithSchema(t, craftskyPostsDDL+imageScanTapPreStateDDL)
-	migration, err := os.ReadFile("../../migrations/000073_image_safety.up.sql")
+	migration, err := os.ReadFile("../../migrations/000076_image_safety.up.sql")
 	if err != nil {
 		t.Fatalf("read image safety migration: %v", err)
 	}
@@ -94,7 +95,7 @@ func TestCraftskyImagePostVisibilityWaitsForEveryCurrentScan(t *testing.T) {
 			t.Fatalf("begin projection: %v", err)
 		}
 		defer func() { _ = tx.Rollback(context.Background()) }()
-		outcome, err := projector.Project(ctx, tx, event)
+		outcome, err := projector.Project(ctx, tx, imageSourceFromEvent(event))
 		if err != nil {
 			t.Fatalf("project image post: %v", err)
 		}
@@ -179,13 +180,20 @@ func assertImagePostEligibility(
 
 type appliedProjector struct{}
 
-func (appliedProjector) Project(context.Context, pgx.Tx, tap.Event) (tap.Outcome, error) {
+func (appliedProjector) Project(context.Context, pgx.Tx, ingestion.SourceRecord) (tap.Outcome, error) {
 	return tap.Applied(), nil
+}
+
+func imageSourceFromEvent(event tap.Event) ingestion.SourceRecord {
+	return ingestion.SourceRecord{
+		URI: event.URI, CID: event.CID, DID: event.DID, Rkey: event.Rkey,
+		Collection: event.Collection, Action: event.Action, Record: event.Record,
+	}
 }
 
 func TestImageSafetyExtractsEveryRenderedBlobIntoOneScanWorkflow(t *testing.T) {
 	pool := testdb.WithSchema(t, craftskyProfilesDDL+imageScanTapPreStateDDL)
-	migration, err := os.ReadFile("../../migrations/000073_image_safety.up.sql")
+	migration, err := os.ReadFile("../../migrations/000076_image_safety.up.sql")
 	if err != nil {
 		t.Fatalf("read image safety migration: %v", err)
 	}
@@ -247,7 +255,7 @@ func TestImageSafetyExtractsEveryRenderedBlobIntoOneScanWorkflow(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		outcome, err := fixture.projector.Project(ctx, tx, fixture.event)
+		outcome, err := fixture.projector.Project(ctx, tx, imageSourceFromEvent(fixture.event))
 		if err != nil {
 			_ = tx.Rollback(ctx)
 			t.Fatalf("project %s: %v", fixture.event.Collection, err)
@@ -274,7 +282,7 @@ func TestImageSafetyExtractsEveryRenderedBlobIntoOneScanWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	profileOutcome, err := profile.Project(ctx, tx, profileEvent)
+	profileOutcome, err := profile.Project(ctx, tx, imageSourceFromEvent(profileEvent))
 	if err != nil {
 		_ = tx.Rollback(ctx)
 		t.Fatalf("project Bluesky profile: %v", err)

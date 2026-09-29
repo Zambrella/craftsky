@@ -22,6 +22,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../test_support/deterministic_pump.dart';
+
 void main() {
   setUpAll(initializeMappers);
 
@@ -63,18 +65,30 @@ void main() {
     );
     expect(find.byType(CraftskySkeletonList), findsOneWidget);
     expect(find.byType(ManagementRowSkeleton), findsWidgets);
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.text('new-1'),
+      description: 'the first saved-post page',
+    );
 
     expect(find.text('Ideas'), findsOneWidget);
     expect(find.text('new-1'), findsOneWidget);
     await tester.tap(find.widgetWithText(TextButton, 'Load more'));
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.text('new-2'),
+      description: 'the next saved-post page',
+    );
     expect(find.text('new-2'), findsOneWidget);
 
     await tester.tap(find.byType(SavedPostSortButton));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Oldest').last);
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.text('old-1'),
+      description: 'the oldest-first saved posts',
+    );
     expect(find.text('old-1'), findsOneWidget);
     expect(repository.calls, [
       (SavedPostSort.newest, null),
@@ -83,19 +97,13 @@ void main() {
     ]);
   });
 
-  testWidgets('AT-007 renames and explicitly deletes a folder', (
-    tester,
-  ) async {
+  testWidgets('AT-007 renames and explicitly deletes a folder', (tester) async {
     final account = AccountKey('did:plc:alice');
     final folder = _folder('folder-a', 'Ideas');
     final repository = _FolderPageRepository()
       ..visibleFolder = folder
       ..renamedFolder = _folder('folder-a', 'Renamed ideas')
-      ..enqueue(
-        SavedPostSort.newest,
-        null,
-        const SavedPostPage(items: []),
-      );
+      ..enqueue(SavedPostSort.newest, null, const SavedPostPage(items: []));
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -111,7 +119,11 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.byTooltip('Folder actions'),
+      description: 'the saved-folder actions',
+    );
 
     await tester.tap(find.byTooltip('Folder actions'));
     await tester.pumpAndSettle();
@@ -140,11 +152,7 @@ void main() {
       isTrue,
     );
     expect(
-      tester
-          .getSemantics(
-            find.bySemanticsLabel('Delete saved posts'),
-          )
-          .hint,
+      tester.getSemantics(find.bySemanticsLabel('Delete saved posts')).hint,
       'Destructive action',
     );
     await tester.tap(find.text('Keep saved posts'));
@@ -262,11 +270,7 @@ void main() {
     final repository = _FolderPageRepository()
       ..visibleFolder = folder
       ..renameError = const ApiCanceled()
-      ..enqueue(
-        SavedPostSort.newest,
-        null,
-        const SavedPostPage(items: []),
-      );
+      ..enqueue(SavedPostSort.newest, null, const SavedPostPage(items: []));
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -307,11 +311,7 @@ void main() {
     final folder = _folder('folder-a', 'Ideas');
     final repository = _FolderPageRepository()
       ..visibleFolder = folder
-      ..enqueue(
-        SavedPostSort.newest,
-        null,
-        const SavedPostPage(items: []),
-      );
+      ..enqueue(SavedPostSort.newest, null, const SavedPostPage(items: []));
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -345,11 +345,7 @@ void main() {
         null,
         SavedPostPage(items: [_item('remove-with-folder')]),
       )
-      ..enqueue(
-        SavedPostSort.newest,
-        null,
-        const SavedPostPage(items: []),
-      );
+      ..enqueue(SavedPostSort.newest, null, const SavedPostPage(items: []));
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -390,11 +386,7 @@ void main() {
         null,
         SavedPostPage(items: [_item('first')], cursor: 'next'),
       )
-      ..enqueue(
-        SavedPostSort.newest,
-        'next',
-        StateError('incremental failure'),
-      )
+      ..enqueue(SavedPostSort.newest, 'next', StateError('incremental failure'))
       ..enqueue(
         SavedPostSort.newest,
         'next',
@@ -521,11 +513,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.fling(
-      find.byType(ListView),
-      const Offset(0, 320),
-      1000,
-    );
+    await tester.fling(find.byType(ListView), const Offset(0, 320), 1000);
     await tester.pumpAndSettle();
 
     expect(find.text('stale'), findsNothing);
@@ -543,11 +531,7 @@ void main() {
     final folder = _folder('folder-a', 'Ideas');
     final repository = _FolderPageRepository()
       ..visibleFolder = folder
-      ..enqueue(
-        SavedPostSort.newest,
-        null,
-        StateError('initial failure'),
-      )
+      ..enqueue(SavedPostSort.newest, null, StateError('initial failure'))
       ..enqueue(
         SavedPostSort.newest,
         null,
@@ -622,9 +606,7 @@ void main() {
     expect(find.byType(AlertDialog), findsNothing);
   });
 
-  testWidgets('IT-008 canceled row unsave rolls back silently', (
-    tester,
-  ) async {
+  testWidgets('IT-008 canceled row unsave rolls back silently', (tester) async {
     final account = AccountKey('did:plc:alice');
     final folder = _folder('folder-a', 'Ideas');
     final repository = _FolderPageRepository()
@@ -867,10 +849,8 @@ final class _MoveReconciliationRepository implements SavedPostRepository {
       throw UnimplementedError();
 
   @override
-  Future<void> deleteFolder(
-    String folderId, {
-    required bool deleteSaves,
-  }) => throw UnimplementedError();
+  Future<void> deleteFolder(String folderId, {required bool deleteSaves}) =>
+      throw UnimplementedError();
 }
 
 final class _FolderPageRepository implements SavedPostRepository {
@@ -904,9 +884,7 @@ final class _FolderPageRepository implements SavedPostRepository {
 
   @override
   Future<SavedPostFolderPage> listFolders({String? cursor, int? limit}) async =>
-      SavedPostFolderPage(
-        items: [?visibleFolder],
-      );
+      SavedPostFolderPage(items: [?visibleFolder]);
   @override
   Future<SavedPostState> save(Post post, {required String? folderId}) =>
       throw UnimplementedError();

@@ -238,7 +238,7 @@ func testConfigFile(t *testing.T, contents string) string {
 		"SCHEDULED_POSTS_S3_ACCESS_KEY_ID", "SCHEDULED_POSTS_S3_SECRET_ACCESS_KEY",
 		"SAFETY_EVIDENCE_S3_ENDPOINT", "SAFETY_EVIDENCE_S3_REGION", "SAFETY_EVIDENCE_S3_BUCKET",
 		"SAFETY_EVIDENCE_S3_ACCESS_KEY_ID", "SAFETY_EVIDENCE_S3_SECRET_ACCESS_KEY",
-		"SENTRY_DSN", "SENTRY_RELEASE", "SENTRY_TRACING_ENABLED", "SENTRY_TRACES_SAMPLE_RATE",
+		"SENTRY_DSN", "SENTRY_RELEASE", "RENDER_GIT_COMMIT", "SENTRY_TRACING_ENABLED", "SENTRY_TRACES_SAMPLE_RATE",
 		"SENTRY_LOGS_ENABLED", "SENTRY_METRICS_ENABLED", "SENTRY_TAP_TRACING_ENABLED",
 		"SENTRY_TAP_TRACES_SAMPLE_RATE",
 		"APPVIEW_UNSAFE_LOG_RESPONSE_BODIES",
@@ -250,7 +250,8 @@ func testConfigFile(t *testing.T, contents string) string {
 		"MODERATION_ADMIN_ACTOR_ID", "MODERATION_SOURCE_DID",
 		"MODERATION_EXPIRY_POLL_INTERVAL", "MODERATION_EXPIRY_BATCH_SIZE",
 		"PUSH_ENABLED", "FIREBASE_PROJECT_ID", "PUSH_BATCH_SIZE", "PUSH_CONCURRENCY", "PUSH_POLL_INTERVAL", "PUSH_LEASE_DURATION", "PUSH_SEND_TIMEOUT", "PUSH_FINALIZATION_MARGIN",
-		"OWNER_FENCE_ACQUIRE_TIMEOUT", "PDS_EFFECT_TIMEOUT", "SCHEDULED_MEDIA_PUT_TIMEOUT",
+		"OWNER_FENCE_ACQUIRE_TIMEOUT", "PDS_EFFECT_TIMEOUT", "PDS_COMMAND_COMPACTION_POLL_INTERVAL",
+		"PDS_COMMAND_COMPACTION_BATCH_SIZE", "SCHEDULED_MEDIA_PUT_TIMEOUT",
 		"HTTP_MAX_CONNECTIONS", "HTTP_MAX_IN_FLIGHT_REQUESTS", "HTTP_READ_HEADER_TIMEOUT",
 		"HTTP_READ_TIMEOUT", "HTTP_WRITE_TIMEOUT", "HTTP_IDLE_TIMEOUT", "HTTP_MAX_HEADER_BYTES",
 		"HTTP_TRUSTED_PROXY_CIDRS", "HTTP_CLIENT_IPV6_PREFIX_BITS", "HTTP_OUTER_RATE_WINDOW",
@@ -484,6 +485,46 @@ func TestLoadConfig_ObservabilityDefaultsAndValidation(t *testing.T) {
 		}
 		if cfg.SentryTapTracingEnabled {
 			t.Fatal("SentryTapTracingEnabled = true, want false")
+		}
+	})
+
+	t.Run("render commit supplies the release when no explicit release is set", func(t *testing.T) {
+		path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\nSENTRY_DSN=https://public@example.invalid/1\nRENDER_GIT_COMMIT=abc123\n")
+		cfg, err := LoadConfig(EnvDev, path)
+		if err != nil {
+			t.Fatalf("LoadConfig: %v", err)
+		}
+		if cfg.SentryRelease != "abc123" {
+			t.Fatalf("SentryRelease = %q, want Render commit", cfg.SentryRelease)
+		}
+	})
+
+	t.Run("embedded semantic version overrides the render commit", func(t *testing.T) {
+		if got := sentryRelease("", "craftsky-appview@1.0.3", "abc123"); got != "craftsky-appview@1.0.3" {
+			t.Fatalf("sentryRelease = %q, want embedded release", got)
+		}
+	})
+
+	t.Run("render commit remains the fallback for an unversioned build", func(t *testing.T) {
+		if got := sentryRelease("", "", "abc123"); got != "abc123" {
+			t.Fatalf("sentryRelease = %q, want Render commit", got)
+		}
+	})
+
+	t.Run("explicit release overrides embedded semantic version", func(t *testing.T) {
+		if got := sentryRelease("appview-v1", "craftsky-appview@1.0.3", "abc123"); got != "appview-v1" {
+			t.Fatalf("sentryRelease = %q, want explicit release", got)
+		}
+	})
+
+	t.Run("explicit release overrides the render commit", func(t *testing.T) {
+		path := testConfigFile(t, "DATABASE_URL=postgres://dev\nALLOWED_ORIGINS=*\nCRAFTSKY_DEV_DID=did:plc:test\nTAP_WS_URL=ws://tap:2480/channel\nSENTRY_DSN=https://public@example.invalid/1\nSENTRY_RELEASE=appview-v1\nRENDER_GIT_COMMIT=abc123\n")
+		cfg, err := LoadConfig(EnvDev, path)
+		if err != nil {
+			t.Fatalf("LoadConfig: %v", err)
+		}
+		if cfg.SentryRelease != "appview-v1" {
+			t.Fatalf("SentryRelease = %q, want explicit release", cfg.SentryRelease)
 		}
 	})
 
@@ -1532,6 +1573,34 @@ func TestLoadConfigScheduledImageDecodeLimits(t *testing.T) {
 				t.Fatalf("LoadConfig error = %v, want %s", err, test.wantKey)
 			}
 		})
+	}
+}
+
+func TestProductionDeploymentImageGeometryMatchesApplicationCeiling(t *testing.T) {
+	productionEnv, err := os.ReadFile("../../environments/prod.env.example")
+	if err != nil {
+		t.Fatal(err)
+	}
+	blueprint, err := os.ReadFile("../../../render.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, expected := range []string{
+		"SCHEDULED_IMAGE_MAX_WIDTH=4000",
+		"SCHEDULED_IMAGE_MAX_HEIGHT=4000",
+	} {
+		if !strings.Contains(string(productionEnv), expected) {
+			t.Fatalf("production environment is missing %q", expected)
+		}
+	}
+	for _, expected := range []string{
+		"SCHEDULED_IMAGE_MAX_WIDTH\n                value: \"4000\"",
+		"SCHEDULED_IMAGE_MAX_HEIGHT\n                value: \"4000\"",
+	} {
+		if !strings.Contains(string(blueprint), expected) {
+			t.Fatalf("Render Blueprint is missing %q", expected)
+		}
 	}
 }
 

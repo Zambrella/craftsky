@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -190,6 +189,8 @@ func (s sentinelFailureSender) Send(context.Context, SendRequest) (ProviderResul
 type contextBlockingSender struct {
 	request  SendRequest
 	deadline time.Time
+	started  chan struct{}
+	canceled chan struct{}
 }
 
 type deadlineCaptureSender struct {
@@ -221,7 +222,13 @@ func (s *deadlineCaptureSender) Send(
 func (s *contextBlockingSender) Send(ctx context.Context, request SendRequest) (ProviderResult, error) {
 	s.request = request
 	s.deadline, _ = ctx.Deadline()
+	if s.started != nil {
+		close(s.started)
+	}
 	<-ctx.Done()
+	if s.canceled != nil {
+		close(s.canceled)
+	}
 	return ProviderResult{Class: ResultRetryable}, ctx.Err()
 }
 
@@ -261,17 +268,25 @@ type scriptedSender struct {
 	mu       sync.Mutex
 	results  []ProviderResult
 	requests []SendRequest
+	sent     chan struct{}
 }
 
 func (s *scriptedSender) Send(_ context.Context, request SendRequest) (ProviderResult, error) {
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	s.requests = append(s.requests, request)
+	if s.sent != nil {
+		select {
+		case s.sent <- struct{}{}:
+		default:
+		}
+	}
 	if len(s.results) == 0 {
+		s.mu.Unlock()
 		return ProviderResult{Class: ResultSuccess}, nil
 	}
 	result := s.results[0]
 	s.results = s.results[1:]
+	s.mu.Unlock()
 	if result.Class == ResultRetryable {
 		return result, errors.New("provider unavailable")
 	}
@@ -425,7 +440,7 @@ func TestDispatcherSuppressesRelationshipProtectedDeliveryBeforeProviderSend(t *
 		sql  string
 	}{
 		{name: "mute", sql: `INSERT INTO actor_mutes(owner_did,subject_did) VALUES('did:plc:viewer','did:plc:actor')`},
-		{name: "inbound block", sql: `INSERT INTO atproto_blocks(uri,blocker_did,subject_did) VALUES('at://did:plc:actor/app.bsky.graph.block/r1','did:plc:actor','did:plc:viewer')`},
+		{name: "inbound block", sql: `INSERT INTO pds_set_aggregates(kind,actor_did,subject_did) VALUES('block','did:plc:actor','did:plc:viewer')`},
 	} {
 		t.Run(setup.name, func(t *testing.T) {
 			pool := dispatcherPool(t)
@@ -488,8 +503,8 @@ func TestDispatcherRechecksPeopleIFollowRelationshipBeforeProviderSend(t *testin
 	if _, err := pool.Exec(context.Background(), `
 		INSERT INTO notification_preferences(account_did,category,scope,push_enabled)
 		VALUES('did:plc:viewer','like','peopleIFollow',true);
-		INSERT INTO atproto_follows(uri,did,subject_did)
-		VALUES('at://did:plc:viewer/app.bsky.graph.follow/r1','did:plc:viewer','did:plc:actor')
+		INSERT INTO pds_set_aggregates(kind,actor_did,subject_did)
+		VALUES('follow','did:plc:viewer','did:plc:actor')
 	`); err != nil {
 		t.Fatal(err)
 	}
@@ -500,8 +515,8 @@ func TestDispatcherRechecksPeopleIFollowRelationshipBeforeProviderSend(t *testin
 		t.Fatalf("claims=%d err=%v", len(items), err)
 	}
 	if _, err := pool.Exec(context.Background(), `
-		DELETE FROM atproto_follows
-		WHERE did='did:plc:viewer' AND subject_did='did:plc:actor'
+		DELETE FROM pds_set_aggregates
+		WHERE kind='follow' AND actor_did='did:plc:viewer' AND subject_did='did:plc:actor'
 	`); err != nil {
 		t.Fatal(err)
 	}
@@ -570,8 +585,8 @@ func TestDispatcherTerminallySettlesCurrentEligibilityInvalidation(t *testing.T)
 				if _, err := pool.Exec(context.Background(), `
 					INSERT INTO notification_preferences(account_did,category,scope,push_enabled)
 					VALUES('did:plc:viewer','like','peopleIFollow',true);
-					INSERT INTO atproto_follows(uri,did,subject_did)
-					VALUES('at://did:plc:viewer/app.bsky.graph.follow/r1','did:plc:viewer','did:plc:actor')
+					INSERT INTO pds_set_aggregates(kind,actor_did,subject_did)
+					VALUES('follow','did:plc:viewer','did:plc:actor')
 				`); err != nil {
 					t.Fatal(err)
 				}
@@ -579,8 +594,8 @@ func TestDispatcherTerminallySettlesCurrentEligibilityInvalidation(t *testing.T)
 			invalidate: func(t *testing.T, pool *pgxpool.Pool) {
 				t.Helper()
 				if _, err := pool.Exec(context.Background(), `
-					DELETE FROM atproto_follows
-					WHERE did='did:plc:viewer' AND subject_did='did:plc:actor'
+					DELETE FROM pds_set_aggregates
+					WHERE kind='follow' AND actor_did='did:plc:viewer' AND subject_did='did:plc:actor'
 				`); err != nil {
 					t.Fatal(err)
 				}
@@ -588,8 +603,8 @@ func TestDispatcherTerminallySettlesCurrentEligibilityInvalidation(t *testing.T)
 			restore: func(t *testing.T, pool *pgxpool.Pool) {
 				t.Helper()
 				if _, err := pool.Exec(context.Background(), `
-					INSERT INTO atproto_follows(uri,did,subject_did)
-					VALUES('at://did:plc:viewer/app.bsky.graph.follow/r2','did:plc:viewer','did:plc:actor')
+					INSERT INTO pds_set_aggregates(kind,actor_did,subject_did)
+					VALUES('follow','did:plc:viewer','did:plc:actor')
 				`); err != nil {
 					t.Fatal(err)
 				}
@@ -728,8 +743,8 @@ func TestDispatcherAllowsPeopleIFollowWhenRelationshipIsStillCurrent(t *testing.
 	if _, err := pool.Exec(context.Background(), `
 		INSERT INTO notification_preferences(account_did,category,scope,push_enabled)
 		VALUES('did:plc:viewer','like','peopleIFollow',true);
-		INSERT INTO atproto_follows(uri,did,subject_did)
-		VALUES('at://did:plc:viewer/app.bsky.graph.follow/r1','did:plc:viewer','did:plc:actor')
+		INSERT INTO pds_set_aggregates(kind,actor_did,subject_did)
+		VALUES('follow','did:plc:viewer','did:plc:actor')
 	`); err != nil {
 		t.Fatal(err)
 	}
@@ -1414,20 +1429,35 @@ func TestDispatcherBoundsInFlightSendByAbsoluteDeadline(t *testing.T) {
 	pool := dispatcherPool(t)
 	deadline := time.Now().UTC().Add(250 * time.Millisecond)
 	seedDelivery(t, pool, "pending", deadline)
-	sender := &contextBlockingSender{}
+	sender := &contextBlockingSender{started: make(chan struct{}), canceled: make(chan struct{})}
 	d := newTestDispatcher(t, pool, sender, DispatcherOptions{Now: time.Now, BatchSize: 1, LeaseDuration: time.Minute, SendTimeout: time.Second})
-	started := time.Now()
-	if n, err := d.ProcessBatch(context.Background(), "appview"); err != nil || n != 1 {
-		t.Fatalf("n=%d err=%v", n, err)
+	type processResult struct {
+		n   int
+		err error
 	}
-	elapsed := time.Since(started)
-	if elapsed >= 600*time.Millisecond {
-		t.Fatalf("send ran %s, beyond absolute deadline", elapsed)
+	result := make(chan processResult, 1)
+	go func() {
+		n, err := d.ProcessBatch(context.Background(), "appview")
+		result <- processResult{n: n, err: err}
+	}()
+	select {
+	case <-sender.started:
+	case <-time.After(time.Second):
+		t.Fatal("provider send did not start")
+	}
+	select {
+	case <-sender.canceled:
+	case <-time.After(time.Second):
+		t.Fatal("delivery deadline did not cancel provider send")
+	}
+	processed := <-result
+	if processed.err != nil || processed.n != 1 {
+		t.Fatalf("n=%d err=%v", processed.n, processed.err)
 	}
 	if sender.deadline.After(deadline.Add(25 * time.Millisecond)) {
 		t.Fatalf("provider context deadline=%s delivery deadline=%s", sender.deadline, deadline)
 	}
-	if sender.request.TTL <= 0 || sender.request.TTL > deadline.Sub(started)+50*time.Millisecond {
+	if sender.request.TTL <= 0 || sender.request.TTL > 250*time.Millisecond {
 		t.Fatalf("provider TTL=%s", sender.request.TTL)
 	}
 	var status string
@@ -1445,10 +1475,9 @@ func TestDispatcherRunRecoversFromTransientStoreFailure(t *testing.T) {
 		CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT);
 		CREATE TABLE craftsky_posts(uri TEXT PRIMARY KEY,reply_root_uri TEXT,reply_parent_uri TEXT);
 		CREATE TABLE actor_mutes(owner_did TEXT NOT NULL, subject_did TEXT NOT NULL, PRIMARY KEY(owner_did, subject_did));
-		CREATE TABLE atproto_blocks(uri TEXT PRIMARY KEY, blocker_did TEXT NOT NULL, subject_did TEXT NOT NULL);
-		CREATE TABLE atproto_follows(uri TEXT PRIMARY KEY, did TEXT NOT NULL, subject_did TEXT NOT NULL, UNIQUE(did, subject_did));
+		CREATE TABLE pds_set_aggregates(kind TEXT NOT NULL, actor_did TEXT NOT NULL, subject_did TEXT);
 	`)
-	sender := &scriptedSender{}
+	sender := &scriptedSender{sent: make(chan struct{}, 1)}
 	d := newTestDispatcher(t, pool, sender, DispatcherOptions{Now: time.Now, BatchSize: 1, LeaseDuration: time.Minute})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -1460,7 +1489,7 @@ func TestDispatcherRunRecoversFromTransientStoreFailure(t *testing.T) {
 		t.Fatalf("worker exited on transient store failure: %v", err)
 	case <-time.After(50 * time.Millisecond):
 	}
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1468,9 +1497,10 @@ func TestDispatcherRunRecoversFromTransientStoreFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	seedDelivery(t, pool, "pending", time.Now().Add(6*time.Hour))
-	deadline := time.Now().Add(2 * time.Second)
-	for time.Now().Before(deadline) && sender.requestCount() == 0 {
-		time.Sleep(10 * time.Millisecond)
+	select {
+	case <-sender.sent:
+	case <-time.After(2 * time.Second):
+		t.Fatal("dispatcher did not send after store recovery")
 	}
 	if sender.requestCount() != 1 {
 		t.Fatalf("send calls=%d after store recovery", sender.requestCount())
@@ -1668,10 +1698,9 @@ func dispatcherPool(t *testing.T) *pgxpool.Pool {
 		CREATE TABLE bluesky_profiles(did TEXT PRIMARY KEY,display_name TEXT,avatar_cid TEXT);
 		CREATE TABLE craftsky_posts(uri TEXT PRIMARY KEY,reply_root_uri TEXT,reply_parent_uri TEXT);
 		CREATE TABLE actor_mutes(owner_did TEXT NOT NULL, subject_did TEXT NOT NULL, PRIMARY KEY(owner_did, subject_did));
-		CREATE TABLE atproto_blocks(uri TEXT PRIMARY KEY, blocker_did TEXT NOT NULL, subject_did TEXT NOT NULL);
-		CREATE TABLE atproto_follows(uri TEXT PRIMARY KEY, did TEXT NOT NULL, subject_did TEXT NOT NULL, UNIQUE(did, subject_did));
+		CREATE TABLE pds_set_aggregates(kind TEXT NOT NULL, actor_did TEXT NOT NULL, subject_did TEXT);
 	`)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

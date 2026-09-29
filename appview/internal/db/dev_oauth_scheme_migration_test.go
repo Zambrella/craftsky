@@ -2,18 +2,17 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"social.craftsky/appview/internal/testdb"
 )
 
 func TestDevOAuthSchemeMigrationUpDownUp(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000052_dev_oauth_scheme.up.sql")
+	up, err := testdb.ReadMigration("000052_dev_oauth_scheme.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := os.ReadFile("../../migrations/000052_dev_oauth_scheme.down.sql")
+	down, err := testdb.ReadMigration("000052_dev_oauth_scheme.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 
 	"social.craftsky/appview/internal/testdb"
@@ -15,10 +14,10 @@ func TestNotificationNewnessAccountWideAcrossDevicesAndIsolatedByAccount(t *test
 	pool := testdb.WithSchema(t, routeModerationDDL)
 	ctx := context.Background()
 	for _, path := range []string{
-		"../../migrations/000021_appview_notifications.up.sql",
-		"../../migrations/000022_notification_newness.up.sql",
+		"000021_appview_notifications.up.sql",
+		"000022_notification_newness.up.sql",
 	} {
-		migration, err := os.ReadFile(path)
+		migration, err := testdb.ReadMigration(path)
 		if err != nil {
 			t.Fatalf("read migration %s: %v", path, err)
 		}
@@ -37,9 +36,9 @@ func TestNotificationNewnessAccountWideAcrossDevicesAndIsolatedByAccount(t *test
 			subject_did TEXT NOT NULL,
 			PRIMARY KEY (owner_did, subject_did)
 		);
-		CREATE TABLE atproto_blocks (
-			uri TEXT PRIMARY KEY,
-			blocker_did TEXT NOT NULL,
+		CREATE TABLE pds_set_aggregates (
+			kind TEXT NOT NULL,
+			actor_did TEXT NOT NULL,
 			subject_did TEXT NOT NULL
 		);
 	`); err != nil {

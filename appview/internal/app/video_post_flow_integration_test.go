@@ -3,8 +3,6 @@ package app
 import (
 	"context"
 	"encoding/json"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -24,6 +22,7 @@ import (
 	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/tap"
 	"social.craftsky/appview/internal/testdb"
+	"social.craftsky/appview/internal/testlog"
 	"social.craftsky/appview/internal/video"
 )
 
@@ -143,7 +142,7 @@ func TestVideoPostCreateTapReadConvergence(t *testing.T) {
 		JobId: "job-1", Did: owner.String(), State: "JOB_STATE_COMPLETED",
 		Blob: &lexutil.LexBlob{Ref: lexutil.LexLink(parsedVideoCID), MimeType: "video/mp4", Size: videoSize},
 	}})
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testlog.Discard()
 	create := api.CreatePostHandler(
 		store,
 		func(context.Context, syntax.DID, string) (pdseffects.EffectExecutor, error) { return effects, nil },

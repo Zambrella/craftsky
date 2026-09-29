@@ -27,6 +27,7 @@ class ApiProfileRepository implements ProfileRepository {
 
   @override
   Future<Profile> updateMe({
+    required String operationKey,
     String? displayName,
     String? pronouns,
     String? description,
@@ -36,6 +37,7 @@ class ApiProfileRepository implements ProfileRepository {
     UploadedBlob? banner,
     bool clearBanner = false,
   }) => _api.updateMyProfile(
+    operationKey: operationKey,
     displayName: displayName,
     pronouns: pronouns,
     description: description,
@@ -52,11 +54,16 @@ class ApiProfileRepository implements ProfileRepository {
   ) => _api.updateMyCustomisation(customisation);
 
   @override
-  Future<Profile> follow(String handleOrDid) => _api.followProfile(handleOrDid);
+  Future<Profile> follow(
+    String handleOrDid, {
+    required String operationKey,
+  }) => _api.followProfile(handleOrDid, operationKey: operationKey);
 
   @override
-  Future<Profile> unfollow(String handleOrDid) =>
-      _api.unfollowProfile(handleOrDid);
+  Future<Profile> unfollow(
+    String handleOrDid, {
+    required String operationKey,
+  }) => _api.unfollowProfile(handleOrDid, operationKey: operationKey);
 
   @override
   Future<ProfileRelationship> mute(String handleOrDid) =>
@@ -67,12 +74,16 @@ class ApiProfileRepository implements ProfileRepository {
       _api.unmuteProfile(handleOrDid);
 
   @override
-  Future<ProfileRelationship> block(String handleOrDid) =>
-      _api.blockProfile(handleOrDid);
+  Future<ProfileRelationship> block(
+    String handleOrDid, {
+    required String operationKey,
+  }) => _api.blockProfile(handleOrDid, operationKey: operationKey);
 
   @override
-  Future<ProfileRelationship> unblock(String handleOrDid) =>
-      _api.unblockProfile(handleOrDid);
+  Future<void> unblock(
+    String handleOrDid, {
+    required String operationKey,
+  }) => _api.unblockProfile(handleOrDid, operationKey: operationKey);
 
   @override
   Future<ReportResult> report(

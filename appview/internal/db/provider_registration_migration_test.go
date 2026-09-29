@@ -2,7 +2,6 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -11,11 +10,11 @@ import (
 )
 
 func TestProviderRegistrationMigrationAuthorityShapesUpDownUp(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000064_provider_first_registration.up.sql")
+	up, err := testdb.ReadMigration("000064_provider_first_registration.up.sql")
 	if err != nil {
 		t.Fatalf("read provider registration up migration: %v", err)
 	}
-	down, err := os.ReadFile("../../migrations/000064_provider_first_registration.down.sql")
+	down, err := testdb.ReadMigration("000064_provider_first_registration.down.sql")
 	if err != nil {
 		t.Fatalf("read provider registration down migration: %v", err)
 	}
@@ -57,7 +56,7 @@ func TestProviderRegistrationMigrationAuthorityShapesUpDownUp(t *testing.T) {
 }
 
 func TestProviderRegistrationMigrationAddsOwnerlessCredentialQuarantine(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000064_provider_first_registration.up.sql")
+	up, err := testdb.ReadMigration("000064_provider_first_registration.up.sql")
 	if err != nil {
 		t.Fatalf("read provider registration up migration: %v", err)
 	}

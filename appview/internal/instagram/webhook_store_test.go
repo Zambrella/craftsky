@@ -10,7 +10,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
@@ -623,7 +622,7 @@ func assertWebhookWorkRow(t *testing.T, store *WebhookStore, id uuid.UUID, wantS
 
 func newWebhookTestStore(t *testing.T) *WebhookStore {
 	t.Helper()
-	migration, err := os.ReadFile("../../migrations/000025_instagram_migration.up.sql")
+	migration, err := testdb.ReadMigration("000025_instagram_migration.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}

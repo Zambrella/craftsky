@@ -1,18 +1,23 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/auth/providers/active_account_identity_provider.dart';
 import 'package:craftsky_app/business/models/business_drafts.dart';
+import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
-import 'package:craftsky_app/business/providers/business_projection_overlay_provider.dart';
+import 'package:craftsky_app/business/providers/business_record_overlay.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_reconciliation.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -31,7 +36,7 @@ final productsProfileLoaderProvider = Provider<ProductsProfileLoader>((ref) {
   };
 });
 
-enum ProductsStatus { ready, saving, conflict, error }
+enum ProductsStatus { ready, saving, ambiguous, conflict, error }
 
 @immutable
 class ProductsState {
@@ -84,19 +89,15 @@ class ProductsController extends _$ProductsController {
       throw const ProductsUnavailableException();
     }
     _ownerDid = identity.profile.did;
-    final overlay = ref.read(businessProjectionOverlayProvider.notifier);
-    final key = BusinessProjectionKey.declaration(
-      identity.lease.account,
-      _ownerDid,
-    );
-    final business = overlay.reconcile<BusinessProfile>(
-      key: key,
-      fence: overlay.captureRead(identity.lease),
-      authoritativeCid: identity.profile.business?.cid,
-      authoritativeView: identity.profile.business,
-    );
     return _stateFromProfile(
-      identity.profile.copyWith(business: business.view),
+      identity.profile.copyWith(
+        business: applyBusinessProfileOverlay(
+          ref,
+          identity.lease,
+          _ownerDid,
+          identity.profile.business,
+        ),
+      ),
     );
   }
 
@@ -209,23 +210,89 @@ class ProductsController extends _$ProductsController {
           account: AccountKey(_ownerDid.toString()),
           sessionGeneration: 0,
         );
-    final key = BusinessProjectionKey.declaration(lease.account, _ownerDid);
-    final generation = ref
-        .read(businessProjectionOverlayProvider.notifier)
-        .beginMutation(key, lease);
+    final body = Map<String, dynamic>.from(
+      jsonDecode(
+            jsonEncode(current.declaration.toJson(productDrafts: products)),
+          )
+          as Map,
+    );
+    const endpoint = '/v1/profiles/me/business';
+    final immutableBody = jsonEncode(body);
+    final commandController = ref.read(pdsRecordOperationControllerProvider);
+    final commandToken = commandController.beginOrRetry(
+      scope: businessProfileMutationScope(lease, _ownerDid),
+      endpoint: endpoint,
+      immutableBody: immutableBody,
+      newOperationKey: newPdsMutationOperationKey,
+    );
+    final operationKey = commandToken.operationKey;
+    final startedAt = ref.read(pdsMutationNowProvider)();
+    var retryIndex = 0;
     state = AsyncData(
       current.copyWith(
         status: ProductsStatus.saving,
         validationErrors: const {},
       ),
     );
-    try {
-      final result = await ref
-          .read(businessRepositoryProvider)
-          .putBusinessProfile(
-            current.declaration.toJson(productDrafts: products),
-            expectedCid: current.declaration.expectedCid,
+    while (true) {
+      late final RecordMutationResult result;
+      try {
+        result = await ref
+            .read(businessRepositoryProvider)
+            .putBusinessProfile(
+              body,
+              operationKey: operationKey,
+              expectedCid: current.declaration.expectedCid,
+            );
+      } on PdsMutationAmbiguousException catch (error) {
+        if (!isActiveAccountOperationCurrent(ref, ownership)) return false;
+        commandController.markAmbiguous(
+          commandToken,
+          retryAfterSeconds: error.retryAfterSeconds,
+        );
+        final delay = const PdsMutationRetryPolicy().nextDelay(
+          retryIndex: retryIndex,
+          retryAfterSeconds: error.retryAfterSeconds,
+          elapsed: ref.read(pdsMutationNowProvider)().difference(startedAt),
+          jitterMillis: ref.read(pdsMutationJitterProvider),
+        );
+        if (delay == null) {
+          state = AsyncData(
+            current.copyWith(status: ProductsStatus.ambiguous),
           );
+          return false;
+        }
+        retryIndex++;
+        await ref.read(pdsMutationDelayProvider)(delay);
+        if (!isActiveAccountOperationCurrent(ref, ownership) ||
+            !commandController.canRetry(
+              commandToken,
+              operationKey: operationKey,
+              endpoint: endpoint,
+              immutableBody: immutableBody,
+            )) {
+          return false;
+        }
+        continue;
+      } on ApiBadRequest catch (error) {
+        if (!isActiveAccountOperationCurrent(ref, ownership)) return false;
+        commandController.markFailed(commandToken);
+        state = AsyncData(
+          current.copyWith(
+            status:
+                error.code == 'pds_record_conflict' ||
+                    error.details.statusCode == 409
+                ? ProductsStatus.conflict
+                : ProductsStatus.error,
+          ),
+        );
+        return false;
+      } on Object {
+        if (!isActiveAccountOperationCurrent(ref, ownership)) return false;
+        commandController.markFailed(commandToken);
+        state = AsyncData(current.copyWith(status: ProductsStatus.error));
+        return false;
+      }
       if (!isActiveAccountOperationCurrent(ref, ownership)) return false;
       final declaration = current.declaration.withExpectedCid(result.cid);
       final accepted = _acceptedProfile(
@@ -233,16 +300,18 @@ class ProductsController extends _$ProductsController {
         products,
         current.declaration.products,
       );
-      if (!ref
-          .read(businessProjectionOverlayProvider.notifier)
-          .acceptUpsert(
-            key: key,
-            lease: lease,
-            requestGeneration: generation,
-            preWriteCid: current.declaration.expectedCid,
-            acceptedCid: result.cid,
-            acceptedView: accepted,
-          )) {
+      final reconciliation = PdsFixedKeyReconciliation(
+        uri: 'at://$_ownerDid/social.craftsky.business.profile/self',
+        controlledContent: businessProfileControlledContent(body),
+      );
+      if (!commandController.markAccepted(
+        commandToken,
+        optimisticValue: accepted,
+        agrees: (value) => reconciliation.agrees(
+          value is PdsRecordProjection ? value : null,
+        ),
+        refresh: _invalidateBusinessProfileReads,
+      )) {
         return false;
       }
       state = AsyncData(
@@ -253,35 +322,13 @@ class ProductsController extends _$ProductsController {
           imageErrorProductId: null,
         ),
       );
-      _cacheAcceptedProfile(accepted);
       return true;
-    } on ApiBadRequest catch (error) {
-      if (!isActiveAccountOperationCurrent(ref, ownership)) return false;
-      state = AsyncData(
-        current.copyWith(
-          status:
-              error.code == 'pds_record_conflict' ||
-                  error.details.statusCode == 409
-              ? ProductsStatus.conflict
-              : ProductsStatus.error,
-        ),
-      );
-      return false;
-    } on Object {
-      if (!isActiveAccountOperationCurrent(ref, ownership)) return false;
-      state = AsyncData(current.copyWith(status: ProductsStatus.error));
-      return false;
     }
   }
 
-  void _cacheAcceptedProfile(BusinessProfile business) {
-    final profile = ref.read(activeAccountIdentityProvider).value?.profile;
-    if (profile == null) return;
-    final accepted = profile.copyWith(business: business);
-    final provider = userProfileProvider(profile.did);
-    if (ref.exists(provider)) {
-      ref.read(provider.notifier).setCached(accepted);
-    }
+  void _invalidateBusinessProfileReads() {
+    if (!ref.mounted) return;
+    ref.invalidate(userProfileProvider);
   }
 
   Future<void> reloadAfterConflict() async {

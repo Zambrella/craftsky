@@ -12,7 +12,7 @@ import (
 	"github.com/jackc/pgx/v5"
 
 	"social.craftsky/appview/internal/ownerlifecycle"
-	"social.craftsky/appview/internal/pdseffects"
+	"social.craftsky/appview/internal/sourcevalidation"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -102,6 +102,10 @@ func (service *Service) IngestRecord(ctx context.Context, event tap.Event) (tap.
 	if lifecycle.State == ownerlifecycle.StateTerminal {
 		return service.ingestTerminalDeniedProfile(ctx, event, lifecycle)
 	}
+	validation := sourcevalidation.Validate(event)
+	if validation.StructuralStatus == sourcevalidation.Invalid || validation.SemanticStatus == sourcevalidation.Invalid {
+		return service.ingestProfileWithoutTransition(ctx, event, false)
+	}
 
 	target, transition := profileTransition(lifecycle.State, event.Action)
 	if transition {
@@ -118,11 +122,6 @@ func (service *Service) IngestRecord(ctx context.Context, event tap.Event) (tap.
 			}
 			if !won {
 				return errProfileSourceDidNotWin
-			}
-			if before.State != ownerlifecycle.StateActive && after.State == ownerlifecycle.StateActive {
-				if err := service.store.prepareEffectSourcesForRejoinTx(ctx, tx, after, service.store.now().UTC().Truncate(time.Microsecond)); err != nil {
-					return err
-				}
 			}
 			if service.profileParticipant != nil {
 				return service.profileParticipant(ctx, tx, before, after)
@@ -312,7 +311,6 @@ func (store *Store) ingestProfileTx(
 	orderingStatus := "authoritative"
 	disposition := "eligible"
 	projectionGeneration := lifecycle.Generation
-	var effectOperationID any
 	state := "pending"
 	var dependencyKind, dependencyKey, completedAt any
 	if lifecycle.State == ownerlifecycle.StateTerminal {
@@ -320,64 +318,9 @@ func (store *Store) ingestProfileTx(
 		state = "permanent_denied"
 		completedAt = now
 	}
-	if event.Action != "delete" {
-		recordContentFingerprint, err := pdseffects.RecordContentFingerprint(
-			event.DID, event.Collection, event.Rkey, event.Record,
-		)
-		if err != nil {
-			return tap.Outcome{}, false, err
-		}
-		resolution, err := ownerlifecycle.ResolvePDSRecordSourceTx(
-			ctx,
-			tx,
-			lifecycle,
-			ownerlifecycle.PDSRecordSourceObservation{
-				Owner: event.DID, URI: event.URI, CID: event.CID,
-				RecordFingerprint: recordContentFingerprint,
-			},
-			now,
-		)
-		if err != nil {
-			return tap.Outcome{}, false, err
-		}
-		switch resolution.Match {
-		case ownerlifecycle.EffectSourceAmbiguous:
-			orderingStatus = "uncertain"
-			disposition = "pending"
-			state = "blocked"
-			outcome = tap.Blocked(
-				tap.ReasonSourceOrderUncertain,
-				tap.Dependency{Kind: "repository_did", Key: event.DID.String()},
-			)
-			dependencyKind, dependencyKey = outcome.Dependency.Kind, outcome.Dependency.Key
-		case ownerlifecycle.EffectSourceMatched:
-			effectOperationID = resolution.Attempt.OperationID
-			switch resolution.Attempt.ProjectionDisposition {
-			case ownerlifecycle.ProjectionEligibleCurrent:
-				disposition = "eligible"
-			case ownerlifecycle.ProjectionHiddenNonActive:
-				orderingStatus = "uncertain"
-				disposition = "pending"
-				state = "blocked"
-				outcome = tap.Blocked(
-					tap.ReasonSourceOrderUncertain,
-					tap.Dependency{Kind: "repository_did", Key: event.DID.String()},
-				)
-				dependencyKind, dependencyKey = outcome.Dependency.Kind, outcome.Dependency.Key
-			case ownerlifecycle.ProjectionDeniedTerminal:
-				disposition = "denied_terminal"
-				state = "permanent_denied"
-				completedAt = now
-			case ownerlifecycle.ProjectionNotApplicable:
-				disposition = "not_accepted"
-				state = "permanent_denied"
-				completedAt = now
-			}
-		}
-	}
 	if err := installSourceProjectionTx(
 		ctx, tx, event, sourceFingerprint, orderingStatus, disposition,
-		projectionGeneration, effectOperationID, state, dependencyKind,
+		projectionGeneration, nil, state, dependencyKind,
 		dependencyKey, completedAt, outcome.Reason, now,
 	); err != nil {
 		return tap.Outcome{}, false, err

@@ -23,6 +23,7 @@ class ApiPostRepository implements PostRepository {
 
   @override
   Future<Post> create({
+    required String operationKey,
     required String text,
     required List<String> langs,
     required bool sponsored,
@@ -47,6 +48,7 @@ class ApiPostRepository implements PostRepository {
       'Project posts cannot be quote posts',
     );
     return _api.createPost(
+      operationKey: operationKey,
       text: text,
       langs: langs,
       sponsored: sponsored,
@@ -64,7 +66,17 @@ class ApiPostRepository implements PostRepository {
   Future<Post> fetch(Did did, RecordKey rkey) => _api.getPost(did, rkey);
 
   @override
-  Future<void> delete(Did did, RecordKey rkey) => _api.deletePost(did, rkey);
+  Future<void> delete(
+    Did did,
+    RecordKey rkey, {
+    required String operationKey,
+    required String expectedCid,
+  }) => _api.deletePost(
+    did,
+    rkey,
+    operationKey: operationKey,
+    expectedCid: expectedCid,
+  );
 
   @override
   Future<ProfilePinState> profilePins() => _api.getProfilePins();
@@ -110,19 +122,32 @@ class ApiPostRepository implements PostRepository {
   );
 
   @override
-  Future<InteractionWriteResponse> like(Did did, RecordKey rkey) =>
-      _api.likePost(did, rkey);
+  Future<InteractionWriteResponse> like(
+    Did did,
+    RecordKey rkey, {
+    required String operationKey,
+  }) => _api.likePost(did, rkey, operationKey: operationKey);
 
   @override
-  Future<void> unlike(Did did, RecordKey rkey) => _api.unlikePost(did, rkey);
+  Future<void> unlike(
+    Did did,
+    RecordKey rkey, {
+    required String operationKey,
+  }) => _api.unlikePost(did, rkey, operationKey: operationKey);
 
   @override
-  Future<InteractionWriteResponse> repost(Did did, RecordKey rkey) =>
-      _api.repostPost(did, rkey);
+  Future<InteractionWriteResponse> repost(
+    Did did,
+    RecordKey rkey, {
+    required String operationKey,
+  }) => _api.repostPost(did, rkey, operationKey: operationKey);
 
   @override
-  Future<void> unrepost(Did did, RecordKey rkey) =>
-      _api.unrepostPost(did, rkey);
+  Future<void> unrepost(
+    Did did,
+    RecordKey rkey, {
+    required String operationKey,
+  }) => _api.unrepostPost(did, rkey, operationKey: operationKey);
 
   @override
   Future<ProfileAccountPage> listLikes(
@@ -172,4 +197,11 @@ class ApiPostRepository implements PostRepository {
     String? cursor,
     int? limit,
   }) => _api.listCommentsByAuthor(handleOrDid, cursor: cursor, limit: limit);
+
+  @override
+  Future<PostPage> listRepostsByAuthor(
+    String handleOrDid, {
+    String? cursor,
+    int? limit,
+  }) => _api.listRepostsByAuthor(handleOrDid, cursor: cursor, limit: limit);
 }

@@ -2,7 +2,6 @@ package api_test
 
 import (
 	"context"
-	"os"
 	"testing"
 	"time"
 
@@ -14,7 +13,7 @@ import (
 )
 
 func TestProfilePinPermanentDeleteAndMembershipCascades(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000035_profile_pins.up.sql")
+	migration, err := testdb.ReadMigration("000035_profile_pins.up.sql")
 	if err != nil {
 		t.Fatalf("read profile pin migration: %v", err)
 	}

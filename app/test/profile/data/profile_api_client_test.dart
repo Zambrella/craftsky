@@ -3,6 +3,7 @@ import 'package:craftsky_app/moderation/models/report_submission.dart';
 import 'package:craftsky_app/profile/data/profile_api_client.dart';
 import 'package:craftsky_app/profile/models/follower_growth.dart';
 import 'package:craftsky_app/profile/models/profile_customisation.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/api/providers/error_mapping_interceptor.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:dio/dio.dart';
@@ -40,6 +41,7 @@ void main() {
     );
 
     final profile = await ProfileApiClient(dio).updateMyProfile(
+      operationKey: '018f47a5-1837-7ad1-8f6d-8e8d2a89c951',
       displayName: 'Alice',
       pronouns: 'she/they',
       description: 'textile person',
@@ -48,6 +50,50 @@ void main() {
 
     expect(profile.pronouns, 'she/her');
   });
+
+  test(
+    'profile update forwards its key and parses ambiguous responses',
+    () async {
+      final dio = buildDio();
+      final requests = <RequestOptions>[];
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            requests.add(options);
+            handler.next(options);
+          },
+        ),
+      );
+      DioAdapter(dio: dio).onPut(
+        '/v1/profiles/me',
+        (server) => server.reply(
+          202,
+          {'status': 'ambiguous'},
+          headers: {
+            Headers.contentTypeHeader: [Headers.jsonContentType],
+            'Retry-After': ['2'],
+          },
+        ),
+        data: {'displayName': 'Alice'},
+      );
+
+      const operationKey = '018f47a5-1837-7ad1-8f6d-8e8d2a89c957';
+      await expectLater(
+        ProfileApiClient(dio).updateMyProfile(
+          operationKey: operationKey,
+          displayName: 'Alice',
+        ),
+        throwsA(
+          isA<PdsMutationAmbiguousException>().having(
+            (error) => error.retryAfterSeconds,
+            'retryAfterSeconds',
+            2,
+          ),
+        ),
+      );
+      expect(requests.single.headers['Idempotency-Key'], operationKey);
+    },
+  );
 
   test('decodes upcoming event availability from a profile response', () async {
     final dio = buildDio();
@@ -181,6 +227,7 @@ void main() {
       );
 
       final profile = await ProfileApiClient(dio).updateMyProfile(
+        operationKey: '018f47a5-1837-7ad1-8f6d-8e8d2a89c952',
         displayName: 'Alice',
         crafts: ['sewing'],
         avatar: avatar,
@@ -201,7 +248,11 @@ void main() {
 
     await ProfileApiClient(
       dio,
-    ).updateMyProfile(clearAvatar: true, clearBanner: true);
+    ).updateMyProfile(
+      operationKey: '018f47a5-1837-7ad1-8f6d-8e8d2a89c953',
+      clearAvatar: true,
+      clearBanner: true,
+    );
   });
 
   test('replaces customisation with exactly the two wire fields', () async {
@@ -247,6 +298,7 @@ void main() {
     );
 
     final profile = await ProfileApiClient(dio).updateMyProfile(
+      operationKey: '018f47a5-1837-7ad1-8f6d-8e8d2a89c954',
       displayName: 'Alice',
       description: 'textile person #Mending',
       crafts: ['sewing'],
@@ -255,35 +307,132 @@ void main() {
     expect(profile.handle.toString(), 'alice.craftsky.social');
   });
 
-  test('POST follow uses CraftSky endpoint and no token fields', () async {
+  test(
+    'POST follow forwards its canonical key and preserves Profile',
+    () async {
+      final dio = buildDio();
+      final requests = <RequestOptions>[];
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            requests.add(options);
+            handler.next(options);
+          },
+        ),
+      );
+      DioAdapter(dio: dio).onPost(
+        '/v1/profiles/@bob.craftsky.social/follows',
+        (server) => server.reply(200, sampleProfile()),
+      );
+
+      const operationKey = '018f47a5-1837-7ad1-8f6d-8e8d2a89c950';
+      final profile = await ProfileApiClient(
+        dio,
+      ).followProfile('bob.craftsky.social', operationKey: operationKey);
+
+      expect(profile.did.toString(), 'did:plc:alice');
+      expect(requests.single.headers['Idempotency-Key'], operationKey);
+    },
+  );
+
+  test(
+    'DELETE unfollow forwards its canonical key and preserves Profile',
+    () async {
+      final dio = buildDio();
+      final requests = <RequestOptions>[];
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            requests.add(options);
+            handler.next(options);
+          },
+        ),
+      );
+      DioAdapter(dio: dio).onDelete(
+        '/v1/profiles/@bob.craftsky.social/follows',
+        (server) => server.reply(200, sampleProfile()),
+      );
+
+      const operationKey = '018f47a5-1837-7ad1-8f6d-8e8d2a89c950';
+      final profile = await ProfileApiClient(
+        dio,
+      ).unfollowProfile('bob.craftsky.social', operationKey: operationKey);
+
+      expect(profile.did.toString(), 'did:plc:alice');
+      expect(requests.single.headers['Idempotency-Key'], operationKey);
+    },
+  );
+
+  test('follow surfaces the shared ambiguous response contract', () {
     final dio = buildDio();
     DioAdapter(dio: dio).onPost(
       '/v1/profiles/@bob.craftsky.social/follows',
-      (server) => server.reply(200, sampleProfile()),
+      (server) => server.reply(
+        202,
+        {'status': 'ambiguous'},
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+          'Retry-After': ['3'],
+        },
+      ),
     );
 
-    final profile = await ProfileApiClient(
-      dio,
-    ).followProfile('bob.craftsky.social');
-
-    expect(profile.did.toString(), 'did:plc:alice');
+    expect(
+      ProfileApiClient(dio).followProfile(
+        'bob.craftsky.social',
+        operationKey: '018f47a5-1837-7ad1-8f6d-8e8d2a89c950',
+      ),
+      throwsA(
+        isA<PdsMutationAmbiguousException>().having(
+          (error) => error.retryAfterSeconds,
+          'retryAfterSeconds',
+          3,
+        ),
+      ),
+    );
   });
 
-  test('DELETE unfollow uses CraftSky endpoint and no token fields', () async {
+  test('unfollow surfaces the shared ambiguous response contract', () {
     final dio = buildDio();
     DioAdapter(dio: dio).onDelete(
       '/v1/profiles/@bob.craftsky.social/follows',
-      (server) => server.reply(200, sampleProfile()),
+      (server) => server.reply(
+        202,
+        {'status': 'ambiguous'},
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+          'Retry-After': ['2'],
+        },
+      ),
     );
 
-    final profile = await ProfileApiClient(
-      dio,
-    ).unfollowProfile('bob.craftsky.social');
-
-    expect(profile.did.toString(), 'did:plc:alice');
+    expect(
+      ProfileApiClient(dio).unfollowProfile(
+        'bob.craftsky.social',
+        operationKey: '018f47a5-1837-7ad1-8f6d-8e8d2a89c950',
+      ),
+      throwsA(
+        isA<PdsMutationAmbiguousException>().having(
+          (error) => error.retryAfterSeconds,
+          'retryAfterSeconds',
+          2,
+        ),
+      ),
+    );
   });
 
-  test('relationship mutations use the six profile endpoints', () async {
+  test('follow rejects a non-canonical operation key before sending', () {
+    final dio = buildDio();
+
+    expect(
+      ProfileApiClient(
+        dio,
+      ).followProfile('bob.craftsky.social', operationKey: 'not-a-uuid'),
+      throwsArgumentError,
+    );
+  });
+
+  test('relationship mutations use the mute and list endpoints', () async {
     final dio = buildDio();
     final adapter = DioAdapter(dio: dio);
     final response = {
@@ -298,20 +447,6 @@ void main() {
       )
       ..onDelete(
         '/v1/profiles/@bob.craftsky.social/mutes',
-        (server) => server.reply(200, response),
-      )
-      ..onPost(
-        '/v1/profiles/@bob.craftsky.social/blocks',
-        (server) => server.reply(200, {
-          ...response,
-          'blocking': true,
-          'uri': 'at://did:plc:alice/app.bsky.graph.block/3abc',
-          'cid': 'bafyblock',
-          'rkey': '3abc',
-        }),
-      )
-      ..onDelete(
-        '/v1/profiles/@bob.craftsky.social/blocks',
         (server) => server.reply(200, response),
       )
       ..onGet(
@@ -351,15 +486,135 @@ void main() {
     final api = ProfileApiClient(dio);
     expect((await api.muteProfile('bob.craftsky.social')).muted, isTrue);
     expect((await api.unmuteProfile('bob.craftsky.social')).muted, isFalse);
-    final block = await api.blockProfile('bob.craftsky.social');
-    expect(block.blocking, isTrue);
-    expect(block.rkey, '3abc');
-    expect(block.initialized, isTrue);
-    expect((await api.unblockProfile('bob.craftsky.social')).blocking, isFalse);
     expect((await api.listMutedProfiles(limit: 20)).items.single.muted, isTrue);
     expect(
       (await api.listBlockedProfiles(cursor: 'opaque')).items.single.blocking,
       isTrue,
+    );
+  });
+
+  test(
+    'block forwards its canonical key and decodes accepted relationship',
+    () async {
+      final dio = buildDio();
+      final requests = <RequestOptions>[];
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            requests.add(options);
+            handler.next(options);
+          },
+        ),
+      );
+      DioAdapter(dio: dio).onPost(
+        '/v1/profiles/@bob.craftsky.social/blocks',
+        (server) => server.reply(200, {
+          'muted': false,
+          'blocking': true,
+          'blockedBy': false,
+          'uri': 'at://did:plc:alice/app.bsky.graph.block/3abc',
+          'cid': 'bafyblock',
+          'rkey': '3abc',
+        }),
+      );
+
+      const operationKey = '018f47a5-1837-7ad1-8f6d-8e8d2a89c950';
+      final relationship = await ProfileApiClient(
+        dio,
+      ).blockProfile('bob.craftsky.social', operationKey: operationKey);
+
+      expect(relationship.blocking, isTrue);
+      expect(relationship.rkey, '3abc');
+      expect(requests.single.headers['Idempotency-Key'], operationKey);
+    },
+  );
+
+  test(
+    'unblock forwards its canonical key and accepts only empty 204',
+    () async {
+      final dio = buildDio();
+      final requests = <RequestOptions>[];
+      dio.interceptors.add(
+        InterceptorsWrapper(
+          onRequest: (options, handler) {
+            requests.add(options);
+            handler.next(options);
+          },
+        ),
+      );
+      DioAdapter(dio: dio).onDelete(
+        '/v1/profiles/@bob.craftsky.social/blocks',
+        (server) => server.reply(204, null),
+      );
+
+      const operationKey = '018f47a5-1837-7ad1-8f6d-8e8d2a89c950';
+      await ProfileApiClient(
+        dio,
+      ).unblockProfile('bob.craftsky.social', operationKey: operationKey);
+
+      expect(requests.single.headers['Idempotency-Key'], operationKey);
+    },
+  );
+
+  test('block surfaces only the exact ambiguous response contract', () {
+    final dio = buildDio();
+    DioAdapter(dio: dio).onPost(
+      '/v1/profiles/@bob.craftsky.social/blocks',
+      (server) => server.reply(
+        202,
+        {'status': 'ambiguous'},
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+          'Retry-After': ['3'],
+        },
+      ),
+    );
+
+    expect(
+      ProfileApiClient(dio).blockProfile(
+        'bob.craftsky.social',
+        operationKey: '018f47a5-1837-7ad1-8f6d-8e8d2a89c950',
+      ),
+      throwsA(isA<PdsMutationAmbiguousException>()),
+    );
+  });
+
+  test('unblock surfaces only the exact ambiguous response contract', () {
+    final dio = buildDio();
+    DioAdapter(dio: dio).onDelete(
+      '/v1/profiles/@bob.craftsky.social/blocks',
+      (server) => server.reply(
+        202,
+        {'status': 'ambiguous'},
+        headers: {
+          Headers.contentTypeHeader: [Headers.jsonContentType],
+          'Retry-After': ['2'],
+        },
+      ),
+    );
+
+    expect(
+      ProfileApiClient(dio).unblockProfile(
+        'bob.craftsky.social',
+        operationKey: '018f47a5-1837-7ad1-8f6d-8e8d2a89c950',
+      ),
+      throwsA(isA<PdsMutationAmbiguousException>()),
+    );
+  });
+
+  test('unblock retains its key after a malformed success response', () {
+    final dio = buildDio();
+    DioAdapter(dio: dio).onDelete(
+      '/v1/profiles/@bob.craftsky.social/blocks',
+      (server) => server.reply(200, {'blocking': false}),
+    );
+
+    expect(
+      ProfileApiClient(dio).unblockProfile(
+        'bob.craftsky.social',
+        operationKey: '018f47a5-1837-7ad1-8f6d-8e8d2a89c950',
+      ),
+      throwsA(isA<PdsMutationAmbiguousException>()),
     );
   });
 

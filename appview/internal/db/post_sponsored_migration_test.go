@@ -2,7 +2,6 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"social.craftsky/appview/internal/testdb"
@@ -17,7 +16,7 @@ func TestPostSponsoredMigrationDefaultsExistingRowsFalse(t *testing.T) {
 	`); err != nil {
 		t.Fatalf("insert existing post: %v", err)
 	}
-	migration, err := os.ReadFile("../../migrations/000069_post_sponsored.up.sql")
+	migration, err := testdb.ReadMigration("000069_post_sponsored.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}

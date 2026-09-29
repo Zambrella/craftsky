@@ -27,22 +27,22 @@ CREATE TABLE image_replay_serving_posts (
 
 type imageReplayServingProjector struct{}
 
-func (imageReplayServingProjector) Project(ctx context.Context, tx pgx.Tx, event tap.Event) (tap.Outcome, error) {
-	if event.Action == "delete" {
-		_, err := tx.Exec(ctx, `DELETE FROM image_replay_serving_posts WHERE uri=$1`, event.URI)
+func (imageReplayServingProjector) Project(ctx context.Context, tx pgx.Tx, source ingestion.SourceRecord) (tap.Outcome, error) {
+	if source.Action == "delete" {
+		_, err := tx.Exec(ctx, `DELETE FROM image_replay_serving_posts WHERE uri=$1`, source.URI)
 		return tap.Applied(), err
 	}
 	_, err := tx.Exec(ctx, `
 		INSERT INTO image_replay_serving_posts(uri,cid) VALUES($1,$2)
 		ON CONFLICT(uri) DO UPDATE SET cid=EXCLUDED.cid
-	`, event.URI, event.CID)
+	`, source.URI, source.CID)
 	return tap.Applied(), err
 }
 
 func TestImageSafetyReplayUsesCurrentSourceAndDeleteCannotResurrect(t *testing.T) {
 	pool := testdb.WithSchema(t, ingestionProjectionFixtureDDL+imageReplayFixtureDDL)
 	applyTapDurabilityMigration(t, pool)
-	migration, err := os.ReadFile("../../migrations/000073_image_safety.up.sql")
+	migration, err := os.ReadFile("../../migrations/000076_image_safety.up.sql")
 	if err != nil {
 		t.Fatalf("read image safety migration: %v", err)
 	}
@@ -157,11 +157,7 @@ func projectImageReplayClaim(t *testing.T, store *ingestion.Store, projector ind
 		t.Fatalf("claim %s: claims=%+v err=%v", worker, claims, err)
 	}
 	err = store.Project(context.Background(), claims[0], func(ctx context.Context, tx pgx.Tx, source ingestion.SourceRecord) (tap.Outcome, error) {
-		return projector.Project(ctx, tx, tap.Event{
-			ID: source.SourceEventID, URI: source.URI, CID: source.CID, DID: source.DID,
-			Collection: source.Collection, Rkey: source.Rkey, Rev: source.Revision,
-			Action: source.Action, Record: source.Record, Live: source.Live,
-		})
+		return projector.Project(ctx, tx, source)
 	})
 	if err != nil {
 		t.Fatalf("project %s: %v", worker, err)

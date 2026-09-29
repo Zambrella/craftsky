@@ -32,7 +32,7 @@ type fakeOnboardingStatusStore struct {
 
 func TestOnboardingStatusStoreCompletesPermanentlyAndIsolatesDIDs(t *testing.T) {
 	t.Parallel()
-	migration, err := os.ReadFile("../../migrations/000065_account_onboarding_completion.up.sql")
+	migration, err := testdb.ReadMigration("000065_account_onboarding_completion.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -51,7 +51,7 @@ func TestOnboardingStatusStoreCompletesPermanentlyAndIsolatesDIDs(t *testing.T) 
 		);
 		INSERT INTO owner_lifecycles (owner_did, state, generation)
 		VALUES ('did:plc:alice', 'active', 1), ('did:plc:bob', 'active', 1);
-	`+string(migration)+mustReadMigration(t, "../../migrations/000078_age_eligibility.up.sql"))
+	`+string(migration)+mustReadMigration(t, "../../migrations/000081_age_eligibility.up.sql"))
 	store := api.NewOnboardingStatusStore(pool, "safety-v3")
 	ctx := ownerlifecycle.WithExpectedGeneration(context.Background(), 1)
 	alice := syntax.DID("did:plc:alice")

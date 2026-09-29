@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -309,10 +310,19 @@ func runDemoSeed(ctx context.Context, pool *pgxpool.Pool, args demoSeedArgs) (de
 func resetDemoSeed(ctx context.Context, tx pgx.Tx, seed string) (int64, error) {
 	rkeyPattern := "demo-" + seed + "-%"
 	var deleted int64
+	if _, err := tx.Exec(ctx, `
+		DELETE FROM pds_set_aggregates AS aggregate
+		WHERE EXISTS (
+			SELECT 1 FROM pds_set_sources fact
+			JOIN tap_source_records source ON source.uri=fact.source_uri
+			WHERE fact.kind=aggregate.kind AND fact.actor_did=aggregate.actor_did
+			  AND fact.scope_key=aggregate.scope_key AND source.rkey LIKE $1
+		)
+	`, rkeyPattern); err != nil {
+		return 0, fmt.Errorf("reset demo set aggregates: %w", err)
+	}
 	for _, q := range []string{
-		`DELETE FROM craftsky_likes WHERE rkey LIKE $1`,
-		`DELETE FROM craftsky_reposts WHERE rkey LIKE $1`,
-		`DELETE FROM atproto_follows WHERE rkey LIKE $1`,
+		`DELETE FROM tap_source_records WHERE rkey LIKE $1 AND collection IN ('app.bsky.graph.follow','social.craftsky.feed.like','social.craftsky.feed.repost')`,
 		`DELETE FROM craftsky_posts WHERE rkey LIKE $1`,
 	} {
 		tag, err := tx.Exec(ctx, q, rkeyPattern)
@@ -320,6 +330,22 @@ func resetDemoSeed(ctx context.Context, tx pgx.Tx, seed string) (int64, error) {
 			return 0, fmt.Errorf("reset demo data: %w", err)
 		}
 		deleted += tag.RowsAffected()
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO pds_set_aggregates(
+			kind,actor_did,scope_key,subject_did,subject_uri,eligible_source_count,
+			representative_source_uri,activated_at
+		)
+		SELECT fact.kind,fact.actor_did,fact.scope_key,max(fact.subject_did),
+		       max(fact.subject_uri),count(*),
+		       (array_agg(fact.source_uri ORDER BY fact.activity_at,fact.source_uri))[1],
+		       min(fact.activity_at)
+		FROM pds_set_sources fact
+		WHERE fact.eligible
+		GROUP BY fact.kind,fact.actor_did,fact.scope_key
+		ON CONFLICT(kind,actor_did,scope_key) DO NOTHING
+	`); err != nil {
+		return 0, fmt.Errorf("restore non-demo set aggregates: %w", err)
 	}
 	didPattern := demoDIDPrefix(seed) + "%"
 	for _, q := range []string{
@@ -391,17 +417,7 @@ func upsertDemoFollow(ctx context.Context, tx pgx.Tx, did, subjectDID, rkey stri
 		return err
 	}
 	uri := "at://" + did + "/" + demoFollowCollection + "/" + rkey
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO atproto_follows (uri, did, rkey, cid, subject_did, record, created_at, indexed_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $7)
-		ON CONFLICT (did, subject_did) DO UPDATE SET
-			uri = EXCLUDED.uri,
-			rkey = EXCLUDED.rkey,
-			cid = EXCLUDED.cid,
-			record = EXCLUDED.record,
-			created_at = EXCLUDED.created_at,
-			indexed_at = EXCLUDED.indexed_at
-	`, uri, did, rkey, fakeCID("demo-follow", did, subjectDID), subjectDID, record, createdAt.UTC()); err != nil {
+	if err := upsertDemoSetSource(ctx, tx, uri, did, demoFollowCollection, rkey, subjectDID, "", "", record, createdAt); err != nil {
 		return fmt.Errorf("upsert demo follow %s -> %s: %w", did, subjectDID, err)
 	}
 	return nil
@@ -577,26 +593,68 @@ func upsertDemoInteraction(ctx context.Context, tx pgx.Tx, collection, did, rkey
 	if err != nil {
 		return err
 	}
-	table := "craftsky_likes"
-	if collection == demoRepostCollection {
-		table = "craftsky_reposts"
-	}
 	uri := "at://" + did + "/" + collection + "/" + rkey
-	q := fmt.Sprintf(`
-		INSERT INTO %s (uri, did, rkey, cid, subject_uri, subject_cid, record, created_at, indexed_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $8)
-		ON CONFLICT (did, rkey) DO UPDATE SET
-			uri = EXCLUDED.uri,
-			cid = EXCLUDED.cid,
-			subject_uri = EXCLUDED.subject_uri,
-			subject_cid = EXCLUDED.subject_cid,
-			record = EXCLUDED.record,
-			created_at = EXCLUDED.created_at,
-			indexed_at = EXCLUDED.indexed_at,
-			deleted_at = NULL
-	`, table)
-	if _, err := tx.Exec(ctx, q, uri, did, rkey, fakeCID("demo-interaction", collection, did, subject.URI), subject.URI, subject.CID, record, createdAt.UTC()); err != nil {
+	if err := upsertDemoSetSource(ctx, tx, uri, did, collection, rkey, "", subject.URI, subject.CID, record, createdAt); err != nil {
 		return fmt.Errorf("upsert demo interaction %s %s -> %s: %w", collection, did, subject.URI, err)
+	}
+	return nil
+}
+
+func upsertDemoSetSource(ctx context.Context, tx pgx.Tx, uri, did, collection, rkey, subjectDID, subjectURI, subjectCID string, record json.RawMessage, createdAt time.Time) error {
+	kind := strings.TrimPrefix(collection, "social.craftsky.feed.")
+	if collection == demoFollowCollection {
+		kind = "follow"
+	}
+	scope := subjectURI
+	if kind == "follow" {
+		scope = subjectDID
+	}
+	cid := fakeCID("demo-set", uri)
+	fingerprint := sha256.Sum256(record)
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO tap_source_records(
+			uri,did,collection,rkey,source_event_id,source_fingerprint,revision,cid,
+			action,record,record_bytes,live,ordering_status,projection_disposition,observed_at,updated_at
+		) VALUES($1,$2,$3,$4,1,$5,'3aaaaaaaaaaa2',$6,'create',$7,$8,false,'authoritative','eligible',$9,$9)
+		ON CONFLICT(uri) DO UPDATE SET
+			cid=EXCLUDED.cid,record=EXCLUDED.record,record_bytes=EXCLUDED.record_bytes,
+			source_fingerprint=EXCLUDED.source_fingerprint,updated_at=EXCLUDED.updated_at
+	`, uri, did, collection, rkey, fingerprint[:], cid, record, len(record), createdAt.UTC()); err != nil {
+		return fmt.Errorf("upsert demo source: %w", err)
+	}
+	var didValue, uriValue, cidValue any
+	if subjectDID != "" {
+		didValue = subjectDID
+	}
+	if subjectURI != "" {
+		uriValue, cidValue = subjectURI, subjectCID
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO pds_set_sources(source_uri,kind,actor_did,scope_key,subject_did,subject_uri,subject_cid,activity_at,eligible)
+		VALUES($1,$2,$3,$4,$5,$6,$7,$8,true)
+		ON CONFLICT(source_uri) DO UPDATE SET
+			scope_key=EXCLUDED.scope_key,subject_did=EXCLUDED.subject_did,
+			subject_uri=EXCLUDED.subject_uri,subject_cid=EXCLUDED.subject_cid,
+			activity_at=EXCLUDED.activity_at,eligible=true
+	`, uri, kind, did, scope, didValue, uriValue, cidValue, createdAt.UTC()); err != nil {
+		return fmt.Errorf("upsert demo set fact: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO pds_set_aggregates(
+			kind,actor_did,scope_key,subject_did,subject_uri,
+			eligible_source_count,representative_source_uri,activated_at
+		)
+		SELECT kind,actor_did,scope_key,max(subject_did),max(subject_uri),count(*),
+		       (array_agg(source_uri ORDER BY activity_at,source_uri))[1],min(activity_at)
+		FROM pds_set_sources
+		WHERE kind=$1 AND actor_did=$2 AND scope_key=$3 AND eligible
+		GROUP BY kind,actor_did,scope_key
+		ON CONFLICT(kind,actor_did,scope_key) DO UPDATE SET
+			eligible_source_count=EXCLUDED.eligible_source_count,
+			representative_source_uri=EXCLUDED.representative_source_uri,
+			subject_did=EXCLUDED.subject_did,subject_uri=EXCLUDED.subject_uri
+	`, kind, did, scope); err != nil {
+		return fmt.Errorf("recompute demo set aggregate: %w", err)
 	}
 	return nil
 }

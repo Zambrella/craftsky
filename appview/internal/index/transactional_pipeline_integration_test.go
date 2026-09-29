@@ -3,7 +3,6 @@ package index_test
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"testing"
 	"time"
 
@@ -17,19 +16,28 @@ import (
 
 func TestTransactionalPipelineRollsBackServingMutationWhenJobCompletionFails(t *testing.T) {
 	pool := testdb.WithSchema(t, craftskyProfilesDDL)
-	migration, err := os.ReadFile("../../migrations/000045_tap_ingestion_durability.up.sql")
+	migration, err := testdb.ReadMigration("000045_tap_ingestion_durability.up.sql")
 	if err != nil {
 		t.Fatalf("read Tap durability migration: %v", err)
 	}
 	if _, err := pool.Exec(context.Background(), string(migration)); err != nil {
 		t.Fatalf("apply Tap durability migration: %v", err)
 	}
-	renameMigration, err := os.ReadFile("../../migrations/000058_tap_projection_generation_column.up.sql")
+	renameMigration, err := testdb.ReadMigration("000058_tap_projection_generation_column.up.sql")
 	if err != nil {
 		t.Fatalf("read Tap projection generation migration: %v", err)
 	}
 	if _, err := pool.Exec(context.Background(), string(renameMigration)); err != nil {
 		t.Fatalf("apply Tap projection generation migration: %v", err)
+	}
+	if _, err := pool.Exec(context.Background(), `
+		ALTER TABLE tap_source_records
+			ADD COLUMN validation_version INTEGER NOT NULL DEFAULT 1,
+			ADD COLUMN structural_validation_status TEXT NOT NULL DEFAULT 'pending',
+			ADD COLUMN semantic_validation_status TEXT NOT NULL DEFAULT 'pending',
+			ADD COLUMN validation_reason TEXT
+	`); err != nil {
+		t.Fatalf("add source validation fixture columns: %v", err)
 	}
 	if _, err := pool.Exec(context.Background(), `
 		CREATE TABLE owner_lifecycles (

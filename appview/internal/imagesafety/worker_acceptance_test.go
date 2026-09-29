@@ -28,7 +28,7 @@ func (fetcher *workerFetcher) Fetch(context.Context, imagesafety.BlobSource) ([]
 
 func TestWorkerSurvivesRetryRestartExhaustionAndManualRetry(t *testing.T) {
 	pool := testdb.WithSchema(t, rescanTapPreStateDDL)
-	migration, err := os.ReadFile("../../migrations/000073_image_safety.up.sql")
+	migration, err := os.ReadFile("../../migrations/000076_image_safety.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

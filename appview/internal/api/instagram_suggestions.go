@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -15,11 +16,12 @@ import (
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/pdscommands"
 )
 
 type InstagramSuggestionService interface {
 	ListPending(context.Context, syntax.DID, int, *instagram.SuggestionCursor) ([]instagram.PrivateSuggestion, *instagram.SuggestionCursor, error)
-	Accept(context.Context, syntax.DID, uuid.UUID, string) (instagram.PrivateSuggestion, error)
+	Accept(context.Context, syntax.DID, uuid.UUID, string, uuid.UUID, string) (instagram.SuggestionCommandResult, error)
 	Dismiss(context.Context, syntax.DID, uuid.UUID) (bool, error)
 }
 
@@ -39,11 +41,6 @@ type instagramSuggestionResponse struct {
 type instagramSuggestionPageResponse struct {
 	Items  []instagramSuggestionResponse `json:"items"`
 	Cursor string                        `json:"cursor,omitempty"`
-}
-
-type instagramSuggestionAcceptanceResponse struct {
-	SuggestionID string                    `json:"suggestionId"`
-	State        instagram.SuggestionState `json:"state"`
 }
 
 func ListInstagramSuggestionsHandler(
@@ -127,6 +124,10 @@ func AcceptInstagramSuggestionHandler(
 			writeMissingInstagramDID(w, r)
 			return
 		}
+		operationKey, ok := requireCommandOperationKey(w, r, middleware.GetRunID(r.Context()))
+		if !ok {
+			return
+		}
 		suggestionID, err := uuid.Parse(r.PathValue("suggestionId"))
 		if err != nil {
 			writeInstagramSuggestionNotFound(w, r)
@@ -137,13 +138,29 @@ func AcceptInstagramSuggestionHandler(
 			envelope.WriteError(w, http.StatusServiceUnavailable, "session_unavailable", "session is temporarily unavailable", middleware.GetRunID(r.Context()), nil)
 			return
 		}
-		accepted, err := service.Accept(r.Context(), owner, suggestionID, sessionID)
+		result, err := service.Accept(
+			r.Context(), owner, suggestionID, sessionID, operationKey, middleware.GetRunID(r.Context()),
+		)
 		if err != nil {
+			if errors.Is(err, pdscommands.ErrIdempotencyConflict) ||
+				errors.Is(err, pdscommands.ErrDispatchUnavailable) ||
+				errors.Is(err, pdscommands.ErrMalformedCommand) {
+				WriteCommandError(w, middleware.GetRunID(r.Context()), err)
+				return
+			}
 			writeInstagramSuggestionError(w, r, logger, err)
 			return
 		}
-		writeJSONStatus(w, http.StatusOK, instagramSuggestionAcceptanceResponse{
-			SuggestionID: accepted.ID.String(), State: accepted.State,
+		headers := make(map[string]string)
+		if len(result.ResponseHeaders) > 0 {
+			_ = json.Unmarshal(result.ResponseHeaders, &headers)
+		}
+		WriteCommandResponse(w, CommandHTTPResult{
+			State:             pdscommands.CommandState(result.State),
+			HTTPStatus:        result.HTTPStatus,
+			Body:              result.ResponseBody,
+			Headers:           headers,
+			RetryAfterSeconds: result.RetryAfterSeconds,
 		})
 	})
 }

@@ -77,7 +77,7 @@ final class UserProfileProvider
   }
 }
 
-String _$userProfileHash() => r'c26afb60f507054e1f9b14b63d8f4a15ba804c80';
+String _$userProfileHash() => r'a57856081d29c197645beb20886269dfc03aebe2';
 
 /// Single source of truth for a user's profile, keyed by DID.
 ///

@@ -13,6 +13,8 @@ import 'package:craftsky_app/instagram_migration/pages/instagram_migration_page.
 import 'package:craftsky_app/instagram_migration/providers/instagram_migration_repository_provider.dart';
 import 'package:craftsky_app/instagram_migration/providers/instagram_suggestions_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -41,7 +43,7 @@ void main() {
           items: [suggestion, dismissible],
           cursor: null,
         ),
-        onAccept: (id) async {
+        onAccept: (id, _) async {
           accepted.add(id);
           return InstagramSuggestionActionResult(
             suggestionId: id,
@@ -62,6 +64,9 @@ void main() {
             ),
             instagramMigrationRepositoryProvider.overrideWith(
               (ref, _) async => repository,
+            ),
+            pdsRecordOperationControllerProvider.overrideWithValue(
+              PdsRecordOperationController(schedule: (_, _) {}),
             ),
           ],
           child: MaterialApp(
@@ -116,7 +121,7 @@ void main() {
           items: [_suggestion()],
           cursor: null,
         ),
-        onAccept: (_) => completion.future,
+        onAccept: (_, _) => completion.future,
       );
       final container = ProviderContainer.test(
         retry: (_, _) => null,
@@ -168,6 +173,334 @@ void main() {
       expect(laterPage.items.single.suggestionId, 'suggestion-a');
     },
   );
+
+  test(
+    'accept retries ambiguity with one key and keeps the suggestion visible',
+    () async {
+      final initial = _twoAccountRegistry();
+      final lease = initial.activeLease!;
+      final accepted = Completer<InstagramSuggestionActionResult>();
+      final operationKeys = <String>[];
+      var calls = 0;
+      final repository = _SuggestionRepository(
+        suggestions: InstagramSuggestionPage(
+          items: [_suggestion()],
+          cursor: null,
+        ),
+        onAccept: (id, operationKey) {
+          calls++;
+          operationKeys.add(operationKey);
+          if (calls == 1) {
+            throw const PdsMutationAmbiguousException(retryAfterSeconds: 2);
+          }
+          return accepted.future;
+        },
+      );
+      final container = ProviderContainer.test(
+        retry: (_, _) => null,
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(initial),
+          ),
+          instagramMigrationRepositoryProvider.overrideWith(
+            (ref, _) async => repository,
+          ),
+          pdsMutationDelayProvider.overrideWithValue((_) async {}),
+          pdsMutationJitterProvider.overrideWithValue((_) => 0),
+        ],
+      );
+      await container.read(sessionRegistryProvider.future);
+      final subscription = container.listen(
+        instagramSuggestionsProvider(lease),
+        (_, _) {},
+      );
+      addTearDown(subscription.close);
+      await container.read(instagramSuggestionsProvider(lease).future);
+
+      final pending = container
+          .read(instagramSuggestionsProvider(lease).notifier)
+          .accept('suggestion-a');
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      final ambiguous = container
+          .read(
+            instagramSuggestionsProvider(lease),
+          )
+          .requireValue;
+      expect(ambiguous.items.single.suggestionId, 'suggestion-a');
+      expect(ambiguous.busyIds, {'suggestion-a'});
+      expect(operationKeys.toSet(), hasLength(1));
+      expect(isCanonicalPdsMutationOperationKey(operationKeys.first), isTrue);
+
+      accepted.complete(
+        const InstagramSuggestionActionResult(
+          suggestionId: 'suggestion-a',
+          state: InstagramSuggestionState.followed,
+        ),
+      );
+
+      expect(await pending, isTrue);
+      expect(
+        container.read(instagramSuggestionsProvider(lease)).requireValue.items,
+        isEmpty,
+      );
+    },
+  );
+
+  test('exhausted acceptance remains available for explicit retry', () async {
+    final initial = _twoAccountRegistry();
+    final lease = initial.activeLease!;
+    final operationKeys = <String>[];
+    var calls = 0;
+    final repository = _SuggestionRepository(
+      suggestions: InstagramSuggestionPage(
+        items: [_suggestion()],
+        cursor: null,
+      ),
+      onAccept: (id, operationKey) async {
+        calls++;
+        operationKeys.add(operationKey);
+        if (calls <= 7) {
+          throw const PdsMutationAmbiguousException(retryAfterSeconds: 1);
+        }
+        return InstagramSuggestionActionResult(
+          suggestionId: id,
+          state: InstagramSuggestionState.followed,
+        );
+      },
+    );
+    final container = ProviderContainer.test(
+      retry: (_, _) => null,
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _RegistryStorage(initial),
+        ),
+        instagramMigrationRepositoryProvider.overrideWith(
+          (ref, _) async => repository,
+        ),
+        pdsMutationDelayProvider.overrideWithValue((_) async {}),
+        pdsMutationJitterProvider.overrideWithValue((_) => 0),
+      ],
+    );
+    await container.read(sessionRegistryProvider.future);
+    final subscription = container.listen(
+      instagramSuggestionsProvider(lease),
+      (_, _) {},
+    );
+    addTearDown(subscription.close);
+    await container.read(instagramSuggestionsProvider(lease).future);
+
+    expect(
+      await container
+          .read(instagramSuggestionsProvider(lease).notifier)
+          .accept('suggestion-a'),
+      isFalse,
+    );
+    final unresolved = container
+        .read(instagramSuggestionsProvider(lease))
+        .requireValue;
+    expect(unresolved.busyIds, isEmpty);
+    expect(unresolved.hasActionError, isTrue);
+
+    expect(
+      await container
+          .read(instagramSuggestionsProvider(lease).notifier)
+          .accept('suggestion-a'),
+      isTrue,
+    );
+    expect(calls, 8);
+    expect(operationKeys.toSet(), hasLength(1));
+    expect(
+      container.read(instagramSuggestionsProvider(lease)).requireValue.items,
+      isEmpty,
+    );
+  });
+
+  test('definite acceptance installs the logical follow overlay', () async {
+    final initial = _twoAccountRegistry();
+    final lease = initial.activeLease!;
+    final controller = PdsRecordOperationController(schedule: (_, _) {});
+    final repository = _SuggestionRepository(
+      suggestions: InstagramSuggestionPage(
+        items: [_suggestion()],
+        cursor: null,
+      ),
+      onAccept: (id, _) async => InstagramSuggestionActionResult(
+        suggestionId: id,
+        state: InstagramSuggestionState.alreadyFollowing,
+      ),
+    );
+    final container = ProviderContainer.test(
+      retry: (_, _) => null,
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _RegistryStorage(initial),
+        ),
+        instagramMigrationRepositoryProvider.overrideWith(
+          (ref, _) async => repository,
+        ),
+        pdsRecordOperationControllerProvider.overrideWithValue(controller),
+      ],
+    );
+    await container.read(sessionRegistryProvider.future);
+    final subscription = container.listen(
+      instagramSuggestionsProvider(lease),
+      (_, _) {},
+    );
+    addTearDown(subscription.close);
+    await container.read(instagramSuggestionsProvider(lease).future);
+
+    final result = await container
+        .read(instagramSuggestionsProvider(lease).notifier)
+        .accept('suggestion-a');
+
+    expect(result, isTrue);
+    expect(
+      controller
+          .overlayFor(
+            PdsMutationScope(
+              lease: lease.session,
+              identity: 'follow:did:plc:maker',
+            ),
+          )
+          ?.optimisticValue,
+      isTrue,
+    );
+    expect(
+      container.read(instagramSuggestionsProvider(lease)).requireValue.items,
+      isEmpty,
+    );
+  });
+
+  test('a superseded follow scope rejects a late acceptance result', () async {
+    final initial = _twoAccountRegistry();
+    final lease = initial.activeLease!;
+    final controller = PdsRecordOperationController(schedule: (_, _) {});
+    final completion = Completer<InstagramSuggestionActionResult>();
+    final repository = _SuggestionRepository(
+      suggestions: InstagramSuggestionPage(
+        items: [_suggestion()],
+        cursor: null,
+      ),
+      onAccept: (_, _) => completion.future,
+    );
+    final container = ProviderContainer.test(
+      retry: (_, _) => null,
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _RegistryStorage(initial),
+        ),
+        instagramMigrationRepositoryProvider.overrideWith(
+          (ref, _) async => repository,
+        ),
+        pdsRecordOperationControllerProvider.overrideWithValue(controller),
+      ],
+    );
+    await container.read(sessionRegistryProvider.future);
+    final subscription = container.listen(
+      instagramSuggestionsProvider(lease),
+      (_, _) {},
+    );
+    addTearDown(subscription.close);
+    await container.read(instagramSuggestionsProvider(lease).future);
+
+    final pending = container
+        .read(instagramSuggestionsProvider(lease).notifier)
+        .accept('suggestion-a');
+    await Future<void>.delayed(Duration.zero);
+    controller.begin(
+      scope: PdsMutationScope(
+        lease: lease.session,
+        identity: 'follow:did:plc:maker',
+      ),
+      operationKey: '018f47a5-1837-7ad1-8f6d-8e8d2a89c950',
+      endpoint: '/v1/profiles/@did:plc:maker/follows',
+      immutableBody: 'POST\n',
+    );
+    completion.complete(
+      const InstagramSuggestionActionResult(
+        suggestionId: 'suggestion-a',
+        state: InstagramSuggestionState.followed,
+      ),
+    );
+
+    expect(await pending, isFalse);
+    expect(
+      container
+          .read(instagramSuggestionsProvider(lease))
+          .requireValue
+          .items
+          .single
+          .suggestionId,
+      'suggestion-a',
+    );
+    expect(
+      controller.overlayFor(
+        PdsMutationScope(
+          lease: lease.session,
+          identity: 'follow:did:plc:maker',
+        ),
+      ),
+      isNull,
+    );
+  });
+
+  test('a superseded follow scope rejects a late failure result', () async {
+    final initial = _twoAccountRegistry();
+    final lease = initial.activeLease!;
+    final controller = PdsRecordOperationController(schedule: (_, _) {});
+    final completion = Completer<InstagramSuggestionActionResult>();
+    final repository = _SuggestionRepository(
+      suggestions: InstagramSuggestionPage(
+        items: [_suggestion()],
+        cursor: null,
+      ),
+      onAccept: (_, _) => completion.future,
+    );
+    final container = ProviderContainer.test(
+      retry: (_, _) => null,
+      overrides: [
+        secureSessionRegistryStorageProvider.overrideWithValue(
+          _RegistryStorage(initial),
+        ),
+        instagramMigrationRepositoryProvider.overrideWith(
+          (ref, _) async => repository,
+        ),
+        pdsRecordOperationControllerProvider.overrideWithValue(controller),
+      ],
+    );
+    await container.read(sessionRegistryProvider.future);
+    final subscription = container.listen(
+      instagramSuggestionsProvider(lease),
+      (_, _) {},
+    );
+    addTearDown(subscription.close);
+    await container.read(instagramSuggestionsProvider(lease).future);
+
+    final pending = container
+        .read(instagramSuggestionsProvider(lease).notifier)
+        .accept('suggestion-a');
+    await Future<void>.delayed(Duration.zero);
+    controller.begin(
+      scope: PdsMutationScope(
+        lease: lease.session,
+        identity: 'follow:did:plc:maker',
+      ),
+      operationKey: '018f47a5-1837-7ad1-8f6d-8e8d2a89c950',
+      endpoint: '/v1/profiles/@did:plc:maker/follows',
+      immutableBody: 'POST\n',
+    );
+    completion.completeError(Exception('late failure'));
+
+    expect(await pending, isFalse);
+    final current = container
+        .read(instagramSuggestionsProvider(lease))
+        .requireValue;
+    expect(current.items.single.suggestionId, 'suggestion-a');
+    expect(current.busyIds, isEmpty);
+    expect(current.hasActionError, isFalse);
+  });
 }
 
 auth.SessionRegistry _twoAccountRegistry() => auth.SessionRegistry.empty()
@@ -205,7 +538,11 @@ final class _SuggestionRepository implements InstagramMigrationRepository {
   });
 
   final InstagramSuggestionPage suggestions;
-  final Future<InstagramSuggestionActionResult> Function(String id)? onAccept;
+  final Future<InstagramSuggestionActionResult> Function(
+    String id,
+    String operationKey,
+  )?
+  onAccept;
   final Future<void> Function(String id)? onDismiss;
 
   @override
@@ -232,8 +569,10 @@ final class _SuggestionRepository implements InstagramMigrationRepository {
   }) async => suggestions;
 
   @override
-  Future<InstagramSuggestionActionResult> acceptSuggestion(String id) =>
-      onAccept!.call(id);
+  Future<InstagramSuggestionActionResult> acceptSuggestion(
+    String id, {
+    required String operationKey,
+  }) => onAccept!.call(id, operationKey);
 
   @override
   Future<void> dismissSuggestion(String id) async {

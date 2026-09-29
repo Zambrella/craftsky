@@ -2,8 +2,6 @@ package auth
 
 import (
 	"context"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,6 +10,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
+	"social.craftsky/appview/internal/testlog"
 )
 
 type devSchemePDSClient struct{}
@@ -40,7 +39,7 @@ func (devSchemeOnboardingWriter) PutOnboardingProfile(context.Context, PDSClient
 
 func TestDevelopmentSchemeCallbacksUseOnlyFixedCodeAndDeletionProofURLs(t *testing.T) {
 	owner := syntax.DID("did:plc:dev-scheme")
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testlog.Discard()
 
 	t.Run("login", func(t *testing.T) {
 		handlers := &HTTPHandlers{

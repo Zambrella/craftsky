@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -28,7 +27,7 @@ CREATE TABLE craftsky_posts (
 func TestSavedPostQueryPlansUseOwnerScopedIndexes(t *testing.T) {
 	pool := testdb.WithSchema(t, savedPostQueryPlanPreStateDDL)
 	ctx := context.Background()
-	up, err := os.ReadFile("../../migrations/000024_saved_posts.up.sql")
+	up, err := testdb.ReadMigration("000024_saved_posts.up.sql")
 	if err != nil {
 		t.Fatalf("read migration: %v", err)
 	}

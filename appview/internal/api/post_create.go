@@ -15,9 +15,11 @@ import (
 
 	"github.com/bluesky-social/indigo/atproto/atclient"
 	"github.com/bluesky-social/indigo/atproto/syntax"
+	"github.com/google/uuid"
 
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/pdscommands"
 	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/postrecord"
 	"social.craftsky/appview/internal/postutil"
@@ -43,6 +45,11 @@ type VideoCompletionVerifier interface {
 type CreatePostHandlerOptions struct {
 	VideoCompletionVerifier VideoCompletionVerifier
 	DisableVideo            bool
+	Commands                AppendCommandExecutor
+}
+
+type AppendCommandExecutor interface {
+	Execute(context.Context, pdscommands.AppendCommandRequest) (pdscommands.CommandResult, error)
 }
 
 // CreatePostHandler serves POST /v1/posts.
@@ -57,9 +64,11 @@ func CreatePostHandler(
 	limits = normalizeMediaLimits(limits)
 	var videoVerifier VideoCompletionVerifier
 	disableVideo := false
+	var commands AppendCommandExecutor
 	if len(options) > 0 {
 		videoVerifier = options[0].VideoCompletionVerifier
 		disableVideo = options[0].DisableVideo
+		commands = options[0].Commands
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		runID := middleware.GetRunID(r.Context())
@@ -72,6 +81,13 @@ func CreatePostHandler(
 		ownerGeneration, ok := requirePDSEffectGeneration(w, r, runID)
 		if !ok {
 			return
+		}
+		var operationKey uuid.UUID
+		if commands != nil {
+			operationKey, ok = requireCommandOperationKey(w, r, runID)
+			if !ok {
+				return
+			}
 		}
 		sessionID, _ := middleware.GetOAuthSessionID(r.Context())
 		logger.Debug("post create: request started",
@@ -200,6 +216,46 @@ func CreatePostHandler(
 		}
 		logger.Debug("post create: validated request",
 			pdsLogAttrs(runID, pdsOperationPostCreate, pdsStageRequestBuild)...)
+		if commands != nil {
+			intent, err := json.Marshal(req)
+			if err != nil {
+				envelope.WriteError(w, http.StatusInternalServerError,
+					"internal_error", "could not prepare post", runID, nil)
+				return
+			}
+			result, err := commands.Execute(r.Context(), pdscommands.AppendCommandRequest{
+				Owner: did, OwnerGeneration: ownerGeneration, Targets: effectTargets,
+				SessionID: sessionID, OperationKind: "post.create", OperationKey: operationKey,
+				Collection: syntax.NSID(craftskyPostNSID), Intent: intent,
+				Blobs: postCreateBlobReferences(req, verifiedVideo),
+				BuildRecord: func(createdAt time.Time) (json.RawMessage, error) {
+					body, err := lexiconRecordBodyAt(req, verifiedVideo, createdAt)
+					if err != nil {
+						return nil, err
+					}
+					return json.Marshal(body)
+				},
+				Accepted: func(record pdscommands.AuthoritativeRecord) (pdscommands.TerminalResult, error) {
+					return acceptedPostCreateResult(r, store, resolver, did, req, verifiedVideo, record)
+				},
+				Rejected: func(err error) pdscommands.TerminalResult {
+					if verifiedVideo != nil && pdsAPIErrorName(err) == "BlobNotFound" {
+						body, _ := json.Marshal(envelope.Error{
+							Error: "video_blob_missing", Message: "processed video blob is unavailable", RequestID: runID,
+						})
+						return pdscommands.TerminalResult{State: pdscommands.CommandRejected, HTTPStatus: http.StatusBadGateway, ResponseBody: body}
+					}
+					return RejectedCommandResult(runID, err)
+				},
+			})
+			if err != nil {
+				logger.Warn("post append command failed", slog.Any("error", err))
+				WriteCommandError(w, runID, err)
+				return
+			}
+			WriteCommandResponse(w, CommandResultFromStored(result))
+			return
+		}
 
 		body, err := lexiconRecordBody(req, verifiedVideo)
 		if err != nil {
@@ -261,7 +317,7 @@ func CreatePostHandler(
 		logger.Debug("post create: PDS record created",
 			pdsLogSuccessAttrs(runID, pdsOperationPostCreate, pdsStagePDSRequest)...)
 
-		row, err := syntheticPostRow(r, store, did, result.URI, result.CID, req, verifiedVideo)
+		row, err := syntheticPostRow(r, store, did, result.URI, result.CID, req, verifiedVideo, time.Now().UTC())
 		if err != nil {
 			logger.Error("post: hydrate author failed",
 				pdsLogErrorAttrs(runID, pdsOperationPostCreate, pdsStagePDSRequest, err)...)
@@ -312,6 +368,109 @@ func pdsAPIErrorName(err error) string {
 		return ""
 	}
 	return apiErr.Name
+}
+
+func acceptedPostCreateResult(
+	r *http.Request,
+	store createPostStore,
+	resolver HandleResolver,
+	did syntax.DID,
+	req PostCreateRequest,
+	verifiedVideo *video.Blob,
+	record pdscommands.AuthoritativeRecord,
+) (pdscommands.TerminalResult, error) {
+	var stamped struct {
+		CreatedAt string `json:"createdAt"`
+	}
+	if json.Unmarshal(record.Record, &stamped) != nil {
+		return pdscommands.TerminalResult{}, pdscommands.ErrMalformedCommand
+	}
+	createdAt, err := time.Parse(time.RFC3339Nano, stamped.CreatedAt)
+	if err != nil {
+		return pdscommands.TerminalResult{}, pdscommands.ErrMalformedCommand
+	}
+	row, err := syntheticPostRow(r, store, did, record.URI, record.CID, req, verifiedVideo, createdAt)
+	if err != nil {
+		return pdscommands.TerminalResult{}, err
+	}
+	handle, err := resolver.ResolveHandle(r.Context(), did)
+	if err != nil {
+		return pdscommands.TerminalResult{}, err
+	}
+	response := buildPostResponse(row, handle, store)
+	if err := attachQuoteView(r.Context(), store, resolver, response); err != nil {
+		return pdscommands.TerminalResult{}, err
+	}
+	body, err := json.Marshal(response)
+	if err != nil {
+		return pdscommands.TerminalResult{}, err
+	}
+	return pdscommands.TerminalResult{
+		State: pdscommands.CommandAccepted, HTTPStatus: http.StatusCreated, ResponseBody: body,
+	}, nil
+}
+
+func postCreateBlobReferences(req PostCreateRequest, verifiedVideo *video.Blob) []pdscommands.BlobReference {
+	var blobs []pdscommands.BlobReference
+	var walk func(any)
+	walk = func(value any) {
+		switch typed := value.(type) {
+		case []any:
+			for _, item := range typed {
+				walk(item)
+			}
+		case map[string]any:
+			if typed["$type"] == "blob" {
+				ref, _ := typed["ref"].(map[string]any)
+				cid, _ := ref["$link"].(string)
+				mimeType, _ := typed["mimeType"].(string)
+				size, ok := jsonNumberInt64(typed["size"])
+				if cid != "" && mimeType != "" && ok {
+					blobs = append(blobs, pdscommands.BlobReference{CID: syntax.CID(cid), MIMEType: mimeType, Size: size})
+				}
+			}
+			for _, item := range typed {
+				walk(item)
+			}
+		}
+	}
+	for _, image := range req.Images {
+		walk(image.Image)
+	}
+	if req.Embed != nil && req.Embed.External != nil {
+		walk(req.Embed.External.Thumb)
+	}
+	if verifiedVideo != nil {
+		blobs = append(blobs, pdscommands.BlobReference{
+			CID: verifiedVideo.CID, MIMEType: verifiedVideo.MIMEType, Size: verifiedVideo.Size,
+		})
+	}
+	slices.SortFunc(blobs, func(left, right pdscommands.BlobReference) int {
+		if compared := strings.Compare(left.CID.String(), right.CID.String()); compared != 0 {
+			return compared
+		}
+		if compared := strings.Compare(left.MIMEType, right.MIMEType); compared != 0 {
+			return compared
+		}
+		return int(left.Size - right.Size)
+	})
+	return slices.Compact(blobs)
+}
+
+func jsonNumberInt64(value any) (int64, bool) {
+	switch typed := value.(type) {
+	case float64:
+		return int64(typed), typed == float64(int64(typed))
+	case int:
+		return int64(typed), true
+	case int64:
+		return typed, true
+	case json.Number:
+		parsed, err := typed.Int64()
+		return parsed, err == nil
+	default:
+		return 0, false
+	}
 }
 
 func validateQuoteShareTarget(ctx context.Context, store shareTargetReader, ref StrongRef) (*ShareTargetRef, error) {
@@ -395,11 +554,15 @@ func mentionedDIDs(req PostCreateRequest) ([]syntax.DID, error) {
 // the PDS sees exactly what the client sent (including any "$type"
 // discriminators on union variants).
 func lexiconRecordBody(req PostCreateRequest, verifiedVideo *video.Blob) (map[string]any, error) {
+	return lexiconRecordBodyAt(req, verifiedVideo, time.Now().UTC())
+}
+
+func lexiconRecordBodyAt(req PostCreateRequest, verifiedVideo *video.Blob, createdAt time.Time) (map[string]any, error) {
 	body := map[string]any{
 		"$type":     craftskyPostNSID,
 		"text":      req.Text,
 		"sponsored": req.Sponsored,
-		"createdAt": time.Now().UTC().Format(time.RFC3339),
+		"createdAt": createdAt.UTC().Format(time.RFC3339Nano),
 	}
 	if len(req.Facets) > 0 {
 		body["facets"] = req.Facets
@@ -506,8 +669,9 @@ func syntheticPostRow(
 	cid syntax.CID,
 	req PostCreateRequest,
 	verifiedVideo *video.Blob,
+	createdAt time.Time,
 ) (*PostRow, error) {
-	now := time.Now().UTC()
+	now := createdAt.UTC()
 	row := &PostRow{
 		URI:       string(uri),
 		DID:       did.String(),

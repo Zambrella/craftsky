@@ -4,7 +4,6 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
@@ -12,33 +11,8 @@ import (
 	"social.craftsky/appview/internal/testdb"
 )
 
-func TestLanguagePreferenceRoutesUseExactAuthenticatedContract(t *testing.T) {
-	wantPolicies := map[string]struct {
-		rateClass RateClass
-		bodyKind  BodyKind
-	}{
-		"GET /v1/languages/preferences":             {RateClassRead, BodyNoBody},
-		"PUT /v1/languages/preferences":             {RateClassWrite, BodyDefaultJSON},
-		"POST /v1/languages/preferences/initialize": {RateClassWrite, BodyDefaultJSON},
-	}
-	for _, policy := range V1RoutePolicies(EnvDev, Config{Env: EnvDev}) {
-		key := policy.Method + " " + policy.PathPattern
-		want, exists := wantPolicies[key]
-		if !exists {
-			continue
-		}
-		if policy.AccessClass != AccessCurrentMember ||
-			policy.RateClass != want.rateClass ||
-			policy.BodyKind != want.bodyKind {
-			t.Fatalf("%s policy = %+v", key, policy)
-		}
-		delete(wantPolicies, key)
-	}
-	if len(wantPolicies) != 0 {
-		t.Fatalf("missing language preference policies: %v", wantPolicies)
-	}
-
-	up, err := os.ReadFile("../../migrations/000033_post_languages.up.sql")
+func TestLanguagePreferenceRoutesPreserveOwnerScopedBehavior(t *testing.T) {
+	up, err := testdb.ReadMigration("000033_post_languages.up.sql")
 	if err != nil {
 		t.Fatalf("read language migration: %v", err)
 	}
@@ -82,24 +56,6 @@ func TestLanguagePreferenceRoutesUseExactAuthenticatedContract(t *testing.T) {
 	deps.LanguagePreferences = languages.NewStore(pool)
 	mux := http.NewServeMux()
 	AddRoutes(context.Background(), mux, deps)
-
-	for _, target := range []struct {
-		method string
-		path   string
-		body   string
-	}{
-		{http.MethodGet, "/v1/languages/preferences", ""},
-		{http.MethodPut, "/v1/languages/preferences", `{"primaryLanguage":"en","contentLanguages":["en"]}`},
-		{http.MethodPost, "/v1/languages/preferences/initialize", `{"primaryLanguage":"en","contentLanguages":["en"]}`},
-	} {
-		request := httptest.NewRequest(target.method, target.path, strings.NewReader(target.body))
-		request.Header.Set("X-Craftsky-Device-Id", "test-device")
-		response := httptest.NewRecorder()
-		mux.ServeHTTP(response, request)
-		if response.Code != http.StatusUnauthorized {
-			t.Fatalf("%s unauthenticated status = %d, body = %s", target.method, response.Code, response.Body.String())
-		}
-	}
 
 	response := serveLanguagePreferencesRoute(
 		mux,

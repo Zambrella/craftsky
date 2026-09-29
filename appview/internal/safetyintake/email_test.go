@@ -59,7 +59,7 @@ func TestAcceptEmailMinimizesExternalProvenanceWithoutReporterDID(t *testing.T) 
 
 func applyIntakeMigration(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
-	migration, err := os.ReadFile("../../migrations/000077_external_safety_intake.up.sql")
+	migration, err := os.ReadFile("../../migrations/000080_external_safety_intake.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

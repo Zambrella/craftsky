@@ -2,21 +2,13 @@ import 'dart:async';
 
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
-import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
-import 'package:craftsky_app/l10n/generated/app_localizations.dart';
-import 'package:craftsky_app/languages/models/language_preferences.dart';
-import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/profile/widgets/profile_tabs/profile_comments_tab.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
-import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
-import 'package:craftsky_app/theme/app_theme.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../fakes/recording_messenger.dart';
 import '../../feed/fakes/fake_post_repository.dart';
+import 'profile_tab_test_harness.dart';
 
 Post _comment(String rkey) {
   return Post(
@@ -43,36 +35,13 @@ Post _comment(String rkey) {
 }
 
 Future<void> _pump(WidgetTester tester, {required FakePostRepository repo}) {
-  return tester.pumpWidget(
-    ProviderScope(
-      overrides: [
-        activeLanguagePreferencesProvider.overrideWith(
-          (ref) => const LanguagePreferences(
-            primaryLanguage: 'en',
-            contentLanguages: ['en'],
-          ),
-        ),
-        postRepositoryProvider.overrideWithValue(repo),
-      ],
-      child: MessengerScope(
-        messenger: RecordingMessenger(),
-        child: MaterialApp(
-          theme: AppTheme.lightThemeData,
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(
-            body: CustomScrollView(
-              slivers: [
-                ProfileCommentsTab(
-                  did: Did.parse('did:plc:alice'),
-                  isOwnProfile: false,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+  return pumpProfileTab(
+    tester,
+    sliver: ProfileCommentsTab(
+      did: Did.parse('did:plc:alice'),
+      isOwnProfile: false,
     ),
+    repository: repo,
   );
 }
 
@@ -94,7 +63,7 @@ void main() {
     });
 
     testWidgets('scrolling near the end appends the next page', (tester) async {
-      final calls = <({String? cursor, int? limit})>[];
+      final calls = <ProfilePageRequest>[];
       final repo = FakePostRepository(
         onListCommentsByAuthor: (_, {cursor, limit}) async {
           calls.add((cursor: cursor, limit: limit));
@@ -109,21 +78,17 @@ void main() {
         },
       );
 
-      await _pump(tester, repo: repo);
-      await tester.pumpAndSettle();
-      await tester.scrollUntilVisible(
-        find.text('comment a9'),
-        500,
-        scrollable: find.byType(Scrollable),
+      await expectProfileTabInfiniteScroll(
+        tester,
+        sliver: ProfileCommentsTab(
+          did: Did.parse('did:plc:alice'),
+          isOwnProfile: false,
+        ),
+        repository: repo,
+        requests: calls,
+        lastInitialItem: find.text('comment a9'),
+        appendedItem: find.text('comment b'),
       );
-      await tester.pumpAndSettle();
-
-      expect(calls, [
-        (cursor: null, limit: 10),
-        (cursor: 'c1', limit: 10),
-      ]);
-      expect(find.text('comment a9'), findsOneWidget);
-      expect(find.text('comment b'), findsOneWidget);
       expect(find.text('Load more comments'), findsNothing);
     });
   });

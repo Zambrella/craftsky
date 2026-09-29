@@ -4,7 +4,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"errors"
-	"os"
 	"testing"
 	"time"
 
@@ -236,16 +235,16 @@ func TestStoreMissingTargetExpectationFencesConcurrentTerminalization(t *testing
 		})
 		terminalDone <- err
 	}()
-	select {
-	case err := <-terminalDone:
-		t.Fatalf("terminalization crossed held missing-target fence: %v", err)
-	case <-time.After(100 * time.Millisecond):
-	}
-	close(release)
-	if err := <-effectDone; err != nil {
+	key, err := FenceKey(unknownTarget)
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := <-terminalDone; err != nil {
+	waitForAdvisoryWaiter(t, storeA.pool, key)
+	close(release)
+	if err := waitForTestResult(t, effectDone, "missing-target effect completion"); err != nil {
+		t.Fatal(err)
+	}
+	if err := waitForTestResult(t, terminalDone, "missing-target terminalization"); err != nil {
 		t.Fatal(err)
 	}
 	terminal, err := storeA.Get(ctx, unknownTarget)
@@ -342,24 +341,23 @@ func TestStoreOnboardingAuthFenceKeepsOneConnectionAndLinearizesEpochChange(t *t
 			return nil
 		})
 	}()
-	<-entered
+	waitForTestSignal(t, entered, "onboarding auth callback")
 
 	epochDone := make(chan error, 1)
 	go func() {
 		_, err := storeB.AdvanceAuthEpoch(context.Background(), owner, 1, "logoutAll")
 		epochDone <- err
 	}()
-	select {
-	case err := <-epochDone:
-		close(release)
-		t.Fatalf("epoch change crossed live auth fence: %v", err)
-	case <-time.After(75 * time.Millisecond):
+	key, err := FenceKey(owner)
+	if err != nil {
+		t.Fatal(err)
 	}
+	waitForAdvisoryWaiter(t, storeA.pool, key)
 	close(release)
-	if err := <-done; err != nil {
+	if err := waitForTestResult(t, done, "onboarding auth fence completion"); err != nil {
 		t.Fatalf("onboarding auth fence: %v", err)
 	}
-	if err := <-epochDone; err != nil {
+	if err := waitForTestResult(t, epochDone, "auth epoch change"); err != nil {
 		t.Fatalf("epoch change after auth fence: %v", err)
 	}
 }
@@ -397,7 +395,7 @@ func TestStoreActiveSessionAuthSerializesOneParentAcrossPools(t *testing.T) {
 			return nil
 		})
 	}()
-	<-entered
+	waitForTestSignal(t, entered, "first active-session callback")
 
 	secondEntered := make(chan struct{})
 	secondDone := make(chan error, 1)
@@ -407,17 +405,17 @@ func TestStoreActiveSessionAuthSerializesOneParentAcrossPools(t *testing.T) {
 			return nil
 		})
 	}()
-	select {
-	case <-secondEntered:
-		close(release)
-		t.Fatal("same parent crossed the live parent-session fence")
-	case <-time.After(75 * time.Millisecond):
+	key, err := ParentSessionFenceKey(owner, "parent-a")
+	if err != nil {
+		t.Fatal(err)
 	}
+	waitForAdvisoryWaiter(t, storeA.pool, key)
 	close(release)
-	if err := <-firstDone; err != nil {
+	if err := waitForTestResult(t, firstDone, "first active-session scope"); err != nil {
 		t.Fatalf("first active-session scope: %v", err)
 	}
-	if err := <-secondDone; err != nil {
+	waitForTestSignal(t, secondEntered, "second active-session callback")
+	if err := waitForTestResult(t, secondDone, "second active-session scope"); err != nil {
 		t.Fatalf("second active-session scope: %v", err)
 	}
 }
@@ -824,7 +822,7 @@ func TestStoreFencedDatabaseWorkUsesDedicatedConnectionAtPoolCapacity(t *testing
 	}
 	close(release)
 	for range 2 {
-		if err := <-done; err != nil {
+		if err := waitForTestResult(t, done, "saturated fenced effect"); err != nil {
 			t.Fatalf("saturated fenced effect: %v", err)
 		}
 	}
@@ -864,7 +862,7 @@ func TestStoreConcurrentTransitionsLinearizeAtOneGeneration(t *testing.T) {
 	close(start)
 	var success, stale int
 	for range 2 {
-		err := <-results
+		err := waitForTestResult(t, results, "concurrent lifecycle transition")
 		switch {
 		case err == nil:
 			success++
@@ -1068,13 +1066,13 @@ func applyOwnerLifecycleTestMigrations(t *testing.T, pool *pgxpool.Pool) {
 		t.Fatalf("create lifecycle test base schema: %v", err)
 	}
 	for _, path := range []string{
-		"../../migrations/000038_owner_auth_lifecycle.up.sql",
-		"../../migrations/000039_owner_effects_terminal_purge.up.sql",
-		"../../migrations/000045_tap_ingestion_durability.up.sql",
-		"../../migrations/000049_pds_effect_action.up.sql",
-		"../../migrations/000050_pds_effect_source_reconciliation.up.sql",
+		"000038_owner_auth_lifecycle.up.sql",
+		"000039_owner_effects_terminal_purge.up.sql",
+		"000045_tap_ingestion_durability.up.sql",
+		"000049_pds_effect_action.up.sql",
+		"000050_pds_effect_source_reconciliation.up.sql",
 	} {
-		sql, err := os.ReadFile(path)
+		sql, err := testdb.ReadMigration(path)
 		if err != nil {
 			t.Fatalf("read lifecycle test migration: %v", err)
 		}

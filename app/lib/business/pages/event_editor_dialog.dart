@@ -139,7 +139,8 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
                   ),
                 ],
               )
-            else if (mutation.status == EventMutationStatus.error &&
+            else if ((mutation.status == EventMutationStatus.error ||
+                    mutation.status == EventMutationStatus.ambiguous) &&
                 mutation.validationErrors.isEmpty)
               MaterialBanner(
                 content: Text(l10n.businessEventSaveError),

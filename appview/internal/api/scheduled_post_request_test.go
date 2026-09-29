@@ -2,8 +2,6 @@ package api
 
 import (
 	"errors"
-	"io"
-	"log/slog"
 	"net/http"
 	"slices"
 	"strings"
@@ -14,6 +12,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/scheduledposts"
+	"social.craftsky/appview/internal/testlog"
 )
 
 func TestScheduledExternalSourceURIUsesNormalizedComposerIdentity(t *testing.T) {
@@ -104,7 +103,7 @@ func TestScheduledExternalThumbnailPassesPostBlobShapeValidation(t *testing.T) {
 func TestScheduledPostCreateRejectsExcludedKindsAndInvalidTimes(t *testing.T) {
 	store, pool := newScheduledPostAPITestStore(t)
 	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
-	handler := CreateScheduledPostHandler(store, DefaultMediaLimits(), func() time.Time { return now }, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	handler := CreateScheduledPostHandler(store, DefaultMediaLimits(), func() time.Time { return now }, testlog.Discard())
 
 	tests := []struct {
 		name string
@@ -113,32 +112,32 @@ func TestScheduledPostCreateRejectsExcludedKindsAndInvalidTimes(t *testing.T) {
 	}{
 		{
 			name: "reply",
-			body: `{"operationId":"00000000-0000-4000-8000-000000000611","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"standard","text":"reply","reply":{"root":{"uri":"at://did:plc:bob/social.craftsky.feed.post/root","cid":"bafk-root"},"parent":{"uri":"at://did:plc:bob/social.craftsky.feed.post/parent","cid":"bafk-parent"}}}}`,
+			body: `{"operationId":"00000000-0000-4000-8000-000000000611","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"standard","text":"reply","sponsored":false,"reply":{"root":{"uri":"at://did:plc:bob/social.craftsky.feed.post/root","cid":"bafk-root"},"parent":{"uri":"at://did:plc:bob/social.craftsky.feed.post/parent","cid":"bafk-parent"}}}}`,
 			code: "scheduled_post_ineligible",
 		},
 		{
 			name: "quote",
-			body: `{"operationId":"00000000-0000-4000-8000-000000000612","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"standard","text":"quote","embed":{"quote":{"uri":"at://did:plc:bob/social.craftsky.feed.post/quoted","cid":"bafk-quote"}}}}`,
+			body: `{"operationId":"00000000-0000-4000-8000-000000000612","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"standard","text":"quote","sponsored":false,"embed":{"quote":{"uri":"at://did:plc:bob/social.craftsky.feed.post/quoted","cid":"bafk-quote"}}}}`,
 			code: "scheduled_post_ineligible",
 		},
 		{
 			name: "project external",
-			body: `{"operationId":"00000000-0000-4000-8000-000000000616","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"project","text":"project","external":{"sourceUri":"https://source.example/pattern","uri":"https://final.example/pattern","title":"Pattern","description":"Description"}}}`,
+			body: `{"operationId":"00000000-0000-4000-8000-000000000616","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"project","text":"project","sponsored":false,"external":{"sourceUri":"https://source.example/pattern","uri":"https://final.example/pattern","title":"Pattern","description":"Description"}}}`,
 			code: "scheduled_post_ineligible",
 		},
 		{
 			name: "less than five minutes",
-			body: `{"operationId":"00000000-0000-4000-8000-000000000613","scheduledAt":"2026-08-02T12:04:00Z","payload":{"kind":"standard","text":"too soon"}}`,
+			body: `{"operationId":"00000000-0000-4000-8000-000000000613","scheduledAt":"2026-08-02T12:04:00Z","payload":{"kind":"standard","text":"too soon","sponsored":false}}`,
 			code: "invalid_scheduled_at",
 		},
 		{
 			name: "not a whole minute",
-			body: `{"operationId":"00000000-0000-4000-8000-000000000614","scheduledAt":"2026-08-02T12:05:01Z","payload":{"kind":"standard","text":"seconds"}}`,
+			body: `{"operationId":"00000000-0000-4000-8000-000000000614","scheduledAt":"2026-08-02T12:05:01Z","payload":{"kind":"standard","text":"seconds","sponsored":false}}`,
 			code: "invalid_scheduled_at",
 		},
 		{
 			name: "more than 28 days",
-			body: `{"operationId":"00000000-0000-4000-8000-000000000615","scheduledAt":"2026-08-30T12:01:00Z","payload":{"kind":"standard","text":"too late"}}`,
+			body: `{"operationId":"00000000-0000-4000-8000-000000000615","scheduledAt":"2026-08-30T12:01:00Z","payload":{"kind":"standard","text":"too late","sponsored":false}}`,
 			code: "invalid_scheduled_at",
 		},
 	}
@@ -166,7 +165,7 @@ func TestScheduledPostCreateRejectsOversizedExternalThumbnailMedia(t *testing.T)
 	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
 	mediaID := uuid.MustParse("55555555-5555-4555-8555-555555555555")
 	insertScheduledPostRequestMedia(t, pool, mediaID, "image/png", 1_000_001, now)
-	handler := CreateScheduledPostHandler(store, DefaultMediaLimits(), func() time.Time { return now }, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	handler := CreateScheduledPostHandler(store, DefaultMediaLimits(), func() time.Time { return now }, testlog.Discard())
 
 	response := serveScheduledPostRequest(t, handler, http.MethodPost, "/v1/scheduled-posts", scheduledExternalCreateBody("00000000-0000-4000-8000-000000000617", mediaID), "did:plc:alice")
 
@@ -181,7 +180,7 @@ func TestScheduledPostCreateAcceptsExactLimitExternalThumbnailMedia(t *testing.T
 	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
 	mediaID := uuid.MustParse("55555555-5555-4555-8555-555555555556")
 	insertScheduledPostRequestMedia(t, pool, mediaID, "image/webp", 1_000_000, now)
-	handler := CreateScheduledPostHandler(store, DefaultMediaLimits(), func() time.Time { return now }, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	handler := CreateScheduledPostHandler(store, DefaultMediaLimits(), func() time.Time { return now }, testlog.Discard())
 
 	response := serveScheduledPostRequest(t, handler, http.MethodPost, "/v1/scheduled-posts", scheduledExternalCreateBody("00000000-0000-4000-8000-000000000618", mediaID), "did:plc:alice")
 	if response.Code != http.StatusCreated {
@@ -194,7 +193,7 @@ func TestScheduledPostCreateRejectsUnsupportedExternalThumbnailMIME(t *testing.T
 	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
 	mediaID := uuid.MustParse("55555555-5555-4555-8555-555555555557")
 	insertScheduledPostRequestMedia(t, pool, mediaID, "image/gif", 100, now)
-	handler := CreateScheduledPostHandler(store, DefaultMediaLimits(), func() time.Time { return now }, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	handler := CreateScheduledPostHandler(store, DefaultMediaLimits(), func() time.Time { return now }, testlog.Discard())
 
 	response := serveScheduledPostRequest(t, handler, http.MethodPost, "/v1/scheduled-posts", scheduledExternalCreateBody("00000000-0000-4000-8000-000000000619", mediaID), "did:plc:alice")
 	if response.Code != http.StatusUnprocessableEntity {

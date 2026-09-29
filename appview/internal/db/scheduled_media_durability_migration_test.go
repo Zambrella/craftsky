@@ -2,7 +2,6 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -36,12 +35,12 @@ CREATE TABLE owner_lifecycles (
 `
 
 func TestScheduledMediaDurabilityMigrationsUpDownUp(t *testing.T) {
-	up34 := readScheduledMediaMigration(t, "../../migrations/000034_scheduled_posts.up.sql")
-	down34 := readScheduledMediaMigration(t, "../../migrations/000034_scheduled_posts.down.sql")
-	up40 := readScheduledMediaMigration(t, "../../migrations/000040_scheduled_media_durability.up.sql")
-	down40 := readScheduledMediaMigration(t, "../../migrations/000040_scheduled_media_durability.down.sql")
-	up41 := readScheduledMediaMigration(t, "../../migrations/000041_account_deletion_safety_tombstones.up.sql")
-	down41 := readScheduledMediaMigration(t, "../../migrations/000041_account_deletion_safety_tombstones.down.sql")
+	up34 := readScheduledMediaMigration(t, "000034_scheduled_posts.up.sql")
+	down34 := readScheduledMediaMigration(t, "000034_scheduled_posts.down.sql")
+	up40 := readScheduledMediaMigration(t, "000040_scheduled_media_durability.up.sql")
+	down40 := readScheduledMediaMigration(t, "000040_scheduled_media_durability.down.sql")
+	up41 := readScheduledMediaMigration(t, "000041_account_deletion_safety_tombstones.up.sql")
+	down41 := readScheduledMediaMigration(t, "000041_account_deletion_safety_tombstones.down.sql")
 
 	pool := testdb.WithSchema(t, scheduledMediaDurabilityPreStateDDL)
 	applyScheduledMediaMigration(t, pool, "34 up", up34)
@@ -184,7 +183,7 @@ func assertScheduledMediaDurabilityConstraints(t *testing.T, pool *pgxpool.Pool)
 
 func readScheduledMediaMigration(t *testing.T, path string) []byte {
 	t.Helper()
-	contents, err := os.ReadFile(path)
+	contents, err := testdb.ReadMigration(path)
 	if err != nil {
 		t.Fatalf("read %s: %v", path, err)
 	}

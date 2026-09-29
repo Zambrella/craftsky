@@ -32,6 +32,7 @@ import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -45,6 +46,7 @@ import '../fakes/auth_session_fakes.dart';
 import '../fakes/image_cache_fakes.dart';
 import '../fakes/recording_messenger.dart';
 import '../feed/fakes/fake_post_repository.dart';
+import '../test_support/deterministic_pump.dart';
 import 'fakes/fake_profile_repository.dart';
 
 final _emptyPostRepository = FakePostRepository(
@@ -78,13 +80,14 @@ void main() {
       expect(find.byType(PostCardSkeleton), findsOneWidget);
     });
 
-    testWidgets('remote collection tabs refresh the profile, except Reposts', (
+    testWidgets('remote collection tabs refresh their posts', (
       tester,
     ) async {
       var profileFetches = 0;
       var postFetches = 0;
       var projectFetches = 0;
       var commentFetches = 0;
+      var repostFetches = 0;
       final profile = Profile(
         did: 'did:plc:other',
         handle: 'alice.bsky.social',
@@ -110,6 +113,10 @@ void main() {
           commentFetches++;
           return const PostPage(items: []);
         },
+        onListRepostsByAuthor: (_, {cursor, limit}) async {
+          repostFetches++;
+          return const PostPage(items: []);
+        },
       );
 
       await tester.pumpWidget(
@@ -133,12 +140,17 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await pumpUntilFound(
+        tester,
+        find.byType(ProfileTabBar),
+        description: 'the profile collection tabs',
+      );
 
       for (final entry in const {
         'Projects': 'projects',
         'Posts': 'posts',
         'Comments & replies': 'comments',
+        'Reposts': 'reposts',
       }.entries) {
         await tester.tap(find.widgetWithText(Tab, entry.key));
         await tester.pumpAndSettle();
@@ -157,10 +169,7 @@ void main() {
       expect(postFetches, greaterThanOrEqualTo(2));
       expect(projectFetches, greaterThanOrEqualTo(2));
       expect(commentFetches, greaterThanOrEqualTo(2));
-
-      await tester.tap(find.widgetWithText(Tab, 'Reposts'));
-      await tester.pumpAndSettle();
-      expect(find.byType(RefreshIndicator), findsNothing);
+      expect(repostFetches, greaterThanOrEqualTo(2));
     });
 
     testWidgets('signed-in self profile renders identity + edit actions', (
@@ -232,45 +241,48 @@ void main() {
             ),
           ),
         );
-        await tester.pumpAndSettle();
+        await pumpUntilFound(
+          tester,
+          find.text('Follow'),
+          description: 'the visitor profile actions',
+        );
 
         expect(find.text('Follow'), findsOneWidget);
         expect(find.text('Edit profile'), findsNothing);
       },
     );
 
-    testWidgets(
-      'UT-010 same DID with changed handle renders self actions',
-      (tester) async {
-        final profile = Profile(
-          did: 'did:plc:test',
-          handle: 'test.changed.example',
-          displayName: 'Test User',
-          crafts: const [],
-        );
-        final repo = FakeProfileRepository(onFetch: (_) async => profile);
+    testWidgets('UT-010 same DID with changed handle renders self actions', (
+      tester,
+    ) async {
+      final profile = Profile(
+        did: 'did:plc:test',
+        handle: 'test.changed.example',
+        displayName: 'Test User',
+        crafts: const [],
+      );
+      final repo = FakeProfileRepository(onFetch: (_) async => profile);
 
-        await tester.pumpWidget(
-          ProviderScope(
-            overrides: [
-              authSessionProvider.overrideWith(SignedInAuthSession.new),
-              profileRepositoryProvider.overrideWithValue(repo),
-              postRepositoryProvider.overrideWithValue(_emptyPostRepository),
-            ],
-            child: MaterialApp(
-              theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              supportedLocales: AppLocalizations.supportedLocales,
-              home: ProfilePage(did: Did.parse('did:plc:other')),
-            ),
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            profileRepositoryProvider.overrideWithValue(repo),
+            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: ProfilePage(did: Did.parse('did:plc:other')),
           ),
-        );
-        await tester.pumpAndSettle();
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        expect(find.text('Edit profile'), findsOneWidget);
-        expect(find.text('Follow'), findsNothing);
-      },
-    );
+      expect(find.text('Edit profile'), findsOneWidget);
+      expect(find.text('Follow'), findsNothing);
+    });
 
     testWidgets('visitor profile renders Follow + Mute actions', (
       tester,
@@ -376,10 +388,7 @@ void main() {
         const Color(0xFFB615D6),
       );
       expect(header.color, const Color(0xFFB615D6));
-      expect(
-        avatarBorder.top.color,
-        const Color(0xFFB615D6),
-      );
+      expect(avatarBorder.top.color, const Color(0xFFB615D6));
       expect(
         find.byKey(const Key('profile-header-background-illustration')),
         findsNothing,
@@ -650,9 +659,7 @@ void main() {
                 controller: controller,
                 slivers: [
                   ProfileCustomisationTheme(
-                    customisation: const ProfileCustomisation(
-                      colour: 'orchid',
-                    ),
+                    customisation: const ProfileCustomisation(colour: 'orchid'),
                     child: ProfileSliverAppBar(
                       handle: 'alice.bsky.social',
                       actions: SelfProfileActionSet(
@@ -683,10 +690,7 @@ void main() {
         menuButton().style?.backgroundColor?.resolve({}),
         Colors.transparent,
       );
-      expect(
-        menuButton().style?.foregroundColor?.resolve({}),
-        Colors.white,
-      );
+      expect(menuButton().style?.foregroundColor?.resolve({}), Colors.white);
       expect(title.left, 56);
 
       controller.jumpTo(appBar.expandedHeight! - kToolbarHeight);
@@ -766,9 +770,8 @@ void main() {
       final expandedForeground = profileColour(
         profileColourBundles['orchid']!.foreground,
       );
-      BackButton backButton() => tester.widget<BackButton>(
-        find.byType(BackButton),
-      );
+      BackButton backButton() =>
+          tester.widget<BackButton>(find.byType(BackButton));
 
       expect(
         backButton().style?.backgroundColor?.resolve({}),
@@ -789,61 +792,56 @@ void main() {
       expect(backButton().style?.foregroundColor?.resolve({}), onSurface);
     });
 
-    testWidgets(
-      'replaces the banner image with the configured local texture',
-      (tester) async {
-        final profile = Profile(
-          did: 'did:plc:other',
-          handle: 'alice.bsky.social',
-          displayName: 'Alice',
-          banner: 'https://example.test/old-banner.jpg',
-          crafts: const [],
-          customisation: const ProfileCustomisation(
-            background: 'x2',
-          ),
-        );
-        final repo = FakeProfileRepository(onFetch: (_) async => profile);
+    testWidgets('replaces the banner image with the configured local texture', (
+      tester,
+    ) async {
+      final profile = Profile(
+        did: 'did:plc:other',
+        handle: 'alice.bsky.social',
+        displayName: 'Alice',
+        banner: 'https://example.test/old-banner.jpg',
+        crafts: const [],
+        customisation: const ProfileCustomisation(background: 'x2'),
+      );
+      final repo = FakeProfileRepository(onFetch: (_) async => profile);
 
-        await tester.pumpWidget(
-          ProviderScope(
-            overrides: [
-              authSessionProvider.overrideWith(SignedInAuthSession.new),
-              profileRepositoryProvider.overrideWithValue(repo),
-              postRepositoryProvider.overrideWithValue(_emptyPostRepository),
-            ],
-            child: MaterialApp(
-              theme: AppTheme.lightThemeData,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              supportedLocales: AppLocalizations.supportedLocales,
-              home: ProfilePage(did: Did.parse('did:plc:other')),
-            ),
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            profileRepositoryProvider.overrideWithValue(repo),
+            postRepositoryProvider.overrideWithValue(_emptyPostRepository),
+          ],
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: ProfilePage(did: Did.parse('did:plc:other')),
           ),
-        );
-        await tester.pumpAndSettle();
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        expect(
-          find.byKey(const Key('profile-header-background')),
-          findsOneWidget,
-        );
-        expect(
-          tester
-              .getSize(
-                find.byKey(const Key('profile-header-background')),
-              )
-              .height,
-          128,
-        );
-        expect(
-          find.byKey(const Key('profile-header-background-texture')),
-          findsOneWidget,
-        );
-        expect(find.byKey(const Key('profile-avatar-frame')), findsNothing);
-        expect(
-          find.byKey(const Key('profile-banner-viewer-target')),
-          findsNothing,
-        );
-      },
-    );
+      expect(
+        find.byKey(const Key('profile-header-background')),
+        findsOneWidget,
+      );
+      expect(
+        tester
+            .getSize(find.byKey(const Key('profile-header-background')))
+            .height,
+        128,
+      );
+      expect(
+        find.byKey(const Key('profile-header-background-texture')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('profile-avatar-frame')), findsNothing);
+      expect(
+        find.byKey(const Key('profile-banner-viewer-target')),
+        findsNothing,
+      );
+    });
 
     testWidgets(
       'places crafts below the handle and bio after the profile actions',
@@ -873,7 +871,11 @@ void main() {
             ),
           ),
         );
-        await tester.pumpAndSettle();
+        await pumpUntilFound(
+          tester,
+          find.text('Follow'),
+          description: 'the visitor profile actions',
+        );
 
         final identity = tester.widget<ProfileIdentity>(
           find.byType(ProfileIdentity),
@@ -917,9 +919,7 @@ void main() {
 
     testWidgets(
       'blocked profile renders only identity, annotation, and actions',
-      (
-        tester,
-      ) async {
+      (tester) async {
         final profile = Profile(
           did: 'did:plc:other',
           handle: 'alice.bsky.social',
@@ -977,9 +977,10 @@ void main() {
       );
       final repo = FakeProfileRepository(
         onFetch: (_) async => profile,
-        onBlock: (target) async {
+        onBlock: (target, operationKey) async {
           blockCalls++;
           blockTarget = target;
+          expect(operationKey, isNotEmpty);
           return const ProfileRelationship(blocking: true);
         },
       );
@@ -992,6 +993,9 @@ void main() {
             accountRelationshipRepositoryProvider(
               account,
             ).overrideWith((ref) async => repo),
+            pdsRecordOperationControllerProvider.overrideWithValue(
+              PdsRecordOperationController(schedule: (_, _) {}),
+            ),
             postRepositoryProvider.overrideWithValue(_emptyPostRepository),
           ],
           child: MessengerScope(
@@ -1005,7 +1009,11 @@ void main() {
           ),
         ),
       );
-      await tester.pumpAndSettle();
+      await pumpUntilFound(
+        tester,
+        find.text('Follow'),
+        description: 'the blockable visitor profile',
+      );
 
       await tester.tap(find.byTooltip('More profile actions'));
       await tester.pumpAndSettle();
@@ -1219,9 +1227,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Previously loaded private profile'), findsWidgets);
 
-      container.invalidate(
-        userProfileProvider(Did.parse('did:plc:alice')),
-      );
+      container.invalidate(userProfileProvider(Did.parse('did:plc:alice')));
       await tester.pumpAndSettle();
 
       expect(calls, 2);
@@ -1321,9 +1327,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Authenticated cached profile'), findsWidgets);
 
-      container.invalidate(
-        userProfileProvider(Did.parse('did:plc:alice')),
-      );
+      container.invalidate(userProfileProvider(Did.parse('did:plc:alice')));
       await tester.pumpAndSettle();
 
       expect(calls, 2);
@@ -1363,9 +1367,8 @@ void main() {
                       unawaited(
                         Navigator.of(context).push<void>(
                           MaterialPageRoute(
-                            builder: (_) => ProfilePage(
-                              did: Did.parse('did:plc:missing'),
-                            ),
+                            builder: (_) =>
+                                ProfilePage(did: Did.parse('did:plc:missing')),
                           ),
                         ),
                       );
@@ -1646,6 +1649,7 @@ void main() {
       expect(followCalls, 1);
       expect(find.text('Unfollow'), findsOneWidget);
       expect(find.text('Follow'), findsNothing);
+      await tester.pump(const Duration(seconds: 31));
     });
 
     testWidgets('tapping Unfollow updates profile from repository response', (
@@ -1690,6 +1694,7 @@ void main() {
       expect(unfollowCalls, 1);
       expect(find.text('Follow'), findsOneWidget);
       expect(find.text('Unfollow'), findsNothing);
+      await tester.pump(const Duration(seconds: 31));
     });
 
     testWidgets('follow button is not re-entrant while request is in flight', (
@@ -1730,13 +1735,14 @@ void main() {
 
       await tester.tap(find.text('Follow'));
       await tester.pump();
-      await tester.tap(find.text('Unfollow'));
+      await tester.tap(find.text('Follow'));
       await tester.pump();
 
       expect(followCalls, 1);
 
       completer.complete(profile.copyWith(viewerIsFollowing: true));
       await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 31));
     });
 
     testWidgets('failed follow restores previous state and shows error', (
@@ -1784,9 +1790,7 @@ void main() {
       expect(messenger.calls.first.$2, 'Could not update follow state.');
     });
 
-    testWidgets('tapping Share dispatches a coming-soon info', (
-      tester,
-    ) async {
+    testWidgets('tapping Share dispatches a coming-soon info', (tester) async {
       final profile = Profile(
         did: 'did:plc:other',
         handle: 'alice.bsky.social',

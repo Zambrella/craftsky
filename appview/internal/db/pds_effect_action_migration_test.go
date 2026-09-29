@@ -3,7 +3,6 @@ package db_test
 import (
 	"context"
 	"errors"
-	"os"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
@@ -12,11 +11,11 @@ import (
 )
 
 func TestPDSEffectActionMigrationSupportsRecordVersionsUpDownUp(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000049_pds_effect_action.up.sql")
+	up, err := testdb.ReadMigration("000049_pds_effect_action.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := os.ReadFile("../../migrations/000049_pds_effect_action.down.sql")
+	down, err := testdb.ReadMigration("000049_pds_effect_action.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

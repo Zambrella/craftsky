@@ -2,7 +2,6 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -11,11 +10,11 @@ import (
 )
 
 func TestPreferredPronounsMigrationUpDownUp(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000068_preferred_pronouns.up.sql")
+	up, err := testdb.ReadMigration("000068_preferred_pronouns.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := os.ReadFile("../../migrations/000068_preferred_pronouns.down.sql")
+	down, err := testdb.ReadMigration("000068_preferred_pronouns.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

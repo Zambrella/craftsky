@@ -2,6 +2,7 @@ package ownerlifecycle
 
 import (
 	"context"
+	"runtime"
 	"testing"
 	"time"
 
@@ -32,14 +33,23 @@ func TestTerminalPurgeRemovesOnlyOwnersFollowerGrowthSnapshots(t *testing.T) {
 		t.Fatalf("seed follower growth purge rows: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
-		INSERT INTO atproto_follows (
-			uri, did, rkey, cid, subject_did, record, created_at
+		INSERT INTO tap_source_records (
+			uri,did,collection,rkey,source_event_id,source_fingerprint,revision,
+			cid,action,record,record_bytes,live,ordering_status,projection_disposition
 		) VALUES (
 			'at://did:plc:follower-growth-other/app.bsky.graph.follow/owner',
-			$2, 'owner', 'follow-cid', $1, '{}', now()
+			$1,'app.bsky.graph.follow','owner',1,decode(repeat('00',32),'hex'),
+			'3aaaaaaaaaaa2','follow-cid','create','{}',2,false,'authoritative','eligible'
 		)
-	`, owner, other); err != nil {
+	`, other); err != nil {
 		t.Fatalf("seed public follow row: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO pds_set_sources(source_uri,kind,actor_did,scope_key,subject_did,activity_at,eligible)
+		VALUES('at://did:plc:follower-growth-other/app.bsky.graph.follow/owner',
+			'follow',$2,$1,$1,now(),true)
+	`, owner, other); err != nil {
+		t.Fatalf("seed public follow fact: %v", err)
 	}
 
 	claim := claimSpecificTerminalComponent(
@@ -60,7 +70,7 @@ func TestTerminalPurgeRemovesOnlyOwnersFollowerGrowthSnapshots(t *testing.T) {
 	if err := pool.QueryRow(ctx, `SELECT count(*) FROM follower_growth_snapshots WHERE profile_did=$1`, other).Scan(&otherRows); err != nil {
 		t.Fatal(err)
 	}
-	if err := pool.QueryRow(ctx, `SELECT count(*) FROM atproto_follows WHERE did=$1 AND subject_did=$2`, other, owner).Scan(&followRows); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT count(*) FROM pds_set_sources WHERE actor_did=$1 AND subject_did=$2`, other, owner).Scan(&followRows); err != nil {
 		t.Fatal(err)
 	}
 	if ownerRows != 0 || otherRows != 1 || followRows != 1 {
@@ -179,13 +189,13 @@ func TestTerminalPurgeWaitsForFollowerGrowthCaptureBeforeCompleting(t *testing.T
 			purgeReturnedEarly = true
 		default:
 		}
-		if purgeReturnedEarly || hasAdvisoryWaiter(t, pool, followerGrowthCaptureLockIDForTest) {
+		if purgeReturnedEarly || hasAdvisoryWaiter(t, ctx, pool, followerGrowthCaptureLockIDForTest) {
 			break
 		}
 		if time.Now().After(deadline) {
 			t.Fatal("purge neither completed nor waited for follower-growth capture")
 		}
-		time.Sleep(5 * time.Millisecond)
+		runtime.Gosched()
 	}
 
 	var unlocked bool
@@ -193,13 +203,13 @@ func TestTerminalPurgeWaitsForFollowerGrowthCaptureBeforeCompleting(t *testing.T
 		t.Fatalf("release capture pause lock: unlocked=%t err=%v", unlocked, err)
 	}
 	locked = false
-	if err := <-captureDone; err != nil {
+	if err := waitForTestResult(t, captureDone, "paused follower-growth capture"); err != nil {
 		t.Fatalf("complete paused capture: %v", err)
 	}
 	if purgeReturnedEarly {
 		t.Fatal("terminal purge completed while a follower-growth capture could still commit private rows")
 	}
-	outcome := <-purgeDone
+	outcome := waitForTestResult(t, purgeDone, "follower-growth terminal purge")
 	if outcome.err != nil {
 		t.Fatalf("purge after capture: %v", outcome.err)
 	}
@@ -219,19 +229,21 @@ func TestTerminalPurgeWaitsForFollowerGrowthCaptureBeforeCompleting(t *testing.T
 
 func waitForAdvisoryWaiter(t *testing.T, pool *pgxpool.Pool, key int64) {
 	t.Helper()
-	deadline := time.Now().Add(2 * time.Second)
-	for !hasAdvisoryWaiter(t, pool, key) {
-		if time.Now().After(deadline) {
+	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+	defer cancel()
+	for !hasAdvisoryWaiter(t, ctx, pool, key) {
+		select {
+		case <-ctx.Done():
 			t.Fatalf("timed out waiting for advisory lock %d", key)
+		case <-time.After(5 * time.Millisecond):
 		}
-		time.Sleep(5 * time.Millisecond)
 	}
 }
 
-func hasAdvisoryWaiter(t *testing.T, pool *pgxpool.Pool, key int64) bool {
+func hasAdvisoryWaiter(t *testing.T, ctx context.Context, pool *pgxpool.Pool, key int64) bool {
 	t.Helper()
 	var waiting bool
-	if err := pool.QueryRow(context.Background(), `
+	if err := pool.QueryRow(ctx, `
 		SELECT EXISTS (
 			SELECT 1
 			FROM pg_locks

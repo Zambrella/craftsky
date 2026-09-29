@@ -2,11 +2,19 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/providers/like_post_overlay.dart';
+import 'package:craftsky_app/feed/providers/post_comment_section_provider.dart';
+import 'package:craftsky_app/feed/providers/post_interaction_lists_provider.dart';
+import 'package:craftsky_app/feed/providers/post_provider.dart';
 import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/user_comments_provider.dart';
 import 'package:craftsky_app/feed/providers/user_posts_provider.dart';
+import 'package:craftsky_app/feed/providers/user_reposts_provider.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_reconciliation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'toggle_like_post_provider.g.dart';
@@ -18,36 +26,87 @@ class ToggleLikePost extends _$ToggleLikePost {
 
   Future<void> toggle({required Post post}) async {
     final ownership = captureActiveAccountOperation(ref);
+    final desiredLiked = !post.viewerHasLiked;
     final next = post.copyWith(
-      viewerHasLiked: !post.viewerHasLiked,
+      viewerHasLiked: desiredLiked,
       likeCount: post.viewerHasLiked
           ? (post.likeCount > 0 ? post.likeCount - 1 : 0)
           : post.likeCount + 1,
     );
+    final endpoint = '/v1/posts/${post.author.did}/${post.rkey}/likes';
+    final immutableBody = desiredLiked ? 'POST\n' : 'DELETE\n';
+    final controller = ref.read(pdsRecordOperationControllerProvider);
+    final scope = likePostMutationScope(ref, post);
+    final token = controller.beginOrRetry(
+      scope: scope,
+      endpoint: endpoint,
+      immutableBody: immutableBody,
+      newOperationKey: newPdsMutationOperationKey,
+    );
+    final operationKey = token.operationKey;
 
-    updateLiveUserPostCaches(ref, next);
-    updateLiveUserProjectCaches(ref, next);
-    updateLiveUserCommentCaches(ref, next);
-    updateLiveTimelineCache(ref, next);
     state = AsyncData(next);
-
     try {
-      final repo = ref.read(postRepositoryProvider);
-      if (next.viewerHasLiked) {
-        await repo.like(post.author.did, post.rkey);
-      } else {
-        await repo.unlike(post.author.did, post.rkey);
-      }
+      await runPdsMutation<void>(
+        ref: ref,
+        controller: controller,
+        token: token,
+        isCurrent: () => isActiveAccountOperationCurrent(ref, ownership),
+        send: () async {
+          final repo = ref.read(postRepositoryProvider);
+          if (desiredLiked) {
+            await repo.like(
+              post.author.did,
+              post.rkey,
+              operationKey: operationKey,
+            );
+          } else {
+            await repo.unlike(
+              post.author.did,
+              post.rkey,
+              operationKey: operationKey,
+            );
+          }
+        },
+      );
+    } on PdsMutationObsoleteException {
+      return;
+    } on PdsMutationUnresolvedException catch (error, stackTrace) {
+      state = AsyncError<Post?>(error, stackTrace);
+      return;
     } on Object catch (error, stackTrace) {
       if (!isActiveAccountOperationCurrent(ref, ownership)) return;
-      updateLiveUserPostCaches(ref, post);
-      updateLiveUserProjectCaches(ref, post);
-      updateLiveUserCommentCaches(ref, post);
-      updateLiveTimelineCache(ref, post);
-      state = AsyncData(post);
+      controller.markFailed(token);
+      state = const AsyncData(null);
       state = AsyncError<Post?>(error, stackTrace);
+      return;
     }
+
+    if (!isActiveAccountOperationCurrent(ref, ownership)) return;
+    final reconciliation = PdsSetReconciliation(active: desiredLiked);
+    if (!controller.markAccepted(
+      token,
+      optimisticValue: desiredLiked,
+      agrees: (value) => value is bool && reconciliation.agrees(value),
+      refresh: () => _invalidateLikeReads(ref, post),
+    )) {
+      return;
+    }
+    state = AsyncData<Post?>(next);
   }
 
   void reset() => state = const AsyncData(null);
+}
+
+void _invalidateLikeReads(Ref ref, Post post) {
+  if (!ref.mounted) return;
+  ref
+    ..invalidate(postProvider(post.author.did, post.rkey))
+    ..invalidate(postCommentSectionProvider)
+    ..invalidate(postQuotesProvider)
+    ..invalidate(timelineProvider)
+    ..invalidate(userPostsProvider)
+    ..invalidate(userCommentsProvider)
+    ..invalidate(userRepostsProvider)
+    ..invalidate(userProjectsProvider);
 }

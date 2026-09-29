@@ -86,11 +86,21 @@ func TestCoordinatedPDSClientKeepsEveryMethodInsideSessionFence(t *testing.T) {
 	if _, _, err := coordinated.ListRecords(ctx, owner, "social.craftsky.feed.post", "", 10); err != nil {
 		t.Fatal(err)
 	}
+	head, err := coordinated.LatestCommit(ctx, owner)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := coordinated.ApplyWrites(ctx, owner, head, []auth.RepositoryWrite{{Action: "create", Collection: "social.craftsky.feed.like", RKey: "one"}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := coordinated.DeleteRecordWithRepositorySwap(ctx, owner, "social.craftsky.feed.like", "one", head, "bafy-record"); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := coordinated.UploadBlob(ctx, "image/png", []byte("image")); err != nil {
 		t.Fatal(err)
 	}
-	if runner.calls != 6 || client.calls != 6 {
-		t.Fatalf("coordinated calls = runner %d client %d, want 6/6", runner.calls, client.calls)
+	if runner.calls != 9 || client.calls != 9 {
+		t.Fatalf("coordinated calls = runner %d client %d, want 9/9", runner.calls, client.calls)
 	}
 }
 
@@ -254,4 +264,18 @@ func (client *fenceCheckingPDSClient) ListRecords(
 	context.Context, syntax.DID, string, string, int,
 ) ([]auth.PDSRecord, string, error) {
 	return nil, "", client.check()
+}
+
+func (client *fenceCheckingPDSClient) LatestCommit(context.Context, syntax.DID) (syntax.CID, error) {
+	return "bafy-head", client.check()
+}
+
+func (client *fenceCheckingPDSClient) ApplyWrites(context.Context, syntax.DID, syntax.CID, []auth.RepositoryWrite) error {
+	return client.check()
+}
+
+func (client *fenceCheckingPDSClient) DeleteRecordWithRepositorySwap(
+	context.Context, syntax.DID, syntax.NSID, syntax.RecordKey, syntax.CID, syntax.CID,
+) error {
+	return client.check()
 }

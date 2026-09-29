@@ -3,28 +3,22 @@ package api
 import (
 	"bytes"
 	"context"
-	"encoding/json"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"strings"
 	"testing"
 	"time"
 
-	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/jackc/pgx/v5/pgxpool"
 
-	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/scheduledposts"
 	"social.craftsky/appview/internal/testdb"
+	"social.craftsky/appview/internal/testlog"
 )
 
 func TestScheduledPostCreateIsOwnerDerivedAndIdempotent(t *testing.T) {
 	store, pool := newScheduledPostAPITestStore(t)
 	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
-	handler := CreateScheduledPostHandler(store, DefaultMediaLimits(), func() time.Time { return now }, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	handler := CreateScheduledPostHandler(store, DefaultMediaLimits(), func() time.Time { return now }, testlog.Discard())
 	operationID := "00000000-0000-4000-8000-000000000601"
 	body := `{"operationId":"` + operationID + `","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"standard","text":"private scheduled text","sponsored":true,"langs":["en"]}}`
 
@@ -32,10 +26,7 @@ func TestScheduledPostCreateIsOwnerDerivedAndIdempotent(t *testing.T) {
 	if first.Code != http.StatusCreated {
 		t.Fatalf("first create status=%d body=%s", first.Code, first.Body.String())
 	}
-	var firstBody map[string]any
-	if err := json.Unmarshal(first.Body.Bytes(), &firstBody); err != nil {
-		t.Fatalf("decode first response: %v", err)
-	}
+	firstBody := decodeResponseJSON[map[string]any](t, first)
 	if firstBody["id"] == "" || firstBody["status"] != "scheduled" || firstBody["operationId"] != operationID {
 		t.Fatalf("first response=%v", firstBody)
 	}
@@ -48,10 +39,7 @@ func TestScheduledPostCreateIsOwnerDerivedAndIdempotent(t *testing.T) {
 	if second.Code != http.StatusOK {
 		t.Fatalf("idempotent create status=%d body=%s", second.Code, second.Body.String())
 	}
-	var secondBody map[string]any
-	if err := json.Unmarshal(second.Body.Bytes(), &secondBody); err != nil {
-		t.Fatalf("decode second response: %v", err)
-	}
+	secondBody := decodeResponseJSON[map[string]any](t, second)
 	if secondBody["id"] != firstBody["id"] {
 		t.Fatalf("idempotent resource id=%v, want %v", secondBody["id"], firstBody["id"])
 	}
@@ -81,36 +69,32 @@ func TestScheduledPostCreateIsOwnerDerivedAndIdempotent(t *testing.T) {
 func TestScheduledPostListAndGetAreOwnerScopedOrderedAndShaped(t *testing.T) {
 	store, _ := newScheduledPostAPITestStore(t)
 	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testlog.Discard()
 	create := CreateScheduledPostHandler(store, DefaultMediaLimits(), func() time.Time { return now }, logger)
 	list := ListScheduledPostsHandler(store, logger)
 	get := GetScheduledPostHandler(store, logger)
 
-	late := serveScheduledPostRequest(t, create, http.MethodPost, "/v1/scheduled-posts", `{"operationId":"00000000-0000-4000-8000-000000000621","scheduledAt":"2026-08-02T12:10:00Z","payload":{"kind":"standard","text":"later private text"}}`, "did:plc:alice")
-	early := serveScheduledPostRequest(t, create, http.MethodPost, "/v1/scheduled-posts", `{"operationId":"00000000-0000-4000-8000-000000000622","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"standard","text":"earlier private text"}}`, "did:plc:alice")
-	bob := serveScheduledPostRequest(t, create, http.MethodPost, "/v1/scheduled-posts", `{"operationId":"00000000-0000-4000-8000-000000000623","scheduledAt":"2026-08-02T12:06:00Z","payload":{"kind":"standard","text":"bob private text"}}`, "did:plc:bob")
+	late := serveScheduledPostRequest(t, create, http.MethodPost, "/v1/scheduled-posts", `{"operationId":"00000000-0000-4000-8000-000000000621","scheduledAt":"2026-08-02T12:10:00Z","payload":{"kind":"standard","text":"later private text","sponsored":false}}`, "did:plc:alice")
+	early := serveScheduledPostRequest(t, create, http.MethodPost, "/v1/scheduled-posts", `{"operationId":"00000000-0000-4000-8000-000000000622","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"standard","text":"earlier private text","sponsored":false}}`, "did:plc:alice")
+	bob := serveScheduledPostRequest(t, create, http.MethodPost, "/v1/scheduled-posts", `{"operationId":"00000000-0000-4000-8000-000000000623","scheduledAt":"2026-08-02T12:06:00Z","payload":{"kind":"standard","text":"bob private text","sponsored":false}}`, "did:plc:bob")
 	for name, response := range map[string]*httptest.ResponseRecorder{"late": late, "early": early, "bob": bob} {
 		if response.Code != http.StatusCreated {
 			t.Fatalf("%s create status=%d body=%s", name, response.Code, response.Body.String())
 		}
 	}
-	var lateBody, earlyBody, bobBody map[string]any
-	_ = json.Unmarshal(late.Body.Bytes(), &lateBody)
-	_ = json.Unmarshal(early.Body.Bytes(), &earlyBody)
-	_ = json.Unmarshal(bob.Body.Bytes(), &bobBody)
+	lateBody := decodeResponseJSON[map[string]any](t, late)
+	earlyBody := decodeResponseJSON[map[string]any](t, early)
+	bobBody := decodeResponseJSON[map[string]any](t, bob)
 
 	listed := serveScheduledPostRequest(t, list, http.MethodGet, "/v1/scheduled-posts", "", "did:plc:alice")
 	if listed.Code != http.StatusOK {
 		t.Fatalf("list status=%d body=%s", listed.Code, listed.Body.String())
 	}
-	var listBody struct {
+	listBody := decodeResponseJSON[struct {
 		Items               []map[string]any `json:"items"`
 		Count               int              `json:"count"`
 		NeedsAttentionCount int              `json:"needsAttentionCount"`
-	}
-	if err := json.Unmarshal(listed.Body.Bytes(), &listBody); err != nil {
-		t.Fatalf("decode list: %v", err)
-	}
+	}](t, listed)
 	if listBody.Count != 2 || listBody.NeedsAttentionCount != 0 || len(listBody.Items) != 2 {
 		t.Fatalf("list=%+v", listBody)
 	}
@@ -126,28 +110,17 @@ func TestScheduledPostListAndGetAreOwnerScopedOrderedAndShaped(t *testing.T) {
 		}
 	}
 
-	ownedRequest := httptest.NewRequest(http.MethodGet, "/v1/scheduled-posts/"+earlyBody["id"].(string), nil)
-	ownedRequest.SetPathValue("id", earlyBody["id"].(string))
-	ownedRequest = ownedRequest.WithContext(middleware.WithDID(ownedRequest.Context(), "did:plc:alice"))
-	owned := httptest.NewRecorder()
-	get.ServeHTTP(owned, ownedRequest)
+	owned := serveScheduledPostPathRequest(t, get, http.MethodGet, earlyBody["id"].(string), "", "did:plc:alice")
 	if owned.Code != http.StatusOK {
 		t.Fatalf("get owner status=%d body=%s", owned.Code, owned.Body.String())
 	}
-	var ownedBody map[string]any
-	if err := json.Unmarshal(owned.Body.Bytes(), &ownedBody); err != nil {
-		t.Fatalf("decode owner detail: %v", err)
-	}
+	ownedBody := decodeResponseJSON[map[string]any](t, owned)
 	payload, ok := ownedBody["payload"].(map[string]any)
 	if !ok || payload["text"] != "earlier private text" {
 		t.Fatalf("owner detail=%v", ownedBody)
 	}
 
-	foreignRequest := httptest.NewRequest(http.MethodGet, "/v1/scheduled-posts/"+bobBody["id"].(string), nil)
-	foreignRequest.SetPathValue("id", bobBody["id"].(string))
-	foreignRequest = foreignRequest.WithContext(middleware.WithDID(foreignRequest.Context(), "did:plc:alice"))
-	foreign := httptest.NewRecorder()
-	get.ServeHTTP(foreign, foreignRequest)
+	foreign := serveScheduledPostPathRequest(t, get, http.MethodGet, bobBody["id"].(string), "", "did:plc:alice")
 	if foreign.Code != http.StatusNotFound {
 		t.Fatalf("foreign get status=%d body=%s", foreign.Code, foreign.Body.String())
 	}
@@ -157,30 +130,28 @@ func TestScheduledPostListAndGetAreOwnerScopedOrderedAndShaped(t *testing.T) {
 func TestScheduledPostUpdateAndDeleteRespectOwnershipAndPublishingLock(t *testing.T) {
 	store, pool := newScheduledPostAPITestStore(t)
 	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testlog.Discard()
 	create := CreateScheduledPostHandler(store, DefaultMediaLimits(), func() time.Time { return now }, logger)
 	update := UpdateScheduledPostHandler(store, DefaultMediaLimits(), func() time.Time { return now }, logger)
 	remove := DeleteScheduledPostHandler(store, func() time.Time { return now }, logger)
-	created := serveScheduledPostRequest(t, create, http.MethodPost, "/v1/scheduled-posts", `{"operationId":"00000000-0000-4000-8000-000000000631","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"standard","text":"before edit"}}`, "did:plc:alice")
+	created := serveScheduledPostRequest(t, create, http.MethodPost, "/v1/scheduled-posts", `{"operationId":"00000000-0000-4000-8000-000000000631","scheduledAt":"2026-08-02T12:05:00Z","payload":{"kind":"standard","text":"before edit","sponsored":false}}`, "did:plc:alice")
 	if created.Code != http.StatusCreated {
 		t.Fatalf("create status=%d body=%s", created.Code, created.Body.String())
 	}
-	var createdBody map[string]any
-	_ = json.Unmarshal(created.Body.Bytes(), &createdBody)
+	createdBody := decodeResponseJSON[map[string]any](t, created)
 	id := createdBody["id"].(string)
 
-	foreignUpdate := serveScheduledPostPathRequest(t, update, http.MethodPut, id, `{"scheduledAt":"2026-08-02T12:06:00Z","payload":{"kind":"standard","text":"foreign edit"}}`, "did:plc:bob")
+	foreignUpdate := serveScheduledPostPathRequest(t, update, http.MethodPut, id, `{"scheduledAt":"2026-08-02T12:06:00Z","payload":{"kind":"standard","text":"foreign edit","sponsored":false}}`, "did:plc:bob")
 	if foreignUpdate.Code != http.StatusNotFound {
 		t.Fatalf("foreign update status=%d body=%s", foreignUpdate.Code, foreignUpdate.Body.String())
 	}
 	assertScheduledPostError(t, foreignUpdate, "scheduled_post_not_found")
 
-	edited := serveScheduledPostPathRequest(t, update, http.MethodPut, id, `{"scheduledAt":"2026-08-02T12:06:00Z","payload":{"kind":"standard","text":"after edit"}}`, "did:plc:alice")
+	edited := serveScheduledPostPathRequest(t, update, http.MethodPut, id, `{"scheduledAt":"2026-08-02T12:06:00Z","payload":{"kind":"standard","text":"after edit","sponsored":false}}`, "did:plc:alice")
 	if edited.Code != http.StatusOK {
 		t.Fatalf("owner update status=%d body=%s", edited.Code, edited.Body.String())
 	}
-	var editedBody map[string]any
-	_ = json.Unmarshal(edited.Body.Bytes(), &editedBody)
+	editedBody := decodeResponseJSON[map[string]any](t, edited)
 	if _, leaked := editedBody["payloadVersion"]; leaked {
 		t.Fatalf("edit response leaked internal payload version: %s", edited.Body.String())
 	}
@@ -208,7 +179,7 @@ func TestScheduledPostUpdateAndDeleteRespectOwnershipAndPublishingLock(t *testin
 	`, id, now.Add(time.Minute), now); err != nil {
 		t.Fatalf("prepare publishing fixture: %v", err)
 	}
-	lockedUpdate := serveScheduledPostPathRequest(t, update, http.MethodPut, id, `{"scheduledAt":"2026-08-02T12:07:00Z","payload":{"kind":"standard","text":"locked edit"}}`, "did:plc:alice")
+	lockedUpdate := serveScheduledPostPathRequest(t, update, http.MethodPut, id, `{"scheduledAt":"2026-08-02T12:07:00Z","payload":{"kind":"standard","text":"locked edit","sponsored":false}}`, "did:plc:alice")
 	if lockedUpdate.Code != http.StatusConflict {
 		t.Fatalf("locked update status=%d body=%s", lockedUpdate.Code, lockedUpdate.Body.String())
 	}
@@ -253,7 +224,7 @@ func (publisher *recordingManualScheduledPublisher) PublishManual(
 
 func TestScheduledPostPublicationSubresourceAttemptsTheFullEditImmediately(t *testing.T) {
 	now := time.Date(2026, 8, 2, 12, 0, 0, 0, time.UTC)
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	logger := testlog.Discard()
 	publisher := &recordingManualScheduledPublisher{
 		outcome: scheduledposts.ManualPublicationPublished,
 	}
@@ -264,7 +235,7 @@ func TestScheduledPostPublicationSubresourceAttemptsTheFullEditImmediately(t *te
 		logger,
 	)
 	id := "00000000-0000-4000-8000-000000000641"
-	response := serveScheduledPostPathRequest(t, handler, http.MethodPost, id, `{"payload":{"kind":"standard","text":"post now"}}`, "did:plc:alice")
+	response := serveScheduledPostPathRequest(t, handler, http.MethodPost, id, `{"payload":{"kind":"standard","text":"post now","sponsored":false}}`, "did:plc:alice")
 	if response.Code != http.StatusOK {
 		t.Fatalf("publish status=%d body=%s", response.Code, response.Body.String())
 	}
@@ -294,11 +265,11 @@ func newScheduledPostAPITestStore(t *testing.T) (*scheduledposts.Store, *pgxpool
 		VALUES ('did:plc:alice',1,'active'), ('did:plc:bob',1,'active');
 	`)
 	for _, path := range []string{
-		"../../migrations/000034_scheduled_posts.up.sql",
-		"../../migrations/000040_scheduled_media_durability.up.sql",
-		"../../migrations/000048_scheduled_post_owner_generation.up.sql",
+		"000034_scheduled_posts.up.sql",
+		"000040_scheduled_media_durability.up.sql",
+		"000048_scheduled_post_owner_generation.up.sql",
 	} {
-		migration, err := os.ReadFile(path)
+		migration, err := testdb.ReadMigration(path)
 		if err != nil {
 			t.Fatalf("read scheduled-post migration %s: %v", path, err)
 		}
@@ -307,59 +278,4 @@ func newScheduledPostAPITestStore(t *testing.T) (*scheduledposts.Store, *pgxpool
 		}
 	}
 	return scheduledposts.NewStore(pool), pool
-}
-
-func serveScheduledPostRequest(
-	t *testing.T,
-	handler http.Handler,
-	method string,
-	path string,
-	body string,
-	owner syntax.DID,
-) *httptest.ResponseRecorder {
-	t.Helper()
-	body = ensureScheduledSponsored(body)
-	request := httptest.NewRequest(method, path, bytes.NewBufferString(body))
-	request.Header.Set("Content-Type", "application/json")
-	request = request.WithContext(middleware.WithDID(request.Context(), owner))
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
-	return recorder
-}
-
-func serveScheduledPostPathRequest(
-	t *testing.T,
-	handler http.Handler,
-	method string,
-	id string,
-	body string,
-	owner syntax.DID,
-) *httptest.ResponseRecorder {
-	t.Helper()
-	body = ensureScheduledSponsored(body)
-	request := httptest.NewRequest(method, "/v1/scheduled-posts/"+id, bytes.NewBufferString(body))
-	request.SetPathValue("id", id)
-	request.Header.Set("Content-Type", "application/json")
-	request = request.WithContext(middleware.WithDID(request.Context(), owner))
-	recorder := httptest.NewRecorder()
-	handler.ServeHTTP(recorder, request)
-	return recorder
-}
-
-func ensureScheduledSponsored(body string) string {
-	if body == "" || strings.Contains(body, `"sponsored"`) {
-		return body
-	}
-	return strings.Replace(body, `"payload":{`, `"payload":{"sponsored":false,`, 1)
-}
-
-func assertScheduledPostError(t *testing.T, recorder *httptest.ResponseRecorder, code string) {
-	t.Helper()
-	var body map[string]any
-	if err := json.Unmarshal(recorder.Body.Bytes(), &body); err != nil {
-		t.Fatalf("decode error response: %v", err)
-	}
-	if body["error"] != code || body["message"] == "" || body["requestId"] == nil {
-		t.Fatalf("error response=%v, want code %q and standard envelope", body, code)
-	}
 }

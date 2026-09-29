@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 	"time"
@@ -19,7 +18,7 @@ import (
 
 func TestRegisterNotificationDeviceIsIdempotentAndRotatesTokenWithoutEcho(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +63,7 @@ func TestRegisterNotificationDeviceIsIdempotentAndRotatesTokenWithoutEcho(t *tes
 
 func TestRegisterNotificationDeviceRebindsTokenWithoutTransferringAccounts(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,7 +130,7 @@ func TestRegisterNotificationDeviceRebindsTokenWithoutTransferringAccounts(t *te
 
 func TestRemoveNotificationSubscriptionOnlyRemovesOwnedAccountOnCurrentDevice(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -175,7 +174,7 @@ func TestRemoveNotificationSubscriptionOnlyRemovesOwnedAccountOnCurrentDevice(t 
 
 func TestRemoveNotificationSubscriptionRejectsStaleOwnerGeneration(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +209,7 @@ func TestRemoveNotificationSubscriptionRejectsStaleOwnerGeneration(t *testing.T)
 
 func TestDeactivateForAccountBeforeDoesNotDeactivateReactivatedSubscription(t *testing.T) {
 	pool := testdb.WithSchema(t, timelineStoreDDL)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

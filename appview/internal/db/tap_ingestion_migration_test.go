@@ -2,7 +2,6 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -11,11 +10,11 @@ import (
 )
 
 func TestTapIngestionDurabilityMigrationUpDownUp(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000045_tap_ingestion_durability.up.sql")
+	up, err := testdb.ReadMigration("000045_tap_ingestion_durability.up.sql")
 	if err != nil {
 		t.Fatalf("read up migration: %v", err)
 	}
-	down, err := os.ReadFile("../../migrations/000045_tap_ingestion_durability.down.sql")
+	down, err := testdb.ReadMigration("000045_tap_ingestion_durability.down.sql")
 	if err != nil {
 		t.Fatalf("read down migration: %v", err)
 	}

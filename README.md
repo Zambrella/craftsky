@@ -48,7 +48,7 @@ It's an open, commentable doc covering the "why", the core post types (simple + 
 - **Client:** Flutter + Dart, using [atproto.dart](https://atprotodart.com)
 - **App View:** Go, using [indigo](https://github.com/bluesky-social/indigo), `pgx`, and the standard library HTTP server
 - **Database:** Postgres 16
-- **Infrastructure:** Hetzner VPS + Docker Compose + Caddy
+- **Infrastructure:** Render (AppView, Tap, managed Postgres) + managed S3-compatible object storage; see [ADR 016](adr/016-render-managed-production-infrastructure.md)
 - **Push:** FCM
 
 ## Getting started
@@ -66,7 +66,7 @@ cd craftsky
 just dev
 ```
 
-This brings up the full compose stack — `postgres`, `migrate`, `tap`, `tap-bootstrap`, `appview`. On a cold start Tap resumes its durable relay cursor; a stale development volume can take longer than 60 seconds to catch up. Then verify:
+This brings up the full compose stack — `postgres`, `migrate`, `tap`, `tap-bootstrap`, `appview`. Local Tap starts at the live firehose head instead of replaying a saved cursor. New tracked repos backfill from their PDS; an existing tracked repo that changed while Tap was offline resyncs when its next firehose event arrives. Production Tap still replays its durable cursor. Then verify:
 
 ```
 curl localhost:18080/healthz  # expect {"status":"ok",...} after the first Tap event

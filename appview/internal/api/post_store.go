@@ -251,10 +251,11 @@ const postVisibleModerationPredicate = `
 
 func postAuthorBlockedPredicate(alias, viewerParam string) string {
 	return `EXISTS (
-		SELECT 1 FROM atproto_blocks block
-		WHERE ((block.blocker_did = ` + viewerParam + ` AND block.subject_did = ` + alias + `.did)
-		   OR (block.blocker_did = ` + alias + `.did AND block.subject_did = ` + viewerParam + `))
-		  AND NOT appview_owner_is_terminal(block.blocker_did)
+		SELECT 1 FROM pds_set_aggregates block
+		WHERE block.kind = 'block'
+		  AND ((block.actor_did = ` + viewerParam + ` AND block.subject_did = ` + alias + `.did)
+		   OR (block.actor_did = ` + alias + `.did AND block.subject_did = ` + viewerParam + `))
+		  AND NOT appview_owner_is_terminal(block.actor_did)
 		  AND NOT appview_owner_is_terminal(block.subject_did)
 	)`
 }
@@ -273,12 +274,12 @@ func postReplyAuthorBlockedPredicate(alias string) string {
 	return `EXISTS (
 		SELECT 1
 		FROM craftsky_posts parent_post
-		JOIN atproto_blocks block ON
-			(block.blocker_did = parent_post.did AND block.subject_did = ` + alias + `.did)
-			OR (block.blocker_did = ` + alias + `.did AND block.subject_did = parent_post.did)
+		JOIN pds_set_aggregates block ON block.kind = 'block' AND (
+			(block.actor_did = parent_post.did AND block.subject_did = ` + alias + `.did)
+			OR (block.actor_did = ` + alias + `.did AND block.subject_did = parent_post.did))
 		WHERE parent_post.uri = ` + alias + `.reply_parent_uri
 		  AND NOT appview_owner_is_terminal(parent_post.did)
-		  AND NOT appview_owner_is_terminal(block.blocker_did)
+		  AND NOT appview_owner_is_terminal(block.actor_did)
 		  AND NOT appview_owner_is_terminal(block.subject_did)
 	)`
 }
@@ -287,12 +288,12 @@ func postMentionAuthorBlockedPredicate(alias string) string {
 	return `EXISTS (
 		SELECT 1
 		FROM craftsky_post_mentions mention
-		JOIN atproto_blocks block ON
-			(block.blocker_did = mention.mentioned_did AND block.subject_did = ` + alias + `.did)
-			OR (block.blocker_did = ` + alias + `.did AND block.subject_did = mention.mentioned_did)
+		JOIN pds_set_aggregates block ON block.kind = 'block' AND (
+			(block.actor_did = mention.mentioned_did AND block.subject_did = ` + alias + `.did)
+			OR (block.actor_did = ` + alias + `.did AND block.subject_did = mention.mentioned_did))
 		WHERE mention.post_uri = ` + alias + `.uri
 		  AND NOT appview_owner_is_terminal(mention.mentioned_did)
-		  AND NOT appview_owner_is_terminal(block.blocker_did)
+		  AND NOT appview_owner_is_terminal(block.actor_did)
 		  AND NOT appview_owner_is_terminal(block.subject_did)
 	)`
 }
@@ -301,12 +302,12 @@ func postQuoteAuthorBlockedPredicate(alias string) string {
 	return `EXISTS (
 		SELECT 1
 		FROM craftsky_posts quoted_post
-		JOIN atproto_blocks block ON
-			(block.blocker_did = quoted_post.did AND block.subject_did = ` + alias + `.did)
-			OR (block.blocker_did = ` + alias + `.did AND block.subject_did = quoted_post.did)
+		JOIN pds_set_aggregates block ON block.kind = 'block' AND (
+			(block.actor_did = quoted_post.did AND block.subject_did = ` + alias + `.did)
+			OR (block.actor_did = ` + alias + `.did AND block.subject_did = quoted_post.did))
 		WHERE quoted_post.uri = ` + alias + `.quote_uri
 		  AND NOT appview_owner_is_terminal(quoted_post.did)
-		  AND NOT appview_owner_is_terminal(block.blocker_did)
+		  AND NOT appview_owner_is_terminal(block.actor_did)
 		  AND NOT appview_owner_is_terminal(block.subject_did)
 	)`
 }

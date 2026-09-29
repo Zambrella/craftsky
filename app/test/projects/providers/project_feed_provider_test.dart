@@ -13,6 +13,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../search/fakes/fake_search_repository.dart';
+import '../../test_support/pagination_contract.dart';
 import '../fakes/fake_project_repository.dart';
 
 Post _post(String rkey) => PostMapper.fromMap({
@@ -33,28 +34,82 @@ Post _post(String rkey) => PostMapper.fromMap({
   'author': {'did': 'did:plc:alice', 'handle': 'alice.craftsky.social'},
 });
 
+const _query = ProjectBrowseQuery(
+  craftTypes: [ProjectOptionCatalogs.knittingCraftToken],
+  filters: ProjectBrowseFilters(
+    yarnWeight: ['social.craftsky.project.defs#fingering'],
+    selfDrafted: true,
+  ),
+  sort: SearchSort.popular,
+);
+
+PaginationContractSubject<Post> _paginationSubject(
+  PaginationContractFetch<Post> fetch,
+) {
+  final repository = FakeProjectRepository(
+    onListProjects: ({required query, limit, cursor}) async {
+      expect(query, _query);
+      expect(limit, projectFeedPageLimit);
+      final page = await fetch(cursor);
+      return PostPage(items: page.items, cursor: page.cursor);
+    },
+  );
+  final container = ProviderContainer.test(
+    overrides: [
+      activeLanguagePreferencesProvider.overrideWith(
+        (ref) => const LanguagePreferences(
+          primaryLanguage: 'en',
+          contentLanguages: ['en'],
+        ),
+      ),
+      projectRepositoryProvider.overrideWithValue(repository),
+      searchRepositoryProvider.overrideWithValue(FakeSearchRepository()),
+    ],
+  );
+  final provider = projectFeedProvider(_query);
+  final subscription = container.listen(provider, (_, _) {});
+
+  return PaginationContractSubject(
+    initialize: () async => container.read(provider.future),
+    loadMore: () => container.read(provider.notifier).loadMore(),
+    snapshot: () {
+      final asyncState = container.read(provider);
+      final state = asyncState.value!;
+      return PaginationContractSnapshot(
+        items: state.items,
+        cursor: state.cursor,
+        hasMore: state.hasMore,
+        hasError: asyncState.hasError,
+      );
+    },
+    dispose: () {
+      subscription.close();
+      container.dispose();
+    },
+  );
+}
+
 void main() {
   setUpAll(initializeMappers);
+
+  paginationContract(
+    name: 'project feed',
+    firstItem: _post('project-a'),
+    secondItem: _post('project-b'),
+    itemIdentity: (post) => post.rkey,
+    createSubject: _paginationSubject,
+    deduplicatesAcrossPages: true,
+  );
 
   test(
     'IT-014 project feed provider stays in project repository boundary',
     () async {
-      var calls = 0;
       ProjectBrowseQuery? seenQuery;
-      String? seenCursor;
       final fakeProjectRepository = FakeProjectRepository(
         onListProjects: ({required query, limit, cursor}) async {
-          calls++;
           seenQuery = query;
           expect(limit, projectFeedPageLimit);
-          if (calls == 1) {
-            return PostPage(
-              items: [_post('project')],
-              cursor: 'opaque:projects',
-            );
-          }
-          seenCursor = cursor;
-          return PostPage(items: [_post('project'), _post('project-next')]);
+          return PostPage(items: [_post('project')]);
         },
       );
       final container = ProviderContainer.test(
@@ -69,31 +124,13 @@ void main() {
           searchRepositoryProvider.overrideWithValue(FakeSearchRepository()),
         ],
       );
-      const query = ProjectBrowseQuery(
-        craftTypes: [ProjectOptionCatalogs.knittingCraftToken],
-        filters: ProjectBrowseFilters(
-          yarnWeight: ['social.craftsky.project.defs#fingering'],
-          selfDrafted: true,
-        ),
-        sort: SearchSort.popular,
-      );
-      final provider = projectFeedProvider(query);
+      final provider = projectFeedProvider(_query);
       final subscription = container.listen(provider, (_, _) {});
       addTearDown(subscription.close);
 
       await container.read(provider.future);
-      await container.read(provider.notifier).loadMore();
-      await container.read(provider.notifier).loadMore();
 
-      final state = container.read(provider).value!;
-      expect(seenQuery, query);
-      expect(seenCursor, 'opaque:projects');
-      expect(state.items.map((post) => post.rkey.toString()), [
-        'project',
-        'project-next',
-      ]);
-      expect(state.hasMore, isFalse);
-      expect(calls, 2);
+      expect(seenQuery, _query);
     },
   );
 }

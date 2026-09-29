@@ -2,22 +2,21 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"social.craftsky/appview/internal/testdb"
 )
 
 func TestIdentityHandleInvalidAliasMigrationUpDownUp(t *testing.T) {
-	base, err := os.ReadFile("../../migrations/000015_identity_handle_cache.up.sql")
+	base, err := testdb.ReadMigration("000015_identity_handle_cache.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	up, err := os.ReadFile("../../migrations/000067_identity_handle_invalid_alias.up.sql")
+	up, err := testdb.ReadMigration("000067_identity_handle_invalid_alias.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	down, err := os.ReadFile("../../migrations/000067_identity_handle_invalid_alias.down.sql")
+	down, err := testdb.ReadMigration("000067_identity_handle_invalid_alias.down.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

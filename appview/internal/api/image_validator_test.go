@@ -9,6 +9,7 @@ import (
 	"image/color"
 	"image/png"
 	"io"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -408,7 +409,7 @@ func TestImageValidatorBoundsWaitersAndObservesCancellation(t *testing.T) {
 	}()
 	deadline := time.Now().Add(time.Second)
 	for len(validator.waiters) != 1 && time.Now().Before(deadline) {
-		time.Sleep(time.Millisecond)
+		runtime.Gosched()
 	}
 	if len(validator.waiters) != 1 {
 		close(release)

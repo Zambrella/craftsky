@@ -104,12 +104,12 @@ func withAuthSchema(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	pool := testdb.WithSchema(t, authSchemaDDL)
 	for _, path := range []string{
-		"../../migrations/000038_owner_auth_lifecycle.up.sql",
-		"../../migrations/000052_dev_oauth_scheme.up.sql",
-		"../../migrations/000064_provider_first_registration.up.sql",
-		"../../migrations/000066_pds_migration_identity.up.sql",
+		"000038_owner_auth_lifecycle.up.sql",
+		"000052_dev_oauth_scheme.up.sql",
+		"000064_provider_first_registration.up.sql",
+		"000066_pds_migration_identity.up.sql",
 	} {
-		migration, err := os.ReadFile(path)
+		migration, err := testdb.ReadMigration(path)
 		if err != nil {
 			t.Fatalf("read auth migration %s: %v", path, err)
 		}
@@ -1010,8 +1010,13 @@ func TestStore_SaveSessionVersionUpdatesTimestamp(t *testing.T) {
 		t.Fatalf("read updated_at before: %v", err)
 	}
 
-	// Small sleep to ensure the clock advances enough for the DB timestamp to differ.
-	time.Sleep(50 * time.Millisecond)
+	before = before.Add(-time.Minute)
+	if _, err := pool.Exec(ctx, `
+		UPDATE oauth_sessions SET updated_at = $3
+		WHERE account_did = $1 AND session_id = $2
+	`, sess.AccountDID.String(), sess.SessionID, before); err != nil {
+		t.Fatalf("age updated_at: %v", err)
+	}
 
 	// Update the session with a different field value.
 	sess.HostURL = "https://pds2.example.com"

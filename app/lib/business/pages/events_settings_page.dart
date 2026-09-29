@@ -169,7 +169,8 @@ class _EventList extends ConsumerWidget {
             ),
           ],
         )
-      else if (mutation.status == EventMutationStatus.error)
+      else if (mutation.status == EventMutationStatus.error ||
+          mutation.status == EventMutationStatus.ambiguous)
         MaterialBanner(
           content: Text(l10n.businessEventSaveError),
           actions: const [SizedBox.shrink()],

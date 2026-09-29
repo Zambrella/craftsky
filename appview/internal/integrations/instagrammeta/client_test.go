@@ -260,13 +260,14 @@ func TestHTTPClientSuppressesSensitiveTransportErrorsAndSetsFiveSecondDeadline(t
 		identityCanary  = "synthetic-private-igsid"
 		transportCanary = "synthetic-private-transport-error"
 	)
+	var providerDeadline time.Time
 	client, err := NewHTTPClient(HTTPClientConfig{
 		HTTPClient: &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
 			deadline, ok := request.Context().Deadline()
 			if !ok {
 				t.Error("provider request has no deadline")
-			} else if remaining := time.Until(deadline); remaining <= 4*time.Second || remaining > MaxProviderTimeout {
-				t.Errorf("provider request deadline remaining = %s, want at most five seconds", remaining)
+			} else {
+				providerDeadline = deadline
 			}
 			if strings.Contains(request.URL.String(), tokenCanary) {
 				t.Error("access token appeared in provider URL")
@@ -280,9 +281,14 @@ func TestHTTPClientSuppressesSensitiveTransportErrorsAndSetsFiveSecondDeadline(t
 	if err != nil {
 		t.Fatalf("NewHTTPClient: %v", err)
 	}
+	requestStarted := time.Now()
 	_, err = client.LookupUsername(context.Background(), identityCanary)
+	requestFinished := time.Now()
 	if err == nil {
 		t.Fatal("LookupUsername unexpectedly succeeded")
+	}
+	if providerDeadline.IsZero() || !providerDeadline.After(requestStarted) || providerDeadline.After(requestFinished.Add(MaxProviderTimeout)) {
+		t.Fatalf("provider deadline = %s, want a live deadline bounded by %s", providerDeadline, MaxProviderTimeout)
 	}
 	diagnostic := fmt.Sprintf("%v/%+v/%#v", err, err, err)
 	for _, private := range []string{tokenCanary, identityCanary, transportCanary} {

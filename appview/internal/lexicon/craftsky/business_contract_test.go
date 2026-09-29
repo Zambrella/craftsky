@@ -1,21 +1,15 @@
 package craftsky
 
 import (
-	"bytes"
-	"crypto/sha256"
-	"encoding/binary"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
-	"sort"
+	"slices"
 	"testing"
 
 	indigolexicon "github.com/bluesky-social/indigo/atproto/lexicon"
-	"github.com/ipfs/go-cid"
-	"github.com/multiformats/go-multihash"
 )
 
 func TestBusinessLexiconContract(t *testing.T) {
@@ -85,16 +79,20 @@ func TestBusinessLexiconContract(t *testing.T) {
 		t.Errorf("address $type = %v", address["$type"])
 	}
 	assertLexiconID(t, address, "community.lexicon.location.address")
-	encoded, err := encodeCanonicalCBOR(address)
-	if err != nil {
-		t.Fatalf("encode address DAG-CBOR: %v", err)
+	addressMain := definition(t, address, "main")
+	if got := addressMain["type"]; got != "object" {
+		t.Fatalf("address main type = %v, want object", got)
 	}
-	hash, err := multihash.Sum(encoded, multihash.SHA2_256, -1)
-	if err != nil {
-		t.Fatalf("hash address DAG-CBOR: %v", err)
+	if got := stringsFrom(t, addressMain["required"]); !reflect.DeepEqual(got, []string{"country"}) {
+		t.Fatalf("address required = %v, want [country]", got)
 	}
-	if got := cid.NewCidV1(cid.DagCBOR, hash).String(); got != "bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq" {
-		t.Fatalf("address CID = %s", got)
+	addressProperties := object(t, addressMain, "properties")
+	if got := sortedKeys(addressProperties); !reflect.DeepEqual(got, []string{"country", "locality", "name", "postalCode", "region", "street"}) {
+		t.Fatalf("address properties = %v", got)
+	}
+	country := object(t, addressProperties, "country")
+	if country["type"] != "string" || integer(t, country["minLength"]) != 2 || integer(t, country["maxLength"]) != 10 {
+		t.Fatalf("address country contract = %#v", country)
 	}
 
 	catalog := indigolexicon.NewBaseCatalog()
@@ -120,14 +118,26 @@ func TestBusinessLexiconContract(t *testing.T) {
 		t.Fatal("profile with 21 products passed lexicon validation")
 	}
 
-	actorPath := filepath.Join(root, "actor", "profile.json")
-	actorBytes, err := os.ReadFile(actorPath)
-	if err != nil {
-		t.Fatalf("read actor profile: %v", err)
+	actor := readLexicon(t, filepath.Join(root, "actor", "profile.json"))
+	assertLexiconID(t, actor, "social.craftsky.actor.profile")
+	actorMain := definition(t, actor, "main")
+	if got := actorMain["key"]; got != "literal:self" {
+		t.Fatalf("actor profile key = %v, want literal:self", got)
 	}
-	digest := sha256.Sum256(actorBytes)
-	if got := hex.EncodeToString(digest[:]); got != "29b3167edab98bb360e2713a1f55861c75180ba551c2adf052fcf639c2589f4f" {
-		t.Fatalf("actor profile digest changed: %s", got)
+	actorRecord := object(t, actorMain, "record")
+	if _, required := actorRecord["required"]; required {
+		t.Fatal("actor profile must keep every field optional")
+	}
+	actorProperties := object(t, actorRecord, "properties")
+	if got := sortedKeys(actorProperties); !reflect.DeepEqual(got, []string{"crafts"}) {
+		t.Fatalf("actor profile properties = %v, want [crafts]", got)
+	}
+	crafts := object(t, actorProperties, "crafts")
+	craftItems := object(t, crafts, "items")
+	if crafts["type"] != "array" || integer(t, crafts["maxLength"]) != 10 ||
+		craftItems["type"] != "string" || integer(t, craftItems["maxLength"]) != 50 ||
+		integer(t, craftItems["maxGraphemes"]) != 50 {
+		t.Fatalf("actor crafts contract = %#v", crafts)
 	}
 }
 
@@ -215,87 +225,11 @@ func containsJSONKey(value any, key string) bool {
 	return false
 }
 
-func encodeCanonicalCBOR(value any) ([]byte, error) {
-	var encoded bytes.Buffer
-	if err := appendCanonicalCBOR(&encoded, value); err != nil {
-		return nil, err
+func sortedKeys(object map[string]any) []string {
+	keys := make([]string, 0, len(object))
+	for key := range object {
+		keys = append(keys, key)
 	}
-	return encoded.Bytes(), nil
-}
-
-func appendCanonicalCBOR(encoded *bytes.Buffer, value any) error {
-	switch value := value.(type) {
-	case nil:
-		encoded.WriteByte(0xf6)
-	case bool:
-		if value {
-			encoded.WriteByte(0xf5)
-		} else {
-			encoded.WriteByte(0xf4)
-		}
-	case float64:
-		if value < 0 || value != float64(uint64(value)) {
-			return fmt.Errorf("unsupported JSON number %v", value)
-		}
-		appendCBORHead(encoded, 0, uint64(value))
-	case string:
-		appendCBORHead(encoded, 3, uint64(len(value)))
-		encoded.WriteString(value)
-	case []any:
-		appendCBORHead(encoded, 4, uint64(len(value)))
-		for _, child := range value {
-			if err := appendCanonicalCBOR(encoded, child); err != nil {
-				return err
-			}
-		}
-	case map[string]any:
-		keys := make([]string, 0, len(value))
-		for key := range value {
-			keys = append(keys, key)
-		}
-		sort.Slice(keys, func(i, j int) bool {
-			if len(keys[i]) != len(keys[j]) {
-				return len(keys[i]) < len(keys[j])
-			}
-			return keys[i] < keys[j]
-		})
-		appendCBORHead(encoded, 5, uint64(len(keys)))
-		for _, key := range keys {
-			if err := appendCanonicalCBOR(encoded, key); err != nil {
-				return err
-			}
-			if err := appendCanonicalCBOR(encoded, value[key]); err != nil {
-				return err
-			}
-		}
-	default:
-		return fmt.Errorf("unsupported JSON value %T", value)
-	}
-	return nil
-}
-
-func appendCBORHead(encoded *bytes.Buffer, major byte, value uint64) {
-	major <<= 5
-	switch {
-	case value < 24:
-		encoded.WriteByte(major | byte(value))
-	case value <= 0xff:
-		encoded.WriteByte(major | 24)
-		encoded.WriteByte(byte(value))
-	case value <= 0xffff:
-		encoded.WriteByte(major | 25)
-		var buffer [2]byte
-		binary.BigEndian.PutUint16(buffer[:], uint16(value))
-		encoded.Write(buffer[:])
-	case value <= 0xffffffff:
-		encoded.WriteByte(major | 26)
-		var buffer [4]byte
-		binary.BigEndian.PutUint32(buffer[:], uint32(value))
-		encoded.Write(buffer[:])
-	default:
-		encoded.WriteByte(major | 27)
-		var buffer [8]byte
-		binary.BigEndian.PutUint64(buffer[:], value)
-		encoded.Write(buffer[:])
-	}
+	slices.Sort(keys)
+	return keys
 }

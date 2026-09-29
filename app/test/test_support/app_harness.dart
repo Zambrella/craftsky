@@ -7,12 +7,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 Widget appHarness({
   required Widget child,
   ErrorReporter reporter = const NoopErrorReporter(),
+  List<dynamic> overrides = const [],
 }) {
   return ProviderScope(
     retry: appProviderRetry,
-    overrides: [
+    overrides: List.from([
       errorReporterProvider.overrideWithValue(reporter),
-    ],
+      ...overrides,
+    ]),
     child: child,
   );
 }

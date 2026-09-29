@@ -3,8 +3,6 @@ package auth
 import (
 	"context"
 	"errors"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -15,6 +13,7 @@ import (
 	"github.com/bluesky-social/indigo/atproto/auth/oauth"
 	"github.com/bluesky-social/indigo/atproto/syntax"
 	"github.com/google/uuid"
+	"social.craftsky/appview/internal/testlog"
 )
 
 func TestAccountDeletionReauthenticationIsFreshOwnerBoundAndSingleUse(t *testing.T) {
@@ -96,7 +95,7 @@ func TestOAuthCallbackUsesDeletionOnlyPurposeWithoutMintingOrdinaryAccess(t *tes
 	}
 	pdsCreated := false
 	handlers := &HTTPHandlers{
-		Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger: testlog.Discard(),
 		OAuthFlow: &recordingDeletionOAuthFlow{result: OAuthCallbackResult{
 			Session: oauth.ClientSessionData{AccountDID: owner, SessionID: "oauth-session-fresh"},
 			Metadata: AuthRequestMetadata{
@@ -143,7 +142,7 @@ func TestOAuthCallbackUsesDeletionOnlyPurposeWithoutMintingOrdinaryAccess(t *tes
 func TestLoginOAuthCallbackFailsClosedBeforeOrdinaryAccessWhenOwnerPendingDeletion(t *testing.T) {
 	pdsCreated := false
 	handlers := &HTTPHandlers{
-		Logger:    slog.New(slog.NewTextHandler(io.Discard, nil)),
+		Logger:    testlog.Discard(),
 		OAuthFlow: &recordingDeletionOAuthFlow{err: ErrOAuthOwnerIneligible},
 		NewPendingPDSClient: func(context.Context, CallbackAttempt) (PDSClient, error) {
 			pdsCreated = true

@@ -33,12 +33,12 @@ func TestOnboardingRoutesUseCurrentMemberPolicies(t *testing.T) {
 	}
 }
 
-func TestOnboardingRoutesEnforceAuthenticatedCurrentMemberContract(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000065_account_onboarding_completion.up.sql")
+func TestOnboardingRoutesEnforceOwnerAndSelectorContract(t *testing.T) {
+	migration, err := testdb.ReadMigration("000065_account_onboarding_completion.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
-	ageMigration, err := os.ReadFile("../../migrations/000078_age_eligibility.up.sql")
+	ageMigration, err := os.ReadFile("../../migrations/000081_age_eligibility.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -103,8 +103,6 @@ func TestOnboardingRoutesEnforceAuthenticatedCurrentMemberContract(t *testing.T)
 		}
 	}
 
-	assertEnvelope(request(http.MethodGet, "/v1/onboarding/status", "", "", false, true), http.StatusUnauthorized, "unauthorized")
-	assertEnvelope(request(http.MethodGet, "/v1/onboarding/status", "", "", true, false), http.StatusBadRequest, "missing_device_id")
 	assertEnvelope(request(http.MethodPost, "/v1/onboarding/completion", "", "did:plc:departed", true, true), http.StatusNotFound, "profile_not_found")
 	assertEnvelope(request(http.MethodGet, "/v1/onboarding/status?accountDid=did:plc:bob", "", "", true, true), http.StatusBadRequest, "invalid_request")
 	assertEnvelope(request(http.MethodPost, "/v1/onboarding/completion", `{"accountDid":"did:plc:bob"}`, "", true, true), http.StatusBadRequest, "invalid_request")

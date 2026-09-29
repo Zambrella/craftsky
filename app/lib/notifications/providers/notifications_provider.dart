@@ -3,6 +3,7 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/notifications/models/craftsky_notification.dart';
 import 'package:craftsky_app/notifications/models/notifications_state.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
+import 'package:craftsky_app/profile/providers/block_profile_overlay.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 part 'notifications_provider.g.dart';
@@ -21,7 +22,7 @@ class AccountNotifications extends _$AccountNotifications {
     final owner = registry.leaseFor(account);
     final page = await repo.list(limit: notificationsPageLimit);
     return NotificationsState(
-      items: _dedupe(page.items),
+      items: _filterAndDedupe(ref.read, page.items),
       cursor: page.cursor,
       renderToken: ++_nextRenderToken,
       owner: owner,
@@ -42,7 +43,10 @@ class AccountNotifications extends _$AccountNotifications {
         limit: notificationsPageLimit,
       );
       return NotificationsState(
-        items: _appendDeduped(current.items, page.items),
+        items: _appendDeduped(
+          current.items,
+          _filterAndDedupe(ref.read, page.items),
+        ),
         cursor: page.cursor,
         renderToken: current.renderToken,
         owner: current.owner,
@@ -64,7 +68,7 @@ class Notifications extends _$Notifications {
     final repo = ref.watch(notificationRepositoryProvider);
     final page = await repo.list(limit: notificationsPageLimit);
     return NotificationsState(
-      items: _dedupe(page.items),
+      items: _filterAndDedupe(ref.read, page.items),
       cursor: page.cursor,
       renderToken: ++_nextRenderToken,
       owner: owner,
@@ -85,7 +89,10 @@ class Notifications extends _$Notifications {
         limit: notificationsPageLimit,
       );
       return NotificationsState(
-        items: _appendDeduped(current.items, page.items),
+        items: _appendDeduped(
+          current.items,
+          _filterAndDedupe(ref.read, page.items),
+        ),
         cursor: page.cursor,
         renderToken: current.renderToken,
         owner: current.owner,
@@ -121,11 +128,21 @@ int _suppressActor(
   return removed;
 }
 
-List<CraftskyNotification> _dedupe(List<CraftskyNotification> items) {
+List<CraftskyNotification> _filterAndDedupe(
+  BlockOverlayReader read,
+  List<CraftskyNotification> items,
+) {
   final seen = <String>{};
   return [
     for (final item in items)
-      if (seen.add(item.id)) item,
+      if ((item is! ActorNotification ||
+              !isLogicallyBlocking(
+                read,
+                item.actor.did,
+                authoritativeBlocking: item.actor.blocking ?? false,
+              )) &&
+          seen.add(item.id))
+        item,
   ];
 }
 

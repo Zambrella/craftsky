@@ -20,7 +20,9 @@ import 'package:craftsky_app/languages/providers/language_preferences_provider.d
 import 'package:craftsky_app/projects/models/project.dart';
 import 'package:craftsky_app/projects/providers/user_projects_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/api/pds_mutation_contract.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -91,6 +93,48 @@ void main() {
   setUpAll(initializeMappers);
 
   group('CreatePost', () {
+    test('retries ambiguity with one immutable operation key', () async {
+      var calls = 0;
+      final fake = FakePostRepository(
+        onCreate: ({required text, reply, images}) async {
+          calls++;
+          if (calls < 3) {
+            throw const PdsMutationAmbiguousException(retryAfterSeconds: 1);
+          }
+          return _post(rkey: 'selected');
+        },
+      );
+      final container = ProviderContainer.test(
+        overrides: [
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(fake),
+          pdsMutationDelayProvider.overrideWithValue((_) async {}),
+          pdsMutationJitterProvider.overrideWithValue((_) => 0),
+        ],
+      );
+
+      final post = await container
+          .read(createPostProvider.notifier)
+          .create(
+            text: 'frozen',
+            langs: _langs,
+            sponsored: false,
+          );
+
+      expect(post?.rkey, RecordKey.parse('selected'));
+      expect(fake.createOperationKeys, hasLength(3));
+      expect(fake.createOperationKeys.toSet(), hasLength(1));
+      expect(
+        isCanonicalPdsMutationOperationKey(fake.createOperationKeys.first),
+        isTrue,
+      );
+    });
+
     test('idle build returns null', () async {
       final container = ProviderContainer.test(
         overrides: [
@@ -479,11 +523,18 @@ void main() {
         await container
             .read(createPostProvider.notifier)
             .create(text: 'hi', langs: _langs, sponsored: false);
+        await container.read(userPostsProvider(_aliceDid).future);
 
         final didEntry = container.read(userPostsProvider(_aliceDid)).value!;
         final handleEntry = container.read(userPostsProvider(_aliceDid)).value!;
         expect(didEntry.items.map((p) => p.rkey), ['new', 'old']);
         expect(handleEntry.items.map((p) => p.rkey), ['new', 'old']);
+
+        container.invalidate(userPostsProvider(_aliceDid));
+        final staleRefresh = await container.read(
+          userPostsProvider(_aliceDid).future,
+        );
+        expect(staleRefresh.items.map((post) => post.rkey), ['new', 'old']);
       },
     );
 
@@ -544,6 +595,7 @@ void main() {
       await container
           .read(createPostProvider.notifier)
           .create(text: 'hi', langs: _langs, sponsored: false);
+      await container.read(timelineProvider.future);
 
       final timeline = container.read(timelineProvider).value!;
       expect(timeline.items.map((item) => item.post.rkey), ['new', 'old']);
@@ -668,6 +720,10 @@ void main() {
             sponsored: false,
             quote: quote,
           );
+      await Future.wait([
+        container.read(timelineProvider.future),
+        container.read(userPostsProvider(_aliceDid).future),
+      ]);
 
       expect(fake.lastCreateQuote?.uri, quote.uri);
       expect(fake.lastCreateQuote?.cid, quote.cid);
@@ -872,6 +928,10 @@ void main() {
               sponsored: false,
               project: _project,
             );
+        await Future.wait([
+          container.read(timelineProvider.future),
+          container.read(userProjectsProvider(_aliceDid).future),
+        ]);
 
         expect(
           container
@@ -962,6 +1022,7 @@ void main() {
               sponsored: false,
               project: _project,
             );
+        await container.read(userProjectsProvider(_aliceDid).future);
 
         expect(container.read(createPostProvider).value?.project, _project);
         expect(

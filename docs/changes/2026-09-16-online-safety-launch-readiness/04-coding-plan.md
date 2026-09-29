@@ -72,14 +72,14 @@ boundaries.
 
 | Path / Module | Create / Change | Purpose | Requirement IDs | Test IDs |
 |---|---|---|---|---|
-| `appview/migrations/000073_image_safety.{up,down}.sql` | Create | Scan results/jobs/sources, subject requirements/state, profile candidates, checks and indexes | FR-001 through FR-008, FR-026, FR-032, FR-034, NFR-001 | IT-001 through IT-005 |
-| `appview/migrations/000074_safety_incidents.{up,down}.sql` | Create | Restricted incidents, subject links, append-only events, assignments, deadlines, authority references | FR-005, FR-009, FR-010, FR-013, FR-021, FR-022 | IT-001, IT-006, IT-010, IT-027, IT-028 |
-| `appview/migrations/000075_safety_evidence_holds.{up,down}.sql` | Create | Evidence metadata, reasoned accesses, exports, scoped holds, retention state | FR-011 through FR-013, NFR-002, NFR-006, NFR-007, RULE-009 | IT-001, IT-011 through IT-013, IT-022 |
-| `appview/migrations/000076_moderation_safety_taxonomy.{up,down}.sql` | Create | Case origin/reference and additive private reason constraints | FR-009, FR-015, FR-016, FR-036 | IT-001, IT-009, IT-014 |
-| `appview/migrations/000077_external_safety_intake.{up,down}.sql` | Create | External provenance, minimized contact reference, subject link, correspondence and outcome | FR-018 through FR-020, FR-037 | IT-001, IT-015, IT-016, IT-024 |
-| `appview/migrations/000078_age_eligibility.{up,down}.sql` | Create | Policy acceptance and separate reversible eligibility review/effects/events | FR-023, FR-024, RULE-010 | IT-001, IT-017, IT-018 |
-| `appview/migrations/000079_safety_operators.{up,down}.sql` | Create | Operator roles, explicit permissions and token digests | FR-028, NFR-006, RULE-007, RULE-009 | IT-001, IT-013, IT-021 |
-| `appview/migrations/000080_safety_retention.{up,down}.sql` | Create | Retention jobs, attempts and append-only completion events | FR-029, NFR-004, NFR-006 | IT-001, IT-022 |
+| `appview/migrations/000076_image_safety.{up,down}.sql` | Create | Scan results/jobs/sources, subject requirements/state, profile candidates, checks and indexes | FR-001 through FR-008, FR-026, FR-032, FR-034, NFR-001 | IT-001 through IT-005 |
+| `appview/migrations/000077_safety_incidents.{up,down}.sql` | Create | Restricted incidents, subject links, append-only events, assignments, deadlines, authority references | FR-005, FR-009, FR-010, FR-013, FR-021, FR-022 | IT-001, IT-006, IT-010, IT-027, IT-028 |
+| `appview/migrations/000078_safety_evidence_holds.{up,down}.sql` | Create | Evidence metadata, reasoned accesses, exports, scoped holds, retention state | FR-011 through FR-013, NFR-002, NFR-006, NFR-007, RULE-009 | IT-001, IT-011 through IT-013, IT-022 |
+| `appview/migrations/000079_moderation_safety_taxonomy.{up,down}.sql` | Create | Case origin/reference and additive private reason constraints | FR-009, FR-015, FR-016, FR-036 | IT-001, IT-009, IT-014 |
+| `appview/migrations/000080_external_safety_intake.{up,down}.sql` | Create | External provenance, minimized contact reference, subject link, correspondence and outcome | FR-018 through FR-020, FR-037 | IT-001, IT-015, IT-016, IT-024 |
+| `appview/migrations/000081_age_eligibility.{up,down}.sql` | Create | Policy acceptance and separate reversible eligibility review/effects/events | FR-023, FR-024, RULE-010 | IT-001, IT-017, IT-018 |
+| `appview/migrations/000082_safety_operators.{up,down}.sql` | Create | Operator roles, explicit permissions and token digests | FR-028, NFR-006, RULE-007, RULE-009 | IT-001, IT-013, IT-021 |
+| `appview/migrations/000083_safety_retention.{up,down}.sql` | Create | Retention jobs, attempts and append-only completion events | FR-029, NFR-004, NFR-006 | IT-001, IT-022 |
 | `appview/internal/db/online_safety_migration_test.go` | Create | Up/down/reapply, constraints, indexes, lifecycle inventory and no public schema assertions | RULE-003 | IT-001, REG-003 |
 | `appview/internal/imagesafety/` | Create | State, scanner, stub, extractor, fetcher, store, gate, worker, retry, rescan and health | BR-002, FR-001 through FR-008, FR-026, FR-032 through FR-035 | AT-002, AT-003, UT-001 through UT-005, UT-014 through UT-017, IT-002 through IT-008 |
 | `appview/internal/index/transactional_dispatcher.go` and `transactional_projectors.go` | Change | Register/apply image gate around post, business and profile projectors without remote work in projection transaction | FR-001, FR-004, FR-026, RULE-005 | IT-002 through IT-005 |
@@ -507,7 +507,7 @@ placeholders; actual Cloudflare atomic deployment/rollback remains external evid
 | 1 | UT-001 | `appview/internal/imagesafety/state_test.go` | Table of five states plus unknown | No closed scan-state type or visibility rule exists |
 | 2 | UT-002, UT-003 | `imagesafety/visibility_test.go`, `cache_test.go` | Multi-blob and versioned CID tables | No all-clear rule or versioned cache key exists |
 | 3 | UT-004, UT-014 through UT-016 | `imagesafety/retry_test.go`, `config_test.go`, `scanner_test.go`, `rescan_test.go` | Fake clock and deterministic benign fixtures | No bounded retry, stub guard, neutral scanner, or rescan policy exists |
-| 4 | IT-001 | `internal/db/online_safety_migration_test.go` | Disposable PostgreSQL migration cycle | Migration 73 and later private schema do not exist |
+| 4 | IT-001 | `internal/db/online_safety_migration_test.go` | Disposable PostgreSQL migration cycle | Migration 76 and later private schema do not exist |
 | 5 | AT-002, IT-003 | `internal/index/image_scan_acceptance_test.go` | Post with mixed scan results | Existing projector exposes image post without subject scan state |
 | 6 | AT-003, UT-017, IT-002, IT-004 | Existing index suites plus image extraction/profile-policy tests | Generated post/business/profile/external-embed fixtures | In-scope blobs do not enter one scan workflow; profiles replace immediately |
 | 7 | IT-005, REG-001 | Tap replay and Flutter synthetic-post suites | Stable/changed CID, delete, restart and local-cache fixtures | Replay/current-revision safety is not connected; regression assertion absent |

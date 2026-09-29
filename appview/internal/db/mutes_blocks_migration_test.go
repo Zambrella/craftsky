@@ -2,7 +2,6 @@ package db_test
 
 import (
 	"context"
-	"os"
 	"strings"
 	"testing"
 
@@ -59,11 +58,11 @@ VALUES ('at://did:plc:alice/social.craftsky.feed.repost/repost', 'did:plc:alice'
 `
 
 func TestMutesBlocksMigrationUpgradesVersion22PublicMembershipFKs(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000023_mutes_blocks.up.sql")
+	up, err := testdb.ReadMigration("000023_mutes_blocks.up.sql")
 	if err != nil {
 		t.Fatalf("read up migration: %v", err)
 	}
-	down, err := os.ReadFile("../../migrations/000023_mutes_blocks.down.sql")
+	down, err := testdb.ReadMigration("000023_mutes_blocks.down.sql")
 	if err != nil {
 		t.Fatalf("read down migration: %v", err)
 	}
@@ -97,11 +96,11 @@ func TestMutesBlocksMigrationUpgradesVersion22PublicMembershipFKs(t *testing.T) 
 }
 
 func TestMutesBlocksMigration(t *testing.T) {
-	up, err := os.ReadFile("../../migrations/000023_mutes_blocks.up.sql")
+	up, err := testdb.ReadMigration("000023_mutes_blocks.up.sql")
 	if err != nil {
 		t.Fatalf("read up migration: %v", err)
 	}
-	down, err := os.ReadFile("../../migrations/000023_mutes_blocks.down.sql")
+	down, err := testdb.ReadMigration("000023_mutes_blocks.down.sql")
 	if err != nil {
 		t.Fatalf("read down migration: %v", err)
 	}

@@ -3,7 +3,6 @@ package index_test
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"reflect"
 	"testing"
 
@@ -11,12 +10,13 @@ import (
 
 	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/index"
+	"social.craftsky/appview/internal/ingestion"
 	"social.craftsky/appview/internal/tap"
 	"social.craftsky/appview/internal/testdb"
 )
 
 func TestBusinessProfileProjectionAndSafeHydration(t *testing.T) {
-	migration, err := os.ReadFile("../../migrations/000062_business_records.up.sql")
+	migration, err := testdb.ReadMigration("000062_business_records.up.sql")
 	if err != nil {
 		t.Fatalf("read business records migration: %v", err)
 	}
@@ -49,7 +49,10 @@ func TestBusinessProfileProjectionAndSafeHydration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("begin projection: %v", err)
 	}
-	outcome, err := index.NewCraftskyBusinessProfile().Project(ctx, tx, event)
+	outcome, err := index.NewCraftskyBusinessProfile().Project(ctx, tx, ingestion.SourceRecord{
+		URI: event.URI, DID: event.DID, Collection: event.Collection, Rkey: event.Rkey,
+		CID: event.CID, Action: event.Action, Record: event.Record, Revision: event.Rev,
+	})
 	if err != nil {
 		_ = tx.Rollback(ctx)
 		t.Fatalf("project profile: %v", err)

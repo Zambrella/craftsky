@@ -4,6 +4,8 @@ import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../test_support/widget_pump.dart';
+
 void main() {
   testWidgets('syncs focus lift when focus node changes', (tester) async {
     final firstFocusNode = FocusNode(debugLabel: 'first');
@@ -14,21 +16,20 @@ void main() {
     late StateSetter setHarnessState;
     var activeFocusNode = firstFocusNode;
 
-    await tester.pumpWidget(
-      _Harness(
-        child: StatefulBuilder(
-          builder: (context, setState) {
-            setHarnessState = setState;
-            return CraftskyFieldScaffold(
-              label: 'Field',
+    await pumpCraftskyWidget(
+      tester,
+      StatefulBuilder(
+        builder: (context, setState) {
+          setHarnessState = setState;
+          return CraftskyFieldScaffold(
+            label: 'Field',
+            focusNode: activeFocusNode,
+            child: Focus(
               focusNode: activeFocusNode,
-              child: Focus(
-                focusNode: activeFocusNode,
-                child: const SizedBox(height: 48, width: 160),
-              ),
-            );
-          },
-        ),
+              child: const SizedBox(height: 48, width: 160),
+            ),
+          );
+        },
       ),
     );
 
@@ -58,13 +59,12 @@ void main() {
   });
 
   testWidgets('keeps character counters close to their field', (tester) async {
-    await tester.pumpWidget(
-      const _Harness(
-        child: CraftskyFieldScaffold(
-          label: 'Field',
-          counterText: '0/5',
-          child: SizedBox(height: 48, width: 160),
-        ),
+    await pumpCraftskyWidget(
+      tester,
+      const CraftskyFieldScaffold(
+        label: 'Field',
+        counterText: '0/5',
+        child: SizedBox(height: 48, width: 160),
       ),
     );
 
@@ -74,20 +74,4 @@ void main() {
 
     expect(counterTop - fieldBottom, spacing.sp1);
   });
-}
-
-class _Harness extends StatelessWidget {
-  const _Harness({required this.child});
-
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      theme: AppTheme.lightThemeData,
-      home: Scaffold(
-        body: Padding(padding: const EdgeInsets.all(24), child: child),
-      ),
-    );
-  }
 }

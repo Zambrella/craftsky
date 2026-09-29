@@ -3,7 +3,6 @@ package languages
 import (
 	"context"
 	"errors"
-	"os"
 	"sync"
 	"testing"
 
@@ -45,12 +44,8 @@ INSERT INTO owner_lifecycles(owner_did,state,generation) VALUES
 
 func newLanguageStoreTestStore(t *testing.T) *Store {
 	t.Helper()
-	up, err := os.ReadFile("../../migrations/000033_post_languages.up.sql")
-	if err != nil {
-		t.Fatalf("read language migration: %v", err)
-	}
 	pool := testdb.WithSchema(t, languageStorePreStateDDL)
-	if _, err := pool.Exec(context.Background(), string(up)); err != nil {
+	if err := testdb.ApplyMigrations(t.Context(), pool, "000033_post_languages.up.sql"); err != nil {
 		t.Fatalf("apply language migration: %v", err)
 	}
 	return NewStore(pool)

@@ -3,7 +3,6 @@ package index_test
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"testing"
 
 	"social.craftsky/appview/internal/index"
@@ -14,7 +13,7 @@ import (
 
 func TestPostNotificationUsesReplyOverQuoteAndMentionForSameRecipient(t *testing.T) {
 	pool := testdb.WithSchema(t, craftskyPostsDDL)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -69,7 +68,7 @@ func TestPostNotificationUsesReplyOverQuoteAndMentionForSameRecipient(t *testing
 
 func TestPostMentionOfNonMemberIndexesPostWithoutNotification(t *testing.T) {
 	pool := testdb.WithSchema(t, craftskyPostsDDL)
-	migration, err := os.ReadFile("../../migrations/000021_appview_notifications.up.sql")
+	migration, err := testdb.ReadMigration("000021_appview_notifications.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}

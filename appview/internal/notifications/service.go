@@ -54,8 +54,8 @@ func (s *Service) Activate(ctx context.Context, tx pgx.Tx, activation Activation
 	if preference.Scope == PeopleIFollow {
 		if err := tx.QueryRow(ctx, `
 			SELECT EXISTS (
-				SELECT 1 FROM atproto_follows
-				WHERE did = $1 AND subject_did = $2
+				SELECT 1 FROM pds_set_aggregates
+				WHERE kind = 'follow' AND actor_did = $1 AND subject_did = $2
 			)
 		`, activation.RecipientDID, activation.ActorDID).Scan(&followsActor); err != nil {
 			return fmt.Errorf("read event-time follow state: %w", err)
@@ -65,8 +65,8 @@ func (s *Service) Activate(ctx context.Context, tx pgx.Tx, activation Activation
 	if err := tx.QueryRow(ctx, `
 		SELECT
 			EXISTS (SELECT 1 FROM actor_mutes WHERE owner_did = $1 AND subject_did = $2),
-			EXISTS (SELECT 1 FROM atproto_blocks WHERE blocker_did = $1 AND subject_did = $2),
-			EXISTS (SELECT 1 FROM atproto_blocks WHERE blocker_did = $2 AND subject_did = $1)
+			EXISTS (SELECT 1 FROM pds_set_aggregates WHERE kind = 'block' AND actor_did = $1 AND subject_did = $2),
+			EXISTS (SELECT 1 FROM pds_set_aggregates WHERE kind = 'block' AND actor_did = $2 AND subject_did = $1)
 	`, activation.RecipientDID, activation.ActorDID).Scan(
 		&relationship.Muted,
 		&relationship.Blocking,
@@ -185,6 +185,34 @@ func (s *Service) Activate(ctx context.Context, tx pgx.Tx, activation Activation
 
 func (s *Service) Retract(ctx context.Context, tx pgx.Tx, retraction Retraction) error {
 	now := s.now().UTC()
+	logical := retraction.RecipientDID != "" || retraction.ActorDID != "" || retraction.Category != "" || retraction.SubjectKey != ""
+	if logical {
+		if retraction.RecipientDID == "" || retraction.ActorDID == "" || retraction.Category == "" || retraction.SubjectKey == "" {
+			return fmt.Errorf("logical notification retraction requires recipient, actor, category, and subject key")
+		}
+		if _, err := tx.Exec(ctx, `
+			WITH retracted AS (
+				UPDATE notification_events
+				SET state = 'retracted', retracted_at = $5, retraction_reason = $6
+				WHERE state = 'active'
+				  AND recipient_did = $1 AND actor_did = $2
+				  AND category = $3 AND subject_key = $4
+				RETURNING id
+			)
+			UPDATE push_deliveries delivery
+			SET status = 'cancelled', updated_at = $5,
+			    lease_owner = NULL, lease_expires_at = NULL
+			FROM retracted
+			WHERE delivery.notification_id = retracted.id
+			  AND delivery.status IN ('pending', 'retry', 'leased')
+		`, retraction.RecipientDID, retraction.ActorDID, retraction.Category, retraction.SubjectKey, now, retraction.Reason); err != nil {
+			return fmt.Errorf("retract logical notification: %w", err)
+		}
+		return nil
+	}
+	if retraction.SourceURI == "" {
+		return fmt.Errorf("notification retraction requires source URI or logical identity")
+	}
 	if _, err := tx.Exec(ctx, `
 		WITH retracted AS (
 			UPDATE notification_events

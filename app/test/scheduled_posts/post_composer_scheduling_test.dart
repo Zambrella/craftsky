@@ -79,6 +79,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(createCalls, 1);
+    await tester.pump(const Duration(seconds: 31));
+    await tester.pumpAndSettle();
   });
 }
 

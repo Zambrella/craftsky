@@ -1,9 +1,11 @@
 package observability
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"strings"
 	"testing"
 	"time"
@@ -110,6 +112,34 @@ func TestSentryPillarGatesDefaultToErrorsOnlyWithDSN(t *testing.T) {
 	}
 	if observer.tapTracingEnabled {
 		t.Fatal("tapTracingEnabled = true, want false for DSN-only config")
+	}
+}
+
+func TestNewValidatedRejectsInvalidSentryDSNWithoutEchoingIt(t *testing.T) {
+	const invalidDSN = "not-a-valid-sentry-dsn"
+	var logOutput bytes.Buffer
+	observer, err := NewValidated(Config{
+		Env:       "prod",
+		SentryDSN: invalidDSN,
+		Logger:    slog.New(slog.NewJSONHandler(&logOutput, nil)),
+	})
+	if !errors.Is(err, ErrSentryInitialization) {
+		t.Fatalf("NewValidated error = %v, want ErrSentryInitialization", err)
+	}
+	if strings.Contains(err.Error(), invalidDSN) {
+		t.Fatal("NewValidated error exposed the configured DSN")
+	}
+	if observer == nil {
+		t.Fatal("NewValidated observer = nil, want safe disabled observer for cleanup")
+	}
+	if observer.sentryClient != nil {
+		t.Fatal("NewValidated sentryClient configured for invalid DSN")
+	}
+	if !strings.Contains(logOutput.String(), "sentry client initialization failed") {
+		t.Fatalf("NewValidated log = %q, want prominent initialization failure", logOutput.String())
+	}
+	if strings.Contains(logOutput.String(), invalidDSN) {
+		t.Fatal("NewValidated log exposed the configured DSN")
 	}
 }
 

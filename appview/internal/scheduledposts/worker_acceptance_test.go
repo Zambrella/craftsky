@@ -34,9 +34,9 @@ func TestHealthyDueSchedulePublishesExactlyOnceWithoutFlutter(t *testing.T) {
 		Sessions: stubPublicationSessionSelector{
 			wantOwner: "did:plc:alice", sessionID: "owner-session",
 		},
-		NewEffects: recordingGuardedFactory(pds, nil),
-		Objects:    newMemoryPrivateObjectStore(),
-		Now:        func() time.Time { return current },
+		NewCommands: recordingGuardedFactory(pds, nil),
+		Objects:     newMemoryPrivateObjectStore(),
+		Now:         func() time.Time { return current },
 	})
 	if err != nil {
 		t.Fatal(err)

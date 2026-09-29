@@ -43,6 +43,8 @@ void main() {
     expect(submittedProject, isNotNull);
     expect(container.read(createPostProvider).value, isNull);
     expect(messenger.calls, contains(('info', 'Posted.', null)));
+    await tester.pump(const Duration(seconds: 31));
+    await tester.pumpAndSettle();
   });
 
   testWidgets(

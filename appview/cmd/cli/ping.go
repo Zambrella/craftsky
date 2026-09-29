@@ -12,7 +12,7 @@ var pingCmd = &cobra.Command{
 	Use:   "ping",
 	Short: "Ping the configured Postgres and print pool stats",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 
 		deps, cleanup, err := loadDeps(ctx)

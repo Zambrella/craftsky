@@ -139,6 +139,138 @@ func TestIndigoPDSClientListRecordsReturnsTypedPaginatedBlocks(t *testing.T) {
 	}
 }
 
+func TestIndigoPDSClientRepositoryCommandProtocol(t *testing.T) {
+	var requests []string
+	client := newTestIndigoPDSClientWithTransport(t, pdsRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		requests = append(requests, r.URL.Path)
+		switch r.URL.Path {
+		case "/xrpc/com.atproto.sync.getLatestCommit":
+			if r.URL.Query().Get("did") != "did:plc:xyz" {
+				t.Fatalf("latest commit query = %s", r.URL.RawQuery)
+			}
+			return jsonPDSResponse(http.StatusOK, `{"cid":"bafy-head","rev":"3aaaaaaaaaaaa"}`), nil
+		case "/xrpc/com.atproto.repo.applyWrites":
+			var body struct {
+				Repo       string           `json:"repo"`
+				SwapCommit string           `json:"swapCommit"`
+				Writes     []map[string]any `json:"writes"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Fatal(err)
+			}
+			if body.Repo != "did:plc:xyz" || body.SwapCommit != "bafy-head" || len(body.Writes) != 2 ||
+				body.Writes[0]["$type"] != "com.atproto.repo.applyWrites#delete" ||
+				body.Writes[0]["rkey"] != "first" || body.Writes[1]["rkey"] != "second" {
+				t.Fatalf("applyWrites body = %+v", body)
+			}
+			return jsonPDSResponse(http.StatusOK, `{"commit":{"cid":"bafy-next","rev":"3aaaaaaaaaaab"},"results":[]}`), nil
+		default:
+			t.Fatalf("unexpected request %s", r.URL.Path)
+			return nil, nil
+		}
+	}))
+	head, err := client.LatestCommit(context.Background(), "did:plc:xyz")
+	if err != nil || head != "bafy-head" {
+		t.Fatalf("LatestCommit = %q, %v", head, err)
+	}
+	err = client.ApplyWrites(context.Background(), "did:plc:xyz", head, []RepositoryWrite{
+		{Action: "delete", Collection: "app.bsky.graph.follow", RKey: "first"},
+		{Action: "delete", Collection: "app.bsky.graph.follow", RKey: "second"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(requests) != 2 {
+		t.Fatalf("requests = %v", requests)
+	}
+}
+
+func TestIndigoPDSClientGetRecordDecodesGenericJSON(t *testing.T) {
+	client := newTestIndigoPDSClientWithTransport(t, pdsRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		return jsonPDSResponse(http.StatusOK, `{
+			"uri":"at://did:plc:xyz/social.craftsky.feed.post/one",
+			"cid":"bafyreicdvexolyvp6j6yksqiib7hihwktt6ogalbvyzvtkj6ecrtqqw5fq",
+			"value":{"text":"hello"}
+		}`), nil
+	}))
+	var record any
+	cid, err := client.GetRecord(
+		context.Background(),
+		"did:plc:xyz",
+		"social.craftsky.feed.post",
+		"one",
+		&record,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, ok := record.(map[string]any)
+	if cid == "" || !ok || value["text"] != "hello" {
+		t.Fatalf("cid/record = %q/%#v", cid, record)
+	}
+}
+
+func TestIndigoPDSClientApplyWritesTranslatesProtocolOutcomes(t *testing.T) {
+	tests := []struct {
+		name    string
+		status  int
+		body    string
+		wantErr error
+	}{
+		{name: "invalid swap", status: http.StatusBadRequest, body: `{"error":"InvalidSwap"}`, wantErr: ErrRepositorySwapConflict},
+		{name: "unsupported", status: http.StatusNotFound, body: `{"error":"MethodNotFound"}`, wantErr: ErrApplyWritesUnsupported},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			client := newTestIndigoPDSClientWithTransport(t, pdsRoundTripFunc(func(*http.Request) (*http.Response, error) {
+				return jsonPDSResponse(test.status, test.body), nil
+			}))
+			err := client.ApplyWrites(context.Background(), "did:plc:xyz", "bafy-head", []RepositoryWrite{
+				{Action: "delete", Collection: "app.bsky.graph.follow", RKey: "first"},
+			})
+			if !errors.Is(err, test.wantErr) {
+				t.Fatalf("ApplyWrites error = %v, want %v", err, test.wantErr)
+			}
+		})
+	}
+}
+
+func TestIndigoPDSClientSingleDeleteFallbackCarriesRepositoryAndRecordGuards(t *testing.T) {
+	client := newTestIndigoPDSClientWithTransport(t, pdsRoundTripFunc(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Path != "/xrpc/com.atproto.repo.deleteRecord" {
+			t.Fatalf("request path = %q", r.URL.Path)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		if body["repo"] != "did:plc:xyz" || body["collection"] != "app.bsky.graph.follow" ||
+			body["rkey"] != "3aaaaaaaaaaa2" || body["swapCommit"] != "bafy-head" ||
+			body["swapRecord"] != "bafy-record" {
+			t.Fatalf("guarded fallback body = %+v", body)
+		}
+		return jsonPDSResponse(http.StatusOK, `{}`), nil
+	}))
+	if err := client.DeleteRecordWithRepositorySwap(
+		context.Background(),
+		"did:plc:xyz",
+		"app.bsky.graph.follow",
+		"3aaaaaaaaaaa2",
+		"bafy-head",
+		"bafy-record",
+	); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func jsonPDSResponse(status int, body string) *http.Response {
+	return &http.Response{
+		StatusCode: status,
+		Header:     http.Header{"Content-Type": []string{"application/json"}},
+		Body:       io.NopCloser(strings.NewReader(body)),
+	}
+}
+
 func TestTranslateGetRecordError_Wrapped(t *testing.T) {
 	// indigo may wrap APIError; errors.As must still find it.
 	apiErr := &atclient.APIError{StatusCode: 400, Name: "RecordNotFound"}

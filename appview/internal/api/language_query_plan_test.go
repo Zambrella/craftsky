@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"os"
 	"strings"
 	"testing"
 
@@ -23,7 +22,7 @@ CREATE INDEX craftsky_posts_did_created_idx
 func TestIT025RepresentativeLanguagePlansUsePreferencePKAndGINIndexes(t *testing.T) {
 	pool := testdb.WithSchema(t, languageQueryPlanPreStateDDL)
 	ctx := context.Background()
-	up, err := os.ReadFile("../../migrations/000033_post_languages.up.sql")
+	up, err := testdb.ReadMigration("000033_post_languages.up.sql")
 	if err != nil {
 		t.Fatalf("read language migration: %v", err)
 	}

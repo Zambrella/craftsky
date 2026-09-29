@@ -2,7 +2,7 @@ import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
-import 'package:craftsky_app/business/providers/business_projection_overlay_provider.dart';
+import 'package:craftsky_app/business/providers/business_record_overlay.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
 import 'package:craftsky_app/business/providers/profile_business_events_provider.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
@@ -103,7 +103,6 @@ class OwnerBusinessEvents extends _$OwnerBusinessEvents {
         await _restartAfterInvalidCursor(current);
         return;
       }
-      _markFailure(error, read);
       state = AsyncData(
         current.copyWith(isLoadingMore: false, incrementalError: error),
       );
@@ -157,7 +156,6 @@ class OwnerBusinessEvents extends _$OwnerBusinessEvents {
         state = AsyncData(_retainedState(current, read));
         return;
       }
-      _markFailure(error, read);
       state = AsyncData(
         current.copyWith(
           isLoadingMore: false,
@@ -194,8 +192,8 @@ class OwnerBusinessEvents extends _$OwnerBusinessEvents {
     if (read == null) return (events: _dedupe(values), isStale: false);
     final lease = read.lease;
     final owner = values.firstOrNull?.did ?? lease.account.did;
-    return reconcileBusinessEventList(
-      controller: ref.read(businessProjectionOverlayProvider.notifier),
+    return applyBusinessEventListOverlays(
+      ref,
       lease: lease,
       fence: read.fence,
       owner: owner,
@@ -209,21 +207,8 @@ class OwnerBusinessEvents extends _$OwnerBusinessEvents {
     );
   }
 
-  void _markFailure(Object error, _OwnerEventRead? read) {
-    if (read == null) return;
-    final lease = read.lease;
-    markBusinessEventReadFailure(
-      controller: ref.read(businessProjectionOverlayProvider.notifier),
-      lease: lease,
-      fence: read.fence,
-      owner: lease.account.did,
-      error: error,
-    );
-  }
-
-  bool _isReadCurrent(_OwnerEventRead read) => ref
-      .read(businessProjectionOverlayProvider.notifier)
-      .isReadCurrent(read.fence);
+  bool _isReadCurrent(_OwnerEventRead read) =>
+      isBusinessRecordReadCurrent(ref, read.fence);
 
   BusinessEventListState _retainedState(
     BusinessEventListState current,
@@ -231,9 +216,7 @@ class OwnerBusinessEvents extends _$OwnerBusinessEvents {
   ) {
     final freshRead = (
       lease: staleRead.lease,
-      fence: ref
-          .read(businessProjectionOverlayProvider.notifier)
-          .captureRead(staleRead.lease),
+      fence: captureBusinessEventListRead(ref, staleRead.lease),
     );
     return current.copyWith(
       items: List.unmodifiable(_reconcile(current.items, freshRead).events),
@@ -250,9 +233,7 @@ class OwnerBusinessEvents extends _$OwnerBusinessEvents {
     if (lease == null) return null;
     return (
       lease: lease,
-      fence: ref
-          .read(businessProjectionOverlayProvider.notifier)
-          .captureRead(lease),
+      fence: captureBusinessEventListRead(ref, lease),
     );
   }
 
@@ -267,16 +248,13 @@ class OwnerBusinessEvents extends _$OwnerBusinessEvents {
         sessionGeneration: 0,
       );
     }
-    for (final overlay in ref.read(businessProjectionOverlayProvider).values) {
-      if (overlay.lease.sessionGeneration == 0) return overlay.lease;
-    }
-    return null;
+    return firstBusinessEventOverlayLease(ref);
   }
 }
 
 typedef _OwnerEventRead = ({
   AccountSessionLease lease,
-  BusinessProjectionReadFence fence,
+  BusinessRecordReadFence fence,
 });
 
 bool _isInvalidCursor(Object error) =>

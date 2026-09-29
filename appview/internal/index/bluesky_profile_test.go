@@ -232,7 +232,7 @@ func TestBlueskyProfile_DeleteNonMemberIsNoop(t *testing.T) {
 
 func TestImageSafetyBlueskyProfileKeepsLastClearImagesIndependently(t *testing.T) {
 	pool := testdb.WithSchema(t, craftskyProfilesDDL+imageScanTapPreStateDDL)
-	migration, err := os.ReadFile("../../migrations/000073_image_safety.up.sql")
+	migration, err := os.ReadFile("../../migrations/000076_image_safety.up.sql")
 	if err != nil {
 		t.Fatalf("read image safety migration: %v", err)
 	}

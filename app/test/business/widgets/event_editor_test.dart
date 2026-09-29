@@ -20,73 +20,70 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../test_support/deterministic_pump.dart';
 import '../accessibility_test_helpers.dart';
 
 void main() {
   for (final constraint in businessAccessibilityMatrix) {
-    testWidgets(
-      'AT-012 REG-010 event editor fits '
-      '${businessConstraintLabel(constraint)}',
-      (tester) async {
-        await setBusinessAccessibilityConstraint(tester, constraint);
-        final semantics = tester.ensureSemantics();
-        final submit = Completer<bool>();
-        await tester.pumpWidget(
-          _app(
-            EventEditorDialog(
-              initialDraft: _draft(),
-              onSubmit: (_) => submit.future,
-            ),
+    testWidgets('AT-012 REG-010 event editor fits '
+        '${businessConstraintLabel(constraint)}', (tester) async {
+      await setBusinessAccessibilityConstraint(tester, constraint);
+      final semantics = tester.ensureSemantics();
+      final submit = Completer<bool>();
+      await tester.pumpWidget(
+        _app(
+          EventEditorDialog(
+            initialDraft: _draft(),
+            onSubmit: (_) => submit.future,
           ),
-        );
+        ),
+      );
 
-        expect(
-          tester.getSemantics(find.byKey(const ValueKey('event-name'))).label,
-          contains('Event name'),
-        );
-        expect(
-          tester.getSemantics(find.byKey(const ValueKey('event-name'))).label,
-          contains('required'),
-        );
-        expect(find.byType(BrandTextField), findsWidgets);
-        expect(
-          find.widgetWithText(ChunkyButton, 'Create event'),
-          findsOneWidget,
-        );
-        expect(
-          tester
-              .getSemantics(find.widgetWithText(FilterChip, 'Vendor'))
-              .flagsCollection
-              .isSelected,
-          Tristate.isTrue,
-        );
-        await expectKeyboardFocus(tester);
-        await tester.scrollUntilVisible(
-          find.byKey(const ValueKey('event-registration-uri')),
-          250,
-          scrollable: find.byType(Scrollable).last,
-        );
-        expect(
-          tester
-              .getSemantics(
-                find.byKey(const ValueKey('event-registration-uri')),
-              )
-              .label,
-          contains('Registration link'),
-        );
+      expect(
+        tester.getSemantics(find.byKey(const ValueKey('event-name'))).label,
+        contains('Event name'),
+      );
+      expect(
+        tester.getSemantics(find.byKey(const ValueKey('event-name'))).label,
+        contains('required'),
+      );
+      expect(find.byType(BrandTextField), findsWidgets);
+      expect(find.widgetWithText(ChunkyButton, 'Create event'), findsOneWidget);
+      expect(
+        tester
+            .getSemantics(find.widgetWithText(FilterChip, 'Vendor'))
+            .flagsCollection
+            .isSelected,
+        Tristate.isTrue,
+      );
+      await expectKeyboardFocus(tester);
+      await tester.scrollUntilVisible(
+        find.byKey(const ValueKey('event-registration-uri')),
+        250,
+        scrollable: find.byType(Scrollable).last,
+      );
+      expect(
+        tester
+            .getSemantics(find.byKey(const ValueKey('event-registration-uri')))
+            .label,
+        contains('Registration link'),
+      );
 
-        await tester.tap(find.byKey(const ValueKey('event-submit')));
-        await tester.pump();
-        expect(
-          tester.getSemantics(find.byType(CircularProgressIndicator)).label,
-          contains('Saving'),
-        );
-        expectNoAccessibilityLayoutException(tester);
-        submit.complete(false);
-        await tester.pumpAndSettle();
-        semantics.dispose();
-      },
-    );
+      await tester.tap(find.byKey(const ValueKey('event-submit')));
+      await tester.pump();
+      expect(
+        tester.getSemantics(find.byType(CircularProgressIndicator)).label,
+        contains('Saving'),
+      );
+      expectNoAccessibilityLayoutException(tester);
+      submit.complete(false);
+      await pumpUntilAbsent(
+        tester,
+        find.byType(CircularProgressIndicator),
+        description: 'the event submission progress indicator',
+      );
+      semantics.dispose();
+    });
   }
 
   testWidgets('AT-007 requires event name, roles, and valid boundaries', (
@@ -95,7 +92,11 @@ void main() {
     await tester.pumpWidget(_app(const EventEditorDialog()));
 
     await tester.tap(find.byKey(const ValueKey('event-submit')));
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.text('Add an event name.'),
+      description: 'the required event-name validation',
+    );
 
     expect(find.text('Add an event name.'), findsOneWidget);
     expect(find.text('Choose at least one role.'), findsOneWidget);
@@ -117,15 +118,17 @@ void main() {
     );
 
     await tester.tap(find.byKey(const ValueKey('event-submit')));
-    await tester.pumpAndSettle();
+    await pumpUntilFound(
+      tester,
+      find.text('End must be after start.'),
+      description: 'the invalid event-boundary validation',
+    );
 
     expect(find.text('End must be after start.'), findsOneWidget);
   });
 
   testWidgets('event boundaries use date and time pickers', (tester) async {
-    await tester.pumpWidget(
-      _app(EventEditorDialog(initialDraft: _draft())),
-    );
+    await tester.pumpWidget(_app(EventEditorDialog(initialDraft: _draft())));
 
     expect(
       tester.getSemantics(find.byKey(const ValueKey('event-start'))).label,
@@ -188,9 +191,7 @@ void main() {
 
   testWidgets(
     'AT-007 authors complete timed event on compact and wide layouts',
-    (
-      tester,
-    ) async {
+    (tester) async {
       BusinessEventDraft? submitted;
       for (final size in const [Size(390, 844), Size(1100, 900)]) {
         await tester.binding.setSurfaceSize(size);

@@ -136,6 +136,16 @@ just psql               # psql shell against the dev database
 just migrate up         # wraps golang-migrate/v4 via the CLI
 ```
 
+Release images embed the strict semantic version from `VERSION`. Inspect a
+built image with `/app/appview version` or `/app/appview --version`; unversioned
+host builds report `dev`. The same value is logged as `app_version` at startup
+and supplies the default production Sentry release. See
+[`docs/operations/releases.md`](../docs/operations/releases.md) for version
+preparation and publication. Releases are local operations: create the
+version/changelog commit and tag with `just release-create-appview`, run
+`just appview-check`, push with `just release-push`, and deploy the exact pushed
+tag with `just appview-deploy`.
+
 Tests run on the **host** (the appview image has no Go toolchain), so Go must be installed locally and `just dev-d` must already be running. The `just test` recipe discovers the current checkout's published Postgres port and sets `TEST_DATABASE_URL` automatically. The primary checkout uses `localhost:5433`; linked worktrees use stable alternate ports and isolated database volumes.
 
 `just appview-test-unit` deliberately unsets PostgreSQL and MinIO settings. It

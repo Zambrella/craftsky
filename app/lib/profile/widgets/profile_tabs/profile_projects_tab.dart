@@ -41,8 +41,7 @@ class ProfileProjectsTab extends ConsumerWidget {
         ),
         onLoadMore: () =>
             ref.read(userProjectsProvider(did).notifier).loadMore(),
-        onReplacePost: (post) =>
-            ref.read(userProjectsProvider(did).notifier).replace(post),
+        onReplyCreated: () => ref.invalidate(userProjectsProvider(did)),
       ),
       AsyncError(:final error) => ProfileTabErrorSliver(
         message: AppErrorMapper.map(

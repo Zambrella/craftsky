@@ -25,9 +25,10 @@ func TestRelationshipFilteringQueryPlanUsesBidirectionalIndexes(t *testing.T) {
 			WHERE m.owner_did = $1 AND m.subject_did = cp.did
 		  )
 		  AND NOT EXISTS (
-			SELECT 1 FROM atproto_blocks b
-			WHERE (b.blocker_did = $1 AND b.subject_did = cp.did)
-			   OR (b.subject_did = $1 AND b.blocker_did = cp.did)
+			SELECT 1 FROM pds_set_aggregates b
+			WHERE b.kind = 'block'
+			  AND ((b.actor_did = $1 AND b.subject_did = cp.did)
+			   OR (b.subject_did = $1 AND b.actor_did = cp.did))
 		  )
 	`, "did:plc:viewer", []string{"did:plc:alice", "did:plc:bob"})
 	if err != nil {
@@ -49,8 +50,7 @@ func TestRelationshipFilteringQueryPlanUsesBidirectionalIndexes(t *testing.T) {
 	plan := strings.Join(planLines, "\n")
 	for _, index := range []string{
 		"actor_mutes_pkey",
-		"atproto_blocks_blocker_subject_idx",
-		"atproto_blocks_subject_blocker_idx",
+		"pds_set_aggregates_subject_did_purge_idx",
 	} {
 		if !strings.Contains(plan, index) {
 			t.Fatalf("query plan does not use %s:\n%s", index, plan)

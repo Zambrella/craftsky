@@ -92,7 +92,6 @@ mixin ModerationMetadataMappable {
     );
   }
 }
-
 extension ModerationMetadataValueCopy<$R, $Out>
     on ObjectCopyWith<$R, ModerationMetadata, $Out> {
   ModerationMetadataCopyWith<$R, ModerationMetadata, $Out>

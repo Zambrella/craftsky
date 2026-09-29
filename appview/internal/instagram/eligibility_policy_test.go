@@ -61,7 +61,7 @@ func TestPostgresInstagramSuggestionEligibilityPolicyAppliesSafetyAndCurrentFact
 		t.Fatalf("blocked decision=%+v err=%v", decision, err)
 	}
 
-	if _, err := pool.Exec(ctx, `INSERT INTO atproto_follows (did, subject_did) VALUES ($1, $2)`, request.ImporterDID, request.TargetDID); err != nil {
+	if _, err := pool.Exec(ctx, `INSERT INTO pds_set_aggregates (kind, actor_did, subject_did) VALUES ('follow', $1, $2)`, request.ImporterDID, request.TargetDID); err != nil {
 		t.Fatal(err)
 	}
 	open := NewPostgresInstagramSuggestionEligibilityPolicy(pool, staticRelationshipSafety{facts: RelationshipSafetyFacts{Available: true}}, func() time.Time { return now })
@@ -99,7 +99,7 @@ const eligibilityPolicySchema = `
 		verified_at TIMESTAMPTZ NOT NULL,
 		updated_at TIMESTAMPTZ NOT NULL
 	);
-	CREATE TABLE atproto_follows (did TEXT NOT NULL, subject_did TEXT NOT NULL);
+	CREATE TABLE pds_set_aggregates (kind TEXT NOT NULL, actor_did TEXT NOT NULL, subject_did TEXT);
 	CREATE TABLE moderation_outputs (
 		id TEXT PRIMARY KEY,
 		source_did TEXT NOT NULL,

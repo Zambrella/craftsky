@@ -16,6 +16,7 @@ import (
 	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/ctxkeys"
 	"social.craftsky/appview/internal/index"
+	"social.craftsky/appview/internal/ingestion"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/tap"
@@ -245,7 +246,10 @@ func projectBusinessEventAcceptance(t *testing.T, pool *pgxpool.Pool, projector 
 	if err != nil {
 		t.Fatalf("begin event projection: %v", err)
 	}
-	outcome, err := projector.Project(ctx, tx, event)
+	outcome, err := projector.Project(ctx, tx, ingestion.SourceRecord{
+		URI: event.URI, DID: event.DID, Collection: event.Collection, Rkey: event.Rkey,
+		CID: event.CID, Action: event.Action, Record: event.Record, Revision: event.Rev,
+	})
 	if err != nil || outcome.Kind != tap.OutcomeApplied {
 		_ = tx.Rollback(ctx)
 		t.Fatalf("project %s event: outcome=%+v error=%v", event.Action, outcome, err)

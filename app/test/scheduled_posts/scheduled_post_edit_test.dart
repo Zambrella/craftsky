@@ -37,6 +37,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 
 import '../fakes/recording_messenger.dart';
+import '../test_support/deterministic_pump.dart';
 
 void main() {
   test(
@@ -63,12 +64,7 @@ void main() {
           [image],
           transferBudget: const Duration(milliseconds: 5),
           stageMedia:
-              ({
-                required id,
-                required bytes,
-                required mimeType,
-                cancelToken,
-              }) {
+              ({required id, required bytes, required mimeType, cancelToken}) {
                 capturedToken = cancelToken;
                 return Completer<void>().future;
               },
@@ -146,12 +142,7 @@ void main() {
     );
 
     expect(media, [
-      {
-        'id': 'large-ready',
-        'alt': 'project detail',
-        'width': 20,
-        'height': 10,
-      },
+      {'id': 'large-ready', 'alt': 'project detail', 'width': 20, 'height': 10},
     ]);
     expect(stagedBytes, bytes);
   });
@@ -160,13 +151,10 @@ void main() {
     'AT-007 preserves the final edited media set and stages only new media',
     () async {
       final privateBytes = _pngBytes(width: 3, height: 2);
-      final drafts = await hydrateScheduledComposerMedia(
-        const [
-          {'id': 'old-1', 'alt': 'front', 'width': 3, 'height': 2},
-          {'id': 'old-2', 'alt': 'back', 'width': 2, 'height': 3},
-        ],
-        loadBytes: (_) async => privateBytes,
-      );
+      final drafts = await hydrateScheduledComposerMedia(const [
+        {'id': 'old-1', 'alt': 'front', 'width': 3, 'height': 2},
+        {'id': 'old-2', 'alt': 'back', 'width': 2, 'height': 3},
+      ], loadBytes: (_) async => privateBytes);
 
       final newBytes = _pngBytes(width: 4, height: 3);
       final edited = [
@@ -346,7 +334,11 @@ void main() {
       expect(controller.selected?.preview.thumbnail, isNull);
 
       mediaResponse.complete(thumbnailBytes);
-      await tester.pumpAndSettle();
+      await pumpUntil(
+        tester,
+        () => controller.selected?.preview.thumbnail?.bytes != null,
+        description: 'the hydrated scheduled thumbnail',
+      );
 
       expect(controller.selected?.preview.thumbnail?.bytes, thumbnailBytes);
       tester
@@ -528,88 +520,87 @@ void main() {
     },
   );
 
-  testWidgets(
-    'IR-013 existing scheduled images remove external on save',
-    (tester) async {
-      final registry = SessionRegistry.empty().upsertAndActivate(
-        token: 'alice-token',
-        did: 'did:plc:alice',
-        handle: 'alice.test',
-      );
-      final account = registry.activeLease!.session.account;
-      final detail = ScheduledPostDetail(
-        id: _scheduledExternalDetail.id,
-        operationId: _scheduledExternalDetail.operationId,
-        status: _scheduledExternalDetail.status,
-        scheduledAt: _scheduledExternalDetail.scheduledAt,
-        payload: {
-          ..._scheduledExternalDetail.payload,
-          'text': 'Use https://source.example/pattern for this project',
-          'media': const [
-            {'id': 'old-1', 'alt': 'project', 'width': 2, 'height': 1},
-          ],
-        },
-      );
-      final repository = _ScheduledRepository(
-        _pngBytes(width: 2, height: 1),
-        detail: detail,
-      );
-      const composerId = 'scheduled-images-win-external';
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            secureSessionRegistryStorageProvider.overrideWithValue(
-              _RegistryStorage(registry),
+  testWidgets('IR-013 existing scheduled images remove external on save', (
+    tester,
+  ) async {
+    final registry = SessionRegistry.empty().upsertAndActivate(
+      token: 'alice-token',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    final account = registry.activeLease!.session.account;
+    final detail = ScheduledPostDetail(
+      id: _scheduledExternalDetail.id,
+      operationId: _scheduledExternalDetail.operationId,
+      status: _scheduledExternalDetail.status,
+      scheduledAt: _scheduledExternalDetail.scheduledAt,
+      payload: {
+        ..._scheduledExternalDetail.payload,
+        'text': 'Use https://source.example/pattern for this project',
+        'media': const [
+          {'id': 'old-1', 'alt': 'project', 'width': 2, 'height': 1},
+        ],
+      },
+    );
+    final repository = _ScheduledRepository(
+      _pngBytes(width: 2, height: 1),
+      detail: detail,
+    );
+    const composerId = 'scheduled-images-win-external';
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(registry),
+          ),
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
             ),
-            activeLanguagePreferencesProvider.overrideWith(
-              (ref) => const LanguagePreferences(
-                primaryLanguage: 'en',
-                contentLanguages: ['en'],
-              ),
-            ),
-            linkPreviewRepositoryProvider.overrideWithValue(
-              _NoFetchPreviewRepository(),
-            ),
-            accountScheduledPostRepositoryProvider(
-              account,
-            ).overrideWith((ref) async => repository),
-          ],
-          child: MessengerScope(
-            messenger: RecordingMessenger(),
-            child: MaterialApp(
-              theme: _testTheme,
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              supportedLocales: AppLocalizations.supportedLocales,
-              home: PostComposerSheet(
-                composerId: composerId,
-                scheduledPost: detail,
-              ),
+          ),
+          linkPreviewRepositoryProvider.overrideWithValue(
+            _NoFetchPreviewRepository(),
+          ),
+          accountScheduledPostRepositoryProvider(
+            account,
+          ).overrideWith((ref) async => repository),
+        ],
+        child: MessengerScope(
+          messenger: RecordingMessenger(),
+          child: MaterialApp(
+            theme: _testTheme,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: PostComposerSheet(
+              composerId: composerId,
+              scheduledPost: detail,
             ),
           ),
         ),
-      );
-      await tester.pumpAndSettle();
+      ),
+    );
+    await tester.pumpAndSettle();
 
-      final container = ProviderScope.containerOf(
-        tester.element(find.byType(PostComposerSheet)),
-      );
-      expect(
-        container.read(composerImagesProvider(composerId)).images,
-        hasLength(1),
-      );
-      tester
-          .widget<ChunkyButton>(
-            find.byKey(const Key('post-composer-primary-action')),
-          )
-          .onPressed!();
-      await tester.pumpAndSettle();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(PostComposerSheet)),
+    );
+    expect(
+      container.read(composerImagesProvider(composerId)).images,
+      hasLength(1),
+    );
+    tester
+        .widget<ChunkyButton>(
+          find.byKey(const Key('post-composer-primary-action')),
+        )
+        .onPressed!();
+    await tester.pumpAndSettle();
 
-      expect(repository.updatedPayload, isNotNull);
-      expect(repository.updatedPayload?['media'], hasLength(1));
-      expect(repository.updatedPayload, isNot(contains('external')));
-      expect(repository.stagedIDs, isEmpty);
-    },
-  );
+    expect(repository.updatedPayload, isNotNull);
+    expect(repository.updatedPayload?['media'], hasLength(1));
+    expect(repository.updatedPayload, isNot(contains('external')));
+    expect(repository.stagedIDs, isEmpty);
+  });
 
   testWidgets('IR-013 removing scheduled source removes external on save', (
     tester,
@@ -1358,10 +1349,7 @@ void main() {
     final patternDetails = find.byKey(
       const Key('project-composer-pattern-details-action'),
     );
-    expect(
-      patternDetails,
-      findsOneWidget,
-    );
+    expect(patternDetails, findsOneWidget);
     await tester.ensureVisible(patternDetails);
     await tester.tap(patternDetails);
     await tester.pumpAndSettle();
@@ -1462,10 +1450,7 @@ void main() {
       final patternDetails = find.byKey(
         const Key('project-composer-pattern-details-action'),
       );
-      expect(
-        patternDetails,
-        findsOneWidget,
-      );
+      expect(patternDetails, findsOneWidget);
       await tester.ensureVisible(patternDetails);
       await tester.tap(patternDetails);
       await tester.pumpAndSettle();
@@ -1565,10 +1550,7 @@ final _scheduledFacetedDetail = ScheduledPostDetail(
       {
         'index': {'byteStart': 6, 'byteEnd': 17},
         'features': [
-          {
-            r'$type': 'app.bsky.richtext.facet#mention',
-            'did': 'did:plc:alice',
-          },
+          {r'$type': 'app.bsky.richtext.facet#mention', 'did': 'did:plc:alice'},
         ],
       },
     ],
@@ -1612,12 +1594,7 @@ final _scheduledProjectDetail = ScheduledPostDetail(
         'projectSubtype': 'cardigan',
         'yarnWeight': 'dk',
         'needleSizeMm': '4',
-        'gauge': {
-          'stitches': 20,
-          'rows': 28,
-          'measurement': 10,
-          'unit': 'cm',
-        },
+        'gauge': {'stitches': 20, 'rows': 28, 'measurement': 10, 'unit': 'cm'},
       },
     },
   },
@@ -1644,12 +1621,7 @@ final _additionalProjectFixtures = <String, ScheduledPostDetail>{
       'projectSubtype': 'social.craftsky.project.crochet.defs#bag',
       'yarnWeight': 'social.craftsky.project.defs#dk',
       'hookSizeMm': '4.0mm',
-      'gauge': {
-        'stitches': 18,
-        'rows': 22,
-        'measurement': 10,
-        'unit': 'cm',
-      },
+      'gauge': {'stitches': 18, 'rows': 22, 'measurement': 10, 'unit': 'cm'},
       'finishedSize': '30 cm',
     },
   ),
