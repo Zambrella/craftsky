@@ -153,6 +153,7 @@ class _OnboardingProfileStepState extends State<OnboardingProfileStep> {
           controller: _name,
           enabled: !widget.state.saving,
           maxLength: profileDisplayNameMaxLength,
+          textCapitalization: TextCapitalization.words,
           textInputAction: TextInputAction.next,
           onChanged: widget.onDisplayNameChanged,
         ),

@@ -135,6 +135,7 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
                   maxLines: 4,
                   keyboardType: TextInputType.multiline,
                   textInputAction: TextInputAction.newline,
+                  textCapitalization: TextCapitalization.sentences,
                   enabled: !widget.isSubmitting,
                   onChanged: (value) {
                     setState(() => _details = value);

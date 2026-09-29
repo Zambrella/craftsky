@@ -6,6 +6,32 @@ import 'package:flutter_test/flutter_test.dart';
 import '../test_support/widget_pump.dart';
 
 void main() {
+  testWidgets(
+    'multiline prose defaults to sentences and identifiers can opt out',
+    (
+      tester,
+    ) async {
+      await pumpCraftskyWidget(
+        tester,
+        const Column(
+          children: [
+            CraftskyMultilineTextInput(label: 'Bio'),
+            CraftskyMultilineTextInput(
+              label: 'Handles',
+              textCapitalization: TextCapitalization.none,
+            ),
+          ],
+        ),
+      );
+
+      final fields = tester
+          .widgetList<TextField>(find.byType(TextField))
+          .toList();
+      expect(fields[0].textCapitalization, TextCapitalization.sentences);
+      expect(fields[1].textCapitalization, TextCapitalization.none);
+    },
+  );
+
   testWidgets('text input exposes label, hint, value, and error semantics', (
     tester,
   ) async {

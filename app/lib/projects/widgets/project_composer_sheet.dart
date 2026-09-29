@@ -1427,6 +1427,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
         CraftskyFormBuilderTextField(
           name: ProjectComposerFields.title,
           label: l10n.projectComposerProjectTitleLabel,
+          textCapitalization: TextCapitalization.words,
           hintText: l10n.projectComposerProjectTitleHint,
           textFieldKey: const Key('project-title-input'),
           enabled: controlsEnabled,
@@ -1447,6 +1448,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
           label: l10n.projectComposerPatternNameLabel,
           hintText: l10n.projectComposerPatternNameHint,
           controller: _patternNameController,
+          textCapitalization: TextCapitalization.none,
           focusNode: _patternNameFocusNode,
           enabled: controlsEnabled,
           initialDisplayText: '#',
@@ -2829,6 +2831,7 @@ class _MaterialsInputState extends ConsumerState<_MaterialsInput> {
           label: widget.label,
           hintText: widget.inputHintText,
           controller: _controller,
+          textCapitalization: TextCapitalization.words,
           focusNode: _focusNode,
           enabled: widget.enabled,
           errorText: _errorText,
@@ -2956,6 +2959,7 @@ class _FacetFormBuilderTextField extends StatefulWidget {
     this.focusNode,
     this.hintText,
     this.enabled = true,
+    this.textCapitalization = TextCapitalization.words,
     this.initialDisplayText,
     this.allowedTokenKinds,
     this.normalizeValue,
@@ -2969,6 +2973,7 @@ class _FacetFormBuilderTextField extends StatefulWidget {
   final FocusNode? focusNode;
   final String? hintText;
   final bool enabled;
+  final TextCapitalization textCapitalization;
   final String? initialDisplayText;
   final Set<ActiveFacetTokenKind>? allowedTokenKinds;
   final String? Function(String value)? normalizeValue;
@@ -3005,6 +3010,7 @@ class _FacetFormBuilderTextFieldState
           hintText: widget.hintText,
           controller: widget.controller,
           focusNode: widget.focusNode,
+          textCapitalization: widget.textCapitalization,
           enabled: field.widget.enabled,
           textInputAction: TextInputAction.next,
           allowedTokenKinds: widget.allowedTokenKinds,

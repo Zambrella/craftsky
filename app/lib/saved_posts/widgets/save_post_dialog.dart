@@ -155,6 +155,7 @@ class SavePostDialog extends ConsumerWidget {
                       ),
                       CraftskyTextInput(
                         label: l10n.savedPostFolderNameHint,
+                        textCapitalization: TextCapitalization.words,
                         enabled: !state.isCreatePending,
                         onChanged: ref.read(provider.notifier).updateCreateName,
                         errorText: state.createError == null

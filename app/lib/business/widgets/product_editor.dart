@@ -200,6 +200,7 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
                           label: l10n.businessProductTitleLabel,
                           required: true,
                           maxLength: businessProductTitleLimit,
+                          textCapitalization: TextCapitalization.words,
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
                               return l10n.businessProductTitleRequired;

@@ -156,6 +156,7 @@ class FacetAutocompleteEditor extends ConsumerStatefulWidget {
     this.suffixIcon,
     this.keyboardType,
     this.textInputAction,
+    this.textCapitalization = TextCapitalization.sentences,
     this.onSubmitted,
     this.onChanged,
     this.allowedTokenKinds,
@@ -204,6 +205,9 @@ class FacetAutocompleteEditor extends ConsumerStatefulWidget {
 
   /// Text input action for the inner text field.
   final TextInputAction? textInputAction;
+
+  /// Keyboard capitalization for prose or short names containing facets.
+  final TextCapitalization textCapitalization;
 
   /// Parent submitted callback.
   final ValueChanged<String>? onSubmitted;
@@ -508,6 +512,7 @@ class _FacetAutocompleteEditorState
           requiredLabel: widget.requiredLabel,
           keyboardType: widget.keyboardType,
           textInputAction: widget.textInputAction,
+          textCapitalization: widget.textCapitalization,
           onSubmitted: widget.onSubmitted,
           onChanged: _onChanged,
         ),

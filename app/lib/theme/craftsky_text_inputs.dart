@@ -97,6 +97,7 @@ class CraftskyMultilineTextInput extends CraftskyTextInput {
     super.inputFormatters,
     super.autofillHints,
     super.maxLength,
+    super.textCapitalization = TextCapitalization.sentences,
     super.minLines = 3,
     super.maxLines = 6,
     super.textInputAction = TextInputAction.newline,
@@ -214,6 +215,7 @@ class CraftskyMultilineTextFormField extends CraftskyTextFormField {
     super.minLines = 3,
     super.maxLines = 6,
     super.maxLength,
+    super.textCapitalization = TextCapitalization.sentences,
     super.onChanged,
     super.onSubmitted,
   }) : super(
@@ -465,6 +467,7 @@ class CraftskyFormMultilineTextField extends CraftskyFormTextField {
     super.textInputAction = TextInputAction.newline,
     super.minLines = 3,
     super.maxLines = 6,
+    super.textCapitalization = TextCapitalization.sentences,
     super.onChanged,
     super.onSubmitted,
     super.textFieldKey,

@@ -289,18 +289,21 @@ class _TextFieldsSample extends StatelessWidget {
       children: [
         const BrandTextField(
           label: 'Pattern name',
+          textCapitalization: TextCapitalization.words,
           hintText: 'e.g. Wiksten Haori',
           prefixIcon: Icon(CraftskyIcons.search),
         ),
         SizedBox(height: sp.sp5),
         const BrandTextField(
           label: 'Fabric or yarn',
+          textCapitalization: TextCapitalization.words,
           hintText: 'e.g. Merchant & Mills 185 linen, indigo',
           helperText: 'What did you use? Brand and colour help other makers.',
         ),
         SizedBox(height: sp.sp5),
         const BrandTextField(
           label: 'Modifications',
+          textCapitalization: TextCapitalization.sentences,
           hintText: 'What did you change?',
           maxLines: 3,
           minLines: 3,
