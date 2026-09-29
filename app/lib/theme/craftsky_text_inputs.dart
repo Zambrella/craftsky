@@ -424,7 +424,11 @@ class CraftskyFormTextField extends StatelessWidget {
           field: field,
           label: label,
           controller: controller,
-          focusNode: focusNode,
+          // FormBuilder allocates a focus node when none is provided.
+          // Share it with the text input so validation sees its focus.
+          focusNode:
+              (field as FormBuilderFieldState<FormBuilderField<String>, String>)
+                  .effectiveFocusNode,
           hintText: hintText,
           helperText: helperText,
           keyboardType: keyboardType,
