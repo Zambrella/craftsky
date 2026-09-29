@@ -98,6 +98,12 @@ func registerPublicOAuthRoutes(routes publicOAuthRouteBundle) {
 	}
 }
 
+func registerRevenueCatWebhookRoute(mux Registrar, inFlight func(http.Handler) http.Handler, handler http.Handler) {
+	if handler != nil {
+		mux.Handle("POST /integrations/revenuecat/webhook", inFlight(handler))
+	}
+}
+
 type authRouteBundle struct {
 	mux        Registrar
 	middleware v1Middleware

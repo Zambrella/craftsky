@@ -11,6 +11,7 @@ class AccountSwitcherContent extends StatelessWidget {
     required this.onSelect,
     required this.onAddAccount,
     this.activating,
+    this.tierBuilder,
     this.showAddAccount = true,
     super.key,
   });
@@ -19,6 +20,7 @@ class AccountSwitcherContent extends StatelessWidget {
   final ValueChanged<AccountSessionLease> onSelect;
   final VoidCallback onAddAccount;
   final AccountSessionLease? activating;
+  final Widget Function(AccountSessionLease lease)? tierBuilder;
   final bool showAddAccount;
 
   @override
@@ -31,31 +33,20 @@ class AccountSwitcherContent extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 8),
         children: [
           for (final row in state.rows)
-            Semantics(
+            AccountSwitcherRowTile(
+              row: row,
               selected: row.isCurrent,
-              child: ListTile(
-                selected: row.isCurrent,
-                enabled: !busy && !row.isCurrent,
-                leading: AccountAvatar(
-                  avatarUrl: row.avatarUrl,
-                  seed: row.displayLabel(l10n.handleUnavailable),
-                  customisation: row.customisation,
-                  selected: row.isCurrent,
-                ),
-                title: Text(row.displayLabel(l10n.handleUnavailable)),
-                subtitle: row.displayName?.trim().isEmpty ?? true
-                    ? null
-                    : Text(row.currentHandleLabel(l10n.handleUnavailable)),
-                trailing: row.lease == activating
-                    ? const SizedBox.square(
-                        dimension: 24,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : row.isCurrent
-                    ? const Icon(CraftskyIcons.check)
-                    : null,
-                onTap: busy || row.isCurrent ? null : () => onSelect(row.lease),
-              ),
+              enabled: !busy && !row.isCurrent,
+              badge: tierBuilder?.call(row.lease),
+              trailing: row.lease == activating
+                  ? const SizedBox.square(
+                      dimension: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : row.isCurrent
+                  ? const Icon(CraftskyIcons.check)
+                  : null,
+              onTap: () => onSelect(row.lease),
             ),
           if (showAddAccount) ...[
             const Divider(),
@@ -70,6 +61,66 @@ class AccountSwitcherContent extends StatelessWidget {
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class AccountSwitcherRowTile extends StatelessWidget {
+  const AccountSwitcherRowTile({
+    required this.row,
+    required this.onTap,
+    this.selected = false,
+    this.enabled = true,
+    this.badge,
+    this.trailing,
+    super.key,
+  });
+
+  final AccountSwitcherRow row;
+  final VoidCallback onTap;
+  final bool selected;
+  final bool enabled;
+  final Widget? badge;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    return Semantics(
+      selected: selected,
+      child: Material(
+        type: MaterialType.transparency,
+        child: ListTile(
+          selected: selected,
+          enabled: enabled,
+          leading: AccountAvatar(
+            avatarUrl: row.avatarUrl,
+            seed: row.displayLabel(l10n.handleUnavailable),
+            customisation: row.customisation,
+            selected: selected,
+          ),
+          title: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  row.displayLabel(l10n.handleUnavailable),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              if (badge case final badge?) ...[
+                const SizedBox(width: 8),
+                Flexible(child: badge),
+              ],
+            ],
+          ),
+          subtitle: row.displayName?.trim().isEmpty ?? true
+              ? null
+              : Text(row.currentHandleLabel(l10n.handleUnavailable)),
+          trailing: trailing,
+          onTap: enabled ? onTap : null,
+        ),
       ),
     );
   }

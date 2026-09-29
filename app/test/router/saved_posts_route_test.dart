@@ -22,6 +22,8 @@ import 'package:craftsky_app/saved_posts/pages/saved_posts_page.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_post_repository_provider.dart';
 import 'package:craftsky_app/scheduled_posts/pages/scheduled_posts_page.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter/material.dart';
@@ -116,6 +118,23 @@ void main() {
       ProviderScope(
         overrides: [
           authSessionProvider.overrideWith(SignedInAuthSession.new),
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(
+              SessionRegistry.empty().upsertAndActivate(
+                token: 'test-token',
+                did: account.did.value,
+                handle: 'test.bsky.social',
+              ),
+            ),
+          ),
+          subscriptionAccessProvider.overrideWith(
+            (ref, lease) async => SubscriptionAccess(
+              did: lease.account.did,
+              effectiveTier: SubscriptionTier.plus,
+              givesAccess: true,
+              assignedTier: SubscriptionTier.plus,
+            ),
+          ),
           accountSavedPostRepositoryProvider(
             account,
           ).overrideWith((ref) async => repository),
@@ -382,6 +401,14 @@ ProviderContainer _productionContainer({SavedPostRepository? savedRepository}) {
   );
   return ProviderContainer(
     overrides: [
+      subscriptionAccessProvider.overrideWith(
+        (ref, lease) async => SubscriptionAccess(
+          did: lease.account.did,
+          effectiveTier: SubscriptionTier.plus,
+          givesAccess: true,
+          assignedTier: SubscriptionTier.plus,
+        ),
+      ),
       authSessionProvider.overrideWith(SignedInAuthSession.new),
       secureSessionRegistryStorageProvider.overrideWithValue(
         _RegistryStorage(registry),
@@ -392,6 +419,11 @@ ProviderContainer _productionContainer({SavedPostRepository? savedRepository}) {
       profileRepositoryProvider.overrideWithValue(
         FakeProfileRepository(
           onFetch: (_) async => Profile(
+            did: account.did,
+            handle: 'test.bsky.social',
+            crafts: const [],
+          ),
+          onFetchMe: () async => Profile(
             did: account.did,
             handle: 'test.bsky.social',
             crafts: const [],

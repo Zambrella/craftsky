@@ -16,6 +16,7 @@ import (
 	"social.craftsky/appview/internal/api/envelope"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/scheduledposts"
+	"social.craftsky/appview/internal/subscriptions"
 )
 
 type scheduledPostCreator interface {
@@ -97,7 +98,11 @@ func CreateScheduledPostHandler(
 	})
 }
 
-func ListScheduledPostsHandler(store scheduledPostLister, logger *slog.Logger) http.Handler {
+type scheduledAccessReader interface {
+	SelfAccess(context.Context, syntax.DID, time.Time) (subscriptions.SelfAccess, error)
+}
+
+func ListScheduledPostsHandler(store scheduledPostLister, logger *slog.Logger, accessReaders ...scheduledAccessReader) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -112,6 +117,15 @@ func ListScheduledPostsHandler(store scheduledPostLister, logger *slog.Logger) h
 			writeScheduledPostError(writer, request, err)
 			return
 		}
+		subscriptionRequired := false
+		if len(accessReaders) > 0 {
+			access, err := accessReaders[0].SelfAccess(request.Context(), ownerDID, time.Now())
+			if err != nil {
+				envelope.WriteError(writer, http.StatusServiceUnavailable, "subscription_unavailable", "subscription access unavailable", middleware.GetRunID(request.Context()), nil)
+				return
+			}
+			subscriptionRequired = !access.AllowsPlus()
+		}
 		response := scheduledPostListResponse{Items: make([]scheduledPostSummaryResponse, 0, len(resources)), Count: len(resources)}
 		for _, resource := range resources {
 			payload, err := scheduledposts.DecodePayload(resource.PayloadBytes)
@@ -120,7 +134,9 @@ func ListScheduledPostsHandler(store scheduledPostLister, logger *slog.Logger) h
 				return
 			}
 			item := scheduledPostSummaryResponse{
-				ID: resource.ID.String(), Status: resource.Status,
+				LastErrorCode:        resource.LastErrorCode,
+				SubscriptionRequired: subscriptionRequired && (resource.Status == scheduledposts.StatusScheduled || resource.Status == scheduledposts.StatusRetrying),
+				ID:                   resource.ID.String(), Status: resource.Status,
 				ScheduledAt: resource.ScheduledAt, Kind: payload.Kind,
 				TextPreview:             boundedScheduledPreview(payload.Text, 160),
 				NeedsAttentionExpiresAt: resource.NeedsAttentionExpiresAt,
@@ -143,7 +159,7 @@ func ListScheduledPostsHandler(store scheduledPostLister, logger *slog.Logger) h
 	})
 }
 
-func GetScheduledPostHandler(store scheduledPostReader, logger *slog.Logger) http.Handler {
+func GetScheduledPostHandler(store scheduledPostReader, logger *slog.Logger, accessReaders ...scheduledAccessReader) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
 	}
@@ -163,13 +179,24 @@ func GetScheduledPostHandler(store scheduledPostReader, logger *slog.Logger) htt
 			writeScheduledPostError(writer, request, err)
 			return
 		}
+		subscriptionRequired := false
+		if len(accessReaders) > 0 && (resource.Status == scheduledposts.StatusScheduled || resource.Status == scheduledposts.StatusRetrying) {
+			access, err := accessReaders[0].SelfAccess(request.Context(), ownerDID, time.Now())
+			if err != nil {
+				envelope.WriteError(writer, http.StatusServiceUnavailable, "subscription_unavailable", "subscription access unavailable", middleware.GetRunID(request.Context()), nil)
+				return
+			}
+			subscriptionRequired = !access.AllowsPlus()
+		}
 		payload, err := scheduledposts.DecodePayload(resource.PayloadBytes)
 		if err != nil {
 			writeScheduledPostError(writer, request, err)
 			return
 		}
 		envelope.WriteJSON(writer, http.StatusOK, scheduledPostResponse{
-			ID: resource.ID.String(), OperationID: resource.OperationID.String(),
+			LastErrorCode:        resource.LastErrorCode,
+			SubscriptionRequired: subscriptionRequired,
+			ID:                   resource.ID.String(), OperationID: resource.OperationID.String(),
 			Status: resource.Status, ScheduledAt: resource.ScheduledAt,
 			Payload: payload,
 		})

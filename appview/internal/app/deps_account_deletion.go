@@ -14,8 +14,10 @@ import (
 	"social.craftsky/appview/internal/accountdeletion"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/instagram"
+	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/scheduledposts"
+	"social.craftsky/appview/internal/subscriptions"
 )
 
 type accountDeletionDependencies struct {
@@ -31,18 +33,20 @@ func newAccountDeletionDependencies(
 	authCapability *authDependencies,
 	owners *ownerDependencies,
 	federated *federatedClients,
-	accountTypes accountdeletion.AccountTypeDeleter,
 	instagramPrivateData *instagram.PrivateDataService,
 	scheduledAccountDeletion *scheduledposts.AccountDeletion,
 	departureParticipant ownerlifecycle.TransitionParticipant,
 	cfg Config,
 	logger *slog.Logger,
+	observer *observability.Observer,
 ) (*accountDeletionDependencies, error) {
 	service, err := accountdeletion.NewAppService(accountdeletion.AppServiceOptions{
 		Pool: pool, Store: owners.deletionStore, OAuth: authCapability.flow,
 		Owners: owners.lifecycles, Sessions: authCapability.sessionLifecycle,
 		OAuthStore: authCapability.store, DepartureParticipant: departureParticipant,
-		Now: time.Now, Random: rand.Reader, IntentTTL: cfg.AccountDeletionIntentTTL,
+		BillingDeletion: subscriptions.NewDeletionParticipant(),
+		BillingObserver: observer,
+		Now:             time.Now, Random: rand.Reader, IntentTTL: cfg.AccountDeletionIntentTTL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("account deletion service: %w", err)
@@ -68,7 +72,6 @@ func newAccountDeletionDependencies(
 	lifecycle, err := accountdeletion.NewLifecycleProcessor(accountdeletion.LifecycleProcessorOptions{
 		Store: owners.deletionStore, Cleaner: cleaner,
 		AcceptedCleanup: scheduledAccountDeletion,
-		AccountTypes:    accountTypes,
 		NewPDSClient: func(
 			_ context.Context,
 			owner syntax.DID,

@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
@@ -12,7 +14,11 @@ import 'package:craftsky_app/saved_posts/pages/saved_posts_page.dart';
 import 'package:craftsky_app/saved_posts/providers/saved_post_repository_provider.dart';
 import 'package:craftsky_app/saved_posts/widgets/saved_post_sort_button.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
+import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:flutter/material.dart';
@@ -24,6 +30,28 @@ import '../../fakes/auth_session_fakes.dart';
 
 void main() {
   setUpAll(initializeMappers);
+
+  testWidgets(
+    'AT-006 Free saved posts are flat including retained folder posts',
+    (tester) async {
+      final repository = _OverviewRepository(
+        folders: SavedPostFolderPage(items: [_folder('folder-a', 'Ideas')]),
+        unfiled: SavedPostPage(
+          items: [
+            _item('root'),
+            _item('foldered').copyWith(folderId: 'folder-a'),
+          ],
+        ),
+      );
+      await _pump(tester, repository, tier: SubscriptionTier.free);
+      await tester.pumpAndSettle();
+      expect(find.text('root'), findsOneWidget);
+      expect(find.text('foldered'), findsOneWidget);
+      expect(find.text('Ideas'), findsNothing);
+      expect(repository.lastScope?.kind, SavedPostScopeKind.all);
+      expect(repository.folderCalls, 0);
+    },
+  );
 
   testWidgets('AT-004 renders folders before the Unfiled collection', (
     tester,
@@ -146,49 +174,57 @@ void main() {
 
     await tester.tap(find.byTooltip('New folder'));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), '  Fresh ideas  ');
-    await tester.tap(find.widgetWithText(ChunkyButton, 'Create folder'));
-    await tester.pumpAndSettle();
-
-    expect(repository.createNames, ['Fresh ideas']);
-    expect(find.text('Fresh ideas'), findsOneWidget);
+    if (subscriptionsEnabled) {
+      await tester.enterText(find.byType(TextField), '  Fresh ideas  ');
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Create folder'));
+      await tester.pumpAndSettle();
+      expect(repository.createNames, ['Fresh ideas']);
+      expect(find.text('Fresh ideas'), findsOneWidget);
+    } else {
+      expect(find.text('Folders is coming soon'), findsOneWidget);
+      expect(repository.createNames, isEmpty);
+    }
   });
 
-  testWidgets('IT-008 retains overview scroll across folder mutation', (
-    tester,
-  ) async {
-    final repository = _OverviewRepository(
-      folders: SavedPostFolderPage(
-        items: [
-          for (var i = 0; i < 18; i++) _folder('folder-$i', 'Folder $i'),
-        ],
-      ),
-      unfiled: const SavedPostPage(items: []),
-    )..createdFolder = _folder('created-id', 'Created while scrolled');
-    await _pump(tester, repository);
-    await tester.pumpAndSettle();
+  testWidgets(
+    'IT-008 retains overview scroll across folder mutation',
+    (
+      tester,
+    ) async {
+      final repository = _OverviewRepository(
+        folders: SavedPostFolderPage(
+          items: [
+            for (var i = 0; i < 18; i++) _folder('folder-$i', 'Folder $i'),
+          ],
+        ),
+        unfiled: const SavedPostPage(items: []),
+      )..createdFolder = _folder('created-id', 'Created while scrolled');
+      await _pump(tester, repository);
+      await tester.pumpAndSettle();
 
-    await tester.drag(find.byType(CustomScrollView), const Offset(0, -320));
-    await tester.pumpAndSettle();
-    final before = tester
-        .state<ScrollableState>(find.byType(Scrollable))
-        .position
-        .pixels;
-    expect(before, greaterThan(0));
+      await tester.drag(find.byType(CustomScrollView), const Offset(0, -320));
+      await tester.pumpAndSettle();
+      final before = tester
+          .state<ScrollableState>(find.byType(Scrollable))
+          .position
+          .pixels;
+      expect(before, greaterThan(0));
 
-    await tester.tap(find.byTooltip('New folder'));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'Created while scrolled');
-    await tester.tap(find.widgetWithText(ChunkyButton, 'Create folder'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byTooltip('New folder'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), 'Created while scrolled');
+      await tester.tap(find.widgetWithText(ChunkyButton, 'Create folder'));
+      await tester.pumpAndSettle();
 
-    final after = tester
-        .state<ScrollableState>(find.byType(Scrollable))
-        .position
-        .pixels;
-    expect(after, before);
-    expect(tester.takeException(), isNull);
-  });
+      final after = tester
+          .state<ScrollableState>(find.byType(Scrollable))
+          .position
+          .pixels;
+      expect(after, before);
+      expect(tester.takeException(), isNull);
+    },
+    skip: !subscriptionsEnabled,
+  );
 
   testWidgets('IT-008 overview retries a failed folder restart', (
     tester,
@@ -213,7 +249,7 @@ void main() {
     expect(repository.folderCalls, 3);
     expect(find.widgetWithText(TextButton, 'Retry'), findsNothing);
     expect(find.text('Created'), findsOneWidget);
-  });
+  }, skip: !subscriptionsEnabled);
 
   testWidgets('IT-008 overview sort changes only the Unfiled resource', (
     tester,
@@ -280,10 +316,28 @@ Future<void> _pump(
   WidgetTester tester,
   SavedPostRepository repository, {
   bool disableAnimations = false,
+  SubscriptionTier tier = SubscriptionTier.plus,
 }) => tester.pumpWidget(
   ProviderScope(
     overrides: [
       authSessionProvider.overrideWith(SignedInAuthSession.new),
+      secureSessionRegistryStorageProvider.overrideWithValue(
+        _SavedRegistryStorage(
+          SessionRegistry.empty().upsertAndActivate(
+            token: 'test-token',
+            did: 'did:plc:test',
+            handle: 'test.bsky.social',
+          ),
+        ),
+      ),
+      subscriptionAccessProvider.overrideWith(
+        (ref, lease) async => SubscriptionAccess(
+          did: Did.parse('did:plc:test'),
+          effectiveTier: tier,
+          givesAccess: tier != SubscriptionTier.free,
+          assignedTier: tier == SubscriptionTier.free ? null : tier,
+        ),
+      ),
       accountSavedPostRepositoryProvider(
         AccountKey('did:plc:test'),
       ).overrideWith((ref) async => repository),
@@ -370,12 +424,16 @@ final class _OverviewRepository implements SavedPostRepository {
 
   final SavedPostFolderPage folders;
   final SavedPostPage unfiled;
+  SavedPostScope? lastScope;
+  int folderCalls = 0;
   final List<String> createNames = [];
   SavedPostFolder? createdFolder;
 
   @override
-  Future<SavedPostFolderPage> listFolders({String? cursor, int? limit}) async =>
-      folders;
+  Future<SavedPostFolderPage> listFolders({String? cursor, int? limit}) async {
+    folderCalls++;
+    return folders;
+  }
 
   @override
   Future<SavedPostPage> list({
@@ -383,7 +441,10 @@ final class _OverviewRepository implements SavedPostRepository {
     required SavedPostSort sort,
     String? cursor,
     int? limit,
-  }) async => unfiled;
+  }) async {
+    lastScope = scope;
+    return unfiled;
+  }
 
   @override
   Future<SavedPostState> save(Post post, {required String? folderId}) =>
@@ -428,6 +489,16 @@ final class _PartialLoadingRepository extends Fake
     String? cursor,
     int? limit,
   }) => unfiled.future;
+}
+
+final class _SavedRegistryStorage implements SessionRegistryStorage {
+  _SavedRegistryStorage(this.registry);
+  SessionRegistry registry;
+  @override
+  Future<SessionRegistry> read() async => registry;
+  @override
+  Future<void> write(SessionRegistry registry) async =>
+      this.registry = registry;
 }
 
 final class _OverviewRefreshRepository implements SavedPostRepository {

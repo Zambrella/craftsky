@@ -18,6 +18,8 @@ import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -792,6 +794,14 @@ void main() {
           ),
           secureSessionRegistryStorageProvider.overrideWithValue(
             _ThreadPinRegistryStorage(),
+          ),
+          subscriptionAccessProvider.overrideWith(
+            (ref, lease) async => SubscriptionAccess(
+              did: lease.account.did,
+              effectiveTier: SubscriptionTier.plus,
+              givesAccess: true,
+              assignedTier: SubscriptionTier.plus,
+            ),
           ),
         ],
         child: MessengerScope(

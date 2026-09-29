@@ -76,7 +76,7 @@ func EvaluateEvent(input EventPolicyInput) EventPolicyResult {
 
 	publicEligible := len(publicReasons) == 0
 	visitorEligible := publicEligible && !input.Blocked
-	ownerManagement := input.CallerIsOwner && input.OwnerCurrent
+	ownerManagement := input.CallerIsOwner && IsBusinessClassified(input.OwnerCurrent, input.AccountType)
 	visitorDirect := !input.CallerIsOwner && visitorEligible
 	return EventPolicyResult{
 		OwnerManagement:          ownerManagement,

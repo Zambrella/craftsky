@@ -13,6 +13,7 @@ import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/widgets/report_flow.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_feature_access.dart';
 import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
 import 'package:craftsky_app/profile/pages/edit_profile_dialog.dart';
@@ -41,6 +42,8 @@ import 'package:craftsky_app/shared/errors/notification_destination_error.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/shared/widgets/notification_destination_error_state.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -267,6 +270,22 @@ class _ProfileBody extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    final activeLease = ref
+        .watch(sessionRegistryProvider)
+        .value
+        ?.activeLease
+        ?.session;
+    SubscriptionAccess? confirmedAccess;
+    if (isOwnProfile && activeLease?.account.did.value == profile.did) {
+      final access = ref.watch(subscriptionAccessProvider(activeLease!));
+      if (access.isLoading) return const _ProfileShellSkeleton();
+      if (access case AsyncData(:final value)) {
+        confirmedAccess = value;
+      }
+    }
+    final presented = isOwnProfile
+        ? projectOwnerFeatureAccess(profile, confirmedAccess)
+        : profile;
     ref.listen(toggleFollowProfileProvider, (previous, next) {
       switch ((previous, next)) {
         case (AsyncLoading(), AsyncError()):
@@ -307,14 +326,14 @@ class _ProfileBody extends ConsumerWidget {
 
     if (relationship.hasBlock) {
       return _BlockedProfileView(
-        profile: profile,
+        profile: presented,
         actions: actions,
         relationship: relationship,
       );
     }
     return _ProfileTabbedBody(
       key: ValueKey(profile.did),
-      profile: profile,
+      profile: presented,
       actions: actions,
       isOwnProfile: isOwnProfile,
       relationship: relationship,

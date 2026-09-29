@@ -7,6 +7,7 @@ import (
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/languages"
 	"social.craftsky/appview/internal/scheduledposts"
+	"social.craftsky/appview/internal/subscriptions"
 )
 
 type scheduledPostRouteBundle struct {
@@ -27,8 +28,16 @@ func registerScheduledPostRoutes(routes scheduledPostRouteBundle) {
 	routes.mux.Handle("GET /v1/scheduled-post-media/{mediaId}", routes.middleware.wrap(mustPolicy("GET", "/v1/scheduled-post-media/{mediaId}"), api.GetScheduledMediaHandler(routes.media, routes.logger)))
 	routes.mux.Handle("DELETE /v1/scheduled-post-media/{mediaId}", routes.middleware.wrap(mustPolicy("DELETE", "/v1/scheduled-post-media/{mediaId}"), api.DeleteScheduledMediaHandler(routes.media, time.Now, routes.logger)))
 	routes.mux.Handle("POST /v1/scheduled-posts", routes.middleware.wrap(mustPolicy("POST", "/v1/scheduled-posts"), api.CreateScheduledPostHandler(routes.posts, routes.mediaLimits, time.Now, routes.logger)))
-	routes.mux.Handle("GET /v1/scheduled-posts", routes.middleware.wrap(mustPolicy("GET", "/v1/scheduled-posts"), api.ListScheduledPostsHandler(routes.posts, routes.logger)))
-	routes.mux.Handle("GET /v1/scheduled-posts/{id}", routes.middleware.wrap(mustPolicy("GET", "/v1/scheduled-posts/{id}"), api.GetScheduledPostHandler(routes.posts, routes.logger)))
+	listHandler := api.ListScheduledPostsHandler(routes.posts, routes.logger)
+	if routes.middleware.subscriptionAccess != nil {
+		listHandler = api.ListScheduledPostsHandler(routes.posts, routes.logger, routes.middleware.subscriptionAccess)
+	}
+	routes.mux.Handle("GET /v1/scheduled-posts", routes.middleware.wrap(mustPolicy("GET", "/v1/scheduled-posts"), listHandler))
+	getHandler := api.GetScheduledPostHandler(routes.posts, routes.logger)
+	if routes.middleware.subscriptionAccess != nil {
+		getHandler = api.GetScheduledPostHandler(routes.posts, routes.logger, routes.middleware.subscriptionAccess)
+	}
+	routes.mux.Handle("GET /v1/scheduled-posts/{id}", routes.middleware.wrap(mustPolicy("GET", "/v1/scheduled-posts/{id}"), getHandler))
 	routes.mux.Handle("PUT /v1/scheduled-posts/{id}", routes.middleware.wrap(mustPolicy("PUT", "/v1/scheduled-posts/{id}"), api.UpdateScheduledPostHandler(routes.posts, routes.mediaLimits, time.Now, routes.logger)))
 	routes.mux.Handle("DELETE /v1/scheduled-posts/{id}", routes.middleware.wrap(mustPolicy("DELETE", "/v1/scheduled-posts/{id}"), api.DeleteScheduledPostHandler(routes.posts, time.Now, routes.logger)))
 	routes.mux.Handle("POST /v1/scheduled-posts/{id}/publication", routes.middleware.wrap(mustPolicy("POST", "/v1/scheduled-posts/{id}/publication"), api.PublishScheduledPostHandler(routes.manualPublisher, routes.mediaLimits, time.Now, routes.logger)))
@@ -43,38 +52,47 @@ type devModerationRouteConfig struct {
 }
 
 type postRouteBundle struct {
-	mux               Registrar
-	middleware        v1Middleware
-	moderation        devModerationRouteConfig
-	postStore         *api.PostStore
-	savedPostStore    *api.SavedPostStore
-	savedPostService  *api.SavedPostService
-	profilePinStore   *api.ProfilePinStore
-	handleResolver    api.HandleResolver
-	pdsCommands       api.SetCommandExecutor
-	appendCommands    api.AppendCommandExecutor
-	addressedCommands api.AddressedDeleteCommandExecutor
-	reportStore       *api.ReportStore
-	reportForwarder   api.ReportForwarder
-	moderationStore   *api.ModerationStore
-	languages         *languages.Store
-	mediaLimits       api.MediaLimits
-	videoVerifier     api.VideoCompletionVerifier
-	videoCaptions     api.VideoCaptionBlobFetcher
-	videoObserver     api.VideoOperationObserver
-	logger            *slog.Logger
+	subscriptionAccess *subscriptions.Store
+	mux                Registrar
+	middleware         v1Middleware
+	moderation         devModerationRouteConfig
+	postStore          *api.PostStore
+	savedPostStore     *api.SavedPostStore
+	savedPostService   *api.SavedPostService
+	profilePinStore    *api.ProfilePinStore
+	handleResolver     api.HandleResolver
+	pdsCommands        api.SetCommandExecutor
+	appendCommands     api.AppendCommandExecutor
+	addressedCommands  api.AddressedDeleteCommandExecutor
+	reportStore        *api.ReportStore
+	reportForwarder    api.ReportForwarder
+	moderationStore    *api.ModerationStore
+	languages          *languages.Store
+	mediaLimits        api.MediaLimits
+	videoVerifier      api.VideoCompletionVerifier
+	videoCaptions      api.VideoCaptionBlobFetcher
+	videoObserver      api.VideoOperationObserver
+	logger             *slog.Logger
 }
 
 func registerPostRoutes(routes postRouteBundle) {
 	routes.mux.Handle("POST /v1/posts", routes.middleware.wrap(mustPolicy("POST", "/v1/posts"), api.CreatePostHandler(routes.postStore, nil, routes.handleResolver, routes.mediaLimits, routes.logger, api.CreatePostHandlerOptions{VideoCompletionVerifier: routes.videoVerifier, Commands: routes.appendCommands})))
 	routes.mux.Handle("GET /v1/posts/{did}/{rkey}", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}"), api.GetPostHandler(routes.postStore, routes.handleResolver, routes.logger, routes.languages)))
 	routes.mux.Handle("GET /v1/posts/{did}/{rkey}/video-captions/{captionCid}", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/video-captions/{captionCid}"), api.VideoCaptionHandler(routes.postStore, routes.videoCaptions, routes.logger, routes.videoObserver)))
-	routes.mux.Handle("POST /v1/posts/{did}/{rkey}/saves", routes.middleware.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/saves"), api.SavePostHandler(routes.postStore, routes.savedPostStore)))
+	saveHandler := api.SavePostHandler(routes.postStore, routes.savedPostStore)
+	if routes.subscriptionAccess != nil {
+		saveHandler = api.SavePostHandler(routes.postStore, routes.savedPostStore, routes.subscriptionAccess)
+	}
+	routes.mux.Handle("POST /v1/posts/{did}/{rkey}/saves", routes.middleware.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/saves"), saveHandler))
 	routes.mux.Handle("DELETE /v1/posts/{did}/{rkey}/saves", routes.middleware.wrap(mustPolicy("DELETE", "/v1/posts/{did}/{rkey}/saves"), api.UnsavePostHandler(routes.savedPostStore)))
 	routes.mux.Handle("GET /v1/profiles/me/pins", routes.middleware.wrap(mustPolicy("GET", "/v1/profiles/me/pins"), api.GetProfilePinsHandler(routes.profilePinStore)))
 	routes.mux.Handle("PUT /v1/posts/{did}/{rkey}/pin", routes.middleware.wrap(mustPolicy("PUT", "/v1/posts/{did}/{rkey}/pin"), api.PinProfilePostHandler(routes.profilePinStore)))
 	routes.mux.Handle("DELETE /v1/posts/{did}/{rkey}/pin", routes.middleware.wrap(mustPolicy("DELETE", "/v1/posts/{did}/{rkey}/pin"), api.UnpinProfilePostHandler(routes.profilePinStore)))
-	routes.mux.Handle("GET /v1/saved-posts", routes.middleware.wrap(mustPolicy("GET", "/v1/saved-posts"), api.ListSavedPostsHandler(routes.savedPostService)))
+	listSavedHandler := api.ListSavedPostsHandler(routes.savedPostService)
+	if routes.subscriptionAccess != nil {
+		listSavedHandler = api.ListSavedPostsHandler(routes.savedPostService, routes.subscriptionAccess)
+	}
+	routes.mux.Handle("GET /v1/saved-posts", routes.middleware.wrap(mustPolicy("GET", "/v1/saved-posts"), listSavedHandler))
 	routes.mux.Handle("GET /v1/saved-post-folders", routes.middleware.wrap(mustPolicy("GET", "/v1/saved-post-folders"), api.ListSavedPostFoldersHandler(routes.savedPostStore)))
 	routes.mux.Handle("POST /v1/saved-post-folders", routes.middleware.wrap(mustPolicy("POST", "/v1/saved-post-folders"), api.CreateSavedPostFolderHandler(routes.savedPostStore)))
 	routes.mux.Handle("PATCH /v1/saved-post-folders/{folderId}", routes.middleware.wrap(mustPolicy("PATCH", "/v1/saved-post-folders/{folderId}"), api.RenameSavedPostFolderHandler(routes.savedPostStore)))

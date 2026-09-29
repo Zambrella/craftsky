@@ -58,6 +58,12 @@ import 'package:craftsky_app/shared/errors/app_error.dart';
 import 'package:craftsky_app/shared/errors/app_error_mapper.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/rich_text/data/facet_suggestion_repository.dart';
+import 'package:craftsky_app/subscriptions/models/billing_state.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/revenuecat_service_provider.dart';
+import 'package:craftsky_app/subscriptions/services/revenuecat_bootstrap.dart';
+import 'package:craftsky_app/subscriptions/services/revenuecat_service_native.dart';
+import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -205,6 +211,23 @@ Future<void> bootstrap(
   usePathUrlStrategy();
 
   final businessTimeZones = BusinessTimeZoneService.initialized();
+  final revenueCatService = await bootstrapRevenueCat(
+    platform: _revenueCatPlatform(),
+    iosPublicKey: subscriptionsEnabled
+        ? const String.fromEnvironment('REVENUECAT_IOS_PUBLIC_KEY')
+        : '',
+    androidPublicKey: subscriptionsEnabled
+        ? const String.fromEnvironment('REVENUECAT_ANDROID_PUBLIC_KEY')
+        : '',
+    testStorePublicKey: subscriptionsEnabled
+        ? const String.fromEnvironment('REVENUECAT_TEST_STORE_PUBLIC_KEY')
+        : '',
+    useTestStore:
+        subscriptionsEnabled &&
+        const bool.fromEnvironment('REVENUECAT_USE_TEST_STORE'),
+    isDebug: kDebugMode,
+    configurator: const NativeRevenueCatConfigurator(),
+  );
 
   if (kIsWeb) {
     _log.fine('web detected, skipping native init');
@@ -214,6 +237,7 @@ Future<void> bootstrap(
         retry: appProviderRetry,
         overrides: [
           businessTimeZoneServiceProvider.overrideWithValue(businessTimeZones),
+          revenueCatServiceProvider.overrideWithValue(revenueCatService),
         ],
         child: const App(),
       ),
@@ -275,10 +299,23 @@ Future<void> bootstrap(
       overrides: [
         notificationServiceProvider.overrideWithValue(notificationService),
         businessTimeZoneServiceProvider.overrideWithValue(businessTimeZones),
+        revenueCatServiceProvider.overrideWithValue(revenueCatService),
       ],
       child: const App(),
     ),
   );
+}
+
+RevenueCatPlatform _revenueCatPlatform() {
+  if (kIsWeb) return RevenueCatPlatform.web;
+  return switch (defaultTargetPlatform) {
+    TargetPlatform.iOS => RevenueCatPlatform.ios,
+    TargetPlatform.android => RevenueCatPlatform.android,
+    TargetPlatform.macOS => RevenueCatPlatform.macos,
+    TargetPlatform.windows => RevenueCatPlatform.windows,
+    TargetPlatform.linux => RevenueCatPlatform.linux,
+    TargetPlatform.fuchsia => RevenueCatPlatform.linux,
+  };
 }
 
 /// Initialize all `dart_mappable` mappers here as models are added.
@@ -354,4 +391,7 @@ void initializeMappers() {
   TopHashtagItemMapper.ensureInitialized();
   AccountSuggestionMapper.ensureInitialized();
   HashtagSuggestionMapper.ensureInitialized();
+  SubscriptionAccessMapper.ensureInitialized();
+  BillingStateMapper.ensureInitialized();
+  BillingAssignmentMapper.ensureInitialized();
 }

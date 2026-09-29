@@ -40,11 +40,11 @@ func TestNewDepsDelegatesAccountDeletionConstruction(t *testing.T) {
 	}
 }
 
-func TestNewDepsInjectsBusinessStoreIntoAccountDeletion(t *testing.T) {
-	if !functionCallIncludesSelectorArgument(
+func TestNewDepsDoesNotInjectRetiredAccountTypeDeletion(t *testing.T) {
+	if functionCallIncludesSelectorArgument(
 		t, "deps.go", "newDeps", "newAccountDeletionDependencies", "content", "business",
 	) {
-		t.Fatal("account deletion must receive the narrow business account-type deletion capability")
+		t.Fatal("account deletion must not depend on retired account-type storage")
 	}
 }
 

@@ -7,19 +7,20 @@ import (
 
 func TestRedactHeadersRemovesSensitiveTelemetryValues(t *testing.T) {
 	headers := http.Header{
-		"Authorization":            []string{"Bearer craftsky-session-token"},
-		"Cookie":                   []string{"sid=oauth-refresh-token"},
-		"DPoP":                     []string{"proof-material"},
-		"X-Craftsky-Device-Id":     []string{"device-123"},
-		"X-Request-Id":             []string{"safe-request-id"},
-		"Content-Type":             []string{"application/json"},
-		"X-Forwarded-For":          []string{"203.0.113.10"},
-		"X-Craftsky-Session-Token": []string{"alternate-session-token"},
+		"Authorization":                  []string{"Bearer craftsky-session-token"},
+		"Cookie":                         []string{"sid=oauth-refresh-token"},
+		"DPoP":                           []string{"proof-material"},
+		"X-Craftsky-Device-Id":           []string{"device-123"},
+		"X-Request-Id":                   []string{"safe-request-id"},
+		"Content-Type":                   []string{"application/json"},
+		"X-Forwarded-For":                []string{"203.0.113.10"},
+		"X-Craftsky-Session-Token":       []string{"alternate-session-token"},
+		"X-RevenueCat-Webhook-Signature": []string{"t=private,v1=private-signature"},
 	}
 
 	redacted := RedactHeaders(headers)
 
-	for _, key := range []string{"Authorization", "Cookie", "DPoP", "X-Craftsky-Device-Id", "X-Craftsky-Session-Token"} {
+	for _, key := range []string{"Authorization", "Cookie", "DPoP", "X-Craftsky-Device-Id", "X-Craftsky-Session-Token", "X-RevenueCat-Webhook-Signature"} {
 		if got := redacted.Get(key); got != "[REDACTED]" {
 			t.Fatalf("%s = %q, want [REDACTED]", key, got)
 		}

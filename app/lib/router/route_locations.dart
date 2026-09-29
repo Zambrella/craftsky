@@ -33,6 +33,8 @@ class RouteLocations {
   static const languagesChild = 'languages';
   static const customisationChild = 'customisation';
   static const accountChild = 'account';
+  static const subscriptionsChild = 'subscriptions';
+  static const subscriptions = '$settings/$subscriptionsChild';
   static const moderationChild = 'moderation';
   static const aboutChild = 'about';
   static const productsChild = 'products';

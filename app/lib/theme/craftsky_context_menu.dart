@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
+import 'package:craftsky_app/subscriptions/widgets/plus_action_icon.dart';
 import 'package:craftsky_app/theme/craftsky_divider.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -28,6 +30,7 @@ class CraftskyContextMenuItem {
     this.isSelected = false,
     this.switchValue,
     this.style = CraftskyContextMenuItemStyle.normal,
+    this.locked = false,
   });
 
   final String text;
@@ -39,6 +42,7 @@ class CraftskyContextMenuItem {
   final bool isSelected;
   final bool? switchValue;
   final CraftskyContextMenuItemStyle style;
+  final bool locked;
 }
 
 /// Logical grouping for context menu rows.
@@ -376,7 +380,11 @@ class _CraftskyContextMenuRow extends StatelessWidget {
       CraftskyContextMenuItemStyle.normal => theme.colorScheme.onSurface,
       CraftskyContextMenuItemStyle.destructive => semanticColors.error,
     };
-    final color = isDisabled ? theme.colorScheme.outline : foreground;
+    final color = isDisabled
+        ? theme.colorScheme.outline
+        : item.locked && !subscriptionsEnabled
+        ? foreground.withValues(alpha: 0.72)
+        : foreground;
     final selectedBackground = theme.colorScheme.primaryContainer.withValues(
       alpha: 0.4,
     );
@@ -398,12 +406,17 @@ class _CraftskyContextMenuRow extends StatelessWidget {
           onTap: onTap,
           contentPadding: EdgeInsets.symmetric(horizontal: spacing.sp4),
           horizontalTitleGap: spacing.sp3,
-          leading: Icon(
-            item.isSelected && item.switchValue == null
-                ? CraftskyIcons.selectedOption
-                : item.icon,
-            color: color,
-          ),
+          leading: item.locked
+              ? IconTheme(
+                  data: IconThemeData(color: color),
+                  child: PlusActionIcon(icon: item.icon),
+                )
+              : Icon(
+                  item.isSelected && item.switchValue == null
+                      ? CraftskyIcons.selectedOption
+                      : item.icon,
+                  color: color,
+                ),
           title: Text(
             item.text,
             style: theme.textTheme.labelLarge?.copyWith(color: color),

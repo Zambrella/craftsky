@@ -2,10 +2,14 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/data/language_catalogue.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
 import 'package:craftsky_app/languages/widgets/post_language_selector.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/widgets/plus_action_icon.dart';
+import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class ComposerMetadataControls extends StatelessWidget {
   const ComposerMetadataControls({
@@ -15,6 +19,8 @@ class ComposerMetadataControls extends StatelessWidget {
     required this.onSponsoredChanged,
     required this.scheduledAtLocal,
     required this.onSchedulePressed,
+    this.scheduleAccess,
+    this.onScheduleAccessRetry,
     this.showSponsored = true,
     this.showSchedule = true,
     super.key,
@@ -26,6 +32,8 @@ class ComposerMetadataControls extends StatelessWidget {
   final ValueChanged<bool>? onSponsoredChanged;
   final DateTime? scheduledAtLocal;
   final ValueChanged<BuildContext>? onSchedulePressed;
+  final AsyncValue<SubscriptionAccess>? scheduleAccess;
+  final VoidCallback? onScheduleAccessRetry;
   final bool showSponsored;
   final bool showSchedule;
 
@@ -92,7 +100,7 @@ class ComposerMetadataControls extends StatelessWidget {
                   final value? => _compactScheduleLabel(context, value),
                   _ => l10n.scheduledPostNow,
                 };
-                return Semantics(
+                final control = Semantics(
                   label: l10n.scheduledPostWhenTitle,
                   value: compactLabel,
                   button: true,
@@ -109,10 +117,11 @@ class ComposerMetadataControls extends StatelessWidget {
                       onPressed: onSchedulePressed == null
                           ? null
                           : () => onSchedulePressed!(menuContext),
-                      icon: Icon(
-                        CraftskyIcons.schedule,
-                        color: colors.primary,
-                      ),
+                      icon:
+                          scheduleAccess != null &&
+                              scheduleAccess?.value?.allowsPlus != true
+                          ? const PlusActionIcon(icon: CraftskyIcons.schedule)
+                          : Icon(CraftskyIcons.schedule, color: colors.primary),
                       label: Text(_compactScheduleLabel(context, scheduledAt)),
                     ),
                     _ => IconButton(
@@ -122,9 +131,22 @@ class ComposerMetadataControls extends StatelessWidget {
                       onPressed: onSchedulePressed == null
                           ? null
                           : () => onSchedulePressed!(menuContext),
-                      icon: const Icon(CraftskyIcons.schedule),
+                      icon:
+                          scheduleAccess != null &&
+                              scheduleAccess?.value?.allowsPlus != true
+                          ? const PlusActionIcon(icon: CraftskyIcons.schedule)
+                          : const Icon(CraftskyIcons.schedule),
                     ),
                   },
+                );
+                if (scheduleAccess == null) return control;
+                return PlusFeatureLock(
+                  feature: l10n.scheduledPostsTitle,
+                  access: scheduleAccess,
+                  showPlusBadge: false,
+                  onUnlocked: () => onSchedulePressed?.call(menuContext),
+                  onRetry: onScheduleAccessRetry,
+                  child: control,
                 );
               },
             ),

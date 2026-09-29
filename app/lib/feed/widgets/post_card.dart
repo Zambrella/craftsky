@@ -36,6 +36,8 @@ import 'package:craftsky_app/shared/rich_text/faceted_text_model.dart';
 import 'package:craftsky_app/shared/rich_text/widgets/faceted_text.dart';
 import 'package:craftsky_app/shared/time/relative_time_text.dart';
 import 'package:craftsky_app/shared/widgets/post_summary.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
+import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
@@ -324,6 +326,13 @@ class PostCard extends ConsumerWidget {
     final pinPresentation = pinProvider == null
         ? null
         : ref.watch(pinProvider).value;
+    final pinAccess = activeLease == null
+        ? null
+        : ref.watch(subscriptionAccessProvider(activeLease.session));
+    final pinEligible = switch (pinAccess) {
+      AsyncData(:final value) => value.allowsPlus,
+      _ => false,
+    };
     final isCurrentPin =
         pinSlot != null &&
         pinPresentation != null &&
@@ -595,12 +604,28 @@ class PostCard extends ConsumerWidget {
                               ? l10n.postUnpinAction
                               : l10n.postPinAction,
                           isPinned: isCurrentPin,
+                          pinLocked: !pinEligible,
                           onPinToggle:
                               pinProvider == null ||
                                   pinSlot == null ||
                                   pinPresentation == null ||
                                   isPinPending
                               ? null
+                              : !pinEligible
+                              ? () => unawaited(
+                                  showPlusFeaturePrompt(
+                                    context,
+                                    l10n.postPinAction,
+                                    free: pinAccess is AsyncData,
+                                    onRetry: activeLease == null
+                                        ? null
+                                        : () => ref.invalidate(
+                                            subscriptionAccessProvider(
+                                              activeLease.session,
+                                            ),
+                                          ),
+                                  ),
+                                )
                               : () => unawaited(
                                   _mutateProfilePin(
                                     context,
@@ -999,6 +1024,7 @@ class _PostCardMenu extends StatelessWidget {
     required this.onViewLikes,
     required this.pinLabel,
     required this.isPinned,
+    required this.pinLocked,
     required this.onPinToggle,
     required this.onDelete,
     required this.onReport,
@@ -1015,6 +1041,7 @@ class _PostCardMenu extends StatelessWidget {
   final VoidCallback? onViewLikes;
   final String? pinLabel;
   final bool isPinned;
+  final bool pinLocked;
   final VoidCallback? onPinToggle;
   final VoidCallback? onDelete;
   final VoidCallback? onReport;
@@ -1051,6 +1078,7 @@ class _PostCardMenu extends StatelessWidget {
                 CraftskyContextMenuItem(
                   text: pinLabel!,
                   icon: isPinned ? CraftskyIcons.pinned : CraftskyIconsBold.pin,
+                  locked: pinLocked,
                   onPressed: onPinToggle,
                   isSelected: isPinned,
                 ),

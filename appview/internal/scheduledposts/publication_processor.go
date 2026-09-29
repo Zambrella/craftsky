@@ -61,25 +61,29 @@ type GuardedCommandCoordinatorFactory func(
 ) (GuardedCommandCoordinator, error)
 
 type PublicationProcessorOptions struct {
-	Store         publicationProcessorStore
-	Sessions      PublicationSessionSelector
-	NewCommands   GuardedCommandCoordinatorFactory
-	Objects       PrivateObjectStore
-	Now           func() time.Time
-	Validate      func(context.Context, syntax.DID, Payload) error
-	MaxMediaBytes int64
-	Observer      OperationalObserver
+	CheckPlusAccess func(context.Context, syntax.DID) (bool, error)
+	WithPlusAccess  func(context.Context, syntax.DID, func(context.Context) error) error
+	Store           publicationProcessorStore
+	Sessions        PublicationSessionSelector
+	NewCommands     GuardedCommandCoordinatorFactory
+	Objects         PrivateObjectStore
+	Now             func() time.Time
+	Validate        func(context.Context, syntax.DID, Payload) error
+	MaxMediaBytes   int64
+	Observer        OperationalObserver
 }
 
 type PublicationProcessor struct {
-	store         publicationProcessorStore
-	sessions      PublicationSessionSelector
-	newCommands   GuardedCommandCoordinatorFactory
-	objects       PrivateObjectStore
-	now           func() time.Time
-	validate      func(context.Context, syntax.DID, Payload) error
-	maxMediaBytes int64
-	observer      OperationalObserver
+	checkPlusAccess func(context.Context, syntax.DID) (bool, error)
+	withPlusAccess  func(context.Context, syntax.DID, func(context.Context) error) error
+	store           publicationProcessorStore
+	sessions        PublicationSessionSelector
+	newCommands     GuardedCommandCoordinatorFactory
+	objects         PrivateObjectStore
+	now             func() time.Time
+	validate        func(context.Context, syntax.DID, Payload) error
+	maxMediaBytes   int64
+	observer        OperationalObserver
 }
 
 func NewPublicationProcessor(options PublicationProcessorOptions) (*PublicationProcessor, error) {
@@ -101,7 +105,9 @@ func NewPublicationProcessor(options PublicationProcessorOptions) (*PublicationP
 	return &PublicationProcessor{store: options.Store, sessions: options.Sessions,
 		newCommands: options.NewCommands, objects: options.Objects, now: options.Now,
 		validate: options.Validate, maxMediaBytes: options.MaxMediaBytes,
-		observer: options.Observer}, nil
+		withPlusAccess:  options.WithPlusAccess,
+		checkPlusAccess: options.CheckPlusAccess,
+		observer:        options.Observer}, nil
 }
 
 func (p *PublicationProcessor) Process(ctx context.Context, item WorkItem) (processErr error) {
@@ -138,6 +144,15 @@ func (p *PublicationProcessor) Process(ctx context.Context, item WorkItem) (proc
 	startLatency = started.UTC().Sub(snapshot.ScheduledAt)
 	if startLatency < 0 {
 		startLatency = 0
+	}
+	if p.checkPlusAccess != nil {
+		paid, err := p.checkPlusAccess(ctx, claim.OwnerDID)
+		if err != nil {
+			return err
+		}
+		if !paid {
+			return p.recordFailure(ctx, claim, ErrSubscriptionRequired, item.Manual)
+		}
 	}
 	if !item.Manual && !AutomaticPublicationEligible(snapshot.ScheduledAt, p.now().UTC()) {
 		return p.recordFailure(ctx, claim, ErrAutomaticCutoffExceeded, false)
@@ -230,68 +245,70 @@ func (p *PublicationProcessor) Process(ctx context.Context, item WorkItem) (proc
 			defer func() {
 				effectErr = errors.Join(effectErr, guard.Release(effectCtx))
 			}()
-			if err := p.uploadPrivateMedia(
-				effectCtx,
-				effects,
-				claim,
-				expectedOwners,
-				snapshot.Media,
-			); err != nil {
-				return p.handleEffectFailure(effectCtx, claim, scheduledBlobEffect, err, item.Manual)
-			}
-			intent, err := scheduledPublicationCommandIntent(claim, recordBytes)
-			if err != nil {
-				return p.recordFailure(effectCtx, claim, ErrRecordConflict, item.Manual)
-			}
-			selectedURI := syntax.ATURI(
-				"at://" + claim.OwnerDID.String() + "/" + PostCollection + "/" + claim.Rkey.String(),
-			)
-			commandResult, err := commands.ExecuteAppend(
-				effectCtx,
-				pdscommands.FencedAppendCommandRequest{
-					Command: pdscommands.AppendCommandRequest{
-						Owner: claim.OwnerDID, OwnerGeneration: claim.OwnerGeneration,
-						SessionID: sessionID, OperationKind: "scheduled_post_publish",
-						OperationKey: scheduledPublicationCommandKey(claim),
-						Collection:   syntax.NSID(PostCollection), Intent: intent,
-						Blobs: scheduledPublicationBlobReferences(snapshot.Media),
-						BuildRecord: func(time.Time) (json.RawMessage, error) {
-							return append(json.RawMessage(nil), recordBytes...), nil
+			publish := func(effectCtx context.Context) error {
+				if err := p.uploadPrivateMedia(effectCtx, effects, claim, expectedOwners, snapshot.Media); err != nil {
+					return p.handleEffectFailure(effectCtx, claim, scheduledBlobEffect, err, item.Manual)
+				}
+				intent, err := scheduledPublicationCommandIntent(claim, recordBytes)
+				if err != nil {
+					return p.recordFailure(effectCtx, claim, ErrRecordConflict, item.Manual)
+				}
+				selectedURI := syntax.ATURI("at://" + claim.OwnerDID.String() + "/" + PostCollection + "/" + claim.Rkey.String())
+				commandResult, err := commands.ExecuteAppend(
+					effectCtx,
+					pdscommands.FencedAppendCommandRequest{
+						Command: pdscommands.AppendCommandRequest{
+							Owner: claim.OwnerDID, OwnerGeneration: claim.OwnerGeneration,
+							SessionID: sessionID, OperationKind: "scheduled_post_publish",
+							OperationKey: scheduledPublicationCommandKey(claim),
+							Collection:   syntax.NSID(PostCollection), Intent: intent,
+							Blobs: scheduledPublicationBlobReferences(snapshot.Media),
+							BuildRecord: func(time.Time) (json.RawMessage, error) {
+								return append(json.RawMessage(nil), recordBytes...), nil
+							},
+							Accepted: scheduledPublicationAcceptedResult,
+							Rejected: scheduledPublicationRejectedResult,
 						},
-						Accepted: scheduledPublicationAcceptedResult,
-						Rejected: scheduledPublicationRejectedResult,
+						SelectedURI: selectedURI, SelectedRkey: claim.Rkey,
 					},
-					SelectedURI: selectedURI, SelectedRkey: claim.Rkey,
-				},
-			)
-			if err != nil {
-				return p.handleScheduledCommandFailure(effectCtx, claim, err, item.Manual)
-			}
-			if commandResult.State == pdscommands.CommandAmbiguous {
-				return p.handleScheduledCommandFailure(
-					effectCtx, claim, pdseffects.ErrOutcomeAmbiguous, item.Manual,
 				)
+				if err != nil {
+					return p.handleScheduledCommandFailure(effectCtx, claim, err, item.Manual)
+				}
+				if commandResult.State == pdscommands.CommandAmbiguous {
+					return p.handleScheduledCommandFailure(
+						effectCtx, claim, pdseffects.ErrOutcomeAmbiguous, item.Manual,
+					)
+				}
+				if commandResult.State == pdscommands.CommandRejected {
+					return p.recordFailure(effectCtx, claim, ErrRecordConflict, item.Manual)
+				}
+				var result struct {
+					URI syntax.ATURI `json:"uri"`
+					CID syntax.CID   `json:"cid"`
+				}
+				if commandResult.State != pdscommands.CommandAccepted ||
+					json.Unmarshal(commandResult.ResponseBody, &result) != nil ||
+					result.URI == "" || result.CID == "" {
+					return p.recordFailure(effectCtx, claim, ErrRecordConflict, item.Manual)
+				}
+				_, err = p.store.FinalizePublication(effectCtx, FinalizePublicationParams{
+					Claim: claim, PublicationURI: result.URI, PublicationCID: result.CID,
+					PublishedAt: p.now().UTC(),
+				})
+				if err == nil {
+					finalized = true
+				}
+				return err
 			}
-			if commandResult.State == pdscommands.CommandRejected {
-				return p.recordFailure(effectCtx, claim, ErrRecordConflict, item.Manual)
+			if p.withPlusAccess != nil {
+				err = p.withPlusAccess(effectCtx, claim.OwnerDID, publish)
+				if errors.Is(err, ErrSubscriptionRequired) {
+					return p.recordFailure(effectCtx, claim, ErrSubscriptionRequired, item.Manual)
+				}
+				return err
 			}
-			var result struct {
-				URI syntax.ATURI `json:"uri"`
-				CID syntax.CID   `json:"cid"`
-			}
-			if commandResult.State != pdscommands.CommandAccepted ||
-				json.Unmarshal(commandResult.ResponseBody, &result) != nil ||
-				result.URI == "" || result.CID == "" {
-				return p.recordFailure(effectCtx, claim, ErrRecordConflict, item.Manual)
-			}
-			_, err = p.store.FinalizePublication(effectCtx, FinalizePublicationParams{
-				Claim: claim, PublicationURI: result.URI, PublicationCID: result.CID,
-				PublishedAt: p.now().UTC(),
-			})
-			if err == nil {
-				finalized = true
-			}
-			return err
+			return publish(effectCtx)
 		},
 	)
 	if errors.Is(effectErr, ownerlifecycle.ErrGenerationChanged) ||

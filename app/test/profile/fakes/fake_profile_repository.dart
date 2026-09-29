@@ -44,6 +44,7 @@ class FakeProfileRepository implements ProfileRepository {
     this.onListMutedProfiles,
     this.onListBlockedProfiles,
   });
+  bool fallbackFetchMeToFetch = false;
 
   final Future<Profile> Function(String handleOrDid)? onFetch;
   final Future<Profile> Function()? onFetchMe;
@@ -107,6 +108,7 @@ class FakeProfileRepository implements ProfileRepository {
   @override
   Future<Profile> fetchMe() =>
       onFetchMe?.call() ??
+      (fallbackFetchMeToFetch ? onFetch?.call('did:plc:test') : null) ??
       Future<Profile>.error(UnimplementedError('fetchMe not stubbed'));
 
   @override

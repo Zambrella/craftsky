@@ -12,6 +12,7 @@ var (
 	ErrPublicationAmbiguous    = errors.New("scheduled publication outcome is ambiguous")
 	ErrManualPublicationFailed = errors.New("manual scheduled publication failed")
 	ErrAutomaticCutoffExceeded = errors.New("scheduled publication automatic cutoff exceeded")
+	ErrSubscriptionRequired    = errors.New("scheduled publication subscription required")
 )
 
 type FailureDisposition string
@@ -28,6 +29,8 @@ type FailureDecision struct {
 
 func ClassifyPublicationFailure(err error) FailureDecision {
 	switch {
+	case errors.Is(err, ErrSubscriptionRequired):
+		return FailureDecision{Disposition: FailureNeedsAttention, SafeCode: "subscription_required"}
 	case errors.Is(err, ErrPolicyInvalid):
 		return FailureDecision{Disposition: FailureNeedsAttention, SafeCode: "policy_invalid"}
 	case errors.Is(err, ErrMediaInvalid):

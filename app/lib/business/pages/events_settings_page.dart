@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/providers/active_account_identity_provider.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/models/event_diagnostics.dart';
@@ -12,6 +13,7 @@ import 'package:craftsky_app/business/widgets/event_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
@@ -27,27 +29,52 @@ class EventsSettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
     final identity = ref.watch(activeAccountIdentityProvider);
+    final lease = ref
+        .watch(sessionRegistryProvider)
+        .value
+        ?.activeLease
+        ?.session;
+    final access = lease == null
+        ? null
+        : ref.watch(subscriptionAccessProvider(lease));
+    final licensed = switch (access) {
+      AsyncData(:final value)
+          when !access.isLoading &&
+              !access.hasError &&
+              value.did == lease?.account.did =>
+        value.allowsBusiness,
+      _ => false,
+    };
     return Scaffold(
       appBar: AppBar(title: Text(l10n.businessEventsSettingsTitle)),
-      body: identity.when(
-        loading: () => const CraftskySkeletonList(
-          itemBuilder: _buildEventSkeleton,
-          itemCount: 3,
-          padding: EdgeInsets.all(16),
-        ),
-        error: (_, _) => _InitialError(
-          onRetry: () => ref.invalidate(activeAccountIdentityProvider),
-        ),
-        data: (value) {
-          if (value == null ||
-              value.profile.accountType != AccountType.business) {
-            return Center(child: Text(l10n.businessEventsUnavailable));
-          }
-          return const _EventsManager();
-        },
-      ),
+      body: access == null || access.isLoading
+          ? const CraftskySkeletonList(
+              itemBuilder: _buildEventSkeleton,
+              itemCount: 3,
+              padding: EdgeInsets.all(16),
+            )
+          : !licensed
+          ? Center(child: Text(l10n.businessEventsUnavailable))
+          : identity.when(
+              loading: () => const CraftskySkeletonList(
+                itemBuilder: _buildEventSkeleton,
+                itemCount: 3,
+                padding: EdgeInsets.all(16),
+              ),
+              error: (_, _) => _InitialError(
+                onRetry: () => ref.invalidate(activeAccountIdentityProvider),
+              ),
+              data: (value) {
+                if (value == null ||
+                    value.profile.accountType != AccountType.business) {
+                  return Center(child: Text(l10n.businessEventsUnavailable));
+                }
+                return const _EventsManager();
+              },
+            ),
       floatingActionButton:
-          identity.value?.profile.accountType == AccountType.business
+          licensed &&
+              identity.value?.profile.accountType == AccountType.business
           ? CraftskyFloatingActionButton.extended(
               onPressed: () => _openEditor(context),
               icon: const Icon(CraftskyIconsBold.add),

@@ -25,6 +25,8 @@ import 'package:craftsky_app/profile/models/profile_customisation.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/router/route_locations.dart';
 import 'package:craftsky_app/router/router.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
@@ -75,6 +77,7 @@ Future<ProviderContainer> _pumpShell(
   required Size size,
   Profile? activeProfile,
   ProfileRepository? profileRepository,
+  SubscriptionTier Function()? accessTier,
   NotificationNewnessRepository Function(AccountKey account)? countRepository,
 }) async {
   tester.view.devicePixelRatio = 1;
@@ -86,6 +89,20 @@ Future<ProviderContainer> _pumpShell(
       : registry.sessions[registry.activeDid];
   final container = ProviderContainer.test(
     overrides: [
+      subscriptionAccessProvider.overrideWith(
+        (ref, lease) async => SubscriptionAccess(
+          did: lease.account.did,
+          effectiveTier: accessTier?.call() ?? SubscriptionTier.free,
+          givesAccess:
+              (accessTier?.call() ?? SubscriptionTier.free) !=
+              SubscriptionTier.free,
+          assignedTier:
+              (accessTier?.call() ?? SubscriptionTier.free) ==
+                  SubscriptionTier.free
+              ? null
+              : accessTier?.call(),
+        ),
+      ),
       secureSessionRegistryStorageProvider.overrideWithValue(
         _RegistryStorage(registry),
       ),
@@ -162,6 +179,58 @@ Future<ProviderContainer> _pumpShell(
 }
 
 void main() {
+  testWidgets('IT-010 access loss refreshes the cached owner profile', (
+    tester,
+  ) async {
+    var tier = SubscriptionTier.plus;
+    var fetches = 0;
+    final profile = Profile(
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+      crafts: const [],
+      customisation: const ProfileCustomisation(colour: 'teal'),
+    );
+    final registry = SessionRegistry.empty().upsertAndActivate(
+      token: 'alice-token',
+      did: 'did:plc:alice',
+      handle: 'alice.test',
+    );
+    final container = await _pumpShell(
+      tester,
+      registry: registry,
+      size: const Size(500, 800),
+      activeProfile: profile,
+      accessTier: () => tier,
+      profileRepository: FakeProfileRepository(
+        onFetchMe: () async {
+          fetches++;
+          return profile;
+        },
+        onFetch: (_) async => profile,
+      ),
+    );
+    expect(
+      tester
+          .widget<AccountAvatar>(find.byType(AccountAvatar))
+          .customisation
+          .colour,
+      'teal',
+    );
+    final initialFetches = fetches;
+    tier = SubscriptionTier.free;
+    container.invalidate(
+      subscriptionAccessProvider(registry.activeLease!.session),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<AccountAvatar>(find.byType(AccountAvatar))
+          .customisation
+          .colour,
+      'cobalt',
+    );
+    expect(fetches, greaterThan(initialFetches));
+  });
   testWidgets(
     'initial signed-in shell hydrates the active Profile avatar',
     (tester) async {
@@ -194,7 +263,7 @@ void main() {
             .widget<AccountAvatar>(find.byType(AccountAvatar))
             .customisation
             .colour,
-        'teal',
+        'cobalt',
       );
       expect(
         container

@@ -230,6 +230,10 @@ class _ScheduledPostTile extends StatelessWidget {
             liveRegion: true,
             child: Text(_statusLabel(l10n, item.status)),
           ),
+          if (item.subscriptionRequired)
+            Text(l10n.scheduledPostSubscriptionPending),
+          if (item.lastErrorCode == 'subscription_required')
+            Text(l10n.scheduledPostSubscriptionMissed),
           if (item.needsAttentionExpiresAt case final expiresAt?)
             Text(
               l10n.scheduledPostsDeletedOn(

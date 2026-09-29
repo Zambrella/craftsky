@@ -105,6 +105,8 @@ ScheduledPostSummary _summary(Map<String, dynamic> map) {
   final status = scheduledPostStatusFromWire(map['status']! as String);
   if (status == null) throw const FormatException('unknown scheduled status');
   return ScheduledPostSummary(
+    subscriptionRequired: map['subscriptionRequired'] == true,
+    lastErrorCode: map['lastErrorCode'] as String?,
     id: map['id']! as String,
     kind: map['kind'] == 'project'
         ? ScheduledPostKind.project
@@ -127,6 +129,8 @@ ScheduledPostDetail _detail(Map<String, dynamic> map) {
   final status = scheduledPostStatusFromWire(map['status']! as String);
   if (status == null) throw const FormatException('unknown scheduled status');
   return ScheduledPostDetail(
+    subscriptionRequired: map['subscriptionRequired'] == true,
+    lastErrorCode: map['lastErrorCode'] as String?,
     id: map['id']! as String,
     operationId: map['operationId']! as String,
     status: status,

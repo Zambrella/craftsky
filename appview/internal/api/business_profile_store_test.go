@@ -11,6 +11,10 @@ import (
 )
 
 func TestBusinessProfileStoreEligibility(t *testing.T) {
+	subscriptionMigration, err := testdb.ReadMigration("000076_subscription_accounts.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
 	pool := testdb.WithSchema(t, `
 		CREATE TABLE craftsky_profiles (
 			did TEXT PRIMARY KEY,
@@ -28,7 +32,7 @@ func TestBusinessProfileStoreEligibility(t *testing.T) {
 			source_revision TEXT NOT NULL,
 			indexed_at TIMESTAMPTZ NOT NULL DEFAULT now()
 		);
-	`)
+	`+string(subscriptionMigration))
 	ctx := context.Background()
 	did := syntax.DID("did:plc:alice")
 	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles(did, record_cid) VALUES ($1, 'profile-cid')`, did); err != nil {
@@ -37,6 +41,7 @@ func TestBusinessProfileStoreEligibility(t *testing.T) {
 	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_account_types(owner_did, account_type) VALUES ($1, 'business')`, did); err != nil {
 		t.Fatalf("seed account type: %v", err)
 	}
+	seedBusinessTestLicense(t, pool, did)
 	if _, err := pool.Exec(ctx, `
 		INSERT INTO craftsky_business_profiles(owner_did, uri, cid, raw_record, source_revision)
 		VALUES ($1, 'at://did:plc:alice/social.craftsky.business.profile/self', 'business-cid',
@@ -50,14 +55,14 @@ func TestBusinessProfileStoreEligibility(t *testing.T) {
 	if err != nil || view == nil || view.Tagline != "Visible" {
 		t.Fatalf("business member profile = (%+v, %v)", view, err)
 	}
-	if _, err := pool.Exec(ctx, `UPDATE craftsky_account_types SET account_type='regular' WHERE owner_did=$1`, did); err != nil {
-		t.Fatalf("set regular: %v", err)
+	if _, err := pool.Exec(ctx, `UPDATE provider_subscriptions SET gives_access=false WHERE id=(SELECT provider_subscription_id FROM billing_licenses WHERE assigned_did=$1)`, did); err != nil {
+		t.Fatalf("end business access: %v", err)
 	}
 	if view, err := store.ReadEligibleProfile(ctx, did); err != nil || view != nil {
 		t.Fatalf("regular member profile = (%+v, %v), want nil", view, err)
 	}
-	if _, err := pool.Exec(ctx, `UPDATE craftsky_account_types SET account_type='business' WHERE owner_did=$1`, did); err != nil {
-		t.Fatalf("restore business type: %v", err)
+	if _, err := pool.Exec(ctx, `UPDATE provider_subscriptions SET gives_access=true WHERE id=(SELECT provider_subscription_id FROM billing_licenses WHERE assigned_did=$1)`, did); err != nil {
+		t.Fatalf("restore business access: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `DELETE FROM craftsky_profiles WHERE did=$1`, did); err != nil {
 		t.Fatalf("remove membership: %v", err)

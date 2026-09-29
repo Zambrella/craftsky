@@ -23,6 +23,7 @@ func TestClassifyPublicationFailure(t *testing.T) {
 		{name: "policy invalid", err: fmt.Errorf("wrapped: %w", ErrPolicyInvalid), wantDisposition: FailureNeedsAttention, wantCode: "policy_invalid"},
 		{name: "media invalid", err: fmt.Errorf("wrapped: %w", ErrMediaInvalid), wantDisposition: FailureNeedsAttention, wantCode: "media_invalid"},
 		{name: "record conflict", err: fmt.Errorf("wrapped: %w", ErrRecordConflict), wantDisposition: FailureNeedsAttention, wantCode: "record_conflict"},
+		{name: "subscription lost", err: fmt.Errorf("wrapped: %w", ErrSubscriptionRequired), wantDisposition: FailureNeedsAttention, wantCode: "subscription_required"},
 	}
 
 	for _, test := range tests {

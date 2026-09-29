@@ -13,6 +13,7 @@ import (
 
 	"social.craftsky/appview/internal/observability"
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/subscriptions"
 )
 
 var (
@@ -56,16 +57,20 @@ type ProfilePinMutationResult struct {
 }
 
 type ProfilePinStoreOptions struct {
-	Now      func() time.Time
-	NewID    func() uuid.UUID
-	Observer *observability.Observer
+	RequirePlus       bool
+	AccessEnvironment string
+	Now               func() time.Time
+	NewID             func() uuid.UUID
+	Observer          *observability.Observer
 }
 
 type ProfilePinStore struct {
-	pool     *pgxpool.Pool
-	now      func() time.Time
-	newID    func() uuid.UUID
-	observer *observability.Observer
+	requirePlus       bool
+	accessEnvironment string
+	pool              *pgxpool.Pool
+	now               func() time.Time
+	newID             func() uuid.UUID
+	observer          *observability.Observer
 }
 
 func NewProfilePinStore(pool *pgxpool.Pool, options ...ProfilePinStoreOptions) *ProfilePinStore {
@@ -83,7 +88,39 @@ func NewProfilePinStore(pool *pgxpool.Pool, options ...ProfilePinStoreOptions) *
 	if len(options) > 0 {
 		observer = options[0].Observer
 	}
-	return &ProfilePinStore{pool: pool, now: now, newID: newID, observer: observer}
+	result := &ProfilePinStore{pool: pool, now: now, newID: newID, observer: observer}
+	if len(options) > 0 {
+		result.requirePlus = options[0].RequirePlus
+		result.accessEnvironment = options[0].AccessEnvironment
+	}
+	if result.accessEnvironment != "sandbox" {
+		result.accessEnvironment = "production"
+	}
+	return result
+}
+
+func (s *ProfilePinStore) requirePaidMutation(ctx context.Context, tx pgx.Tx, owner syntax.DID) error {
+	if !s.requirePlus {
+		return nil
+	}
+	if _, err := tx.Exec(ctx, `SELECT pg_advisory_xact_lock_shared($1)`, subscriptions.AccessFenceKey(owner)); err != nil {
+		return err
+	}
+	var paid bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS (
+		SELECT 1 FROM billing_licenses license
+		JOIN provider_subscriptions subscription ON subscription.id=license.provider_subscription_id
+		WHERE license.assigned_did=$1 AND license.tier IN ('plus','business')
+		  AND subscription.gives_access AND subscription.environment=$2
+		  AND subscription.app_id IS NOT NULL AND subscription.mapped_tier=license.tier
+		  AND subscription.anomaly='none'
+	)`, owner, s.accessEnvironment).Scan(&paid); err != nil {
+		return err
+	}
+	if !paid {
+		return subscriptions.ErrFeatureAccessRequired
+	}
+	return nil
 }
 
 func (s *ProfilePinStore) Read(ctx context.Context, owner syntax.DID) (ProfilePinState, error) {
@@ -151,6 +188,9 @@ func (s *ProfilePinStore) Pin(
 	defer func() { _ = tx.Rollback(ctx) }()
 	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, owner, nil); err != nil {
 		return ProfilePinMutationResult{}, fmt.Errorf("profile pin authorization: %w", err)
+	}
+	if err := s.requirePaidMutation(ctx, tx, owner); err != nil {
+		return ProfilePinMutationResult{}, err
 	}
 
 	var (
@@ -253,6 +293,9 @@ func (s *ProfilePinStore) Unpin(
 	defer func() { _ = tx.Rollback(ctx) }()
 	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, owner, nil); err != nil {
 		return ProfilePinMutationResult{}, fmt.Errorf("profile unpin authorization: %w", err)
+	}
+	if err := s.requirePaidMutation(ctx, tx, owner); err != nil {
+		return ProfilePinMutationResult{}, err
 	}
 
 	if err := lockProfilePinOwner(ctx, tx, owner); err != nil {

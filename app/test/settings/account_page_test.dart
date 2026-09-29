@@ -1,10 +1,11 @@
-import 'dart:async';
-import 'dart:ui' show SemanticsAction, Tristate;
+import 'dart:ui' show SemanticsAction;
 
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/active_account_identity_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
 import 'package:craftsky_app/business/data/business_repository.dart';
 import 'package:craftsky_app/business/models/business_event.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
@@ -14,11 +15,14 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/settings/pages/account_page.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 
 import '../business/accessibility_test_helpers.dart';
@@ -26,6 +30,45 @@ import '../fakes/auth_session_fakes.dart';
 import '../fakes/recording_messenger.dart';
 
 void main() {
+  testWidgets(
+    'AT-003 lapsed Business account type is regular despite cached identity',
+    (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            authSessionProvider.overrideWith(SignedInAuthSession.new),
+            activeAccountIdentityProvider.overrideWith(
+              (_) async => _identity(AccountType.business),
+            ),
+            secureSessionRegistryStorageProvider.overrideWithValue(
+              _AccountPageRegistryStorage(
+                SessionRegistry.empty().upsertAndActivate(
+                  token: 'test-token',
+                  did: 'did:plc:test',
+                  handle: 'test.bsky.social',
+                ),
+              ),
+            ),
+            subscriptionAccessProvider.overrideWith(
+              (ref, lease) async => SubscriptionAccess(
+                did: lease.account.did,
+                effectiveTier: SubscriptionTier.free,
+                givesAccess: false,
+              ),
+            ),
+          ],
+          child: const MaterialApp(
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: AccountPage(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Regular'), findsOneWidget);
+      expect(find.text('Business'), findsNothing);
+    },
+  );
   for (final constraint in businessAccessibilityMatrix) {
     testWidgets(
       'AT-012 REG-010 account type and delete confirmation fit '
@@ -36,6 +79,7 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
+              ..._businessAccessOverrides(),
               authSessionProvider.overrideWith(SignedInAuthSession.new),
               activeAccountIdentityProvider.overrideWith(
                 (_) async => _identity(AccountType.business),
@@ -54,19 +98,8 @@ void main() {
         );
         await tester.pumpAndSettle();
 
-        final selector = find.byType(SegmentedButton<AccountType>);
-        expect(selector, findsOneWidget);
-        expect(
-          tester.getSemantics(find.text('Business')).flagsCollection.isSelected,
-          Tristate.isTrue,
-        );
-        expect(
-          tester
-              .getSemantics(find.text('Regular'))
-              .getSemanticsData()
-              .hasAction(SemanticsAction.tap),
-          isTrue,
-        );
+        expect(find.byType(SegmentedButton<AccountType>), findsNothing);
+        expect(find.text('Business'), findsOneWidget);
         await expectKeyboardFocus(tester);
 
         final delete = find.text('Delete account');
@@ -88,12 +121,13 @@ void main() {
   }
 
   testWidgets(
-    'AT-001 account selector is authoritative, single-flight, and reversible',
+    'AT-003 account type is read-only and follows loaded profile',
     (tester) async {
       final repository = _AccountTypeRepository();
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
+            ..._businessAccessOverrides(),
             authSessionProvider.overrideWith(SignedInAuthSession.new),
             activeAccountIdentityProvider.overrideWith(
               (_) async => _identity(AccountType.business),
@@ -110,33 +144,16 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Account type'), findsOneWidget);
-      expect(find.text('Regular'), findsOneWidget);
       expect(find.text('Business'), findsOneWidget);
-
-      await tester.tap(find.text('Regular'));
-      await tester.pump();
-
-      final selector = tester.widget<SegmentedButton<AccountType>>(
-        find.byType(SegmentedButton<AccountType>),
-      );
-      expect(selector.onSelectionChanged, isNull);
-      expect(repository.accountTypeUpdates, [AccountType.regular]);
+      expect(find.byType(SegmentedButton<AccountType>), findsNothing);
+      expect(repository.accountTypeUpdates, isEmpty);
       expect(repository.businessProfilePuts, 0);
       expect(repository.eventDeletes, 0);
       expect(find.byType(AlertDialog), findsNothing);
-
-      repository.complete(AccountType.regular);
-      await tester.pumpAndSettle();
-
-      final settled = tester.widget<SegmentedButton<AccountType>>(
-        find.byType(SegmentedButton<AccountType>),
-      );
-      expect(settled.selected, {AccountType.regular});
-      expect(settled.onSelectionChanged, isNotNull);
     },
   );
 
-  testWidgets('AT-001 failure keeps selection and restores input', (
+  testWidgets('AT-003 regular account cannot set business type', (
     tester,
   ) async {
     final repository = _AccountTypeRepository();
@@ -163,19 +180,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Business'));
-    await tester.pump();
-    repository.fail(StateError('private failure'));
-    await tester.pumpAndSettle();
-
-    final selector = tester.widget<SegmentedButton<AccountType>>(
-      find.byType(SegmentedButton<AccountType>),
-    );
-    expect(selector.selected, {AccountType.regular});
-    expect(selector.onSelectionChanged, isNotNull);
-    expect(messenger.calls, [
-      ('error', "That didn't work. Please try again.", null),
-    ]);
+    expect(find.text('Regular'), findsOneWidget);
+    expect(find.text('Business'), findsNothing);
+    expect(find.byType(SegmentedButton<AccountType>), findsNothing);
+    expect(repository.accountTypeUpdates, isEmpty);
+    expect(messenger.calls, isEmpty);
   });
 
   testWidgets('Delete account requires both warning and exact typed DID', (
@@ -246,18 +255,40 @@ ActiveAccountIdentity _identity(AccountType type) => ActiveAccountIdentity(
   ),
 );
 
+final class _AccountPageRegistryStorage implements SessionRegistryStorage {
+  _AccountPageRegistryStorage(this.registry);
+  SessionRegistry registry;
+  @override
+  Future<SessionRegistry> read() async => registry;
+  @override
+  Future<void> write(SessionRegistry registry) async =>
+      this.registry = registry;
+}
+
+List<Override> _businessAccessOverrides() => [
+  secureSessionRegistryStorageProvider.overrideWithValue(
+    _AccountPageRegistryStorage(
+      SessionRegistry.empty().upsertAndActivate(
+        token: 'test-token',
+        did: 'did:plc:test',
+        handle: 'test.bsky.social',
+      ),
+    ),
+  ),
+  subscriptionAccessProvider.overrideWith(
+    (ref, lease) async => SubscriptionAccess(
+      did: lease.account.did,
+      effectiveTier: SubscriptionTier.business,
+      givesAccess: true,
+      assignedTier: SubscriptionTier.business,
+    ),
+  ),
+];
+
 final class _AccountTypeRepository extends Fake implements BusinessRepository {
   final accountTypeUpdates = <AccountType>[];
   int businessProfilePuts = 0;
   int eventDeletes = 0;
-  late Completer<AccountType> _completion;
-
-  @override
-  Future<AccountType> updateAccountType(AccountType value) {
-    accountTypeUpdates.add(value);
-    _completion = Completer<AccountType>();
-    return _completion.future;
-  }
 
   @override
   Future<RecordMutationResult> putBusinessProfile(
@@ -279,8 +310,4 @@ final class _AccountTypeRepository extends Fake implements BusinessRepository {
     eventDeletes++;
     throw StateError('unexpected event deletion');
   }
-
-  void complete(AccountType value) => _completion.complete(value);
-
-  void fail(Object error) => _completion.completeError(error);
 }

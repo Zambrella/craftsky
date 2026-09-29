@@ -3,11 +3,52 @@ import 'dart:ui' show Tristate;
 import 'package:craftsky_app/feed/widgets/composer_metadata_controls.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/post_language_selection.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
+import 'package:craftsky_app/subscriptions/widgets/plus_feature_lock.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets(
+    'AT-007 Free composer schedule explains Plus without opening',
+    (tester) async {
+      var opened = 0;
+      await tester.pumpWidget(
+        _app(
+          ComposerMetadataControls(
+            languages: PostLanguageSelection.fromPrimary('en'),
+            onLanguagesChanged: (_) {},
+            sponsored: false,
+            onSponsoredChanged: (_) {},
+            scheduledAtLocal: null,
+            onSchedulePressed: (_) => opened++,
+            scheduleAccess: AsyncData(
+              SubscriptionAccess(
+                did: Did.parse('did:plc:test'),
+                effectiveTier: SubscriptionTier.free,
+                givesAccess: false,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.byType(PlusFeatureLock));
+      await tester.pumpAndSettle();
+      expect(
+        find.text(
+          subscriptionsEnabled
+              ? 'Scheduled posts requires Plus'
+              : 'Scheduled posts is coming soon',
+        ),
+        findsOneWidget,
+      );
+      expect(opened, 0);
+    },
+  );
   testWidgets('collapses inactive composer metadata into three icon controls', (
     tester,
   ) async {

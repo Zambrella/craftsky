@@ -29,6 +29,7 @@ import (
 	"social.craftsky/appview/internal/push"
 	"social.craftsky/appview/internal/relationships"
 	"social.craftsky/appview/internal/scheduledposts"
+	"social.craftsky/appview/internal/subscriptions"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -145,8 +146,11 @@ type Deps struct {
 	PDSCompoundCommands  *pdscommands.CompoundCommandService
 	PDSCommandCompaction *pdscommands.CompactionProcessor
 	// BusinessStore owns account-type, declaration, and event read models.
-	BusinessStore    *business.Store
-	EventCursorCodec *api.EventCursorCodec
+	BusinessStore        *business.Store
+	Subscriptions        *subscriptions.Store
+	RevenueCatWebhook    http.Handler
+	RevenueCatReconciler *subscriptions.Reconciler
+	EventCursorCodec     *api.EventCursorCodec
 	// Now is the process clock used by request-time business event policy.
 	Now func() time.Time
 
@@ -334,6 +338,11 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	if err != nil {
 		return nil, nil, err
 	}
+	subscriptionCapability, err := newSubscriptionDependencies(pool, cfg.RevenueCat, nil, observer)
+	if err != nil {
+		return nil, nil, err
+	}
+	setBusinessAccessEnvironment(content, pool, subscriptionCapability.store.AccessEnvironment())
 	deps := &Deps{
 		Config:                      cfg,
 		Logger:                      logger,
@@ -380,6 +389,9 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		RelationshipStore:           relationshipStore,
 		LanguagePreferences:         languagePreferences,
 		BusinessStore:               content.business,
+		Subscriptions:               subscriptionCapability.store,
+		RevenueCatWebhook:           subscriptionCapability.webhook,
+		RevenueCatReconciler:        subscriptionCapability.reconciler,
 		EventCursorCodec:            eventCursorCodec,
 		Now:                         time.Now,
 		ProfileStore:                content.profiles,
@@ -436,12 +448,12 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		authCapability,
 		owners,
 		federated,
-		content.business,
 		instagramPrivateData,
 		scheduledAccountDeletion,
 		scheduledDepartureParticipant,
 		cfg,
 		logger,
+		observer,
 	)
 	if err != nil {
 		return nil, nil, err
@@ -452,7 +464,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	deps.AccountDeletionWorker = deletion.worker
 	deps.AccountDeletionIntentExpiry = deletion.intentExpiry
 	scheduledPublication, err := newScheduledPublicationDependencies(
-		pool, scheduledStorage, content, pdsEffects, observer, cfg,
+		pool, scheduledStorage, content, pdsEffects, observer, cfg, subscriptionCapability.store,
 	)
 	if err != nil {
 		return nil, nil, err

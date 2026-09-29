@@ -3,7 +3,6 @@ import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
     show sessionRegistryProvider;
-import 'package:craftsky_app/business/providers/account_type_controller.dart';
 import 'package:craftsky_app/business/providers/business_event_detail_provider.dart';
 import 'package:craftsky_app/business/providers/business_event_mutation_controller.dart';
 import 'package:craftsky_app/business/providers/business_repository_provider.dart';
@@ -63,6 +62,9 @@ import 'package:craftsky_app/search/providers/search_repository_provider.dart';
 import 'package:craftsky_app/search/providers/search_suggestions_provider.dart';
 import 'package:craftsky_app/search/providers/top_hashtags_provider.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_page_model_provider.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_repository_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 typedef AccountBoundaryAction = Future<void> Function();
@@ -134,7 +136,6 @@ final accountStateInvalidatorProvider = Provider<AccountBoundaryAction>(
       ..invalidate(toggleFollowProfileProvider)
       ..invalidate(toggleBlockProfileProvider)
       ..invalidate(businessRepositoryProvider)
-      ..invalidate(accountTypeControllerProvider)
       ..invalidate(businessEventMutationControllerProvider)
       ..invalidate(ownerBusinessEventsProvider)
       ..invalidate(productsControllerProvider)
@@ -173,7 +174,10 @@ final accountStateInvalidatorProvider = Provider<AccountBoundaryAction>(
       ..invalidate(savedPostPresentationProvider)
       ..invalidate(savedPostFoldersProvider)
       ..invalidate(savedPostsProvider)
-      ..invalidate(savePostDialogControllerProvider);
+      ..invalidate(savePostDialogControllerProvider)
+      ..invalidate(subscriptionRepositoryProvider)
+      ..invalidate(subscriptionAccessProvider)
+      ..invalidate(subscriptionPageModelProvider);
   },
 );
 

@@ -21,30 +21,26 @@ func TestBusinessRecordsPermanentDeletionIsOrderedRetrySafeAndScoped(t *testing.
 	}{
 		{name: "events", interruptAfter: "events", membershipPresent: true},
 		{name: "declaration", interruptAfter: "declaration", membershipPresent: true},
-		{name: "account type", interruptAfter: "accountType", membershipPresent: true},
 		{name: "membership", interruptAfter: "membership", membershipPresent: true},
 		{name: "membership already absent", membershipPresent: false},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			pds := newBusinessDeletionPDS(owner, test.membershipPresent, test.interruptAfter)
-			accountTypes := &recordingAccountTypeDeleter{
-				owner: owner, present: true, interruptAfter: test.interruptAfter, effects: &pds.effects,
-			}
 			deleter := NewPDSDeleter(pds, 1)
 
-			_, err := deleter.DeleteAllWithAccountType(context.Background(), owner, accountTypes)
+			_, err := deleter.DeleteAll(context.Background(), owner)
 			if test.interruptAfter != "" {
 				if err == nil {
 					t.Fatal("first deletion unexpectedly survived injected interruption")
 				}
-				if _, err := deleter.DeleteAllWithAccountType(context.Background(), owner, accountTypes); err != nil {
+				if _, err := deleter.DeleteAll(context.Background(), owner); err != nil {
 					t.Fatalf("retry deletion: %v", err)
 				}
 			} else if err != nil {
 				t.Fatalf("delete with absent membership: %v", err)
 			}
 
-			wantEffects := []string{"existing/post", "event/first", "event/second", "profile/self", "accountType"}
+			wantEffects := []string{"existing/post", "event/first", "event/second", "profile/self"}
 			if test.membershipPresent {
 				wantEffects = append(wantEffects, "membership/self")
 			}
@@ -55,8 +51,8 @@ func TestBusinessRecordsPermanentDeletionIsOrderedRetrySafeAndScoped(t *testing.
 			for _, records := range pds.records {
 				remaining += len(records)
 			}
-			if accountTypes.present || remaining != 0 {
-				t.Fatalf("business state remains: accountType=%t records=%v", accountTypes.present, pds.records)
+			if remaining != 0 {
+				t.Fatalf("business records remain: %v", pds.records)
 			}
 			if !pds.finalRegistryScanObserved {
 				t.Fatal("complete registry was not scanned after membership stage")
@@ -127,16 +123,15 @@ func (pds *businessDeletionPDS) ListRecords(
 		case pds.interruptAfter == "events" && collection == "social.craftsky.business.profile" && len(pds.records["social.craftsky.business.event"]) == 0:
 			pds.interrupted = true
 			return nil, "", errors.New("interrupted after events")
-		case pds.interruptAfter == "accountType" && collection == "social.craftsky.actor.profile":
+		case pds.interruptAfter == "declaration" && collection == "social.craftsky.actor.profile" && len(pds.records["social.craftsky.business.profile"]) == 0:
 			pds.interrupted = true
-			return nil, "", errors.New("interrupted after account type")
+			return nil, "", errors.New("interrupted after declaration")
 		case pds.interruptAfter == "membership" && pds.membershipStageComplete:
 			pds.interrupted = true
 			return nil, "", errors.New("interrupted after membership")
 		}
 	}
-	if pds.membershipStageComplete ||
-		(collection == "social.craftsky.feed.post" && len(pds.effects) > 0 && pds.effects[len(pds.effects)-1] == "accountType") {
+	if pds.membershipStageComplete || (collection == "social.craftsky.feed.post" && len(pds.records["social.craftsky.business.profile"]) == 0 && len(pds.records["social.craftsky.business.event"]) == 0) {
 		pds.finalRegistryScanObserved = true
 	}
 	records := pds.records[syntax.NSID(collection)]
@@ -175,29 +170,6 @@ func (pds *businessDeletionPDS) DeleteRecord(
 		return nil
 	}
 	return auth.ErrRecordNotFound
-}
-
-type recordingAccountTypeDeleter struct {
-	owner          syntax.DID
-	present        bool
-	interruptAfter string
-	interrupted    bool
-	effects        *[]string
-}
-
-func (deleter *recordingAccountTypeDeleter) DeleteAccountType(_ context.Context, owner syntax.DID) error {
-	if owner != deleter.owner {
-		return errors.New("account type delete escaped owner scope")
-	}
-	if deleter.interruptAfter == "declaration" && !deleter.interrupted {
-		deleter.interrupted = true
-		return errors.New("interrupted after declaration")
-	}
-	if deleter.present {
-		deleter.present = false
-		*deleter.effects = append(*deleter.effects, "accountType")
-	}
-	return nil
 }
 
 var _ auth.DeletionPDSClient = (*businessDeletionPDS)(nil)

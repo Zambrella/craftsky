@@ -13,6 +13,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/data/crafts_catalog.dart';
 import 'package:craftsky_app/profile/data/profile_field_constraints.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
+import 'package:craftsky_app/profile/models/profile_feature_access.dart';
 import 'package:craftsky_app/profile/models/profile_save_result.dart';
 import 'package:craftsky_app/profile/providers/profile_image_picker_provider.dart';
 import 'package:craftsky_app/profile/providers/save_profile_provider.dart';
@@ -26,6 +27,8 @@ import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/media/image_source_menu.dart';
 import 'package:craftsky_app/shared/media/uploaded_image_blob.dart';
 import 'package:craftsky_app/shared/messaging/context_messenger_extension.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/brand_text_field.dart';
 import 'package:craftsky_app/theme/craftsky_dialog.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -113,9 +116,22 @@ class EditProfileDialog extends ConsumerWidget {
     if (myDid == null) return const _EditProfileLoadingScaffold();
 
     final profileAsync = ref.watch(userProfileProvider(myDid));
+    final lease = ref
+        .watch(sessionRegistryProvider)
+        .value
+        ?.activeLease
+        ?.session;
+    SubscriptionAccess? confirmedAccess;
+    if (lease?.account.did == myDid) {
+      final access = ref.watch(subscriptionAccessProvider(lease!));
+      if (access.isLoading) return const _EditProfileLoadingScaffold();
+      if (access case AsyncData(:final value)) {
+        confirmedAccess = value;
+      }
+    }
     return switch (profileAsync) {
       AsyncValue(:final value?) => _EditProfileForm(
-        profile: value,
+        profile: projectOwnerFeatureAccess(value, confirmedAccess),
         linkLauncher: linkLauncher,
         confirmOpenLink: confirmOpenLink,
       ),

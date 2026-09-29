@@ -24,6 +24,9 @@ import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/messaging/widgets/craftsky_snack_bar.dart';
 import 'package:craftsky_app/shared/observability/error_reporter.dart';
 import 'package:craftsky_app/shared/observability/error_reporter_provider.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
+import 'package:craftsky_app/subscriptions/subscription_build_config.dart';
 import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -37,53 +40,59 @@ import '../fakes/recording_messenger.dart';
 import '../feed/fakes/fake_post_repository.dart';
 import '../test_support/deterministic_pump.dart';
 
+void _paidTestWidgets(String description, WidgetTesterCallback body) =>
+    testWidgets(description, body, skip: !subscriptionsEnabled);
+
 void main() {
-  testWidgets('AT-005 freezes and privately stages a scheduled external card', (
-    tester,
-  ) async {
-    final scheduled = _SubmissionRepository();
-    await tester.pumpWidget(
-      _testApp(
-        scheduled: scheduled,
-        publicPosts: FakePostRepository(),
-        messenger: RecordingMessenger(),
-        images: const ComposerImagesState(images: []),
-        previews: _PreviewRepository(),
-      ),
-    );
-    await pumpUntilFound(
+  _paidTestWidgets(
+    'AT-005 freezes and privately stages a scheduled external card',
+    (
       tester,
-      find.byType(TextField),
-      description: 'the post composer text field',
-    );
-    await tester.enterText(
-      find.byType(TextField).first,
-      'Use https://source.example/pattern#section ',
-    );
-    await _pumpUntil(
-      tester,
-      () => find.text('Frozen pattern').evaluate().isNotEmpty,
-    );
-    await _selectLater(tester);
-    await _pumpUntilEnabled(tester, 'Schedule');
-    await tester.tap(find.byKey(const Key('post-composer-primary-action')));
-    await _pumpUntil(tester, () => scheduled.createCalls == 1);
+    ) async {
+      final scheduled = _SubmissionRepository();
+      await tester.pumpWidget(
+        _testApp(
+          scheduled: scheduled,
+          publicPosts: FakePostRepository(),
+          messenger: RecordingMessenger(),
+          images: const ComposerImagesState(images: []),
+          previews: _PreviewRepository(),
+        ),
+      );
+      await pumpUntilFound(
+        tester,
+        find.byType(TextField),
+        description: 'the post composer text field',
+      );
+      await tester.enterText(
+        find.byType(TextField).first,
+        'Use https://source.example/pattern#section ',
+      );
+      await _pumpUntil(
+        tester,
+        () => find.text('Frozen pattern').evaluate().isNotEmpty,
+      );
+      await _selectLater(tester);
+      await _pumpUntilEnabled(tester, 'Schedule');
+      await tester.tap(find.byKey(const Key('post-composer-primary-action')));
+      await _pumpUntil(tester, () => scheduled.createCalls == 1);
 
-    final external =
-        scheduled.createdPayload!['external'] as Map<String, dynamic>;
-    expect(scheduled.events, ['stage:start', 'stage:done', 'create']);
-    expect(scheduled.stagedBytes, [1, 2, 3]);
-    expect(scheduled.stagedMimeType, 'image/png');
-    expect(external, {
-      'sourceUri': 'https://source.example/pattern',
-      'uri': 'https://final.example/pattern#final',
-      'title': 'Frozen pattern',
-      'description': 'Frozen description',
-      'thumbMediaId': scheduled.stagedID,
-    });
-  });
+      final external =
+          scheduled.createdPayload!['external'] as Map<String, dynamic>;
+      expect(scheduled.events, ['stage:start', 'stage:done', 'create']);
+      expect(scheduled.stagedBytes, [1, 2, 3]);
+      expect(scheduled.stagedMimeType, 'image/png');
+      expect(external, {
+        'sourceUri': 'https://source.example/pattern',
+        'uri': 'https://final.example/pattern#final',
+        'title': 'Frozen pattern',
+        'description': 'Frozen description',
+        'thumbMediaId': scheduled.stagedID,
+      });
+    },
+  );
 
-  testWidgets('AT-005 freezes metadata-only without staging media', (
+  _paidTestWidgets('AT-005 freezes metadata-only without staging media', (
     tester,
   ) async {
     final scheduled = _SubmissionRepository();
@@ -121,7 +130,7 @@ void main() {
     );
   });
 
-  testWidgets(
+  _paidTestWidgets(
     'IR-019 trimmed terminal frozen URL survives create reopen save',
     (tester) async {
       final scheduled = _SubmissionRepository();
@@ -551,7 +560,7 @@ void main() {
     expect(messenger.calls, contains(('error', "Couldn't post.", null)));
   });
 
-  testWidgets('AT-004 stages private media before creating the schedule', (
+  _paidTestWidgets('AT-004 stages private media before creating the schedule', (
     tester,
   ) async {
     final stageGate = Completer<void>();
@@ -605,7 +614,7 @@ void main() {
     expect(publicCreateCalls, 0);
   });
 
-  testWidgets('AT-004 failure preserves the composer and retry identity', (
+  _paidTestWidgets('AT-004 failure preserves the composer and retry identity', (
     tester,
   ) async {
     final scheduled = _SubmissionRepository(
@@ -663,7 +672,7 @@ void main() {
     expect(scheduled.operationIDs.toSet(), {'submission'});
   });
 
-  testWidgets('IR-020 new schedule retains identical thumbnail ID '
+  _paidTestWidgets('IR-020 new schedule retains identical thumbnail ID '
       'and rotates changed content', (tester) async {
     final firstBytes = _pngBytes(width: 3, height: 1);
     final secondBytes = _pngBytes(width: 4, height: 1);
@@ -796,6 +805,14 @@ Widget _testApp({
   final account = registry.activeLease!.session.account;
   return ProviderScope(
     overrides: [
+      subscriptionAccessProvider.overrideWith(
+        (ref, lease) async => SubscriptionAccess(
+          did: lease.account.did,
+          effectiveTier: SubscriptionTier.plus,
+          givesAccess: true,
+          assignedTier: SubscriptionTier.plus,
+        ),
+      ),
       secureSessionRegistryStorageProvider.overrideWithValue(
         _RegistryStorage(registry),
       ),

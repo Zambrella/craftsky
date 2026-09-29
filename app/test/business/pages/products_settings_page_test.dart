@@ -1,6 +1,12 @@
+import 'dart:async';
+
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/account_session_lease.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart';
 import 'package:craftsky_app/auth/providers/active_account_identity_provider.dart';
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart'
+    show sessionRegistryProvider;
 import 'package:craftsky_app/auth/providers/unsaved_work_guard_provider.dart';
 import 'package:craftsky_app/business/data/business_repository.dart';
 import 'package:craftsky_app/business/models/business_drafts.dart';
@@ -14,6 +20,8 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
+import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
+import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/craftsky_card.dart';
@@ -29,6 +37,73 @@ import 'package:flutter_test/flutter_test.dart';
 import '../accessibility_test_helpers.dart';
 
 void main() {
+  testWidgets('AT-008 Products create action hides during access refresh', (
+    tester,
+  ) async {
+    var refreshing = false;
+    final pending = Completer<SubscriptionAccess>();
+    await tester.pumpWidget(
+      _app(
+        _identity(_profile(withProducts: true)),
+        access: (lease) => refreshing
+            ? pending.future
+            : Future.value(
+                SubscriptionAccess(
+                  did: lease.account.did,
+                  effectiveTier: SubscriptionTier.business,
+                  givesAccess: true,
+                  assignedTier: SubscriptionTier.business,
+                ),
+              ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(CraftskyFloatingActionButton), findsOneWidget);
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(ProductsSettingsPage)),
+    );
+    final lease = container
+        .read(sessionRegistryProvider)
+        .requireValue
+        .activeLease!
+        .session;
+    refreshing = true;
+    container.invalidate(subscriptionAccessProvider(lease));
+    await tester.pump();
+    final loading = container.read(subscriptionAccessProvider(lease));
+    expect(loading, isA<AsyncData<SubscriptionAccess>>());
+    expect(loading.isLoading, isTrue);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(CraftskyFloatingActionButton), findsNothing);
+    pending.complete(
+      SubscriptionAccess(
+        did: lease.account.did,
+        effectiveTier: SubscriptionTier.business,
+        givesAccess: true,
+        assignedTier: SubscriptionTier.business,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(CraftskyFloatingActionButton), findsOneWidget);
+  });
+
+  testWidgets('AT-008 cached Business owner loses product manager on lapse', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _app(
+        _identity(_profile(withProducts: true)),
+        tier: SubscriptionTier.free,
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      find.text('Product management is available to business accounts.'),
+      findsOneWidget,
+    );
+    expect(find.byType(CraftskyFloatingActionButton), findsNothing);
+  });
   for (final constraint in businessAccessibilityMatrix) {
     testWidgets(
       'AT-012 REG-010 Products manager fits '
@@ -157,6 +232,23 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _ProductsRegistryStorage(
+              SessionRegistry.empty().upsertAndActivate(
+                token: 'token',
+                did: 'did:plc:owner',
+                handle: 'owner.test',
+              ),
+            ),
+          ),
+          subscriptionAccessProvider.overrideWith(
+            (ref, lease) async => SubscriptionAccess(
+              did: lease.account.did,
+              effectiveTier: SubscriptionTier.business,
+              givesAccess: true,
+              assignedTier: SubscriptionTier.business,
+            ),
+          ),
           activeAccountIdentityProvider.overrideWith(
             (_) async => throw StateError('failed'),
           ),
@@ -252,8 +344,31 @@ void main() {
 Widget _app(
   ActiveAccountIdentity identity, {
   BusinessRepository? repository,
+  SubscriptionTier tier = SubscriptionTier.business,
+  Future<SubscriptionAccess> Function(AccountSessionLease)? access,
 }) => ProviderScope(
   overrides: [
+    secureSessionRegistryStorageProvider.overrideWithValue(
+      _ProductsRegistryStorage(
+        SessionRegistry.empty().upsertAndActivate(
+          token: 'token',
+          did: 'did:plc:owner',
+          handle: 'owner.test',
+        ),
+      ),
+    ),
+    subscriptionAccessProvider.overrideWith(
+      (ref, lease) =>
+          access?.call(lease) ??
+          Future.value(
+            SubscriptionAccess(
+              did: lease.account.did,
+              effectiveTier: tier,
+              givesAccess: tier != SubscriptionTier.free,
+              assignedTier: tier == SubscriptionTier.free ? null : tier,
+            ),
+          ),
+    ),
     activeAccountIdentityProvider.overrideWith((_) async => identity),
     if (repository != null)
       businessRepositoryProvider.overrideWithValue(repository),
@@ -265,6 +380,16 @@ Widget _app(
     home: const ProductsSettingsPage(),
   ),
 );
+
+final class _ProductsRegistryStorage implements SessionRegistryStorage {
+  _ProductsRegistryStorage(this.registry);
+  SessionRegistry registry;
+  @override
+  Future<SessionRegistry> read() async => registry;
+  @override
+  Future<void> write(SessionRegistry registry) async =>
+      this.registry = registry;
+}
 
 ActiveAccountIdentity _identity(Profile profile) => ActiveAccountIdentity(
   lease: AccountSessionLease(
