@@ -4953,6 +4953,18 @@ abstract class AppLocalizations {
   /// **'Publishing your post…'**
   String get submissionPublishingPost;
 
+  /// Blocking status when publishing a comment on a root post.
+  ///
+  /// In en, this message translates to:
+  /// **'Publishing your comment…'**
+  String get submissionPublishingComment;
+
+  /// Blocking status when publishing a reply to a comment.
+  ///
+  /// In en, this message translates to:
+  /// **'Publishing your reply…'**
+  String get submissionPublishingReply;
+
   /// Blocking scheduled-submission status.
   ///
   /// In en, this message translates to:

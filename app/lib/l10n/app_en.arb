@@ -2389,6 +2389,12 @@
   "submissionPublishingPost": "Publishing your post…",
   "@submissionPublishingPost": { "description": "Blocking immediate-submission status." },
 
+  "submissionPublishingComment": "Publishing your comment…",
+  "@submissionPublishingComment": { "description": "Blocking status when publishing a comment on a root post." },
+
+  "submissionPublishingReply": "Publishing your reply…",
+  "@submissionPublishingReply": { "description": "Blocking status when publishing a reply to a comment." },
+
   "submissionSchedulingPost": "Scheduling your post…",
   "@submissionSchedulingPost": { "description": "Blocking scheduled-submission status." },
 

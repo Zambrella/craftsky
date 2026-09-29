@@ -2798,6 +2798,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get submissionPublishingPost => 'Publishing your post…';
 
   @override
+  String get submissionPublishingComment => 'Publishing your comment…';
+
+  @override
+  String get submissionPublishingReply => 'Publishing your reply…';
+
+  @override
   String get submissionSchedulingPost => 'Scheduling your post…';
 
   @override

@@ -741,6 +741,11 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
           if (_isSubmitting)
             SubmissionBlockingOverlay(
               scheduling: _scheduleChoice == ScheduleChoice.later,
+              kind: isComment
+                  ? SubmissionKind.comment
+                  : isResponse
+                  ? SubmissionKind.reply
+                  : SubmissionKind.post,
               videoProgress: _videoProgress,
               onCancelVideo: _videoPublication?.cancel,
             ),
