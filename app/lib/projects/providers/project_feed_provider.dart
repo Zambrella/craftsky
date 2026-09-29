@@ -1,4 +1,6 @@
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
+import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/models/project_browse_filters.dart';
 import 'package:craftsky_app/projects/models/user_projects_state.dart';
@@ -23,7 +25,10 @@ class ProjectFeed extends _$ProjectFeed {
           query: query,
           limit: projectFeedPageLimit,
         );
-    return UserProjectsState(items: page.items, cursor: page.cursor);
+    return UserProjectsState(
+      items: _visibleProjects(ref, page.items),
+      cursor: page.cursor,
+    );
   }
 
   Future<void> loadMore() async {
@@ -43,7 +48,10 @@ class ProjectFeed extends _$ProjectFeed {
             cursor: current.cursor,
           );
       return UserProjectsState(
-        items: appendUniquePosts(current.items, page.items),
+        items: appendUniquePosts(
+          current.items,
+          _visibleProjects(ref, page.items),
+        ),
         cursor: page.cursor,
       );
     });
@@ -52,3 +60,7 @@ class ProjectFeed extends _$ProjectFeed {
     state = next;
   }
 }
+
+List<Post> _visibleProjects(Ref ref, List<Post> posts) => [
+  for (final post in posts) ?applyPostRecordOverlay(ref, post),
+];
