@@ -91,6 +91,39 @@ CREATE TABLE craftsky_posts (
     profile_sort_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     UNIQUE (did, rkey)
 );
+CREATE TABLE image_subject_states (
+    subject_uri       TEXT        NOT NULL PRIMARY KEY,
+    subject_kind      TEXT        NOT NULL,
+    source_cid        TEXT        NOT NULL,
+    visibility_state  TEXT        NOT NULL CHECK (visibility_state IN ('blocked', 'clear')),
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (subject_uri, source_cid)
+);
+CREATE FUNCTION seed_clear_post_image_subject() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+    INSERT INTO image_subject_states(subject_uri, subject_kind, source_cid, visibility_state)
+    VALUES(NEW.uri, 'post', NEW.cid, 'clear')
+    ON CONFLICT (subject_uri) DO UPDATE SET
+        source_cid = EXCLUDED.source_cid,
+        visibility_state = 'clear',
+        updated_at = now();
+    RETURN NEW;
+END
+$$;
+CREATE TRIGGER seed_clear_post_image_subject
+AFTER INSERT ON craftsky_posts
+FOR EACH ROW EXECUTE FUNCTION seed_clear_post_image_subject();
+CREATE FUNCTION appview_image_subject_is_clear(candidate_uri TEXT, candidate_cid TEXT)
+RETURNS BOOLEAN LANGUAGE plpgsql STABLE AS $$
+BEGIN
+    RETURN EXISTS (
+        SELECT 1 FROM image_subject_states
+        WHERE subject_uri = candidate_uri
+          AND source_cid = candidate_cid
+          AND visibility_state = 'clear'
+    );
+END
+$$;
 CREATE TABLE craftsky_project_posts (
     uri TEXT PRIMARY KEY REFERENCES craftsky_posts(uri) ON DELETE CASCADE,
     raw_project JSONB NOT NULL,
@@ -728,6 +761,37 @@ func TestPostStore_ReadPostByURI_HiddenPostReturnsNotFound(t *testing.T) {
 	_, err := store.ReadPostByURI(context.Background(), uri)
 	if !errors.Is(err, api.ErrPostNotFound) {
 		t.Fatalf("ReadPostByURI err = %v, want ErrPostNotFound", err)
+	}
+}
+
+func TestPostStore_ReadPostByURI_NonClearImagePostReturnsNotFound(t *testing.T) {
+	t.Parallel()
+	pool := testdb.WithSchema(t, postStoreDDL)
+	seedMember(t, pool, "did:plc:alice")
+	uri := seedPost(t, pool, "did:plc:alice", "image-pending", "pending", time.Now().UTC())
+	store := api.NewPostStore(pool)
+
+	if _, err := store.ReadPostByURI(context.Background(), uri); err != nil {
+		t.Fatalf("ReadPostByURI clear post: %v", err)
+	}
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE image_subject_states
+		SET visibility_state='error'
+		WHERE subject_uri=$1
+	`, uri); err == nil {
+		t.Fatal("invalid image visibility state unexpectedly accepted")
+	}
+	if _, err := pool.Exec(context.Background(), `
+		UPDATE image_subject_states
+		SET visibility_state='blocked'
+		WHERE subject_uri=$1
+	`, uri); err != nil {
+		t.Fatalf("block image subject: %v", err)
+	}
+
+	_, err := store.ReadPostByURI(context.Background(), uri)
+	if !errors.Is(err, api.ErrPostNotFound) {
+		t.Fatalf("ReadPostByURI non-clear error = %v, want ErrPostNotFound", err)
 	}
 }
 

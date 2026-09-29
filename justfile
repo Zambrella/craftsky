@@ -172,6 +172,30 @@ appview-test-unit:
 appview-check:
     GOFLAGS="-p=1" ./scripts/appview-check
 
+# Generate the staged five-policy artifact from the canonical Markdown drafts.
+policy-artifact:
+    python3 scripts/generate-policy-artifact.py
+
+# Public-release gate. This intentionally fails while P0s or approvals are open.
+online-safety-readiness *ARGS:
+    ./scripts/online-safety-readiness {{ARGS}}
+
+online-safety-readiness-test:
+    python3 -m unittest discover -s scripts -p 'test_online_safety_readiness.py'
+
+web-test-consent:
+    npm run --prefix web test:consent
+
+# Complete repository-side public-release workflow. The final readiness step is
+# expected to fail until the external P0 approvals and evidence are complete.
+public-release-check:
+    just appview-check
+    just app-analyze
+    just app-test
+    just online-safety-readiness-test
+    just web-test-consent
+    just online-safety-readiness
+
 # Format and vet Go code on the host.
 fmt:
     cd appview && gofmt -w . && go vet ./...

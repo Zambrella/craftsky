@@ -215,6 +215,11 @@ func testConfigFile(t *testing.T, contents string) string {
 		"TAP_REPOSITORY_BACKOFF_MIN", "TAP_REPOSITORY_BACKOFF_MAX",
 		"TAP_QUARANTINE_POLL_INTERVAL", "TAP_QUARANTINE_LEASE_DURATION",
 		"TAP_QUARANTINE_OPERATION_TIMEOUT", "TAP_QUARANTINE_BATCH_SIZE",
+		"IMAGE_SAFETY_SCANNER_MODE", "IMAGE_SAFETY_SCANNER_ID",
+		"IMAGE_SAFETY_POLICY_VERSION", "IMAGE_SAFETY_CORPUS_VERSION",
+		"IMAGE_SAFETY_POLL_INTERVAL", "IMAGE_SAFETY_LEASE_DURATION",
+		"IMAGE_SAFETY_OPERATION_TIMEOUT", "IMAGE_SAFETY_MAX_ATTEMPTS",
+		"IMAGE_SAFETY_BACKOFF_MIN", "IMAGE_SAFETY_BACKOFF_MAX", "IMAGE_SAFETY_ALERT_AGE",
 		"OAUTH_HOSTNAME", "OAUTH_PUBLIC_ORIGIN", "OAUTH_REGISTRATION_PROVIDER_ORIGIN", "OAUTH_CALLBACK_URL", "OAUTH_CLIENT_SECRET_KEY", "OAUTH_CLIENT_SECRET_KEY_ID",
 		"OAUTH_SCOPES", "OAUTH_SESSION_EXPIRY", "OAUTH_SESSION_ABSOLUTE_LIFETIME",
 		"OAUTH_SESSION_INACTIVITY", "CRAFTSKY_SESSION_INACTIVITY",
@@ -231,6 +236,8 @@ func testConfigFile(t *testing.T, contents string) string {
 		"SCHEDULED_IMAGE_ADMISSION_WAIT",
 		"SCHEDULED_POSTS_S3_ENDPOINT", "SCHEDULED_POSTS_S3_REGION", "SCHEDULED_POSTS_S3_BUCKET",
 		"SCHEDULED_POSTS_S3_ACCESS_KEY_ID", "SCHEDULED_POSTS_S3_SECRET_ACCESS_KEY",
+		"SAFETY_EVIDENCE_S3_ENDPOINT", "SAFETY_EVIDENCE_S3_REGION", "SAFETY_EVIDENCE_S3_BUCKET",
+		"SAFETY_EVIDENCE_S3_ACCESS_KEY_ID", "SAFETY_EVIDENCE_S3_SECRET_ACCESS_KEY",
 		"SENTRY_DSN", "SENTRY_RELEASE", "SENTRY_TRACING_ENABLED", "SENTRY_TRACES_SAMPLE_RATE",
 		"SENTRY_LOGS_ENABLED", "SENTRY_METRICS_ENABLED", "SENTRY_TAP_TRACING_ENABLED",
 		"SENTRY_TAP_TRACES_SAMPLE_RATE",
@@ -330,6 +337,9 @@ func TestLoadConfig_ScheduledPostObjectStoreIsCompleteAndProductionUsesTLS(t *te
 	if cfg.ScheduledPostsS3.Endpoint != "http://minio:9000" || cfg.ScheduledPostsS3.Bucket != "private-scheduled-media" {
 		t.Fatalf("scheduled object store defaults = %+v", cfg.ScheduledPostsS3)
 	}
+	if cfg.SafetyEvidenceS3.Endpoint != "http://minio:9000" || cfg.SafetyEvidenceS3.Bucket != "restricted-safety-evidence" {
+		t.Fatalf("restricted evidence object store defaults = %+v", cfg.SafetyEvidenceS3)
+	}
 
 	prodBase := withProductionOAuth("DATABASE_URL=postgres://prod\nALLOWED_ORIGINS=https://craftsky.social\nTAP_WS_URL=ws://tap\n")
 	_, err = LoadConfig(EnvProd, testConfigFile(t, prodBase+"SCHEDULED_POSTS_S3_ENDPOINT=http://objects.example\nSCHEDULED_POSTS_S3_REGION=eu-west-2\nSCHEDULED_POSTS_S3_BUCKET=private\nSCHEDULED_POSTS_S3_ACCESS_KEY_ID=key\nSCHEDULED_POSTS_S3_SECRET_ACCESS_KEY=secret\n"))
@@ -343,6 +353,12 @@ func TestLoadConfig_ScheduledPostObjectStoreIsCompleteAndProductionUsesTLS(t *te
 	}
 	if cfg.ScheduledPostsS3.SecretAccessKey != "secret" {
 		t.Fatal("production object-store credentials were not loaded")
+	}
+	_, err = LoadConfig(EnvProd, testConfigFile(t, prodBase+
+		"SCHEDULED_POSTS_S3_ENDPOINT=https://objects.example\n"+
+		"SAFETY_EVIDENCE_S3_ENDPOINT=http://evidence.example\n"))
+	if err == nil || !strings.Contains(err.Error(), "SAFETY_EVIDENCE_S3_ENDPOINT must use HTTPS") {
+		t.Fatalf("insecure production evidence store error = %v", err)
 	}
 }
 

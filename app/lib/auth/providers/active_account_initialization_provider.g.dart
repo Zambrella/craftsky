@@ -63,4 +63,4 @@ final class ActiveAccountInitializationProvider
 }
 
 String _$activeAccountInitializationHash() =>
-    r'1ccaae343350fe44fec9ab6717c0696a3c021af2';
+    r'98dec65b3ae22b203028ba19d262ce942e274ac6';

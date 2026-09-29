@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/report_reason.dart';
 import 'package:craftsky_app/moderation/models/report_submission.dart';
@@ -18,6 +20,7 @@ class ReportSubjectSheet extends StatefulWidget {
     this.isSubmitting = false,
     this.submitError,
     this.onChanged,
+    this.onExternalRoute,
   });
 
   final ReportSubjectType subjectType;
@@ -25,18 +28,21 @@ class ReportSubjectSheet extends StatefulWidget {
   final bool isSubmitting;
   final String? submitError;
   final VoidCallback? onChanged;
+  final Future<bool> Function(Uri uri)? onExternalRoute;
 
   @override
   State<ReportSubjectSheet> createState() => _ReportSubjectSheetState();
 }
 
 class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
+  static const _groupField = 'group';
   static const _reasonField = 'reason';
   static const _detailsMaxLength = 1000;
 
   final _formKey = GlobalKey<FormBuilderState>();
   final _detailsController = TextEditingController();
   final _detailsFocusNode = FocusNode(debugLabel: 'reportDetails');
+  ReportGroup? _group;
   ReportReason? _reason;
   String _details = '';
 
@@ -96,52 +102,101 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  l10n.reportReasonTitle,
+                  _group == null
+                      ? l10n.reportGroupTitle
+                      : l10n.reportReasonTitle,
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w800,
                   ),
                 ),
                 SizedBox(height: spacing.sp2),
-                FormBuilderRadioGroup<ReportReason>(
-                  name: _reasonField,
-                  enabled: !widget.isSubmitting,
-                  onChanged: (reason) {
-                    setState(() => _reason = reason);
-                    widget.onChanged?.call();
-                  },
-                  decoration: const InputDecoration(
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.zero,
-                    filled: false,
+                if (_group == null)
+                  FormBuilderRadioGroup<ReportGroup>(
+                    name: _groupField,
+                    enabled: !widget.isSubmitting,
+                    onChanged: (group) {
+                      if (group == null) return;
+                      setState(() {
+                        _group = group;
+                        _reason = group == ReportGroup.intellectualProperty
+                            ? ReportReason.intellectualProperty
+                            : null;
+                      });
+                      widget.onChanged?.call();
+                    },
+                    decoration: _radioDecoration,
+                    options: [
+                      for (final group in ReportGroup.values)
+                        FormBuilderFieldOption<ReportGroup>(
+                          value: group,
+                          child: Text(group.label(l10n)),
+                        ),
+                    ],
+                    orientation: OptionsOrientation.vertical,
+                    validator: FormBuilderValidators.required(),
+                  )
+                else ...[
+                  Align(
+                    alignment: AlignmentDirectional.centerStart,
+                    child: TextButton(
+                      onPressed: widget.isSubmitting
+                          ? null
+                          : () {
+                              setState(() {
+                                _group = null;
+                                _reason = null;
+                              });
+                              widget.onChanged?.call();
+                            },
+                      child: Text(l10n.reportChangeCategory),
+                    ),
                   ),
-                  options: [
-                    for (final reason in ReportReason.values)
-                      FormBuilderFieldOption<ReportReason>(
-                        value: reason,
-                        child: Text(reason.label(l10n)),
-                      ),
+                  if (_group != ReportGroup.intellectualProperty)
+                    FormBuilderRadioGroup<ReportReason>(
+                      name: _reasonField,
+                      enabled: !widget.isSubmitting,
+                      onChanged: (reason) {
+                        setState(() => _reason = reason);
+                        widget.onChanged?.call();
+                      },
+                      decoration: _radioDecoration,
+                      options: [
+                        for (final reason in _group!.reasons)
+                          FormBuilderFieldOption<ReportReason>(
+                            value: reason,
+                            child: Text(reason.label(l10n)),
+                          ),
+                      ],
+                      orientation: OptionsOrientation.vertical,
+                      validator: FormBuilderValidators.required(),
+                    ),
+                  if (_guidance(l10n) case final guidance?) ...[
+                    SizedBox(height: spacing.sp2),
+                    Text(guidance, key: const ValueKey('reportSafetyGuidance')),
                   ],
-                  orientation: OptionsOrientation.vertical,
-                  validator: FormBuilderValidators.required(),
-                ),
-                SizedBox(height: spacing.sp3),
-                BrandTextField(
-                  label: l10n.reportDetailsLabel,
-                  controller: _detailsController,
-                  focusNode: _detailsFocusNode,
-                  helperText: '${_details.length}/$_detailsMaxLength',
-                  helperAlignment: AlignmentDirectional.centerEnd,
-                  minLines: 4,
-                  maxLines: 4,
-                  keyboardType: TextInputType.multiline,
-                  textInputAction: TextInputAction.newline,
-                  enabled: !widget.isSubmitting,
-                  onChanged: (value) {
-                    setState(() => _details = value);
-                    widget.onChanged?.call();
-                  },
-                  errorText: _detailsTooLong ? l10n.reportDetailsTooLong : null,
-                ),
+                  if (_group != ReportGroup.intellectualProperty) ...[
+                    SizedBox(height: spacing.sp3),
+                    BrandTextField(
+                      label: l10n.reportDetailsLabel,
+                      controller: _detailsController,
+                      focusNode: _detailsFocusNode,
+                      helperText: '${_details.length}/$_detailsMaxLength',
+                      helperAlignment: AlignmentDirectional.centerEnd,
+                      minLines: 4,
+                      maxLines: 4,
+                      keyboardType: TextInputType.multiline,
+                      textInputAction: TextInputAction.newline,
+                      enabled: !widget.isSubmitting,
+                      onChanged: (value) {
+                        setState(() => _details = value);
+                        widget.onChanged?.call();
+                      },
+                      errorText: _detailsTooLong
+                          ? l10n.reportDetailsTooLong
+                          : null,
+                    ),
+                  ],
+                ],
                 if (widget.submitError case final error?) ...[
                   SizedBox(height: spacing.sp2),
                   Text(
@@ -161,16 +216,45 @@ class _ReportSubjectSheetState extends State<ReportSubjectSheet> {
 
   void _submit() {
     if (widget.isSubmitting) return;
+    final reason = _reason;
+    if (reason == null) {
+      _formKey.currentState?.saveAndValidate();
+      return;
+    }
+    if (reason.destination == ReportDestination.intellectualPropertyEmail) {
+      final launcher = widget.onExternalRoute;
+      if (launcher != null) unawaited(launcher(reason.externalUri));
+      return;
+    }
     final formValid = _formKey.currentState?.saveAndValidate() ?? false;
     if (!formValid || _detailsTooLong) return;
 
     final trimmed = _details.trim();
     widget.onSubmit(
       ReportSubmission(
-        reasonType: _reason!.reasonType,
+        reasonType: reason.reasonType,
         details: trimmed.isEmpty ? null : trimmed,
       ),
     );
+  }
+
+  InputDecoration get _radioDecoration => const InputDecoration(
+    border: InputBorder.none,
+    contentPadding: EdgeInsets.zero,
+    filled: false,
+  );
+
+  String? _guidance(AppLocalizations l10n) {
+    if (_group == ReportGroup.childSafety) {
+      return l10n.reportChildSafetyGuidance;
+    }
+    if (_group == ReportGroup.intellectualProperty) {
+      return l10n.reportIntellectualPropertyGuidance;
+    }
+    if (_reason == ReportReason.immediateDanger) {
+      return l10n.reportImmediateDangerGuidance;
+    }
+    return null;
   }
 }
 

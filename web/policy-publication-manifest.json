@@ -1,0 +1,146 @@
+{
+  "schemaVersion": 1,
+  "publicationStatus": "blocked",
+  "generatedFrom": "online-safety/policies",
+  "policies": [
+    {
+      "route": "/terms",
+      "source": "online-safety/policies/terms-of-service.md",
+      "artifact": "web/terms.html",
+      "version": "0.3",
+      "effectiveDate": "1 October 2026, subject to launch readiness",
+      "approvalStatus": "Draft; not effective",
+      "approvedBy": "Pending approval by Douglas Todd after specialist review",
+      "sourceDigest": "sha256:17a0a1581190eabcd10758536155a48929db1c03ffcdecdb298a94c159438ead",
+      "artifactDigest": "sha256:c82ba2a76cdf44be155fe0a570fa14f3fb001f2140dc7534f9fda6c7db2a6917",
+      "presentTenseClaims": [
+        {
+          "control": "BR-005",
+          "evidence": [],
+          "status": "pending"
+        },
+        {
+          "control": "BR-006",
+          "evidence": [],
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "route": "/privacy",
+      "source": "online-safety/policies/privacy-policy.md",
+      "artifact": "web/privacy.html",
+      "version": "0.3",
+      "effectiveDate": "1 October 2026, subject to launch readiness",
+      "approvalStatus": "Draft; not effective",
+      "approvedBy": "Pending approval by Douglas Todd after specialist review",
+      "sourceDigest": "sha256:4fe48ac25723eb73eeca148bf0e0b004dc9d411ffe945c58f716bbfef1ecc5a1",
+      "artifactDigest": "sha256:2b7f3234e5584169c83567b4384241b54edd450bcfbc21dc14b0f81429dba6a0",
+      "presentTenseClaims": [
+        {
+          "control": "BR-006",
+          "evidence": [],
+          "status": "pending"
+        },
+        {
+          "control": "FR-030",
+          "evidence": [],
+          "status": "pending"
+        },
+        {
+          "control": "FR-031",
+          "evidence": [],
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "route": "/community-guidelines",
+      "source": "online-safety/policies/community-guidelines.md",
+      "artifact": "web/community-guidelines.html",
+      "version": "0.2",
+      "effectiveDate": "1 October 2026, subject to launch readiness",
+      "approvalStatus": "Draft; not effective",
+      "approvedBy": "Pending approval by Douglas Todd after specialist review",
+      "sourceDigest": "sha256:b15c0070c98c32bd00b765be397b559d134cf35922a634101b7c7202fd9daeab",
+      "artifactDigest": "sha256:8742590b87bcd19bf4daff098335cb6b727adccfaded65852c38de7d8c2b015d",
+      "presentTenseClaims": [
+        {
+          "control": "FR-015",
+          "evidence": [],
+          "status": "pending"
+        },
+        {
+          "control": "FR-016",
+          "evidence": [],
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "route": "/reporting",
+      "source": "online-safety/policies/reporting-complaints-and-appeals.md",
+      "artifact": "web/reporting.html",
+      "version": "0.2",
+      "effectiveDate": "1 October 2026, subject to launch readiness",
+      "approvalStatus": "Draft; not effective",
+      "approvedBy": "Pending approval by Douglas Todd after specialist review",
+      "sourceDigest": "sha256:c4813a3b116085c79a6e7d36ade2d60fe009a502907472906848312a4a224c67",
+      "artifactDigest": "sha256:5ed637f995e1fdee23538a1103e9a9105bb9b9f6ab08403f10f08a62cc464270",
+      "presentTenseClaims": [
+        {
+          "control": "FR-014",
+          "evidence": [],
+          "status": "pending"
+        },
+        {
+          "control": "FR-018",
+          "evidence": [],
+          "status": "pending"
+        },
+        {
+          "control": "FR-020",
+          "evidence": [],
+          "status": "pending"
+        }
+      ]
+    },
+    {
+      "route": "/copyright",
+      "source": "online-safety/policies/copyright-and-trade-marks.md",
+      "artifact": "web/copyright.html",
+      "version": "0.1",
+      "effectiveDate": "1 October 2026, subject to launch readiness",
+      "approvalStatus": "Draft; not effective",
+      "approvedBy": "Pending approval by Douglas Todd after specialist review",
+      "sourceDigest": "sha256:aff2506fe528c921f92e8d9800103deea83af247c6bf1112496e69337e68b23e",
+      "artifactDigest": "sha256:5c80506c3924b1933ae70d94eaa8efa72252353c02f4ac17f9763df1f9ae7a5d",
+      "presentTenseClaims": [
+        {
+          "control": "FR-038",
+          "evidence": [],
+          "status": "pending"
+        }
+      ]
+    }
+  ],
+  "releaseControls": {
+    "scannerProduction": {
+      "status": "blocked",
+      "evidence": [],
+      "reason": "Production IWF access and validation evidence are external and missing."
+    },
+    "videoProductionDisabled": {
+      "status": "pending",
+      "evidence": [],
+      "reason": "Production video release-gate evidence is not yet linked."
+    }
+  },
+  "externalBlockers": [
+    "Accountable owner and specialist policy approval",
+    "Final operator/controller details and DPO position",
+    "Worldwide jurisdiction review",
+    "Commercial and subscription policy scope decision",
+    "Atomic Cloudflare deployment and rollback evidence"
+  ]
+}

@@ -50,7 +50,7 @@ final class OnboardingFlowProvider
   }
 }
 
-String _$onboardingFlowHash() => r'b961e1877c329104d7349c93f99c80c3461b74e7';
+String _$onboardingFlowHash() => r'60e2de54e3da96e531d106656db86949792f2fdf';
 
 final class OnboardingFlowFamily extends $Family
     with

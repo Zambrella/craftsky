@@ -55,6 +55,12 @@ void main() {
         );
         await _openReportMenu(tester);
 
+        final spamGroup = find.text('Spam, misleading or off-topic content');
+        await tester.ensureVisible(spamGroup);
+        await tester.tap(spamGroup);
+        await tester.pump();
+        await tester.ensureVisible(find.text('Spam'));
+
         expect(find.text('Report event'), findsOneWidget);
         expect(
           tester.getSemantics(find.text('Spam')).label,
@@ -142,6 +148,8 @@ void main() {
     await _openReportMenu(tester);
 
     expect(find.text('Report event'), findsOneWidget);
+    await tester.tap(find.text('Spam, misleading or off-topic content'));
+    await tester.pump();
     expect(find.text('Spam'), findsOneWidget);
     await tester.tap(find.text('Spam'));
     await tester.pump();
@@ -187,6 +195,8 @@ void main() {
       await tester.pump();
 
       await _openReportMenu(tester);
+      await tester.tap(find.text('Spam, misleading or off-topic content'));
+      await tester.pump();
       await tester.tap(find.text('Spam'));
       await tester.pump();
       await tester.tap(find.widgetWithText(TextButton, 'Submit'));
@@ -242,6 +252,8 @@ void main() {
     await tester.pump();
 
     await _openReportMenu(tester);
+    await tester.tap(find.text('Spam, misleading or off-topic content'));
+    await tester.pump();
     await tester.tap(find.text('Spam'));
     await tester.pump();
     await tester.tap(find.widgetWithText(TextButton, 'Submit'));

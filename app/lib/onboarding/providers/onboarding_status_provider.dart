@@ -40,10 +40,17 @@ class OnboardingStatus extends _$OnboardingStatus {
     return repository.readStatus();
   }
 
-  Future<void> completeOptimistically() async {
+  Future<void> completeOptimistically({required bool meetsMinimumAge}) async {
     if (state.value?.completed ?? false) return;
+    final current = state.value;
+    if (current == null || !meetsMinimumAge) return;
     final keepAlive = ref.keepAlive();
-    state = const AsyncData(OnboardingCompletion(completed: true));
+    state = AsyncData(
+      OnboardingCompletion(
+        completed: true,
+        requiredPolicyVersion: current.requiredPolicyVersion,
+      ),
+    );
     try {
       final repository = await ref.read(
         onboardingRepositoryProvider(lease).future,
@@ -52,12 +59,16 @@ class OnboardingStatus extends _$OnboardingStatus {
       for (var attempt = 0; ; attempt++) {
         if (!_ownsLease()) return;
         try {
-          final completed = await repository.complete();
+          final completed = await repository.complete(
+            meetsMinimumAge: true,
+            policyVersion: current.requiredPolicyVersion,
+          );
           if (ref.mounted && _ownsLease()) state = AsyncData(completed);
           return;
         } on Object {
           if (attempt >= delays.length || !_ownsLease()) {
             _log.warning('Onboarding completion retry exhausted');
+            if (ref.mounted && _ownsLease()) state = AsyncData(current);
             return;
           }
           await ref.read(onboardingCompletionDelayProvider)(delays[attempt]);

@@ -685,6 +685,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                                     toIndex: toIndex,
                                   ),
                               supportsVideo:
+                                  videoUploadsAvailableInThisRelease &&
                                   videoUploadsEnabled &&
                                   isSchedulable &&
                                   _scheduleChoice == ScheduleChoice.now &&
@@ -1082,6 +1083,11 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
   }
 
   Future<void> _submitPost({required String trimmedText}) async {
+    if (_videoController.selection != null &&
+        !videoUploadsAvailableInThisRelease) {
+      context.showError(AppLocalizations.of(context).postVideoUnavailable);
+      return;
+    }
     final imagesState = ref.read(composerImagesProvider(_composerId));
     setState(() => _attemptedSubmit = true);
     if (trimmedText.isEmpty ||

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:craftsky_app/account_eligibility/pages/account_eligibility_page.dart';
 import 'package:craftsky_app/auth/models/account_key.dart';
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/pages/auth_complete_page.dart';
@@ -154,6 +155,11 @@ GoRouter goRouter(Ref ref) {
             return RouteLocations.onboarding;
           }
           if (initialization.onboardingComplete &&
+              initialization.accountEligibility.restricted) {
+            final retainedLocation = isRestrictedAccountRetainedLocation(loc);
+            if (!retainedLocation) return RouteLocations.accountEligibility;
+          }
+          if (initialization.onboardingComplete &&
               (unauthenticatedRoutes.contains(loc) ||
                   loc == RouteLocations.onboarding)) {
             return RouteLocations.home;
@@ -166,6 +172,15 @@ GoRouter goRouter(Ref ref) {
         ErrorScreen(error: state.error ?? 'Unknown routing error'),
   );
 }
+
+@visibleForTesting
+bool isRestrictedAccountRetainedLocation(String location) =>
+    location == RouteLocations.accountEligibility ||
+    location == const AccountStandingRoute().location ||
+    location == const AccountRoute().location ||
+    location == const MutedAccountsRoute().location ||
+    location == const BlockedAccountsRoute().location ||
+    location == const AboutRoute().location;
 
 @TypedGoRoute<AccountDeletionReauthCompleteRoute>(
   path: RouteLocations.accountDeletionReauthComplete,
@@ -184,6 +199,27 @@ class AccountDeletionReauthCompleteRoute extends GoRouteData
   @override
   Widget build(BuildContext context, GoRouterState state) =>
       AccountDeletionReauthCompletePage(jobId: jobId, proof: proof);
+}
+
+@TypedGoRoute<AccountEligibilityRoute>(
+  path: RouteLocations.accountEligibility,
+  name: 'account-eligibility',
+)
+class AccountEligibilityRoute extends GoRouteData
+    with $AccountEligibilityRoute {
+  const AccountEligibilityRoute();
+
+  @override
+  Widget build(BuildContext context, GoRouterState state) {
+    final initialization = ProviderScope.containerOf(context)
+        .read(
+          activeAccountInitializationProvider,
+        )
+        .value;
+    return AccountEligibilityPage(
+      appealGuidance: initialization?.accountEligibility.appealGuidance,
+    );
+  }
 }
 
 // --- Shell route -----------------------------------------------------------

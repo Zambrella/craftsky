@@ -3,7 +3,13 @@ package routes
 import (
 	"context"
 	"net/http"
+	"net/http/httptest"
 	"testing"
+
+	"github.com/bluesky-social/indigo/atproto/syntax"
+
+	appmiddleware "social.craftsky/appview/internal/middleware"
+	"social.craftsky/appview/internal/observability"
 )
 
 func TestVideoAuthorizationRouteUsesExactCurrentMemberPolicy(t *testing.T) {
@@ -69,6 +75,40 @@ func TestVideoRouteCatalogueExcludesProhibitedProxies(t *testing.T) {
 		key := policy.Method + " " + policy.PathPattern
 		if forbidden[key] {
 			t.Fatalf("prohibited route policy exists: %s", key)
+		}
+	}
+}
+
+func TestDisabledVideoRoutesNeverCallLaunchServices(t *testing.T) {
+	identity := func(next http.Handler) http.Handler { return next }
+	authenticated := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			next.ServeHTTP(w, r.WithContext(appmiddleware.WithDID(r.Context(), syntax.DID("did:plc:test"))))
+		})
+	}
+	mux := http.NewServeMux()
+	registerVideoRoutes(videoRouteBundle{
+		mux: mux,
+		middleware: v1Middleware{
+			authCurrentMember: authenticated,
+			deviceID:          identity,
+			member:            identity,
+			rateLimit:         map[RateClass]func(http.Handler) http.Handler{},
+			observer:          observability.New(observability.Config{Env: "test"}),
+			suspension:        unsuspendedReader{},
+			eligibility:       unrestrictedEligibilityReader{},
+		},
+		enabled: false,
+	})
+
+	for _, request := range []*http.Request{
+		httptest.NewRequest(http.MethodPost, "/v1/blobs/videos/authorization", nil),
+		httptest.NewRequest(http.MethodGet, "/v1/blobs/videos/limits", nil),
+	} {
+		response := httptest.NewRecorder()
+		mux.ServeHTTP(response, request)
+		if response.Code != http.StatusServiceUnavailable || response.Header().Get("Cache-Control") != "no-store" {
+			t.Fatalf("%s %s status/cache = %d/%q, body=%s", request.Method, request.URL.Path, response.Code, response.Header().Get("Cache-Control"), response.Body.String())
 		}
 	}
 }

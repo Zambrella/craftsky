@@ -60,7 +60,10 @@ final class _CompletionRepository implements OnboardingRepository {
       const OnboardingCompletion(completed: false);
 
   @override
-  Future<OnboardingCompletion> complete() =>
+  Future<OnboardingCompletion> complete({
+    required bool meetsMinimumAge,
+    required String policyVersion,
+  }) =>
       completion?.future ??
       Future.value(const OnboardingCompletion(completed: true));
 }
@@ -263,7 +266,7 @@ void main() {
     await container.read(aliceProvider.future);
     final operation = container
         .read(aliceProvider.notifier)
-        .completeOptimistically();
+        .completeOptimistically(meetsMinimumAge: true);
     await Future<void>.delayed(Duration.zero);
 
     await container.read(sessionRegistryProvider.notifier).activate(bobSession);

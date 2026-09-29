@@ -36,8 +36,7 @@ const _jobId = 'job-one';
 
 void main() {
   testWidgets(
-    'IT-009 standard interruption cancels and cannot resume '
-    'after reconstruction',
+    'AT-015 standard launch gate creates no resumable credential state',
     (tester) async {
       final adapter = _BlockingVideoAdapter();
       final storage = _RegistryStorage(_aliceRegistry());
@@ -52,12 +51,12 @@ void main() {
       await tester.enterText(find.byType(TextField).first, 'Interrupted post');
       await _pumpUntilPostEnabled(tester);
       await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
-      await _pumpUntil(tester, () => adapter.started == 1);
+      await tester.pumpAndSettle();
 
       tester.binding.handleAppLifecycleStateChanged(
         AppLifecycleState.paused,
       );
-      await _pumpUntil(tester, () => adapter.canceled == 1);
+      await tester.pumpAndSettle();
 
       expect(repository.lastCreateVideo, isNull);
       _expectNoEphemeralPersistence(storage);
@@ -73,15 +72,14 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 100));
 
-      expect(adapter.started, 1);
+      expect(adapter.started, 0);
       expect(repository.lastCreateVideo, isNull);
       _expectNoEphemeralPersistence(storage);
     },
   );
 
   testWidgets(
-    'IT-009 project account replacement and disposal cannot resume '
-    'after reconstruction',
+    'AT-015 project launch gate creates no account-bound credential state',
     (tester) async {
       final adapter = _BlockingVideoAdapter();
       final initial = _twoAccountRegistry();
@@ -105,11 +103,11 @@ void main() {
       await tester.enterText(_projectBodyField(), 'Interrupted project');
       await _pumpUntilPostEnabled(tester);
       await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
-      await _pumpUntil(tester, () => adapter.started == 1);
+      await tester.pumpAndSettle();
 
       final bob = initial.leaseFor(AccountKey('did:plc:bob'))!;
       await container.read(sessionRegistryProvider.notifier).activate(bob);
-      await _pumpUntil(tester, () => adapter.canceled == 1);
+      await tester.pumpAndSettle();
       await tester.pumpWidget(const SizedBox.shrink());
 
       expect(repository.lastCreateVideo, isNull);
@@ -123,15 +121,14 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 100));
 
-      expect(adapter.started, 1);
+      expect(adapter.started, 0);
       expect(repository.lastCreateVideo, isNull);
       _expectNoEphemeralPersistence(storage);
     },
   );
 
   testWidgets(
-    'IT-009 standard lifecycle interruption during authorization stops '
-    'before upload',
+    'AT-015 standard launch gate stops before authorization',
     (tester) async {
       final api = _BlockingAuthorizationPostApiClient();
       final adapter = _NoRequestVideoAdapter();
@@ -148,13 +145,13 @@ void main() {
       await tester.enterText(find.byType(TextField).first, 'Interrupted post');
       await _pumpUntilPostEnabled(tester);
       await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
-      await _pumpUntil(tester, () => api.authorizationStarted);
+      await tester.pumpAndSettle();
 
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       api.releaseAuthorization();
       await tester.pumpAndSettle();
 
-      expect(api.authorizationCalls, 1);
+      expect(api.authorizationCalls, 0);
       expect(adapter.uploadRequests, 0);
       expect(adapter.pollRequests, 0);
       expect(repository.lastCreateLangs, isNull);
@@ -164,8 +161,7 @@ void main() {
   );
 
   testWidgets(
-    'IT-009 project lifecycle interruption during authorization stops '
-    'before upload',
+    'AT-015 project launch gate stops before authorization',
     (tester) async {
       final api = _BlockingAuthorizationPostApiClient();
       final adapter = _NoRequestVideoAdapter();
@@ -186,13 +182,13 @@ void main() {
       await tester.enterText(_projectBodyField(), 'Interrupted project');
       await _pumpUntilPostEnabled(tester);
       await tester.tap(find.widgetWithText(ChunkyButton, 'Post'));
-      await _pumpUntil(tester, () => api.authorizationStarted);
+      await tester.pumpAndSettle();
 
       tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
       api.releaseAuthorization();
       await tester.pumpAndSettle();
 
-      expect(api.authorizationCalls, 1);
+      expect(api.authorizationCalls, 0);
       expect(adapter.uploadRequests, 0);
       expect(adapter.pollRequests, 0);
       expect(repository.lastCreateLangs, isNull);

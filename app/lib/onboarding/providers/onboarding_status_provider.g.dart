@@ -50,7 +50,7 @@ final class OnboardingStatusProvider
   }
 }
 
-String _$onboardingStatusHash() => r'87c381dc0ed23e4f0db0388a019fe0942d72357d';
+String _$onboardingStatusHash() => r'829d404e98f49d7caeeaa9a9b07585ba520c2478';
 
 final class OnboardingStatusFamily extends $Family
     with

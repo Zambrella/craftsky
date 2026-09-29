@@ -73,12 +73,14 @@ func newTapDependencies(
 		instagram:     instagramStorage.privateData,
 		now:           time.Now,
 	}
-	dispatcher := newTransactionalIndexerDispatcherWithActorDeletion(
+	dispatcher := newImageSafetyTransactionalIndexerDispatcher(
 		pool,
 		logger,
 		observer,
 		content.notificationLifecycle,
 		profileDeletion,
+		imageSafetyProjectionKey(cfg.ImageSafety),
+		cfg.VideoEnabled,
 	)
 	departureParticipant := scheduledAccountDeletion.DepartureParticipant()
 	profileDepartureParticipant := authCapability.sessionLifecycle.OwnerTransitionParticipant(
@@ -154,9 +156,10 @@ func newTapDependencies(
 		AckTimeout: cfg.tapIngestionTimeout(), ReconnectMax: cfg.TapReconnectMax,
 		Logger: logger, Observer: observer,
 	})
+	profileHandler := index.NewImageSafetyBlueskyProfile(pool, imageSafetyProjectionKey(cfg.ImageSafety))
 	return &tapDependencies{
 		profileProjector: oauthBlueskyProfileProjection{
-			handler: index.NewBlueskyProfile(pool),
+			handler: profileHandler,
 		},
 		craftskyProfileProjector: oauthCraftskyProfileProjection{
 			handler: index.NewTransactionalCraftskyProfile(pool, logger, profileDeletion),

@@ -114,6 +114,27 @@ func WithSchema(t *testing.T, ddl string) *pgxpool.Pool {
 			t.Fatalf("create active owner predicate fixture: %v", err)
 		}
 	}
+	// Focused pre-image-safety fixtures receive an all-clear predicate. Migration
+	// 73 replaces it with the fail-closed subject-state lookup when a test applies
+	// the real image-safety schema.
+	var hasImageSafetyPredicate bool
+	if err := pool.QueryRow(ctx, `
+		SELECT to_regprocedure('appview_image_subject_is_clear(text,text)') IS NOT NULL
+	`).Scan(&hasImageSafetyPredicate); err != nil {
+		t.Fatalf("inspect image safety predicate fixture: %v", err)
+	}
+	if !hasImageSafetyPredicate {
+		if _, err := pool.Exec(ctx, `
+			CREATE FUNCTION appview_image_subject_is_clear(candidate_uri TEXT, candidate_cid TEXT)
+			RETURNS BOOLEAN
+			LANGUAGE SQL
+			IMMUTABLE
+			PARALLEL SAFE
+			AS $$ SELECT true $$
+		`); err != nil {
+			t.Fatalf("create image safety predicate fixture: %v", err)
+		}
+	}
 	return pool
 }
 

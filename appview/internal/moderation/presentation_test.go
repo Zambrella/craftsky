@@ -58,3 +58,22 @@ func TestPresentSubjectSnapshotFallsBackToCanonicalRetainedSubject(t *testing.T)
 		t.Fatalf("snapshot = %+v, want retained fallback %+v", snapshot, fallback)
 	}
 }
+
+func TestChildSafetyOwnerNoticeOmitsRestrictedDetectionDetails(t *testing.T) {
+	notice := PresentDecisionNotice(DecisionPresentation{
+		Reason: ReasonChildSafety, Action: "Account suspended", AppealAvailable: true,
+		InternalDetail: "IWF provider match evidence authority report hash",
+	})
+	if notice.Reason != "Child safety violation" || notice.Action != "Account suspended" || !notice.AppealAvailable {
+		t.Fatalf("notice=%+v", notice)
+	}
+	wire, err := json.Marshal(notice)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, forbidden := range []string{"IWF", "provider", "match", "evidence", "authority", "report", "hash"} {
+		if strings.Contains(strings.ToLower(string(wire)), strings.ToLower(forbidden)) {
+			t.Fatalf("notice leaked %q: %s", forbidden, wire)
+		}
+	}
+}

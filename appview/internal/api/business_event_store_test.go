@@ -133,6 +133,76 @@ func TestBusinessEventStoreServesEligibleVisitorDirectAndUpcoming(t *testing.T) 
 	}
 }
 
+func TestBusinessEventStoreHidesNonClearCurrentRevision(t *testing.T) {
+	pool := testdb.WithSchema(t, businessEventStoreDDL)
+	ctx := context.Background()
+	owner := syntax.DID("did:plc:event-owner")
+	visitor := syntax.DID("did:plc:event-visitor")
+	asOf := time.Date(2026, time.August, 29, 12, 0, 0, 0, time.UTC)
+	rkey := syntax.RecordKey("3msevent00001")
+	uri := syntax.ATURI("at://did:plc:event-owner/social.craftsky.business.event/3msevent00001")
+
+	if _, err := pool.Exec(ctx, `
+		CREATE TABLE image_subject_states (
+			subject_uri TEXT PRIMARY KEY,
+			source_cid TEXT NOT NULL,
+			visibility_state TEXT NOT NULL
+		);
+		CREATE OR REPLACE FUNCTION appview_image_subject_is_clear(candidate_uri TEXT, candidate_cid TEXT)
+		RETURNS BOOLEAN LANGUAGE SQL STABLE AS $$
+			SELECT EXISTS (
+				SELECT 1 FROM image_subject_states
+				WHERE subject_uri=candidate_uri AND source_cid=candidate_cid AND visibility_state='clear'
+			)
+		$$
+	`); err != nil {
+		t.Fatalf("create image safety fixture: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles(did, record_cid) VALUES ($1, 'profile-cid')`, owner); err != nil {
+		t.Fatalf("seed blocked event owner: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_account_types(owner_did, account_type) VALUES ($1, 'business')`, owner); err != nil {
+		t.Fatalf("seed blocked event account type: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO craftsky_business_events
+			(uri, owner_did, rkey, cid, raw_record, source_revision, starts_at, ends_at, created_at, status)
+		VALUES ($2, $1, $3, 'event-cid', $4::jsonb, '3msrevision001', $5, $6, $7, 'scheduled')
+	`, owner, uri, rkey, `{
+		"$type":"social.craftsky.business.event",
+		"name":"Stale projected event",
+		"startsAt":"2026-08-30T10:00:00Z",
+		"endsAt":"2026-08-30T12:00:00Z",
+		"roles":["vendor"],
+		"createdAt":"2026-08-01T09:00:00Z"
+	}`, asOf.Add(22*time.Hour), asOf.Add(24*time.Hour), asOf.Add(-28*24*time.Hour)); err != nil {
+		t.Fatalf("seed projected event: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO image_subject_states(subject_uri, source_cid, visibility_state)
+		VALUES ($1, 'replacement-cid', 'blocked')
+	`, uri); err != nil {
+		t.Fatalf("seed blocked current event: %v", err)
+	}
+
+	store := business.NewStore(pool)
+	if _, err := store.ReadEvent(ctx, business.EventReadInput{CallerDID: visitor, OwnerDID: owner, Rkey: rkey, AsOf: asOf}); !errors.Is(err, business.ErrEventNotFound) {
+		t.Fatalf("ReadEvent error = %v, want ErrEventNotFound", err)
+	}
+	upcoming, err := store.ListUpcomingEvents(ctx, business.UpcomingEventListInput{CallerDID: visitor, OwnerDID: owner, AsOf: asOf, Limit: 10})
+	if err != nil || len(upcoming) != 0 {
+		t.Fatalf("upcoming blocked events = %+v, error %v", upcoming, err)
+	}
+	ownerEvents, err := store.ListOwnerEvents(ctx, business.OwnerEventListInput{OwnerDID: owner, AsOf: asOf, Limit: 10})
+	if err != nil || len(ownerEvents) != 0 {
+		t.Fatalf("owner blocked events = %+v, error %v", ownerEvents, err)
+	}
+	hasUpcoming, err := store.HasUpcomingEvents(ctx, owner, asOf)
+	if err != nil || hasUpcoming {
+		t.Fatalf("has blocked upcoming event = %v, error %v", hasUpcoming, err)
+	}
+}
+
 func TestBusinessEventStoreCallerAwarePolicyMatrix(t *testing.T) {
 	pool := testdb.WithSchema(t, businessEventStoreDDL)
 	ctx := context.Background()

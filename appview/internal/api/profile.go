@@ -482,6 +482,21 @@ func PutMeProfileHandler(
 				return
 			}
 			row := syntheticRow(did.String(), mergedBsky, reqBody.Crafts)
+			if store != nil {
+				previous, readErr := store.Read(r.Context(), did.String(), did.String())
+				if readErr != nil && !errors.Is(readErr, ErrProfileNotFound) {
+					logger.Warn("profile: last-cleared image lookup failed",
+						pdsLogErrorAttrs(runID, pdsOperationProfilePutBsky, pdsStagePDSRequest, readErr)...)
+				}
+				if previous != nil {
+					if !reqBody.Avatar.Present || reqBody.Avatar.Blob != nil {
+						row.AvatarCID, row.AvatarMime = previous.AvatarCID, previous.AvatarMime
+					}
+					if !reqBody.Banner.Present || reqBody.Banner.Blob != nil {
+						row.BannerCID, row.BannerMime = previous.BannerCID, previous.BannerMime
+					}
+				}
+			}
 			resp := BuildProfileResponse(row, handle, false)
 			logger.Debug("profile put: writes succeeded",
 				pdsLogSuccessAttrs(runID, pdsOperationProfilePutBsky, pdsStagePDSRequest)...)
@@ -568,8 +583,8 @@ func applyProfileImageUpdate(out map[string]any, field string, update ProfileIma
 	out[field] = update.Blob
 }
 
-// syntheticRow constructs a ProfileRow from the bodies we just wrote,
-// used to render the PUT response without a DB round-trip.
+// syntheticRow constructs the safe text portion of a ProfileRow from the bodies
+// just written. Serving images come only from the AppView's last-cleared row.
 func syntheticRow(did string, bsky map[string]any, crafts []string) *ProfileRow {
 	row := &ProfileRow{DID: did, Crafts: nonNilStrings(crafts)}
 	if dn, ok := bsky["displayName"].(string); ok {
@@ -581,32 +596,7 @@ func syntheticRow(did string, bsky map[string]any, crafts []string) *ProfileRow 
 	if pronouns, ok := bsky["pronouns"].(string); ok {
 		row.Pronouns = &pronouns
 	}
-	if av, ok := bsky["avatar"].(map[string]any); ok {
-		if cid := blobCID(av); cid != "" {
-			row.AvatarCID = &cid
-		}
-		if mime, ok := av["mimeType"].(string); ok && mime != "" {
-			row.AvatarMime = &mime
-		}
-	}
-	if bn, ok := bsky["banner"].(map[string]any); ok {
-		if cid := blobCID(bn); cid != "" {
-			row.BannerCID = &cid
-		}
-		if mime, ok := bn["mimeType"].(string); ok && mime != "" {
-			row.BannerMime = &mime
-		}
-	}
 	return row
-}
-
-func blobCID(blob map[string]any) string {
-	ref, ok := blob["ref"].(map[string]any)
-	if !ok {
-		return ""
-	}
-	link, _ := ref["$link"].(string)
-	return link
 }
 
 func nonNilStrings(in []string) []string {

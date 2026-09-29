@@ -97,3 +97,25 @@ func TestHealthz_DBErrorDegraded(t *testing.T) {
 		t.Errorf("status = %v", body["status"])
 	}
 }
+
+func TestHealthz_ImageSafetyReadinessFailsClosedWithoutSensitiveDetail(t *testing.T) {
+	t.Parallel()
+	h := api.NewHealthHandler(
+		fakePinger{},
+		&fakeStater{state: tap.ConnState{Connected: true, LastEventAt: time.Unix(1700000000, 0)}},
+		api.StaticReadiness(false),
+	)
+	rr := httptest.NewRecorder()
+	h.ServeHTTP(rr, httptest.NewRequest("GET", "/healthz", nil))
+	var body map[string]any
+	if err := json.NewDecoder(rr.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body["status"] != "degraded" {
+		t.Fatalf("status=%v", body["status"])
+	}
+	imageSafety, ok := body["imageSafety"].(map[string]any)
+	if !ok || imageSafety["ready"] != false || len(imageSafety) != 1 {
+		t.Fatalf("unsafe image-safety readiness block=%v", body["imageSafety"])
+	}
+}

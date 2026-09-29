@@ -27,6 +27,13 @@ const (
 	ReasonOffTopic             Reason = "off_topic"
 	ReasonIntellectualProperty Reason = "intellectual_property"
 	ReasonOther                Reason = "other"
+	ReasonChildSafety          Reason = "child_safety"
+	ReasonSexualViolation      Reason = "sexual_violation"
+	ReasonThreatOrViolence     Reason = "threat_or_violence"
+	ReasonSelfHarm             Reason = "self_harm"
+	ReasonStalkingOrPrivacy    Reason = "stalking_or_privacy"
+	ReasonFraudOrScam          Reason = "fraud_or_scam"
+	ReasonMisleadingCommercial Reason = "misleading_commercial"
 )
 
 var approvedReasons = []Reason{
@@ -40,6 +47,13 @@ var approvedReasons = []Reason{
 	ReasonOffTopic,
 	ReasonIntellectualProperty,
 	ReasonOther,
+	ReasonChildSafety,
+	ReasonSexualViolation,
+	ReasonThreatOrViolence,
+	ReasonSelfHarm,
+	ReasonStalkingOrPrivacy,
+	ReasonFraudOrScam,
+	ReasonMisleadingCommercial,
 }
 
 type EffectType string
@@ -54,12 +68,13 @@ const (
 )
 
 type Decision struct {
-	Disposition       Disposition
-	Reason            Reason
-	Evidence          string
-	UserSafeDetail    string
-	SeverityRationale string
-	Consequences      []EffectType
+	Disposition         Disposition
+	Reason              Reason
+	Evidence            string
+	UserSafeDetail      string
+	SeverityRationale   string
+	LegalClassification LegalClassification
+	Consequences        []EffectType
 }
 
 func ApprovedReasons() []Reason {
@@ -69,7 +84,7 @@ func ApprovedReasons() []Reason {
 func ValidateDecision(decision Decision) error {
 	if decision.Disposition == DispositionNoAction {
 		if decision.Reason != "" || decision.UserSafeDetail != "" ||
-			decision.SeverityRationale != "" || len(decision.Consequences) != 0 {
+			decision.SeverityRationale != "" || decision.LegalClassification != "" || len(decision.Consequences) != 0 {
 			return ErrInvalidDecision
 		}
 		return nil
@@ -136,5 +151,24 @@ func isVisibilityEffect(effect EffectType) bool {
 
 func severeReason(reason Reason) bool {
 	return reason == ReasonHarassment || reason == ReasonHate ||
-		reason == ReasonAdultOrGraphic || reason == ReasonImpersonation
+		reason == ReasonAdultOrGraphic || reason == ReasonImpersonation ||
+		reason == ReasonChildSafety || reason == ReasonSexualViolation ||
+		reason == ReasonThreatOrViolence || reason == ReasonStalkingOrPrivacy
+}
+
+type SignalKind string
+
+const (
+	SignalUserReport      SignalKind = "userReport"
+	SignalScannerMatch    SignalKind = "scannerMatch"
+	SignalRepeatedReports SignalKind = "repeatedReports"
+)
+
+type Signal struct{ Kind SignalKind }
+
+func AuthorizedEffects(_ Signal, decision *Decision) []EffectType {
+	if decision == nil || ValidateDecision(*decision) != nil {
+		return nil
+	}
+	return append([]EffectType(nil), decision.Consequences...)
 }

@@ -161,11 +161,12 @@ func (*recordingRegistrationFlow) CompleteCallback(context.Context, url.Values, 
 
 func testDeps() *Dependencies {
 	return &Dependencies{
-		Config:           Config{Env: EnvDev, AllowedOrigins: []string{"*"}},
-		Logger:           slog.New(slog.NewTextHandler(io.Discard, nil)),
-		AuthService:      &auth.MockAuthService{DefaultDID: "did:plc:test"},
-		HandleResolver:   stubResolver{handle: syntax.Handle("stub-handle.example")},
-		SuspensionReader: unsuspendedReader{},
+		Config:            Config{Env: EnvDev, AllowedOrigins: []string{"*"}},
+		Logger:            slog.New(slog.NewTextHandler(io.Discard, nil)),
+		AuthService:       &auth.MockAuthService{DefaultDID: "did:plc:test"},
+		HandleResolver:    stubResolver{handle: syntax.Handle("stub-handle.example")},
+		SuspensionReader:  unsuspendedReader{},
+		EligibilityReader: unrestrictedEligibilityReader{},
 	}
 }
 
@@ -284,6 +285,12 @@ func moderationMetricCalls(calls []observability.MetricCall, name string, attrs 
 type unsuspendedReader struct{}
 
 func (unsuspendedReader) IsSuspended(context.Context, syntax.DID) (bool, error) { return false, nil }
+
+type unrestrictedEligibilityReader struct{}
+
+func (unrestrictedEligibilityReader) Restricted(context.Context, syntax.DID) (bool, error) {
+	return false, nil
+}
 
 func TestV1MiddlewareHydratesIdentityAccountType(t *testing.T) {
 	observer := observability.New(observability.Config{Env: "test"})

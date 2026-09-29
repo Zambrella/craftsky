@@ -850,7 +850,7 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('threadStickyReplyPrompt')));
     await tester.pumpAndSettle();
-    expect(find.text('Write your comment'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
     await tester.enterText(find.byType(TextField), 'created comment');
     await tester.pump();
     await tester.tap(find.widgetWithText(ChunkyButton, 'Comment'));

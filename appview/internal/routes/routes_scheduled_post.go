@@ -59,13 +59,14 @@ type postRouteBundle struct {
 	languages        *languages.Store
 	mediaLimits      api.MediaLimits
 	videoVerifier    api.VideoCompletionVerifier
+	videoEnabled     bool
 	videoCaptions    api.VideoCaptionBlobFetcher
 	videoObserver    api.VideoOperationObserver
 	logger           *slog.Logger
 }
 
 func registerPostRoutes(routes postRouteBundle) {
-	routes.mux.Handle("POST /v1/posts", routes.middleware.wrap(mustPolicy("POST", "/v1/posts"), api.CreatePostHandler(routes.postStore, routes.newPDSEffects, routes.handleResolver, routes.mediaLimits, routes.logger, api.CreatePostHandlerOptions{VideoCompletionVerifier: routes.videoVerifier})))
+	routes.mux.Handle("POST /v1/posts", routes.middleware.wrap(mustPolicy("POST", "/v1/posts"), api.CreatePostHandler(routes.postStore, routes.newPDSEffects, routes.handleResolver, routes.mediaLimits, routes.logger, api.CreatePostHandlerOptions{VideoCompletionVerifier: routes.videoVerifier, DisableVideo: !routes.videoEnabled})))
 	routes.mux.Handle("GET /v1/posts/{did}/{rkey}", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}"), api.GetPostHandler(routes.postStore, routes.handleResolver, routes.logger, routes.languages)))
 	routes.mux.Handle("GET /v1/posts/{did}/{rkey}/video-captions/{captionCid}", routes.middleware.wrap(mustPolicy("GET", "/v1/posts/{did}/{rkey}/video-captions/{captionCid}"), api.VideoCaptionHandler(routes.postStore, routes.videoCaptions, routes.logger, routes.videoObserver)))
 	routes.mux.Handle("POST /v1/posts/{did}/{rkey}/saves", routes.middleware.wrap(mustPolicy("POST", "/v1/posts/{did}/{rkey}/saves"), api.SavePostHandler(routes.postStore, routes.savedPostStore)))

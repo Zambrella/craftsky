@@ -1397,6 +1397,7 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
             onReplaceUnavailable: onReplaceUnavailable,
             onReorder: onReorderImages,
             supportsVideo:
+                videoUploadsAvailableInThisRelease &&
                 videoUploadsEnabled &&
                 widget.scheduledPost == null &&
                 _scheduleChoice == ScheduleChoice.now,
@@ -1948,6 +1949,11 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
   }
 
   Future<void> _submitProject({required String trimmedBody}) async {
+    if (_videoController.selection != null &&
+        !videoUploadsAvailableInThisRelease) {
+      context.showError(AppLocalizations.of(context).postVideoUnavailable);
+      return;
+    }
     setState(() {
       _attemptedSubmit = true;
       _formValidationError = null;

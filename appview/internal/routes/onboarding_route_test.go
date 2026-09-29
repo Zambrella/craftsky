@@ -13,19 +13,20 @@ import (
 	"social.craftsky/appview/internal/testdb"
 )
 
-func TestOnboardingRoutesUseCurrentMemberBodylessPolicies(t *testing.T) {
+func TestOnboardingRoutesUseCurrentMemberPolicies(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		method string
 		path   string
 		rate   RateClass
+		body   BodyKind
 	}{
-		{method: "GET", path: "/v1/onboarding/status", rate: RateClassRead},
-		{method: "POST", path: "/v1/onboarding/completion", rate: RateClassWrite},
+		{method: "GET", path: "/v1/onboarding/status", rate: RateClassRead, body: BodyNoBody},
+		{method: "POST", path: "/v1/onboarding/completion", rate: RateClassWrite, body: BodyDefaultJSON},
 	}
 	for _, test := range tests {
 		policy := mustPolicy(test.method, test.path)
-		if policy.RateClass != test.rate || policy.BodyKind != BodyNoBody ||
+		if policy.RateClass != test.rate || policy.BodyKind != test.body ||
 			policy.AccessClass != AccessCurrentMember {
 			t.Fatalf("policy for %s %s = %+v", test.method, test.path, policy)
 		}
@@ -34,6 +35,10 @@ func TestOnboardingRoutesUseCurrentMemberBodylessPolicies(t *testing.T) {
 
 func TestOnboardingRoutesEnforceAuthenticatedCurrentMemberContract(t *testing.T) {
 	migration, err := os.ReadFile("../../migrations/000065_account_onboarding_completion.up.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ageMigration, err := os.ReadFile("../../migrations/000078_age_eligibility.up.sql")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,8 +65,9 @@ func TestOnboardingRoutesEnforceAuthenticatedCurrentMemberContract(t *testing.T)
 			('did:plc:test','active',1,1,'test',now(),now(),now()),
 			('did:plc:bob','active',1,1,'test',now(),now(),now()),
 			('did:plc:departed','departed',2,2,'test',now(),now(),now());
-	`+string(migration))
+	`+string(migration)+string(ageMigration))
 	deps := testDeps()
+	deps.Config.RequiredPolicyVersion = "policy-v1"
 	deps.DB = pool
 	deps.OwnerLifecycles = newRouteOwnerLifecycleStore(t, pool)
 	mux := http.NewServeMux()
@@ -101,14 +107,15 @@ func TestOnboardingRoutesEnforceAuthenticatedCurrentMemberContract(t *testing.T)
 	assertEnvelope(request(http.MethodGet, "/v1/onboarding/status", "", "", true, false), http.StatusBadRequest, "missing_device_id")
 	assertEnvelope(request(http.MethodPost, "/v1/onboarding/completion", "", "did:plc:departed", true, true), http.StatusNotFound, "profile_not_found")
 	assertEnvelope(request(http.MethodGet, "/v1/onboarding/status?accountDid=did:plc:bob", "", "", true, true), http.StatusBadRequest, "invalid_request")
-	assertEnvelope(request(http.MethodPost, "/v1/onboarding/completion", `{"accountDid":"did:plc:bob"}`, "", true, true), http.StatusBadRequest, "request_body_not_allowed")
+	assertEnvelope(request(http.MethodPost, "/v1/onboarding/completion", `{"accountDid":"did:plc:bob"}`, "", true, true), http.StatusBadRequest, "invalid_request")
 
 	initial := request(http.MethodGet, "/v1/onboarding/status", "", "", true, true)
 	if initial.Code != http.StatusOK || !strings.Contains(initial.Body.String(), `"completed":false`) {
 		t.Fatalf("initial status = %d, body = %s", initial.Code, initial.Body.String())
 	}
-	first := request(http.MethodPost, "/v1/onboarding/completion", "", "", true, true)
-	second := request(http.MethodPost, "/v1/onboarding/completion", "", "", true, true)
+	declaration := `{"meetsMinimumAge":true,"policyVersion":"policy-v1"}`
+	first := request(http.MethodPost, "/v1/onboarding/completion", declaration, "", true, true)
+	second := request(http.MethodPost, "/v1/onboarding/completion", declaration, "", true, true)
 	if first.Code != http.StatusOK || second.Code != http.StatusOK {
 		t.Fatalf("completion statuses = %d/%d; bodies = %s / %s", first.Code, second.Code, first.Body.String(), second.Body.String())
 	}

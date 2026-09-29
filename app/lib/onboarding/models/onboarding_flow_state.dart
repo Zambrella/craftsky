@@ -46,6 +46,7 @@ final class OnboardingFlowState {
     this.saveError,
     this.avatarPreview,
     this.avatarBlob,
+    this.meetsMinimumAge = false,
   }) : selectedCraftIds = Set.unmodifiable(selectedCraftIds),
        unknownCraftIds = List.unmodifiable(unknownCraftIds);
 
@@ -83,6 +84,7 @@ final class OnboardingFlowState {
   final Object? saveError;
   final Uint8List? avatarPreview;
   final UploadedBlob? avatarBlob;
+  final bool meetsMinimumAge;
 
   bool get identityDirty =>
       identity.displayName != (baseline.displayName ?? '') ||
@@ -108,6 +110,7 @@ final class OnboardingFlowState {
     Object? saveError,
     Uint8List? avatarPreview,
     UploadedBlob? avatarBlob,
+    bool? meetsMinimumAge,
   }) => OnboardingFlowState(
     step: step ?? this.step,
     baseline: baseline ?? this.baseline,
@@ -120,5 +123,6 @@ final class OnboardingFlowState {
     saveError: saveError,
     avatarPreview: avatarPreview ?? this.avatarPreview,
     avatarBlob: avatarBlob ?? this.avatarBlob,
+    meetsMinimumAge: meetsMinimumAge ?? this.meetsMinimumAge,
   );
 }

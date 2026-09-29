@@ -2884,6 +2884,156 @@ abstract class AppLocalizations {
   /// **'Reason'**
   String get reportReasonTitle;
 
+  /// Heading for broad report categories.
+  ///
+  /// In en, this message translates to:
+  /// **'What is the concern about?'**
+  String get reportGroupTitle;
+
+  /// Broad report group for child-safety concerns.
+  ///
+  /// In en, this message translates to:
+  /// **'Child safety'**
+  String get reportGroupChildSafety;
+
+  /// Broad report group for sexual or intimate-content concerns.
+  ///
+  /// In en, this message translates to:
+  /// **'Sexual or intimate content'**
+  String get reportGroupSexualIntimate;
+
+  /// Broad report group for immediate danger and violence concerns.
+  ///
+  /// In en, this message translates to:
+  /// **'Threats, violence or self-harm'**
+  String get reportGroupDanger;
+
+  /// Broad report group for harassment and privacy concerns.
+  ///
+  /// In en, this message translates to:
+  /// **'Harassment, hate or privacy'**
+  String get reportGroupHarassmentPrivacy;
+
+  /// Broad report group for fraud and identity concerns.
+  ///
+  /// In en, this message translates to:
+  /// **'Fraud, scams or impersonation'**
+  String get reportGroupFraudIdentity;
+
+  /// Broad report group for content-integrity concerns.
+  ///
+  /// In en, this message translates to:
+  /// **'Spam, misleading or off-topic content'**
+  String get reportGroupContentIntegrity;
+
+  /// Broad report group for intellectual-property concerns.
+  ///
+  /// In en, this message translates to:
+  /// **'Copyright or trade marks'**
+  String get reportGroupIntellectualProperty;
+
+  /// Broad report group for other concerns.
+  ///
+  /// In en, this message translates to:
+  /// **'Something else'**
+  String get reportGroupOther;
+
+  /// Button returning to broad report categories.
+  ///
+  /// In en, this message translates to:
+  /// **'Change category'**
+  String get reportChangeCategory;
+
+  /// Safe handling guidance shown for child-safety reports.
+  ///
+  /// In en, this message translates to:
+  /// **'Identify where the concern is. Do not download, attach, forward or redistribute suspected material.'**
+  String get reportChildSafetyGuidance;
+
+  /// Emergency-services-first guidance for immediate-danger reports.
+  ///
+  /// In en, this message translates to:
+  /// **'If someone is in immediate danger, contact local emergency services first. CraftSky is not an emergency service, but you can still send this report.'**
+  String get reportImmediateDangerGuidance;
+
+  /// Dedicated route guidance for intellectual-property reports.
+  ///
+  /// In en, this message translates to:
+  /// **'Copyright and trade mark concerns use our dedicated email process. Identify the work, your authority and the CraftSky URL or AT URI. Do not attach media.'**
+  String get reportIntellectualPropertyGuidance;
+
+  /// Report reason for child sexual exploitation.
+  ///
+  /// In en, this message translates to:
+  /// **'Child sexual exploitation'**
+  String get reportReasonChildSexualExploitation;
+
+  /// Report reason for grooming.
+  ///
+  /// In en, this message translates to:
+  /// **'Grooming'**
+  String get reportReasonGrooming;
+
+  /// Report reason for suspected child sexual abuse material.
+  ///
+  /// In en, this message translates to:
+  /// **'Suspected child sexual abuse material'**
+  String get reportReasonChildAbuseMaterial;
+
+  /// Report reason for intimate-image abuse.
+  ///
+  /// In en, this message translates to:
+  /// **'Intimate-image abuse or cyberflashing'**
+  String get reportReasonIntimateImageAbuse;
+
+  /// Report reason for sexual exploitation.
+  ///
+  /// In en, this message translates to:
+  /// **'Sexual exploitation'**
+  String get reportReasonSexualExploitation;
+
+  /// Report reason for adult content.
+  ///
+  /// In en, this message translates to:
+  /// **'Pornographic or adult content'**
+  String get reportReasonAdultContent;
+
+  /// Report reason for graphic content.
+  ///
+  /// In en, this message translates to:
+  /// **'Graphic content'**
+  String get reportReasonGraphicContent;
+
+  /// Report reason for immediate danger.
+  ///
+  /// In en, this message translates to:
+  /// **'Someone is in immediate danger'**
+  String get reportReasonImmediateDanger;
+
+  /// Report reason for a credible threat.
+  ///
+  /// In en, this message translates to:
+  /// **'Credible threat'**
+  String get reportReasonCredibleThreat;
+
+  /// Report reason for terrorism content.
+  ///
+  /// In en, this message translates to:
+  /// **'Terrorism'**
+  String get reportReasonTerrorism;
+
+  /// Report reason for violence.
+  ///
+  /// In en, this message translates to:
+  /// **'Violence'**
+  String get reportReasonViolence;
+
+  /// Report reason for encouragement of serious self-harm.
+  ///
+  /// In en, this message translates to:
+  /// **'Encouraging serious self-harm'**
+  String get reportReasonSelfHarm;
+
   /// Report reason label for harassment.
   ///
   /// In en, this message translates to:
@@ -5631,6 +5781,42 @@ abstract class AppLocalizations {
   /// **'View full guidelines'**
   String get onboardingGuidelinesViewFull;
 
+  /// No description provided for @onboardingMinimumAgeDeclaration.
+  ///
+  /// In en, this message translates to:
+  /// **'I confirm that I am at least 16 years old and accept the current CraftSky policies.'**
+  String get onboardingMinimumAgeDeclaration;
+
+  /// No description provided for @accountEligibilityTitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Account eligibility'**
+  String get accountEligibilityTitle;
+
+  /// No description provided for @accountEligibilityHeading.
+  ///
+  /// In en, this message translates to:
+  /// **'Your account access is limited'**
+  String get accountEligibilityHeading;
+
+  /// No description provided for @accountEligibilityAppealGuidance.
+  ///
+  /// In en, this message translates to:
+  /// **'You can appeal this decision. Safety and account-management controls remain available while we review your appeal.'**
+  String get accountEligibilityAppealGuidance;
+
+  /// No description provided for @accountEligibilityViewStanding.
+  ///
+  /// In en, this message translates to:
+  /// **'View decision and appeal options'**
+  String get accountEligibilityViewStanding;
+
+  /// No description provided for @accountEligibilityManageAccount.
+  ///
+  /// In en, this message translates to:
+  /// **'Manage account'**
+  String get accountEligibilityManageAccount;
+
   /// No description provided for @onboardingSaveError.
   ///
   /// In en, this message translates to:
@@ -7178,6 +7364,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Could not copy. The text remains selectable.'**
   String get moderationCopyError;
+
+  /// Report reason for stalking.
+  ///
+  /// In en, this message translates to:
+  /// **'Stalking'**
+  String get reportReasonStalking;
+
+  /// Report reason for doxxing.
+  ///
+  /// In en, this message translates to:
+  /// **'Doxxing'**
+  String get reportReasonDoxxing;
+
+  /// Report reason for block evasion.
+  ///
+  /// In en, this message translates to:
+  /// **'Block evasion'**
+  String get reportReasonBlockEvasion;
+
+  /// Report reason for a privacy violation.
+  ///
+  /// In en, this message translates to:
+  /// **'Privacy violation'**
+  String get reportReasonPrivacy;
+
+  /// Report reason for fraud.
+  ///
+  /// In en, this message translates to:
+  /// **'Fraud'**
+  String get reportReasonFraud;
+
+  /// Report reason for a scam.
+  ///
+  /// In en, this message translates to:
+  /// **'Scam'**
+  String get reportReasonScam;
+
+  /// Report reason for phishing.
+  ///
+  /// In en, this message translates to:
+  /// **'Phishing'**
+  String get reportReasonPhishing;
+
+  /// Report reason for counterfeit goods.
+  ///
+  /// In en, this message translates to:
+  /// **'Counterfeit goods'**
+  String get reportReasonCounterfeit;
+
+  /// Report reason for platform manipulation.
+  ///
+  /// In en, this message translates to:
+  /// **'Platform manipulation'**
+  String get reportReasonPlatformManipulation;
 }
 
 class _AppLocalizationsDelegate

@@ -1459,6 +1459,35 @@ func TestCreatePost_MalformedBody_400(t *testing.T) {
 	}
 }
 
+func TestCreatePost_VideoDisabledBeforePDSWrite(t *testing.T) {
+	t.Parallel()
+	pds := &fakePostEffectState{}
+	handler := api.CreatePostHandler(
+		&fakePostStore{},
+		newPDSEffectsFactory(pds),
+		fakeResolver{handleFor: "alice.example"},
+		api.DefaultMediaLimits(),
+		nilLogger(),
+		api.CreatePostHandlerOptions{DisableVideo: true},
+	)
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(
+		response,
+		authedReq(
+			http.MethodPost,
+			"/v1/posts",
+			`{"text":"video post","embed":{"video":{"jobId":"job-1","blob":{"$type":"blob","ref":{"$link":"bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"},"mimeType":"video/mp4","size":123}}}}`,
+			"did:plc:alice",
+		),
+	)
+	if response.Code != http.StatusServiceUnavailable || !strings.Contains(response.Body.String(), `"error":"video_disabled"`) {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	if pds.createCalls != 0 {
+		t.Fatalf("disabled video reached PDS %d times", pds.createCalls)
+	}
+}
+
 func TestCreatePost_VideoProofVerifiedBeforePDSWrite(t *testing.T) {
 	t.Parallel()
 	const videoCID = "bafkreie3w2xq7u6rs5szu6vllsq5xh7y7uv3f6blql6uz4ep6txv6m4o6a"

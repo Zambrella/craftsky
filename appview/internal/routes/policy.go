@@ -64,13 +64,14 @@ func (c AccessClass) Valid() bool {
 }
 
 type RoutePolicy struct {
-	Method          string
-	PathPattern     string
-	RateClass       RateClass
-	BodyKind        BodyKind
-	AccessClass     AccessClass
-	SuspensionClass SuspensionClass
-	DevOnly         bool
+	Method           string
+	PathPattern      string
+	RateClass        RateClass
+	BodyKind         BodyKind
+	AccessClass      AccessClass
+	SuspensionClass  SuspensionClass
+	EligibilityClass EligibilityClass
+	DevOnly          bool
 }
 
 func V1RoutePolicies(env Environment, cfg Config) []RoutePolicy {
@@ -87,8 +88,59 @@ func V1RoutePolicies(env Environment, cfg Config) []RoutePolicy {
 	}
 	for index := range policies {
 		policies[index].SuspensionClass = suspensionClassFor(policies[index])
+		policies[index].EligibilityClass = eligibilityClassFor(policies[index])
 	}
 	return policies
+}
+
+type EligibilityClass uint8
+
+const (
+	EligibilityUnspecified EligibilityClass = iota
+	EligibilityAllowed
+	EligibilityDenied
+)
+
+func (class EligibilityClass) Valid() bool {
+	return class == EligibilityAllowed || class == EligibilityDenied
+}
+
+func (class EligibilityClass) AllowedWhenRestricted() bool { return class == EligibilityAllowed }
+
+func eligibilityClassFor(policy RoutePolicy) EligibilityClass {
+	if policy.AccessClass != AccessCurrentMember {
+		return EligibilityAllowed
+	}
+	if retainedAgeRestrictedRoutes[policyKey(policy.Method, policy.PathPattern)] {
+		return EligibilityAllowed
+	}
+	return EligibilityDenied
+}
+
+var retainedAgeRestrictedRoutes = map[string]bool{
+	"GET /v1/account/eligibility":                        true,
+	"GET /v1/moderation/standing":                        true,
+	"GET /v1/moderation/history":                         true,
+	"GET /v1/moderation/history/{caseReference}":         true,
+	"GET /v1/profiles/me/mutes":                          true,
+	"GET /v1/profiles/me/blocks":                         true,
+	"POST /v1/auth/logout":                               true,
+	"POST /v1/account-deletion/intents":                  true,
+	"DELETE /v1/account-deletion/intents/{jobId}":        true,
+	"POST /v1/account-deletions/{jobId}":                 true,
+	"POST /v1/profiles/{handleOrDid}/mutes":              true,
+	"DELETE /v1/profiles/{handleOrDid}/mutes":            true,
+	"POST /v1/profiles/{handleOrDid}/blocks":             true,
+	"DELETE /v1/profiles/{handleOrDid}/blocks":           true,
+	"POST /v1/profiles/{handleOrDid}/reports":            true,
+	"POST /v1/events/{did}/{rkey}/reports":               true,
+	"POST /v1/posts/{did}/{rkey}/reports":                true,
+	"DELETE /v1/events/{did}/{rkey}":                     true,
+	"DELETE /v1/posts/{did}/{rkey}":                      true,
+	"DELETE /v1/profiles/me/business":                    true,
+	"DELETE /v1/posts/{did}/{rkey}/pin":                  true,
+	"DELETE /v1/migrations/instagram/account":            true,
+	"DELETE /v1/migrations/instagram/imports/{importId}": true,
 }
 
 type SuspensionClass uint8
@@ -191,6 +243,7 @@ func mustPolicy(method, pathPattern string) RoutePolicy {
 	for _, policy := range baseV1RoutePolicies() {
 		if policy.Method == method && policy.PathPattern == pathPattern {
 			policy.SuspensionClass = suspensionClassFor(policy)
+			policy.EligibilityClass = eligibilityClassFor(policy)
 			return policy
 		}
 	}
@@ -211,6 +264,7 @@ func baseV1RoutePolicies() []RoutePolicy {
 		{Method: "GET", PathPattern: "/v1/moderation/standing", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/moderation/history", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/moderation/history/{caseReference}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "GET", PathPattern: "/v1/account/eligibility", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "POST", PathPattern: "/v1/auth/login", RateClass: RateClassAuth, BodyKind: BodyDefaultJSON, AccessClass: AccessAnonymous},
 		{Method: "POST", PathPattern: "/v1/auth/registrations", RateClass: RateClassAuth, BodyKind: BodyDefaultJSON, AccessClass: AccessAnonymous},
 		{Method: "POST", PathPattern: "/v1/auth/handoffs/exchange", RateClass: RateClassAuth, BodyKind: BodyDefaultJSON, AccessClass: AccessAnonymous},
@@ -253,7 +307,7 @@ func baseV1RoutePolicies() []RoutePolicy {
 		{Method: "POST", PathPattern: "/v1/migrations/instagram/suggestions/{suggestionId}/accept", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "DELETE", PathPattern: "/v1/migrations/instagram/suggestions/{suggestionId}", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/onboarding/status", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
-		{Method: "POST", PathPattern: "/v1/onboarding/completion", RateClass: RateClassWrite, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
+		{Method: "POST", PathPattern: "/v1/onboarding/completion", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/profiles/{handleOrDid}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/profiles/me", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
 		{Method: "GET", PathPattern: "/v1/profiles/me/follower-growth", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessCurrentMember},
@@ -335,6 +389,27 @@ func baseV1RoutePolicies() []RoutePolicy {
 
 func adminModerationRoutePolicies() []RoutePolicy {
 	return []RoutePolicy{
+		{Method: "GET", PathPattern: "/v1/admin/safety/status", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessModerator},
+		{Method: "GET", PathPattern: "/v1/admin/safety/incidents/{incidentReference}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessModerator},
+		{Method: "POST", PathPattern: "/v1/admin/safety/external-intakes", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
+		{Method: "POST", PathPattern: "/v1/admin/safety/external-intakes/{intakeId}/correspondence", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
+		{Method: "POST", PathPattern: "/v1/admin/safety/external-intakes/{intakeId}/appeal-link", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
+		{Method: "POST", PathPattern: "/v1/admin/eligibility/reviews", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
+		{Method: "POST", PathPattern: "/v1/admin/safety/incidents/{incidentReference}/evidence", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
+		{Method: "POST", PathPattern: "/v1/admin/safety/evidence/{evidenceId}/access", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
+		{Method: "POST", PathPattern: "/v1/admin/safety/incidents/{incidentReference}/holds", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
+		{Method: "POST", PathPattern: "/v1/admin/safety/workflows/intimate-images", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
+		{Method: "POST", PathPattern: "/v1/admin/safety/workflows/intimate-images/{workflowId}/outcome", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
+		{Method: "POST", PathPattern: "/v1/admin/safety/workflows/credible-threats", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
+		{Method: "POST", PathPattern: "/v1/admin/safety/workflows/authority-requests", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
+		{Method: "POST", PathPattern: "/v1/admin/safety/workflows/authority-requests/{workflowId}/verification", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
+		{Method: "POST", PathPattern: "/v1/admin/safety/workflows/authority-requests/{workflowId}/disclosures", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
+		{Method: "POST", PathPattern: "/v1/admin/safety/workflows/authority-requests/{workflowId}/closure", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
+		{Method: "POST", PathPattern: "/v1/admin/safety/incidents/{incidentReference}/csea-classification", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
+		{Method: "POST", PathPattern: "/v1/admin/safety/incidents/{incidentReference}/authority-reports", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
+		{Method: "POST", PathPattern: "/v1/admin/safety/incidents/{incidentReference}/information-requests", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
+		{Method: "POST", PathPattern: "/v1/admin/safety/information-requests/{requestId}/response", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
+		{Method: "POST", PathPattern: "/v1/admin/safety/incidents/{incidentReference}/resolution", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},
 		{Method: "GET", PathPattern: "/v1/admin/moderation/cases", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessModerator},
 		{Method: "GET", PathPattern: "/v1/admin/moderation/cases/{caseReference}", RateClass: RateClassRead, BodyKind: BodyNoBody, AccessClass: AccessModerator},
 		{Method: "POST", PathPattern: "/v1/admin/moderation/cases/{caseReference}/decisions", RateClass: RateClassWrite, BodyKind: BodyDefaultJSON, AccessClass: AccessModerator},

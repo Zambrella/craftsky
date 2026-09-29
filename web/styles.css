@@ -1430,6 +1430,43 @@ a:hover { color: var(--cobalt-deep); }
   color: var(--fg-1);
 }
 
+.legal__draft {
+  border: 2px solid var(--clay);
+  border-radius: var(--r-2);
+  background: var(--paper-2);
+  padding: var(--sp-4);
+}
+
+.legal blockquote {
+  margin: var(--sp-4) 0 0;
+  padding-left: var(--sp-4);
+  border-left: 4px solid var(--cobalt);
+  color: var(--fg-2);
+}
+
+.legal__table-wrap {
+  margin-top: var(--sp-4);
+  overflow-x: auto;
+}
+
+.legal table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.legal th,
+.legal td {
+  padding: var(--sp-3);
+  border: 1px solid var(--border-hair);
+  text-align: left;
+  vertical-align: top;
+}
+
+.legal code {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+}
+
 .legal h2 {
   font-family: var(--font-display);
   font-size: 32px;

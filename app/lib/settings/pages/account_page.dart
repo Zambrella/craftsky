@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/active_account_identity_provider.dart';
+import 'package:craftsky_app/auth/providers/active_account_initialization_provider.dart';
 import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/business/models/business_profile.dart';
 import 'package:craftsky_app/business/providers/account_type_controller.dart';
@@ -35,11 +36,18 @@ class AccountPage extends ConsumerWidget {
         .accountType;
     final accountTypeState = ref.watch(accountTypeControllerProvider);
     final accountType = accountTypeState.value ?? profileType;
+    final isRestricted =
+        ref
+            .watch(activeAccountInitializationProvider)
+            .value
+            ?.accountEligibility
+            .restricted ??
+        false;
     return Scaffold(
       appBar: AppBar(title: Text(l10n.accountTitle)),
       body: ListView(
         children: [
-          if (accountType != null) ...[
+          if (!isRestricted && accountType != null) ...[
             Padding(
               padding: const EdgeInsetsDirectional.fromSTEB(16, 20, 16, 8),
               child: Text(

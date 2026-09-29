@@ -48,6 +48,8 @@ services:
         mc alias set craftsky http://minio:9000 craftsky-minio craftsky-minio-dev-secret
         mc mb --ignore-existing craftsky/private-scheduled-media
         mc anonymous set none craftsky/private-scheduled-media
+        mc mb --ignore-existing craftsky/restricted-safety-evidence
+        mc anonymous set none craftsky/restricted-safety-evidence
 
   migrate:
     build:
@@ -166,6 +168,11 @@ services:
       OAUTH_CALLBACK_URL: "http://127.0.0.1:${CRAFTSKY_APPVIEW_PORT:-18080}/oauth/callback"
       CRAFTSKY_DEV_MEDIA_BASE_URL: "http://localhost:${CRAFTSKY_APPVIEW_PORT:-18080}/v1/dev/media"
       SCHEDULED_POSTS_S3_ENDPOINT: http://minio:9000
+      SAFETY_EVIDENCE_S3_ENDPOINT: http://minio:9000
+      SAFETY_EVIDENCE_S3_REGION: us-east-1
+      SAFETY_EVIDENCE_S3_BUCKET: restricted-safety-evidence
+      SAFETY_EVIDENCE_S3_ACCESS_KEY_ID: craftsky-minio
+      SAFETY_EVIDENCE_S3_SECRET_ACCESS_KEY: craftsky-minio-dev-secret
     ports:
       # The primary checkout defaults to host 18080. scripts/compose-dev gives
       # linked worktrees stable alternate ports so their stacks can coexist.

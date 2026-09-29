@@ -70,3 +70,64 @@ func TestBusinessProfileStoreEligibility(t *testing.T) {
 		t.Fatalf("retained profile count = %d, error %v", retained, err)
 	}
 }
+
+func TestBusinessProfileStoreHidesNonClearCurrentRevision(t *testing.T) {
+	pool := testdb.WithSchema(t, `
+		CREATE TABLE craftsky_profiles (did TEXT PRIMARY KEY, record_cid TEXT NOT NULL);
+		CREATE TABLE craftsky_account_types (
+			owner_did TEXT PRIMARY KEY,
+			account_type TEXT NOT NULL CHECK (account_type IN ('regular', 'business'))
+		);
+		CREATE TABLE craftsky_business_profiles (
+			owner_did TEXT PRIMARY KEY,
+			uri TEXT NOT NULL UNIQUE,
+			cid TEXT NOT NULL,
+			raw_record JSONB NOT NULL,
+			source_revision TEXT NOT NULL,
+			indexed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+		);
+	`)
+	ctx := context.Background()
+	did := syntax.DID("did:plc:alice")
+	if _, err := pool.Exec(ctx, `
+		CREATE TABLE image_subject_states (
+			subject_uri TEXT PRIMARY KEY,
+			source_cid TEXT NOT NULL,
+			visibility_state TEXT NOT NULL
+		);
+		CREATE OR REPLACE FUNCTION appview_image_subject_is_clear(candidate_uri TEXT, candidate_cid TEXT)
+		RETURNS BOOLEAN LANGUAGE SQL STABLE AS $$
+			SELECT EXISTS (
+				SELECT 1 FROM image_subject_states
+				WHERE subject_uri=candidate_uri AND source_cid=candidate_cid AND visibility_state='clear'
+			)
+		$$
+	`); err != nil {
+		t.Fatalf("create image safety fixture: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_profiles(did, record_cid) VALUES ($1, 'profile-cid')`, did); err != nil {
+		t.Fatalf("seed blocked profile owner: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO craftsky_account_types(owner_did, account_type) VALUES ($1, 'business')`, did); err != nil {
+		t.Fatalf("seed blocked profile account type: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO craftsky_business_profiles(owner_did, uri, cid, raw_record, source_revision)
+		VALUES ($1, 'at://did:plc:alice/social.craftsky.business.profile/self', 'business-cid',
+			'{"$type":"social.craftsky.business.profile","tagline":"Stale projected profile"}'::jsonb,
+			'3mprofile00001')
+	`, did); err != nil {
+		t.Fatalf("seed projected business profile: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		INSERT INTO image_subject_states(subject_uri, source_cid, visibility_state)
+		VALUES ('at://did:plc:alice/social.craftsky.business.profile/self', 'replacement-cid', 'blocked')
+	`); err != nil {
+		t.Fatalf("seed blocked current business profile: %v", err)
+	}
+
+	view, err := business.NewStore(pool).ReadEligibleProfile(ctx, did)
+	if err != nil || view != nil {
+		t.Fatalf("blocked current business profile = (%+v, %v), want nil", view, err)
+	}
+}

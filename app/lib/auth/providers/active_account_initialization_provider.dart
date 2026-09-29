@@ -1,3 +1,4 @@
+import 'package:craftsky_app/account_eligibility/providers/account_eligibility_provider.dart';
 import 'package:craftsky_app/auth/models/active_account_initialization.dart';
 import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/languages/providers/account_language_preferences_provider.dart';
@@ -34,9 +35,11 @@ FutureOr<ActiveAccountInitialization?> activeAccountInitialization(Ref ref) {
   final onboarding = ref
       .watch(onboardingStatusProvider(lease.session))
       .requireValue;
+  final eligibility = ref.watch(accountEligibilityProvider(lease)).requireValue;
   return ActiveAccountInitialization(
     lease: lease,
     languagePreferences: preferences,
     onboardingComplete: onboarding.completed,
+    accountEligibility: eligibility,
   );
 }

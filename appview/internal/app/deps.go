@@ -16,6 +16,7 @@ import (
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/business"
 	"social.craftsky/appview/internal/followergrowth"
+	"social.craftsky/appview/internal/imagesafety"
 	"social.craftsky/appview/internal/index"
 	"social.craftsky/appview/internal/ingestion"
 	"social.craftsky/appview/internal/instagram"
@@ -28,6 +29,9 @@ import (
 	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/push"
 	"social.craftsky/appview/internal/relationships"
+	"social.craftsky/appview/internal/retention"
+	"social.craftsky/appview/internal/safetyincident"
+	"social.craftsky/appview/internal/safetyintake"
 	"social.craftsky/appview/internal/scheduledposts"
 	"social.craftsky/appview/internal/tap"
 )
@@ -93,6 +97,15 @@ type Deps struct {
 	TapProjectionWorker  *ingestion.ProjectionWorker
 	TapRepositoryWorker  *ingestion.RepositoryWorker
 	TapQuarantineWorker  *ingestion.QuarantineReplayWorker
+	ImageSafetyWorker    *imagesafety.Worker
+	ImageSafetyStore     *imagesafety.WorkerStore
+	SafetyIncidents      *safetyincident.Store
+	SafetyIntake         *safetyintake.Store
+	SafetyEvidence       *safetyincident.EvidenceService
+	SafetyHolds          *safetyincident.HoldService
+	SafetyWorkflows      *safetyincident.WorkflowService
+	SafetyCSEA           *safetyincident.CSEAWorkflow
+	SafetyRetention      *retention.Worker
 	PushDispatcher       *push.Dispatcher
 	FollowerGrowthStore  *followergrowth.Store
 	FollowerGrowthWorker *followergrowth.Worker
@@ -290,6 +303,10 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	instagramPrivateData := instagramStorage.privateData
 	scheduledAccountDeletion := scheduledLifecycle.accountDeletion
 	scheduledDepartureParticipant := scheduledLifecycle.departureParticipant
+	imageSafetyCapability, err := newImageSafetyDependencies(pool, federated, cfg)
+	if err != nil {
+		return nil, nil, err
+	}
 	tapCapability, err := newTapDependencies(
 		pool,
 		federated,
@@ -365,6 +382,10 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		TapProjectionWorker:         tapCapability.projectionWorker,
 		TapRepositoryWorker:         tapCapability.repositoryWorker,
 		TapQuarantineWorker:         tapCapability.quarantineWorker,
+		ImageSafetyWorker:           imageSafetyCapability.worker,
+		ImageSafetyStore:            imageSafetyCapability.store,
+		SafetyIncidents:             imageSafetyCapability.incidents,
+		SafetyIntake:                imageSafetyCapability.intake,
 		Consumer:                    tapCapability.consumer,
 		RelationshipStore:           relationshipStore,
 		LanguagePreferences:         languagePreferences,
@@ -420,6 +441,15 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	deps.IdentityInvalidator = identities.invalidator
 	deps.IdentityCacheRefresh = contentRuntime.identityRefresh
 	deps.RelationshipMutations = contentRuntime.relationshipMutations
+	safety, err := newSafetyDependencies(ctx, pool, cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	deps.SafetyEvidence = safety.evidence
+	deps.SafetyHolds = safety.holds
+	deps.SafetyWorkflows = safety.workflows
+	deps.SafetyCSEA = safety.csea
+	deps.SafetyRetention = safety.retention
 	deletion, err := newAccountDeletionDependencies(
 		pool,
 		authCapability,
@@ -429,6 +459,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		instagramPrivateData,
 		scheduledAccountDeletion,
 		scheduledDepartureParticipant,
+		safety.objects,
 		cfg,
 		logger,
 	)
@@ -485,6 +516,30 @@ func newTransactionalIndexerDispatcherWithActorDeletion(
 	lifecycle notifications.Lifecycle,
 	actorDeletion notifications.ActorDeletion,
 ) *index.TransactionalDispatcher {
+	return newTransactionalIndexerDispatcher(pool, logger, observer, lifecycle, actorDeletion, imagesafety.ScanKey{}, true)
+}
+
+func newImageSafetyTransactionalIndexerDispatcher(
+	pool *pgxpool.Pool,
+	logger *slog.Logger,
+	observer index.RelationshipObserver,
+	lifecycle notifications.Lifecycle,
+	actorDeletion notifications.ActorDeletion,
+	key imagesafety.ScanKey,
+	videoEnabled bool,
+) *index.TransactionalDispatcher {
+	return newTransactionalIndexerDispatcher(pool, logger, observer, lifecycle, actorDeletion, key, videoEnabled)
+}
+
+func newTransactionalIndexerDispatcher(
+	pool *pgxpool.Pool,
+	logger *slog.Logger,
+	observer index.RelationshipObserver,
+	lifecycle notifications.Lifecycle,
+	actorDeletion notifications.ActorDeletion,
+	imageScanKey imagesafety.ScanKey,
+	videoEnabled bool,
+) *index.TransactionalDispatcher {
 	if lifecycle == nil {
 		lifecycle = notifications.NoopLifecycle{}
 	}
@@ -494,13 +549,19 @@ func newTransactionalIndexerDispatcherWithActorDeletion(
 	transactional := index.NewTransactionalDispatcher()
 	blueskyIdx := index.NewBlueskyProfile(pool)
 	profile := index.NewTransactionalCraftskyProfile(pool, logger, actorDeletion)
-	post := index.NewCraftskyPost(pool, logger, lifecycle)
+	var post index.TransactionalIndexer = index.NewCraftskyPostWithVideoPolicy(pool, logger, videoEnabled, lifecycle)
 	like := index.NewCraftskyLike(pool, logger, lifecycle)
 	repost := index.NewCraftskyRepost(pool, logger, lifecycle)
 	follow := index.NewBlueskyFollow(pool, lifecycle)
 	block := index.NewBlueskyBlock(pool, observer)
-	businessProfile := index.NewCraftskyBusinessProfile()
-	businessEvent := index.NewCraftskyBusinessEvent()
+	var businessProfile index.TransactionalIndexer = index.NewCraftskyBusinessProfile()
+	var businessEvent index.TransactionalIndexer = index.NewCraftskyBusinessEvent()
+	if imageScanKey.ScannerID != "" && imageScanKey.PolicyVersion != "" && imageScanKey.CorpusVersion != "" {
+		blueskyIdx = index.NewImageSafetyBlueskyProfile(pool, imageScanKey)
+		post = index.NewImageSafetyCraftskyPost(post, imageScanKey)
+		businessProfile = index.NewImageSafetyCraftskyBusinessProfile(businessProfile, imageScanKey)
+		businessEvent = index.NewImageSafetyCraftskyBusinessEvent(businessEvent, imageScanKey)
+	}
 	registrations := []struct {
 		collection syntax.NSID
 		indexer    index.TransactionalIndexer

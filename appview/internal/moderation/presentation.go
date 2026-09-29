@@ -43,3 +43,24 @@ func presentSubjectSnapshot(raw json.RawMessage, fallback SubjectSnapshot) (Subj
 	}
 	return snapshot, nil
 }
+
+type DecisionPresentation struct {
+	Reason          Reason
+	Action          string
+	AppealAvailable bool
+	InternalDetail  string
+}
+
+type DecisionNotice struct {
+	Reason          string `json:"reason"`
+	Action          string `json:"action"`
+	AppealAvailable bool   `json:"appealAvailable"`
+}
+
+func PresentDecisionNotice(presentation DecisionPresentation) DecisionNotice {
+	reason := "Community standards violation"
+	if presentation.Reason == ReasonChildSafety {
+		reason = "Child safety violation"
+	}
+	return DecisionNotice{Reason: reason, Action: presentation.Action, AppealAvailable: presentation.AppealAvailable}
+}

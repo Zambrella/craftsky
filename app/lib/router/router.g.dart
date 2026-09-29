@@ -8,6 +8,7 @@ part of 'router.dart';
 
 List<RouteBase> get $appRoutes => [
   $accountDeletionReauthCompleteRoute,
+  $accountEligibilityRoute,
   $authenticatedShellRoute,
   $welcomeRoute,
   $signInRoute,
@@ -37,6 +38,33 @@ mixin $AccountDeletionReauthCompleteRoute on GoRouteData {
     '/account-deletion/reauth-complete',
     queryParams: {'job-id': _self.jobId, 'proof': _self.proof},
   );
+
+  @override
+  void go(BuildContext context) => context.go(location);
+
+  @override
+  Future<T?> push<T>(BuildContext context) => context.push<T>(location);
+
+  @override
+  void pushReplacement(BuildContext context) =>
+      context.pushReplacement(location);
+
+  @override
+  void replace(BuildContext context) => context.replace(location);
+}
+
+RouteBase get $accountEligibilityRoute => GoRouteData.$route(
+  path: '/account-eligibility',
+  name: 'account-eligibility',
+  factory: $AccountEligibilityRoute._fromState,
+);
+
+mixin $AccountEligibilityRoute on GoRouteData {
+  static AccountEligibilityRoute _fromState(GoRouterState state) =>
+      const AccountEligibilityRoute();
+
+  @override
+  String get location => GoRouteData.$location('/account-eligibility');
 
   @override
   void go(BuildContext context) => context.go(location);
@@ -1304,4 +1332,4 @@ final class GoRouterProvider
   }
 }
 
-String _$goRouterHash() => r'a094a3aa40ff62e21b2925c0945aee4e28d110f2';
+String _$goRouterHash() => r'4650f5c79dea6662dceb7a912a68fd79127d0287';

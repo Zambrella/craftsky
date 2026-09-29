@@ -11,5 +11,11 @@ final class ApiOnboardingRepository implements OnboardingRepository {
   Future<OnboardingCompletion> readStatus() => _client.readStatus();
 
   @override
-  Future<OnboardingCompletion> complete() => _client.complete();
+  Future<OnboardingCompletion> complete({
+    required bool meetsMinimumAge,
+    required String policyVersion,
+  }) => _client.complete(
+    meetsMinimumAge: meetsMinimumAge,
+    policyVersion: policyVersion,
+  );
 }

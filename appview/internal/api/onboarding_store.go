@@ -14,11 +14,16 @@ import (
 )
 
 type OnboardingStatusStore struct {
-	pool *pgxpool.Pool
+	pool                  *pgxpool.Pool
+	requiredPolicyVersion string
 }
 
-func NewOnboardingStatusStore(pool *pgxpool.Pool) *OnboardingStatusStore {
-	return &OnboardingStatusStore{pool: pool}
+func NewOnboardingStatusStore(pool *pgxpool.Pool, requiredPolicyVersion ...string) *OnboardingStatusStore {
+	version := "1"
+	if len(requiredPolicyVersion) > 0 {
+		version = requiredPolicyVersion[0]
+	}
+	return &OnboardingStatusStore{pool: pool, requiredPolicyVersion: version}
 }
 
 func (s *OnboardingStatusStore) Status(ctx context.Context, did syntax.DID) (OnboardingStatus, error) {
@@ -30,17 +35,19 @@ func (s *OnboardingStatusStore) Status(ctx context.Context, did syntax.DID) (Onb
 	if err := ownerlifecycle.GuardPrivateMutationTx(ctx, tx, did, nil); err != nil {
 		return OnboardingStatus{}, fmt.Errorf("authorize onboarding status read: %w", err)
 	}
-	var completedAt time.Time
+	var completedAt, acceptedAt time.Time
+	var acceptedPolicyVersion string
 	err = tx.QueryRow(ctx, `
-		SELECT completed_at
-		FROM account_onboarding_completions
-		WHERE account_did = $1
-	`, did).Scan(&completedAt)
+		SELECT completion.completed_at, acceptance.policy_version, acceptance.accepted_at
+		FROM account_onboarding_completions completion
+		JOIN account_policy_acceptances acceptance ON acceptance.account_did=completion.account_did
+		WHERE completion.account_did = $1
+	`, did).Scan(&completedAt, &acceptedPolicyVersion, &acceptedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
 		if err := tx.Commit(ctx); err != nil {
 			return OnboardingStatus{}, fmt.Errorf("commit onboarding status read: %w", err)
 		}
-		return OnboardingStatus{Completed: false}, nil
+		return OnboardingStatus{Completed: false, RequiredPolicyVersion: s.requiredPolicyVersion}, nil
 	}
 	if err != nil {
 		return OnboardingStatus{}, fmt.Errorf("read onboarding status: %w", err)
@@ -48,10 +55,16 @@ func (s *OnboardingStatusStore) Status(ctx context.Context, did syntax.DID) (Onb
 	if err := tx.Commit(ctx); err != nil {
 		return OnboardingStatus{}, fmt.Errorf("commit onboarding status read: %w", err)
 	}
-	return OnboardingStatus{Completed: true, CompletedAt: &completedAt}, nil
+	return OnboardingStatus{Completed: true, CompletedAt: &completedAt, RequiredPolicyVersion: s.requiredPolicyVersion, AcceptedPolicyVersion: acceptedPolicyVersion, AcceptedAt: &acceptedAt}, nil
 }
 
-func (s *OnboardingStatusStore) Complete(ctx context.Context, did syntax.DID) (OnboardingStatus, error) {
+func (s *OnboardingStatusStore) Complete(ctx context.Context, did syntax.DID, acceptance OnboardingAcceptance) (OnboardingStatus, error) {
+	if !acceptance.MeetsMinimumAge {
+		return OnboardingStatus{}, ErrMinimumAgeDeclarationRequired
+	}
+	if acceptance.PolicyVersion != s.requiredPolicyVersion {
+		return OnboardingStatus{}, ErrPolicyVersionMismatch
+	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return OnboardingStatus{}, fmt.Errorf("begin onboarding completion: %w", err)
@@ -61,22 +74,31 @@ func (s *OnboardingStatusStore) Complete(ctx context.Context, did syntax.DID) (O
 		return OnboardingStatus{}, fmt.Errorf("authorize onboarding completion: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `
+		INSERT INTO account_policy_acceptances (account_did,policy_version)
+		VALUES ($1,$2)
+		ON CONFLICT (account_did) DO NOTHING
+	`, did, acceptance.PolicyVersion); err != nil {
+		return OnboardingStatus{}, fmt.Errorf("record policy acceptance: %w", err)
+	}
+	if _, err := tx.Exec(ctx, `
 		INSERT INTO account_onboarding_completions (account_did)
 		VALUES ($1)
 		ON CONFLICT (account_did) DO NOTHING
 	`, did); err != nil {
 		return OnboardingStatus{}, fmt.Errorf("complete onboarding: %w", err)
 	}
-	var completedAt time.Time
+	var completedAt, acceptedAt time.Time
+	var acceptedPolicyVersion string
 	if err := tx.QueryRow(ctx, `
-		SELECT completed_at
-		FROM account_onboarding_completions
-		WHERE account_did = $1
-	`, did).Scan(&completedAt); err != nil {
+		SELECT completion.completed_at, acceptance.policy_version, acceptance.accepted_at
+		FROM account_onboarding_completions completion
+		JOIN account_policy_acceptances acceptance ON acceptance.account_did=completion.account_did
+		WHERE completion.account_did = $1
+	`, did).Scan(&completedAt, &acceptedPolicyVersion, &acceptedAt); err != nil {
 		return OnboardingStatus{}, fmt.Errorf("read completed onboarding status: %w", err)
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return OnboardingStatus{}, fmt.Errorf("commit onboarding completion: %w", err)
 	}
-	return OnboardingStatus{Completed: true, CompletedAt: &completedAt}, nil
+	return OnboardingStatus{Completed: true, CompletedAt: &completedAt, RequiredPolicyVersion: s.requiredPolicyVersion, AcceptedPolicyVersion: acceptedPolicyVersion, AcceptedAt: &acceptedAt}, nil
 }

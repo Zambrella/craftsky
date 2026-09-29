@@ -11,16 +11,25 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"social.craftsky/appview/internal/ownerlifecycle"
+	"social.craftsky/appview/internal/safetyincident"
 )
 
 type DatabasePrivateCleanup struct {
 	pool       *pgxpool.Pool
 	lifecycles *ownerlifecycle.Store
 	initErr    error
+	evidence   safetyincident.EvidenceStore
 }
 
-func NewDatabasePrivateCleanup(pool *pgxpool.Pool) *DatabasePrivateCleanup {
+func NewDatabasePrivateCleanup(pool *pgxpool.Pool, evidence ...safetyincident.EvidenceStore) *DatabasePrivateCleanup {
 	cleanup := &DatabasePrivateCleanup{pool: pool}
+	if len(evidence) > 1 {
+		cleanup.initErr = errors.New("multiple restricted evidence stores configured")
+		return cleanup
+	}
+	if len(evidence) == 1 {
+		cleanup.evidence = evidence[0]
+	}
 	if pool == nil {
 		return cleanup
 	}
@@ -38,6 +47,9 @@ func (*DatabasePrivateCleanup) Name() string { return "databasePrivate" }
 func (cleanup *DatabasePrivateCleanup) Purge(ctx context.Context, owner syntax.DID) error {
 	if cleanup == nil || cleanup.pool == nil || cleanup.lifecycles == nil || cleanup.initErr != nil || owner == "" {
 		return errors.New("private database cleanup scope is invalid")
+	}
+	if err := PurgeOwnerSafetyEvidence(ctx, cleanup.pool, cleanup.evidence, owner, time.Now().UTC()); err != nil {
+		return err
 	}
 	if err := cleanup.purgeModeration(ctx, owner); err != nil {
 		return err

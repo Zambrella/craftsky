@@ -35,6 +35,7 @@ type CraftskyPost struct {
 	projectionDB transactionalDatabase
 	logger       *slog.Logger
 	lifecycle    notifications.Lifecycle
+	videoEnabled bool
 }
 
 var _ Indexer = (*CraftskyPost)(nil)
@@ -47,7 +48,13 @@ func NewCraftskyPost(pool *pgxpool.Pool, logger *slog.Logger, lifecycles ...noti
 	if len(lifecycles) > 0 && lifecycles[0] != nil {
 		lifecycle = lifecycles[0]
 	}
-	return &CraftskyPost{pool: pool, logger: logger, lifecycle: lifecycle}
+	return &CraftskyPost{pool: pool, logger: logger, lifecycle: lifecycle, videoEnabled: true}
+}
+
+func NewCraftskyPostWithVideoPolicy(pool *pgxpool.Pool, logger *slog.Logger, videoEnabled bool, lifecycles ...notifications.Lifecycle) *CraftskyPost {
+	indexer := NewCraftskyPost(pool, logger, lifecycles...)
+	indexer.videoEnabled = videoEnabled
+	return indexer
 }
 
 const craftskyPostNSID syntax.NSID = "social.craftsky.feed.post"
@@ -85,6 +92,9 @@ func (c *CraftskyPost) handleUpsert(ctx context.Context, ev tap.Event) error {
 	var rec craftskylex.FeedPost
 	if err := json.Unmarshal(ev.Record, &rec); err != nil {
 		return fmt.Errorf("unmarshal %s: %w", ev.URI, err)
+	}
+	if rec.Embed != nil && rec.Embed.EmbedVideo != nil && !c.videoEnabled {
+		return c.handleDelete(ctx, ev)
 	}
 	if err := validateIndexedVideo(rec.Embed); err != nil {
 		return fmt.Errorf("validate video embed %s: %w", ev.URI, err)

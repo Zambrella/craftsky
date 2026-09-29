@@ -6,6 +6,7 @@ import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/providers/report_post_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/moderation/models/report_result.dart';
+import 'package:craftsky_app/moderation/providers/moderation_providers.dart';
 import 'package:craftsky_app/moderation/widgets/report_subject_sheet.dart';
 import 'package:craftsky_app/profile/providers/report_profile_provider.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
@@ -114,6 +115,7 @@ class _PostReportRouteBody extends ConsumerWidget {
       onChanged: submitState.hasError
           ? () => ref.read(reportPostProvider.notifier).reset()
           : null,
+      onExternalRoute: ref.read(moderationMailLauncherProvider),
       onSubmit: (submission) {
         unawaited(
           ref
@@ -162,6 +164,7 @@ class _ProfileReportRouteBody extends ConsumerWidget {
       onChanged: submitState.hasError
           ? () => ref.read(reportProfileProvider.notifier).reset()
           : null,
+      onExternalRoute: ref.read(moderationMailLauncherProvider),
       onSubmit: (submission) {
         unawaited(
           ref
@@ -218,6 +221,7 @@ class _BusinessEventReportRouteBody extends ConsumerWidget {
       onChanged: submitState.hasError
           ? () => ref.read(provider.notifier).reset()
           : null,
+      onExternalRoute: ref.read(moderationMailLauncherProvider),
       onSubmit: (submission) {
         unawaited(
           ref

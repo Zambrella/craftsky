@@ -21,6 +21,8 @@ import (
 	"social.craftsky/appview/internal/ownerlifecycle"
 	"social.craftsky/appview/internal/pdseffects"
 	"social.craftsky/appview/internal/relationships"
+	"social.craftsky/appview/internal/safetyincident"
+	"social.craftsky/appview/internal/safetyintake"
 	"social.craftsky/appview/internal/scheduledposts"
 	"social.craftsky/appview/internal/tap"
 )
@@ -83,6 +85,9 @@ type Config struct {
 	ModerationAdminActorID        string
 	ModerationAdminSourceSystem   string
 	ModerationSourceDID           string
+	ImageSafetyAlertAge           time.Duration
+	RequiredPolicyVersion         string
+	VideoEnabled                  bool
 }
 
 // Dependencies is the route-composition boundary. AddRoutes is the only
@@ -124,6 +129,16 @@ type Dependencies struct {
 	HandleResolver              api.HandleResolver
 	AuthoritativeHandleResolver api.HandleResolver
 	Consumer                    tap.Consumer
+	ImageSafetyReadiness        api.Readiness
+	ImageSafetyHealth           api.ImageSafetyHealthReader
+	SafetyWork                  []api.SafetyWorkReader
+	SafetyIncidents             *safetyincident.Store
+	SafetyIntake                *safetyintake.Store
+	SafetyEvidence              *safetyincident.EvidenceService
+	SafetyHolds                 *safetyincident.HoldService
+	SafetyWorkflows             *safetyincident.WorkflowService
+	SafetyCSEA                  *safetyincident.CSEAWorkflow
+	ModeratorAuthenticator      middleware.ModeratorAuthenticator
 
 	InstagramMembership   *instagram.MembershipStore
 	InstagramRateLimiter  *instagram.PostgresRateLimiter
@@ -145,6 +160,7 @@ type Dependencies struct {
 	ModerationCases           *moderation.Store
 	ModerationCommands        api.ModerationCommander
 	SuspensionReader          middleware.SuspensionReader
+	EligibilityReader         middleware.AgeEligibilityReader
 	LanguagePreferences       *languages.Store
 	NewPDSEffects             pdseffects.ExecutorFactory
 	BusinessStore             *business.Store

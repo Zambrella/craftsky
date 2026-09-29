@@ -18,10 +18,23 @@ type Stater interface {
 	State() tap.ConnState
 }
 
+type Readiness interface {
+	Ready() bool
+}
+
+type StaticReadiness bool
+
+func (readiness StaticReadiness) Ready() bool { return bool(readiness) }
+
 type healthResponse struct {
-	Status string         `json:"status"`
-	DB     string         `json:"db"`
-	Tap    healthTapBlock `json:"tap"`
+	Status      string                `json:"status"`
+	DB          string                `json:"db"`
+	Tap         healthTapBlock        `json:"tap"`
+	ImageSafety *healthReadinessBlock `json:"imageSafety,omitempty"`
+}
+
+type healthReadinessBlock struct {
+	Ready bool `json:"ready"`
 }
 
 type healthTapBlock struct {
@@ -36,7 +49,7 @@ type healthTapBlock struct {
 // deep health check that also reports Tap consumer state. Status is
 // "ok" only when DB ping succeeds and the Tap consumer is connected and
 // has received at least one event; otherwise "degraded". HTTP status is always 200.
-func NewHealthHandler(pinger Pinger, stater Stater) http.Handler {
+func NewHealthHandler(pinger Pinger, stater Stater, optional ...Readiness) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		dbStatus := "ok"
 		if err := pinger.Ping(r.Context()); err != nil {
@@ -52,10 +65,15 @@ func NewHealthHandler(pinger Pinger, stater Stater) http.Handler {
 				LastError:        tapState.LastError,
 			},
 		}
+		imageSafetyReady := true
+		if len(optional) > 0 && optional[0] != nil {
+			imageSafetyReady = optional[0].Ready()
+			resp.ImageSafety = &healthReadinessBlock{Ready: imageSafetyReady}
+		}
 		if !tapState.LastEventAt.IsZero() {
 			resp.Tap.LastEventAt = tapState.LastEventAt.UTC().Format("2006-01-02T15:04:05Z07:00")
 		}
-		if dbStatus == "ok" && tapState.Connected && !tapState.LastEventAt.IsZero() {
+		if dbStatus == "ok" && tapState.Connected && !tapState.LastEventAt.IsZero() && imageSafetyReady {
 			resp.Status = "ok"
 		} else {
 			resp.Status = "degraded"

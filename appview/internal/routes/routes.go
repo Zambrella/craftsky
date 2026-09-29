@@ -11,6 +11,7 @@ import (
 	"social.craftsky/appview/internal/api"
 	"social.craftsky/appview/internal/auth"
 	"social.craftsky/appview/internal/business"
+	"social.craftsky/appview/internal/eligibility"
 	"social.craftsky/appview/internal/instagram"
 	"social.craftsky/appview/internal/middleware"
 	"social.craftsky/appview/internal/moderation"
@@ -54,6 +55,7 @@ type v1Middleware struct {
 	accountTypeHydrator *api.IdentityAccountTypeHydrator
 	moderator           func(http.Handler) http.Handler
 	suspension          middleware.SuspensionReader
+	eligibility         middleware.AgeEligibilityReader
 	handlerDecorator    func(RoutePolicy, http.Handler) http.Handler
 }
 
@@ -82,6 +84,9 @@ func (m v1Middleware) wrap(policy RoutePolicy, handler http.Handler) http.Handle
 		// read and retain its bounded body. Holding it until handler completion
 		// also accounts for decode and remote-write work retaining those bytes.
 		wrapped = m.uploadAdmission.Handler(wrapped)
+	}
+	if accessClass == AccessCurrentMember {
+		wrapped = middleware.AgeEligibilityEnforcement(m.eligibility, policy.EligibilityClass.AllowedWhenRestricted(), nil)(wrapped)
 	}
 	if accessClass == AccessCurrentMember {
 		wrapped = middleware.ModerationEnforcement(m.suspension, policy.SuspensionClass.AllowedWhenSuspended(), nil)(wrapped)
@@ -126,6 +131,8 @@ type middlewareDependencies struct {
 	ProfileCustomisationStore *api.ProfileCustomisationStore
 	BusinessStore             *business.Store
 	Suspension                middleware.SuspensionReader
+	Eligibility               middleware.AgeEligibilityReader
+	ModeratorAuthenticator    middleware.ModeratorAuthenticator
 	HandlerDecorator          func(RoutePolicy, http.Handler) http.Handler
 }
 
@@ -191,6 +198,10 @@ func buildV1Middleware(deps middlewareDependencies, observer *observability.Obse
 	if deps.BusinessStore != nil {
 		accountTypeHydrator = api.NewIdentityAccountTypeHydrator(deps.BusinessStore)
 	}
+	moderatorAuthentication := middleware.ModeratorAuthentication(deps.Config.ModerationAdminToken.reveal(), deps.Config.ModerationAdminActorID, deps.Config.ModerationAdminSourceSystem, deps.Logger, observer)
+	if deps.ModeratorAuthenticator != nil {
+		moderatorAuthentication = middleware.ModeratorDatabaseAuthentication(deps.ModeratorAuthenticator, deps.Logger, observer)
+	}
 	return v1Middleware{
 		authCurrentMember:   authCurrentMember,
 		authRecovery:        authRecovery,
@@ -202,8 +213,9 @@ func buildV1Middleware(deps middlewareDependencies, observer *observability.Obse
 		observer:            observer,
 		hydrator:            hydrator,
 		accountTypeHydrator: accountTypeHydrator,
-		moderator:           middleware.ModeratorAuthentication(deps.Config.ModerationAdminToken.reveal(), deps.Config.ModerationAdminActorID, deps.Config.ModerationAdminSourceSystem, deps.Logger, observer),
+		moderator:           moderatorAuthentication,
 		suspension:          deps.Suspension,
+		eligibility:         deps.Eligibility,
 		handlerDecorator:    deps.HandlerDecorator,
 	}
 }
@@ -220,6 +232,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 	registerPublicOperationsRoutes(publicOperationsRouteBundle{
 		mux: mux, inFlight: inFlight, env: deps.Config.Env,
 		db: deps.DB, consumer: deps.Consumer, logger: deps.Logger,
+		imageSafety: deps.ImageSafetyReadiness,
 	})
 
 	oauthHandlers := newOAuthHandlers(oauthRouteDependencies{
@@ -261,13 +274,20 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 	} else if moderationCases != nil {
 		suspension = moderationCases
 	}
+	ageEligibility := eligibility.NewStore(deps.DB)
+	eligibilityReader := deps.EligibilityReader
+	if eligibilityReader == nil {
+		eligibilityReader = ageEligibility
+	}
 	v1mw := buildV1Middleware(middlewareDependencies{
 		Config: deps.Config, Logger: deps.Logger, DB: deps.DB,
 		AuthService: deps.AuthService, CraftskySessionStore: deps.CraftskySessionStore,
 		InstagramMembership: deps.InstagramMembership, OwnerLifecycles: deps.OwnerLifecycles,
 		RateLimiter: deps.RateLimiter, ProfileCustomisationStore: profileCustomisationStore,
 		BusinessStore: businessStore, Suspension: suspension,
-		HandlerDecorator: deps.routeHandlerDecorator,
+		Eligibility:            eligibilityReader,
+		ModeratorAuthenticator: deps.ModeratorAuthenticator,
+		HandlerDecorator:       deps.routeHandlerDecorator,
 	}, observer)
 	mediaLimits := api.MediaLimits{
 		MaxPostImages:       deps.Config.MaxPostImages,
@@ -278,11 +298,15 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 	registerModerationRoutes(moderationRouteBundle{
 		mux: mux, middleware: v1mw, store: moderationCases,
 		commands: deps.ModerationCommands, sourceDID: syntax.DID(deps.Config.ModerationSourceDID),
-		config: deps.Config,
+		config: deps.Config, imageHealth: deps.ImageSafetyHealth, safetyWork: deps.SafetyWork,
+		incidents: deps.SafetyIncidents, intake: deps.SafetyIntake,
+		evidence: deps.SafetyEvidence, holds: deps.SafetyHolds, workflows: deps.SafetyWorkflows, csea: deps.SafetyCSEA,
+		eligibility: ageEligibility, now: deps.Now,
 	})
 	registerVideoRoutes(videoRouteBundle{
 		mux: mux, middleware: v1mw, authorization: deps.VideoUploadAuthorization,
 		limits: deps.VideoUploadLimits, logger: deps.Logger, observer: observer,
+		enabled: deps.Config.VideoEnabled,
 	})
 	scheduledImageValidator := newScheduledImageValidator(deps.Config.ImageDecodeLimits, observer)
 	registerSearchRoutes(searchRouteBundle{
@@ -306,7 +330,10 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 		handleResolver: deps.HandleResolver, logger: deps.Logger,
 	})
 	registerOnboardingRoutes(onboardingRouteBundle{
-		mux: mux, middleware: v1mw, store: api.NewOnboardingStatusStore(deps.DB), logger: deps.Logger,
+		mux: mux, middleware: v1mw, store: api.NewOnboardingStatusStore(deps.DB, deps.Config.RequiredPolicyVersion), logger: deps.Logger,
+	})
+	registerAgeEligibilityRoutes(ageEligibilityRouteBundle{
+		mux: mux, middleware: v1mw, store: ageEligibility, logger: deps.Logger,
 	})
 	registerProfileRelationshipRoutes(profileRelationshipRouteBundle{
 		mux: mux, middleware: v1mw, profileStore: deps.ProfileStore,
@@ -358,7 +385,7 @@ func AddRoutes(_ context.Context, mux Registrar, deps *Dependencies) {
 		handleResolver: deps.HandleResolver, newPDSEffects: deps.NewPDSEffects,
 		reportStore: deps.ReportStore, reportForwarder: deps.ReportForwarder,
 		moderationStore: deps.ModerationStore, languages: deps.LanguagePreferences,
-		mediaLimits: mediaLimits, videoVerifier: deps.VideoCompletionVerifier, videoCaptions: deps.VideoCaptionFetcher, videoObserver: observer, logger: deps.Logger,
+		mediaLimits: mediaLimits, videoVerifier: deps.VideoCompletionVerifier, videoEnabled: deps.Config.VideoEnabled, videoCaptions: deps.VideoCaptionFetcher, videoObserver: observer, logger: deps.Logger,
 	})
 	registerLinkPreviewRoute(linkPreviewRouteBundle{
 		mux: mux, middleware: v1mw, service: deps.LinkPreviews,

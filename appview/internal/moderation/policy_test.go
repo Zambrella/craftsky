@@ -85,10 +85,14 @@ func TestOnlyApprovedSevereReasonsMaySuspend(t *testing.T) {
 	t.Parallel()
 
 	eligible := map[Reason]bool{
-		ReasonHarassment:     true,
-		ReasonHate:           true,
-		ReasonAdultOrGraphic: true,
-		ReasonImpersonation:  true,
+		ReasonHarassment:        true,
+		ReasonHate:              true,
+		ReasonAdultOrGraphic:    true,
+		ReasonImpersonation:     true,
+		ReasonChildSafety:       true,
+		ReasonSexualViolation:   true,
+		ReasonThreatOrViolence:  true,
+		ReasonStalkingOrPrivacy: true,
 	}
 	for _, reason := range ApprovedReasons() {
 		decision := Decision{
@@ -105,6 +109,19 @@ func TestOnlyApprovedSevereReasonsMaySuspend(t *testing.T) {
 		if !eligible[reason] && !errors.Is(err, ErrInvalidDecision) {
 			t.Fatalf("reason %q severe suspension error = %v, want ErrInvalidDecision", reason, err)
 		}
+	}
+}
+
+func TestSignalsNeverExposeEffectsWithoutSupportedHumanDecision(t *testing.T) {
+	t.Parallel()
+	for _, signal := range []Signal{{Kind: SignalUserReport}, {Kind: SignalScannerMatch}, {Kind: SignalRepeatedReports}} {
+		if effects := AuthorizedEffects(signal, nil); len(effects) != 0 {
+			t.Fatalf("signal %q exposed effects %v", signal.Kind, effects)
+		}
+	}
+	decision := Decision{Disposition: DispositionViolation, Reason: ReasonChildSafety, Evidence: "human-reviewed safe metadata", SeverityRationale: "confirmed severe child-safety violation", Consequences: []EffectType{EffectVisibilityTakedown, EffectStrike, EffectSevereSuspension}}
+	if effects := AuthorizedEffects(Signal{Kind: SignalScannerMatch}, &decision); len(effects) != 3 {
+		t.Fatalf("authorized effects=%v", effects)
 	}
 }
 
