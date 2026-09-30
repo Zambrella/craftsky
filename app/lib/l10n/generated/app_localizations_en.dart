@@ -602,6 +602,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postMutedPlaceholder => 'Post from a muted account';
 
   @override
+  String get commentMutedPlaceholder => 'Comment from a muted account';
+
+  @override
+  String get replyMutedPlaceholder => 'Reply from a muted account';
+
+  @override
   String get postUnavailablePlaceholder => 'Post unavailable';
 
   @override
@@ -679,6 +685,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get postRevealAction => 'Show post';
+
+  @override
+  String get commentRevealAction => 'Show comment';
+
+  @override
+  String get replyRevealAction => 'Show reply';
 
   @override
   String get postRevealError => 'Couldn\'t show this post.';

@@ -516,6 +516,10 @@
 
   "postMutedPlaceholder": "Post from a muted account",
   "@postMutedPlaceholder": { "description": "Content-free placeholder for a muted post or quote." },
+  "commentMutedPlaceholder": "Comment from a muted account",
+  "@commentMutedPlaceholder": { "description": "Content-free placeholder for a muted comment." },
+  "replyMutedPlaceholder": "Reply from a muted account",
+  "@replyMutedPlaceholder": { "description": "Content-free placeholder for a muted reply." },
 
   "postUnavailablePlaceholder": "Post unavailable",
   "@postUnavailablePlaceholder": { "description": "Generic content-free placeholder for blocked or unavailable content." },
@@ -582,6 +586,10 @@
 
   "postRevealAction": "Show post",
   "@postRevealAction": { "description": "Temporary reveal action for muted content." },
+  "commentRevealAction": "Show comment",
+  "@commentRevealAction": { "description": "Temporary reveal action for a muted comment." },
+  "replyRevealAction": "Show reply",
+  "@replyRevealAction": { "description": "Temporary reveal action for a muted reply." },
 
   "postRevealError": "Couldn't show this post.",
   "@postRevealError": { "description": "Error feedback shown when temporarily revealing a muted post fails." },

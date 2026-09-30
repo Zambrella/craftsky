@@ -21,6 +21,7 @@ import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
@@ -199,6 +200,94 @@ Future<GoRouter> _pumpThreadRoute(
 }
 
 void main() {
+  testWidgets(
+    'muted comments and replies use subtle, contextual placeholders',
+    (
+      tester,
+    ) async {
+      final rootRef = PostRef(
+        uri: 'at://did:plc:alice/social.craftsky.feed.post/root',
+        cid: 'bafyroot',
+      );
+      final mutedComment =
+          _responsePost(
+            did: 'did:plc:bob',
+            rkey: 'muted-comment',
+            parent: rootRef,
+          ).copyWith(
+            availability: 'muted',
+            relationship: const ContentRelationship(
+              state: 'muted',
+              revealable: true,
+            ),
+          );
+      final visibleComment = _responsePost(
+        did: 'did:plc:carol',
+        rkey: 'visible-comment',
+        parent: rootRef,
+      );
+      final mutedReply =
+          _responsePost(
+            did: 'did:plc:dave',
+            rkey: 'muted-reply',
+            parent: PostRef(uri: visibleComment.uri, cid: visibleComment.cid),
+          ).copyWith(
+            availability: 'muted',
+            relationship: const ContentRelationship(
+              state: 'muted',
+              revealable: true,
+            ),
+          );
+      final section = _section(
+        'thread root',
+        comments: [
+          CommentItem(
+            post: mutedComment,
+            placement: CommentPlacement.normal,
+            replies: const ReplyPage(loaded: false, items: []),
+          ),
+          CommentItem(
+            post: visibleComment,
+            placement: CommentPlacement.normal,
+            replies: ReplyPage(
+              loaded: true,
+              items: [ReplyItem(post: mutedReply, flattened: false)],
+            ),
+          ),
+        ],
+      );
+
+      await _pumpThread(
+        tester,
+        FakePostRepository(
+          onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+              section,
+        ),
+      );
+
+      for (final (post, label) in [
+        (mutedComment, 'Comment from a muted account'),
+        (mutedReply, 'Reply from a muted account'),
+      ]) {
+        final card = find.byWidgetPredicate(
+          (widget) => widget is PostCard && widget.post.uri == post.uri,
+        );
+        await tester.ensureVisible(card);
+        await tester.pumpAndSettle();
+        expect(
+          find.descendant(of: card, matching: find.text(label)),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(of: card, matching: find.byType(CraftskyCard)),
+          findsNothing,
+        );
+      }
+      expect(find.text('Show comment'), findsOneWidget);
+      expect(find.text('Post from a muted account'), findsNothing);
+    },
+  );
+
   testWidgets('shows comment skeletons during the initial thread load', (
     tester,
   ) async {

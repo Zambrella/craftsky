@@ -53,6 +53,8 @@ const _postCardActionIconSize = 22.0;
 
 enum PostCardStyle { card, flat }
 
+enum PostCardContentKind { post, comment, reply }
+
 enum PostCardImageInteractionMode { navigate, fullscreenGallery }
 
 Post _postWithInteractionState(WidgetRef ref, Post post) {
@@ -121,6 +123,7 @@ class PostCard extends ConsumerWidget {
     this.showReplyLabel = false,
     this.isHighlighted = false,
     this.style = PostCardStyle.card,
+    this.contentKind = PostCardContentKind.post,
     this.projectVariant = ProjectCardVariant.summary,
     this.repostReason,
     this.hideWhenAuthorProtected = false,
@@ -154,6 +157,7 @@ class PostCard extends ConsumerWidget {
   final bool showReplyLabel;
   final bool isHighlighted;
   final PostCardStyle style;
+  final PostCardContentKind contentKind;
   final ProjectCardVariant projectVariant;
   final RepostReason? repostReason;
   final bool hideWhenAuthorProtected;
@@ -167,7 +171,12 @@ class PostCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final post = _postWithInteractionState(ref, this.post);
     if (post.isProtected) {
-      return _ProtectedPostCard(post: post, onReveal: onRevealPost);
+      return _ProtectedPostCard(
+        post: post,
+        onReveal: onRevealPost,
+        style: style,
+        contentKind: contentKind,
+      );
     }
     final auth = ref.watch(authSessionProvider).value;
     final isViewerOwned = auth is SignedIn && auth.did == post.author.did;
@@ -1161,36 +1170,79 @@ class _QuotePreviewCard extends StatelessWidget {
 }
 
 class _ProtectedPostCard extends StatelessWidget {
-  const _ProtectedPostCard({required this.post, required this.onReveal});
+  const _ProtectedPostCard({
+    required this.post,
+    required this.onReveal,
+    required this.style,
+    required this.contentKind,
+  });
 
   final Post post;
   final VoidCallback? onReveal;
+  final PostCardStyle style;
+  final PostCardContentKind contentKind;
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     final muted = post.availability == 'muted';
+    final label = muted
+        ? switch (contentKind) {
+            PostCardContentKind.post => l10n.postMutedPlaceholder,
+            PostCardContentKind.comment => l10n.commentMutedPlaceholder,
+            PostCardContentKind.reply => l10n.replyMutedPlaceholder,
+          }
+        : l10n.postUnavailablePlaceholder;
+    final canReveal =
+        muted && post.relationship?.revealable == true && onReveal != null;
+    final revealLabel = switch (contentKind) {
+      PostCardContentKind.post => l10n.postRevealAction,
+      PostCardContentKind.comment => l10n.commentRevealAction,
+      PostCardContentKind.reply => l10n.replyRevealAction,
+    };
+    if (style == PostCardStyle.flat) {
+      final theme = Theme.of(context);
+      final spacing = theme.extension<SpacingTheme>()!;
+      return Semantics(
+        label: label,
+        child: Padding(
+          padding: EdgeInsets.symmetric(
+            horizontal: spacing.sp3,
+            vertical: spacing.sp2,
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  label,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+              if (canReveal)
+                TextButton(
+                  onPressed: onReveal,
+                  child: Text(revealLabel),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
     return Semantics(
-      label: muted
-          ? l10n.postMutedPlaceholder
-          : l10n.postUnavailablePlaceholder,
+      label: label,
       child: CraftskyCard(
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                muted
-                    ? l10n.postMutedPlaceholder
-                    : l10n.postUnavailablePlaceholder,
-              ),
-              if (muted &&
-                  post.relationship?.revealable == true &&
-                  onReveal != null)
+              Text(label),
+              if (canReveal)
                 TextButton(
                   onPressed: onReveal,
-                  child: Text(l10n.postRevealAction),
+                  child: Text(revealLabel),
                 ),
             ],
           ),

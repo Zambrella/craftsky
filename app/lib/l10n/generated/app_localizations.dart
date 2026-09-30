@@ -1132,6 +1132,18 @@ abstract class AppLocalizations {
   /// **'Post from a muted account'**
   String get postMutedPlaceholder;
 
+  /// Content-free placeholder for a muted comment.
+  ///
+  /// In en, this message translates to:
+  /// **'Comment from a muted account'**
+  String get commentMutedPlaceholder;
+
+  /// Content-free placeholder for a muted reply.
+  ///
+  /// In en, this message translates to:
+  /// **'Reply from a muted account'**
+  String get replyMutedPlaceholder;
+
   /// Generic content-free placeholder for blocked or unavailable content.
   ///
   /// In en, this message translates to:
@@ -1233,6 +1245,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Show post'**
   String get postRevealAction;
+
+  /// Temporary reveal action for a muted comment.
+  ///
+  /// In en, this message translates to:
+  /// **'Show comment'**
+  String get commentRevealAction;
+
+  /// Temporary reveal action for a muted reply.
+  ///
+  /// In en, this message translates to:
+  /// **'Show reply'**
+  String get replyRevealAction;
 
   /// Error feedback shown when temporarily revealing a muted post fails.
   ///

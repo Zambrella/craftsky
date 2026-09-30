@@ -689,6 +689,7 @@ class _CommentCard extends ConsumerWidget {
                 )
               : null,
           style: PostCardStyle.flat,
+          contentKind: PostCardContentKind.comment,
           isHighlighted: highlightedUri == item.post.uri,
           replyTooltip: l10n.postThreadReplyAction,
           showRepostAction: false,
@@ -736,6 +737,7 @@ class _CommentCard extends ConsumerWidget {
                         : null,
                     post: reply.post,
                     style: PostCardStyle.flat,
+                    contentKind: PostCardContentKind.reply,
                     isHighlighted: highlightedUri == reply.post.uri,
                     replyTooltip: l10n.postThreadReplyAction,
                     showRepostAction: false,
