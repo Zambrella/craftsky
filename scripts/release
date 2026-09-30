@@ -265,7 +265,7 @@ create_release() {
 }
 
 push_release() {
-  local stream=$1 tag=$2 expected version version_path changelog parent_count response release_commit tag_object expected_files actual_files
+  local stream=$1 tag=$2 expected version version_path changelog parent_count release_commit tag_object expected_files actual_files
   validate_stream "$stream"
   expected=$(stream_tag_version "$stream" "$tag") || die "invalid $stream release tag: $tag"
   require_main
@@ -294,21 +294,18 @@ push_release() {
   release_commit=$(git rev-parse HEAD)
   tag_object=$(git rev-parse "refs/tags/$tag")
 
-  printf 'Push release commit %s and tag %s atomically? [y/N] ' "$release_commit" "$tag" >&2
-  read -r response
-  [[ "$response" == y || "$response" == Y ]] || die "release push cancelled"
   fetch_release_refs
   require_main
   require_clean
-  [[ $(git rev-parse HEAD) == "$release_commit" ]] || die "HEAD changed while awaiting confirmation"
-  [[ $(git rev-parse "refs/tags/$tag") == "$tag_object" ]] || die "$tag moved while awaiting confirmation"
+  [[ $(git rev-parse HEAD) == "$release_commit" ]] || die "HEAD changed during push preflight"
+  [[ $(git rev-parse "refs/tags/$tag") == "$tag_object" ]] || die "$tag moved during push preflight"
   [[ $(git rev-parse "$tag^{commit}") == "$release_commit" ]] || die "$tag no longer points to the release commit"
   [[ $(read_version "$stream") == "$expected" ]] || die "$tag no longer matches the configured version"
   grep -Fq "## $expected - " "$changelog" || die "$changelog no longer has a release section for $expected"
   actual_files=$(git diff-tree --no-commit-id --name-only -r "$release_commit" | sort)
-  [[ "$actual_files" == "$expected_files" ]] || die "release commit changed while awaiting confirmation"
-  [[ $(git rev-parse HEAD^) == $(git rev-parse origin/main) ]] || die "origin/main changed while awaiting confirmation"
-  [[ -z $(git ls-remote --tags origin "refs/tags/$tag") ]] || die "remote tag appeared while awaiting confirmation: $tag"
+  [[ "$actual_files" == "$expected_files" ]] || die "release commit changed during push preflight"
+  [[ $(git rev-parse HEAD^) == $(git rev-parse origin/main) ]] || die "origin/main changed during push preflight"
+  [[ -z $(git ls-remote --tags origin "refs/tags/$tag") ]] || die "remote tag appeared during push preflight: $tag"
   git push --atomic origin "$release_commit:refs/heads/main" "$tag_object:refs/tags/$tag"
 }
 

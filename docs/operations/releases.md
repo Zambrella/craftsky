@@ -53,7 +53,8 @@ just release-push appview prod-v1.0.4
 ```
 
 `release-push` requires the release commit to remain exactly one commit ahead of
-freshly fetched `origin/main`. It pushes `main` and the tag atomically. If
+freshly fetched `origin/main`. It pushes `main` and the tag atomically without an
+interactive prompt, so run it only after verifying the local tagged build. If
 `origin/main` advanced, do not force the release through; recreate it on the new
 tip.
 
