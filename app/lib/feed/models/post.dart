@@ -189,6 +189,7 @@ class PostWireHook extends MappingHook {
       'viewerHasReplied': false,
       'viewerHasSaved': false,
       'viewerSavedFolderId': null,
+      'sponsored': false,
       ...normalized,
     };
   }

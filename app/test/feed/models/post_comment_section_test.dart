@@ -85,6 +85,42 @@ void main() {
     );
   });
 
+  test('decodes a thread containing a muted comment placeholder', () {
+    final section = PostCommentSectionMapper.fromMap({
+      'post': post('root', 'did:plc:alice'),
+      'sort': 'oldest',
+      'comments': {
+        'items': [
+          {
+            'post': post('visible', 'did:plc:carol'),
+            'placement': 'normal',
+            'replies': {'loaded': false, 'items': <Map<String, dynamic>>[]},
+          },
+          {
+            'post': {
+              'uri': 'at://did:plc:bob/social.craftsky.feed.post/muted',
+              'availability': 'muted',
+              'relationship': {'state': 'muted', 'revealable': true},
+            },
+            'placement': 'normal',
+            'replies': {'loaded': false, 'items': <Map<String, dynamic>>[]},
+          },
+        ],
+      },
+    });
+
+    expect(section.post.rkey, 'root');
+    expect(section.comments.items, hasLength(2));
+    final muted = section.comments.items.last.post;
+    expect(muted.availability, 'muted');
+    expect(
+      muted.uri.toString(),
+      'at://did:plc:bob/social.craftsky.feed.post/muted',
+    );
+    expect(muted.sponsored, isFalse);
+    expect(muted.relationship?.revealable, isTrue);
+  });
+
   test('page toString methods summarize list state', () {
     const comments = CommentPage(items: [], cursor: 'next-comments');
     const replies = ReplyPage(
