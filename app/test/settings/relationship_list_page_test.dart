@@ -1,12 +1,18 @@
 import 'dart:async';
 
+import 'package:craftsky_app/auth/models/account_key.dart';
+import 'package:craftsky_app/auth/models/session_registry.dart' as auth_model;
+import 'package:craftsky_app/auth/providers/secure_token_storage.dart';
+import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
 import 'package:craftsky_app/profile/models/profile_relationship.dart';
+import 'package:craftsky_app/profile/providers/profile_relationship_provider.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/settings/pages/relationship_list_page.dart';
 import 'package:craftsky_app/settings/providers/relationship_list_provider.dart';
+import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
@@ -97,6 +103,62 @@ void main() {
     expect(state.items, [carol]);
     expect(state.mutatingDids, isEmpty);
   });
+
+  test(
+    'unmuting in settings clears the relationship used by feed cards',
+    () async {
+      final owner = AccountKey('did:plc:alice');
+      final bob = ProfileAccountSummary(
+        did: 'did:plc:bob',
+        handle: 'bob.craftsky.social',
+        isCraftskyProfile: true,
+        muted: true,
+      );
+      final repo = FakeProfileRepository(
+        onListMutedProfiles: ({limit, cursor}) async =>
+            ProfileAccountPage(items: [bob], totalCount: 1),
+        onUnmute: (_) async => const ProfileRelationship(),
+      );
+      final registry = auth_model.SessionRegistry.empty().upsertAndActivate(
+        token: 'alice-token',
+        did: owner.did.value,
+        handle: 'alice.test',
+      );
+      final container = ProviderContainer.test(
+        overrides: [
+          profileRepositoryProvider.overrideWithValue(repo),
+          secureSessionRegistryStorageProvider.overrideWithValue(
+            _RegistryStorage(registry),
+          ),
+          relationshipReconciliationSchedulerProvider.overrideWithValue(
+            (delay, callback) => () {},
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(sessionRegistryProvider.future);
+      final relationship = profileRelationshipProvider(
+        owner,
+        Did.parse('did:plc:bob'),
+      );
+      container
+          .read(relationship.notifier)
+          .seed(const ProfileRelationship(muted: true, initialized: true));
+      expect(container.read(relationship).muted, isTrue);
+
+      final list = relationshipListProvider(RelationshipListKind.muted);
+      await container.read(list.future);
+      await container.read(list.notifier).reverse(bob);
+
+      expect(container.read(relationship).muted, isFalse);
+      expect(container.read(list).requireValue.items, isEmpty);
+      // A stale card snapshot must not restore the old muted state.
+      container
+          .read(relationship.notifier)
+          .seed(const ProfileRelationship(muted: true, initialized: true));
+      expect(container.read(relationship).muted, isFalse);
+    },
+  );
 
   testWidgets('muted accounts empty state is localized', (tester) async {
     final repo = FakeProfileRepository(
@@ -231,4 +293,18 @@ void main() {
     expect(repo.unblockOperationKeys.single, isNotEmpty);
     expect(find.text('@bob.craftsky.social'), findsNothing);
   });
+}
+
+final class _RegistryStorage implements SessionRegistryStorage {
+  _RegistryStorage(this.registry);
+
+  auth_model.SessionRegistry registry;
+
+  @override
+  Future<auth_model.SessionRegistry> read() async => registry;
+
+  @override
+  Future<void> write(auth_model.SessionRegistry value) async {
+    registry = value;
+  }
 }

@@ -67,6 +67,20 @@ class ProfileRelationshipController extends _$ProfileRelationshipController {
     }
   }
 
+  /// Reconcile a relationship changed by another surface (such as settings).
+  void confirmExternalMutation(ProfileRelationship result) {
+    _cancelReconciliation?.call();
+    _cancelReconciliation = null;
+    state = result.copyWith(
+      pendingAction: null,
+      lastError: null,
+      confirmedOverlay: true,
+      initialized: true,
+    );
+    _invalidateAffectedSurfaces();
+    _scheduleReconciliation(_captureLease());
+  }
+
   Future<void> mutate(ProfileRelationshipAction action) async {
     if (action == ProfileRelationshipAction.block ||
         action == ProfileRelationshipAction.unblock) {
