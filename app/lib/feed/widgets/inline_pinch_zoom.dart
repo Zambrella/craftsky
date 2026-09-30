@@ -30,7 +30,7 @@ class InlinePinchZoom extends StatefulWidget {
     required this.child,
     this.overlayContext,
     this.maxScale = 4,
-    this.barrierColor = Colors.black12,
+    this.barrierColor,
     this.resetDuration = const Duration(milliseconds: 300),
     super.key,
   });
@@ -38,7 +38,7 @@ class InlinePinchZoom extends StatefulWidget {
   final Widget child;
   final BuildContext? overlayContext;
   final double maxScale;
-  final Color barrierColor;
+  final Color? barrierColor;
   final Duration resetDuration;
 
   @override
@@ -128,7 +128,17 @@ class _InlinePinchZoomState extends State<InlinePinchZoom>
     _size = box.size;
     _setBaseline();
     _matrix = Matrix4.identity();
-    _entry = OverlayEntry(builder: _buildOverlay);
+    _entry = OverlayEntry(
+      builder: (context) => _InlinePinchZoomOverlay(
+        barrierColor:
+            widget.barrierColor ??
+            Theme.of(context).colorScheme.scrim.withValues(alpha: 0.12),
+        origin: _origin,
+        size: _size,
+        matrix: _reset.isAnimating ? _resetMatrix.value : _matrix,
+        child: widget.child,
+      ),
+    );
     overlay.insert(_entry!);
     setState(() {});
   }
@@ -201,25 +211,6 @@ class _InlinePinchZoomState extends State<InlinePinchZoom>
     _routing = false;
   }
 
-  Widget _buildOverlay(BuildContext context) => IgnorePointer(
-    child: Stack(
-      children: [
-        ModalBarrier(color: widget.barrierColor),
-        Positioned(
-          left: _origin.dx,
-          top: _origin.dy,
-          width: _size.width,
-          height: _size.height,
-          child: Transform(
-            alignment: Alignment.topLeft,
-            transform: _reset.isAnimating ? _resetMatrix.value : _matrix,
-            child: widget.child,
-          ),
-        ),
-      ],
-    ),
-  );
-
   void _removeOverlay() {
     final wasZooming = _entry != null;
     _entry?.remove();
@@ -254,5 +245,41 @@ class _InlinePinchZoomState extends State<InlinePinchZoom>
     behavior: HitTestBehavior.opaque,
     onPointerDown: _onDown,
     child: Opacity(opacity: _entry == null ? 1 : 0, child: widget.child),
+  );
+}
+
+class _InlinePinchZoomOverlay extends StatelessWidget {
+  const _InlinePinchZoomOverlay({
+    required this.barrierColor,
+    required this.origin,
+    required this.size,
+    required this.matrix,
+    required this.child,
+  });
+
+  final Color barrierColor;
+  final Offset origin;
+  final Size size;
+  final Matrix4 matrix;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => IgnorePointer(
+    child: Stack(
+      children: [
+        ModalBarrier(color: barrierColor),
+        Positioned(
+          left: origin.dx,
+          top: origin.dy,
+          width: size.width,
+          height: size.height,
+          child: Transform(
+            alignment: Alignment.topLeft,
+            transform: matrix,
+            child: child,
+          ),
+        ),
+      ],
+    ),
   );
 }

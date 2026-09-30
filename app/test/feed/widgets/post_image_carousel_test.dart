@@ -161,7 +161,7 @@ void main() {
     final zoom = tester.widget<InlinePinchZoom>(find.byType(InlinePinchZoom));
     final zoomContext = tester.element(find.byType(InlinePinchZoom));
     expect(zoom.maxScale, 4);
-    expect(zoom.barrierColor, Colors.black12);
+    expect(zoom.barrierColor, isNull);
     expect(zoom.resetDuration, const Duration(milliseconds: 300));
     expect(
       Overlay.of(zoom.overlayContext!),
@@ -197,6 +197,9 @@ void main() {
     await firstFinger.moveTo(center - const Offset(60, 0));
     await secondFinger.moveTo(center + const Offset(60, 0));
     await tester.pump();
+    final scrim = Theme.of(
+      tester.element(find.byType(InlinePinchZoom)),
+    ).colorScheme.scrim.withValues(alpha: 0.12);
 
     expect(find.bySemanticsLabel('Quilt detail in overlay'), findsOneWidget);
     expect(
@@ -210,7 +213,7 @@ void main() {
     );
     expect(
       find.byWidgetPredicate(
-        (widget) => widget is ModalBarrier && widget.color == Colors.black12,
+        (widget) => widget is ModalBarrier && widget.color == scrim,
       ),
       findsOneWidget,
     );
@@ -227,7 +230,7 @@ void main() {
     expect(find.bySemanticsLabel('Quilt detail in overlay'), findsOneWidget);
     expect(
       find.byWidgetPredicate(
-        (widget) => widget is ModalBarrier && widget.color == Colors.black12,
+        (widget) => widget is ModalBarrier && widget.color == scrim,
       ),
       findsNothing,
     );
@@ -310,9 +313,12 @@ void main() {
       pointer: 2,
     );
     await tester.pump();
+    final scrim = Theme.of(
+      tester.element(find.byType(InlinePinchZoom)),
+    ).colorScheme.scrim.withValues(alpha: 0.12);
     expect(
       find.byWidgetPredicate(
-        (widget) => widget is ModalBarrier && widget.color == Colors.black12,
+        (widget) => widget is ModalBarrier && widget.color == scrim,
       ),
       findsOneWidget,
     );
@@ -341,7 +347,7 @@ void main() {
     );
     expect(
       find.byWidgetPredicate(
-        (widget) => widget is ModalBarrier && widget.color == Colors.black12,
+        (widget) => widget is ModalBarrier && widget.color == scrim,
       ),
       findsOneWidget,
     );
@@ -355,7 +361,7 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
     expect(
       find.byWidgetPredicate(
-        (widget) => widget is ModalBarrier && widget.color == Colors.black12,
+        (widget) => widget is ModalBarrier && widget.color == scrim,
       ),
       findsNothing,
     );
@@ -380,9 +386,12 @@ void main() {
     );
     await tester.pump();
 
+    final scrim = Theme.of(
+      tester.element(find.byType(InlinePinchZoom)),
+    ).colorScheme.scrim.withValues(alpha: 0.12);
     expect(
       find.byWidgetPredicate(
-        (widget) => widget is ModalBarrier && widget.color == Colors.black12,
+        (widget) => widget is ModalBarrier && widget.color == scrim,
       ),
       findsNothing,
     );

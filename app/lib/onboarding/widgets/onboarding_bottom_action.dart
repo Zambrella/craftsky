@@ -2,6 +2,7 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/onboarding/models/onboarding_action_state.dart';
 import 'package:craftsky_app/theme/chunky_button.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
 class OnboardingBottomAction extends StatelessWidget {
@@ -17,6 +18,7 @@ class OnboardingBottomAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final spacing = Theme.of(context).extension<SpacingTheme>()!;
     final label = switch (state.kind) {
       OnboardingActionKind.next => l10n.onboardingNext,
       OnboardingActionKind.saveAndNext => l10n.onboardingSaveNext,
@@ -24,9 +26,9 @@ class OnboardingBottomAction extends StatelessWidget {
     };
     return SafeArea(
       top: false,
-      minimum: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+      minimum: EdgeInsets.fromLTRB(spacing.sp5, spacing.sp3, spacing.sp5, 0),
       child: Padding(
-        padding: const EdgeInsets.only(bottom: 16),
+        padding: EdgeInsets.only(bottom: spacing.sp4),
         child: Semantics(
           key: const Key('onboarding-primary-action-semantics'),
           excludeSemantics: true,

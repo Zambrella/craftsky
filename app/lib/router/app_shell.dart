@@ -113,15 +113,16 @@ bool _hasRoomForNavigationFooter(
   required bool rail,
   required bool hasVersion,
 }) {
+  final spacing = Theme.of(context).extension<SpacingTheme>()!;
   final textScale = MediaQuery.textScalerOf(context).scale(16) / 16;
   final routeHeight = 56 * (textScale > 1 ? textScale : 1);
-  final routeListHeight = _menuDestinations.length * routeHeight + 16;
+  final routeListHeight = _menuDestinations.length * routeHeight + spacing.sp4;
   final footerHeight =
       2 * _utilityLinkHeight +
       56 +
-      (hasVersion ? 24 * (textScale > 1 ? textScale : 1) : 0) +
-      (rail ? 20 : 16);
-  final composeHeight = rail ? 64 : 0;
+      (hasVersion ? spacing.sp5 * (textScale > 1 ? textScale : 1) : 0) +
+      (rail ? spacing.sp3 + spacing.sp2 : spacing.sp4);
+  final composeHeight = rail ? spacing.sp8 : 0;
   return availableHeight >= routeListHeight + composeHeight + footerHeight;
 }
 
@@ -799,6 +800,7 @@ class _ShellDrawerState extends State<_ShellDrawer> {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
     final swatches = theme.extension<BrandSwatchTheme>()!;
+    final spacing = theme.extension<SpacingTheme>()!;
     return Drawer(
       backgroundColor: swatches.paper3,
       surfaceTintColor: Colors.transparent,
@@ -817,7 +819,7 @@ class _ShellDrawerState extends State<_ShellDrawer> {
               children: [
                 Expanded(
                   child: ListView(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    padding: EdgeInsets.symmetric(vertical: spacing.sp2),
                     children: [
                       for (final (index, destination)
                           in _primaryDestinations.indexed)
@@ -904,7 +906,12 @@ class _ShellDrawerState extends State<_ShellDrawer> {
                     onTap: () => _openExternalLink(context, onOpenPrivacy),
                   ),
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                    padding: EdgeInsets.fromLTRB(
+                      spacing.sp4,
+                      spacing.sp1,
+                      spacing.sp4,
+                      spacing.sp3,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
@@ -917,7 +924,7 @@ class _ShellDrawerState extends State<_ShellDrawer> {
                           label: Text(l10n.navigationFeedback),
                         ),
                         if (buildVersionLabel case final label?) ...[
-                          const SizedBox(height: 4),
+                          SizedBox(height: spacing.sp1),
                           _BuildVersionText(label),
                         ],
                       ],
@@ -1075,6 +1082,7 @@ class _ShellNavigationRail extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
     return Material(
       color: theme.scaffoldBackgroundColor,
       surfaceTintColor: Colors.transparent,
@@ -1098,7 +1106,12 @@ class _ShellNavigationRail extends StatelessWidget {
                   extended: true,
                   scrollable: true,
                   trailing: Padding(
-                    padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                    padding: EdgeInsets.fromLTRB(
+                      spacing.sp3,
+                      spacing.sp2,
+                      spacing.sp3,
+                      spacing.sp3,
+                    ),
                     child: SizedBox(
                       width: 200,
                       child: Builder(
@@ -1164,7 +1177,12 @@ class _ShellNavigationRail extends StatelessWidget {
               ),
               if (showFooter)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+                  padding: EdgeInsets.fromLTRB(
+                    spacing.sp3,
+                    spacing.sp2,
+                    spacing.sp3,
+                    spacing.sp3,
+                  ),
                   child: SizedBox(
                     width: 200,
                     child: Column(
@@ -1186,7 +1204,7 @@ class _ShellNavigationRail extends StatelessWidget {
                           label: Text(l10n.navigationFeedback),
                         ),
                         if (buildVersionLabel case final label?) ...[
-                          const SizedBox(height: 4),
+                          SizedBox(height: spacing.sp1),
                           _BuildVersionText(label),
                         ],
                       ],

@@ -590,9 +590,9 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
                       isRootPrompt: true,
                     ),
                   if (widget.isRefreshingComments)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 32),
-                      child: Center(child: StitchProgressIndicator()),
+                    Padding(
+                      padding: EdgeInsets.symmetric(vertical: spacing.sp6),
+                      child: const Center(child: StitchProgressIndicator()),
                     )
                   else if (widget.section.comments.items.isEmpty)
                     CraftskyEmptyState(
@@ -615,9 +615,9 @@ class _CommentSectionBodyState extends ConsumerState<_CommentSectionBody> {
                         onCollapseReplies: widget.onCollapseReplies,
                       ),
                   if (widget.isLoadingMoreComments)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 16),
-                      child: Center(child: StitchProgressIndicator()),
+                    Padding(
+                      padding: EdgeInsets.symmetric(vertical: spacing.sp4),
+                      child: const Center(child: StitchProgressIndicator()),
                     ),
                 ],
               ),

@@ -33,7 +33,7 @@ StreamController<NotificationEffect> _notificationEffectController(Ref ref) {
 
 @Riverpod(keepAlive: true)
 NotificationRuntime notificationRuntime(Ref ref) {
-  final service = ref.read(notificationServiceProvider);
+  final service = ref.watch(notificationServiceProvider);
   final registration = NotificationRegistrationCoordinator(
     service: service,
     platform: defaultTargetPlatform == TargetPlatform.android
@@ -52,7 +52,7 @@ NotificationRuntime notificationRuntime(Ref ref) {
           .saveRoutingBinding(lease, binding);
     },
   );
-  final effects = ref.read(_notificationEffectControllerProvider);
+  final effects = ref.watch(_notificationEffectControllerProvider);
   final activation = AccountActivationCoordinator(
     readRegistry: () => ref.read(sessionRegistryProvider).requireValue,
     commitActivation: ref.read(sessionRegistryProvider.notifier).activate,
@@ -64,7 +64,7 @@ NotificationRuntime notificationRuntime(Ref ref) {
   final runtime = NotificationRuntime(
     service: service,
     registration: registration,
-    routingStorage: ref.read(notificationRoutingStorageProvider),
+    routingStorage: ref.watch(notificationRoutingStorageProvider),
     invalidateList: () => ref.invalidate(notificationsProvider),
     refreshCount: () =>
         ref.read(notificationNewCountProvider.notifier).refresh(),

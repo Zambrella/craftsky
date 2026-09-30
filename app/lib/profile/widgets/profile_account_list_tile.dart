@@ -6,6 +6,7 @@ import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_card_modal.dart';
 import 'package:craftsky_app/shared/widgets/craft_icon.dart';
+import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/material.dart';
 
 class ProfileAccountListTile extends StatelessWidget {
@@ -23,6 +24,7 @@ class ProfileAccountListTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final spacing = Theme.of(context).extension<SpacingTheme>()!;
     final handle = ProfileHandle(account.handle);
     final title = handle.currentLabel(
       unavailableLabel: l10n.handleUnavailable,
@@ -45,7 +47,7 @@ class ProfileAccountListTile extends StatelessWidget {
       onTap: openProfile,
       excludeSemantics: trailing == null,
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+        contentPadding: EdgeInsets.symmetric(horizontal: spacing.sp4),
         leading: ProfileAvatar(
           seed: handle.displayLabel(
             displayName: account.displayName,
@@ -68,11 +70,11 @@ class ProfileAccountListTile extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
-                    if (iconCrafts.isNotEmpty) const SizedBox(width: 8),
+                    if (iconCrafts.isNotEmpty) SizedBox(width: spacing.sp2),
                   ],
                   for (final craft in iconCrafts) ...[
                     CraftIcon(craft: craft, size: 16),
-                    const SizedBox(width: 4),
+                    SizedBox(width: spacing.sp1),
                   ],
                 ],
               ),
