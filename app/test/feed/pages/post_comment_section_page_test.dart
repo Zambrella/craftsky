@@ -870,7 +870,7 @@ void main() {
     );
     expect(commentField.label, 'Write your comment');
     await tester.enterText(find.byType(TextField), 'created comment');
-    await tester.pump();
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ChunkyButton, 'Comment'));
     await tester.pumpAndSettle();
 
@@ -936,7 +936,7 @@ void main() {
       description: 'the focused top-level comment composer',
     );
     await tester.enterText(find.byType(TextField), 'created comment');
-    await tester.pump();
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(ChunkyButton, 'Comment'));
     await tester.pumpAndSettle();
 

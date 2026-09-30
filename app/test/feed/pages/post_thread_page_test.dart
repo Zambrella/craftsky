@@ -766,7 +766,142 @@ void main() {
 
     expect(find.text('thread root'), findsOneWidget);
     expect(find.text('Feed destination'), findsNothing);
+    expect(find.text('owned comment'), findsNothing);
     expect(messenger.calls.last.$2, 'Comment deleted.');
+  });
+
+  for (final deleteReply in [false, true]) {
+    testWidgets(
+      'confirmed ${deleteReply ? 'reply' : 'comment'} deletion removes it '
+      'only after AppView responds, despite a stale section refresh',
+      (tester) async {
+        final pending = Completer<void>();
+        final root = _rootPost('thread root').copyWith(replyCount: 1);
+        final rootRef = PostRef(uri: root.uri, cid: root.cid);
+        final comment = _post(
+          rkey: 'comment',
+          text: 'owned comment',
+          reply: PostReply(root: rootRef, parent: rootRef),
+        ).copyWith(replyCount: deleteReply ? 1 : 0);
+        final reply = _post(
+          rkey: 'reply',
+          text: 'owned reply',
+          reply: PostReply(
+            root: rootRef,
+            parent: PostRef(uri: comment.uri, cid: comment.cid),
+          ),
+        );
+        final section = _section('thread root').copyWith(
+          post: root,
+          comments: CommentPage(
+            items: [
+              CommentItem(
+                post: comment,
+                placement: CommentPlacement.viewerAuthored,
+                replies: ReplyPage(
+                  loaded: deleteReply,
+                  items: deleteReply
+                      ? [ReplyItem(post: reply, flattened: false)]
+                      : const [],
+                ),
+              ),
+            ],
+          ),
+        );
+        final messenger = RecordingMessenger();
+        final repository = FakePostRepository(
+          onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+              section,
+          onDelete: (did, rkey) => pending.future,
+        );
+        await _pumpThreadRoute(
+          tester,
+          repository: repository,
+          messenger: messenger,
+        );
+
+        final target = deleteReply ? 'owned reply' : 'owned comment';
+        final card = find.byWidgetPredicate(
+          (widget) => widget is PostCard && widget.post.text == target,
+        );
+        await tester.ensureVisible(card);
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.descendant(
+            of: card,
+            matching: find.byIcon(CraftskyIconsBold.more),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.text(deleteReply ? 'Delete reply' : 'Delete comment'),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Delete'));
+        await tester.pump();
+
+        expect(find.text(target), findsOneWidget);
+        expect(messenger.calls, isEmpty);
+
+        pending.complete();
+        await tester.pumpAndSettle();
+        expect(find.text(target), findsNothing);
+        expect(find.text('thread root'), findsOneWidget);
+        expect(
+          find.text('owned comment'),
+          deleteReply ? findsOneWidget : findsNothing,
+        );
+        expect(
+          messenger.calls.last.$2,
+          deleteReply ? 'Reply deleted.' : 'Comment deleted.',
+        );
+      },
+    );
+  }
+
+  testWidgets('failed comment deletion keeps the comment visible', (
+    tester,
+  ) async {
+    final pending = Completer<void>();
+    final root = _rootPost('thread root');
+    final rootRef = PostRef(uri: root.uri, cid: root.cid);
+    final comment = _post(
+      rkey: 'comment',
+      text: 'owned comment',
+      reply: PostReply(root: rootRef, parent: rootRef),
+    );
+    final messenger = RecordingMessenger();
+    await _pumpThreadRoute(
+      tester,
+      repository: FakePostRepository(
+        onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+            _section(
+              'thread root',
+              comments: [
+                CommentItem(
+                  post: comment,
+                  placement: CommentPlacement.viewerAuthored,
+                  replies: const ReplyPage(loaded: false, items: []),
+                ),
+              ],
+            ),
+        onDelete: (did, rkey) => pending.future,
+      ),
+      messenger: messenger,
+    );
+
+    await tester.tap(find.byIcon(CraftskyIconsBold.more).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete comment'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pump();
+    expect(find.text('owned comment'), findsOneWidget);
+
+    pending.completeError(Exception('delete failed'));
+    await tester.pumpAndSettle();
+    expect(find.text('owned comment'), findsOneWidget);
+    expect(messenger.calls.last.$2, "Couldn't delete that comment or reply.");
   });
 
   testWidgets('AT-002 REG-006 pins the owner-authored thread root', (
