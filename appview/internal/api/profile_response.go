@@ -146,6 +146,7 @@ type ProfileAccountPage struct {
 type ProfileAccountSummary struct {
 	DID               syntax.DID            `json:"did"`
 	Handle            syntax.Handle         `json:"handle"`
+	Crafts            []string              `json:"crafts"`
 	DisplayName       *string               `json:"displayName,omitempty"`
 	Description       *string               `json:"description,omitempty"`
 	Avatar            *string               `json:"avatar,omitempty"`
@@ -160,6 +161,7 @@ func BuildProfileAccountSummary(row *ProfileAccountRow, handle syntax.Handle) Pr
 	out := ProfileAccountSummary{
 		DID:               syntax.DID(row.DID),
 		Handle:            handle,
+		Crafts:            append([]string{}, row.Crafts...),
 		DisplayName:       row.DisplayName,
 		Description:       row.Description,
 		IsCraftskyProfile: row.IsCraftskyProfile,

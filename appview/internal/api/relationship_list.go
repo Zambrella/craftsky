@@ -30,6 +30,9 @@ const (
 type relationshipAccountSummary struct {
 	DID               syntax.DID    `json:"did"`
 	Handle            syntax.Handle `json:"handle"`
+	Crafts            []string      `json:"crafts"`
+	DisplayName       *string       `json:"displayName,omitempty"`
+	Avatar            *string       `json:"avatar,omitempty"`
 	IsCraftskyProfile bool          `json:"isCraftskyProfile"`
 	Muted             bool          `json:"muted"`
 	Blocking          bool          `json:"blocking"`
@@ -104,13 +107,19 @@ func relationshipListHandler(
 					"identity_unavailable", "could not resolve identity", runID, nil)
 				return
 			}
-			summaries = append(summaries, relationshipAccountSummary{
+			summary := relationshipAccountSummary{
 				DID:               item.SubjectDID,
 				Handle:            handle,
+				Crafts:            append([]string{}, item.Crafts...),
+				DisplayName:       item.DisplayName,
 				IsCraftskyProfile: true,
 				Muted:             kind == relationshipListMutes,
 				Blocking:          kind == relationshipListBlocks,
-			})
+			}
+			if avatar := synthBlobURL("avatar", item.SubjectDID.String(), item.AvatarCID, item.AvatarMime); avatar != "" {
+				summary.Avatar = &avatar
+			}
+			summaries = append(summaries, summary)
 		}
 
 		var cursor string

@@ -367,6 +367,9 @@ class ProfileRecentSearchPayloadMapper
     _$avatar,
     opt: true,
   );
+  static List<String> _$crafts(ProfileRecentSearchPayload v) => v.crafts;
+  static const Field<ProfileRecentSearchPayload, List<String>> _f$crafts =
+      Field('crafts', _$crafts, opt: true, def: const []);
 
   @override
   final MappableFields<ProfileRecentSearchPayload> fields = const {
@@ -374,6 +377,7 @@ class ProfileRecentSearchPayloadMapper
     #handle: _f$handle,
     #displayName: _f$displayName,
     #avatar: _f$avatar,
+    #crafts: _f$crafts,
   };
 
   static ProfileRecentSearchPayload _instantiate(DecodingData data) {
@@ -382,6 +386,7 @@ class ProfileRecentSearchPayloadMapper
       handle: data.dec(_f$handle),
       displayName: data.dec(_f$displayName),
       avatar: data.dec(_f$avatar),
+      crafts: data.dec(_f$crafts),
     );
   }
 
@@ -459,7 +464,14 @@ abstract class ProfileRecentSearchPayloadCopyWith<
   $Out
 >
     implements ClassCopyWith<$R, $In, $Out> {
-  $R call({Did? did, String? handle, String? displayName, String? avatar});
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get crafts;
+  $R call({
+    Did? did,
+    String? handle,
+    String? displayName,
+    String? avatar,
+    List<String>? crafts,
+  });
   ProfileRecentSearchPayloadCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
     Then<$Out2, $R2> t,
   );
@@ -479,17 +491,26 @@ class _ProfileRecentSearchPayloadCopyWithImpl<$R, $Out>
   late final ClassMapperBase<ProfileRecentSearchPayload> $mapper =
       ProfileRecentSearchPayloadMapper.ensureInitialized();
   @override
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>> get crafts =>
+      ListCopyWith(
+        $value.crafts,
+        (v, t) => ObjectCopyWith(v, $identity, t),
+        (v) => call(crafts: v),
+      );
+  @override
   $R call({
     Did? did,
     String? handle,
     Object? displayName = $none,
     Object? avatar = $none,
+    List<String>? crafts,
   }) => $apply(
     FieldCopyWithData({
       if (did != null) #did: did,
       if (handle != null) #handle: handle,
       if (displayName != $none) #displayName: displayName,
       if (avatar != $none) #avatar: avatar,
+      if (crafts != null) #crafts: crafts,
     }),
   );
   @override
@@ -499,6 +520,7 @@ class _ProfileRecentSearchPayloadCopyWithImpl<$R, $Out>
         handle: data.get(#handle, or: $value.handle),
         displayName: data.get(#displayName, or: $value.displayName),
         avatar: data.get(#avatar, or: $value.avatar),
+        crafts: data.get(#crafts, or: $value.crafts),
       );
 
   @override

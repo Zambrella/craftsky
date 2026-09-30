@@ -158,6 +158,7 @@ class BusinessProfileFields extends StatelessWidget {
           label: l10n.editProfileBusinessTaglineLabel,
           initialValue: initial.tagline,
           maxLines: 2,
+          textCapitalization: TextCapitalization.sentences,
           enabled: enabled,
           validator: _bounded(
             l10n.editProfileBusinessTaglineTooLong,
@@ -171,6 +172,7 @@ class BusinessProfileFields extends StatelessWidget {
           label: l10n.editProfileBusinessHoursLabel,
           initialValue: initial.hoursNote,
           maxLines: 4,
+          textCapitalization: TextCapitalization.sentences,
           enabled: enabled,
           validator: _bounded(
             l10n.editProfileBusinessHoursTooLong,
@@ -184,6 +186,7 @@ class BusinessProfileFields extends StatelessWidget {
           label: l10n.editProfileBusinessServiceAreaLabel,
           initialValue: initial.serviceArea,
           maxLines: 3,
+          textCapitalization: TextCapitalization.words,
           enabled: enabled,
           validator: _bounded(
             l10n.editProfileBusinessServiceAreaTooLong,
@@ -212,6 +215,7 @@ class BusinessProfileFields extends StatelessWidget {
           name: BusinessProfileFieldNames.locality,
           label: l10n.editProfileBusinessLocalityLabel,
           initialValue: initial.location?.locality,
+          textCapitalization: TextCapitalization.words,
           enabled: enabled,
           validator: _bounded(
             l10n.editProfileBusinessLocalityTooLong,

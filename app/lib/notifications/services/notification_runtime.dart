@@ -57,8 +57,8 @@ final class NotificationRuntime {
   Future<void>? _startFuture;
   bool _disposed = false;
   Did? _did;
-  NotificationOpenReadiness _readiness =
-      NotificationOpenReadiness.requiresSignIn;
+  // Until the host has resolved the initial account, an OS open must wait.
+  NotificationOpenReadiness _readiness = NotificationOpenReadiness.transient;
   int _latestOpenSequence = 0;
   Did? _lastReadinessDid;
   bool? _lastOnboarded;
@@ -95,8 +95,10 @@ final class NotificationRuntime {
     required Did? did,
     required bool onboarded,
   }) async {
-    await _registration.updateAccounts(_eligibleAccounts?.call() ?? const []);
-    if (_lastReadinessDid == did && _lastOnboarded == onboarded) return;
+    if (_lastReadinessDid == did && _lastOnboarded == onboarded) {
+      await _registration.updateAccounts(_eligibleAccounts?.call() ?? const []);
+      return;
+    }
     _lastReadinessDid = did;
     _lastOnboarded = onboarded;
     _did = did;
@@ -110,6 +112,7 @@ final class NotificationRuntime {
     }
     final pending = _pending.updateReadiness(_readiness);
     if (pending != null) await _processOpen(pending);
+    await _registration.updateAccounts(_eligibleAccounts?.call() ?? const []);
   }
 
   Future<void> receiveOpen(NotificationOpenAttempt event) async {

@@ -4,12 +4,15 @@ import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/bootstrap.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_page.dart';
+import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
+import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/languages/models/language_preferences.dart';
 import 'package:craftsky_app/languages/providers/language_preferences_provider.dart';
 import 'package:craftsky_app/projects/options/project_option_catalogs.dart';
 import 'package:craftsky_app/projects/pages/projects_page.dart';
 import 'package:craftsky_app/projects/providers/project_repository_provider.dart';
+import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/craftsky_floating_action_button.dart';
@@ -21,6 +24,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../../fakes/auth_session_fakes.dart';
+import '../../fakes/recording_messenger.dart';
+import '../../feed/fakes/fake_post_repository.dart';
 import '../../test_support/deterministic_pump.dart';
 import '../fakes/fake_project_repository.dart';
 
@@ -126,6 +131,75 @@ void main() {
     expect(find.widgetWithText(OutlinedButton, 'Filters'), findsNothing);
     expect(CraftskyIconsBold.filter, PhosphorIconsBold.funnelSimple);
     expect(find.byIcon(CraftskyIconsBold.filter), findsOneWidget);
+  });
+
+  testWidgets('project posts offer owner delete and visitor report actions', (
+    tester,
+  ) async {
+    final deleted = <String>[];
+    final own = _post(0);
+    final other = _post(1).copyWith(
+      author: _post(1).author.copyWith(
+        did: 'did:plc:bob',
+        handle: 'bob.craftsky.social',
+      ),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          authSessionProvider.overrideWith(
+            () => SignedInAuthSession(did: 'did:plc:alice'),
+          ),
+          activeLanguagePreferencesProvider.overrideWith(
+            (ref) => const LanguagePreferences(
+              primaryLanguage: 'en',
+              contentLanguages: ['en'],
+            ),
+          ),
+          projectRepositoryProvider.overrideWithValue(
+            FakeProjectRepository(
+              onListProjects: ({required query, limit, cursor}) async =>
+                  PostPage(items: [own, other]),
+            ),
+          ),
+          postRepositoryProvider.overrideWithValue(
+            FakePostRepository(
+              onDelete: (did, rkey) async => deleted.add('$did/$rkey'),
+            ),
+          ),
+        ],
+        child: MessengerScope(
+          messenger: RecordingMessenger(),
+          child: MaterialApp(
+            theme: AppTheme.lightThemeData,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: const ProjectsPage(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byType(PostCard), findsNWidgets(2));
+
+    await tester.tap(find.byTooltip('More actions').last);
+    await tester.pumpAndSettle();
+    expect(find.text('Report post'), findsOneWidget);
+    expect(find.text('Delete post'), findsNothing);
+    await tester.tapAt(const Offset(10, 10));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byTooltip('More actions').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Delete post'), findsOneWidget);
+    expect(find.text('Report post'), findsNothing);
+    await tester.tap(find.text('Delete post'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+    expect(deleted, ['did:plc:alice/project-0']);
+    expect(find.text('Project 0'), findsNothing);
+    expect(find.text('Project 1'), findsOneWidget);
   });
 
   testWidgets('filter sheet orders and enables dependent controls', (

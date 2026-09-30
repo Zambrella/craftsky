@@ -346,10 +346,14 @@ func TestBuildProfileAccountSummaryIncludesViewerRelationshipFlags(t *testing.T)
 	t.Parallel()
 	row := &api.ProfileAccountRow{
 		DID: "did:plc:bob", IsCraftskyProfile: true,
-		Muted: true, Blocking: true, BlockedBy: false,
+		Crafts: []string{"social.craftsky.feed.defs#knitting"},
+		Muted:  true, Blocking: true, BlockedBy: false,
 	}
 	out := api.BuildProfileAccountSummary(row, "bob.example")
 	if !out.Muted || !out.Blocking || out.BlockedBy {
 		t.Fatalf("summary relationship flags = %+v", out)
+	}
+	if len(out.Crafts) != 1 || out.Crafts[0] != row.Crafts[0] {
+		t.Fatalf("summary crafts = %v", out.Crafts)
 	}
 }

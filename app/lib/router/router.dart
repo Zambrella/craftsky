@@ -309,24 +309,6 @@ class AccountDeletionReauthCompleteRoute extends GoRouteData
                     ),
                   ],
                 ),
-                TypedGoRoute<ScheduledPostsRoute>(
-                  path: RouteLocations.scheduledPostsChild,
-                  name: 'scheduled-posts',
-                ),
-                TypedGoRoute<DraftsRoute>(
-                  path: RouteLocations.draftsChild,
-                  name: 'drafts',
-                ),
-                TypedGoRoute<SavedPostsRoute>(
-                  path: RouteLocations.savedPostsChild,
-                  name: 'saved-posts',
-                  routes: [
-                    TypedGoRoute<SavedPostFolderRoute>(
-                      path: RouteLocations.savedPostFolderChild,
-                      name: 'saved-post-folder',
-                    ),
-                  ],
-                ),
                 TypedGoRoute<PlaygroundRoute>(
                   path: RouteLocations.playgroundChild,
                   name: 'playground',
@@ -334,6 +316,21 @@ class AccountDeletionReauthCompleteRoute extends GoRouteData
               ],
             ),
           ],
+        ),
+      ],
+    ),
+    TypedGoRoute<ScheduledPostsRoute>(
+      path: RouteLocations.scheduledPosts,
+      name: 'scheduled-posts',
+    ),
+    TypedGoRoute<DraftsRoute>(path: RouteLocations.drafts, name: 'drafts'),
+    TypedGoRoute<SavedPostsRoute>(
+      path: RouteLocations.savedPosts,
+      name: 'saved-posts',
+      routes: [
+        TypedGoRoute<SavedPostFolderRoute>(
+          path: RouteLocations.savedPostFolderChild,
+          name: 'saved-post-folder',
         ),
       ],
     ),
@@ -642,7 +639,7 @@ class ScheduledPostsRoute extends GoRouteData with $ScheduledPostsRoute {
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
-      const ScheduledPostsPage();
+      const _ReturnToFeedOnBack(child: ScheduledPostsPage());
 }
 
 class DraftsRoute extends GoRouteData with $DraftsRoute {
@@ -652,7 +649,8 @@ class DraftsRoute extends GoRouteData with $DraftsRoute {
       _NavigatorKeys.authenticatedShellNavigatorKey;
 
   @override
-  Widget build(BuildContext context, GoRouterState state) => const DraftsPage();
+  Widget build(BuildContext context, GoRouterState state) =>
+      const _ReturnToFeedOnBack(child: DraftsPage());
 }
 
 class InstagramMigrationRoute extends GoRouteData
@@ -719,7 +717,22 @@ class SavedPostsRoute extends GoRouteData with $SavedPostsRoute {
 
   @override
   Widget build(BuildContext context, GoRouterState state) =>
-      const SavedPostsPage();
+      const _ReturnToFeedOnBack(child: SavedPostsPage());
+}
+
+class _ReturnToFeedOnBack extends StatelessWidget {
+  const _ReturnToFeedOnBack({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => PopScope<void>(
+    canPop: false,
+    onPopInvokedWithResult: (didPop, _) {
+      if (!didPop) const FeedRoute().go(context);
+    },
+    child: child,
+  );
 }
 
 @immutable

@@ -686,7 +686,7 @@ func applyProfileImageUpdate(out map[string]any, field string, update ProfileIma
 // syntheticRow constructs a ProfileRow from the bodies we just wrote,
 // used to render the PUT response without a DB round-trip.
 func syntheticRow(did string, bsky map[string]any, crafts []string) *ProfileRow {
-	row := &ProfileRow{DID: did, Crafts: nonNilStrings(crafts)}
+	row := &ProfileRow{DID: did, Crafts: nonNilStrings(crafts), IsCraftskyProfile: true}
 	if dn, ok := bsky["displayName"].(string); ok {
 		row.DisplayName = &dn
 	}

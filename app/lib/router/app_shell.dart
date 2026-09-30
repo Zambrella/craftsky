@@ -104,6 +104,28 @@ const _desktopSidebarSize = 300.0;
 const _utilityLinkHeight = 40.0;
 const _profileRailLabelWidth = 168.0;
 
+// Keep the complete route list visible before reserving space for the optional
+// legal/feedback footer. NavigationRail's extended destinations and ListTiles
+// both have a 56px minimum height; allow for scaled labels as well.
+bool _hasRoomForNavigationFooter(
+  BuildContext context,
+  double availableHeight, {
+  required bool rail,
+  required bool hasVersion,
+}) {
+  final spacing = Theme.of(context).extension<SpacingTheme>()!;
+  final textScale = MediaQuery.textScalerOf(context).scale(16) / 16;
+  final routeHeight = 56 * (textScale > 1 ? textScale : 1);
+  final routeListHeight = _menuDestinations.length * routeHeight + spacing.sp4;
+  final footerHeight =
+      2 * _utilityLinkHeight +
+      56 +
+      (hasVersion ? spacing.sp5 * (textScale > 1 ? textScale : 1) : 0) +
+      (rail ? spacing.sp3 + spacing.sp2 : spacing.sp4);
+  final composeHeight = rail ? spacing.sp8 : 0;
+  return availableHeight >= routeListHeight + composeHeight + footerHeight;
+}
+
 RoundedRectangleBorder _navigationDrawerShape(ThemeData theme) {
   final radii = theme.extension<RadiusTheme>()!;
   return RoundedRectangleBorder(
@@ -778,117 +800,140 @@ class _ShellDrawerState extends State<_ShellDrawer> {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
     final swatches = theme.extension<BrandSwatchTheme>()!;
+    final spacing = theme.extension<SpacingTheme>()!;
     return Drawer(
       backgroundColor: swatches.paper3,
       surfaceTintColor: Colors.transparent,
       clipBehavior: Clip.antiAlias,
       shape: _navigationDrawerShape(theme),
       child: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: ListView(
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                children: [
-                  for (final (index, destination)
-                      in _primaryDestinations.indexed)
-                    ListTile(
-                      selected: selectedIndex == index,
-                      leading: index == 4
-                          ? _DestinationIcon(
-                              icon: selectedIndex == index
-                                  ? destination.selectedIcon
-                                  : destination.icon,
-                              profileIconOnly: true,
-                              onTapDestination: () =>
-                                  _selectAndClose(context, index),
-                              onOpenAccountSwitcher:
-                                  onOpenAccountSwitcher == null
-                                  ? null
-                                  : () => _openAccountSwitcher(context),
-                            )
-                          : ExcludeSemantics(
-                              child: _DestinationIcon(
-                                icon: selectedIndex == index
-                                    ? destination.selectedIcon
-                                    : destination.icon,
-                                badge: index == 3 ? notificationBadge : null,
-                              ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final showFooter = _hasRoomForNavigationFooter(
+              context,
+              constraints.maxHeight,
+              rail: false,
+              hasVersion: buildVersionLabel != null,
+            );
+            return Column(
+              children: [
+                Expanded(
+                  child: ListView(
+                    padding: EdgeInsets.symmetric(vertical: spacing.sp2),
+                    children: [
+                      for (final (index, destination)
+                          in _primaryDestinations.indexed)
+                        ListTile(
+                          selected: selectedIndex == index,
+                          leading: index == 4
+                              ? _DestinationIcon(
+                                  icon: selectedIndex == index
+                                      ? destination.selectedIcon
+                                      : destination.icon,
+                                  profileIconOnly: true,
+                                  onTapDestination: () =>
+                                      _selectAndClose(context, index),
+                                  onOpenAccountSwitcher:
+                                      onOpenAccountSwitcher == null
+                                      ? null
+                                      : () => _openAccountSwitcher(context),
+                                )
+                              : ExcludeSemantics(
+                                  child: _DestinationIcon(
+                                    icon: selectedIndex == index
+                                        ? destination.selectedIcon
+                                        : destination.icon,
+                                    badge: index == 3
+                                        ? notificationBadge
+                                        : null,
+                                  ),
+                                ),
+                          title: Semantics(
+                            label: _destinationSemanticsLabel(
+                              context,
+                              index: index,
+                              notificationBadge: notificationBadge,
                             ),
-                      title: Semantics(
-                        label: _destinationSemanticsLabel(
-                          context,
-                          index: index,
-                          notificationBadge: notificationBadge,
+                            excludeSemantics: true,
+                            child: Text(_destinationLabel(l10n, index)),
+                          ),
+                          trailing: index == 4 && onOpenAccountSwitcher != null
+                              ? _AccountSwitcherButton(
+                                  focusNode: profileFocusNode,
+                                  onPressed: () =>
+                                      _openAccountSwitcher(context),
+                                )
+                              : null,
+                          onTap: () => _selectAndClose(context, index),
                         ),
-                        excludeSemantics: true,
-                        child: Text(_destinationLabel(l10n, index)),
-                      ),
-                      trailing: index == 4 && onOpenAccountSwitcher != null
-                          ? _AccountSwitcherButton(
-                              focusNode: profileFocusNode,
-                              onPressed: () => _openAccountSwitcher(context),
-                            )
-                          : null,
-                      onTap: () => _selectAndClose(context, index),
-                    ),
-                  for (final (offset, destination)
-                      in _secondaryDestinations.indexed)
-                    ListTile(
-                      selected:
-                          selectedIndex == _primaryDestinations.length + offset,
-                      leading: Icon(
-                        selectedIndex == _primaryDestinations.length + offset
-                            ? destination.selectedIcon
-                            : destination.icon,
-                      ),
-                      title: Text(
-                        _destinationLabel(
-                          l10n,
-                          _primaryDestinations.length + offset,
+                      for (final (offset, destination)
+                          in _secondaryDestinations.indexed)
+                        ListTile(
+                          selected:
+                              selectedIndex ==
+                              _primaryDestinations.length + offset,
+                          leading: Icon(
+                            selectedIndex ==
+                                    _primaryDestinations.length + offset
+                                ? destination.selectedIcon
+                                : destination.icon,
+                          ),
+                          title: Text(
+                            _destinationLabel(
+                              l10n,
+                              _primaryDestinations.length + offset,
+                            ),
+                          ),
+                          onTap: () => _selectAndClose(
+                            context,
+                            _primaryDestinations.length + offset,
+                          ),
                         ),
-                      ),
-                      onTap: () => _selectAndClose(
-                        context,
-                        _primaryDestinations.length + offset,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            ListTile(
-              dense: true,
-              minTileHeight: _utilityLinkHeight,
-              title: Text(l10n.navigationTerms),
-              onTap: () => _openExternalLink(context, onOpenTerms),
-            ),
-            ListTile(
-              dense: true,
-              minTileHeight: _utilityLinkHeight,
-              title: Text(l10n.navigationPrivacy),
-              onTap: () => _openExternalLink(context, onOpenPrivacy),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: () => _openExternalLink(
-                      context,
-                      onOpenFeedback,
-                    ),
-                    icon: const Icon(CraftskyIconsBold.comment),
-                    label: Text(l10n.navigationFeedback),
+                    ],
                   ),
-                  if (buildVersionLabel case final label?) ...[
-                    const SizedBox(height: 4),
-                    _BuildVersionText(label),
-                  ],
+                ),
+                if (showFooter) ...[
+                  ListTile(
+                    dense: true,
+                    minTileHeight: _utilityLinkHeight,
+                    title: Text(l10n.navigationTerms),
+                    onTap: () => _openExternalLink(context, onOpenTerms),
+                  ),
+                  ListTile(
+                    dense: true,
+                    minTileHeight: _utilityLinkHeight,
+                    title: Text(l10n.navigationPrivacy),
+                    onTap: () => _openExternalLink(context, onOpenPrivacy),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      spacing.sp4,
+                      spacing.sp1,
+                      spacing.sp4,
+                      spacing.sp3,
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: () => _openExternalLink(
+                            context,
+                            onOpenFeedback,
+                          ),
+                          icon: const Icon(CraftskyIconsBold.comment),
+                          label: Text(l10n.navigationFeedback),
+                        ),
+                        if (buildVersionLabel case final label?) ...[
+                          SizedBox(height: spacing.sp1),
+                          _BuildVersionText(label),
+                        ],
+                      ],
+                    ),
+                  ),
                 ],
-              ),
-            ),
-          ],
+              ],
+            );
+          },
         ),
       ),
     );
@@ -1037,116 +1082,138 @@ class _ShellNavigationRail extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final l10n = AppLocalizations.of(context);
+    final spacing = theme.extension<SpacingTheme>()!;
     return Material(
       color: theme.scaffoldBackgroundColor,
       surfaceTintColor: Colors.transparent,
       clipBehavior: Clip.antiAlias,
       shape: _navigationRailBorder(theme),
-      child: Column(
-        children: [
-          Expanded(
-            child: NavigationRail(
-              backgroundColor: Colors.transparent,
-              selectedIndex: selectedIndex,
-              onDestinationSelected: onDestinationSelected,
-              extended: true,
-              scrollable: true,
-              trailing: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-                child: SizedBox(
-                  width: 200,
-                  child: Builder(
-                    builder: (buttonContext) =>
-                        CraftskyFloatingActionButton.extended(
-                          tooltip: l10n.postComposeAction,
-                          minimumHeight: 44,
-                          onPressed: () => onCompose(buttonContext),
-                          icon: const Icon(CraftskyIconsBold.add),
-                          label: Text(l10n.postComposeAction),
-                        ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final showFooter = _hasRoomForNavigationFooter(
+            context,
+            constraints.maxHeight,
+            rail: true,
+            hasVersion: buildVersionLabel != null,
+          );
+          return Column(
+            children: [
+              Expanded(
+                child: NavigationRail(
+                  backgroundColor: Colors.transparent,
+                  selectedIndex: selectedIndex,
+                  onDestinationSelected: onDestinationSelected,
+                  extended: true,
+                  scrollable: true,
+                  trailing: Padding(
+                    padding: EdgeInsets.fromLTRB(
+                      spacing.sp3,
+                      spacing.sp2,
+                      spacing.sp3,
+                      spacing.sp3,
+                    ),
+                    child: SizedBox(
+                      width: 200,
+                      child: Builder(
+                        builder: (buttonContext) =>
+                            CraftskyFloatingActionButton.extended(
+                              tooltip: l10n.postComposeAction,
+                              minimumHeight: 44,
+                              onPressed: () => onCompose(buttonContext),
+                              icon: const Icon(CraftskyIconsBold.add),
+                              label: Text(l10n.postComposeAction),
+                            ),
+                      ),
+                    ),
                   ),
+                  destinations: [
+                    for (final (index, d) in _menuDestinations.indexed)
+                      NavigationRailDestination(
+                        icon: _DestinationIcon(
+                          icon: d.icon,
+                          badge: index == 3 ? notificationBadge : null,
+                          profileIconOnly: index == 4,
+                          onTapDestination: index == 4
+                              ? () => onDestinationSelected(index)
+                              : null,
+                          onOpenAccountSwitcher: index == 4
+                              ? onOpenAccountSwitcher
+                              : null,
+                        ),
+                        selectedIcon: _DestinationIcon(
+                          icon: d.selectedIcon,
+                          badge: index == 3 ? notificationBadge : null,
+                          profileIconOnly: index == 4,
+                          onTapDestination: index == 4
+                              ? () => onDestinationSelected(index)
+                              : null,
+                          onOpenAccountSwitcher: index == 4
+                              ? onOpenAccountSwitcher
+                              : null,
+                        ),
+                        label: index == 4
+                            ? _ProfileRailLabel(
+                                anchorKey: profileAnchorKey,
+                                label: _destinationSemanticsLabel(
+                                  context,
+                                  index: index,
+                                  notificationBadge: notificationBadge,
+                                ),
+                                focusNode: profileFocusNode,
+                                onOpenAccountSwitcher: onOpenAccountSwitcher,
+                              )
+                            : Semantics(
+                                label: _destinationSemanticsLabel(
+                                  context,
+                                  index: index,
+                                  notificationBadge: notificationBadge,
+                                ),
+                                excludeSemantics: true,
+                                child: Text(_destinationLabel(l10n, index)),
+                              ),
+                      ),
+                  ],
                 ),
               ),
-              destinations: [
-                for (final (index, d) in _menuDestinations.indexed)
-                  NavigationRailDestination(
-                    icon: _DestinationIcon(
-                      icon: d.icon,
-                      badge: index == 3 ? notificationBadge : null,
-                      profileIconOnly: index == 4,
-                      onTapDestination: index == 4
-                          ? () => onDestinationSelected(index)
-                          : null,
-                      onOpenAccountSwitcher: index == 4
-                          ? onOpenAccountSwitcher
-                          : null,
+              if (showFooter)
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    spacing.sp3,
+                    spacing.sp2,
+                    spacing.sp3,
+                    spacing.sp3,
+                  ),
+                  child: SizedBox(
+                    width: 200,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        TextButton(
+                          style: _utilityLinkButtonStyle(),
+                          onPressed: () => unawaited(onOpenTerms()),
+                          child: Text(l10n.navigationTerms),
+                        ),
+                        TextButton(
+                          style: _utilityLinkButtonStyle(),
+                          onPressed: () => unawaited(onOpenPrivacy()),
+                          child: Text(l10n.navigationPrivacy),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () => unawaited(onOpenFeedback()),
+                          icon: const Icon(CraftskyIconsBold.comment),
+                          label: Text(l10n.navigationFeedback),
+                        ),
+                        if (buildVersionLabel case final label?) ...[
+                          SizedBox(height: spacing.sp1),
+                          _BuildVersionText(label),
+                        ],
+                      ],
                     ),
-                    selectedIcon: _DestinationIcon(
-                      icon: d.selectedIcon,
-                      badge: index == 3 ? notificationBadge : null,
-                      profileIconOnly: index == 4,
-                      onTapDestination: index == 4
-                          ? () => onDestinationSelected(index)
-                          : null,
-                      onOpenAccountSwitcher: index == 4
-                          ? onOpenAccountSwitcher
-                          : null,
-                    ),
-                    label: index == 4
-                        ? _ProfileRailLabel(
-                            anchorKey: profileAnchorKey,
-                            label: _destinationSemanticsLabel(
-                              context,
-                              index: index,
-                              notificationBadge: notificationBadge,
-                            ),
-                            focusNode: profileFocusNode,
-                            onOpenAccountSwitcher: onOpenAccountSwitcher,
-                          )
-                        : Semantics(
-                            label: _destinationSemanticsLabel(
-                              context,
-                              index: index,
-                              notificationBadge: notificationBadge,
-                            ),
-                            excludeSemantics: true,
-                            child: Text(_destinationLabel(l10n, index)),
-                          ),
                   ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-            child: SizedBox(
-              width: 200,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  TextButton(
-                    style: _utilityLinkButtonStyle(),
-                    onPressed: () => unawaited(onOpenTerms()),
-                    child: Text(l10n.navigationTerms),
-                  ),
-                  TextButton(
-                    style: _utilityLinkButtonStyle(),
-                    onPressed: () => unawaited(onOpenPrivacy()),
-                    child: Text(l10n.navigationPrivacy),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => unawaited(onOpenFeedback()),
-                    icon: const Icon(CraftskyIconsBold.comment),
-                    label: Text(l10n.navigationFeedback),
-                  ),
-                  if (buildVersionLabel case final label?) ...[
-                    const SizedBox(height: 4),
-                    _BuildVersionText(label),
-                  ],
-                ],
-              ),
-            ),
-          ),
-        ],
+                ),
+            ],
+          );
+        },
       ),
     );
   }

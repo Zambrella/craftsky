@@ -661,8 +661,14 @@ abstract class AppLocalizations {
   /// Error shown when the OAuth handoff code or confirmation receipt is invalid or expired.
   ///
   /// In en, this message translates to:
-  /// **'That sign-in link expired. Please sign in again.'**
+  /// **'This sign-in link has already been used or has expired. Please sign in again.'**
   String get authCompleteTimedOutError;
+
+  /// Action to start a fresh sign-in after an OAuth link is invalid or expired.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in again'**
+  String get authCompleteSignInAgain;
 
   /// Error shown when the completed OAuth session cannot be saved.
   ///
@@ -1132,6 +1138,18 @@ abstract class AppLocalizations {
   /// **'Post from a muted account'**
   String get postMutedPlaceholder;
 
+  /// Content-free placeholder for a muted comment.
+  ///
+  /// In en, this message translates to:
+  /// **'Comment from a muted account'**
+  String get commentMutedPlaceholder;
+
+  /// Content-free placeholder for a muted reply.
+  ///
+  /// In en, this message translates to:
+  /// **'Reply from a muted account'**
+  String get replyMutedPlaceholder;
+
   /// Generic content-free placeholder for blocked or unavailable content.
   ///
   /// In en, this message translates to:
@@ -1233,6 +1251,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Show post'**
   String get postRevealAction;
+
+  /// Temporary reveal action for a muted comment.
+  ///
+  /// In en, this message translates to:
+  /// **'Show comment'**
+  String get commentRevealAction;
+
+  /// Temporary reveal action for a muted reply.
+  ///
+  /// In en, this message translates to:
+  /// **'Show reply'**
+  String get replyRevealAction;
 
   /// Error feedback shown when temporarily revealing a muted post fails.
   ///
@@ -4952,6 +4982,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Publishing your post…'**
   String get submissionPublishingPost;
+
+  /// Blocking status when publishing a comment on a root post.
+  ///
+  /// In en, this message translates to:
+  /// **'Publishing your comment…'**
+  String get submissionPublishingComment;
+
+  /// Blocking status when publishing a reply to a comment.
+  ///
+  /// In en, this message translates to:
+  /// **'Publishing your reply…'**
+  String get submissionPublishingReply;
 
   /// Blocking scheduled-submission status.
   ///

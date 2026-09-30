@@ -37,6 +37,7 @@ sealed class RecentSearchPayload {
       handle: map['handle'] as String,
       displayName: map['displayName'] as String?,
       avatar: map['avatar'] as String?,
+      crafts: (map['crafts'] as List?)?.cast<String>() ?? const [],
     ),
     RecentSearchType.post => PostRecentSearchPayload(
       q: map['q'] as String,
@@ -82,12 +83,14 @@ class ProfileRecentSearchPayload extends RecentSearchPayload
     required this.handle,
     this.displayName,
     this.avatar,
+    this.crafts = const [],
   });
 
   final Did did;
   final String handle;
   final String? displayName;
   final String? avatar;
+  final List<String> crafts;
 
   @override
   Map<String, dynamic> toMap() => {
@@ -95,6 +98,7 @@ class ProfileRecentSearchPayload extends RecentSearchPayload
     'handle': handle,
     'displayName': ?displayName,
     'avatar': ?avatar,
+    if (crafts.isNotEmpty) 'crafts': crafts,
   };
 }
 

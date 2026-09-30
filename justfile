@@ -305,6 +305,25 @@ app-run-android: app-env-init
     flutter run --dart-define-from-file=config/local-android.env \
       --dart-define="CRAFTSKY_API_BASE_URL=http://10.0.2.2:${APPVIEW_PORT}"
 
+# Run on a physical Android device using ADB reverse (DEVICE is its Flutter ID).
+app-run-device DEVICE *ARGS: app-env-init
+    #!/usr/bin/env bash
+    set -euo pipefail
+    device={{ quote(DEVICE) }}
+    adb -s "$device" get-state >/dev/null
+    if [[ "$(adb -s "$device" shell getprop ro.kernel.qemu | tr -d '\r')" == 1 ]]; then
+      echo "DEVICE must be a physical Android device, not an emulator." >&2
+      exit 1
+    fi
+    APPVIEW_ADDRESS=$(./scripts/compose-dev port appview 8080)
+    APPVIEW_PORT=${APPVIEW_ADDRESS##*:}
+    adb -s "$device" reverse "tcp:${APPVIEW_PORT}" "tcp:${APPVIEW_PORT}"
+    cd app
+    flutter run -d "$device" --dart-define-from-file=config/local-android.env \
+      --dart-define="CRAFTSKY_API_BASE_URL=http://127.0.0.1:${APPVIEW_PORT}" \
+      --dart-define="CRAFTSKY_DEV_OAUTH_SCHEME=true" \
+      {{ARGS}}
+
 # Run the Flutter app against the production AppView with an interactive device picker.
 app-run-production *ARGS:
     #!/usr/bin/env bash

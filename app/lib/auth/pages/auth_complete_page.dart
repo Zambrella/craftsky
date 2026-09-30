@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:craftsky_app/auth/models/auth_error.dart';
+import 'package:craftsky_app/auth/models/auth_state.dart';
 import 'package:craftsky_app/auth/providers/auth_controller.dart';
+import 'package:craftsky_app/auth/providers/auth_session_provider.dart';
 import 'package:craftsky_app/auth/providers/pending_auth_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/router/router.dart';
@@ -41,6 +43,21 @@ class _AuthCompletePageState extends ConsumerState<AuthCompletePage> {
     final code = widget.code;
     if (code == null || code.isEmpty) return;
     await ref.read(authControllerProvider.notifier).completeFromDeepLink(code);
+    if (!mounted) return;
+    final completion = ref.read(authControllerProvider);
+    if (completion case AsyncError(:final error) when error is SignInTimedOut) {
+      // A used link cannot be redeemed again. Only an existing local session
+      // authorizes returning to the app; a valid new/add-account code is still
+      // exchanged above before we consider this fallback.
+      AuthState auth;
+      try {
+        auth = await ref.read(authSessionProvider.future);
+      } on Object {
+        // Leave the expired-link action visible if local session lookup fails.
+        return;
+      }
+      if (mounted && auth is SignedIn) const FeedRoute().go(context);
+    }
   }
 
   void _startFreshRegistration() {
@@ -94,8 +111,13 @@ class _AuthCompletePageState extends ConsumerState<AuthCompletePage> {
     }
 
     if (widget.code == null || widget.code!.isEmpty) {
-      return const Scaffold(
-        body: Center(child: _AuthCompleteError(error: SignInTimedOut())),
+      return Scaffold(
+        body: Center(
+          child: _AuthCompleteError(
+            error: const SignInTimedOut(),
+            onSignIn: () => const SignInRoute().go(context),
+          ),
+        ),
       );
     }
 
@@ -107,6 +129,9 @@ class _AuthCompletePageState extends ConsumerState<AuthCompletePage> {
               error: error,
               onRetry: error is ServerUnavailable || error is StorageFailure
                   ? _complete
+                  : null,
+              onSignIn: error is SignInTimedOut
+                  ? () => const SignInRoute().go(context)
                   : null,
             ),
           AsyncError(:final error) => _AuthCompleteError(
@@ -139,10 +164,11 @@ class _AuthCompleteLoading extends StatelessWidget {
 }
 
 class _AuthCompleteError extends StatelessWidget {
-  const _AuthCompleteError({required this.error, this.onRetry});
+  const _AuthCompleteError({required this.error, this.onRetry, this.onSignIn});
 
   final Object error;
   final VoidCallback? onRetry;
+  final VoidCallback? onSignIn;
 
   @override
   Widget build(BuildContext context) {
@@ -169,6 +195,13 @@ class _AuthCompleteError extends StatelessWidget {
           if (onRetry case final retry?) ...[
             SizedBox(height: spacing.sp4),
             TextButton(onPressed: retry, child: Text(l10n.retryButton)),
+          ],
+          if (onSignIn case final signIn?) ...[
+            SizedBox(height: spacing.sp4),
+            FilledButton(
+              onPressed: signIn,
+              child: Text(l10n.authCompleteSignInAgain),
+            ),
           ],
         ],
       ),

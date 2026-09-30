@@ -257,7 +257,7 @@ func normalizeRecentHashtagPayload(payload map[string]json.RawMessage) (map[stri
 }
 
 func normalizeRecentProfilePayload(payload map[string]json.RawMessage) (map[string]any, error) {
-	if !onlyRecentKeys(payload, "did", "handle", "displayName", "avatar") {
+	if !onlyRecentKeys(payload, "did", "handle", "displayName", "avatar", "crafts") {
 		return nil, ErrSearchValidation
 	}
 	did, err := rawString(payload, "did", true)
@@ -286,6 +286,19 @@ func normalizeRecentProfilePayload(payload map[string]json.RawMessage) (map[stri
 		return nil, err
 	} else if avatar != "" {
 		out["avatar"] = avatar
+	}
+	if raw, ok := payload["crafts"]; ok {
+		var crafts []string
+		if err := json.Unmarshal(raw, &crafts); err != nil || crafts == nil || len(crafts) > len(defaultSupportedCraftTypes) {
+			return nil, ErrSearchValidation
+		}
+		canonical, err := CanonicalCraftTypes(crafts, false)
+		if err != nil {
+			return nil, err
+		}
+		if len(canonical) > 0 {
+			out["crafts"] = canonical
+		}
 	}
 	return out, nil
 }

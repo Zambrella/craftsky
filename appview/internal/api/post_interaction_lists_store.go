@@ -167,7 +167,7 @@ func PostInteractionAccountListQuery(kind PostInteractionKind) (string, error) {
 		WITH eligible AS (
 			SELECT interaction.representative_source_uri AS uri,
 			       interaction.activated_at AS created_at, actor.did,
-			       bp.display_name, bp.description, bp.avatar_cid, bp.avatar_mime,
+			       bp.display_name, bp.description, bp.avatar_cid, bp.avatar_mime, actor.crafts,
 			       identity.handle,
 			       EXISTS (
 					SELECT 1 FROM actor_mutes mute
@@ -192,7 +192,7 @@ func PostInteractionAccountListQuery(kind PostInteractionKind) (string, error) {
 			LIMIT $6
 		)
 		SELECT page.uri, page.created_at, page.did, page.display_name, page.description,
-		       page.avatar_cid, page.avatar_mime, page.handle, page.muted, totals.total_count
+		       page.avatar_cid, page.avatar_mime, page.crafts, page.handle, page.muted, totals.total_count
 		FROM totals
 		LEFT JOIN page ON true
 		ORDER BY page.created_at DESC, page.uri DESC
@@ -243,10 +243,11 @@ func (s *PostStore) listPostInteractionAccounts(ctx context.Context, viewer synt
 		var interaction *syntax.ATURI
 		var createdAt *time.Time
 		var did, displayName, description, avatarCID, avatarMime, rawHandle *string
+		var crafts []string
 		var muted *bool
 		if err := rows.Scan(
 			&interaction, &createdAt, &did, &displayName, &description, &avatarCID, &avatarMime,
-			&rawHandle, &muted, &page.TotalCount,
+			&crafts, &rawHandle, &muted, &page.TotalCount,
 		); err != nil {
 			return ProfileAccountPage{}, fmt.Errorf("post interaction accounts scan: %w", err)
 		}
@@ -260,6 +261,7 @@ func (s *PostStore) listPostInteractionAccounts(ctx context.Context, viewer synt
 		row.profile.Description = description
 		row.profile.AvatarCID = avatarCID
 		row.profile.AvatarMime = avatarMime
+		row.profile.Crafts = crafts
 		row.profile.Muted = *muted
 		row.profile.IsCraftskyProfile = true
 		if rawHandle == nil {

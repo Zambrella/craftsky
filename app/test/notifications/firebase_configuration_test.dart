@@ -130,14 +130,16 @@ void main() {
       contains('com.google.firebase.messaging.default_notification_icon'),
     );
     expect(manifest, contains('@drawable/ic_stat_craftsky_notification'));
-    expect(
-      File(
-        'android/app/src/main/res/drawable/'
-        'ic_stat_craftsky_notification.xml',
-      ).existsSync(),
-      isTrue,
-      reason: 'FCM resolves its provider-rendered small icon as a drawable',
-    );
+    for (final density in ['mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi']) {
+      expect(
+        File(
+          'android/app/src/main/res/drawable-$density/'
+          'ic_stat_craftsky_notification.png',
+        ).existsSync(),
+        isTrue,
+        reason: 'FCM needs the notification drawable at $density density',
+      );
+    }
     expect(androidGradle, isNot(contains('coreLibraryDesugaring')));
     expect(androidGradle, isNot(contains('isCoreLibraryDesugaringEnabled')));
 

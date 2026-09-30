@@ -98,6 +98,43 @@ class PostCommentSection with PostCommentSectionMappable {
     );
   }
 
+  /// Removes a confirmed deleted response from the visible thread.
+  PostCommentSection removeDeletedResponse(AtUri uri) {
+    final isComment = comments.items.any((item) => item.post.uri == uri);
+    final hasReply = comments.items.any(
+      (item) => item.replies.items.any((reply) => reply.post.uri == uri),
+    );
+    if (!isComment && !hasReply) return this;
+
+    return copyWith(
+      post: post.copyWith(
+        replyCount: (post.replyCount - 1).clamp(0, post.replyCount),
+      ),
+      comments: comments.copyWith(
+        items: [
+          for (final item in comments.items)
+            if (item.post.uri != uri)
+              item.replies.items.any((reply) => reply.post.uri == uri)
+                  ? item.copyWith(
+                      post: item.post.copyWith(
+                        replyCount: (item.post.replyCount - 1).clamp(
+                          0,
+                          item.post.replyCount,
+                        ),
+                      ),
+                      replies: item.replies.copyWith(
+                        items: [
+                          for (final reply in item.replies.items)
+                            if (reply.post.uri != uri) reply,
+                        ],
+                      ),
+                    )
+                  : item,
+        ],
+      ),
+    );
+  }
+
   /// Replaces a comment branch with a loaded reply page.
   PostCommentSection setCommentReplies({
     required AtUri commentUri,

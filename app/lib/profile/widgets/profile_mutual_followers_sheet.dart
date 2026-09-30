@@ -3,8 +3,8 @@ import 'dart:async';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
-import 'package:craftsky_app/profile/models/profile_handle.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
+import 'package:craftsky_app/profile/widgets/profile_account_list_tile.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_empty_state.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
@@ -109,7 +109,6 @@ class _ProfileMutualFollowersBody extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final unavailable = AppLocalizations.of(context).handleUnavailable;
     if (items.isEmpty) {
       final l10n = AppLocalizations.of(context);
       return CraftskyEmptyState(
@@ -134,20 +133,7 @@ class _ProfileMutualFollowersBody extends StatelessWidget {
             ),
           );
         }
-        final account = items[index];
-        final handle = ProfileHandle(account.handle);
-        final title = handle.displayLabel(
-          displayName: account.displayName,
-          unavailableLabel: unavailable,
-        );
-        return ListTile(
-          title: Text(title),
-          subtitle:
-              handle.isAvailable ||
-                  (account.displayName?.trim().isNotEmpty ?? false)
-              ? Text(handle.currentLabel(unavailableLabel: unavailable))
-              : null,
-        );
+        return ProfileAccountListTile(account: items[index]);
       },
     );
   }

@@ -106,8 +106,6 @@ class _ProfileCardSurface extends StatelessWidget {
     final swatches = theme.extension<BrandSwatchTheme>()!;
     final spacing = theme.extension<SpacingTheme>()!;
     final radii = theme.extension<RadiusTheme>()!;
-    final shadows = theme.extension<BrandShadowTheme>()!;
-    final shadow = shadows.paper2.first;
     final progress = expansionProgress.clamp(0.0, 1.0);
     final timeline = transitionProgress.clamp(0.0, 1.0);
     final compactOpacity =
@@ -141,7 +139,12 @@ class _ProfileCardSurface extends StatelessWidget {
         final expandedWidth = constraints.maxWidth.isFinite
             ? constraints.maxWidth
             : 420.0;
-        final maxWidth = ui.lerpDouble(420, expandedWidth, progress)!;
+        final textScale = MediaQuery.textScalerOf(context).scale(16) / 16;
+        final maxWidth = ui.lerpDouble(
+          420 * textScale,
+          expandedWidth,
+          progress,
+        )!;
         final availableHeight = constraints.maxHeight.isFinite
             ? math
                   .max(
@@ -222,235 +225,214 @@ class _ProfileCardSurface extends StatelessWidget {
                   maxWidth: maxWidth,
                   maxHeight: availableHeight,
                 ),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    Positioned.fill(
-                      child: Transform.translate(
-                        offset: shadow.offset,
-                        child: DecoratedBox(
-                          decoration: BoxDecoration(
-                            color: shadow.color.withValues(
-                              alpha: shadow.color.a * (1 - progress),
-                            ),
-                            borderRadius: radius,
-                          ),
+                child: SizedBox(
+                  width: double.infinity,
+                  height: compactHeight == null
+                      ? null
+                      : math.min(minimumHeight, availableHeight),
+                  child: Material(
+                    color: Color.lerp(
+                      swatches.paper3,
+                      theme.scaffoldBackgroundColor,
+                      progress,
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: radius,
+                      side: BorderSide(
+                        color: colors.onSurface.withValues(
+                          alpha: 1 - progress,
                         ),
+                        width: 1.5,
                       ),
                     ),
-                    SizedBox(
-                      width: double.infinity,
-                      height: compactHeight == null
-                          ? null
-                          : math.min(minimumHeight, availableHeight),
-                      child: Material(
-                        color: Color.lerp(
-                          swatches.paper3,
-                          theme.scaffoldBackgroundColor,
-                          progress,
-                        ),
-                        clipBehavior: Clip.antiAlias,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: radius,
-                          side: BorderSide(
-                            color: colors.onSurface.withValues(
-                              alpha: 1 - progress,
-                            ),
-                            width: 1.5,
-                          ),
-                        ),
-                        child: SingleChildScrollView(
-                          child: Stack(
-                            alignment: Alignment.topCenter,
+                    child: SingleChildScrollView(
+                      child: Stack(
+                        alignment: Alignment.topCenter,
+                        children: [
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  SizedBox(
-                                    height: headerHeight,
-                                    width: double.infinity,
-                                    child: ProfileHeaderBackground(
-                                      customisation: profile.customisation,
-                                      backgroundKey: const Key(
-                                        'profile-card-header',
-                                      ),
-                                      textureKey: const Key(
-                                        'profile-card-background-illustration',
-                                      ),
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: EdgeInsets.fromLTRB(
-                                      horizontalPadding,
-                                      bodyTopPadding,
-                                      horizontalPadding,
-                                      actionsToExpandedContent,
-                                    ),
-                                    child: Column(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        ConstrainedBox(
-                                          constraints: BoxConstraints(
-                                            minHeight: minimumIdentityHeight,
-                                          ),
-                                          child: Center(
-                                            child: ProfileIdentity(
-                                              handle: profile.handle.toString(),
-                                              displayName: profile.displayName,
-                                              pronouns: profile.pronouns,
-                                              businessLabel: isBusiness
-                                                  ? AppLocalizations.of(
-                                                      context,
-                                                    ).businessProfileLabel
-                                                  : null,
-                                              centered: true,
-                                            ),
-                                          ),
-                                        ),
-                                        if (profile.crafts.isNotEmpty) ...[
-                                          SizedBox(
-                                            height: identityToCrafts,
-                                          ),
-                                          ProfileCraftChips(
-                                            crafts: profile.crafts,
-                                            alignment: WrapAlignment.center,
-                                          ),
-                                        ],
-                                        SizedBox(height: spacing.sp4),
-                                        if (isBusiness)
-                                          BusinessProfileSummary(
-                                            key: const Key(
-                                              'profile-card-business-details',
-                                            ),
-                                            business: profile.business,
-                                          )
-                                        else
-                                          ProfileStats(profile: profile),
-                                        SizedBox(height: summaryToActions),
-                                        ConstrainedBox(
-                                          key: const Key(
-                                            'profile-card-action-section',
-                                          ),
-                                          constraints: const BoxConstraints(
-                                            maxWidth:
-                                                profileActionSectionMaxWidth,
-                                          ),
-                                          child: SizedBox(
-                                            width: double.infinity,
-                                            child: _ProfileCardActions(
-                                              isOwnProfile: isOwnProfile,
-                                              isFollowing:
-                                                  profile.viewerIsFollowing,
-                                              isBusy: isPrimaryActionBusy,
-                                              compactOpacity: compactOpacity,
-                                              expandedOpacity: expandedOpacity,
-                                              onVisitProfile: onVisitProfile,
-                                              onPrimaryAction: onPrimaryAction,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  if (timeline > 0)
-                                    Opacity(
-                                      key: const Key(
-                                        'profile-card-expanded-only',
-                                      ),
-                                      opacity: expandedOpacity,
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.stretch,
-                                        children: [
-                                          if (profile.description?.isNotEmpty ??
-                                              false)
-                                            Padding(
-                                              padding: EdgeInsets.fromLTRB(
-                                                horizontalPadding,
-                                                0,
-                                                horizontalPadding,
-                                                spacing.sp4,
-                                              ),
-                                              child: ProfileBio(
-                                                description:
-                                                    profile.description,
-                                              ),
-                                            ),
-                                          DefaultTabController(
-                                            length: profileTabs.length,
-                                            child: SizedBox(
-                                              height:
-                                                  ProfileTabBarDelegate.height,
-                                              child: ProfileTabBar(
-                                                tabs: profileTabs,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                ],
-                              ),
-                              Positioned(
-                                top: avatarTop,
-                                child: ProfileFramedAvatar(
-                                  seed:
-                                      ProfileHandle(
-                                        profile.handle,
-                                      ).displayLabel(
-                                        displayName: profile.displayName,
-                                        unavailableLabel: AppLocalizations.of(
-                                          context,
-                                        ).handleUnavailable,
-                                      ),
-                                  avatarUrl: profile.avatar,
+                              SizedBox(
+                                height: headerHeight,
+                                width: double.infinity,
+                                child: ProfileHeaderBackground(
                                   customisation: profile.customisation,
+                                  backgroundKey: const Key(
+                                    'profile-card-header',
+                                  ),
+                                  textureKey: const Key(
+                                    'profile-card-background-illustration',
+                                  ),
                                 ),
                               ),
-                              Positioned(
-                                top: closeTop,
-                                right: spacing.sp3,
-                                child: Opacity(
-                                  key: const Key(
-                                    'profile-card-compact-close',
-                                  ),
-                                  opacity: compactOpacity,
-                                  child: Material(
-                                    key: const Key(
-                                      'profile-card-close-surface',
-                                    ),
-                                    color: Color.lerp(
-                                      swatches.paper3,
-                                      theme.scaffoldBackgroundColor,
-                                      progress,
-                                    ),
-                                    shape: const CircleBorder(),
-                                    child: IconButton(
-                                      key: const Key('profile-card-close'),
-                                      tooltip: MaterialLocalizations.of(
-                                        context,
-                                      ).closeButtonTooltip,
-                                      onPressed: onClose,
-                                      style: ButtonStyle(
-                                        backgroundColor:
-                                            const WidgetStatePropertyAll(
-                                              Colors.transparent,
-                                            ),
-                                        foregroundColor: WidgetStatePropertyAll(
-                                          colors.onSurface,
+                              Padding(
+                                padding: EdgeInsets.fromLTRB(
+                                  horizontalPadding,
+                                  bodyTopPadding,
+                                  horizontalPadding,
+                                  actionsToExpandedContent,
+                                ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    ConstrainedBox(
+                                      constraints: BoxConstraints(
+                                        minHeight: minimumIdentityHeight,
+                                      ),
+                                      child: Center(
+                                        child: ProfileIdentity(
+                                          handle: profile.handle.toString(),
+                                          displayName: profile.displayName,
+                                          pronouns: profile.pronouns,
+                                          businessLabel: isBusiness
+                                              ? AppLocalizations.of(
+                                                  context,
+                                                ).businessProfileLabel
+                                              : null,
+                                          centered: true,
                                         ),
                                       ),
-                                      icon: const Icon(CraftskyIconsBold.close),
                                     ),
-                                  ),
+                                    if (profile.crafts.isNotEmpty) ...[
+                                      SizedBox(
+                                        height: identityToCrafts,
+                                      ),
+                                      ProfileCraftChips(
+                                        crafts: profile.crafts,
+                                        alignment: WrapAlignment.center,
+                                      ),
+                                    ],
+                                    SizedBox(height: spacing.sp4),
+                                    if (isBusiness)
+                                      BusinessProfileSummary(
+                                        key: const Key(
+                                          'profile-card-business-details',
+                                        ),
+                                        business: profile.business,
+                                      )
+                                    else
+                                      ProfileStats(profile: profile),
+                                    SizedBox(height: summaryToActions),
+                                    ConstrainedBox(
+                                      key: const Key(
+                                        'profile-card-action-section',
+                                      ),
+                                      constraints: const BoxConstraints(
+                                        maxWidth: profileActionSectionMaxWidth,
+                                      ),
+                                      child: SizedBox(
+                                        width: double.infinity,
+                                        child: _ProfileCardActions(
+                                          isOwnProfile: isOwnProfile,
+                                          isFollowing:
+                                              profile.viewerIsFollowing,
+                                          isBusy: isPrimaryActionBusy,
+                                          compactOpacity: compactOpacity,
+                                          expandedOpacity: expandedOpacity,
+                                          onVisitProfile: onVisitProfile,
+                                          onPrimaryAction: onPrimaryAction,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ),
+                              if (timeline > 0)
+                                Opacity(
+                                  key: const Key(
+                                    'profile-card-expanded-only',
+                                  ),
+                                  opacity: expandedOpacity,
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                                      if (profile.description?.isNotEmpty ??
+                                          false)
+                                        Padding(
+                                          padding: EdgeInsets.fromLTRB(
+                                            horizontalPadding,
+                                            0,
+                                            horizontalPadding,
+                                            spacing.sp4,
+                                          ),
+                                          child: ProfileBio(
+                                            description: profile.description,
+                                          ),
+                                        ),
+                                      DefaultTabController(
+                                        length: profileTabs.length,
+                                        child: SizedBox(
+                                          height: ProfileTabBarDelegate.height,
+                                          child: ProfileTabBar(
+                                            tabs: profileTabs,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
                             ],
                           ),
-                        ),
+                          Positioned(
+                            top: avatarTop,
+                            child: ProfileFramedAvatar(
+                              seed:
+                                  ProfileHandle(
+                                    profile.handle,
+                                  ).displayLabel(
+                                    displayName: profile.displayName,
+                                    unavailableLabel: AppLocalizations.of(
+                                      context,
+                                    ).handleUnavailable,
+                                  ),
+                              avatarUrl: profile.avatar,
+                              customisation: profile.customisation,
+                            ),
+                          ),
+                          Positioned(
+                            top: closeTop,
+                            right: spacing.sp3,
+                            child: Opacity(
+                              key: const Key(
+                                'profile-card-compact-close',
+                              ),
+                              opacity: compactOpacity,
+                              child: Material(
+                                key: const Key(
+                                  'profile-card-close-surface',
+                                ),
+                                color: Color.lerp(
+                                  swatches.paper3,
+                                  theme.scaffoldBackgroundColor,
+                                  progress,
+                                ),
+                                shape: const CircleBorder(),
+                                child: IconButton(
+                                  key: const Key('profile-card-close'),
+                                  tooltip: MaterialLocalizations.of(
+                                    context,
+                                  ).closeButtonTooltip,
+                                  onPressed: onClose,
+                                  style: ButtonStyle(
+                                    backgroundColor:
+                                        const WidgetStatePropertyAll(
+                                          Colors.transparent,
+                                        ),
+                                    foregroundColor: WidgetStatePropertyAll(
+                                      colors.onSurface,
+                                    ),
+                                  ),
+                                  icon: const Icon(CraftskyIconsBold.close),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
                 ),
               ),
             ),

@@ -80,7 +80,7 @@ class _SettingsContent extends ConsumerWidget {
         spacing.sp4,
         spacing.sp4,
         spacing.sp4,
-        spacing.sp7,
+        spacing.sp7 + MediaQuery.paddingOf(context).bottom,
       ),
       child: Center(
         child: ConstrainedBox(

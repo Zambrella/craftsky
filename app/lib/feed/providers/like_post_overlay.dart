@@ -3,6 +3,7 @@ import 'package:craftsky_app/auth/models/account_session_lease.dart';
 import 'package:craftsky_app/auth/providers/account_operation_guard.dart';
 import 'package:craftsky_app/feed/models/post.dart';
 import 'package:craftsky_app/feed/models/post_comment_section.dart';
+import 'package:craftsky_app/feed/providers/post_record_overlay.dart';
 import 'package:craftsky_app/shared/mutations/pds_record_operation_controller.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -87,11 +88,23 @@ PostCommentSection applyPostCommentSectionInteractionOverlays(
   Ref ref,
   PostCommentSection section,
 ) {
-  return section.copyWith(
-    post: applyPostInteractionOverlays(ref, section.post),
-    comments: section.comments.copyWith(
+  var visible = section;
+  for (final item in section.comments.items) {
+    if (applyPostRecordOverlay(ref, item.post) == null) {
+      visible = visible.removeDeletedResponse(item.post.uri);
+      continue;
+    }
+    for (final reply in item.replies.items) {
+      if (applyPostRecordOverlay(ref, reply.post) == null) {
+        visible = visible.removeDeletedResponse(reply.post.uri);
+      }
+    }
+  }
+  return visible.copyWith(
+    post: applyPostInteractionOverlays(ref, visible.post),
+    comments: visible.comments.copyWith(
       items: [
-        for (final item in section.comments.items)
+        for (final item in visible.comments.items)
           item.copyWith(
             post: applyPostInteractionOverlays(ref, item.post),
             replies: item.replies.copyWith(

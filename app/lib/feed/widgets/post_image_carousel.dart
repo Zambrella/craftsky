@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/widgets/inline_pinch_zoom.dart';
 import 'package:craftsky_app/feed/widgets/post_image_page_indicator.dart';
 import 'package:craftsky_app/shared/image/image_cache_providers.dart';
 import 'package:craftsky_app/shared/widgets/root_overlay_scope.dart';
@@ -9,7 +10,6 @@ import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:zoom_pinch_overlay/zoom_pinch_overlay.dart';
 
 const _defaultFallbackHeight = 320.0;
 const _defaultMinHeight = 160.0;
@@ -162,15 +162,8 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
                           final image = widget.images[index];
                           final url = image.thumb ?? image.fullsize;
                           if (url == null) {
-                            final child = ZoomOverlay(
-                              buildContextOverlayState: rootOverlayContext,
-                              minScale: 1,
-                              maxScale: 4,
-                              twoTouchOnly: true,
-                              modalBarrierColor: Colors.black12,
-                              animationDuration: const Duration(
-                                milliseconds: 300,
-                              ),
+                            final child = InlinePinchZoom(
+                              overlayContext: rootOverlayContext,
                               child: SizedBox(
                                 width: constraints.maxWidth,
                                 height: height,
@@ -194,15 +187,8 @@ class _PostImageCarouselState extends ConsumerState<PostImageCarousel> {
                             return Hero(tag: _heroTags[index], child: child);
                           }
 
-                          final child = ZoomOverlay(
-                            buildContextOverlayState: rootOverlayContext,
-                            minScale: 1,
-                            maxScale: 4,
-                            twoTouchOnly: true,
-                            modalBarrierColor: Colors.black12,
-                            animationDuration: const Duration(
-                              milliseconds: 300,
-                            ),
+                          final child = InlinePinchZoom(
+                            overlayContext: rootOverlayContext,
                             child: SizedBox(
                               width: constraints.maxWidth,
                               height: height,

@@ -129,6 +129,7 @@ class _FolderNameDialogState extends ConsumerState<_FolderNameDialog> {
             : l10n.savedPostRenameFolder,
         body: CraftskyTextInput(
           label: l10n.savedPostFolderNameHint,
+          textCapitalization: TextCapitalization.words,
           controller: _controller,
           focusNode: _focusNode,
           enabled: !_pending,

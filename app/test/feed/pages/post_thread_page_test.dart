@@ -21,6 +21,7 @@ import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/subscriptions/models/subscription_access.dart';
 import 'package:craftsky_app/subscriptions/providers/subscription_access_provider.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
+import 'package:craftsky_app/theme/craftsky_card.dart';
 import 'package:craftsky_app/theme/craftsky_context_menu.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
@@ -199,6 +200,94 @@ Future<GoRouter> _pumpThreadRoute(
 }
 
 void main() {
+  testWidgets(
+    'muted comments and replies use subtle, contextual placeholders',
+    (
+      tester,
+    ) async {
+      final rootRef = PostRef(
+        uri: 'at://did:plc:alice/social.craftsky.feed.post/root',
+        cid: 'bafyroot',
+      );
+      final mutedComment =
+          _responsePost(
+            did: 'did:plc:bob',
+            rkey: 'muted-comment',
+            parent: rootRef,
+          ).copyWith(
+            availability: 'muted',
+            relationship: const ContentRelationship(
+              state: 'muted',
+              revealable: true,
+            ),
+          );
+      final visibleComment = _responsePost(
+        did: 'did:plc:carol',
+        rkey: 'visible-comment',
+        parent: rootRef,
+      );
+      final mutedReply =
+          _responsePost(
+            did: 'did:plc:dave',
+            rkey: 'muted-reply',
+            parent: PostRef(uri: visibleComment.uri, cid: visibleComment.cid),
+          ).copyWith(
+            availability: 'muted',
+            relationship: const ContentRelationship(
+              state: 'muted',
+              revealable: true,
+            ),
+          );
+      final section = _section(
+        'thread root',
+        comments: [
+          CommentItem(
+            post: mutedComment,
+            placement: CommentPlacement.normal,
+            replies: const ReplyPage(loaded: false, items: []),
+          ),
+          CommentItem(
+            post: visibleComment,
+            placement: CommentPlacement.normal,
+            replies: ReplyPage(
+              loaded: true,
+              items: [ReplyItem(post: mutedReply, flattened: false)],
+            ),
+          ),
+        ],
+      );
+
+      await _pumpThread(
+        tester,
+        FakePostRepository(
+          onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+              section,
+        ),
+      );
+
+      for (final (post, label) in [
+        (mutedComment, 'Comment from a muted account'),
+        (mutedReply, 'Reply from a muted account'),
+      ]) {
+        final card = find.byWidgetPredicate(
+          (widget) => widget is PostCard && widget.post.uri == post.uri,
+        );
+        await tester.ensureVisible(card);
+        await tester.pumpAndSettle();
+        expect(
+          find.descendant(of: card, matching: find.text(label)),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(of: card, matching: find.byType(CraftskyCard)),
+          findsNothing,
+        );
+      }
+      expect(find.text('Show comment'), findsOneWidget);
+      expect(find.text('Post from a muted account'), findsNothing);
+    },
+  );
+
   testWidgets('shows comment skeletons during the initial thread load', (
     tester,
   ) async {
@@ -228,6 +317,56 @@ void main() {
 
     expect(find.byType(CraftskySkeletonList), findsOneWidget);
     expect(find.byType(CommentRowSkeleton), findsWidgets);
+  });
+
+  testWidgets('pulling a short post detail reloads the post and comments', (
+    tester,
+  ) async {
+    var calls = 0;
+    final pending = Completer<PostCommentSection>();
+    await _pumpThread(
+      tester,
+      FakePostRepository(
+        onCommentSection: (did, rkey, {cursor, sort, focus, limit}) {
+          calls++;
+          if (calls == 1) return Future.value(_section('original post'));
+          return pending.future;
+        },
+      ),
+    );
+
+    expect(find.text('original post'), findsOneWidget);
+    expect(find.byType(RefreshIndicator), findsOneWidget);
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, 300));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(calls, 2);
+    expect(find.text('original post'), findsOneWidget);
+    final root = _rootPost('updated post');
+    pending.complete(
+      _section(
+        'updated post',
+        likeCount: 2,
+        comments: [
+          CommentItem(
+            post: _responsePost(
+              did: 'did:plc:bob',
+              rkey: 'new-comment',
+              parent: PostRef(uri: root.uri, cid: root.cid),
+            ),
+            placement: CommentPlacement.normal,
+            replies: const ReplyPage(loaded: false, items: []),
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('updated post'), findsOneWidget);
+    expect(find.text('response new-comment'), findsOneWidget);
+    expect(find.text('original post'), findsNothing);
+    expect(find.byType(PostInteractionSummary), findsOneWidget);
   });
 
   testWidgets(
@@ -766,7 +905,142 @@ void main() {
 
     expect(find.text('thread root'), findsOneWidget);
     expect(find.text('Feed destination'), findsNothing);
+    expect(find.text('owned comment'), findsNothing);
     expect(messenger.calls.last.$2, 'Comment deleted.');
+  });
+
+  for (final deleteReply in [false, true]) {
+    testWidgets(
+      'confirmed ${deleteReply ? 'reply' : 'comment'} deletion removes it '
+      'only after AppView responds, despite a stale section refresh',
+      (tester) async {
+        final pending = Completer<void>();
+        final root = _rootPost('thread root').copyWith(replyCount: 1);
+        final rootRef = PostRef(uri: root.uri, cid: root.cid);
+        final comment = _post(
+          rkey: 'comment',
+          text: 'owned comment',
+          reply: PostReply(root: rootRef, parent: rootRef),
+        ).copyWith(replyCount: deleteReply ? 1 : 0);
+        final reply = _post(
+          rkey: 'reply',
+          text: 'owned reply',
+          reply: PostReply(
+            root: rootRef,
+            parent: PostRef(uri: comment.uri, cid: comment.cid),
+          ),
+        );
+        final section = _section('thread root').copyWith(
+          post: root,
+          comments: CommentPage(
+            items: [
+              CommentItem(
+                post: comment,
+                placement: CommentPlacement.viewerAuthored,
+                replies: ReplyPage(
+                  loaded: deleteReply,
+                  items: deleteReply
+                      ? [ReplyItem(post: reply, flattened: false)]
+                      : const [],
+                ),
+              ),
+            ],
+          ),
+        );
+        final messenger = RecordingMessenger();
+        final repository = FakePostRepository(
+          onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+              section,
+          onDelete: (did, rkey) => pending.future,
+        );
+        await _pumpThreadRoute(
+          tester,
+          repository: repository,
+          messenger: messenger,
+        );
+
+        final target = deleteReply ? 'owned reply' : 'owned comment';
+        final card = find.byWidgetPredicate(
+          (widget) => widget is PostCard && widget.post.text == target,
+        );
+        await tester.ensureVisible(card);
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.descendant(
+            of: card,
+            matching: find.byIcon(CraftskyIconsBold.more),
+          ),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(
+          find.text(deleteReply ? 'Delete reply' : 'Delete comment'),
+        );
+        await tester.pumpAndSettle();
+        await tester.tap(find.text('Delete'));
+        await tester.pump();
+
+        expect(find.text(target), findsOneWidget);
+        expect(messenger.calls, isEmpty);
+
+        pending.complete();
+        await tester.pumpAndSettle();
+        expect(find.text(target), findsNothing);
+        expect(find.text('thread root'), findsOneWidget);
+        expect(
+          find.text('owned comment'),
+          deleteReply ? findsOneWidget : findsNothing,
+        );
+        expect(
+          messenger.calls.last.$2,
+          deleteReply ? 'Reply deleted.' : 'Comment deleted.',
+        );
+      },
+    );
+  }
+
+  testWidgets('failed comment deletion keeps the comment visible', (
+    tester,
+  ) async {
+    final pending = Completer<void>();
+    final root = _rootPost('thread root');
+    final rootRef = PostRef(uri: root.uri, cid: root.cid);
+    final comment = _post(
+      rkey: 'comment',
+      text: 'owned comment',
+      reply: PostReply(root: rootRef, parent: rootRef),
+    );
+    final messenger = RecordingMessenger();
+    await _pumpThreadRoute(
+      tester,
+      repository: FakePostRepository(
+        onCommentSection: (did, rkey, {cursor, sort, focus, limit}) async =>
+            _section(
+              'thread root',
+              comments: [
+                CommentItem(
+                  post: comment,
+                  placement: CommentPlacement.viewerAuthored,
+                  replies: const ReplyPage(loaded: false, items: []),
+                ),
+              ],
+            ),
+        onDelete: (did, rkey) => pending.future,
+      ),
+      messenger: messenger,
+    );
+
+    await tester.tap(find.byIcon(CraftskyIconsBold.more).last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete comment'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Delete'));
+    await tester.pump();
+    expect(find.text('owned comment'), findsOneWidget);
+
+    pending.completeError(Exception('delete failed'));
+    await tester.pumpAndSettle();
+    expect(find.text('owned comment'), findsOneWidget);
+    expect(messenger.calls.last.$2, "Couldn't delete that comment or reply.");
   });
 
   testWidgets('AT-002 REG-006 pins the owner-authored thread root', (

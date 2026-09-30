@@ -181,6 +181,7 @@ class EventFormState extends ConsumerState<EventForm> {
                       controller: _name,
                       enabled: widget.enabled,
                       maxLength: businessEventNameLimit,
+                      textCapitalization: TextCapitalization.words,
                       label: l10n.businessEventNameLabel,
                       required: true,
                       validator: (value) =>
@@ -321,6 +322,7 @@ class EventFormState extends ConsumerState<EventForm> {
                       controller: _venue,
                       enabled: widget.enabled,
                       maxLength: businessEventVenueLimit,
+                      textCapitalization: TextCapitalization.words,
                       label: l10n.businessEventVenueLabel,
                     ),
                     SizedBox(height: spacing.sp5),

@@ -3,15 +3,19 @@ import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
 import 'package:flutter/material.dart';
 
+enum SubmissionKind { post, comment, reply }
+
 final class SubmissionBlockingOverlay extends StatelessWidget {
   const SubmissionBlockingOverlay({
     required this.scheduling,
     super.key,
+    this.kind = SubmissionKind.post,
     this.videoProgress,
     this.onCancelVideo,
   });
 
   final bool scheduling;
+  final SubmissionKind kind;
   final VideoPublicationProgress? videoProgress;
   final VoidCallback? onCancelVideo;
 
@@ -22,10 +26,14 @@ final class SubmissionBlockingOverlay extends StatelessWidget {
       VideoPublicationStage.uploading => l10n.postVideoUploading,
       VideoPublicationStage.processing => l10n.postVideoProcessing,
       VideoPublicationStage.publishing => l10n.postVideoPublishing,
-      _ =>
-        scheduling
-            ? l10n.submissionSchedulingPost
-            : l10n.submissionPublishingPost,
+      _ => switch (kind) {
+        SubmissionKind.post =>
+          scheduling
+              ? l10n.submissionSchedulingPost
+              : l10n.submissionPublishingPost,
+        SubmissionKind.comment => l10n.submissionPublishingComment,
+        SubmissionKind.reply => l10n.submissionPublishingReply,
+      },
     };
     final canCancel =
         onCancelVideo != null &&

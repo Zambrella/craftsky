@@ -1,5 +1,6 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:craftsky_app/feed/models/post.dart';
+import 'package:craftsky_app/feed/widgets/inline_pinch_zoom.dart';
 import 'package:craftsky_app/feed/widgets/post_image_carousel.dart';
 import 'package:craftsky_app/shared/widgets/root_overlay_scope.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
@@ -7,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
-import 'package:zoom_pinch_overlay/zoom_pinch_overlay.dart';
 
 Future<void> _pumpCarousel(
   WidgetTester tester,
@@ -158,15 +158,13 @@ void main() {
       ),
     );
 
-    final zoom = tester.widget<ZoomOverlay>(find.byType(ZoomOverlay));
-    final zoomContext = tester.element(find.byType(ZoomOverlay));
+    final zoom = tester.widget<InlinePinchZoom>(find.byType(InlinePinchZoom));
+    final zoomContext = tester.element(find.byType(InlinePinchZoom));
     expect(zoom.maxScale, 4);
-    expect(zoom.minScale, 1);
-    expect(zoom.twoTouchOnly, isTrue);
-    expect(zoom.modalBarrierColor, Colors.black12);
-    expect(zoom.animationDuration, const Duration(milliseconds: 300));
+    expect(zoom.barrierColor, isNull);
+    expect(zoom.resetDuration, const Duration(milliseconds: 300));
     expect(
-      Overlay.of(zoom.buildContextOverlayState!),
+      Overlay.of(zoom.overlayContext!),
       same(Overlay.of(zoomContext, rootOverlay: true)),
     );
     expect(find.bySemanticsLabel('Blue shawl drying flat'), findsOneWidget);
@@ -191,7 +189,7 @@ void main() {
       ),
     );
 
-    final center = tester.getCenter(find.byType(ZoomOverlay));
+    final center = tester.getCenter(find.byType(InlinePinchZoom));
     final firstFinger = await tester.createGesture(pointer: 1);
     final secondFinger = await tester.createGesture(pointer: 2);
     await firstFinger.down(center - const Offset(20, 0));
@@ -199,11 +197,14 @@ void main() {
     await firstFinger.moveTo(center - const Offset(60, 0));
     await secondFinger.moveTo(center + const Offset(60, 0));
     await tester.pump();
+    final scrim = Theme.of(
+      tester.element(find.byType(InlinePinchZoom)),
+    ).colorScheme.scrim.withValues(alpha: 0.12);
 
     expect(find.bySemanticsLabel('Quilt detail in overlay'), findsOneWidget);
     expect(
       find.descendant(
-        of: find.byType(ZoomOverlay),
+        of: find.byType(InlinePinchZoom),
         matching: find.byWidgetPredicate(
           (widget) => widget is Opacity && widget.opacity == 0,
         ),
@@ -212,7 +213,7 @@ void main() {
     );
     expect(
       find.byWidgetPredicate(
-        (widget) => widget is ModalBarrier && widget.color == Colors.black12,
+        (widget) => widget is ModalBarrier && widget.color == scrim,
       ),
       findsOneWidget,
     );
@@ -229,10 +230,173 @@ void main() {
     expect(find.bySemanticsLabel('Quilt detail in overlay'), findsOneWidget);
     expect(
       find.byWidgetPredicate(
-        (widget) => widget is ModalBarrier && widget.color == Colors.black12,
+        (widget) => widget is ModalBarrier && widget.color == scrim,
       ),
       findsNothing,
     );
+  });
+
+  testWidgets('pinching does not change the carousel page', (tester) async {
+    await _pumpCarousel(
+      tester,
+      PostImageCarousel(images: _images('carousel')),
+    );
+    final center = tester.getCenter(find.byType(InlinePinchZoom));
+    final first = await tester.startGesture(center - const Offset(20, 0));
+    final second = await tester.startGesture(
+      center + const Offset(20, 0),
+      pointer: 4,
+    );
+    await first.moveBy(const Offset(-80, -10));
+    await second.moveBy(const Offset(-80, 10));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('1/2'), findsOneWidget);
+
+    await first.up();
+    await second.up();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.drag(
+      find.byKey(const Key('post-image-carousel')),
+      const Offset(-500, 0),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('2/2'), findsOneWidget);
+  });
+
+  testWidgets('pinch works after the first finger starts scrolling the feed', (
+    tester,
+  ) async {
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          home: Scaffold(
+            body: ListView(
+              controller: controller,
+              children: [
+                const SizedBox(height: 100),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: SizedBox(
+                    width: 320,
+                    child: PostImageCarousel(images: _images('scrolling')),
+                  ),
+                ),
+                const SizedBox(height: 1000),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final center = tester.getCenter(find.byType(InlinePinchZoom));
+    final first = await tester.startGesture(center - const Offset(20, 0));
+    await first.moveBy(const Offset(0, -30));
+    await tester.pump();
+    await first.moveBy(const Offset(0, -20));
+    await tester.pump();
+    expect(controller.offset, greaterThan(0));
+    expect(
+      tester
+          .getRect(find.byType(InlinePinchZoom))
+          .contains(
+            center + const Offset(20, 0),
+          ),
+      isTrue,
+    );
+
+    final second = await tester.startGesture(
+      center + const Offset(20, 0),
+      pointer: 2,
+    );
+    await tester.pump();
+    final scrim = Theme.of(
+      tester.element(find.byType(InlinePinchZoom)),
+    ).colorScheme.scrim.withValues(alpha: 0.12);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is ModalBarrier && widget.color == scrim,
+      ),
+      findsOneWidget,
+    );
+    final heldOffset = controller.offset;
+    await first.moveBy(const Offset(-35, -20));
+    await second.moveBy(const Offset(35, 20));
+    await tester.pump();
+    expect(controller.offset, heldOffset);
+    await first.moveBy(const Offset(0, -60));
+    await second.moveBy(const Offset(0, -60));
+    await tester.pump();
+    expect(controller.offset, heldOffset);
+    controller.jumpTo(heldOffset + 40);
+    expect(controller.offset, heldOffset);
+    await first.moveBy(const Offset(0, -60));
+    await second.moveBy(const Offset(0, -60));
+    await tester.pump();
+    expect(controller.offset, heldOffset);
+    expect(
+      tester
+          .widgetList<Transform>(find.byType(Transform))
+          .any(
+            (transform) => transform.transform.getMaxScaleOnAxis() > 1,
+          ),
+      isTrue,
+    );
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is ModalBarrier && widget.color == scrim,
+      ),
+      findsOneWidget,
+    );
+
+    await first.up();
+    await second.moveBy(const Offset(0, -40));
+    await tester.pump();
+    expect(controller.offset, heldOffset);
+    await second.up();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is ModalBarrier && widget.color == scrim,
+      ),
+      findsNothing,
+    );
+    await tester.drag(find.byType(ListView), const Offset(0, -80));
+    await tester.pump();
+    expect(controller.offset, greaterThan(heldOffset));
+  });
+
+  testWidgets('a second finger outside the image does not start zoom', (
+    tester,
+  ) async {
+    await _pumpCarousel(
+      tester,
+      PostImageCarousel(images: _images('outside')),
+    );
+    final first = await tester.startGesture(
+      tester.getCenter(find.byType(InlinePinchZoom)),
+    );
+    final second = await tester.startGesture(
+      const Offset(500, 500),
+      pointer: 3,
+    );
+    await tester.pump();
+
+    final scrim = Theme.of(
+      tester.element(find.byType(InlinePinchZoom)),
+    ).colorScheme.scrim.withValues(alpha: 0.12);
+    expect(
+      find.byWidgetPredicate(
+        (widget) => widget is ModalBarrier && widget.color == scrim,
+      ),
+      findsNothing,
+    );
+    await first.up();
+    await second.up();
   });
 
   testWidgets('targets the scoped overlay above a nested navigator', (
@@ -273,10 +437,10 @@ void main() {
       ),
     );
 
-    final zoom = tester.widget<ZoomOverlay>(find.byType(ZoomOverlay));
-    final nestedContext = tester.element(find.byType(ZoomOverlay));
+    final zoom = tester.widget<InlinePinchZoom>(find.byType(InlinePinchZoom));
+    final nestedContext = tester.element(find.byType(InlinePinchZoom));
     expect(Overlay.of(nestedContext), isNot(same(rootOverlay)));
-    expect(Overlay.of(zoom.buildContextOverlayState!), same(rootOverlay));
+    expect(Overlay.of(zoom.overlayContext!), same(rootOverlay));
   });
 
   testWidgets('uses the soft rounded outline from embedded previews', (

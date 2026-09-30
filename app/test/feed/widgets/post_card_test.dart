@@ -1184,6 +1184,10 @@ void main() {
       final target = find.byKey(const Key('sponsored-info-tooltip-trigger'));
       expect(target, findsOneWidget);
       expect(
+        tester.getSize(target).width,
+        lessThan(tester.getSize(find.byType(CraftskyCard).first).width / 2),
+      );
+      expect(
         tester.getCenter(find.byIcon(CraftskyIcons.info)).dx,
         lessThan(tester.getCenter(find.text('Sponsored')).dx),
       );
@@ -1218,6 +1222,23 @@ void main() {
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
       addTearDown(mouse.removePointer);
       await mouse.addPointer();
+
+      final label = find.byKey(const Key('sponsored-info-tooltip-trigger'));
+      final card = find.byType(CraftskyCard).first;
+      await mouse.moveTo(
+        Offset(
+          tester.getTopRight(card).dx - 16,
+          tester.getCenter(label).dy,
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        find.text(
+          'The creator marked this post as sponsored because they received '
+          'money, products, or another benefit.',
+        ),
+        findsNothing,
+      );
 
       await mouse.moveTo(tester.getCenter(find.text('Sponsored')));
       await tester.pumpAndSettle();

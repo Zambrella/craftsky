@@ -85,8 +85,7 @@ Future<Post?> showPostComposerSheet(
   ActiveAccountLease? draftOwner,
 }) {
   return responsiveModalNavigator(context).push<Post?>(
-    MaterialPageRoute<Post?>(
-      fullscreenDialog: true,
+    FullscreenModalRoute<Post?>(
       builder: (_) => PostComposerSheet(
         replyTarget: replyTarget,
         quoteTarget: quoteTarget,
@@ -183,6 +182,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
   var _sponsored = false;
   var _initialSponsored = false;
   var _submissionSucceeded = false;
+  Post? _pendingPublishedDraftPost;
   late final DraftSubmissionOrigin _origin;
   List<String>? _initialLanguages;
   ScheduleChoice _initialScheduleChoice = ScheduleChoice.now;
@@ -430,7 +430,9 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       ..listen(createPostProvider, (previous, next) {
         switch ((previous, next)) {
           case (AsyncLoading(), AsyncData(:final value?)):
-            if (Navigator.of(context).canPop()) {
+            if (_origin.draft != null) {
+              _pendingPublishedDraftPost = value;
+            } else if (Navigator.of(context).canPop()) {
               Navigator.of(context).pop(value);
             }
             context.showInfo(l10n.postCreateSuccess);
@@ -457,7 +459,11 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
       });
 
     return PopScope<Post?>(
-      canPop: !_isSubmitting && (!hasDraft || createState.isLoading),
+      canPop:
+          !_isSubmitting &&
+          (_pendingPublishedDraftPost != null ||
+              !hasDraft ||
+              createState.isLoading),
       onPopInvokedWithResult: (didPop, _) async {
         if (didPop) return;
         if (_isSubmitting) return;
@@ -725,14 +731,16 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                   bottom: 0,
                   child: SafeArea(
                     top: false,
-                    minimum: EdgeInsets.only(bottom: spacing.sp4),
-                    child: _PostAction(
-                      actionKey: const Key('post-composer-primary-action'),
-                      isSaving: createState.isLoading || _isScheduling,
-                      label: submitLabel,
-                      onPressed: canSubmit
-                          ? () => _submitPost(trimmedText: trimmedText)
-                          : null,
+                    child: Padding(
+                      padding: EdgeInsets.only(bottom: spacing.sp4),
+                      child: _PostAction(
+                        actionKey: const Key('post-composer-primary-action'),
+                        isSaving: createState.isLoading || _isScheduling,
+                        label: submitLabel,
+                        onPressed: canSubmit
+                            ? () => _submitPost(trimmedText: trimmedText)
+                            : null,
+                      ),
                     ),
                   ),
                 ),
@@ -742,6 +750,11 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
           if (_isSubmitting)
             SubmissionBlockingOverlay(
               scheduling: _scheduleChoice == ScheduleChoice.later,
+              kind: isComment
+                  ? SubmissionKind.comment
+                  : isResponse
+                  ? SubmissionKind.reply
+                  : SubmissionKind.post,
               videoProgress: _videoProgress,
               onCancelVideo: _videoPublication?.cancel,
             ),
@@ -1247,6 +1260,7 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
   ) async {
     if (_submissionCoordinator.isRunning) return;
     _submissionSucceeded = false;
+    _pendingPublishedDraftPost = null;
     _videoFailure = null;
     await _submissionCoordinator.run(
       presentOverlay: () async {
@@ -1288,6 +1302,11 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
         }
       },
     );
+    final published = _pendingPublishedDraftPost;
+    if (published != null) await WidgetsBinding.instance.endOfFrame;
+    if (mounted && published != null && Navigator.of(context).canPop()) {
+      Navigator.of(context).pop(published);
+    }
   }
 
   bool _submissionOwnershipIsCurrent(ActiveAccountLease? owner) =>

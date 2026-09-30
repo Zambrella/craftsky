@@ -863,6 +863,43 @@ void main() {
     );
 
     testWidgets(
+      'business text input keeps keyboard focus while another field is invalid',
+      (tester) async {
+        final profile = _seedProfile.copyWith(
+          accountType: AccountType.business,
+          business: _businessDeclaration.copyWith(
+            location: const BusinessLocation(
+              country: 'XX',
+              locality: 'Bristol',
+            ),
+          ),
+        );
+        await _pumpEditDialog(
+          tester,
+          repo: FakeProfileRepository(onFetch: (_) async => profile),
+          businessAccess: true,
+        );
+
+        final tagline = find.widgetWithText(TextField, 'Thoughtful classes');
+        await tester.ensureVisible(tagline);
+        await tester.tap(tagline);
+        await tester.pumpAndSettle();
+        final focusNode = tester.widget<TextField>(tagline).focusNode!;
+        expect(focusNode.hasFocus, isTrue);
+        final focusedField = find.byWidgetPredicate(
+          (widget) => widget is TextField && widget.focusNode == focusNode,
+        );
+
+        for (final text in ['Thoughtful classes!', 'Thoughtful classes!!']) {
+          await tester.enterText(focusedField, text);
+          await tester.pump();
+          expect(focusNode.hasFocus, isTrue);
+          expect(tester.testTextInput.isVisible, isTrue);
+        }
+      },
+    );
+
+    testWidgets(
       'display name longer than 64 characters surfaces a validator error '
       'without disabling dirty save',
       (tester) async {

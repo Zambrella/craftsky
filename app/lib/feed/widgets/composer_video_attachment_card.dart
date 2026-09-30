@@ -100,6 +100,7 @@ final class ComposerVideoAttachmentCard extends StatelessWidget {
               minLines: 3,
               keyboardType: TextInputType.multiline,
               textInputAction: TextInputAction.newline,
+              textCapitalization: TextCapitalization.sentences,
               hintText: l10n.postComposeVideoAltHint,
               labelLeading: Icon(
                 Icons.short_text_rounded,

@@ -53,7 +53,7 @@ class _SavedPostsPageState extends ConsumerState<SavedPostsPage> {
       return Scaffold(
         appBar: AppBar(
           leading: BackButton(
-            onPressed: () => const ProfileRoute().go(context),
+            onPressed: () => const FeedRoute().go(context),
           ),
           title: Text(l10n.savedPostsTitle),
         ),
@@ -95,7 +95,7 @@ class _SavedPostsPageState extends ConsumerState<SavedPostsPage> {
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(
-          onPressed: () => const ProfileRoute().go(context),
+          onPressed: () => const FeedRoute().go(context),
         ),
         title: Text(l10n.savedPostsTitle),
         actions: [

@@ -277,8 +277,11 @@
   "authCompleteSigningIn": "Signing in…",
   "@authCompleteSigningIn": { "description": "Loading message shown while completing OAuth sign-in from a deep link." },
 
-  "authCompleteTimedOutError": "That sign-in link expired. Please sign in again.",
+  "authCompleteTimedOutError": "This sign-in link has already been used or has expired. Please sign in again.",
   "@authCompleteTimedOutError": { "description": "Error shown when the OAuth handoff code or confirmation receipt is invalid or expired." },
+
+  "authCompleteSignInAgain": "Sign in again",
+  "@authCompleteSignInAgain": { "description": "Action to start a fresh sign-in after an OAuth link is invalid or expired." },
 
   "authCompleteStorageError": "Couldn't save your session securely. Please sign in again.",
   "@authCompleteStorageError": { "description": "Error shown when the completed OAuth session cannot be saved." },
@@ -516,6 +519,10 @@
 
   "postMutedPlaceholder": "Post from a muted account",
   "@postMutedPlaceholder": { "description": "Content-free placeholder for a muted post or quote." },
+  "commentMutedPlaceholder": "Comment from a muted account",
+  "@commentMutedPlaceholder": { "description": "Content-free placeholder for a muted comment." },
+  "replyMutedPlaceholder": "Reply from a muted account",
+  "@replyMutedPlaceholder": { "description": "Content-free placeholder for a muted reply." },
 
   "postUnavailablePlaceholder": "Post unavailable",
   "@postUnavailablePlaceholder": { "description": "Generic content-free placeholder for blocked or unavailable content." },
@@ -582,6 +589,10 @@
 
   "postRevealAction": "Show post",
   "@postRevealAction": { "description": "Temporary reveal action for muted content." },
+  "commentRevealAction": "Show comment",
+  "@commentRevealAction": { "description": "Temporary reveal action for a muted comment." },
+  "replyRevealAction": "Show reply",
+  "@replyRevealAction": { "description": "Temporary reveal action for a muted reply." },
 
   "postRevealError": "Couldn't show this post.",
   "@postRevealError": { "description": "Error feedback shown when temporarily revealing a muted post fails." },
@@ -2388,6 +2399,12 @@
 
   "submissionPublishingPost": "Publishing your post…",
   "@submissionPublishingPost": { "description": "Blocking immediate-submission status." },
+
+  "submissionPublishingComment": "Publishing your comment…",
+  "@submissionPublishingComment": { "description": "Blocking status when publishing a comment on a root post." },
+
+  "submissionPublishingReply": "Publishing your reply…",
+  "@submissionPublishingReply": { "description": "Blocking status when publishing a reply to a comment." },
 
   "submissionSchedulingPost": "Scheduling your post…",
   "@submissionSchedulingPost": { "description": "Blocking scheduled-submission status." },

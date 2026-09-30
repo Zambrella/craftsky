@@ -616,6 +616,7 @@ class _ImportComposerCardState extends ConsumerState<_ImportComposerCard> {
               controller: _manualController,
               label: l10n.instagramImportHandles,
               hintText: l10n.instagramImportHandlesHint,
+              textCapitalization: TextCapitalization.none,
               enabled: ready && !_busy,
             ),
             SizedBox(height: spacing.sp2),

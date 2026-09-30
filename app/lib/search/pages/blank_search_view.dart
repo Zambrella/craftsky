@@ -77,19 +77,45 @@ class _RecentSearchSection extends ConsumerWidget {
           style: Theme.of(context).textTheme.titleMedium,
         ),
         for (final recent in data.recentSearches.items)
-          ListTile(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            title: Text(recent.displayLabel),
-            trailing: IconButton(
-              tooltip: l10n.searchDeleteRecentAction,
-              icon: const Icon(CraftskyIconsBold.close),
-              onPressed: () => ref
-                  .read(deleteRecentSearchProvider.notifier)
-                  .delete(recent.id),
+          if (recent.payload case ProfileRecentSearchPayload(
+            :final did,
+            :final handle,
+            :final displayName,
+            :final avatar,
+            :final crafts,
+          ))
+            ProfileAccountListTile(
+              account: ProfileAccountSummary(
+                did: did.toString(),
+                handle: handle,
+                isCraftskyProfile: false,
+                displayName: displayName,
+                avatar: avatar,
+                crafts: crafts,
+              ),
+              onTap: () => _openRecent(recent),
+              trailing: IconButton(
+                tooltip: l10n.searchDeleteRecentAction,
+                icon: const Icon(CraftskyIconsBold.close),
+                onPressed: () => ref
+                    .read(deleteRecentSearchProvider.notifier)
+                    .delete(recent.id),
+              ),
+            )
+          else
+            ListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              title: Text(recent.displayLabel),
+              trailing: IconButton(
+                tooltip: l10n.searchDeleteRecentAction,
+                icon: const Icon(CraftskyIconsBold.close),
+                onPressed: () => ref
+                    .read(deleteRecentSearchProvider.notifier)
+                    .delete(recent.id),
+              ),
+              onTap: () => _openRecent(recent),
             ),
-            onTap: () => _openRecent(recent),
-          ),
       ],
     );
   }

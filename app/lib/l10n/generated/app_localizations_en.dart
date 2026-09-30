@@ -344,7 +344,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authCompleteTimedOutError =>
-      'That sign-in link expired. Please sign in again.';
+      'This sign-in link has already been used or has expired. Please sign in again.';
+
+  @override
+  String get authCompleteSignInAgain => 'Sign in again';
 
   @override
   String get authCompleteStorageError =>
@@ -602,6 +605,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get postMutedPlaceholder => 'Post from a muted account';
 
   @override
+  String get commentMutedPlaceholder => 'Comment from a muted account';
+
+  @override
+  String get replyMutedPlaceholder => 'Reply from a muted account';
+
+  @override
   String get postUnavailablePlaceholder => 'Post unavailable';
 
   @override
@@ -679,6 +688,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get postRevealAction => 'Show post';
+
+  @override
+  String get commentRevealAction => 'Show comment';
+
+  @override
+  String get replyRevealAction => 'Show reply';
 
   @override
   String get postRevealError => 'Couldn\'t show this post.';
@@ -2796,6 +2811,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get submissionPublishingPost => 'Publishing your post…';
+
+  @override
+  String get submissionPublishingComment => 'Publishing your comment…';
+
+  @override
+  String get submissionPublishingReply => 'Publishing your reply…';
 
   @override
   String get submissionSchedulingPost => 'Scheduling your post…';
