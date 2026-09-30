@@ -297,24 +297,26 @@ class _ProductEditorState extends ConsumerState<ProductEditor> {
                 bottom: 0,
                 child: SafeArea(
                   top: false,
-                  minimum: EdgeInsets.only(bottom: spacing.sp4),
-                  child: ChunkyButton(
-                    key: const ValueKey('product-submit'),
-                    onPressed: _uploading || _saving ? null : _save,
-                    style: ButtonStyle(
-                      minimumSize: WidgetStatePropertyAll(
-                        Size.fromHeight(spacing.sp7),
+                  child: Padding(
+                    padding: EdgeInsets.only(bottom: spacing.sp4),
+                    child: ChunkyButton(
+                      key: const ValueKey('product-submit'),
+                      onPressed: _uploading || _saving ? null : _save,
+                      style: ButtonStyle(
+                        minimumSize: WidgetStatePropertyAll(
+                          Size.fromHeight(spacing.sp7),
+                        ),
                       ),
+                      child: _saving
+                          ? SizedBox.square(
+                              dimension: spacing.sp5,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                semanticsLabel: l10n.businessSaving,
+                              ),
+                            )
+                          : Text(l10n.businessProductSave),
                     ),
-                    child: _saving
-                        ? SizedBox.square(
-                            dimension: spacing.sp5,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              semanticsLabel: l10n.businessSaving,
-                            ),
-                          )
-                        : Text(l10n.businessProductSave),
                   ),
                 ),
               ),

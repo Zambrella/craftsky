@@ -791,17 +791,19 @@ class _ProjectComposerSheetState extends ConsumerState<ProjectComposerSheet>
                     bottom: 0,
                     child: SafeArea(
                       top: false,
-                      minimum: EdgeInsets.only(bottom: spacing.sp4),
-                      child: ChunkyButton(
-                        key: const Key('project-composer-primary-action'),
-                        focusNode: _primaryActionFocusNode,
-                        onPressed: canSubmit
-                            ? () => _submitProject(trimmedBody: trimmedBody)
-                            : null,
-                        child: Text(
-                          _scheduleChoice == ScheduleChoice.later
-                              ? l10n.scheduledPostAction
-                              : l10n.postComposeSubmit,
+                      child: Padding(
+                        padding: EdgeInsets.only(bottom: spacing.sp4),
+                        child: ChunkyButton(
+                          key: const Key('project-composer-primary-action'),
+                          focusNode: _primaryActionFocusNode,
+                          onPressed: canSubmit
+                              ? () => _submitProject(trimmedBody: trimmedBody)
+                              : null,
+                          child: Text(
+                            _scheduleChoice == ScheduleChoice.later
+                                ? l10n.scheduledPostAction
+                                : l10n.postComposeSubmit,
+                          ),
                         ),
                       ),
                     ),

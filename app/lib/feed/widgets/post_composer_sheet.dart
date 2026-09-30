@@ -731,14 +731,16 @@ class _PostComposerSheetState extends ConsumerState<PostComposerSheet>
                   bottom: 0,
                   child: SafeArea(
                     top: false,
-                    minimum: EdgeInsets.only(bottom: spacing.sp4),
-                    child: _PostAction(
-                      actionKey: const Key('post-composer-primary-action'),
-                      isSaving: createState.isLoading || _isScheduling,
-                      label: submitLabel,
-                      onPressed: canSubmit
-                          ? () => _submitPost(trimmedText: trimmedText)
-                          : null,
+                    child: Padding(
+                      padding: EdgeInsets.only(bottom: spacing.sp4),
+                      child: _PostAction(
+                        actionKey: const Key('post-composer-primary-action'),
+                        isSaving: createState.isLoading || _isScheduling,
+                        label: submitLabel,
+                        onPressed: canSubmit
+                            ? () => _submitPost(trimmedText: trimmedText)
+                            : null,
+                      ),
                     ),
                   ),
                 ),

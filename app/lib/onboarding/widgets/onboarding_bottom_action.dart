@@ -24,23 +24,26 @@ class OnboardingBottomAction extends StatelessWidget {
     };
     return SafeArea(
       top: false,
-      minimum: const EdgeInsets.fromLTRB(24, 12, 24, 16),
-      child: Semantics(
-        key: const Key('onboarding-primary-action-semantics'),
-        excludeSemantics: true,
-        button: true,
-        enabled: state.canSubmit,
-        label: label,
-        value: state.busy ? l10n.loading : null,
-        liveRegion: state.busy,
-        onTap: state.canSubmit ? onPressed : null,
-        child: SizedBox(
-          width: double.infinity,
-          child: ChunkyButton(
-            onPressed: state.canSubmit ? onPressed : null,
-            child: state.busy
-                ? const StitchProgressIndicator(size: 20)
-                : Text(label),
+      minimum: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 16),
+        child: Semantics(
+          key: const Key('onboarding-primary-action-semantics'),
+          excludeSemantics: true,
+          button: true,
+          enabled: state.canSubmit,
+          label: label,
+          value: state.busy ? l10n.loading : null,
+          liveRegion: state.busy,
+          onTap: state.canSubmit ? onPressed : null,
+          child: SizedBox(
+            width: double.infinity,
+            child: ChunkyButton(
+              onPressed: state.canSubmit ? onPressed : null,
+              child: state.busy
+                  ? const StitchProgressIndicator(size: 20)
+                  : Text(label),
+            ),
           ),
         ),
       ),

@@ -163,24 +163,26 @@ class _EventEditorDialogState extends ConsumerState<EventEditorDialog> {
                     bottom: 0,
                     child: SafeArea(
                       top: false,
-                      minimum: EdgeInsets.only(bottom: spacing.sp4),
-                      child: ChunkyButton(
-                        key: const ValueKey('event-submit'),
-                        onPressed: _saving || conflict ? null : _submit,
-                        style: ButtonStyle(
-                          minimumSize: WidgetStatePropertyAll(
-                            Size.fromHeight(spacing.sp7),
+                      child: Padding(
+                        padding: EdgeInsets.only(bottom: spacing.sp4),
+                        child: ChunkyButton(
+                          key: const ValueKey('event-submit'),
+                          onPressed: _saving || conflict ? null : _submit,
+                          style: ButtonStyle(
+                            minimumSize: WidgetStatePropertyAll(
+                              Size.fromHeight(spacing.sp7),
+                            ),
                           ),
+                          child: _saving
+                              ? SizedBox.square(
+                                  dimension: spacing.sp5,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    semanticsLabel: l10n.businessSaving,
+                                  ),
+                                )
+                              : Text(submitLabel),
                         ),
-                        child: _saving
-                            ? SizedBox.square(
-                                dimension: spacing.sp5,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  semanticsLabel: l10n.businessSaving,
-                                ),
-                              )
-                            : Text(submitLabel),
                       ),
                     ),
                   ),
