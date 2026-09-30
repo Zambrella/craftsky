@@ -72,6 +72,15 @@ void main() {
       );
     }
     expect(find.textContaining('@'), findsNothing);
+    expect(
+      tester
+          .state<ScrollableState>(
+            find.descendant(of: drawer, matching: find.byType(Scrollable)),
+          )
+          .position
+          .maxScrollExtent,
+      0,
+    );
 
     await tester.tap(
       find.descendant(of: drawer, matching: find.text('Feedback')),
@@ -214,6 +223,18 @@ void main() {
             )
             .dy,
       ),
+    );
+    expect(
+      tester
+          .state<ScrollableState>(
+            find.descendant(
+              of: find.byType(NavigationRail),
+              matching: find.byType(Scrollable),
+            ),
+          )
+          .position
+          .maxScrollExtent,
+      0,
     );
   });
 
@@ -693,7 +714,7 @@ void main() {
   testWidgets('large shell rail exposes primary and utility destinations', (
     tester,
   ) async {
-    await _pumpShell(tester, const Size(1200, 500));
+    await _pumpShell(tester, const Size(1200, 800));
 
     expect(find.byType(NavigationRail), findsOneWidget);
     for (final label in [
@@ -712,6 +733,49 @@ void main() {
     ]) {
       expect(find.text(label), findsOneWidget);
     }
+  });
+
+  testWidgets('short rail hides utility footer and keeps routes reachable', (
+    tester,
+  ) async {
+    await _pumpShell(tester, const Size(1200, 600));
+
+    for (final label in ['Terms', 'Privacy', 'Feedback', '1.0.0 (1)']) {
+      expect(find.text(label), findsNothing);
+    }
+    expect(find.text('New post'), findsOneWidget);
+    await tester.ensureVisible(find.text('Settings'));
+    await tester.pumpAndSettle();
+    expect(find.text('Settings'), findsOneWidget);
+
+    tester.view.physicalSize = const Size(1200, 800);
+    await tester.pumpAndSettle();
+    expect(find.text('Feedback'), findsOneWidget);
+  });
+
+  testWidgets('short drawer hides utility footer and keeps routes reachable', (
+    tester,
+  ) async {
+    await _pumpShell(tester, const Size(500, 600));
+    await tester.tap(find.byTooltip('Open navigation menu'));
+    await tester.pumpAndSettle();
+
+    for (final label in ['Terms', 'Privacy', 'Feedback', '1.0.0 (1)']) {
+      expect(find.text(label), findsNothing);
+    }
+    await tester.scrollUntilVisible(
+      find.text('Settings'),
+      100,
+      scrollable: find.descendant(
+        of: find.byType(Drawer),
+        matching: find.byType(Scrollable),
+      ),
+    );
+    expect(find.text('Settings'), findsOneWidget);
+
+    tester.view.physicalSize = const Size(500, 800);
+    await tester.pumpAndSettle();
+    expect(find.text('Feedback'), findsOneWidget);
   });
 
   testWidgets('large rail keeps selection and opens Feedback destination', (
@@ -885,9 +949,9 @@ void main() {
         ),
       );
       expect(find.text('Settings'), findsOneWidget);
-      expect(find.text('Terms'), findsOneWidget);
-      expect(find.text('Privacy'), findsOneWidget);
-      expect(find.text('Feedback'), findsOneWidget);
+      expect(find.text('Terms'), findsNothing);
+      expect(find.text('Privacy'), findsNothing);
+      expect(find.text('Feedback'), findsNothing);
       expect(tester.takeException(), isNull);
     },
   );
