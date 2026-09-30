@@ -24,6 +24,34 @@ func TestAppReleasePreflightRunsFlutterChecksForTaggedHead(t *testing.T) {
 	}
 }
 
+func TestAppReleasePreflightAcceptsConfiguredDistributionTeam(t *testing.T) {
+	repo, _, releaseScript := newReleaseTestRepo(t)
+	writeTestFile(t, repo, "app/ios/Runner.xcodeproj/project.pbxproj", "\t\t\t\tDEVELOPMENT_TEAM = B6YZZCUZWS;\n")
+	runGit(t, repo, "add", "app/ios/Runner.xcodeproj/project.pbxproj")
+	runGit(t, repo, "commit", "-m", "configure iOS team")
+	runGit(t, repo, "push", "origin", "main")
+	notes := writeNotes(t, "- Ready for mobile stores.\n")
+	runRelease(t, repo, releaseScript, nil, "create", "app", "--version", "1.1.0+2", "--notes", notes)
+	preflight := repositoryScript(t, "app-release-preflight")
+	binDir, logPath := prepareAppReleaseEnvironment(t, repo, false)
+	security := filepath.Join(binDir, "security")
+	if err := os.WriteFile(security, []byte("#!/bin/sh\nprintf '%s\\n' '1) ABC \"Apple Distribution: Test (B6YZZCUZWS)\"'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	xcodebuild := filepath.Join(binDir, "xcodebuild")
+	if err := os.WriteFile(xcodebuild, []byte("#!/bin/sh\nexit 0\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	output, err := runAppReleasePreflightTarget(repo, preflight, binDir, "ipa", nil)
+	if err != nil {
+		t.Fatalf("iOS preflight: %v\n%s", err, output)
+	}
+	if got := mustReadFile(t, logPath); got != "pub get\nanalyze\ntest\n" {
+		t.Fatalf("flutter calls = %q", got)
+	}
+}
+
 func TestAppReleasePreflightRejectsMissingSentryCredentials(t *testing.T) {
 	repo, _, releaseScript := newReleaseTestRepo(t)
 	notes := writeNotes(t, "- Ready for mobile stores.\n")
@@ -86,7 +114,11 @@ func prepareAppReleaseEnvironment(t *testing.T, repo string, failAnalyze bool) (
 }
 
 func runAppReleasePreflight(repo, preflight, binDir string, extraEnv []string) ([]byte, error) {
-	command := exec.Command("/bin/bash", preflight, "appbundle", "app/config/production.env")
+	return runAppReleasePreflightTarget(repo, preflight, binDir, "appbundle", extraEnv)
+}
+
+func runAppReleasePreflightTarget(repo, preflight, binDir, target string, extraEnv []string) ([]byte, error) {
+	command := exec.Command("/bin/bash", preflight, target, "app/config/production.env")
 	command.Dir = repo
 	logPath := filepath.Join(binDir, "flutter.log")
 	command.Env = append(os.Environ(),

@@ -51,7 +51,7 @@ if [[ "$target" == ipa ]]; then
   command -v security >/dev/null 2>&1 || die "required command not found: security"
   command -v xcodebuild >/dev/null 2>&1 || die "required command not found: xcodebuild"
   identities=$(security find-identity -v -p codesigning 2>/dev/null) || die "unable to inspect code-signing identities"
-  team_id=$(awk -F'[ =;]+' '/DEVELOPMENT_TEAM = / { print $3; exit }' app/ios/Runner.xcodeproj/project.pbxproj)
+  team_id=$(awk -F' = |;' '/DEVELOPMENT_TEAM = / { print $2; exit }' app/ios/Runner.xcodeproj/project.pbxproj)
   [[ -n "$team_id" ]] || die "iOS development team is not configured"
   distribution_identity=$(printf '%s\n' "$identities" | grep -E "(Apple|iPhone) Distribution: .+ \\($team_id\\)" || true)
   [[ -n "$distribution_identity" ]] || die "no Apple distribution signing identity is available for team $team_id"
