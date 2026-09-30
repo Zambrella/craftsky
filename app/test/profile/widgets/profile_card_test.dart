@@ -146,6 +146,42 @@ Map<String, double> _profileVerticalGaps(
 
 void main() {
   group('ProfileCard', () {
+    testWidgets('compact width grows with text and fits the viewport', (
+      tester,
+    ) async {
+      Widget card(double scale) => _wrap(
+        Builder(
+          builder: (context) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(scale)),
+            child: ProfileCard(
+              profile: _profile(),
+              isOwnProfile: false,
+              onClose: () {},
+              onVisitProfile: () {},
+              onPrimaryAction: () {},
+            ),
+          ),
+        ),
+      );
+
+      const surface = Key('profile-card-transition-surface');
+      await tester.pumpWidget(card(1));
+      expect(tester.getSize(find.byKey(surface)).width, 420);
+
+      await tester.pumpWidget(card(1.5));
+      expect(tester.getSize(find.byKey(surface)).width, 630);
+
+      tester.view.physicalSize = Size(
+        400 * tester.view.devicePixelRatio,
+        800 * tester.view.devicePixelRatio,
+      );
+      addTearDown(tester.view.resetPhysicalSize);
+      await tester.pumpWidget(card(1.5));
+      expect(tester.getSize(find.byKey(surface)).width, 368);
+    });
+
     testWidgets('shows free-form pronouns with the profile identity', (
       tester,
     ) async {
