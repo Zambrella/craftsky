@@ -40,16 +40,13 @@ class RouteLocations {
   static const productsChild = 'products';
   static const eventsChild = 'events';
   static const instagramMigrationChild = 'instagram';
-  static const scheduledPostsChild = 'scheduled';
-  static const draftsChild = 'drafts';
-  static const savedPostsChild = 'saved';
+  static const scheduledPosts = '/scheduled';
+  static const drafts = '/drafts';
+  static const savedPosts = '/saved';
   static const savedPostFolderChild = 'folder';
-  static const scheduledPosts = '$profile/$scheduledPostsChild';
-  static const drafts = '$profile/$draftsChild';
   static const followersChild = 'followers';
   static const followingChild = 'following';
   static const mutedAccountsChild = 'muted';
   static const blockedAccountsChild = 'blocked';
-  static const savedPosts = '$profile/$savedPostsChild';
   static const playgroundChild = 'playground';
 }

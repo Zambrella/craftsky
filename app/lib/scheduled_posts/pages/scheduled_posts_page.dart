@@ -28,7 +28,7 @@ class ScheduledPostsPage extends ConsumerWidget {
       return Scaffold(
         appBar: AppBar(
           leading: BackButton(
-            onPressed: () => const ProfileRoute().go(context),
+            onPressed: () => const FeedRoute().go(context),
           ),
           title: Text(l10n.scheduledPostsTitle),
         ),
@@ -41,7 +41,7 @@ class ScheduledPostsPage extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(
-          onPressed: () => const ProfileRoute().go(context),
+          onPressed: () => const FeedRoute().go(context),
         ),
         title: Text(l10n.scheduledPostsTitle),
       ),

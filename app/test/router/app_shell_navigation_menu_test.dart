@@ -363,24 +363,8 @@ void main() {
     await tester.tap(find.text('Saved'));
     await tester.pumpAndSettle();
 
-    expect(router.state.matchedLocation, '/profile/saved');
+    expect(router.state.matchedLocation, '/saved');
     expect(find.byType(Drawer), findsNothing);
-  });
-
-  testWidgets('CORR-007 Back from personal content returns to Profile', (
-    tester,
-  ) async {
-    final router = await _pumpShell(tester, const Size(500, 800));
-    await tester.tap(find.byTooltip('Open navigation menu'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(ListTile, 'Scheduled'));
-    await tester.pumpAndSettle();
-    expect(router.state.matchedLocation, '/profile/scheduled');
-
-    await tester.binding.handlePopRoute();
-    await tester.pumpAndSettle();
-
-    expect(router.state.matchedLocation, '/profile');
   });
 
   for (final (label, location) in const [
@@ -389,9 +373,9 @@ void main() {
     ('Search', '/search'),
     ('Notifications', '/notifications'),
     ('Profile', '/profile'),
-    ('Saved', '/profile/saved'),
-    ('Scheduled', '/profile/scheduled'),
-    ('Drafts', '/profile/drafts'),
+    ('Saved', '/saved'),
+    ('Scheduled', '/scheduled'),
+    ('Drafts', '/drafts'),
     ('Settings', '/profile/settings'),
   ]) {
     testWidgets('CORR-005 compact drawer selects $label once', (tester) async {
@@ -422,9 +406,9 @@ void main() {
     ('Search', '/search'),
     ('Notifications', '/notifications'),
     ('Profile', '/profile'),
-    ('Saved', '/profile/saved'),
-    ('Scheduled', '/profile/scheduled'),
-    ('Drafts', '/profile/drafts'),
+    ('Saved', '/saved'),
+    ('Scheduled', '/scheduled'),
+    ('Drafts', '/drafts'),
     ('Settings', '/profile/settings'),
   ]) {
     testWidgets('CORR-005 large rail selects $label once', (tester) async {
@@ -537,7 +521,7 @@ void main() {
       tester,
       const Size(500, 800),
       onRedirect: (location) {
-        if (location == '/profile/saved') savedNavigations += 1;
+        if (location == '/saved') savedNavigations += 1;
       },
     );
     await tester.tap(find.byTooltip('Open navigation menu'));
@@ -550,7 +534,7 @@ void main() {
     savedTile.onTap!.call();
     await tester.pumpAndSettle();
 
-    expect(router.state.matchedLocation, '/profile/saved');
+    expect(router.state.matchedLocation, '/saved');
     expect(savedNavigations, 1);
     expect(find.byType(Drawer), findsNothing);
   });
@@ -992,12 +976,19 @@ Future<GoRouter> _pumpShell(
               : shell;
         },
         branches: [
-          for (final path in [
-            '/feed',
-            '/projects',
-            '/search',
-            '/notifications',
-          ])
+          StatefulShellBranch(
+            routes: [
+              for (final path in ['/feed', '/saved', '/scheduled', '/drafts'])
+                GoRoute(
+                  path: path,
+                  builder: (context, state) => Scaffold(
+                    appBar: AppBar(leading: const AppShellDrawerButton()),
+                    body: Text(path),
+                  ),
+                ),
+            ],
+          ),
+          for (final path in ['/projects', '/search', '/notifications'])
             StatefulShellBranch(
               routes: [
                 GoRoute(
@@ -1018,12 +1009,7 @@ Future<GoRouter> _pumpShell(
                   body: const Text('/profile'),
                 ),
                 routes: [
-                  for (final path in [
-                    'saved',
-                    'scheduled',
-                    'drafts',
-                    'settings',
-                  ])
+                  for (final path in ['settings'])
                     GoRoute(
                       path: path,
                       builder: (context, state) =>
