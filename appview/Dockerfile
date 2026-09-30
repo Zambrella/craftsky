@@ -50,6 +50,7 @@ FROM runtime-base AS production
 COPY --from=production-build /out/appview /app/appview
 COPY --from=production-build /out/cli     /app/cli
 COPY migrations /app/migrations
+COPY pre-deploy.sh /app/pre-deploy.sh
 EXPOSE 8080
 ENTRYPOINT ["/app/appview"]
 CMD ["prod"]

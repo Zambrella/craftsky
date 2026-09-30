@@ -338,7 +338,7 @@ projects:
             plan: 0.5c-512mb
             numInstances: 1
             autoDeployTrigger: off
-            preDeployCommand: /app/cli --env prod ping && /app/cli --env prod migrate up
+            preDeployCommand: /bin/sh /app/pre-deploy.sh
             healthCheckPath: /health
             domains:
               - appview.craftsky.social

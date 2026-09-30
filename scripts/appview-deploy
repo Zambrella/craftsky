@@ -96,11 +96,11 @@ while (( attempt <= poll_attempts )); do
 done
 [[ "$status" == live ]] || die "Render deploy $deploy_id did not finish after $poll_attempts polls"
 
-curl --fail --silent --show-error --max-time 10 --retry 12 --retry-delay 5 "$public_origin/health" >/dev/null
 attempt=1
 health=""
 while (( attempt <= health_attempts )); do
-  if health=$(curl --fail --silent --show-error --max-time 10 "$public_origin/healthz") && \
+  if curl --fail --silent --max-time 10 "$public_origin/health" >/dev/null && \
+    health=$(curl --fail --silent --max-time 10 "$public_origin/healthz") && \
     jq --exit-status '
       .db == "ok" and
       .tap.connected == true and
@@ -112,7 +112,7 @@ while (( attempt <= health_attempts )); do
   (( attempt < health_attempts )) && sleep "$health_sleep"
   attempt=$((attempt + 1))
 done
-[[ -n "$health" ]] || die "AppView did not reach full production health after $health_attempts polls"
+[[ -n "$health" ]] || die "AppView did not reach full production health after $health_attempts polls (check /health, /healthz and Render logs)"
 
 migration=$(git ls-tree -r --name-only "$tag_commit" appview/migrations | awk '/\.up\.sql$/ { value=$0 } END { print value }')
 migration=${migration##*/}
