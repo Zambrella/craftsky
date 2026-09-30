@@ -3,6 +3,25 @@ import 'dart:async';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 
+/// Lets a scrollable containing inline images suspend pull-to-refresh during a
+/// pinch without changing ordinary one-finger drag behavior.
+class InlinePinchZoomScope extends InheritedWidget {
+  const InlinePinchZoomScope({
+    required this.onPinchChanged,
+    required super.child,
+    super.key,
+  });
+
+  final ValueChanged<bool> onPinchChanged;
+
+  static InlinePinchZoomScope? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<InlinePinchZoomScope>();
+
+  @override
+  bool updateShouldNotify(InlinePinchZoomScope oldWidget) =>
+      onPinchChanged != oldWidget.onPinchChanged;
+}
+
 /// Lifts an inline image above its scrollables when a second finger lands.
 /// Pointer events are used deliberately: a scrollable may have already won the
 /// gesture arena before the second finger arrives.
@@ -31,6 +50,7 @@ class _InlinePinchZoomState extends State<InlinePinchZoom>
   final Map<int, Offset> _pointers = {};
   bool _routing = false;
   final List<ScrollHoldController> _scrollHolds = [];
+  final Map<ScrollPosition, VoidCallback> _scrollLocks = {};
   late final AnimationController _reset;
   late Animation<Matrix4> _resetMatrix;
   OverlayEntry? _entry;
@@ -39,6 +59,8 @@ class _InlinePinchZoomState extends State<InlinePinchZoom>
   Offset _startCenter = Offset.zero;
   double _startDistance = 1;
   Size _size = Size.zero;
+  ValueChanged<bool>? _onPinchChanged;
+  bool _pinchActive = false;
 
   @override
   void initState() {
@@ -53,9 +75,21 @@ class _InlinePinchZoomState extends State<InlinePinchZoom>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _onPinchChanged = InlinePinchZoomScope.maybeOf(context)?.onPinchChanged;
+  }
+
+  @override
   void dispose() {
+    if (_pinchActive) {
+      final callback = _onPinchChanged;
+      scheduleMicrotask(() => callback?.call(false));
+      _pinchActive = false;
+    }
     _stopRouting();
     _removeOverlay();
+    _releaseScrolls();
     _reset.dispose();
     super.dispose();
   }
@@ -69,12 +103,21 @@ class _InlinePinchZoomState extends State<InlinePinchZoom>
     _pointers[event.pointer] = event.position;
     if (_pointers.length != 2 || _entry != null) return;
 
-    // Stop a drag that the feed or carousel has already accepted. Do not
-    // interfere with their ordinary one-finger scrolling or page swipes.
+    _notifyPinchChanged(true);
+    // Stop an accepted drag and keep both scrollables at their current offset.
+    // A second pointer can still start a new drag after hold() is called.
     for (final axis in [Axis.vertical, Axis.horizontal]) {
       final scrollable = Scrollable.maybeOf(context, axis: axis);
       if (scrollable != null) {
-        _scrollHolds.add(scrollable.position.hold(() {}));
+        final position = scrollable.position;
+        _scrollHolds.add(position.hold(() {}));
+        final pixels = position.pixels;
+        void keepPosition() {
+          if (position.pixels != pixels) position.jumpTo(pixels);
+        }
+
+        position.addListener(keepPosition);
+        _scrollLocks[position] = keepPosition;
       }
     }
 
@@ -139,12 +182,12 @@ class _InlinePinchZoomState extends State<InlinePinchZoom>
     if (_pointers.remove(event.pointer) == null) return;
     if (_pointers.isEmpty) {
       _stopRouting();
+      if (_entry == null) {
+        _releaseScrolls();
+        _notifyPinchChanged(false);
+      }
     }
     if (_entry == null || _pointers.length >= 2 || _reset.isAnimating) return;
-    for (final hold in _scrollHolds) {
-      hold.cancel();
-    }
-    _scrollHolds.clear();
     _resetMatrix = Matrix4Tween(begin: _matrix, end: Matrix4.identity())
         .animate(
           CurvedAnimation(parent: _reset, curve: Curves.fastOutSlowIn),
@@ -178,13 +221,32 @@ class _InlinePinchZoomState extends State<InlinePinchZoom>
   );
 
   void _removeOverlay() {
+    final wasZooming = _entry != null;
+    _entry?.remove();
+    _entry?.dispose();
+    _entry = null;
+    if (_pointers.isEmpty) {
+      _releaseScrolls();
+      if (wasZooming) _notifyPinchChanged(false);
+    }
+  }
+
+  void _notifyPinchChanged(bool active) {
+    if (_pinchActive == active) return;
+    _pinchActive = active;
+    _onPinchChanged?.call(active);
+  }
+
+  void _releaseScrolls() {
+    // Remove the guards before cancelling holds, which can resume scrolling.
+    for (final entry in _scrollLocks.entries) {
+      entry.key.removeListener(entry.value);
+    }
+    _scrollLocks.clear();
     for (final hold in _scrollHolds) {
       hold.cancel();
     }
     _scrollHolds.clear();
-    _entry?.remove();
-    _entry?.dispose();
-    _entry = null;
   }
 
   @override

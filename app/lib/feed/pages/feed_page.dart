@@ -8,6 +8,7 @@ import 'package:craftsky_app/feed/providers/delete_post_provider.dart';
 import 'package:craftsky_app/feed/providers/timeline_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_like_post_provider.dart';
 import 'package:craftsky_app/feed/providers/toggle_repost_post_provider.dart';
+import 'package:craftsky_app/feed/widgets/inline_pinch_zoom.dart';
 import 'package:craftsky_app/feed/widgets/post_card.dart';
 import 'package:craftsky_app/feed/widgets/post_composer_sheet.dart';
 import 'package:craftsky_app/feed/widgets/post_type_chooser.dart';
@@ -42,6 +43,8 @@ class _FeedPageState extends ConsumerState<FeedPage> {
   static const _scrollToTopThreshold = 200.0;
   final _scrollController = ScrollController();
   var _isPastScrollThreshold = false;
+  var _isPinchingImage = false;
+  var _refreshGeneration = 0;
 
   @override
   void initState() {
@@ -103,40 +106,47 @@ class _FeedPageState extends ConsumerState<FeedPage> {
           : null,
       body: Stack(
         children: [
-          RefreshIndicator(
-            edgeOffset: MediaQuery.paddingOf(context).top + kToolbarHeight,
-            onRefresh: () async {
-              final _ = await ref.refresh(timelineProvider.future);
-            },
-            child: CustomScrollView(
-              controller: _scrollController,
-              physics: const AlwaysScrollableScrollPhysics(),
-              slivers: [
-                SliverAppBar(
-                  leading: AppShellDrawerScope.maybeOf(context) == null
-                      ? null
-                      : const AppShellDrawerButton(),
-                  title: Text(l10n.feedTitle),
-                  pinned: true,
-                ),
-                switch (timelineAsync) {
-                  AsyncValue(:final value?) => _FeedLoadedSlivers(
-                    items: value.items,
-                    hasMore: value.hasMore,
-                    isLoadingMore: timelineAsync.isLoading,
-                    hasLoadMoreError: timelineAsync.hasError,
+          InlinePinchZoomScope(
+            onPinchChanged: _handleImagePinchChanged,
+            child: RefreshIndicator(
+              key: ValueKey(_refreshGeneration),
+              notificationPredicate: (notification) =>
+                  !_isPinchingImage &&
+                  defaultScrollNotificationPredicate(notification),
+              edgeOffset: MediaQuery.paddingOf(context).top + kToolbarHeight,
+              onRefresh: () async {
+                final _ = await ref.refresh(timelineProvider.future);
+              },
+              child: CustomScrollView(
+                controller: _scrollController,
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverAppBar(
+                    leading: AppShellDrawerScope.maybeOf(context) == null
+                        ? null
+                        : const AppShellDrawerButton(),
+                    title: Text(l10n.feedTitle),
+                    pinned: true,
                   ),
-                  _ when timelineAsync.hasError => _FeedErrorSliver(
-                    onRetry: () => ref.invalidate(timelineProvider),
-                  ),
-                  _ => CraftskySkeletonSliverList(
-                    itemCount: 3,
-                    itemBuilder: (context, index) => PostCardSkeleton(
-                      showMedia: index == 0,
+                  switch (timelineAsync) {
+                    AsyncValue(:final value?) => _FeedLoadedSlivers(
+                      items: value.items,
+                      hasMore: value.hasMore,
+                      isLoadingMore: timelineAsync.isLoading,
+                      hasLoadMoreError: timelineAsync.hasError,
                     ),
-                  ),
-                },
-              ],
+                    _ when timelineAsync.hasError => _FeedErrorSliver(
+                      onRetry: () => ref.invalidate(timelineProvider),
+                    ),
+                    _ => CraftskySkeletonSliverList(
+                      itemCount: 3,
+                      itemBuilder: (context, index) => PostCardSkeleton(
+                        showMedia: index == 0,
+                      ),
+                    ),
+                  },
+                ],
+              ),
             ),
           ),
           Positioned(
@@ -161,6 +171,16 @@ class _FeedPageState extends ConsumerState<FeedPage> {
         _scrollController.offset >= _scrollToTopThreshold;
     if (isPastThreshold == _isPastScrollThreshold || !mounted) return;
     setState(() => _isPastScrollThreshold = isPastThreshold);
+  }
+
+  void _handleImagePinchChanged(bool active) {
+    if (_isPinchingImage == active || !mounted) return;
+    _isPinchingImage = active;
+    setState(() {
+      // Discard any pull started before the second finger landed, once the
+      // pinch and its scroll holds have finished.
+      if (!active) _refreshGeneration++;
+    });
   }
 
   void _openComposer(BuildContext buttonContext) {

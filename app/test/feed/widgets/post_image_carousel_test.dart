@@ -233,6 +233,34 @@ void main() {
     );
   });
 
+  testWidgets('pinching does not change the carousel page', (tester) async {
+    await _pumpCarousel(
+      tester,
+      PostImageCarousel(images: _images('carousel')),
+    );
+    final center = tester.getCenter(find.byType(InlinePinchZoom));
+    final first = await tester.startGesture(center - const Offset(20, 0));
+    final second = await tester.startGesture(
+      center + const Offset(20, 0),
+      pointer: 4,
+    );
+    await first.moveBy(const Offset(-80, -10));
+    await second.moveBy(const Offset(-80, 10));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('1/2'), findsOneWidget);
+
+    await first.up();
+    await second.up();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+    await tester.drag(
+      find.byKey(const Key('post-image-carousel')),
+      const Offset(-500, 0),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('2/2'), findsOneWidget);
+  });
+
   testWidgets('pinch works after the first finger starts scrolling the feed', (
     tester,
   ) async {
@@ -293,6 +321,16 @@ void main() {
     await second.moveBy(const Offset(35, 20));
     await tester.pump();
     expect(controller.offset, heldOffset);
+    await first.moveBy(const Offset(0, -60));
+    await second.moveBy(const Offset(0, -60));
+    await tester.pump();
+    expect(controller.offset, heldOffset);
+    controller.jumpTo(heldOffset + 40);
+    expect(controller.offset, heldOffset);
+    await first.moveBy(const Offset(0, -60));
+    await second.moveBy(const Offset(0, -60));
+    await tester.pump();
+    expect(controller.offset, heldOffset);
     expect(
       tester
           .widgetList<Transform>(find.byType(Transform))
@@ -309,6 +347,9 @@ void main() {
     );
 
     await first.up();
+    await second.moveBy(const Offset(0, -40));
+    await tester.pump();
+    expect(controller.offset, heldOffset);
     await second.up();
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));
@@ -318,6 +359,9 @@ void main() {
       ),
       findsNothing,
     );
+    await tester.drag(find.byType(ListView), const Offset(0, -80));
+    await tester.pump();
+    expect(controller.offset, greaterThan(heldOffset));
   });
 
   testWidgets('a second finger outside the image does not start zoom', (
