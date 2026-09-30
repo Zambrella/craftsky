@@ -319,6 +319,56 @@ void main() {
     expect(find.byType(CommentRowSkeleton), findsWidgets);
   });
 
+  testWidgets('pulling a short post detail reloads the post and comments', (
+    tester,
+  ) async {
+    var calls = 0;
+    final pending = Completer<PostCommentSection>();
+    await _pumpThread(
+      tester,
+      FakePostRepository(
+        onCommentSection: (did, rkey, {cursor, sort, focus, limit}) {
+          calls++;
+          if (calls == 1) return Future.value(_section('original post'));
+          return pending.future;
+        },
+      ),
+    );
+
+    expect(find.text('original post'), findsOneWidget);
+    expect(find.byType(RefreshIndicator), findsOneWidget);
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, 300));
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    expect(calls, 2);
+    expect(find.text('original post'), findsOneWidget);
+    final root = _rootPost('updated post');
+    pending.complete(
+      _section(
+        'updated post',
+        likeCount: 2,
+        comments: [
+          CommentItem(
+            post: _responsePost(
+              did: 'did:plc:bob',
+              rkey: 'new-comment',
+              parent: PostRef(uri: root.uri, cid: root.cid),
+            ),
+            placement: CommentPlacement.normal,
+            replies: const ReplyPage(loaded: false, items: []),
+          ),
+        ],
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('updated post'), findsOneWidget);
+    expect(find.text('response new-comment'), findsOneWidget);
+    expect(find.text('original post'), findsNothing);
+    expect(find.byType(PostInteractionSummary), findsOneWidget);
+  });
+
   testWidgets(
     'AT-001 renders the root summary immediately after the card',
     (tester) async {
