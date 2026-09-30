@@ -1,5 +1,20 @@
 # AppView Changelog
 
+## 1.0.7 - 2026-09-30
+
+- feat(appview): add account subscriptions
+- feat: unify PDS record mutations
+- feat: add profile reposts and harden PDS mutation flow
+- fix: harden PDS mutation retries and source projection
+- refactor: retire legacy set projection tables
+- chore(dev): skip stale Tap cursor replay
+- feat(app): add RevenueCat subscriptions and billing UI
+- feat: gate subscription features for beta
+- fix(appview): mark saved profiles as CraftSky profiles
+- fix(app): unify profile account list rows
+- feat(dev): run Flutter on physical Android devices
+- fix(ci): restore test gates and object store pulls
+
 ## 1.0.6 - 2026-09-24
 
 - fix: enable Render SSH shell
