@@ -8,10 +8,12 @@ import 'package:craftsky_app/feed/providers/post_repository_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/profile/models/profile_account_page.dart';
 import 'package:craftsky_app/profile/models/profile_account_summary.dart';
+import 'package:craftsky_app/profile/widgets/profile_avatar.dart';
 import 'package:craftsky_app/profile/widgets/profile_presentation_page.dart';
 import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/widgets/auto_paginated_list_view.dart';
+import 'package:craftsky_app/shared/widgets/craft_icon.dart';
 import 'package:craftsky_app/shared/widgets/craftsky_skeleton.dart';
 import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/stitch_progress_indicator.dart';
@@ -47,6 +49,18 @@ void main() {
         expect(find.text('@dana.craftsky.social'), findsOneWidget);
         expect(find.text('Carol'), findsOneWidget);
         expect(find.text('@carol.craftsky.social'), findsOneWidget);
+        expect(find.byType(ProfileAvatar), findsNWidgets(2));
+        expect(find.byType(CraftIcon), findsOneWidget);
+        expect(
+          tester.getTopLeft(find.byType(ProfileAvatar).first).dx,
+          greaterThanOrEqualTo(16),
+        );
+        expect(
+          tester
+              .widgetList<ProfileAvatar>(find.byType(ProfileAvatar))
+              .map((avatar) => avatar.avatarUrl),
+          contains('https://example.com/dana.jpg'),
+        );
         expect(
           tester.getTopLeft(find.text('Dana')).dy,
           lessThan(tester.getTopLeft(find.text('Carol')).dy),
@@ -336,6 +350,8 @@ ProfileAccountSummary _account(String id, String displayName) =>
       did: 'did:plc:$id',
       handle: '$id.craftsky.social',
       displayName: displayName,
+      avatar: id == 'dana' ? 'https://example.com/dana.jpg' : null,
+      crafts: id == 'dana' ? ['social.craftsky.feed.defs#knitting'] : [],
       isCraftskyProfile: true,
     );
 

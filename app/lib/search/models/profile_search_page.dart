@@ -43,6 +43,7 @@ class ProfileSearchResult with ProfileSearchResultMappable {
     displayName: displayName,
     description: description,
     avatar: avatar,
+    crafts: crafts,
     customisation: customisation,
   );
 }

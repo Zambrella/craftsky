@@ -22,6 +22,12 @@ CREATE TABLE craftsky_profiles (
     indexed_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+CREATE TABLE bluesky_profiles (
+    did TEXT PRIMARY KEY,
+    display_name TEXT,
+    avatar_cid TEXT,
+    avatar_mime TEXT
+);
 CREATE TABLE owner_lifecycles (
 	owner_did TEXT PRIMARY KEY,
 	state TEXT NOT NULL,
@@ -386,6 +392,13 @@ func TestStoreRelationshipListsAreOwnerScopedEligibleStableAndDeduplicated(t *te
 			t.Fatalf("insert mute %d: %v", i, err)
 		}
 	}
+	if _, err := pool.Exec(ctx, `
+		UPDATE craftsky_profiles SET crafts = ARRAY['social.craftsky.feed.defs#knitting'] WHERE did = 'did:plc:user001';
+		INSERT INTO bluesky_profiles(did, display_name, avatar_cid, avatar_mime)
+		VALUES ('did:plc:user001', 'Maker One', 'avatar-cid', 'image/jpeg');
+	`); err != nil {
+		t.Fatalf("seed list profile: %v", err)
+	}
 	if _, err := pool.Exec(ctx, `DELETE FROM craftsky_profiles WHERE did = 'did:plc:user050'`); err != nil {
 		t.Fatalf("remove former member: %v", err)
 	}
@@ -409,6 +422,11 @@ func TestStoreRelationshipListsAreOwnerScopedEligibleStableAndDeduplicated(t *te
 	}
 	seen := make(map[syntax.DID]bool, 111)
 	for _, item := range append(first, second...) {
+		if item.SubjectDID == syntax.DID("did:plc:user001") {
+			if len(item.Crafts) != 1 || item.Crafts[0] != "social.craftsky.feed.defs#knitting" || item.DisplayName == nil || *item.DisplayName != "Maker One" || item.AvatarCID == nil || *item.AvatarCID != "avatar-cid" {
+				t.Fatalf("mute profile fields = %+v", item)
+			}
+		}
 		if item.SubjectDID == syntax.DID("did:plc:user050") {
 			t.Fatal("former member appeared in mute list")
 		}
@@ -447,6 +465,11 @@ func TestStoreRelationshipListsAreOwnerScopedEligibleStableAndDeduplicated(t *te
 	}
 	if blocks[0].SubjectDID == blocks[1].SubjectDID {
 		t.Fatalf("duplicate external block pair was not collapsed: %+v", blocks)
+	}
+	for _, item := range blocks {
+		if item.SubjectDID == syntax.DID("did:plc:user001") && (len(item.Crafts) != 1 || item.DisplayName == nil || *item.DisplayName != "Maker One") {
+			t.Fatalf("block profile fields = %+v", item)
+		}
 	}
 }
 
