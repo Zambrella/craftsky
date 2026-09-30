@@ -137,10 +137,15 @@ The AppView service uses Render Postgres's direct internal URL. Do not replace
 it with `connectionPoolString` or enable transaction-mode PgBouncer because
 owner lifecycle fences use session advisory locks.
 
-The pre-deploy command runs `/app/cli --env prod ping` before migrations. This
-constructs the production dependency graph and checks PostgreSQL and S3, so an
-invalid OAuth key, handoff key, database connection, or object-store credential
-fails before `migrate up` can change the production schema.
+The pre-deploy command runs `/app/pre-deploy.sh` with `/bin/sh` to run ping,
+migrations, and migration status in sequence. The script compares the database
+version with the highest migration shipped in the image and fails pre-deploy if
+it is missing or dirty. Docker pre-deploy commands do not interpret `&&` unless
+a shell is invoked. In the 1.0.7 deployment only the ping ran; the migrations
+were skipped. Ping constructs the production dependency graph and checks
+PostgreSQL and S3, so an invalid OAuth key, handoff key, database connection,
+or object-store credential fails before `migrate up` can change the production
+schema.
 
 The Pro workspace and Blueprint isolate the production environment's private
 network boundary and protect it from non-admin destructive changes. Keep these
@@ -224,7 +229,9 @@ just appview-deploy prod-v1.0.4
 
 The local deploy script resolves the pushed tag, deploys that exact SHA through
 Render's public HTTP API, waits for a terminal result, and polls bounded public
-health checks until PostgreSQL and Tap are healthy. Record its tag, commit SHA,
+health checks until PostgreSQL and Tap are healthy. A transient 502 from the
+public edge during rollout is retried within that bounded health check. Record
+its tag, commit SHA,
 Render deploy ID, target migration, and health output. Blueprint validation
 remains part of the separate reviewed infrastructure-sync path because an
 application release does not synchronize `render.yaml`. Render auto-deploy is
