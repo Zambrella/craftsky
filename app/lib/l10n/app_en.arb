@@ -277,8 +277,11 @@
   "authCompleteSigningIn": "Signing in…",
   "@authCompleteSigningIn": { "description": "Loading message shown while completing OAuth sign-in from a deep link." },
 
-  "authCompleteTimedOutError": "That sign-in link expired. Please sign in again.",
+  "authCompleteTimedOutError": "This sign-in link has already been used or has expired. Please sign in again.",
   "@authCompleteTimedOutError": { "description": "Error shown when the OAuth handoff code or confirmation receipt is invalid or expired." },
+
+  "authCompleteSignInAgain": "Sign in again",
+  "@authCompleteSignInAgain": { "description": "Action to start a fresh sign-in after an OAuth link is invalid or expired." },
 
   "authCompleteStorageError": "Couldn't save your session securely. Please sign in again.",
   "@authCompleteStorageError": { "description": "Error shown when the completed OAuth session cannot be saved." },

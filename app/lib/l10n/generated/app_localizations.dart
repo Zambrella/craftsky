@@ -661,8 +661,14 @@ abstract class AppLocalizations {
   /// Error shown when the OAuth handoff code or confirmation receipt is invalid or expired.
   ///
   /// In en, this message translates to:
-  /// **'That sign-in link expired. Please sign in again.'**
+  /// **'This sign-in link has already been used or has expired. Please sign in again.'**
   String get authCompleteTimedOutError;
+
+  /// Action to start a fresh sign-in after an OAuth link is invalid or expired.
+  ///
+  /// In en, this message translates to:
+  /// **'Sign in again'**
+  String get authCompleteSignInAgain;
 
   /// Error shown when the completed OAuth session cannot be saved.
   ///

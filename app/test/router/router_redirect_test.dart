@@ -237,7 +237,10 @@ void main() {
               '${RouteLocations.authComplete}?token=not-a-credential',
         );
         expect(find.byType(AuthCompletePage), findsOneWidget);
-        expect(find.textContaining('sign-in link expired'), findsOneWidget);
+        expect(
+          find.textContaining('already been used or has expired'),
+          findsOneWidget,
+        );
       },
     );
 

@@ -344,7 +344,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authCompleteTimedOutError =>
-      'That sign-in link expired. Please sign in again.';
+      'This sign-in link has already been used or has expired. Please sign in again.';
+
+  @override
+  String get authCompleteSignInAgain => 'Sign in again';
 
   @override
   String get authCompleteStorageError =>
