@@ -5,6 +5,7 @@ import 'package:craftsky_app/auth/providers/session_registry_provider.dart';
 import 'package:craftsky_app/l10n/generated/app_localizations.dart';
 import 'package:craftsky_app/notifications/models/notification_effect.dart';
 import 'package:craftsky_app/notifications/providers/notification_new_count_provider.dart';
+import 'package:craftsky_app/notifications/providers/notifications_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_permission_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_runtime_provider.dart';
 import 'package:craftsky_app/notifications/services/notification_navigation.dart';
@@ -30,6 +31,7 @@ class _NotificationEffectHostState extends ConsumerState<NotificationEffectHost>
   StreamSubscription<NotificationEffect>? _subscription;
   Did? _did;
   bool _onboarded = false;
+  Did? _fetchedForAccount;
 
   @override
   void initState() {
@@ -43,15 +45,21 @@ class _NotificationEffectHostState extends ConsumerState<NotificationEffectHost>
     if (state != AppLifecycleState.resumed) return;
     ref.invalidate(notificationPermissionProvider);
     if (_did == null || !_onboarded) return;
+    _refreshNotifications();
+  }
+
+  void _refreshNotifications() {
     final active = ref
         .read(sessionRegistryProvider)
         .value
         ?.activeLease
         ?.session;
     if (active == null) {
+      unawaited(_fetchNotifications());
       unawaited(ref.read(notificationNewCountProvider.notifier).refresh());
       return;
     }
+    unawaited(_fetchNotifications());
     unawaited(
       ref
           .read(accountNotificationNewCountProvider(active.account).notifier)
@@ -66,6 +74,14 @@ class _NotificationEffectHostState extends ConsumerState<NotificationEffectHost>
     final onboarded = initialization?.onboardingComplete ?? false;
     _did = did;
     _onboarded = onboarded;
+    if (did == null || !onboarded) {
+      _fetchedForAccount = null;
+    } else if (_fetchedForAccount != did) {
+      _fetchedForAccount = did;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _did == did && _onboarded) _refreshNotifications();
+      });
+    }
     unawaited(
       ref
           .read(notificationRuntimeProvider)
@@ -109,7 +125,8 @@ class _NotificationEffectHostState extends ConsumerState<NotificationEffectHost>
           'This notification belongs to an account that is no longer signed in',
         );
       case NotificationNavigationEffect(:final outcome):
-        _suppressOpenedNotificationCount();
+        unawaited(_refreshOpenedNotificationCount());
+        _invalidateOpenedNotificationList();
         navigateToNotificationOutcome(
           context,
           ref.read(goRouterProvider),
@@ -134,6 +151,43 @@ class _NotificationEffectHostState extends ConsumerState<NotificationEffectHost>
     }
     if (ref.exists(notificationNewCountProvider)) {
       ref.read(notificationNewCountProvider.notifier).suppress(1);
+    }
+  }
+
+  Future<void> _refreshOpenedNotificationCount() async {
+    final account = ref
+        .read(sessionRegistryProvider)
+        .value
+        ?.activeLease
+        ?.session
+        .account;
+    if (account != null) {
+      await ref
+          .read(accountNotificationNewCountProvider(account).notifier)
+          .refresh();
+    } else {
+      await ref.read(notificationNewCountProvider.notifier).refresh();
+    }
+    if (mounted) _suppressOpenedNotificationCount();
+  }
+
+  void _invalidateOpenedNotificationList() {
+    unawaited(_fetchNotifications());
+  }
+
+  Future<void> _fetchNotifications() async {
+    final account = ref
+        .read(sessionRegistryProvider)
+        .value
+        ?.activeLease
+        ?.session
+        .account;
+    if (account != null) {
+      await AsyncValue.guard(
+        () => ref.refresh(accountNotificationsProvider(account).future),
+      );
+    } else {
+      await AsyncValue.guard(() => ref.refresh(notificationsProvider.future));
     }
   }
 

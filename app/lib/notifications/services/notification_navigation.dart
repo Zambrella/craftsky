@@ -14,14 +14,30 @@ void navigateToNotificationOutcome(
   BuildContext context,
   GoRouter router,
   NotificationOpenOutcome outcome,
-) {
+) => _navigate(context, router, outcome, retryAfterFrame: true);
+
+void _navigate(
+  BuildContext context,
+  GoRouter router,
+  NotificationOpenOutcome outcome, {
+  required bool retryAfterFrame,
+}) {
+  final navigationContext = router.routerDelegate.navigatorKey.currentContext;
+  if (navigationContext == null) {
+    if (retryAfterFrame) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          _navigate(context, router, outcome, retryAfterFrame: false);
+        }
+      });
+    }
+    return;
+  }
   if (outcome.feedback != null) {
     context.showWarning(
       AppLocalizations.of(context).notificationUnavailableRow,
     );
   }
-  final navigationContext = router.routerDelegate.navigatorKey.currentContext;
-  if (navigationContext == null) return;
   switch (outcome.destination) {
     case InstagramMigrationDestination():
       unawaited(

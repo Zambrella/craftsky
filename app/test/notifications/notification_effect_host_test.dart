@@ -14,6 +14,7 @@ import 'package:craftsky_app/notifications/models/notification_destination.dart'
 import 'package:craftsky_app/notifications/models/notification_effect.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
 import 'package:craftsky_app/notifications/models/notification_permission.dart';
+import 'package:craftsky_app/notifications/models/notification_page.dart';
 import 'package:craftsky_app/notifications/providers/notification_new_count_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_permission_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';
@@ -42,6 +43,7 @@ void main() {
     (tester) async {
       final service = _FakeNotificationService();
       final newness = _RecordingNewnessRepository(initialCount: 3);
+      final list = _RecordingNotificationRepository();
       final registry = SessionRegistry.empty().upsertAndActivate(
         token: 'token',
         did: 'did:plc:viewer',
@@ -74,6 +76,9 @@ void main() {
           accountNotificationNewnessRepositoryProvider.overrideWith(
             (ref, account) async => newness,
           ),
+          accountNotificationRepositoryProvider.overrideWith(
+            (ref, account) async => list,
+          ),
           goRouterProvider.overrideWithValue(router),
         ],
       );
@@ -97,6 +102,8 @@ void main() {
         ),
       );
       await tester.pumpAndSettle();
+      final countBeforeOpen = newness.countCalls;
+      final listBeforeOpen = list.listCalls;
 
       effects.add(
         NotificationNavigationEffect(
@@ -113,6 +120,8 @@ void main() {
 
       expect(find.text('Thread did:plc:alice/root'), findsOneWidget);
       expect(router.canPop(), isTrue);
+      expect(newness.countCalls, countBeforeOpen + 1);
+      expect(list.listCalls, listBeforeOpen + 1);
       expect(
         container
             .read(accountNotificationNewCountProvider(account))
@@ -174,6 +183,7 @@ void main() {
   ) async {
     final service = _FakeNotificationService();
     final newness = _RecordingNewnessRepository();
+    final list = _RecordingNotificationRepository();
     final effects = StreamController<NotificationEffect>.broadcast();
     final runtime = _runtime(service, effects);
     final container = ProviderContainer.test(
@@ -184,6 +194,7 @@ void main() {
         ),
         notificationServiceProvider.overrideWithValue(service),
         notificationNewnessRepositoryProvider.overrideWithValue(newness),
+        notificationRepositoryProvider.overrideWithValue(list),
         notificationRuntimeProvider.overrideWithValue(runtime),
       ],
     );
@@ -203,11 +214,14 @@ void main() {
     await tester.pumpAndSettle();
     await container.read(notificationNewCountProvider.future);
     final countBeforeResume = newness.countCalls;
+    final listBeforeResume = list.listCalls;
+    expect(listBeforeResume, greaterThan(0));
 
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pumpAndSettle();
 
     expect(newness.countCalls, countBeforeResume + 1);
+    expect(list.listCalls, listBeforeResume + 1);
   });
 
   testWidgets(
@@ -367,6 +381,16 @@ final class _RecordingNewnessRepository
 
   @override
   Future<void> markSeen() async {}
+}
+
+final class _RecordingNotificationRepository implements NotificationRepository {
+  int listCalls = 0;
+
+  @override
+  Future<NotificationPage> list({String? cursor, int? limit}) async {
+    listCalls++;
+    return const NotificationPage(items: []);
+  }
 }
 
 final class _RegistryStorage implements SessionRegistryStorage {
