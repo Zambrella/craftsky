@@ -1,5 +1,9 @@
 # AppView Changelog
 
+## 1.0.8 - 2026-09-30
+
+- fix(appview): run and verify production migrations before deploy
+
 ## 1.0.7 - 2026-09-30
 
 - feat(appview): add account subscriptions
