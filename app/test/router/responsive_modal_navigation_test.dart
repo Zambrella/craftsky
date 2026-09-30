@@ -1,9 +1,75 @@
+import 'package:craftsky_app/feed/widgets/post_image_gallery.dart';
 import 'package:craftsky_app/router/responsive_modal_navigation.dart';
+import 'package:craftsky_app/theme/app_theme.dart';
 import 'package:craftsky_app/theme/form_factor.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 
 void main() {
+  testWidgets('system Back closes image gallery before underlying detail', (
+    tester,
+  ) async {
+    final router = _overlayRouter();
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      MaterialApp.router(
+        routerConfig: router,
+        theme: AppTheme.lightThemeData.copyWith(
+          platform: TargetPlatform.android,
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Detail'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open gallery'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('post-image-gallery-page-view')),
+      findsOneWidget,
+    );
+    await _swipeBack(tester);
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('post-image-gallery-page-view')), findsNothing);
+    expect(find.text('Open gallery'), findsOneWidget);
+    expect(router.state.matchedLocation, '/detail');
+
+    await _swipeBack(tester);
+    expect(router.state.matchedLocation, '/');
+  });
+
+  testWidgets('system Back closes sheet route before underlying detail', (
+    tester,
+  ) async {
+    final router = _overlayRouter();
+    addTearDown(router.dispose);
+    await tester.pumpWidget(
+      MaterialApp.router(
+        routerConfig: router,
+        theme: AppTheme.lightThemeData.copyWith(
+          platform: TargetPlatform.android,
+        ),
+      ),
+    );
+
+    await tester.tap(find.text('Detail'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Open root sheet'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sheet'), findsOneWidget);
+    await _swipeBack(tester);
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sheet'), findsNothing);
+    expect(find.text('Open root sheet'), findsOneWidget);
+    expect(router.state.matchedLocation, '/detail');
+  });
+
   testWidgets('Android fullscreen modal slides up and back down', (
     tester,
   ) async {
@@ -77,6 +143,93 @@ void main() {
       },
     );
   }
+}
+
+Future<void> _swipeBack(WidgetTester tester) async {
+  const codec = StandardMethodCodec();
+  await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+    'flutter/backgesture',
+    codec.encodeMethodCall(
+      const MethodCall('startBackGesture', {
+        'touchOffset': <double>[5, 300],
+        'progress': 0.0,
+        'swipeEdge': 0,
+      }),
+    ),
+    (_) {},
+  );
+  await tester.pump();
+  await tester.binding.defaultBinaryMessenger.handlePlatformMessage(
+    'flutter/backgesture',
+    codec.encodeMethodCall(const MethodCall('commitBackGesture')),
+    (_) {},
+  );
+  await tester.pumpAndSettle();
+}
+
+GoRouter _overlayRouter() => GoRouter(
+  routes: [
+    ShellRoute(
+      builder: (context, state, child) => child,
+      routes: [
+        StatefulShellRoute.indexedStack(
+          builder: (context, state, shell) => Scaffold(
+            body: shell,
+            bottomNavigationBar: const Text('Navigation'),
+          ),
+          branches: [
+            StatefulShellBranch(
+              routes: [
+                GoRoute(
+                  path: '/',
+                  builder: (context, state) => Scaffold(
+                    body: TextButton(
+                      onPressed: () => context.push('/detail'),
+                      child: const Text('Detail'),
+                    ),
+                  ),
+                  routes: [
+                    GoRoute(
+                      path: 'detail',
+                      builder: (context, state) => const _OverlayDetail(),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    ),
+  ],
+);
+
+class _OverlayDetail extends StatelessWidget {
+  const _OverlayDetail();
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    body: Column(
+      children: [
+        TextButton(
+          onPressed: () => showImageGallery(
+            context,
+            images: [const GalleryImage(alt: 'Image')],
+          ),
+          child: const Text('Open gallery'),
+        ),
+        TextButton(
+          onPressed: () =>
+              Navigator.of(context, rootNavigator: true).push<void>(
+                FullscreenModalRoute<void>(
+                  builder: (_) => const Scaffold(body: Text('Sheet')),
+                ),
+              ),
+          child: const Text('Open root sheet'),
+        ),
+      ],
+    ),
+  );
 }
 
 class _ModalNavigationHarness extends StatelessWidget {

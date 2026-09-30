@@ -2,6 +2,7 @@ import 'package:craftsky_app/theme/brand_colors.dart';
 import 'package:craftsky_app/theme/craftsky_icons.dart';
 import 'package:craftsky_app/theme/theme_extensions.dart';
 import 'package:flex_color_scheme/flex_color_scheme.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -15,6 +16,20 @@ class AppTheme {
 
   static final ThemeData lightThemeData = _buildLight();
   static final ThemeData darkThemeData = _buildDark();
+
+  // Predictive-back transitions on nested navigator pages can claim a swipe
+  // while a fullscreen dialog or sheet is covering them on another navigator.
+  // Use the same Android forward transition without its gesture observer so
+  // system Back is dispatched to the topmost route instead.
+  static const _pageTransitions = PageTransitionsTheme(
+    builders: {
+      TargetPlatform.android: FadeForwardsPageTransitionsBuilder(),
+      TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+      TargetPlatform.windows: ZoomPageTransitionsBuilder(),
+      TargetPlatform.linux: ZoomPageTransitionsBuilder(),
+    },
+  );
 
   static const _lightColors = FlexSchemeColor(
     primary: BrandColors.cobalt,
@@ -113,6 +128,7 @@ class AppTheme {
       ),
     );
     return base.copyWith(
+      pageTransitionsTheme: _pageTransitions,
       splashFactory: NoSplash.splashFactory,
       splashColor: Colors.transparent,
       highlightColor: base.colorScheme.primary.withValues(alpha: 0.12),
@@ -180,6 +196,7 @@ class AppTheme {
       ),
     );
     return base.copyWith(
+      pageTransitionsTheme: _pageTransitions,
       splashFactory: NoSplash.splashFactory,
       splashColor: Colors.transparent,
       highlightColor: base.colorScheme.primary.withValues(alpha: 0.12),
