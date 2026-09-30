@@ -53,6 +53,9 @@ Then run from the repo root:
 just app-run-ios
 just app-run-android
 just app-run-chrome
+# Physical Android device connected via USB with USB debugging enabled:
+flutter devices
+just app-run-device <device-id>
 ```
 
 Under the hood these recipes call Flutter with
@@ -78,6 +81,15 @@ loopback address to the same worktree-specific host port. The app uses
 `10.0.2.2:<port>` for normal API requests, but atproto's localhost OAuth client
 requires its browser callback to use `127.0.0.1:<port>`. The reverse mapping
 lets that callback reach the matching local AppView from Android.
+
+`just app-run-device <device-id>` uses ADB reverse for a physical Android device
+and points the app at `127.0.0.1:<worktree AppView port>`. The phone's local
+IP is not needed: both app requests and the localhost OAuth browser callback
+travel over USB to the loopback-only Compose listener. Start `just dev-d` first.
+Pass additional Flutter arguments directly, for example
+`just app-run-device <device-id> --verbose`. For an iPhone or a device
+without ADB, use the protected remote-development HTTPS setup described in
+`appview/README.md`; a raw LAN IP cannot reach the default loopback listener.
 
 Sentry runtime config uses the same files:
 
