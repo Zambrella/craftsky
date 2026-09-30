@@ -114,7 +114,7 @@ class _AuthCompletePageState extends ConsumerState<AuthCompletePage> {
       return Scaffold(
         body: Center(
           child: _AuthCompleteError(
-            error: SignInTimedOut(),
+            error: const SignInTimedOut(),
             onSignIn: () => const SignInRoute().go(context),
           ),
         ),

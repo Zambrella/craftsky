@@ -13,8 +13,8 @@ import 'package:craftsky_app/notifications/models/foreground_notification_event.
 import 'package:craftsky_app/notifications/models/notification_destination.dart';
 import 'package:craftsky_app/notifications/models/notification_effect.dart';
 import 'package:craftsky_app/notifications/models/notification_open_event.dart';
-import 'package:craftsky_app/notifications/models/notification_permission.dart';
 import 'package:craftsky_app/notifications/models/notification_page.dart';
+import 'package:craftsky_app/notifications/models/notification_permission.dart';
 import 'package:craftsky_app/notifications/providers/notification_new_count_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_permission_provider.dart';
 import 'package:craftsky_app/notifications/providers/notification_repository_provider.dart';

@@ -994,7 +994,8 @@ func TestPostInteractionRouteMethodsCoexist(t *testing.T) {
 const postInteractionReadRouteDDL = `
 CREATE TABLE craftsky_profiles (
 	did TEXT PRIMARY KEY,
-	record_cid TEXT NOT NULL
+	record_cid TEXT NOT NULL,
+	crafts TEXT[] NOT NULL DEFAULT '{}'
 );
 CREATE TABLE bluesky_profiles (
 	did TEXT PRIMARY KEY,

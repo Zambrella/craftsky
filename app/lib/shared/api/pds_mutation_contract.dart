@@ -42,9 +42,10 @@ Future<T> unwrapPdsMutationApi<T>(Future<T> Function() request) async {
     throw const PdsMutationAmbiguousException(retryAfterSeconds: 1);
   } on FormatException {
     throw const PdsMutationAmbiguousException(retryAfterSeconds: 1);
+    // A malformed success payload may throw a TypeError after AppView accepted
+    // the write; the same-key retry must recover the saved response.
+    // ignore: avoid_catching_errors
   } on TypeError {
-    // A malformed success payload does not undo a write already accepted by
-    // AppView. Let the same-key retry obtain the saved response.
     throw const PdsMutationAmbiguousException(retryAfterSeconds: 1);
   }
 }

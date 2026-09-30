@@ -11,8 +11,8 @@ NavigatorState responsiveModalNavigator(BuildContext context) => Navigator.of(
   rootNavigator: FormFactor.fromWidth(MediaQuery.sizeOf(context).width).isSmall,
 );
 
-/// Full-screen task route: Android's default Material transition is horizontal,
-/// so use the same bottom-up presentation expected of a modal on both platforms.
+/// Full-screen task route: Android's default Material transition is
+/// horizontal, so use the same bottom-up modal presentation on both platforms.
 class FullscreenModalRoute<T> extends MaterialPageRoute<T> {
   FullscreenModalRoute({required super.builder})
     : super(fullscreenDialog: true);

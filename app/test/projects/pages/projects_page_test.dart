@@ -24,8 +24,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../../fakes/auth_session_fakes.dart';
-import '../../feed/fakes/fake_post_repository.dart';
 import '../../fakes/recording_messenger.dart';
+import '../../feed/fakes/fake_post_repository.dart';
 import '../../test_support/deterministic_pump.dart';
 import '../fakes/fake_project_repository.dart';
 
