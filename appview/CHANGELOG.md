@@ -1,5 +1,11 @@
 # AppView Changelog
 
+## 1.0.9 - 2026-10-01
+
+- fix(app): repair iOS release preflight signing check
+- fix(release): push tagged releases without confirmation prompt
+- fix(appview): journal onboarding profile writes
+
 ## 1.0.8 - 2026-09-30
 
 - fix(appview): run and verify production migrations before deploy
