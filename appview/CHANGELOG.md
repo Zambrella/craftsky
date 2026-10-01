@@ -1,5 +1,9 @@
 # AppView Changelog
 
+## 1.0.10 - 2026-10-01
+
+- fix(appview): revalidate retained sources during repository repair
+
 ## 1.0.9 - 2026-10-01
 
 - fix(app): repair iOS release preflight signing check
