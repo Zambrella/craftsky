@@ -376,3 +376,20 @@ repair. Compare the profile, follower, and like API responses with PDS state.
 Finally make one fresh like and verify its Tap receipt, source row, projection,
 and API count converge. Repository reconciliation recovers existing records but
 does not by itself establish that live Tap delivery is working.
+
+When diagnosing a growing relay cursor gap, Tap's metrics server is bound to
+`127.0.0.1:9090` inside the Tap container; it is not exposed on the private
+service's network port. From an interactive `render ssh craftsky-tap` shell,
+sample the same counters twice, several minutes apart:
+
+```sh
+wget -qO- http://127.0.0.1:9090/metrics |
+  grep -E '^(tap_firehose_events_(received|processed|skipped)_total|tap_firehose_last_seq|tap_events_(delivered|acked)_total)'
+```
+
+Compare `tap_firehose_last_seq` with a contemporaneous live-head cursor and
+the AppView's `/healthz`. A zero outbox and resync buffer with a growing cursor
+gap puts the delay before delivery to AppView; these counters show whether Tap
+is receiving and skipping historical global events or waiting on the relay.
+Use the local-only pprof endpoint only when the counters point to slow Tap
+processing. Do not expose the metrics listener outside the Tap container.

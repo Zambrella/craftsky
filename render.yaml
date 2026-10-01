@@ -319,6 +319,9 @@ projects:
                 value: social.craftsky.actor.profile
               - key: TAP_LOG_LEVEL
                 value: info
+              # Localhost-only Tap counters and pprof for diagnosing relay lag.
+              - key: TAP_METRICS_LISTEN
+                value: 127.0.0.1:9090
               - key: TAP_NO_REPLAY
                 value: "false"
               - key: TAP_DISABLE_ACKS
