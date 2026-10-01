@@ -335,3 +335,44 @@ After restoring a snapshot or attaching a fresh disk:
 Tap's disk snapshot is an acceleration mechanism, not the sole recovery path.
 Canonical records remain on users' PDSes and reconciliation is the recovery
 boundary.
+
+### Recover stale public projections without resetting private data
+
+An accepted PDS command does not imply the AppView has received the corresponding
+Tap event. First confirm the command outcome, the Tap firehose cursor trend, and
+the newest `tap_ingestion_receipts.received_at`. A connected `/healthz` with an
+empty `last_event_at` means only that this AppView process has not received a
+Tap frame since it started. Compare the cursor on two readings before deciding
+whether Tap is replaying a backlog or stalled. The production AppView listens
+on Render's configured port, not the CLI's local default of 8080; from its SSH
+shell run:
+
+```sh
+APPVIEW_URL=https://appview.craftsky.social /app/cli --env prod tap status
+```
+
+Before a repair, take an on-demand logical PostgreSQL export and record the
+active member DIDs from `craftsky_profiles`. Keep the Tap disk and cursor intact
+while diagnosing live delivery. Apply a reviewed AppView release containing the
+repository repair validation fix before reconciling historical sources: older
+rows can have `pending` validation with `complete` projection jobs, and an older
+repair implementation cannot correct that mismatch. Do not mark them `valid` or
+reset completed jobs directly in SQL; authoritative PDS records must pass the
+current record validator and projectors.
+
+After the fixed release, enqueue verified PDS reconciliation once per active
+member DID from an AppView shell:
+
+```sh
+/app/cli --env prod tap reconcile 'did:plc:...'
+/app/cli --env prod tap backlog --limit 100
+```
+
+Monitor repository job results and source validation by collection, including
+`app.bsky.graph.follow` and `social.craftsky.feed.like`. Check that no source
+remaining in the PDS is `pending`, active facts populate `pds_set_aggregates`,
+and blocked jobs have a real missing dependency rather than an unfinished
+repair. Compare the profile, follower, and like API responses with PDS state.
+Finally make one fresh like and verify its Tap receipt, source row, projection,
+and API count converge. Repository reconciliation recovers existing records but
+does not by itself establish that live Tap delivery is working.

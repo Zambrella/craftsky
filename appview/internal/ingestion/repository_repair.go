@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 
+	"social.craftsky/appview/internal/sourcevalidation"
 	"social.craftsky/appview/internal/tap"
 )
 
@@ -100,7 +101,9 @@ func (repair *RepositoryRepair) Apply(
 			}
 			generationCurrent := isIndependentBusinessCollection(source.Collection) ||
 				(source.ProjectionGeneration != nil && *source.ProjectionGeneration == ownerGeneration)
-			if description.Action == RepositoryRepairNoop && source.OrderingStatus == "authoritative" && generationCurrent {
+			if description.Action == RepositoryRepairNoop && source.OrderingStatus == "authoritative" && generationCurrent &&
+				source.StructuralValidationStatus != sourcevalidation.Pending &&
+				source.SemanticValidationStatus != sourcevalidation.Pending {
 				continue
 			}
 			if exists {
