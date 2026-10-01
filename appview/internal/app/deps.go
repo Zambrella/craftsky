@@ -237,7 +237,6 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	}
 	ownerFence := owners.fence
 	ownerLifecycles := owners.lifecycles
-	onboardingEffects := owners.onboardingEffects
 	scheduledStorage, err := newScheduledStorageDependencies(ctx, pool, cfg)
 	if err != nil {
 		return nil, nil, err
@@ -368,7 +367,7 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 		CraftskySessionStore:        craftskyStore,
 		OwnerLifecycles:             ownerLifecycles,
 		OwnerFence:                  ownerFence,
-		OnboardingProfile:           onboardingProfileEffectAdapter{executor: onboardingEffects},
+		OnboardingProfile:           onboardingProfileEffectAdapter{executor: pdsEffects.onboarding},
 		BlueskyProfileProjector:     tapCapability.profileProjector,
 		CraftskyProfileProjector:    tapCapability.craftskyProfileProjector,
 		NewPendingPDSClient:         pdsEffects.pending,

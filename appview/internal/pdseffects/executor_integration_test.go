@@ -1130,138 +1130,48 @@ func TestExecutorReadOnlyReconcilesUnknownDeleteToAbsent(t *testing.T) {
 	}
 }
 
-func TestOnboardingExecutorDurablyPutsOnlyDepartedProfileWithoutRepeating(t *testing.T) {
-	_, lifecycles, now := newEffectExecutorStore(t)
-	owner := syntax.DID("did:plc:onboarding-durable-profile")
+func TestProductionMutationGuardRejectsLegacyOnboardingProfileEffect(t *testing.T) {
+	pool := testdb.WithMigratedSchema(t)
+	fencer, err := ownerlifecycle.NewFencer(pool, time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lifecycles, err := ownerlifecycle.NewStore(pool, fencer, time.Now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	owner := syntax.DID("did:plc:onboarding-mutation-guard")
 	authority, err := lifecycles.EnsureOnboardingOwner(context.Background(), owner)
 	if err != nil {
 		t.Fatal(err)
 	}
-	pds := newEffectPDS()
-	pds.putError = errors.New("lost onboarding profile response")
-	pds.acceptPutBeforeError = true
-	executor, err := NewOnboardingExecutor(
-		lifecycles,
-		10*time.Second,
-		func() time.Time { return now },
-	)
-	if err != nil {
+	legacyID := fmt.Sprintf("oauth-onboarding-profile:%s:%d", owner, authority.Generation)
+	_, err = pool.Exec(context.Background(), `
+		INSERT INTO owner_effect_attempts(
+			operation_id,owner_did,owner_generation,effect_kind,effect_action,mutation_key,
+			deterministic_key,request_fingerprint,record_fingerprint,remote_deadline
+		) VALUES ($1,$2,$3,'pds_record','put_record',$1,$4,
+			decode(repeat('01',32),'hex'),decode(repeat('02',32),'hex'),now()+interval '1 minute')
+	`, legacyID, owner, authority.Generation, "at://"+owner.String()+"/social.craftsky.actor.profile/self")
+	if err == nil {
+		t.Fatal("production mutation guard admitted the legacy onboarding profile effect")
+	}
+	var attempts int
+	if err := pool.QueryRow(context.Background(), `SELECT count(*) FROM owner_effect_attempts WHERE owner_did=$1`, owner).Scan(&attempts); err != nil {
 		t.Fatal(err)
 	}
-	request := OnboardingProfileRequest{
-		OperationID: "onboarding-profile:attempt:v1",
-		MutationKey: "onboarding-profile:attempt:v1",
-		Owner:       owner, OwnerGeneration: authority.Generation,
-		Record: map[string]any{
-			"$type":  "social.craftsky.actor.profile",
-			"crafts": []string{},
-		},
+	if attempts != 0 {
+		t.Fatalf("legacy profile attempts=%d, want none", attempts)
 	}
-	err = lifecycles.WithOnboardingAuth(
-		context.Background(), owner,
-		func(authCtx context.Context, _ ownerlifecycle.Lifecycle) error {
-			_, executeErr := executor.PutProfile(authCtx, pds, request)
-			return executeErr
-		},
-	)
-	if !errors.Is(err, ErrOutcomeAmbiguous) || pds.putCalls != 1 {
-		t.Fatalf("first onboarding put error=%v calls=%d", err, pds.putCalls)
-	}
-	pds.putError = nil
-	var result RecordResult
-	err = lifecycles.WithOnboardingAuth(
-		context.Background(), owner,
-		func(authCtx context.Context, _ ownerlifecycle.Lifecycle) error {
-			var executeErr error
-			result, executeErr = executor.PutProfile(authCtx, pds, request)
-			return executeErr
-		},
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if result.URI.String() != "at://did:plc:onboarding-durable-profile/social.craftsky.actor.profile/self" ||
-		result.CID == "" || pds.putCalls != 1 || pds.getCalls != 1 {
-		t.Fatalf("onboarding reconciliation result=%+v puts=%d gets=%d", result, pds.putCalls, pds.getCalls)
-	}
-	if _, err := lifecycles.Terminalize(context.Background(), ownerlifecycle.TerminalizeRequest{
-		Owner: owner, Reason: "identityDeleted",
-	}); err != nil {
-		t.Fatal(err)
-	}
-	called := false
-	err = lifecycles.WithOnboardingAuth(
-		context.Background(), owner,
-		func(authCtx context.Context, _ ownerlifecycle.Lifecycle) error {
-			called = true
-			_, executeErr := executor.PutProfile(authCtx, pds, request)
-			return executeErr
-		},
-	)
-	if !errors.Is(err, ownerlifecycle.ErrTerminalOwner) || called || pds.putCalls != 1 {
-		t.Fatalf("terminal onboarding put error=%v called=%t puts=%d", err, called, pds.putCalls)
-	}
-}
-
-func TestOnboardingExecutorReplaysRejectedConditionalPutAsConflict(t *testing.T) {
-	_, lifecycles, now := newEffectExecutorStore(t)
-	owner := syntax.DID("did:plc:onboarding-stale-profile")
-	authority, err := lifecycles.EnsureOnboardingOwner(context.Background(), owner)
-	if err != nil {
-		t.Fatal(err)
-	}
-	pds := newEffectPDS()
-	pds.records[effectRecordKey(
-		owner,
-		onboardingProfileCollection.String(),
-		onboardingProfileRkey.String(),
-	)] = storedEffectRecord{
-		cid: "bafy-current-onboarding-profile",
-		value: map[string]any{
-			"$type": "social.craftsky.actor.profile",
-		},
-	}
-	executor, err := NewOnboardingExecutor(
-		lifecycles,
-		10*time.Second,
-		func() time.Time { return now },
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	request := OnboardingProfileRequest{
-		OperationID:     "onboarding-profile:stale:v1",
-		MutationKey:     "onboarding-profile:stale:v1",
-		Owner:           owner,
-		OwnerGeneration: authority.Generation,
-		Record: map[string]any{
-			"$type":  "social.craftsky.actor.profile",
-			"crafts": []string{},
-		},
-		ExpectedCID: syntax.CID("bafy-stale-onboarding-profile"),
-	}
-	putProfile := func() error {
-		return lifecycles.WithOnboardingAuth(
-			context.Background(),
-			owner,
-			func(authCtx context.Context, _ ownerlifecycle.Lifecycle) error {
-				_, executeErr := executor.PutProfile(authCtx, pds, request)
-				return executeErr
-			},
-		)
-	}
-	if err := putProfile(); !errors.Is(err, ErrEffectConflict) {
-		t.Fatalf("stale onboarding conditional Put = %v, want conflict", err)
-	}
-	if err := putProfile(); !errors.Is(err, ErrEffectConflict) {
-		t.Fatalf("replayed onboarding conditional Put = %v, want conflict", err)
-	}
-	if pds.conditionalPutCalls != 1 || pds.unconditionalPutCalls != 0 {
-		t.Fatalf(
-			"onboarding conditional/unconditional Put calls = %d/%d, want 1/0",
-			pds.conditionalPutCalls,
-			pds.unconditionalPutCalls,
-		)
+	_, err = pool.Exec(context.Background(), `
+		INSERT INTO owner_effect_attempts(
+			operation_id,owner_did,owner_generation,effect_kind,effect_action,mutation_key,
+			deterministic_key,request_fingerprint,record_fingerprint,remote_deadline
+		) VALUES ('ordinary-profile-write',$1,$2,'pds_record','put_record','ordinary-profile-write',
+			$3,decode(repeat('01',32),'hex'),decode(repeat('02',32),'hex'),now()+interval '1 minute')
+	`, owner, authority.Generation, "at://"+owner.String()+"/social.craftsky.actor.profile/self")
+	if err == nil {
+		t.Fatal("production mutation guard admitted an ordinary legacy record write")
 	}
 }
 

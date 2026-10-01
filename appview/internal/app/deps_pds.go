@@ -23,6 +23,7 @@ import (
 // raw PDS client factory.
 type pdsEffectDependencies struct {
 	pending    auth.PendingOnboardingPDSClientFactory
+	onboarding *pdscommands.OnboardingProfileService
 	blobs      api.BlobEffectFactory
 	guarded    pdseffects.GuardedCapabilityCoordinatorFactory
 	commands   *pdscommands.SetCommandService
@@ -71,6 +72,10 @@ func newPDSEffectDependencies(
 	})
 	if err != nil {
 		return nil, fmt.Errorf("PDS command store: %w", err)
+	}
+	onboardingCommands, err := pdscommands.NewOnboardingProfileService(commandStore, owners.lifecycles)
+	if err != nil {
+		return nil, fmt.Errorf("onboarding profile commands: %w", err)
 	}
 	commandCompaction, err := pdscommands.NewCompactionProcessor(commandStore, cfg.PDSCommandCompactionBatchSize)
 	if err != nil {
@@ -141,6 +146,6 @@ func newPDSEffectDependencies(
 		return federated.newPendingPDSClient(ctx, authCapability.app.Config, stored.Data)
 	}
 	return &pdsEffectDependencies{
-		pending: pending, blobs: blobs, guarded: guarded, commands: commands, append: appendCommands, addressed: addressedCommands, compound: compoundCommands, compaction: commandCompaction,
+		pending: pending, onboarding: onboardingCommands, blobs: blobs, guarded: guarded, commands: commands, append: appendCommands, addressed: addressedCommands, compound: compoundCommands, compaction: commandCompaction,
 	}, nil
 }
