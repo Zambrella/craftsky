@@ -25,7 +25,7 @@ func (writer *recordingOnboardingProfileWriter) PutOnboardingProfile(
 	return "onboarding-profile-cid", writer.err
 }
 
-func TestInitializeProfileUsesDurableOnboardingWriterWithStableGenerationIdentity(t *testing.T) {
+func TestInitializeProfileUsesDurableOnboardingWriterWithOwnerGeneration(t *testing.T) {
 	owner := syntax.DID("did:plc:onboarding-effect")
 	pds := &mockPDS{
 		getRecord: func(string, string, any) (string, error) {
@@ -53,10 +53,8 @@ func TestInitializeProfileUsesDurableOnboardingWriterWithStableGenerationIdentit
 	if first.Owner != owner || first.OwnerGeneration != 7 || first.Record == nil {
 		t.Fatalf("first durable request = %+v", first)
 	}
-	if first.OperationID == "" || first.MutationKey == "" ||
-		first.OperationID != second.OperationID || first.MutationKey != second.MutationKey {
-		t.Fatalf("generation-stable identities = (%q,%q), (%q,%q)",
-			first.OperationID, first.MutationKey, second.OperationID, second.MutationKey)
+	if second.Owner != first.Owner || second.OwnerGeneration != first.OwnerGeneration {
+		t.Fatalf("generation-stable requests = %+v, %+v", first, second)
 	}
 	if len(pds.putCalls) != 0 {
 		t.Fatalf("raw PDS puts = %d, want zero", len(pds.putCalls))

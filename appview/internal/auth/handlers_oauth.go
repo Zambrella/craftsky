@@ -115,6 +115,7 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 			handoffCode    string
 			deletionResult AccountDeletionOAuthResult
 			deletionFlow   bool
+			failureStage   = "oauth_exchange"
 		)
 		if h.OAuthFlow == nil {
 			renderErrorHTML(w, http.StatusInternalServerError, "Internal error. Please try again.")
@@ -124,6 +125,7 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 			result = callbackResult
 			switch callbackResult.Metadata.Purpose {
 			case AccountDeletionOAuthPurpose:
+				failureStage = "account_deletion"
 				callbacks, ok := h.DeletionOAuthCallbacks.(AccountDeletionOAuthAttemptCallbacks)
 				if !ok {
 					return errors.New("account deletion callback lacks attempt-aware finalization")
@@ -138,6 +140,7 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 				deletionFlow = err == nil
 				return err
 			case LoginOAuthPurpose, RegistrationOAuthPurpose:
+				failureStage = "onboarding_client"
 				if h.NewPendingPDSClient == nil || h.OnboardingProfile == nil || h.Handoffs == nil {
 					return errors.New("onboarding callback finalization unavailable")
 				}
@@ -145,13 +148,16 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 				if err != nil {
 					return fmt.Errorf("build pending onboarding PDS client: %w", err)
 				}
+				failureStage = "profile_initialization"
 				if err := InitializeProfileAndIdentityCache(
 					callbackCtx, pdsClient, callbackResult.Attempt, h.OnboardingProfile,
 					h.BlueskyProfileProjector, h.CraftskyProfileProjector,
 					h.IdentityCacheUpdater, h.Logger,
 				); err != nil {
+					failureStage = profileInitializationFailureStage(err)
 					return err
 				}
+				failureStage = "handoff"
 				handoffCode, err = h.Handoffs.CreateExchange(
 					callbackCtx, callbackResult.Attempt, callbackResult.Handle,
 					callbackResult.Metadata.DeviceID,
@@ -178,14 +184,16 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 				if renderErr == nil {
 					if h.Logger != nil {
 						h.Logger.Warn("registration callback failed",
-							authLogErrorAttrs(runID, "registration.callback", string(trustedFailure.Code))...)
+							append(authLogErrorAttrs(runID, "registration.callback", string(trustedFailure.Code)),
+								slog.String("failure_stage", failureStage))...)
 					}
 					return
 				}
 			}
 			if h.Logger != nil {
 				h.Logger.Warn("OAuth callback finalization failed",
-					authLogErrorAttrs(runID, "oauth.callback", "finalization")...)
+					append(authLogErrorAttrs(runID, "oauth.callback", "finalization"),
+						slog.String("failure_stage", failureStage))...)
 			}
 			renderErrorHTML(w, http.StatusBadRequest, "Sign-in could not be completed. Please try again.")
 			return

@@ -481,14 +481,15 @@ func (service *OAuthFlowService) completeRegistrationCallback(
 		}); err != nil {
 			return err
 		}
-		metadata.Owner = candidate
-		metadata.OwnerGeneration = authority.Generation
-		metadata.AuthEpoch = authority.AuthEpoch
-		metadata.RequestState = AuthRequestExchangeStarted
-		metadata.ExchangeAttemptID = attemptID
+		boundMetadata := metadata
+		boundMetadata.Owner = candidate
+		boundMetadata.OwnerGeneration = authority.Generation
+		boundMetadata.AuthEpoch = authority.AuthEpoch
+		boundMetadata.RequestState = AuthRequestExchangeStarted
+		boundMetadata.ExchangeAttemptID = attemptID
 		callbackCtx := WithCallbackAttempt(authCtx, attempt)
 		if err := finalize(callbackCtx, OAuthCallbackResult{
-			Session: session, Metadata: metadata, Attempt: attempt, Handle: resolved.Handle,
+			Session: session, Metadata: boundMetadata, Attempt: attempt, Handle: resolved.Handle,
 		}); err != nil {
 			cleanupErr := service.store.AbandonPendingSession(callbackCtx, attempt)
 			return errors.Join(err, cleanupErr)

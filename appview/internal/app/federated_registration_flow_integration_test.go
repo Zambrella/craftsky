@@ -1484,6 +1484,53 @@ func TestProviderRegistrationCallbackPublishesAtomicBoundAuthority(t *testing.T)
 	}
 }
 
+func TestProviderRegistrationFinalizerFailureRetainsTrustedFailureMetadata(t *testing.T) {
+	pool := withRealFlowAuthSchema(t)
+	owner := syntax.DID("did:plc:registrationfinalizerfailure")
+	upstream := newRealFlowServer(t, owner)
+	clients, _, _ := newRealFlowClients(t, upstream)
+	t.Cleanup(func() {
+		clients.boundary.CloseIdleConnections()
+		upstream.close(t)
+	})
+	clients.directory = realFlowDirectory{identity: &identity.Identity{
+		DID: owner, Handle: syntax.Handle("failure.real-flow.test"),
+		Services: map[string]identity.ServiceEndpoint{
+			"atproto_pds": {Type: "AtprotoPersonalDataServer", URL: realFlowPDSOrigin},
+		},
+	}}
+	flow, _ := newRealRegistrationFlow(t, pool, clients, 5*time.Second)
+	if _, err := flow.StartRegistration(context.Background(), auth.HandoffVerifiedLink, "", "failure-device"); err != nil {
+		t.Fatal(err)
+	}
+	var state string
+	if err := pool.QueryRow(context.Background(), `SELECT state FROM oauth_auth_requests`).Scan(&state); err != nil {
+		t.Fatal(err)
+	}
+	cause := errors.New("synthetic finalizer failure")
+	finalized := false
+	err := flow.CompleteCallback(context.Background(), url.Values{
+		"state": {state}, "iss": {realFlowAuthOrigin}, "code": {"failure-code"},
+	}, func(_ context.Context, result auth.OAuthCallbackResult) error {
+		finalized = true
+		if result.Metadata.Owner != owner || result.Metadata.RequestState != auth.AuthRequestExchangeStarted {
+			t.Errorf("finalizer did not receive bound authority")
+		}
+		return cause
+	})
+	if !finalized {
+		t.Fatalf("callback did not reach finalizer: %v", err)
+	}
+	var trusted *auth.TrustedRegistrationFailure
+	if !errors.As(err, &trusted) {
+		t.Fatalf("finalizer failure = %v, want trusted registration failure", err)
+	}
+	if trusted.Code != auth.RegistrationFailureIncomplete || trusted.Metadata.Owner != "" ||
+		trusted.Metadata.RequestState != auth.AuthRequestReady || !errors.Is(err, cause) {
+		t.Fatalf("trusted failure did not retain original ready metadata and cause")
+	}
+}
+
 // IT-011: a verified new DID uses the ordinary profile and handoff path, and
 // neither the OAuth parent nor Craftsky child activates before confirmation.
 func TestProviderRegistrationCompletesSharedOnboardingAndConfirmedHandoff(t *testing.T) {

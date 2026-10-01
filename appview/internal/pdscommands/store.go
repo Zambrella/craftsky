@@ -632,10 +632,12 @@ func (store *Store) ResumeKnownInvalidSwap(ctx context.Context, command Prepared
 	}
 	var ordinal int
 	var outcome string
-	err := store.pool.QueryRow(ctx, `
-		SELECT attempt_ordinal,outcome FROM pds_command_dispatches
-		WHERE command_id=$1 ORDER BY attempt_ordinal DESC LIMIT 1
-	`, command.ID).Scan(&ordinal, &outcome)
+	err := store.withTransaction(ctx, func(tx pgx.Tx) error {
+		return tx.QueryRow(ctx, `
+			SELECT attempt_ordinal,outcome FROM pds_command_dispatches
+			WHERE command_id=$1 ORDER BY attempt_ordinal DESC LIMIT 1
+		`, command.ID).Scan(&ordinal, &outcome)
+	})
 	if errors.Is(err, pgx.ErrNoRows) {
 		return command, 1, nil
 	}
