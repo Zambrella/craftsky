@@ -276,9 +276,15 @@ Tap traces, push metrics, and safe push completion logs without device tokens or
 other private identifiers.
 
 Before launch, configure an external monitor to poll `/healthz` and alert when
-`db != "ok"`, `tap.connected != true`, or a non-empty `tap.last_event_at` is more
-than 15 minutes old. Render's `/health` restart probe intentionally covers
-database readiness only; it cannot detect ingestion becoming stale after startup.
+`db != "ok"` or `tap.connected != true`. Also monitor Tap's firehose cursor
+against an independent, contemporaneous relay-head sample: alert if the gap
+keeps growing or the cursor stops advancing while the relay head advances.
+Check several samples over at least 10–15 minutes before acting on a slow
+connection. A stale or empty `tap.last_event_at` alone is not an alert: it is
+process-local and only changes when an event from a tracked repository reaches
+AppView. A quiet member feed can leave it unchanged even while Tap processes
+global relay events. Render's `/health` restart probe intentionally covers
+database readiness only; it cannot detect a live but under-delivering firehose.
 
 ## Rollback
 
@@ -393,3 +399,32 @@ gap puts the delay before delivery to AppView; these counters show whether Tap
 is receiving and skipping historical global events or waiting on the relay.
 Use the local-only pprof endpoint only when the counters point to slow Tap
 processing. Do not expose the metrics listener outside the Tap container.
+
+### Slow firehose connection incident (2026-10-01)
+
+Tap's old process repeatedly fell behind while its relay WebSocket remained
+connected. Between 2026-09-30 23:42 UTC and 2026-10-01 08:27 UTC, its reconnect
+cursor advanced only from 34077160457 to 34077721824; CPU hovered near 0.01.
+The relay read then timed out and Tap reconnected. Between 08:31 and 09:14 UTC,
+the reconnect cursor advanced from 34077811545 to 34087384511 with much higher
+CPU. A manual restart at 15:07 UTC did not restore sustained throughput: the
+next instance advanced from 34089004261 to 34091166832 by 17:32 UTC. A second
+connection established by the 17:32 Blueprint redeploy replayed the backlog and
+reached the near-live cursor at approximately 18:19 UTC. Tap's outbox and resync
+buffers were empty during the lag, and sampled counters showed almost all
+received events being skipped as unrelated to tracked repositories.
+
+This is consistent with an under-delivering relay connection rather than an
+AppView acknowledgment backlog, but the exact network or relay cause is not
+proven. Upstream tracks [zombie Tap relay WebSockets](https://github.com/bluesky-social/indigo/issues/1279).
+In the pinned Tap version, the read deadline is refreshed on WebSocket pongs;
+ping/pong alone does not establish that relay events are flowing at the expected
+rate. A connected `/healthz`, an HTTP-healthy Tap, and an empty outbox therefore
+do not rule out a growing cursor gap. When alerted, capture two timed cursor
+and counter samples, relay-head comparisons, Tap CPU/bandwidth, and connection
+logs. If the gap grows despite an apparently healthy connection, escalate for a
+controlled Tap restart or an upstream progress-watchdog fix. Preserve the Tap
+disk and cursor so replay can recover events; do not set `TAP_NO_REPLAY=true`.
+The `failed to save cursor on shutdown: context canceled` log observed at both
+restarts was emitted after shutdown began and does not establish the original
+stall.
