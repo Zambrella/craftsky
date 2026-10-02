@@ -1,5 +1,10 @@
 # AppView Changelog
 
+## 1.0.12 - 2026-10-02
+
+- fix(appview): upgrade OpenTelemetry to address GO-2026-6505
+- chore(release): AppView 1.0.11
+
 ## 1.0.11 - 2026-10-02
 
 - chore(render): expose Tap diagnostics on loopback
