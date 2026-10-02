@@ -40,6 +40,7 @@ type OAuthFlowServiceOptions struct {
 	RegistrationOAuth          *RegistrationOAuthAdapter
 	AuthorityVerifier          OAuthAuthorityVerifier
 	Observer                   AuthorityVerificationObserver
+	OnboardingReconciler       *OnboardingReconciler
 }
 
 type OAuthFlowService struct {
@@ -53,6 +54,7 @@ type OAuthFlowService struct {
 	registrationOAuth          *RegistrationOAuthAdapter
 	authorityVerifier          OAuthAuthorityVerifier
 	observer                   AuthorityVerificationObserver
+	onboardingReconciler       *OnboardingReconciler
 }
 
 func NewOAuthFlowService(options OAuthFlowServiceOptions) (*OAuthFlowService, error) {
@@ -85,7 +87,16 @@ func NewOAuthFlowService(options OAuthFlowServiceOptions) (*OAuthFlowService, er
 		registrationOAuth:          options.RegistrationOAuth,
 		authorityVerifier:          options.AuthorityVerifier,
 		observer:                   options.Observer,
+		onboardingReconciler:       options.OnboardingReconciler,
 	}, nil
+}
+
+// WithOnboardingReconciler returns the fully wired coordinator during app
+// construction without mutating a coordinator already shared with callers.
+func (service *OAuthFlowService) WithOnboardingReconciler(reconciler *OnboardingReconciler) *OAuthFlowService {
+	configured := *service
+	configured.onboardingReconciler = reconciler
+	return &configured
 }
 
 type DeletionOAuthRequestVerifier interface {
@@ -344,11 +355,7 @@ func (service *OAuthFlowService) CompleteCallback(
 		if err != nil {
 			return err
 		}
-		if err := finalize(callbackCtx, result); err != nil {
-			cleanupErr := service.store.AbandonPendingSession(callbackCtx, attempt)
-			return errors.Join(err, cleanupErr)
-		}
-		return nil
+		return service.finalizeOnboardingCallback(callbackCtx, result, finalize)
 	})
 }
 
@@ -488,17 +495,31 @@ func (service *OAuthFlowService) completeRegistrationCallback(
 		boundMetadata.RequestState = AuthRequestExchangeStarted
 		boundMetadata.ExchangeAttemptID = attemptID
 		callbackCtx := WithCallbackAttempt(authCtx, attempt)
-		if err := finalize(callbackCtx, OAuthCallbackResult{
+		return service.finalizeOnboardingCallback(callbackCtx, OAuthCallbackResult{
 			Session: session, Metadata: boundMetadata, Attempt: attempt, Handle: resolved.Handle,
-		}); err != nil {
-			cleanupErr := service.store.AbandonPendingSession(callbackCtx, attempt)
-			return errors.Join(err, cleanupErr)
-		}
-		return nil
+		}, finalize)
 	})
 	if err != nil {
 		service.markRegistrationCredentialForCleanup(ctx, state, attemptID)
 		return trustedFailure(RegistrationFailureIncomplete, err)
+	}
+	return nil
+}
+
+func (service *OAuthFlowService) finalizeOnboardingCallback(
+	ctx context.Context, result OAuthCallbackResult, finalize OAuthCallbackFinalizer,
+) error {
+	var err error
+	if result.Attempt.permitsOrdinaryOnboarding() && service.onboardingReconciler != nil {
+		ctx, result, err = service.onboardingReconciler.Reconcile(ctx, result)
+	}
+	if err == nil {
+		err = finalize(ctx, result)
+	}
+	if err != nil {
+		cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), service.callbackOperationTimeout)
+		defer cancel()
+		return errors.Join(err, service.store.AbandonPendingSession(cleanupCtx, result.Attempt))
 	}
 	return nil
 }

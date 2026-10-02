@@ -327,6 +327,11 @@ func newDeps(ctx context.Context, cfg Config, level slog.Level) (
 	if err != nil {
 		return nil, nil, err
 	}
+	onboardingReconciler, err := newOnboardingReconciliationDependencies(owners, authCapability, pdsEffects, scheduledDepartureParticipant, tapCapability)
+	if err != nil {
+		return nil, nil, err
+	}
+	oauthFlow = oauthFlow.WithOnboardingReconciler(onboardingReconciler)
 
 	eventCursorCodec, err := newBusinessEventCursorCodec(handoffReceiptKey)
 	if err != nil {
