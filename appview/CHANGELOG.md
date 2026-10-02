@@ -1,5 +1,10 @@
 # AppView Changelog
 
+## 1.0.11 - 2026-10-02
+
+- chore(render): expose Tap diagnostics on loopback
+- fix(appview): reconcile missing profiles during OAuth sign-in
+
 ## 1.0.10 - 2026-10-01
 
 - fix(appview): revalidate retained sources during repository repair
