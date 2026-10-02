@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/bluesky-social/indigo/atproto/syntax"
+
+	"social.craftsky/appview/internal/ownerlifecycle"
 )
 
 type IdentityCacheRefresher interface {
@@ -47,6 +49,10 @@ var ErrProfileInitFailed = errors.New("profile: init failed")
 // profile_data_invalid error page.
 var ErrProfileDataInvalid = errors.New("profile: data invalid")
 
+var ErrProfileCreationConflict = errors.New("profile: changed during creation")
+var ErrProfileWriteUnresolved = errors.New("profile: write outcome unresolved")
+var ErrProfileWriteRejected = errors.New("profile: write rejected")
+
 // profileInitStageError preserves the internal cause while exposing only a
 // fixed operation name to callback diagnostics.
 type profileInitStageError struct {
@@ -63,6 +69,37 @@ func profileInitializationFailureStage(err error) string {
 		return staged.stage
 	}
 	return "profile_initialization"
+}
+
+// Only fixed classifications are emitted; upstream error text may contain
+// credentials, callback parameters, or private provider response bodies.
+func callbackFailureReason(err error) string {
+	switch {
+	case errors.Is(err, ownerlifecycle.ErrOwnerNotOnboarding):
+		return "owner_not_onboarding"
+	case errors.Is(err, ownerlifecycle.ErrGenerationChanged):
+		return "owner_generation_changed"
+	case errors.Is(err, ownerlifecycle.ErrTerminalOwner):
+		return "terminal_owner"
+	case errors.Is(err, ErrOAuthOwnerIneligible):
+		return "owner_ineligible"
+	case errors.Is(err, ErrCallbackAttemptInvalid):
+		return "callback_authority_invalid"
+	case errors.Is(err, ErrProfileWriteUnresolved):
+		return "profile_write_unresolved"
+	case errors.Is(err, ErrProfileCreationConflict):
+		return "profile_creation_conflict"
+	case errors.Is(err, ErrProfileWriteRejected):
+		return "profile_write_rejected"
+	case errors.Is(err, ErrProfileDataInvalid):
+		return "profile_data_invalid"
+	case errors.Is(err, context.DeadlineExceeded):
+		return "deadline_exceeded"
+	case errors.Is(err, context.Canceled):
+		return "canceled"
+	default:
+		return "operation_failed"
+	}
 }
 
 const (
@@ -111,7 +148,7 @@ func initializeProfile(
 	bskyCID, err := client.GetRecord(ctx, did, blueskyProfileNSID, profileRecordKey, &bskyRecord)
 	if err != nil {
 		if !errors.Is(err, ErrRecordNotFound) {
-			return nil, &profileInitStageError{"bluesky_profile_read", fmt.Errorf("%w: get %s: %v", ErrProfileInitFailed, blueskyProfileNSID, err)}
+			return nil, &profileInitStageError{"bluesky_profile_read", fmt.Errorf("%w: get %s: %w", ErrProfileInitFailed, blueskyProfileNSID, err)}
 		}
 	}
 	var fetchedBluesky *fetchedProfile
@@ -142,15 +179,30 @@ func initializeProfile(
 		createdCID, putErr := writer.PutOnboardingProfile(ctx, client, OnboardingProfileWrite{
 			Owner: did, OwnerGeneration: attempt.OwnerGeneration, Record: empty,
 		})
+		if errors.Is(putErr, ErrProfileCreationConflict) {
+			// A repository-CAS conflict may reveal a profile created elsewhere.
+			// Read and validate that record instead of overwriting it or replaying
+			// a previously accepted creation after a later deletion.
+			cskyCID, readErr := client.GetRecord(ctx, did, craftskyProfileNSID, profileRecordKey, &cskyRecord)
+			if readErr == nil {
+				if err := validateCraftskyProfile(cskyRecord); err != nil {
+					return nil, &profileInitStageError{"craftsky_profile_validation", fmt.Errorf("%w: %w", ErrProfileDataInvalid, err)}
+				}
+				return &initializedProfiles{bluesky: fetchedBluesky, craftsky: fetchedProfile{cid: syntax.CID(cskyCID), record: cskyRecord}}, nil
+			}
+			if !errors.Is(readErr, ErrRecordNotFound) {
+				return nil, &profileInitStageError{"craftsky_profile_read", fmt.Errorf("%w: %w", ErrProfileInitFailed, readErr)}
+			}
+		}
 		if putErr != nil {
-			return nil, &profileInitStageError{"craftsky_profile_write", fmt.Errorf("%w: put %s: %v", ErrProfileInitFailed, craftskyProfileNSID, putErr)}
+			return nil, &profileInitStageError{"craftsky_profile_write", fmt.Errorf("%w: put %s: %w", ErrProfileInitFailed, craftskyProfileNSID, putErr)}
 		}
 		return &initializedProfiles{
 			bluesky:  fetchedBluesky,
 			craftsky: fetchedProfile{cid: createdCID, record: empty},
 		}, nil
 	default:
-		return nil, &profileInitStageError{"craftsky_profile_read", fmt.Errorf("%w: get %s: %v", ErrProfileInitFailed, craftskyProfileNSID, err)}
+		return nil, &profileInitStageError{"craftsky_profile_read", fmt.Errorf("%w: get %s: %w", ErrProfileInitFailed, craftskyProfileNSID, err)}
 	}
 }
 

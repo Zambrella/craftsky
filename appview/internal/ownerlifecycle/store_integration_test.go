@@ -319,6 +319,39 @@ func TestStoreOnboardingEffectUsesExistingAuthFenceForExactDepartedGeneration(t 
 	}
 }
 
+func TestProfileDepartureReconciliationRequiresExclusiveAuthFence(t *testing.T) {
+	store, _ := ownerLifecycleTestStores(t)
+	ctx := context.Background()
+	owner := syntax.DID("did:plc:reconciliation-exclusive-fence")
+	if _, err := store.EnsureOnboardingOwner(ctx, owner); err != nil {
+		t.Fatal(err)
+	}
+	authority, err := store.Transition(ctx, TransitionRequest{Owner: owner, ExpectedGeneration: 1, To: StateActive, Reason: "profileActivated"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	participant := func(context.Context, pgx.Tx, Lifecycle, Lifecycle) error {
+		t.Fatal("shared or unfenced context transitioned owner")
+		return nil
+	}
+	callback := func(context.Context, Lifecycle) error {
+		t.Fatal("shared or unfenced context recovered owner")
+		return nil
+	}
+	if err := store.WithReconciledProfileDeparture(ctx, authority, participant, callback); !errors.Is(err, ErrFenceRequired) {
+		t.Fatalf("unfenced departure = %v", err)
+	}
+	err = store.fencer.WithShared(ctx, []syntax.DID{owner}, func(sharedCtx context.Context) error {
+		// Shared session operations also carry authTransitionContextKey. That
+		// authority must never authorize an exclusive lifecycle transition.
+		sharedCtx = context.WithValue(sharedCtx, authTransitionContextKey{}, authority)
+		return store.WithReconciledProfileDeparture(sharedCtx, authority, participant, callback)
+	})
+	if !errors.Is(err, ErrFenceRequired) {
+		t.Fatalf("shared-fence departure = %v", err)
+	}
+}
+
 func TestStoreOnboardingAuthFenceKeepsOneConnectionAndLinearizesEpochChange(t *testing.T) {
 	storeA, storeB := ownerLifecycleTestStores(t)
 	owner := syntax.DID("did:plc:auth-fence")

@@ -28,6 +28,7 @@ type tapDependencies struct {
 	repositoryWorker         *ingestion.RepositoryWorker
 	quarantineWorker         *ingestion.QuarantineReplayWorker
 	consumer                 tap.Consumer
+	removeMissingProfile     ownerlifecycle.TransitionParticipant
 }
 
 func newTapIngestionStore(pool *pgxpool.Pool) (*ingestion.Store, error) {
@@ -164,5 +165,15 @@ func newTapDependencies(
 		repositoryWorker: repositoryWorker,
 		quarantineWorker: quarantineWorker,
 		consumer:         consumer,
+		removeMissingProfile: func(ctx context.Context, tx pgx.Tx, before, after ownerlifecycle.Lifecycle) error {
+			if err := profileDeletion.HardDeleteByActor(ctx, tx, after.Owner); err != nil {
+				return err
+			}
+			if _, err := tx.Exec(ctx, `DELETE FROM craftsky_profiles WHERE did=$1`, after.Owner); err != nil {
+				return err
+			}
+			_, err := tx.Exec(ctx, `DELETE FROM bluesky_profiles WHERE did=$1`, after.Owner)
+			return err
+		},
 	}, nil
 }

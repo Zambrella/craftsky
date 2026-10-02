@@ -90,6 +90,23 @@ func (service *SessionLifecycleService) OwnerTransitionParticipant(
 	preserve *DeletionCredentialBinding,
 	operationParticipant ...ownerlifecycle.TransitionParticipant,
 ) ownerlifecycle.TransitionParticipant {
+	return service.ownerTransitionParticipant(preserve, nil, operationParticipant...)
+}
+
+// profileRecoveryParticipant preserves only the freshly exchanged, childless
+// ordinary callback. It is never an exemption for an existing active session.
+func (service *SessionLifecycleService) profileRecoveryParticipant(
+	attempt CallbackAttempt,
+	operationParticipant ownerlifecycle.TransitionParticipant,
+) ownerlifecycle.TransitionParticipant {
+	return service.ownerTransitionParticipant(nil, &attempt, operationParticipant)
+}
+
+func (service *SessionLifecycleService) ownerTransitionParticipant(
+	preserve *DeletionCredentialBinding,
+	recovery *CallbackAttempt,
+	operationParticipant ...ownerlifecycle.TransitionParticipant,
+) ownerlifecycle.TransitionParticipant {
 	return func(
 		ctx context.Context,
 		tx pgx.Tx,
@@ -124,14 +141,37 @@ func (service *SessionLifecycleService) OwnerTransitionParticipant(
 			return err
 		}
 		requestRows.Close()
+		preservedRequest := ""
+		if recovery != nil {
+			bound, ok := callbackAttemptFromContext(ctx)
+			if !ok || bound != *recovery || !recovery.permitsOrdinaryOnboarding() ||
+				!recovery.validFor(before.Owner, recovery.State) || before.State != ownerlifecycle.StateActive ||
+				after.State != ownerlifecycle.StateDeparted || before.Generation != recovery.OwnerGeneration ||
+				before.AuthEpoch != recovery.AuthEpoch {
+				return ErrCallbackAttemptInvalid
+			}
+			command, err := tx.Exec(ctx, `
+				UPDATE oauth_auth_requests SET owner_generation=$6,auth_epoch=$7
+				WHERE state=$1 AND owner_did=$2 AND purpose=$3 AND exchange_attempt_id=$4
+				  AND request_state='exchange_started' AND owner_generation=$5 AND auth_epoch=$8
+			`, recovery.State, recovery.Owner, recovery.Purpose, recovery.AttemptID,
+				recovery.OwnerGeneration, after.Generation, after.AuthEpoch, recovery.AuthEpoch)
+			if err != nil {
+				return err
+			}
+			if command.RowsAffected() != 1 {
+				return ErrCallbackAttemptInvalid
+			}
+			preservedRequest = recovery.State
+		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE oauth_auth_requests
 			SET request_state='revoked',consumed_at=COALESCE(consumed_at,$2),
 			    exchange_finished_at=CASE
 			      WHEN exchange_started_at IS NOT NULL THEN COALESCE(exchange_finished_at,$2)
 			      ELSE exchange_finished_at END
-			WHERE owner_did=$1 AND request_state<>'exchange_ambiguous'
-		`, after.Owner, now); err != nil {
+			WHERE owner_did=$1 AND state<>$3 AND request_state<>'exchange_ambiguous'
+		`, after.Owner, now, preservedRequest); err != nil {
 			return fmt.Errorf("invalidate transition auth requests: %w", err)
 		}
 
@@ -142,19 +182,22 @@ func (service *SessionLifecycleService) OwnerTransitionParticipant(
 		}
 
 		parentRows, err := tx.Query(ctx, `
-			SELECT session_id,lifecycle_state,deletion_operation_id,deletion_credential_generation,auth_epoch
+			SELECT session_id,lifecycle_state,deletion_operation_id,deletion_credential_generation,auth_epoch,
+			       owner_generation,absolute_expires_at
 			FROM oauth_sessions WHERE account_did=$1 ORDER BY session_id FOR UPDATE
 		`, after.Owner)
 		if err != nil {
 			return fmt.Errorf("lock transition OAuth parents: %w", err)
 		}
-		preserved := preserve == nil
+		preserved := preserve == nil && recovery == nil
 		for parentRows.Next() {
 			var sessionID, lifecycleState string
 			var operationID *uuid.UUID
 			var credentialGeneration *int64
 			var authEpoch int64
-			if err := parentRows.Scan(&sessionID, &lifecycleState, &operationID, &credentialGeneration, &authEpoch); err != nil {
+			var ownerGeneration int64
+			var absoluteExpiry time.Time
+			if err := parentRows.Scan(&sessionID, &lifecycleState, &operationID, &credentialGeneration, &authEpoch, &ownerGeneration, &absoluteExpiry); err != nil {
 				parentRows.Close()
 				return err
 			}
@@ -163,6 +206,10 @@ func (service *SessionLifecycleService) OwnerTransitionParticipant(
 					credentialGeneration != nil && *credentialGeneration == preserve.CredentialGeneration &&
 					authEpoch == before.AuthEpoch
 			}
+			if recovery != nil && sessionID == recovery.State {
+				preserved = lifecycleState == "pending_handoff" && operationID == nil && credentialGeneration == nil &&
+					authEpoch == before.AuthEpoch && ownerGeneration == before.Generation && now.Before(absoluteExpiry)
+			}
 		}
 		if err := parentRows.Err(); err != nil {
 			parentRows.Close()
@@ -170,6 +217,9 @@ func (service *SessionLifecycleService) OwnerTransitionParticipant(
 		}
 		parentRows.Close()
 		if !preserved {
+			if recovery != nil {
+				return ErrCallbackAttemptInvalid
+			}
 			return errors.New("deletion credential preservation binding changed")
 		}
 
@@ -192,6 +242,16 @@ func (service *SessionLifecycleService) OwnerTransitionParticipant(
 			return err
 		}
 		childRows.Close()
+		if recovery != nil {
+			var children int
+			if err := tx.QueryRow(ctx, `SELECT count(*) FROM craftsky_sessions
+				WHERE account_did=$1 AND oauth_session_id=$2`, after.Owner, recovery.State).Scan(&children); err != nil {
+				return err
+			}
+			if children != 0 {
+				return ErrCallbackAttemptInvalid
+			}
+		}
 		if preserve != nil {
 			var liveChildren int
 			if err := tx.QueryRow(ctx, `
@@ -256,6 +316,9 @@ func (service *SessionLifecycleService) OwnerTransitionParticipant(
 		if preserve != nil {
 			preservedSession = preserve.SessionID
 		}
+		if recovery != nil {
+			preservedSession = recovery.State
+		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE oauth_sessions
 			SET lifecycle_state='revocation_pending',
@@ -284,6 +347,20 @@ func (service *SessionLifecycleService) OwnerTransitionParticipant(
 			}
 			if command.RowsAffected() != 1 {
 				return errors.New("deletion credential preservation binding changed")
+			}
+		}
+		if recovery != nil {
+			command, err := tx.Exec(ctx, `
+				UPDATE oauth_sessions
+				SET owner_generation=$3,auth_epoch=$4,row_version=row_version+1,updated_at=$5
+				WHERE account_did=$1 AND session_id=$2 AND lifecycle_state='pending_handoff'
+				  AND owner_generation=$6 AND auth_epoch=$7
+			`, after.Owner, recovery.State, after.Generation, after.AuthEpoch, now, before.Generation, before.AuthEpoch)
+			if err != nil {
+				return err
+			}
+			if command.RowsAffected() != 1 {
+				return ErrCallbackAttemptInvalid
 			}
 		}
 		if _, err := tx.Exec(ctx, `

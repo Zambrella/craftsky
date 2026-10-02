@@ -160,7 +160,7 @@ func (s *PostgresAuthStore) quarantineCallbackCredential(
 		return fmt.Errorf("marshal callback credential: %w", err)
 	}
 	expiresAt := eligibleAt.Add(s.cfg.AuthRequestTerminalRetention)
-	err = pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+	err = s.withCallbackCredentialTransaction(ctx, func(tx pgx.Tx) error {
 		var requestPurpose OAuthPurpose
 		var requestState AuthRequestState
 		var requestAttempt uuid.UUID
@@ -220,7 +220,7 @@ func (s *PostgresAuthStore) markCallbackCredentialForCleanup(
 	attemptID uuid.UUID,
 	purpose OAuthPurpose,
 ) error {
-	err := pgx.BeginFunc(ctx, s.pool, func(tx pgx.Tx) error {
+	err := s.withCallbackCredentialTransaction(ctx, func(tx pgx.Tx) error {
 		var credentialStatus string
 		if err := tx.QueryRow(ctx, `
 			SELECT credential.status
@@ -260,6 +260,15 @@ func (s *PostgresAuthStore) markCallbackCredentialForCleanup(
 		return fmt.Errorf("mark callback credential for cleanup: %w", err)
 	}
 	return nil
+}
+
+// Registration quarantines before owner binding; ordinary callbacks already
+// hold the exclusive auth fence and must reuse its connection.
+func (s *PostgresAuthStore) withCallbackCredentialTransaction(ctx context.Context, callback func(pgx.Tx) error) error {
+	if _, ok := callbackAttemptFromContext(ctx); ok {
+		return s.withAuthTransaction(ctx, callback)
+	}
+	return pgx.BeginFunc(ctx, s.pool, callback)
 }
 
 var ErrSessionVersionChanged = errors.New("OAuth session version changed")

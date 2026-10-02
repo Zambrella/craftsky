@@ -168,6 +168,10 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 			}
 		})
 		if err != nil {
+			var staged *profileInitStageError
+			if errors.As(err, &staged) {
+				failureStage = staged.stage
+			}
 			var trustedFailure *TrustedRegistrationFailure
 			if errors.As(err, &trustedFailure) {
 				data, renderErr := trustedRegistrationFailurePageData(
@@ -185,7 +189,7 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 					if h.Logger != nil {
 						h.Logger.Warn("registration callback failed",
 							append(authLogErrorAttrs(runID, "registration.callback", string(trustedFailure.Code)),
-								slog.String("failure_stage", failureStage))...)
+								slog.String("failure_stage", failureStage), slog.String("failure_reason", callbackFailureReason(err)))...)
 					}
 					return
 				}
@@ -193,7 +197,7 @@ func (h *HTTPHandlers) CallbackHandler() http.Handler {
 			if h.Logger != nil {
 				h.Logger.Warn("OAuth callback finalization failed",
 					append(authLogErrorAttrs(runID, "oauth.callback", "finalization"),
-						slog.String("failure_stage", failureStage))...)
+						slog.String("failure_stage", failureStage), slog.String("failure_reason", callbackFailureReason(err)))...)
 			}
 			renderErrorHTML(w, http.StatusBadRequest, "Sign-in could not be completed. Please try again.")
 			return
