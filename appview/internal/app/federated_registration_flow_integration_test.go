@@ -1700,10 +1700,10 @@ func TestProviderRegistrationCompletesSharedOnboardingAndConfirmedHandoff(t *tes
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := owners.Transition(context.Background(), ownerlifecycle.TransitionRequest{
+	if _, err := owners.TransitionWith(context.Background(), ownerlifecycle.TransitionRequest{
 		Owner: owner, ExpectedGeneration: lifecycle.Generation,
-		To: ownerlifecycle.StateActive, Reason: "profileCreated",
-	}); err != nil {
+		To: ownerlifecycle.StateActive, Reason: "profileActivated",
+	}, registrationProfileActivation(t, pool, owners, children)); err != nil {
 		t.Fatal(err)
 	}
 	if err := handoffs.Confirm(context.Background(), exchange.Token, exchange.ReceiptID, "onboarding-device"); err != nil {
@@ -1929,10 +1929,10 @@ func TestProviderRegistrationAcceptsExistingOwnerAsNormalSignIn(t *testing.T) {
 				t.Fatal(err)
 			}
 			if initialState == ownerlifecycle.StateDeparted {
-				if _, err := owners.Transition(context.Background(), ownerlifecycle.TransitionRequest{
+				if _, err := owners.TransitionWith(context.Background(), ownerlifecycle.TransitionRequest{
 					Owner: owner, ExpectedGeneration: 4,
-					To: ownerlifecycle.StateActive, Reason: "profileCreated",
-				}); err != nil {
+					To: ownerlifecycle.StateActive, Reason: "profileActivated",
+				}, registrationProfileActivation(t, pool, owners, children)); err != nil {
 					t.Fatal(err)
 				}
 			}
@@ -2036,10 +2036,10 @@ func TestProviderRegistrationLifecycleAndHandoffAreNeutralAcrossConfiguredOrigin
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := owners.Transition(context.Background(), ownerlifecycle.TransitionRequest{
+			if _, err := owners.TransitionWith(context.Background(), ownerlifecycle.TransitionRequest{
 				Owner: owner, ExpectedGeneration: lifecycle.Generation,
-				To: ownerlifecycle.StateActive, Reason: "profileCreated",
-			}); err != nil {
+				To: ownerlifecycle.StateActive, Reason: "profileActivated",
+			}, registrationProfileActivation(t, pool, owners, children)); err != nil {
 				t.Fatal(err)
 			}
 			if err := handoffs.Confirm(
@@ -2330,4 +2330,13 @@ type registrationOnboardingEffects struct{ calls int }
 func (effects *registrationOnboardingEffects) RefreshCurrentHandle(context.Context, syntax.DID) error {
 	effects.calls++
 	return nil
+}
+
+func registrationProfileActivation(t *testing.T, pool *pgxpool.Pool, owners *ownerlifecycle.Store, children *auth.CraftskySessionStore) ownerlifecycle.TransitionParticipant {
+	t.Helper()
+	sessions, err := auth.NewSessionLifecycleService(auth.SessionLifecycleOptions{Pool: pool, Owners: owners, Sessions: children})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return sessions.ProfileActivationParticipant()
 }

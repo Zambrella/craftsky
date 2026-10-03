@@ -384,11 +384,11 @@ func (service *HandoffService) Confirm(
 				return ErrHandoffInvalid
 			}
 			var parentState string
-			var parentEpoch int64
+			var parentEpoch, parentGeneration int64
 			if err := tx.QueryRow(authCtx, `
-				SELECT lifecycle_state,auth_epoch FROM oauth_sessions
+				SELECT lifecycle_state,auth_epoch,owner_generation FROM oauth_sessions
 				WHERE account_did=$1 AND session_id=$2 FOR UPDATE
-			`, discovery.Owner, discovery.OAuthSessionID).Scan(&parentState, &parentEpoch); err != nil {
+			`, discovery.Owner, discovery.OAuthSessionID).Scan(&parentState, &parentEpoch, &parentGeneration); err != nil {
 				return err
 			}
 			var childState string
@@ -412,7 +412,8 @@ func (service *HandoffService) Confirm(
 			`, receiptID).Scan(&receiptState, &confirmBy); err != nil {
 				return err
 			}
-			if storedDevice != deviceID || parentEpoch != authority.AuthEpoch || childEpoch != authority.AuthEpoch {
+			if storedDevice != deviceID || parentEpoch != authority.AuthEpoch || childEpoch != authority.AuthEpoch ||
+				parentGeneration != authority.Generation {
 				return ErrHandoffInvalid
 			}
 			if receiptState == "confirmed" && exchangeState == "confirmed" &&

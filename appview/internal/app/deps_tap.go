@@ -96,7 +96,7 @@ func newTapDependencies(
 		after ownerlifecycle.Lifecycle,
 	) error {
 		if after.State == ownerlifecycle.StateActive {
-			return nil
+			return authCapability.sessionLifecycle.ProfileActivationParticipant()(ctx, tx, before, after)
 		}
 		return profileDepartureParticipant(ctx, tx, before, after)
 	}
