@@ -308,6 +308,27 @@ database readiness only; it cannot detect a live but under-delivering firehose.
 The persistent AppView disk makes rollback stop-before-start, so expect a short
 availability interruption.
 
+## Revoke a user's sessions
+
+From the AppView service shell, run the existing logout-all flow for one exact
+user DID:
+
+```sh
+/app/cli --env prod sessions revoke 'did:plc:...'
+```
+
+This invalidates ordinary CraftSky sessions on every device, advances the
+owner's authentication epoch, and queues OAuth credential and push cleanup.
+The command reports that cleanup was queued; the running AppView workers
+complete it asynchronously. An eligible credential bound to an accepted account
+deletion remains available to its deletion worker. The user must sign in again.
+No PDS records or account membership are deleted.
+
+The command requires database access and the normal environment configuration;
+it does not require a user's bearer token. Use it only for an explicitly
+authorized session revocation. Do not delete OAuth rows directly, because the
+cleanup worker needs their credentials to revoke upstream access.
+
 ## PostgreSQL recovery
 
 For billing identity incidents, follow [subscription-billing-recovery.md](subscription-billing-recovery.md) before choosing a database recovery action. Restoring an old production snapshot can roll back other customers' billing state.
