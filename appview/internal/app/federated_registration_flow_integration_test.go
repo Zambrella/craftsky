@@ -1362,7 +1362,10 @@ func TestProviderRegistrationCallbackDeadlineCancelsDependenciesWithoutLateActiv
 				}
 			}
 			clients.directory = directory
-			flow, _ := newRealRegistrationFlowWithTimeouts(t, pool, clients, 5*time.Second, 25*time.Millisecond)
+			// The callback budget also covers PostgreSQL transactions before the
+			// remote dependency is reached. Allow CI race builds to complete those
+			// transactions; the dependency still blocks until the deadline expires.
+			flow, _ := newRealRegistrationFlowWithTimeouts(t, pool, clients, 5*time.Second, time.Second)
 			if _, err := flow.StartRegistration(context.Background(), auth.HandoffVerifiedLink, "", "deadline-device"); err != nil {
 				t.Fatal(err)
 			}
