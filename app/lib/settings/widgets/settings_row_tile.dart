@@ -37,7 +37,7 @@ class SettingsRowTile extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 48),
         child: ListTile(
-          leading: IconTheme(
+          leading: IconTheme.merge(
             data: IconThemeData(color: foreground),
             child: locked ? PlusActionIcon(icon: leading) : Icon(leading),
           ),
