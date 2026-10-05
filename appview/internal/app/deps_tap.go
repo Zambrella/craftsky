@@ -164,7 +164,7 @@ func newTapDependencies(
 		projectionWorker: projectionWorker,
 		repositoryWorker: repositoryWorker,
 		quarantineWorker: quarantineWorker,
-		consumer:         consumer,
+		consumer:         tap.WithTelemetry(consumer, repositoryTracker),
 		removeMissingProfile: func(ctx context.Context, tx pgx.Tx, before, after ownerlifecycle.Lifecycle) error {
 			if err := profileDeletion.HardDeleteByActor(ctx, tx, after.Owner); err != nil {
 				return err
