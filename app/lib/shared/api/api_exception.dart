@@ -16,6 +16,7 @@ final class ApiFailureDetails {
     this.appViewMessage,
     this.requestId,
     this.endpointCategory,
+    this.fields = const {},
   });
 
   final int? statusCode;
@@ -26,6 +27,7 @@ final class ApiFailureDetails {
   final String? appViewMessage;
   final String? requestId;
   final String? endpointCategory;
+  final Map<String, String> fields;
 }
 
 /// HTTP 401. The global 401 handler in `_ErrorMappingInterceptor`

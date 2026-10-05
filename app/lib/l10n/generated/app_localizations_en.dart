@@ -1730,6 +1730,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Couldn\'t save your profile or business details.';
 
   @override
+  String get editProfileBusinessRefreshedError =>
+      'Your business details changed elsewhere. Your edits have been kept; review the updated details and save again.';
+
+  @override
+  String get editProfileBusinessProductsInvalidError =>
+      'Check your featured products in Settings before saving your business details again.';
+
+  @override
   String get editProfileBusinessConflictError =>
       'Your business details changed elsewhere. Reload before saving them again.';
 

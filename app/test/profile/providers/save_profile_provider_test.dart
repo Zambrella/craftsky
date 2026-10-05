@@ -68,7 +68,12 @@ void main() {
     expect(profileRepository.updateCalls, 0);
     expect(businessRepository.putCalls, 1);
     expect(businessRepository.expectedCids, [_businessProfile.cid]);
-    expect(businessRepository.bodies.single['products'], hasLength(1));
+    expect(businessRepository.bodies.single, isNot(contains('products')));
+    expect(businessRepository.bodies.single['preserveProducts'], isTrue);
+    expect(
+      businessRepository.bodies.single['preserveUnknownCatalogValues'],
+      isTrue,
+    );
     expect(result?.isFullSuccess, isTrue);
     expect(
       container

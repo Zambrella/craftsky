@@ -44,6 +44,33 @@ void main() {
       );
     });
 
+    test('retains string field validation errors for 4xx responses only', () {
+      const ErrorMappingInterceptor().onError(
+        _ex(
+          status: 422,
+          data: {
+            'error': 'validation_failed',
+            'fields': {'tagline': 'is invalid', 'bad': 42},
+          },
+        ),
+        handler,
+      );
+      expect((handler.error! as ApiBadRequest).details.fields, {
+        'tagline': 'is invalid',
+      });
+      final server = _CapturingHandler();
+      const ErrorMappingInterceptor().onError(
+        _ex(
+          status: 500,
+          data: {
+            'fields': {'tagline': 'private internals'},
+          },
+        ),
+        server,
+      );
+      expect((server.error! as ApiServerError).details.fields, isEmpty);
+    });
+
     test('400 with no error field → ApiBadRequest(null)', () {
       const ErrorMappingInterceptor().onError(
         _ex(status: 400, data: <String, dynamic>{}),
