@@ -399,11 +399,20 @@ class _NotificationFollowButtonState
   Future<void> _toggle() async {
     if (_isBusy || !_isOwnerCurrent()) return;
     setState(() => _isBusy = true);
+    // Keep auto-disposed providers alive across the profile read and mutation.
+    final profileSubscription = ref.listenManual(
+      userProfileProvider(widget.actor.did),
+      (_, _) {},
+    );
+    final followSubscription = ref.listenManual(
+      toggleFollowProfileProvider,
+      (_, _) {},
+    );
     try {
       final profile = await ref.read(
         userProfileProvider(widget.actor.did).future,
       );
-      if (!_isOwnerCurrent()) return;
+      if (!mounted || !_isOwnerCurrent()) return;
       await ref
           .read(toggleFollowProfileProvider.notifier)
           .toggle(cacheKey: widget.actor.did, profile: profile);
@@ -420,6 +429,8 @@ class _NotificationFollowButtonState
         AppLocalizations.of(context).profileFollowToggleError,
       );
     } finally {
+      profileSubscription.close();
+      followSubscription.close();
       if (mounted && _isOwnerCurrent()) {
         setState(() => _isBusy = false);
       }
