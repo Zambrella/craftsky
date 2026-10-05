@@ -10,6 +10,7 @@ import 'package:craftsky_app/profile/models/profile.dart';
 import 'package:craftsky_app/profile/pages/edit_profile_dialog.dart';
 import 'package:craftsky_app/profile/providers/profile_repository_provider.dart';
 import 'package:craftsky_app/profile/providers/user_profile_provider.dart';
+import 'package:craftsky_app/shared/api/api_exception.dart';
 import 'package:craftsky_app/shared/atproto/identifiers.dart';
 import 'package:craftsky_app/shared/link/external_link.dart';
 import 'package:craftsky_app/shared/messaging/messenger_scope.dart';
@@ -738,6 +739,93 @@ void main() {
       expect(businessRepository.putCalls, 1);
     });
 
+    testWidgets(
+      'business conflict refresh keeps edits and adopts untouched newer fields',
+      (tester) async {
+        var latest = _seedProfile.copyWith(
+          accountType: AccountType.business,
+          business: _businessDeclaration,
+        );
+        final repo = FakeProfileRepository(
+          onFetch: (_) async => latest,
+          onFetchMe: () async => latest,
+        );
+        final business = _RecordingBusinessRepository(
+          firstError: const ApiBadRequest('pds_record_conflict'),
+        );
+        await _pumpEditDialog(tester, repo: repo, businessRepository: business);
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Thoughtful classes'),
+          'My edited tagline',
+        );
+        await tester.pump();
+        latest = latest.copyWith(
+          business: _businessDeclaration.copyWith(
+            cid: Cid.parse(
+              'bafyreifbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+            ),
+            hoursNote: 'New hours elsewhere',
+          ),
+        );
+        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.pumpAndSettle();
+        expect(
+          find.widgetWithText(TextField, 'My edited tagline'),
+          findsOneWidget,
+        );
+        expect(
+          find.widgetWithText(TextField, 'New hours elsewhere'),
+          findsOneWidget,
+        );
+        expect(
+          find.text(
+            'Your business details changed elsewhere. '
+            'Your edits have been kept; review the updated details '
+            'and save again.',
+          ),
+          findsOneWidget,
+        );
+        expect(business.putCalls, 1);
+        await tester.tap(find.widgetWithText(TextButton, 'Save'));
+        await tester.pumpAndSettle();
+        expect(business.expectedCids, [
+          _businessDeclaration.cid,
+          latest.business!.cid,
+        ]);
+        expect(business.bodies.last['tagline'], 'My edited tagline');
+        expect(business.bodies.last['hoursNote'], 'New hours elsewhere');
+        expect(business.operationKeys.toSet(), hasLength(2));
+        expect(find.text('Open'), findsOneWidget);
+      },
+    );
+
+    testWidgets('business validation errors identify the field', (
+      tester,
+    ) async {
+      final profile = _seedProfile.copyWith(
+        accountType: AccountType.business,
+        business: _businessDeclaration,
+      );
+      final repo = FakeProfileRepository(onFetch: (_) async => profile);
+      final business = _RecordingBusinessRepository(
+        firstError: const ApiBadRequest(
+          'validation_failed',
+          details: ApiFailureDetails(fields: {'tagline': 'is invalid'}),
+        ),
+      );
+      await _pumpEditDialog(tester, repo: repo, businessRepository: business);
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Thoughtful classes'),
+        'Edited tagline',
+      );
+      await tester.pump();
+      await tester.tap(find.widgetWithText(TextButton, 'Save'));
+      await tester.pumpAndSettle();
+      expect(find.text('Tagline: is invalid'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Edited tagline'), findsOneWidget);
+      expect(find.text('Open'), findsNothing);
+    });
+
     testWidgets('inverse partial save retries only the business record', (
       tester,
     ) async {
@@ -983,9 +1071,13 @@ final _businessDeclaration = BusinessProfile(
 
 final class _RecordingBusinessRepository extends Fake
     implements BusinessRepository {
-  _RecordingBusinessRepository({this.failFirst = false});
+  _RecordingBusinessRepository({this.failFirst = false, this.firstError});
 
   final bool failFirst;
+  final Exception? firstError;
+  final expectedCids = <Cid?>[];
+  final bodies = <Map<String, dynamic>>[];
+  final operationKeys = <String>[];
   int putCalls = 0;
 
   @override
@@ -995,6 +1087,10 @@ final class _RecordingBusinessRepository extends Fake
     required Cid? expectedCid,
   }) async {
     putCalls++;
+    expectedCids.add(expectedCid);
+    bodies.add(body);
+    operationKeys.add(operationKey);
+    if (putCalls == 1 && firstError != null) throw firstError!;
     if (failFirst && putCalls == 1) throw Exception('business failed');
     return RecordMutationResult(
       cid: 'bafyreifbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',

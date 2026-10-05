@@ -1553,6 +1553,10 @@
   "editProfileBothSaveError": "Couldn't save your profile or business details.",
   "@editProfileBothSaveError": { "description": "Snackbar shown when both records in a combined profile save fail." },
 
+  "editProfileBusinessRefreshedError": "Your business details changed elsewhere. Your edits have been kept; review the updated details and save again.",
+  "@editProfileBusinessRefreshedError": { "description": "Shown after fetching a newer business profile following a save conflict." },
+  "editProfileBusinessProductsInvalidError": "Check your featured products in Settings before saving your business details again.",
+  "@editProfileBusinessProductsInvalidError": { "description": "Shown when the server rejects featured products during a business save." },
   "editProfileBusinessConflictError": "Your business details changed elsewhere. Reload before saving them again.",
   "@editProfileBusinessConflictError": { "description": "Snackbar shown when the business declaration CID is stale. Full reload conflict UX is implemented later." },
 

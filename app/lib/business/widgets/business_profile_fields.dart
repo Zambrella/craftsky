@@ -88,6 +88,25 @@ class BusinessProfileFields extends StatelessWidget {
     );
   }
 
+  static Map<String, dynamic> valuesFrom(BusinessDeclarationDraft draft) => {
+    BusinessProfileFieldNames.types: draft.businessTypes
+        .where((value) => value.known)
+        .map((value) => value.value)
+        .toList(),
+    BusinessProfileFieldNames.offerings: draft.offerings
+        .where((value) => value.known)
+        .map((value) => value.value)
+        .toList(),
+    BusinessProfileFieldNames.tagline: draft.tagline ?? '',
+    BusinessProfileFieldNames.hours: draft.hoursNote ?? '',
+    BusinessProfileFieldNames.serviceArea: draft.serviceArea ?? '',
+    BusinessProfileFieldNames.country: draft.location?.country ?? '',
+    BusinessProfileFieldNames.locality: draft.location?.locality ?? '',
+    BusinessProfileFieldNames.actionType: draft.primaryAction?.type ?? '',
+    BusinessProfileFieldNames.actionDestination:
+        draft.primaryAction?.destination ?? '',
+  };
+
   static String? _trimmedOrNull(String? value) {
     final trimmed = value?.trim();
     return trimmed == null || trimmed.isEmpty ? null : trimmed;

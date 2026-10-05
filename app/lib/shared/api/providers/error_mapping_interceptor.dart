@@ -74,6 +74,19 @@ class ErrorMappingInterceptor extends Interceptor {
       appViewMessage: appViewMessage,
       requestId: requestId,
       endpointCategory: endpointCategory,
+      fields:
+          statusCode != null &&
+              statusCode >= 400 &&
+              statusCode < 500 &&
+              data is Map &&
+              data['fields'] is Map &&
+              endpointCategory != 'appview.auth.registrations'
+          ? Map.unmodifiable({
+              for (final entry in (data['fields'] as Map).entries)
+                if (entry.key is String && entry.value is String)
+                  entry.key as String: entry.value as String,
+            })
+          : const {},
     );
   }
 

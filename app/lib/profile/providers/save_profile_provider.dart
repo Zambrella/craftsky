@@ -87,7 +87,15 @@ class SaveProfile extends _$SaveProfile {
         : jsonEncode(ordinaryBody);
     final businessBody = businessChanged
         ? Map<String, dynamic>.from(
-            jsonDecode(jsonEncode(businessDraft!.toJson())) as Map,
+            jsonDecode(
+                  jsonEncode(
+                    businessDraft!.toJson(
+                      preserveProducts: true,
+                      preserveUnknownCatalogValues: true,
+                    ),
+                  ),
+                )
+                as Map,
           )
         : null;
     const businessEndpoint = '/v1/profiles/me/business';
@@ -215,7 +223,10 @@ class SaveProfile extends _$SaveProfile {
       final reconciliation = PdsFixedKeyReconciliation(
         uri:
             'at://${currentProfile!.did}/social.craftsky.business.profile/self',
-        controlledContent: businessProfileControlledContent(businessBody!),
+        controlledContent: businessProfileProjection(
+          currentProfile.did,
+          accepted,
+        ).content,
       );
       if (!commandController.markAccepted(
         commandToken!,

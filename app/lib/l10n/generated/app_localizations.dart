@@ -3100,6 +3100,18 @@ abstract class AppLocalizations {
   /// **'Couldn\'t save your profile or business details.'**
   String get editProfileBothSaveError;
 
+  /// Shown after fetching a newer business profile following a save conflict.
+  ///
+  /// In en, this message translates to:
+  /// **'Your business details changed elsewhere. Your edits have been kept; review the updated details and save again.'**
+  String get editProfileBusinessRefreshedError;
+
+  /// Shown when the server rejects featured products during a business save.
+  ///
+  /// In en, this message translates to:
+  /// **'Check your featured products in Settings before saving your business details again.'**
+  String get editProfileBusinessProductsInvalidError;
+
   /// Snackbar shown when the business declaration CID is stale. Full reload conflict UX is implemented later.
   ///
   /// In en, this message translates to:

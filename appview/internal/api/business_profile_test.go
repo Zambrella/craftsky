@@ -363,6 +363,7 @@ func TestBusinessProfilePutUsesStrictCamelCaseValidation(t *testing.T) {
 		body string
 		code string
 	}{
+		{name: "preserve and replace products", body: `{"preserveProducts":true,"products":[]}`, code: "validation_failed"},
 		{name: "snake case", body: `{"business_types":[]}`, code: "unexpected_field"},
 		{name: "unknown field", body: `{"ownerDid":"did:plc:other"}`, code: "unexpected_field"},
 		{name: "invalid known value", body: `{"businessTypes":["unknown"]}`, code: "validation_failed"},
@@ -448,3 +449,20 @@ func assertBusinessProfileEffectScope(
 }
 
 var _ pdseffects.EffectExecutor = (*businessProfileEffects)(nil)
+
+func TestBusinessDetailPreservationAlsoWorksWithoutCommandExecutor(t *testing.T) {
+	effects := &businessProfileEffects{cid: businessProfileCID1, record: map[string]any{
+		"$type": "social.craftsky.business.profile", "businessTypes": []any{"teacher", "future-type"},
+		"products": []any{map[string]any{"title": "Legacy product", "uri": "https://example.com/legacy"}},
+	}}
+	handler := api.PutBusinessProfileHandler(func(context.Context, syntax.DID, string) (pdseffects.EffectExecutor, error) { return effects, nil })
+	response := serveBusinessProfileRequest(t, handler, http.MethodPut, `{"businessTypes":["dyer"],"tagline":"After","preserveProducts":true,"preserveUnknownCatalogValues":true}`, businessProfileCID1)
+	if response.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
+	}
+	types, _ := json.Marshal(effects.record["businessTypes"])
+	products, _ := json.Marshal(effects.record["products"])
+	if string(types) != `["dyer","future-type"]` || string(products) != `[{"title":"Legacy product","uri":"https://example.com/legacy"}]` {
+		t.Fatalf("record=%#v", effects.record)
+	}
+}
