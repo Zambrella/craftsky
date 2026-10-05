@@ -3,6 +3,8 @@ package business
 import (
 	"errors"
 	"time"
+	// Embed IANA timezone data for event validation in the minimal Docker runtime.
+	_ "time/tzdata"
 )
 
 var ErrInvalidEventTime = errors.New("business: invalid event time")
