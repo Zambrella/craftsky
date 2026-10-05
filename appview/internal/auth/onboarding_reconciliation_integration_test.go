@@ -279,7 +279,11 @@ func TestOAuthMissingProfileReconciliationCompletesSameSignIn(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err = f.owners.Transition(context.Background(), ownerlifecycle.TransitionRequest{Owner: f.owner, ExpectedGeneration: 3, To: ownerlifecycle.StateActive, Reason: "profileActivated"}); err != nil {
+	sessions, err := auth.NewSessionLifecycleService(auth.SessionLifecycleOptions{Pool: f.pool, Owners: f.owners, Sessions: f.children})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = f.owners.TransitionWith(context.Background(), ownerlifecycle.TransitionRequest{Owner: f.owner, ExpectedGeneration: 3, To: ownerlifecycle.StateActive, Reason: "profileActivated"}, sessions.ProfileActivationParticipant()); err != nil {
 		t.Fatal(err)
 	}
 	if err = f.handoffs.Confirm(context.Background(), exchange.Token, exchange.ReceiptID, "recovery-device"); err != nil {
