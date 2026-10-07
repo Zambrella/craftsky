@@ -1,0 +1,1064 @@
+{
+  "schemaVersion": 2,
+  "appName": "CraftSky",
+  "themeId": "craftsky-paper",
+  "fontId": "template-default",
+  "connectedCanvas": true,
+  "locales": [
+    "en"
+  ],
+  "locale": "en",
+  "device": "feature-graphic",
+  "orientation": "portrait",
+  "appIcon": "/app-icon.png",
+  "slidesByDevice": {
+    "iphone": [
+      {
+        "id": "craftsky-2",
+        "layout": "device-bottom",
+        "label": {
+          "en": "NEWEST FIRST · NO ADS"
+        },
+        "headline": {
+          "en": "Your feed."
+        },
+        "screenshot": "/screenshots/apple/iphone/en/projects.png",
+        "backgroundColor": "#1535D6",
+        "inverted": true,
+        "typography": {
+          "labelScale": 1.05,
+          "headlineScale": 1.0540184453227932
+        },
+        "transforms": {
+          "caption": {
+            "x": 100,
+            "y": 230,
+            "width": 1120,
+            "height": 420
+          },
+          "device": {
+            "x": 145,
+            "y": 720,
+            "width": 1030,
+            "height": 2098,
+            "rotation": 3
+          }
+        },
+        "textElements": [
+          {
+            "id": "emphasis",
+            "text": {
+              "en": "Your pace."
+            },
+            "transform": {
+              "x": 84.16,
+              "y": 419,
+              "width": 1151.68,
+              "height": 154.56,
+              "rotation": 0,
+              "zIndex": 30
+            },
+            "fontSize": 128,
+            "fontWeight": 800,
+            "color": "#F5EFE4",
+            "align": "left"
+          }
+        ],
+        "imageElements": [
+          {
+            "id": "stitch",
+            "src": "/brand/stitch-light.svg",
+            "transform": {
+              "x": 95,
+              "y": 575,
+              "width": 790,
+              "height": 65,
+              "rotation": -2,
+              "zIndex": 25
+            },
+            "fit": "contain"
+          }
+        ]
+      },
+      {
+        "id": "craftsky-1",
+        "layout": "hero",
+        "label": {
+          "en": "SHARE YOUR MAKES"
+        },
+        "headline": {
+          "en": "A home for"
+        },
+        "screenshot": "/screenshots/apple/iphone/en/feed.png",
+        "backgroundColor": "#F5EFE4",
+        "inverted": false,
+        "typography": {
+          "labelScale": 1.05,
+          "headlineScale": 1.0540184453227932
+        },
+        "transforms": {
+          "caption": {
+            "x": 100,
+            "y": 230,
+            "width": 1120,
+            "height": 420
+          },
+          "device": {
+            "x": 145,
+            "y": 720,
+            "width": 1030,
+            "height": 2098,
+            "rotation": -4
+          }
+        },
+        "textElements": [
+          {
+            "id": "emphasis",
+            "text": {
+              "en": "your makes."
+            },
+            "transform": {
+              "x": 84.16,
+              "y": 419,
+              "width": 1151.68,
+              "height": 154.56,
+              "rotation": 0,
+              "zIndex": 30
+            },
+            "fontSize": 128,
+            "fontWeight": 800,
+            "color": "#1535D6",
+            "align": "left"
+          }
+        ],
+        "imageElements": [
+          {
+            "id": "stitch",
+            "src": "/brand/stitch.svg",
+            "transform": {
+              "x": 95,
+              "y": 575,
+              "width": 790,
+              "height": 65,
+              "rotation": -2,
+              "zIndex": 25
+            },
+            "fit": "contain"
+          }
+        ]
+      },
+      {
+        "id": "craftsky-3",
+        "layout": "hero",
+        "label": {
+          "en": "THE DETAILS MATTER"
+        },
+        "headline": {
+          "en": "Every make"
+        },
+        "screenshot": "/screenshots/apple/iphone/en/details.png",
+        "backgroundColor": "#C9B8E8",
+        "inverted": false,
+        "typography": {
+          "labelScale": 1.05,
+          "headlineScale": 1.0540184453227932
+        },
+        "transforms": {
+          "caption": {
+            "x": 100,
+            "y": 230,
+            "width": 1120,
+            "height": 420,
+            "rotation": 0,
+            "zIndex": 4
+          },
+          "device": {
+            "x": 145,
+            "y": 720,
+            "width": 1030,
+            "height": 2098.297455968689,
+            "rotation": 0
+          }
+        },
+        "textElements": [
+          {
+            "id": "emphasis",
+            "text": {
+              "en": "has a story."
+            },
+            "transform": {
+              "x": 84.16,
+              "y": 419,
+              "width": 1151.68,
+              "height": 154.56,
+              "rotation": 0,
+              "zIndex": 30
+            },
+            "fontSize": 128,
+            "fontWeight": 800,
+            "color": "#1535D6",
+            "align": "left"
+          }
+        ],
+        "imageElements": [
+          {
+            "id": "stitch",
+            "src": "/brand/stitch.svg",
+            "transform": {
+              "x": 95,
+              "y": 575,
+              "width": 790,
+              "height": 65,
+              "rotation": -2,
+              "zIndex": 25
+            },
+            "fit": "contain"
+          }
+        ]
+      },
+      {
+        "id": "craftsky-4",
+        "layout": "hero",
+        "label": {
+          "en": "CRAFTS · MAKERS · PROJECTS"
+        },
+        "headline": {
+          "en": "Find your"
+        },
+        "screenshot": "/screenshots/apple/iphone/en/search.png",
+        "backgroundColor": "#F5EFE4",
+        "inverted": false,
+        "typography": {
+          "labelScale": 1.05,
+          "headlineScale": 1.0540184453227932
+        },
+        "transforms": {
+          "caption": {
+            "x": 100,
+            "y": 230,
+            "width": 1120,
+            "height": 420
+          },
+          "device": {
+            "x": 145,
+            "y": 720,
+            "width": 1030,
+            "height": 2098,
+            "rotation": -3
+          }
+        },
+        "textElements": [
+          {
+            "id": "emphasis",
+            "text": {
+              "en": "next spark."
+            },
+            "transform": {
+              "x": 84.16,
+              "y": 419,
+              "width": 1151.68,
+              "height": 154.56,
+              "rotation": 0,
+              "zIndex": 30
+            },
+            "fontSize": 128,
+            "fontWeight": 800,
+            "color": "#1535D6",
+            "align": "left"
+          }
+        ],
+        "imageElements": [
+          {
+            "id": "stitch",
+            "src": "/brand/stitch.svg",
+            "transform": {
+              "x": 95,
+              "y": 575,
+              "width": 790,
+              "height": 65,
+              "rotation": -2,
+              "zIndex": 25
+            },
+            "fit": "contain"
+          }
+        ]
+      },
+      {
+        "id": "craftsky-5",
+        "layout": "device-bottom",
+        "label": {
+          "en": "A COMMUNITY FOR CRAFTERS"
+        },
+        "headline": {
+          "en": "Talk craft"
+        },
+        "screenshot": "/screenshots/apple/iphone/en/conversation.png",
+        "backgroundColor": "#F7D46A",
+        "inverted": false,
+        "typography": {
+          "labelScale": 1.05,
+          "headlineScale": 1.0540184453227932
+        },
+        "transforms": {
+          "caption": {
+            "x": 100,
+            "y": 230,
+            "width": 1120,
+            "height": 420
+          },
+          "device": {
+            "x": 145,
+            "y": 720,
+            "width": 1030,
+            "height": 2098,
+            "rotation": 3
+          }
+        },
+        "textElements": [
+          {
+            "id": "emphasis",
+            "text": {
+              "en": "with your people."
+            },
+            "transform": {
+              "x": 84.16,
+              "y": 419,
+              "width": 1151.68,
+              "height": 154.56,
+              "rotation": 0,
+              "zIndex": 30
+            },
+            "fontSize": 128,
+            "fontWeight": 800,
+            "color": "#1535D6",
+            "align": "left"
+          }
+        ],
+        "imageElements": [
+          {
+            "id": "stitch",
+            "src": "/brand/stitch.svg",
+            "transform": {
+              "x": 95,
+              "y": 575,
+              "width": 790,
+              "height": 65,
+              "rotation": -2,
+              "zIndex": 25
+            },
+            "fit": "contain"
+          }
+        ]
+      }
+    ],
+    "android": [
+      {
+        "id": "android-1",
+        "layout": "device-bottom",
+        "label": {
+          "en": "NEWEST FIRST · NO ADS"
+        },
+        "headline": {
+          "en": "Your feed."
+        },
+        "screenshot": "/screenshots/android/phone/en/projects.png",
+        "backgroundColor": "#1535D6",
+        "inverted": true,
+        "typography": {
+          "labelScale": 1.05,
+          "headlineScale": 1.0540184453227932
+        },
+        "transforms": {
+          "caption": {
+            "x": 81.81818181818183,
+            "y": 120,
+            "width": 916.3636363636364,
+            "height": 343.6363636363637
+          },
+          "device": {
+            "x": 230,
+            "y": 520,
+            "width": 620,
+            "height": 1348.3916083916083,
+            "rotation": 2
+          }
+        },
+        "textElements": [
+          {
+            "id": "emphasis",
+            "text": {
+              "en": "Your pace."
+            },
+            "transform": {
+              "x": 68.85818181818183,
+              "y": 274.64618181818184,
+              "width": 942.2836363636363,
+              "height": 126.45818181818183,
+              "rotation": 0,
+              "zIndex": 30
+            },
+            "fontSize": 104.72727272727273,
+            "fontWeight": 800,
+            "color": "#F5EFE4",
+            "align": "left"
+          }
+        ],
+        "imageElements": [
+          {
+            "id": "stitch",
+            "src": "/brand/stitch-light.svg",
+            "transform": {
+              "x": 77.72727272727273,
+              "y": 396.32618181818185,
+              "width": 646.3636363636364,
+              "height": 53.18181818181819,
+              "rotation": -2,
+              "zIndex": 25
+            },
+            "fit": "contain"
+          }
+        ]
+      },
+      {
+        "id": "android-2",
+        "layout": "hero",
+        "label": {
+          "en": "SHARE YOUR MAKES"
+        },
+        "headline": {
+          "en": "A home for"
+        },
+        "screenshot": "/screenshots/android/phone/en/feed.png",
+        "backgroundColor": "#F5EFE4",
+        "inverted": false,
+        "typography": {
+          "labelScale": 1.05,
+          "headlineScale": 1.0540184453227932
+        },
+        "transforms": {
+          "caption": {
+            "x": 81.81818181818183,
+            "y": 120,
+            "width": 916.3636363636364,
+            "height": 343.6363636363637
+          },
+          "device": {
+            "x": 230,
+            "y": 520,
+            "width": 620,
+            "height": 1348.3916083916083,
+            "rotation": -2
+          }
+        },
+        "textElements": [
+          {
+            "id": "emphasis",
+            "text": {
+              "en": "your makes."
+            },
+            "transform": {
+              "x": 68.85818181818183,
+              "y": 274.64618181818184,
+              "width": 942.2836363636363,
+              "height": 126.45818181818183,
+              "rotation": 0,
+              "zIndex": 30
+            },
+            "fontSize": 104.72727272727273,
+            "fontWeight": 800,
+            "color": "#1535D6",
+            "align": "left"
+          }
+        ],
+        "imageElements": [
+          {
+            "id": "stitch",
+            "src": "/brand/stitch.svg",
+            "transform": {
+              "x": 77.72727272727273,
+              "y": 396.32618181818185,
+              "width": 646.3636363636364,
+              "height": 53.18181818181819,
+              "rotation": -2,
+              "zIndex": 25
+            },
+            "fit": "contain"
+          }
+        ]
+      },
+      {
+        "id": "android-3",
+        "layout": "hero",
+        "label": {
+          "en": "THE DETAILS MATTER"
+        },
+        "headline": {
+          "en": "Every make"
+        },
+        "screenshot": "/screenshots/android/phone/en/details.png",
+        "backgroundColor": "#C9B8E8",
+        "inverted": false,
+        "typography": {
+          "labelScale": 1.05,
+          "headlineScale": 1.0540184453227932
+        },
+        "transforms": {
+          "caption": {
+            "x": 81.81818181818183,
+            "y": 120,
+            "width": 916.3636363636364,
+            "height": 343.6363636363637
+          },
+          "device": {
+            "x": 230,
+            "y": 520,
+            "width": 620,
+            "height": 1348.3916083916083,
+            "rotation": 0
+          }
+        },
+        "textElements": [
+          {
+            "id": "emphasis",
+            "text": {
+              "en": "has a story."
+            },
+            "transform": {
+              "x": 68.85818181818183,
+              "y": 274.64618181818184,
+              "width": 942.2836363636363,
+              "height": 126.45818181818183,
+              "rotation": 0,
+              "zIndex": 30
+            },
+            "fontSize": 104.72727272727273,
+            "fontWeight": 800,
+            "color": "#1535D6",
+            "align": "left"
+          }
+        ],
+        "imageElements": [
+          {
+            "id": "stitch",
+            "src": "/brand/stitch.svg",
+            "transform": {
+              "x": 77.72727272727273,
+              "y": 396.32618181818185,
+              "width": 646.3636363636364,
+              "height": 53.18181818181819,
+              "rotation": -2,
+              "zIndex": 25
+            },
+            "fit": "contain"
+          }
+        ]
+      },
+      {
+        "id": "android-4",
+        "layout": "hero",
+        "label": {
+          "en": "CRAFTS · MAKERS · PROJECTS"
+        },
+        "headline": {
+          "en": "Find your"
+        },
+        "screenshot": "/screenshots/android/phone/en/search.png",
+        "backgroundColor": "#F5EFE4",
+        "inverted": false,
+        "typography": {
+          "labelScale": 1.05,
+          "headlineScale": 1.0540184453227932
+        },
+        "transforms": {
+          "caption": {
+            "x": 81.81818181818183,
+            "y": 120,
+            "width": 916.3636363636364,
+            "height": 343.6363636363637
+          },
+          "device": {
+            "x": 230,
+            "y": 520,
+            "width": 620,
+            "height": 1348.3916083916083,
+            "rotation": -2
+          }
+        },
+        "textElements": [
+          {
+            "id": "emphasis",
+            "text": {
+              "en": "next spark."
+            },
+            "transform": {
+              "x": 68.85818181818183,
+              "y": 274.64618181818184,
+              "width": 942.2836363636363,
+              "height": 126.45818181818183,
+              "rotation": 0,
+              "zIndex": 30
+            },
+            "fontSize": 104.72727272727273,
+            "fontWeight": 800,
+            "color": "#1535D6",
+            "align": "left"
+          }
+        ],
+        "imageElements": [
+          {
+            "id": "stitch",
+            "src": "/brand/stitch.svg",
+            "transform": {
+              "x": 77.72727272727273,
+              "y": 396.32618181818185,
+              "width": 646.3636363636364,
+              "height": 53.18181818181819,
+              "rotation": -2,
+              "zIndex": 25
+            },
+            "fit": "contain"
+          }
+        ]
+      },
+      {
+        "id": "android-5",
+        "layout": "device-bottom",
+        "label": {
+          "en": "A COMMUNITY FOR CRAFTERS"
+        },
+        "headline": {
+          "en": "Talk craft"
+        },
+        "screenshot": "/screenshots/android/phone/en/conversation.png",
+        "backgroundColor": "#F7D46A",
+        "inverted": false,
+        "typography": {
+          "labelScale": 1.05,
+          "headlineScale": 1.0540184453227932
+        },
+        "transforms": {
+          "caption": {
+            "x": 81.81818181818183,
+            "y": 120,
+            "width": 916.3636363636364,
+            "height": 343.6363636363637
+          },
+          "device": {
+            "x": 230,
+            "y": 520,
+            "width": 620,
+            "height": 1348.3916083916083,
+            "rotation": 2
+          }
+        },
+        "textElements": [
+          {
+            "id": "emphasis",
+            "text": {
+              "en": "with your people."
+            },
+            "transform": {
+              "x": 68.85818181818183,
+              "y": 274.64618181818184,
+              "width": 942.2836363636363,
+              "height": 126.45818181818183,
+              "rotation": 0,
+              "zIndex": 30
+            },
+            "fontSize": 104.72727272727273,
+            "fontWeight": 800,
+            "color": "#1535D6",
+            "align": "left"
+          }
+        ],
+        "imageElements": [
+          {
+            "id": "stitch",
+            "src": "/brand/stitch.svg",
+            "transform": {
+              "x": 77.72727272727273,
+              "y": 396.32618181818185,
+              "width": 646.3636363636364,
+              "height": 53.18181818181819,
+              "rotation": -2,
+              "zIndex": 25
+            },
+            "fit": "contain"
+          }
+        ]
+      }
+    ],
+    "ipad": [
+      {
+        "id": "ipad-1",
+        "layout": "device-bottom",
+        "label": {
+          "en": "NEWEST FIRST · NO ADS"
+        },
+        "headline": {
+          "en": "Your feed."
+        },
+        "screenshot": "/screenshots/apple/ipad/en/projects.png",
+        "backgroundColor": "#1535D6",
+        "inverted": true,
+        "typography": {
+          "labelScale": 1.05,
+          "headlineScale": 1.0540184453227932
+        },
+        "transforms": {
+          "caption": {
+            "x": 156.36363636363637,
+            "y": 180,
+            "width": 1751.2727272727273,
+            "height": 656.7272727272727
+          },
+          "device": {
+            "x": 302,
+            "y": 800,
+            "width": 1460,
+            "height": 1896.103896103896,
+            "rotation": 2
+          }
+        },
+        "textElements": [
+          {
+            "id": "emphasis",
+            "text": {
+              "en": "Your pace."
+            },
+            "transform": {
+              "x": 131.59563636363637,
+              "y": 475.5460363636363,
+              "width": 1800.8087272727273,
+              "height": 241.67563636363636,
+              "rotation": 0,
+              "zIndex": 30
+            },
+            "fontSize": 200.14545454545456,
+            "fontWeight": 800,
+            "color": "#F5EFE4",
+            "align": "left"
+          }
+        ],
+        "imageElements": [
+          {
+            "id": "stitch",
+            "src": "/brand/stitch-light.svg",
+            "transform": {
+              "x": 148.54545454545456,
+              "y": 708.0900363636363,
+              "width": 1235.2727272727273,
+              "height": 101.63636363636364,
+              "rotation": -2,
+              "zIndex": 25
+            },
+            "fit": "contain"
+          }
+        ]
+      },
+      {
+        "id": "ipad-2",
+        "layout": "hero",
+        "label": {
+          "en": "SHARE YOUR MAKES"
+        },
+        "headline": {
+          "en": "A home for"
+        },
+        "screenshot": "/screenshots/apple/ipad/en/feed.png",
+        "backgroundColor": "#F5EFE4",
+        "inverted": false,
+        "typography": {
+          "labelScale": 1.05,
+          "headlineScale": 1.0540184453227932
+        },
+        "transforms": {
+          "caption": {
+            "x": 156.36363636363637,
+            "y": 180,
+            "width": 1751.2727272727273,
+            "height": 656.7272727272727
+          },
+          "device": {
+            "x": 302,
+            "y": 800,
+            "width": 1460,
+            "height": 1896.103896103896,
+            "rotation": -2
+          }
+        },
+        "textElements": [
+          {
+            "id": "emphasis",
+            "text": {
+              "en": "your makes."
+            },
+            "transform": {
+              "x": 131.59563636363637,
+              "y": 475.5460363636363,
+              "width": 1800.8087272727273,
+              "height": 241.67563636363636,
+              "rotation": 0,
+              "zIndex": 30
+            },
+            "fontSize": 200.14545454545456,
+            "fontWeight": 800,
+            "color": "#1535D6",
+            "align": "left"
+          }
+        ],
+        "imageElements": [
+          {
+            "id": "stitch",
+            "src": "/brand/stitch.svg",
+            "transform": {
+              "x": 148.54545454545456,
+              "y": 708.0900363636363,
+              "width": 1235.2727272727273,
+              "height": 101.63636363636364,
+              "rotation": -2,
+              "zIndex": 25
+            },
+            "fit": "contain"
+          }
+        ]
+      },
+      {
+        "id": "ipad-3",
+        "layout": "hero",
+        "label": {
+          "en": "THE DETAILS MATTER"
+        },
+        "headline": {
+          "en": "Every make"
+        },
+        "screenshot": "/screenshots/apple/ipad/en/details.png",
+        "backgroundColor": "#C9B8E8",
+        "inverted": false,
+        "typography": {
+          "labelScale": 1.05,
+          "headlineScale": 1.0540184453227932
+        },
+        "transforms": {
+          "caption": {
+            "x": 156.36363636363637,
+            "y": 180,
+            "width": 1751.2727272727273,
+            "height": 656.7272727272727
+          },
+          "device": {
+            "x": 302,
+            "y": 800,
+            "width": 1460,
+            "height": 1896.103896103896,
+            "rotation": 0
+          }
+        },
+        "textElements": [
+          {
+            "id": "emphasis",
+            "text": {
+              "en": "has a story."
+            },
+            "transform": {
+              "x": 131.59563636363637,
+              "y": 475.5460363636363,
+              "width": 1800.8087272727273,
+              "height": 241.67563636363636,
+              "rotation": 0,
+              "zIndex": 30
+            },
+            "fontSize": 200.14545454545456,
+            "fontWeight": 800,
+            "color": "#1535D6",
+            "align": "left"
+          }
+        ],
+        "imageElements": [
+          {
+            "id": "stitch",
+            "src": "/brand/stitch.svg",
+            "transform": {
+              "x": 148.54545454545456,
+              "y": 708.0900363636363,
+              "width": 1235.2727272727273,
+              "height": 101.63636363636364,
+              "rotation": -2,
+              "zIndex": 25
+            },
+            "fit": "contain"
+          }
+        ]
+      },
+      {
+        "id": "ipad-4",
+        "layout": "hero",
+        "label": {
+          "en": "CRAFTS · MAKERS · PROJECTS"
+        },
+        "headline": {
+          "en": "Find your"
+        },
+        "screenshot": "/screenshots/apple/ipad/en/search.png",
+        "backgroundColor": "#F5EFE4",
+        "inverted": false,
+        "typography": {
+          "labelScale": 1.05,
+          "headlineScale": 1.0540184453227932
+        },
+        "transforms": {
+          "caption": {
+            "x": 156.36363636363637,
+            "y": 180,
+            "width": 1751.2727272727273,
+            "height": 656.7272727272727
+          },
+          "device": {
+            "x": 302,
+            "y": 800,
+            "width": 1460,
+            "height": 1896.103896103896,
+            "rotation": -2
+          }
+        },
+        "textElements": [
+          {
+            "id": "emphasis",
+            "text": {
+              "en": "next spark."
+            },
+            "transform": {
+              "x": 131.59563636363637,
+              "y": 475.5460363636363,
+              "width": 1800.8087272727273,
+              "height": 241.67563636363636,
+              "rotation": 0,
+              "zIndex": 30
+            },
+            "fontSize": 200.14545454545456,
+            "fontWeight": 800,
+            "color": "#1535D6",
+            "align": "left"
+          }
+        ],
+        "imageElements": [
+          {
+            "id": "stitch",
+            "src": "/brand/stitch.svg",
+            "transform": {
+              "x": 148.54545454545456,
+              "y": 708.0900363636363,
+              "width": 1235.2727272727273,
+              "height": 101.63636363636364,
+              "rotation": -2,
+              "zIndex": 25
+            },
+            "fit": "contain"
+          }
+        ]
+      },
+      {
+        "id": "ipad-5",
+        "layout": "device-bottom",
+        "label": {
+          "en": "A COMMUNITY FOR CRAFTERS"
+        },
+        "headline": {
+          "en": "Talk craft"
+        },
+        "screenshot": "/screenshots/apple/ipad/en/conversation.png",
+        "backgroundColor": "#F7D46A",
+        "inverted": false,
+        "typography": {
+          "labelScale": 1.05,
+          "headlineScale": 1.0540184453227932
+        },
+        "transforms": {
+          "caption": {
+            "x": 156.36363636363637,
+            "y": 180,
+            "width": 1751.2727272727273,
+            "height": 656.7272727272727
+          },
+          "device": {
+            "x": 302,
+            "y": 800,
+            "width": 1460,
+            "height": 1896.103896103896,
+            "rotation": 2
+          }
+        },
+        "textElements": [
+          {
+            "id": "emphasis",
+            "text": {
+              "en": "with your people."
+            },
+            "transform": {
+              "x": 131.59563636363637,
+              "y": 475.5460363636363,
+              "width": 1800.8087272727273,
+              "height": 241.67563636363636,
+              "rotation": 0,
+              "zIndex": 30
+            },
+            "fontSize": 200.14545454545456,
+            "fontWeight": 800,
+            "color": "#1535D6",
+            "align": "left"
+          }
+        ],
+        "imageElements": [
+          {
+            "id": "stitch",
+            "src": "/brand/stitch.svg",
+            "transform": {
+              "x": 148.54545454545456,
+              "y": 708.0900363636363,
+              "width": 1235.2727272727273,
+              "height": 101.63636363636364,
+              "rotation": -2,
+              "zIndex": 25
+            },
+            "fit": "contain"
+          }
+        ]
+      }
+    ],
+    "tvos": [],
+    "watchos": [],
+    "carplay": [],
+    "mac": [],
+    "android-7": [],
+    "android-10": [],
+    "feature-graphic": [
+      {
+        "id": "craftsky-feature-graphic",
+        "layout": "feature-graphic",
+        "label": {},
+        "headline": {
+          "en": "A home for your makes.\nCraft. Share. Find your people."
+        },
+        "screenshot": "",
+        "backgroundColor": "#1535D6",
+        "inverted": true,
+        "typography": {
+          "headlineScale": 1.15,
+          "appNameScale": 1.3
+        }
+      }
+    ]
+  },
+  "scene": {
+    "backdrop": "solid",
+    "span": false,
+    "decoration": "none",
+    "shadow": 30,
+    "glow": 0,
+    "tilt": 0,
+    "headlineWeight": 800,
+    "headlineScale": 1,
+    "headlineCase": "as-typed",
+    "captionAlign": "left"
+  }
+}
