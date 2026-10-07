@@ -46,7 +46,7 @@ void main() {
 
     final dio = container.read(dioProvider);
 
-    expect(dio.options.baseUrl, 'http://10.0.2.2:18080');
+    expect(dio.options.baseUrl, 'http://127.0.0.1:18080');
     // Signed-out startup gets device identity and error mapping only. Once a
     // registry account is active, the provider rebuilds with lease-scoped 401
     // invalidation as well.
