@@ -14,5 +14,9 @@ next-env.d.ts
 public/fonts/imported/*
 !public/fonts/imported/.gitkeep
 
-# Tester Army output
-.e2e/
+
+# Regenerable bundles and review previews; final PNG folders remain tracked.
+exports/*.zip
+exports/contact-sheet*.png
+exports/*-preview.png
+exports/craftsky-google-play-feature-graphic.png
